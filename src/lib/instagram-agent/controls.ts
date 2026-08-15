@@ -33,21 +33,32 @@ export async function proactiveGate(
  * `paused` (el freno de emergencia) manda sobre las dos y se comprueba aparte,
  * en proactiveGate, junto con el tope diario.
  */
-export type IgFeature = 'comments' | 'outreach';
+export type IgFeature = 'comments' | 'outreach' | 'marketing_optin';
 
+const FEATURE_COLUMN: Record<IgFeature, string> = {
+  comments: 'auto_reply_comments',
+  outreach: 'outreach_enabled',
+  marketing_optin: 'marketing_optin_enabled',
+};
+
+/**
+ * `marketing_optin` es el único que arranca APAGADO: los otros dos deciden si
+ * el agente contesta, este agrega un mensaje extra que el cliente ve. Por eso
+ * su default es false en la columna y acá se lee como false cuando no hay fila.
+ */
 export async function featureEnabled(
   db: SupabaseClient,
   workspaceId: string,
   feature: IgFeature,
 ): Promise<boolean> {
-  const column =
-    feature === 'comments' ? 'auto_reply_comments' : 'outreach_enabled';
+  const column = FEATURE_COLUMN[feature];
   const { data } = await db
     .from('ig_proactive_settings')
     .select(column)
     .eq('workspace_id', workspaceId)
     .maybeSingle();
-  return (data as Record<string, boolean> | null)?.[column] !== false;
+  const value = (data as Record<string, boolean> | null)?.[column];
+  return feature === 'marketing_optin' ? value === true : value !== false;
 }
 
 /**
@@ -160,7 +171,9 @@ export async function logProactiveSend(
       | 'approval'
       | 'comment'
       | 'comment_rule'
-      | 'comment_public';
+      | 'comment_public'
+      /** Pedido de permiso de Marketing Messages (llena la lista de suscriptores). */
+      | 'optin';
     text?: string | null;
   },
 ): Promise<void> {

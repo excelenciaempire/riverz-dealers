@@ -44,6 +44,9 @@ export interface EnqueueInput {
   language?: string | null;
   /** Skip the calling-window delay (manual "call now" from the UI). */
   immediate?: boolean;
+  /** Wait at least this long before the call becomes due. The calling window
+   *  still applies on top. Ignored when `immediate`. */
+  delayMinutes?: number;
 }
 
 export type EnqueueResult =
@@ -240,11 +243,17 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     if (used >= limit) return { enqueued: false, reason: 'monthly_limit_reached' };
   }
 
-  // Schedule.
+  // Schedule. `delayMinutes` pushes the earliest moment forward before the
+  // calling window is applied — used to let a text message have its turn
+  // first, so the phone isn't ringing while the WhatsApp is still unread.
   const callingHours = agent.voice_calling_hours || DEFAULT_CALLING_HOURS;
+  const earliest =
+    input.delayMinutes && input.delayMinutes > 0
+      ? new Date(Date.now() + input.delayMinutes * 60_000)
+      : new Date();
   const scheduledAt = input.immediate
     ? new Date()
-    : nextAllowedTime(tz, callingHours);
+    : nextAllowedTime(tz, callingHours, earliest);
 
   // attempts = retries + 1; clamp to [1, 6] so an automation config can't
   // request an unbounded dial loop.

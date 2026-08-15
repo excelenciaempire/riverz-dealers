@@ -12,7 +12,17 @@ import type { AutomationTriggerType } from '@/types'
  * orders webhook, the cart-recovery cron, etc.).
  */
 
-export type ValueKind = 'number' | 'text' | 'bool' | 'offer' | 'product' | 'tag' | 'segment'
+export type ValueKind =
+  | 'number'
+  | 'text'
+  | 'bool'
+  | 'offer'
+  | 'product'
+  | 'tag'
+  | 'segment'
+  /** Fixed set of values — the picker shows `options` instead of a free text
+   *  box, so nobody has to know the internal spelling ("cancelled_by_customer"). */
+  | 'enum'
 
 /** How a condition on this data point maps onto the engine's condition subjects. */
 export type ConditionSource =
@@ -36,6 +46,8 @@ export interface DataPoint {
   usableInConditions: boolean
   /** When templatable, the `{{vars.KEY}}` injected at send time. */
   templateVarKey?: string
+  /** Allowed values for `valueKind: 'enum'`, in the order they're offered. */
+  options?: { value: string; labelKey: string }[]
   condition: ConditionSource
 }
 
@@ -483,27 +495,48 @@ export const DATA_POINTS: DataPoint[] = [
     condition: { kind: 'message' },
   },
 
-  // ── Voice call result (voice_call_completed trigger) ──
-  // Seeded by the voice result endpoint (persistCallResult) so a follow-up
-  // automation can branch: e.g. call_status = no_answer → send a WhatsApp.
+  // ── Voice call result ──
+  // Seeded twice over: by `persistCallResult` for the voice_call_completed
+  // trigger, and by a `voice_call` step that waits for its result — which is
+  // why `exposed()` also lets them through on any automation that calls.
   {
     id: 'call_status',
     labelKey: 'automations.dpCallStatus',
     group: 'message',
-    valueKind: 'text',
+    valueKind: 'enum',
     triggers: ['voice_call_completed'],
     usableInConditions: true,
     templateVarKey: 'call_status',
+    // Only the states a FINISHED call can be in: queued/dialing/in_progress
+    // never reach a condition, so offering them would just be a dead choice.
+    options: [
+      { value: 'completed', labelKey: 'voice.statusCompleted' },
+      { value: 'no_answer', labelKey: 'voice.statusNoAnswer' },
+      { value: 'busy', labelKey: 'voice.statusBusy' },
+      { value: 'voicemail', labelKey: 'voice.statusVoicemail' },
+      { value: 'failed', labelKey: 'voice.statusFailed' },
+      { value: 'canceled', labelKey: 'voice.statusCanceled' },
+    ],
     condition: { kind: 'var', varKey: 'call_status' },
   },
   {
     id: 'call_outcome',
     labelKey: 'automations.dpCallOutcome',
     group: 'message',
-    valueKind: 'text',
+    valueKind: 'enum',
     triggers: ['voice_call_completed'],
     usableInConditions: true,
     templateVarKey: 'call_outcome',
+    options: [
+      { value: 'confirmed', labelKey: 'voice.outcomeConfirmed' },
+      { value: 'cancelled_by_customer', labelKey: 'voice.outcomeCancelled' },
+      { value: 'rescheduled', labelKey: 'voice.outcomeRescheduled' },
+      { value: 'recovered', labelKey: 'voice.outcomeRecovered' },
+      { value: 'declined', labelKey: 'voice.outcomeDeclined' },
+      { value: 'callback_requested', labelKey: 'voice.outcomeCallback' },
+      { value: 'opt_out', labelKey: 'voice.outcomeOptOut' },
+      { value: 'no_outcome', labelKey: 'voice.outcomeNone' },
+    ],
     condition: { kind: 'var', varKey: 'call_outcome' },
   },
   {
@@ -528,18 +561,42 @@ export const DATA_POINTS: DataPoint[] = [
   },
 ]
 
-function exposed(dp: DataPoint, trigger: AutomationTriggerType): boolean {
-  return dp.triggers === 'all' || dp.triggers.includes(trigger)
+/**
+ * Data points seeded by a `voice_call` step that WAITS for its result, not by
+ * the trigger. Any automation that calls has them from that step onward,
+ * whatever started it — that's what lets "llamar; si no contesta, mandar
+ * WhatsApp" live in one automation instead of two.
+ */
+const VOICE_RESULT_DP_IDS = ['call_status', 'call_outcome', 'call_duration', 'call_summary']
+
+export interface DataPointScope {
+  /** True when the automation being edited contains a call step. */
+  hasVoiceCall?: boolean
+}
+
+function exposed(
+  dp: DataPoint,
+  trigger: AutomationTriggerType,
+  scope?: DataPointScope,
+): boolean {
+  if (dp.triggers === 'all' || dp.triggers.includes(trigger)) return true
+  return Boolean(scope?.hasVoiceCall) && VOICE_RESULT_DP_IDS.includes(dp.id)
 }
 
 /** Data points selectable in a CONDITION for this trigger. */
-export function conditionDataPoints(trigger: AutomationTriggerType): DataPoint[] {
-  return DATA_POINTS.filter((dp) => dp.usableInConditions && exposed(dp, trigger))
+export function conditionDataPoints(
+  trigger: AutomationTriggerType,
+  scope?: DataPointScope,
+): DataPoint[] {
+  return DATA_POINTS.filter((dp) => dp.usableInConditions && exposed(dp, trigger, scope))
 }
 
 /** Data points injectable into a TEMPLATE variable for this trigger. */
-export function templateDataPoints(trigger: AutomationTriggerType): DataPoint[] {
-  return DATA_POINTS.filter((dp) => dp.templateVarKey && exposed(dp, trigger))
+export function templateDataPoints(
+  trigger: AutomationTriggerType,
+  scope?: DataPointScope,
+): DataPoint[] {
+  return DATA_POINTS.filter((dp) => dp.templateVarKey && exposed(dp, trigger, scope))
 }
 
 /**

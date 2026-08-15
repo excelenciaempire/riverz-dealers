@@ -735,9 +735,24 @@ export interface VoiceCallStepConfig {
   /** Optional one-off objective that overrides the agent's configured
    *  voice_objectives[call_type].objective for this automation. */
   objective_override?: string;
-  /** Retry policy overrides (fall back to the agent's config). */
+  /** How many times to try the call. Falls back to the agent's config.
+   *  (There is deliberately no per-step retry DELAY: the gap between
+   *  attempts is decided when a call comes back unanswered, from the
+   *  agent's `voice_retry_delay_minutes`. A step-level copy was declared
+   *  here for a while and no code ever read it.) */
   max_attempts?: number;
-  retry_delay_minutes?: number;
+  /**
+   * Suspend the run until the call reaches its final state, then continue
+   * with `call_status` / `call_outcome` / `call_duration` / `call_summary`
+   * available as data points — so "llamar; si no contesta, mandar WhatsApp"
+   * works in ONE automation.
+   *
+   * Undefined means the OLD fire-and-forget behavior: the nodes that already
+   * exist in production were built against it, and flipping them silently
+   * would change what live automations do. The builder writes `true` on every
+   * node it creates from now on.
+   */
+  wait_for_result?: boolean;
 }
 
 export type AutomationStepConfig =

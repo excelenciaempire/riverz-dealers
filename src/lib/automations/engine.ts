@@ -214,6 +214,61 @@ export async function resumePendingExecution(pending: {
   }
 }
 
+/**
+ * Wake a run parked on a `voice_call` step, now that the call has a result.
+ *
+ * Called once per call from `persistCallResult`, which already guarantees it
+ * only fires on the FINAL state (a call still cycling through retries hasn't
+ * finished, so the branch must not be taken yet).
+ *
+ * A no-op when nothing is waiting — most calls (manual, campaign, follow-up)
+ * were never started by an automation.
+ */
+export async function resumeAfterVoiceCall(
+  callId: string,
+  vars: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const db = supabaseAdmin()
+    const { data: rows } = await db
+      .from('automation_pending_executions')
+      .select('*')
+      .eq('resume_key', callId)
+      .eq('status', 'pending')
+      .limit(1)
+    const row = (rows ?? [])[0] as Record<string, unknown> | undefined
+    if (!row) return
+
+    // Same claim as the cron: only the writer that flips pending→running
+    // proceeds, so the 24 h timeout sweep and this call can't both resume.
+    const { data: claim } = await db
+      .from('automation_pending_executions')
+      .update({ status: 'running' })
+      .eq('id', row.id as string)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+    if (!claim) return
+
+    const stored = (row.context as AutomationContext) ?? {}
+    await resumePendingExecution({
+      id: row.id as string,
+      automation_id: row.automation_id as string,
+      workspace_id: (row.workspace_id ?? row.user_id) as string,
+      contact_id: (row.contact_id as string | null) ?? null,
+      log_id: (row.log_id as string | null) ?? null,
+      parent_step_id: (row.parent_step_id as string | null) ?? null,
+      branch: (row.branch as 'yes' | 'no' | null) ?? null,
+      next_step_position: row.next_step_position as number,
+      // The real outcome replaces the "no contestó" placeholders seeded when
+      // the run parked.
+      context: { ...stored, vars: { ...(stored.vars ?? {}), ...vars } },
+    })
+  } catch (err) {
+    console.error('[automations] resumeAfterVoiceCall failed:', callId, err)
+  }
+}
+
 // ------------------------------------------------------------
 // Internal execution
 // ------------------------------------------------------------
@@ -371,6 +426,90 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         step_type: step.step_type,
         status: 'success',
         detail: `waiting ${cfg.amount} ${cfg.unit}`,
+      })
+      status = 'partial'
+      await appendResults(args.logId, results, status, errorMessage)
+      return
+    }
+
+    // A call the run WAITS for is the second suspension point. Same
+    // machinery as `wait`, with one difference: the row is also keyed by
+    // the call id, so the finished call can wake it up long before run_at.
+    // Without this the next step ran while the phone was still ringing.
+    if (step.step_type === 'voice_call' && waitsForVoiceResult(step)) {
+      let enqueued: { callId: string | null; detail: string }
+      try {
+        enqueued = await enqueueVoiceCallStep(step, args)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        results.push({
+          step_id: step.id,
+          step_type: step.step_type,
+          status: 'failed',
+          detail: msg,
+        })
+        await appendResults(args.logId, results, 'failed', msg)
+        return
+      }
+
+      // Nothing to wait for (kill switch, opt-out, no phone, agent paused).
+      // Carry on INLINE rather than parking forever: the run continues with
+      // the seeded "no contestó" values, which is what the merchant's
+      // branch already handles.
+      if (!enqueued.callId) {
+        args.context.vars = { ...(args.context.vars ?? {}), ...VOICE_CALL_PENDING_VARS }
+        results.push({
+          step_id: step.id,
+          step_type: step.step_type,
+          status: 'success',
+          detail: enqueued.detail,
+        })
+        continue
+      }
+
+      const parkedContext: AutomationContext = {
+        ...args.context,
+        vars: { ...(args.context.vars ?? {}), ...VOICE_CALL_PENDING_VARS },
+      }
+      const { error: parkErr } = await db
+        .from('automation_pending_executions')
+        .insert({
+          automation_id: args.automation.id,
+          user_id:
+            args.ownerUserId ??
+            (args.automation as { user_id?: string | null }).user_id ??
+            null,
+          workspace_id: args.automation.workspace_id,
+          contact_id: args.contactId,
+          log_id: args.logId,
+          parent_step_id: args.parentStepId,
+          branch: args.branch,
+          next_step_position: step.position + 1,
+          context: parkedContext,
+          resume_key: enqueued.callId,
+          run_at: new Date(Date.now() + VOICE_CALL_WAIT_TIMEOUT_MS).toISOString(),
+          status: 'pending',
+        })
+      if (parkErr) {
+        // The call is already dialing; we just can't branch on it. Say so and
+        // keep going instead of dropping the rest of the automation.
+        console.error('[automations] no se pudo esperar la llamada:', parkErr)
+        args.context.vars = { ...(args.context.vars ?? {}), ...VOICE_CALL_PENDING_VARS }
+        results.push({
+          step_id: step.id,
+          step_type: step.step_type,
+          status: 'failed',
+          detail: `${enqueued.detail} — sin espera: ${parkErr.message}`,
+        })
+        status = 'partial'
+        continue
+      }
+
+      results.push({
+        step_id: step.id,
+        step_type: step.step_type,
+        status: 'success',
+        detail: `${enqueued.detail} — esperando el resultado`,
       })
       status = 'partial'
       await appendResults(args.logId, results, status, errorMessage)
@@ -666,32 +805,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     }
 
     case 'voice_call': {
-      const cfg = step.step_config as VoiceCallStepConfig
-      if (!args.contactId) throw new Error('voice_call needs a contact')
-      if (!cfg.agent_id) throw new Error('voice_call needs agent_id')
-      // Anti-loop: a call started FROM a voice_call_completed trigger must
-      // not enqueue another call, or an unanswered → call → unanswered chain
-      // would never end.
-      if (args.automation.trigger_type === 'voice_call_completed') {
-        return 'voice_call skipped (would loop on voice_call_completed)'
-      }
-      const callType: VoiceCallType =
-        cfg.call_type ?? defaultVoiceCallType(args.automation.trigger_type)
-      // Surface the trigger's accumulated vars (order/cart payload) to the
-      // agent as call context, plus any one-off objective override.
-      const context: Record<string, unknown> = { ...(args.context.vars ?? {}) }
-      if (cfg.objective_override) context.objective_override = cfg.objective_override
-      const result = await enqueueCall({
-        workspaceId: args.automation.workspace_id,
-        agentId: cfg.agent_id,
-        contactId: args.contactId,
-        callType,
-        automationId: args.automation.id,
-        context,
-        maxAttempts: cfg.max_attempts,
-      })
-      if (!result.enqueued) return `voice_call not enqueued: ${result.reason}`
-      return `voice_call queued (${result.callId})`
+      const outcome = await enqueueVoiceCallStep(step, args)
+      return outcome.detail
     }
 
     case 'close_conversation': {
@@ -837,6 +952,84 @@ async function isContactInSegment(
     console.error('[automations] segment resolve failed:', err)
     return false
   }
+}
+
+/**
+ * Enqueue the call a `voice_call` step asks for.
+ *
+ * Split out of `runStep` because the step is BOTH a normal action (legacy
+ * fire-and-forget nodes) and a suspension point (nodes that wait for the
+ * result): the loop needs the call id to park the run on, and `runStep` only
+ * hands back a log line.
+ */
+async function enqueueVoiceCallStep(
+  step: AutomationStep,
+  args: ExecuteArgs,
+): Promise<{ callId: string | null; detail: string }> {
+  const cfg = step.step_config as VoiceCallStepConfig
+  if (!args.contactId) throw new Error('voice_call needs a contact')
+  if (!cfg.agent_id) throw new Error('voice_call needs agent_id')
+  // Anti-loop: a call started FROM a voice_call_completed trigger must
+  // not enqueue another call, or an unanswered → call → unanswered chain
+  // would never end.
+  if (args.automation.trigger_type === 'voice_call_completed') {
+    return {
+      callId: null,
+      detail: 'voice_call skipped (would loop on voice_call_completed)',
+    }
+  }
+  const callType: VoiceCallType =
+    cfg.call_type ?? defaultVoiceCallType(args.automation.trigger_type)
+  // Surface the trigger's accumulated vars (order/cart payload) to the
+  // agent as call context, plus any one-off objective override.
+  const context: Record<string, unknown> = { ...(args.context.vars ?? {}) }
+  if (cfg.objective_override) context.objective_override = cfg.objective_override
+  const result = await enqueueCall({
+    workspaceId: args.automation.workspace_id,
+    agentId: cfg.agent_id,
+    contactId: args.contactId,
+    callType,
+    automationId: args.automation.id,
+    context,
+    maxAttempts: cfg.max_attempts,
+  })
+  if (!result.enqueued) {
+    return { callId: null, detail: `voice_call not enqueued: ${result.reason}` }
+  }
+  return { callId: result.callId, detail: `voice_call queued (${result.callId})` }
+}
+
+/**
+ * Does this step park the run until the call ends?
+ *
+ * `undefined` = the old fire-and-forget shape. Nodes already saved in
+ * production were built against it, so they keep it; the builder writes
+ * `true` on everything it creates from now on.
+ */
+function waitsForVoiceResult(step: AutomationStep): boolean {
+  return (step.step_config as VoiceCallStepConfig)?.wait_for_result === true
+}
+
+/**
+ * How long a parked call run waits before giving up and continuing down the
+ * "no contestó" path. Generous on purpose: it has to outlast every retry the
+ * agent may schedule (default 2 attempts, 2 h apart). The cron that sweeps
+ * stuck calls at 20 min is what normally ends a call, so this is a net, not
+ * the usual path.
+ */
+const VOICE_CALL_WAIT_TIMEOUT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Result vars seeded when the run parks. If the call never reports back and
+ * the timeout fires, the automation resumes with these — so an unanswered
+ * call and a lost call take the same ("no contestó") path instead of hitting
+ * an undefined variable. A real result overwrites them.
+ */
+const VOICE_CALL_PENDING_VARS: Record<string, unknown> = {
+  call_status: 'no_answer',
+  call_outcome: 'no_outcome',
+  call_duration: 0,
+  call_summary: '',
 }
 
 /** Map a trigger to the sensible voice call script when the step omits it. */

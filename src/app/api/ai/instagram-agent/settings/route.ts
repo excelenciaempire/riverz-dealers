@@ -36,7 +36,7 @@ export async function GET() {
     ? await supabase
         .from('ig_proactive_settings')
         .select(
-          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook',
+          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, marketing_optin_enabled',
         )
         .eq('workspace_id', workspaceId)
         .maybeSingle()
@@ -50,6 +50,7 @@ export async function GET() {
     comment_max_thread_replies?: number;
     comment_public_reply?: boolean;
     comment_facebook?: boolean;
+    marketing_optin_enabled?: boolean;
   } | null;
   return NextResponse.json({
     paused: s?.paused ?? false,
@@ -65,6 +66,9 @@ export async function GET() {
         : 3,
     comment_public_reply: s?.comment_public_reply === true,
     comment_facebook: s?.comment_facebook === true,
+    // A diferencia del resto, este arranca APAGADO: agrega un mensaje que el
+    // cliente ve, así que se enciende a propósito o no se enciende.
+    marketing_optin_enabled: s?.marketing_optin_enabled === true,
   });
 }
 
@@ -101,7 +105,8 @@ export async function POST(request: Request) {
     body.comment_audience != null ||
     body.comment_max_thread_replies != null ||
     typeof body.comment_public_reply === 'boolean' ||
-    typeof body.comment_facebook === 'boolean'
+    typeof body.comment_facebook === 'boolean' ||
+    typeof body.marketing_optin_enabled === 'boolean'
   ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
     // A quién contesta la IA en comentarios y cuánto insiste (migración 132).
@@ -114,6 +119,9 @@ export async function POST(request: Request) {
     }
     if (typeof body.comment_facebook === 'boolean') {
       patch.comment_facebook = body.comment_facebook;
+    }
+    if (typeof body.marketing_optin_enabled === 'boolean') {
+      patch.marketing_optin_enabled = body.marketing_optin_enabled;
     }
     if (body.comment_max_thread_replies != null) {
       patch.comment_max_thread_replies = Math.max(

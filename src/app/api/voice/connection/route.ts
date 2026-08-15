@@ -75,45 +75,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const cfg: VoiceConnectionConfig = {
-    phone_number: body.config?.phone_number?.trim() || undefined,
-    country: body.config?.country?.trim() || undefined,
-    inbound_enabled: Boolean(body.config?.inbound_enabled),
-    monthly_minutes_limit:
-      body.config?.monthly_minutes_limit != null
-        ? Number(body.config.monthly_minutes_limit)
-        : null,
-    kill_switch: Boolean(body.config?.kill_switch),
-    recording_enabled: Boolean(body.config?.recording_enabled),
-    recording_disclosure: Boolean(body.config?.recording_disclosure),
-    transfer_number: body.config?.transfer_number?.trim() || undefined,
-    // Saludo: espera antes de hablar (sin apuro) + quién habla primero por dirección.
-    greeting_delay_seconds:
-      body.config?.greeting_delay_seconds != null
-        ? Math.max(0, Math.min(Number(body.config.greeting_delay_seconds), 10))
-        : undefined,
-    silence_timeout_seconds:
-      body.config?.silence_timeout_seconds != null
-        ? Math.max(0, Math.min(Number(body.config.silence_timeout_seconds), 60))
-        : undefined,
-    inbound_first_speaker:
-      body.config?.inbound_first_speaker === 'agent' ? 'agent' : 'customer',
-    outbound_first_speaker:
-      body.config?.outbound_first_speaker === 'customer' ? 'customer' : 'agent',
-    // COD / dropshipping mode (opt-in)
-    cod_mode: Boolean(body.config?.cod_mode),
-    order_writeback: body.config?.order_writeback
-      ? {
-          enabled: Boolean(body.config.order_writeback.enabled),
-          confirmed_tag: body.config.order_writeback.confirmed_tag?.trim() || undefined,
-          cancelled_tag: body.config.order_writeback.cancelled_tag?.trim() || undefined,
-        }
-      : undefined,
-    dedupe_hours:
-      body.config?.dedupe_hours != null ? Number(body.config.dedupe_hours) : undefined,
-  };
-  const status = cfg.phone_number ? 'connected' : 'pending';
-
   try {
     const admin = supabaseAdmin();
     const { data: existing } = await admin
@@ -123,20 +84,51 @@ export async function PUT(request: Request) {
       .eq('channel', 'voice')
       .maybeSingle();
 
-    // Preserve everything owned by the numbers/regulatory flow: NADA de esto
-    // viene en este formulario, así que reconstruir cfg desde la lista blanca
-    // los borraba. El id del número ya se conservaba; el expediente
-    // regulatorio no, así que guardar cualquier ajuste de la tarjeta de voz
-    // tiraba a la basura una documentación YA APROBADA por Telnyx y obligaba
-    // a rehacer el trámite.
-    const prevConfig = (existing as { config?: VoiceConnectionConfig } | null)?.config;
-    if (prevConfig?.telnyx_number_id) cfg.telnyx_number_id = prevConfig.telnyx_number_id;
-    if (prevConfig?.regulatory_group_id) {
-      cfg.regulatory_group_id = prevConfig.regulatory_group_id;
-    }
-    if (prevConfig?.regulatory_status) {
-      cfg.regulatory_status = prevConfig.regulatory_status;
-    }
+    const prevConfig =
+      ((existing as { config?: VoiceConnectionConfig } | null)?.config ??
+        {}) as VoiceConnectionConfig;
+
+    // MERGE onto what's stored, don't rebuild from a whitelist.
+    //
+    // This used to be a fresh object listing every field, which meant any key
+    // the form didn't send got erased. That already destroyed one merchant's
+    // APPROVED Telnyx regulatory file (patched field by field afterwards), and
+    // the same trap fires again every time a control leaves the form. Merging
+    // makes "not sent" mean "leave it alone" — the only safe default for a
+    // config several different flows write to.
+    const cfg: VoiceConnectionConfig = {
+      ...prevConfig,
+      inbound_enabled: Boolean(body.config?.inbound_enabled),
+      // 0 and null both mean "no cap" — that's what `enqueueCall` checks
+      // (`limit && limit > 0`) and what the field's hint promises.
+      monthly_minutes_limit:
+        body.config?.monthly_minutes_limit != null
+          ? Math.max(0, Number(body.config.monthly_minutes_limit) || 0)
+          : null,
+      kill_switch: Boolean(body.config?.kill_switch),
+      recording_enabled: Boolean(body.config?.recording_enabled),
+      recording_disclosure: Boolean(body.config?.recording_disclosure),
+      transfer_number: body.config?.transfer_number?.trim() || undefined,
+      // COD / dropshipping mode (opt-in)
+      cod_mode: Boolean(body.config?.cod_mode),
+      order_writeback: body.config?.order_writeback
+        ? {
+            enabled: Boolean(body.config.order_writeback.enabled),
+            confirmed_tag: body.config.order_writeback.confirmed_tag?.trim() || undefined,
+            cancelled_tag: body.config.order_writeback.cancelled_tag?.trim() || undefined,
+          }
+        : prevConfig.order_writeback,
+    };
+
+    // The number and its country belong to the purchase + regulatory flow
+    // (/api/voice/numbers). They were also editable by hand right below the
+    // card that buys them, so a typo could leave `phone_number` pointing at a
+    // number the workspace doesn't own while `telnyx_number_id` still pointed
+    // at the real one. One owner now.
+    cfg.phone_number = prevConfig.phone_number;
+    cfg.country = prevConfig.country;
+
+    const status = cfg.phone_number ? 'connected' : 'pending';
 
     if (existing) {
       await admin

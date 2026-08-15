@@ -701,12 +701,16 @@ export function AgentEditor({
       voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
       model: DEFAULT_MODEL,
       scope,
-      // Si apagaron la voz, el canal de llamadas deja de tener sentido:
-      // lo soltamos para no dejar un alcance que ya no aplica.
-      channels:
-        scope === 'channels'
-          ? channels.filter((c) => c !== 'voice' || voice.voice_enabled)
-          : [],
+      // El canal de llamadas se guarda aunque la voz esté apagada.
+      //
+      // Antes se filtraba, con el argumento de no dejar un alcance que no
+      // aplica. Pero el filtro corría al GUARDAR, así que apagar la voz un
+      // momento —para probar algo, o sin querer— borraba la selección para
+      // siempre, sin aviso, y al volver a encenderla el agente ya no atendía
+      // el teléfono. Quién atiende una llamada lo decide `pickVoiceAgent`, que
+      // ya exige `voice_enabled`: un canal guardado de más no hace nada, uno
+      // borrado sí.
+      channels: scope === 'channels' ? channels : [],
       product_scope: productScope,
       product_ids: productScope === 'specific' ? selectedProducts : [],
     };

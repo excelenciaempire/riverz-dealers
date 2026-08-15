@@ -61,6 +61,8 @@ export interface PlanContext {
   comment_window_7d?: number;
   /** Personas con el perfil ya investigado — lo que hace que el DM sea 1:1. */
   researched?: number;
+  /** Dieron permiso de Marketing Messages: contactables sin ventana que venza. */
+  subscribers?: number;
   instagram_connected?: boolean;
   /** Agentes del workspace: cuál de sus voces escribe los DMs. */
   agents?: Array<{ id: string; name: string }>;
@@ -299,6 +301,28 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
             </span>
           </label>
 
+          {/* Lo que hace crecer la lista: mientras el agente ya está
+              conversando, le pregunta a la persona si quiere recibir
+              novedades. Quien acepta queda contactable siempre, sin depender
+              de la ventana de 24 h. */}
+          <label className="flex items-start gap-3 p-3">
+            <Switch
+              checked={settings.marketingOptin}
+              onCheckedChange={(v) => {
+                settings.setMarketingOptin(v);
+                settings.save({ marketing_optin_enabled: v });
+              }}
+            />
+            <span>
+              <span className="block text-[13px] font-medium text-foreground">
+                {t('igAgent.marketingOptin')}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                {t('igAgent.marketingOptinHint')}
+              </span>
+            </span>
+          </label>
+
           <label
             className="flex items-center justify-between gap-3 p-3"
             title={t('igAgent.controlsDailyCapHint')}
@@ -460,7 +484,12 @@ export function IgStats({ overview }: { overview: IgOverview }) {
     return { sent, replies, conversions };
   }, [campaigns]);
 
-  const reachable = context?.reachable_now ?? 0;
+  // Suscriptores: los que dieron permiso para recibir novedades. Suman al
+  // alcance porque a ellos se les puede escribir SIEMPRE — no dependen de
+  // haber comentado esta semana, que es lo que hacía que este número
+  // dependiera de si la marca publicó algo o no.
+  const subscribers = context?.subscribers ?? 0;
+  const reachable = (context?.reachable_now ?? 0) + subscribers;
   const replyRate =
     totals.sent > 0 ? Math.round((totals.replies / totals.sent) * 100) : 0;
 
@@ -473,15 +502,18 @@ export function IgStats({ overview }: { overview: IgOverview }) {
         // un DM 1:1 y uno con el nombre puesto, y sin esto no se veía en ningún
         // lado si ese trabajo estaba pasando.
         sub={
-          context?.researched
-            ? t('igAgent.researchedSub', {
-                n: fmt.number(context.researched),
-              })
-            : undefined
+          subscribers > 0
+            ? t('igAgent.subscribersSub', { n: fmt.number(subscribers) })
+            : context?.researched
+              ? t('igAgent.researchedSub', {
+                  n: fmt.number(context.researched),
+                })
+              : undefined
         }
         title={t('igAgent.reachHint', {
           dm: fmt.number(context?.in_window_24h ?? 0),
           comments: fmt.number(context?.comment_window_7d ?? 0),
+          subs: fmt.number(subscribers),
           total: fmt.number(context?.instagram_reachable ?? 0),
         })}
         lead={
@@ -1327,6 +1359,8 @@ export interface ProactiveSettings {
   publicReply: boolean;
   /** Contesta también los comentarios de Facebook. */
   facebook: boolean;
+  /** Pide permiso para escribir fuera de la ventana de Meta (migración 148). */
+  marketingOptin: boolean;
   setPaused: (v: boolean) => void;
   setAutoReply: (v: boolean) => void;
   setOutreach: (v: boolean) => void;
@@ -1335,6 +1369,7 @@ export interface ProactiveSettings {
   setMaxThreadReplies: (v: number) => void;
   setPublicReply: (v: boolean) => void;
   setFacebook: (v: boolean) => void;
+  setMarketingOptin: (v: boolean) => void;
   save: (next: {
     paused?: boolean;
     daily_cap?: number;
@@ -1344,6 +1379,7 @@ export interface ProactiveSettings {
     comment_max_thread_replies?: number;
     comment_public_reply?: boolean;
     comment_facebook?: boolean;
+    marketing_optin_enabled?: boolean;
   }) => void;
 }
 
@@ -1357,6 +1393,9 @@ export function useProactiveSettings(): ProactiveSettings {
   const [maxThreadReplies, setMaxThreadReplies] = useState(3);
   const [publicReply, setPublicReply] = useState(false);
   const [facebook, setFacebook] = useState(false);
+  // Pedir permiso para escribir fuera de la ventana. Arranca APAGADO: es una
+  // burbuja más que el cliente recibe, no algo que se le agregue solo.
+  const [marketingOptin, setMarketingOptin] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -1377,6 +1416,7 @@ export function useProactiveSettings(): ProactiveSettings {
           );
           setPublicReply(j.comment_public_reply === true);
           setFacebook(j.comment_facebook === true);
+          setMarketingOptin(j.marketing_optin_enabled === true);
           setLoaded(true);
         }
       })
@@ -1396,6 +1436,7 @@ export function useProactiveSettings(): ProactiveSettings {
       comment_max_thread_replies?: number;
       comment_public_reply?: boolean;
       comment_facebook?: boolean;
+      marketing_optin_enabled?: boolean;
     }) => {
       void fetchWithCsrf('/api/ai/instagram-agent/settings', {
         method: 'POST',
@@ -1416,6 +1457,7 @@ export function useProactiveSettings(): ProactiveSettings {
     maxThreadReplies,
     publicReply,
     facebook,
+    marketingOptin,
     setPaused,
     setAutoReply,
     setOutreach,
@@ -1424,6 +1466,7 @@ export function useProactiveSettings(): ProactiveSettings {
     setMaxThreadReplies,
     setPublicReply,
     setFacebook,
+    setMarketingOptin,
     save,
   };
 }

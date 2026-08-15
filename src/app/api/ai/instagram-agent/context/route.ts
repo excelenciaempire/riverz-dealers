@@ -42,6 +42,7 @@ export async function GET() {
     { data: agentRows },
     defaultAgent,
     { count: researchedCount },
+    { count: subscriberCount },
   ] = await Promise.all([
       supabase.from('contacts').select('*', { count: 'exact', head: true }),
       loadAudienceStats(supabase),
@@ -77,6 +78,13 @@ export async function GET() {
         .from('contact_ig_profile')
         .select('contact_id', { count: 'exact', head: true })
         .not('opener_hint', 'is', null),
+      // Suscriptores: los que dieron permiso de Marketing Messages. Es el único
+      // número de esta pantalla que NO caduca — al resto lo mata el reloj de
+      // Meta en horas o días.
+      supabase
+        .from('meta_marketing_optins')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active'),
     ]);
 
   return NextResponse.json({
@@ -90,6 +98,8 @@ export async function GET() {
     comment_window_7d: audience.comment_window_7d,
     /** Personas con el perfil ya investigado (tienen gancho de apertura). */
     researched: researchedCount ?? 0,
+    /** Dieron permiso: se les puede escribir cuando el comercio quiera. */
+    subscribers: subscriberCount ?? 0,
     instagram_connected: (igConns ?? 0) > 0,
     agents: (agentRows ?? []) as Array<{ id: string; name: string }>,
     default_agent_id: defaultAgent.id,

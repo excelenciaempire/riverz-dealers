@@ -17,18 +17,6 @@ export const voice = {
     es: "La voz con la que hablará el agente. Escúchala antes de elegir.",
     en: "The voice the agent speaks with. Listen before choosing.",
   },
-  preview: { es: "Escuchar", en: "Play sample" },
-  previewPlaying: { es: "Reproduciendo…", en: "Playing…" },
-  customVoiceId: { es: "O pega un ID de voz de ElevenLabs", en: "Or paste an ElevenLabs voice ID" },
-  systemPrompt: { es: "Instrucciones del sistema (llamadas)", en: "System prompt (calls)" },
-  systemPromptHint: {
-    es: "Instrucciones propias de las llamadas, además del persona del agente. Tono, qué priorizar, qué evitar.",
-    en: "Call-specific instructions on top of the agent's persona. Tone, what to prioritize, what to avoid.",
-  },
-  systemPromptPlaceholder: {
-    es: "Ej: Sé breve y cálido. Confirmá datos de envío. No prometas descuentos que no estén autorizados.",
-    en: "E.g. Be brief and warm. Confirm shipping details. Don't promise unauthorized discounts.",
-  },
   greeting: { es: "Saludo inicial", en: "Opening line" },
   greetingHint: {
     es: "Lo primero que dice al conectar. Usa {{contact_name}} para el nombre.",
@@ -39,13 +27,15 @@ export const voice = {
     es: "Qué debe lograr el agente en cada tipo de llamada. Si lo dejas vacío, usa un objetivo por defecto.",
     en: "What the agent should accomplish per call type. Left empty, a default is used.",
   },
-  objOrderConfirmation: { es: "Confirmar pedido", en: "Confirm order" },
-  objCartRecovery: { es: "Recuperar carrito", en: "Recover cart" },
-  objFollowup: { es: "Seguimiento (sin respuesta)", en: "Follow-up (no reply)" },
-  objInbound: { es: "Llamada entrante", en: "Incoming call" },
+  // Los nombres de los cuatro tipos viven en `type*` (abajo) — son los mismos
+  // que muestra el registro de llamadas, y tenerlos dos veces hacía que la
+  // misma llamada se llamara distinto según la pantalla.
   objEnabled: { es: "Activo", en: "On" },
   objPlaceholder: { es: "Describe el objetivo de la llamada…", en: "Describe the call objective…" },
-  maxDuration: { es: "Duración máxima (segundos)", en: "Max duration (seconds)" },
+  objFollowupSharedDelay: {
+    es: "Usa el mismo tiempo de espera que el seguimiento por mensaje, en Avanzado.",
+    en: "Uses the same wait time as the message follow-up, under Advanced.",
+  },
   callingHours: { es: "Horario de llamadas", en: "Calling hours" },
   callingHoursHint: {
     es: "Solo se llama dentro de esta franja (zona horaria del espacio de trabajo).",
@@ -53,7 +43,6 @@ export const voice = {
   },
   from: { es: "Desde", en: "From" },
   to: { es: "Hasta", en: "To" },
-  days: { es: "Días", en: "Days" },
   hoursOvernight: {
     es: "Turno noche: sigue hasta esa hora del día siguiente.",
     en: "Overnight: runs until that time the next day.",
@@ -62,8 +51,14 @@ export const voice = {
     es: "Elige al menos un día.",
     en: "Choose at least one day.",
   },
-  retries: { es: "Reintentos si no contesta", en: "Retries if no answer" },
-  retryDelay: { es: "Espera entre reintentos (min)", en: "Wait between retries (min)" },
+  retries: { es: "Si no contesta", en: "If nobody answers" },
+  retriesHint: {
+    es: "Cuántas veces vuelve a marcar, con un par de horas entre intento e intento.",
+    en: "How many times it dials again, a couple of hours apart.",
+  },
+  retriesNone: { es: "No insistir", en: "Don't retry" },
+  retriesOnce: { es: "Insistir 1 vez", en: "Retry once" },
+  retriesTwice: { es: "Insistir 2 veces", en: "Retry twice" },
 
   // AI-assisted setup + "AI decides"
   setupTitle: { es: "Configurar con IA", en: "Set up with AI" },
@@ -101,7 +96,6 @@ export const voice = {
   summary: { es: "Resumen", en: "Summary" },
   noTranscript: { es: "Sin transcripción.", en: "No transcript." },
   callWithAi: { es: "Llamar con IA", en: "Call with AI" },
-  calling: { es: "Llamando…", en: "Calling…" },
   callQueued: { es: "Llamada en cola", en: "Call queued" },
   callFailed: { es: "No se pudo iniciar la llamada", en: "Could not start the call" },
 
@@ -128,10 +122,6 @@ export const voice = {
 
   // ── Contact · opt-out ──
   optOut: { es: "No llamar", en: "Do not call" },
-  optOutHint: {
-    es: "El agente de voz no llamará a este contacto.",
-    en: "The voice agent won't call this contact.",
-  },
 
   // ── Integrations · voice card ──
   cardTitle: { es: "Voz / Teléfono", en: "Voice / Phone" },
@@ -141,8 +131,11 @@ export const voice = {
   },
   phoneNumber: { es: "Número asignado", en: "Assigned number" },
   phoneNumberPlaceholder: { es: "+57 …", en: "+1 …" },
-  country: { es: "País", en: "Country" },
   inboundEnabled: { es: "Contestar llamadas entrantes", en: "Answer incoming calls" },
+  inboundEnabledHint: {
+    es: "El agente atiende a quien llame a tu número.",
+    en: "The agent picks up when someone calls your number.",
+  },
   monthlyLimit: { es: "Límite de minutos al mes", en: "Monthly minutes limit" },
   monthlyLimitHint: { es: "0 = sin límite", en: "0 = unlimited" },
   killSwitch: { es: "Pausar todas las llamadas", en: "Pause all calls" },
@@ -150,19 +143,12 @@ export const voice = {
     es: "Detiene de inmediato las llamadas salientes y entrantes.",
     en: "Immediately stops outbound and inbound calls.",
   },
-  greetingDelay: { es: "Espera antes de hablar (seg)", en: "Delay before speaking (sec)" },
-  silenceTimeout: { es: "Colgar por silencio (seg, 0=off)", en: "Hang up on silence (sec, 0=off)" },
-  outboundFirstSpeaker: { es: "Quién habla primero (salientes)", en: "Who speaks first (outbound)" },
-  inboundFirstSpeaker: { es: "Quién habla primero (entrantes)", en: "Who speaks first (inbound)" },
-  speakerAgent: { es: "El agente saluda", en: "Agent greets" },
-  speakerCustomer: { es: "Espera al cliente", en: "Wait for the customer" },
   testCall: { es: "Probar llamada", en: "Test call" },
   testCallHint: {
     es: "Te llamamos ahora con este agente para escucharlo.",
     en: "We call you now with this agent so you can hear it.",
   },
   testCallPlaceholder: { es: "+54 9 11 1234 5678", en: "+1 555 123 4567" },
-  testCallSending: { es: "Llamando…", en: "Calling…" },
   testCallQueued: { es: "Llamando ahora", en: "Calling now" },
   testCallSaveFirst: {
     es: "Guardá el agente antes de probar la llamada.",
@@ -175,8 +161,8 @@ export const voice = {
     en: "The agent says it in the greeting. Required to record in several places (California, Florida, the EU…).",
   },
   recordingHint: {
-    es: "Agrega un aviso hablado de grabación al saludo, por cumplimiento.",
-    en: "Adds a spoken recording disclosure to the greeting, for compliance.",
+    es: "Guarda el audio; se escucha desde el registro de llamadas.",
+    en: "Saves the audio; you can play it from the call log.",
   },
   transferNumber: { es: "Transferir a un humano (número)", en: "Transfer to a human (number)" },
   transferNumberHint: {
@@ -281,7 +267,6 @@ export const voice = {
     es: "URL OpenAI-compatible; vacío = proveedor por defecto",
     en: "OpenAI-compatible URL; empty = default provider",
   },
-  advanced: { es: "Opciones avanzadas", en: "Advanced options" },
   adminApiKey: { es: "API key del endpoint", en: "Endpoint API key" },
   adminKeyEnvHint: { es: "usa la del servidor", en: "uses server key" },
   adminKeyEnvNote: {
@@ -315,11 +300,6 @@ export const voice = {
   },
   confirmedTag: { es: "Etiqueta al confirmar", en: "Tag when confirmed" },
   cancelledTag: { es: "Etiqueta al cancelar", en: "Tag when cancelled" },
-  dedupeHours: { es: "Agrupar pedidos (horas)", en: "Group orders (hours)" },
-  dedupeHoursHint: {
-    es: "No llamar dos veces al mismo cliente en esta ventana",
-    en: "Don't call the same customer twice within this window",
-  },
   // ── Dropi integration card ──
   dropiDesc: {
     es: "Fulfillment COD: los pedidos confirmados por llamada pasan a despacho.",
@@ -360,6 +340,12 @@ export const voice = {
   campaignError: { es: "No se pudo crear la campaña.", en: "Couldn't create the campaign." },
   campaignStarted: { es: "Campaña iniciada", en: "Campaign started" },
   campaignSaved: { es: "Campaña guardada", en: "Campaign saved" },
+  campaignStatusDraft: { es: "Borrador", en: "Draft" },
+  campaignStatusRunning: { es: "En curso", en: "Running" },
+  campaignStatusPaused: { es: "Pausada", en: "Paused" },
+  campaignStatusDone: { es: "Terminada", en: "Finished" },
+  campaignStatusCanceled: { es: "Cancelada", en: "Canceled" },
+  campaignProgress: { es: "{done} de {total} llamadas", en: "{done} of {total} calls" },
 
   // ── Extra metrics ──
   metricsLast30: { es: "últimos 30 días", en: "last 30 days" },
@@ -378,7 +364,6 @@ export const voice = {
   attempt: { es: "Intento", en: "Attempt" },
   city: { es: "Ciudad", en: "City" },
   upsellAmount: { es: "Upsell", en: "Upsell" },
-  errorLabel: { es: "Error", en: "Error" },
   openInInbox: { es: "Ver en bandeja", en: "View in inbox" },
 
   // ── Usage this month (voice card) ──
@@ -396,8 +381,6 @@ export const voice = {
     es: "Compra el número propio de este espacio de trabajo.",
     en: "Buy this workspace's own number.",
   },
-  numberCurrent: { es: "Número actual", en: "Current number" },
-  numberNone: { es: "Todavía no hay número.", en: "No number yet." },
   numberCountry: { es: "País", en: "Country" },
   numberType: { es: "Tipo", en: "Type" },
   numberTypeLocal: { es: "Local", en: "Local" },
@@ -405,10 +388,8 @@ export const voice = {
   numberTypeMobile: { es: "Móvil", en: "Mobile" },
   numberTypeNational: { es: "Nacional", en: "National" },
   numberSearch: { es: "Buscar números", en: "Search numbers" },
-  numberSearching: { es: "Buscando…", en: "Searching…" },
   numberNoResults: { es: "Sin números disponibles para esos filtros.", en: "No numbers available for those filters." },
   numberBuy: { es: "Comprar", en: "Buy" },
-  numberBuying: { es: "Comprando…", en: "Buying…" },
   numberBought: { es: "Número comprado", en: "Number purchased" },
   numberBuyError: { es: "No se pudo comprar el número.", en: "Couldn't buy the number." },
   numberRelease: { es: "Liberar número", en: "Release number" },
@@ -428,7 +409,6 @@ export const voice = {
   },
   // Regulatory submission
   numberRegSubmit: { es: "Enviar para aprobación", en: "Submit for approval" },
-  numberRegSubmitting: { es: "Enviando…", en: "Submitting…" },
   numberRegError: { es: "No se pudo enviar la documentación.", en: "Couldn't submit the documentation." },
   numberRegStatusPending: { es: "Documentación en revisión", en: "Documentation under review" },
   numberRegStatusApproved: { es: "Documentación aprobada", en: "Documentation approved" },

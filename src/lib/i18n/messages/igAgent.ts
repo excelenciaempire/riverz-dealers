@@ -44,10 +44,23 @@ export const igAgent = {
     en: "The agent messages whoever fits your live campaigns, on its own.",
   },
 
+  marketingOptin: {
+    es: "Pedir permiso para escribir después",
+    en: "Ask permission to write later",
+  },
+  marketingOptinHint: {
+    es: "Mientras conversa, ofrece recibir novedades. Quien acepta queda contactable siempre, no solo 24 horas.",
+    en: "While chatting, it offers to send updates. Whoever accepts stays reachable for good, not just 24 hours.",
+  },
+
   reachableNow: { es: "contactables ahora", en: "reachable now" },
   reachHint: {
-    es: "{dm} con DM abierto (24h) y {comments} que comentaron en los últimos 7 días. Fuera de esas ventanas Meta no permite escribir. Histórico de Instagram: {total}.",
-    en: "{dm} with an open DM (24h) and {comments} who commented in the last 7 days. Outside those windows Meta doesn't allow messaging. Instagram history: {total}.",
+    es: "{subs} suscriptores (sin vencimiento), {dm} con DM abierto (24h) y {comments} que comentaron en los últimos 7 días. Histórico de Instagram: {total}.",
+    en: "{subs} subscribers (no expiry), {dm} with an open DM (24h) and {comments} who commented in the last 7 days. Instagram history: {total}.",
+  },
+  subscribersSub: {
+    es: "{n} suscriptores fijos",
+    en: "{n} standing subscribers",
   },
   igConnected: { es: "Instagram conectado", en: "Instagram connected" },
   igNotConnected: { es: "Instagram sin conectar", en: "Instagram not connected" },

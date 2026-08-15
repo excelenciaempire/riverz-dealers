@@ -15,11 +15,36 @@ import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
 import { loadProductBrain } from './product-brain';
 import {
+  sendToSubscriber,
+  type MarketingOptin,
+} from '@/lib/channels/marketing-optin';
+import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
   mintUniqueCode,
   parsePercent,
 } from './discounts';
+
+/**
+ * Permiso vigente de Marketing Messages de esta persona, si lo dio y no está
+ * en cooldown. Es la vía de escape cuando ninguna ventana de Meta está abierta.
+ */
+async function findSubscription(
+  db: SupabaseClient,
+  workspaceId: string,
+  externalContactId: string,
+): Promise<MarketingOptin | null> {
+  const nowIso = new Date().toISOString();
+  const { data } = await db
+    .from('meta_marketing_optins')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('external_contact_id', externalContactId)
+    .eq('status', 'active')
+    .or(`next_eligible_at.is.null,next_eligible_at.lte.${nowIso}`)
+    .limit(1);
+  return ((data ?? [])[0] as MarketingOptin | undefined) ?? null;
+}
 
 /**
  * Envía la tanda de DMs en cola de una campaña de Instagram.
@@ -194,6 +219,8 @@ export async function sendCampaignBatch(
     text: string;
     /** Comment id when the only sanctioned route is a private reply. */
     commentId?: string;
+    /** Permiso de Marketing Messages: la vía cuando no hay ninguna ventana abierta. */
+    subscription?: MarketingOptin;
     /** Set when the row must be skipped instead of sent (e.g. outside window). */
     skip?: string;
   };
@@ -213,7 +240,15 @@ export async function sendCampaignBatch(
       const reach = await resolveIgReach(db, contact.id).catch(
         () => ({ kind: 'none', reason: 'no_engagement' }) as const,
       );
-      if (reach.kind === 'none') {
+      // Sin ventana abierta queda la lista: si esta persona dio permiso de
+      // Marketing Messages, se le puede escribir igual. Es la única vía que no
+      // caduca, y es lo que hace que una campaña pueda hablarle a alguien que
+      // interactuó hace meses en vez de sólo a los de esta semana.
+      const subscription =
+        reach.kind === 'none'
+          ? await findSubscription(db, campaign.workspace_id, contact.external_id)
+          : null;
+      if (reach.kind === 'none' && !subscription) {
         return {
           id: r.id,
           contact: { id: contact.id, external_id: contact.external_id },
@@ -263,6 +298,7 @@ export async function sendCampaignBatch(
         contact: { id: contact.id, external_id: contact.external_id },
         text,
         commentId: reach.kind === 'private_reply' ? reach.commentId : undefined,
+        subscription: subscription ?? undefined,
       };
     }),
   );
@@ -325,18 +361,36 @@ export async function sendCampaignBatch(
     if (!(claimed as Array<{ id: string }> | null)?.length) continue;
 
     try {
-      await instagramAdapter.sendText({
-        channel: 'instagram',
-        connection: connByContact.get(p.contact.id) ?? connection,
-        // El adapter de Instagram no usa `conversation` para enviar; basta
-        // con un objeto mínimo para satisfacer el contrato del tipo.
-        conversation: { id: '' } as unknown as Conversation,
-        contact: { id: p.contact.id, external_id: p.contact.external_id } as unknown as Contact,
-        // Comment-sourced → private reply by comment id (their comment-author
-        // id is not messageable and the 24h window is closed).
-        commentId: p.commentId,
-        text: p.text,
-      } satisfies OutboundText);
+      const conn = connByContact.get(p.contact.id) ?? connection;
+      if (p.subscription) {
+        // Sin ventana abierta: se escribe contra el token de Marketing
+        // Messages. `sendToSubscriber` aplica el tope de 48 h y marca el
+        // permiso como revocado si Meta lo rechaza.
+        const connCfg = (conn.config ?? {}) as Record<string, unknown>;
+        const connSecrets = (conn.secrets ?? {}) as Record<string, unknown>;
+        const res = await sendToSubscriber(db, p.subscription, {
+          senderId: String(connCfg.ig_user_id ?? connCfg.page_id ?? ''),
+          accessTokenEncrypted: String(connSecrets.access_token ?? ''),
+          text: p.text,
+        });
+        if (!res.ok) throw new Error(res.reason ?? 'marketing_send_failed');
+      } else {
+        await instagramAdapter.sendText({
+          channel: 'instagram',
+          connection: conn,
+          // El adapter de Instagram no usa `conversation` para enviar; basta
+          // con un objeto mínimo para satisfacer el contrato del tipo.
+          conversation: { id: '' } as unknown as Conversation,
+          contact: {
+            id: p.contact.id,
+            external_id: p.contact.external_id,
+          } as unknown as Contact,
+          // Comment-sourced → private reply by comment id (their comment-author
+          // id is not messageable and the 24h window is closed).
+          commentId: p.commentId,
+          text: p.text,
+        } satisfies OutboundText);
+      }
 
       sent += 1;
       // Que quede en la bandeja: el comercio tiene que poder leer lo que su

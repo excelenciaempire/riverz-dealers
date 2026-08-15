@@ -324,18 +324,24 @@ export const automations = {
     es: "No hay agentes con voz activada. Actívala en Asistente → Voz.",
     en: "No voice-enabled agents. Turn it on in Assistant → Voice.",
   },
-  voiceCallType: { es: "Tipo de llamada", en: "Call type" },
-  voiceCallTypeAuto: { es: "Automático (según el disparador)", en: "Automatic (based on trigger)" },
-  voiceCallTypeOrder: { es: "Confirmar pedido", en: "Confirm order" },
-  voiceCallTypeCart: { es: "Recuperar carrito", en: "Recover cart" },
-  voiceCallTypeFollowup: { es: "Seguimiento", en: "Follow-up" },
-  voiceCallTypeManual: { es: "Objetivo personalizado", en: "Custom objective" },
   voiceCallObjective: { es: "Objetivo (opcional)", en: "Objective (optional)" },
   voiceCallObjectivePlaceholder: {
     es: "Ej: confirmar la dirección de envío y el método de pago.",
     en: "E.g. confirm the shipping address and payment method.",
   },
+  voiceCallWait: {
+    es: "Esperar el resultado",
+    en: "Wait for the result",
+  },
+  voiceCallWaitHint: {
+    es: "Los pasos siguientes corren cuando la llamada termina, y pueden decidir según cómo salió.",
+    en: "The next steps run once the call ends, and can branch on how it went.",
+  },
   voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
+  voiceCallPreviewWaiting: {
+    es: "Llamada con IA · espera el resultado",
+    en: "AI call · waits for the result",
+  },
 
   // Builder — unified multi-path "Condición" node (N filtered paths + "en otro caso")
   switchPathN: { es: "Camino {n}", en: "Path {n}" },
@@ -470,6 +476,7 @@ export const automations = {
   // Builder — offer_chosen condition (repurchase flows)
   whichOffer: { es: "Qué oferta", en: "Which offer" },
   chooseOffer: { es: "Elige una oferta…", en: "Choose an offer…" },
+  chooseValue: { es: "Elige un valor…", en: "Choose a value…" },
   offerChosenNoOffersHint: {
     es: "No hay ofertas configuradas. Define las unidades de cada oferta en la sección Productos, o escribe la etiqueta exacta.",
     en: "No offers configured yet. Set the units for each offer in the Products section, or type the exact label.",

@@ -15,6 +15,15 @@ import type { VoiceCampaign } from '@/types';
 type Agent = { id: string; name: string };
 type Segment = { id: string; name: string };
 
+/** Estado de la campaña → clave i18n. */
+const CAMPAIGN_STATUS_KEY: Record<string, string> = {
+  draft: 'voice.campaignStatusDraft',
+  running: 'voice.campaignStatusRunning',
+  paused: 'voice.campaignStatusPaused',
+  done: 'voice.campaignStatusDone',
+  canceled: 'voice.campaignStatusCanceled',
+};
+
 export default function VoiceCampaignsPage() {
   const t = useT();
   const { workspace } = useWorkspace();
@@ -31,11 +40,14 @@ export default function VoiceCampaignsPage() {
     setLoading(true);
     const supabase = createClient();
     const [{ data: ag }, { data: seg }] = await Promise.all([
+      // Mismo criterio que `pickVoiceAgent`: un agente pausado o borrado no
+      // marca nunca. Ofrecerlo acá sólo construía una campaña muda.
       supabase
         .from('ai_agents')
         .select('id, name')
         .eq('workspace_id', workspace.id)
         .eq('voice_enabled', true)
+        .eq('is_active', true)
         .is('deleted_at', null),
       supabase.from('contact_segments').select('id, name').eq('workspace_id', workspace.id),
     ]);
@@ -161,7 +173,13 @@ export default function VoiceCampaignsPage() {
               <div>
                 <p className="text-sm font-medium text-foreground">{c.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {c.status} · {c.stats?.enqueued ?? 0}/{c.stats?.total ?? '—'}
+                  {/* Antes salía el valor crudo de la base ("running", "draft"):
+                      en español y en inglés, la misma palabra sin traducir. */}
+                  {t(CAMPAIGN_STATUS_KEY[c.status] ?? 'voice.campaignStatusDraft')} ·{' '}
+                  {t('voice.campaignProgress', {
+                    done: String(c.stats?.enqueued ?? 0),
+                    total: c.stats?.total != null ? String(c.stats.total) : '—',
+                  })}
                 </p>
               </div>
               {c.status === 'running' ? (

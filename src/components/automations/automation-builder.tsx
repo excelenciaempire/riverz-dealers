@@ -119,6 +119,25 @@ const ProductsContext = createContext<string[]>([])
  *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
 const TriggerContext = createContext<AutomationTriggerType>("shopify_order_created")
 
+/** True when this automation calls somewhere. The call result (contestó,
+ *  no contestó, resumen) then becomes available to conditions and template
+ *  variables regardless of the trigger — that's what lets "llamar; si no
+ *  contesta, mandar WhatsApp" be ONE automation. */
+const HasVoiceCallContext = createContext<boolean>(false)
+
+/** Does any step in the tree place a call? Branches and switch cases count —
+ *  a call inside a path still seeds the result for everything after it. */
+function treeHasVoiceCall(steps: BuilderStep[]): boolean {
+  return steps.some((s) => {
+    if (s.step_type === "voice_call") return true
+    if (s.branches && (treeHasVoiceCall(s.branches.yes) || treeHasVoiceCall(s.branches.no)))
+      return true
+    const cases = s.switchData?.cases ?? []
+    if (cases.some((c) => treeHasVoiceCall(c.steps ?? []))) return true
+    return treeHasVoiceCall(s.switchData?.elseSteps ?? [])
+  })
+}
+
 /** Live count of contacts currently parked at each wait step, keyed by the
  *  persisted step id. Only populated when editing a saved automation; empty
  *  during template previews / new drafts (nothing is waiting yet). */
@@ -519,9 +538,10 @@ function ConditionFields({
   const segments = useContext(SegmentsContext)
   const offers = useContext(OffersContext)
   const products = useContext(ProductsContext)
+  const hasVoiceCall = useContext(HasVoiceCallContext)
   const subject = cfg.subject as string | undefined
   const operand = cfg.operand as string | undefined
-  const dps = conditionDataPoints(trigger)
+  const dps = conditionDataPoints(trigger, { hasVoiceCall })
   const currentId = dataPointIdFromCfg(subject, operand, dps)
   const dp = currentId && currentId !== TIME_DP_ID ? dataPointById(currentId) : undefined
   const groups = ["order", "contact", "message"].filter((g) => dps.some((d) => d.group === g))
@@ -727,6 +747,27 @@ function ConditionValue({
         >
           <option value="true">{t("automations.repeatCustomerYes")}</option>
           <option value="false">{t("automations.repeatCustomerNo")}</option>
+        </select>
+      </FieldBlock>
+    )
+  }
+
+  // Valores cerrados (cómo salió la llamada): se elige de la lista en vez de
+  // tipear el nombre interno del estado.
+  if (dp.valueKind === "enum") {
+    return (
+      <FieldBlock label={t("automations.whenItIs")}>
+        <select
+          value={value}
+          onChange={(e) => set({ op: "eq", value: e.target.value })}
+          className={selectCls}
+        >
+          <option value="">{t("automations.chooseValue")}</option>
+          {(dp.options ?? []).map((o) => (
+            <option key={o.value} value={o.value}>
+              {t(o.labelKey)}
+            </option>
+          ))}
         </select>
       </FieldBlock>
     )
@@ -1031,7 +1072,9 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
     case "close_conversation":
       return {}
     case "voice_call":
-      return { agent_id: "", call_type: "", objective_override: "" }
+      // Nuevos nodos esperan el resultado: sin eso, "llamar; si no contesta,
+      // mandar WhatsApp" mandaba el WhatsApp mientras el teléfono sonaba.
+      return { agent_id: "", objective_override: "", wait_for_result: true }
     default:
       return {}
   }
@@ -1342,6 +1385,7 @@ export function AutomationBuilder({
 
   return (
     <TriggerContext.Provider value={state.trigger_type}>
+    <HasVoiceCallContext.Provider value={treeHasVoiceCall(state.steps)}>
     <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
@@ -1544,6 +1588,7 @@ export function AutomationBuilder({
     </TagsContext.Provider>
     </SegmentsContext.Provider>
     </TemplatesContext.Provider>
+    </HasVoiceCallContext.Provider>
     </TriggerContext.Provider>
   )
 }
@@ -2617,6 +2662,7 @@ function StepEditor({
   const cfg = step.step_config
   const templates = useContext(TemplatesContext)
   const trigger = useContext(TriggerContext)
+  const hasVoiceCall = useContext(HasVoiceCallContext)
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
   // Template preview is collapsed by default (used only by send_template).
@@ -2703,7 +2749,7 @@ function StepEditor({
                       className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
                     >
                       <option value="">{t("automations.chooseVariable")}</option>
-                      {templateDataPoints(trigger).map((dp) => (
+                      {templateDataPoints(trigger, { hasVoiceCall }).map((dp) => (
                         <option key={dp.id} value={`{{vars.${dp.templateVarKey}}}`}>
                           {t(dp.labelKey)}
                         </option>
@@ -2879,8 +2925,14 @@ function StepEditor({
   }
 }
 
-/** Voice AI call step — pick the voice agent, the call script, and an
- *  optional one-off objective. Only voice-enabled agents are offered. */
+/**
+ * Voice AI call step — who calls and what the call has to achieve.
+ *
+ * The old "Tipo de llamada" select is gone: the engine already derives the
+ * script from the trigger (`defaultVoiceCallType`), so the field only asked
+ * the merchant to restate something the automation knows, and picking the
+ * "wrong" one silently swapped the agent's script.
+ */
 function VoiceCallStepEditor({
   cfg,
   set,
@@ -2898,11 +2950,14 @@ function VoiceCallStepEditor({
     let cancelled = false
     ;(async () => {
       const supabase = createClient()
+      // Same test as `pickVoiceAgent`: a paused or soft-deleted agent never
+      // dials, so offering it here only builds an automation that goes quiet.
       const { data } = await supabase
         .from("ai_agents")
         .select("id, name")
         .eq("workspace_id", workspace.id)
         .eq("voice_enabled", true)
+        .eq("is_active", true)
         .is("deleted_at", null)
         .order("priority", { ascending: false })
       if (!cancelled) {
@@ -2915,13 +2970,10 @@ function VoiceCallStepEditor({
     }
   }, [workspace?.id])
 
-  const CALL_TYPES: { value: string; label: string }[] = [
-    { value: "", label: t("automations.voiceCallTypeAuto") },
-    { value: "order_confirmation", label: t("automations.voiceCallTypeOrder") },
-    { value: "cart_recovery", label: t("automations.voiceCallTypeCart") },
-    { value: "followup", label: t("automations.voiceCallTypeFollowup") },
-    { value: "manual", label: t("automations.voiceCallTypeManual") },
-  ]
+  // Undefined = a node saved before the wait existed. Those keep running
+  // as they always did; the toggle shows their real state rather than a
+  // default that would lie about what the automation does today.
+  const waits = cfg.wait_for_result === true
 
   return (
     <>
@@ -2945,19 +2997,6 @@ function VoiceCallStepEditor({
           <p className="text-xs text-muted-foreground">{t("automations.voiceCallNoAgents")}</p>
         )}
       </FieldBlock>
-      <FieldBlock label={t("automations.voiceCallType")}>
-        <select
-          value={(cfg.call_type as string) ?? ""}
-          onChange={(e) => set({ call_type: e.target.value })}
-          className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
-        >
-          {CALL_TYPES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      </FieldBlock>
       <FieldBlock label={t("automations.voiceCallObjective")}>
         <Textarea
           value={(cfg.objective_override as string) ?? ""}
@@ -2966,6 +3005,20 @@ function VoiceCallStepEditor({
           className="min-h-16 bg-muted text-foreground"
         />
       </FieldBlock>
+      <label className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+        <span>
+          <span className="block text-sm text-foreground">
+            {t("automations.voiceCallWait")}
+          </span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+            {t("automations.voiceCallWaitHint")}
+          </span>
+        </span>
+        <Switch
+          checked={waits}
+          onCheckedChange={(v) => set({ wait_for_result: v })}
+        />
+      </label>
     </>
   )
 }
@@ -3061,9 +3114,12 @@ function previewFor(step: BuilderStep, t: TFn): string {
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
     case "voice_call":
-      return (step.step_config.agent_id as string)
-        ? t("automations.voiceCallPreview")
-        : t("automations.voiceCallPickAgent")
+      if (!(step.step_config.agent_id as string)) return t("automations.voiceCallPickAgent")
+      // Que la tarjeta diga si el flujo se detiene acá: es la diferencia
+      // entre que el paso siguiente salga ahora o cuando la llamada termine.
+      return step.step_config.wait_for_result === true
+        ? t("automations.voiceCallPreviewWaiting")
+        : t("automations.voiceCallPreview")
     default:
       return ""
   }

@@ -46,6 +46,7 @@ import {
   summarizeContactIfNeeded,
 } from './summarize';
 import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
+import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -486,6 +487,18 @@ export async function runAiAgent(
     Promise.allSettled([
       summarizeConversationIfNeeded(db, args.conversation, agent),
       summarizeContactIfNeeded(db, primaryContact, args.conversation, agent),
+      // La ventana de Meta está abierta AHORA porque esta persona nos acaba de
+      // escribir; en unas horas se cierra y no se le puede volver a hablar
+      // hasta que ella arranque de nuevo. Es el único momento en que se puede
+      // pedir el permiso que la deja en la lista para siempre. Apagado por
+      // defecto — es un mensaje más que el cliente ve.
+      maybeRequestOptIn(db, {
+        workspaceId: args.workspaceId,
+        channel: args.channel,
+        connection: args.connection,
+        externalContactId: args.contact.external_id,
+        contactOptedOut: (args.contact as { opted_out?: boolean }).opted_out,
+      }),
     ]).catch(() => {
       /* swallow */
     });

@@ -23,6 +23,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { isMarketingOptin, recordOptIn } from "../marketing-optin";
 import { mapMetaAdReferral } from "../messenger/adapter";
 
 /**
@@ -197,6 +198,22 @@ export const instagramAdapter: ChannelAdapter = {
             }
           | undefined;
         if (!sender?.id) continue;
+
+        // La persona aceptó recibir novedades fuera de la ventana de 24 h.
+        // No es un mensaje —no lleva `message`— así que caía en el hueco de
+        // abajo y se descartaba sin dejar rastro: el token, que es lo único
+        // que permite escribirle la semana que viene, se perdía.
+        if (isMarketingOptin(m.optin)) {
+          await recordOptIn(supabaseAdmin(), {
+            workspaceId: connection.workspace_id,
+            connectionId: connection.id,
+            channel: "instagram",
+            externalContactId: String(sender.id),
+            optin: m.optin,
+          });
+          continue;
+        }
+
         const igPostback = m.postback as
           | { mid?: string; title?: string; payload?: string; referral?: unknown }
           | undefined;

@@ -81,7 +81,7 @@ export default function VoicePage() {
 
       {/* Voice campaigns — call a whole segment with an objective. */}
       <Link
-        href="/campanas/voz"
+        href="/voz/campanas"
         className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
       >
         <span className="flex items-center gap-2">

@@ -9,11 +9,23 @@ import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import { DropiCard } from '@/components/settings/dropi-card';
 import type { VoiceConnectionConfig } from '@/types';
 
 /**
- * Voice / phone integration card: assign the workspace's DID, toggle inbound,
- * set a monthly minutes cap and a kill switch, plus a compact call summary.
+ * Voice / phone behavior card: inbound, recording, transfer, the monthly cap
+ * and the kill switch, plus a compact usage summary.
+ *
+ * Deliberately NOT here:
+ *  - the phone number and its country — `VoiceNumberCard` above owns them,
+ *    since it's the flow that buys the DID and files the regulatory paperwork.
+ *    Having both edit the same two fields let a merchant type over their own
+ *    provisioned number.
+ *  - the audio-engine knobs (greeting delay, silence timeout, who speaks
+ *    first). They ship with working defaults and reading them requires knowing
+ *    how a turn-taking pipeline behaves; a merchant selling skincare has no
+ *    basis to pick a number. Still honored from the stored config, and the
+ *    save now MERGES, so they survive untouched.
  */
 export function VoiceCard() {
   const t = useT();
@@ -24,8 +36,6 @@ export function VoiceCard() {
   const [saving, setSaving] = useState(false);
   const [connected, setConnected] = useState(false);
   const [cfg, setCfg] = useState<VoiceConnectionConfig>({
-    phone_number: '',
-    country: '',
     inbound_enabled: false,
     monthly_minutes_limit: null,
     kill_switch: false,
@@ -35,10 +45,6 @@ export function VoiceCard() {
     // El aviso hablado es opt-in: por defecto el agente NO dice que se graba.
     recording_disclosure: false,
     transfer_number: '',
-    greeting_delay_seconds: 0,
-    silence_timeout_seconds: 8,
-    inbound_first_speaker: 'customer',
-    outbound_first_speaker: 'agent',
   });
   const [usage, setUsage] = useState<{
     minutes_used: number;
@@ -57,8 +63,6 @@ export function VoiceCard() {
       const json = await res.json();
       if (res.ok && json.config) {
         setCfg({
-          phone_number: json.config.phone_number ?? '',
-          country: json.config.country ?? '',
           inbound_enabled: !!json.config.inbound_enabled,
           monthly_minutes_limit: json.config.monthly_minutes_limit ?? null,
           kill_switch: !!json.config.kill_switch,
@@ -68,11 +72,6 @@ export function VoiceCard() {
           transfer_number: json.config.transfer_number ?? '',
           cod_mode: !!json.config.cod_mode,
           order_writeback: json.config.order_writeback ?? { enabled: false },
-          dedupe_hours: json.config.dedupe_hours ?? 0.25,
-          greeting_delay_seconds: json.config.greeting_delay_seconds ?? 0,
-          silence_timeout_seconds: json.config.silence_timeout_seconds ?? 8,
-          inbound_first_speaker: json.config.inbound_first_speaker ?? 'customer',
-          outbound_first_speaker: json.config.outbound_first_speaker ?? 'agent',
         });
         setConnected(json.status === 'connected');
       }
@@ -153,33 +152,63 @@ export function VoiceCard() {
         </div>
       ) : (
         <div className="mt-4 space-y-3">
+          <div className="space-y-2">
+            <Toggle
+              label={t('voice.inboundEnabled')}
+              hint={t('voice.inboundEnabledHint')}
+              checked={!!cfg.inbound_enabled}
+              onChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
+            />
+            <Toggle
+              label={t('voice.recordingEnabled')}
+              hint={t('voice.recordingHint')}
+              checked={!!cfg.recording_enabled}
+              onChange={(c) => setCfg({ ...cfg, recording_enabled: c })}
+            />
+            {/* El aviso hablado sólo tiene sentido si se está grabando. */}
+            {cfg.recording_enabled && (
+              <Toggle
+                label={t('voice.recordingDisclosure')}
+                hint={t('voice.recordingDisclosureHint')}
+                checked={!!cfg.recording_disclosure}
+                onChange={(c) => setCfg({ ...cfg, recording_disclosure: c })}
+              />
+            )}
+            <Toggle
+              label={t('voice.killSwitch')}
+              hint={t('voice.killSwitchHint')}
+              checked={!!cfg.kill_switch}
+              onChange={(c) => setCfg({ ...cfg, kill_switch: c })}
+            />
+            <Toggle
+              label={t('voice.codMode')}
+              hint={t('voice.codModeHint')}
+              checked={!!cfg.cod_mode}
+              onChange={(c) => setCfg({ ...cfg, cod_mode: c })}
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label={t('voice.phoneNumber')}>
-              <Input
-                value={cfg.phone_number ?? ''}
-                onChange={(e) => setCfg({ ...cfg, phone_number: e.target.value })}
-                placeholder={t('voice.phoneNumberPlaceholder')}
-              />
-            </Field>
-            <Field label={t('voice.country')}>
-              <Input
-                value={cfg.country ?? ''}
-                onChange={(e) => setCfg({ ...cfg, country: e.target.value })}
-                placeholder="CO"
-                maxLength={2}
-              />
-            </Field>
-            <Field label={t('voice.monthlyLimit')}>
+            <Field label={t('voice.monthlyLimit')} hint={t('voice.monthlyLimitHint')}>
               <Input
                 type="number"
                 min={0}
                 value={cfg.monthly_minutes_limit ?? 0}
-                onChange={(e) =>
-                  setCfg({ ...cfg, monthly_minutes_limit: Number(e.target.value) || null })
-                }
+                onChange={(e) => {
+                  // 0 y vacío significan lo mismo —sin límite— tanto acá como
+                  // en el guard de `enqueueCall` (`limit && limit > 0`). Lo que
+                  // no puede pasar es que un valor ilegible se guarde como un
+                  // número raro: en ese caso queda sin límite, que es el estado
+                  // que el resto de la app ya asume por defecto.
+                  const n = Number(e.target.value);
+                  setCfg({
+                    ...cfg,
+                    monthly_minutes_limit: Number.isFinite(n) ? Math.max(0, n) : null,
+                  });
+                }}
               />
             </Field>
-            <Field label={t('voice.transferNumber')}>
+            <Field label={t('voice.transferNumber')} hint={t('voice.transferNumberHint')}>
               <Input
                 value={cfg.transfer_number ?? ''}
                 onChange={(e) => setCfg({ ...cfg, transfer_number: e.target.value })}
@@ -188,116 +217,15 @@ export function VoiceCard() {
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Toggle
-              label={t('voice.inboundEnabled')}
-              checked={!!cfg.inbound_enabled}
-              onChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
-            />
-            <Toggle
-              label={t('voice.recordingEnabled')}
-              checked={!!cfg.recording_enabled}
-              onChange={(c) => setCfg({ ...cfg, recording_enabled: c })}
-            />
-            <Toggle
-              label={t('voice.killSwitch')}
-              checked={!!cfg.kill_switch}
-              onChange={(c) => setCfg({ ...cfg, kill_switch: c })}
-            />
-            <Toggle
-              label={t('voice.codMode')}
-              checked={!!cfg.cod_mode}
-              onChange={(c) => setCfg({ ...cfg, cod_mode: c })}
-            />
-          </div>
-
-          {/* El aviso hablado sólo tiene sentido si se está grabando. */}
-          {cfg.recording_enabled && (
-            <div>
-              <Toggle
-                label={t('voice.recordingDisclosure')}
-                checked={!!cfg.recording_disclosure}
-                onChange={(c) => setCfg({ ...cfg, recording_disclosure: c })}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t('voice.recordingDisclosureHint')}
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Field label={t('voice.greetingDelay')}>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={cfg.greeting_delay_seconds ?? 0}
-                onChange={(e) =>
-                  setCfg({
-                    ...cfg,
-                    greeting_delay_seconds: Math.max(0, Math.min(10, Number(e.target.value) || 0)),
-                  })
-                }
-              />
-            </Field>
-            <Field label={t('voice.silenceTimeout')}>
-              <Input
-                type="number"
-                min={0}
-                max={60}
-                value={cfg.silence_timeout_seconds ?? 8}
-                onChange={(e) =>
-                  setCfg({
-                    ...cfg,
-                    silence_timeout_seconds: Math.max(0, Math.min(60, Number(e.target.value) || 0)),
-                  })
-                }
-              />
-            </Field>
-            <Field label={t('voice.outboundFirstSpeaker')}>
-              <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                value={cfg.outbound_first_speaker ?? 'agent'}
-                onChange={(e) =>
-                  setCfg({ ...cfg, outbound_first_speaker: e.target.value as 'agent' | 'customer' })
-                }
-              >
-                <option value="agent">{t('voice.speakerAgent')}</option>
-                <option value="customer">{t('voice.speakerCustomer')}</option>
-              </select>
-            </Field>
-            <Field label={t('voice.inboundFirstSpeaker')}>
-              <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                value={cfg.inbound_first_speaker ?? 'customer'}
-                onChange={(e) =>
-                  setCfg({ ...cfg, inbound_first_speaker: e.target.value as 'agent' | 'customer' })
-                }
-              >
-                <option value="agent">{t('voice.speakerAgent')}</option>
-                <option value="customer">{t('voice.speakerCustomer')}</option>
-              </select>
-            </Field>
-          </div>
-
           {cfg.cod_mode && (
-            <div className="grid grid-cols-1 gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 sm:grid-cols-2">
+            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
               <Toggle
                 label={t('voice.orderWriteback')}
                 checked={!!wb.enabled}
                 onChange={(c) => setWb({ enabled: c })}
               />
-              <Field label={t('voice.dedupeHours')}>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.25"
-                  value={cfg.dedupe_hours ?? 0.25}
-                  onChange={(e) => setCfg({ ...cfg, dedupe_hours: Number(e.target.value) || 0.25 })}
-                />
-              </Field>
               {wb.enabled && (
-                <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label={t('voice.confirmedTag')}>
                     <Input
                       value={wb.confirmed_tag ?? ''}
@@ -312,8 +240,13 @@ export function VoiceCard() {
                       placeholder="Cancelado"
                     />
                   </Field>
-                </>
+                </div>
               )}
+              {/* Dropi es el destino del pedido confirmado en COD. La tarjeta
+                  existía completa —API, ruta, textos— y no se montaba en
+                  ningún lado, así que este interruptor prometía un despacho
+                  automático que no había forma de conectar. */}
+              <DropiCard />
             </div>
           )}
 
@@ -359,28 +292,47 @@ export function VoiceCard() {
 }
 
 /** Compact labeled field (2-column friendly). */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
+      {hint && <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span>}
     </label>
   );
 }
 
-/** Compact toggle row — label + switch, no descriptions. */
+/**
+ * Toggle row. The hint is what the switch DOES — every one of these decides
+ * whether a real phone rings, and the catalog already had the sentences
+ * written; nothing rendered them, so the card showed bare labels like "Modo
+ * COD" with no way to find out what flipping it does.
+ */
 function Toggle({
   label,
+  hint,
   checked,
   onChange,
 }: {
   label: string;
+  hint?: string;
   checked: boolean;
   onChange: (c: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-      <span className="text-sm text-foreground">{label}</span>
+    <label className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+      <span className="min-w-0">
+        <span className="block text-sm text-foreground">{label}</span>
+        {hint && <span className="mt-0.5 block text-[11px] text-muted-foreground">{hint}</span>}
+      </span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
   );

@@ -31,16 +31,26 @@ export async function resolveAudience(
     Math.min(2000, campaign.plan.audience.estimated_reach || 200),
   );
 
-  // Solo gente con una ventana de Meta ABIERTA: comentaristas de los últimos 7
-  // días (respuesta privada) y quien escribió por DM (ventana de 24h). Encolar
-  // el histórico completo llenaba la campaña de destinatarios que morían al
-  // instante como "fuera de ventana" y hacía ver el embudo roto.
-  const [commenters, dmers] = await Promise.all([
+  // Tres fuentes, en orden de preferencia:
+  //
+  //  1. SUSCRIPTORES — dieron permiso de Marketing Messages, así que se les
+  //     puede escribir aunque hayan interactuado hace meses. Van primero
+  //     porque son los únicos que no dependen de que la persona haya hecho
+  //     algo esta semana: es la lista que crece sola y le saca a la campaña
+  //     el techo de "sólo quien comentó hace poco".
+  //  2. Comentaristas de los últimos 7 días (respuesta privada).
+  //  3. Quien escribió por DM en las últimas 24 h.
+  //
+  // Encolar el histórico completo sin ninguno de estos tres títulos llenaba la
+  // campaña de destinatarios que morían al instante como "fuera de ventana" y
+  // hacía ver el embudo roto.
+  const [subscribers, commenters, dmers] = await Promise.all([
+    fetchSubscribers(supabase, campaign.workspace_id, cap),
     fetchReachableByChannel(supabase, campaign.workspace_id, 'ig_comment', cap),
     fetchReachableByChannel(supabase, campaign.workspace_id, 'instagram', cap),
   ]);
 
-  const merged = mergeAudience(commenters, dmers, cap);
+  const merged = mergeAudience([...subscribers, ...commenters], dmers, cap);
   if (merged.length === 0) return { queued: 0, available: 0, holdout: 0 };
 
   // Reservar un % como grupo de control (holdout) para medir incrementalidad.
@@ -125,7 +135,37 @@ async function fetchReachableByChannel(
 }
 
 /**
- * Une las dos audiencias priorizando comentaristas y deduplicando por id,
+ * Contactos con permiso de Marketing Messages vigente y sin cooldown.
+ *
+ * A diferencia de las otras dos fuentes, acá no hay ventana que expire: la
+ * persona dio permiso una vez y sigue siendo contactable. Los que todavía
+ * están dentro de las 48 h desde el último envío se quedan afuera — el tope es
+ * de Meta y encolarlos sólo produce fallos.
+ */
+async function fetchSubscribers(
+  supabase: SupabaseClient,
+  workspaceId: string,
+  cap: number,
+): Promise<AudienceContact[]> {
+  const nowIso = new Date().toISOString();
+  const { data } = await supabase
+    .from('meta_marketing_optins')
+    .select('contact_id, external_contact_id')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'active')
+    .not('contact_id', 'is', null)
+    .or(`next_eligible_at.is.null,next_eligible_at.lte.${nowIso}`)
+    .limit(cap);
+
+  const rows = (data ?? []) as Array<{
+    contact_id: string;
+    external_contact_id: string | null;
+  }>;
+  return rows.map((r) => ({ id: r.contact_id, external_id: r.external_contact_id }));
+}
+
+/**
+ * Une las audiencias priorizando la primera lista y deduplicando por id,
  * respetando el tope. Pura (sin IO) para poder testearla.
  */
 export function mergeAudience(

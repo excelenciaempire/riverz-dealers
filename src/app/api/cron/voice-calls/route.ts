@@ -24,6 +24,35 @@ const CLAIM_BATCH = 25;
 // Hard ceiling well above any per-agent voice_max_call_seconds (300s default).
 const STUCK_AFTER_MS = 20 * 60 * 1000;
 
+/**
+ * Did the customer write to us after this call was queued?
+ *
+ * Only asked for calls that exist as a fallback to a message. `sender_type`
+ * distinguishes a real reply from our own outbound, and the voice channel is
+ * excluded so a previous call's transcript doesn't read as an answer.
+ */
+async function customerRepliedSince(
+  db: ReturnType<typeof supabaseAdmin>,
+  call: VoiceCall,
+): Promise<boolean> {
+  const { data: convs } = await db
+    .from('conversations')
+    .select('id')
+    .eq('contact_id', call.contact_id)
+    .neq('channel', 'voice')
+    .limit(20);
+  const ids = ((convs ?? []) as { id: string }[]).map((c) => c.id);
+  if (ids.length === 0) return false;
+
+  const { count } = await db
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .in('conversation_id', ids)
+    .eq('sender_type', 'customer')
+    .gt('created_at', call.created_at);
+  return (count ?? 0) > 0;
+}
+
 async function cronHandler(request: Request) {
   try {
     assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
@@ -97,6 +126,23 @@ async function cronHandler(request: Request) {
         await db
           .from('voice_calls')
           .update({ status: 'canceled', ended_at: nowIso, error: 'opt_out', updated_at: nowIso })
+          .eq('id', row.id);
+        continue;
+      }
+
+      // Calls queued as a BACKUP to a message (cart recovery) drop themselves
+      // when the message already worked. Without this the customer answered
+      // the WhatsApp, bought, and got phoned about the cart anyway hours
+      // later — the single fastest way to make the feature feel dumb.
+      if (row.context?.skip_if_replied && (await customerRepliedSince(db, row))) {
+        await db
+          .from('voice_calls')
+          .update({
+            status: 'canceled',
+            ended_at: nowIso,
+            error: 'customer_replied',
+            updated_at: nowIso,
+          })
           .eq('id', row.id);
         continue;
       }

@@ -18,6 +18,7 @@ import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_DELAY_MINUTES,
 } from '@/lib/voice/constants';
+import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
 
 export interface VoiceState {
   voice_enabled: boolean;
@@ -59,11 +60,30 @@ export function initialVoiceState(agent?: {
   };
 }
 
+/**
+ * Los cuatro momentos en que este agente puede hablar por teléfono.
+ *
+ * Las etiquetas salen de `VOICE_TYPE_KEY`, el mismo mapa que usa el registro
+ * de llamadas: antes había un juego de nombres acá y otro allá para los mismos
+ * cinco conceptos, así que agregar un tipo obligaba a acordarse de las dos
+ * listas y "Seguimiento" podía llamarse distinto según la pantalla.
+ */
 const OBJECTIVE_TYPES: { type: VoiceCallType; labelKey: string }[] = [
-  { type: 'order_confirmation', labelKey: 'voice.objOrderConfirmation' },
-  { type: 'cart_recovery', labelKey: 'voice.objCartRecovery' },
-  { type: 'followup', labelKey: 'voice.objFollowup' },
-  { type: 'inbound', labelKey: 'voice.objInbound' },
+  'order_confirmation',
+  'cart_recovery',
+  'followup',
+  'inbound',
+].map((type) => ({
+  type: type as VoiceCallType,
+  labelKey: VOICE_TYPE_KEY[type as VoiceCallType],
+}));
+
+/** Cuántas veces vuelve a marcar si no contestan. Lo único de la vieja
+ *  sección "Avanzado" que es una decisión del negocio y no de ingeniería. */
+const RETRY_CHOICES: { retries: number; labelKey: string }[] = [
+  { retries: 0, labelKey: 'voice.retriesNone' },
+  { retries: 1, labelKey: 'voice.retriesOnce' },
+  { retries: 2, labelKey: 'voice.retriesTwice' },
 ];
 
 const DAY_KEYS: { day: number; key: string }[] = [
@@ -98,8 +118,6 @@ export function VoiceSettings({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
-  // Opciones avanzadas ocultas por defecto — el 95% de los usuarios no las toca.
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
@@ -363,19 +381,13 @@ export function VoiceSettings({
             />
           </div>
 
-          {/* System prompt específico de llamadas (se suma al persona base) */}
-          <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.systemPrompt')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.systemPromptHint')}</p>
-            <Textarea
-              className="min-h-20 bg-muted text-foreground"
-              placeholder={t('voice.systemPromptPlaceholder')}
-              value={value.voice_system_prompt}
-              onChange={(e) => set({ voice_system_prompt: e.target.value })}
-            />
-          </div>
-
-          {/* Objectives */}
+          {/* Objectives.
+              Antes cada objetivo tenía DOS cajas de texto —"objetivo" e
+              "instrucciones extra"— más un "prompt de sistema" arriba y, en la
+              automatización, un "objetivo que pisa al del agente". Cuatro
+              lugares para escribir lo mismo y ninguna pista de cuál gana.
+              Queda UNA caja por objetivo; lo que se escriba acá es lo que el
+              agente intenta lograr en esa llamada. */}
           <div>
             <p className="mb-1 text-sm font-medium text-foreground">{t('voice.objectives')}</p>
             <p className="mb-2 text-xs text-muted-foreground">{t('voice.objectivesHint')}</p>
@@ -402,14 +414,28 @@ export function VoiceSettings({
                           value={obj?.objective ?? ''}
                           onChange={(e) => setObjective(type, { objective: e.target.value })}
                         />
-                        <Textarea
-                          className="min-h-12 bg-background text-foreground"
-                          placeholder={t('voice.extraInstructions')}
-                          value={obj?.extra_instructions ?? ''}
-                          onChange={(e) =>
-                            setObjective(type, { extra_instructions: e.target.value })
-                          }
-                        />
+                        {/* Sólo se muestra si YA tiene algo escrito: los
+                            agentes viejos no pierden lo que cargaron, pero
+                            nadie empieza a llenar dos cajas. */}
+                        {(obj?.extra_instructions ?? '').trim() !== '' && (
+                          <Textarea
+                            className="min-h-12 bg-background text-foreground"
+                            placeholder={t('voice.extraInstructions')}
+                            value={obj?.extra_instructions ?? ''}
+                            onChange={(e) =>
+                              setObjective(type, { extra_instructions: e.target.value })
+                            }
+                          />
+                        )}
+                        {/* El seguimiento por teléfono usa el MISMO tiempo de
+                            espera que el seguimiento por texto, configurado en
+                            otra pestaña. No decirlo hacía que "activé el
+                            seguimiento y no llama" fuera un misterio. */}
+                        {type === 'followup' && (
+                          <p className="text-[11px] text-muted-foreground">
+                            {t('voice.objFollowupSharedDelay')}
+                          </p>
+                        )}
                       </div>
                     )}
                     {/* Upsell — only on order confirmation. */}
@@ -521,85 +547,41 @@ export function VoiceSettings({
             ) : null}
           </div>
 
-          {/* Opciones avanzadas — ocultas por defecto para no abrumar. */}
-          <div className="border-t border-border pt-3">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              {showAdvanced ? '−' : '+'} {t('voice.advanced')}
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 space-y-4">
-                <div>
-                  <p className="mb-1 text-xs font-medium text-muted-foreground">
-                    {t('voice.customVoiceId')}
-                  </p>
-                  <Input
-                    className="bg-muted text-foreground"
-                    placeholder={t('voice.customVoiceId')}
-                    value={
-                      value.voice_id && !CURATED_VOICES.some((v) => v.voice_id === value.voice_id)
-                        ? value.voice_id
-                        : ''
+          {/* Insistir.
+              Antes esto eran cuatro campos numéricos escondidos tras
+              "+ Avanzado": reintentos, minutos entre reintentos, duración
+              máxima y un id de voz a mano. Sólo el primero es una decisión de
+              negocio; el resto son valores que nadie que venda cremas tiene
+              cómo elegir, y quedan en su default (que ya funciona). */}
+          <div>
+            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.retries')}</p>
+            <p className="mb-2 text-xs text-muted-foreground">{t('voice.retriesHint')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {RETRY_CHOICES.map(({ retries, labelKey }) => {
+                const on = value.voice_max_retries === retries;
+                return (
+                  <button
+                    key={retries}
+                    type="button"
+                    onClick={() =>
+                      set({
+                        voice_max_retries: retries,
+                        // Los que sí insisten vuelven al espaciado por defecto;
+                        // un agente viejo con un valor a medida lo conserva.
+                        voice_retry_delay_minutes:
+                          value.voice_retry_delay_minutes || DEFAULT_RETRY_DELAY_MINUTES,
+                      })
                     }
-                    onChange={(e) => set({ voice_id: e.target.value.trim() || null })}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      {t('voice.maxDuration')}
-                    </p>
-                    <Input
-                      type="number"
-                      min={30}
-                      max={1800}
-                      className="bg-muted text-foreground"
-                      value={value.voice_max_call_seconds}
-                      onChange={(e) =>
-                        set({
-                          voice_max_call_seconds:
-                            Number(e.target.value) || DEFAULT_MAX_CALL_SECONDS,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      {t('voice.retries')}
-                    </p>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={5}
-                      className="bg-muted text-foreground"
-                      value={value.voice_max_retries}
-                      onChange={(e) => set({ voice_max_retries: Number(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">
-                      {t('voice.retryDelay')}
-                    </p>
-                    <Input
-                      type="number"
-                      min={15}
-                      max={1440}
-                      className="bg-muted text-foreground"
-                      value={value.voice_retry_delay_minutes}
-                      onChange={(e) =>
-                        set({
-                          voice_retry_delay_minutes:
-                            Number(e.target.value) || DEFAULT_RETRY_DELAY_MINUTES,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-xs',
+                      on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {t(labelKey)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

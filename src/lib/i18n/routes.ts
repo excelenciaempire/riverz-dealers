@@ -29,6 +29,10 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   contactos: "contacts",
   asistente: "ai",
   menus: "flows",
+  // Llamadas: era el ÚNICO ítem del menú principal sin slug en inglés, así que
+  // un usuario en inglés navegaba de /inbox a /voz y la URL cambiaba de idioma
+  // sola. Cubre también /voz/campanas, que traduce por el primer segmento.
+  voz: "calls",
   campanas: "broadcasts",
   automatizaciones: "automations",
   plantillas: "templates",

@@ -16,6 +16,7 @@ function colorForCategory(name: string): string {
   if (name.startsWith('unidades:')) return '#a855f7' // purple
   if (name === 'carrito-abandonado') return '#f59e0b' // amber
   if (name.startsWith('comprador')) return '#10b981' // emerald
+  if (name.startsWith('llamada:')) return '#eab308' // yellow — same as the call icons
   return '#3b82f6' // default blue
 }
 

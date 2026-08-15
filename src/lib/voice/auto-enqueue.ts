@@ -18,6 +18,17 @@ import { enqueueCall } from './queue';
  *  several same-contact orders into one confirmation call. */
 const DEFAULT_DEDUPE_HOURS = 0.25;
 
+/**
+ * Cuánto espera la llamada de carrito abandonado antes de marcar.
+ *
+ * El cron de carritos manda el WhatsApp de recuperación y, en la misma vuelta,
+ * encolaba la llamada: el teléfono sonaba mientras el mensaje seguía sin leer.
+ * Una llamada cuesta unas cincuenta veces un mensaje, así que primero se le da
+ * su turno al texto; si el cliente contesta o compra en el medio,
+ * `skip_if_replied` cancela la llamada antes de marcar.
+ */
+const CART_RECOVERY_DELAY_MINUTES = 180;
+
 /** Pick the highest-priority voice agent that has THIS objective turned on. */
 async function pickAgentForObjective(
   db: SupabaseClient,
@@ -75,12 +86,20 @@ export async function maybeAutoVoiceCall(
       .gte('created_at', since);
     if ((count ?? 0) > 0) return false;
 
+    // Recuperar un carrito es el caso donde el texto suele alcanzar: se le
+    // deja actuar primero y sólo se llama si siguió sin respuesta. Confirmar
+    // un pedido es lo contrario — cuanto antes, mejor — así que ese sale ya.
+    const isCart = input.callType === 'cart_recovery';
+
     const res = await enqueueCall({
       workspaceId: input.workspaceId,
       agentId: agent.id,
       contactId: input.contactId,
       callType: input.callType,
-      context: input.context ?? {},
+      delayMinutes: isCart ? CART_RECOVERY_DELAY_MINUTES : undefined,
+      context: isCart
+        ? { ...(input.context ?? {}), skip_if_replied: true }
+        : (input.context ?? {}),
     });
     return res.enqueued;
   } catch (err) {
