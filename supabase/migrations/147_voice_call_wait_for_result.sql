@@ -29,6 +29,17 @@ create index if not exists idx_automation_pending_resume_key
 alter table public.ai_agents
   add column if not exists voice_system_prompt text;
 
+-- Y con su permiso de lectura, que es obligatorio en esta tabla.
+--
+-- La 078 REVOCÓ el SELECT de `ai_agents` para `authenticated` y lo reparte
+-- columna por columna, para que las columnas secretas no se puedan leer desde
+-- el navegador. Consecuencia: una columna nueva sin GRANT no devuelve null,
+-- hace fallar la consulta ENTERA con 42501. La 129 ya otorga esta columna —
+-- antes de que ninguna migración la creara, o sea que una base reconstruida
+-- desde cero se cortaba ahí con 42703. Crear y otorgar juntas cierra el hueco
+-- en los dos sentidos.
+grant select (voice_system_prompt) on public.ai_agents to authenticated;
+
 -- `voice_provider` nació con un CHECK que sólo acepta 'elevenlabs' (migración
 -- 113). Desde la 114 el proveedor real de TTS sale de `voice_model_config`
 -- (deepgram, fish, cartesia…), así que la columna afirma algo que hace meses

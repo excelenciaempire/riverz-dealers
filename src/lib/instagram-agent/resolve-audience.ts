@@ -153,15 +153,42 @@ async function fetchSubscribers(
     .select('contact_id, external_contact_id')
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
-    .not('contact_id', 'is', null)
     .or(`next_eligible_at.is.null,next_eligible_at.lte.${nowIso}`)
     .limit(cap);
 
   const rows = (data ?? []) as Array<{
-    contact_id: string;
+    contact_id: string | null;
     external_contact_id: string | null;
   }>;
-  return rows.map((r) => ({ id: r.contact_id, external_id: r.external_contact_id }));
+  if (rows.length === 0) return [];
+
+  // El permiso llega por webhook con el id de Meta y nada más, así que
+  // `contact_id` puede venir vacío (el contacto todavía no existía, o el
+  // webhook ganó la carrera). Exigir esa columna dejaba la lista SIEMPRE en
+  // cero mientras la pantalla seguía contando suscriptores: la funcionalidad
+  // entera se veía encendida sin encolar a nadie. Se resuelve por el id de
+  // Meta, que es lo que siempre está.
+  const resolved: AudienceContact[] = [];
+  const pendingExternal: string[] = [];
+  for (const r of rows) {
+    if (r.contact_id) resolved.push({ id: r.contact_id, external_id: r.external_contact_id });
+    else if (r.external_contact_id) pendingExternal.push(r.external_contact_id);
+  }
+
+  if (pendingExternal.length > 0) {
+    const { data: contacts } = await supabase
+      .from('contacts')
+      .select('id, external_id')
+      .eq('workspace_id', workspaceId)
+      .in('external_id', pendingExternal.slice(0, cap));
+    for (const c of (contacts ?? []) as AudienceContact[]) {
+      resolved.push({ id: c.id, external_id: c.external_id });
+    }
+  }
+
+  // Un mismo contacto puede haber aceptado más de un tema.
+  const seen = new Set<string>();
+  return resolved.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
 }
 
 /**

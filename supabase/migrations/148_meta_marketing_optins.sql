@@ -21,7 +21,14 @@ create table if not exists public.meta_marketing_optins (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   contact_id uuid references public.contacts(id) on delete cascade,
-  connection_id uuid references public.channel_connections(id) on delete cascade,
+  -- SET NULL, no CASCADE: un permiso es un consentimiento que dio una persona,
+  -- no un accesorio de la conexión. Con CASCADE, borrar una fila de
+  -- channel_connections —una limpieza de conexiones huérfanas, una reconexión
+  -- que borre y recree en vez de actualizar— se llevaba puesta la lista
+  -- COMPLETA de consentimientos de esa cuenta, y eso no se recupera: hay que
+  -- volver a pedírselo a cada persona dentro de su ventana. El ancla es
+  -- workspace_id, que sí es not null.
+  connection_id uuid references public.channel_connections(id) on delete set null,
   channel text not null check (channel in ('instagram', 'messenger')),
   -- IGSID / PSID: quién es del lado de Meta. El token va atado a esta persona
   -- y a este tema, no al contacto de Riverz, que puede fusionarse o migrar.

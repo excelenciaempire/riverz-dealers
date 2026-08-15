@@ -38,6 +38,29 @@ describe('isMarketingOptin', () => {
   });
 });
 
+describe('bajas: solo ante un rechazo definitivo', () => {
+  // Un permiso dado de baja no se reactiva con nada. Marcarlo por un error
+  // pasajero borra para siempre el unico activo que construye la funcionalidad.
+  const decide = (status: number, permanent: boolean, category: string) =>
+    permanent && category !== 'rate_limit' && status < 500;
+
+  it('no da de baja por un 500 de Graph', () => {
+    expect(decide(500, true, 'unknown')).toBe(false);
+  });
+
+  it('no da de baja por tope de frecuencia', () => {
+    expect(decide(400, true, 'rate_limit')).toBe(false);
+  });
+
+  it('si da de baja cuando la persona ya no es alcanzable', () => {
+    expect(decide(400, true, 'recipient')).toBe(true);
+  });
+
+  it('no da de baja ante un error clasificado como transitorio', () => {
+    expect(decide(400, false, 'unknown')).toBe(false);
+  });
+});
+
 describe('cooldown de Marketing Messages', () => {
   it('son 48 horas exactas', () => {
     // Meta lo subió de 24 h a 48 h el 1-sep-2025. Si esta constante vuelve a

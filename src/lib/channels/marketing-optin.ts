@@ -25,7 +25,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from './encryption';
 import { withAppsecretProofBody } from './meta-graph';
-import { parseMetaError } from './meta-errors';
+import { describeMetaSendError, parseMetaError } from './meta-errors';
 
 const GRAPH = 'https://graph.facebook.com/v22.0';
 
@@ -113,21 +113,44 @@ export async function recordOptIn(
   const token = input.optin.notification_messages_token;
   if (!token) return;
 
-  const row = {
+  // Atar el permiso al contacto de Riverz, no sólo al id de Meta.
+  //
+  // Los webhooks traen el IGSID/PSID y nada más, así que sin esta búsqueda la
+  // columna quedaba SIEMPRE en null — y como la audiencia de campaña se arma
+  // por contacto, la lista entera resultaba invisible: el contador de la
+  // pantalla mostraba suscriptores y ninguna campaña encolaba uno solo.
+  let contactId = input.contactId ?? null;
+  if (!contactId) {
+    const { data: c } = await db
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', input.workspaceId)
+      .eq('external_id', input.externalContactId)
+      .limit(1)
+      .maybeSingle();
+    contactId = (c as { id?: string } | null)?.id ?? null;
+  }
+
+  const row: Record<string, unknown> = {
     workspace_id: input.workspaceId,
     connection_id: input.connectionId,
     channel: input.channel,
     external_contact_id: input.externalContactId,
-    contact_id: input.contactId ?? null,
     notification_messages_token: token,
     token_expiry_timestamp: expiryToIso(input.optin.token_expiry_timestamp),
     title: (input.optin.title || DEFAULT_OPTIN_TITLE).slice(0, 65),
     status: 'active' as const,
-    // Se puede escribir enseguida: el cooldown cuenta desde el último ENVÍO,
-    // y todavía no hubo ninguno.
-    next_eligible_at: null,
     updated_at: new Date().toISOString(),
   };
+  // Sólo se pisa si lo pudimos resolver: un webhook que llega antes de que
+  // exista el contacto no debe borrar el vínculo que otro ya estableció.
+  if (contactId) row.contact_id = contactId;
+
+  // `next_eligible_at` NO se toca a propósito. Este upsert es también el
+  // camino de RENOVACIÓN del token, y resetearlo ahí borraba un cooldown de
+  // 48 h en curso: la campaña la daba por contactable, Meta rechazaba por
+  // tope, y el rechazo la marcaba revocada para siempre. En una fila nueva la
+  // columna ya nace en null, que es lo que se quería.
 
   const { error } = await db
     .from('meta_marketing_optins')
@@ -294,12 +317,31 @@ export async function sendToSubscriber(
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       const parsed = parseMetaError(body);
-      // Bloquear, silenciar o denunciar no genera webhook: el rechazo del
-      // envío es el único aviso de que la persona se bajó.
-      await db
-        .from('meta_marketing_optins')
-        .update({ status: 'revoked', updated_at: new Date().toISOString() })
-        .eq('id', optin.id);
+      const described = describeMetaSendError(optin.channel, res.status, parsed);
+
+      // Sólo se da de baja un permiso ante un rechazo DEFINITIVO.
+      //
+      // Antes cualquier respuesta no-2xx lo marcaba 'revoked', y nada vuelve a
+      // poner un permiso en 'active': un 500 pasajero de Graph o un tope de
+      // frecuencia borraban para siempre un consentimiento que la persona sí
+      // había dado. Es el único activo que esta funcionalidad construye y no
+      // se recupera sin volver a pedírselo a cada uno.
+      const permanent =
+        described.permanent &&
+        described.category !== 'rate_limit' &&
+        res.status < 500;
+      if (permanent) {
+        await db
+          .from('meta_marketing_optins')
+          .update({ status: 'revoked', updated_at: new Date().toISOString() })
+          .eq('id', optin.id);
+      }
+      console.error(
+        `[marketing-optin] envío rechazado (${res.status}, ${described.category}, ${
+          permanent ? 'baja definitiva' : 'se reintenta'
+        }):`,
+        parsed?.error?.message ?? body.slice(0, 200),
+      );
       return { ok: false, reason: parsed?.error?.message ?? `http_${res.status}` };
     }
 

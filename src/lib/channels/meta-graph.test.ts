@@ -118,8 +118,11 @@ describe("appSubscriptionGaps", () => {
 
   const healthy = () => ({
     instagram: {
+      // `messaging_optins` = la aceptacion de Marketing Messages. Sin ese
+      // campo la lista de suscriptores deja de crecer en silencio, asi que
+      // cuenta como hueco igual que los otros dos.
       active: true,
-      fields: ["comments", "messages"],
+      fields: ["comments", "messages", "messaging_optins"],
       callbackUrl: "https://riverz.co/api/channels/instagram/webhook",
     },
     page: {
@@ -154,10 +157,20 @@ describe("appSubscriptionGaps", () => {
 
   it("sigue reportando campos faltantes", () => {
     const subs = healthy();
-    subs.instagram.fields = ["messages"];
+    subs.instagram.fields = ["messages", "messaging_optins"];
     const gaps = appSubscriptionGaps(subs);
     expect(gaps).toHaveLength(1);
     expect(gaps[0].missing).toEqual(["comments"]);
     expect(gaps[0].wrongCallback).toBe(false);
+  });
+
+  it("reporta el opt-in de marketing cuando falta", () => {
+    // Es el hueco mas facil de no ver: los DMs y los comentarios siguen
+    // llegando, y lo unico que pasa es que nadie se suscribe nunca.
+    const subs = healthy();
+    subs.instagram.fields = ["comments", "messages"];
+    const gaps = appSubscriptionGaps(subs);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].missing).toEqual(["messaging_optins"]);
   });
 });
