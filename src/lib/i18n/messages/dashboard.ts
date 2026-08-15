@@ -146,6 +146,12 @@ export const dashboard = {
     en: "Replies with your catalog and your brand, 24/7, across every channel.",
   },
   stepActivateAssistantCta: { es: "Activar asistente", en: "Activate assistant" },
+  stepFirstReply: { es: "Comprueba que contesta", en: "Check that it replies" },
+  stepFirstReplyDesc: {
+    es: "Escríbele desde «Probar» o desde tu propio WhatsApp. Hasta que conteste una vez, no sabes si funciona.",
+    en: "Message it from «Test» or from your own WhatsApp. Until it answers once, you don't know it works.",
+  },
+  stepFirstReplyCta: { es: "Probar el asistente", en: "Test the assistant" },
 
   // Setup checklist — success state
   setupComplete: { es: "Configuración completa", en: "Setup complete" },

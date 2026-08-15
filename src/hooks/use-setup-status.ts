@@ -24,6 +24,14 @@ export interface SetupStatus {
   /** Tiene al menos un producto (shopify_products, sincronizado o manual). */
   has_product: boolean;
   has_agent: boolean;
+  /**
+   * El asistente ALCANZA a algún canal conectado. Un agente activo cuyo
+   * alcance son canales que nadie conectó (o ninguno) está encendido y no
+   * contesta a nadie: el checklist decía "listo" sobre algo que no funciona.
+   */
+  agent_reachable: boolean;
+  /** El asistente ya contestó al menos una vez (real o de prueba). */
+  agent_replied: boolean;
   /** Número de pasos completados (sobre el total de pasos). */
   completed: number;
   /** True cuando todos los pasos están completos. El sidebar usa esto
@@ -46,6 +54,8 @@ export function useSetupStatus(): SetupStatus {
     shopify_connected: false,
     has_product: false,
     has_agent: false,
+    agent_reachable: false,
+    agent_replied: false,
     completed: 0,
     ready: false,
     loading: true,
@@ -91,6 +101,8 @@ export function useSetupStatus(): SetupStatus {
             shopify_connected: false,
             has_product: false,
             has_agent: false,
+            agent_reachable: false,
+            agent_replied: false,
             completed: 0,
             ready: false,
             loading: false,
@@ -103,6 +115,7 @@ export function useSetupStatus(): SetupStatus {
         { data: shopify },
         { data: products },
         { data: agents },
+        { data: replies },
       ] = await Promise.all([
         supabase
           .from('channel_connections')
@@ -122,9 +135,14 @@ export function useSetupStatus(): SetupStatus {
           .limit(1),
         supabase
           .from('ai_agents')
+          .select('id, scope')
+          .in('workspace_id', workspaceIds)
+          .eq('is_active', true),
+        supabase
+          .from('ai_replies')
           .select('id')
           .in('workspace_id', workspaceIds)
-          .eq('is_active', true)
+          .eq('status', 'sent')
           .limit(1),
       ]);
       const channelList = (channels ?? []) as Array<{
@@ -149,11 +167,42 @@ export function useSetupStatus(): SetupStatus {
           (c) => c.channel === 'shopify' && c.status === 'connected',
         );
       const has_product = (products ?? []).length > 0;
-      const has_agent = (agents ?? []).length > 0;
+      const agentRows = (agents ?? []) as Array<{ id: string; scope: string | null }>;
+      const has_agent = agentRows.length > 0;
+      const agent_replied = (replies ?? []).length > 0;
+
+      // Alcance real. 'workspace' cubre todos los canales; 'channels' solo los
+      // que el agente tenga anotados Y que ademas esten conectados. Un agente
+      // encendido sin ningun canal alcanzable no contesta nunca, y esa falla no
+      // da ninguna senal en pantalla: el checklist decia "listo" igual.
+      let agent_reachable = agentRows.some(
+        (a) => (a.scope ?? 'workspace') !== 'channels',
+      );
+      const scoped = agentRows.filter((a) => (a.scope ?? 'workspace') === 'channels');
+      if (!agent_reachable && scoped.length > 0 && any_channel_connected) {
+        const connected = new Set(
+          channelList.filter((c) => c.status === 'connected').map((c) => c.channel),
+        );
+        const { data: agentChannels } = await supabase
+          .from('ai_agent_channels')
+          .select('agent_id, channel')
+          .in(
+            'agent_id',
+            scoped.map((a) => a.id),
+          );
+        agent_reachable = (
+          (agentChannels ?? []) as Array<{ channel: string }>
+        ).some((r) => connected.has(r.channel));
+      }
       // Pasos operativos: un canal conectado (cualquiera) + un producto +
       // un asistente activo. Shopify es opcional y WhatsApp no es obligatorio,
       // así que `ready` (chip "Conecta" del sidebar) refleja este camino real.
-      const flags = [any_channel_connected, has_product, has_agent];
+      const flags = [
+        any_channel_connected,
+        has_product,
+        has_agent && agent_reachable,
+        agent_replied,
+      ];
       const completed = flags.filter(Boolean).length;
       if (fresh()) {
         setStatus({
@@ -163,6 +212,8 @@ export function useSetupStatus(): SetupStatus {
           shopify_connected,
           has_product,
           has_agent,
+          agent_reachable,
+          agent_replied,
           completed,
           ready: completed === flags.length,
           loading: false,

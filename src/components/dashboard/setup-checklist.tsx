@@ -84,9 +84,21 @@ export function SetupChecklist() {
     {
       label: t('dashboard.stepActivateAssistant'),
       description: t('dashboard.stepActivateAssistantDesc'),
-      done: status.has_agent,
+      // Alcanzable, no solo encendido: un asistente cuyo alcance no cubre
+      // ningun canal conectado no contesta a nadie, y marcarlo como listo
+      // manda al comercio a esperar respuestas que no van a llegar.
+      done: status.has_agent && status.agent_reachable,
       href: '/asistente',
       cta: t('dashboard.stepActivateAssistantCta'),
+    },
+    {
+      // El unico paso que PRUEBA que la cadena entera funciona. Los tres de
+      // arriba son configuracion; este es el hecho.
+      label: t('dashboard.stepFirstReply'),
+      description: t('dashboard.stepFirstReplyDesc'),
+      done: status.agent_replied,
+      href: '/asistente',
+      cta: t('dashboard.stepFirstReplyCta'),
     },
   ];
 
