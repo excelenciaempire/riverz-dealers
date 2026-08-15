@@ -101,11 +101,14 @@ export async function GET(request: Request) {
   const workspaceIds = ((memberships ?? []) as { workspace_id: string }[]).map(
     (m) => m.workspace_id,
   );
+  // Cualquier plataforma de tienda, no sólo Shopify: desde la migración 126
+  // un workspace puede tener Tiendanube o WooCommerce, y filtrar por
+  // 'shopify' le decía a un comercio de Tiendanube que reconectara Shopify —
+  // una tienda que nunca tuvo.
   const { data: shop } = workspaceIds.length
     ? await admin
         .from('shopify_connections')
-        .select('id, shop_domain, status')
-        .eq('platform', 'shopify')
+        .select('id, shop_domain, status, platform')
         .in('workspace_id', workspaceIds)
         .eq('status', 'active')
         .limit(1)
@@ -113,6 +116,7 @@ export async function GET(request: Request) {
     : { data: null };
 
   const shopify_connected = !!shop;
+  const store_platform = (shop as { platform?: string } | null)?.platform ?? null;
 
   // Divisa del workspace — para que el UI muestre precios de productos con
   // currency=null y prellene la divisa al crear/editar. Misma resolución que
@@ -124,6 +128,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     products,
     shopify_connected,
+    store_platform,
     workspace_currency,
   });
 }

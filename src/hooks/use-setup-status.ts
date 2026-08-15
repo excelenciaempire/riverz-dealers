@@ -122,9 +122,10 @@ export function useSetupStatus(): SetupStatus {
           .select('channel, status')
           .in('workspace_id', workspaceIds),
         supabase
+          // Cualquier plataforma de tienda: un comercio con Tiendanube o
+          // WooCommerce tiene su tienda conectada igual que uno con Shopify.
           .from('shopify_connections')
           .select('id')
-          .eq('platform', 'shopify')
           .in('workspace_id', workspaceIds)
           .eq('status', 'active')
           .limit(1),

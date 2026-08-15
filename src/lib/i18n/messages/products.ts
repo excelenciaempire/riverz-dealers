@@ -35,14 +35,16 @@ export const products = {
   nameRequired: { es: "Ponle un nombre al producto.", en: "Give the product a name." },
   createError: { es: "No se pudo crear el producto.", en: "Couldn't create the product." },
 
-  // Shopify disconnected banner
+  // Aviso de tienda desconectada. Genérico a propósito: el workspace puede
+  // tener Shopify, Tiendanube o WooCommerce, y nombrar la equivocada manda al
+  // comercio a reconectar una tienda que nunca tuvo.
   shopifyNotConnected: {
-    es: "Shopify no está conectado",
-    en: "Shopify isn't connected",
+    es: "Tu tienda no está conectada",
+    en: "Your store isn't connected",
   },
   shopifyReconnectHint: {
-    es: "Para sincronizar tu catálogo actual, reconecta Shopify.",
-    en: "To sync your current catalog, reconnect Shopify.",
+    es: "Para sincronizar tu catálogo actual, vuelve a conectarla.",
+    en: "To sync your current catalog, connect it again.",
   },
   connect: { es: "Conectar", en: "Connect" },
 
