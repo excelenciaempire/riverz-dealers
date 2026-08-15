@@ -2153,24 +2153,34 @@ function BranchFan({
         return
       }
       const base = el.getBoundingClientRect().top
+      // El lienzo tiene zoom. Lo que se mide viene en píxeles de pantalla —ya
+      // achicados— y lo que se escribe son píxeles de CSS, que el zoom vuelve
+      // a achicar. Medir al 62% y escribir sin corregir encogía las líneas una
+      // segunda vez: la espina quedaba corta y los ramales entraban por arriba
+      // de la cabecera. La cabecera mide 78 px de CSS siempre, así que
+      // comparándola contra lo que se ve sale la escala exacta.
+      const probe = el.querySelector<HTMLElement>("[data-card-head]")
+      const scale = probe ? probe.getBoundingClientRect().height / 78 : 1
+      const px = (n: number) => (scale > 0 ? n / scale : n)
+
       // El ramal entra por la CABECERA de la primera tarjeta del carril, no
       // por el centro de la fila. Una tarjeta crece hacia abajo al desplegar
       // su configuración: apuntando al centro, la línea se despegaba de la
       // cabecera y terminaba entrando por la mitad de un panel abierto.
       // La cabecera no se mueve, así que la línea tampoco.
-      const points = rows.map((r) => {
-        const b = r.getBoundingClientRect()
+      const rowTops = rows.map((r) => px(r.getBoundingClientRect().top - base))
+      const points = rows.map((r, i) => {
         const head = r.querySelector<HTMLElement>("[data-card-head]")
         if (head) {
           const h = head.getBoundingClientRect()
-          return h.top - base + h.height / 2
+          return px(h.top - base) + px(h.height) / 2
         }
         // Un carril sin tarjetas —sólo el botón de añadir— se centra solo.
-        return b.top - base + b.height / 2
+        return rowTops[i] + px(r.getBoundingClientRect().height) / 2
       })
       const top = Math.min(...points)
       const bottom = Math.max(...points)
-      setAnchors(points.map((p, i) => p - (rows[i].getBoundingClientRect().top - base)))
+      setAnchors(points.map((p, i) => p - rowTops[i]))
       setSpine({ top, height: bottom - top })
       setOffset(CARD_HALF - (top + bottom) / 2)
     }
