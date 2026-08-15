@@ -38,7 +38,7 @@ export default function AdminAuditPage() {
   const [actor, setActor] = useState("");
 
   const url = `/api/admin/audit?limit=200&source=${source}&actor=${encodeURIComponent(actor)}`;
-  const { data, loading, error, reload } = useAdminData<{
+  const { data, loading, error, reload, live } = useAdminData<{
     rows: (AuditRow | PlatformAuditRow)[];
   }>(url);
 
@@ -173,6 +173,7 @@ export default function AdminAuditPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.auditTitle")}
         description={t("admin.auditDesc")}
         actions={

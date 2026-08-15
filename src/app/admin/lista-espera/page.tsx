@@ -24,7 +24,7 @@ import { RefreshButton } from "../_components/filters";
 export default function AdminWaitlistPage() {
   const t = useT();
   const format = useFormat();
-  const { data, loading, error, reload } = useAdminData<{
+  const { data, loading, error, reload, live } = useAdminData<{
     rows: WaitlistRow[];
     total: number;
   }>("/api/admin/waitlist?limit=300");
@@ -58,6 +58,7 @@ export default function AdminWaitlistPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.waitlistTitle")}
         description={t("admin.sectionWaitlistDesc")}
         actions={<RefreshButton onClick={reload} />}

@@ -46,7 +46,7 @@ export default function AdminChannelsPage() {
   const [status, setStatus] = useState("");
 
   const url = `/api/admin/channels?channel=${channel}&status=${status}`;
-  const { data, loading, error, reload } =
+  const { data, loading, error, reload, live } =
     useAdminData<{ rows: ChannelRow[] }>(url);
 
   const rows = data?.rows ?? [];
@@ -156,6 +156,7 @@ export default function AdminChannelsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.channelsTitle")}
         description={t("admin.sectionChannelsDesc")}
         actions={

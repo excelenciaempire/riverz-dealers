@@ -28,7 +28,7 @@ export default function AdminWorkspaceDetailPage({
   const { id } = use(params);
   const t = useT();
   const format = useFormat();
-  const { data, loading, error, reload } = useAdminData<WorkspaceDetail>(
+  const { data, loading, error, reload, live } = useAdminData<WorkspaceDetail>(
     `/api/admin/workspaces/${id}`,
   );
 
@@ -57,6 +57,7 @@ export default function AdminWorkspaceDetailPage({
       <BackLink label={t("admin.workspacesTitle")} />
 
       <PageHeader
+        live={live}
         title={workspace.name}
         description={[owner?.email, workspace.timezone]
           .filter(Boolean)

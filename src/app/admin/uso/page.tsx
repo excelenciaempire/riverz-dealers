@@ -44,7 +44,7 @@ export default function AdminUsagePage() {
   const [days, setDays] = useState(30);
 
   const url = `/api/admin/usage?from=${encodeURIComponent(fromDays(days))}`;
-  const { data, loading, error, reload } = useAdminData<Payload>(url);
+  const { data, loading, error, reload, live } = useAdminData<Payload>(url);
 
   const columns = useMemo<Column<Row>[]>(
     () => [
@@ -115,6 +115,7 @@ export default function AdminUsagePage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.usageTitle")}
         description={t("admin.usageDesc")}
         actions={

@@ -49,7 +49,7 @@ const BEAT_STALE_MS = 2 * 60_000;
 export default function AdminOpsPage() {
   const t = useT();
   const format = useFormat();
-  const { data, loading, error, reload } =
+  const { data, loading, error, reload, live } =
     useAdminData<OpsPayload>("/api/admin/ops");
 
   const jobs = useMemo<JobRow[]>(() => {
@@ -167,6 +167,7 @@ export default function AdminOpsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.opsTitle")}
         description={t("admin.sectionOpsDesc")}
         actions={<RefreshButton onClick={reload} />}

@@ -27,7 +27,7 @@ export default function AdminWorkspacesPage() {
   const [search, setSearch] = useState("");
 
   const url = `/api/admin/workspaces?limit=200&q=${encodeURIComponent(search)}`;
-  const { data, loading, error, reload } =
+  const { data, loading, error, reload, live } =
     useAdminData<{ rows: WorkspaceRow[]; total: number }>(url);
 
   const columns = useMemo<Column<WorkspaceRow>[]>(
@@ -130,6 +130,7 @@ export default function AdminWorkspacesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.workspacesTitle")}
         description={t("admin.readOnlyNote")}
         actions={

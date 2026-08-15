@@ -22,38 +22,106 @@ interface Fetched<T> {
   loading: boolean;
   error: boolean;
   reload: () => void;
+  /** Se está refrescando solo (no es la primera carga). */
+  live: boolean;
 }
 
-/** GET a una ruta de admin, con recarga manual y cancelación al desmontar. */
-export function useAdminData<T>(url: string): Fetched<T> {
+/** Cada cuánto se refresca sola una pantalla del panel. */
+export const LIVE_MS = 30_000;
+
+/**
+ * GET a una ruta de admin, con refresco automático, recarga manual y
+ * cancelación al desmontar.
+ *
+ * **Por qué polling y no Supabase realtime**: realtime va con la RLS de la
+ * sesión, así que un admin sólo recibiría eventos de su propio workspace — que
+ * es justo lo que este panel no mira. Los datos de plataforma salen de rutas que
+ * corren con la clave de servicio, y la forma de mantenerlas frescas es
+ * preguntarlas.
+ *
+ * **Pausado cuando la pestaña no se ve.** Una pestaña olvidada en segundo plano
+ * seguiría preguntando toda la tarde, y algunas de estas rutas cuestan dinero de
+ * verdad (`/api/admin/infrastructure` sondea completions facturables). Al volver
+ * a la pestaña se refresca una vez, así que lo que se ve nunca es viejo.
+ */
+export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [live, setLive] = useState(false);
   const [nonce, setNonce] = useState(0);
   // Descarta respuestas de una petición vieja que llegue tarde tras cambiar
   // un filtro — si no, la tabla parpadea con datos que ya nadie pidió.
   const latest = useRef(0);
 
   useEffect(() => {
-    const ticket = ++latest.current;
-    setLoading(true);
-    setError(false);
-    (async () => {
+    let cancelled = false;
+
+    /** `silent` = refresco de fondo: no vuelve a poner la pantalla en "cargando". */
+    const load = async (silent: boolean) => {
+      const ticket = ++latest.current;
+      if (!silent) {
+        setLoading(true);
+        setError(false);
+      }
       try {
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
         const json = (await res.json()) as T;
-        if (ticket === latest.current) setData(json);
+        if (ticket === latest.current && !cancelled) {
+          setData(json);
+          setError(false);
+        }
       } catch {
-        if (ticket === latest.current) setError(true);
+        // Un fallo del refresco de fondo no borra lo que ya se está viendo:
+        // dejar la pantalla en rojo por un corte de red de un segundo es peor
+        // que mostrar datos de hace treinta.
+        if (ticket === latest.current && !cancelled && !silent) setError(true);
       } finally {
-        if (ticket === latest.current) setLoading(false);
+        if (ticket === latest.current && !cancelled && !silent) setLoading(false);
       }
-    })();
-  }, [url, nonce]);
+    };
+
+    void load(false);
+
+    if (!intervalMs) return () => {
+      cancelled = true;
+    };
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(() => void load(true), intervalMs);
+      setLive(true);
+    };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      setLive(false);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Al volver, una lectura inmediata: si no, se ven hasta 30 s de pasado.
+        void load(true);
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [url, nonce, intervalMs]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
-  return { data, loading, error, reload };
+  return { data, loading, error, reload, live };
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -64,10 +132,13 @@ export function PageHeader({
   title,
   description,
   actions,
+  live,
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  /** Muestra el punto de "se está refrescando solo". */
+  live?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -77,8 +148,28 @@ export function PageHeader({
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      <div className="flex items-center gap-2">
+        {live && <LiveDot />}
+        {actions}
+      </div>
     </div>
+  );
+}
+
+/** Punto que dice, sin texto, que lo que se ve se actualiza solo. */
+export function LiveDot() {
+  const t = useT();
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+      title={t("admin.liveHint")}
+    >
+      <span className="relative flex size-1.5">
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+        <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+      </span>
+      {t("admin.live")}
+    </span>
   );
 }
 

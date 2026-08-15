@@ -44,7 +44,7 @@ export default function AdminHomePage() {
   const format = useFormat();
 
   const url = `/api/admin/overview?from=${encodeURIComponent(fromDays(PERIOD_DAYS))}`;
-  const { data, loading, error, reload } = useAdminData<Payload>(url);
+  const { data, loading, error, reload, live } = useAdminData<Payload>(url);
   const o = data?.overview ?? null;
   const series = data?.series ?? [];
 
@@ -71,6 +71,7 @@ export default function AdminHomePage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        live={live}
         title={t("admin.overviewTitle")}
         description={t("admin.overviewDesc")}
         actions={<RefreshButton onClick={reload} />}

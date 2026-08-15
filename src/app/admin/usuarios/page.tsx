@@ -25,7 +25,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
 
   const url = `/api/admin/users?limit=200&q=${encodeURIComponent(search)}`;
-  const { data, loading, error, reload } =
+  const { data, loading, error, reload, live } =
     useAdminData<{ rows: UserRow[]; total: number }>(url);
 
   const columns = useMemo<Column<UserRow>[]>(
@@ -96,6 +96,7 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.usersTitle")}
         description={t("admin.sectionUsersDesc")}
         actions={

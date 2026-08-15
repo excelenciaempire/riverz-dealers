@@ -46,7 +46,7 @@ export default function AdminLogsPage() {
   const [days, setDays] = useState(7);
 
   const url = `/api/admin/logs?kind=${kind}&from=${encodeURIComponent(fromDays(days))}&limit=200`;
-  const { data, loading, error, reload } =
+  const { data, loading, error, reload, live } =
     useAdminData<{ entries: LogEntry[] }>(url);
 
   const columns = useMemo<Column<LogEntry>[]>(
@@ -107,6 +107,7 @@ export default function AdminLogsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        live={live}
         title={t("admin.logsTitle")}
         description={kind === "ai" ? t("admin.logsAiHint") : t("admin.readOnlyNote")}
         actions={
