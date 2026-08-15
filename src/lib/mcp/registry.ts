@@ -32,6 +32,11 @@ export interface McpTool {
   run: (args: Record<string, unknown>) => Promise<unknown>
   /** Qué se le muestra a la persona antes de ejecutar una irreversible. */
   preview?: (args: Record<string, unknown>) => Promise<string>
+  /**
+   * Sólo para la llave del equipo. Son las que hablan de la plataforma y no de
+   * una cuenta: a un comercio no le sirven y le muestran fontanería ajena.
+   */
+  platformOnly?: boolean
 }
 
 const db = () => supabaseAdmin()
@@ -46,15 +51,21 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'cuentas_listar',
     description:
-      'Lista las cuentas (workspaces) vivas con su nombre, cuántos contactos y canales tienen, y cuántas automatizaciones activas. Es el punto de entrada: el workspace_id que devuelve se usa en todas las demás.',
+      'Lista las cuentas (workspaces) vivas con su nombre, cuántos contactos y canales tienen, y cuántas automatizaciones activas. Es el punto de entrada: el workspace_id que devuelve se usa en todas las demás. Con una clave de comercio devuelve sólo la suya.',
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
-    async run() {
-      const { data } = await db()
+    async run(args) {
+      // Con una llave de comercio el servidor ya inyectó su workspace_id, así
+      // que esta lista se recorta a esa cuenta. Sin ese recorte, la herramienta
+      // de "punto de entrada" sería, para un comercio, la lista completa de
+      // clientes de Riverz.
+      let q = db()
         .from('workspaces')
         .select('id, name, created_at')
         .is('deleted_at', null)
         .order('created_at')
+      if (args.workspace_id) q = q.eq('id', String(args.workspace_id))
+      const { data } = await q
       const cuentas = (data ?? []) as { id: string; name: string; created_at: string }[]
       return Promise.all(
         cuentas.map(async (w) => {
@@ -285,8 +296,9 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'cron_estado',
     description:
-      'Los trabajos programados: nombre, frecuencia y cómo terminó la última corrida de cada uno.',
+      'Los trabajos programados de la plataforma: nombre, frecuencia y cómo terminó la última corrida de cada uno.',
     risk: 'lectura',
+    platformOnly: true,
     schema: { type: 'object', properties: {} },
     async run() {
       // El mismo RPC que mira el panel, y no un reduce propio sobre una ventana

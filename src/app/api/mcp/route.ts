@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { limitByKey } from '@/lib/rate-limit'
 import { MCP_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
+import { resolveActor, rateKey, sameSecret, type McpActor } from '@/lib/mcp/tokens'
 
 /**
  * La operación de Riverz, expuesta como herramientas.
@@ -17,11 +18,12 @@ import { MCP_TOOLS, findTool, type McpTool } from '@/lib/mcp/registry'
  * Esto opera sobre cuentas de comercios reales — la de Pilar tiene 3.264
  * contactos — así que no alcanza con que ande:
  *
- *   * Entra sólo con la clave de plataforma. No hay sesión de navegador ni
- *     usuario: es una puerta de servicio.
- *   * El workspace es un parámetro explícito de cada herramienta. Nunca se
- *     adivina "la cuenta del que llama", que es justo el error que enterró
- *     dos flujos en esta misma base.
+ *   * Entra sólo con una llave. No hay sesión de navegador ni usuario: es una
+ *     puerta de servicio.
+ *   * La llave DICE el alcance. La del equipo cruza cuentas —es la que contesta
+ *     "a qué comercio se le rompió algo"— y la de un comercio opera sobre la
+ *     suya y sobre ninguna otra. Con una llave de comercio, el `workspace_id`
+ *     que venga en los argumentos no se obedece: o coincide o se rechaza.
  *   * Todo queda registrado, incluidas las lecturas: sobre datos ajenos,
  *     saber quién miró qué también es parte de la respuesta.
  *   * Lo irreversible no se ejecuta de una: devuelve qué haría y un token de
@@ -47,17 +49,44 @@ function rpcError(id: RpcRequest['id'], code: number, message: string) {
   return NextResponse.json({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
 }
 
-/** La clave de plataforma, comparada sin filtrar el tiempo que tarda. */
-function autorizado(req: Request): string | null {
-  const esperado = process.env.MCP_ADMIN_TOKEN
-  if (!esperado) return null
+/**
+ * Quién llama: el equipo de Riverz o un comercio con su propia llave.
+ *
+ * La diferencia no es cosmética. Antes había una sola llave y el workspace
+ * venía como ARGUMENTO de cada herramienta, o sea que lo elegía quien llamaba.
+ * Eso servía sólo mientras la llave fuera del equipo: repartirla a un comercio
+ * habría sido repartir todas las cuentas. Con una llave de comercio, el alcance
+ * sale de la llave y el argumento deja de tener voz.
+ */
+async function autorizado(req: Request): Promise<McpActor | null> {
   const header = req.headers.get('authorization') ?? ''
-  const enviado = header.replace(/^Bearer\s+/i, '')
-  if (!enviado) return null
-  const a = Buffer.from(enviado)
-  const b = Buffer.from(esperado)
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
-  return req.headers.get('x-mcp-actor') || 'plataforma'
+  const presentado = header.replace(/^Bearer\s+/i, '').trim()
+  if (!presentado) return null
+  return resolveActor(supabaseAdmin(), presentado)
+}
+
+/**
+ * El workspace sobre el que va a operar esta llamada.
+ *
+ * Para una llave de comercio es siempre el suyo. Si además mandó un
+ * `workspace_id` distinto, se rechaza en vez de ignorarlo en silencio: un
+ * agente que cree estar operando sobre otra cuenta tiene que enterarse de que
+ * no, y no descubrirlo por los resultados.
+ */
+function alcance(
+  actor: McpActor,
+  args: Record<string, unknown>,
+): { ok: true; args: Record<string, unknown> } | { ok: false; motivo: string } {
+  if (actor.kind === 'platform') return { ok: true, args }
+
+  const pedido = args.workspace_id ? String(args.workspace_id) : null
+  if (pedido && pedido !== actor.workspaceId) {
+    return {
+      ok: false,
+      motivo: 'esta clave sólo opera sobre su propia cuenta',
+    }
+  }
+  return { ok: true, args: { ...args, workspace_id: actor.workspaceId } }
 }
 
 /**
@@ -85,10 +114,7 @@ function confirmacionValida(token: string, tool: string, args: unknown): boolean
   if (!Number.isFinite(vence) || vence < Date.now()) return false
   // Se recalcula con el vencimiento que vino en el token: si alguien lo toca,
   // la firma deja de cerrar.
-  const esperado = Buffer.from(macDe(tool, args, vence))
-  const recibido = Buffer.from(mac ?? '')
-  if (esperado.length !== recibido.length) return false
-  return timingSafeEqual(esperado, recibido)
+  return sameSecret(macDe(tool, args, vence), mac ?? '')
 }
 
 /**
@@ -110,7 +136,7 @@ function sinPii(args: Record<string, unknown>): Record<string, unknown> {
 }
 
 async function anotar(args: {
-  actor: string
+  actor: McpActor
   tool: string
   toolArgs: Record<string, unknown>
   risk: string
@@ -121,8 +147,10 @@ async function anotar(args: {
     await supabaseAdmin()
       .from('platform_audit_log')
       .insert({
-        workspace_id: (args.toolArgs.workspace_id as string) ?? null,
-        actor: args.actor,
+        workspace_id:
+          (args.toolArgs.workspace_id as string) ??
+          (args.actor.kind === 'workspace' ? args.actor.workspaceId : null),
+        actor: args.actor.label,
         tool: args.tool,
         args: sinPii(args.toolArgs),
         risk: args.risk,
@@ -171,12 +199,15 @@ function resumenSeguro(tool: McpTool, salida: unknown): string {
 const MCP_RATE = { limit: 60, windowMs: 60_000 }
 
 export async function POST(request: Request) {
-  const actor = autorizado(request)
+  const actor = await autorizado(request)
   if (!actor) {
-    return rpcError(null, -32001, 'clave de plataforma inválida o ausente')
+    return rpcError(null, -32001, 'clave inválida o ausente')
   }
 
-  const rl = await limitByKey(`mcp:${actor}`, MCP_RATE)
+  // Se limita por LLAVE. Antes la clave del limitador salía de la cabecera
+  // `x-mcp-actor`, que la elige quien llama: bastaba con variarla en cada
+  // pedido para que el techo no existiera.
+  const rl = await limitByKey(rateKey(actor), MCP_RATE)
   if (!rl.success) {
     return rpcError(null, -32005, 'demasiadas llamadas: probá de nuevo en un minuto')
   }
@@ -202,7 +233,9 @@ export async function POST(request: Request) {
 
     case 'tools/list':
       return rpcOk(body.id, {
-        tools: MCP_TOOLS.map((t) => ({
+        tools: MCP_TOOLS.filter(
+          (t) => !t.platformOnly || actor.kind === 'platform',
+        ).map((t) => ({
           name: t.name,
           // El riesgo va en la descripción para que el agente sepa, antes de
           // llamar, cuáles van a pedirle confirmación.
@@ -232,9 +265,20 @@ export async function POST(request: Request) {
       const nombre = String(body.params?.name ?? '')
       const tool: McpTool | undefined = findTool(nombre)
       if (!tool) return rpcError(body.id, -32602, `no existe la herramienta ${nombre}`)
+      // No alcanza con esconderlas de `tools/list`: quien tenga el nombre puede
+      // llamarlas igual.
+      if (tool.platformOnly && actor.kind !== 'platform') {
+        return rpcError(body.id, -32003, `${nombre} es sólo del equipo de Riverz`)
+      }
 
       const argsCrudos = (body.params?.arguments ?? {}) as Record<string, unknown>
-      const { confirm_token: token, ...args } = argsCrudos
+      const { confirm_token: token, ...crudos } = argsCrudos
+
+      // El alcance ANTES que nada: una llave de comercio opera sobre su cuenta
+      // y sobre ninguna otra, diga lo que diga el argumento.
+      const scoped = alcance(actor, crudos)
+      if (!scoped.ok) return rpcError(body.id, -32003, scoped.motivo)
+      const args = scoped.args
 
       // Lo irreversible se muestra antes de hacerse.
       if (tool.risk === 'irreversible') {
