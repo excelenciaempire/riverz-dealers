@@ -1,4 +1,5 @@
 import { getLogger } from "@/lib/log/logger";
+import { supabaseAdmin } from "@/lib/channels/admin-client";
 
 import { DEFAULT_TIMEOUT_MS, dueJobs, SCHEDULED_JOBS } from "./schedule";
 
@@ -20,8 +21,12 @@ const log = getLogger("scheduler");
  * la vez — los trabajos de cada minuto se dispararon 2,7 veces por minuto
  * durante 17 h. Una sola instancia del servicio no garantiza un solo módulo.
  *
- * Si algún día se escala horizontalmente, esto necesita además un lock en la
- * base: `globalThis` es por proceso, no por servicio.
+ * Ese guard resuelve el caso DENTRO de un proceso. Entre procesos no puede: si
+ * algún día el servicio corre en dos instancias, cada una tiene su propio
+ * `globalThis` y las dos dispararían todo. Por eso, además, cada minuto se pide
+ * el turno en la base (`claim_scheduler_tick`, migración 157) y sólo dispara
+ * quien lo obtiene. Es barato —una fila por minuto— y hoy, con una sola
+ * instancia, es un no-op que siempre concede.
  */
 
 type SchedulerState = {
@@ -85,16 +90,59 @@ async function runJob(
   }
 }
 
+/**
+ * Quién es esta instancia, para poder leer en la tabla quién tomó cada minuto.
+ * Render expone el id de la instancia; si no está, alcanza con el pid.
+ */
+function holder(): string {
+  return (
+    process.env.RENDER_INSTANCE_ID ??
+    process.env.HOSTNAME ??
+    `pid-${process.pid}`
+  );
+}
+
+/**
+ * ¿Le toca a esta instancia disparar este minuto?
+ *
+ * Fail-open a propósito: si la base no contesta, se dispara igual. Con una sola
+ * instancia —lo que corre hoy— fallar cerrado convertiría un hipo de red en
+ * campañas que no salen y carritos que no se recuperan, que es mucho peor que
+ * el riesgo teórico de un disparo doble.
+ */
+async function claimTick(at: Date): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin().rpc('claim_scheduler_tick', {
+      p_minute: at.toISOString(),
+      p_holder: holder(),
+    });
+    if (error) throw new Error(error.message);
+    return data !== false;
+  } catch (err) {
+    log.warn('no se pudo pedir el turno; se dispara igual', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return true;
+  }
+}
+
 function tick(secret: string): void {
   const now = new Date();
   state().lastTickAt = now;
   const jobs = dueJobs(now);
   if (jobs.length === 0) return;
-  // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
-  // Cada uno registra su propio resultado.
-  for (const job of jobs) {
-    void runJob(job.name, job.path, secret, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  }
+
+  void (async () => {
+    if (!(await claimTick(now))) {
+      log.info('otro proceso tomó este minuto', { jobs: jobs.length });
+      return;
+    }
+    // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
+    // Cada uno registra su propio resultado.
+    for (const job of jobs) {
+      void runJob(job.name, job.path, secret, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    }
+  })();
 }
 
 /** Programa el próximo tick justo en el segundo 0 del minuto siguiente. */
