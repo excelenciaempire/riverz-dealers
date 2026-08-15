@@ -510,6 +510,53 @@ async function approvalLogs(f: LogFilters): Promise<LogEntry[]> {
   }));
 }
 
+/**
+ * Caídas y reconexiones.
+ *
+ * `channel_connections` guarda sólo el estado actual, así que en cuanto el
+ * comercio reconecta la caída desaparecía y no quedaba forma de contestar "¿qué
+ * integración se cayó esta semana?". Lo registra un trigger (migración 155), no
+ * la aplicación: entre las dos tablas hay dieciocho puntos de escritura, uno de
+ * ellos desde el navegador con el cliente anon.
+ */
+async function connectionLogs(f: LogFilters): Promise<LogEntry[]> {
+  let q = select(
+    'connection_events',
+    'id, workspace_id, source, channel, account, previous_status, status, last_error, created_at',
+  );
+  if (f.status) q = q.eq('status', f.status);
+  const { data, error } = await applyCommon(q, f);
+  if (error) throw new Error(`[admin/logs] connections: ${error.message}`);
+
+  return ((data ?? []) as unknown as Array<{
+    id: number;
+    workspace_id: string | null;
+    source: string;
+    channel: string | null;
+    account: string | null;
+    previous_status: string | null;
+    status: string;
+    last_error: string | null;
+    created_at: string;
+  }>).map((r) => ({
+    id: String(r.id),
+    at: r.created_at,
+    workspaceId: r.workspace_id,
+    workspaceName: null,
+    level:
+      r.status === 'error' || r.status === 'expired'
+        ? 'error'
+        : r.status === 'connected' || r.status === 'active'
+          ? 'ok'
+          : 'warn',
+    status: r.status,
+    // De dónde vino y a dónde fue: sin el estado anterior, "error" no distingue
+    // una caída de algo que ya estaba caído.
+    detail: r.last_error ?? `${r.previous_status ?? '—'} → ${r.status}`,
+    extra: { canal: r.channel, cuenta: r.account, origen: r.source },
+  }));
+}
+
 const READERS: Record<LogKind, (f: LogFilters) => Promise<LogEntry[]>> = {
   ai: aiLogs,
   automations: automationLogs,
@@ -518,6 +565,7 @@ const READERS: Record<LogKind, (f: LogFilters) => Promise<LogEntry[]>> = {
   templates: templateLogs,
   broadcasts: broadcastLogs,
   webhooks: webhookLogs,
+  connections: connectionLogs,
   crons: cronLogs,
   approvals: approvalLogs,
   comment_to_dm: commentToDmLogs,

@@ -17,6 +17,8 @@ export const LOG_KINDS = [
   'templates',
   'broadcasts',
   'webhooks',
+  // Caidas y reconexiones. Lo llena un trigger (migracion 155).
+  'connections',
   // El historial de los trabajos de fondo. /admin/operacion muestra la última
   // corrida de cada uno; acá se ve si algo falla siempre o falló una vez.
   'crons',

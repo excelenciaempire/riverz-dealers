@@ -250,6 +250,7 @@ export const admin = {
   logKindTemplates: { es: "Plantillas", en: "Templates" },
   logKindBroadcasts: { es: "Campañas", en: "Campaigns" },
   logKindWebhooks: { es: "Webhooks", en: "Webhooks" },
+  logKindConnections: { es: "Conexiones", en: "Connections" },
   logKindCrons: { es: "Trabajos", en: "Jobs" },
   logKindApprovals: { es: "Aprobaciones", en: "Approvals" },
   logKindCommentToDm: { es: "Comentarios a DM", en: "Comment to DM" },

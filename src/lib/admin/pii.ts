@@ -89,6 +89,7 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   message_templates: [],
   broadcasts: [],
   cron_runs: [],
+  connection_events: [],
   // `args` y `summary` pueden traer el teléfono del comprador o el texto que se
   // le mandó — el MCP ya los guarda ocultos, pero las filas viejas no.
   platform_audit_log: ['args'],
