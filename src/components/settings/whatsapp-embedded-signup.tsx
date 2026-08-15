@@ -39,9 +39,19 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
 export function WhatsAppEmbeddedSignup({
   workspaceId,
   onConnected,
+  /**
+   * Donde aterriza la conexion. 'workspace' es la de un comercio; 'platform'
+   * es el numero de Riverz, que vive en los ajustes de plataforma y no en un
+   * inquilino. El popup de Meta es exactamente el mismo — lo unico que cambia
+   * es el endpoint que recibe el codigo.
+   */
+  target = 'workspace',
+  label,
 }: {
   workspaceId: string;
   onConnected: () => void;
+  target?: 'workspace' | 'platform';
+  label?: string;
 }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -118,7 +128,11 @@ export function WhatsAppEmbeddedSignup({
       }
       setBusy(true);
       try {
-        const r = await fetchWithCsrf("/api/connections/whatsapp/embedded-signup", {
+        const endpoint =
+          target === 'platform'
+            ? "/api/admin/whatsapp/embedded-signup"
+            : "/api/connections/whatsapp/embedded-signup";
+        const r = await fetchWithCsrf(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code, waba_id, phone_number_id, workspace_id: workspaceId }),
@@ -134,7 +148,9 @@ export function WhatsAppEmbeddedSignup({
         //  - review_pending → conectado y YA puede enviar; Meta revisa el
         //    negocio en segundo plano (hasta 24 h). Mensaje positivo, no alarma.
         //  - resto → conectado y habilitado.
-        if (j.can_send === false) {
+        if (target === 'platform') {
+          toast.success(t("settings.whatsappConnectedLabel", { label: j.displayPhoneNumber ?? "" }));
+        } else if (j.can_send === false) {
           toast.warning(t("settings.whatsappConnectedCannotSend"), {
             duration: 12000,
           });
@@ -156,7 +172,7 @@ export function WhatsAppEmbeddedSignup({
         setBusy(false);
       }
     },
-    [workspaceId, onConnected, fetchWithCsrf, t],
+    [workspaceId, onConnected, fetchWithCsrf, t, target],
   );
 
   const launch = useCallback(() => {
@@ -200,7 +216,7 @@ export function WhatsAppEmbeddedSignup({
       ) : (
         <ChannelLogo channel="whatsapp" size={16} />
       )}
-      {t("settings.connectWhatsapp")}
+      {label ?? t("settings.connectWhatsapp")}
     </button>
   );
 }

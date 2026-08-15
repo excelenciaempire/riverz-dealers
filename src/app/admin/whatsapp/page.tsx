@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { WhatsAppEmbeddedSignup } from '@/components/settings/whatsapp-embedded-signup';
 
 interface Status {
   configured: boolean;
@@ -120,7 +121,28 @@ export default function AdminWhatsAppPage() {
         </div>
       )}
 
-      <div className="max-w-2xl space-y-4 rounded-xl border border-border bg-card p-5">
+      {/* El camino normal es el mismo registro de Meta que usa un comercio: el
+          token lo trae el flujo y nadie lo copia a mano. Los campos de abajo
+          quedan como salida de emergencia. */}
+      <div className="max-w-2xl space-y-3 rounded-xl border border-border bg-card p-5">
+        <p className="text-sm font-medium text-foreground">Conectar con Meta</p>
+        <p className="text-xs text-muted-foreground">
+          Abre el registro de WhatsApp Business de Meta y trae el número y el token
+          sin copiar nada. {status.configured ? 'Volver a conectarlo reemplaza el token guardado.' : ''}
+        </p>
+        <WhatsAppEmbeddedSignup
+          workspaceId="platform"
+          target="platform"
+          label={status.configured ? 'Volver a conectar' : 'Conectar WhatsApp de Riverz'}
+          onConnected={() => void load()}
+        />
+      </div>
+
+      <details className="max-w-2xl rounded-xl border border-border bg-card p-5">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">
+          Cargar los datos a mano
+        </summary>
+        <div className="mt-4 space-y-4">
         <Field label="ID del número (phone_number_id)" hint="Meta → WhatsApp → API Setup">
           <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} />
         </Field>
@@ -165,7 +187,8 @@ export default function AdminWhatsAppPage() {
           {saving && <Loader2 className="size-4 animate-spin" />}
           Guardar
         </Button>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

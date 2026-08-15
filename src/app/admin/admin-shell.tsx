@@ -42,13 +42,16 @@ export function AdminShell({
             <div className="flex-1" />
 
             <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
-            <Link
-              href="/panel"
+            {/* URL absoluta y <a> pelado: el panel vive en admin.riverz.co, asi
+                que un href relativo se queda en el subdominio y no lleva a la
+                app. Con el host propio, volver a la app es salir del origen. */}
+            <a
+              href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://riverz.co"}/panel`}
               className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">{t("admin.backToApp")}</span>
-            </Link>
+            </a>
           </div>
         </header>
 
