@@ -210,7 +210,12 @@ export function moveAt(
   return steps.map((s) => {
     if (s.cid !== head.parentCid || !s.branches) return s
     const bucket = s.branches[head.branch]
-    const next = rest.length === 0 ? swap(bucket, head.index) : bucket
+    const next =
+      rest.length === 0
+        ? swap(bucket, head.index)
+        : bucket.map((h, i) =>
+            i !== head.index ? h : { ...h, branches: moveInBranches(h.branches, rest, direction) },
+          )
     return { ...s, branches: { ...s.branches, [head.branch]: next } }
   })
 }
@@ -232,7 +237,16 @@ export function moveInBranches(
     ;[copy[i], copy[j]] = [copy[j], copy[i]]
     return copy
   }
-  const next = rest.length === 0 ? swap(bucket, head.index) : bucket
+  // Recursivo, como `removeFromBranches`. Sin bajar al hijo, un camino a más
+  // de un nivel devolvía el mismo carril intacto: las flechas de mover se
+  // veían habilitadas y no hacían absolutamente nada. Se nota recién a
+  // profundidad tres, que es donde vive el rescate de carrito.
+  const next =
+    rest.length === 0
+      ? swap(bucket, head.index)
+      : bucket.map((h, i) =>
+          i !== head.index ? h : { ...h, branches: moveInBranches(h.branches, rest, direction) },
+        )
   return { ...branches, [head.branch]: next }
 }
 

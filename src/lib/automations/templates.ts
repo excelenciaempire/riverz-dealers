@@ -42,20 +42,6 @@ export interface TemplateStepSeed {
   branch?: 'yes' | 'no' | null
   /** Index (within this seed list) of the Condition parent, if nested. */
   parent_index?: number | null
-  /**
-   * Nombre de la etiqueta que este `add_tag` debe usar, cuando la receta ya
-   * sabe cuál es.
-   *
-   * `add_tag` sólo funciona por `tag_id`, y una receta no puede traer el id de
-   * una etiqueta de un workspace que todavía no existe. Al instalar se
-   * resuelve por nombre y se crea si falta, así que el comercio no tiene que
-   * inventar cómo llamarla — y todos los comercios terminan con el mismo
-   * nombre, que es lo que hace que un segmento "carrito-recuperado" signifique
-   * lo mismo en todas las cuentas.
-   *
-   * Sin nombre, el hueco queda vacío a propósito y el comercio elige la suya.
-   */
-  tag_name?: string
 }
 
 export interface AutomationTemplateDefinition {
@@ -129,8 +115,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    para que se pueda segmentar por "abandonó" con independencia de
         //    si llegamos a escribirle.
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
-        tag_name: 'carrito-abandonado',
+        step_config: { tag_id: '', tag_name: 'carrito-abandonado' },
       },
       {
         // 2. Esperar. La espera vive acá y no en el cron: el flujo se arma
@@ -194,8 +179,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    vale esta automatización: puesta al mandar el mensaje marcaría a
         //    todo el que lo recibió y no significaría nada.
         step_type: 'add_tag',
-        step_config: { tag_id: '' },
-        tag_name: 'carrito-recuperado',
+        step_config: { tag_id: '', tag_name: 'carrito-recuperado' },
         branch: 'yes',
         parent_index: 7,
       },

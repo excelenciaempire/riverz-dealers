@@ -33,17 +33,59 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36)
 
+/**
+ * Reemplaza el árbol de pasos sin perder de vista a quien está dormido dentro.
+ *
+ * Guardar borra todos los pasos y los reinserta. Una corrida parada en una
+ * espera guarda a qué paso volver (`parent_step_id`), y esa clave foránea es
+ * ON DELETE SET NULL: el borrado la deja en nulo, y "parent nulo" para el
+ * motor significa TRONCO. Una corrida que dormía dentro de un camino
+ * reaparecía entonces en la raíz, en la posición que le tocaba a otro paso —
+ * en el rescate de carrito, volviendo a mandar la plantilla dos días después.
+ *
+ * Reinsertar con el mismo id no alcanza, porque el SET NULL ya ocurrió. Así
+ * que las referencias se anotan antes y se reponen después, para las que
+ * siguen existiendo. Las que no —el paso se borró de verdad— quedan en nulo y
+ * el motor las corta al reanudar, que es lo correcto: ese camino ya no existe.
+ */
 export async function replaceSteps(
   automationId: string,
   input: BuilderStepInput[],
 ): Promise<string | null> {
   const admin = supabaseAdmin()
+
+  const { data: dormidas } = await admin
+    .from('automation_pending_executions')
+    .select('id, parent_step_id')
+    .eq('automation_id', automationId)
+    .eq('status', 'pending')
+    .not('parent_step_id', 'is', null)
+
   const { error: delErr } = await admin
     .from('automation_steps')
     .delete()
     .eq('automation_id', automationId)
   if (delErr) return delErr.message
-  return insertSteps(automationId, input)
+
+  const insErr = await insertSteps(automationId, input)
+  if (insErr) return insErr
+
+  const pendientes = (dormidas ?? []) as { id: string; parent_step_id: string }[]
+  if (pendientes.length > 0) {
+    const { data: vivos } = await admin
+      .from('automation_steps')
+      .select('id')
+      .eq('automation_id', automationId)
+    const existe = new Set((vivos ?? []).map((s) => (s as { id: string }).id))
+    for (const p of pendientes) {
+      if (!existe.has(p.parent_step_id)) continue
+      await admin
+        .from('automation_pending_executions')
+        .update({ parent_step_id: p.parent_step_id })
+        .eq('id', p.id)
+    }
+  }
+  return null
 }
 
 export async function insertSteps(

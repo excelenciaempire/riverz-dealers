@@ -29,7 +29,7 @@ import {
   automationSpeaksImmediately,
 } from './recent-ai-guard'
 import { resolveSegment } from '@/lib/segments/resolve'
-import { purchasedSince } from '@/lib/commerce/purchased-since'
+import { consultarCompra } from '@/lib/commerce/purchased-since'
 import {
   getActiveShopifyConnection,
   fetchOrderFinancialStatus,
@@ -421,6 +421,25 @@ interface ExecuteArgs {
 async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
   const db = supabaseAdmin()
 
+  // Una corrida que dormía DENTRO de un camino y ya no sabe de cuál: el
+  // camino se borró debajo suyo.
+  //
+  // Guardar la automatización borra todos los pasos y los reinserta
+  // (`replaceSteps`), y la clave foránea de la fila dormida es ON DELETE SET
+  // NULL, así que pierde el `parent_step_id` pero conserva el `branch` y la
+  // posición. Sin este corte, "parent nulo" se lee como TRONCO y la corrida
+  // reaparece en la posición 2 de la raíz: en el rescate de carrito eso es
+  // volver a entrar por las barreras y mandarle la misma plantilla de nuevo a
+  // alguien que ya la recibió hace dos días.
+  if (args.parentStepId === null && args.branch !== null) {
+    await finalizeLog(
+      args.logId,
+      'failed',
+      'el camino donde esperaba ya no existe (la automatización se editó mientras tanto)',
+    )
+    return
+  }
+
   const baseQuery = db
     .from('automation_steps')
     .select('*')
@@ -638,6 +657,24 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
   }
 }
 
+/**
+ * El envío no salió: corta el camino en vez de seguir como si hubiera salido.
+ *
+ * `engineSendTemplate` devuelve id vacío cuando una barrera lo frenó —la baja
+ * del cliente, el cupo de la WABA, el corte de Marketing a EE.UU.— y no lanza,
+ * a propósito: el motivo ya quedó escrito en el mensaje fallido y tumbar la
+ * corrida entera sería peor. Pero los pasos que siguen SÍ dan por hecho que el
+ * cliente recibió algo. En el rescate de carrito eso significa esperar dos días
+ * y etiquetar "carrito-recuperado" a alguien que nunca leyó un mensaje nuestro:
+ * la métrica se cuelga una venta que no provocó.
+ *
+ * Lanzar corta el camino donde está, deja el motivo en el registro y no toca
+ * nada más de la automatización.
+ */
+function exigirQueHayaSalido(): never {
+  throw new Error('el mensaje no salió (una barrera lo frenó): no se sigue el camino')
+}
+
 async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string> {
   const db = supabaseAdmin()
 
@@ -656,6 +693,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         automationName: args.automation.name,
         reason: motivoDelDisparador(args.automation.trigger_type),
       })
+      if (!whatsapp_message_id) exigirQueHayaSalido()
       return `sent via Meta (${whatsapp_message_id})`
     }
 
@@ -763,6 +801,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         automationName: args.automation.name,
         reason: motivoDelDisparador(args.automation.trigger_type),
       })
+      if (!whatsapp_message_id) exigirQueHayaSalido()
       return `template sent via Meta (${whatsapp_message_id})`
     }
 
@@ -1299,7 +1338,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         .eq('id', args.contactId)
         .maybeSingle()
       const contact = c as { email: string | null; phone: string | null } | null
-      const bought = await purchasedSince(db, {
+      const r = await consultarCompra(db, {
         workspaceId: args.automation.workspace_id,
         sinceIso: String(since),
         email: contact?.email,
@@ -1308,7 +1347,18 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       // `value` permite invertirlo desde la UI: "compró = no" es la rama
       // que manda el mensaje.
       const want = (cfg.value ?? 'true').toLowerCase() !== 'false'
-      return bought === want
+
+      if (r.estado === 'sin_respuesta') {
+        // Shopify no contestó. Preguntando "¿NO compró?" —la barrera que
+        // frena un mensaje— seguir de largo es lo prudente y es lo que se
+        // hacía siempre: peor sería apagar la recuperación por una caída
+        // ajena. Pero preguntando "¿SÍ compró?" —la atribución— responder
+        // que no borra una venta recuperada de la medición para siempre, sin
+        // dejar rastro. Ahí se corta con el error a la vista.
+        if (want) throw new Error(`no se pudo consultar la compra: ${r.motivo}`)
+        return true
+      }
+      return (r.estado === 'compro') === want
     }
     case 'messaged': {
       // ¿Ya le escribimos nosotros hace poco? Es la misma pregunta que hace

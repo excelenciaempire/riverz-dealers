@@ -59,8 +59,10 @@ describe('receta de pago rechazado', () => {
 
 describe('receta de carrito abandonado', () => {
   const tpl = AUTOMATION_TEMPLATES['carrito-abandonado']
+  const nombreEtiqueta = (s: (typeof tpl.steps)[number]) =>
+    (s.step_config as { tag_name?: string }).tag_name
   const porEtiqueta = (nombre: string) => {
-    const i = tpl.steps.findIndex((s) => s.tag_name === nombre)
+    const i = tpl.steps.findIndex((s) => nombreEtiqueta(s) === nombre)
     return { i, paso: tpl.steps[i] }
   }
 
@@ -70,7 +72,7 @@ describe('receta de carrito abandonado', () => {
     // mensaje esta semana quedaría sin marcar y desaparecería del segmento.
     const [primero, segundo] = tpl.steps
     expect(primero.step_type).toBe('add_tag')
-    expect(primero.tag_name).toBe('carrito-abandonado')
+    expect(nombreEtiqueta(primero)).toBe('carrito-abandonado')
     expect(primero.parent_index ?? null).toBeNull()
     expect(segundo.step_type).toBe('wait')
     expect(segundo.step_config).toMatchObject({ amount: 15, unit: 'minutes' })

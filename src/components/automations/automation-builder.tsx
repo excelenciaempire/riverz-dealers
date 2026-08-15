@@ -2241,6 +2241,7 @@ function StepRenderer({
         ]
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
+  const etiquetas = useContext(TagsContext)
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
   const isSwitch = step.step_type === "switch"
@@ -2305,7 +2306,7 @@ function StepRenderer({
                     : t("automations.kindAction")}
               </div>
               <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
-              <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
+              <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t, etiquetas)}</div>
             </div>
             <WaitingBadge step={step} />
             <ChevronDown
@@ -2911,6 +2912,7 @@ function LeafStepCard({
 }) {
   const t = useT()
   const arrastre = useContext(DragContext)
+  const etiquetas = useContext(TagsContext)
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
   return (
@@ -2948,7 +2950,7 @@ function LeafStepCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
-            <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t)}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{previewFor(step, t, etiquetas)}</div>
           </div>
           <WaitingBadge step={step} />
           <ChevronDown
@@ -3686,8 +3688,18 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   return `${label} ${dp.valueKind === "bool" ? "" : opLabel} ${val}${v2}`.replace(/\s+/g, " ").trim()
 }
 
-function previewFor(step: BuilderStep, t: TFn): string {
+function previewFor(step: BuilderStep, t: TFn, etiquetas: ContactTag[] = []): string {
   switch (step.step_type) {
+    case "add_tag":
+    case "remove_tag": {
+      // Sin esto las dos tarjetas de etiqueta del rescate de carrito son
+      // indistinguibles: mismo icono, mismo título y el resumen vacío. Abrir
+      // la equivocada y cambiarle la etiqueta deja marcados como recuperados
+      // a los que abandonaron — la métrica al revés, sin ningún error visible.
+      const id = step.step_config.tag_id as string | undefined
+      if (!id) return t("automations.chooseTag")
+      return etiquetas.find((e) => e.id === id)?.name ?? id
+    }
     case "send_message":
       return (step.step_config.text as string) || t("automations.previewNoTextYet")
     case "send_template":
@@ -3730,6 +3742,18 @@ function previewFor(step: BuilderStep, t: TFn): string {
 // ------------------------------------------------------------
 
 interface ApiStep {
+  /**
+   * El id con el que ya vive el paso en la base, cuando lo tiene.
+   *
+   * Guardar borra todos los pasos y los vuelve a insertar. Sin mandar el id,
+   * cada guardado le da uno NUEVO a cada paso, y las corridas dormidas en una
+   * espera guardan a qué paso volver: quedan apuntando a filas que ya no
+   * existen. Mientras la única espera vivía en el tronco eso no se notaba;
+   * con la espera de dos días del rescate de carrito, editar la automatización
+   * en el medio devolvía la corrida al tronco y le mandaba la plantilla otra
+   * vez a quien ya la había recibido.
+   */
+  id?: string
   step_type: string
   step_config: Record<string, unknown>
   branches?: { yes?: ApiStep[]; no?: ApiStep[] }
@@ -3753,6 +3777,7 @@ export function toApiSteps(steps: BuilderStep[]): ApiStep[] {
       continue
     }
     out.push({
+      id: s.serverId,
       step_type: s.step_type,
       step_config: s.step_config,
       branches: s.branches

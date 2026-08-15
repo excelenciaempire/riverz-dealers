@@ -3,6 +3,7 @@ import {
   insertAt,
   removeAt,
   getAt,
+  moveAt,
   contieneCid,
   type ParentScope,
   type StepPath,
@@ -190,6 +191,36 @@ describe('condiciones anidadas', () => {
     expect(cids(y.branches!.yes)).toEqual(['n', 'm'])
     expect(x.cid).toBe('x')
     expect(y.cid).toBe('y')
+  })
+
+  it('las flechas de mover también llegan a lo profundo', () => {
+    // moveAt no recursaba: a más de un nivel devolvía el carril intacto, así
+    // que la flecha se veía habilitada y no pasaba nada. El rescate de carrito
+    // vive justo a esa profundidad.
+    const r = moveAt(
+      base(),
+      [
+        { kind: 'root', index: 0 },
+        { kind: 'branch', parentCid: 'x', branch: 'yes', index: 0 },
+        { kind: 'branch', parentCid: 'y', branch: 'yes', index: 0 },
+      ],
+      1,
+    )
+    const y = r[0].branches!.yes[0]
+    expect(cids(y.branches!.yes)).toEqual(['n', 'm'])
+  })
+
+  it('en el extremo del carril profundo no se mueve nada', () => {
+    const r = moveAt(
+      base(),
+      [
+        { kind: 'root', index: 0 },
+        { kind: 'branch', parentCid: 'x', branch: 'yes', index: 0 },
+        { kind: 'branch', parentCid: 'y', branch: 'yes', index: 0 },
+      ],
+      -1,
+    )
+    expect(cids(r[0].branches!.yes[0].branches!.yes)).toEqual(['m', 'n'])
   })
 
   it('getAt encuentra al más profundo', () => {

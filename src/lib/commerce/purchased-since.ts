@@ -43,6 +43,39 @@ export function isAfter(when: string | null | undefined, sinceIso: string): bool
   return a > b
 }
 
+/**
+ * "No compró" y "no pude preguntar" no son lo mismo.
+ *
+ * Cuando la respuesta decide si se MANDA un mensaje, confundirlas es barato:
+ * ante una caída de Shopify se manda igual, que es lo prudente. Cuando decide
+ * si se ETIQUETA una venta recuperada, el mismo `false` borra la venta de la
+ * medición para siempre, sin log y sin reintento. Por eso el resultado dice
+ * cuál de las dos cosas pasó y cada llamador elige.
+ */
+export type ResultadoCompra =
+  | { estado: 'compro' }
+  | { estado: 'no_compro' }
+  | { estado: 'sin_respuesta'; motivo: string }
+
+/** Los teléfonos donde Shopify puede tener el número del comprador. */
+function telefonosDe(o: {
+  phone?: string
+  customer?: { phone?: string | null } | null
+  shipping_address?: { phone?: string | null } | null
+  billing_address?: { phone?: string | null } | null
+}): (string | null | undefined)[] {
+  return [o.phone, o.customer?.phone, o.shipping_address?.phone, o.billing_address?.phone]
+}
+
+/** Y los correos. `contact_email` es el que Shopify usa para el comprador. */
+function correosDe(o: {
+  email?: string
+  contact_email?: string | null
+  customer?: { email?: string | null } | null
+}): (string | null | undefined)[] {
+  return [o.email, o.contact_email, o.customer?.email]
+}
+
 export async function purchasedSince(
   db: SupabaseClient,
   args: {
@@ -54,39 +87,63 @@ export async function purchasedSince(
     lookbackDays?: number
   },
 ): Promise<boolean> {
-  if (!args.email && !args.phone) return false
+  const r = await consultarCompra(db, args)
+  // El contrato viejo: cualquier cosa que no sea una compra confirmada es un
+  // "no". Lo usan las barreras que deciden si mandar un mensaje.
+  return r.estado === 'compro'
+}
+
+export async function consultarCompra(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string
+    sinceIso: string
+    email?: string | null
+    phone?: string | null
+    lookbackDays?: number
+  },
+): Promise<ResultadoCompra> {
+  if (!args.email && !args.phone) return { estado: 'no_compro' }
 
   const sinceMs = Date.parse(args.sinceIso)
-  if (Number.isNaN(sinceMs)) return false
+  if (Number.isNaN(sinceMs)) return { estado: 'no_compro' }
 
   let orders: Awaited<ReturnType<typeof fetchRecentOrders>>
   try {
     const conn = await getActiveShopifyConnection(db, args.workspaceId)
-    if (!conn) return false
-    const days = args.lookbackDays ?? 90
-    const windowMs = Date.now() - days * 86_400_000
-    // Se pide desde la fecha más vieja de las dos: si `sinceIso` es más
-    // reciente que la ventana, igual alcanza; si es más viejo, la ventana
-    // manda y el resultado puede quedar corto — por eso el default es 90d.
-    const fromMs = Math.min(windowMs, sinceMs)
+    if (!conn) return { estado: 'no_compro' }
+    // Sólo desde el momento que se pregunta. Antes pedía 90 días siempre
+    // —`Math.min` se quedaba con la fecha más vieja— y como Shopify devuelve
+    // una sola página de 250, una tienda con más de 250 pedidos en 90 días
+    // gastaba toda la página en historia vieja. `lookbackDays` sigue estando
+    // para quien de verdad quiera mirar hacia atrás.
+    const fromMs = args.lookbackDays
+      ? Math.min(Date.now() - args.lookbackDays * 86_400_000, sinceMs)
+      : sinceMs
     orders = await fetchRecentOrders(conn, new Date(fromMs).toISOString())
-  } catch {
-    // Shopify caído o token vencido: se responde "no compró". El error
-    // opuesto —frenar por una caída ajena— apagaría la recuperación entera
-    // sin que nadie se entere.
-    return false
+  } catch (err) {
+    return { estado: 'sin_respuesta', motivo: err instanceof Error ? err.message : String(err) }
   }
 
   const email = args.email?.toLowerCase() ?? null
   const last8 = args.phone ? (normPhone(args.phone)?.slice(-8) ?? null) : null
 
-  return orders.some((o) => {
+  const compro = orders.some((o) => {
     if (!isAfter(o.created_at, args.sinceIso)) return false
-    if (email && (o.email ?? '').toLowerCase() === email) return true
+    // Un pedido cancelado o anulado existe pero no es una venta: contarlo
+    // infla justo el número que esta pregunta sirve para medir.
+    if (o.cancelled_at) return false
+    if (o.financial_status === 'voided') return false
+    // `pending` SÍ cuenta: es el pedido por transferencia, que acá es una
+    // compra hecha esperando el comprobante, no una compra que no ocurrió.
+    if (email && correosDe(o).some((e) => (e ?? '').toLowerCase() === email)) return true
     if (last8) {
-      const op = normPhone(o.phone)
-      if (op && op.endsWith(last8)) return true
+      return telefonosDe(o).some((t) => {
+        const op = normPhone(t)
+        return Boolean(op && op.endsWith(last8))
+      })
     }
     return false
   })
+  return compro ? { estado: 'compro' } : { estado: 'no_compro' }
 }

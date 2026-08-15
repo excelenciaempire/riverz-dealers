@@ -9,6 +9,7 @@ import {
   replaceSteps,
   type BuilderStepInput,
 } from '@/lib/automations/steps-tree'
+import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
 import {
   validateStepsForActivation,
   validateTriggerForActivation,
@@ -135,6 +136,7 @@ export async function PATCH(
     is_active: boolean
     trigger_type: string
     trigger_config: unknown
+    workspace_id: string
   }
 
   const update: Record<string, unknown> = {}
@@ -185,7 +187,10 @@ export async function PATCH(
   }
 
   if (Array.isArray(body.steps)) {
-    const err = await replaceSteps(id, body.steps as BuilderStepInput[])
+    const err = await replaceSteps(
+      id,
+      await resolverEtiquetas(admin, existing.workspace_id, body.steps as BuilderStepInput[]),
+    )
     if (err) return serverError(err)
   }
 

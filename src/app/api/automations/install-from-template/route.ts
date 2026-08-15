@@ -8,10 +8,9 @@ import {
   getTemplate,
   automationTemplateNameKey,
   automationTemplateDescKey,
-  type TemplateStepSeed,
 } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
-import { ensureTag } from '@/lib/contacts/tags'
+import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
@@ -30,40 +29,6 @@ import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/worksp
 // template_name empty AND the final add_tag step's tag_id empty, so the
 // user fills the template + picks/creates a tag before activating.
 // ------------------------------------------------------------
-
-/**
- * Cambia los `tag_name` de la receta por ids reales de este workspace.
- *
- * `add_tag` sólo entiende `tag_id`, y una receta no puede traer el id de una
- * etiqueta que todavía no existe. Resolverlo acá —creando la etiqueta si hace
- * falta— es lo que permite que una receta llegue armada: el rescate de carrito
- * trae dos etiquetas y dejarlas vacías obligaba a inventarles nombre antes de
- * poder activar nada.
- *
- * Si la etiqueta no se puede crear, el hueco queda vacío y `validate.ts` frena
- * la activación con el mismo mensaje de siempre. Nunca se cuela un id inválido.
- */
-async function resolverEtiquetas(
-  admin: ReturnType<typeof supabaseAdmin>,
-  workspaceId: string,
-  steps: readonly TemplateStepSeed[],
-): Promise<BuilderStepInput[]> {
-  const cache = new Map<string, string>()
-  const out: BuilderStepInput[] = []
-  for (const s of steps) {
-    const seed = s as unknown as BuilderStepInput & { tag_name?: string }
-    if (s.step_type !== 'add_tag' || !s.tag_name) {
-      out.push(seed)
-      continue
-    }
-    const id = await ensureTag(admin, workspaceId, s.tag_name, { cache })
-    out.push({
-      ...seed,
-      step_config: { ...(seed.step_config ?? {}), tag_id: id ?? '' },
-    })
-  }
-  return out
-}
 
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
@@ -156,7 +121,11 @@ export async function POST(request: Request) {
   if (template.steps.length > 0) {
     const err = await insertSteps(
       automation.id,
-      await resolverEtiquetas(admin, workspaceId, template.steps),
+      await resolverEtiquetas(
+        admin,
+        workspaceId,
+        template.steps as unknown as BuilderStepInput[],
+      ),
     )
     if (err) {
       // Clean up the orphan automation row so the user doesn't end up

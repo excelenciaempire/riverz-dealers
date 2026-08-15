@@ -677,6 +677,19 @@ export interface SendTemplateStepConfig {
 
 export interface TagStepConfig {
   tag_id: string;
+  /**
+   * Cómo se llama la etiqueta que este paso debería usar, cuando la receta ya
+   * lo sabe. Al guardar se busca por nombre y se crea si falta, y el id
+   * resuelto reemplaza al hueco vacío.
+   *
+   * Existe porque una receta no puede traer el id de una etiqueta de un
+   * workspace que todavía no existe, y dejar el hueco vacío obligaba al
+   * comercio a inventarle nombre a dos etiquetas antes de poder activar nada.
+   * De paso, todos los comercios terminan con el mismo nombre, que es lo que
+   * hace que un segmento "carrito-recuperado" signifique lo mismo en todas
+   * las cuentas.
+   */
+  tag_name?: string;
 }
 
 export interface AssignConversationStepConfig {

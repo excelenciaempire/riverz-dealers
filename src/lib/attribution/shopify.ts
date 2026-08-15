@@ -27,6 +27,23 @@ export interface ShopifyOrder {
   currency?: string;
   created_at: string;
   discount_codes?: Array<{ code?: string }>;
+  /**
+   * Quién compró, por todos los lados donde Shopify lo guarda.
+   *
+   * `email`/`phone` de la raíz no alcanzan: `phone` es el número de avisos por
+   * SMS y viene vacío salvo que el comprador lo cargue a mano, mientras que el
+   * número real vive en el cliente o en la dirección. Emparejar sólo por la
+   * raíz deja afuera justo al comprador que llegó por WhatsApp —el único que
+   * nos importa acá— y su compra se lee como "no compró".
+   */
+  contact_email?: string | null;
+  customer?: { email?: string | null; phone?: string | null } | null;
+  shipping_address?: { phone?: string | null } | null;
+  billing_address?: { phone?: string | null } | null;
+  /** Cancelado: existe pero no es una venta. */
+  cancelled_at?: string | null;
+  /** `paid`, `pending`, `refunded`, `voided`… */
+  financial_status?: string | null;
 }
 
 export interface ActiveShopifyConnection {
@@ -120,8 +137,13 @@ export async function fetchRecentOrders(
   limit = 250,
 ): Promise<ShopifyOrder[]> {
   const client = new ShopifyAdminClient(conn.shopDomain, conn.token);
+  // `order=created_at desc` va explícito. Sin él, cuál página devuelve Shopify
+  // cuando hay más de 250 pedidos en la ventana depende de un default que no
+  // está contratado: el día que cambie, la única página que se lee sería la
+  // más VIEJA y el pedido de hoy —el que se está buscando— no vendría nunca.
   const data = await client.rest<{ orders: ShopifyOrder[] }>(
-    `/orders.json?status=any&created_at_min=${encodeURIComponent(sinceIso)}&limit=${limit}`,
+    `/orders.json?status=any&order=created_at+desc` +
+      `&created_at_min=${encodeURIComponent(sinceIso)}&limit=${limit}`,
   );
   return data.orders ?? [];
 }
