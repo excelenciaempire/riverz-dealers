@@ -85,8 +85,10 @@ export async function GET() {
   //   renovacion_fallida — hay refresh pero el último intento falló (le
   //     revocó el permiso a la aplicación, o cambió el secreto).
   //     Reconectar lo arregla.
-  //   vence_pronto — conexión hecha pegando el token, que no tiene refresh
-  //     y hay que rotar a mano.
+  //   vence_pronto — la autorización caduca y el refresh todavía no la
+  //     renovó. Sólo aplica a OAuth: sin `expires_at` no hay fecha que
+  //     avisar, y a quien se conectó pegando el token se le ofrece pasarse
+  //     a un clic desde la tarjeta, que resuelve más que un aviso.
   //
   // `expires_at` sólo lo escribe el flujo de OAuth, así que su ausencia es
   // exactamente "esto se conectó a mano" y no hace falta otra bandera.

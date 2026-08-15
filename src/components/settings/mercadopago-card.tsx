@@ -17,9 +17,10 @@ import { cn } from '@/lib/utils';
  * conectado, así que si el conector no se ve, nadie llega nunca — no se
  * conecta una pasarela por una función que no se sabe que existe.
  *
- * Conecta con Access Token pegado y no con OAuth porque Mercado Pago exige
- * registrar una aplicación y una URL de retorno por cada comercio; el token
- * lo saca cualquiera de su panel en dos clics y funciona hoy.
+ * Hay dos caminos y conviven a propósito: autorizar la aplicación (un clic,
+ * el token se renueva solo) y pegar el Access Token a mano, que sirve igual
+ * y no depende de que la aplicación esté registrada. Quien ya está conectado
+ * a mano ve el ofrecimiento de pasarse sin tener que desconectarse antes.
  */
 export function MercadoPagoCard() {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -182,6 +183,25 @@ export function MercadoPagoCard() {
               )}
             </button>
           </li>
+          {/* Conectado pegando el token y con la aplicación ya configurada:
+              se ofrece el camino de un clic sin tener que desconectar
+              primero. Sin esto, quien ya estaba conectado a mano no tiene
+              forma de pasarse — y es el que más lo necesita, porque su token
+              vence y no se renueva solo. `expires_at` sólo lo escribe OAuth,
+              así que su ausencia es exactamente "esto se conectó a mano". */}
+          {oauth && !expiresAt && (
+            <li className="rounded-md bg-primary/5 px-2 py-2 ring-1 ring-primary/20">
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                {t('settings.mpUpgradeHint')}
+              </p>
+              <a
+                href="/api/mercadopago/oauth/start"
+                className="mt-1.5 inline-block text-[11px] font-medium text-foreground underline underline-offset-2"
+              >
+                {t('settings.mpUpgradeCta')}
+              </a>
+            </li>
+          )}
           {notifyUrl && (
             <li className="rounded-md bg-muted/40 px-2 py-2 ring-1 ring-border/50">
               <p className="text-[11px] leading-snug text-muted-foreground">

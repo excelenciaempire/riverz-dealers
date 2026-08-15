@@ -92,6 +92,11 @@ export const settings = {
     en: "Your Mercado Pago access expires on {date}. Reconnect it to keep recovery running.",
   },
   mpReconnect: { es: "Volver a conectar", en: "Reconnect" },
+  mpUpgradeHint: {
+    es: "Autoriza la aplicación y se renueva sola, sin pegar ninguna URL.",
+    en: "Authorize the app and it renews itself, with no URL to paste.",
+  },
+  mpUpgradeCta: { es: "Conectar con un clic", en: "Connect with one click" },
   mpDisconnect: { es: "Desconectar Mercado Pago", en: "Disconnect Mercado Pago" },
   replaceApiKeyPlaceholder: {
     es: "Reemplazar API key…",
