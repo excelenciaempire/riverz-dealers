@@ -169,6 +169,42 @@ describe("validateStepsForActivation", () => {
       "steps[0].subject",
     ]);
   });
+
+  // El paso de llamada no tenia caso propio y caia en el `default`, asi que
+  // activar una automatizacion con "Llamar con IA" devolvia 400 "unknown step
+  // type". Se podia armar y guardar como borrador, nunca encender.
+  it("acepta un paso de llamada con agente", () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: "voice_call",
+          step_config: { agent_id: "agent-uuid", wait_for_result: true },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("pide el agente en un paso de llamada", () => {
+    expect(
+      validateStepsForActivation([{ step_type: "voice_call", step_config: {} }]),
+    ).toEqual([
+      { path: "steps[0].agent_id", message: "voice agent is required" },
+    ]);
+  });
+
+  it("valida el paso de llamada tambien dentro de una rama", () => {
+    const issues = validateStepsForActivation([
+      {
+        step_type: "condition",
+        step_config: { subject: "context_var", operand: "call_outcome" },
+        branches: {
+          yes: [{ step_type: "voice_call", step_config: {} }],
+          no: [],
+        },
+      },
+    ]);
+    expect(issues.map((i) => i.path)).toEqual(["steps[0].yes.steps[0].agent_id"]);
+  });
 });
 
 describe("validateTriggerForActivation", () => {

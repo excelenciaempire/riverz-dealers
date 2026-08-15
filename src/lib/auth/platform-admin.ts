@@ -10,11 +10,17 @@
  * the server is the real gate.
  */
 
-/** Riverz team accounts. Always admins, env or no env. */
+/**
+ * Cuentas del equipo de Riverz. Siempre admins, con env o sin ella.
+ *
+ * `pilaroficialskin@hotmail.com` estuvo acá y se sacó: es la cuenta de un
+ * COMERCIO. Un inquilino con acceso al panel de plataforma puede ver y tocar
+ * los ajustes que afectan a todos los demás — y ni siquiera hacía falta que
+ * quisiera: alcanzaba con que alguien entrara a esa sesión.
+ */
 const TEAM_ADMINS = [
   'riverzoficial@gmail.com',
   'juandiegoriosmesa@gmail.com',
-  'pilaroficialskin@hotmail.com',
 ];
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);

@@ -130,6 +130,21 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.url`, message: 'webhook URL is not a valid URL' })
       }
       break
+    case 'voice_call':
+      // Faltaba este caso, y el `default` de abajo lo trataba como un tipo
+      // desconocido: activar CUALQUIER automatización que tuviera un paso
+      // "Llamar con IA" devolvía 400 con "unknown step type: voice_call". El
+      // paso se podía agregar en el lienzo y guardar como borrador, pero
+      // nunca llegar a correr — por eso no existe ni una sola automatización
+      // con llamada en producción.
+      //
+      // Lo único obligatorio es el agente: sin él, `enqueueVoiceCallStep`
+      // tira. El objetivo es opcional (el agente ya tiene el suyo) y el tipo
+      // de llamada lo deduce el disparador.
+      if (!nonEmpty(c.agent_id)) {
+        issues.push({ path: `${path}.agent_id`, message: 'voice agent is required' })
+      }
+      break
     case 'close_conversation':
       // No config required.
       break

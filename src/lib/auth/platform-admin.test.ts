@@ -12,7 +12,6 @@ describe('isPlatformAdmin', () => {
   it('lets the Riverz team in with no env set', () => {
     delete process.env.PLATFORM_ADMIN_EMAILS;
     expect(isPlatformAdmin('juandiegoriosmesa@gmail.com')).toBe(true);
-    expect(isPlatformAdmin('pilaroficialskin@hotmail.com')).toBe(true);
     expect(isPlatformAdmin('riverzoficial@gmail.com')).toBe(true);
   });
 
@@ -29,6 +28,9 @@ describe('isPlatformAdmin', () => {
 
   it('rejects everyone else', () => {
     expect(isPlatformAdmin('merchant@tienda.com')).toBe(false);
+    // La cuenta de un comercio NO es admin de plataforma: estuvo en la lista
+    // y se saco. Un inquilino no puede ver los ajustes de todos los demas.
+    expect(isPlatformAdmin('pilaroficialskin@hotmail.com')).toBe(false);
     expect(isPlatformAdmin('pilaroficialskin+x@hotmail.com')).toBe(false);
     expect(isPlatformAdmin(null)).toBe(false);
   });

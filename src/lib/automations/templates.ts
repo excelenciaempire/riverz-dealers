@@ -122,16 +122,17 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    deja el checkout abierto, así que la misma persona entra por los
         //    dos rescates. Gana el de pago: dice lo que pasó de verdad.
         step_type: 'condition',
-        step_config: { subject: 'rejected_open', operand: '24h', value: 'false' },
+        step_config: { subject: 'rejected_open', operand: '90d', value: 'false' },
         branch: 'yes',
         parent_index: 1,
       },
       {
-        // 4. ¿Ya le escribimos hoy? El motor aplica esta barrera igual antes
-        //    de cualquier envío, pero acá se ve y se puede mover: cada
-        //    comercio elige su ventana.
+        // 4. ¿Ya le escribimos? La ventana va al techo del motor —90 días—
+        //    porque acá conviene equivocarse por no molestar. Es amplia a
+        //    propósito: quien recibió CUALQUIER plantilla en ese plazo queda
+        //    afuera. Se baja desde el mismo paso, sin tocar código.
         step_type: 'condition',
-        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
+        step_config: { subject: 'messaged', operand: '90d', value: 'false' },
         branch: 'yes',
         parent_index: 2,
       },
@@ -194,7 +195,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         //    este encima. El motor aplica la misma barrera igual, pero acá se
         //    ve y cada comercio elige su ventana.
         step_type: 'condition',
-        step_config: { subject: 'messaged', operand: '24h', value: 'false' },
+        step_config: { subject: 'messaged', operand: '90d', value: 'false' },
         branch: 'yes',
         parent_index: 1,
       },
