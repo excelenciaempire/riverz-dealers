@@ -50,6 +50,7 @@ Hay dos formas de autenticarse. Ambas usan la misma cabecera.
    {
      "mcpServers": {
        "riverz": {
+         "type": "http",
          "url": "https://riverz.co/api/mcp",
          "headers": { "Authorization": "Bearer rvz_LA_LLAVE" }
        }
