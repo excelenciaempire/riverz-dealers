@@ -32,6 +32,7 @@ import type { Contact, ShopifyCustomerSnapshot } from '@/types';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { normalizePhone, phoneVariants, phonesMatch } from '@/lib/whatsapp/phone-utils';
+import { enrichContactFromStore } from '@/lib/commerce/enrich';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -166,7 +167,16 @@ export async function enrichContactFromShopify(
 
   const connection =
     opts?.connection ?? (await resolveShopifyConnection(db, contact.workspace_id));
-  if (!connection) return contact.shopify_customer_data ?? null;
+
+  // Sin Shopify, la tienda del comercio puede ser Tiendanube o WooCommerce.
+  // Antes esto devolvia lo cacheado -casi siempre nada- y la ficha del
+  // contacto quedaba vacia para siempre: sin direccion, sin cuanto gasto, sin
+  // cuantas veces compro. Eso es lo que el asistente usa para reconocer a
+  // quien vuelve.
+  if (!connection) {
+    const desdeOtraTienda = await enrichContactFromStore(db, contact, opts);
+    return desdeOtraTienda ?? contact.shopify_customer_data ?? null;
+  }
 
   try {
     const customer = await findShopifyCustomer(connection, contact);
