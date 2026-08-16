@@ -163,6 +163,30 @@ async function anotar(args: {
   }
 }
 
+/**
+ * Un intento rechazado también se anota.
+ *
+ * Es el que más dice de los tres: que una llave haya pedido otra cuenta, o
+ * escribir sin poder hacerlo, no es ruido — es exactamente lo que uno busca
+ * cuando revisa si una llave se filtró. Registrar sólo lo que salió bien deja
+ * ese rastro afuera, que es como no tenerlo.
+ */
+async function rechazo(
+  actor: McpActor,
+  tool: McpTool,
+  args: Record<string, unknown>,
+  motivo: string,
+): Promise<void> {
+  await anotar({
+    actor,
+    tool: tool.name,
+    toolArgs: args,
+    risk: tool.risk,
+    ok: false,
+    summary: `rechazado: ${motivo}`,
+  })
+}
+
 function comoTexto(valor: unknown): string {
   return typeof valor === 'string' ? valor : JSON.stringify(valor, null, 1)
 }
@@ -187,7 +211,7 @@ function resumenSeguro(tool: McpTool, salida: unknown): string {
     : salida && typeof salida === 'object'
       ? Object.keys(salida).length
       : 1
-  return `ok · ${n} resultado(s)`
+  return `ok · ${n}`
 }
 
 /**
@@ -321,25 +345,26 @@ export async function POST(request: Request) {
       const nombre = String(body.params?.name ?? '')
       const tool: McpTool | undefined = findTool(nombre)
       if (!tool) return rpcError(body.id, -32602, `no existe la herramienta ${nombre}`)
+      const argsCrudos = (body.params?.arguments ?? {}) as Record<string, unknown>
+      const { confirm_token: token, ...crudos } = argsCrudos
+
       // No alcanza con esconderlas de `tools/list`: quien tenga el nombre puede
       // llamarlas igual.
       if (!visible(tool, actor)) {
-        return rpcError(
-          body.id,
-          -32003,
-          tool.platformOnly
-            ? `${nombre} es sólo del equipo de Riverz`
-            : `esta clave es de sólo lectura y ${nombre} cambia cosas`,
-        )
+        const motivo = tool.platformOnly
+          ? `${nombre} es sólo del equipo de Riverz`
+          : `esta clave es de sólo lectura y ${nombre} cambia cosas`
+        await rechazo(actor, tool, crudos, motivo)
+        return rpcError(body.id, -32003, motivo)
       }
-
-      const argsCrudos = (body.params?.arguments ?? {}) as Record<string, unknown>
-      const { confirm_token: token, ...crudos } = argsCrudos
 
       // El alcance ANTES que nada: una llave de comercio opera sobre su cuenta
       // y sobre ninguna otra, diga lo que diga el argumento.
       const scoped = alcance(actor, crudos)
-      if (!scoped.ok) return rpcError(body.id, -32003, scoped.motivo)
+      if (!scoped.ok) {
+        await rechazo(actor, tool, crudos, scoped.motivo)
+        return rpcError(body.id, -32003, scoped.motivo)
+      }
       const args = scoped.args
 
       // Lo irreversible se muestra antes de hacerse.
