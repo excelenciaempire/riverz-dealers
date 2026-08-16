@@ -60,8 +60,8 @@ export const automations = {
   },
   "tpl_nuevo-pedido_name": { es: "Nuevo pedido", en: "New order" },
   "tpl_nuevo-pedido_desc": {
-    es: "Confirmamos al cliente apenas hace un pedido en Shopify. Le mandamos un resumen con el número de orden, el total y un agradecimiento.",
-    en: "We confirm with the customer the moment they place an order on Shopify. We send a summary with the order number, the total and a thank-you.",
+    es: "Confirmamos al cliente apenas hace un pedido en tu tienda. Le mandamos un resumen con el número de orden, el total y un agradecimiento.",
+    en: "We confirm with the customer the moment they place an order in your store. We send a summary with the order number, the total and a thank-you.",
   },
   "tpl_enviar-tracking_name": { es: "Enviar tracking", en: "Send tracking" },
   "tpl_enviar-tracking_desc": {
@@ -158,32 +158,32 @@ export const automations = {
 
   // Builder — trigger card
   triggerEyebrow: { es: "Activador", en: "Trigger" },
-  triggerEyebrowShopify: { es: "Activador · Shopify", en: "Trigger · Shopify" },
+  triggerEyebrowShopify: { es: "Activador · Tienda", en: "Trigger · Store" },
   triggerTagAdded: { es: "Etiqueta añadida", en: "Tag added" },
-  triggerShopifyOrderCreated: { es: "Nuevo pedido (Shopify)", en: "New order (Shopify)" },
+  triggerShopifyOrderCreated: { es: "Nuevo pedido", en: "New order" },
   triggerShopifyOrderPaid: {
-    es: "Pedido pagado (Shopify)",
-    en: "Order paid (Shopify)",
+    es: "Pedido pagado",
+    en: "Order paid",
   },
   triggerShopifyOrderFulfilled: {
-    es: "Pedido despachado (Shopify)",
-    en: "Order fulfilled (Shopify)",
+    es: "Pedido despachado",
+    en: "Order fulfilled",
   },
   triggerShopifyOrderDelivered: {
-    es: "Pedido entregado (Shopify)",
-    en: "Order delivered (Shopify)",
+    es: "Pedido entregado",
+    en: "Order delivered",
   },
   triggerShopifyOrderCancelled: {
-    es: "Pedido cancelado (Shopify)",
-    en: "Order cancelled (Shopify)",
+    es: "Pedido cancelado",
+    en: "Order cancelled",
   },
   triggerShopifyOrderRefunded: {
-    es: "Pedido reembolsado (Shopify)",
-    en: "Order refunded (Shopify)",
+    es: "Pedido reembolsado",
+    en: "Order refunded",
   },
   triggerShopifyAbandonedCheckout: {
-    es: "Carrito abandonado (Shopify)",
-    en: "Abandoned checkout (Shopify)",
+    es: "Carrito abandonado",
+    en: "Abandoned checkout",
   },
   triggerPaymentRejected: {
     es: "Pago rechazado (Mercado Pago)",
@@ -470,8 +470,8 @@ export const automations = {
   },
   conditionSubjectTimeOfDay: { es: "La hora del día", en: "Time of day" },
   conditionSubjectContextVar: {
-    es: "Un dato del pedido (Shopify)",
-    en: "An order field (Shopify)",
+    es: "Un dato del pedido",
+    en: "An order field",
   },
   segment: { es: "Segmento", en: "Segment" },
   chooseSegment: { es: "Elige un segmento…", en: "Choose a segment…" },

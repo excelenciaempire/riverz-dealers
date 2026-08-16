@@ -50,11 +50,13 @@ export async function resolveWorkspaceCurrency(
     const cfgCurrency = (cfg as { currency?: string | null } | null)?.currency
     if (cfgCurrency) return cfgCurrency.toUpperCase()
 
-    // 2) Divisa detectada de la tienda Shopify conectada.
+    // 2) Divisa detectada de la tienda conectada, sea de la plataforma que
+    // sea. Filtrar por 'shopify' dejaba a un comercio de Tiendanube o
+    // WooCommerce con la divisa por defecto aunque su tienda informara la
+    // suya, y eso se ve en cada precio que cotiza el asistente.
     const { data: conn } = await db
       .from('shopify_connections')
       .select('currency')
-      .eq('platform', 'shopify')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .not('currency', 'is', null)
