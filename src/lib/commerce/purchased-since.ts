@@ -111,7 +111,14 @@ export async function consultarCompra(
   let orders: Awaited<ReturnType<typeof fetchRecentOrders>>
   try {
     const conn = await getActiveShopifyConnection(db, args.workspaceId)
-    if (!conn) return { estado: 'no_compro' }
+    // Sin Shopify, el comercio puede tener Tiendanube o WooCommerce. Antes
+    // esto contestaba "no compró" SIEMPRE, y esa respuesta decide si se manda
+    // el mensaje de carrito abandonado o de pago rechazado: una clienta de
+    // Tiendanube que ya había comprado recibía igual el "dejaste tu compra a
+    // medias". Es el caso que el comentario de arriba dice que más importa.
+    if (!conn) {
+      return await consultarEnOtraTienda(db, args)
+    }
     // Sólo desde el momento que se pregunta. Antes pedía 90 días siempre
     // —`Math.min` se quedaba con la fecha más vieja— y como Shopify devuelve
     // una sola página de 250, una tienda con más de 250 pedidos en 90 días
@@ -145,5 +152,79 @@ export async function consultarCompra(
     }
     return false
   })
+  return compro ? { estado: 'compro' } : { estado: 'no_compro' }
+}
+
+/**
+ * La misma pregunta, contra Tiendanube o WooCommerce.
+ *
+ * Se apoya en los pedidos que Riverz YA tiene espejados en vez de consultar
+ * la API: el receptor de webhooks escribe una fila por cada pedido
+ * (`shopify_order_fulfillment_state`) y el contacto queda vinculado cuando
+ * hay teléfono. Alcanza para contestar "¿compró después de tal momento?" sin
+ * gastar cupo de la API del comercio ni depender de que esté en línea.
+ *
+ * Distingue "no compró" de "no pude preguntar" con el mismo criterio que el
+ * camino de Shopify: si no hay tienda conectada, la respuesta honesta es que
+ * no se pudo preguntar, no que no compró.
+ */
+async function consultarEnOtraTienda(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string
+    sinceIso: string
+    email?: string | null
+    phone?: string | null
+  },
+): Promise<ResultadoCompra> {
+  const { data: tienda } = await db
+    .from('shopify_connections')
+    .select('shop_domain, platform')
+    .eq('workspace_id', args.workspaceId)
+    .eq('status', 'active')
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const fila = tienda as { shop_domain?: string; platform?: string } | null
+  if (!fila?.shop_domain) {
+    return { estado: 'sin_respuesta', motivo: 'sin_tienda_conectada' }
+  }
+
+  // El contacto: sin él no hay a quién atribuirle el pedido.
+  let contactoId: string | null = null
+  if (args.phone) {
+    const { data: c } = await db
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', args.workspaceId)
+      .eq('phone', args.phone.replace(/[^\d]/g, ''))
+      .limit(1)
+      .maybeSingle()
+    contactoId = (c as { id?: string } | null)?.id ?? null
+  }
+  if (!contactoId && args.email) {
+    const { data: c } = await db
+      .from('contacts')
+      .select('id')
+      .eq('workspace_id', args.workspaceId)
+      .ilike('email', args.email)
+      .limit(1)
+      .maybeSingle()
+    contactoId = (c as { id?: string } | null)?.id ?? null
+  }
+  if (!contactoId) return { estado: 'no_compro' }
+
+  const { data: pedidos, error } = await db
+    .from('shopify_order_fulfillment_state')
+    .select('created_at, updated_at')
+    .eq('shop_domain', fila.shop_domain)
+    .eq('contact_id', contactoId)
+  if (error) {
+    return { estado: 'sin_respuesta', motivo: 'lectura_fallida' }
+  }
+
+  const compro = ((pedidos ?? []) as { updated_at?: string }[]).some((p) =>
+    isAfter(p.updated_at, args.sinceIso),
+  )
   return compro ? { estado: 'compro' } : { estado: 'no_compro' }
 }
