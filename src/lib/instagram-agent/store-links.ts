@@ -20,9 +20,12 @@ export async function loadStoreLinks(
 ): Promise<StoreLinks> {
   const [{ data: conn }, { data: products }] = await Promise.all([
     db
+      // Cualquier tienda, no solo Shopify: los enlaces salen del dominio de
+      // la tienda conectada y el catalogo ya vive sincronizado en Riverz, asi
+      // que la plataforma da igual. Filtrar por 'shopify' dejaba al agente de
+      // un comercio de Tiendanube sin ningun enlace que ofrecer.
       .from('shopify_connections')
-      .select('shop_domain')
-      .eq('platform', 'shopify')
+      .select('shop_domain, store_url')
       .eq('workspace_id', workspaceId)
       .eq('status', 'active')
       .limit(1)

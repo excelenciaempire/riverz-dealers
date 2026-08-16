@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup';
+import {
+  resolveStoreForLookup,
+  lookupOrderNonShopify,
+} from '@/lib/commerce/order-lookup';
 
 /**
  * "¿Dónde está mi pedido?" bajo un post.
@@ -75,9 +79,32 @@ export async function loadOrderStatus(
     const contact = contactRow as { email: string | null; phone: string | null } | null;
     const orderNumber = orderNumberFrom(text ?? '');
 
-    // Sin tienda no hay nada que mirar. Sin forma de identificarla tampoco,
-    // salvo que ella misma haya dado el número de pedido.
-    if (!conn) return null;
+    // Sin Shopify, la tienda puede ser Tiendanube o WooCommerce: se contesta
+    // igual con el buscador multiplataforma. Antes el agente de Instagram
+    // ignoraba en silencio a toda clienta de esas tiendas que preguntara por
+    // su pedido.
+    if (!conn) {
+      const tienda = await resolveStoreForLookup(db, workspaceId);
+      if (!tienda || tienda.platform === 'shopify') return null;
+      const r = orderNumber
+        ? await lookupOrderNonShopify(tienda, 'order_by_number', orderNumber)
+        : contact?.email
+          ? await lookupOrderNonShopify(tienda, 'order_by_email', contact.email)
+          : contact?.phone
+            ? await lookupOrderNonShopify(tienda, 'order_by_phone', contact.phone)
+            : { found: false as const };
+      if (!r.found || !r.vars) return null;
+      const v = r.vars;
+      return [
+        v.order_name ? `Pedido ${v.order_name}` : 'Pedido',
+        v.financial_status ? `pago: ${v.financial_status}` : null,
+        v.fulfillment_status ? `envío: ${v.fulfillment_status}` : null,
+        v.tracking_number ? `seguimiento: ${v.tracking_number}` : null,
+        v.items ? `productos: ${v.items}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+    }
     if (!contact?.email && !contact?.phone && !orderNumber) {
       return 'PREGUNTA POR SU PEDIDO pero no podemos identificarla: pídele el número de pedido (ej. #1042) o el correo/teléfono con el que compró. NO inventes ningún estado.';
     }
