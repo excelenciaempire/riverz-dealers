@@ -34,6 +34,11 @@ type SchedulerState = {
   lastTickAt: Date | null;
   /** Trabajos con una corrida todavía en vuelo; no se relanzan encima. */
   inFlight: Set<string>;
+  /**
+   * La instancia se está apagando. Deja de tomar trabajo nuevo aunque el reloj
+   * alcance a despertar una vez más.
+   */
+  draining: boolean;
 };
 
 const STATE_KEY = "__riverzScheduler";
@@ -41,7 +46,7 @@ const STATE_KEY = "__riverzScheduler";
 function state(): SchedulerState {
   const g = globalThis as typeof globalThis & { [STATE_KEY]?: SchedulerState };
   if (!g[STATE_KEY]) {
-    g[STATE_KEY] = { timer: null, lastTickAt: null, inFlight: new Set() };
+    g[STATE_KEY] = { timer: null, lastTickAt: null, inFlight: new Set(), draining: false };
   }
   return g[STATE_KEY];
 }
@@ -127,12 +132,17 @@ async function claimTick(at: Date): Promise<boolean> {
 }
 
 function tick(secret: string): void {
+  const s = state();
+  if (s.draining) return;
   const now = new Date();
-  state().lastTickAt = now;
+  s.lastTickAt = now;
   const jobs = dueJobs(now);
   if (jobs.length === 0) return;
 
   void (async () => {
+    // El turno se pide DESPUÉS de un salto asíncrono, así que hay que volver a
+    // mirar: la instancia pudo entrar en drenaje mientras tanto.
+    if (state().draining) return;
     if (!(await claimTick(now))) {
       log.info('otro proceso tomó este minuto', { jobs: jobs.length });
       return;
@@ -189,6 +199,30 @@ export function startScheduler(): void {
   log.info("scheduler started", { jobs: SCHEDULED_JOBS.length });
 }
 
+/**
+ * Deja de tomar trabajo nuevo. Se llama al recibir SIGTERM.
+ *
+ * Sin esto, una instancia que Render está sacando de rotación seguía
+ * despertando cada minuto y disparando trabajos, y cada `fetch` en vuelo
+ * mantiene vivo el bucle de eventos: el proceso no terminaba de apagarse, el
+ * despliegue nuevo se quedaba esperando el drenaje y terminaba expirando. Se vio
+ * en producción el 2026-08-16 con dos despliegues seguidos en `update_failed`,
+ * mientras los registros mostraban a la instancia vieja corriendo trabajos
+ * durante los diecisiete minutos completos.
+ *
+ * No se cancelan las corridas ya lanzadas: la que está a mitad de camino
+ * termina, y como cada una se registra en `cron_runs`, se sabe cuál fue.
+ */
+export function stopScheduler(): void {
+  const s = state();
+  s.draining = true;
+  if (s.timer) clearTimeout(s.timer);
+  s.timer = null;
+  log.info("scheduler detenido (la instancia se está apagando)", {
+    enVuelo: s.inFlight.size,
+  });
+}
+
 /** Estado para `/api/cron/tick`, que es quien evita que la instancia se duerma. */
 export function schedulerStatus(): {
   started: boolean;
@@ -198,7 +232,7 @@ export function schedulerStatus(): {
 } {
   const s = state();
   return {
-    started: s.timer !== null,
+    started: s.timer !== null && !s.draining,
     jobs: SCHEDULED_JOBS.length,
     lastTickAt: s.lastTickAt ? s.lastTickAt.toISOString() : null,
     running: [...s.inFlight].sort(),

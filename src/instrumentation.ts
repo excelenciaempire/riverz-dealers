@@ -26,8 +26,20 @@ export async function register() {
     // Reloj de los trabajos periódicos. Vive dentro del servicio web porque
     // los Render Cron Jobs cuestan un mínimo de 1 USD/mes cada uno y no tienen
     // plan gratuito; ver src/lib/cron/schedule.ts.
-    const { startScheduler } = await import('@/lib/cron/scheduler')
+    const { startScheduler, stopScheduler } = await import('@/lib/cron/scheduler')
     startScheduler()
+
+    // Al sacar la instancia de rotación, Render manda SIGTERM y espera a que el
+    // proceso termine. Sin esto el reloj seguía despertando y disparando
+    // trabajos, y cada fetch en vuelo mantiene vivo el bucle de eventos: el
+    // proceso no se apagaba, el despliegue nuevo esperaba el drenaje y expiraba.
+    // Sólo se deja de TOMAR trabajo; lo que ya está corriendo termina.
+    for (const senal of ['SIGTERM', 'SIGINT'] as const) {
+      process.once(senal, () => {
+        log.info('senal de apagado recibida', { senal })
+        stopScheduler()
+      })
+    }
 
     if (dsn) {
       // Carga @sentry/node y ejecuta Sentry.init (ver sentry.server.config.ts).
