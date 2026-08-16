@@ -44,6 +44,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'conversaciones_pendientes',
     description:
       'Las conversaciones que están esperando una respuesta: alguien escribió y nadie contestó, o la IA pidió que intervenga una persona. Es la primera pregunta de la mañana.',
+    descriptionEn:
+      'The conversations waiting for a reply: someone wrote and nobody answered, or the AI asked for a human. It is the first question of the morning.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -101,6 +103,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'contacto_buscar',
     description:
       'Busca un cliente por teléfono, nombre o correo y devuelve su ficha: etiquetas, si pidió la baja, cuándo escribió por última vez, sus pedidos y qué le interesó. Sirve para contestar "¿quién es este?" antes de escribirle.',
+    descriptionEn:
+      'Finds a customer by phone, name or email and returns their record: tags, whether they opted out, when they last wrote, their orders and what caught their interest. Answers “who is this?” before writing to them.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -180,6 +184,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'metricas',
     description:
       'Cómo viene la cuenta en un período: mensajes que entraron y salieron, cuántos contestó la IA, contactos nuevos, pedidos y cuánto facturaron. Es el "¿cómo vamos?".',
+    descriptionEn:
+      'How the account is doing over a period: messages in and out, how many the AI answered, new contacts, orders and revenue. The “how are we doing?”.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -252,6 +258,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'plantillas_estado',
     description:
       'Las plantillas de WhatsApp con su estado en Meta y el motivo de rechazo cuando lo hay. Una rechazada no se puede usar en ninguna campaña ni automatización, así que suele ser la causa de que algo no salga.',
+    descriptionEn:
+      'The WhatsApp templates with their status at Meta and the rejection reason when there is one. A rejected template cannot be used in any campaign or automation, so it is often the reason something does not go out.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -286,6 +294,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'campanas_estado',
     description:
       'Las campañas y cómo terminaron: a cuántos salió, cuántos la recibieron, cuántos contestaron y cuántas fallaron. Incluye las que quedaron trabadas en "enviando".',
+    descriptionEn:
+      'The campaigns and how they ended: how many were targeted, how many received it, how many replied and how many failed. Includes the ones stuck in “sending”.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -328,6 +338,8 @@ export const MERCHANT_TOOLS: McpTool[] = [
     name: 'pedidos_listar',
     description:
       'Los pedidos de la cuenta con su estado de pago y de envío, incluido el seguimiento cuando existe. Sirve para contestarle a un cliente dónde está lo suyo.',
+    descriptionEn:
+      'The orders of the account with their payment and shipping status, including tracking when it exists. Useful for telling a customer where their package is.',
     risk: 'lectura',
     schema: {
       type: 'object',

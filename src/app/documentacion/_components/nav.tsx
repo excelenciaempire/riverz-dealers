@@ -24,7 +24,19 @@ export interface NavItem {
   sub?: boolean;
 }
 
-export function DocsNav({ items, textoCompleto }: { items: NavItem[]; textoCompleto: string }) {
+export function DocsNav({
+  items,
+  textoCompleto,
+  copiar,
+  copiado: etiquetaCopiado,
+  titulo,
+}: {
+  items: NavItem[];
+  textoCompleto: string;
+  copiar: string;
+  copiado: string;
+  titulo: string;
+}) {
   const [activo, setActivo] = useState(items[0]?.id ?? '');
   const [copiado, setCopiado] = useState(false);
 
@@ -54,11 +66,11 @@ export function DocsNav({ items, textoCompleto }: { items: NavItem[]; textoCompl
         className="flex w-full items-center justify-center gap-2 rounded-full bg-[#f7ff9e] px-4 py-2 text-[13px] font-semibold text-[#0a0a0a] transition-opacity hover:opacity-90"
       >
         {copiado ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-        {copiado ? 'Copiado' : 'Copiar todo'}
+        {copiado ? etiquetaCopiado : copiar}
       </button>
 
       <p className="mt-7 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f6f77]">
-        Conector MCP
+        {titulo}
       </p>
 
       <ul className="mt-3 space-y-px">

@@ -8,14 +8,20 @@
  * bandeja.
  *
  * A diferencia del panel, acá no hay nada que esconder: en el dominio del
- * producto `/documentacion` sigue sirviendo siempre. No hay un
- * `DOCS_SUBDOMAIN_ONLY` porque cortar un enlace público que alguien ya guardó
- * no arregla nada.
+ * producto `/docs` y `/documentacion` no dejan de funcionar, redirigen. Un
+ * enlace público que alguien ya guardó no se rompe, y al mismo tiempo la
+ * documentación tiene una sola dirección: dos URLs que sirven lo mismo se
+ * reparten el posicionamiento y confunden a quien comparte una.
  */
 
 /** Host de la documentación. Configurable para poder probarlo en otro dominio. */
 export function docsHost(): string {
   return (process.env.DOCS_HOST || 'docs.riverz.co').toLowerCase();
+}
+
+/** La dirección pública, para enlazar desde la app. */
+export function docsUrl(path = ''): string {
+  return `https://${docsHost()}${path}`;
 }
 
 export function isDocsHost(host: string | null | undefined): boolean {
@@ -49,4 +55,20 @@ export function docsRewrite(pathname: string): string | null {
   if (pathname === '/documentacion' || pathname.startsWith('/documentacion/')) return null;
   if (pathname === '/') return '/documentacion';
   return `/documentacion${pathname}`;
+}
+
+/**
+ * El camino inverso, para el dominio del producto: `/docs` y `/documentacion`
+ * mandan al subdominio en lugar de servir una segunda copia.
+ *
+ * Devuelve la ruta que corresponde en el host de la documentación, o null si
+ * este pedido no es de documentación. El fragmento (`#seguridad`) no viaja al
+ * servidor, pero el navegador lo conserva al seguir la redirección, así que un
+ * enlace a una sección sigue cayendo en la sección.
+ */
+export function docsRedirect(pathname: string): string | null {
+  if (pathname === '/docs' || pathname === '/documentacion') return '/';
+  if (pathname.startsWith('/docs/')) return pathname.slice('/docs'.length);
+  if (pathname.startsWith('/documentacion/')) return pathname.slice('/documentacion'.length);
+  return null;
 }

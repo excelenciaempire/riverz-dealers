@@ -170,6 +170,43 @@ export function ToolTable({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * El marcado mínimo de los párrafos traducibles.
+ *
+ * Sin esto, una oración con un nombre de campo o un enlace en el medio hay que
+ * partirla en tres cadenas, y entonces quien traduce recibe pedazos sueltos que
+ * no puede reordenar: en inglés el enlace cae en otro lugar de la frase. Con el
+ * marcado adentro, la unidad traducible es la oración entera.
+ *
+ * Sólo tres formas, y a propósito: acentos graves para código, dos asteriscos
+ * para negrita, corchetes y paréntesis para enlaces. No es Markdown ni pretende
+ * serlo; es lo justo para no partir oraciones.
+ */
+export function Rich({ children }: { children: string }) {
+  const partes = children.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
+  return (
+    <>
+      {partes.map((p, i) => {
+        if (p.startsWith('`') && p.endsWith('`')) return <Code key={i}>{p.slice(1, -1)}</Code>;
+        if (p.startsWith('**') && p.endsWith('**'))
+          return (
+            <strong key={i} className="font-semibold text-[#d8d8dd]">
+              {p.slice(2, -2)}
+            </strong>
+          );
+        const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(p);
+        if (link)
+          return (
+            <A key={i} href={link[2]}>
+              {link[1]}
+            </A>
+          );
+        return p;
+      })}
+    </>
+  );
+}
+
 export function A({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a

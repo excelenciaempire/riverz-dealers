@@ -24,6 +24,15 @@ export type Risk = 'lectura' | 'reversible' | 'irreversible'
 export interface McpTool {
   name: string
   description: string
+  /**
+   * La misma descripción en inglés, para la documentación pública.
+   *
+   * `description` es lo que viaja por el protocolo y sigue en español: es el
+   * texto que lee el modelo del cliente, y cambiarlo según quién mira la página
+   * web haría que la misma herramienta se llame distinto en dos lugares. Esto
+   * es sólo para la página.
+   */
+  descriptionEn?: string
   risk: Risk
   schema: {
     type: 'object'
@@ -53,6 +62,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'cuentas_listar',
     description:
       'Lista las cuentas (workspaces) vivas con su nombre, cuántos contactos y canales tienen, y cuántas automatizaciones activas. Es el punto de entrada: el workspace_id que devuelve se usa en todas las demás. Con una clave de comercio devuelve sólo la suya.',
+    descriptionEn:
+      'Lists the live accounts (workspaces) with their name, how many contacts and channels they have, and how many automations are active. It is the entry point: the workspace_id it returns is used by every other tool. With a merchant key it returns only its own.',
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     async run(args) {
@@ -100,6 +111,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'operacion_estado',
     description:
       'Panorama de una cuenta: canales conectados, automatizaciones activas con su última corrida, mensajes enviados hoy, crons que fallaron y decisiones esperando aprobación.',
+    descriptionEn:
+      'Overview of one account: connected channels, active automations with their last run, messages sent today, failed crons and decisions waiting for approval.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -158,6 +171,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'por_que_no_salio',
     description:
       'Explica por qué una persona no recibió un mensaje. Recibe un teléfono y devuelve: si está dada de baja, qué automatizaciones corrieron para ese contacto y con qué resultado, qué barrera lo frenó, y los mensajes que sí salieron. Es la herramienta de diagnóstico.',
+    descriptionEn:
+      'Explains why a person did not receive a message. Takes a phone number and returns whether they opted out, which automations ran for that contact and with what result, which guard stopped it, and the messages that did go out. This is the diagnostic tool.',
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -230,6 +245,8 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'automatizacion_activar',
     description: 'Prende o pausa una automatización. Se deshace llamando de nuevo.',
+    descriptionEn:
+      'Turns an automation on or off. Undone by calling it again.',
     risk: 'reversible',
     schema: {
       type: 'object',
@@ -258,6 +275,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'automatizacion_editar_espera',
     description:
       'Cambia cuánto espera un paso de espera. El paso se identifica por su id, que sale de operacion_estado o del lienzo.',
+    descriptionEn:
+      'Changes how long a wait step waits. The step is identified by its id, which comes from operacion_estado or from the canvas.',
     risk: 'reversible',
     schema: {
       type: 'object',
@@ -298,6 +317,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'cron_estado',
     description:
       'Los trabajos programados de la plataforma: nombre, frecuencia y cómo terminó la última corrida de cada uno.',
+    descriptionEn:
+      'The platform scheduled jobs: name, frequency and how the last run of each one ended.',
     risk: 'lectura',
     platformOnly: true,
     schema: { type: 'object', properties: {} },
@@ -324,6 +345,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'aprobacion_decidir',
     description:
       'Aprueba o rechaza una decisión que estaba esperando (las que devuelve operacion_estado). Aprobar ejecuta lo que estaba pendiente.',
+    descriptionEn:
+      'Approves or rejects a decision that was waiting (the ones operacion_estado returns). Approving executes whatever was pending.',
     risk: 'reversible',
     schema: {
       type: 'object',
@@ -350,6 +373,8 @@ export const MCP_TOOLS: McpTool[] = [
     name: 'mensaje_enviar',
     description:
       'Manda un mensaje de WhatsApp a un contacto de la cuenta. Le llega a una persona real, así que primero devuelve qué haría y espera confirmación.',
+    descriptionEn:
+      'Sends a WhatsApp message to a contact of the account. It reaches a real person, so it first returns what it would do and waits for confirmation.',
     risk: 'irreversible',
     schema: {
       type: 'object',

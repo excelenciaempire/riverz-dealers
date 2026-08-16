@@ -6,5 +6,5 @@ import { permanentRedirect } from 'next/navigation';
  * estructura interno.
  */
 export default function RedirMcp(): never {
-  permanentRedirect('/documentacion#conexion');
+  permanentRedirect('/#conexion');
 }

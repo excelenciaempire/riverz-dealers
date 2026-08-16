@@ -6,7 +6,7 @@ import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpen } from '@/lib/auth/signups'
 import { adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
-import { docsRewrite, isDocsHost } from '@/lib/docs/host'
+import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
 // the response's Content-Security-Policy header and stamps it onto the
@@ -107,6 +107,17 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = target
       return NextResponse.rewrite(url)
+    }
+  } else if (host && !/^(localhost|127\.0\.0\.1)(:|$)/.test(host)) {
+    // En el dominio del producto la documentacion no se sirve, se redirige: dos
+    // URLs con el mismo contenido se reparten el posicionamiento y hacen dudar
+    // a quien comparte una. En local no, o no habria forma de verla sin DNS.
+    const target = docsRedirect(request.nextUrl.pathname)
+    if (target) {
+      return NextResponse.redirect(
+        new URL(target + request.nextUrl.search, `https://${docsHost()}`),
+        308,
+      )
     }
   }
   if (isAdminHost(host)) {
