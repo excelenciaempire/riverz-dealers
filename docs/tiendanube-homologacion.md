@@ -51,9 +51,45 @@ Assets y contenido, estado real:
 | --- | --- |
 | Textos de la ficha (es) | Listos — sección 8 |
 | Ícono 200 × 200 | Listo — `C:\tmp\riverz-icono-200.png` (4 KB) |
-| 3–5 imágenes de 1920 × 1080 | **Faltan** — capturas del panel, una por país o las mismas para los cinco |
+| 3–5 imágenes de 1920 × 1080 | **En curso** — ver 0.1 |
 | Video de YouTube ≤ 3 min | **Falta** — guion en la sección 3 |
-| Ficha en portugués | **Falta** — Brasil exige el contenido en su idioma |
+| Ficha en portugués | **Falta** — ver la advertencia sobre Brasil |
+
+**Consulta enviada el 2026-08-16** al ticket abierto `[6G0V9M-KMXGD]`
+(`socios@tiendanube.com`, casilla juandiegoriosmesa@gmail.com): si al pasar a
+"Tienda de aplicaciones" el enlace de instalación sigue sirviendo para
+comercios reales durante la homologación, si el cambio de distribución se puede
+revertir, y si "Datos de publicación" conserva lo cargado al volver a privada.
+La respuesta define si se cambia el selector ahora o el día del envío.
+
+**Advertencia sobre Brasil.** La ficha brasileña se escribe en portugués, pero
+la aplicación solo habla español e inglés: un comercio brasileño instalaría un
+panel que no está en su idioma. Conviene publicar primero en Argentina, Chile,
+Colombia y México, y sumar Brasil cuando exista el catálogo `pt-BR` en
+`src/lib/i18n/messages/`.
+
+### 0.1 Capturas — primera tanda (2026-08-16)
+
+Tomadas a 1920 × 1080 exactos desde la cuenta del revisor
+(`riverzoficial+tnreview@gmail.com`), en un contexto de navegador aislado para
+no tocar la sesión del comercio real. Guardadas en `C:\tmp\cap-*.png`:
+`integraciones`, `productos`, `automatizaciones`, `asistente`.
+
+Sirve una sola tal cual: **Integraciones**, que muestra los doce canales en
+grilla y se lee bien. Las otras tres no, y por dos motivos que hay que
+resolver antes de la tanda definitiva:
+
+1. **El espacio del revisor está vacío.** Sin canal conectado, Automatizaciones
+   muestra "Conecta un canal antes de automatizar" y el panel arranca con la
+   lista de puesta en marcha. Una ficha con pantallas vacías vende poco: hay
+   que sembrar datos ficticios en ese espacio (contactos, una conversación,
+   una automatización) o conectar un canal de prueba.
+2. **Los logos de los canales no cargaron** en la captura: salen círculos
+   blancos. Hay que esperar a que terminen de cargar las imágenes antes de
+   disparar la captura, no solo a `readyState === 'complete'`.
+
+Además, en ese espacio Tiendanube figura **sin conectar**; la imagen que va a
+la ficha debería mostrar la tienda conectada.
 
 ---
 
