@@ -22,6 +22,41 @@
 > como expediente por si algún día se quiere publicar en la tienda de
 > aplicaciones. Para el modelo actual no se usa.
 
+## Estado al 2026-08-16 — publicar en la tienda de aplicaciones
+
+Verificado en el portal (`applications/update/37693`): la distribución guardada
+sigue siendo **privada** — el selector marca "Para sus clientes", no "Tienda de
+aplicaciones". **El proceso público no está iniciado.**
+
+**Antes de tocar el selector, leer esto.** Una app con distribución pública y
+sin homologar solo se instala en tiendas demo: es exactamente el motivo por el
+que se pasó a privada el 2026-08-15. Cambiar el selector hoy, con la
+homologación a medias, apaga el enlace que hoy funciona para comercios reales.
+El orden correcto es: juntar todo → cambiar el selector → enviar el mismo día.
+Antes de eso conviene preguntarle a `socios@tiendanube.com` si el enlace de
+autorización sigue sirviendo mientras la app está en homologación; si la
+respuesta es que no, la ficha pública se prepara entera y se cambia el
+selector recién cuando esté lista para enviar.
+
+Decisiones del dueño (2026-08-16), que eran lo único que faltaba definir:
+
+| Campo | Decisión |
+| --- | --- |
+| Forma de cobro | **Gratis** — la suscripción se contrata en riverz.co, fuera de Tiendanube |
+| Países | **Los cinco**: Argentina, Brasil, Chile, Colombia, México |
+
+Assets y contenido, estado real:
+
+| Pieza | Estado |
+| --- | --- |
+| Textos de la ficha (es) | Listos — sección 8 |
+| Ícono 200 × 200 | Listo — `C:\tmp\riverz-icono-200.png` (4 KB) |
+| 3–5 imágenes de 1920 × 1080 | **Faltan** — capturas del panel, una por país o las mismas para los cinco |
+| Video de YouTube ≤ 3 min | **Falta** — guion en la sección 3 |
+| Ficha en portugués | **Falta** — Brasil exige el contenido en su idioma |
+
+---
+
 Estado al 2026-07-27. La app existe y está configurada; falta la revisión
 de Tiendanube para que la puedan instalar comercios reales.
 
