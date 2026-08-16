@@ -11,6 +11,7 @@ import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { formatProductLine, type ProductRow } from '@/lib/ai/runner';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { splitReplyForMode } from '@/lib/ai/runner';
 import { appendBusinessScopeGuardrails } from '@/lib/ai/guardrails';
 import {
@@ -170,6 +171,18 @@ export async function POST(
       64,
       Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
     );
+    // Si la tienda no es Shopify, el asistente igual tiene que poder buscar
+    // un pedido: el panel de prueba no exponia ninguna herramienta y el bot
+    // contestaba "no tengo acceso al sistema de pedidos" sobre una tienda
+    // que si esta conectada.
+    const otraTienda = shopify
+      ? null
+      : await (async () => {
+          const t = await resolveStoreForLookup(admin, a.workspace_id);
+          if (!t || t.platform === 'shopify') return null;
+          return { ...t, customerEmail: null, customerPhone: null };
+        })();
+
     const tools = shopify
       ? [
           LOOKUP_ORDER_TOOL,
@@ -178,7 +191,9 @@ export async function POST(
             ? [buildOrderTool(shopify.config ?? null)]
             : []),
         ]
-      : [];
+      : otraTienda
+        ? [LOOKUP_ORDER_TOOL]
+        : [];
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
       max_tokens,
@@ -186,6 +201,7 @@ export async function POST(
       messages: [{ role: 'user', content: message }],
       tools,
       shopify,
+      otherStore: otraTienda,
     });
 
     const text = result.text;
