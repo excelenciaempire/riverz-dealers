@@ -43,17 +43,17 @@ Decisiones del dueño (2026-08-16), que eran lo único que faltaba definir:
 | Campo | Decisión |
 | --- | --- |
 | Forma de cobro | **Gratis** — la suscripción se contrata en riverz.co, fuera de Tiendanube |
-| Países | **Los cinco**: Argentina, Brasil, Chile, Colombia, México |
+| Países | **Cuatro**: Argentina, Chile, Colombia, México. Brasil queda para cuando exista `pt-BR` |
 
 Assets y contenido, estado real:
 
 | Pieza | Estado |
 | --- | --- |
 | Textos de la ficha (es) | Listos — sección 8 |
-| Ícono 200 × 200 | Listo — `C:\tmp\riverz-icono-200.png` (4 KB) |
-| 3–5 imágenes de 1920 × 1080 | **En curso** — ver 0.1 |
+| Ícono 200 × 200 | Listo — `C:\tmp\tiendanube-ficha\icono-200.png` |
+| 3–5 imágenes de 1920 × 1080 | **Listas** — 4 imágenes, ver 0.1 |
 | Video de YouTube ≤ 3 min | **Falta** — guion en la sección 3 |
-| Ficha en portugués | **Falta** — ver la advertencia sobre Brasil |
+| Ficha en portugués | No aplica por ahora — Brasil queda fuera |
 
 **Consulta enviada el 2026-08-16** al ticket abierto `[6G0V9M-KMXGD]`
 (`socios@tiendanube.com`, casilla juandiegoriosmesa@gmail.com): si al pasar a
@@ -68,28 +68,43 @@ panel que no está en su idioma. Conviene publicar primero en Argentina, Chile,
 Colombia y México, y sumar Brasil cuando exista el catálogo `pt-BR` en
 `src/lib/i18n/messages/`.
 
-### 0.1 Capturas — primera tanda (2026-08-16)
+### 0.1 Imágenes de la ficha — listas (2026-08-16)
 
-Tomadas a 1920 × 1080 exactos desde la cuenta del revisor
-(`riverzoficial+tnreview@gmail.com`), en un contexto de navegador aislado para
-no tocar la sesión del comercio real. Guardadas en `C:\tmp\cap-*.png`:
-`integraciones`, `productos`, `automatizaciones`, `asistente`.
+En `C:\tmp\tiendanube-ficha\`, las cuatro a 1920 × 1080 exactos y por debajo de
+200 KB:
 
-Sirve una sola tal cual: **Integraciones**, que muestra los doce canales en
-grilla y se lee bien. Las otras tres no, y por dos motivos que hay que
-resolver antes de la tanda definitiva:
+| Archivo | Qué muestra |
+| --- | --- |
+| `1-bandeja-conversacion.png` | Una conversación de WhatsApp con el asistente respondiendo precio, envío y promoción |
+| `2-canales.png` | Los doce canales de Integraciones en grilla |
+| `3-contactos-etiquetas.png` | Contactos con etiquetas comprador / carrito-abandonado / unidades |
+| `4-metricas.png` | Resumen con conversaciones, mensajes y volumen por canal |
 
-1. **El espacio del revisor está vacío.** Sin canal conectado, Automatizaciones
-   muestra "Conecta un canal antes de automatizar" y el panel arranca con la
-   lista de puesta en marcha. Una ficha con pantallas vacías vende poco: hay
-   que sembrar datos ficticios en ese espacio (contactos, una conversación,
-   una automatización) o conectar un canal de prueba.
-2. **Los logos de los canales no cargaron** en la captura: salen círculos
-   blancos. Hay que esperar a que terminen de cargar las imágenes antes de
-   disparar la captura, no solo a `readyState === 'complete'`.
+Cómo se sacaron, por si hay que repetirlas:
 
-Además, en ese espacio Tiendanube figura **sin conectar**; la imagen que va a
-la ficha debería mostrar la tienda conectada.
+- Desde la cuenta del revisor (`riverzoficial+tnreview@gmail.com`) y en un
+  **contexto de navegador aislado** (`Target.createBrowserContext`), para no
+  tocar la sesión del comercio real. Las capturas nunca salen del espacio de
+  un cliente: ahí hay datos de personas reales.
+- Con `Emulation.setDeviceMetricsOverride` en 1920 × 1080, que da el tamaño
+  exacto que pide el formulario sin recortar después.
+- Esperando a que **todas las imágenes terminen de cargar**
+  (`document.images.every(i => i.complete)`), no solo a `readyState`. En la
+  primera tanda los logos de los canales salieron como círculos blancos.
+
+**Datos ficticios sembrados** en ese espacio para que las pantallas no salieran
+vacías: 8 contactos, 6 conversaciones y 17 mensajes sobre el producto de la
+tienda demo. Todos los ids empiezan con `dddddddd-`, así que se borran de una:
+
+```sql
+delete from messages where id::text like 'dddddddd-%';
+delete from conversations where id::text like 'dddddddd-%';
+delete from contacts where id::text like 'dddddddd-%';
+```
+
+Falta una quinta imagen posible: **Automatizaciones**, que hoy muestra "Conecta
+un canal antes de automatizar" porque ese espacio no tiene ningún canal
+conectado.
 
 ---
 
