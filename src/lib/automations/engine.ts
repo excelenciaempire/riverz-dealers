@@ -1484,6 +1484,11 @@ function waitMs(cfg: WaitStepConfig): number {
 }
 
 function interpolate(s: string, args: ExecuteArgs): string {
+  // Un paso mal configurado -sin texto- tumbaba la corrida entera con un
+  // "Cannot read properties of undefined (reading 'replace')", que no le dice
+  // nada a nadie y esconde cuál fue el paso. Vale más mandar vacío y que el
+  // registro muestre el paso que falló.
+  if (typeof s !== 'string') return ''
   return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const [ns, prop] = String(key).split('.')
     if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
