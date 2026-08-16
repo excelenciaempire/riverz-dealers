@@ -19,6 +19,10 @@ services:
     autoDeploy: true
     buildCommand: npm install && npm run build
     startCommand: npm start
+    # OJO: el blueprint no pisa este valor en un servicio ya creado. El 2026-08-16
+    # el servicio tenia /login, que es una pagina React completa y no una sonda:
+    # los despliegues quedaban en update_failed sin que el blueprint lo delatara.
+    # Si vuelve a fallar la promocion, comparar este valor contra el del servicio.
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
