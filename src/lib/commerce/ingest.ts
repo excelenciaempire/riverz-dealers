@@ -123,8 +123,13 @@ export async function resolveOrderTrigger(
 export function buildOrderVars(
   trigger: AutomationTriggerType,
   order: NormalizedOrder,
+  platform?: CommercePlatform,
 ): Record<string, string> {
   const vars: Record<string, string> = {
+    // De qué tienda vino. Disponible como variable y como criterio de
+    // condición, para que un comercio con dos plataformas conectadas pueda
+    // mandar mensajes distintos según cuál vendió.
+    platform: platform ?? '',
     customer_name: order.customer.name ?? '',
     order_id: String(order.externalId),
     order_name: order.name,
@@ -271,7 +276,7 @@ export async function ingestOrder(
     console.error(`[${platform}] categorizar comprador falló:`, err)
   }
 
-  const vars = buildOrderVars(trigger, order)
+  const vars = buildOrderVars(trigger, order, platform)
 
   runAutomationsForTrigger({
     workspaceId,

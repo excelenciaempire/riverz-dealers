@@ -127,6 +127,12 @@ const ProductsContext = createContext<string[]>([])
 
 /** The automation's trigger type, so each step can filter data points to what
  *  that trigger actually exposes (e.g. tracking_* only after fulfillment). */
+const PLATFORM_LABEL: Record<string, string> = {
+  shopify: "Shopify",
+  tiendanube: "Tiendanube",
+  woocommerce: "WooCommerce",
+}
+
 const TriggerContext = createContext<AutomationTriggerType>("shopify_order_created")
 
 /** True when this automation calls somewhere. The call result (contestó,
@@ -1302,6 +1308,26 @@ export function AutomationBuilder({
   )
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Plataformas de tienda conectadas. Sirven para ofrecer el filtro por
+  // plataforma sólo a quien tiene más de una: para el resto es una pregunta
+  // sin respuesta posible.
+  const [storePlatforms, setStorePlatforms] = useState<string[]>([])
+  useEffect(() => {
+    let vivo = true
+    void (async () => {
+      try {
+        const res = await fetch("/api/stores/platforms", { cache: "no-store" })
+        if (!res.ok) return
+        const json = (await res.json()) as { platforms?: string[] }
+        if (vivo && Array.isArray(json.platforms)) setStorePlatforms(json.platforms)
+      } catch {
+        /* silencioso: sin la lista simplemente no se ofrece el filtro */
+      }
+    })()
+    return () => {
+      vivo = false
+    }
+  }, [])
   const [arrastrando, tomar] = useState<Arrastre | null>(null)
   const [activo, setActivo] = useState<string | null>(null)
   // Los huecos, anotados con su acción. Es un ref y no estado porque cambia
@@ -1854,6 +1880,7 @@ export function AutomationBuilder({
               config={state.trigger_config}
               onTypeChange={(t) => patchTop("trigger_type", t)}
               onConfigChange={(c) => patchTop("trigger_config", c)}
+              storePlatforms={storePlatforms}
             />
             <StepList
               steps={state.steps}
@@ -1899,11 +1926,15 @@ function TriggerCard({
   config,
   onTypeChange,
   onConfigChange,
+  storePlatforms,
 }: {
   type: AutomationTriggerType
   config: Record<string, unknown>
   onTypeChange: (t: AutomationTriggerType) => void
   onConfigChange: (c: Record<string, unknown>) => void
+  /** Plataformas de tienda conectadas en esta cuenta. Con una sola, el
+   *  selector no se muestra. */
+  storePlatforms: string[]
 }) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -1987,6 +2018,56 @@ function TriggerCard({
                 ))}
               </select>
             </div>
+            {/* Filtro de plataforma para los activadores de tienda. Sólo se
+                muestra si el comercio tiene más de una conectada: con una
+                sola, elegir es una decisión que no existe. Sin marcar
+                ninguna = todas, que es como se comportaban antes. */}
+            {type.startsWith("shopify_") && storePlatforms.length > 1 && (
+              <div>
+                <div className="mb-1.5 text-[11px] text-muted-foreground">
+                  {t("automations.triggerPlatformLabel")}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {storePlatforms.map((plat: string) => {
+                    const elegidas = Array.isArray(
+                      (config as { platforms?: string[] })?.platforms,
+                    )
+                      ? ((config as { platforms?: string[] }).platforms as string[])
+                      : []
+                    const activa = elegidas.length === 0 || elegidas.includes(plat)
+                    return (
+                      <button
+                        key={plat}
+                        type="button"
+                        onClick={() => {
+                          const base = elegidas.length === 0 ? storePlatforms : elegidas
+                          const siguiente = base.includes(plat)
+                            ? base.filter((p: string) => p !== plat)
+                            : [...base, plat]
+                          onConfigChange({
+                            ...(config as Record<string, unknown>),
+                            // Todas marcadas = sin filtro, que es lo que
+                            // heredan las automatizaciones viejas.
+                            platforms:
+                              siguiente.length === storePlatforms.length
+                                ? undefined
+                                : siguiente,
+                          })
+                        }}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          activa
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border text-muted-foreground hover:bg-muted",
+                        )}
+                      >
+                        {PLATFORM_LABEL[plat] ?? plat}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             {type === "keyword_match" && (
               <KeywordMatchConfig
                 config={config as unknown as KeywordMatchTriggerConfig}

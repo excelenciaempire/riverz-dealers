@@ -660,7 +660,23 @@ export interface CustomerInactiveTriggerConfig {
   days_threshold: number;
 }
 
+/**
+ * Filtro de plataforma para los activadores de pedido y carrito.
+ *
+ * Un pedido de Tiendanube dispara el MISMO activador que uno de Shopify —así
+ * fue desde la migración 126— y eso es lo correcto por defecto: la mayoría de
+ * los comercios tiene una sola tienda y no quiere pensar en esto.
+ *
+ * Este filtro existe para el que tiene dos conectadas y necesita mensajes
+ * distintos según cuál vendió. Vacío o ausente = todas, que es exactamente el
+ * comportamiento que ya tenían las automatizaciones existentes.
+ */
+export interface StorePlatformTriggerConfig {
+  platforms?: Array<'shopify' | 'tiendanube' | 'woocommerce'>;
+}
+
 export type AutomationTriggerConfig =
+  | StorePlatformTriggerConfig
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig

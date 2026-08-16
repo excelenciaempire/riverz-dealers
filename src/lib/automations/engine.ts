@@ -1168,6 +1168,19 @@ function defaultVoiceCallType(trigger: AutomationTriggerType): VoiceCallType {
 }
 
 function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
+  // Filtro de plataforma para los activadores de tienda. Ausente o vacío =
+  // todas, que es como se comportaban antes de que existiera el filtro: una
+  // automatización vieja no puede dejar de dispararse porque agregamos una
+  // opción nueva.
+  const plataformas = (automation.trigger_config as { platforms?: unknown } | null)
+    ?.platforms
+  if (Array.isArray(plataformas) && plataformas.length > 0) {
+    const dePedido = String(ctx?.vars?.platform ?? '').trim()
+    // Sin plataforma en el contexto no filtramos: el activador puede venir de
+    // un camino que no la informa (un cron viejo) y callar sería peor.
+    if (dePedido && !plataformas.includes(dePedido)) return false
+  }
+
   if (automation.trigger_type !== 'keyword_match') return true
   const cfg = automation.trigger_config as KeywordMatchTriggerConfig
   if (!cfg?.keywords || cfg.keywords.length === 0) return false

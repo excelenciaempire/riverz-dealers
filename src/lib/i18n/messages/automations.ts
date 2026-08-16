@@ -159,6 +159,10 @@ export const automations = {
   // Builder — trigger card
   triggerEyebrow: { es: "Activador", en: "Trigger" },
   triggerEyebrowShopify: { es: "Activador · Tienda", en: "Trigger · Store" },
+  triggerPlatformLabel: {
+    es: "¿De qué tienda? Si no eliges ninguna, vale para todas.",
+    en: "Which store? If you pick none, it applies to all.",
+  },
   triggerTagAdded: { es: "Etiqueta añadida", en: "Tag added" },
   triggerShopifyOrderCreated: { es: "Nuevo pedido", en: "New order" },
   triggerShopifyOrderPaid: {
