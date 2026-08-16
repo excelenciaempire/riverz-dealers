@@ -52,7 +52,8 @@ Assets y contenido, estado real:
 | Textos de la ficha (es) | Listos — sección 8 |
 | Ícono 200 × 200 | Listo — `C:\tmp\tiendanube-ficha\icono-200.png` |
 | 3–5 imágenes de 1920 × 1080 | **Listas** — 4 imágenes, ver 0.1 |
-| Video de YouTube ≤ 3 min | **Falta** — guion en la sección 3 |
+| Video de YouTube ≤ 3 min | **Listo** — ver 0.2 |
+| Video demo de homologación | **Ya existía** — `out\tiendanube-homologacion-final.mp4`, 8 min 39 s, grabado el 2026-08-15 |
 | Ficha en portugués | No aplica por ahora — Brasil queda fuera |
 
 **Consulta enviada el 2026-08-16** al ticket abierto `[6G0V9M-KMXGD]`
@@ -105,6 +106,28 @@ delete from contacts where id::text like 'dddddddd-%';
 Falta una quinta imagen posible: **Automatizaciones**, que hoy muestra "Conecta
 un canal antes de automatizar" porque ese espacio no tiene ningún canal
 conectado.
+
+### 0.2 Video de la ficha — listo (2026-08-16)
+
+`C:\tmp\screenplay\out\tiendanube-ficha-3min.mp4` — **1 min 53 s**, 1920 × 1080,
+28 MB. Cinco escenas: la tienda conectada, el catálogo con el precio
+promocional, la bandeja con el asistente respondiendo, los contactos
+etiquetados y el resumen. Flow en `screenplay/flows/tiendanube-ficha-3min.json`.
+
+Es **otro** video que el de homologación: aquel dura 8:39 y cubre los seis
+escenarios que exige la revisión; este entra en el tope de 3 minutos del campo
+de YouTube de la ficha. Falta subirlo como "no listado" y pegar el enlace.
+
+Dos cosas que hubo que arreglar y conviene saber antes de repetirlo:
+
+- **La tienda demo estaba atada a otro espacio.** Al abrir el enlace de
+  autorización con el perfil de grabación logueado como
+  `riverzoficial+clientedemo@gmail.com`, la instalación se ató a ESE espacio y
+  el catálogo salía vacío en el del revisor. Se movieron la conexión y el
+  producto al espacio del revisor.
+- **`producir` no sirve en esta máquina** (ver la memoria de screenplay): hay
+  que correr `scout`, matar el Chrome de `:9333` y recién entonces `ensayo` y
+  `record`. Con el navegador vivo, la copia del perfil sale sin sesión.
 
 ---
 
