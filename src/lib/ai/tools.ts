@@ -16,6 +16,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
 import {
+  resolveStoreForLookup,
+  lookupOrderNonShopify,
+} from '@/lib/commerce/order-lookup'
+import {
   registerReportedPayment,
   pendingOrderFor,
 } from '@/lib/payments/reported-payment'
@@ -408,12 +412,24 @@ export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
   },
 }
 
+/**
+ * Tienda conectada que NO es Shopify (Tiendanube, WooCommerce), con los
+ * datos del cliente de esta conversación para poder buscar su pedido.
+ */
+export type OtherStoreContext = NonNullable<
+  Awaited<ReturnType<typeof resolveStoreForLookup>>
+> & {
+  customerEmail?: string | null
+  customerPhone?: string | null
+}
+
 export async function runTool(
   toolName: string,
   toolInput: unknown,
   shopify: ShopifyToolContext | null,
   voice: VoiceEscalationContext | null = null,
   localOrders: LocalOrdersContext | null = null,
+  otherStore: OtherStoreContext | null = null,
 ): Promise<string> {
   if (toolName === 'registrar_pago') {
     if (!localOrders) {
@@ -561,6 +577,41 @@ export async function runTool(
     })
   }
   if (toolName === 'lookup_order') {
+    // Sin Shopify pero con Tiendanube o WooCommerce, se consulta la API de
+    // ESA plataforma. El comercio conectó una tienda: que su bot conteste
+    // "no tengo Shopify" ante "¿dónde está mi pedido?" es una respuesta
+    // cierta e inservible.
+    if (!shopify && otherStore) {
+      const entrada = (toolInput ?? {}) as {
+        order_number?: string
+        customer_email?: string
+      }
+      const numero = entrada.order_number?.trim()
+      const r = numero
+        ? await lookupOrderNonShopify(otherStore, 'order_by_number', numero)
+        : otherStore.customerEmail
+          ? await lookupOrderNonShopify(
+              otherStore,
+              'order_by_email',
+              otherStore.customerEmail,
+            )
+          : otherStore.customerPhone
+            ? await lookupOrderNonShopify(
+                otherStore,
+                'order_by_phone',
+                otherStore.customerPhone,
+              )
+            : { found: false as const }
+      if (!r.found) {
+        return JSON.stringify({
+          found: false,
+          orders: [],
+          instruction:
+            'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Decile al cliente que no lo encontraste y pedile el número de pedido o que confirme el teléfono/correo con el que compró.',
+        })
+      }
+      return JSON.stringify({ found: true, orders: [r.vars] })
+    }
     // Sin Shopify, pero con pedidos espejados (Mercado Libre), se contesta con
     // lo guardado. Antes esto devolvía "el workspace no tiene Shopify
     // conectado" a una compradora de Mercado Libre preguntando por SU pedido,
@@ -571,7 +622,7 @@ export async function runTool(
     if (!shopify) {
       return JSON.stringify({
         error: 'no_shopify_connection',
-        message: 'El workspace no tiene Shopify conectado.',
+        message: 'El workspace no tiene ninguna tienda conectada.',
       })
     }
     const input = (toolInput ?? {}) as {
@@ -841,6 +892,9 @@ export async function runWithTools(
     /** Present → lookup_order puede responder con los pedidos ya espejados
      *  cuando el canal no permite consultarlos en vivo. */
     localOrders?: LocalOrdersContext | null
+    /** Present → la tienda del comercio no es Shopify: lookup_order consulta
+     *  la API de Tiendanube o WooCommerce. */
+    otherStore?: OtherStoreContext | null
   },
 ): Promise<{
   text: string
@@ -930,6 +984,7 @@ export async function runWithTools(
         args.shopify,
         args.voice ?? null,
         args.localOrders ?? null,
+        args.otherStore ?? null,
       )
       toolResults.push({
         type: 'tool_result',

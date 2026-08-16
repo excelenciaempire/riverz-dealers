@@ -2,6 +2,10 @@ import { supabaseAdmin } from './admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
+import {
+  resolveStoreForLookup,
+  lookupOrderNonShopify,
+} from '@/lib/commerce/order-lookup'
 import type { ShopifyLookupKind } from './types'
 
 /**
@@ -54,9 +58,6 @@ export async function runShopifyLookup(args: {
       .maybeSingle()
     conn = data as { shop_domain: string; access_token: string } | null
   }
-  if (!conn) return { found: false }
-  const client = new ShopifyAdminClient(conn.shop_domain, decrypt(conn.access_token))
-
   // Pull the contact's email/phone for kinds that resolve by contact.
   const { data: contact } = await db
     .from('contacts')
@@ -64,6 +65,42 @@ export async function runShopifyLookup(args: {
     .eq('id', args.contactId)
     .maybeSingle()
   const contactRow = contact as { email: string | null; phone: string | null } | null
+
+  // Sin conexión de Shopify: el comercio puede tener Tiendanube o
+  // WooCommerce. El nodo se ofrece a todos, así que tiene que contestar a
+  // todos — antes devolvía "no encontrado" a cualquier consulta.
+  if (!conn) {
+    if (!args.workspaceId) return { found: false }
+    const tienda = await resolveStoreForLookup(db, args.workspaceId)
+    if (!tienda || tienda.platform === 'shopify') return { found: false }
+    switch (args.kind) {
+      case 'order_by_number':
+        return lookupOrderNonShopify(tienda, 'order_by_number', args.input)
+      case 'order_by_email':
+        return lookupOrderNonShopify(tienda, 'order_by_email', args.input)
+      case 'last_order': {
+        if (contactRow?.email) {
+          const r = await lookupOrderNonShopify(
+            tienda,
+            'order_by_email',
+            contactRow.email,
+          )
+          if (r.found) return r
+        }
+        if (contactRow?.phone) {
+          return lookupOrderNonShopify(tienda, 'order_by_phone', contactRow.phone)
+        }
+        return { found: false }
+      }
+      default:
+        // `product_by_handle` es un concepto de Shopify (el handle de URL);
+        // en las otras plataformas el catálogo ya vive sincronizado en
+        // Riverz y no hace falta ir a preguntarlo.
+        return { found: false }
+    }
+  }
+
+  const client = new ShopifyAdminClient(conn.shop_domain, decrypt(conn.access_token))
 
   switch (args.kind) {
     case 'order_by_number':

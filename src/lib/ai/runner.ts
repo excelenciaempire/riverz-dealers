@@ -49,6 +49,8 @@ import {
 import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import { isWorkspaceSuspended } from '@/lib/workspaces/suspension';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import type { OtherStoreContext } from '@/lib/ai/tools';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -221,6 +223,22 @@ export async function runAiAgent(
       args.contact,
       productMatch,
     );
+    // Si no hay Shopify, la tienda del comercio puede ser Tiendanube o
+    // WooCommerce: se resuelve igual para que `lookup_order` pueda contestar
+    // "¿dónde está mi pedido?", que es la consulta más frecuente que recibe
+    // cualquier comercio.
+    const otherStore = shopify
+      ? null
+      : await (async () => {
+          const t = await resolveStoreForLookup(db, args.workspaceId);
+          if (!t || t.platform === 'shopify') return null;
+          return {
+            ...t,
+            customerEmail: primaryContact.email ?? null,
+            customerPhone: primaryContact.phone ?? null,
+          };
+        })();
+
     // Datos para que la tool create_order pueda (a) decidir si está
     // habilitada para ESTE agente y (b) persistir el pedido en la tabla
     // `orders` de Riverz vinculado al workspace/contacto/agente/charla.
@@ -246,6 +264,7 @@ export async function runAiAgent(
         products,
         productMatch,
         shopify,
+        otherStore,
         businessCurrency,
         db,
       );
@@ -1349,6 +1368,9 @@ async function generateReply(
   products: ProductRow[],
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null,
+  /** Tienda del comercio cuando NO es Shopify (Tiendanube, WooCommerce):
+   *  deja que `lookup_order` conteste igual. */
+  otherStore: OtherStoreContext | null,
   businessCurrency: string,
   db: SupabaseClient,
 ): Promise<ReplyResult> {
@@ -1491,6 +1513,7 @@ async function generateReply(
     messages: claudeMessages,
     tools,
     shopify,
+    otherStore,
     voice: voiceCtx,
   });
 
