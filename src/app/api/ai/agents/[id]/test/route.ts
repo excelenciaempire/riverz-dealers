@@ -10,6 +10,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
+import { formatProductLine, type ProductRow } from '@/lib/ai/runner';
 import { splitReplyForMode } from '@/lib/ai/runner';
 import { appendBusinessScopeGuardrails } from '@/lib/ai/guardrails';
 import {
@@ -128,6 +129,20 @@ export async function POST(
       lines.push('Contexto adicional:');
       lines.push(a.knowledge.trim());
     }
+    // El catálogo, igual que en producción. Sin esto el panel de prueba
+    // contestaba "no tengo el precio a mano" sobre un producto que la cuenta
+    // sí tiene sincronizado: el comercio probaba un bot ciego y sacaba
+    // conclusiones sobre el que de verdad atiende. Mismas reglas de alcance
+    // que el runner: 'specific' ve sólo los productos que tiene asignados.
+    const catalogo = await cargarCatalogo(admin, a);
+    if (catalogo.length > 0) {
+      lines.push(
+        `<catalog scope="${a.product_scope === 'specific' ? 'specific' : 'all'}">`,
+      );
+      lines.push(catalogo.map(formatProductLine).join('\n'));
+      lines.push('</catalog>');
+    }
+
     // Same server-enforced business-scope guardrails the prod runner appends,
     // so the test panel mirrors live behavior (incl. off-topic refusals).
     appendBusinessScopeGuardrails(lines, a.name);
@@ -266,4 +281,47 @@ async function resolveShopifyContextForWorkspace(
     customerPhone: simulatedPhone?.trim() || undefined,
     config: (cfg as CheckoutConfig | null) ?? null,
   };
+}
+
+/**
+ * Los productos que este asistente puede nombrar, con las mismas reglas de
+ * alcance que producción: `product_scope='specific'` ve sólo los que tiene
+ * asignados en `ai_agent_products`; cualquier otro valor ve el catálogo del
+ * comercio entero.
+ *
+ * Falla en silencio y devuelve vacío: un tropiezo leyendo el catálogo no
+ * puede tumbar el panel de prueba, igual que no tumba una respuesta real.
+ */
+async function cargarCatalogo(
+  db: ReturnType<typeof supabaseAdmin>,
+  agent: AiAgent,
+): Promise<ProductRow[]> {
+  const COLUMNAS =
+    'id, title, description, price_min, price_max, url, product_type, vendor, tags';
+  try {
+    if (agent.product_scope === 'specific') {
+      const { data: links } = await db
+        .from('ai_agent_products')
+        .select('product_id')
+        .eq('agent_id', agent.id);
+      const ids = ((links ?? []) as { product_id: string }[]).map(
+        (l) => l.product_id,
+      );
+      if (ids.length === 0) return [];
+      const { data } = await db
+        .from('shopify_products')
+        .select(COLUMNAS)
+        .in('id', ids)
+        .eq('workspace_id', agent.workspace_id);
+      return (data ?? []) as ProductRow[];
+    }
+    const { data } = await db
+      .from('shopify_products')
+      .select(COLUMNAS)
+      .eq('workspace_id', agent.workspace_id)
+      .limit(60);
+    return (data ?? []) as ProductRow[];
+  } catch {
+    return [];
+  }
 }

@@ -2026,7 +2026,14 @@ function escapeAttr(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function formatProductLine(p: ProductRow): string {
+/**
+ * Una línea de catálogo: título, tipo, marca, precio y un pedazo de la
+ * descripción. Exportada porque el panel "Probar" del editor arma su propio
+ * prompt y tiene que mostrar el catálogo EXACTAMENTE igual que producción —
+ * si no, el comercio prueba con un bot que no conoce sus precios y saca
+ * conclusiones sobre uno que sí.
+ */
+export function formatProductLine(p: ProductRow): string {
   const price =
     p.price_min != null
       ? p.price_min === p.price_max
