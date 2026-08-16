@@ -12,6 +12,7 @@ import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { signupsOpen } from "@/lib/auth/signups";
+import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
 /**
  * POST /api/auth/signup
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
         email?: string;
         password?: string;
         full_name?: string;
+        phone?: string;
         accept_terms?: boolean;
         terms_version?: string;
         redirect_to?: string;
@@ -58,6 +60,10 @@ export async function POST(req: Request) {
   const email = body?.email?.trim().toLowerCase();
   const password = body?.password;
   const fullName = body?.full_name?.trim() ?? "";
+  // El teléfono es el canal por el que la plataforma le escribe al dueño
+  // cuando el asistente necesita una decisión. Se guarda normalizado (solo
+  // dígitos, como lo quiere Meta) para no depender de cómo lo tipeó cada uno.
+  const phone = sanitizePhoneForMeta(body?.phone?.trim() ?? "");
 
   // Compliance gate: an account cannot be created without an explicit,
   // affirmative acceptance of the Terms & Privacy Policy. This is
@@ -66,6 +72,16 @@ export async function POST(req: Request) {
   if (body?.accept_terms !== true) {
     return NextResponse.json(
       { error: translate(locale, "errAccount.mustAcceptTerms") },
+      { status: 400 },
+    );
+  }
+
+  // Mismo criterio que la aceptación de términos: es un rechazo por forma del
+  // dato, igual para un correo existente que para uno nuevo, así que no filtra
+  // nada sobre si la cuenta existe.
+  if (phone && !isValidE164(phone)) {
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.phoneInvalid") },
       { status: 400 },
     );
   }
@@ -122,6 +138,23 @@ export async function POST(req: Request) {
       context: "signup",
       req,
     });
+
+    // La fila de `profiles` la crea el disparador `handle_new_user` (migración
+    // 001), que solo copia nombre y correo. El teléfono se escribe acá encima
+    // en vez de tocar el disparador: no hace falta migración y el alta sigue
+    // funcionando igual si esto falla — el dueño siempre puede cargarlo desde
+    // Ajustes → Perfil.
+    if (phone) {
+      const { error: phoneError } = await supabaseAdmin()
+        .from("profiles")
+        .update({ phone })
+        .eq("user_id", data.user.id);
+      if (phoneError) {
+        console.warn(
+          `[auth/signup] no se pudo guardar el teléfono de ${data.user.id}: ${phoneError.message}`,
+        );
+      }
+    }
   }
   return NextResponse.json(genericOk);
 }

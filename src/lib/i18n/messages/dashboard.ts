@@ -161,12 +161,12 @@ export const dashboard = {
 
   // Setup checklist — header + steps UI
   getAccountRunning: { es: "Pon en marcha tu cuenta", en: "Get your account running" },
-  threeStepsToLive: { es: "Tres pasos para salir en vivo", en: "Three steps to go live" },
+  // Parametrizado y no "Tres pasos" fijo: la lista tiene cuatro, así que el
+  // título contradecía a lo que el comercio veía debajo — y cualquier paso que
+  // se agregue mañana lo vuelve a desincronizar.
+  stepsToLive: { es: "{total} pasos para salir en vivo", en: "{total} steps to go live" },
   stepsReady: { es: "{completed} de {total} pasos listos", en: "{completed} of {total} steps done" },
-  followOrder: {
-    es: "Sigue el orden. Cada paso te lleva directo a donde se completa.",
-    en: "Follow the order. Each step takes you straight to where it's completed.",
-  },
+  followOrder: { es: "Sigue el orden.", en: "Follow the order." },
   refreshStatus: { es: "Actualizar estado", en: "Refresh status" },
   hideChecklist: { es: "Ocultar", en: "Hide" },
   done: { es: "Listo", en: "Done" },

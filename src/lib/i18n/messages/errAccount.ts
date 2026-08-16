@@ -61,6 +61,10 @@ export const errAccount = {
     es: "Debes aceptar los Términos y condiciones y la Política de privacidad para continuar.",
     en: "You must accept the Terms and Conditions and the Privacy Policy to continue.",
   },
+  phoneInvalid: {
+    es: "Escribe tu número de WhatsApp con código de país.",
+    en: "Enter your WhatsApp number with its country code.",
+  },
   invitedAddressFallback: {
     es: "la dirección invitada",
     en: "the invited address",

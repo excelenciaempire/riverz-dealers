@@ -15,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Eye, EyeOff } from "lucide-react";
+import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
 function SignupForm() {
   const t = useT();
@@ -31,8 +32,12 @@ function SignupForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(prefillEmail ?? "");
   const [emailLocked] = useState(Boolean(inviteToken && prefillEmail));
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  // Un solo campo de contraseña con ojo en vez de pedirla dos veces: se ve lo
+  // que se escribió, que es lo que la confirmación intentaba lograr, y el
+  // formulario queda con un campo menos justo donde más gente abandona.
+  const [showPassword, setShowPassword] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,13 +47,17 @@ function SignupForm() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError(t("auth.passwordsDontMatch"));
+    if (password.length < 6) {
+      setError(t("auth.passwordMin6"));
       return;
     }
 
-    if (password.length < 6) {
-      setError(t("auth.passwordMin6"));
+    // El teléfono es por dónde llega el aviso cuando el asistente necesita una
+    // decisión. Uno que WhatsApp no pueda marcar deja esos avisos perdiéndose
+    // en silencio, así que se valida acá y no después.
+    const cleanPhone = sanitizePhoneForMeta(phone.trim());
+    if (!isValidE164(cleanPhone)) {
+      setError(t("auth.phoneInvalid"));
       return;
     }
 
@@ -72,6 +81,7 @@ function SignupForm() {
         email,
         password,
         full_name: fullName,
+        phone: cleanPhone,
         accept_terms: accepted,
         terms_version: LEGAL_VERSION,
         redirect_to: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
@@ -185,33 +195,52 @@ function SignupForm() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password" className="text-foreground">
-                {t("auth.passwordLabel")}
+              <Label htmlFor="phone" className="text-foreground">
+                {t("auth.phoneLabel")}
               </Label>
               <Input
-                id="password"
-                type="password"
-                placeholder=""
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder={t("auth.phonePlaceholder")}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+              <p className="text-xs text-muted-foreground">{t("auth.phoneHint")}</p>
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="confirmPassword" className="text-foreground">
-                {t("auth.confirmPasswordLabel")}
+              <Label htmlFor="password" className="text-foreground">
+                {t("auth.passwordLabel")}
               </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder=""
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder=""
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border-border bg-muted pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={
+                    showPassword ? t("auth.hidePassword") : t("auth.showPassword")
+                  }
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" aria-hidden />
+                  ) : (
+                    <Eye className="size-4" aria-hidden />
+                  )}
+                </button>
+              </div>
             </div>
 
             <label

@@ -153,7 +153,7 @@ export function SetupChecklist() {
           <p className="app-eyebrow">{t('dashboard.getAccountRunning')}</p>
           <h2 className="mt-1 text-base font-semibold text-foreground">
             {completed === 0
-              ? t('dashboard.threeStepsToLive')
+              ? t('dashboard.stepsToLive', { total: steps.length })
               : t('dashboard.stepsReady', { completed, total: steps.length })}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">

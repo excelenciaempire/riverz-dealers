@@ -48,6 +48,18 @@ export const auth = {
     en: "This invitation is for this address. Your account must use it.",
   },
   confirmPasswordLabel: { es: "Confirmar contraseña", en: "Confirm password" },
+  phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
+  phonePlaceholder: { es: "+57 300 000 0000", en: "+1 555 000 0000" },
+  phoneHint: {
+    es: "Te escribimos acá cuando el asistente necesite tu decisión.",
+    en: "We message you here when the assistant needs your decision.",
+  },
+  phoneInvalid: {
+    es: "Escribe el número con código de país",
+    en: "Enter the number with its country code",
+  },
+  showPassword: { es: "Mostrar contraseña", en: "Show password" },
+  hidePassword: { es: "Ocultar contraseña", en: "Hide password" },
   acceptPrefix: { es: "Acepto los", en: "I accept the" },
   termsLink: { es: "Términos y condiciones", en: "Terms and Conditions" },
   acceptAnd: { es: "y la", en: "and the" },
