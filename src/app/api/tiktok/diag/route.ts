@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     const videoId = String(videos[0].item_id ?? videos[0].video_id ?? "");
     const cUrl =
       `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
-      `&video_id=${encodeURIComponent(videoId)}&max_count=50&sort_field=create_time&sort_order=DESC`;
+      `&video_id=${encodeURIComponent(videoId)}&max_count=50&sort_field=create_time&sort_order=desc`;
     const cr = await fetch(cUrl, { headers });
     const cj = await cr.json().catch(() => ({}));
     out.commentListFirstVideo = { videoId, httpStatus: cr.status, body: cj };

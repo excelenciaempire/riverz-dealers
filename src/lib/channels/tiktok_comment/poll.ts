@@ -60,7 +60,8 @@ export async function pollAllTikTokConnections(): Promise<{
         const cUrl =
           `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
           `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}` +
-          `&sort_field=create_time&sort_order=DESC`;
+          // TikTok exige sort_order en minúscula (asc|desc|smart); "DESC" da 40002.
+          `&sort_field=create_time&sort_order=desc`;
         const cr = await fetch(cUrl, { headers });
         const cj = (await cr.json().catch(() => ({}))) as {
           code?: number;
