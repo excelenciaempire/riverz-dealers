@@ -105,7 +105,6 @@ const INTEGRATIONS: { src: string; label: string }[] = [
   { src: "/channels/shopify.svg", label: "Shopify" },
   { src: "/channels/woocommerce.svg", label: "WooCommerce" },
   { src: "/channels/tiendanube.svg", label: "Tiendanube" },
-  { src: "/channels/meta.svg", label: "Meta" },
   // Isotipo oficial de Dropi (dropi.co). PNG con transparencia: no publican
   // el mark en SVG suelto, solo el lockup horizontal con la palabra.
   { src: "/channels/dropi.png", label: "Dropi" },
