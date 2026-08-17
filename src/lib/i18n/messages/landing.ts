@@ -289,12 +289,33 @@ export const landing = {
     en: "Done, you can complete the purchase 👇",
   },
 
+  // Hero conversation 6 (TikTok · comentario en un video) — el cliente
+  // pregunta en un comentario y el agente lo mueve a la venta con el link.
+  hero6Them1: {
+    es: "¿El Sérum Lumina sí aclara manchas? 🔥",
+    en: "Does the Lumina Serum really fade dark spots? 🔥",
+  },
+  hero6You1: {
+    es: "¡Hola! Sí, se ven resultados en 4 semanas ✨",
+    en: "Hi! Yes, you'll see results in 4 weeks ✨",
+  },
+  hero6You2: {
+    es: "¿Te paso el link con envío gratis?",
+    en: "Want the link with free shipping?",
+  },
+  hero6Them2: { es: "Siii 😍", en: "Yesss 😍" },
+  hero6You3: {
+    es: "Listo, aquí lo tienes 👇",
+    en: "Done, here it is 👇",
+  },
+
   // Hero product names
   prodSneakers: { es: "Tenis Aura", en: "Aura Sneakers" },
   prodSpeaker: { es: "Parlante Onda", en: "Onda Speaker" },
   prodPerfume: { es: "Perfume Solé", en: "Solé Perfume" },
   prodBackpack: { es: "Mochila Drift", en: "Drift Backpack" },
   prodWatch: { es: "Reloj Nórdico", en: "Nordic Watch" },
+  prodSerum: { es: "Sérum Lumina", en: "Lumina Serum" },
 
   // ── Inbox preview rows ──
   inboxNoteReplied: {
@@ -334,6 +355,15 @@ export const landing = {
   inboxCommentYou: {
     es: "¡Te escribí por DM! 💛",
     en: "I DM'd you! 💛",
+  },
+  inboxTiktokName: {
+    es: "Comentario · TikTok",
+    en: "Comment · TikTok",
+  },
+  inboxTiktokThem: { es: "¿Hacen envíos? 🔥", en: "Do you ship? 🔥" },
+  inboxTiktokYou: {
+    es: "¡Sí! Te paso el link 💛",
+    en: "Yes! Sending you the link 💛",
   },
 
   // ── Agent panel preview ──

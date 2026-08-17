@@ -86,7 +86,7 @@ const BODY =
   "text-[clamp(15px,1.3vw,17px)] leading-[1.55] tracking-[-0.005em] text-muted-foreground";
 const SECTION = "py-[clamp(64px,8vw,128px)]";
 
-type Ch = "whatsapp" | "instagram" | "messenger" | "gmail" | "mercadolibre";
+type Ch = "whatsapp" | "instagram" | "messenger" | "gmail" | "mercadolibre" | "tiktok_comment";
 
 // `label` for branded channels is the brand name (rendered as-is); the email
 // channel uses an i18n key resolved with t() at the render site.
@@ -96,6 +96,7 @@ const CHANNELS: { id: Ch; label: string }[] = [
   { id: "messenger", label: "Messenger" },
   { id: "gmail", label: "landing.channelEmail" },
   { id: "mercadolibre", label: "Mercado Libre" },
+  { id: "tiktok_comment", label: "TikTok" },
 ];
 
 // Tienda / logística que el agente lee y escribe. Van en su propia fila del
@@ -128,6 +129,7 @@ const INBOX: {
   { id: "messenger", label: "Messenger", name: "Sofía R.", them: "landing.inboxMsgThem", you: "landing.inboxMsgYou", note: "landing.inboxNoteReplied" },
   { id: "gmail", label: "landing.channelEmail", name: "landing.inboxMailName", them: "landing.inboxMailThem", you: "landing.inboxMailYou", note: "landing.inboxNoteReplied" },
   { id: "mercadolibre", label: "Mercado Libre", name: "CAROL2345", them: "landing.inboxMlThem", you: "landing.inboxMlYou", note: "landing.inboxNoteReplied" },
+  { id: "tiktok_comment", label: "TikTok", name: "landing.inboxTiktokName", them: "landing.inboxTiktokThem", you: "landing.inboxTiktokYou", note: "landing.inboxNoteComment" },
   { id: "ig_comment", label: "landing.inboxCommentLabel", name: "landing.inboxCommentName", them: "landing.inboxCommentThem", you: "landing.inboxCommentYou", note: "landing.inboxNoteComment" },
 ];
 
@@ -850,6 +852,38 @@ const HERO_CONVOS: HeroConvo[] = [
   {
     channel: "mercadolibre",
     name: "CAROL2345",
+    product: { emoji: "🔊", name: "landing.prodSpeaker", price: "$149.900" },
+    order: "#1046",
+    steps: [
+      { kind: "them", text: "landing.hero5Them1" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero5You1" },
+      { kind: "you", text: "landing.hero5You2" },
+      { kind: "them", text: "landing.hero5Them2" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero5You3" },
+      { kind: "sale" },
+    ],
+  },
+  {
+    channel: "tiktok_comment",
+    name: "@laura.style",
+    product: { emoji: "🧴", name: "landing.prodSerum", price: "$89.900" },
+    order: "#1047",
+    steps: [
+      { kind: "them", text: "landing.hero6Them1" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero6You1" },
+      { kind: "you", text: "landing.hero6You2" },
+      { kind: "them", text: "landing.hero6Them2" },
+      { kind: "typing" },
+      { kind: "you", text: "landing.hero6You3" },
+      { kind: "sale" },
+    ],
+  },
+  {
+    channel: "mercadolibre",
+    name: "CAROL2345",
     product: { emoji: "🔊", name: "landing.prodSpeaker", price: "$149.000" },
     order: "#1046",
     steps: [
@@ -946,7 +980,7 @@ function HeroInbox() {
     <PreviewFrame>
       {/* clickable channel tabs — switch inbox with a click */}
       <div
-        // Con cinco canales las pestañas ya no entran en una línea: envuelven
+        // Con seis canales las pestañas ya no entran en una línea: envuelven
         // en vez de recortarse, que dejaba "Mercado Lib…" cortado en el borde.
         className="flex flex-wrap gap-1 border-b border-border px-3 py-2.5"
         onMouseEnter={() => (pausedRef.current = true)}
@@ -1773,6 +1807,7 @@ function SetupPreview() {
             <ChannelLogo channel="whatsapp" size={18} />
             <ChannelLogo channel="instagram" size={18} />
             <ChannelLogo channel="messenger" size={18} />
+            <ChannelLogo channel="tiktok_comment" size={18} />
           </span>
           <span className="text-sm font-medium">{t("landing.setupConnectChannels")}</span>
           <span className="ml-auto">
