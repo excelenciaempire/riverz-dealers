@@ -413,6 +413,14 @@ export function ChannelsPanel() {
                   <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                     {t(g.descriptionKey)}
                   </p>
+                  {/* TikTok gestiona comentarios por API solo en cuentas
+                      Business; el switch es gratis e instantáneo. Se avisa
+                      antes de conectar para que el comercio no se atore. */}
+                  {g.connectChannel === "tiktok_comment" && accounts.length === 0 && (
+                    <p className="mt-1 text-[11px] leading-snug text-accent-ink">
+                      {t("settings.tiktokBusinessNote")}
+                    </p>
+                  )}
                 </div>
               </div>
 

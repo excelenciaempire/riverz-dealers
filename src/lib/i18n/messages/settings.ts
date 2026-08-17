@@ -593,6 +593,10 @@ export const settings = {
     es: "Comentarios de tus videos de TikTok.",
     en: "Comments on your TikTok videos.",
   },
+  tiktokBusinessNote: {
+    es: "Requiere cuenta Business (cámbiala gratis en Ajustes de TikTok).",
+    en: "Requires a Business account (switch for free in TikTok Settings).",
+  },
 
   // Channels panel — clipboard + toasts
   copiedToClipboard: { es: "{label} copiado", en: "{label} copied" },
