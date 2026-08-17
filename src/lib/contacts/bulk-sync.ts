@@ -8,6 +8,7 @@ import {
   type ShopifyOrderLite,
 } from './enrich';
 import { applyCategoryTags } from './tags';
+import { enrichContactFromStore } from '@/lib/commerce/enrich';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 
 /**
@@ -95,10 +96,13 @@ interface OrderIndex {
 }
 
 export async function syncAllWorkspaces(db: SupabaseClient): Promise<BulkSyncResult[]> {
+  // Cualquier plataforma: el cron nocturno completaba la ficha de los
+  // clientes solo en las cuentas con Shopify, asi que un comercio de
+  // Tiendanube nunca veia llenarse direccion, gasto ni cantidad de pedidos
+  // por mas que su tienda estuviera conectada.
   const { data } = await db
     .from('shopify_connections')
     .select('workspace_id')
-    .eq('platform', 'shopify')
     .eq('status', 'active');
   const workspaceIds = [
     ...new Set(
@@ -142,7 +146,14 @@ export async function syncWorkspaceContacts(
   });
 
   const connection = await resolveShopifyConnection(db, workspaceId);
-  if (!connection) return empty({ error: 'sin conexión de Shopify' });
+  // Sin Shopify, se completa igual contacto por contacto contra Tiendanube o
+  // WooCommerce. Es más lento que armar un índice de una sola pasada, pero el
+  // camino de Shopify no se puede reutilizar -depende de /customers/search y
+  // del formato de su índice- y el volumen de una cuenta que recién conecta
+  // no lo justifica. Lo que importa es que la ficha se llene.
+  if (!connection) {
+    return await sincronizarSinShopify(db, workspaceId, empty);
+  }
 
   const staleBefore = new Date(Date.now() - REFRESH_AFTER_MS).toISOString();
   const pendingFilter = `shopify_data_synced_at.is.null,shopify_data_synced_at.lt.${staleBefore}`;
@@ -441,3 +452,39 @@ async function mapWithConcurrency<T>(
 }
 
 export const __testing = { nextPageUrl, lookup };
+
+/**
+ * La misma puesta al día para una cuenta cuya tienda no es Shopify.
+ *
+ * Va contacto por contacto con `enrichContactFromStore`, que ya sabe hablar
+ * con Tiendanube y WooCommerce y escribe en las mismas columnas. Respeta el
+ * mismo tope por corrida y la misma ventana de refresco, así que una cuenta
+ * grande se completa en varias noches en vez de agotar la API del comercio
+ * de una sola vez.
+ */
+async function sincronizarSinShopify(
+  db: SupabaseClient,
+  workspaceId: string,
+  empty: (extra?: Partial<BulkSyncResult>) => BulkSyncResult,
+): Promise<BulkSyncResult> {
+  const staleBefore = new Date(Date.now() - REFRESH_AFTER_MS).toISOString();
+  const { data: rows } = await db
+    .from('contacts')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .or(`shopify_data_synced_at.is.null,shopify_data_synced_at.lt.${staleBefore}`)
+    .order('shopify_data_synced_at', { ascending: true, nullsFirst: true })
+    .limit(MAX_CONTACTS_PER_RUN);
+  const contacts = (rows ?? []) as Contact[];
+  if (contacts.length === 0) return empty();
+
+  let matched = 0;
+  let unmatched = 0;
+  await mapWithConcurrency(contacts, WRITE_CONCURRENCY, async (contact) => {
+    const snapshot = await enrichContactFromStore(db, contact, { force: true });
+    if (snapshot) matched += 1;
+    else unmatched += 1;
+  });
+
+  return empty({ processed: contacts.length, matched, unmatched });
+}
