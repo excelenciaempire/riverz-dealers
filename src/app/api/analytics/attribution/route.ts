@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { fetchRecentOrdersOtherPlatform } from '@/lib/commerce/recent-orders';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -135,7 +136,15 @@ export async function GET(request: Request) {
   // Conexión Shopify del workspace (token descifrado). null = sin conexión
   // activa o token indescifrable → la UI muestra el estado "Conectar Shopify".
   const conn = await getActiveShopifyConnection(admin, workspaceId);
-  if (!conn) {
+  // Sin Shopify, el comercio puede tener Tiendanube o WooCommerce. Antes esta
+  // pantalla contestaba "conectá Shopify" a alguien que SÍ tenía su tienda
+  // conectada, y sus ventas no aparecían en ninguna métrica.
+  const otraTienda = conn
+    ? null
+    : await fetchRecentOrdersOtherPlatform(admin, workspaceId, sinceIso).catch(
+        () => null,
+      );
+  if (!conn && !otraTienda) {
     return NextResponse.json({ ...emptyResponse(days), not_connected: true });
   }
 
@@ -151,7 +160,11 @@ export async function GET(request: Request) {
   try {
     // Un solo fetch desde el inicio de la ventana previa; luego separamos en
     // actual [since,until) y previa [prevSince,since).
-    const all = await fetchRecentOrders(conn, prevSinceIso);
+    const all = conn
+      ? await fetchRecentOrders(conn, prevSinceIso)
+      : ((
+          await fetchRecentOrdersOtherPlatform(admin, workspaceId, prevSinceIso)
+        )?.orders ?? []);
     orders = all.filter((o) => {
       const t = Date.parse(o.created_at);
       return t >= sinceMs && t < untilMs;
