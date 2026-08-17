@@ -33,4 +33,5 @@ export const common = {
   // Channel labels that aren't brand names (resolved via channelLabel()).
   channelFbComments: { es: "Comentarios FB", en: "FB comments" },
   channelIgComments: { es: "Comentarios IG", en: "IG comments" },
+  channelTiktokComments: { es: "Comentarios TikTok", en: "TikTok comments" },
 } satisfies Namespace;

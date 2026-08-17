@@ -15,7 +15,7 @@ export const MESSAGE_CHANNELS: Channel[] = [
   "outlook",
   "mercadolibre",
 ];
-export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment"];
+export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment", "tiktok_comment"];
 
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
   if (tab === "comments") return COMMENT_CHANNELS.includes(channel);

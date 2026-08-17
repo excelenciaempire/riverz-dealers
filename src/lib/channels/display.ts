@@ -230,6 +230,7 @@ export function localizeContentToken(
 export function channelLabel(channel: Channel, t: TFn): string {
   if (channel === "fb_comment") return t("common.channelFbComments");
   if (channel === "ig_comment") return t("common.channelIgComments");
+  if (channel === "tiktok_comment") return t("common.channelTiktokComments");
   return CHANNEL_DISPLAY[channel].label;
 }
 
