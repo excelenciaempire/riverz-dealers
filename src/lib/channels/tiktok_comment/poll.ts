@@ -5,7 +5,7 @@ import type { ChannelConnection } from "@/types";
 
 const TT = "https://business-api.tiktok.com/open_api/v1.3";
 const VIDEOS_PER_RUN = 10; // rate-limit friendly: newest videos carry ~all fresh comments
-const COMMENTS_PER_VIDEO = 50;
+const COMMENTS_PER_VIDEO = 30; // TikTok cap: comment/list max_count must be <= 30
 
 /**
  * Polling ingest for TikTok comments (Accounts API has webhooks, but they
@@ -57,11 +57,12 @@ export async function pollAllTikTokConnections(): Promise<{
         if (!videoId) continue;
         const caption = String(video.caption ?? "").slice(0, 80);
 
+        // Solo los parámetros requeridos: business_id + video_id + max_count
+        // (<=30). Sin sort — el poll es idempotente, el orden no importa, y
+        // cada parámetro extra es otra validación que puede rebotar con 40002.
         const cUrl =
           `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
-          `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}` +
-          // TikTok exige sort_order en minúscula (asc|desc|smart); "DESC" da 40002.
-          `&sort_field=create_time&sort_order=desc`;
+          `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
         const cr = await fetch(cUrl, { headers });
         const cj = (await cr.json().catch(() => ({}))) as {
           code?: number;
