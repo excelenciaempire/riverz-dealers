@@ -63,7 +63,11 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
   { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
   { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
-  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/10 * * * *" },
+  // Cada 2 min para acercarse al "tiempo real": TikTok no entrega comentarios
+  // al instante por ninguna vía (su propio webhook comment.update se dispara
+  // "dentro de 5 min"), así que un poll frecuente es de hecho MÁS rápido que
+  // el webhook. Para muchas cuentas conviene migrar al webhook por eficiencia.
+  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/2 * * * *" },
   {
     name: "instagram-external-enrich", whatKey: "admin.cronInstagramEnrich",
     path: "/api/cron/instagram-external-enrich",
