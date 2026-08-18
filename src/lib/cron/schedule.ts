@@ -63,11 +63,14 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
   { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
   { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
-  // Cada 2 min para acercarse al "tiempo real": TikTok no entrega comentarios
-  // al instante por ninguna vía (su propio webhook comment.update se dispara
-  // "dentro de 5 min"), así que un poll frecuente es de hecho MÁS rápido que
-  // el webhook. Para muchas cuentas conviene migrar al webhook por eficiencia.
-  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/2 * * * *" },
+  // Cada minuto: es el piso del reloj y TikTok no entrega comentarios al
+  // instante por ninguna vía (su propio webhook comment.update se dispara
+  // "dentro de 5 min"), así que el poll frecuente es de hecho MÁS rápido que el
+  // webhook. Cuesta 11 llamadas por minuto y por cuenta conectada (1 de videos
+  // + 10 de comentarios); con muchas cuentas hay que volver a bajarlo y
+  // apoyarse en el webhook. El hilo abierto además se refresca solo
+  // (/api/conversations/:id/tiktok-refresh), que es lo que se siente instantáneo.
+  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "* * * * *" },
   {
     name: "instagram-external-enrich", whatKey: "admin.cronInstagramEnrich",
     path: "/api/cron/instagram-external-enrich",

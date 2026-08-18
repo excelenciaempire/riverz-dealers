@@ -56,54 +56,88 @@ export async function pollAllTikTokConnections(): Promise<{
         const videoId = String(video.item_id ?? video.video_id ?? "");
         if (!videoId) continue;
         const caption = String(video.caption ?? "").slice(0, 80);
-
-        // Solo los parámetros requeridos: business_id + video_id + max_count
-        // (<=30). Sin sort — el poll es idempotente, el orden no importa, y
-        // cada parámetro extra es otra validación que puede rebotar con 40002.
-        const cUrl =
-          `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
-          `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
-        const cr = await fetch(cUrl, { headers });
-        const cj = (await cr.json().catch(() => ({}))) as {
-          code?: number;
-          data?: { comments?: Array<Record<string, unknown>> };
-        };
-        if (!cr.ok || (cj.code ?? 0) !== 0) continue;
-
-        for (const c of cj.data?.comments ?? []) {
-          const commentId = String(c.comment_id ?? c.id ?? "");
-          const text = String(c.text ?? "");
-          if (!commentId || !text) continue;
-          // Skip the merchant's own comments/replies (owner flag or same id).
-          if (c.owner === true || String(c.user_id ?? "") === businessId) continue;
-          const username = String(c.username ?? c.user_name ?? "");
-          const created = c.create_time
-            ? new Date(Number(c.create_time) * 1000).toISOString()
-            : new Date().toISOString();
-          const wrote = await ingestInboundEvent(db, {
-            channel: "tiktok_comment",
-            connection: conn,
-            externalContactId: String(c.user_id ?? username ?? "tiktok"),
-            contactName: String(c.display_name ?? username ?? "") || undefined,
-            externalMessageId: commentId,
-            // One conversation per (video, top-level comment) — replies to the
-            // same comment thread together; sendText parses this key.
-            externalThreadId: `video:${videoId}|comment:${String(c.parent_comment_id ?? commentId)}`,
-            subject: caption ? `Video · ${caption}` : undefined,
-            text,
-            comment: {
-              postId: videoId,
-              parentCommentId: c.parent_comment_id ? String(c.parent_comment_id) : undefined,
-            },
-            receivedAt: created,
-            raw: c,
-          });
-          if (wrote) ingested++;
-        }
+        ingested += await ingestVideoComments(db, conn, businessId, token, videoId, caption);
       }
     } catch (err) {
       console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
     }
   }
   return { total: conns.length, ingested };
+}
+
+/**
+ * Ingiere los comentarios recientes de UN video. Devuelve cuántos eran nuevos.
+ * Idempotente por comment_id, así que llamarlo de más no duplica nada — lo usan
+ * el cron (todos los videos) y el refresco del hilo abierto (un solo video).
+ */
+export async function ingestVideoComments(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  businessId: string,
+  token: string,
+  videoId: string,
+  caption?: string,
+): Promise<number> {
+  // Solo los parámetros requeridos: business_id + video_id + max_count
+  // (<=30). Sin sort — el poll es idempotente, el orden no importa, y
+  // cada parámetro extra es otra validación que puede rebotar con 40002.
+  const cUrl =
+    `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
+    `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
+  const cr = await fetch(cUrl, { headers: { "Access-Token": token } });
+  const cj = (await cr.json().catch(() => ({}))) as {
+    code?: number;
+    data?: { comments?: Array<Record<string, unknown>> };
+  };
+  if (!cr.ok || (cj.code ?? 0) !== 0) return 0;
+
+  let ingested = 0;
+  for (const c of cj.data?.comments ?? []) {
+    const commentId = String(c.comment_id ?? c.id ?? "");
+    const text = String(c.text ?? "");
+    if (!commentId || !text) continue;
+    // Skip the merchant's own comments/replies (owner flag or same id).
+    if (c.owner === true || String(c.user_id ?? "") === businessId) continue;
+    const username = String(c.username ?? c.user_name ?? "");
+    const created = c.create_time
+      ? new Date(Number(c.create_time) * 1000).toISOString()
+      : new Date().toISOString();
+    const wrote = await ingestInboundEvent(db, {
+      channel: "tiktok_comment",
+      connection: conn,
+      externalContactId: String(c.user_id ?? username ?? "tiktok"),
+      contactName: String(c.display_name ?? username ?? "") || undefined,
+      externalMessageId: commentId,
+      // One conversation per (video, top-level comment) — replies to the
+      // same comment thread together; sendText parses this key.
+      externalThreadId: `video:${videoId}|comment:${String(c.parent_comment_id ?? commentId)}`,
+      subject: caption ? `Video · ${caption}` : undefined,
+      text,
+      comment: {
+        postId: videoId,
+        parentCommentId: c.parent_comment_id ? String(c.parent_comment_id) : undefined,
+      },
+      receivedAt: created,
+      raw: c,
+    });
+    if (wrote) ingested++;
+  }
+  return ingested;
+}
+
+/**
+ * Refresco puntual de un solo video, para el hilo que el usuario tiene abierto.
+ * TikTok no empuja los comentarios al instante (ni siquiera su webhook, que se
+ * dispara "dentro de 5 min"), así que mirar un hilo lo mantiene al día sin
+ * subir la frecuencia del cron para toda la cuenta.
+ */
+export async function refreshTikTokVideo(
+  conn: ChannelConnection,
+  videoId: string,
+): Promise<number> {
+  const cfg = (conn.config ?? {}) as Record<string, unknown>;
+  const businessId = String(cfg.business_id ?? "");
+  if (!businessId || !videoId) return 0;
+  const token = await getFreshTikTokToken(conn);
+  return ingestVideoComments(supabaseAdmin(), conn, businessId, token, videoId);
 }

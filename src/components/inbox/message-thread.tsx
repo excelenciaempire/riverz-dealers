@@ -396,6 +396,31 @@ export function MessageThread({
     };
   }, [conversation?.id, conversation?.channel]);
 
+  // TikTok no entrega comentarios en tiempo real por ninguna vía (su propio
+  // webhook se dispara "dentro de 5 min"), así que el hilo ABIERTO se pone al
+  // día contra la API cada 15 s mientras la pestaña esté visible. Lo que entra
+  // llega por realtime, así que acá no hay que refetchear nada; el servidor
+  // ignora las llamadas repetidas del mismo video en menos de 8 s.
+  useEffect(() => {
+    const convId = conversation?.id;
+    if (!convId || conversation?.channel !== "tiktok_comment") return;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      fetchWithCsrf(`/api/conversations/${convId}/tiktok-refresh`, {
+        method: "POST",
+      }).catch(() => {});
+    };
+    tick();
+    const timer = setInterval(tick, 15_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [conversation?.id, conversation?.channel, fetchWithCsrf]);
+
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
     if (!messages.length) return { expired: false, remaining: "" };
