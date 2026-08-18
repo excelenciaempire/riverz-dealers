@@ -11,6 +11,7 @@ export const inbox = {
   // Inbox tabs
   tabMessages: { es: "Mensajes", en: "Messages" },
   tabComments: { es: "Comentarios", en: "Comments" },
+  tabUnify: { es: "Unificar", en: "Unify" },
   needsHuman: { es: "Necesita humano", en: "Needs a human" },
   // Motivos por los que la IA dejó el hilo a una persona (migración 122).
   needsHumanKeyword: { es: "El cliente pidió hablar con una persona", en: "The customer asked for a person" },

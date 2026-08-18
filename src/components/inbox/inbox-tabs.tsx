@@ -2,10 +2,10 @@
 
 import type { Channel, Conversation } from "@/types";
 import { cn } from "@/lib/utils";
-import { MessageSquare, MessageSquareReply } from "lucide-react";
+import { MessageSquare, MessageSquareReply, Layers } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 
-export type InboxTab = "messages" | "comments";
+export type InboxTab = "messages" | "comments" | "all";
 
 export const MESSAGE_CHANNELS: Channel[] = [
   "whatsapp",
@@ -18,6 +18,8 @@ export const MESSAGE_CHANNELS: Channel[] = [
 export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment", "tiktok_comment"];
 
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
+  if (tab === "all")
+    return MESSAGE_CHANNELS.includes(channel) || COMMENT_CHANNELS.includes(channel);
   if (tab === "comments") return COMMENT_CHANNELS.includes(channel);
   return MESSAGE_CHANNELS.includes(channel);
 }
@@ -49,10 +51,14 @@ interface InboxTabsProps {
  */
 export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
   const t = useT();
+  const unified = value === "all";
   return (
-    <div className="flex border-b border-border bg-background/40">
+    <div className="flex items-stretch border-b border-border bg-background/40">
+      {/* Con el modo unificado activo los dos tabs se atenúan: la lista muestra
+          mensajes y comentarios juntos, así que separar por tab no aplica. */}
       <Tab
         active={value === "messages"}
+        dimmed={unified}
         onClick={() => onChange("messages")}
         label={t("inbox.tabMessages")}
         icon={<MessageSquare className="h-3.5 w-3.5" />}
@@ -60,23 +66,41 @@ export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
       />
       <Tab
         active={value === "comments"}
+        dimmed={unified}
         onClick={() => onChange("comments")}
         label={t("inbox.tabComments")}
         icon={<MessageSquareReply className="h-3.5 w-3.5" />}
         count={counts.comments}
       />
+      {/* Toggle "Unificar": junta mensajes y comentarios en una sola lista. */}
+      <button
+        onClick={() => onChange(unified ? "messages" : "all")}
+        title={t("inbox.tabUnify")}
+        aria-pressed={unified}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 border-l border-border px-3 text-xs font-medium transition-colors",
+          unified
+            ? "bg-primary/15 text-accent-ink"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+        )}
+      >
+        <Layers className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{t("inbox.tabUnify")}</span>
+      </button>
     </div>
   );
 }
 
 function Tab({
   active,
+  dimmed = false,
   onClick,
   label,
   icon,
   count,
 }: {
   active: boolean;
+  dimmed?: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
@@ -89,7 +113,9 @@ function Tab({
         "relative flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
         active
           ? "text-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+          : dimmed
+            ? "text-muted-foreground/50 hover:bg-accent/50 hover:text-foreground"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
       )}
     >
       {icon}

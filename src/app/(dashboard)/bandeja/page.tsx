@@ -611,14 +611,22 @@ export default function InboxPage() {
   // be the CURRENT tab's total — not the global sum across both tabs (that made
   // the Messages tab show comment unread too, and vice versa).
   unreadByChannel.all =
-    inboxTab === "comments" ? tabCounts.comments : tabCounts.messages;
+    inboxTab === "all"
+      ? tabCounts.messages + tabCounts.comments
+      : inboxTab === "comments"
+        ? tabCounts.comments
+        : tabCounts.messages;
   // Channels that belong to the current tab — drives which chips are
   // shown in the secondary filter row below the tabs. We render a chip
   // for EVERY channel of the active tab, connected or not and even with
   // zero messages/comments, so the filter row stays complete and
   // consistent instead of icons appearing/disappearing as traffic lands.
   const tabChannels: Channel[] =
-    inboxTab === "comments" ? COMMENT_CHANNELS : MESSAGE_CHANNELS;
+    inboxTab === "all"
+      ? [...MESSAGE_CHANNELS, ...COMMENT_CHANNELS]
+      : inboxTab === "comments"
+        ? COMMENT_CHANNELS
+        : MESSAGE_CHANNELS;
   const visibleAvailableChannels = new Set<Channel>(tabChannels);
   // Memoize the filtered list so a single realtime UPDATE doesn't
   // rebuild the array (and force every ConversationItem to re-render)
@@ -626,10 +634,11 @@ export default function InboxPage() {
   // ConversationItem actually do its job.
   const filteredConversations = useMemo(() => {
     let list = conversations;
-    // Tab-level filter
+    // Tab-level filter — "all" (modo unificado) no filtra por tab: muestra
+    // mensajes y comentarios juntos.
     if (inboxTab === "comments") {
       list = list.filter((c) => COMMENT_CHANNELS.includes(c.channel));
-    } else {
+    } else if (inboxTab === "messages") {
       list = list.filter((c) => MESSAGE_CHANNELS.includes(c.channel));
     }
     // Secondary filter (channel chips)
