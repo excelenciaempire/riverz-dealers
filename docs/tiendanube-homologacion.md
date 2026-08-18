@@ -22,21 +22,43 @@
 > como expediente por si algún día se quiere publicar en la tienda de
 > aplicaciones. Para el modelo actual no se usa.
 
+## Respuesta de Tiendanube sobre el cambio de distribución (2026-08-16)
+
+Jenn contestó el ticket `[6G0V9M-KMXGD]` y despeja el miedo que definía el
+orden de trabajo:
+
+> El enlace de instalación seguirá funcionando para comercios reales durante
+> todo el proceso de revisión, sus clientes activos no se verán afectados y los
+> datos que completen en la ficha no se perderán. No tendrán ninguna
+> interrupción.
+>
+> Pueden preparar con calma toda la ficha de publicación. Una vez que esté
+> lista, cambien la distribución a "Tienda de aplicaciones" y envíen la
+> solicitud. Sus clientes actuales y los nuevos comercios podrán seguir
+> instalando la app con normalidad durante todo el proceso.
+
+O sea: **no hay ventana de apagón**. Cambiar el selector no corta el enlace que
+hoy usan los comercios, y lo cargado en "Datos de publicación" no se pierde.
+Cae la precaución de "cambiar el selector recién el día del envío": se puede
+cambiar cuando convenga.
+
+Aviso menor: el desglose punto por punto de esa respuesta llegó con las tres
+viñetas vacías. La respuesta en prosa es inequívoca, pero si alguna vez hace
+falta citar textualmente el punto 2 (reversibilidad del cambio), conviene
+volver a preguntarlo antes de apoyarse en él.
+
 ## Estado al 2026-08-16 — publicar en la tienda de aplicaciones
 
 Verificado en el portal (`applications/update/37693`): la distribución guardada
 sigue siendo **privada** — el selector marca "Para sus clientes", no "Tienda de
 aplicaciones". **El proceso público no está iniciado.**
 
-**Antes de tocar el selector, leer esto.** Una app con distribución pública y
-sin homologar solo se instala en tiendas demo: es exactamente el motivo por el
-que se pasó a privada el 2026-08-15. Cambiar el selector hoy, con la
-homologación a medias, apaga el enlace que hoy funciona para comercios reales.
-El orden correcto es: juntar todo → cambiar el selector → enviar el mismo día.
-Antes de eso conviene preguntarle a `socios@tiendanube.com` si el enlace de
-autorización sigue sirviendo mientras la app está en homologación; si la
-respuesta es que no, la ficha pública se prepara entera y se cambia el
-selector recién cuando esté lista para enviar.
+**Sobre tocar el selector: ya no hay riesgo.** La precaución que estaba
+anotada acá —que una app pública sin homologar solo se instala en tiendas
+demo— quedó desmentida por Tiendanube el 2026-08-16: el enlace sigue
+funcionando para comercios reales durante toda la revisión (ver la sección de
+arriba). El orden sigue siendo juntar la ficha primero, pero por comodidad, no
+porque cambiar antes rompa nada.
 
 Decisiones del dueño (2026-08-16), que eran lo único que faltaba definir:
 
@@ -56,12 +78,9 @@ Assets y contenido, estado real:
 | Video demo de homologación | **Ya existía** — `out\tiendanube-homologacion-final.mp4`, 8 min 39 s, grabado el 2026-08-15 |
 | Ficha en portugués | No aplica por ahora — Brasil queda fuera |
 
-**Consulta enviada el 2026-08-16** al ticket abierto `[6G0V9M-KMXGD]`
-(`socios@tiendanube.com`, casilla juandiegoriosmesa@gmail.com): si al pasar a
-"Tienda de aplicaciones" el enlace de instalación sigue sirviendo para
-comercios reales durante la homologación, si el cambio de distribución se puede
-revertir, y si "Datos de publicación" conserva lo cargado al volver a privada.
-La respuesta define si se cambia el selector ahora o el día del envío.
+**Consulta respondida el 2026-08-16** en el ticket `[6G0V9M-KMXGD]`: sin
+interrupción para los comercios conectados y sin pérdida de lo cargado en la
+ficha. El detalle, arriba.
 
 **Advertencia sobre Brasil.** La ficha brasileña se escribe en portugués, pero
 la aplicación solo habla español e inglés: un comercio brasileño instalaría un
