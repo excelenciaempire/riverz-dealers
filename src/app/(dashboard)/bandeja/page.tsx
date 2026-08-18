@@ -27,6 +27,10 @@ import { cn } from "@/lib/utils";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { localizePath, canonicalizePath } from "@/lib/i18n/routes";
 
+// Preferencia local de la pestaña/modo de bandeja (Mensajes / Comentarios /
+// Unificar). Persiste entre recargas por navegador — es UI, no dato de cuenta.
+const INBOX_TAB_KEY = "riverz_inbox_tab";
+
 export default function InboxPage() {
   const t = useT();
   const { workspace } = useWorkspace();
@@ -51,6 +55,20 @@ export default function InboxPage() {
   // Secondary filter within the MercadoLibre chip: all / questions / messages.
   const [mlKindFilter, setMlKindFilter] = useState<MlKindFilter>("all");
   const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
+  // Restaurar la pestaña/modo guardado en un effect (no en el initializer) para
+  // no romper la hidratación SSR — el server no tiene localStorage. Corre una
+  // vez al montar; el brevísimo tick en "Mensajes" antes de saltar al valor
+  // guardado es imperceptible.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(INBOX_TAB_KEY);
+      if (saved === "messages" || saved === "comments" || saved === "all") {
+        setInboxTab(saved);
+      }
+    } catch {
+      /* localStorage bloqueado — se queda en el default */
+    }
+  }, []);
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
   );
@@ -723,6 +741,13 @@ export default function InboxPage() {
     (next: InboxTab) => {
       if (next === inboxTab) return;
       setInboxTab(next);
+      // Recordar la pestaña/modo elegido: al recargar la bandeja vuelve tal
+      // cual quedó (incluido el modo "Unificar" encendido o apagado).
+      try {
+        localStorage.setItem(INBOX_TAB_KEY, next);
+      } catch {
+        /* localStorage bloqueado (modo privado) — no es crítico */
+      }
       setMlKindFilter("all");
       if (channelFilter && !channelBelongsToTab(channelFilter, next)) {
         setChannelFilter(null);
