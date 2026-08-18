@@ -4,7 +4,7 @@ import { SESSION_COOKIE_OPTIONS } from '@/lib/supabase/server'
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/lib/i18n/config'
 import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
-import { signupsOpen } from '@/lib/auth/signups'
+import { signupsOpenForInstall } from '@/lib/auth/signups'
 import { adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
 import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host'
 
@@ -227,7 +227,10 @@ export async function proxy(request: NextRequest) {
   // waitlist form (#lista) rather than the top of the landing, so someone who
   // came to open an account still gets captured; signed-in users fall through
   // to the /panel redirect below.
-  if (!user && !signupsOpen() && canonicalPath === '/registro') {
+  const puedeRegistrarse = signupsOpenForInstall(
+    (nombre) => Boolean(request.cookies.get(nombre)?.value)
+  )
+  if (!user && !puedeRegistrarse && canonicalPath === '/registro') {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     url.search = ''

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies as nextCookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import {
@@ -11,7 +12,7 @@ import { safeRedirectTo } from "@/lib/auth/redirect";
 import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
-import { signupsOpen } from "@/lib/auth/signups";
+import { signupsOpenForInstall } from "@/lib/auth/signups";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
 /**
@@ -34,7 +35,8 @@ export async function POST(req: Request) {
 
   // Pre-launch: no new accounts. Hard 403 before any Supabase call — this
   // is the only server path that reaches auth.signUp. See lib/auth/signups.
-  if (!signupsOpen()) {
+  const cookies = await nextCookies();
+  if (!signupsOpenForInstall((nombre) => Boolean(cookies.get(nombre)?.value))) {
     return NextResponse.json(
       { error: translate(locale, "errAccount.signupsClosed") },
       { status: 403 },

@@ -61,7 +61,6 @@ export const TIENDANUBE_SCOPES = [
   'read_orders',
   'write_orders',
   'read_customers',
-  'read_content',
 ] as const
 
 // ── OAuth ────────────────────────────────────────────────────────────

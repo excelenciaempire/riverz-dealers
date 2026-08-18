@@ -1,3 +1,6 @@
+import { TN_CLAIM_COOKIE } from "@/lib/commerce/tiendanube-claim-cookies";
+import { CLAIM_COOKIE as SHOPIFY_CLAIM_COOKIE } from "@/lib/shopify/claim-cookies";
+
 /**
  * Pre-launch gate: account creation is CLOSED.
  *
@@ -26,6 +29,28 @@
  */
 export function signupsOpen(): boolean {
   return process.env.NEXT_PUBLIC_RIVERZ_SIGNUPS === "open";
+}
+
+/**
+ * Alta permitida porque el comercio llega instalando desde una tienda de
+ * aplicaciones.
+ *
+ * El prelanzamiento cierra el registro público, pero una app publicada en la
+ * tienda de aplicaciones de Shopify o de Tiendanube no puede cerrarlo: el
+ * comercio instala y lo primero que necesita es crear su cuenta. Sin esta
+ * excepción, cada instalación nueva muere en `/ingresar` sin forma de seguir
+ * — y es justamente lo que prueba quien revisa la aplicación.
+ *
+ * La llave es la cookie de reclamo que dejó el callback de la instalación:
+ * sólo existe si la plataforma nos devolvió con un token válido, así que esto
+ * no reabre el registro para el público que entra por la landing.
+ *
+ * `tiene` se recibe por parámetro para no atar esta función a `next/headers`:
+ * la llaman tanto el proxy (que lee `request.cookies`) como la ruta de alta.
+ */
+export function signupsOpenForInstall(tiene: (nombre: string) => boolean): boolean {
+  if (signupsOpen()) return true;
+  return tiene(TN_CLAIM_COOKIE) || tiene(SHOPIFY_CLAIM_COOKIE);
 }
 
 /**

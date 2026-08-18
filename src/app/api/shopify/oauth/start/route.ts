@@ -12,7 +12,6 @@ import { hasPendingInstall } from '@/lib/shopify/pending-install'
 import { getLocale } from '@/lib/i18n/server'
 import { localizePath } from '@/lib/i18n/routes'
 import { translate } from '@/lib/i18n/translate'
-import { signupsOpen } from '@/lib/auth/signups'
 
 /**
  * Post-install bootstrap entrypoint. Shopify custom-app distribution
@@ -75,10 +74,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(localizePath('/ingresar', locale), base))
     }
     if (await hasPendingInstall(admin, shop)) {
-      // Pre-launch: /registro is closed — the merchant signs in and the
-      // dashboard auto-claims the parked install.
+      // Hay una instalacion estacionada: el comercio crea su cuenta y el
+      // panel reclama la tienda solo. La cookie de reclamo le abre /registro
+      // aunque el alta publica este cerrada.
       const claimUrl = new URL(
-        localizePath(signupsOpen() ? '/registro' : '/ingresar', locale),
+        localizePath('/registro', locale),
         base,
       )
       claimUrl.searchParams.set('shopify', 'pending')
