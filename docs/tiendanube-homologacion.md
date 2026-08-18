@@ -1,26 +1,30 @@
 # App de Tiendanube
 
-> **2026-08-15 — La homologación ya no hace falta.** La app pasó a
-> distribución **"Para sus clientes"** ("Disponible para las tiendas
-> escogidas por ti"), que según la documentación de Tiendanube **no
-> requiere homologación**. Es lo que corresponde al modelo real: Riverz no
-> se lista en la tienda de aplicaciones, se instala a los comercios que el
-> dueño elige y se les cobra aparte.
+> **2026-08-17 — Homologación SOLICITADA.** La app está en distribución
+> **"Tienda de aplicaciones"** (pública) y la solicitud de homologación ya
+> se envió desde el portal. Estado en Partners: **"En aprobación"**
+> — *"Solicitud enviada con éxito. Pronto, nuestro equipo se pondrá en
+> contacto para dar seguimiento a tu proceso."*
 >
-> No hay ninguna lista de tiendas que anotar en el portal: al elegir esa
-> opción el formulario no agrega ningún selector. "Las tiendas escogidas
-> por ti" son, en la práctica, aquellas a las que le pases el enlace:
+> Lo que quedó cargado en la ficha:
 >
-> ```
-> https://www.tiendanube.com/apps/37693/authorize
-> ```
+> - **Datos básicos**: Finalizada. URLs `riverz.co/integraciones`,
+>   `riverz.co/privacidad`, `riverz.co/soporte`, correo
+>   `riverzoficial@gmail.com`, handle `riverz`.
+> - **Datos de publicación**: Finalizada.
+> - **Países configurados**: Argentina, Chile, Colombia y México. Brasil
+>   queda fuera a propósito: la ficha ahí va en portugués y Riverz no lo
+>   habla todavía.
+> - **Cobro**: Gratis (el plan de Riverz se cobra por fuera de Tiendanube).
+> - **Video**: <https://youtu.be/snrpELGXgKY> — subido al canal
+>   *Riverz AI* (`riverzoficial@gmail.com`) como **no listado**.
+> - **Imágenes**: ícono 200×200 y las 4 capturas de 1920×1080, en los
+>   cuatro países.
+> - **Preguntas frecuentes**: 7 por país.
 >
-> Verificado después del cambio, de punta a punta contra la tienda demo con
-> la conexión borrada: instalación → cuenta → tienda conectada y activa.
->
-> Todo lo que sigue —requisitos, guion de video, textos de la ficha— queda
-> como expediente por si algún día se quiere publicar en la tienda de
-> aplicaciones. Para el modelo actual no se usa.
+> Nada de esto interrumpe a los comercios que ya instalaron con el enlace
+> directo (`https://www.tiendanube.com/apps/37693/authorize`), que sigue
+> funcionando igual mientras dure la revisión.
 
 ## Respuesta de Tiendanube sobre el cambio de distribución (2026-08-16)
 
@@ -556,3 +560,46 @@ regla de Tiendanube de no usar emojis.
   se publica. Decisión del dueño.
 - **Saldo en Anthropic.** La descripción menciona el asistente con IA; si
   un revisor lo prueba con la cuenta sin saldo, no responde.
+
+## 9. Envío de homologación (2026-08-17)
+
+Qué se hizo, en orden, para dejar la solicitud enviada:
+
+1. **Video en YouTube.** `tiendanube-ficha-3min.mp4` (0:54, el recorte de
+   ritmo del recorrido completo) subido al canal **Riverz AI** de
+   `riverzoficial@gmail.com` — el de `authuser=2`, canal
+   `UCh3JVSxhKYIM8jl5H5twa_A`. Visibilidad **no listado**, público "no es
+   para niños". Enlace: <https://youtu.be/snrpELGXgKY>.
+2. **Ficha por país.** Argentina, Chile, Colombia y México quedaron en
+   *Configurado* con el mismo contenido: cobro gratis, descripción breve
+   de 132 caracteres, descripción larga de 1.134 caracteres en 10
+   párrafos, ícono, 4 capturas, video y 7 preguntas frecuentes.
+3. **Solicitar homologación.** Con los dos formularios en *Finalizada*, el
+   botón quedó habilitado. La app pasó de *En desarrollo* a
+   **En aprobación**.
+
+### Detalle que cuesta caro repetir
+
+El portal corre sobre **Nimbus** (React) y el editor de la descripción
+larga es **Lexical**. Al automatizarlo:
+
+- Los eventos de mouse por coordenadas no llegan cuando la pestaña corre
+  en segundo plano; hay que despachar `pointerdown/mousedown/mouseup/click`
+  sobre el elemento y subir 3 niveles de padres.
+- `Input.insertText` de CDP corrompe los acentos (los bytes UTF-8 se leen
+  como cp1252: `—` sale `â€”`). La vía que sí respeta tildes y `ñ` es
+  `Runtime.evaluate` con el texto escapado en escapes unicode +
+  `document.execCommand('insertText', ...)`.
+- Lexical ignora `execCommand('delete')` y `execCommand('insertParagraph')`.
+  Para vaciar el editor hay que seleccionar el rango y mandar la tecla
+  **Supr** por CDP; para separar párrafos, la tecla **Enter** entre
+  inserciones.
+- Los `<input type=file>` (`#smallIcon`, `#screenshotList`) se llenan con
+  `DOM.setFileInputFiles`; el de capturas acepta los 4 archivos de una.
+
+### Lo que falta
+
+- Esperar el contacto del equipo de Tiendanube. La homologación no es
+  automática: revisan la ficha y prueban la app.
+- **Saldo de IA.** Si un revisor prueba el asistente con la cuenta sin
+  saldo, no responde. Revisar antes de que llamen.
