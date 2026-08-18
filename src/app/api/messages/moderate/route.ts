@@ -6,6 +6,7 @@ import { decrypt } from "@/lib/channels/encryption";
 import { appsecretProof, withAppsecretProof } from "@/lib/channels/meta-graph";
 import { COMMENT_DELETED_TEXT } from "@/lib/channels/display";
 import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
+import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation, Message } from "@/types";
@@ -56,7 +57,11 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
   const m = message as Message;
-  if (m.channel !== "fb_comment" && m.channel !== "ig_comment") {
+  if (
+    m.channel !== "fb_comment" &&
+    m.channel !== "ig_comment" &&
+    m.channel !== "tiktok_comment"
+  ) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.moderateOnlyComments") },
       { status: 400 },
@@ -117,19 +122,36 @@ export async function POST(req: Request): Promise<Response> {
       { error: translate(locale, "errInbox.connectionNotFound") },
       { status: 404 },
     );
-  const secrets = ((connection as ChannelConnection).secrets ?? {}) as Record<string, unknown>;
-  const accessToken = decrypt(String(secrets.access_token ?? ""));
-
+  const conn = connection as ChannelConnection;
   const commentId = m.message_id;
   const action = body.action;
-  const result = await applyGraphAction(m.channel, commentId, action, accessToken);
+
+  let result: { ok: boolean; detail?: string };
+  if (m.channel === "tiktok_comment") {
+    // TikTok: la conversación guarda "video:<id>|comment:<top>"; el hide/delete
+    // necesitan el video_id y el business_id de la conexión.
+    const cfg = (conn.config ?? {}) as Record<string, unknown>;
+    const businessId = String(cfg.business_id ?? "");
+    const thread = String((conv as Conversation).thread_external_id ?? "");
+    const videoId = thread.startsWith("video:") ? thread.slice(6).split("|")[0] : "";
+    result = await applyTikTokAction(conn, businessId, videoId, commentId, action);
+  } else {
+    const secrets = (conn.secrets ?? {}) as Record<string, unknown>;
+    const accessToken = decrypt(String(secrets.access_token ?? ""));
+    result = await applyGraphAction(m.channel, commentId, action, accessToken);
+  }
   if (!result.ok) {
     // Map Meta's raw JSON to a clean, localized message (e.g. "permission not
     // approved") instead of dumping the Graph error body into the toast.
     const parsed = parseMetaError(result.detail ?? "");
     const message = parsed
-      ? describeMetaSendError(m.channel, 502, parsed, locale).userMessage
-      : translate(locale, "errInbox.graphCallFailed");
+      ? describeMetaSendError(
+          m.channel === "tiktok_comment" ? "ig_comment" : m.channel,
+          502,
+          parsed,
+          locale,
+        ).userMessage
+      : (result.detail ?? translate(locale, "errInbox.graphCallFailed"));
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
@@ -150,6 +172,62 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+const TT_API = "https://business-api.tiktok.com/open_api/v1.3";
+
+/**
+ * Modera un comentario de TikTok (Accounts API). Endpoints y valores del
+ * parámetro `action` exactos según la doc oficial (mayúsculas):
+ *   hide/unhide → /business/comment/hide/  action=HIDE|UNHIDE (+video_id)
+ *   like/unlike → /business/comment/like/  action=LIKE|UNLIKE
+ *   delete      → /business/comment/delete/ (sin action)
+ * Todos requieren business_id + comment_id; hide además el video_id.
+ */
+async function applyTikTokAction(
+  connection: ChannelConnection,
+  businessId: string,
+  videoId: string,
+  commentId: string,
+  action: Action,
+): Promise<{ ok: boolean; detail?: string }> {
+  if (!businessId || !commentId) return { ok: false, detail: "missing business_id/comment_id" };
+  let token: string;
+  try {
+    token = await getFreshTikTokToken(connection);
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : "token error" };
+  }
+  const headers = { "Access-Token": token, "content-type": "application/json" };
+
+  const call = async (path: string, payload: Record<string, unknown>) => {
+    const r = await fetch(`${TT_API}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const j = (await r.json().catch(() => ({}))) as { code?: number; message?: string };
+    if (!r.ok || (j.code ?? 0) !== 0) {
+      return { ok: false, detail: `TikTok ${j.code ?? r.status}: ${j.message ?? ""}` };
+    }
+    return { ok: true };
+  };
+
+  const base = { business_id: businessId, comment_id: commentId };
+  switch (action) {
+    case "hide":
+      return call("/business/comment/hide/", { ...base, video_id: videoId, action: "HIDE" });
+    case "unhide":
+      return call("/business/comment/hide/", { ...base, video_id: videoId, action: "UNHIDE" });
+    case "like":
+      return call("/business/comment/like/", { ...base, action: "LIKE" });
+    case "unlike":
+      return call("/business/comment/like/", { ...base, action: "UNLIKE" });
+    case "delete":
+      return call("/business/comment/delete/", base);
+    default:
+      return { ok: false, detail: "unknown action" };
+  }
 }
 
 async function applyGraphAction(

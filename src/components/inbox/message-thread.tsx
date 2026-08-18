@@ -1398,16 +1398,26 @@ export function MessageThread({
           replies from people the agent has never met. Adds a "Ver
           publicación" link so the agent can jump to the post on FB/IG. */}
       {(conversation.channel === "fb_comment" ||
-        conversation.channel === "ig_comment") && (() => {
+        conversation.channel === "ig_comment" ||
+        conversation.channel === "tiktok_comment") && (() => {
         const postId = conversation.thread_external_id ?? "";
-        // Prefer the resolved permalink from the preview; fall back to a
-        // best-effort FB url. IG has no derivable url without the API.
+        const isTiktok = conversation.channel === "tiktok_comment";
+        // TikTok guarda "video:<id>|comment:<top>": el link necesita el
+        // @usuario de la cuenta, que no está en la conversación, así que se
+        // omite (el caption ya identifica el video); FB deriva su url, IG no.
         const postUrl =
           postPreview?.permalink ??
           (conversation.channel === "fb_comment" && postId
             ? `https://facebook.com/${postId}`
             : null);
-        const caption = postPreview?.caption || conversation.subject || t("inbox.commentOnPost");
+        // En TikTok el subject trae "Video · <caption>": se limpia el prefijo
+        // para que el banner muestre solo el texto del video.
+        const caption =
+          postPreview?.caption ||
+          (isTiktok
+            ? (conversation.subject ?? "").replace(/^Video · /, "")
+            : conversation.subject) ||
+          t("inbox.commentOnPost");
         return (
           <div className="flex items-start gap-3 border-b border-border bg-muted/70 px-3 py-2 text-xs sm:px-4">
             {/* Thumbnail of the actual post/ad. */}
@@ -1431,10 +1441,16 @@ export function MessageThread({
                   "mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                   conversation.channel === "fb_comment"
                     ? "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30"
-                    : "bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-1 ring-pink-500/30",
+                    : conversation.channel === "ig_comment"
+                      ? "bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-1 ring-pink-500/30"
+                      : "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-cyan-500/30",
                 )}
               >
-                {conversation.channel === "fb_comment" ? t("inbox.postFb") : t("inbox.postIg")}
+                {conversation.channel === "fb_comment"
+                  ? t("inbox.postFb")
+                  : conversation.channel === "ig_comment"
+                    ? t("inbox.postIg")
+                    : t("inbox.postTiktok")}
               </span>
             )}
             <div className="min-w-0 flex-1">

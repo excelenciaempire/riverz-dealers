@@ -380,6 +380,7 @@ export const inbox = {
   post: { es: "Publicación", en: "Post" },
   postFb: { es: "Post FB", en: "FB post" },
   postIg: { es: "Post IG", en: "IG post" },
+  postTiktok: { es: "Video TikTok", en: "TikTok video" },
   viewPost: { es: "Ver publicación ↗", en: "View post ↗" },
   commentsCount: {
     es: "{n} comentarios en la publicación",

@@ -1149,7 +1149,9 @@ export function MessageBubble({
         />
       )}
       {!isCommentDeleted(message) &&
-        (message.channel === "fb_comment" || message.channel === "ig_comment") && (
+        (message.channel === "fb_comment" ||
+          message.channel === "ig_comment" ||
+          message.channel === "tiktok_comment") && (
           <CommentModerationBar
             message={message}
             channel={message.channel}

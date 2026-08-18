@@ -64,7 +64,12 @@ export function CommentModerationBar({
     }
   };
 
-  if (channel !== "fb_comment" && channel !== "ig_comment") return null;
+  if (
+    channel !== "fb_comment" &&
+    channel !== "ig_comment" &&
+    channel !== "tiktok_comment"
+  )
+    return null;
   // Sin id externo no hay nada que moderar en Meta: el botón sólo podría
   // devolver un error. (Pasa con alguna respuesta vieja que se guardó sin el
   // id que devuelve el envío.)
