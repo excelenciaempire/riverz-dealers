@@ -360,7 +360,11 @@ export function MessageThread({
     setPostPreview(null);
     const convId = conversation?.id;
     const ch = conversation?.channel;
-    if (!convId || (ch !== "fb_comment" && ch !== "ig_comment")) return;
+    if (
+      !convId ||
+      (ch !== "fb_comment" && ch !== "ig_comment" && ch !== "tiktok_comment")
+    )
+      return;
     let cancelled = false;
     fetch(`/api/conversations/${convId}/post-preview`)
       .then((r) => (r.ok ? r.json() : null))
@@ -1427,9 +1431,9 @@ export function MessageThread({
         conversation.channel === "tiktok_comment") && (() => {
         const postId = conversation.thread_external_id ?? "";
         const isTiktok = conversation.channel === "tiktok_comment";
-        // TikTok guarda "video:<id>|comment:<top>": el link necesita el
-        // @usuario de la cuenta, que no está en la conversación, así que se
-        // omite (el caption ya identifica el video); FB deriva su url, IG no.
+        // TikTok llega por `share_url` del listado de videos (el hilo sólo
+        // guarda "video:<id>|comment:<top>", del que no se puede armar la url
+        // porque falta el @usuario); FB deriva la suya del id, IG no.
         const postUrl =
           postPreview?.permalink ??
           (conversation.channel === "fb_comment" && postId

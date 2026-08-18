@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pollAllTikTokConnections } from "@/lib/channels/tiktok_comment/poll";
+import { ensureTikTokCommentWebhook } from "@/lib/channels/tiktok_comment/webhook-subscribe";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun } from "@/lib/cron/heartbeat";
 
@@ -20,8 +21,12 @@ async function cronHandler(request: Request) {
   }
 
   try {
+    // El webhook se registra desde acá (TikTok no lo configura en el portal:
+    // es una llamada a su API). Va primero y es barato — se saltea solo salvo
+    // en el primer arranque o cada 6 h.
+    const webhook = await ensureTikTokCommentWebhook();
     const result = await pollAllTikTokConnections();
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json({ ...result, webhook }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -766,8 +766,14 @@ const ConversationItem = memo(function ConversationItem({
               )}
             >
               {/* En ML el prefijo del subject ("Pregunta · <id>") repetiría el
-                  badge de arriba y el id crudo no aporta — lo omitimos ahí. */}
-              {conversation.subject && conversation.channel !== "mercadolibre" ? (
+                  badge de arriba y el id crudo no aporta — lo omitimos ahí.
+                  En TikTok el subject es el caption del video (a menudo un
+                  muro de hashtags): se comía la fila entera y tapaba lo único
+                  que importa acá, que es el comentario. El caption ya se ve en
+                  el banner del hilo. */}
+              {conversation.subject &&
+              conversation.channel !== "mercadolibre" &&
+              conversation.channel !== "tiktok_comment" ? (
                 <span className="font-medium text-foreground">{conversation.subject} · </span>
               ) : null}
               {isUnsupportedSnippet(conversation.last_message_text)

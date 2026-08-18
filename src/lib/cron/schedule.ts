@@ -154,6 +154,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     parent: "comment-sync",
   },
   {
+    name: "tiktok-webhook", whatKey: "admin.cronTiktokWebhook",
+    path: "/api/cron/tiktok-comments",
+    schedule: "0 */6 * * *",
+    parent: "tiktok-comments",
+  },
+  {
     name: "mercadolibre-orders", whatKey: "admin.cronMlOrders",
     path: "/api/cron/mercadolibre",
     schedule: "*/15 * * * *",

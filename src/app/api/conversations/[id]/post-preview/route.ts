@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation } from "@/types";
@@ -66,7 +67,11 @@ export async function GET(
       { status: 403 },
     );
 
-  if (conversation.channel !== "fb_comment" && conversation.channel !== "ig_comment") {
+  if (
+    conversation.channel !== "fb_comment" &&
+    conversation.channel !== "ig_comment" &&
+    conversation.channel !== "tiktok_comment"
+  ) {
     return NextResponse.json({});
   }
   const postId = conversation.thread_external_id;
@@ -79,6 +84,13 @@ export async function GET(
     .maybeSingle();
   if (!connRow) return NextResponse.json({});
   const connection = connRow as ChannelConnection;
+
+  // TikTok no pasa por Graph: su hilo guarda "video:<id>|comment:<top>" y la
+  // portada + el enlace al video salen del listado de videos de la cuenta.
+  if (conversation.channel === "tiktok_comment") {
+    return NextResponse.json(await tiktokPreview(connection, postId));
+  }
+
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const enc = String(secrets.access_token ?? "");
   if (!enc) return NextResponse.json({});
@@ -144,5 +156,55 @@ export async function GET(
     });
   } catch {
     return NextResponse.json({ adId: meta?.ad_id, isAd: meta?.is_ad });
+  }
+}
+
+/**
+ * Portada, caption y enlace del video de TikTok al que pertenece el hilo.
+ *
+ * El listado de videos es el único endpoint que devuelve `thumbnail_url` y
+ * `share_url`, así que se piden los más recientes y se busca el id — que es
+ * exactamente donde vive un hilo de comentarios activo. Si el video ya no está
+ * en esa ventana se devuelve vacío y el banner cae al caption que quedó
+ * guardado en la conversación.
+ */
+async function tiktokPreview(
+  connection: ChannelConnection,
+  threadKey: string,
+): Promise<{ permalink?: string; image?: string; caption?: string }> {
+  const videoId = threadKey.startsWith("video:") ? threadKey.slice(6).split("|")[0] : "";
+  const cfg = (connection.config ?? {}) as Record<string, unknown>;
+  const businessId = String(cfg.business_id ?? "");
+  if (!videoId || !businessId) return {};
+  try {
+    const token = await getFreshTikTokToken(connection);
+    const fields = JSON.stringify([
+      "item_id",
+      "caption",
+      "thumbnail_url",
+      "share_url",
+      "embed_url",
+    ]);
+    const url =
+      `https://business-api.tiktok.com/open_api/v1.3/business/video/list/` +
+      `?business_id=${encodeURIComponent(businessId)}` +
+      `&fields=${encodeURIComponent(fields)}&max_count=20`;
+    const r = await fetch(url, { headers: { "Access-Token": token } });
+    const j = (await r.json().catch(() => ({}))) as {
+      code?: number;
+      data?: { videos?: Array<Record<string, unknown>> };
+    };
+    if (!r.ok || (j.code ?? 0) !== 0) return {};
+    const v = (j.data?.videos ?? []).find(
+      (x) => String(x.item_id ?? x.video_id ?? "") === videoId,
+    );
+    if (!v) return {};
+    return {
+      permalink: String(v.share_url ?? "") || undefined,
+      image: String(v.thumbnail_url ?? "") || undefined,
+      caption: String(v.caption ?? "") || undefined,
+    };
+  } catch {
+    return {};
   }
 }

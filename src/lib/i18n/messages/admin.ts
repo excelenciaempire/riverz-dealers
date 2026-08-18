@@ -322,8 +322,12 @@ export const admin = {
     en: "Fills in contact data from the store",
   },
   cronTiktokComments: {
-    es: "Única vía de entrada de comentarios de TikTok",
-    en: "The only way TikTok comments come in",
+    es: "Trae los comentarios nuevos de TikTok",
+    en: "Brings in new TikTok comments",
+  },
+  cronTiktokWebhook: {
+    es: "Registra en TikTok a dónde avisar los comentarios",
+    en: "Tells TikTok where to send comment events",
   },
   cronInstagramEnrich: {
     es: "Enriquece perfiles públicos de Instagram",
