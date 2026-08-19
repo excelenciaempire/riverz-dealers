@@ -18,6 +18,7 @@ import { insertSteps, type BuilderStepInput } from './steps-tree'
 import { resolverEtiquetas } from './resolve-tag-seeds'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
+import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 
 export interface InstalledAutomation {
   id: string
@@ -39,10 +40,18 @@ export async function installTemplate(
   const template = getTemplate(args.templateId, args.locale)
   if (!template) throw new Error(`no existe la receta "${args.templateId}"`)
 
+  // `automations.user_id` es NOT NULL, y quien instala no siempre es una
+  // persona: puede ser el Operator o la activación guiada. En ese caso la fila
+  // queda a nombre del dueño de la cuenta, que es de quien es la automatización
+  // igual. Sin esto, instalar una receta sin sesión falla con un error de
+  // restricción que no dice nada.
+  const userId = args.userId ?? (await resolveWorkspaceOwnerUserId(db, args.workspaceId))
+  if (!userId) throw new Error('esta cuenta no tiene dueño: no se puede crear la automatización')
+
   const { data, error } = await db
     .from('automations')
     .insert({
-      user_id: args.userId ?? null,
+      user_id: userId,
       workspace_id: args.workspaceId,
       name: translate(args.locale, automationTemplateNameKey(template.slug)),
       description: translate(args.locale, automationTemplateDescKey(template.slug)),
