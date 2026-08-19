@@ -1,12 +1,12 @@
-import { OperacionShell } from '@/components/operacion/shell'
+import { redirect } from 'next/navigation'
 
 /**
- * La pestaña Panel.
+ * El centro de operación se juntó con Inicio.
  *
- * Sin título propio: el panel ya trae su encabezado con el indicador de datos
- * en vivo, y la pestaña de arriba ya dice dónde estás. Dos títulos apilados
- * era exactamente lo que se veía antes de juntar Inicio con Panel.
+ * Eran dos pantallas contando mitades del mismo cuadro. La ruta se queda como
+ * redirección y no se borra porque hay links viejos apuntando acá —el asistente
+ * de activación vive en `/operacion/activar`— y un 404 no explica nada.
  */
 export default function OperacionPage() {
-  return <OperacionShell />
+  redirect('/panel')
 }

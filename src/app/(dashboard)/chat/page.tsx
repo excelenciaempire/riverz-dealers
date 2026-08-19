@@ -1,11 +1,20 @@
+'use client'
+
 import { OperatorChat } from '@/components/operacion/operator-chat'
 
 /**
- * La casa de Riverz 2.0.
+ * El chat que opera la cuenta, dentro de la aplicación de siempre.
  *
- * Sin encabezado ni título: la conversación ocupa la pantalla entera. El chrome
- * (pestañas, cuenta, tema) lo pone el shell.
+ * Los márgenes negativos anulan el relleno del contenedor y el alto se calcula
+ * contra el viewport descontando el encabezado, que sólo existe en móvil — el
+ * mismo truco que usa la bandeja. Es la única forma de que una conversación
+ * ocupe la pantalla entera sin sacar la barra lateral del medio: acá el chat es
+ * una sección más, no otra aplicación.
  */
 export default function ChatPage() {
-  return <OperatorChat fullscreen />
+  return (
+    <div className="-m-4 h-[calc(100dvh-3.5rem)] sm:-m-6 lg:-m-8 lg:h-dvh">
+      <OperatorChat fullscreen />
+    </div>
+  )
 }

@@ -19,7 +19,7 @@ export interface GateableSection {
 }
 
 export const GATEABLE_SECTIONS: GateableSection[] = [
-  { key: "/operacion", labelKey: "nav.operation" },
+  { key: "/chat", labelKey: "nav.chat" },
   { key: "/panel", labelKey: "nav.home" },
   { key: "/bandeja", labelKey: "nav.inbox" },
   { key: "/contactos", labelKey: "nav.contacts" },

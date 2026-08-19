@@ -1,12 +1,12 @@
-import { PanelDashboard } from '@/components/dashboard/panel-dashboard'
+import { PanelConOperacion } from '@/components/dashboard/panel-con-operacion'
 
 /**
- * Inicio, en la aplicación de siempre.
+ * Inicio.
  *
- * El contenido vive en `PanelDashboard` porque Riverz 2.0 lo muestra dentro de
- * su pestaña Panel. Con Riverz 2.0 prendido, esta ruta ni se llega a ver: el
- * layout la manda al chat.
+ * Con Riverz 2.0 prendido suma lo que sabe la operación —quién espera
+ * respuesta, qué agentes y automatizaciones están trabajando—; sin el flag es
+ * el panel de siempre, idéntico.
  */
 export default function DashboardPage() {
-  return <PanelDashboard />
+  return <PanelConOperacion />
 }
