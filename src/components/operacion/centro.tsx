@@ -39,8 +39,8 @@ interface Issue {
 }
 
 interface Delta {
-  current: number
-  previous: number
+  actual: number
+  anterior: number
 }
 
 interface Overview {
@@ -172,7 +172,7 @@ export function CentroOperacion() {
         <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title={t('operation.conversations')}
-            value={String(metricas.conversaciones.current)}
+            value={String(metricas.conversaciones.actual)}
             icon={MessageSquare}
             delta={deltaDe(metricas.conversaciones, t('operation.vsPrevious'))}
           />
@@ -183,7 +183,7 @@ export function CentroOperacion() {
           />
           <MetricCard
             title={t('operation.newContacts')}
-            value={String(metricas.contactos_nuevos.current)}
+            value={String(metricas.contactos_nuevos.actual)}
             icon={UserPlus}
             delta={deltaDe(metricas.contactos_nuevos, t('operation.vsPrevious'))}
           />
@@ -200,7 +200,7 @@ export function CentroOperacion() {
 
 /** Signo y texto del delta, ya formateado. */
 function deltaDe(d: Delta, sufijo: string) {
-  const diff = d.current - d.previous
+  const diff = d.actual - d.anterior
   return { sign: diff, label: `${diff >= 0 ? '+' : ''}${diff} ${sufijo}` }
 }
 

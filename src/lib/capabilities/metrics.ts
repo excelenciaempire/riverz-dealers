@@ -48,6 +48,15 @@ async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
     currency: string | null
   }[]
 
+  // `actual` y `anterior` van juntos porque un número solo no dice nada: 40
+  // conversaciones es bueno o malo según si la semana pasada fueron 10. Y van
+  // en español como el resto de la respuesta — el modelo lee estas claves, y
+  // media respuesta en cada idioma se presta a que invente el nombre que falta.
+  const par = (d: { current: number; previous: number }) => ({
+    actual: d.current,
+    anterior: d.previous,
+  })
+
   return {
     periodo: {
       dias,
@@ -55,13 +64,11 @@ async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
       hasta: range.end.toISOString(),
       zona_horaria: tz,
     },
-    // `actual` y `anterior` van juntos porque un número solo no dice nada:
-    // 40 conversaciones es bueno o malo según si la semana pasada fueron 10.
-    conversaciones: bundle.conversations,
-    contactos_nuevos: bundle.newContacts,
-    resueltas: bundle.resolved,
-    mensajes_entrantes: bundle.messagesReceived,
-    mensajes_salientes: bundle.messagesSent,
+    conversaciones: par(bundle.conversations),
+    contactos_nuevos: par(bundle.newContacts),
+    resueltas: par(bundle.resolved),
+    mensajes_entrantes: par(bundle.messagesReceived),
+    mensajes_salientes: par(bundle.messagesSent),
     por_canal: bundle.channelMix,
     ia: {
       respondio: replies.filter((r) => r.status === 'sent').length,
