@@ -30,7 +30,18 @@ interface Accion {
   preview: string | null
 }
 
-export function OperatorChat({ onChanged }: { onChanged?: () => void }) {
+export function OperatorChat({
+  onChanged,
+  fullscreen = false,
+}: {
+  onChanged?: () => void
+  /**
+   * El chat como pantalla y no como panel: sin marco ni encabezado (la barra
+   * de pestañas ya dice dónde estás) y con la conversación en una columna
+   * centrada, que es lo que hace legible un hilo largo en una pantalla ancha.
+   */
+  fullscreen?: boolean
+}) {
   const t = useT()
   const fetchWithCsrf = useFetchWithCsrf()
   const [thread, setThread] = useState<string | null>(null)
@@ -119,15 +130,27 @@ export function OperatorChat({ onChanged }: { onChanged?: () => void }) {
   const resueltas = acciones.filter((a) => a.status !== 'propuesto')
 
   return (
-    <div className="flex h-full min-h-[26rem] flex-col rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Sparkles className="size-4 text-accent-ink" />
-        <h2 className="text-sm font-semibold text-foreground">
-          {t('operation.operatorTitle')}
-        </h2>
-      </div>
+    <div
+      className={cn(
+        'flex h-full flex-col',
+        !fullscreen && 'min-h-[26rem] rounded-xl border border-border bg-card',
+      )}
+    >
+      {!fullscreen && (
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Sparkles className="size-4 text-accent-ink" />
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('operation.operatorTitle')}
+          </h2>
+        </div>
+      )}
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        className={cn(
+          'flex-1 space-y-3 overflow-y-auto',
+          fullscreen ? 'mx-auto w-full max-w-3xl px-4 py-8' : 'p-4',
+        )}
+      >
         {mensajes.length === 0 && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">{t('operation.operatorHint')}</p>
@@ -192,22 +215,38 @@ export function OperatorChat({ onChanged }: { onChanged?: () => void }) {
           e.preventDefault()
           void enviar(texto)
         }}
-        className="flex items-center gap-2 border-t border-border p-3"
+        className={cn(
+          'shrink-0',
+          fullscreen
+            ? 'mx-auto w-full max-w-3xl px-4 pb-6'
+            : 'flex items-center gap-2 border-t border-border p-3',
+        )}
       >
-        <input
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder={t('operation.operatorPlaceholder')}
-          className="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-        />
-        <button
-          type="submit"
-          disabled={pensando || !texto.trim()}
-          aria-label={t('operation.operatorSend')}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+        <div
+          className={cn(
+            'flex items-center gap-2',
+            // A pantalla completa el compositor es una pieza flotante y no una
+            // franja pegada al borde: es lo que hace que el chat se sienta la
+            // pantalla y no el pie de otra cosa.
+            fullscreen &&
+              'rounded-2xl border border-border bg-card px-4 py-3 shadow-sm',
+          )}
         >
-          <ArrowUp className="size-4" />
-        </button>
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder={t('operation.operatorPlaceholder')}
+            className="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <button
+            type="submit"
+            disabled={pensando || !texto.trim()}
+            aria-label={t('operation.operatorSend')}
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+          >
+            <ArrowUp className="size-4" />
+          </button>
+        </div>
       </form>
     </div>
   )

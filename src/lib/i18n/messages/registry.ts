@@ -34,6 +34,7 @@ import { nav } from "./nav";
 import { oauth } from "./oauth";
 import { operation } from "./operation";
 import { products } from "./products";
+import { riverz2 } from "./riverz2";
 import { settings } from "./settings";
 import { system } from "./system";
 import { templates } from "./templates";
@@ -70,6 +71,7 @@ const NAMESPACES: Record<string, Namespace> = {
   oauth,
   operation,
   products,
+  riverz2,
   settings,
   system,
   templates,

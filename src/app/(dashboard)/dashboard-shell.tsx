@@ -9,9 +9,10 @@ import { NavProgress } from "@/components/layout/nav-progress";
 import { StoreClaimGuard } from "@/components/settings/store-claim-guard";
 import { SectionGuard } from "@/components/layout/section-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
-import { FeatureFlagsProvider } from "@/hooks/use-feature-flags";
+import { FeatureFlagsProvider, useRiverz2 } from "@/hooks/use-feature-flags";
 import type { FeatureFlags } from "@/lib/admin/feature-flags";
 import { useT } from "@/hooks/use-locale";
+import { Riverz2Chrome } from "@/components/riverz2/chrome";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -23,6 +24,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useLocalizedRouter();
   const t = useT();
+  const riverz2 = useRiverz2();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible (in collapsed or full-width form) and this stays at
@@ -91,6 +93,33 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
+  const sidebar = (
+    <Sidebar
+      open={sidebarOpen}
+      onClose={closeSidebar}
+      collapsed={collapsed}
+      onToggleCollapsed={toggleCollapsed}
+    />
+  );
+
+  // Riverz 2.0: la misma sesión y los mismos proveedores, otro chrome. La
+  // bifurcación vive acá y no en un route group aparte porque la barra de
+  // pestañas tiene que seguir arriba cuando el comercio entra a la bandeja o a
+  // campañas — y eso sólo pasa si envuelve al mismo árbol de rutas.
+  //
+  // Con el flag apagado no se monta nada de esto: el camino de abajo es, línea
+  // por línea, el de siempre.
+  if (riverz2) {
+    return (
+      <>
+        <NavProgress />
+        <Riverz2Chrome sidebar={sidebar}>{children}</Riverz2Chrome>
+        <StoreClaimGuard />
+        <SectionGuard />
+      </>
+    );
+  }
+
   return (
     // h-dvh (dynamic viewport height) rather than h-screen/100vh: on mobile
     // the URL bar grows/shrinks the visible area and 100vh ignores that,
@@ -98,12 +127,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     // real visible height; identical to 100vh on desktop.
     <div className="flex h-dvh overflow-hidden bg-background">
       <NavProgress />
-      <Sidebar
-        open={sidebarOpen}
-        onClose={closeSidebar}
-        collapsed={collapsed}
-        onToggleCollapsed={toggleCollapsed}
-      />
+      {sidebar}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={openSidebar} />
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}

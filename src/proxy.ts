@@ -258,6 +258,7 @@ export async function proxy(request: NextRequest) {
   // vacío y roto en vez de la pantalla de login. Mover las campañas de voz a
   // /voz/campanas lo hizo visible.
   const protectedPaths = [
+    '/chat',
     '/operacion',
     '/panel',
     '/bandeja',
