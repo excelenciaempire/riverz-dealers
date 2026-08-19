@@ -39,6 +39,19 @@ export function getCapability(key: string): AnyCapability {
 }
 
 /**
+ * ¿Esta llamada concreta deja algo apagado?
+ *
+ * Con estos argumentos, no en general: prender una automatización y pausarla
+ * son la misma capacidad y no son lo mismo. Sin declaración, NO es inerte —
+ * ante la duda se propone y decide una persona.
+ */
+export function esInerte(cap: AnyCapability, args: Record<string, unknown>): boolean {
+  if (cap.risk === 'lectura') return true
+  if (typeof cap.inerte === 'function') return cap.inerte(args) === true
+  return cap.inerte === true
+}
+
+/**
  * El mismo schema con `workspace_id` adelante.
  *
  * La capacidad no lo declara porque la cuenta va en el contexto y no en los

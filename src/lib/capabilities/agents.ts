@@ -168,6 +168,8 @@ export const AGENT_CAPABILITIES: Capability[] = [
       },
       required: ['nombre', 'rol'],
     },
+    // Nace pausado: no le contesta a nadie hasta que se lo active.
+    inerte: true,
     async preview(ctx, args) {
       const rol = isAgentRole(args.rol) ? args.rol : 'general'
       const preset = roleTemplate(rol)
@@ -197,6 +199,8 @@ export const AGENT_CAPABILITIES: Capability[] = [
       },
       required: ['agent_id', 'activo'],
     },
+    // Prenderlo lo pone a contestarle a clientes reales; pausarlo lo calla.
+    inerte: (args) => args.activo === false,
     async preview(ctx, args) {
       const { data } = await ctx.db
         .from('ai_agents')

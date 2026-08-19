@@ -73,6 +73,24 @@ export interface Capability<A = Record<string, unknown>, R = unknown> {
   descriptionEn: string
   risk: Risk
   /**
+   * ¿Esto deja algo APAGADO?
+   *
+   * `risk` contesta "¿se puede deshacer?" y gobierna la confirmación del MCP.
+   * Esta pregunta es otra: "¿el resultado alcanza a alguien?". Una
+   * automatización creada en pausa y un agente en borrador no le llegan a
+   * ningún cliente, no salen a Meta y no mueven dinero — se pueden borrar y no
+   * pasó nada. Prender esa misma automatización sí alcanza a gente.
+   *
+   * Es lo que permite que el modo automático construya sin preguntar y siga
+   * pidiendo un click para lo que se publica. Y es la línea que sostiene la
+   * defensa contra instrucciones escondidas en mensajes de clientes: lo peor
+   * que consigue un ataque es dejar cosas apagadas que alguien va a ver.
+   *
+   * Depende de los argumentos cuando hace falta: pausar es inerte, prender no.
+   * Ausente = NO inerte. Ante la duda, se propone.
+   */
+  inerte?: boolean | ((args: A) => boolean)
+  /**
    * Sin `workspace_id`: ese va en el contexto. El adaptador MCP se lo agrega
    * al schema que publica hacia afuera.
    */

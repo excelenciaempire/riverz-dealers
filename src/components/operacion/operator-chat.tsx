@@ -1,7 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowUp, Brain, Check, Loader2, Sparkles, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowUp,
+  Brain,
+  Check,
+  Loader2,
+  PlusCircle,
+  Sparkles,
+  X,
+} from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
@@ -53,7 +62,10 @@ type Bloque =
       key: string
       /** Lo que manda el servidor, por si la capacidad no tiene etiqueta corta. */
       label: string
-      estado: 'corriendo' | 'ok' | 'error' | 'propuesto'
+      // `ok` es una lectura que salió bien; `hecho` es algo que se construyó de
+      // verdad. Se ven distinto a propósito: una cosa es que haya mirado y otra
+      // que haya creado.
+      estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho'
       detalle?: string
     }
 
@@ -132,7 +144,42 @@ export function OperatorChat({
   const [pensando, setPensando] = useState(false)
   const [vivo, setVivo] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [auto, setAuto] = useState<boolean | null>(null)
   const finalRef = useRef<HTMLDivElement | null>(null)
+
+  // El modo es de la cuenta, no del navegador: se lee del servidor al abrir.
+  useEffect(() => {
+    let cancelado = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
+        if (!res.ok || cancelado) return
+        const json = (await res.json()) as { autoBuild?: boolean }
+        if (!cancelado) setAuto(json.autoBuild === true)
+      } catch {
+        /* si no se puede leer, el interruptor no se muestra */
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [])
+
+  const cambiarModo = useCallback(
+    async (next: boolean) => {
+      setAuto(next)
+      try {
+        await fetchWithCsrf('/api/operacion/modo', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ auto: next }),
+        })
+      } catch {
+        setAuto(!next)
+      }
+    },
+    [fetchWithCsrf],
+  )
 
   useEffect(() => {
     finalRef.current?.scrollIntoView({ block: 'end' })
@@ -198,6 +245,8 @@ export function OperatorChat({
               })
             } else if (e.t === 'proposed') {
               bloques = conPaso(bloques, e.id, { estado: 'propuesto', detalle: e.preview })
+            } else if (e.t === 'built') {
+              bloques = conPaso(bloques, e.id, { estado: 'hecho', detalle: e.preview })
             } else if (e.t === 'error') {
               setError(e.message)
             } else if (e.t === 'done') {
@@ -412,6 +461,25 @@ export function OperatorChat({
             <ArrowUp className="size-4" />
           </button>
         </div>
+
+        {/* Debajo del compositor y no en una pantalla de ajustes: es una
+            decisión sobre lo que va a pasar en el próximo mensaje, así que se
+            toma mirando el mensaje. */}
+        {auto !== null && (
+          <button
+            type="button"
+            onClick={() => void cambiarModo(!auto)}
+            className="mt-2 flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span
+              className={cn(
+                'inline-block size-1.5 rounded-full',
+                auto ? 'bg-accent-ink' : 'bg-muted-foreground/50',
+              )}
+            />
+            {t(auto ? 'operation.modeAuto' : 'operation.modeAsk')}
+          </button>
+        )}
       </form>
     </div>
   )
@@ -450,7 +518,17 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
             {b.texto}
           </div>
         ) : (
-          <div key={b.id} className="flex items-start gap-2 pl-1 text-xs">
+          <div
+            key={b.id}
+            className={cn(
+              'flex items-start gap-2 text-xs',
+              // Lo construido se destaca: es lo único de la lista que dejó algo
+              // nuevo en la cuenta.
+              b.estado === 'hecho'
+                ? 'rounded-lg border border-accent-ink/25 bg-primary/5 px-3 py-2'
+                : 'pl-1',
+            )}
+          >
             <span className="mt-0.5 shrink-0">
               {b.estado === 'corriendo' ? (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
@@ -458,13 +536,25 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
                 <X className="size-3.5 text-red-600 dark:text-red-400" />
               ) : b.estado === 'propuesto' ? (
                 <Sparkles className="size-3.5 text-accent-ink" />
+              ) : b.estado === 'hecho' ? (
+                <PlusCircle className="size-3.5 text-accent-ink" />
               ) : (
                 <Check className="size-3.5 text-accent-ink" />
               )}
             </span>
-            <span className="min-w-0 flex-1 text-muted-foreground">
+            <span
+              className={cn(
+                'min-w-0 flex-1',
+                b.estado === 'hecho' ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
               {PASO_LABEL[b.key] ? t(PASO_LABEL[b.key]) : b.label}
-              {b.detalle && <span className="text-foreground"> · {b.detalle}</span>}
+              {b.detalle && (
+                <span className={b.estado === 'hecho' ? '' : 'text-foreground'}>
+                  {' · '}
+                  {b.detalle}
+                </span>
+              )}
             </span>
           </div>
         ),

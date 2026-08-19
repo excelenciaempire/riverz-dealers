@@ -158,6 +158,9 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       },
       required: ['automation_id', 'activa'],
     },
+    // Pausar no alcanza a nadie; prender empieza a dispararse con cada evento
+    // y le escribe a clientes. La misma capacidad, dos cosas distintas.
+    inerte: (args) => args.activa === false,
     async preview(ctx, args) {
       const nombre = await nombreDe(ctx, String(args.automation_id))
       if (!args.activa) return `Pausaría «${nombre}». Deja de dispararse hasta que la prendas.`
@@ -194,6 +197,9 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       },
       required: ['step_id', 'amount', 'unit'],
     },
+    // Cambia cuánto espera un paso. Si la automatización está pausada no pasa
+    // nada, y si está activa cambia un tiempo — no manda nada nuevo.
+    inerte: true,
     async preview(ctx, args) {
       const { data } = await ctx.db
         .from('automation_steps')
@@ -234,6 +240,9 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       },
       required: ['receta'],
     },
+    // Nace pausada y con la plantilla en blanco: no se dispara ni aunque
+    // alguien quisiera. Borrarla no deja rastro.
+    inerte: true,
     async preview(ctx, args) {
       const slug = String(args.receta)
       const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]

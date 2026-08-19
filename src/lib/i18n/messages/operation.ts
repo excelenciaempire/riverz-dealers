@@ -73,6 +73,16 @@ export const operation = {
     es: "Demasiadas consultas seguidas. Esperá un minuto.",
     en: "Too many requests in a row. Wait a minute.",
   },
+  // Los dos modos. El texto dice qué VA A PASAR, no cómo se llama el modo:
+  // "automático" no le explica a nadie qué cambia.
+  modeAuto: {
+    es: "Construye solo · pide permiso para publicar",
+    en: "Builds on its own · asks before publishing",
+  },
+  modeAsk: {
+    es: "Pide permiso antes de construir",
+    en: "Asks before building",
+  },
   operatorNoKey: {
     es: "El Operador todavía no está habilitado en esta cuenta. Escribile a Riverz para activarlo.",
     en: "The Operator isn't enabled on this account yet. Contact Riverz to turn it on.",

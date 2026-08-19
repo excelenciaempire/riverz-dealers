@@ -45,19 +45,40 @@ async function contexto() {
   return { admin, userId: user.id, workspaceId }
 }
 
+/**
+ * ¿Este comercio pidió que construya sin preguntar?
+ *
+ * Sin fila, no. Es una elección explícita: nadie estrena la cuenta con el
+ * Operador armando cosas por su cuenta.
+ */
+async function autoBuildDe(
+  admin: ReturnType<typeof supabaseAdmin>,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from('operacion_setup')
+    .select('auto_build')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  return (data as { auto_build?: boolean } | null)?.auto_build === true
+}
+
 export async function GET(request: Request) {
   const ctx = await contexto()
   if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
 
   const threadId = new URL(request.url).searchParams.get('thread')
-  if (!threadId) return NextResponse.json({ mensajes: [], acciones: [] })
+  const autoBuild = await autoBuildDe(ctx.admin, ctx.workspaceId)
+  if (!threadId) {
+    return NextResponse.json({ mensajes: [], acciones: [], autoBuild })
+  }
 
   const [mensajes, acciones] = await Promise.all([
     loadMessages(ctx.admin, threadId, ctx.workspaceId),
     loadActions(ctx.admin, threadId, ctx.workspaceId),
   ])
   return NextResponse.json(
-    { mensajes, acciones },
+    { mensajes, acciones, autoBuild },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
@@ -130,6 +151,7 @@ export async function POST(request: Request) {
           history: [...toAnthropic(previos), { role: 'user', content: texto }],
           locale,
           onEvent: push,
+          autoBuild: await autoBuildDe(ctx.admin, ctx.workspaceId),
         })
 
         await appendMessage(ctx.admin, {

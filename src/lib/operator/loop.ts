@@ -19,6 +19,7 @@ import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import {
   capabilitiesAsAnthropicTools,
   capabilityKeyFromToolName,
+  esInerte,
   findCapability,
 } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
@@ -163,6 +164,54 @@ async function proponer(
 }
 
 /**
+ * Construye ahora y deja el registro.
+ *
+ * Sólo se llega acá con el modo automático prendido y con algo inerte. La fila
+ * en `operator_actions` se escribe igual, ya ejecutada: la pregunta "¿qué me
+ * hizo el Operador?" se contesta en el mismo lugar sin importar el modo, y sin
+ * eso el modo automático sería el que no deja rastro.
+ */
+async function construir(
+  ctx: CapabilityContext,
+  threadId: string,
+  key: string,
+  args: Record<string, unknown>,
+): Promise<{ id: string; preview: string | null; texto: string }> {
+  const cap = findCapability(key)!
+  let preview: string | null = null
+  try {
+    preview = cap.preview ? await cap.preview(ctx, args) : null
+  } catch {
+    preview = null
+  }
+
+  const salida = await cap.run(ctx, args)
+
+  const { data } = await ctx.db
+    .from('operator_actions')
+    .insert({
+      workspace_id: ctx.workspaceId,
+      thread_id: threadId,
+      capability_key: key,
+      args,
+      risk: cap.risk,
+      preview,
+      status: 'ejecutado',
+      result: salida ?? null,
+      approved_by: ctx.actor.id ?? null,
+      executed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  return {
+    id: (data as { id: string } | null)?.id ?? '',
+    preview,
+    texto: JSON.stringify({ hecho: true, resultado: salida }).slice(0, 20_000),
+  }
+}
+
+/**
  * Un nombre corto para la pantalla, sacado de la descripción.
  *
  * La descripción está escrita para el modelo y son dos renglones: mostrarla
@@ -207,6 +256,11 @@ export async function runOperator(args: {
    * devuelve el resultado al final.
    */
   onEvent?: EmitFn
+  /**
+   * Modo automático: construye lo inerte sin preguntar. Lo que se prende o le
+   * llega a una persona sigue pidiendo un click igual.
+   */
+  autoBuild?: boolean
 }): Promise<OperatorTurn> {
   const { db, workspaceId, threadId } = args
   const emit: EmitFn = args.onEvent ?? (() => {})
@@ -312,6 +366,19 @@ export async function runOperator(args: {
             resumen: resumirSalida(salida),
           })
           results.push({ type: 'tool_result', tool_use_id: block.id, content: texto })
+        } else if (args.autoBuild && esInerte(cap, toolArgs)) {
+          // Modo automático: lo que deja algo APAGADO se construye en el
+          // momento y se ve aparecer. Lo que se prende o le llega a una
+          // persona cae igual al camino de abajo, en los dos modos.
+          const c = await construir(ctx, threadId, key, toolArgs)
+          emit({
+            t: 'built',
+            id: block.id,
+            actionId: c.id,
+            key,
+            preview: c.preview ?? key,
+          })
+          results.push({ type: 'tool_result', tool_use_id: block.id, content: c.texto })
         } else {
           const p = await proponer(ctx, threadId, key, toolArgs)
           proposedIds.push(p.id)
