@@ -24,6 +24,7 @@ import type { Locale } from "./config";
 /** Canonical (Spanish, = folder) first segment → English slug. */
 export const ROUTE_SLUGS_EN: Record<string, string> = {
   // dashboard
+  operacion: "operation",
   panel: "dashboard",
   bandeja: "inbox",
   contactos: "contacts",

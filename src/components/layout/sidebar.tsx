@@ -12,8 +12,9 @@ import { useT } from "@/hooks/use-locale";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
-import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useFeatureFlags, useRiverz2 } from "@/hooks/use-feature-flags";
 import {
+  Activity,
   Home,
   Inbox,
   Users,
@@ -60,6 +61,8 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>;
   beta?: boolean;
   alsoActiveOn?: string[];
+  /** Sólo para los comercios con la experiencia Riverz 2.0 prendida. */
+  riverz2?: boolean;
 }
 
 interface NavGroup {
@@ -78,6 +81,9 @@ const navGroups: NavGroup[] = [
   {
     title: "nav.groupDaily",
     items: [
+      // Primero del menú, y sólo para quien tiene Riverz 2.0: es la pantalla
+      // desde la que se opera. Para el resto de las cuentas ni siquiera existe.
+      { href: "/operacion", label: "nav.operation", icon: Activity, riverz2: true },
       { href: "/panel", label: "nav.home", icon: Home },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
       { href: "/contactos", label: "nav.contacts", icon: Users },
@@ -159,12 +165,18 @@ export function Sidebar({
     const feat = featureForPath(href);
     return !feat || isFeatureEnabled(flags, feat);
   };
+  // La experiencia nueva se lee al revés que el resto: sin fila está APAGADA.
+  // Y acá tampoco se le abre al equipo de plataforma, porque lo que hay que ver
+  // es qué ve el comercio.
+  const riverz2 = useRiverz2();
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
-          canAccessSection(allowedSections, item.href) && navFeatureEnabled(item.href),
+          (!item.riverz2 || riverz2) &&
+          canAccessSection(allowedSections, item.href) &&
+          navFeatureEnabled(item.href),
       ),
     }))
     .filter((group) => group.items.length > 0);

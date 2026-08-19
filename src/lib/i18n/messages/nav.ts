@@ -10,6 +10,7 @@ export const nav = {
   groupAnalytics: { es: "Análisis", en: "Analytics" },
 
   // Item labels
+  operation: { es: "Operación", en: "Operation" },
   home: { es: "Inicio", en: "Home" },
   inbox: { es: "Bandeja", en: "Inbox" },
   contacts: { es: "Contactos", en: "Contacts" },
