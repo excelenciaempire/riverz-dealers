@@ -1,7 +1,9 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
-import { decidir } from '@/lib/approvals/resolve'
+import { desdeCapacidad, type McpTool } from './tool'
 import { MERCHANT_TOOLS } from './merchant-tools'
+
+export type { McpTool, McpCaller, Risk } from './tool'
 
 /**
  * Las herramientas que la operación expone a un agente.
@@ -9,6 +11,16 @@ import { MERCHANT_TOOLS } from './merchant-tools'
  * No son un CRUD de tablas: son las preguntas y las acciones que uno
  * realmente necesita cuando algo no salió. "¿Por qué no le llegó el mensaje a
  * esta persona?" es una herramienta; "SELECT sobre messages" no.
+ *
+ * Casi ninguna se implementa acá. Lo que sabe hacer Riverz sobre una cuenta
+ * vive en `src/lib/capabilities`, y este archivo publica esas capacidades por
+ * el protocolo. La diferencia no es de estilo: cuando la lógica estaba acá
+ * adentro, la misma pregunta tenía dos respuestas —una la calculaba la pantalla
+ * y otra el MCP— y no coincidían. Ahora el agente y el panel leen lo mismo.
+ *
+ * Quedan escritas a mano las dos que NO son sobre una cuenta: listar las
+ * cuentas y el estado de los trabajos programados. Esas hablan de la
+ * plataforma, y la capa de capacidades opera siempre sobre un solo comercio.
  *
  * Cada una declara su riesgo, y de eso depende si se ejecuta sola:
  *
@@ -19,43 +31,7 @@ import { MERCHANT_TOOLS } from './merchant-tools'
  *                   ejecuta: devuelve qué haría y espera confirmación.
  */
 
-export type Risk = 'lectura' | 'reversible' | 'irreversible'
-
-export interface McpTool {
-  name: string
-  description: string
-  /**
-   * La misma descripción en inglés, para la documentación pública.
-   *
-   * `description` es lo que viaja por el protocolo y sigue en español: es el
-   * texto que lee el modelo del cliente, y cambiarlo según quién mira la página
-   * web haría que la misma herramienta se llame distinto en dos lugares. Esto
-   * es sólo para la página.
-   */
-  descriptionEn?: string
-  risk: Risk
-  schema: {
-    type: 'object'
-    properties: Record<string, unknown>
-    required?: string[]
-  }
-  run: (args: Record<string, unknown>) => Promise<unknown>
-  /** Qué se le muestra a la persona antes de ejecutar una irreversible. */
-  preview?: (args: Record<string, unknown>) => Promise<string>
-  /**
-   * Sólo para la llave del equipo. Son las que hablan de la plataforma y no de
-   * una cuenta: a un comercio no le sirven y le muestran fontanería ajena.
-   */
-  platformOnly?: boolean
-}
-
 const db = () => supabaseAdmin()
-
-function ws(args: Record<string, unknown>): string {
-  const v = String(args.workspace_id ?? '')
-  if (!v) throw new Error('falta workspace_id: toda herramienta opera sobre una cuenta')
-  return v
-}
 
 export const MCP_TOOLS: McpTool[] = [
   {
@@ -67,8 +43,11 @@ export const MCP_TOOLS: McpTool[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     async run(args) {
+      // Esta no pasa por la capa de capacidades justamente porque puede hablar
+      // de VARIAS cuentas: es la única que existe antes de saber cuál.
+      //
       // Con una llave de comercio el servidor ya inyectó su workspace_id, así
-      // que esta lista se recorta a esa cuenta. Sin ese recorte, la herramienta
+      // que la lista se recorta a esa cuenta. Sin ese recorte, la herramienta
       // de "punto de entrada" sería, para un comercio, la lista completa de
       // clientes de Riverz.
       let q = db()
@@ -107,211 +86,10 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
 
-  {
-    name: 'operacion_estado',
-    description:
-      'Panorama de una cuenta: canales conectados, automatizaciones activas con su última corrida, mensajes enviados hoy, crons que fallaron y decisiones esperando aprobación.',
-    descriptionEn:
-      'Overview of one account: connected channels, active automations with their last run, messages sent today, failed crons and decisions waiting for approval.',
-    risk: 'lectura',
-    schema: {
-      type: 'object',
-      properties: { workspace_id: { type: 'string' } },
-      required: ['workspace_id'],
-    },
-    async run(args) {
-      const id = ws(args)
-      const desdeHoy = new Date(Date.now() - 24 * 3_600_000).toISOString()
-      const [canales, autos, enviados, crons, aprobaciones] = await Promise.all([
-        db()
-          .from('channel_connections')
-          .select('channel, status, label')
-          .eq('workspace_id', id)
-          .neq('status', 'disconnected'),
-        db()
-          .from('automations')
-          .select('id, name, trigger_type, is_active, execution_count, last_executed_at')
-          .eq('workspace_id', id)
-          .is('deleted_at', null),
-        db()
-          .from('automation_logs')
-          .select('status')
-          .eq('workspace_id', id)
-          .gte('created_at', desdeHoy),
-        db()
-          .from('cron_runs')
-          .select('name, status, started_at, error')
-          .neq('status', 'ok')
-          .gte('started_at', desdeHoy)
-          .order('started_at', { ascending: false })
-          .limit(10),
-        db()
-          .from('approval_requests')
-          .select('id, kind, title, created_at')
-          .eq('workspace_id', id)
-          .eq('status', 'pendiente'),
-      ])
-      const logs = (enviados.data ?? []) as { status: string }[]
-      return {
-        canales: canales.data ?? [],
-        automatizaciones: autos.data ?? [],
-        corridas_24h: {
-          total: logs.length,
-          exito: logs.filter((l) => l.status === 'success').length,
-          parciales: logs.filter((l) => l.status === 'partial').length,
-          fallidas: logs.filter((l) => l.status === 'failed').length,
-        },
-        crons_con_error: crons.data ?? [],
-        esperando_aprobacion: aprobaciones.data ?? [],
-      }
-    },
-  },
-
-  {
-    name: 'por_que_no_salio',
-    description:
-      'Explica por qué una persona no recibió un mensaje. Recibe un teléfono y devuelve: si está dada de baja, qué automatizaciones corrieron para ese contacto y con qué resultado, qué barrera lo frenó, y los mensajes que sí salieron. Es la herramienta de diagnóstico.',
-    descriptionEn:
-      'Explains why a person did not receive a message. Takes a phone number and returns whether they opted out, which automations ran for that contact and with what result, which guard stopped it, and the messages that did go out. This is the diagnostic tool.',
-    risk: 'lectura',
-    schema: {
-      type: 'object',
-      properties: {
-        workspace_id: { type: 'string' },
-        telefono: { type: 'string', description: 'Con o sin +, se compara por los últimos 8 dígitos.' },
-        dias: { type: 'number', description: 'Cuántos días hacia atrás mirar. Por defecto 7.' },
-      },
-      required: ['workspace_id', 'telefono'],
-    },
-    async run(args) {
-      const id = ws(args)
-      const ultimos8 = String(args.telefono ?? '').replace(/\D/g, '').slice(-8)
-      const desde = new Date(
-        Date.now() - (Number(args.dias) || 7) * 86_400_000,
-      ).toISOString()
-
-      const { data: contactos } = await db()
-        .from('contacts')
-        .select('id, name, phone, opted_out, opted_out_at, opted_out_reason, last_inbound_at')
-        .eq('workspace_id', id)
-        .like('phone', `%${ultimos8}`)
-      const encontrados = (contactos ?? []) as {
-        id: string
-        name: string | null
-        phone: string
-        opted_out: boolean
-        opted_out_at: string | null
-        opted_out_reason: string | null
-        last_inbound_at: string | null
-      }[]
-      if (encontrados.length === 0) {
-        return { encontrado: false, nota: 'No hay ningún contacto con ese teléfono en esta cuenta.' }
-      }
-
-      const ids = encontrados.map((c) => c.id)
-      const [corridas, mensajes] = await Promise.all([
-        db()
-          .from('automation_logs')
-          .select('created_at, status, trigger_event, steps_executed, error_message')
-          .in('contact_id', ids)
-          .gte('created_at', desde)
-          .order('created_at', { ascending: false }),
-        db()
-          .from('messages')
-          .select('created_at, template_name, status, error_code, error_reason, origin_name')
-          .in(
-            'conversation_id',
-            ((
-              await db().from('conversations').select('id').in('contact_id', ids)
-            ).data ?? []).map((c: { id: string }) => c.id),
-          )
-          .neq('sender_type', 'customer')
-          .gte('created_at', desde)
-          .order('created_at', { ascending: false })
-          .limit(30),
-      ])
-
-      return {
-        encontrado: true,
-        contactos: encontrados,
-        // Lo primero que hay que mirar: una baja explica todo lo demás.
-        dado_de_baja: encontrados.some((c) => c.opted_out),
-        corridas: corridas.data ?? [],
-        mensajes: mensajes.data ?? [],
-      }
-    },
-  },
-
-  {
-    name: 'automatizacion_activar',
-    description: 'Prende o pausa una automatización. Se deshace llamando de nuevo.',
-    descriptionEn:
-      'Turns an automation on or off. Undone by calling it again.',
-    risk: 'reversible',
-    schema: {
-      type: 'object',
-      properties: {
-        workspace_id: { type: 'string' },
-        automation_id: { type: 'string' },
-        activa: { type: 'boolean' },
-      },
-      required: ['workspace_id', 'automation_id', 'activa'],
-    },
-    async run(args) {
-      const { data, error } = await db()
-        .from('automations')
-        .update({ is_active: Boolean(args.activa) })
-        .eq('id', String(args.automation_id))
-        .eq('workspace_id', ws(args))
-        .select('id, name, is_active')
-        .maybeSingle()
-      if (error) throw new Error(error.message)
-      if (!data) throw new Error('esa automatización no existe en esta cuenta')
-      return data
-    },
-  },
-
-  {
-    name: 'automatizacion_editar_espera',
-    description:
-      'Cambia cuánto espera un paso de espera. El paso se identifica por su id, que sale de operacion_estado o del lienzo.',
-    descriptionEn:
-      'Changes how long a wait step waits. The step is identified by its id, which comes from operacion_estado or from the canvas.',
-    risk: 'reversible',
-    schema: {
-      type: 'object',
-      properties: {
-        workspace_id: { type: 'string' },
-        step_id: { type: 'string' },
-        amount: { type: 'number' },
-        unit: { type: 'string', enum: ['minutes', 'hours', 'days'] },
-      },
-      required: ['workspace_id', 'step_id', 'amount', 'unit'],
-    },
-    async run(args) {
-      const { data: paso } = await db()
-        .from('automation_steps')
-        .select('id, automation_id, step_type, automations!inner(workspace_id)')
-        .eq('id', String(args.step_id))
-        .maybeSingle()
-      const fila = paso as
-        | { id: string; step_type: string; automations?: { workspace_id?: string } }
-        | null
-      if (!fila) throw new Error('ese paso no existe')
-      if (fila.automations?.workspace_id !== ws(args)) {
-        throw new Error('ese paso es de otra cuenta')
-      }
-      if (fila.step_type !== 'wait') throw new Error('ese paso no es una espera')
-      const { data, error } = await db()
-        .from('automation_steps')
-        .update({ step_config: { amount: Number(args.amount), unit: String(args.unit) } })
-        .eq('id', fila.id)
-        .select('id, step_config')
-        .maybeSingle()
-      if (error) throw new Error(error.message)
-      return data
-    },
-  },
+  desdeCapacidad('operacion_estado', 'operacion.estado'),
+  desdeCapacidad('por_que_no_salio', 'mensajes.diagnostico'),
+  desdeCapacidad('automatizacion_activar', 'automatizaciones.activar'),
+  desdeCapacidad('automatizacion_editar_espera', 'automatizaciones.editar_espera'),
 
   {
     name: 'cron_estado',
@@ -341,83 +119,8 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
 
-  {
-    name: 'aprobacion_decidir',
-    description:
-      'Aprueba o rechaza una decisión que estaba esperando (las que devuelve operacion_estado). Aprobar ejecuta lo que estaba pendiente.',
-    descriptionEn:
-      'Approves or rejects a decision that was waiting (the ones operacion_estado returns). Approving executes whatever was pending.',
-    risk: 'reversible',
-    schema: {
-      type: 'object',
-      properties: {
-        workspace_id: { type: 'string' },
-        approval_id: { type: 'string' },
-        aprobar: { type: 'boolean' },
-      },
-      required: ['workspace_id', 'approval_id', 'aprobar'],
-    },
-    async run(args) {
-      return decidir(db(), {
-        approvalId: String(args.approval_id),
-        decision: args.aprobar ? 'aprobada' : 'rechazada',
-        via: 'panel',
-        // El workspace no es decorativo: sin él, un id suelto aprueba algo de
-        // otra cuenta, y aprobar cobra un pedido en Shopify.
-        workspaceId: ws(args),
-      })
-    },
-  },
-
-  {
-    name: 'mensaje_enviar',
-    description:
-      'Manda un mensaje de WhatsApp a un contacto de la cuenta. Le llega a una persona real, así que primero devuelve qué haría y espera confirmación.',
-    descriptionEn:
-      'Sends a WhatsApp message to a contact of the account. It reaches a real person, so it first returns what it would do and waits for confirmation.',
-    risk: 'irreversible',
-    schema: {
-      type: 'object',
-      properties: {
-        workspace_id: { type: 'string' },
-        contact_id: { type: 'string' },
-        texto: { type: 'string' },
-      },
-      required: ['workspace_id', 'contact_id', 'texto'],
-    },
-    async preview(args) {
-      const { data } = await db()
-        .from('contacts')
-        .select('name, phone, opted_out')
-        .eq('id', String(args.contact_id))
-        .eq('workspace_id', ws(args))
-        .maybeSingle()
-      const c = data as { name?: string; phone?: string; opted_out?: boolean } | null
-      if (!c) return 'Ese contacto no existe en esta cuenta.'
-      const baja = c.opted_out ? ' — OJO: pidió la baja, el envío se va a frenar' : ''
-      return `Le mandaría a ${c.name ?? 'sin nombre'} (${c.phone}): "${args.texto}"${baja}`
-    },
-    async run(args) {
-      const { engineSendText } = await import('@/lib/automations/meta-send')
-      const { data: conv } = await db()
-        .from('conversations')
-        .select('id')
-        .eq('contact_id', String(args.contact_id))
-        .eq('workspace_id', ws(args))
-        .order('last_message_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (!conv) throw new Error('ese contacto no tiene conversación abierta')
-      return engineSendText({
-        workspaceId: ws(args),
-        conversationId: (conv as { id: string }).id,
-        contactId: String(args.contact_id),
-        text: String(args.texto),
-        automationName: 'MCP',
-        reason: 'asistente',
-      })
-    },
-  },
+  desdeCapacidad('aprobacion_decidir', 'aprobaciones.decidir'),
+  desdeCapacidad('mensaje_enviar', 'mensajes.enviar'),
 ]
 
 /**

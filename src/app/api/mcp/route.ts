@@ -370,7 +370,9 @@ export async function POST(request: Request) {
       // Lo irreversible se muestra antes de hacerse.
       if (tool.risk === 'irreversible') {
         if (!token || !confirmacionValida(String(token), tool.name, args)) {
-          const detalle = tool.preview ? await tool.preview(args) : comoTexto(args)
+          const detalle = tool.preview
+            ? await tool.preview(args, { label: actor.label })
+            : comoTexto(args)
           await anotar({
             actor,
             tool: tool.name,
@@ -394,7 +396,9 @@ export async function POST(request: Request) {
       }
 
       try {
-        const salida = await tool.run(args)
+        // La llave que ejecuta viaja hasta la capacidad: es lo que deja
+        // registrado QUIÉN aprobó una decisión, y no sólo que se aprobó.
+        const salida = await tool.run(args, { label: actor.label })
         await anotar({
           actor,
           tool: tool.name,

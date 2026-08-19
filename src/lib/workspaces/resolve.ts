@@ -56,6 +56,40 @@ export async function resolveWorkspaceIdForUser(
 }
 
 /**
+ * ¿Este usuario manda en ESE workspace? Dueño, o miembro con rol `admin`.
+ *
+ * Hay cosas que un miembro cualquiera no debería poder hacer aunque tenga
+ * acceso a la cuenta: emitir una llave de MCP con alcance total es una: esa
+ * llave manda WhatsApps a los clientes del comercio desde afuera de la
+ * aplicación, y sobrevive a que la persona deje el equipo.
+ */
+export async function isWorkspaceAdmin(
+  db: SupabaseClient,
+  userId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  if (!userId || !workspaceId) return false
+
+  const { data: owner } = await db
+    .from('workspaces')
+    .select('id')
+    .eq('id', workspaceId)
+    .eq('owner_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (owner) return true
+
+  const { data } = await db
+    .from('workspace_members')
+    .select('role, workspaces!inner(deleted_at)')
+    .eq('user_id', userId)
+    .eq('workspace_id', workspaceId)
+    .is('workspaces.deleted_at', null)
+    .maybeSingle()
+  return (data as { role?: string } | null)?.role === 'admin'
+}
+
+/**
  * ¿Este usuario es miembro de ESE workspace, y el workspace sigue vivo?
  *
  * La comprobación de membresía suelta —un SELECT sobre `workspace_members`—

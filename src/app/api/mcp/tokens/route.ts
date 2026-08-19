@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { isWorkspaceAdmin, resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { generateToken, hashToken, tokenPrefix } from '@/lib/mcp/tokens'
+import { revocarRefreshDeCliente } from '@/lib/mcp/oauth'
 
 /**
  * Las llaves de MCP de un comercio.
@@ -16,11 +17,16 @@ import { generateToken, hashToken, tokenPrefix } from '@/lib/mcp/tokens'
  *
  * El workspace sale SIEMPRE de la sesión, nunca del pedido. Es la misma regla
  * que hace que esto sea seguro del otro lado.
+ *
+ * Verlas alcanza con ser del equipo del comercio; emitirlas y revocarlas, no.
+ * Una llave de alcance total manda WhatsApps a los clientes desde afuera de la
+ * aplicación y sigue viva cuando la persona que la creó ya no está: eso lo
+ * decide quien responde por la cuenta.
  */
 
 const MAX_TOKENS = 10
 
-async function contexto() {
+async function contexto(requireAdmin = false) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -28,6 +34,9 @@ async function contexto() {
   if (!user) return null
   const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
   if (!workspaceId) return null
+  if (requireAdmin && !(await isWorkspaceAdmin(supabaseAdmin(), user.id, workspaceId))) {
+    return null
+  }
   return { userId: user.id, workspaceId }
 }
 
@@ -55,7 +64,7 @@ export async function POST(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
 
-  const ctx = await contexto()
+  const ctx = await contexto(true)
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await request.json().catch(() => null)) as {
@@ -112,24 +121,33 @@ export async function DELETE(request: Request) {
   const block = await csrfGuard(request)
   if (block) return block
 
-  const ctx = await contexto()
+  const ctx = await contexto(true)
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const id = new URL(request.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id_required' }, { status: 400 })
 
   try {
-    const { data, error } = await supabaseAdmin()
+    const admin = supabaseAdmin()
+    const { data, error } = await admin
       .from('mcp_tokens')
       .update({ revoked_at: new Date().toISOString() })
       .eq('id', id)
       // La barrera de cuenta: sin esto, un id suelto revocaría la llave de otro.
       .eq('workspace_id', ctx.workspaceId)
       .is('revoked_at', null)
-      .select('id')
+      .select('id, client_id')
       .maybeSingle()
     if (error) return serverError(error)
     if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+    // Si la llave la emitió OAuth, con revocarla no alcanza: el access token
+    // dura una hora y el cliente tiene un refresh con el que pide otro. Quien
+    // revoca desde la pantalla cree haber cerrado la puerta.
+    const clientId = (data as { client_id?: string | null }).client_id
+    if (clientId) {
+      await revocarRefreshDeCliente(admin, { clientId, workspaceId: ctx.workspaceId })
+    }
     return NextResponse.json({ ok: true })
   } catch (err) {
     return serverError(err)

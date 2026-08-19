@@ -251,6 +251,26 @@ export async function emitirTokens(
   }
 }
 
+/**
+ * Corta los refresh de un cliente en una cuenta.
+ *
+ * Hace falta al revocar una llave emitida por OAuth. El access token vive una
+ * hora, así que revocar sólo su fila de `mcp_tokens` no revoca nada: el cliente
+ * usa el refresh y se emite otra. Quien revoca desde la pantalla cree haber
+ * cerrado la puerta y la dejó abierta.
+ */
+export async function revocarRefreshDeCliente(
+  db: SupabaseClient,
+  input: { clientId: string; workspaceId: string },
+): Promise<void> {
+  await db
+    .from('oauth_refresh_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('client_id', input.clientId)
+    .eq('workspace_id', input.workspaceId)
+    .is('revoked_at', null)
+}
+
 export interface RefreshValido {
   workspaceId: string
   userId: string
