@@ -6,12 +6,13 @@
  * activa una automatización a la que le faltaba el nombre de la plantilla, y el
  * resultado era una corrida fallida por cada disparo, en silencio.
  */
-import { assertActivable } from '@/lib/automations/activation'
+import { assertActivable, activationIssuesById } from '@/lib/automations/activation'
 import { installTemplate } from '@/lib/automations/install-template'
 import {
   AUTOMATION_TEMPLATES,
   TEMPLATE_GALLERY_ORDER,
   automationTemplateNameKey,
+  type TemplateSlug,
 } from '@/lib/automations/templates'
 import { translate } from '@/lib/i18n/translate'
 import type { Capability, CapabilityContext } from './types'
@@ -101,6 +102,24 @@ async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unk
   }
 }
 
+/**
+ * Qué dice que va a hacer, en castellano.
+ *
+ * No es decorado: es lo que lee la persona que aprueba. Sin esto la tarjeta
+ * mostraba "automatizaciones.crear_desde_receta — receta: carrito-abandonado",
+ * que es el nombre interno de una función, y aprobar algo que no se entiende
+ * no es aprobar.
+ */
+async function nombreDe(ctx: CapabilityContext, automationId: string): Promise<string> {
+  const { data } = await ctx.db
+    .from('automations')
+    .select('name')
+    .eq('id', automationId)
+    .eq('workspace_id', ctx.workspaceId)
+    .maybeSingle()
+  return (data as { name?: string } | null)?.name ?? 'esa automatización'
+}
+
 export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.listar',
@@ -139,6 +158,23 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       },
       required: ['automation_id', 'activa'],
     },
+    async preview(ctx, args) {
+      const nombre = await nombreDe(ctx, String(args.automation_id))
+      if (!args.activa) return `Pausaría «${nombre}». Deja de dispararse hasta que la prendas.`
+      // Se valida acá y no sólo al ejecutar: si le falta la plantilla, decirlo
+      // antes evita que alguien apruebe algo que va a fallar.
+      const issues = await activationIssuesById(
+        ctx.db,
+        String(args.automation_id),
+        ctx.workspaceId,
+      ).catch(() => null)
+      if (issues && issues.length > 0) {
+        return `«${nombre}» todavía no se puede prender: falta ${issues
+          .map((i) => i.message)
+          .join('; ')}.`
+      }
+      return `Prendería «${nombre}». Empieza a dispararse con cada evento que la active.`
+    },
     run: activar,
   },
 
@@ -157,6 +193,26 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
         unit: { type: 'string', enum: ['minutes', 'hours', 'days'] },
       },
       required: ['step_id', 'amount', 'unit'],
+    },
+    async preview(ctx, args) {
+      const { data } = await ctx.db
+        .from('automation_steps')
+        .select('step_config, automations!inner(name, workspace_id)')
+        .eq('id', String(args.step_id))
+        .maybeSingle()
+      const fila = data as
+        | {
+            step_config?: { amount?: number; unit?: string }
+            automations?: { name?: string; workspace_id?: string }
+          }
+        | null
+      if (!fila || fila.automations?.workspace_id !== ctx.workspaceId) {
+        return 'Ese paso no existe en esta cuenta.'
+      }
+      const antes = fila.step_config
+        ? `${fila.step_config.amount} ${fila.step_config.unit}`
+        : 'la espera actual'
+      return `En «${fila.automations?.name ?? 'la automatización'}» cambiaría la espera de ${antes} a ${args.amount} ${args.unit}.`
     },
     run: editarEspera,
   },
@@ -177,6 +233,13 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
         },
       },
       required: ['receta'],
+    },
+    async preview(ctx, args) {
+      const slug = String(args.receta)
+      const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
+      if (!t) return `No existe la receta "${slug}".`
+      const nombre = translate(ctx.locale ?? 'es', automationTemplateNameKey(slug))
+      return `Crearía «${nombre}» con sus ${t.steps.length} pasos ya armados, en pausa. Después hay que completar la plantilla de WhatsApp y la etiqueta antes de prenderla.`
     },
     run: crearDesdeReceta,
   },
