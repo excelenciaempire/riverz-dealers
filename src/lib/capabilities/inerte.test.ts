@@ -17,6 +17,7 @@ import { ALL_CAPABILITIES, esInerte, getCapability } from './registry'
 
 /** Lo que sí puede construirse solo, con su motivo. */
 const INERTES: Record<string, string> = {
+  'automatizaciones.crear': 'nace pausada',
   'automatizaciones.crear_desde_receta': 'nace pausada y sin plantilla',
   'automatizaciones.editar_espera': 'cambia un tiempo, no manda nada',
   'agentes.crear_borrador': 'nace pausado, no le contesta a nadie',

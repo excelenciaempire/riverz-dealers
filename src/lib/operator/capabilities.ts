@@ -23,6 +23,7 @@ const HABILITADAS = new Set([
   'automatizaciones.recetas',
   'automatizaciones.activar',
   'automatizaciones.editar_espera',
+  'automatizaciones.crear',
   'automatizaciones.crear_desde_receta',
   'aprobaciones.pendientes',
   'aprobaciones.decidir',

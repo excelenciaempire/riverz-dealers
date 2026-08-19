@@ -9,6 +9,15 @@
 import { assertActivable, activationIssuesById } from '@/lib/automations/activation'
 import { installTemplate } from '@/lib/automations/install-template'
 import {
+  AI_STEPS_SCHEMA,
+  AI_TRIGGERS,
+  planDesdeIA,
+  type AiPaso,
+} from '@/lib/automations/ai-steps'
+import { insertSteps } from '@/lib/automations/steps-tree'
+import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
+import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
+import {
   AUTOMATION_TEMPLATES,
   TEMPLATE_GALLERY_ORDER,
   automationTemplateNameKey,
@@ -85,6 +94,65 @@ async function recetas(ctx: CapabilityContext) {
       pasarela_requerida: t.requiresGateway ?? null,
     }
   })
+}
+
+/**
+ * Una automatización armada desde cero.
+ *
+ * Las recetas cubren los siete casos que se repiten en todas las tiendas; esto
+ * es para el octavo, el que es de este comercio y de ningún otro. Nace pausada
+ * igual: lo que cambia es de dónde salen los pasos, no cuándo empieza a
+ * escribirle a la gente.
+ */
+async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const { plan, problemas } = planDesdeIA({
+    nombre: args.nombre as string,
+    disparador: args.disparador as string,
+    pasos: args.pasos as AiPaso[],
+  })
+  if (!plan) {
+    // Se devuelve legible para que el modelo pueda corregir en la misma vuelta
+    // en vez de fallar y quedarse ahí.
+    throw new Error(
+      `no se puede crear así — ${problemas.map((p) => `${p.path}: ${p.message}`).join('; ')}`,
+    )
+  }
+
+  const userId =
+    ctx.actor.type === 'ui' || ctx.actor.type === 'operator' ? ctx.actor.id : null
+
+  const { data, error } = await ctx.db
+    .from('automations')
+    .insert({
+      user_id: userId ?? (await resolveWorkspaceOwnerUserId(ctx.db, ctx.workspaceId)),
+      workspace_id: ctx.workspaceId,
+      name: plan.nombre,
+      trigger_type: plan.disparador,
+      trigger_config: {},
+      is_active: false,
+    })
+    .select('id, name, trigger_type, is_active')
+    .single()
+  if (error || !data) throw new Error(error?.message ?? 'no se pudo crear')
+  const automation = data as { id: string; name: string }
+
+  // Las etiquetas viajan por nombre y acá se convierten en filas reales de la
+  // cuenta, creándolas si no existían. Sin esto, el paso guarda un texto donde
+  // va un uuid y la corrida falla contra la clave foránea.
+  const err = await insertSteps(
+    automation.id,
+    await resolverEtiquetas(ctx.db, ctx.workspaceId, plan.pasos),
+  )
+  if (err) {
+    await ctx.db.from('automations').delete().eq('id', automation.id)
+    throw new Error(err)
+  }
+
+  return {
+    ...automation,
+    pasos: plan.pasos.length,
+    nota: 'Queda pausada. Revisala y prendela cuando quieras.',
+  }
 }
 
 async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unknown>) {
@@ -221,6 +289,32 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       return `En «${fila.automations?.name ?? 'la automatización'}» cambiaría la espera de ${antes} a ${args.amount} ${args.unit}.`
     },
     run: editarEspera,
+  },
+
+  {
+    key: 'automatizaciones.crear',
+    description: `Arma una automatización desde cero, con sus pasos. Para lo que no cubre ninguna receta. Nace pausada.
+Disparadores: ${AI_TRIGGERS.map((x) => `${x.value} (${x.que})`).join('; ')}.
+Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de una plantilla YA aprobada — consultá plantillas.estado antes), wait (cantidad + unidad), add_tag (nombre de etiqueta), condition (sujeto + operando, con ramas si/no), close_conversation.`,
+    descriptionEn:
+      'Builds an automation from scratch, with its steps, for what no recipe covers. It starts paused.',
+    risk: 'reversible',
+    inerte: true,
+    schema: AI_STEPS_SCHEMA,
+    async preview(ctx, args) {
+      const { plan, problemas } = planDesdeIA({
+        nombre: args.nombre as string,
+        disparador: args.disparador as string,
+        pasos: args.pasos as AiPaso[],
+      })
+      if (!plan) {
+        return `Todavía no se puede: ${problemas.map((p) => p.message).join('; ')}.`
+      }
+      const cuando =
+        AI_TRIGGERS.find((x) => x.value === plan.disparador)?.que ?? plan.disparador
+      return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.pasos.length} paso(s). Nace pausada.`
+    },
+    run: crear,
   },
 
   {
