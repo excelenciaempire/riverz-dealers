@@ -67,7 +67,7 @@ interface Overview {
   agentes: { id: string; name: string; is_active: boolean }[]
 }
 
-export function CentroOperacion() {
+export function CentroOperacion({ refreshKey = 0 }: { refreshKey?: number }) {
   const t = useT()
   const [data, setData] = useState<Overview | null>(null)
   const [error, setError] = useState(false)
@@ -83,9 +83,12 @@ export function CentroOperacion() {
     }
   }, [])
 
+  // `refreshKey` cambia cuando el Operator ejecuta algo: la pantalla tiene que
+  // reflejarlo enseguida, porque acabar de prender una automatización y seguir
+  // viendo el conteo viejo hace dudar de si la acción se aplicó.
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, refreshKey])
 
   if (error) {
     return (

@@ -48,6 +48,11 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
     'context',
   ],
   webhook_events_raw: ['raw_body', 'headers', 'signature'],
+  // Hilos del Operator: lo que un comercio le escribe puede llevar el teléfono
+  // de un cliente adentro, y `args`/`result` arrastran lo que devolvió una
+  // capacidad. El panel puede contar acciones, no leerlas.
+  operator_messages: ['content'],
+  operator_actions: ['args', 'result', 'preview'],
   ig_proactive_log: ['text'],
   comment_to_dm_log: ['comment_external_id', 'dm_external_id'],
   automation_logs: ['contact_phone_snapshot', 'contact_name_snapshot'],

@@ -1,5 +1,5 @@
 import { getT } from '@/lib/i18n/server'
-import { CentroOperacion } from '@/components/operacion/centro'
+import { OperacionShell } from '@/components/operacion/shell'
 
 export default async function OperacionPage() {
   const t = await getT()
@@ -9,7 +9,7 @@ export default async function OperacionPage() {
         <h1 className="text-2xl font-bold text-foreground">{t('operation.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('operation.subtitle')}</p>
       </div>
-      <CentroOperacion />
+      <OperacionShell />
     </div>
   )
 }

@@ -55,4 +55,38 @@ export const operation = {
   retry: { es: "Reintentar", en: "Retry" },
   seeAll: { es: "Ver todo", en: "See all" },
   resolve: { es: "Resolver", en: "Resolve" },
+
+  // Operator
+  operatorTitle: { es: "Operator", en: "Operator" },
+  operatorHint: {
+    es: "Preguntale por tu operación o pedile un cambio. Antes de tocar nada, te muestra qué haría.",
+    en: "Ask about your operation or request a change. Before touching anything, it shows you what it would do.",
+  },
+  operatorPlaceholder: { es: "¿Qué necesitás?", en: "What do you need?" },
+  operatorSend: { es: "Enviar", en: "Send" },
+  operatorThinking: { es: "Pensando…", en: "Thinking…" },
+  operatorError: {
+    es: "No se pudo responder. Probá de nuevo.",
+    en: "Couldn't reply. Try again.",
+  },
+  operatorRateLimited: {
+    es: "Demasiadas consultas seguidas. Esperá un minuto.",
+    en: "Too many requests in a row. Wait a minute.",
+  },
+  operatorTry1: { es: "¿Cómo viene la semana?", en: "How is the week going?" },
+  operatorTry2: { es: "¿Qué está frenando las ventas?", en: "What is holding sales back?" },
+  operatorTry3: {
+    es: "Activá recuperación de carritos",
+    en: "Turn on cart recovery",
+  },
+
+  // Acciones propuestas
+  proposedTitle: { es: "Esperando tu aprobación", en: "Waiting for your approval" },
+  approve: { es: "Aprobar", en: "Approve" },
+  reject: { es: "Rechazar", en: "Reject" },
+  statusExecuted: { es: "Hecho", en: "Done" },
+  statusRejected: { es: "Rechazado", en: "Rejected" },
+  statusFailed: { es: "Falló", en: "Failed" },
+  riskReversible: { es: "Se puede deshacer", en: "Can be undone" },
+  riskIrreversible: { es: "No se puede deshacer", en: "Cannot be undone" },
 } satisfies Namespace;
