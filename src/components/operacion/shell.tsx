@@ -1,15 +1,29 @@
 'use client'
 
-import { CentroOperacion } from './centro'
+import { PanelDashboard } from '@/components/dashboard/panel-dashboard'
+import {
+  ConversacionesPendientes,
+  QueEstaCorriendo,
+  useOperacion,
+} from './centro'
 
 /**
- * La pestaña Panel: sólo el estado.
+ * La pestaña Panel: el panel de siempre con lo de la operación adentro.
  *
- * Antes esto partía la pantalla en dos, con el chat en una barra de 22rem al
- * costado. El chat dejó de ser un panel dentro de otra cosa — ahora es su
- * propia pestaña, a pantalla completa — así que acá queda el centro de control
- * solo, con todo el ancho para crecer.
+ * No son dos paneles apilados. El de siempre trae lo que pasó —métricas,
+ * gráficos, actividad— y la operación mete lo suyo donde corresponde: quién
+ * escribió y espera, arriba con lo que necesita a una persona; qué está
+ * trabajando solo, junto a las cifras. Juntar "Inicio" con "Panel" era esto:
+ * dos pantallas que mostraban mitades del mismo cuadro.
  */
 export function OperacionShell() {
-  return <CentroOperacion />
+  const { data } = useOperacion()
+
+  return (
+    <PanelDashboard
+      ocultarChecklist
+      slotAtencion={<ConversacionesPendientes data={data} />}
+      slotEstado={<QueEstaCorriendo data={data} />}
+    />
+  )
 }

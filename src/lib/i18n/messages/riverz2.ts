@@ -9,5 +9,7 @@ import type { Namespace } from "./types";
 export const riverz2 = {
   tabChat: { es: "Chat", en: "Chat" },
   tabPanel: { es: "Panel", en: "Panel" },
+  tabInbox: { es: "Bandeja", en: "Inbox" },
   tabEdit: { es: "Editar", en: "Edit" },
+  tabSettings: { es: "Ajustes", en: "Settings" },
 } satisfies Namespace;

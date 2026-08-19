@@ -60,6 +60,10 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>;
   beta?: boolean;
   alsoActiveOn?: string[];
+  /** Sólo aparece con Riverz 2.0 prendido. */
+  soloRiverz2?: boolean;
+  /** Desaparece con Riverz 2.0 prendido, porque allá es una pestaña. */
+  esPestanaEnRiverz2?: boolean;
 }
 
 interface NavGroup {
@@ -78,9 +82,12 @@ const navGroups: NavGroup[] = [
   {
     title: "nav.groupDaily",
     items: [
-      { href: "/panel", label: "nav.home", icon: Home },
-      { href: "/bandeja", label: "nav.inbox", icon: Inbox },
-      { href: "/contactos", label: "nav.contacts", icon: Users },
+      // Los tres se van arriba en Riverz 2.0: Inicio se junta con el Panel, y
+      // Bandeja pasa a ser pestaña propia. Dejarlos acá sería tener dos puertas
+      // al mismo lugar — y peor: "Inicio" te expulsaría al chat.
+      { href: "/panel", label: "nav.home", icon: Home, esPestanaEnRiverz2: true },
+      { href: "/bandeja", label: "nav.inbox", icon: Inbox, esPestanaEnRiverz2: true },
+      { href: "/contactos", label: "nav.contacts", icon: Users, esPestanaEnRiverz2: true },
     ],
   },
   {
@@ -106,6 +113,10 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/productos", label: "nav.products", icon: ShoppingBag },
       { href: "/pedidos", label: "nav.orders", icon: Receipt },
+      // Sólo en Riverz 2.0: allá el menú es la pestaña "Editar" y Contactos se
+      // queda sin grupo propio, porque Inicio y Bandeja se fueron arriba. Los
+      // contactos SON los clientes de la tienda, así que caen acá naturalmente.
+      { href: "/contactos", label: "nav.contacts", icon: Users, soloRiverz2: true },
     ],
   },
 ];
@@ -167,11 +178,15 @@ export function Sidebar({
       ...group,
       items: group.items.filter(
         (item) =>
-          canAccessSection(allowedSections, item.href) && navFeatureEnabled(item.href),
+          (riverz2 ? !item.esPestanaEnRiverz2 : !item.soloRiverz2) &&
+          canAccessSection(allowedSections, item.href) &&
+          navFeatureEnabled(item.href),
       ),
     }))
     .filter((group) => group.items.length > 0);
-  const canSeeIntegrations = canAccessSection(allowedSections, "/integraciones");
+  // Integraciones y Ajustes se van a la pestaña Ajustes en Riverz 2.0.
+  const canSeeIntegrations =
+    !riverz2 && canAccessSection(allowedSections, "/integraciones");
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -310,42 +325,49 @@ export function Sidebar({
 
         {/* Pie del sidebar: Integraciones (con badge pendiente hasta que
             WhatsApp y Shopify estén conectados) y Ajustes (perfil, equipo,
-            apariencia). El equipo vive dentro de Ajustes → Equipo. */}
-        <div
-          className={cn(
-            "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
-            collapsed ? "lg:px-2" : "px-3",
-          )}
-        >
-          {canSeeIntegrations && (
+            apariencia). El equipo vive dentro de Ajustes → Equipo.
+            En Riverz 2.0 los dos son la pestaña Ajustes, así que el pie
+            entero desaparece. */}
+        {!riverz2 && (
+          <div
+            className={cn(
+              "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
+              collapsed ? "lg:px-2" : "px-3",
+            )}
+          >
+            {canSeeIntegrations && (
+              <NavLink
+                item={{
+                  href: "/integraciones",
+                  label: "nav.integrations",
+                  icon: Blocks,
+                }}
+                pathname={pathname} fullPath={fullPath}
+                collapsed={collapsed}
+                totalUnread={0}
+              />
+            )}
             <NavLink
-              item={{
-                href: "/integraciones",
-                label: "nav.integrations",
-                icon: Blocks,
-              }}
+              item={{ href: "/ajustes", label: "nav.settings", icon: Settings }}
               pathname={pathname} fullPath={fullPath}
               collapsed={collapsed}
               totalUnread={0}
             />
-          )}
-          <NavLink
-            item={{ href: "/ajustes", label: "nav.settings", icon: Settings }}
-            pathname={pathname} fullPath={fullPath}
-            collapsed={collapsed}
-            totalUnread={0}
-          />
-          {/* Admin de plataforma: SIN entrada en el menú (a pedido). Se accede
-              solo por URL directa /admin/voz. El layout de /admin y cada ruta
-              /api/admin siguen siendo la puerta real (platform-admin). */}
-        </div>
+            {/* Admin de plataforma: SIN entrada en el menú (a pedido). Se accede
+                solo por URL directa /admin/voz. El layout de /admin y cada ruta
+                /api/admin siguen siendo la puerta real (platform-admin). */}
+          </div>
+        )}
 
-        {/* User row + theme toggle */}
+        {/* User row + theme toggle. En Riverz 2.0 esto ya está en la barra de
+            arriba, que se ve desde las cinco pestañas: repetirlo acá deja dos
+            avatares en la misma pantalla. */}
         <div
           className={cn(
             "flex shrink-0 items-center gap-2 border-t border-sidebar-border p-3",
             "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
             collapsed && "lg:flex-col lg:gap-2 lg:p-2",
+            riverz2 && "hidden",
           )}
         >
           <DropdownMenu>

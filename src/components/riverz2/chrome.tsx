@@ -30,23 +30,47 @@ import { cn } from "@/lib/utils";
  * la conversación es la pantalla, no un panel dentro de otra cosa.
  */
 
-export type Riverz2Tab = "chat" | "panel" | "editar";
+export type Riverz2Tab = "chat" | "panel" | "bandeja" | "editar" | "ajustes";
 
-/** A qué pestaña pertenece una ruta. Todo lo que no es del chat ni del panel es editar. */
+/**
+ * Las cinco superficies.
+ *
+ * Chat es la casa. Panel es todo lo que hay que mirar. Bandeja y Ajustes son
+ * pestañas propias porque son destinos, no secciones: al equipo la bandeja le
+ * lleva el día entero, y a los ajustes se entra desde cualquier lado. Editar es
+ * el resto — lo que el chat construye y a veces hay que retocar a mano.
+ */
+const TABS: { tab: Riverz2Tab; href: string; label: string; prefijo: string }[] = [
+  { tab: "chat", href: "/chat", label: "riverz2.tabChat", prefijo: "/chat" },
+  { tab: "panel", href: "/operacion", label: "riverz2.tabPanel", prefijo: "/operacion" },
+  { tab: "bandeja", href: "/bandeja", label: "riverz2.tabInbox", prefijo: "/bandeja" },
+  // Entra por las automatizaciones: es lo que el chat más arma, así que es lo
+  // que más se va a querer retocar.
+  { tab: "editar", href: "/automatizaciones", label: "riverz2.tabEdit", prefijo: "" },
+  { tab: "ajustes", href: "/ajustes", label: "riverz2.tabSettings", prefijo: "/ajustes" },
+];
+
+/**
+ * Integraciones cuenta como Ajustes.
+ *
+ * Conectar canales y tiendas es configurar la cuenta, no editar lo que el chat
+ * armó. Es su propia pantalla —es grande— pero la pestaña que se prende es la
+ * de Ajustes, para que no parezca que te fuiste a otro lado.
+ */
+const EN_AJUSTES = ["/integraciones"];
+
+/** A qué pestaña pertenece una ruta. Lo que no cae en ninguna es editar. */
 export function tabForPath(path: string): Riverz2Tab {
-  const p = canonicalizePath(path);
-  if (p === "/chat" || p.startsWith("/chat/")) return "chat";
-  if (p === "/operacion" || p.startsWith("/operacion/")) return "panel";
+  const p = canonicalizePath(path).split("?")[0];
+  if (EN_AJUSTES.some((x) => p === x || p.startsWith(`${x}/`))) return "ajustes";
+  for (const x of TABS) {
+    if (x.prefijo && (p === x.prefijo || p.startsWith(`${x.prefijo}/`))) return x.tab;
+  }
   return "editar";
 }
 
-const TABS: { tab: Riverz2Tab; href: string; label: string }[] = [
-  { tab: "chat", href: "/chat", label: "riverz2.tabChat" },
-  { tab: "panel", href: "/operacion", label: "riverz2.tabPanel" },
-  // Entra por la bandeja y no por /panel: es donde el equipo pasa el día, y
-  // /panel manda al chat cuando la experiencia nueva está prendida.
-  { tab: "editar", href: "/bandeja", label: "riverz2.tabEdit" },
-];
+/** Las que ocupan la pantalla entera, sin barra lateral. */
+const SIN_BARRA: Riverz2Tab[] = ["chat", "panel", "bandeja", "ajustes"];
 
 export function Riverz2Chrome({
   children,
@@ -58,18 +82,19 @@ export function Riverz2Chrome({
 }) {
   const activa = tabForPath(usePathname());
   const enChat = activa === "chat";
+  // La bandeja trae su propio armazón de tres columnas y su propio scroll: con
+  // el relleno de las otras pantallas queda encajonada.
+  const aBorde = enChat || activa === "bandeja";
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       <TabBar activa={activa} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {activa === "editar" && sidebar}
+        {!SIN_BARRA.includes(activa) && sidebar}
         <main
           className={cn(
             "min-w-0 flex-1",
-            // El chat maneja su propio scroll y llega hasta el borde; el resto
-            // conserva el respiro de siempre.
-            enChat ? "overflow-hidden" : "overflow-y-auto p-4 sm:p-6 lg:p-8",
+            aBorde ? "overflow-hidden" : "overflow-y-auto p-4 sm:p-6 lg:p-8",
           )}
         >
           {children}
