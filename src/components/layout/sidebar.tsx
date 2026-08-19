@@ -14,7 +14,6 @@ import { canAccessSection } from "@/lib/rbac/sections";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
 import { useFeatureFlags, useRiverz2 } from "@/hooks/use-feature-flags";
 import {
-  Activity,
   Home,
   Inbox,
   Users,
@@ -61,8 +60,6 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>;
   beta?: boolean;
   alsoActiveOn?: string[];
-  /** Sólo para los comercios con la experiencia Riverz 2.0 prendida. */
-  riverz2?: boolean;
 }
 
 interface NavGroup {
@@ -81,9 +78,6 @@ const navGroups: NavGroup[] = [
   {
     title: "nav.groupDaily",
     items: [
-      // Primero del menú, y sólo para quien tiene Riverz 2.0: es la pantalla
-      // desde la que se opera. Para el resto de las cuentas ni siquiera existe.
-      { href: "/operacion", label: "nav.operation", icon: Activity, riverz2: true },
       { href: "/panel", label: "nav.home", icon: Home },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
       { href: "/contactos", label: "nav.contacts", icon: Users },
@@ -165,18 +159,15 @@ export function Sidebar({
     const feat = featureForPath(href);
     return !feat || isFeatureEnabled(flags, feat);
   };
-  // La experiencia nueva se lee al revés que el resto: sin fila está APAGADA.
-  // Y acá tampoco se le abre al equipo de plataforma, porque lo que hay que ver
-  // es qué ve el comercio.
+  // En Riverz 2.0 esta barra es sólo la pestaña de editar: la marca y la
+  // navegación entre superficies viven arriba, en las pestañas.
   const riverz2 = useRiverz2();
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
-          (!item.riverz2 || riverz2) &&
-          canAccessSection(allowedSections, item.href) &&
-          navFeatureEnabled(item.href),
+          canAccessSection(allowedSections, item.href) && navFeatureEnabled(item.href),
       ),
     }))
     .filter((group) => group.items.length > 0);
@@ -239,16 +230,20 @@ export function Sidebar({
             collapsed ? "px-4 lg:justify-center lg:px-2" : "px-4",
           )}
         >
-          <Link
-            href="/panel"
-            aria-label="riverz"
-            className={cn(
-              "text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
-              collapsed && "lg:hidden",
-            )}
-          >
-            riverz
-          </Link>
+          {/* En Riverz 2.0 la marca ya está en la barra de pestañas, arriba:
+              repetirla acá deja dos "riverz" apilados. */}
+          {!riverz2 && (
+            <Link
+              href="/panel"
+              aria-label="riverz"
+              className={cn(
+                "text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary",
+                collapsed && "lg:hidden",
+              )}
+            >
+              riverz
+            </Link>
+          )}
 
           {/* Mobile close button */}
           <button
