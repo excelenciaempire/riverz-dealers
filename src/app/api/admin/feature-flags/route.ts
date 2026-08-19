@@ -4,12 +4,21 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { adminGet } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { getFeatureFlags, FEATURES } from '@/lib/admin/feature-flags';
+import {
+  getFeatureFlags,
+  FEATURES,
+  OPT_IN_FEATURES,
+  ALL_FEATURES,
+} from '@/lib/admin/feature-flags';
 
 /**
  * Feature flags de plataforma (solo equipo Riverz).
- *   GET → { flags: Record<key, enabled>, features: FEATURES }
+ *   GET → { flags, features: FEATURES, optInFeatures: OPT_IN_FEATURES }
  *   PUT { key, enabled } → prende/apaga una funcionalidad para todas las cuentas.
+ *
+ * Los dos catálogos viajan separados porque se leen con reglas opuestas: en
+ * `features` la ausencia de fila es "prendida" y en `optInFeatures` es
+ * "apagada". Mezclarlos haría que el panel dibuje mal la mitad de los switches.
  */
 export async function GET(request: Request) {
   // Por `adminGet` como las otras: límite de ritmo, fila de auditoría y
@@ -18,6 +27,7 @@ export async function GET(request: Request) {
   return adminGet(request, { action: 'view.feature_flags' }, async () => ({
     flags: await getFeatureFlags(supabaseAdmin()),
     features: FEATURES,
+    optInFeatures: OPT_IN_FEATURES,
   }));
 }
 
@@ -37,7 +47,7 @@ export async function PUT(request: Request) {
   if (!body?.key) {
     return NextResponse.json({ error: 'key required' }, { status: 400 });
   }
-  if (!FEATURES.some((f) => f.key === body.key)) {
+  if (!ALL_FEATURES.some((f) => f.key === body.key)) {
     return NextResponse.json({ error: 'unknown feature' }, { status: 400 });
   }
 

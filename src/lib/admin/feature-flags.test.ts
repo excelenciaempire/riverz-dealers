@@ -3,10 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   FEATURES,
+  OPT_IN_FEATURES,
   canUsePath,
   featureForPath,
   getFeatureFlags,
   isFeatureEnabled,
+  isOptInEnabled,
+  isRiverz2,
 } from './feature-flags';
 
 /**
@@ -46,6 +49,34 @@ describe('isFeatureEnabled', () => {
   it('sólo el false explícito apaga', () => {
     expect(isFeatureEnabled({ flows: false }, 'flows')).toBe(false);
     expect(isFeatureEnabled({ flows: true }, 'flows')).toBe(true);
+  });
+});
+
+describe('experiencias opt-in', () => {
+  // La regla es la inversa de la de arriba, y confundirlas mandaría a toda la
+  // base a la experiencia nueva de golpe. Por eso se fija acá.
+  it('sin fila, la experiencia está APAGADA', () => {
+    expect(isOptInEnabled({}, 'riverz_2')).toBe(false);
+    expect(isRiverz2({})).toBe(false);
+  });
+
+  it('sólo el true explícito la prende', () => {
+    expect(isRiverz2({ riverz_2: false })).toBe(false);
+    expect(isRiverz2({ riverz_2: true })).toBe(true);
+  });
+
+  it('no viven en el catálogo que gatea rutas', () => {
+    // Si `riverz_2` estuviera en FEATURES, `isFeatureEnabled` lo leería con la
+    // regla contraria y quedaría prendido para todos.
+    for (const f of OPT_IN_FEATURES) {
+      expect(FEATURES.some((x) => x.key === f.key)).toBe(false);
+      expect(f.sections).toEqual([]);
+    }
+  });
+
+  it('no gatean ninguna URL', () => {
+    // Su gate es server-side (`isRiverz2`), no el mapa de rutas.
+    expect(featureForPath('/operacion')).toBeNull();
   });
 });
 

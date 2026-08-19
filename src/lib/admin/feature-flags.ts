@@ -9,6 +9,10 @@
  * fila = habilitada (así sumar el sistema no apaga nada por accidente); solo lo
  * explícitamente `enabled=false` se esconde.
  *
+ * Hay dos catálogos con reglas opuestas para la ausencia de fila: `FEATURES`
+ * (apagar algo que ya existe) y `OPT_IN_FEATURES` (estrenar algo nuevo, que
+ * arranca apagado). Ver el comentario de `OPT_IN_FEATURES`.
+ *
  * Este archivo es puro (sin imports server-only) para poder usarse también en
  * el cliente (sidebar / SectionGuard) con el mapa de rutas→feature.
  */
@@ -87,11 +91,47 @@ export const FEATURES: FeatureDef[] = [
   },
 ];
 
+/**
+ * Experiencias opt-in — la ausencia de fila significa lo CONTRARIO que arriba.
+ *
+ * Un flag de `FEATURES` apaga algo que todos los comercios ya usan, así que
+ * ausente = habilitada. Estrenar una experiencia nueva necesita la regla
+ * inversa: si `riverz_2` viviera en ese catálogo, el día que se sumara al
+ * código toda la base saltaría a la versión nueva sin que nadie lo decidiera.
+ *
+ * Por eso van en un catálogo aparte y se leen con `isOptInEnabled`, que exige
+ * el `true` explícito. Comparten tabla, API y panel con las otras; lo único
+ * distinto es cómo se interpreta que no haya fila.
+ */
+export const OPT_IN_FEATURES: FeatureDef[] = [
+  {
+    key: 'riverz_2',
+    labelKey: 'admin.featureRiverz2',
+    descKey: 'admin.featureRiverz2Desc',
+    // Vacío a propósito: no gatea ninguna URL por `featureForPath`. Las rutas
+    // de la experiencia nueva se protegen server-side con `isRiverz2()`.
+    sections: [],
+  },
+];
+
+/** Catálogo completo, para validar una clave que llega de afuera. */
+export const ALL_FEATURES: FeatureDef[] = [...FEATURES, ...OPT_IN_FEATURES];
+
 export type FeatureFlags = Record<string, boolean>;
 
 /** ¿La funcionalidad `key` está habilitada? Ausente = habilitada. */
 export function isFeatureEnabled(flags: FeatureFlags, key: string): boolean {
   return flags[key] !== false;
+}
+
+/** ¿La experiencia opt-in `key` está prendida? Ausente = apagada. */
+export function isOptInEnabled(flags: FeatureFlags, key: string): boolean {
+  return flags[key] === true;
+}
+
+/** ¿Este comercio usa la experiencia Riverz 2.0 (Operación IA)? */
+export function isRiverz2(flags: FeatureFlags): boolean {
+  return isOptInEnabled(flags, 'riverz_2');
 }
 
 /** Feature que cubre esta ruta (o null si ninguna la gatea). */

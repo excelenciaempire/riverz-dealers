@@ -123,6 +123,17 @@ export const admin = {
   },
   featureSaved: { es: "Guardado", en: "Saved" },
   featureSaveError: { es: "No se pudo guardar", en: "Couldn't save" },
+  // Experiencias opt-in: arrancan apagadas y se prenden por comercio
+  experiencesTitle: { es: "Experiencias", en: "Experiences" },
+  experiencesDesc: {
+    es: "Versiones nuevas de la aplicación. Arrancan apagadas: lo normal es prenderlas comercio por comercio desde su ficha.",
+    en: "New versions of the app. They start off: normally you turn them on per merchant from their detail page.",
+  },
+  featureRiverz2: { es: "Riverz 2.0 · Operación IA", en: "Riverz 2.0 · AI Operation" },
+  featureRiverz2Desc: {
+    es: "Centro de operación, Operator y activación guiada en lugar del panel actual.",
+    en: "Operation center, Operator and guided activation instead of the current dashboard.",
+  },
   forbidden: { es: "Solo para administradores de la plataforma.", en: "Platform admins only." },
   // Panel de infraestructura (saldo + estado en vivo de todo lo conectado)
   infraTitle: { es: "Infraestructura", en: "Infrastructure" },

@@ -8,7 +8,7 @@ import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
-import { FEATURES } from "@/lib/admin/feature-flags";
+import { FEATURES, OPT_IN_FEATURES } from "@/lib/admin/feature-flags";
 import type { WorkspaceDetail } from "@/lib/admin/queries";
 import {
   useAdminData,
@@ -346,8 +346,14 @@ function WorkspaceFeatures({
         {t("admin.wsFeaturesDesc")}
       </p>
       <ul className="mt-1 divide-y divide-border">
-        {FEATURES.map((f) => {
-          const globalOn = global[f.key] !== false;
+        {/* Los dos catálogos en una sola lista, cada uno con su regla para la
+            ausencia de fila: las funcionalidades vienen prendidas de fábrica,
+            las experiencias nuevas apagadas. Acá se prende Riverz 2.0 para un
+            comercio piloto sin tocar al resto. */}
+        {[
+          ...FEATURES.map((f) => ({ f, globalOn: global[f.key] !== false })),
+          ...OPT_IN_FEATURES.map((f) => ({ f, globalOn: global[f.key] === true })),
+        ].map(({ f, globalOn }) => {
           const override = overrides[f.key];
           const current: "global" | "on" | "off" =
             override === undefined ? "global" : override ? "on" : "off";

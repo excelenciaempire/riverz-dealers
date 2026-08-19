@@ -17,6 +17,8 @@ import { RefreshButton } from '../_components/filters';
 
 interface Payload {
   features: FeatureDef[];
+  /** Experiencias nuevas: acá la ausencia de fila significa "apagada". */
+  optInFeatures: FeatureDef[];
   flags: FeatureFlags;
 }
 
@@ -71,23 +73,61 @@ export default function AdminFeaturesPage() {
       ) : error || !data ? (
         <LoadError onRetry={reload} />
       ) : (
-        <Panel>
-          <ul className="divide-y divide-border">
-            {data.features.map((f) => (
-              <li key={f.key} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{t(f.labelKey)}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{t(f.descKey)}</p>
-                </div>
-                <Switch
-                  checked={data.flags[f.key] !== false}
-                  disabled={saving === f.key}
-                  onCheckedChange={(c) => toggle(f.key, c)}
-                />
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        <>
+          <Panel>
+            <ul className="divide-y divide-border">
+              {data.features.map((f) => (
+                <li
+                  key={f.key}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{t(f.labelKey)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t(f.descKey)}</p>
+                  </div>
+                  <Switch
+                    checked={data.flags[f.key] !== false}
+                    disabled={saving === f.key}
+                    onCheckedChange={(c) => toggle(f.key, c)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          {/* Experiencias: mismo interruptor, regla inversa. Prender esto acá
+              la enciende para TODA la base; lo normal es dejarlo apagado y
+              prenderlo comercio por comercio desde su ficha. */}
+          {data.optInFeatures.length > 0 && (
+            <Panel title={t('admin.experiencesTitle')}>
+              <p className="px-4 pt-3 text-xs text-muted-foreground">
+                {t('admin.experiencesDesc')}
+              </p>
+              <ul className="mt-1 divide-y divide-border">
+                {data.optInFeatures.map((f) => (
+                  <li
+                    key={f.key}
+                    className="flex items-center justify-between gap-4 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {t(f.labelKey)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t(f.descKey)}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={data.flags[f.key] === true}
+                      disabled={saving === f.key}
+                      onCheckedChange={(c) => toggle(f.key, c)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+        </>
       )}
     </div>
   );
