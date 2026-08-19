@@ -107,6 +107,28 @@ export async function claimPendingInstall(
   }
 }
 
+/**
+ * ¿Este token de reclamo corresponde a una instalación estacionada y vigente?
+ *
+ * Mira sin consumir: lo usa el alta de cuenta para saber si quien se registra
+ * llega de verdad instalando desde una tienda de aplicaciones. Sin esta
+ * comprobación alcanzaría con inventarse la cookie para saltarse el cierre de
+ * registro del prelanzamiento.
+ */
+export async function pendingInstallExists(
+  admin: SupabaseClient,
+  rawToken: string,
+): Promise<boolean> {
+  if (!/^[a-f0-9]{64}$/.test(rawToken)) return false
+  const { data: row } = await admin
+    .from('shopify_pending_installs')
+    .select('created_at')
+    .eq('claim_token_hash', hashToken(rawToken))
+    .maybeSingle()
+  if (!row?.created_at) return false
+  return Date.now() - Date.parse(row.created_at) <= CLAIM_TTL_MS
+}
+
 /** Whether a shop currently has an unclaimed pending install (not expired). */
 export async function hasPendingInstall(
   admin: SupabaseClient,

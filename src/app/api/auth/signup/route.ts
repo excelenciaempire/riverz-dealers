@@ -12,7 +12,9 @@ import { safeRedirectTo } from "@/lib/auth/redirect";
 import { recordLegalConsent } from "@/lib/legal/consent";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
-import { signupsOpenForInstall } from "@/lib/auth/signups";
+import { signupsOpen } from "@/lib/auth/signups";
+import { pendingInstallExists, CLAIM_COOKIE as SHOPIFY_CLAIM_COOKIE } from "@/lib/shopify/pending-install";
+import { TN_CLAIM_COOKIE } from "@/lib/commerce/tiendanube-claim-cookies";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
 /**
@@ -33,14 +35,22 @@ import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 export async function POST(req: Request) {
   const locale = await getLocale();
 
-  // Pre-launch: no new accounts. Hard 403 before any Supabase call — this
-  // is the only server path that reaches auth.signUp. See lib/auth/signups.
-  const cookies = await nextCookies();
-  if (!signupsOpenForInstall((nombre) => Boolean(cookies.get(nombre)?.value))) {
-    return NextResponse.json(
-      { error: translate(locale, "errAccount.signupsClosed") },
-      { status: 403 },
-    );
+  // Con el alta pública cerrada, la única puerta es venir instalando desde una
+  // tienda de aplicaciones. No alcanza con que exista la cookie: el token tiene
+  // que corresponder a una instalación estacionada y vigente, o inventarse la
+  // cookie sería suficiente para saltarse el cierre.
+  if (!signupsOpen()) {
+    const cookies = await nextCookies();
+    const reclamo =
+      cookies.get(TN_CLAIM_COOKIE)?.value ?? cookies.get(SHOPIFY_CLAIM_COOKIE)?.value;
+    const instalando =
+      Boolean(reclamo) && (await pendingInstallExists(supabaseAdmin(), reclamo!));
+    if (!instalando) {
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.signupsClosed") },
+        { status: 403 },
+      );
+    }
   }
 
   const genericOk = {
