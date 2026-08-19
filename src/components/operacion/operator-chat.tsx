@@ -287,16 +287,30 @@ export function OperatorChat({
         </div>
       )}
 
-      <div
-        className={cn(
-          'flex-1 space-y-3 overflow-y-auto',
-          fullscreen ? 'mx-auto w-full max-w-3xl px-4 py-8' : 'p-4',
-        )}
-      >
+      <div className={cn('flex-1 overflow-y-auto', !fullscreen && 'p-4')}>
+        <div
+          className={cn(
+            'flex flex-col gap-3',
+            // La conversación se apoya abajo, contra el compositor, en vez de
+            // colgar del techo con media pantalla vacía debajo. Con el hilo
+            // largo el scroll se comporta igual; con el hilo corto deja de
+            // parecer una pantalla a medio cargar.
+            fullscreen &&
+              'mx-auto min-h-full w-full max-w-3xl px-4 py-8 ' +
+                (mensajes.length === 0 ? 'justify-center' : 'justify-end'),
+          )}
+        >
         {mensajes.length === 0 && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{t('operation.operatorHint')}</p>
-            <div className="flex flex-wrap gap-2">
+          <div className={cn('space-y-4', fullscreen && 'pb-8 text-center')}>
+            <p
+              className={cn(
+                'text-muted-foreground',
+                fullscreen ? 'text-lg text-foreground' : 'text-sm',
+              )}
+            >
+              {t('operation.operatorHint')}
+            </p>
+            <div className={cn('flex flex-wrap gap-2', fullscreen && 'justify-center')}>
               {['operatorTry1', 'operatorTry2', 'operatorTry3'].map((k) => (
                 <button
                   key={k}
@@ -317,7 +331,9 @@ export function OperatorChat({
             <div
               key={m.id}
               className={cn(
-                'max-w-[90%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap',
+                // `w-fit`: la burbuja mide lo que dice. Sin eso, "hola" ocupaba
+                // el ancho de la columna y parecía un cartel.
+                'w-fit max-w-[75%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap',
                 m.role === 'user'
                   ? 'ml-auto bg-primary text-primary-foreground'
                   : 'bg-muted text-foreground',
@@ -355,7 +371,8 @@ export function OperatorChat({
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
-        <div ref={finalRef} />
+          <div ref={finalRef} />
+        </div>
       </div>
 
       <form
@@ -428,7 +445,7 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
         b.k === 'texto' ? (
           <div
             key={b.id}
-            className="max-w-[90%] rounded-xl bg-muted px-3 py-2 text-sm whitespace-pre-wrap text-foreground"
+            className="w-fit max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm whitespace-pre-wrap text-foreground"
           >
             {b.texto}
           </div>
