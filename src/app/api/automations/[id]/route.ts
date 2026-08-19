@@ -10,10 +10,7 @@ import {
   type BuilderStepInput,
 } from '@/lib/automations/steps-tree'
 import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
-import {
-  validateStepsForActivation,
-  validateTriggerForActivation,
-} from '@/lib/automations/validate'
+import { activationIssues } from '@/lib/automations/activation'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -163,10 +160,14 @@ export async function PATCH(
     const mergedSteps = Array.isArray(body.steps)
       ? (body.steps as { step_type: string; step_config: Record<string, unknown> }[])
       : await loadStepsTree(id)
-    const issues = [
-      ...validateTriggerForActivation(mergedTriggerType, mergedTriggerConfig),
-      ...validateStepsForActivation(mergedSteps),
-    ]
+    // Por `activationIssues` y no por los dos validadores sueltos: es la misma
+    // puerta que cruzan el MCP y el Operator cuando prenden una automatización
+    // sin pasar por esta pantalla.
+    const issues = activationIssues({
+      triggerType: mergedTriggerType,
+      triggerConfig: mergedTriggerConfig,
+      steps: mergedSteps,
+    })
     if (issues.length > 0) {
       return NextResponse.json(
         {

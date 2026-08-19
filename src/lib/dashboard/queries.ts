@@ -56,6 +56,65 @@ async function fetchAllRows<T>(
   return out
 }
 
+/**
+ * Recorte explícito por cuenta, para quien no viene con RLS.
+ *
+ * El panel usa el cliente del navegador: RLS ya limita cada consulta al
+ * workspace del usuario, así que pasa `null` y nada cambia. El MCP y el
+ * Operator usan la llave de servicio, que ve TODA la base — sin este alcance
+ * sumarían las métricas de todos los comercios en una sola cifra.
+ *
+ * Existe para que el panel y el agente puedan compartir esta función en vez de
+ * escribir dos veces la misma cuenta. Cuando eran dos, se contradecían: la de
+ * acá cuenta salientes con `neq customer` y paginada, la del MCP contaba sólo
+ * `agent|bot` y sin paginar.
+ */
+export type MetricsScope = { workspaceId: string } | null
+
+/**
+ * Consulta de mensajes ya recortada. El tipado de postgrest-js no puede
+ * inferir un `select` armado con plantilla, así que se declara acá lo único
+ * que estas consultas encadenan y se castea una vez.
+ */
+interface MsgQuery<T>
+  extends PromiseLike<{
+    data: T[] | null
+    count?: number | null
+    error: { message?: string } | null
+  }> {
+  eq(column: string, value: string): MsgQuery<T>
+  neq(column: string, value: string): MsgQuery<T>
+  gte(column: string, value: string): MsgQuery<T>
+  lt(column: string, value: string): MsgQuery<T>
+  range(from: number, to: number): MsgQuery<T>
+}
+
+/**
+ * `messages` no tiene `workspace_id`: cuelga de su conversación. Con alcance,
+ * el recorte va por un join interno sobre `conversations`; sin alcance, la
+ * consulta queda exactamente como estaba (RLS hace el trabajo).
+ */
+function messagesQuery<T = never>(
+  db: DB,
+  scope: MetricsScope,
+  columns: string,
+  count?: boolean,
+): MsgQuery<T> {
+  const opts = count ? ({ count: 'exact', head: true } as const) : undefined
+  const q = scope
+    ? db
+        .from('messages')
+        .select(`${columns}, conversations!inner(workspace_id)`, opts)
+        .eq('conversations.workspace_id', scope.workspaceId)
+    : db.from('messages').select(columns, opts)
+  return q as unknown as MsgQuery<T>
+}
+
+/** Recorta una tabla que sí tiene `workspace_id` propio. */
+function scoped<T>(q: T, scope: MetricsScope): T {
+  return scope ? (q as { eq(column: string, value: string): T }).eq('workspace_id', scope.workspaceId) : q
+}
+
 // --- 1. Metric cards ---------------------------------------------------
 
 export async function loadMetrics(
@@ -63,6 +122,7 @@ export async function loadMetrics(
   tz: string,
   range: DateRange,
   prev: DateRange,
+  scope: MetricsScope = null,
 ): Promise<MetricsBundle> {
   const s = iso(range.start)
   const e = iso(range.end)
@@ -92,35 +152,31 @@ export async function loadMetrics(
     rangeRows,
     prevRows,
   ] = await Promise.all([
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', s).lt('created_at', e),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', ps).lt('created_at', pe),
+    scoped(db.from('contacts').select('id', { count: 'exact', head: true }), scope).gte('created_at', s).lt('created_at', e),
+    scoped(db.from('contacts').select('id', { count: 'exact', head: true }), scope).gte('created_at', ps).lt('created_at', pe),
     // "Resueltas" — gate on closed_at (set by code only when status actually
     // flips to closed), not updated_at which the BEFORE UPDATE trigger bumps
     // on every unrelated edit.
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'closed').gte('closed_at', s).lt('closed_at', e),
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'closed').gte('closed_at', ps).lt('closed_at', pe),
+    scoped(db.from('conversations').select('id', { count: 'exact', head: true }), scope).eq('status', 'closed').gte('closed_at', s).lt('closed_at', e),
+    scoped(db.from('conversations').select('id', { count: 'exact', head: true }), scope).eq('status', 'closed').gte('closed_at', ps).lt('closed_at', pe),
     // "Mensajes enviados" — anything we sent: agent (human) + bot (AI /
     // automations / flows / broadcasts). Matches the series' outgoing branch.
-    db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
-    db.from('messages').select('id', { count: 'exact', head: true }).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
-    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
-    db.from('messages').select('id', { count: 'exact', head: true }).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
+    messagesQuery(db, scope, 'id', true).neq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
+    messagesQuery(db, scope, 'id', true).neq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
+    messagesQuery(db, scope, 'id', true).eq('sender_type', 'customer').gte('created_at', s).lt('created_at', e),
+    messagesQuery(db, scope, 'id', true).eq('sender_type', 'customer').gte('created_at', ps).lt('created_at', pe),
     // Canales conectados del workspace: siembran la mezcla por canal para que
     // un canal sin tráfico en la ventana aparezca en 0 y no desaparezca de la
     // tarjeta (antes "no se mostraba WhatsApp" cuando el rango no lo incluía).
-    db.from('channel_connections').select('channel').eq('status', 'connected'),
+    scoped(db.from('channel_connections').select('channel'), scope).eq('status', 'connected'),
     fetchAllRows<MixRow>((from, to) =>
-      db
-        .from('messages')
-        .select('conversation_id, channel, sender_type')
+      messagesQuery<MixRow>(db, scope, 'conversation_id, channel, sender_type')
         .gte('created_at', s)
         .lt('created_at', e)
         .range(from, to),
     ),
     fetchAllRows<{ conversation_id?: string | null }>((from, to) =>
-      db
-        .from('messages')
-        .select('conversation_id')
+      messagesQuery<{ conversation_id?: string | null }>(db, scope, 'conversation_id')
         .gte('created_at', ps)
         .lt('created_at', pe)
         .range(from, to),

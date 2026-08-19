@@ -3,14 +3,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
-import { serverError } from '@/lib/api/errors'
-import {
-  getTemplate,
-  automationTemplateNameKey,
-  automationTemplateDescKey,
-} from '@/lib/automations/templates'
-import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
-import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
+import { getTemplate } from '@/lib/automations/templates'
+import { installTemplate } from '@/lib/automations/install-template'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
@@ -23,6 +17,10 @@ import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/worksp
 // tree, return the new automation id, and the UI redirects the user
 // straight to the editor where they fill in the template_name
 // placeholder before activating.
+//
+// El trabajo real lo hace `installTemplate`; acá quedan la sesión y la
+// resolución de la cuenta, que es lo único propio de HTTP. El Operator
+// instala la misma receta llamando a ese servicio sin pasar por acá.
 //
 // All automations land as is_active=false on purpose — activation
 // would fail the validate.ts gate anyway since the template seeds leave
@@ -95,45 +93,18 @@ export async function POST(request: Request) {
     )
   }
 
-  const { data: automation, error: insertErr } = await admin
-    .from('automations')
-    .insert({
-      user_id: user.id,
-      workspace_id: workspaceId,
-      name: translate(locale, automationTemplateNameKey(template.slug)),
-      description: translate(locale, automationTemplateDescKey(template.slug)),
-      trigger_type: template.trigger_type,
-      trigger_config: template.trigger_config ?? {},
-      // Templates always land paused. The user has to fill in template
-      // names + tag ids before activation passes the validate.ts gate.
-      is_active: false,
+  try {
+    const automation = await installTemplate(admin, {
+      templateId: template.slug,
+      workspaceId,
+      userId: user.id,
+      locale,
     })
-    .select()
-    .single()
-
-  if (insertErr || !automation) {
+    return NextResponse.json({ automation }, { status: 201 })
+  } catch (e) {
     return NextResponse.json(
-      { error: insertErr?.message ?? 'insert failed' },
+      { error: e instanceof Error ? e.message : 'insert failed' },
       { status: 500 },
     )
   }
-
-  if (template.steps.length > 0) {
-    const err = await insertSteps(
-      automation.id,
-      await resolverEtiquetas(
-        admin,
-        workspaceId,
-        template.steps as unknown as BuilderStepInput[],
-      ),
-    )
-    if (err) {
-      // Clean up the orphan automation row so the user doesn't end up
-      // with an empty automation if the steps insert fails.
-      await admin.from('automations').delete().eq('id', automation.id)
-      return serverError(err)
-    }
-  }
-
-  return NextResponse.json({ automation }, { status: 201 })
 }
