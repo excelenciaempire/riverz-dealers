@@ -138,6 +138,15 @@ export function CentroOperacion({ refreshKey = 0 }: { refreshKey?: number }) {
             <p className="mt-1 text-sm text-muted-foreground">
               {t('operation.nothingRunningHint')}
             </p>
+            {/* La salida del estado vacío es el asistente, no una lista de
+                secciones para recorrer a mano. */}
+            <Link
+              href="/operacion/activar"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              {t('operation.activateCta')}
+              <ArrowRight className="size-4" />
+            </Link>
           </div>
         ) : (
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

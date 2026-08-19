@@ -80,6 +80,79 @@ export const operation = {
     en: "Turn on cart recovery",
   },
 
+  // Activación guiada
+  activateTitle: { es: "Activá tu Operación IA", en: "Activate your AI Operation" },
+  activateSubtitle: {
+    es: "Conectá tu tienda y tus canales. Riverz arma el equipo y vos aprobás antes de que atienda a nadie.",
+    en: "Connect your store and channels. Riverz builds the team and you approve before it talks to anyone.",
+  },
+  activateCta: { es: "Activar mi operación", en: "Activate my operation" },
+  stepConnect: { es: "Conectar", en: "Connect" },
+  stepBrand: { es: "Tu marca", en: "Your brand" },
+  stepGoal: { es: "Objetivo", en: "Goal" },
+  stepPlan: { es: "Plan", en: "Plan" },
+  next: { es: "Continuar", en: "Continue" },
+  back: { es: "Volver", en: "Back" },
+
+  connectStore: { es: "Tienda", en: "Store" },
+  connectChannels: { es: "Canales", en: "Channels" },
+  connected: { es: "Conectado", en: "Connected" },
+  notConnected: { es: "Sin conectar", en: "Not connected" },
+  goConnect: { es: "Conectar", en: "Connect" },
+  connectHint: {
+    es: "Con la tienda conectada, la IA puede consultar pedidos y armar links de pago.",
+    en: "With the store connected, the AI can look up orders and build payment links.",
+  },
+
+  brandUrlLabel: { es: "Sitio de tu marca", en: "Your brand's website" },
+  brandUrlHint: {
+    es: "Riverz lo lee y prepara un agente con tu tono y tus preguntas frecuentes. Queda en borrador.",
+    en: "Riverz reads it and prepares an agent with your tone and FAQs. It stays as a draft.",
+  },
+  brandRead: { es: "Leer mi sitio", en: "Read my site" },
+  brandReading: { es: "Leyendo tu sitio…", en: "Reading your site…" },
+  brandDone: { es: "Listo: preparé este agente", en: "Done: here's the agent I prepared" },
+  brandSkip: { es: "Saltar este paso", en: "Skip this step" },
+  brandError: {
+    es: "No se pudo leer ese sitio. Podés seguir sin esto.",
+    en: "Couldn't read that site. You can continue without it.",
+  },
+
+  goalTitle: { es: "¿Qué querés resolver primero?", en: "What do you want to solve first?" },
+  goalHint: { es: "Podés elegir más de uno.", en: "You can pick more than one." },
+  pbAftersaleTitle: { es: "Bajar la carga de postventa", en: "Reduce after-sales load" },
+  pbAftersaleWhat: {
+    es: "Estado del pedido, guías, cambios y preguntas frecuentes, sin que nadie las conteste a mano.",
+    en: "Order status, tracking, changes and FAQs, without anyone answering by hand.",
+  },
+  pbRecoveryTitle: { es: "Recuperar ventas perdidas", en: "Recover lost sales" },
+  pbRecoveryWhat: {
+    es: "Carritos abandonados, pagos pendientes y pagos rechazados.",
+    en: "Abandoned carts, pending payments and rejected payments.",
+  },
+  pbSalesTitle: { es: "Vender y que vuelvan", en: "Sell and bring them back" },
+  pbSalesWhat: {
+    es: "Atiende consultas, cierra la venta y le vuelve a escribir a quien ya compró.",
+    en: "Answers questions, closes the sale and writes back to those who already bought.",
+  },
+
+  planTitle: { es: "Esto es lo que voy a crear", en: "This is what I'll create" },
+  planAgents: { es: "Agentes", en: "Agents" },
+  planAutomations: { es: "Automatizaciones", en: "Automations" },
+  planPaused: {
+    es: "Todo nace en pausa. Nada le escribe a un cliente hasta que lo prendas.",
+    en: "Everything starts paused. Nothing writes to a customer until you turn it on.",
+  },
+  planApply: { es: "Crear todo esto", en: "Create all of this" },
+  planApplying: { es: "Creando…", en: "Creating…" },
+  planDone: { es: "Listo. Tu operación está armada.", en: "Done. Your operation is set up." },
+  planDoneHint: {
+    es: "Revisá cada pieza y prendé lo que quieras que empiece a trabajar.",
+    en: "Review each piece and turn on whatever you want working.",
+  },
+  goToCenter: { es: "Ir al centro de operación", en: "Go to the operation center" },
+  planFailed: { es: "No se pudo crear", en: "Couldn't create" },
+
   // Roles de la flota
   roleSalesName: { es: "Ventas", en: "Sales" },
   roleAftersaleName: { es: "Postventa", en: "After-sales" },

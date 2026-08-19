@@ -355,7 +355,12 @@ export async function POST(request: Request) {
   const insertPayload = {
     workspace_id: workspaceId,
     name: config.name,
-    is_active: true,
+    // PAUSADO. Nacía activo y con alcance de cuenta entera, o sea contestándole
+    // a clientes reales con una persona que nadie había leído todavía — y sin
+    // pasar por `findChannelConflict`, así que además podía quedar disputando
+    // los canales con el agente que el comercio ya tenía andando. Se activa
+    // aparte, después de revisarlo, por `agentes.activar`.
+    is_active: false,
     persona: config.persona,
     knowledge: knowledge || null,
     knowledge_url: parsed.toString(),
