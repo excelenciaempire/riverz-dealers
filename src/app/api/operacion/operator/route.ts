@@ -161,9 +161,11 @@ export async function POST(request: Request) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'application/x-ndjson; charset=utf-8',
+      // Las tres cabeceras existen por lo mismo: que nadie junte los pedazos.
+      // Un intermediario que comprima o cachee este cuerpo lo entrega entero al
+      // final, y entonces el streaming no se nota en ningún lado.
       'Cache-Control': 'no-store, no-transform',
-      // Sin esto, la compresión de Next junta los chunks y todo llega al final
-      // — que es exactamente lo que este endpoint viene a evitar.
+      'Content-Encoding': 'identity',
       'X-Accel-Buffering': 'no',
     },
   })
