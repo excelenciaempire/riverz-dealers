@@ -11,6 +11,7 @@ import { installTemplate } from '@/lib/automations/install-template'
 import {
   AI_STEPS_SCHEMA,
   AI_TRIGGERS,
+  artefactoDePlan,
   planDesdeIA,
   type AiPaso,
 } from '@/lib/automations/ai-steps'
@@ -314,6 +315,12 @@ Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de 
         AI_TRIGGERS.find((x) => x.value === plan.disparador)?.que ?? plan.disparador
       return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.pasos.length} paso(s). Nace pausada.`
     },
+    artifact: (_ctx, args) =>
+      artefactoDePlan({
+        nombre: args.nombre as string,
+        disparador: args.disparador as string,
+        pasos: args.pasos as AiPaso[],
+      }),
     run: crear,
   },
 

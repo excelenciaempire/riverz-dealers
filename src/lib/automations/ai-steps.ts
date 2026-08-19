@@ -17,6 +17,7 @@ import type { AutomationTriggerType } from '@/types'
 import type { BuilderStepInput } from './steps-tree'
 import { activationIssues } from './activation'
 import type { ValidationIssue } from './validate'
+import type { Artefacto, PasoArtefacto } from '@/lib/operator/artifacts'
 
 /** Los pasos que el Operador puede armar. */
 export const AI_STEP_TYPES = [
@@ -144,6 +145,56 @@ function aPaso(p: AiPaso): BuilderStepInput | null {
     }
     default:
       return null
+  }
+}
+
+/**
+ * Un paso contado en una línea, para dibujarlo.
+ *
+ * El texto va recortado: en el árbol se lee de un vistazo si es el mensaje que
+ * se pidió, no se lee entero.
+ */
+function resumirPaso(p: AiPaso): PasoArtefacto {
+  const corto = (s: string, n = 70) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+  switch (p.tipo) {
+    case 'send_message':
+      return { tipo: p.tipo, resumen: `«${corto(p.texto ?? '')}»` }
+    case 'send_template':
+      return { tipo: p.tipo, resumen: `Plantilla ${p.plantilla ?? ''}` }
+    case 'wait':
+      return { tipo: p.tipo, resumen: `Espera ${p.cantidad} ${p.unidad}` }
+    case 'add_tag':
+      return { tipo: p.tipo, resumen: `Etiqueta «${p.etiqueta ?? ''}»` }
+    case 'close_conversation':
+      return { tipo: p.tipo, resumen: 'Cierra la conversación' }
+    case 'condition':
+      return {
+        tipo: p.tipo,
+        resumen: `¿${p.sujeto}${p.operando ? ` ${p.operando}` : ''}?`,
+        si: (p.si ?? []).map(resumirPaso),
+        no: (p.no ?? []).map(resumirPaso),
+      }
+    default:
+      return { tipo: p.tipo, resumen: p.tipo }
+  }
+}
+
+/** La automatización dibujada, desde lo que pidió el modelo. */
+export function artefactoDePlan(entrada: {
+  nombre?: string
+  disparador?: string
+  pasos?: AiPaso[]
+}): Artefacto | null {
+  const nombre = (entrada.nombre ?? '').trim()
+  if (!nombre || !Array.isArray(entrada.pasos)) return null
+  const cuando =
+    AI_TRIGGERS.find((x) => x.value === entrada.disparador)?.que ??
+    String(entrada.disparador ?? '')
+  return {
+    kind: 'automatizacion',
+    nombre,
+    cuando,
+    pasos: entrada.pasos.map(resumirPaso),
   }
 }
 

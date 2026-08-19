@@ -15,6 +15,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
 import type { EmitFn } from './events'
+import type { Artefacto } from './artifacts'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import {
   capabilitiesAsAnthropicTools,
@@ -130,7 +131,12 @@ async function proponer(
   threadId: string,
   key: string,
   args: Record<string, unknown>,
-): Promise<{ id: string; preview: string | null; texto: string }> {
+): Promise<{
+  id: string
+  preview: string | null
+  artefacto: Artefacto | null
+  texto: string
+}> {
   const cap = findCapability(key)!
   let preview: string | null = null
   try {
@@ -138,6 +144,10 @@ async function proponer(
   } catch (e) {
     preview = e instanceof Error ? e.message : null
   }
+
+  // Se dibuja desde los argumentos: la persona ve el árbol ANTES de aprobar,
+  // que es cuando le sirve.
+  const artefacto = artefactoDe(cap, ctx, args)
 
   const { data, error } = await ctx.db
     .from('operator_actions')
@@ -148,6 +158,7 @@ async function proponer(
       args,
       risk: cap.risk,
       preview,
+      artifact: artefacto,
       status: 'propuesto',
     })
     .select('id')
@@ -158,6 +169,7 @@ async function proponer(
   return {
     id,
     preview,
+    artefacto,
     texto: JSON.stringify({
       propuesto: true,
       action_id: id,
@@ -180,7 +192,12 @@ async function construir(
   threadId: string,
   key: string,
   args: Record<string, unknown>,
-): Promise<{ id: string; preview: string | null; texto: string }> {
+): Promise<{
+  id: string
+  preview: string | null
+  artefacto: Artefacto | null
+  texto: string
+}> {
   const cap = findCapability(key)!
   let preview: string | null = null
   try {
@@ -190,6 +207,7 @@ async function construir(
   }
 
   const salida = await cap.run(ctx, args)
+  const artefacto = artefactoDe(cap, ctx, args, salida)
 
   const { data } = await ctx.db
     .from('operator_actions')
@@ -200,6 +218,7 @@ async function construir(
       args,
       risk: cap.risk,
       preview,
+      artifact: artefacto,
       status: 'ejecutado',
       result: salida ?? null,
       approved_by: ctx.actor.id ?? null,
@@ -211,7 +230,26 @@ async function construir(
   return {
     id: (data as { id: string } | null)?.id ?? '',
     preview,
+    artefacto,
     texto: JSON.stringify({ hecho: true, resultado: salida }).slice(0, 20_000),
+  }
+}
+
+/**
+ * El dibujo de lo que se va a hacer, si la capacidad sabe producirlo.
+ *
+ * Nunca puede tumbar la operación: es lo que se muestra, no lo que se hace.
+ */
+function artefactoDe(
+  cap: ReturnType<typeof findCapability>,
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  result?: unknown,
+): Artefacto | null {
+  try {
+    return cap?.artifact?.(ctx, args, result) ?? null
+  } catch {
+    return null
   }
 }
 
@@ -384,6 +422,7 @@ export async function runOperator(args: {
             actionId: c.id,
             key,
             preview: c.preview ?? key,
+            artefacto: c.artefacto ?? undefined,
           })
           results.push({ type: 'tool_result', tool_use_id: block.id, content: c.texto })
         } else {
@@ -395,6 +434,7 @@ export async function runOperator(args: {
             actionId: p.id,
             key,
             preview: p.preview ?? key,
+            artefacto: p.artefacto ?? undefined,
           })
           results.push({ type: 'tool_result', tool_use_id: block.id, content: p.texto })
         }

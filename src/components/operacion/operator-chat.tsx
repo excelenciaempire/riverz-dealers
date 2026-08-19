@@ -14,6 +14,8 @@ import {
 import { useT } from '@/hooks/use-locale'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { VistaArtefacto } from './artefacto'
 import { cn } from '@/lib/utils'
 
 /**
@@ -67,6 +69,8 @@ type Bloque =
       // que haya creado.
       estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho'
       detalle?: string
+      /** Lo que se armó, dibujable. */
+      artefacto?: Artefacto
     }
 
 /**
@@ -244,9 +248,17 @@ export function OperatorChat({
                 detalle: e.ok ? undefined : e.resumen,
               })
             } else if (e.t === 'proposed') {
-              bloques = conPaso(bloques, e.id, { estado: 'propuesto', detalle: e.preview })
+              bloques = conPaso(bloques, e.id, {
+                estado: 'propuesto',
+                detalle: e.preview,
+                artefacto: e.artefacto,
+              })
             } else if (e.t === 'built') {
-              bloques = conPaso(bloques, e.id, { estado: 'hecho', detalle: e.preview })
+              bloques = conPaso(bloques, e.id, {
+                estado: 'hecho',
+                detalle: e.preview,
+                artefacto: e.artefacto,
+              })
             } else if (e.t === 'error') {
               setError(e.message)
             } else if (e.t === 'done') {
@@ -554,6 +566,11 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
                   {' · '}
                   {b.detalle}
                 </span>
+              )}
+              {b.artefacto && (
+                <div className="mt-2">
+                  <VistaArtefacto artefacto={b.artefacto} />
+                </div>
               )}
             </span>
           </div>

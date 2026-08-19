@@ -11,6 +11,8 @@
  * lleva `x-csrf-token`. Con `fetch` + `getReader()` la protección queda intacta.
  */
 
+import type { Artefacto } from './artifacts'
+
 export type OperatorEvent =
   /**
    * Razonamiento del modelo, cuando lo expone.
@@ -31,9 +33,24 @@ export type OperatorEvent =
   /** Terminó de leer algo. */
   | { t: 'tool_done'; id: string; key: string; ok: boolean; resumen: string }
   /** Dejó algo propuesto: espera un click. */
-  | { t: 'proposed'; id: string; actionId: string; key: string; preview: string }
+  | {
+      t: 'proposed'
+      id: string
+      actionId: string
+      key: string
+      preview: string
+      /** Lo mismo, dibujable: el árbol de la automatización, la plantilla. */
+      artefacto?: Artefacto
+    }
   /** Lo construyó de verdad (modo automático). */
-  | { t: 'built'; id: string; actionId: string; key: string; preview: string }
+  | {
+      t: 'built'
+      id: string
+      actionId: string
+      key: string
+      preview: string
+      artefacto?: Artefacto
+    }
   /** Vuelta N del loop, para poder mostrar que sigue trabajando. */
   | { t: 'step'; n: number; de: number }
   | { t: 'error'; message: string }

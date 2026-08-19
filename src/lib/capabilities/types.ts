@@ -26,6 +26,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Locale } from '@/lib/i18n/config'
+import type { Artefacto } from '@/lib/operator/artifacts'
 
 export type Risk = 'lectura' | 'reversible' | 'irreversible'
 
@@ -98,6 +99,17 @@ export interface Capability<A = Record<string, unknown>, R = unknown> {
   run(ctx: CapabilityContext, args: A): Promise<R>
   /** Qué se le muestra a una persona antes de ejecutar. Obligatorio si es irreversible. */
   preview?(ctx: CapabilityContext, args: A): Promise<string>
+  /**
+   * Lo mismo que el `preview`, pero dibujable.
+   *
+   * Se calcula desde los ARGUMENTOS, así que una propuesta puede mostrar el
+   * árbol de la automatización antes de que nadie apruebe. `result` llega sólo
+   * cuando ya se ejecutó, para lo que no se sabe de antemano (un id, un nombre
+   * que puso el servidor).
+   *
+   * Lo escribe el servidor y no el modelo: es la misma regla que el preview.
+   */
+  artifact?(ctx: CapabilityContext, args: A, result?: R): Artefacto | null
 }
 
 /** Capacidad con argumentos sueltos, que es como llegan desde un modelo. */
