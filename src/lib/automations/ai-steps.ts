@@ -121,10 +121,13 @@ function aPaso(p: AiPaso): BuilderStepInput | null {
         ? { step_type: 'wait', step_config: { amount: p.cantidad, unit: p.unidad } }
         : null
     case 'add_tag':
-      // El id real de la etiqueta lo resuelve `resolverEtiquetas` contra la
-      // cuenta: acá viaja el nombre, que es lo único que el modelo puede saber.
+      // Va en `tag_name` y NO en `tag_id`: `resolverEtiquetas` busca ese campo
+      // para crear la etiqueta en la cuenta y rellenar el id de verdad. Puesto
+      // en `tag_id`, el nombre se guardaba donde va un uuid — la validación de
+      // activación lo frenaba, así que la automatización quedaba imposible de
+      // prender y nadie sabía por qué.
       return p.etiqueta
-        ? { step_type: 'add_tag', step_config: { tag_id: p.etiqueta } }
+        ? { step_type: 'add_tag', step_config: { tag_name: p.etiqueta } }
         : null
     case 'close_conversation':
       return { step_type: 'close_conversation', step_config: {} }

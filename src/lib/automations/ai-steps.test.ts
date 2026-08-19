@@ -31,8 +31,11 @@ describe('planDesdeIA', () => {
       'send_message',
       'add_tag',
     ])
-    // La etiqueta viaja por NOMBRE: el uuid lo resuelve la cuenta después.
-    expect(plan?.pasos[2].step_config).toEqual({ tag_id: 'aviso-demora' })
+    // La etiqueta viaja en `tag_name` y NO en `tag_id`: es el campo que
+    // `resolverEtiquetas` busca para crearla en la cuenta y poner el uuid. En
+    // `tag_id` el nombre queda donde va un id y la automatización no se puede
+    // prender nunca.
+    expect(plan?.pasos[2].step_config).toEqual({ tag_name: 'aviso-demora' })
   })
 
   it('rechaza un disparador que no existe', () => {

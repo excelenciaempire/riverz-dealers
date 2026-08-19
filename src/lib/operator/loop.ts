@@ -24,7 +24,7 @@ import {
 } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
-import { OPERATOR_SYSTEM } from './prompt'
+import { systemPrompt } from './prompt'
 import { translate } from '@/lib/i18n/translate'
 
 /** Techo de vueltas. Un diagnóstico honesto se resuelve en tres o cuatro. */
@@ -55,13 +55,17 @@ const EFFORT = 'medium' as const
  */
 async function transmitir(
   client: Anthropic,
-  args: { messages: Anthropic.MessageParam[]; tools: Anthropic.Tool[] },
+  args: {
+    messages: Anthropic.MessageParam[]
+    tools: Anthropic.Tool[]
+    system: string
+  },
   emit: EmitFn,
 ): Promise<Anthropic.Message> {
   const stream = client.messages.stream({
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: OPERATOR_SYSTEM,
+    system: args.system,
     messages: args.messages,
     ...(args.tools.length > 0 ? { tools: args.tools } : {}),
     thinking: { type: 'adaptive' },
@@ -300,6 +304,9 @@ export async function runOperator(args: {
     locale,
   }
 
+  // El prompt cambia con el modo: decirle "nunca ejecutás" mientras la
+  // herramienta sí ejecuta hacía que contara como propuesta algo ya creado.
+  const system = systemPrompt(args.autoBuild === true)
   const tools = capabilitiesAsAnthropicTools(OPERATOR_CAPABILITIES) as Anthropic.Tool[]
   const messages: Anthropic.MessageParam[] = [...args.history]
   const proposedIds: string[] = []
@@ -308,7 +315,7 @@ export async function runOperator(args: {
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
     emit({ t: 'step', n: iter + 1, de: MAX_ITERS })
-    const res = await transmitir(client, { messages, tools }, emit)
+    const res = await transmitir(client, { messages, tools, system }, emit)
     promptTokens += res.usage?.input_tokens ?? 0
     completionTokens += res.usage?.output_tokens ?? 0
 
@@ -408,7 +415,7 @@ export async function runOperator(args: {
 
   // Se acabaron las vueltas pidiendo herramientas: una última sin ellas para
   // que cierre con algo legible en vez de dejar la pantalla en blanco.
-  const cierre = await transmitir(client, { messages, tools: [] }, emit)
+  const cierre = await transmitir(client, { messages, tools: [], system }, emit)
   promptTokens += cierre.usage?.input_tokens ?? 0
   completionTokens += cierre.usage?.output_tokens ?? 0
   return { text: textoDe(cierre), promptTokens, completionTokens, proposedIds }
