@@ -243,10 +243,11 @@ function SignupForm() {
               </div>
             </div>
 
-            <label
-              htmlFor="accept"
-              className="flex items-start gap-2.5 text-sm text-muted-foreground"
-            >
+            {/* Sin htmlFor: la casilla vive DENTRO de la etiqueta. Con las dos
+                cosas, el navegador dispara el clic en la casilla y ademas la
+                etiqueta le reenvia otro, se anulan entre si y la casilla
+                nunca queda marcada — nadie podia aceptar los terminos. */}
+            <label className="flex items-start gap-2.5 text-sm text-muted-foreground">
               <input
                 id="accept"
                 type="checkbox"
