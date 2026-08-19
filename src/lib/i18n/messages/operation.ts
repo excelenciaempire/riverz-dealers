@@ -198,6 +198,27 @@ export const operation = {
     en: "Decides which conversations it takes when more than one agent shares a channel.",
   },
 
+  // Lo que se ve mientras trabaja
+  operatorReasoning: { es: "Pensando", en: "Thinking" },
+  stepEstado: { es: "Mirando el estado de la cuenta", en: "Checking the account status" },
+  stepMetricas: { es: "Mirando las métricas", en: "Checking the metrics" },
+  stepPendientes: { es: "Mirando las conversaciones sin responder", en: "Checking unanswered conversations" },
+  stepContacto: { es: "Buscando el contacto", en: "Looking up the contact" },
+  stepDiagnostico: { es: "Revisando por qué no salió", en: "Checking why it didn't go out" },
+  stepPedidos: { es: "Mirando los pedidos", en: "Checking the orders" },
+  stepPlantillas: { es: "Revisando las plantillas", en: "Checking the templates" },
+  stepCampanas: { es: "Revisando las campañas", en: "Checking the campaigns" },
+  stepAgentes: { es: "Mirando los agentes", en: "Checking the agents" },
+  stepAgenteCrear: { es: "Preparando un agente", en: "Preparing an agent" },
+  stepAgenteActivar: { es: "Prendiendo un agente", en: "Turning on an agent" },
+  stepAutosListar: { es: "Mirando las automatizaciones", en: "Checking the automations" },
+  stepRecetas: { es: "Viendo qué recetas hay", en: "Checking available recipes" },
+  stepAutoActivar: { es: "Prendiendo una automatización", en: "Turning on an automation" },
+  stepAutoEspera: { es: "Ajustando una espera", en: "Adjusting a wait" },
+  stepAutoCrear: { es: "Armando la automatización", en: "Building the automation" },
+  stepAprobPend: { es: "Mirando qué espera aprobación", en: "Checking what awaits approval" },
+  stepAprobDecidir: { es: "Resolviendo una aprobación", en: "Resolving an approval" },
+
   // Acciones propuestas
   proposedTitle: { es: "Esperando tu aprobación", en: "Waiting for your approval" },
   approve: { es: "Aprobar", en: "Approve" },

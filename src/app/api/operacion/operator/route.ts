@@ -6,6 +6,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getFeatureFlags, isRiverz2 } from '@/lib/admin/feature-flags'
 import { limitByKey } from '@/lib/rate-limit'
 import { runOperator } from '@/lib/operator/loop'
+import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import {
   appendMessage,
   ensureThread,
@@ -80,53 +81,90 @@ export async function POST(request: Request) {
   const texto = (body?.texto ?? '').trim().slice(0, 4000)
   if (!texto) return NextResponse.json({ error: 'texto_required' }, { status: 400 })
 
-  try {
-    const threadId = await ensureThread(ctx.admin, {
-      threadId: body?.thread,
-      workspaceId: ctx.workspaceId,
-      userId: ctx.userId,
-      firstText: texto,
-    })
+  const locale = await getLocale()
 
-    // El historial se lee ANTES de anotar el mensaje nuevo: el turno actual va
-    // aparte, así no se duplica al armar el contexto.
-    const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId)
-    await appendMessage(ctx.admin, {
-      threadId,
-      workspaceId: ctx.workspaceId,
-      role: 'user',
-      text: texto,
-    })
+  /**
+   * El turno se transmite mientras ocurre.
+   *
+   * Antes esto esperaba a que terminara todo y devolvía un JSON: el comercio
+   * veía un spinner veinte segundos y después un párrafo. Ahora ve el
+   * razonamiento, cada consulta y cada cosa que queda propuesta, en el momento
+   * en que pasa.
+   */
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enc = new TextEncoder()
+      let cerrado = false
+      const push = (e: OperatorEvent) => {
+        if (cerrado) return
+        try {
+          controller.enqueue(enc.encode(encodeEvent(e)))
+        } catch {
+          cerrado = true
+        }
+      }
 
-    const locale = await getLocale()
-    const turno = await runOperator({
-      db: ctx.admin,
-      workspaceId: ctx.workspaceId,
-      userId: ctx.userId,
-      threadId,
-      history: [...toAnthropic(previos), { role: 'user', content: texto }],
-      locale,
-    })
+      try {
+        const threadId = await ensureThread(ctx.admin, {
+          threadId: body?.thread,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          firstText: texto,
+        })
 
-    await appendMessage(ctx.admin, {
-      threadId,
-      workspaceId: ctx.workspaceId,
-      role: 'assistant',
-      text: turno.text,
-      promptTokens: turno.promptTokens,
-      completionTokens: turno.completionTokens,
-    })
+        // El historial se lee ANTES de anotar el mensaje nuevo: el turno actual
+        // va aparte, así no se duplica al armar el contexto.
+        const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId)
+        await appendMessage(ctx.admin, {
+          threadId,
+          workspaceId: ctx.workspaceId,
+          role: 'user',
+          text: texto,
+        })
 
-    return NextResponse.json({
-      thread: threadId,
-      texto: turno.text,
-      acciones: await loadActions(ctx.admin, threadId, ctx.workspaceId),
-      sinCupo: turno.overBudget ?? false,
-    })
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'failed' },
-      { status: 500 },
-    )
-  }
+        const turno = await runOperator({
+          db: ctx.admin,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          threadId,
+          history: [...toAnthropic(previos), { role: 'user', content: texto }],
+          locale,
+          onEvent: push,
+        })
+
+        await appendMessage(ctx.admin, {
+          threadId,
+          workspaceId: ctx.workspaceId,
+          role: 'assistant',
+          text: turno.text,
+          promptTokens: turno.promptTokens,
+          completionTokens: turno.completionTokens,
+        })
+
+        // Se manda al final por si el cupo diario cortó el turno antes de
+        // llamar al modelo: ahí no hubo deltas y esto es todo lo que hay.
+        if (turno.overBudget) push({ t: 'text', delta: turno.text })
+        push({ t: 'done', thread: threadId })
+      } catch (err) {
+        push({ t: 'error', message: err instanceof Error ? err.message : 'failed' })
+      } finally {
+        cerrado = true
+        try {
+          controller.close()
+        } catch {
+          /* ya estaba cerrado */
+        }
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-store, no-transform',
+      // Sin esto, la compresión de Next junta los chunks y todo llega al final
+      // — que es exactamente lo que este endpoint viene a evitar.
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }

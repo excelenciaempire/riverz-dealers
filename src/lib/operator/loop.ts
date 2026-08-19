@@ -13,7 +13,8 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getAnthropic } from '@/lib/ai/anthropic-client'
+import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
+import type { EmitFn } from './events'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import {
   capabilitiesAsAnthropicTools,
@@ -26,8 +27,58 @@ import { OPERATOR_SYSTEM } from './prompt'
 
 /** Techo de vueltas. Un diagnóstico honesto se resuelve en tres o cuatro. */
 const MAX_ITERS = 6
-const MAX_TOKENS = 2048
+const MAX_TOKENS = 4096
 const MODEL = 'claude-sonnet-5'
+
+/**
+ * Cuánto piensa antes de contestar.
+ *
+ * El razonamiento se muestra en pantalla: es la parte donde se ve que eligió
+ * una receta sobre otra por el objetivo de la marca, y no que adivinó.
+ *
+ * `adaptive` y no un presupuesto fijo de tokens: este modelo rechaza
+ * `thinking.type.enabled` y pide manejarlo con `output_config.effort`, que es
+ * además la forma correcta — piensa lo que el problema necesita en vez de
+ * gastar siempre lo mismo. `medium` porque acá se decide sobre la cuenta de un
+ * comercio; `low` es para clasificar y resumir.
+ */
+const EFFORT = 'medium' as const
+
+/**
+ * Una vuelta del modelo, transmitida.
+ *
+ * Los deltas de pensamiento y de texto salen por separado porque en la pantalla
+ * son dos cosas distintas: uno es lo que está considerando y el otro lo que te
+ * está diciendo. Mezclarlos haría que el razonamiento parezca la respuesta.
+ */
+async function transmitir(
+  client: Anthropic,
+  args: { messages: Anthropic.MessageParam[]; tools: Anthropic.Tool[] },
+  emit: EmitFn,
+): Promise<Anthropic.Message> {
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    system: OPERATOR_SYSTEM,
+    messages: args.messages,
+    ...(args.tools.length > 0 ? { tools: args.tools } : {}),
+    thinking: { type: 'adaptive' },
+    output_config: { effort: EFFORT },
+  })
+
+  for await (const ev of stream) {
+    if (ev.type !== 'content_block_delta') continue
+    if (ev.delta.type === 'text_delta') emit({ t: 'text', delta: ev.delta.text })
+    else if (ev.delta.type === 'thinking_delta') {
+      emit({ t: 'thinking', delta: ev.delta.thinking })
+    }
+  }
+
+  // El mensaje final trae los bloques completos —incluidos los de pensamiento—
+  // y hay que devolverlos tal cual al historial: con razonamiento activado, la
+  // API rechaza un turno de herramientas al que le falten.
+  return stream.finalMessage()
+}
 
 /**
  * Techo diario de gasto por cuenta.
@@ -73,7 +124,7 @@ async function proponer(
   threadId: string,
   key: string,
   args: Record<string, unknown>,
-): Promise<{ id: string; texto: string }> {
+): Promise<{ id: string; preview: string | null; texto: string }> {
   const cap = findCapability(key)!
   let preview: string | null = null
   try {
@@ -100,6 +151,7 @@ async function proponer(
   const id = (data as { id: string }).id
   return {
     id,
+    preview,
     texto: JSON.stringify({
       propuesto: true,
       action_id: id,
@@ -107,6 +159,38 @@ async function proponer(
       preview,
     }),
   }
+}
+
+/**
+ * Un nombre corto para la pantalla, sacado de la descripción.
+ *
+ * La descripción está escrita para el modelo y son dos renglones: mostrarla
+ * entera convierte la lista de pasos en un muro. La primera cláusula sí sirve
+ * —"Panorama de la cuenta", "Cómo viene la cuenta en un período"— y es lo único
+ * que se necesita mientras el paso corre.
+ *
+ * Es el respaldo: la pantalla prefiere su propia etiqueta cuando la capacidad
+ * está en su mapa. Esto es lo que se ve cuando alguien suma una capacidad nueva
+ * y todavía no le puso nombre corto.
+ */
+function etiquetaDe(descripcion: string): string {
+  const primera = descripcion.split(/[:.,;]/)[0].trim()
+  return primera.length > 60 ? `${primera.slice(0, 57)}…` : primera
+}
+
+/**
+ * Una línea de lo que devolvió una lectura, para la pantalla.
+ *
+ * El resultado crudo puede tener miles de caracteres y es para el modelo, no
+ * para una persona. Acá alcanza con el tamaño: lo que se está mostrando es que
+ * la consulta salió bien y trajo algo.
+ */
+function resumirSalida(salida: unknown): string {
+  if (Array.isArray(salida)) return `${salida.length}`
+  if (salida && typeof salida === 'object') {
+    return Object.keys(salida as Record<string, unknown>).length.toString()
+  }
+  return 'ok'
 }
 
 export async function runOperator(args: {
@@ -117,8 +201,14 @@ export async function runOperator(args: {
   /** El hilo tal como quedó, ya en formato Anthropic. */
   history: Anthropic.MessageParam[]
   locale?: 'es' | 'en'
+  /**
+   * Progreso en vivo. Sin esto el turno se comporta como antes: corre entero y
+   * devuelve el resultado al final.
+   */
+  onEvent?: EmitFn
 }): Promise<OperatorTurn> {
   const { db, workspaceId, threadId } = args
+  const emit: EmitFn = args.onEvent ?? (() => {})
 
   if ((await tokensHoy(db, workspaceId)) > TOPE_DIARIO_TOKENS) {
     return {
@@ -132,7 +222,7 @@ export async function runOperator(args: {
 
   const resolved = await resolveAnthropicKey(db, { workspaceId })
   if (!resolved) throw new Error('no hay una clave de IA configurada')
-  const client = getAnthropic(resolved.key)
+  const client = getAnthropicStreaming(resolved.key)
 
   const ctx: CapabilityContext = {
     db,
@@ -148,13 +238,8 @@ export async function runOperator(args: {
   let completionTokens = 0
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: OPERATOR_SYSTEM,
-      messages,
-      tools,
-    })
+    emit({ t: 'step', n: iter + 1, de: MAX_ITERS })
+    const res = await transmitir(client, { messages, tools }, emit)
     promptTokens += res.usage?.input_tokens ?? 0
     completionTokens += res.usage?.output_tokens ?? 0
 
@@ -198,24 +283,39 @@ export async function runOperator(args: {
         continue
       }
 
+      emit({ t: 'tool_start', id: block.id, key, label: etiquetaDe(cap.description) })
+
       try {
         if (cap.risk === 'lectura') {
           const salida = await cap.run(ctx, toolArgs)
-          results.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: JSON.stringify(salida).slice(0, 20_000),
+          const texto = JSON.stringify(salida).slice(0, 20_000)
+          emit({
+            t: 'tool_done',
+            id: block.id,
+            key,
+            ok: true,
+            resumen: resumirSalida(salida),
           })
+          results.push({ type: 'tool_result', tool_use_id: block.id, content: texto })
         } else {
           const p = await proponer(ctx, threadId, key, toolArgs)
           proposedIds.push(p.id)
+          emit({
+            t: 'proposed',
+            id: block.id,
+            actionId: p.id,
+            key,
+            preview: p.preview ?? key,
+          })
           results.push({ type: 'tool_result', tool_use_id: block.id, content: p.texto })
         }
       } catch (e) {
+        const motivo = e instanceof Error ? e.message : 'falló'
+        emit({ t: 'tool_done', id: block.id, key, ok: false, resumen: motivo })
         results.push({
           type: 'tool_result',
           tool_use_id: block.id,
-          content: e instanceof Error ? e.message : 'falló',
+          content: motivo,
           is_error: true,
         })
       }
@@ -226,12 +326,7 @@ export async function runOperator(args: {
 
   // Se acabaron las vueltas pidiendo herramientas: una última sin ellas para
   // que cierre con algo legible en vez de dejar la pantalla en blanco.
-  const cierre = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system: OPERATOR_SYSTEM,
-    messages,
-  })
+  const cierre = await transmitir(client, { messages, tools: [] }, emit)
   promptTokens += cierre.usage?.input_tokens ?? 0
   completionTokens += cierre.usage?.output_tokens ?? 0
   return { text: textoDe(cierre), promptTokens, completionTokens, proposedIds }

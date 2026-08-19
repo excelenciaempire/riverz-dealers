@@ -16,3 +16,21 @@ import Anthropic from "@anthropic-ai/sdk";
 export function getAnthropic(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
 }
+
+/**
+ * Cliente para los turnos que se transmiten en vivo.
+ *
+ * El de arriba corta a los 45 segundos, y ahí ese techo es correcto: la
+ * respuesta a un cliente sale disparada desde el webhook y nadie la está
+ * mirando, así que fallar rápido evita que un atasco del proveedor acumule
+ * tareas en el proceso.
+ *
+ * Acá es al revés. Hay una persona mirando la pantalla, ve el texto aparecer, y
+ * un turno con razonamiento y varias herramientas se pasa de 45 segundos sin
+ * que nada esté mal. Cortarlo sería cortar algo que está funcionando delante de
+ * quien lo pidió. Sin reintentos: reintentar un stream a medio camino
+ * duplicaría lo que ya se mostró.
+ */
+export function getAnthropicStreaming(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, timeout: 10 * 60_000, maxRetries: 0 });
+}
