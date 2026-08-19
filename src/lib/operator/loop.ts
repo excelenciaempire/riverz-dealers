@@ -24,6 +24,7 @@ import {
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
 import { OPERATOR_SYSTEM } from './prompt'
+import { translate } from '@/lib/i18n/translate'
 
 /** Techo de vueltas. Un diagnóstico honesto se resuelve en tres o cuatro. */
 const MAX_ITERS = 6
@@ -210,9 +211,11 @@ export async function runOperator(args: {
   const { db, workspaceId, threadId } = args
   const emit: EmitFn = args.onEvent ?? (() => {})
 
+  const locale = args.locale ?? 'es'
+
   if ((await tokensHoy(db, workspaceId)) > TOPE_DIARIO_TOKENS) {
     return {
-      text: 'Llegaste al límite de uso del Operator por hoy. Volvé a intentar mañana.',
+      text: translate(locale, 'operation.operatorOverBudget'),
       promptTokens: 0,
       completionTokens: 0,
       proposedIds: [],
@@ -220,15 +223,27 @@ export async function runOperator(args: {
     }
   }
 
+  // Sin clave no se puede contestar, pero tampoco es un error del comercio:
+  // es que la cuenta no tiene la IA habilitada. Tirar una excepción dejaba en
+  // pantalla un "no hay una clave de IA configurada" que no le dice a nadie
+  // qué hacer.
   const resolved = await resolveAnthropicKey(db, { workspaceId })
-  if (!resolved) throw new Error('no hay una clave de IA configurada')
+  if (!resolved) {
+    return {
+      text: translate(locale, 'operation.operatorNoKey'),
+      promptTokens: 0,
+      completionTokens: 0,
+      proposedIds: [],
+      overBudget: true,
+    }
+  }
   const client = getAnthropicStreaming(resolved.key)
 
   const ctx: CapabilityContext = {
     db,
     workspaceId,
     actor: { type: 'operator', id: args.userId },
-    locale: args.locale ?? 'es',
+    locale,
   }
 
   const tools = capabilitiesAsAnthropicTools(OPERATOR_CAPABILITIES) as Anthropic.Tool[]

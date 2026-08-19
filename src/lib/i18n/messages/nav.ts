@@ -10,9 +10,13 @@ export const nav = {
   groupAnalytics: { es: "Análisis", en: "Analytics" },
 
   // Item labels
-  chat: { es: "Chat", en: "Chat" },
+  // El chat que opera la cuenta. "Operador" y no "Chat" porque no es un lugar
+  // donde conversar: es a quien le pedís que haga cosas.
+  chat: { es: "Operador", en: "Operator" },
   operation: { es: "Operación", en: "Operation" },
-  home: { es: "Inicio", en: "Home" },
+  // Antes "Inicio". Dejó de ser una portada: es el tablero con todo lo que pasa
+  // en la cuenta, y el nombre tiene que decir eso.
+  home: { es: "Panel", en: "Dashboard" },
   inbox: { es: "Bandeja", en: "Inbox" },
   contacts: { es: "Contactos", en: "Contacts" },
   assistant: { es: "Asistente IA", en: "AI Assistant" },

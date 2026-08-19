@@ -28,8 +28,8 @@ export async function GET(request: Request) {
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id)
   if (!workspaceId) return NextResponse.json({ error: 'no_workspace' }, { status: 400 })
 
-  // El mismo gate que la página. Una pantalla escondida cuyo endpoint contesta
-  // igual no está escondida.
+  // El mismo gate que la pantalla. Un endpoint que contesta igual no esconde
+  // nada.
   const flags = await getFeatureFlags(admin, workspaceId)
   if (!isRiverz2(flags)) {
     return NextResponse.json({ error: 'not_enabled' }, { status: 404 })
@@ -43,21 +43,30 @@ export async function GET(request: Request) {
     locale: await getLocale(),
   }
 
-  try {
-    const [estado, metricas, pendientes, agentes] = await Promise.all([
-      getCapability('operacion.estado').run(ctx, {}),
-      getCapability('metricas.resumen').run(ctx, { dias }),
-      getCapability('conversaciones.pendientes').run(ctx, { limite: 5 }),
-      getCapability('agentes.listar').run(ctx, {}),
-    ])
-    return NextResponse.json(
-      { estado, metricas, pendientes, agentes },
-      { headers: { 'Cache-Control': 'no-store' } },
-    )
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'failed' },
-      { status: 500 },
-    )
+  // Cada capacidad cae a null por su cuenta. El panel muestra seis cosas
+  // distintas: que falle la lectura de plantillas no puede dejar en blanco las
+  // métricas, los avisos y los pedidos.
+  const intentar = async (key: string, args: Record<string, unknown> = {}) => {
+    try {
+      return await getCapability(key).run(ctx, args)
+    } catch (e) {
+      console.error(`[operacion/overview] ${key}:`, e)
+      return null
+    }
   }
+
+  const [estado, metricas, pendientes, agentes, plantillas, campanas] =
+    await Promise.all([
+      intentar('operacion.estado'),
+      intentar('metricas.resumen', { dias }),
+      intentar('conversaciones.pendientes', { limite: 5 }),
+      intentar('agentes.listar'),
+      intentar('plantillas.estado'),
+      intentar('campanas.estado', { dias }),
+    ])
+
+  return NextResponse.json(
+    { estado, metricas, pendientes, agentes, plantillas, campanas },
+    { headers: { 'Cache-Control': 'no-store' } },
+  )
 }

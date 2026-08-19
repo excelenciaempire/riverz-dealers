@@ -79,11 +79,16 @@ interface NavGroup {
 // "Flujos" y es item raíz.
 const navGroups: NavGroup[] = [
   {
+    // Sin título a propósito: el Operador no es una categoría de trabajo, es la
+    // puerta. Un encabezado arriba lo metería en la misma bolsa que la bandeja
+    // y los contactos, y no es lo mismo — desde acá se pide, en el resto se
+    // hace a mano.
+    title: "",
+    items: [{ href: "/chat", label: "nav.chat", icon: Wand2, riverz2: true }],
+  },
+  {
     title: "nav.groupDaily",
     items: [
-      // Primero del menú, y sólo para quien tiene Riverz 2.0: es desde donde se
-      // le pide a Riverz que haga cosas. Para el resto ni siquiera existe.
-      { href: "/chat", label: "nav.chat", icon: Wand2, riverz2: true },
       { href: "/panel", label: "nav.home", icon: Home },
       { href: "/bandeja", label: "nav.inbox", icon: Inbox },
       { href: "/contactos", label: "nav.contacts", icon: Users },
@@ -288,16 +293,20 @@ export function Sidebar({
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          {visibleGroups.map((group) => (
-            <div key={group.title} className="mb-4">
-              <h3
-                className={cn(
-                  "app-sidebar-group mb-1.5 px-2.5",
-                  collapsed && "lg:hidden",
-                )}
-              >
-                {t(group.title)}
-              </h3>
+          {visibleGroups.map((group, i) => (
+            <div key={group.title || `sin-titulo-${i}`} className="mb-4">
+              {/* Un grupo puede no llevar título: el Operador va suelto arriba
+                  de todo, sin encabezado que lo meta en una categoría. */}
+              {group.title && (
+                <h3
+                  className={cn(
+                    "app-sidebar-group mb-1.5 px-2.5",
+                    collapsed && "lg:hidden",
+                  )}
+                >
+                  {t(group.title)}
+                </h3>
+              )}
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => (
                   <NavLink

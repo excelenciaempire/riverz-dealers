@@ -1,10 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { useRiverz2 } from '@/hooks/use-feature-flags'
 import { PanelDashboard } from '@/components/dashboard/panel-dashboard'
 import {
   ConversacionesPendientes,
+  PlantillasYCampanas,
   QueEstaCorriendo,
+  TarjetasOperacion,
   useOperacion,
 } from '@/components/operacion/centro'
 
@@ -27,12 +30,19 @@ export function PanelConOperacion() {
 }
 
 function PanelEnriquecido() {
-  const { data } = useOperacion()
+  // El panel manda el período; la operación lo sigue. Si no, el filtro diría
+  // "30 días" y la mitad de las tarjetas seguirían mostrando 7.
+  const [dias, setDias] = useState(7)
+  const { data } = useOperacion(dias)
+
   return (
     <PanelDashboard
       ocultarChecklist
+      onRango={setDias}
       slotAtencion={<ConversacionesPendientes data={data} />}
+      tarjetasExtra={<TarjetasOperacion data={data} />}
       slotEstado={<QueEstaCorriendo data={data} />}
+      slotDatos={<PlantillasYCampanas data={data} />}
     />
   )
 }

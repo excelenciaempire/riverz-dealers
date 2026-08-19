@@ -65,12 +65,25 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed'
 export function PanelDashboard({
   slotAtencion,
   slotEstado,
+  slotDatos,
+  tarjetasExtra,
+  onRango,
   ocultarChecklist = false,
 }: {
   /** Va con lo que necesita a una persona, después de las aprobaciones. */
   slotAtencion?: React.ReactNode
   /** Va después de las tarjetas de métricas. */
   slotEstado?: React.ReactNode
+  /** Va antes de los ingresos atribuidos y la actividad. */
+  slotDatos?: React.ReactNode
+  /** Tarjetas que entran DENTRO de la misma grilla de métricas. */
+  tarjetasExtra?: React.ReactNode
+  /**
+   * Cuántos días abarca el filtro activo. Quien agregue tarjetas propias las
+   * tiene que medir sobre el mismo período: dos cifras de la misma pantalla
+   * midiendo ventanas distintas es peor que no mostrar una de las dos.
+   */
+  onRango?: (dias: number) => void
   /** En Riverz 2.0 el asistente de activación reemplaza al checklist. */
   ocultarChecklist?: boolean
 } = {}) {
@@ -109,6 +122,12 @@ export function PanelDashboard({
   useEffect(() => {
     tRef.current = t
   }, [t])
+  // En un ref por lo mismo que `t`: `refresh` es estable y no puede recrearse
+  // cada vez que el padre pasa una función nueva.
+  const onRangoRef = useRef(onRango)
+  useEffect(() => {
+    onRangoRef.current = onRango
+  }, [onRango])
 
   // Epoch guard: switching the range (or a realtime tick) bumps the epoch so
   // a slower earlier response can never land its stale data on a newer one.
@@ -119,6 +138,10 @@ export function PanelDashboard({
     const activeTz = tzRef.current
     const range = rangeForPreset(activeTz, presetRef.current, customRef.current)
     setRangeIso({ start: range.start.toISOString(), end: range.end.toISOString() })
+    // Días que abarca el filtro, redondeando hacia arriba: "hoy" es 1, no 0.
+    onRangoRef.current?.(
+      Math.max(1, Math.ceil((range.end.getTime() - range.start.getTime()) / 86_400_000)),
+    )
     const prev = previousRangeForPreset(activeTz, presetRef.current, range)
     const epoch = ++epochRef.current
     const fresh = () => epoch === epochRef.current
@@ -264,6 +287,7 @@ export function PanelDashboard({
               icon={Send}
               delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix, t, fmt.number)}
             />
+            {tarjetasExtra}
           </>
         )}
       </div>
@@ -280,6 +304,8 @@ export function PanelDashboard({
 
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+
+      {slotDatos}
 
       {/* Lo que genero Riverz, en plata. El calculo ya existia y no lo miraba
           nadie: no tenia pantalla. */}

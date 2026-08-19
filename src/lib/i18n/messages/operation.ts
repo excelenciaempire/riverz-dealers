@@ -73,6 +73,14 @@ export const operation = {
     es: "Demasiadas consultas seguidas. Esperá un minuto.",
     en: "Too many requests in a row. Wait a minute.",
   },
+  operatorNoKey: {
+    es: "El Operador todavía no está habilitado en esta cuenta. Escribile a Riverz para activarlo.",
+    en: "The Operator isn't enabled on this account yet. Contact Riverz to turn it on.",
+  },
+  operatorOverBudget: {
+    es: "Llegaste al límite de uso del Operador por hoy. Volvé a intentar mañana.",
+    en: "You've hit today's Operator usage limit. Try again tomorrow.",
+  },
   operatorTry1: { es: "¿Cómo viene la semana?", en: "How is the week going?" },
   operatorTry2: { es: "¿Qué está frenando las ventas?", en: "What is holding sales back?" },
   operatorTry3: {
@@ -197,6 +205,29 @@ export const operation = {
     es: "Decide qué conversaciones atiende cuando hay más de un agente en el mismo canal.",
     en: "Decides which conversations it takes when more than one agent shares a channel.",
   },
+
+  // Métricas que suma la operación al panel
+  mResolved: { es: "Resueltas", en: "Resolved" },
+  mAiAnswered: { es: "Respondió la IA", en: "AI answered" },
+  mAiBreakdown: {
+    es: "{skipped} se abstuvo · {failed} falló",
+    en: "{skipped} skipped · {failed} failed",
+  },
+  mOrders: { es: "Pedidos", en: "Orders" },
+  mRevenue: { es: "Facturado", en: "Revenue" },
+
+  templatesTitle: { es: "Plantillas de WhatsApp", en: "WhatsApp templates" },
+  templatesTotal: { es: "Total", en: "Total" },
+  templatesRejected: { es: "Rechazadas", en: "Rejected" },
+  templatesPending: { es: "En revisión", en: "In review" },
+
+  campaignsTitle: { es: "Campañas del período", en: "Campaigns in the period" },
+  cSent: { es: "Enviados", en: "Sent" },
+  cDelivered: { es: "Entregados", en: "Delivered" },
+  cRead: { es: "Leídos", en: "Read" },
+  cReplied: { es: "Respondieron", en: "Replied" },
+  cFailed: { es: "Fallaron", en: "Failed" },
+  cStalled: { es: "Trabadas", en: "Stalled" },
 
   // Lo que se ve mientras trabaja
   operatorReasoning: { es: "Pensando", en: "Thinking" },
