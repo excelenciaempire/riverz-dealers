@@ -61,6 +61,15 @@ import type {
   ShopifyProductSummary,
 } from '@/lib/ai/types';
 import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
+import {
+  AGENT_PERMISSIONS,
+  AGENT_ROLES,
+  agentCan,
+  type AgentPermission,
+  type AgentPermissions,
+  type AgentRole,
+} from '@/lib/ai/roles';
+import { roleTemplate } from '@/lib/ai/role-templates';
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
 
@@ -130,6 +139,24 @@ const LANGUAGES: { code: string; label: string }[] = [
 ];
 
 // label/hint son claves i18n resueltas con t() en el render.
+/** Sufijo de la clave i18n de cada rol y permiso, para no repetir el mapa. */
+const ROLE_KEY: Record<AgentRole, string> = {
+  general: 'General',
+  ventas: 'Sales',
+  postventa: 'Aftersale',
+  recuperacion: 'Recovery',
+  retencion: 'Retention',
+};
+
+const PERM_KEY: Record<AgentPermission, string> = {
+  crear_pedidos: 'CrearPedidos',
+  crear_checkout: 'CrearCheckout',
+  registrar_pago: 'RegistrarPago',
+  editar_pedido: 'EditarPedido',
+  escalar_llamada: 'EscalarLlamada',
+  enviar_proactivo: 'EnviarProactivo',
+};
+
 const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] = [
   {
     value: 'single',
@@ -326,6 +353,29 @@ export function AgentEditor({
   const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
     agent?.puede_crear_pedidos ?? false,
   );
+  // Rol y permisos por acción (migración 164). `permissions` en null significa
+  // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
+  // alguien toque uno de estos interruptores.
+  const [role, setRole] = useState<AgentRole>(agent?.role ?? 'general');
+  const [permissions, setPermissions] = useState<AgentPermissions | null>(
+    agent?.permissions ?? null,
+  );
+
+  /**
+   * Cambiar de rol trae su preset de permisos.
+   *
+   * Elegir "Postventa" y que el agente siga pudiendo crear pedidos sería el rol
+   * como etiqueta y no como decisión. Quien quiera otra cosa mueve los
+   * interruptores después: el preset es un punto de partida, no un candado.
+   */
+  const aplicarRol = (r: AgentRole) => {
+    setRole(r);
+    const preset = roleTemplate(r);
+    if (preset) {
+      setPermissions(preset.permissions);
+      setPuedeCrearPedidos(preset.permissions.crear_pedidos === true);
+    }
+  };
   // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
   // cargando. El cierre solo se puede activar con Shopify conectado; si no,
   // mostramos un botón "Vincular" que abre un popup sin salir del editor.
@@ -405,6 +455,9 @@ export function AgentEditor({
   );
   const TIMEZONE_LABELS = Object.fromEntries(
     TIMEZONES.map((tz) => [tz.value, t(tz.label)]),
+  );
+  const ROLE_LABELS = Object.fromEntries(
+    AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)]),
   );
 
   function toggleEscalate(kw: string) {
@@ -688,6 +741,8 @@ export function AgentEditor({
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
+      role,
+      permissions,
       // Voice AI (migration 113 + 115)
       voice_enabled: voice.voice_enabled,
       voice_ai_decides: voice.voice_ai_decides,
@@ -1360,6 +1415,64 @@ export function AgentEditor({
 
             {tab === 'advanced' && (
               <>
+                {/* Rol y permisos (migración 164). El rol reparte el trabajo
+                    cuando hay varios agentes en un canal; los permisos dicen
+                    qué puede tocar este. */}
+                <SectionCard
+                  title={t('operation.permissionsTitle')}
+                  hint={t('operation.permissionsHint')}
+                >
+                  <Field label={t('operation.roleLabel')}>
+                    <Select
+                      value={role}
+                      onValueChange={(v) => aplicarRol((v as AgentRole) ?? 'general')}
+                    >
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={ROLE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AGENT_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-foreground">
+                                {t(`operation.role${ROLE_KEY[r]}Name`)}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {t(`operation.role${ROLE_KEY[r]}What`)}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t('operation.roleHint')}
+                    </p>
+                  </Field>
+
+                  <div className="space-y-2.5">
+                    {AGENT_PERMISSIONS.map((p) => (
+                      <label
+                        key={p}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="text-foreground">
+                          {t(`operation.perm${PERM_KEY[p]}`)}
+                        </span>
+                        <Switch
+                          checked={agentCan(
+                            { permissions, puede_crear_pedidos: puedeCrearPedidos },
+                            p,
+                          )}
+                          onCheckedChange={(c) =>
+                            setPermissions((prev) => ({ ...(prev ?? {}), [p]: c }))
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </SectionCard>
+
                 <SectionCard
                   title={t('assistant.responseBehaviorTitle')}
                   hint={t('assistant.responseBehaviorHint')}

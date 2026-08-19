@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey, type KeySource } from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
+import { agentCan, pickByRole, roleForInbound } from './roles';
 import { transcribeAudio } from './transcribe';
 import type {
   Channel,
@@ -102,6 +103,14 @@ export async function runAiAgent(
     const agent = await pickAgent(db, args.workspaceId, args.channel, {
       productMatch,
       stickyAgentId,
+      inboundText: args.inboundMessage.content_text ?? '',
+      // `pending_checkout_at` lo marca la propia herramienta de checkout: si
+      // está, hay algo sin cerrar y "no pude pagar" es un rescate, no una
+      // consulta nueva.
+      hasOpenCart: Boolean(
+        (args.conversation as { pending_checkout_at?: string | null })
+          .pending_checkout_at,
+      ),
     });
     if (!agent) return;
 
@@ -243,7 +252,10 @@ export async function runAiAgent(
     // habilitada para ESTE agente y (b) persistir el pedido en la tabla
     // `orders` de Riverz vinculado al workspace/contacto/agente/charla.
     if (shopify) {
-      shopify.canCreateOrders = agent.puede_crear_pedidos === true;
+      // Por `agentCan` y no por la columna directa: con `permissions` cargado
+      // (migración 164) manda ese; sin él cae a `puede_crear_pedidos`, que es
+      // como se comportan los agentes anteriores a la migración.
+      shopify.canCreateOrders = agentCan(agent, 'crear_pedidos');
       shopify.workspaceId = args.workspaceId;
       shopify.agentId = agent.id;
       shopify.contactId = primaryContact.id;
@@ -556,6 +568,10 @@ async function pickAgent(
   routing: {
     productMatch: ProductMatch | null;
     stickyAgentId: string | null;
+    /** El mensaje que acaba de entrar, para arbitrar entre roles. */
+    inboundText?: string | null;
+    /** Hay un carrito o checkout sin cerrar: habilita el rol de recuperación. */
+    hasOpenCart?: boolean;
   },
 ): Promise<AiAgent | null> {
   // Levantamos todos los agentes activos del workspace + qué productos
@@ -642,17 +658,25 @@ async function pickAgent(
     // detector — sería matar la cobertura por una preferencia fuzzy).
   }
 
-  // ── Routing default (igual que antes) ──
-  for (const row of all) {
-    if (row.scope === 'channels') {
-      const channels = row.ai_agent_channels.map((c) => c.channel);
-      if (channels.includes(channel)) return row;
-    }
-  }
-  for (const row of all) {
-    if (row.scope === 'workspace') return row;
-  }
-  return null;
+  // ── Routing default ──
+  // Se juntan TODOS los candidatos del canal en vez de devolver el primero:
+  // con uno solo el resultado es idéntico al de siempre, y con varios —una
+  // flota por rol— hace falta la lista entera para arbitrar.
+  const delCanal = all.filter(
+    (row) =>
+      row.scope === 'channels' && row.ai_agent_channels.some((c) => c.channel === channel),
+  );
+  const delWorkspace = all.filter((row) => row.scope === 'workspace');
+  const candidatos = delCanal.length > 0 ? delCanal : delWorkspace;
+
+  if (candidatos.length === 0) return null;
+  if (candidatos.length === 1) return candidatos[0];
+
+  // Sólo acá entra el arbitraje por rol. Un comercio con un agente por canal
+  // —todos los de hoy— nunca llega a esta línea.
+  return pickByRole(candidatos, roleForInbound(routing.inboundText ?? '', {
+    hasOpenCart: routing.hasOpenCart,
+  }));
 }
 
 /**
@@ -1474,6 +1498,7 @@ async function generateReply(
   const voiceCtx: VoiceEscalationContext | null =
     agent.voice_enabled &&
     agent.voice_ai_decides &&
+    agentCan(agent, 'escalar_llamada') &&
     (contact.phone || primaryContact.phone)
       ? {
           workspaceId: agent.workspace_id,
@@ -1486,7 +1511,9 @@ async function generateReply(
     ...(shopify
       ? [
           LOOKUP_ORDER_TOOL,
-          buildCheckoutTool(shopify.config ?? null),
+          ...(agentCan(agent, 'crear_checkout')
+            ? [buildCheckoutTool(shopify.config ?? null)]
+            : []),
           ...(shopify.canCreateOrders
             ? [buildOrderTool(shopify.config ?? null)]
             : []),
@@ -1496,7 +1523,9 @@ async function generateReply(
     // Registrar un pago informado no necesita Shopify conectado: el pedido
     // puede estar espejado de otro canal, y aunque no se pueda cobrar, callar
     // los recordatorios ya vale por sí solo.
-    ...(primaryContact.id ? [REGISTRAR_PAGO_TOOL] : []),
+    ...(primaryContact.id && agentCan(agent, 'registrar_pago')
+      ? [REGISTRAR_PAGO_TOOL]
+      : []),
   ];
   const result = await runWithTools(client, {
     // Mercado Libre no permite consultar pedidos en vivo (comprador

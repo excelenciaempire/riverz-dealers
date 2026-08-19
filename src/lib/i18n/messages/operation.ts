@@ -80,6 +80,51 @@ export const operation = {
     en: "Turn on cart recovery",
   },
 
+  // Roles de la flota
+  roleSalesName: { es: "Ventas", en: "Sales" },
+  roleAftersaleName: { es: "Postventa", en: "After-sales" },
+  roleRecoveryName: { es: "Recuperación", en: "Recovery" },
+  roleRetentionName: { es: "Recompra", en: "Repurchase" },
+  roleGeneralName: { es: "General", en: "General" },
+  roleSalesWhat: {
+    es: "Responde consultas, recomienda y cierra la venta.",
+    en: "Answers questions, recommends and closes the sale.",
+  },
+  roleAftersaleWhat: {
+    es: "Estado del pedido, guías, cambios y preguntas frecuentes.",
+    en: "Order status, tracking, changes and FAQs.",
+  },
+  roleRecoveryWhat: {
+    es: "Carritos abandonados, pagos pendientes y rechazados.",
+    en: "Abandoned carts, pending and rejected payments.",
+  },
+  roleRetentionWhat: {
+    es: "Vuelve a escribirle a quien ya compró.",
+    en: "Writes back to those who already bought.",
+  },
+  roleGeneralWhat: {
+    es: "Atiende todo sin reparto de trabajo.",
+    en: "Handles everything without splitting work.",
+  },
+
+  // Permisos por acción
+  permissionsTitle: { es: "Qué puede hacer", en: "What it can do" },
+  permissionsHint: {
+    es: "Lo que quede apagado, el agente lo deriva a tu equipo.",
+    en: "Whatever stays off, the agent hands to your team.",
+  },
+  permCrearPedidos: { es: "Crear pedidos", en: "Create orders" },
+  permCrearCheckout: { es: "Enviar link de pago", en: "Send payment link" },
+  permRegistrarPago: { es: "Registrar un pago informado", en: "Record a reported payment" },
+  permEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
+  permEscalarLlamada: { es: "Llamar por teléfono", en: "Place a phone call" },
+  permEnviarProactivo: { es: "Escribir primero", en: "Message first" },
+  roleLabel: { es: "Rol", en: "Role" },
+  roleHint: {
+    es: "Decide qué conversaciones atiende cuando hay más de un agente en el mismo canal.",
+    en: "Decides which conversations it takes when more than one agent shares a channel.",
+  },
+
   // Acciones propuestas
   proposedTitle: { es: "Esperando tu aprobación", en: "Waiting for your approval" },
   approve: { es: "Aprobar", en: "Approve" },

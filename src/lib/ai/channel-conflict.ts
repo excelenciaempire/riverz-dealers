@@ -3,14 +3,18 @@ import { translate } from '@/lib/i18n/translate';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 
 /**
- * Un solo chatbot ACTIVO por canal.
+ * Un solo agente ACTIVO por canal Y ROL.
  *
- * El runner ya enruta un único agente por canal (mayor prioridad), pero nada
- * impedía tener dos agentes activos pisándose el mismo canal — confuso e
- * impredecible para el merchant. Este helper detecta ese choque al guardar un
- * agente activo y deja que la ruta lo bloquee con un mensaje claro (en vez de
- * desactivar a otro en silencio). El merchant resuelve pausando uno o
- * acotando los canales.
+ * Nació como "uno por canal": dos agentes activos pisándose el mismo canal era
+ * confuso e impredecible, porque los dos querían contestar lo mismo. Ese sigue
+ * siendo el problema, pero la regla era más ancha que el problema — bloqueaba
+ * también el caso que sí tiene sentido: uno que vende y otro que atiende
+ * postventa, en WhatsApp, sobre el mismo catálogo. No se pisan porque no
+ * contestan lo mismo, y el runner los arbitra por rol (`roles.ts`).
+ *
+ * Así que el choque ahora es por par (canal, rol). Dos agentes con el mismo rol
+ * en el mismo canal siguen siendo un choque, y se bloquea al guardar con un
+ * mensaje claro en vez de desactivar a otro en silencio.
  */
 
 // Canales sobre los que el asistente de IA puede responder (DM + email). Un
@@ -89,16 +93,19 @@ export async function findChannelConflict(
     channels: string[];
     /** Si la voz está apagada, este agente no ocupa el canal de llamadas. */
     voiceEnabled?: boolean;
+    /** Migración 164. Ausente = 'general', como los agentes anteriores. */
+    role?: string | null;
   },
 ): Promise<ChannelConflict | null> {
   const mine = new Set(
     effectiveChannels(args.scope, args.channels, args.voiceEnabled !== false),
   );
   if (mine.size === 0) return null;
+  const miRol = args.role ?? 'general';
 
   let query = admin
     .from('ai_agents')
-    .select('id, name, scope, voice_enabled, ai_agent_channels(channel)')
+    .select('id, name, scope, role, voice_enabled, ai_agent_channels(channel)')
     .eq('workspace_id', args.workspaceId)
     .eq('is_active', true)
     .is('deleted_at', null);
@@ -108,9 +115,12 @@ export async function findChannelConflict(
   for (const a of (data ?? []) as Array<{
     name: string | null;
     scope: string;
+    role?: string | null;
     voice_enabled?: boolean | null;
     ai_agent_channels?: { channel: string }[];
   }>) {
+    // Roles distintos conviven: se reparten los mensajes, no se los disputan.
+    if ((a.role ?? 'general') !== miRol) continue;
     const theirs = effectiveChannels(
       a.scope,
       (a.ai_agent_channels ?? []).map((c) => c.channel),

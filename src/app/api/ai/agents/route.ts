@@ -7,6 +7,7 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
+import { isAgentRole } from '@/lib/ai/roles';
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -116,14 +117,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // Un solo chatbot activo por canal: si este nace activo y pisa los canales
-  // de otro agente activo, lo bloqueamos con un mensaje claro.
+  // Un solo agente activo por canal Y ROL: si este nace activo y le disputa
+  // los mensajes a otro del mismo rol, lo bloqueamos con un mensaje claro.
+  // Roles distintos conviven — se reparten el canal, no se lo pelean.
   if (body.is_active) {
     const conflict = await findChannelConflict(admin, {
       workspaceId: body.workspace_id,
       agentId: null,
       scope: body.scope ?? 'workspace',
       channels: body.scope === 'channels' ? (body.channels ?? []) : [],
+      role: body.role,
     });
     if (conflict) {
       return NextResponse.json(
@@ -165,6 +168,10 @@ export async function POST(request: Request) {
     followup_max_count: body.followup_max_count ?? 1,
     proactive_send_mode: body.proactive_send_mode ?? 'auto',
     puede_crear_pedidos: body.puede_crear_pedidos ?? false,
+    // Migración 164. Sin rol es 'general', que es como se comportan todos los
+    // agentes anteriores; `permissions` en null usa las columnas viejas.
+    role: isAgentRole(body.role) ? body.role : 'general',
+    permissions: body.permissions ?? null,
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-haiku-4-5-20251001',
     scope: body.scope ?? 'workspace',

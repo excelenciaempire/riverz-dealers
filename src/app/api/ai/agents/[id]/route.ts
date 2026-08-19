@@ -90,6 +90,9 @@ export async function PATCH(
     'followup_max_count',
     'proactive_send_mode',
     'puede_crear_pedidos',
+    // Rol y permisos por acción (migración 164)
+    'role',
+    'permissions',
     'provider',
     'model',
     'scope',
@@ -123,11 +126,16 @@ export async function PATCH(
   {
     const { data: cur } = await admin
       .from('ai_agents')
-      .select('is_active, scope, ai_agent_channels(channel)')
+      .select('is_active, scope, role, ai_agent_channels(channel)')
       .eq('id', id)
       .maybeSingle();
     const curRow = cur as
-      | { is_active: boolean; scope: string; ai_agent_channels?: { channel: string }[] }
+      | {
+          is_active: boolean
+          scope: string
+          role?: string | null
+          ai_agent_channels?: { channel: string }[]
+        }
       | null;
     const finalActive =
       willBeActive ?? Boolean(curRow?.is_active);
@@ -152,6 +160,7 @@ export async function PATCH(
         agentId: id,
         scope: finalScope,
         channels: finalScope === 'channels' ? finalChannels : [],
+        role: (update.role as string | undefined) ?? curRow?.role ?? 'general',
       });
       if (conflict) {
         return NextResponse.json(

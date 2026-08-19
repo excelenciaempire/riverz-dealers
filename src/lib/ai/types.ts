@@ -3,6 +3,7 @@ import type {
   VoiceCallingHours,
   VoiceObjectives,
 } from '@/types';
+import type { AgentPermissions, AgentRole } from './roles';
 
 /**
  * Piso real de la espera antes de responder (`inbound_debounce_seconds`).
@@ -42,6 +43,19 @@ export interface AiAgent {
   workspace_id: string;
   name: string;
   is_active: boolean;
+
+  /**
+   * Qué trabajo hace este agente. Migración 164.
+   *
+   * Sólo decide a quién le toca un mensaje cuando hay más de un agente en el
+   * mismo canal; no habilita ni deshabilita nada (para eso está `permissions`).
+   */
+  role: AgentRole;
+  /**
+   * Permisos por acción. Migración 164. `null` = usar las columnas viejas,
+   * que es como se comportan los agentes anteriores a la migración.
+   */
+  permissions: AgentPermissions | null;
 
   persona: string;
   knowledge: string | null;
