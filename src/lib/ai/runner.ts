@@ -1731,7 +1731,16 @@ export function buildSystemPrompt(
   const lines: string[] = [];
   if (agent.persona) lines.push(agent.persona.trim());
   lines.push(TONE_INSTRUCTIONS[agent.tone]);
+  const idioma = (agent.language || 'es').toLowerCase().slice(0, 2);
   lines.push(`Responde en ${agent.language || 'es'}.`);
+  // El modelo se va solo al voseo rioplatense ("tenés", "recibís") aunque el
+  // comercio sea colombiano o mexicano, y a veces lo mezcla con el tuteo en la
+  // misma conversación. Español neutro es la casa.
+  if (idioma === 'es') {
+    lines.push(
+      'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
+    );
+  }
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
   // Detectada de la tienda Shopify / config / catálogo (resolveWorkspaceCurrency).

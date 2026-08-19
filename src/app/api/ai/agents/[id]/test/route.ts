@@ -125,6 +125,13 @@ export async function POST(
     if (a.persona) lines.push(a.persona.trim());
     lines.push(TONE_INSTRUCTIONS[a.tone] ?? '');
     lines.push(`Responde en ${a.language || 'es'}.`);
+    // Mismo recorte de idioma que el runner: sin esto el panel de prueba
+    // contesta en voseo y el de produccion no, o al reves.
+    if ((a.language || 'es').toLowerCase().slice(0, 2) === 'es') {
+      lines.push(
+        'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
+      );
+    }
     lines.push(`Mantente bajo ${a.max_response_chars} caracteres.`);
     if (a.knowledge?.trim()) {
       lines.push('Contexto adicional:');
