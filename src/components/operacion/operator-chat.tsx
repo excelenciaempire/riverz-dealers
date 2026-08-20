@@ -117,6 +117,13 @@ const PASO_LABEL: Record<string, string> = {
   'contactos.etiquetar': 'operation.stepEtiquetar',
 }
 
+interface PlanPendiente {
+  planId: string
+  porque: string
+  pasos: { i: number; agente: string; encargo: string; dependeDe: number[] }[]
+  estado: 'esperando' | 'corriendo' | 'listo' | 'rechazado'
+}
+
 /** El turno en curso. */
 interface Vivo {
   /** Razonamiento del modelo, cuando lo expone (ver `events.ts`). */
@@ -169,6 +176,14 @@ export function OperatorChat({
   const [error, setError] = useState<string | null>(null)
   const [auto, setAuto] = useState<boolean | null>(null)
   const [hilos, setHilos] = useState<ResumenHilo[]>([])
+  /**
+   * El reparto que quedó esperando un click.
+   *
+   * Vive en el chat y no en la mesa porque es una DECISIÓN, y las decisiones
+   * están donde están las otras: junto a las tarjetas de aprobación, al final
+   * del hilo. La mesa lo muestra también, pero de sólo lectura.
+   */
+  const [plan, setPlan] = useState<PlanPendiente | null>(null)
   const [cargandoHilo, setCargandoHilo] = useState(false)
   const finalRef = useRef<HTMLDivElement | null>(null)
 
@@ -232,6 +247,7 @@ export function OperatorChat({
     // Sin esto quedan en la mesa los agentes del turno anterior, trabajando
     // sobre una conversación que ya no existe.
     aLaMesa({ tipo: 'limpiar' })
+    setPlan(null)
     setThread(null)
     setMensajes([])
     setAcciones([])
@@ -319,7 +335,14 @@ export function OperatorChat({
           for (const e of events) {
             // Todo va a la mesa; el hilo se queda sólo con lo que le toca.
             aLaMesa({ tipo: 'evento', e })
-            if (e.t === 'text') {
+            if (e.t === 'plan') {
+              setPlan({
+                planId: e.planId,
+                porque: e.porque,
+                pasos: e.pasos,
+                estado: 'esperando',
+              })
+            } else if (e.t === 'text') {
               final += e.delta
               bloques = conTexto(bloques, e.delta)
             } else if (e.t === 'thinking') {
@@ -422,6 +445,103 @@ export function OperatorChat({
     [fetchWithCsrf, onChanged],
   )
 
+  /**
+   * Aprobar el reparto y dejar trabajar al equipo.
+   *
+   * Lo que corre son los pasos GUARDADOS: la ruta no le vuelve a preguntar al
+   * modelo qué había que hacer, porque podría repartir distinto de lo que se
+   * acaba de aprobar.
+   */
+  const correrPlan = useCallback(
+    async (planId: string) => {
+      setPlan((p) => (p ? { ...p, estado: 'corriendo' } : p))
+      setPensando(true)
+      setVivo({ thinking: '', bloques: [] })
+      try {
+        const res = await fetchWithCsrf(
+          `/api/operacion/operator/planes/${planId}/correr`,
+          { method: 'POST' },
+        )
+        if (!res.ok || !res.body) throw new Error('failed')
+
+        const reader = res.body.getReader()
+        const dec = new TextDecoder()
+        let buffer = ''
+        let final = ''
+        let bloques: Bloque[] = []
+
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += dec.decode(value, { stream: true })
+          const { events, rest } = drainEvents(buffer)
+          buffer = rest
+          for (const e of events) {
+            aLaMesa({ tipo: 'evento', e })
+            if (e.t === 'text') {
+              final += e.delta
+              bloques = conTexto(bloques, e.delta)
+            } else if (e.t === 'proposed') {
+              bloques = [
+                ...bloques,
+                {
+                  k: 'paso',
+                  id: e.id,
+                  key: e.key,
+                  label: e.key,
+                  estado: 'propuesto',
+                  detalle: e.preview,
+                  artefacto: e.artefacto,
+                },
+              ]
+            } else if (e.t === 'built') {
+              bloques = [
+                ...bloques,
+                {
+                  k: 'paso',
+                  id: e.id,
+                  key: e.key,
+                  label: e.key,
+                  estado: 'hecho',
+                  detalle: e.preview,
+                  artefacto: e.artefacto,
+                },
+              ]
+            } else if (e.t === 'error') {
+              setError(e.message)
+            }
+          }
+          setVivo({ thinking: '', bloques })
+        }
+
+        if (final.trim() || bloques.length > 0) {
+          setMensajes((m) => [
+            ...m,
+            { id: `a-${m.length}`, role: 'assistant', text: final, bloques },
+          ])
+        }
+        setPlan((p) => (p ? { ...p, estado: 'listo' } : p))
+
+        // Las acciones que quedaron esperando salen del servidor: el stream
+        // avisa que hay algo propuesto, no con qué argumentos exactos.
+        const hilo = thread
+        if (hilo) {
+          const r = await fetch(`/api/operacion/operator?thread=${hilo}`, {
+            cache: 'no-store',
+          })
+          if (r.ok) setAcciones(((await r.json()).acciones ?? []) as Accion[])
+        }
+      } catch {
+        setError(t('operation.operatorError'))
+        setPlan((p) => (p ? { ...p, estado: 'esperando' } : p))
+      } finally {
+        setVivo(null)
+        setPensando(false)
+      }
+    },
+    [aLaMesa, fetchWithCsrf, t, thread],
+  )
+
   const pendientes = acciones.filter((a) => a.status === 'propuesto')
   const resueltas = acciones.filter((a) => a.status !== 'propuesto')
 
@@ -520,6 +640,14 @@ export function OperatorChat({
           </div>
         )}
 
+        {plan && plan.estado !== 'rechazado' && (
+          <TarjetaPlan
+            plan={plan}
+            onAprobar={() => correrPlan(plan.planId)}
+            onRechazar={() => setPlan({ ...plan, estado: 'rechazado' })}
+          />
+        )}
+
         {pendientes.length > 0 && (
           <div className="space-y-2 pt-1">
             <p className="text-xs font-medium text-muted-foreground">
@@ -616,6 +744,92 @@ export function OperatorChat({
  * conversación de setecientos píxeles apretada contra el borde. Acá ocupa
  * cuarenta píxeles de alto y se sale del camino.
  */
+/**
+ * El reparto, con su botón.
+ *
+ * Se aprueba UNA vez y de ahí el equipo trabaja. Antes cada escritura pedía su
+ * click, y con equipo eso se volvía absurdo: pedir "armá recuperación de
+ * carritos" y tener que aprobar tres tarjetas seguidas es peor que la versión
+ * anterior, no mejor.
+ *
+ * Aprobar acá NO aprueba todo lo que el equipo pueda hacer: lo que le llega a
+ * una persona, sale a Meta o mueve dinero sigue dejando su propia tarjeta con
+ * su propio botón, adentro del plan aprobado y fuera de él.
+ */
+function TarjetaPlan({
+  plan,
+  onAprobar,
+  onRechazar,
+}: {
+  plan: PlanPendiente
+  onAprobar: () => void
+  onRechazar: () => void
+}) {
+  const t = useT()
+  const corriendo = plan.estado === 'corriendo'
+  const listo = plan.estado === 'listo'
+
+  return (
+    <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 shrink-0 text-accent-ink" />
+        <p className="text-sm font-medium text-foreground">{t('operation.planTitulo')}</p>
+      </div>
+      {plan.porque && (
+        <p className="mt-1 text-xs text-muted-foreground">{plan.porque}</p>
+      )}
+
+      <ol className="mt-3 space-y-1.5">
+        {plan.pasos.map((p) => (
+          <li key={p.i} className="flex items-start gap-2 text-xs">
+            <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[9px] font-semibold text-accent-ink">
+              {p.i + 1}
+            </span>
+            <span className="min-w-0 flex-1 leading-snug">
+              <span className="font-medium text-foreground">{p.agente}</span>{" "}
+              <span className="text-muted-foreground">{p.encargo}</span>
+              {p.dependeDe.length > 0 && (
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  ({t('operation.mesaEspera', { n: p.dependeDe.map((d) => d + 1).join(', ') })})
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {/* Decirlo acá y no en un pie de página: es lo que hace que aprobar de
+          una sola vez no sea aprobar a ciegas. */}
+      <p className="mt-3 text-[11px] leading-snug text-muted-foreground">
+        {t('operation.planAviso')}
+      </p>
+
+      {!listo && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onAprobar}
+            disabled={corriendo}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60"
+          >
+            {corriendo && <Loader2 className="size-3.5 animate-spin" />}
+            {corriendo ? t('operation.planCorriendo') : t('operation.planAprobar')}
+          </button>
+          <button
+            type="button"
+            onClick={onRechazar}
+            disabled={corriendo}
+            className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+          >
+            {t('operation.reject')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BarraHilos({
   hilos,
   activo,

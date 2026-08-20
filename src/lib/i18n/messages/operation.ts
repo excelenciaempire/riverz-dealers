@@ -45,6 +45,15 @@ export const operation = {
     es: "Llegaste al límite de uso del Operador por hoy. Vuelve a intentar mañana.",
     en: "You've hit today's Operator usage limit. Try again tomorrow.",
   },
+  // El reparto que se aprueba de una vez.
+  planTitulo: { es: "Así lo repartiría", en: "Here is how I would split it" },
+  planAprobar: { es: "Aprobar y que trabajen", en: "Approve and let them work" },
+  planCorriendo: { es: "Trabajando…", en: "Working…" },
+  planAviso: {
+    es: "Aprobar esto deja que el equipo construya. Lo que le llegue a un cliente, salga a Meta o mueva dinero te lo va a preguntar aparte.",
+    en: "Approving this lets the team build. Anything that reaches a customer, goes out to Meta or moves money will still be asked separately.",
+  },
+
   // La mesa de trabajo: qué está armando el equipo, ahora.
   mesaTitulo: { es: "El equipo", en: "The team" },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
