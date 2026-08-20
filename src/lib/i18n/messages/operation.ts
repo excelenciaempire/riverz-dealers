@@ -13,8 +13,8 @@ export const operation = {
   // Operator
   operatorTitle: { es: "Operator", en: "Operator" },
   operatorHint: {
-    es: "Pregúntale por tu operación o pídele un cambio. Antes de tocar nada, te muestra qué haría.",
-    en: "Ask about your operation or request a change. Before touching anything, it shows you what it would do.",
+    es: "Pregunta, o pide un cambio.",
+    en: "Ask, or request a change.",
   },
   operatorPlaceholder: { es: "¿Qué necesitas?", en: "What do you need?" },
   operatorSend: { es: "Enviar", en: "Send" },
