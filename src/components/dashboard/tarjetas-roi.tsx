@@ -50,9 +50,13 @@ export function TarjetasRoi({
   const pedidosPrevios = atribucion?.totals?.orders.previous ?? 0
   const porRiverz = atribucion?.attributed
 
-  // Sin tienda conectada no hay plata que mostrar; las tres tarjetas de
-  // comercio se caen solas y quedan las de atención.
-  const hayComercio = !!atribucion && !atribucion.not_connected
+  // Sin tienda conectada no hay plata que mostrar y las tres tarjetas de
+  // comercio no aplican. Mientras todavía no se sabe, se muestran con un
+  // guion: esconderlas y hacerlas aparecer un segundo después movería de lugar
+  // las otras tres justo cuando alguien las está leyendo.
+  const cargando = atribucion === null
+  const hayComercio = cargando || !atribucion.not_connected
+  const plata = (v: number) => (cargando ? '—' : fmt.currency(v, moneda))
 
   const aov = pedidos > 0 ? ventasTienda / pedidos : 0
   const aovPrev = pedidosPrevios > 0 ? ventasPrevias / pedidosPrevios : 0
@@ -67,33 +71,47 @@ export function TarjetasRoi({
         <>
           <MetricCard
             title={t('dashboard.roiRevenue')}
-            value={fmt.currency(porRiverz?.revenue ?? 0, porRiverz?.currency ?? moneda)}
+            value={
+              cargando
+                ? '—'
+                : fmt.currency(porRiverz?.revenue ?? 0, porRiverz?.currency ?? moneda)
+            }
             icon={Sparkles}
             subtitle={
-              porRiverz && porRiverz.orders > 0
-                ? t('dashboard.roiRevenueSub', {
-                    orders: porRiverz.orders,
-                    share:
-                      ventasTienda > 0
-                        ? Math.round((porRiverz.revenue / ventasTienda) * 100)
-                        : 0,
-                  })
-                : t('dashboard.roiRevenueNone')
+              cargando
+                ? undefined
+                : porRiverz && porRiverz.orders > 0
+                  ? t('dashboard.roiRevenueSub', {
+                      orders: porRiverz.orders,
+                      share:
+                        ventasTienda > 0
+                          ? Math.round((porRiverz.revenue / ventasTienda) * 100)
+                          : 0,
+                    })
+                  : t('dashboard.roiRevenueNone')
             }
           />
           <MetricCard
             title={t('dashboard.roiStoreRevenue')}
-            value={fmt.currency(ventasTienda, moneda)}
+            value={plata(ventasTienda)}
             icon={DollarSign}
-            delta={delta(ventasTienda, ventasPrevias, sufijo, t, (v) =>
-              fmt.currency(v, moneda),
-            )}
+            delta={
+              cargando
+                ? undefined
+                : delta(ventasTienda, ventasPrevias, sufijo, t, (v) =>
+                    fmt.currency(v, moneda),
+                  )
+            }
           />
           <MetricCard
             title={t('dashboard.roiAov')}
-            value={fmt.currency(aov, moneda)}
+            value={plata(aov)}
             icon={Receipt}
-            delta={delta(aov, aovPrev, sufijo, t, (v) => fmt.currency(v, moneda))}
+            delta={
+              cargando
+                ? undefined
+                : delta(aov, aovPrev, sufijo, t, (v) => fmt.currency(v, moneda))
+            }
           />
         </>
       )}
