@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageText } from './message-text';
+import { MessageMedia, type Media } from './message-media';
 
 /**
  * El chat que ve quien visita la tienda.
@@ -23,6 +24,7 @@ interface WireMessage {
   text: string;
   created_at: string;
   agent_name?: string;
+  media?: Media;
 }
 
 interface Settings {
@@ -40,7 +42,7 @@ interface Settings {
 const POLL_ACTIVE_MS = 2500;
 const POLL_HIDDEN_MS = 15000;
 
-type Pending = { id: string; text: string; failed?: boolean };
+type Pending = { id: string; text: string; failed?: boolean; media?: Media };
 
 export function ChatApp() {
   const [session, setSession] = useState<string | null>(null);
@@ -190,6 +192,50 @@ export function ChatApp() {
     }
   }, [draft, session, expired, poll]);
 
+  /** El visitante adjunta una foto o un comprobante. */
+  const adjuntar = useCallback(
+    async (file: File) => {
+      if (!session || expired) return;
+      const clientMessageId = crypto.randomUUID();
+      // La miniatura local aparece al instante; el objeto se libera cuando el
+      // mensaje real llega por el sondeo y reemplaza al optimista.
+      const previo = URL.createObjectURL(file);
+      setPending((prev) => [
+        ...prev,
+        {
+          id: clientMessageId,
+          text: '',
+          media: { url: previo, kind: file.type.startsWith('image/') ? 'image' : 'file', name: file.name },
+        },
+      ]);
+      setWaiting(true);
+
+      const body = new FormData();
+      body.append('file', file);
+      body.append('clientMessageId', clientMessageId);
+      try {
+        const res = await fetch('/api/widget/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session}` },
+          body,
+        });
+        if (res.status === 401) {
+          setExpired(true);
+          setWaiting(false);
+          return;
+        }
+        if (!res.ok) throw new Error(String(res.status));
+        poll().catch(() => {});
+      } catch {
+        setPending((prev) =>
+          prev.map((p) => (p.id === clientMessageId ? { ...p, failed: true } : p)),
+        );
+        setWaiting(false);
+      }
+    },
+    [session, expired, poll],
+  );
+
   const identify = useCallback(async () => {
     const value = email.trim();
     if (!value || !session) return;
@@ -214,6 +260,7 @@ export function ChatApp() {
         text: p.text,
         created_at: '',
         failed: p.failed,
+        media: p.media,
       })),
     ],
     [messages, pending],
@@ -264,7 +311,10 @@ export function ChatApp() {
             ink={ink}
             failed={'failed' in m ? Boolean(m.failed) : false}
           >
-            <MessageText text={m.text} storeOrigin={storeOrigin} color={color} ink={ink} />
+            {m.text ? (
+              <MessageText text={m.text} storeOrigin={storeOrigin} color={color} ink={ink} />
+            ) : null}
+            {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}
           </Bubble>
         ))}
 
@@ -305,6 +355,27 @@ export function ChatApp() {
             send();
           }}
         >
+          <label
+            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
+            title="Adjuntar"
+          >
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                // Se limpia el input para que elegir DOS VECES el mismo archivo
+                // vuelva a disparar el evento; si no, el segundo intento —el
+                // típico tras un fallo de red— no hacía nada.
+                e.target.value = '';
+                if (f) adjuntar(f);
+              }}
+            />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.19 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" />
+            </svg>
+          </label>
           <textarea
             value={draft}
             rows={1}

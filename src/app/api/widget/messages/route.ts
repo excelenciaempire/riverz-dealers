@@ -17,6 +17,38 @@ interface WireMessage {
   text: string;
   created_at: string;
   agent_name?: string;
+  /** Adjunto: la URL ya reescrita a la puerta que el visitante puede abrir. */
+  media?: { url: string; kind: 'image' | 'video' | 'audio' | 'file'; name?: string };
+}
+
+/**
+ * De qué tipo es el adjunto, para saber si se pinta o se ofrece para bajar.
+ * Se mira el mime y no la extensión: es lo que guardan los canales.
+ */
+type MediaKind = 'image' | 'video' | 'audio' | 'file';
+
+function mediaKind(mime: string | null, tipo: string | null): MediaKind {
+  const m = (mime ?? '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  if (m.startsWith('audio/')) return 'audio';
+  const t = (tipo ?? '').toLowerCase();
+  if (t === 'image' || t === 'video' || t === 'audio') return t as MediaKind;
+  return 'file';
+}
+
+/**
+ * La URL del adjunto, apuntada a la puerta del widget.
+ *
+ * En la base se guarda `/api/media/...`, que exige sesión de Riverz y para el
+ * visitante siempre da 401. Se reescribe al equivalente público-pero-acotado,
+ * que autoriza con el token del chat y sólo sirve adjuntos de SU conversación.
+ * Cualquier otra URL (una CDN de Shopify) se devuelve tal cual.
+ */
+function widgetMediaUrl(url: string | null): string | null {
+  if (!url) return null;
+  const at = url.indexOf('/api/media/');
+  return at === -1 ? url : `/api/widget/media/${url.slice(at + '/api/media/'.length)}`;
 }
 
 /**
@@ -164,7 +196,9 @@ export async function GET(request: Request) {
   const admin = supabaseAdmin();
   let query = admin
     .from('messages')
-    .select('id, sender_type, content_text, created_at, origin_name, status')
+    .select(
+      'id, sender_type, content_text, created_at, origin_name, status, media_url, media_type, media_mime, attachments',
+    )
     .eq('conversation_id', conversation.id);
 
   if (cursor) {
@@ -196,6 +230,10 @@ export async function GET(request: Request) {
     created_at: string;
     origin_name: string | null;
     status: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    media_mime: string | null;
+    attachments: Array<{ url?: string; mime_type?: string; name?: string }> | null;
   }>;
   const ordered = cursor ? rows : [...rows].reverse();
 
@@ -203,15 +241,34 @@ export async function GET(request: Request) {
     // Un envío fallido no se le muestra a quien nunca lo recibió: la burbuja
     // roja es para la bandeja del comercio, no para el cliente.
     .filter((m) => m.status !== 'failed')
-    .filter((m) => (m.content_text ?? '').trim().length > 0)
-    .map((m) => ({
-      id: m.id,
-      sender:
-        m.sender_type === 'customer' ? 'visitor' : m.sender_type === 'bot' ? 'bot' : 'agent',
-      text: m.content_text ?? '',
-      created_at: m.created_at,
-      ...(m.sender_type === 'agent' && m.origin_name ? { agent_name: m.origin_name } : {}),
-    }));
+    // Un mensaje que es SÓLO un archivo llega con el texto vacío, y filtrarlo
+    // por texto lo hacía desaparecer: la foto que mandó el comercio no llegaba
+    // nunca y del otro lado no pasaba nada.
+    .filter((m) => (m.content_text ?? '').trim().length > 0 || Boolean(m.media_url ?? m.attachments?.[0]?.url))
+    .map((m) => {
+      const adjunto = m.attachments?.[0];
+      const url = widgetMediaUrl(m.media_url ?? adjunto?.url ?? null);
+      return {
+        id: m.id,
+        sender: (m.sender_type === 'customer'
+          ? 'visitor'
+          : m.sender_type === 'bot'
+            ? 'bot'
+            : 'agent') as WireMessage['sender'],
+        text: m.content_text ?? '',
+        created_at: m.created_at,
+        ...(m.sender_type === 'agent' && m.origin_name ? { agent_name: m.origin_name } : {}),
+        ...(url
+          ? {
+              media: {
+                url,
+                kind: mediaKind(m.media_mime ?? adjunto?.mime_type ?? null, m.media_type),
+                ...(adjunto?.name ? { name: adjunto.name } : {}),
+              },
+            }
+          : {}),
+      };
+    });
 
   const last = ordered[ordered.length - 1];
   return NextResponse.json({
