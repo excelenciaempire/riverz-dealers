@@ -11,6 +11,7 @@ import {
 } from '@/lib/channels/webchat/connection-store';
 import { widgetKey } from '@/lib/channels/webchat/token';
 import { normalizeOrigin, WEBCHAT_DEFAULTS } from '@/lib/channels/webchat/config';
+import { detectStoreDomains } from '@/lib/channels/webchat/domains';
 import { publicBaseUrl } from '@/lib/base-url';
 
 /**
@@ -47,11 +48,22 @@ export async function GET() {
   const resolved = await resolveWorkspace();
   if ('error' in resolved) return resolved.error;
 
-  const connection = await getWebchatConnection(resolved.workspaceId);
+  const admin = supabaseAdmin();
+  const connection = await getWebchatConnection(resolved.workspaceId, admin);
   const config = { ...WEBCHAT_DEFAULTS, ...webchatConfig(connection) };
   const key = widgetKey(resolved.workspaceId);
 
-  return NextResponse.json({ config, key, snippet: snippet(key) });
+  // Los dominios de su tienda, deducidos. La pantalla los ofrece con un clic
+  // en vez de pedirle que los escriba — es el único paso manual que quedaba y
+  // era el que dejaba el chat instalado pero invisible.
+  const suggested = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
+
+  return NextResponse.json({
+    config,
+    key,
+    snippet: snippet(key),
+    suggested_domains: suggested,
+  });
 }
 
 export async function PUT(request: Request) {
@@ -91,12 +103,30 @@ export async function PUT(request: Request) {
     ).slice(0, 20);
   }
 
-  const connection = await upsertWebchatConnection(resolved.workspaceId, patch);
+  const admin = supabaseAdmin();
+
+  // Encender el chat sin dominios cargados lo deja instalado e invisible: el
+  // widget arranca sólo en los dominios de la lista, y una lista vacía no es
+  // ninguno. Antes de que eso pase, se cargan los de su propia tienda.
+  //
+  // Sólo al encender y sólo si no hay ninguno: el comercio que quiso vaciar la
+  // lista a propósito no encuentra que se le vuelve a llenar sola.
+  if (patch.enabled === true && patch.allowed_domains === undefined) {
+    const actual = webchatConfig(await getWebchatConnection(resolved.workspaceId, admin));
+    if ((actual.allowed_domains ?? []).length === 0) {
+      const detectados = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
+      if (detectados.length > 0) patch.allowed_domains = detectados;
+    }
+  }
+
+  const connection = await upsertWebchatConnection(resolved.workspaceId, patch, admin);
   const key = widgetKey(resolved.workspaceId);
+  const suggested = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
 
   return NextResponse.json({
     config: { ...WEBCHAT_DEFAULTS, ...webchatConfig(connection) },
     key,
     snippet: snippet(key),
+    suggested_domains: suggested,
   });
 }

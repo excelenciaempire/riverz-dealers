@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Check, Copy, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -42,6 +42,7 @@ export function WebchatPanel() {
   const [snippet, setSnippet] = useState('');
   const [stats, setStats] = useState<Stats | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
+  const [suggested, setSuggested] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -54,6 +55,7 @@ export function WebchatPanel() {
           const json = await cfgRes.json();
           setCfg(json.config ?? {});
           setSnippet(json.snippet ?? '');
+          setSuggested(json.suggested_domains ?? []);
         }
         if (statsRes.ok) setStats(await statsRes.json());
       } finally {
@@ -75,6 +77,7 @@ export function WebchatPanel() {
         const json = await res.json();
         setCfg(json.config ?? {});
         setSnippet(json.snippet ?? '');
+        setSuggested(json.suggested_domains ?? []);
         toast.success(t('webchat.saved'));
       } catch {
         toast.error(t('webchat.saveFailed'));
@@ -103,8 +106,24 @@ export function WebchatPanel() {
     );
   }
 
+  // Por qué el chat no se ve. Son las dos únicas razones, y hasta ahora el
+  // comercio tenía que deducirlas: pegaba el código, no pasaba nada, y el
+  // widget —que falla callado para no ensuciar su tienda— no decía por qué.
+  const motivoInvisible = !enabled
+    ? t('webchat.whyOff')
+    : domains.length === 0
+      ? t('webchat.whyNoDomains')
+      : null;
+
   return (
     <div className="space-y-4">
+      {motivoInvisible ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">{motivoInvisible}</p>
+        </div>
+      ) : null}
+
       {/* ── Estado + instalación ── */}
       <Card>
         <Row>
@@ -161,12 +180,25 @@ export function WebchatPanel() {
               </span>
             ))}
           </div>
-          {/* El aviso sólo aparece cuando de verdad rompe algo: encendido y sin
-              un solo dominio, el chat no abre en ninguna parte. */}
-          {enabled && domains.length === 0 ? (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              {t('webchat.domainsEmpty')}
-            </p>
+          {/* Los dominios de su propia tienda, para no hacerle escribir nada.
+              Sólo los que todavía no cargó. */}
+          {suggested.filter((d) => !domains.includes(d)).length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{t('webchat.domainsDetected')}</span>
+              {suggested
+                .filter((d) => !domains.includes(d))
+                .map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => save({ allowed_domains: [...domains, d] })}
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-foreground transition hover:border-primary/60 hover:bg-primary/5"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {d}
+                  </button>
+                ))}
+            </div>
           ) : null}
           <div className="mt-2 flex gap-2">
             <Input

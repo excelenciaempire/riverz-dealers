@@ -88,10 +88,19 @@ export async function POST(request: Request) {
   const { session, ctx } = guard;
 
   const body = (await request.json().catch(() => null)) as {
-    text?: string;
-    clientMessageId?: string;
+    text?: unknown;
+    clientMessageId?: unknown;
   } | null;
-  const text = (body?.text ?? '').trim();
+
+  // Se comprueba el TIPO, no sólo el valor. El cuerpo lo arma un cliente que
+  // no controlamos —y cualquiera puede llamar a esto a mano—, así que un
+  // `text` que llega como número o como lista no tiene `.trim()` y hacía
+  // reventar la ruta con un 500 mudo en vez de un 400 que dice qué pasó.
+  if (typeof body?.text !== 'string' || typeof body?.clientMessageId !== 'string') {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
+
+  const text = body.text.trim();
   if (!text) return NextResponse.json({ error: 'empty' }, { status: 400 });
   if (text.length > MAX_TEXT) {
     return NextResponse.json({ error: 'too_long' }, { status: 413 });
@@ -99,7 +108,7 @@ export async function POST(request: Request) {
 
   // El id lo pone el cliente para que un reintento tras un corte de red no
   // duplique el mensaje: `ingestInboundEvent` descarta por id externo repetido.
-  const clientMessageId = (body?.clientMessageId ?? '').trim().slice(0, 64);
+  const clientMessageId = body.clientMessageId.trim().slice(0, 64);
   if (!clientMessageId) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
   try {

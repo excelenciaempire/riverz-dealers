@@ -40,6 +40,16 @@ export const webchat = {
     es: "Agrega tu dominio para que el chat pueda abrir.",
     en: "Add your domain so the chat can open.",
   },
+  domainsDetected: { es: "De tu tienda:", en: "From your store:" },
+  // Las dos razones por las que el codigo esta pegado y el chat no aparece.
+  whyOff: {
+    es: "El chat está apagado: aunque el código esté puesto, no aparece en la tienda.",
+    en: "The chat is off: even with the code in place, it won't show on the store.",
+  },
+  whyNoDomains: {
+    es: "Falta el dominio de tu tienda. Sin él el chat no abre en ninguna página.",
+    en: "Your store domain is missing. Without it the chat won't open anywhere.",
+  },
   domainAdd: { es: "Agregar dominio", en: "Add domain" },
   domainPlaceholder: { es: "mitienda.com", en: "mystore.com" },
 

@@ -30,15 +30,19 @@ export async function POST(request: Request) {
   const { session } = guard;
 
   const body = (await request.json().catch(() => null)) as {
-    email?: string;
-    name?: string;
-    phone?: string;
+    email?: unknown;
+    name?: unknown;
+    phone?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
-  const email = (body.email ?? '').trim().toLowerCase().slice(0, 200);
-  const name = (body.name ?? '').trim().slice(0, 120);
-  const phone = (body.phone ?? '').trim().slice(0, 32);
+  // Sólo texto. Un campo que llega como número o como lista no tiene `.trim()`
+  // y tumbaba la ruta con un 500; acá se descarta y se sigue con los que sí
+  // sirven, porque identificarse a medias es mejor que no identificarse.
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const email = str(body.email).trim().toLowerCase().slice(0, 200);
+  const name = str(body.name).trim().slice(0, 120);
+  const phone = str(body.phone).trim().slice(0, 32);
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
   }
