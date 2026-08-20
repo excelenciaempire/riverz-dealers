@@ -110,6 +110,9 @@ export function PendingReplyCard({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    // Misma regla que el compositor: la barra sólo cuando la caja ya no puede
+    // crecer. Windows dibuja flechas de scroll y quedan al lado de una linea.
+    el.style.overflowY = el.scrollHeight > 180 ? "auto" : "hidden";
   }, [text, draft]);
 
   const discard = useCallback(async () => {
@@ -157,7 +160,7 @@ export function PendingReplyCard({
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={1}
-        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+        className="scrollbar-thin w-full resize-none overflow-y-hidden rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
       />
       <div className="mt-2 flex items-center justify-end gap-2">
         <Button

@@ -14,6 +14,9 @@ import type { Channel } from "@/types";
 /** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
+/** Alto maximo del compositor: 4 lineas. Mas alla de eso desplaza. */
+const MAX_COMPOSER_HEIGHT = 96;
+
 interface ReplyDraft {
   /** Internal UUID of the message being replied to — sent back through onSend. */
   id: string;
@@ -169,7 +172,7 @@ export function MessageComposer({
         el.focus();
         el.setSelectionRange(pos, pos);
         el.style.height = "auto";
-        el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+        el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
       });
     },
     [snippetMenu, text, t],
@@ -197,7 +200,7 @@ export function MessageComposer({
       el.focus();
       el.setSelectionRange(pos, pos);
       el.style.height = "auto";
-      el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+      el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
     });
   }, [snippetMenu, createBody, createShortcut, createSnippet, text]);
 
@@ -206,8 +209,21 @@ export function MessageComposer({
     if (!el) return;
     el.style.height = "auto";
     // Max 4 lines (~96px)
-    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+    const next = Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT);
+    el.style.height = `${next}px`;
+    // La caja crece con el texto, así que la barra de desplazamiento sólo
+    // tiene sentido cuando ya no puede crecer más. Sin esto Windows dibujaba
+    // sus flechitas de scroll al lado de un mensaje de una sola línea.
+    el.style.overflowY =
+      el.scrollHeight > MAX_COMPOSER_HEIGHT ? "auto" : "hidden";
   }, []);
+
+  // El texto también cambia sin que nadie tipee: al insertar un atajo, al
+  // mejorar la redacción, al limpiar después de enviar. Un solo efecto cubre
+  // todos esos casos.
+  useEffect(() => {
+    adjustHeight();
+  }, [text, adjustHeight]);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
@@ -560,7 +576,7 @@ export function MessageComposer({
           disabled={sessionExpired}
           rows={1}
           className={cn(
-            "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
+            "scrollbar-thin flex-1 resize-none overflow-y-hidden rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
             sessionExpired && "cursor-not-allowed opacity-50"
           )}
         />
