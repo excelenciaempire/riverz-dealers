@@ -122,6 +122,18 @@ export async function platformWhatsApp(): Promise<PlatformWhatsApp | null> {
  * Vive acá y no en cada llamador porque son dos —las aprobaciones y el
  * vigilante de plataforma— y el segundo se había escrito sólo con texto libre.
  */
+/**
+ * Un parámetro de plantilla no admite saltos de línea, tabulaciones ni cuatro
+ * espacios seguidos: Meta los rechaza con (#132018) "There's an issue with the
+ * parameters in your template". El vigilante arma el cuerpo como una lista de
+ * líneas, así que TODOS sus avisos por WhatsApp venían fallando — y como el
+ * error se registraba y se seguía, el aviso quedaba sólo en el correo sin que
+ * nadie se enterara de por qué.
+ */
+function paramSeguro(v: string): string {
+  return v.replace(/\s*\n\s*/g, ' · ').replace(/\t/g, ' ').replace(/ {4,}/g, '   ').trim();
+}
+
 export async function sendPlatformAlert(args: {
   to: string;
   /** Título corto: primer parámetro de la plantilla. */
@@ -143,7 +155,7 @@ export async function sendPlatformAlert(args: {
         to: args.to,
         templateName: plataforma.templateName,
         language: plataforma.templateLanguage,
-        params: [args.title, args.body],
+        params: [paramSeguro(args.title), paramSeguro(args.body)],
       });
       return { ok: true, messageId: res.messageId ?? undefined };
     }
