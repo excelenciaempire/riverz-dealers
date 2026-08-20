@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { widgetKey, verifyWidgetKey, mintSession, verifySession } from './token';
 import { normalizeOrigin, originAllowed } from './config';
+import { visitorIdFromOrder } from './attribution';
 
 /**
  * El chat web es la única superficie de Riverz abierta a Internet sin sesión:
@@ -125,5 +126,44 @@ describe('originAllowed', () => {
 
   it('deja pasar localhost para poder probar la instalación', () => {
     expect(originAllowed('http://localhost:3000', [])).toBe(true);
+  });
+});
+
+describe('visitorIdFromOrder', () => {
+  const visitante = 'wv_73f8d901-a0d2-4a95-9bcc-4aaceb96e7d3';
+  const conAtributos = (attrs: Array<{ name: string; value: string }>) => ({
+    note_attributes: attrs,
+  });
+
+  it('encuentra el id que viajó pegado al carrito', () => {
+    expect(
+      visitorIdFromOrder(
+        conAtributos([
+          { name: 'riverz_origin', value: 'chat_web' },
+          { name: 'riverz_wvid', value: visitante },
+        ]),
+      ),
+    ).toBe(visitante);
+  });
+
+  it('devuelve null en un pedido normal', () => {
+    expect(visitorIdFromOrder({})).toBeNull();
+    expect(visitorIdFromOrder(conAtributos([]))).toBeNull();
+    expect(visitorIdFromOrder(conAtributos([{ name: 'gift_note', value: 'hola' }]))).toBeNull();
+  });
+
+  it('ignora un valor con otra forma', () => {
+    // El atributo lo puede escribir cualquiera que edite el carrito en su
+    // navegador, y termina siendo el `external_id` de un contacto: sólo se
+    // acepta exactamente el formato que emitimos.
+    for (const basura of ['', '   ', 'wv_no-es-un-uuid', "'; drop table contacts;--", visitante + 'x']) {
+      expect(visitorIdFromOrder(conAtributos([{ name: 'riverz_wvid', value: basura }]))).toBeNull();
+    }
+  });
+
+  it('no se rompe si Shopify manda note_attributes con otra forma', () => {
+    expect(visitorIdFromOrder({ note_attributes: 'nada' })).toBeNull();
+    expect(visitorIdFromOrder({ note_attributes: null })).toBeNull();
+    expect(visitorIdFromOrder({ note_attributes: [null, undefined] as never })).toBeNull();
   });
 });
