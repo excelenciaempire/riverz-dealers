@@ -48,6 +48,57 @@ describe('drainEvents', () => {
   })
 })
 
+describe('la regla que impide que se mezcle el texto de dos agentes', () => {
+  it('lo que dice un subagente va por su canal, con su nombre', () => {
+    // Si un subagente emitiera `text`, sus frases se pegarían dentro del mismo
+    // párrafo del hilo: la pantalla acumula los deltas en el último bloque, sin
+    // saber quién los dijo. Con dos o tres trabajando a la vez, el resultado es
+    // una respuesta ilegible y sin dueño.
+    const buf =
+      encodeEvent({ t: 'agente_dice', agente: 'plantillas', texto: 'Escribo la plantilla' }) +
+      encodeEvent({ t: 'agente_dice', agente: 'contactos', texto: 'Cuento el público' }) +
+      encodeEvent({ t: 'text', delta: 'Listo, quedaron dos cosas.' })
+    const { events } = drainEvents(buf)
+
+    const delEquipo = events.filter((e) => e.t === 'agente_dice')
+    expect(delEquipo).toHaveLength(2)
+    expect(delEquipo.every((e) => 'agente' in e && !!e.agente)).toBe(true)
+
+    // El único `text` del turno es el del orquestador, y no lleva agente.
+    const delHilo = events.filter((e) => e.t === 'text')
+    expect(delHilo).toHaveLength(1)
+    expect('agente' in delHilo[0]).toBe(false)
+  })
+
+  it('un latido no dice nada y no rompe a nadie', () => {
+    // Existe sólo para que el canal no quede mudo mientras un subagente
+    // trabaja: un NDJSON callado es indistinguible de una conexión cortada.
+    const { events } = drainEvents(
+      encodeEvent({ t: 'latido' }) + encodeEvent({ t: 'done', thread: 'x' }),
+    )
+    expect(events.map((e) => e.t)).toEqual(['latido', 'done'])
+  })
+
+  it('el plan viaja entero, con sus dependencias', () => {
+    // Es lo que se aprueba de una vez: si llegara a medias, la persona
+    // aprobaría algo distinto de lo que va a correr.
+    const buf = encodeEvent({
+      t: 'plan',
+      planId: 'p1',
+      porque: 'la automatización necesita la plantilla',
+      pasos: [
+        { i: 0, agente: 'plantillas', encargo: 'Escribí la de carrito', dependeDe: [] },
+        { i: 1, agente: 'automatizaciones', encargo: 'Armá el rescate', dependeDe: [0] },
+      ],
+    })
+    const { events } = drainEvents(buf)
+    const plan = events[0]
+    if (plan.t !== 'plan') throw new Error('tipo inesperado')
+    expect(plan.pasos).toHaveLength(2)
+    expect(plan.pasos[1].dependeDe).toEqual([0])
+  })
+})
+
 describe('encodeEvent', () => {
   it('cada evento termina en un salto y no lleva otros adentro', () => {
     // El salto es el separador: un evento con un salto en el medio partiría en
