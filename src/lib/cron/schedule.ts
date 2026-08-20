@@ -76,7 +76,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     path: "/api/cron/instagram-external-enrich",
     schedule: "*/10 * * * *",
   },
-  { name: "flows-sweep", whatKey: "admin.cronFlowsSweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
+  // El nombre TIENE que ser el que escribe el endpoint (`withCronRun` en
+  // /api/flows/cron dice "flows-cron"). Estaba declarado como "flows-sweep" y
+  // ese nombre no existía en `cron_runs`: el trabajo corría cada 15 minutos sin
+  // fallar nunca, pero el panel y el vigilante lo daban por muerto para
+  // siempre, y ese falso positivo viajaba en cada aviso.
+  { name: "flows-cron", whatKey: "admin.cronFlowsSweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
   // Espeja los contactos hacia Klaviyo. Por marca de agua: la primera corrida
   // sube la base y las siguientes sólo lo que cambió.
   { name: "klaviyo-sync", whatKey: "admin.cronKlaviyoSync", path: "/api/cron/klaviyo-sync", schedule: "*/15 * * * *" },
