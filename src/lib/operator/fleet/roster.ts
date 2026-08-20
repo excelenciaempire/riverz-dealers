@@ -21,7 +21,7 @@
  */
 import { ALL_CAPABILITIES } from '@/lib/capabilities/registry'
 import type { Capability } from '@/lib/capabilities/types'
-import { SUBAGENT_IDS, type SubagentId, type SubagentSpec } from './types'
+import type { SubagentId, SubagentSpec } from './types'
 
 /**
  * Capacidades que no son de nadie del equipo.

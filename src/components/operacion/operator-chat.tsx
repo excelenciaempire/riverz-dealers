@@ -20,6 +20,7 @@ import { drainEvents } from '@/lib/operator/events'
 import type { ResumenHilo } from '@/lib/operator/threads'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { VistaArtefacto } from './artefacto'
+import { useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
 
 /**
@@ -155,6 +156,10 @@ export function OperatorChat({
 }) {
   const t = useT()
   const fetchWithCsrf = useFetchWithCsrf()
+  // La mesa de trabajo es HERMANA del chat, no hija: se le pasan los eventos
+  // por contexto en vez de levantar el estado, para no tener que reescribir el
+  // lector del stream.
+  const aLaMesa = useMesaDispatch()
   const [thread, setThread] = useState<string | null>(null)
   const [mensajes, setMensajes] = useState<Mensaje[]>([])
   const [acciones, setAcciones] = useState<Accion[]>([])
@@ -224,13 +229,16 @@ export function OperatorChat({
 
   /** Empezar de cero. El hilo anterior queda guardado y accesible. */
   const nuevoChat = useCallback(() => {
+    // Sin esto quedan en la mesa los agentes del turno anterior, trabajando
+    // sobre una conversación que ya no existe.
+    aLaMesa({ tipo: 'limpiar' })
     setThread(null)
     setMensajes([])
     setAcciones([])
     setVivo(null)
     setError(null)
     setTexto('')
-  }, [])
+  }, [aLaMesa])
 
   const borrarChat = useCallback(
     async (id: string) => {
@@ -309,6 +317,8 @@ export function OperatorChat({
           buffer = rest
 
           for (const e of events) {
+            // Todo va a la mesa; el hilo se queda sólo con lo que le toca.
+            aLaMesa({ tipo: 'evento', e })
             if (e.t === 'text') {
               final += e.delta
               bloques = conTexto(bloques, e.delta)
@@ -378,7 +388,7 @@ export function OperatorChat({
         setPensando(false)
       }
     },
-    [fetchWithCsrf, pensando, t, thread],
+    [aLaMesa, fetchWithCsrf, pensando, t, thread],
   )
 
   const decidir = useCallback(

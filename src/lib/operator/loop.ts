@@ -18,7 +18,6 @@ import { crearPresupuesto, type GastoAgente } from './fleet/budget'
 import { runOrquestador } from './fleet/orchestrator'
 import { anthropicRunner, type ModelRunner } from './fleet/runner'
 import type { EmitFn } from './events'
-import type { Artefacto } from './artifacts'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import {
   capabilitiesAsAnthropicTools,

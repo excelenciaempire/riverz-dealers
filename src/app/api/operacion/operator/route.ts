@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { getFeatureFlags, isRiverz2 } from '@/lib/admin/feature-flags'
+import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature-flags'
 import { limitByKey } from '@/lib/rate-limit'
 import { runOperator } from '@/lib/operator/loop'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
@@ -16,6 +16,7 @@ import {
   loadMessages,
   toAnthropic,
 } from '@/lib/operator/threads'
+import { guardarGasto } from '@/lib/operator/gasto'
 import { getLocale } from '@/lib/i18n/server'
 
 /**
@@ -44,7 +45,10 @@ async function contexto() {
   if (!workspaceId) return null
   const flags = await getFeatureFlags(admin, workspaceId)
   if (!isRiverz2(flags)) return null
-  return { admin, userId: user.id, workspaceId }
+  // El equipo es otro flag, y arranca apagado. `riverz_2` ya está prendido para
+  // toda la base: sin esta segunda puerta, cada commit del equipo le llegaría a
+  // comercios reales antes de estar terminado.
+  return { admin, userId: user.id, workspaceId, flota: isOperatorFleet(flags) }
 }
 
 /**
@@ -184,6 +188,11 @@ export async function POST(request: Request) {
           locale,
           onEvent: push,
           autoBuild: await autoBuildDe(ctx.admin, ctx.workspaceId),
+          flota: ctx.flota,
+          // Lo último que escribió la persona, para la pista de intención. El
+          // historial ya lo trae, pero buscarlo ahí adentro sería adivinar
+          // cuál de los mensajes es el de ahora.
+          pedido: texto,
         })
 
         await appendMessage(ctx.admin, {
@@ -194,6 +203,14 @@ export async function POST(request: Request) {
           promptTokens: turno.promptTokens,
           completionTokens: turno.completionTokens,
         })
+
+        if (turno.porAgente) {
+          await guardarGasto(ctx.admin, {
+            workspaceId: ctx.workspaceId,
+            threadId,
+            porAgente: turno.porAgente,
+          })
+        }
 
         // Se manda al final por si el cupo diario cortó el turno antes de
         // llamar al modelo: ahí no hubo deltas y esto es todo lo que hay.

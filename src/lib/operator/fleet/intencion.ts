@@ -22,7 +22,7 @@
  * un detector que sólo entiende español manda a la mitad de la base por el
  * camino lento.
  */
-import { SUBAGENT_IDS, type SubagentId } from './types'
+import type { SubagentId } from './types'
 
 export type Verbo =
   | 'consultar'
@@ -593,4 +593,3 @@ export function dominiosConSeñales(): SubagentId[] {
   return DOMINIOS.map((d) => d.id)
 }
 
-export const TODOS_LOS_DOMINIOS = SUBAGENT_IDS

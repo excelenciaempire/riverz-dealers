@@ -104,6 +104,8 @@ export interface PlanGuardado {
   status: string
   pedido: string
   porque: string | null
+  /** De qué conversación salió, para poder anotar ahí cómo terminó. */
+  threadId: string | null
   pasos: Array<
     PasoValidado & {
       id: string
@@ -160,7 +162,7 @@ export async function cargarPlan(
 ): Promise<PlanGuardado | null> {
   const { data } = await db
     .from('operator_plans')
-    .select('id, status, pedido, porque')
+    .select('id, status, pedido, porque, thread_id')
     .eq('id', planId)
     .eq('workspace_id', workspaceId)
     .maybeSingle()
@@ -173,9 +175,19 @@ export async function cargarPlan(
     .eq('workspace_id', workspaceId)
     .order('idx', { ascending: true })
 
-  const plan = data as { id: string; status: string; pedido: string; porque: string | null }
+  const plan = data as {
+    id: string
+    status: string
+    pedido: string
+    porque: string | null
+    thread_id: string | null
+  }
   return {
-    ...plan,
+    id: plan.id,
+    status: plan.status,
+    pedido: plan.pedido,
+    porque: plan.porque,
+    threadId: plan.thread_id,
     pasos: ((pasos ?? []) as Array<Record<string, unknown>>).map((p) => ({
       id: p.id as string,
       i: p.idx as number,

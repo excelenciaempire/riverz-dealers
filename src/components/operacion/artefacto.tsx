@@ -5,7 +5,6 @@ import {
   Clock,
   FileText,
   GitBranch,
-  Megaphone,
   MessageSquare,
   Tag,
   Users,
