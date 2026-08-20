@@ -34,3 +34,18 @@ export function getAnthropic(apiKey: string): Anthropic {
 export function getAnthropicStreaming(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, timeout: 10 * 60_000, maxRetries: 0 });
 }
+
+/**
+ * Cliente para un subagente del equipo.
+ *
+ * Los diez minutos de arriba son correctos para el orquestador, que es lo que
+ * la persona está leyendo. Para un subagente son demasiado: trabaja adentro de
+ * un turno, con otros dos corriendo al mismo tiempo, y uno colgado se lleva
+ * puesto el turno entero mientras los demás ya terminaron. Dos minutos alcanzan
+ * de sobra para un encargo acotado y acotan el daño de uno que no vuelve.
+ *
+ * Sin reintentos, por lo mismo que el de arriba.
+ */
+export function getAnthropicSubagent(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, timeout: 2 * 60_000, maxRetries: 0 });
+}
