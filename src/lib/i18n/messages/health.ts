@@ -39,6 +39,10 @@ export const health: Namespace = {
     es: "{n} campaña(s) quedaron enviando y no terminaron",
     en: "{n} campaign(s) got stuck sending and never finished",
   },
+  nadie_atiende: {
+    es: "Entran mensajes por {n} canal(es) y no hay ningún asistente atendiendo",
+    en: "Messages are coming in through {n} channel(s) and no assistant is answering",
+  },
 
   // Decisiones que esperan a una persona
   approvalsTitle: { es: "Esperando tu decisión", en: "Waiting on you" },
