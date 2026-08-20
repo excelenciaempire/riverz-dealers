@@ -11,10 +11,13 @@ const MAX_VIDEO_PAGES = 15; // techo de seguridad (~300 videos por cuenta)
 const COMMENTS_PER_VIDEO = 30; // TikTok cap: comment/list max_count must be <= 30
 const MAX_COMMENT_PAGES = 20; // hasta 600 comentarios por video
 /** Un comentario que descubrimos con más de estas horas encima ya pasó su
- *  momento: se guarda y se ve, pero nadie lo contesta solo. El poll rápido
- *  corre cada minuto, así que lo vivo entra fresco; esto sólo frena al
- *  barrido profundo y a los rescates de videos viejos. */
+ *  momento: se guarda y se ve, pero nadie lo contesta solo. El poll corre cada
+ *  5 minutos, así que lo vivo entra fresco; esto sólo frena al barrido
+ *  profundo y a los rescates de videos viejos. */
 const STALE_COMMENT_MS = 2 * 60 * 60 * 1000;
+/** Centinela ya conocido por la bandeja para "la plataforma no entrega esto":
+ *  la burbuja lo muestra traducido (isUnsupportedSnippet). */
+const UNSUPPORTED_TEXT = "[unsupported]";
 
 /**
  * Polling ingest for TikTok comments (Accounts API has webhooks, but they
@@ -26,8 +29,8 @@ const STALE_COMMENT_MS = 2 * 60 * 60 * 1000;
  * Wired via cron-tiktok-comments.
  *
  * Dos ritmos:
- *  - normal (cada minuto): sólo los 10 videos más nuevos, 11 llamadas por
- *    cuenta. Es lo que hace que un comentario recién puesto aparezca ya.
+ *  - normal (cada 5 min): sólo los 10 videos más nuevos. Es el ritmo al que
+ *    TikTok entrega de verdad; preguntar más seguido no adelanta nada.
  *  - `deep` (cada 6 h): TODO el catálogo, paginado. Sin esto, un comentario
  *    sobre un video viejo no entraba nunca — así se perdieron 171 de los 193
  *    comentarios de la primera cuenta conectada.
@@ -246,8 +249,13 @@ async function ingestOne(
   },
 ): Promise<boolean> {
   const commentId = String(c.comment_id ?? c.id ?? "");
-  const text = String(c.text ?? "");
-  if (!commentId || !text) return false;
+  if (!commentId) return false;
+  // Un comentario sin texto SIGUE siendo un comentario: TikTok devuelve
+  // `text: ""` para los de sólo sticker/emoji, y descartarlos dejaba el hilo
+  // incompleto (con la respuesta del comercio colgando de una pregunta que no
+  // aparecía). Se guarda con el mismo centinela que ya usa la bandeja para lo
+  // que la plataforma no entrega legible; la burbuja lo pinta traducido.
+  const text = String(c.text ?? "").trim() || UNSUPPORTED_TEXT;
   const username = String(c.username ?? c.user_name ?? "");
   const contactId = ctx.contactIdOverride || String(c.user_id ?? username ?? "tiktok");
   if (!contactId) return false;
