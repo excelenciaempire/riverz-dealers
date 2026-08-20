@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/hooks/use-locale"
 import { XIcon } from "lucide-react"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -47,6 +48,9 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  // `useLocale` cae al idioma por defecto fuera del provider, así que un
+  // diálogo renderizado en la landing tampoco rompe.
+  const t = useT()
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -78,7 +82,7 @@ function DialogContent({
           >
             <XIcon
             />
-            <span className="sr-only">Cerrar</span>
+            <span className="sr-only">{t("common.close")}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -104,6 +108,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  const t = useT()
   return (
     <div
       data-slot="dialog-footer"
@@ -116,7 +121,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close render={<Button variant="outline" />}>
-          Cerrar
+          {t("common.close")}
         </DialogPrimitive.Close>
       )}
     </div>

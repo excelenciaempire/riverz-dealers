@@ -5,6 +5,7 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/hooks/use-locale"
 import { XIcon } from "lucide-react"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -46,6 +47,9 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  // `useLocale` cae al idioma por defecto fuera del provider, así que un panel
+  // renderizado en la landing tampoco rompe.
+  const t = useT()
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -76,7 +80,7 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Cerrar</span>
+            <span className="sr-only">{t("common.close")}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>
