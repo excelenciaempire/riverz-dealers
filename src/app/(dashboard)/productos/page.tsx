@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { formatBundleApp, formatPrice } from '@/lib/products/format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
+import { useRecordado } from '@/hooks/use-recordado';
 import { localizePath, canonicalizePath } from '@/lib/i18n/routes';
 
 interface ProductRow {
@@ -57,12 +58,14 @@ export default function ProductosPage() {
   const { locale } = useLocale();
   const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
-  const [products, setProducts] = useState<ProductRow[]>([]);
+  // La sección se acuerda de lo último que mostró: volver es instantáneo y la
+  // consulta sale igual, en silencio, para reemplazarlo.
+  const [products, setProducts, habia] = useRecordado<ProductRow[]>('productos', []);
   const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
   // Divisa del workspace (detectada) — fallback para mostrar precios de
   // productos sin divisa propia.
   const [workspaceCurrency, setWorkspaceCurrency] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!habia);
   const [syncing, setSyncing] = useState(false);
 
   // Crear producto desde cero — solo pedimos el nombre; el resto se edita
@@ -76,7 +79,9 @@ export default function ProductosPage() {
   const [deleting, setDeleting] = useState(false);
 
   async function fetchProducts() {
-    setLoading(true);
+    // Sin `setLoading(true)` acá: si la sección se acordaba del catálogo, ya
+    // está en pantalla, y encender el esqueleto lo taparía para volver a
+    // mostrar lo mismo. La primera vez el estado ya arranca en `true`.
     try {
       const res = await fetch('/api/products');
       if (!res.ok) throw new Error('No se pudieron cargar los productos');

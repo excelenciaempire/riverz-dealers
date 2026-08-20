@@ -10,6 +10,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { toShortId } from '@/lib/short-id';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
+import { useRecordado } from '@/hooks/use-recordado';
 import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import { Button } from '@/components/ui/button';
@@ -119,9 +120,14 @@ export default function TemplatesPage() {
   const t = useT();
   const fmt = useFormat();
 
-  const [loading, setLoading] = useState(true);
+  // La sección se acuerda de lo último que mostró: volver es instantáneo y la
+  // consulta sale igual, en silencio, para reemplazarlo.
+  const [templates, setTemplates, habia] = useRecordado<MessageTemplate[]>(
+    'plantillas',
+    [],
+  );
+  const [loading, setLoading] = useState(!habia);
   const [syncing, setSyncing] = useState(false);
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -160,7 +166,9 @@ export default function TemplatesPage() {
 
   async function fetchTemplates(userId: string) {
     try {
-      setLoading(true);
+      // Sin `setLoading(true)` acá: si la sección se acordaba del catálogo, ya
+      // está en pantalla, y encender el esqueleto lo taparía para volver a
+      // mostrar lo mismo. La primera vez el estado ya arranca en `true`.
       const { data, error } = await supabase
         .from('message_templates')
         .select('*')

@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { useT } from '@/hooks/use-locale';
+import { useRecordado } from '@/hooks/use-recordado';
 import { useFormat } from '@/hooks/use-format';
 
 /**
@@ -61,8 +62,10 @@ export default function BroadcastsPage() {
   const router = useLocalizedRouter();
   const t = useT();
   const fmt = useFormat();
-  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
-  const [loading, setLoading] = useState(true);
+  // La sección se acuerda de lo último que mostró: volver es instantáneo y la
+  // consulta sale igual, en silencio, para reemplazarlo.
+  const [broadcasts, setBroadcasts, habia] = useRecordado<Broadcast[]>('campanas', []);
+  const [loading, setLoading] = useState(!habia);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 

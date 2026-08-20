@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Receipt, ExternalLink } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
+import { useRecordado } from '@/hooks/use-recordado';
 import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 
@@ -41,8 +42,10 @@ interface OrderRow {
 export default function PedidosPage() {
   const t = useT();
   const fmt = useFormat();
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  // La sección se acuerda de lo último que mostró: volver es instantáneo y la
+  // consulta sale igual, en silencio, para reemplazarlo.
+  const [orders, setOrders, habia] = useRecordado<OrderRow[]>('pedidos', []);
+  const [loading, setLoading] = useState(!habia);
 
   useEffect(() => {
     (async () => {

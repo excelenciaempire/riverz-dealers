@@ -142,6 +142,11 @@ export default function ContactsPage() {
   const fmt = useFormat();
   const tz = useTimezone();
 
+  // Sin memoria entre visitas, a diferencia del resto de las listas: acá lo que
+  // se ve depende de la página, la búsqueda y las etiquetas elegidas, y todo
+  // eso vuelve a cero al montar. Mostrar las filas guardadas debajo de un
+  // "página 1, sin filtros" recién reseteado sería enseñar algo que no
+  // corresponde a los controles de al lado.
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

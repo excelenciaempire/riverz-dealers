@@ -93,6 +93,23 @@ const nextConfig: NextConfig = {
   // does not support external modules".
   serverExternalPackages: ["@sentry/node"],
 
+  /**
+   * Que volver a una sección no cueste otro viaje al servidor.
+   *
+   * Todo el dashboard es dinámico (`force-dynamic` en su layout, por el nonce
+   * del CSP), y para una ruta dinámica Next no guarda NADA en la caché del
+   * router: cada clic en el menú vuelve a pedirle el segmento al servidor,
+   * incluso yendo y viniendo entre las dos mismas secciones. Con esto, volver
+   * antes de 30 s es instantáneo.
+   *
+   * No hay riesgo de ver datos viejos: las pantallas son componentes de
+   * cliente que piden sus datos al montarse, así que lo que se reutiliza es la
+   * cáscara, no las cifras.
+   */
+  experimental: {
+    staleTimes: { dynamic: 30, static: 180 },
+  },
+
   async redirects() {
     return LEGACY_REDIRECTS.map(({ from, to }) => ({
       source: from,
