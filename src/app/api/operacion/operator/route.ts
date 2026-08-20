@@ -32,7 +32,16 @@ import { getLocale } from '@/lib/i18n/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const RATE = { limit: 20, windowMs: 60_000 }
+/**
+ * Cuántos mensajes por minuto.
+ *
+ * Baja de 20 a 10 porque un turno hace mucho más trabajo que antes: con equipo
+ * puede encadenar el orquestador más tres especialistas, cada uno con sus
+ * vueltas. Diez por minuto sigue siendo más de lo que nadie escribe, y el techo
+ * real de llamadas al modelo lo pone `MAX_LLAMADAS_TURNO`, que cuenta lo que
+ * este cubo no puede ver: un pedido HTTP no dice cuántas llamadas hay adentro.
+ */
+const RATE = { limit: 10, windowMs: 60_000 }
 
 async function contexto() {
   const supabase = await createClient()
