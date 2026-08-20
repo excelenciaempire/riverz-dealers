@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetRateLimitForTests,
   checkRateLimit,
+  clientIp,
   limitByKey,
   rateLimitResponse,
 } from "./rate-limit";
@@ -220,3 +221,35 @@ describe("limitByKey (distributed Upstash path)", () => {
 afterEach(() => {
   __resetRateLimitForTests();
 });
+
+describe('clientIp detrás de Cloudflare', () => {
+  const req = (headers: Record<string, string>) =>
+    new Request('https://riverz.co/x', { headers });
+
+  it('usa cf-connecting-ip cuando está', () => {
+    // La que pone Cloudflare es la del cliente de verdad; el último token de
+    // x-forwarded-for es el nodo de borde, y esos rotan — con él, cada
+    // petición estrenaba cupo y el límite por IP no frenaba nada.
+    expect(
+      clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.71.1.9' })),
+    ).toBe('203.0.113.7');
+  });
+
+  it('la misma IP de cliente da la misma clave aunque rote el borde', () => {
+    const a = clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.71.1.9' }));
+    const b = clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.68.44.2' }));
+    expect(a).toBe(b);
+  });
+
+  it('acepta true-client-ip como alternativa', () => {
+    expect(clientIp(req({ 'true-client-ip': '198.51.100.4' }))).toBe('198.51.100.4');
+  });
+
+  it('sin Cloudflare sigue leyendo x-forwarded-for como antes', () => {
+    expect(clientIp(req({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe('10.0.0.1');
+  });
+
+  it('sin ninguna cabecera no inventa una IP', () => {
+    expect(clientIp(req({}))).toBe('unknown');
+  });
+})

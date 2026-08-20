@@ -237,6 +237,21 @@ export const RATE_LIMITS = {
  *  el final (default 1 = un único proxy frontal), que el cliente no puede
  *  falsificar. */
 export function clientIp(req: Request): string {
+  // El proxy que sí sabe quién llama.
+  //
+  // Detrás de Cloudflare, `x-forwarded-for` termina en la IP del nodo de borde
+  // que atendió la petición — y esos rotan. Tomando el token desde el final se
+  // obtenía una IP distinta casi en cada request, así que cada una estrenaba su
+  // propio cupo y el límite por IP no frenaba nada: medido en producción el
+  // 2026-08-20, 100 peticiones seguidas contra un endpoint con tope de 30
+  // pasaron las 100. (Lo que sí frenaba era el límite por correo del login, que
+  // usa una clave estable — por eso el agujero no se veía.)
+  //
+  // `cf-connecting-ip` la pone Cloudflare y no la puede falsear el cliente: si
+  // llega una del cliente, Cloudflare la reemplaza. Va primero.
+  const cf = req.headers.get("cf-connecting-ip") ?? req.headers.get("true-client-ip");
+  if (cf?.trim()) return cf.trim();
+
   const trustedHops = Math.max(
     1,
     Number(process.env.TRUSTED_PROXY_HOPS ?? "1") || 1,

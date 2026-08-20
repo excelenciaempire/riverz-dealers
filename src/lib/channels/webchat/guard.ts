@@ -65,8 +65,12 @@ export async function loadWebchat(req: Request, workspaceId: string): Promise<Gu
     response: NextResponse.json({ error: 'not_found' }, { status: 404 }),
   };
 
+  // Techo por comercio. Cubre lo que los otros dos cupos no ven: mucha gente
+  // distinta —o muchos visitantes fabricados— pegándole al mismo chat a la vez.
+  // 240 por minuto deja lugar a decenas de personas conversando de verdad y
+  // corta una avalancha antes de que se coma su saldo de IA.
   const perWorkspace = await limitByKey(`webchat:ws:${workspaceId}`, {
-    limit: 600,
+    limit: 240,
     windowMs: 60_000,
   });
   if (!perWorkspace.success) {
@@ -109,6 +113,21 @@ export async function requireSession(
       ok: false,
       response: NextResponse.json({ error: 'session_expired' }, { status: 401 }),
     };
+  }
+
+  // Cupo por VISITANTE, además del de IP.
+  //
+  // La IP no alcanza: detrás de un proxy compartido —o de una red móvil— mucha
+  // gente distinta la comparte, y al revés, una sola persona puede rotarla. El
+  // id del visitante sale del token firmado, así que es una clave estable que
+  // el que llama no elige, y es la que mide lo que de verdad cuesta: cada
+  // mensaje dispara una respuesta del agente, y eso se paga.
+  const porVisitante = await limitByKey(
+    `webchat:${action}:v:${session.visitorId}`,
+    WEBCHAT_LIMITS[action],
+  );
+  if (!porVisitante.success) {
+    return { ok: false, response: rateLimitResponse(porVisitante) };
   }
 
   const guard = await loadWebchat(req, session.workspaceId);
