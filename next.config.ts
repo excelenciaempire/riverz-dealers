@@ -40,9 +40,27 @@ const SECURITY_HEADERS = [
     key: "Cross-Origin-Opener-Policy",
     value: "same-origin-allow-popups",
   },
-  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
 ] as const;
+
+/**
+ * CORP va aparte del bloque de arriba porque tiene una excepción.
+ *
+ * `same-origin` es lo correcto para todo Riverz: evita que un tercero embeba
+ * nuestros recursos. Pero el cargador del chat web existe justamente para que
+ * lo pida OTRO sitio — la tienda del comercio — y con `same-origin` el
+ * navegador lo descarta sin decir por qué.
+ *
+ * Se resuelve excluyéndolo del catch-all y dándole su propio valor, y no
+ * sobrescribiendo: Next.js suma las cabeceras de cada regla que matchea, así
+ * que un segundo CORP no reemplaza al primero, deja dos — y dos CORP es una
+ * cabecera inválida, que bloquea igual. Mismo criterio que X-Frame-Options
+ * con /shopify/embedded, más abajo.
+ */
+const CORP_SAME_ORIGIN_EXCEPT_WIDGET = {
+  source: "/((?!widget/v1.js).*)",
+  headers: [{ key: "Cross-Origin-Resource-Policy", value: "same-origin" }],
+};
 
 /**
  * Localized URLs.
@@ -183,25 +201,6 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        // El cargador del chat web. Es lo único de la app pensado para que
-        // OTRO sitio lo pida: el `Cross-Origin-Resource-Policy: same-origin`
-        // de más abajo hace que el navegador de la tienda descarte el script
-        // sin decir por qué, así que acá se invierte para este archivo solo.
-        // Se cachea porque entra en cada visita a la tienda y su contenido no
-        // depende del comercio (la configuración la pide en tiempo de
-        // ejecución); la versión va en el nombre, así que publicar una nueva
-        // no espera a que expire ninguna caché.
-        source: "/widget/v1.js",
-        headers: [
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          {
-            key: "Cache-Control",
-            value: "public, max-age=3600, stale-while-revalidate=86400",
-          },
-        ],
-      },
-      {
         source: "/:path*",
         headers: [
           {
@@ -218,6 +217,7 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...SECURITY_HEADERS],
       },
+      CORP_SAME_ORIGIN_EXCEPT_WIDGET,
       // Clickjacking hardening for legacy browsers without CSP
       // frame-ancestors support. /shopify/embedded is excluded: it must
       // render inside the Shopify admin iframe (the proxy serves it with
@@ -236,6 +236,29 @@ const nextConfig: NextConfig = {
               headers: [{ key: "X-Frame-Options", value: "DENY" }],
             },
           ]),
+      {
+        // ÚLTIMA a propósito. El cargador del chat web es lo único de la app
+        // pensado para que OTRO sitio lo pida, y necesita valores distintos a
+        // los generales. Next.js suma las cabeceras de cada regla que matchea y
+        // para una misma clave gana la ÚLTIMA — se comprobó en producción: con
+        // esta regla arriba, el catch-all la pisaba y el script salía con
+        // `Cross-Origin-Resource-Policy: same-origin`, que hace que el
+        // navegador de la tienda lo descarte sin decir por qué.
+        //
+        // Se cachea porque entra en cada visita a la tienda y su contenido no
+        // depende del comercio (la configuración la pide en tiempo de
+        // ejecución); la versión va en el nombre del archivo, así que publicar
+        // una nueva no espera a que expire ninguna caché.
+        source: "/widget/v1.js",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
     ];
   },
 };
