@@ -32,6 +32,7 @@ export function ProductCard({
   path,
   href,
   variantId,
+  lineas = 1,
   session,
   color,
   ink,
@@ -39,6 +40,8 @@ export function ProductCard({
   path: string;
   href: string;
   variantId: string;
+  /** Cuántos productos distintos trae el carrito. */
+  lineas?: number;
   session?: string | null;
   color: string;
   ink: string;
@@ -104,9 +107,21 @@ export function ProductCard({
       ) : null}
       <div className="p-2.5">
         {prod?.title ? (
-          <p className="text-sm font-semibold leading-tight text-neutral-900">{prod.title}</p>
+          <p className="text-sm font-semibold leading-tight text-neutral-900">
+            {prod.title}
+            {/* Con varios productos la tarjeta muestra el primero, y decirlo
+                evita que la persona crea que el botón agrega sólo ése. */}
+            {lineas > 1 ? (
+              <span className="font-normal text-neutral-500">
+                {' '}
+                y {lineas - 1} más
+              </span>
+            ) : null}
+          </p>
         ) : null}
-        {precio ? <p className="mt-0.5 text-sm text-neutral-600">{precio}</p> : null}
+        {precio && lineas === 1 ? (
+          <p className="mt-0.5 text-sm text-neutral-600">{precio}</p>
+        ) : null}
         <div className="mt-2 flex gap-1.5">
           <button
             type="button"

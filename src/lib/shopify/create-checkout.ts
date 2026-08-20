@@ -64,6 +64,22 @@ export interface CreateCheckoutInput {
   offer?: string
   /** Unidades pedidas (AUTO MODE). */
   quantity?: number
+  /**
+   * Varios productos en un mismo carrito.
+   *
+   * Sin esto, el agente sólo podía armar un carrito de UN producto: quien
+   * quería llevar el serum y la crema recibía dos enlaces, y el segundo pisaba
+   * al primero — un enlace de carrito reemplaza el carrito entero. Terminaba
+   * comprando una sola cosa, que es exactamente la venta que el chat debería
+   * hacer crecer.
+   *
+   * Shopify acepta varias líneas en el mismo permalink
+   * (`/cart/v1:q1,v2:q2`); esto es sólo pasárselas.
+   *
+   * Tiene precedencia sobre `offer` y `quantity`: cuando el modelo nombra
+   * productos concretos, eso es lo que la clienta pidió.
+   */
+  items?: Array<{ variant_id: string; quantity?: number }>
   payment_hint?: PaymentHint
 }
 
@@ -175,6 +191,47 @@ async function resolveStorefront(
  * Punto de entrada. Construye el link de cart-permalink y devuelve un
  * objeto compacto que el modelo va a parafrasear para la clienta.
  */
+/**
+ * Los `attributes[...]` que viajan pegados al carrito y llegan al pedido.
+ *
+ * Vive aparte porque hay dos caminos que arman un enlace —el de un producto y
+ * el de varios— y la marca de origen y el id del visitante tienen que ir en los
+ * dos: sin ellos la venta llega al comercio sin saber de dónde salió.
+ */
+function attributesQuery(
+  ctx: CreateCheckoutContext,
+  hasTransferDiscount: boolean,
+  transferLabel: string | null,
+  transferAmount: number | null,
+): string {
+  const params = new URLSearchParams()
+  // Marca de origen: la orden resultante lleva este note_attribute para que el
+  // webhook orders/create sepa que vino de un link del asistente.
+  params.set('attributes[riverz_origin]', 'ai')
+  // Chat web: el id del visitante viaja con el carrito hasta el pedido, que es
+  // lo que después permite decir "esta venta salió de esta conversación". Hace
+  // falta acá aunque el widget ya estampe el carrito, porque un enlace de
+  // carrito REEMPLAZA el carrito: lo estampado antes se pierde justo cuando la
+  // persona decide comprar.
+  if (ctx.visitorId) params.set('attributes[riverz_wvid]', ctx.visitorId)
+  if (hasTransferDiscount && transferLabel && transferAmount != null) {
+    params.set('attributes[pago]', transferLabel)
+    params.set('attributes[descuento_pendiente_ars]', String(transferAmount))
+  }
+  return params.toString()
+}
+
+/** Cómo se le cuenta a la clienta con qué puede pagar. */
+function pagoLabel(hint: PaymentHint, config: CheckoutConfig | null): string {
+  const methods = config?.payment_methods ?? null
+  const card = !methods || methods.includes('card')
+  const mp = !methods || methods.includes('mercado_pago')
+  if (hint === 'transfer') return 'Podés pagar por transferencia; te pasamos los datos.'
+  return card && mp
+    ? 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
+    : 'Podés completar el pago en el checkout de la tienda.'
+}
+
 export async function createCheckoutLink(
   input: CreateCheckoutInput,
   ctx: CreateCheckoutContext,
@@ -182,6 +239,39 @@ export async function createCheckoutLink(
   const config = ctx.config ?? null
   const offers = config?.offers ?? null
   const bundleMode = !!(config?.enabled && offers && offers.length > 0)
+
+  // ── Varios productos: gana sobre todo lo demás ────────────────────
+  //
+  // Cuando el modelo nombra productos concretos, eso es lo que la clienta
+  // pidió — no una oferta preconfigurada ni el producto por defecto. Va
+  // primero y con su propio camino: no hay stock que chequear contra un solo
+  // variant ni un precio que cotizar, porque el total lo arma el checkout.
+  const lineas = (input.items ?? [])
+    .map((i) => ({
+      variant_id: String(i.variant_id ?? '').trim(),
+      quantity: Math.max(1, Math.floor(Number(i.quantity ?? 1)) || 1),
+    }))
+    .filter((i) => /^\d+$/.test(i.variant_id))
+  if (lineas.length > 0) {
+    const { domain: storefront } = await resolveStorefront(ctx)
+    const qs = attributesQuery(ctx, false, null, null)
+    const path = lineas.map((l) => `${l.variant_id}:${l.quantity}`).join(',')
+    const unidades = lineas.reduce((n, l) => n + l.quantity, 0)
+    return {
+      checkout_url: `https://${storefront}/cart/${path}${qs ? '?' + qs : ''}`,
+      offer_label:
+        lineas.length === 1
+          ? `${unidades} unidad(es)`
+          : `${lineas.length} productos (${unidades} unidades)`,
+      // El total no se cotiza acá a propósito: con varias líneas habría que
+      // pedir el precio de cada variant, y decir un número que después no
+      // coincide con el checkout es peor que no decir ninguno.
+      total_label: '',
+      payment_label: pagoLabel(input.payment_hint ?? 'card_or_mp', config),
+      next_step_for_pili:
+        'Pasale el link y decile que ahí ve el total con todo junto. No inventes el precio total.',
+    }
+  }
 
   // ── Resolución de oferta / cantidad ───────────────────────────────
   let qty: number
@@ -285,26 +375,12 @@ export async function createCheckoutLink(
   // Cuando paga por transferencia y hay descuento configurado, sumamos
   // cart-attributes para que el backoffice vea el flag y aplique el
   // descuento al confirmar.
-  const params = new URLSearchParams()
-  // Marca de origen: la orden resultante lleva este note_attribute para que
-  // el webhook orders/create sepa que vino de un link del asistente y haga
-  // la confirmación por atribución (sin chocar con la automatización
-  // "Nuevo pedido"). Ver src/app/api/shopify/webhooks/orders/route.ts.
-  params.set('attributes[riverz_origin]', 'ai')
-  // Chat web: el id del visitante viaja con el carrito hasta el pedido, que es
-  // lo que después permite decir "esta venta salió de esta conversación".
-  //
-  // Hace falta acá aunque el widget ya estampe el carrito, porque un enlace de
-  // carrito REEMPLAZA el carrito de Shopify: lo que se hubiera estampado antes
-  // se pierde justo cuando la persona decide comprar.
-  if (ctx.visitorId) {
-    params.set('attributes[riverz_wvid]', ctx.visitorId)
-  }
-  if (hasTransferDiscount) {
-    params.set('attributes[pago]', transferLabel)
-    params.set('attributes[descuento_pendiente_ars]', String(transferAmount))
-  }
-  const qs = params.toString()
+  const qs = attributesQuery(
+    ctx,
+    hasTransferDiscount,
+    transferLabel,
+    transferAmount,
+  )
   const checkoutUrl = `https://${storefront}/cart/${variantId}:${qty}${qs ? '?' + qs : ''}`
 
   // ── Etiquetas para el modelo ──────────────────────────────────────

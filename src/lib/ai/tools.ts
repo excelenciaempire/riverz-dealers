@@ -316,9 +316,24 @@ export function buildCheckoutTool(
             enum: (offers ?? []).map((o) => o.key),
             description: `Oferta que eligió la clienta. ${enumeration}.`,
           },
+          items: {
+            type: 'array',
+            description:
+              'Varios productos en el MISMO carrito. Usalo cuando la clienta quiere llevar más de un producto distinto: pasá acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+            items: {
+              type: 'object',
+              properties: {
+                variant_id: { type: 'string', description: 'variant_id del producto.' },
+                quantity: { type: 'integer', minimum: 1, default: 1 },
+              },
+              required: ['variant_id'],
+            },
+          },
           payment_hint,
         },
-        required: ['offer'],
+        // `offer` deja de ser obligatorio: con `items` la clienta armó su
+        // propio carrito y no eligió ninguna de las ofertas del combo.
+        required: [],
       },
     }
   }
@@ -331,12 +346,25 @@ export function buildCheckoutTool(
     input_schema: {
       type: 'object' as const,
       properties: {
+        items: {
+          type: 'array',
+          description:
+            'Varios productos en el MISMO carrito. Usalo cuando la clienta quiere llevar más de un producto distinto: pasá acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+          items: {
+            type: 'object',
+            properties: {
+              variant_id: { type: 'string', description: 'variant_id del producto.' },
+              quantity: { type: 'integer', minimum: 1, default: 1 },
+            },
+            required: ['variant_id'],
+          },
+        },
         quantity: {
           type: 'integer',
           minimum: 1,
           default: 1,
           description:
-            'Cantidad de unidades que quiere la clienta. Por defecto 1.',
+            'Cantidad de unidades del producto del que están hablando. Por defecto 1. Si la clienta quiere VARIOS productos distintos, usá items en vez de esto.',
         },
         payment_hint,
       },
@@ -798,6 +826,7 @@ export async function runTool(
     const input = (toolInput ?? {}) as {
       offer?: string
       quantity?: number
+      items?: Array<{ variant_id: string; quantity?: number }>
       payment_hint?: PaymentHint
     }
     const config = shopify.config ?? null
@@ -806,7 +835,10 @@ export async function runTool(
       config.offers &&
       config.offers.length > 0
     )
-    if (bundleMode && !input.offer) {
+    // Con `items` la clienta armó su propio carrito: no eligió ninguna de las
+    // ofertas del combo, así que exigirle una acá sería rechazar la compra.
+    const armaSuCarrito = Array.isArray(input.items) && input.items.length > 0
+    if (bundleMode && !armaSuCarrito && !input.offer) {
       const valid = (config?.offers ?? []).map((o) => o.key).join(' | ')
       return JSON.stringify({
         error: 'missing_offer',
@@ -817,6 +849,7 @@ export async function runTool(
       {
         offer: input.offer,
         quantity: input.quantity,
+        items: input.items,
         payment_hint: input.payment_hint,
       },
       {

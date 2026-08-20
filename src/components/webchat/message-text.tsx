@@ -32,14 +32,22 @@ const INLINE_RE = /(\*\*[^*\n]+\*\*|__[^_\n]+__|`[^`\n]+`|\*[^*\s][^*\n]*\*)/g;
 function parseCartLink(
   href: string,
   storeOrigin: string | null,
-): { path: string; variantId: string } | null {
+): { path: string; variantId: string; lineas: number } | null {
   if (!storeOrigin) return null;
   try {
     const url = new URL(href);
     if (url.origin !== storeOrigin) return null;
-    const m = /^\/cart\/(\d+):\d+/.exec(url.pathname);
+    // Un carrito puede traer VARIAS líneas: `/cart/111:2,222:1`.
+    const m = /^\/cart\/((?:\d+:\d+)(?:,\d+:\d+)*)\/?$/.exec(url.pathname);
     if (!m) return null;
-    return { path: url.pathname + url.search, variantId: m[1] };
+    const lineas = m[1].split(',');
+    return {
+      path: url.pathname + url.search,
+      // La tarjeta muestra el primero: con varios productos no hay UNA foto que
+      // represente el carrito, y el botón agrega todo igual.
+      variantId: lineas[0].split(':')[0],
+      lineas: lineas.length,
+    };
   } catch {
     return null;
   }
@@ -101,6 +109,7 @@ export function MessageText({
                 path={cart.path}
                 href={part}
                 variantId={cart.variantId}
+                lineas={cart.lineas}
                 session={session}
                 color={color}
                 ink={ink}
