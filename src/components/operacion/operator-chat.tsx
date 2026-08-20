@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Brain,
   Check,
+  History,
   Loader2,
   MessageSquarePlus,
   PlusCircle,
@@ -74,6 +75,14 @@ type Bloque =
       // que haya creado.
       estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho'
       detalle?: string
+      /**
+       * La fila de `operator_actions`, cuando el paso dejó una.
+       *
+       * Es lo que permite que el hilo no mienta después de aprobar: sin esto,
+       * el paso queda congelado en "propuesto" para siempre y abajo aparece la
+       * misma cosa otra vez diciendo "Hecho".
+       */
+      actionId?: string
       /** Lo que se armó, dibujable. */
       artefacto?: Artefacto
     }
@@ -362,12 +371,14 @@ export function OperatorChat({
                 estado: 'propuesto',
                 detalle: e.preview,
                 artefacto: e.artefacto,
+                actionId: e.actionId,
               })
             } else if (e.t === 'built') {
               bloques = conPaso(bloques, e.id, {
                 estado: 'hecho',
                 detalle: e.preview,
                 artefacto: e.artefacto,
+                actionId: e.actionId,
               })
             } else if (e.t === 'error') {
               setError(e.message)
@@ -414,6 +425,31 @@ export function OperatorChat({
     [aLaMesa, fetchWithCsrf, pensando, t, thread],
   )
 
+  /**
+   * Cambia el paso del hilo cuando su acción se decide.
+   *
+   * El hilo cuenta lo que pasó, y "pasó" incluye lo que decidiste después. Sin
+   * esto, el paso se queda diciendo "esto haría" para siempre mientras abajo
+   * aparece la misma cosa marcada como hecha: dos versiones del mismo hecho, y
+   * la de arriba es la vieja.
+   */
+  const marcarPasoDecidido = useCallback((actionId: string, aprobado: boolean) => {
+    setMensajes((ms) =>
+      ms.map((m) =>
+        m.bloques?.some((b) => b.k === 'paso' && b.actionId === actionId)
+          ? {
+              ...m,
+              bloques: m.bloques.map((b) =>
+                b.k === 'paso' && b.actionId === actionId
+                  ? { ...b, estado: aprobado ? ('hecho' as const) : ('error' as const) }
+                  : b,
+              ),
+            }
+          : m,
+      ),
+    )
+  }, [])
+
   const decidir = useCallback(
     async (id: string, aprobar: boolean) => {
       setAcciones((a) =>
@@ -421,6 +457,7 @@ export function OperatorChat({
           x.id === id ? { ...x, status: aprobar ? 'ejecutado' : 'rechazado' } : x,
         ),
       )
+      marcarPasoDecidido(id, aprobar)
       try {
         const res = await fetchWithCsrf(`/api/operacion/operator/acciones/${id}`, {
           method: 'POST',
@@ -435,14 +472,16 @@ export function OperatorChat({
               : x,
           ),
         )
+        if (!json.ok) marcarPasoDecidido(id, false)
         if (json.ok && aprobar) onChanged?.()
       } catch {
         setAcciones((a) =>
           a.map((x) => (x.id === id ? { ...x, status: 'fallido' } : x)),
         )
+        marcarPasoDecidido(id, false)
       }
     },
-    [fetchWithCsrf, onChanged],
+    [fetchWithCsrf, marcarPasoDecidido, onChanged],
   )
 
   /**
@@ -492,6 +531,7 @@ export function OperatorChat({
                   estado: 'propuesto',
                   detalle: e.preview,
                   artefacto: e.artefacto,
+                  actionId: e.actionId,
                 },
               ]
             } else if (e.t === 'built') {
@@ -505,6 +545,7 @@ export function OperatorChat({
                   estado: 'hecho',
                   detalle: e.preview,
                   artefacto: e.artefacto,
+                  actionId: e.actionId,
                 },
               ]
             } else if (e.t === 'error') {
@@ -543,12 +584,29 @@ export function OperatorChat({
   )
 
   const pendientes = acciones.filter((a) => a.status === 'propuesto')
-  const resueltas = acciones.filter((a) => a.status !== 'propuesto')
+  /**
+   * Lo resuelto que NO se vio pasar en el hilo.
+   *
+   * Cuando el paso ya está arriba con su estado, repetirlo abajo muestra dos
+   * veces la misma cosa — y como la tarjeta se trunca, la segunda versión
+   * además dice menos. La lista sirve para lo que viene de una conversación
+   * anterior, donde no hay bloques que lo cuenten.
+   */
+  const enElHilo = new Set(
+    mensajes.flatMap((m) =>
+      (m.bloques ?? []).flatMap((b) => (b.k === 'paso' && b.actionId ? [b.actionId] : [])),
+    ),
+  )
+  const resueltas = acciones.filter(
+    (a) => a.status !== 'propuesto' && !enElHilo.has(a.id),
+  )
 
   return (
     <div
       className={cn(
-        'flex h-full flex-col',
+        // `relative` para que el botón del historial se cuelgue de la esquina
+        // sin salirse de la columna del chat.
+        'relative flex h-full flex-col',
         !fullscreen && 'min-h-[26rem] rounded-xl border border-border bg-card',
       )}
     >
@@ -561,10 +619,8 @@ export function OperatorChat({
         </div>
       )}
 
-      {/* Las conversaciones anteriores. Sólo aparece cuando hay alguna: en una
-          cuenta nueva, una barra vacía sobre un chat vacío es ruido. */}
-      {fullscreen && (hilos.length > 0 || thread) && (
-        <BarraHilos
+      {fullscreen && (
+        <BotonHilos
           hilos={hilos}
           activo={thread}
           cargando={cargandoHilo}
@@ -732,18 +788,135 @@ export function OperatorChat({
 }
 
 /**
- * Las conversaciones anteriores.
+ * Las conversaciones anteriores, detrás de un botón.
  *
- * Cada una es su propio contexto: lo que se habló en una no entra en la otra.
- * Eso ya era cierto del lado del servidor, pero era invisible — la pantalla
- * abría un hilo nuevo en cada carga y no había forma de volver a ninguno, así
- * que todo se guardaba y no se leía nunca.
+ * Antes era una tira horizontal arriba del hilo, y estaba mal por una razón
+ * simple: ocupaba una franja de la pantalla todo el tiempo para algo que se usa
+ * de vez en cuando, y con cinco conversaciones ya obligaba a desplazarse de
+ * costado. Un botón en la esquina no le saca lugar a la conversación, que es lo
+ * que se mira.
  *
- * Va como una tira horizontal y no como una columna a la izquierda: el menú de
- * la aplicación ya ocupa ese lado, y una segunda columna dejaría la
- * conversación de setecientos píxeles apretada contra el borde. Acá ocupa
- * cuarenta píxeles de alto y se sale del camino.
+ * Cada hilo es su propio contexto: lo que se habló en uno no entra en el otro.
  */
+function BotonHilos({
+  hilos,
+  activo,
+  cargando,
+  onAbrir,
+  onNuevo,
+  onBorrar,
+}: {
+  hilos: ResumenHilo[]
+  activo: string | null
+  cargando: boolean
+  onAbrir: (id: string) => void
+  onNuevo: () => void
+  onBorrar: (id: string) => void
+}) {
+  const t = useT()
+  const fmt = useFormat()
+  const [abierto, setAbierto] = useState(false)
+  const pendientes = hilos.reduce((n, h) => n + (h.pendientes > 0 ? 1 : 0), 0)
+
+  return (
+    <div className="absolute top-3 right-4 z-20">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+      >
+        <History className="size-3.5" />
+        {t('operation.chatHistorial')}
+        {/* Un punto y no un número: cuántas decisiones esperan se cuenta
+            adentro; acá sólo hace falta saber que hay algo. */}
+        {pendientes > 0 && (
+          <span className="size-1.5 rounded-full bg-accent-ink" aria-hidden />
+        )}
+      </button>
+
+      {abierto && (
+        <>
+          {/* El fondo cierra al tocar afuera, que es lo que espera cualquiera. */}
+          <button
+            type="button"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setAbierto(false)}
+            aria-label={t('operation.mesaCerrar')}
+          />
+          <div className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+            <button
+              type="button"
+              onClick={() => {
+                onNuevo()
+                setAbierto(false)
+              }}
+              className="flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left text-xs text-foreground transition-colors hover:bg-muted/50"
+            >
+              <MessageSquarePlus className="size-3.5 text-accent-ink" />
+              {t('operation.chatNuevo')}
+            </button>
+
+            {hilos.length === 0 ? (
+              <p className="px-3 py-3 text-[11px] text-muted-foreground">
+                {t('operation.chatSinHistorial')}
+              </p>
+            ) : (
+              <ul className="max-h-80 overflow-y-auto">
+                {hilos.map((h) => (
+                  <li
+                    key={h.id}
+                    className={cn(
+                      'group flex items-center gap-1 px-1.5 transition-colors hover:bg-muted/50',
+                      h.id === activo && 'bg-primary/10',
+                    )}
+                  >
+                    <button
+                      type="button"
+                      disabled={cargando}
+                      onClick={() => {
+                        onAbrir(h.id)
+                        setAbierto(false)
+                      }}
+                      className="min-w-0 flex-1 px-1.5 py-2 text-left"
+                    >
+                      <span
+                        className={cn(
+                          'block truncate text-xs',
+                          h.id === activo ? 'text-accent-ink' : 'text-foreground',
+                        )}
+                      >
+                        {h.titulo}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {fmt.dateTime(h.actualizado, {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {h.pendientes > 0 && ` · ${t('operation.chatEsperando')}`}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onBorrar(h.id)}
+                      aria-label={t('operation.chatBorrar')}
+                      title={t('operation.chatBorrar')}
+                      className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 /**
  * El reparto, con su botón.
  *
@@ -830,89 +1003,6 @@ function TarjetaPlan({
   )
 }
 
-function BarraHilos({
-  hilos,
-  activo,
-  cargando,
-  onAbrir,
-  onNuevo,
-  onBorrar,
-}: {
-  hilos: ResumenHilo[]
-  activo: string | null
-  cargando: boolean
-  onAbrir: (id: string) => void
-  onNuevo: () => void
-  onBorrar: (id: string) => void
-}) {
-  const t = useT()
-  const fmt = useFormat()
-
-  return (
-    <div className="shrink-0 border-b border-border">
-      <div className="mx-auto flex w-full max-w-3xl items-center gap-1.5 overflow-x-auto px-4 py-2">
-        <button
-          type="button"
-          onClick={onNuevo}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
-            activo === null
-              ? 'border-accent-ink/30 bg-primary/10 text-accent-ink'
-              : 'border-border text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <MessageSquarePlus className="size-3.5" />
-          {t('operation.chatNuevo')}
-        </button>
-
-        {hilos.map((h) => (
-          <div
-            key={h.id}
-            className={cn(
-              'group inline-flex shrink-0 items-center gap-1 rounded-full border pr-1 pl-3 text-xs transition-colors',
-              h.id === activo
-                ? 'border-accent-ink/30 bg-primary/10'
-                : 'border-border hover:bg-muted/40',
-            )}
-          >
-            <button
-              type="button"
-              disabled={cargando}
-              onClick={() => onAbrir(h.id)}
-              title={`${h.titulo} · ${fmt.dateTime(h.actualizado, {
-                day: '2-digit',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}`}
-              className={cn(
-                'max-w-[13rem] truncate py-1.5',
-                h.id === activo ? 'text-accent-ink' : 'text-muted-foreground',
-              )}
-            >
-              {h.titulo}
-            </button>
-            {/* Un punto, no un número: cuántas decisiones esperan se cuenta
-                adentro; acá sólo hace falta saber que hay algo esperando. */}
-            {h.pendientes > 0 && (
-              <span className="size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
-            )}
-            <button
-              type="button"
-              onClick={() => onBorrar(h.id)}
-              aria-label={t('operation.chatBorrar')}
-              title={t('operation.chatBorrar')}
-              className="rounded-full p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
-            >
-              <Trash2 className="size-3" />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /**
  * El turno mientras pasa: qué está pensando, qué va tocando y qué va diciendo.
  *
@@ -977,7 +1067,11 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
               )}
             >
               {PASO_LABEL[b.key] ? t(PASO_LABEL[b.key]) : b.label}
-              {b.detalle && (
+              {/* Un paso que espera decisión NO repite su descripción acá: la
+                  tarjeta con los botones está justo abajo y dice lo mismo, más
+                  completo. Leer dos veces la misma frase, una de ellas cortada,
+                  es lo que hacía parecer que el texto aparecía y desaparecía. */}
+              {b.detalle && b.estado !== 'propuesto' && (
                 <span className={b.estado === 'hecho' ? '' : 'text-foreground'}>
                   {' · '}
                   {b.detalle}

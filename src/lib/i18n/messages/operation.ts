@@ -80,6 +80,12 @@ export const operation = {
   // Historial: cada conversación es su propio contexto.
   chatNuevo: { es: "Chat nuevo", en: "New chat" },
   chatBorrar: { es: "Borrar esta conversación", en: "Delete this conversation" },
+  chatHistorial: { es: "Conversaciones", en: "Conversations" },
+  chatSinHistorial: {
+    es: "Todavía no hay conversaciones anteriores.",
+    en: "No previous conversations yet.",
+  },
+  chatEsperando: { es: "algo espera tu decisión", en: "something needs your call" },
 
   operatorTry1: { es: "¿Cómo viene la semana?", en: "How is the week going?" },
   operatorTry2: { es: "¿Qué está frenando las ventas?", en: "What is holding sales back?" },
