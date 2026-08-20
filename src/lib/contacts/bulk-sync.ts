@@ -305,7 +305,7 @@ async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<Orde
   const guestByEmail = new Map<string, OrderRow[]>();
   const guestByPhone = new Map<string, OrderRow[]>();
   const fields =
-    'name,total_price,created_at,line_items,customer,email,phone,currency,shipping_address,billing_address';
+    'id,name,total_price,created_at,line_items,customer,email,phone,currency,shipping_address,billing_address';
   try {
     for await (const page of paginate<{ orders?: OrderRow[] }>(
       connection,
@@ -319,6 +319,7 @@ async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<Orde
           // El snapshot sólo guarda los 10 más recientes.
           if (list.length < 10) {
             list.push({
+              id: o.id,
               name: o.name,
               total_price: o.total_price,
               created_at: o.created_at,
@@ -383,6 +384,7 @@ function guestSnapshot(orders: OrderIndex, contact: Contact): ShopifyCustomerSna
       zip: addr?.zip ?? null,
     },
     lifetime_orders: sorted.slice(0, 10).map((o) => ({
+      id: o.id != null ? String(o.id) : undefined,
       name: o.name,
       total_price: o.total_price,
       line_items_titles: (o.line_items ?? []).map((li) => li.title).filter(Boolean),

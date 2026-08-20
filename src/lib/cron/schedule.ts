@@ -159,6 +159,15 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: "0 */6 * * *",
     parent: "tiktok-comments",
   },
+  // El poll de cada minuto sólo mira los 10 videos más nuevos. Un comentario
+  // sobre un video viejo entraba nunca: este barrido recorre TODO el catálogo
+  // paginado. Es una llamada por video, así que va cada 6 h y con timeout largo.
+  {
+    name: "tiktok-comments-deep", whatKey: "admin.cronTiktokDeep",
+    path: "/api/cron/tiktok-comments?deep=1",
+    schedule: "20 */6 * * *",
+    timeoutMs: 600_000,
+  },
   {
     name: "mercadolibre-orders", whatKey: "admin.cronMlOrders",
     path: "/api/cron/mercadolibre",

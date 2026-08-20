@@ -200,6 +200,11 @@ async function upsertOrder(
     workspace_id: conn.workspace_id,
     contact_id: contactId,
     channel: "mercadolibre",
+    // De dónde viene el pedido. La columna default es 'shopify', así que sin
+    // esto TODA venta de Mercado Libre quedaba registrada como una venta de
+    // Shopify y cualquier pantalla que enlace "ver pedido" mandaba al admin
+    // equivocado.
+    platform: "mercadolibre",
     // `shop_domain` es la clave natural del espejo en el resto del producto;
     // Mercado Libre no tiene dominio, así que el vendedor hace de tienda.
     shop_domain: `mercadolibre:${(conn.config as Record<string, unknown>)?.seller_id}`,

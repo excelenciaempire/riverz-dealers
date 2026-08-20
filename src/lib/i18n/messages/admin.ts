@@ -340,6 +340,10 @@ export const admin = {
     es: "Registra en TikTok a dónde avisar los comentarios",
     en: "Tells TikTok where to send comment events",
   },
+  cronTiktokDeep: {
+    es: "Repasa todos los videos de TikTok, no solo los nuevos",
+    en: "Sweeps every TikTok video, not just the newest",
+  },
   cronInstagramEnrich: {
     es: "Enriquece perfiles públicos de Instagram",
     en: "Enriches public Instagram profiles",

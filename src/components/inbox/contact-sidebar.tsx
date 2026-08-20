@@ -26,6 +26,7 @@ import { ContactTags } from "@/components/contacts/contact-tags";
 import { ShopifyContactPanel } from "@/components/inbox/shopify-contact-panel";
 import { IgProfilePanel } from "@/components/inbox/ig-profile-panel";
 import { CallWithAiButton } from "@/components/inbox/voice-call-view";
+import { CommerceLinkButton } from "@/components/inbox/commerce-link-button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
@@ -266,6 +267,12 @@ export function ContactSidebar({ contact, onClose }: ContactSidebarProps) {
               </label>
             </div>
           )}
+
+          {/* El pedido de esta persona, en la tienda de donde vino la venta.
+              Sin venta que mostrar no renderiza nada. */}
+          <div className="mt-3">
+            <CommerceLinkButton contactId={contact.id} />
+          </div>
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

@@ -427,6 +427,12 @@ export const inbox = {
   orders: { es: "Pedidos", en: "Orders" },
   latestOrders: { es: "Últimos pedidos", en: "Latest orders" },
   viewOrder: { es: "Ver pedido", en: "View order" },
+  viewOrderInShopify: { es: "Ver pedido en Shopify", en: "View order in Shopify" },
+  viewCustomerInShopify: { es: "Ver cliente en Shopify", en: "View customer in Shopify" },
+  viewOrderInMercadoLibre: {
+    es: "Ver venta en Mercado Libre",
+    en: "View sale in Mercado Libre",
+  },
   financialPaid: { es: "Pagado", en: "Paid" },
   financialPending: { es: "Pendiente", en: "Pending" },
   financialRefunded: { es: "Reembolsado", en: "Refunded" },

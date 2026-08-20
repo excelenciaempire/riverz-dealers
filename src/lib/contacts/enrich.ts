@@ -63,6 +63,8 @@ export interface ShopifyCustomer {
 }
 
 export interface ShopifyOrderLite {
+  /** Id del pedido: sin él no se puede enlazar al pedido en el admin. */
+  id?: number | string;
   name: string;
   total_price: string;
   created_at: string;
@@ -304,7 +306,7 @@ async function fetchCustomerOrders(
     'X-Shopify-Access-Token': connection.accessToken,
     'Content-Type': 'application/json',
   };
-  const url = `${base}/orders.json?status=any&customer_id=${customerId}&limit=10&fields=${encodeURIComponent('name,total_price,created_at,line_items')}`;
+  const url = `${base}/orders.json?status=any&customer_id=${customerId}&limit=10&fields=${encodeURIComponent('id,name,total_price,created_at,line_items')}`;
   const r = await fetch(url, { headers });
   if (!r.ok) return [];
   const data = (await r.json()) as { orders?: ShopifyOrderLite[] };
@@ -320,6 +322,7 @@ export function buildSnapshot(
     .map((t) => t.trim())
     .filter(Boolean);
   const lifetime_orders = orders.slice(0, 10).map((o) => ({
+    id: o.id != null ? String(o.id) : undefined,
     name: o.name,
     total_price: o.total_price,
     line_items_titles: (o.line_items ?? []).map((li) => li.title).filter(Boolean),

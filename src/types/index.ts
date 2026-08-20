@@ -173,6 +173,10 @@ export interface ShopifyCustomerSnapshot {
   };
   accepts_marketing?: boolean;
   lifetime_orders?: Array<{
+    /** Id del pedido en Shopify. Es lo único que permite abrir ESE pedido en
+     *  el admin (`/admin/orders/<id>`); el `name` (#52629) sólo sirve para
+     *  buscarlo a mano. */
+    id?: string;
     name: string;
     total_price: string | number;
     line_items_titles: string[];

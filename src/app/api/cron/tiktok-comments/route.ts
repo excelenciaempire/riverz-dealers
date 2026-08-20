@@ -25,13 +25,26 @@ async function cronHandler(request: Request) {
     // es una llamada a su API). Va primero y es barato — se saltea solo salvo
     // en el primer arranque o cada 6 h.
     const webhook = await ensureTikTokCommentWebhook();
-    const result = await pollAllTikTokConnections();
-    return NextResponse.json({ ...result, webhook }, { status: 200 });
+    // `?deep=1` barre TODO el catálogo de videos, no sólo los 10 más nuevos:
+    // un comentario sobre un video de hace semanas no entra de otra forma.
+    // Es caro (una llamada por video), así que corre cada 6 h por su propia
+    // entrada en el catálogo de crons, no cada minuto.
+    const deep = new URL(request.url).searchParams.get("deep") === "1";
+    const result = await pollAllTikTokConnections({ deep });
+    return NextResponse.json({ ...result, deep, webhook }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
-/** Registra la corrida en cron_runs con duración y resultado reales. */
-export const GET = withCronRun("tiktok-comments", cronHandler);
+/** Registra la corrida en cron_runs con duración y resultado reales. El
+ *  barrido profundo lleva nombre propio: corre cada 6 h y tarda mucho más,
+ *  así que mezclarlo con el poll de cada minuto haría ilegible el panel. */
+const runShallow = withCronRun("tiktok-comments", cronHandler);
+const runDeep = withCronRun("tiktok-comments-deep", cronHandler);
+
+export const GET = (request: Request): Promise<Response> =>
+  new URL(request.url).searchParams.get("deep") === "1"
+    ? runDeep(request)
+    : runShallow(request);
