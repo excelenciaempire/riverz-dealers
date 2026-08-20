@@ -162,9 +162,11 @@ export async function attributeWebchatOrder(
     financial_status: (order.financial_status as string | null) ?? 'pending',
     fulfillment_status: (order.fulfillment_status as string | null) ?? null,
     status: order.financial_status === 'paid' ? 'paid' : 'created',
-    // No lo creó la IA ni una persona del equipo: lo compró el cliente, y
-    // llegó hasta ahí por el chat de la web.
-    created_by: 'webchat',
+    // 'sync' y no 'webchat': la columna admite sólo ai | sync | manual, y de
+    // las tres ésta es la correcta — el pedido lo hizo el cliente en el
+    // checkout de la tienda y acá se está espejando, no creando. Que haya
+    // salido del chat lo dice `channel`, que es por donde se cuenta.
+    created_by: 'sync',
   });
 
   return { attributed: true };

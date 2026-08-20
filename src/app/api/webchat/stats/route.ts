@@ -69,11 +69,12 @@ export async function GET() {
     (c) => Boolean(c.needs_human_at) || Boolean(c.assigned_agent_id),
   ).length;
 
-  // Los pedidos cancelados y devueltos no son ingreso: contarlos infla la
-  // cifra justo en el número que el comercio va a usar para decidir si el
-  // canal vale la pena.
+  // Un pedido cancelado o que nunca se pudo crear no es ingreso: contarlo
+  // infla justo el número que el comercio va a usar para decidir si el canal
+  // vale la pena. (`orders.status` sólo admite created|paid|fulfilled|
+  // cancelled|failed — no hay 'refunded' que filtrar.)
   const revenue = orders
-    .filter((o) => o.status !== 'cancelled' && o.status !== 'refunded')
+    .filter((o) => o.status !== 'cancelled' && o.status !== 'failed')
     .reduce((sum, o) => {
       const n = typeof o.total_price === 'number' ? o.total_price : parseFloat(String(o.total_price ?? ''));
       return Number.isFinite(n) ? sum + n : sum;
