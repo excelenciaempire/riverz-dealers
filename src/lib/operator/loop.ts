@@ -28,6 +28,7 @@ import {
 import type { Capability, CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
 import { construir, proponer } from './escribir'
+import { etiquetaDe } from './etiquetas'
 import { systemPrompt } from './prompt'
 import { translate } from '@/lib/i18n/translate'
 
@@ -137,11 +138,6 @@ export interface OperatorTurn {
  * está en su mapa. Esto es lo que se ve cuando alguien suma una capacidad nueva
  * y todavía no le puso nombre corto.
  */
-function etiquetaDe(descripcion: string): string {
-  const primera = descripcion.split(/[:.,;]/)[0].trim()
-  return primera.length > 60 ? `${primera.slice(0, 57)}…` : primera
-}
-
 /**
  * Una línea de lo que devolvió una lectura, para la pantalla.
  *
@@ -278,7 +274,7 @@ export async function runOperator(args: {
   ): Promise<Anthropic.ToolResultBlockParam> => {
     const key = cap.key
     const toolArgs = (block.input ?? {}) as Record<string, unknown>
-    emit({ t: 'tool_start', id: block.id, key, label: etiquetaDe(cap.description) })
+    emit({ t: 'tool_start', id: block.id, key, label: etiquetaDe(cap, locale) })
 
     try {
       if (cap.risk === 'lectura') {

@@ -25,6 +25,7 @@ import {
   findCapability,
 } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
+import { etiquetaDe } from '../etiquetas'
 import { cargarMapa, mapaComoTexto } from '../account-map'
 import type { EmitFn } from '../events'
 import { recortarResultado } from '../escribir'
@@ -81,13 +82,17 @@ export async function runOrquestador(args: {
   let iter = 0
   let delegaciones = 0
   let ultimoTexto = ''
+  // Un turno son varias llamadas al modelo, y el hilo las muestra como un solo
+  // mensaje. Sin esto, la última frase de una llamada y la primera de la
+  // siguiente salían pegadas: "…antes de enviarla.Dejé el plan esperando".
+  const hilo = { yaEscribio: false }
 
   while (vueltas < MAX_VUELTAS && iter < MAX_ITERS_TOTAL) {
     iter++
     emit({ t: 'step', n: vueltas + 1, de: MAX_VUELTAS })
 
     if (!presupuesto.puedeLlamar()) break
-    const res = await llamar(args, system, tools, messages)
+    const res = await llamar(args, system, tools, messages, hilo)
     presupuesto.sumar('orquestador', {
       input: res.usage?.input_tokens,
       output: res.usage?.output_tokens,
@@ -158,9 +163,10 @@ export async function runOrquestador(args: {
       const leidas = await Promise.all(
         aLeer.map(async (uso) => {
           const key = capabilityKeyFromToolName(uso.name)
-          emit({ t: 'tool_start', id: uso.id, key, label: key })
+          const suya = findCapability(key)!
+          emit({ t: 'tool_start', id: uso.id, key, label: etiquetaDe(suya, ctx.locale) })
           try {
-            const salida = await findCapability(key)!.run(
+            const salida = await suya.run(
               ctx,
               (uso.input ?? {}) as Record<string, unknown>,
             )
@@ -263,7 +269,7 @@ export async function runOrquestador(args: {
   // Se acabaron las vueltas: una última sin herramientas, para cerrar con algo
   // legible en vez de dejar la pantalla en blanco.
   if (presupuesto.puedeLlamar()) {
-    const cierre = await llamar(args, system, [], messages)
+    const cierre = await llamar(args, system, [], messages, hilo)
     presupuesto.sumar('orquestador', {
       input: cierre.usage?.input_tokens,
       output: cierre.usage?.output_tokens,
@@ -368,7 +374,9 @@ async function llamar(
   system: Anthropic.TextBlockParam[],
   tools: Anthropic.Tool[],
   messages: Anthropic.MessageParam[],
+  hilo: { yaEscribio: boolean },
 ): Promise<Anthropic.Message> {
+  let abrio = false
   return args.runner(
     {
       quien: 'orquestador',
@@ -381,8 +389,16 @@ async function llamar(
     },
     (d) => {
       // El orquestador SÍ escribe en el hilo: es el único que lo hace.
-      if (d.tipo === 'texto') args.emit({ t: 'text', delta: d.delta })
-      else args.emit({ t: 'thinking', delta: d.delta })
+      if (d.tipo !== 'texto') {
+        args.emit({ t: 'thinking', delta: d.delta })
+        return
+      }
+      if (!abrio) {
+        abrio = true
+        if (hilo.yaEscribio) args.emit({ t: 'text', delta: '\n\n' })
+        hilo.yaEscribio = true
+      }
+      args.emit({ t: 'text', delta: d.delta })
     },
   )
 }

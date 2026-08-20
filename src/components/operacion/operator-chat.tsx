@@ -103,6 +103,7 @@ const PASO_LABEL: Record<string, string> = {
   'mensajes.diagnostico': 'operation.stepDiagnostico',
   'pedidos.listar': 'operation.stepPedidos',
   'plantillas.estado': 'operation.stepPlantillas',
+  'integraciones.estado': 'operation.stepIntegraciones',
   'campanas.estado': 'operation.stepCampanas',
   'agentes.listar': 'operation.stepAgentes',
   'agentes.crear_borrador': 'operation.stepAgenteCrear',
@@ -948,9 +949,9 @@ function TarjetaPlan({
         <Sparkles className="size-4 shrink-0 text-accent-ink" />
         <p className="text-sm font-medium text-foreground">{t('operation.planTitulo')}</p>
       </div>
-      {plan.porque && (
-        <p className="mt-1 text-xs text-muted-foreground">{plan.porque}</p>
-      )}
+      {/* El porqué no se imprime: los pasos numerados y el "espera al 1" ya lo
+          dicen, y una frase más arriba de una lista que se explica sola es
+          justo el texto que sobra. */}
 
       <ol className="mt-3 space-y-1.5">
         {plan.pasos.map((p) => (
@@ -960,7 +961,9 @@ function TarjetaPlan({
             </span>
             <span className="min-w-0 flex-1 leading-snug">
               <span className="font-medium text-foreground">{p.agente}</span>{" "}
-              <span className="text-muted-foreground">{p.encargo}</span>
+              {/* Dos líneas y corta. El encargo completo es la instrucción que
+                  recibe el especialista, no algo para leer entero acá. */}
+              <span className="line-clamp-2 text-muted-foreground">{p.encargo}</span>
               {p.dependeDe.length > 0 && (
                 <span className="text-muted-foreground/70">
                   {" "}

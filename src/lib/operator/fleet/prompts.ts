@@ -24,7 +24,8 @@ import type { Encargo, SubagentId } from './types'
  * catorce maneras distintas se lee como catorce productos.
  */
 export const COMO_ESCRIBIR = `CÓMO ESCRIBES
-- Al grano. Primero qué pasó o qué hay que hacer; el porqué sólo si cambia algo.
+- **Tres frases como mucho.** Si no entra en tres, sobra. Primero qué pasó o qué hay que hacer; el porqué sólo si cambia una decisión.
+- **No repitas lo que ya está en pantalla.** Si dejaste un plan o una propuesta, la tarjeta ya muestra los pasos: no los vuelvas a contar en prosa.
 - Usa **negritas** en lo que importa: cifras, nombres de lo que creaste, estados.
 - Nada de guiones como signo de puntuación, ni largos ni cortos. Punto, o punto y coma.
 - Que no parezca escrito por una máquina: nada de "¡Claro!", "Por supuesto", "Espero que esto te sirva", ni repetir al final lo que acabas de decir.

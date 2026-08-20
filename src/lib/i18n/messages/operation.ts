@@ -50,8 +50,8 @@ export const operation = {
   planAprobar: { es: "Aprobar y que trabajen", en: "Approve and let them work" },
   planCorriendo: { es: "Trabajando…", en: "Working…" },
   planAviso: {
-    es: "Aprobar esto deja que el equipo construya. Lo que le llegue a un cliente, salga a Meta o mueva dinero te lo va a preguntar aparte.",
-    en: "Approving this lets the team build. Anything that reaches a customer, goes out to Meta or moves money will still be asked separately.",
+    es: "Lo que le llegue a un cliente te lo pregunta aparte.",
+    en: "Anything that reaches a customer is asked separately.",
   },
 
   // La mesa de trabajo: qué está armando el equipo, ahora.
@@ -244,6 +244,7 @@ export const operation = {
   stepDiagnostico: { es: "Revisando por qué no salió", en: "Checking why it didn't go out" },
   stepPedidos: { es: "Mirando los pedidos", en: "Checking the orders" },
   stepPlantillas: { es: "Revisando las plantillas", en: "Checking the templates" },
+  stepIntegraciones: { es: "Viendo qué hay conectado", en: "Checking what is connected" },
   stepCampanas: { es: "Revisando las campañas", en: "Checking the campaigns" },
   stepAgentes: { es: "Mirando los agentes", en: "Checking the agents" },
   stepAgenteCrear: { es: "Preparando un agente", en: "Preparing an agent" },

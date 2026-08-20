@@ -24,6 +24,7 @@ import {
   findCapability,
 } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
+import { etiquetaDe } from '../etiquetas'
 import type { EmitFn } from '../events'
 import { construir, proponer, recortarResultado } from '../escribir'
 import type { Presupuesto } from './budget'
@@ -126,7 +127,13 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
         const leidas = await Promise.all(
           aLeer.map(async (uso) => {
             const key = capabilityKeyFromToolName(uso.name)
-            e.emit({ t: 'tool_start', id: uso.id, key, label: key, agente: e.agente })
+            e.emit({
+              t: 'tool_start',
+              id: uso.id,
+              key,
+              label: etiquetaDe(findCapability(key)!, e.ctx.locale),
+              agente: e.agente,
+            })
             try {
               const salida = await findCapability(key)!.run(
                 e.ctx,
@@ -176,7 +183,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
           t: 'tool_start',
           id: uso.id,
           key,
-          label: key,
+          label: etiquetaDe(cap, e.ctx.locale),
           agente: e.agente,
         })
 

@@ -182,7 +182,13 @@ export function useMesaDispatch() {
   return useContext(Despachar)
 }
 
-/** ¿Vale la pena mostrar la mesa? Con nada adentro sólo ocupa lugar. */
+/**
+ * ¿Vale la pena mostrar la mesa? Con nada adentro sólo ocupa lugar.
+ *
+ * Un plan que todavía nadie aprobó NO cuenta: no hay nadie trabajando, y el
+ * plan ya está en el hilo con sus botones. Abrir el panel para repetirlo era
+ * la misma frase dos veces en la misma pantalla.
+ */
 export function mesaTieneAlgo(m: EstadoMesa): boolean {
-  return m.agentes.length > 0 || m.lienzos.length > 0 || m.plan !== null
+  return m.agentes.length > 0 || m.lienzos.length > 0
 }

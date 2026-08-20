@@ -51,8 +51,10 @@ export function Mesa() {
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        {m.plan && <VistaPlan plan={m.plan} />}
-
+        {/* El plan NO se repite acá. Estaba, y quedaba palabra por palabra al
+            lado de la tarjeta del hilo, que además es la que tiene los
+            botones: dos veces el mismo párrafo en la misma pantalla. Lo que
+            va acá es quién está trabajando, que es otra cosa. */}
         {m.agentes.length > 0 && (
           <section className="space-y-1.5">
             {m.agentes.map((a) => (
@@ -166,38 +168,5 @@ function FilaAgente({ agente }: { agente: AgenteEnMesa }) {
         </p>
       )}
     </div>
-  )
-}
-
-function VistaPlan({ plan }: { plan: NonNullable<ReturnType<typeof useMesa>['plan']> }) {
-  const t = useT()
-  return (
-    <section className="rounded-xl border border-border bg-background p-3">
-      <p className="app-eyebrow">{t('operation.mesaPlan')}</p>
-      {plan.porque && (
-        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{plan.porque}</p>
-      )}
-      <ol className="mt-2 space-y-1">
-        {plan.pasos.map((p) => (
-          <li key={p.i} className="flex items-start gap-2 text-[11px]">
-            <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground">
-              {p.i + 1}
-            </span>
-            <span className="min-w-0 flex-1 leading-snug text-foreground">
-              <span className="font-medium">{p.agente}</span>{' '}
-              <span className="text-muted-foreground">{p.encargo}</span>
-              {/* Decir de qué depende es lo que hace entendible por qué un paso
-                  todavía no arrancó. */}
-              {p.dependeDe.length > 0 && (
-                <span className="text-muted-foreground/70">
-                  {' '}
-                  ({t('operation.mesaEspera', { n: p.dependeDe.map((d) => d + 1).join(', ') })})
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
   )
 }

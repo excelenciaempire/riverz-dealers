@@ -31,7 +31,7 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
         encargo: {
           type: 'string',
           description:
-            'Qué tiene que hacer, en sus términos y con todo lo que necesite saber. No le mandes el pedido original tal cual: traducilo a una instrucción concreta de su dominio.',
+            'Qué tiene que hacer, en una o dos frases. Esto se muestra en pantalla, así que va sin nombres internos ni de código y sin comillas sueltas. No mandes el pedido original tal cual: tradúcelo a una instrucción concreta de su dominio. Lo que no entre en dos frases, sobra: el especialista sabe su oficio.',
         },
       },
       required: ['subagente', 'encargo'],
@@ -55,12 +55,12 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
             type: 'object',
             properties: {
               subagente: { type: 'string', enum: [...SUBAGENT_IDS] },
-              encargo: { type: 'string' },
+              encargo: { type: 'string', description: 'Qué tiene que hacer, en una o dos frases. Esto se muestra en pantalla, así que va sin nombres internos ni de código y sin comillas sueltas. No mandes el pedido original tal cual: tradúcelo a una instrucción concreta de su dominio. Lo que no entre en dos frases, sobra: el especialista sabe su oficio.' },
               depende_de: {
                 type: 'array',
                 items: { type: 'number' },
                 description:
-                  'Los números de los pasos que tienen que terminar antes que este. Los pasos se numeran desde 0 en el orden de esta lista. Dejalo vacío si no depende de nadie: lo que no se debe nada corre junto y termina antes.',
+                  'Los números de los pasos que tienen que terminar antes que este. Los pasos se numeran desde 0 en el orden de esta lista. Déjalo vacío si no depende de nadie: lo que no se debe nada corre junto y termina antes.',
               },
             },
             required: ['subagente', 'encargo'],
@@ -101,7 +101,7 @@ CÓMO TRABAJAS
 
 CUÁNDO USAR CADA HERRAMIENTA DE EQUIPO
 - Un solo dominio y un solo paso: \`equipo__delegar\`.
-- Más de un dominio, o algo que tiene que pasar antes que otra cosa: \`equipo__plan\`. El plan NO se ejecuta: queda esperando un click. Después de armarlo, cuenta qué va a hacer el equipo y NO digas que está hecho.
+- Más de un dominio, o algo que tiene que pasar antes que otra cosa: \`equipo__plan\`. El plan NO se ejecuta: queda esperando un click. **Después de armarlo, no lo cuentes**: la tarjeta con los pasos ya está en pantalla. Una línea con lo que la tarjeta no dice (lo que falta conectar, lo que elegiste y por qué) y nada más.
 - En el plan, pon \`depende_de\` sólo cuando de verdad haga falta. Lo que no se debe nada corre al mismo tiempo, y encadenar de más hace esperar a la persona sin motivo.
 
 ${COMO_ESCRIBIR}

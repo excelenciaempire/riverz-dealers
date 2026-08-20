@@ -123,3 +123,25 @@ describe('lo que se rechaza, y con qué mensaje', () => {
     expect(validarPlan({ pasos: 'dos' }).ok).toBe(false)
   })
 })
+
+describe('la comilla que el modelo deja suelta', () => {
+  it('se la saca al porqué y al encargo', () => {
+    // Visto en la primera corrida real: el porqué terminaba en una comilla que
+    // nunca abrió, y se imprimía tal cual en la tarjeta.
+    const r = validarPlan({
+      porque: 'La automatización necesita el nombre de la plantilla."',
+      pasos: [paso('plantillas', 'Escribe la plantilla de carrito."')],
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.plan.porque).toBe('La automatización necesita el nombre de la plantilla.')
+    expect(r.plan.pasos[0].encargo).toBe('Escribe la plantilla de carrito.')
+  })
+
+  it('no toca las comillas que sí cierran', () => {
+    const r = validarPlan({ pasos: [paso('plantillas', 'Llámala "carrito abandonado"')] })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.plan.pasos[0].encargo).toBe('Llámala "carrito abandonado"')
+  })
+})

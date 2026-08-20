@@ -50,6 +50,26 @@ export type Validacion =
  * esperan entre sí" es algo que se puede arreglar. Una excepción sería tirar el
  * turno por un error de escritura.
  */
+/**
+ * Le saca la comilla suelta al final (o al principio).
+ *
+ * El modelo cierra a veces una frase con una comilla que nunca abrió —se vio
+ * en la primera corrida real: "…al armar el envío."— y esa comilla se imprime
+ * tal cual. No es un error de nadie que se pueda arreglar pidiéndoselo mejor:
+ * pasa cuando el texto viene de un campo que él imagina entrecomillado.
+ */
+function sinComillaSuelta(texto: string): string {
+  let t = texto
+  for (const c of ['"', "'", '«', '»', '“', '”']) {
+    const n = t.split(c).length - 1
+    if (n % 2 === 1) {
+      if (t.endsWith(c)) t = t.slice(0, -1)
+      else if (t.startsWith(c)) t = t.slice(1)
+    }
+  }
+  return t.trim()
+}
+
 export function validarPlan(entrada: unknown): Validacion {
   const e = (entrada ?? {}) as { porque?: unknown; pasos?: unknown }
   if (!Array.isArray(e.pasos) || e.pasos.length === 0) {
@@ -68,7 +88,7 @@ export function validarPlan(entrada: unknown): Validacion {
     if (!esSubagentId(p?.subagente)) {
       return { ok: false, error: `El paso ${i} le habla a "${String(p?.subagente)}", que no está en el equipo.` }
     }
-    const encargo = typeof p?.encargo === 'string' ? p.encargo.trim() : ''
+    const encargo = typeof p?.encargo === 'string' ? sinComillaSuelta(p.encargo) : ''
     if (!encargo) return { ok: false, error: `El paso ${i} no dice qué hay que hacer.` }
     if (encargo.length > MAX_ENCARGO) {
       return { ok: false, error: `El encargo del paso ${i} es larguísimo. Dilo en menos.` }
@@ -95,7 +115,7 @@ export function validarPlan(entrada: unknown): Validacion {
     }
   }
 
-  const porque = typeof e.porque === 'string' ? e.porque.trim() : ''
+  const porque = typeof e.porque === 'string' ? sinComillaSuelta(e.porque) : ''
   return { ok: true, plan: { porque, pasos, olas: r.olas } }
 }
 
