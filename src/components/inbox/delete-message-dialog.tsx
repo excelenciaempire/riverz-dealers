@@ -77,9 +77,7 @@ export function DeleteMessageDialog({
           <DialogDescription className="text-muted-foreground">
             {both
               ? t("inbox.deleteMessageBothDesc")
-              : t("inbox.deleteMessageOnlyMineDesc", {
-                  channel: t(`inbox.channel_${channel}`),
-                })}
+              : t("inbox.deleteMessageOnlyMineDesc")}
           </DialogDescription>
         </DialogHeader>
 

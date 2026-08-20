@@ -51,6 +51,8 @@ interface MessageBubbleProps {
   contactName?: string | null;
   contactPhone?: string | null;
   onToggleReaction?: (emoji: string) => void;
+  /** Para que la barra de moderación pueda sacar la burbuja al borrar. */
+  onDeleted?: () => void;
 }
 
 /**
@@ -956,6 +958,7 @@ export function MessageBubble({
   contactName,
   contactPhone,
   onToggleReaction,
+  onDeleted,
 }: MessageBubbleProps) {
   const t = useT();
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
@@ -1145,6 +1148,7 @@ export function MessageBubble({
             message={message}
             channel={message.channel}
             own={message.sender_type !== "customer"}
+            onDeleted={onDeleted}
           />
         )}
     </div>

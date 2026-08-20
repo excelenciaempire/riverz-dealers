@@ -7,6 +7,10 @@ import type { Channel, Message } from "@/types";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
 import type { TFn } from "@/lib/i18n/translate";
+import {
+  DeleteMessageDialog,
+  type DeleteScope,
+} from "./delete-message-dialog";
 
 interface CommentModerationBarProps {
   message: Message;
@@ -16,6 +20,9 @@ interface CommentModerationBarProps {
    *  Sobre lo propio sólo se puede borrar: ni Facebook ni Instagram dejan
    *  ocultar ni likear un comentario de la misma cuenta que lo escribió. */
   own?: boolean;
+  /** Se llama cuando el comentario dejó de existir en la bandeja, para que el
+   *  hilo saque la burbuja sin esperar a una recarga. */
+  onDeleted?: () => void;
 }
 
 /**
@@ -28,10 +35,12 @@ export function CommentModerationBar({
   channel,
   permalink,
   own = false,
+  onDeleted,
 }: CommentModerationBarProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // Seed from the persisted flag (migration 095) so the state is correct on
   // load, and keep it in sync when a realtime UPDATE (e.g. hidden from another
   // pane) refreshes the message prop.
@@ -46,7 +55,9 @@ export function CommentModerationBar({
     setLiked(message.is_liked ?? false);
   }, [message.is_liked]);
 
-  const act = async (action: "hide" | "unhide" | "like" | "unlike" | "delete") => {
+  const act = async (
+    action: "hide" | "unhide" | "like" | "unlike" | "delete",
+  ): Promise<boolean> => {
     setBusy(action);
     try {
       const res = await fetchWithCsrf("/api/messages/moderate", {
@@ -57,16 +68,36 @@ export function CommentModerationBar({
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(payload.error ?? t("inbox.moderationFailed"));
-        return;
+        return false;
       }
       toast.success(labelFor(action, t));
       if (action === "hide") setHidden(true);
       if (action === "unhide") setHidden(false);
       if (action === "like") setLiked(true);
       if (action === "unlike") setLiked(false);
+      return true;
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * Borrar segun lo elegido. "Para todos" borra primero en la red: si eso
+   * falla no se toca nada de este lado, para no dejar la bandeja diciendo que
+   * un comentario que sigue publicado ya no esta.
+   */
+  const runDelete = async (scope: DeleteScope) => {
+    if (scope === "everyone" && !(await act("delete"))) return;
+    const res = await fetchWithCsrf(`/api/messages/${message.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      toast.error(j.error ?? t("inbox.deleteMessageFailed"));
+      return;
+    }
+    if (scope === "me") toast.success(t("inbox.messageDeleted"));
+    onDeleted?.();
   };
 
   if (
@@ -112,9 +143,7 @@ export function CommentModerationBar({
         </button>
       )}
       <button
-        onClick={() => {
-          if (confirm(t("inbox.deleteCommentConfirm"))) act("delete");
-        }}
+        onClick={() => setDeleteOpen(true)}
         disabled={busy !== null}
         title={t("inbox.delete")}
         aria-label={t("inbox.deleteComment")}
@@ -138,6 +167,12 @@ export function CommentModerationBar({
           <ExternalLink className="size-3" />
         </a>
       )}
+      <DeleteMessageDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        channel={channel}
+        onConfirm={runDelete}
+      />
     </div>
   );
 }

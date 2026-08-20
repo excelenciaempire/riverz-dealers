@@ -145,10 +145,6 @@ export const inbox = {
   showComment: { es: "Mostrar comentario", en: "Show comment" },
   hideComment: { es: "Ocultar comentario", en: "Hide comment" },
   deleteComment: { es: "Eliminar comentario", en: "Delete comment" },
-  deleteCommentConfirm: {
-    es: "¿Eliminar este comentario?",
-    en: "Delete this comment?",
-  },
   openInFacebookInstagram: {
     es: "Abrir en Facebook/Instagram",
     en: "Open in Facebook/Instagram",
@@ -196,7 +192,18 @@ export const inbox = {
   nothingToCopy: { es: "Nada para copiar", en: "Nothing to copy" },
   copied: { es: "Copiado", en: "Copied" },
   copyFailed: { es: "No se pudo copiar", en: "Couldn't copy" },
-  deleteMessageConfirm: { es: "¿Borrar mensaje?", en: "Delete message?" },
+  // Diálogo de borrado (reemplaza al confirm del navegador)
+  deleteMessageTitle: { es: "¿Eliminar mensaje?", en: "Delete message?" },
+  deleteMessageBothDesc: {
+    es: "Puedes quitarlo solo de tu bandeja o borrarlo también de la red.",
+    en: "You can remove it just from your inbox, or delete it from the network too.",
+  },
+  deleteMessageOnlyMineDesc: {
+    es: "Se quita de tu bandeja. Este canal no permite borrarlo del lado del cliente.",
+    en: "It's removed from your inbox. This channel can't delete it on the customer's side.",
+  },
+  deleteForEveryone: { es: "Eliminar para todos", en: "Delete for everyone" },
+  deleteForMe: { es: "Eliminar solo para mí", en: "Delete only for me" },
   deleteMessageFailed: { es: "No se pudo borrar", en: "Couldn't delete" },
   messageDeleted: { es: "Borrado", en: "Deleted" },
 

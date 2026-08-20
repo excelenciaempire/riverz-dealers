@@ -12,6 +12,10 @@ import {
 import type { Message } from "@/types";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
+import {
+  DeleteMessageDialog,
+  type DeleteScope,
+} from "./delete-message-dialog";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -47,6 +51,7 @@ export function MessageActions({
   // interacts elsewhere.
   const [touchOpen, setTouchOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const isAgent =
     message.sender_type === "agent" || message.sender_type === "bot";
@@ -103,15 +108,35 @@ export function MessageActions({
     setTouchOpen(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!onDelete) return;
-    if (!confirm(t("inbox.deleteMessageConfirm"))) {
-      setTouchOpen(false);
-      return;
-    }
     setTouchOpen(false);
+    setDeleteOpen(true);
+  };
+
+  /**
+   * Borra segun lo elegido. "Para todos" primero borra en la red y solo si eso
+   * sale bien saca la fila: al reves, un fallo de la API dejaria el mensaje
+   * vivo en la red y desaparecido de la bandeja, que es la peor combinacion.
+   */
+  const runDelete = async (scope: DeleteScope) => {
+    if (!onDelete) return;
     try {
-      const res = await fetchWithCsrf(`/api/messages/${message.id}`, { method: "DELETE" });
+      if (scope === "everyone") {
+        const res = await fetchWithCsrf("/api/messages/moderate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message_id: message.id, action: "delete" }),
+        });
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          toast.error(j.error ?? t("inbox.deleteMessageFailed"));
+          return;
+        }
+      }
+      const res = await fetchWithCsrf(`/api/messages/${message.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(j.error ?? t("inbox.deleteMessageFailed"));
@@ -210,6 +235,12 @@ export function MessageActions({
         )}
       </div>
       </div>
+      <DeleteMessageDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        channel={message.channel}
+        onConfirm={runDelete}
+      />
     </div>
   );
 }

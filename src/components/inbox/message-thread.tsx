@@ -1660,6 +1660,7 @@ export function MessageThread({
                               : null)
                           }
                           onToggleReaction={handlePillToggle}
+                          onDeleted={() => handleDeleteMessage(msg.id)}
                         />
                       </MessageActions>
                     );
