@@ -75,22 +75,22 @@ const PASO_BASE = {
   required: ['tipo'],
 } as const
 
+/** Un paso suelto, con sus ramas. Aparte porque los patches agregan de a uno. */
+export const AI_PASO_SCHEMA = {
+  ...PASO_BASE,
+  properties: {
+    ...PASO_BASE.properties,
+    si: { type: 'array', items: PASO_BASE, description: 'Pasos si la condición da que sí.' },
+    no: { type: 'array', items: PASO_BASE, description: 'Pasos si da que no.' },
+  },
+}
+
 export const AI_STEPS_SCHEMA = {
   type: 'object' as const,
   properties: {
     nombre: { type: 'string' },
     disparador: { type: 'string', enum: AI_TRIGGERS.map((x) => x.value) },
-    pasos: {
-      type: 'array',
-      items: {
-        ...PASO_BASE,
-        properties: {
-          ...PASO_BASE.properties,
-          si: { type: 'array', items: PASO_BASE, description: 'Pasos si la condición da que sí.' },
-          no: { type: 'array', items: PASO_BASE, description: 'Pasos si da que no.' },
-        },
-      },
-    },
+    pasos: { type: 'array', items: AI_PASO_SCHEMA },
   },
   required: ['nombre', 'disparador', 'pasos'],
 }
@@ -108,7 +108,18 @@ export interface AiPaso {
   no?: AiPaso[]
 }
 
-/** Traduce un paso del modelo a lo que entiende el constructor. */
+/**
+ * Traduce un paso del modelo a lo que entiende el constructor.
+ *
+ * Exportado además de usarse acá: los patches de `ai-patches.ts` agregan pasos
+ * sueltos a un árbol que ya existe, y tienen que traducirlos con esta misma
+ * función. Con una copia propia, "agregar una espera" habría aceptado formas
+ * que al crear se rechazan.
+ */
+export function pasoDesdeIA(p: AiPaso): BuilderStepInput | null {
+  return aPaso(p)
+}
+
 function aPaso(p: AiPaso): BuilderStepInput | null {
   switch (p.tipo) {
     case 'send_message':
@@ -154,7 +165,7 @@ function aPaso(p: AiPaso): BuilderStepInput | null {
  * El texto va recortado: en el árbol se lee de un vistazo si es el mensaje que
  * se pidió, no se lee entero.
  */
-function resumirPaso(p: AiPaso): PasoArtefacto {
+export function resumirPaso(p: AiPaso): PasoArtefacto {
   const corto = (s: string, n = 70) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
   switch (p.tipo) {
     case 'send_message':

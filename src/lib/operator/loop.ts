@@ -13,7 +13,10 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
+import { getAnthropicStreaming, getAnthropicSubagent } from '@/lib/ai/anthropic-client'
+import { crearPresupuesto, type GastoAgente } from './fleet/budget'
+import { runOrquestador } from './fleet/orchestrator'
+import { anthropicRunner, type ModelRunner } from './fleet/runner'
 import type { EmitFn } from './events'
 import type { Artefacto } from './artifacts'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
@@ -105,6 +108,17 @@ export interface OperatorTurn {
   proposedIds: string[]
   /** Se acabó el cupo del día: no se llamó al modelo. */
   overBudget?: boolean
+  /**
+   * Cuánto gastó cada uno del equipo. Sólo en el camino con equipo.
+   *
+   * El total sigue cayendo en la fila del turno, que es de donde el techo
+   * diario saca su número. Esto es el desglose, y sin él no se puede contestar
+   * la pregunta que decide el precio: si el gasto se va en repartir o en
+   * construir.
+   */
+  porAgente?: Record<string, GastoAgente>
+  /** El reparto que quedó esperando aprobación, si hubo. */
+  planId?: string
 }
 
 async function tokensHoy(db: SupabaseClient, workspaceId: string): Promise<number> {
@@ -171,6 +185,23 @@ export async function runOperator(args: {
    * llega a una persona sigue pidiendo un click igual.
    */
   autoBuild?: boolean
+  /**
+   * El Operator con equipo.
+   *
+   * Cuando está prendido, el turno lo corre el orquestador de
+   * `fleet/orchestrator.ts`, que reparte entre especialistas. Cuando no, corre
+   * exactamente el código de abajo, sin una línea de diferencia: ése es el
+   * rollback, y por eso el camino nuevo vive en otro archivo en vez de
+   * entretejerse con banderas acá.
+   */
+  flota?: boolean
+  /**
+   * El modelo, inyectable. Sólo lo usa el camino con equipo, y existe para
+   * poder probar el reparto sin gastar saldo de la API.
+   */
+  runner?: ModelRunner
+  /** Lo último que escribió la persona, para la pista de intención. */
+  pedido?: string
 }): Promise<OperatorTurn> {
   const { db, workspaceId, threadId } = args
   const emit: EmitFn = args.onEvent ?? (() => {})
@@ -208,6 +239,39 @@ export async function runOperator(args: {
     workspaceId,
     actor: { type: 'operator', id: args.userId },
     locale,
+  }
+
+  // ── El camino con equipo ─────────────────────────────────────────────
+  // Se bifurca acá, después de resolver la clave y el presupuesto, que son los
+  // mismos para los dos caminos. De acá para abajo no se toca nada.
+  if (args.flota) {
+    const presupuesto = crearPresupuesto()
+    const turno = await runOrquestador({
+      ctx,
+      threadId,
+      history: args.history,
+      pedido: args.pedido ?? '',
+      runner: args.runner ?? anthropicRunner(getAnthropicSubagent(resolved.key)),
+      emit,
+      presupuesto,
+      autoBuild: args.autoBuild === true,
+    })
+    emit({
+      t: 'gasto',
+      promptTokens: turno.promptTokens,
+      completionTokens: turno.completionTokens,
+      porAgente: Object.fromEntries(
+        Object.entries(presupuesto.porAgente()).map(([k, v]) => [k, v.prompt + v.completion]),
+      ),
+    })
+    return {
+      text: turno.text,
+      promptTokens: turno.promptTokens,
+      completionTokens: turno.completionTokens,
+      proposedIds: turno.proposedIds,
+      porAgente: presupuesto.porAgente(),
+      planId: turno.planId,
+    }
   }
 
   // El prompt cambia con el modo: decirle "nunca ejecutás" mientras la

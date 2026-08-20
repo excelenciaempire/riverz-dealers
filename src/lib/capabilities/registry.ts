@@ -9,24 +9,42 @@
 import { AGENT_CAPABILITIES } from './agents'
 import { APPROVAL_CAPABILITIES } from './approvals'
 import { AUTOMATION_CAPABILITIES } from './automations'
+import { BROADCAST_CAPABILITIES } from './broadcasts'
+import { COMMENT_CAPABILITIES } from './comments'
 import { CONTACT_CAPABILITIES } from './contacts'
+import { FLOW_CAPABILITIES } from './flows'
 import { HEALTH_CAPABILITIES } from './health'
+import { INBOX_CAPABILITIES } from './inbox'
+import { INTEGRATION_CAPABILITIES } from './integrations'
 import { MESSAGING_CAPABILITIES } from './messaging'
 import { METRICS_CAPABILITIES } from './metrics'
 import { ORDER_CAPABILITIES } from './orders'
 import { OUTBOUND_CAPABILITIES } from './outbound'
+import { PRODUCT_CAPABILITIES } from './products'
+import { PROSPECTING_CAPABILITIES } from './prospecting'
+import { VOICE_CAPABILITIES } from './voice'
+import { WORKSPACE_CAPABILITIES } from './workspace'
 import type { AnyCapability, Capability, CapabilitySchema } from './types'
 
 export const ALL_CAPABILITIES: Capability[] = [
   ...HEALTH_CAPABILITIES,
   ...METRICS_CAPABILITIES,
   ...MESSAGING_CAPABILITIES,
+  ...INBOX_CAPABILITIES,
   ...AUTOMATION_CAPABILITIES,
+  ...FLOW_CAPABILITIES,
   ...CONTACT_CAPABILITIES,
   ...OUTBOUND_CAPABILITIES,
+  ...BROADCAST_CAPABILITIES,
   ...ORDER_CAPABILITIES,
   ...APPROVAL_CAPABILITIES,
   ...AGENT_CAPABILITIES,
+  ...PRODUCT_CAPABILITIES,
+  ...COMMENT_CAPABILITIES,
+  ...VOICE_CAPABILITIES,
+  ...PROSPECTING_CAPABILITIES,
+  ...INTEGRATION_CAPABILITIES,
+  ...WORKSPACE_CAPABILITIES,
 ]
 
 export function findCapability(key: string): AnyCapability | undefined {

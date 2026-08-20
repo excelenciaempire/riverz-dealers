@@ -242,6 +242,41 @@ export const ASSIST_TOOL_SCHEMA = {
 };
 
 /**
+ * Qué config lleva cada tipo de paso, y cómo se conectan.
+ *
+ * Vivía adentro del system prompt de `/api/flows/[id]/assist`, que era su único
+ * lector. Ahora también lo lee la capacidad `flujos.editar`: el mismo DSL, dos
+ * modelos escribiéndolo. Si cada uno tuviera su propia copia, el día que se
+ * agregue un tipo de paso uno de los dos seguiría emitiendo patches viejos y el
+ * validador los rechazaría sin que nadie entienda por qué.
+ */
+export const NODOS_Y_CONFIG = `- \`send_message\`: { text: string, next_node_key?: string }
+- \`send_buttons\`: { text: string, footer_text?: string, buttons: Array<{reply_id: string, title: string (≤20 chars), next_node_key?: string}> } — máximo 3 botones
+- \`send_list\`: { text: string, button_label: string, sections: Array<{title?: string, rows: Array<{reply_id: string, title: string (≤24 chars), description?: string, next_node_key?: string}>}> } — máximo 10 filas en total
+- \`send_image\`/\`send_video\`/\`send_document\`: { url: string (https), caption?: string, next_node_key?: string }
+- \`send_cta_url\`: { text: string, button_title: string, url: string (https), next_node_key?: string }
+- \`collect_input\`: { prompt_text: string, var_key: string (snake_case), next_node_key?: string }
+- \`customer_reply\`: { next_node_key?: string }. Pausa el flujo hasta que el cliente envíe un mensaje (cualquier texto). No envía nada, no captura nada. Úsalo entre dos send_message cuando quieres que el bot mande algo, deje al cliente responder, y recién después siga. NO lo uses después de send_buttons, send_list, collect_input o ai_intent: esos ya esperan respuesta.
+- \`subflow\`: { sub_flow_id: string, next_node_key?: string }. Ejecuta otro flujo reutilizable dentro de este. Usalo para encapsular secuencias comunes (ej: "pedir email y verificar") y referenciarlas desde varios flujos sin duplicar nodos. Si el usuario te pide insertar un subflow, pídele primero el nombre o el id del flujo destino antes de proponer la configuración.
+- \`condition\`: { subject: "var"|"tag"|"contact_field", subject_key: string, operator: "equals"|"contains"|"present"|"absent", value?: string, true_next?: string, false_next?: string }
+- \`set_tag\`: { mode: "add"|"remove", tag_id: string, next_node_key?: string }
+- \`handoff\`: { reason?: string, message?: string }
+- \`wait\`: { amount: number, unit: "minutes"|"hours"|"days", next_node_key?: string }
+- \`ai_intent\`: { prompt_text: string, intents: Array<{intent_key: string, description: string, next_node_key?: string}>, fallback_next_key?: string }
+- \`shopify_lookup\`: { kind: "order_by_number"|"order_by_email"|"last_order"|"product_by_handle", output_prefix: string, found_next_key?: string, not_found_next_key?: string }
+- \`end\`: {}
+- \`start\`: { next_node_key: string }. Úsalo solo si el usuario lo pide explícitamente. Lo normal es marcar el primer paso con \`set_entry\`.`
+
+/** Los puertos de salida de cada tipo de paso, para el patch `wire`. */
+export const PUERTOS_Y_CABLEADO = `- \`kind_of_port: "text"\` — para todos los nodos lineales (send_message, send_image, etc.). Setea \`next_node_key\`.
+- \`kind_of_port: "button"\` con \`port_index: N\` — el botón N de un send_buttons.
+- \`kind_of_port: "list_row"\` con \`port_index: N\` — la fila N (índice plano que recorre TODAS las secciones).
+- \`kind_of_port: "true_branch"\`/\`false_branch\` — ramas de condition.
+- \`kind_of_port: "found_branch"\`/\`not_found_branch\` — ramas de shopify_lookup.
+- \`kind_of_port: "intent"\` con \`port_index: N\` — la intención N de ai_intent.
+- \`kind_of_port: "intent_fallback"\` — la rama "No entendí" de ai_intent.`
+
+/**
  * Validación estructural antes de aplicar. Es estricta a propósito:
  * si la IA emite un patch con campos faltantes o tipos inválidos, lo
  * descartamos en silencio en vez de pushearlo al reducer (un

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { guardarGrafo } from '@/lib/flows/write'
 import { csrfGuard } from '@/lib/csrf'
 import { serverError } from '@/lib/api/errors'
 import { getLocale } from '@/lib/i18n/server'
@@ -30,6 +31,8 @@ async function requireOwnership(
       userId: string
       /** UUID completo resuelto (el param puede venir como short id de 8). */
       id: string
+      /** La cuenta dueña del flujo: toda escritura se recorta por ella. */
+      workspaceId: string
       supabase: Awaited<ReturnType<typeof createClient>>
     }
   | { ok: false; status: number; body: { error: string } }
@@ -45,13 +48,20 @@ async function requireOwnership(
   // returns null (404 below). Resuelve short id (8) o UUID completo.
   const { data: flow } = await supabase
     .from('flows')
-    .select('id')
+    .select('id, workspace_id')
     .eq(idColumn(flowId), flowId)
     .maybeSingle()
   if (!flow) {
     return { ok: false, status: 404, body: { error: 'Not found' } }
   }
-  return { ok: true, userId: user.id, id: (flow as { id: string }).id, supabase }
+  const fila = flow as { id: string; workspace_id: string }
+  return {
+    ok: true,
+    userId: user.id,
+    id: fila.id,
+    workspaceId: fila.workspace_id,
+    supabase,
+  }
 }
 
 export async function GET(
@@ -122,14 +132,9 @@ export async function PUT(
     )
   }
 
-  const admin = supabaseAdmin()
-
-  // Update the flow row first — the body may not include `nodes` (a
-  // header-only save for editing the trigger config without touching
-  // the graph). Skip node replacement in that case.
-  const flowPatch: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  }
+  // El body puede no traer `nodes` (un guardado sólo del encabezado, para
+  // editar el disparador sin tocar el grafo). `guardarGrafo` lo distingue.
+  const flowPatch: Record<string, unknown> = {}
   if (body.name !== undefined) flowPatch.name = body.name.trim()
   if (body.description !== undefined)
     flowPatch.description = body.description
@@ -145,66 +150,23 @@ export async function PUT(
   if (body.trigger_position_y !== undefined)
     flowPatch.trigger_position_y = body.trigger_position_y
 
-  const { error: updErr } = await admin
-    .from('flows')
-    .update(flowPatch)
-    .eq('id', id)
-  if (updErr) {
-    return serverError(updErr)
-  }
-
-  if (body.nodes !== undefined) {
-    // Delete-then-insert. Not transactional but the runner handles
-    // mid-edit reads safely (a node_not_found ends the run cleanly).
-    const { error: delErr } = await admin
-      .from('flow_nodes')
-      .delete()
-      .eq('flow_id', id)
-    if (delErr) {
-      return serverError(delErr)
-    }
-    if (body.nodes.length > 0) {
-      const { error: insErr } = await admin.from('flow_nodes').insert(
-        body.nodes.map((n) => ({
-          flow_id: id,
-          node_key: n.node_key,
-          node_type: n.node_type,
-          config: n.config,
-          position_x: n.position_x ?? 0,
-          position_y: n.position_y ?? 0,
-        })),
-      )
-      if (insErr) {
-        return serverError(insErr)
-      }
-    }
-  }
-
-  // Re-fetch and return the new state — the editor uses the response
-  // to reconcile its local form state.
-  const [{ data: flow }, { data: nodes }] = await Promise.all([
-    admin.from('flows').select('*').eq('id', id).maybeSingle(),
-    admin
-      .from('flow_nodes')
-      .select('*')
-      .eq('flow_id', id)
-      .order('created_at', { ascending: true }),
-  ])
-
-  // Auto-snapshot del draft: cada save reemplaza el draft anterior.
-  // Sirve para "Versiones" — el merchant ve el último estado guardado
-  // y puede comparar contra la versión publicada activa.
-  if (flow) {
-    await admin.from('flow_versions').delete().eq('flow_id', id).eq('kind', 'draft')
-    await admin.from('flow_versions').insert({
-      flow_id: id,
-      kind: 'draft',
-      snapshot: { flow, nodes: nodes ?? [] },
-      created_by: guard.userId,
+  // La escritura (reemplazo del grafo + snapshot del borrador) vive en
+  // `@/lib/flows/write` porque el chat agéntico guarda por el mismo camino: dos
+  // implementaciones del mismo guardado terminan divergiendo.
+  try {
+    const { flow, nodes } = await guardarGrafo(supabaseAdmin(), {
+      flowId: id,
+      workspaceId: guard.workspaceId,
+      campos: flowPatch,
+      nodos: body.nodes,
+      userId: guard.userId,
     })
+    // Re-fetch and return the new state — the editor uses the response
+    // to reconcile its local form state.
+    return NextResponse.json({ flow, nodes })
+  } catch (err) {
+    return serverError(err)
   }
-
-  return NextResponse.json({ flow, nodes: nodes ?? [] })
 }
 
 export async function DELETE(

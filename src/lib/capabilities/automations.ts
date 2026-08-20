@@ -6,7 +6,11 @@
  * activa una automatización a la que le faltaba el nombre de la plantilla, y el
  * resultado era una corrida fallida por cada disparo, en silencio.
  */
-import { assertActivable, activationIssuesById } from '@/lib/automations/activation'
+import {
+  assertActivable,
+  activationIssues,
+  activationIssuesById,
+} from '@/lib/automations/activation'
 import { installTemplate } from '@/lib/automations/install-template'
 import {
   AI_STEPS_SCHEMA,
@@ -15,7 +19,16 @@ import {
   planDesdeIA,
   type AiPaso,
 } from '@/lib/automations/ai-steps'
-import { insertSteps } from '@/lib/automations/steps-tree'
+import {
+  PATCHES_SCHEMA,
+  artefactoDeSnapshot,
+  ensayarPatches,
+  leerPatches,
+  listarRutas,
+  type AutomatizacionSnapshot,
+  type Ensayo,
+} from '@/lib/automations/ai-patches'
+import { insertSteps, loadStepsTree, replaceSteps } from '@/lib/automations/steps-tree'
 import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import {
@@ -82,6 +95,217 @@ async function editarEspera(ctx: CapabilityContext, args: Record<string, unknown
     .maybeSingle()
   if (error) throw new Error(error.message)
   return data
+}
+
+// ---------------------------------------------------------------------------
+// Ver y editar una que ya existe
+// ---------------------------------------------------------------------------
+
+/** Los uuids de `add_tag` se cambian por el nombre para poder leer el árbol. */
+async function nombresDeEtiqueta(ctx: CapabilityContext): Promise<Map<string, string>> {
+  const { data } = await ctx.db
+    .from('tags')
+    .select('id, name')
+    .eq('workspace_id', ctx.workspaceId)
+  return new Map((data ?? []).map((t) => [(t as { id: string }).id, (t as { name: string }).name]))
+}
+
+interface Cargada {
+  id: string
+  activa: boolean
+  snapshot: AutomatizacionSnapshot
+  nombresEtiqueta: Map<string, string>
+}
+
+/**
+ * La automatización entera, ya recortada por cuenta.
+ *
+ * El `eq('workspace_id')` es lo único que separa esto de poder editar la
+ * automatización de otro comercio: `loadStepsTree` va por el cliente de
+ * servicio y no sabe de cuentas, así que la autorización tiene que pasar acá
+ * antes y cortar si la fila no aparece.
+ */
+async function cargar(ctx: CapabilityContext, automationId: string): Promise<Cargada> {
+  const { data } = await ctx.db
+    .from('automations')
+    .select('id, name, trigger_type, trigger_config, is_active')
+    .eq('id', automationId)
+    .eq('workspace_id', ctx.workspaceId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  const fila = data as {
+    id: string
+    name: string
+    trigger_type: string
+    trigger_config: Record<string, unknown> | null
+    is_active: boolean
+  } | null
+  if (!fila) throw new Error('esa automatización no existe en esta cuenta')
+
+  return {
+    id: fila.id,
+    activa: fila.is_active,
+    snapshot: {
+      nombre: fila.name,
+      disparador: fila.trigger_type,
+      triggerConfig: fila.trigger_config ?? {},
+      pasos: await loadStepsTree(fila.id),
+    },
+    nombresEtiqueta: await nombresDeEtiqueta(ctx),
+  }
+}
+
+async function ver(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const { id, activa, snapshot, nombresEtiqueta } = await cargar(
+    ctx,
+    String(args.automation_id),
+  )
+  const falta = activationIssues({
+    triggerType: snapshot.disparador,
+    triggerConfig: snapshot.triggerConfig,
+    steps: snapshot.pasos,
+  })
+  return {
+    id,
+    nombre: snapshot.nombre,
+    activa,
+    disparador: snapshot.disparador,
+    cuando: AI_TRIGGERS.find((t) => t.value === snapshot.disparador)?.que ?? snapshot.disparador,
+    // Con la ruta ya calculada: es lo que después se escribe en `paso` para
+    // editar. Contando pasos de un dibujo se edita el equivocado.
+    pasos: listarRutas(snapshot.pasos, nombresEtiqueta),
+    falta_para_prenderla: falta.map((i) => `${i.path}: ${i.message}`),
+  }
+}
+
+interface EnsayoDeEdicion extends Cargada {
+  ensayo: Ensayo
+}
+
+/**
+ * El ensayo, guardado un rato.
+ *
+ * `artifact` es SÍNCRONO por contrato —así lo llama `escribir.ts`, sin await— y
+ * el árbol que hay que dibujar vive en la base. Sin esto, una propuesta de
+ * edición no podía mostrar nada: `artifact` corre antes que `artifactBefore` y
+ * no tiene forma de leer.
+ *
+ * Así que lo carga el primero que pasa (siempre `preview`, en los dos caminos
+ * de `escribir.ts`) y `artifact` lo lee de acá. La vida es corta a propósito:
+ * es para dibujar, no para decidir. `run` lo recalcula SIEMPRE contra la base,
+ * porque entre la propuesta y el click alguien pudo haber tocado la
+ * automatización desde la pantalla.
+ */
+const ENSAYOS = new Map<string, { hasta: number; valor: EnsayoDeEdicion }>()
+const VIDA_ENSAYO_MS = 30_000
+const TOPE_ENSAYOS = 20
+
+function claveEnsayo(ctx: CapabilityContext, args: Record<string, unknown>): string {
+  return `${ctx.workspaceId}|${args.automation_id}|${JSON.stringify(args.patches ?? null)}`
+}
+
+async function ensayoDeEdicion(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  opciones?: { fresco?: boolean },
+): Promise<EnsayoDeEdicion> {
+  const clave = claveEnsayo(ctx, args)
+  const ahora = Date.now()
+  if (!opciones?.fresco) {
+    const guardado = ENSAYOS.get(clave)
+    if (guardado && guardado.hasta > ahora) return guardado.valor
+  }
+
+  const cargada = await cargar(ctx, String(args.automation_id))
+  const { patches } = leerPatches(args.patches)
+  const valor: EnsayoDeEdicion = { ...cargada, ensayo: ensayarPatches(cargada.snapshot, patches) }
+
+  for (const [k, v] of ENSAYOS) if (v.hasta <= ahora) ENSAYOS.delete(k)
+  if (ENSAYOS.size >= TOPE_ENSAYOS) ENSAYOS.delete(ENSAYOS.keys().next().value as string)
+  ENSAYOS.set(clave, { hasta: ahora + VIDA_ENSAYO_MS, valor })
+  return valor
+}
+
+function ensayoGuardado(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+): EnsayoDeEdicion | null {
+  const guardado = ENSAYOS.get(claveEnsayo(ctx, args))
+  return guardado && guardado.hasta > Date.now() ? guardado.valor : null
+}
+
+/** Por qué no se puede aplicar esta edición, en una línea. Null = se puede. */
+function porQueNo(ensayo: Ensayo, nombre: string): string | null {
+  if (ensayo.problemas.length > 0) {
+    return `no se puede editar así — ${ensayo.problemas
+      .map((p) => p.message)
+      .join('; ')}`
+  }
+  if (ensayo.erroresNuevos.length > 0) {
+    // El ensayo en una frase: esto es lo que separa "editar" de "romper sin
+    // enterarse". Una automatización que no se puede prender no avisa nada.
+    return `ese cambio dejaría «${nombre}» sin poder prenderse — ${ensayo.erroresNuevos
+      .map((i) => i.message)
+      .join('; ')}`
+  }
+  return null
+}
+
+async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const { patches, descartados } = leerPatches(args.patches)
+  // Los patches mal formados NO se saltean, a diferencia del lienzo de flujos:
+  // allá el merchant mira el canvas y tiene Ctrl+Z, acá esto escribe en la base.
+  // Aplicar tres de cuatro cambios deja una automatización que nadie pidió.
+  if (descartados > 0) {
+    throw new Error(
+      `no entendí ${descartados} de los ${descartados + patches.length} cambios pedidos, así que no apliqué ninguno`,
+    )
+  }
+  if (patches.length === 0) throw new Error('no hay ningún cambio que aplicar')
+
+  // Fresco: entre la propuesta y el click alguien pudo haber editado desde la
+  // pantalla, y el ensayo viejo estaría hablando de otro árbol.
+  const { id, activa, snapshot, ensayo } = await ensayoDeEdicion(ctx, args, { fresco: true })
+  const no = porQueNo(ensayo, snapshot.nombre)
+  if (no) throw new Error(no)
+
+  const { despues } = ensayo
+  const update: Record<string, unknown> = {}
+  if (despues.nombre !== snapshot.nombre) update.name = despues.nombre
+  if (despues.disparador !== snapshot.disparador) {
+    update.trigger_type = despues.disparador
+    update.trigger_config = despues.triggerConfig
+  }
+  if (Object.keys(update).length > 0) {
+    const { error } = await ctx.db
+      .from('automations')
+      .update(update)
+      .eq('id', id)
+      .eq('workspace_id', ctx.workspaceId)
+    if (error) throw new Error(error.message)
+  }
+
+  // Sólo si los pasos cambiaron de verdad: `replaceSteps` borra y reinserta el
+  // árbol entero, y aunque repone las referencias de las corridas dormidas, no
+  // hay ninguna razón para hacerle pasar eso a una automatización a la que sólo
+  // le cambiaron el nombre.
+  if (JSON.stringify(snapshot.pasos) !== JSON.stringify(despues.pasos)) {
+    const err = await replaceSteps(
+      id,
+      await resolverEtiquetas(ctx.db, ctx.workspaceId, despues.pasos),
+    )
+    if (err) throw new Error(err)
+  }
+
+  return {
+    id,
+    nombre: despues.nombre,
+    cambios: ensayo.resumen,
+    activa,
+    nota: activa
+      ? 'Está activa: el cambio rige desde el próximo disparo.'
+      : 'Sigue pausada.',
+  }
 }
 
 async function recetas(ctx: CapabilityContext) {
@@ -202,6 +426,21 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   },
 
   {
+    key: 'automatizaciones.ver',
+    description:
+      'Una automatización por dentro: su disparador, sus pasos en orden y qué le falta para poder prenderse. Cada paso viene con su ruta ("2", "2.si.1"), que es la que hay que pasarle a automatizaciones.editar. Miralo antes de editar: adivinar la posición de un paso es editar el equivocado.',
+    descriptionEn:
+      'An automation from the inside: its trigger, its steps in order, and what it still needs to be turned on. Each step comes with the route to address it in automatizaciones.editar.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { automation_id: { type: 'string' } },
+      required: ['automation_id'],
+    },
+    run: ver,
+  },
+
+  {
     key: 'automatizaciones.recetas',
     description:
       'Las recetas disponibles para crear una automatización ya armada (carrito abandonado, pago rechazado, nuevo pedido, tracking, encuesta, recompras).',
@@ -290,6 +529,57 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       return `En «${fila.automations?.name ?? 'la automatización'}» cambiaría la espera de ${antes} a ${args.amount} ${args.unit}.`
     },
     run: editarEspera,
+  },
+
+  {
+    key: 'automatizaciones.editar',
+    description: `Cambia una automatización que ya existe, sin volver a escribirla entera. Los pasos se nombran por posición: "2" es el segundo del tronco y "2.si.1" el primero de la rama del sí de ese paso — las rutas salen de automatizaciones.ver, no las cuentes.
+Cambios: renombrar (nombre); cambiar_disparador (disparador, más dias en customer_inactive y post_delivery_feedback); cambiar_texto (paso, texto) sólo sobre un send_message, porque el cuerpo de una plantilla lo fija Meta; cambiar_espera (paso, cantidad, unidad); agregar_paso (nuevo, y donde para elegir el lugar); quitar_paso (paso).
+Se aplican en orden, cada uno sobre cómo quedó el anterior. Antes de escribir se ensaya el resultado: si quedara sin poder prenderse, no se aplica ninguno.`,
+    descriptionEn:
+      'Edits an existing automation with a small set of changes instead of rewriting it: rename, change the trigger, change a message text, change a wait, add a step, remove a step. Steps are addressed by position ("2", "2.si.1"). The changes are rehearsed first: if the result could no longer be turned on, none of them are applied.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        automation_id: { type: 'string' },
+        patches: PATCHES_SCHEMA,
+      },
+      required: ['automation_id', 'patches'],
+    },
+    async preview(ctx, args) {
+      const { descartados } = leerPatches(args.patches)
+      if (descartados > 0) {
+        return `No entiendo ${descartados} de los cambios pedidos, así que no aplicaría ninguno.`
+      }
+      const { activa, snapshot, ensayo } = await ensayoDeEdicion(ctx, args)
+      const no = porQueNo(ensayo, snapshot.nombre)
+      if (no) return `No se puede: ${no}.`
+      if (ensayo.resumen.length === 0) return `«${snapshot.nombre}» quedaría igual.`
+      return `En «${snapshot.nombre}»: ${ensayo.resumen.join('; ')}. ${
+        activa
+          ? 'Está activa: el cambio rige desde el próximo disparo.'
+          : 'Sigue pausada.'
+      }`
+    },
+    // El "antes" es lo que convierte el dibujo en un diff. Sin esto el panel
+    // redibuja el árbol entero y quien mira tiene que compararlo de memoria con
+    // el que ya conocía.
+    async artifactBefore(ctx, args) {
+      const { id, snapshot, nombresEtiqueta } = await ensayoDeEdicion(ctx, args)
+      return artefactoDeSnapshot(snapshot, { id, nombresEtiqueta })
+    },
+    artifact: (ctx, args) => {
+      const guardado = ensayoGuardado(ctx, args)
+      // Sin ensayo a mano no se dibuja nada: inventar un árbol sería mostrar
+      // algo que no describe lo que va a pasar, que es peor que no mostrar.
+      if (!guardado || guardado.ensayo.problemas.length > 0) return null
+      return artefactoDeSnapshot(guardado.ensayo.despues, {
+        id: guardado.id,
+        nombresEtiqueta: guardado.nombresEtiqueta,
+      })
+    },
+    run: editar,
   },
 
   {

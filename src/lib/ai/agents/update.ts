@@ -1,0 +1,227 @@
+/**
+ * Guardar un agente: la lista blanca, el choque de canal y los vínculos.
+ *
+ * Todo esto vivía dentro del PATCH de `/api/ai/agents/[id]`, así que lo único
+ * que podía guardar un agente era un navegador con sesión. El Operator no tenía
+ * por dónde entrar, y la alternativa —que escribiera el UPDATE por su cuenta—
+ * era escribir por segunda vez la regla de "un agente activo por canal y rol".
+ * Dos copias de una regla terminan, siempre, diciendo cosas distintas.
+ *
+ * La route sigue mandando: acá no hay `NextResponse` ni traducciones. Los
+ * fallos salen como código y quien llama decide el HTTP y el idioma.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { findChannelConflict } from '../channel-conflict'
+import { encrypt } from '@/lib/whatsapp/encryption'
+import type { AiAgent } from '../types'
+
+/**
+ * Los campos que se pueden guardar desde afuera.
+ *
+ * Es una lista blanca y no una negra a propósito: `workspace_id`, `id` y
+ * `created_by` no se tocan nunca, y agregar una columna a la tabla no la
+ * expone sola.
+ */
+export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
+  'name',
+  'is_active',
+  'persona',
+  'knowledge',
+  'knowledge_url',
+  'language',
+  'tone',
+  'max_response_chars',
+  'reply_delay_seconds',
+  'context_messages',
+  'response_mode',
+  // Autonomia: responde solo o propone y espera (migracion 170)
+  'requires_approval',
+  'inbound_debounce_seconds',
+  'reply_when_assigned',
+  'reply_outside_hours',
+  'business_hours',
+  'escalate_keywords',
+  'escalate_after_messages',
+  'followup_enabled',
+  'followup_delay_hours',
+  'followup_max_count',
+  'proactive_send_mode',
+  'puede_crear_pedidos',
+  // Rol y permisos por acción (migración 164)
+  'role',
+  'permissions',
+  'provider',
+  'model',
+  'scope',
+  'product_scope',
+  'priority',
+  // Voice AI (migration 113 + 115)
+  'voice_enabled',
+  'voice_ai_decides',
+  'voice_provider',
+  'voice_id',
+  'voice_greeting',
+  'voice_system_prompt',
+  'voice_objectives',
+  'voice_max_call_seconds',
+  'voice_calling_hours',
+  'voice_max_retries',
+  'voice_retry_delay_minutes',
+]
+
+/** El agente como se lo puede devolver: la llave cifrada nunca sale. */
+export type AgenteSeguro = Omit<AiAgent, 'api_key_encrypted'> & { has_api_key: boolean }
+
+export type AgentUpdateFailure =
+  /** `scope='channels'` sin ningún canal: el agente no tendría dónde responder. */
+  | { code: 'channels_required' }
+  /** Otro agente activo del mismo rol ya ocupa esos canales. */
+  | { code: 'channel_conflict'; agentName: string; channels: string[] }
+  | { code: 'db'; error: unknown }
+
+export type AgentUpdateOutcome =
+  | { ok: true; agent: AgenteSeguro | null }
+  | { ok: false; fail: AgentUpdateFailure }
+
+/**
+ * Se queda con lo que el cuerpo de la petición puede escribir.
+ *
+ * `api_key` entra en claro y sale cifrada: es el único campo que no se copia
+ * tal cual, porque la columna guarda el cifrado y no el texto.
+ */
+export function pickAgentPatch(
+  body: Partial<AiAgent> & { api_key?: string },
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  for (const k of AGENT_PATCH_FIELDS) {
+    if (k in body) patch[k] = body[k]
+  }
+  if (typeof body.api_key === 'string') {
+    patch.api_key_encrypted = body.api_key.trim() ? encrypt(body.api_key.trim()) : null
+  }
+  return patch
+}
+
+export interface AgentUpdateInput {
+  agentId: string
+  /** El recorte de cuenta. Quien llama ya verificó que puede tocar este agente. */
+  workspaceId: string
+  /** Campos de `ai_agents` ya filtrados por `pickAgentPatch`. */
+  patch: Record<string, unknown>
+  /** Reemplaza los canales del agente. Ausente = no se tocan. */
+  channels?: string[]
+  /** Reemplaza los productos del agente. Ausente = no se tocan. */
+  productIds?: string[]
+}
+
+/**
+ * Aplica el cambio y devuelve cómo quedó el agente.
+ *
+ * El choque de canal se resuelve sobre el estado FINAL —lo que llega mezclado
+ * con lo que ya estaba guardado— y ANTES de tocar nada. Validar contra lo que
+ * llega solamente dejaba pasar el caso más común: guardar un agente ya activo
+ * cambiándole el rol al de otro que también está activo en el mismo canal.
+ */
+export async function updateAgent(
+  admin: SupabaseClient,
+  input: AgentUpdateInput,
+): Promise<AgentUpdateOutcome> {
+  const { agentId, workspaceId, patch } = input
+
+  const { data: cur } = await admin
+    .from('ai_agents')
+    .select('is_active, scope, role, ai_agent_channels(channel)')
+    .eq('id', agentId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  const curRow = cur as
+    | {
+        is_active: boolean
+        scope: string
+        role?: string | null
+        ai_agent_channels?: { channel: string }[]
+      }
+    | null
+
+  const finalActive = 'is_active' in patch ? Boolean(patch.is_active) : Boolean(curRow?.is_active)
+  const finalScope = (patch.scope as string | undefined) ?? curRow?.scope ?? 'workspace'
+  const finalChannels = Array.isArray(input.channels)
+    ? input.channels
+    : (curRow?.ai_agent_channels ?? []).map((c) => c.channel)
+
+  // Un agente de alcance por canal y sin canales no responde en ningún lado, y
+  // el detector de conflictos no lo ve porque no ocupa nada. Se valida esté
+  // activo o pausado: pausado, el error aparece cuando lo prenden y ya nadie se
+  // acuerda de qué cambió.
+  if (finalScope === 'channels' && finalChannels.length === 0) {
+    return { ok: false, fail: { code: 'channels_required' } }
+  }
+
+  if (finalActive) {
+    const conflict = await findChannelConflict(admin, {
+      workspaceId,
+      agentId,
+      scope: finalScope,
+      channels: finalScope === 'channels' ? finalChannels : [],
+      role: (patch.role as string | undefined) ?? curRow?.role ?? 'general',
+    })
+    if (conflict) {
+      return {
+        ok: false,
+        fail: {
+          code: 'channel_conflict',
+          agentName: conflict.agentName,
+          channels: conflict.channels,
+        },
+      }
+    }
+  }
+
+  if (Object.keys(patch).length) {
+    const { error } = await admin
+      .from('ai_agents')
+      .update(patch)
+      .eq('id', agentId)
+      .eq('workspace_id', workspaceId)
+    if (error) return { ok: false, fail: { code: 'db', error } }
+  }
+
+  if (Array.isArray(input.channels)) {
+    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId)
+    if ((patch.scope ?? 'workspace') === 'channels' && input.channels.length) {
+      await admin
+        .from('ai_agent_channels')
+        .insert(input.channels.map((channel) => ({ agent_id: agentId, channel })))
+    }
+  }
+  // Aunque no vinieran canales: si el alcance pasó a toda la cuenta, los
+  // vínculos viejos sobran y confundirían a la próxima lectura.
+  if (patch.scope === 'workspace') {
+    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId)
+  }
+
+  if (Array.isArray(input.productIds)) {
+    await admin.from('ai_agent_products').delete().eq('agent_id', agentId)
+    if ((patch.product_scope ?? 'all') === 'specific' && input.productIds.length) {
+      await admin
+        .from('ai_agent_products')
+        .insert(input.productIds.map((product_id) => ({ agent_id: agentId, product_id })))
+    }
+  }
+  if (patch.product_scope === 'all') {
+    await admin.from('ai_agent_products').delete().eq('agent_id', agentId)
+  }
+
+  // Se relee con las relaciones para que quien llamó pueda actualizar su copia
+  // local sin un GET extra.
+  const { data: fresh } = await admin
+    .from('ai_agents')
+    .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
+    .eq('id', agentId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+
+  if (!fresh) return { ok: true, agent: null }
+  const { api_key_encrypted, ...rest } = fresh as AiAgent
+  return { ok: true, agent: { ...rest, has_api_key: Boolean(api_key_encrypted) } as AgenteSeguro }
+}

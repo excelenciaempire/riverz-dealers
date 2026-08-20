@@ -1,0 +1,253 @@
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * Las reglas comentario → DM, guardadas y leídas en un solo lugar.
+ *
+ * Vivían dentro de `/api/comment-to-dm/route.ts`, así que sólo existían para el
+ * navegador: cualquier otro camino que quisiera leer o crear una regla —el chat
+ * agéntico, el MCP— tenía que volver a escribir la normalización de campos, y
+ * dos normalizaciones distintas guardan filas distintas para el mismo pedido
+ * (un `post_id` en blanco que queda como cadena vacía en vez de NULL deja la
+ * regla mirando una publicación que no existe, y no vuelve a disparar nunca).
+ *
+ * Quien manda sigue siendo el motor (`engine.ts`): esto sólo guarda lo que el
+ * motor después lee.
+ */
+
+export type CommentRuleChannel = 'ig_comment' | 'fb_comment';
+
+/** Lo que se devuelve hacia afuera. Nunca `workspace_id` ni `created_by`. */
+export const RULE_COLUMNS =
+  'id, name, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, is_active, priority, created_at';
+
+export interface CommentRule {
+  id: string;
+  name: string;
+  channel: CommentRuleChannel;
+  post_id: string | null;
+  keywords: string[];
+  match_type: 'contains' | 'exact';
+  case_sensitive: boolean;
+  public_reply_enabled: boolean;
+  public_reply_templates: string[];
+  dm_message: string;
+  dm_button_label: string | null;
+  dm_button_url: string | null;
+  is_active: boolean;
+  priority: number;
+  created_at: string;
+}
+
+/** Una regla con cuántos DMs mandó, que es lo único que se deriva del log. */
+export type CommentRuleWithCount = CommentRule & { dm_sent_count: number };
+
+/** Lo que llega de afuera: del formulario, del chat o del MCP. */
+export interface CommentRuleInput {
+  name?: string;
+  channel?: string;
+  post_id?: string | null;
+  keywords?: unknown;
+  match_type?: string;
+  case_sensitive?: boolean;
+  public_reply_enabled?: boolean;
+  public_reply_templates?: unknown;
+  dm_message?: string;
+  dm_button_label?: string | null;
+  dm_button_url?: string | null;
+  is_active?: boolean;
+  priority?: number;
+}
+
+/** Lo mismo, ya listo para el INSERT/UPDATE. */
+export type CommentRuleFields = Omit<CommentRule, 'id' | 'created_at'>;
+
+export function cleanStrings(arr: unknown): string[] {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * ¿Alcanza para guardar una regla?
+ *
+ * Sin nombre no se distingue de las otras, sin canal no se sabe dónde escucha y
+ * sin el texto del DM no hay nada que mandar — las tres columnas son NOT NULL.
+ */
+export function isCompleteRuleInput(input: CommentRuleInput | null): boolean {
+  if (!input) return false;
+  return (
+    Boolean(input.name?.trim()) &&
+    (input.channel === 'ig_comment' || input.channel === 'fb_comment') &&
+    Boolean(input.dm_message?.trim())
+  );
+}
+
+/**
+ * Texto vacío ⇒ NULL, no cadena vacía.
+ *
+ * El motor pregunta `post_id == null` para saber si la regla vale para
+ * cualquier publicación; una cadena vacía pasa esa comprobación como si fuera
+ * un id concreto y la regla deja de disparar en silencio.
+ */
+function nullIfBlank(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function ruleFields(input: CommentRuleInput): CommentRuleFields {
+  return {
+    name: (input.name ?? '').trim(),
+    channel: input.channel as CommentRuleChannel,
+    post_id: nullIfBlank(input.post_id),
+    keywords: cleanStrings(input.keywords),
+    match_type: input.match_type === 'exact' ? 'exact' : 'contains',
+    case_sensitive: Boolean(input.case_sensitive),
+    public_reply_enabled: input.public_reply_enabled ?? true,
+    public_reply_templates: cleanStrings(input.public_reply_templates),
+    dm_message: (input.dm_message ?? '').trim(),
+    dm_button_label: nullIfBlank(input.dm_button_label),
+    dm_button_url: nullIfBlank(input.dm_button_url),
+    is_active: input.is_active ?? true,
+    priority: typeof input.priority === 'number' ? input.priority : 100,
+  };
+}
+
+/**
+ * El texto exacto que recibe la persona.
+ *
+ * La respuesta privada de Meta es sólo texto —no admite botones—, así que el
+ * botón se pega abajo como enlace con su etiqueta. Vive acá y no dentro del
+ * motor porque lo que se le muestra a quien aprueba una regla tiene que ser
+ * literalmente lo que se va a enviar: dos versiones del mismo armado son dos
+ * mensajes distintos, y el que se aprueba no es el que sale.
+ */
+export function composeDmText(rule: {
+  dm_message: string;
+  dm_button_label?: string | null;
+  dm_button_url?: string | null;
+}): string {
+  const parts = [rule.dm_message.trim()];
+  const url = rule.dm_button_url?.trim();
+  if (url) {
+    const label = rule.dm_button_label?.trim();
+    parts.push(label ? `👉 ${label}: ${url}` : url);
+  }
+  return parts.join('\n\n');
+}
+
+/**
+ * Las reglas de una cuenta, con cuántos DMs mandó cada una.
+ *
+ * `workspaceId` puede venir en null: por el camino del navegador la sesión ya
+ * recorta por RLS y la pantalla pide todas las que ve. Los caminos sin sesión
+ * (chat, MCP) SIEMPRE pasan la cuenta — ahí el cliente es de servicio y sin el
+ * filtro se leerían reglas ajenas.
+ */
+export async function listRulesWithCounts(
+  db: SupabaseClient,
+  workspaceId: string | null,
+): Promise<{ rules: CommentRuleWithCount[]; error: PostgrestError | null }> {
+  let query = db
+    .from('comment_to_dm_rules')
+    .select(RULE_COLUMNS)
+    .order('priority', { ascending: true });
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const { data, error } = await query;
+  if (error) return { rules: [], error };
+
+  // Los envíos salen del log en UNA consulta: contarlos por regla, de a una,
+  // era una consulta por fila de la tabla.
+  const list = (data ?? []) as unknown as CommentRule[];
+  const ruleIds = list.map((r) => r.id);
+  const counts: Record<string, number> = {};
+  if (ruleIds.length > 0) {
+    const { data: logs } = await db
+      .from('comment_to_dm_log')
+      .select('rule_id, dm_status')
+      .in('rule_id', ruleIds)
+      .eq('dm_status', 'sent');
+    for (const row of (logs ?? []) as { rule_id: string }[]) {
+      counts[row.rule_id] = (counts[row.rule_id] ?? 0) + 1;
+    }
+  }
+  return {
+    rules: list.map((r) => ({ ...r, dm_sent_count: counts[r.id] ?? 0 })),
+    error: null,
+  };
+}
+
+export async function getRule(
+  db: SupabaseClient,
+  args: { id: string; workspaceId: string },
+): Promise<CommentRule | null> {
+  const { data } = await db
+    .from('comment_to_dm_rules')
+    .select(RULE_COLUMNS)
+    .eq('id', args.id)
+    .eq('workspace_id', args.workspaceId)
+    .maybeSingle();
+  return (data as unknown as CommentRule) ?? null;
+}
+
+export async function createRule(
+  db: SupabaseClient,
+  args: { workspaceId: string; createdBy: string | null; fields: CommentRuleFields },
+): Promise<{ rule: { id: string } | null; error: PostgrestError | null }> {
+  const { data, error } = await db
+    .from('comment_to_dm_rules')
+    .insert({
+      workspace_id: args.workspaceId,
+      created_by: args.createdBy,
+      ...args.fields,
+    })
+    .select('id')
+    .single();
+  return { rule: (data as { id: string } | null) ?? null, error };
+}
+
+export async function updateRule(
+  db: SupabaseClient,
+  args: { id: string; workspaceId: string; fields: CommentRuleFields },
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await db
+    .from('comment_to_dm_rules')
+    .update({ ...args.fields, updated_at: new Date().toISOString() })
+    .eq('id', args.id)
+    .eq('workspace_id', args.workspaceId);
+  return { error };
+}
+
+export async function deleteRule(
+  db: SupabaseClient,
+  args: { id: string; workspaceId: string },
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await db
+    .from('comment_to_dm_rules')
+    .delete()
+    .eq('id', args.id)
+    .eq('workspace_id', args.workspaceId);
+  return { error };
+}
+
+/**
+ * Prender o apagar, sin tocar nada más.
+ *
+ * Aparte del alta/edición a propósito: el formulario manda la regla entera y
+ * eso está bien cuando alguien la está editando, pero "prendé la regla del
+ * sorteo" no debería poder reescribir de paso el texto del DM.
+ */
+export async function setRuleActive(
+  db: SupabaseClient,
+  args: { id: string; workspaceId: string; active: boolean },
+): Promise<CommentRule> {
+  const { data, error } = await db
+    .from('comment_to_dm_rules')
+    .update({ is_active: args.active, updated_at: new Date().toISOString() })
+    .eq('id', args.id)
+    .eq('workspace_id', args.workspaceId)
+    .select(RULE_COLUMNS)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('esa regla no existe en esta cuenta');
+  return data as unknown as CommentRule;
+}

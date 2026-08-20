@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
+import { setIaConversacion } from "@/lib/inbox/conversaciones";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -78,17 +79,14 @@ export async function PATCH(
       { status: 403 },
     );
 
-  const { error } = await admin
-    .from("conversations")
-    .update({
-      ai_enabled: body.ai_enabled,
-      updated_at: new Date().toISOString(),
-      // Volver a encender la IA cierra el escalamiento: alguien ya se hizo
-      // cargo. Sin esto la marca "necesita humano" quedaba pegada para
-      // siempre y el contador de la bandeja no bajaba nunca.
-      ...(body.ai_enabled ? { needs_human_reason: null, needs_human_at: null } : {}),
-    })
-    .eq("id", id);
+  // El cuerpo vive en `lib/inbox/conversaciones` porque la capa de capacidades
+  // hace lo mismo desde el chat: dos copias del UPDATE serían dos formas de
+  // olvidarse de limpiar el escalamiento.
+  const { error } = await setIaConversacion(admin, {
+    workspaceId: conv.workspace_id,
+    conversationId: id,
+    activa: body.ai_enabled,
+  });
   if (error) return serverError(error);
   return NextResponse.json({ ok: true, ai_enabled: body.ai_enabled });
 }

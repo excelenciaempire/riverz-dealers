@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
-import { slugifyTitle, handleSuffix, isUuid } from '@/lib/products/slug';
-import { buildTrainingMaterial } from '@/lib/products/training-material';
+import { isUuid } from '@/lib/products/slug';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import {
+  actualizarProducto,
+  borrarProducto,
+  type CambiosDeProducto,
+} from '@/lib/products/write';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -13,13 +17,10 @@ import { translate } from '@/lib/i18n/translate';
  * GET /api/products/[id]
  * Trae todo el producto + lista de agentes asignados.
  *
- * PATCH /api/products/[id]
- * Actualiza campos editables por el merchant:
- *   - custom_notes (texto libre)
- *   - custom_faqs (array de {q, a})
- *
- * Después de cualquier patch, recomputamos training_material — la
- * concatenación que el AI runner inyecta en el system prompt.
+ * PATCH y DELETE son HTTP alrededor de `@/lib/products/write`: acá sólo queda
+ * la sesión y la traducción del motivo de falla, porque el Operador escribe el
+ * mismo catálogo sin pasar por estas rutas y las dos escrituras tienen que ser
+ * literalmente el mismo código.
  */
 export async function GET(
   _: Request,
@@ -73,53 +74,6 @@ export async function GET(
   });
 }
 
-interface PatchBody {
-  title?: string;
-  description?: string | null;
-  custom_notes?: string | null;
-  custom_faqs?: Array<{ q: string; a: string }>;
-  // Premium editor (migration 074): editable name, gallery, source URLs,
-  // multi-offer pricing (reuses allowed_offers) + currency.
-  images?: string[];
-  websites?: string[];
-  currency?: string | null;
-  // Rich per-product context (migration 073) — injected into the agent prompt.
-  say_guidelines?: string | null;
-  never_say?: string[];
-  escalation_triggers?: string[];
-  allowed_offers?: Array<{
-    label?: string;
-    total?: number | string;
-    conditions?: string;
-    /** Número de unidades del paquete — el webhook de pedidos lo usa para
-     *  detectar qué oferta eligió el cliente (flujos de recompra). */
-    units?: number;
-  }>;
-  structured_research?: Record<string, unknown> | null;
-  health_sensitive?: boolean;
-}
-
-/** Numeric price from an offer's `total` ("39.900", "$ 1,299", 39900…). */
-function offerPrice(total: unknown): number | null {
-  if (typeof total === 'number' && Number.isFinite(total)) return total;
-  if (typeof total !== 'string') return null;
-  // Strip everything but digits/.,- then normalise thousands/decimals.
-  const cleaned = total.replace(/[^\d.,-]/g, '');
-  if (!cleaned) return null;
-  // If both separators exist, the last one is the decimal sep.
-  let norm = cleaned;
-  if (cleaned.includes(',') && cleaned.includes('.')) {
-    norm = cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')
-      ? cleaned.replace(/\./g, '').replace(',', '.')
-      : cleaned.replace(/,/g, '');
-  } else if (cleaned.includes(',')) {
-    // Lone comma → treat as thousands unless it looks like decimals (,dd).
-    norm = /,\d{1,2}$/.test(cleaned) ? cleaned.replace(',', '.') : cleaned.replace(/,/g, '');
-  }
-  const n = Number(norm);
-  return Number.isFinite(n) ? n : null;
-}
-
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -137,151 +91,38 @@ export async function PATCH(
 
   const locale = await getLocale();
 
-  const body = (await request.json().catch(() => null)) as PatchBody | null;
+  const body = (await request.json().catch(() => null)) as CambiosDeProducto | null;
   if (!body) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // Validamos custom_faqs antes de tocar la DB.
-  if (body.custom_faqs !== undefined) {
-    if (!Array.isArray(body.custom_faqs)) {
+  const res = await actualizarProducto(supabase, {
+    id,
+    cambios: body,
+    locale,
+    // Sin workspaceId: este cliente es el del usuario y la RLS (mig 057) ya lo
+    // recorta a los productos de su cuenta.
+  });
+  if (!res.ok) {
+    if (res.motivo === 'faqs_no_es_lista') {
       return NextResponse.json(
         { error: translate(locale, 'errProducts.customFaqsMustBeArray') },
         { status: 400 },
       );
     }
-    for (const f of body.custom_faqs) {
-      if (typeof f?.q !== 'string' || typeof f?.a !== 'string') {
-        return NextResponse.json(
-          { error: translate(locale, 'errProducts.customFaqInvalidShape') },
-          { status: 400 },
-        );
-      }
+    if (res.motivo === 'faq_mal_formada') {
+      return NextResponse.json(
+        { error: translate(locale, 'errProducts.customFaqInvalidShape') },
+        { status: 400 },
+      );
     }
-  }
-
-  const patch: Record<string, unknown> = {};
-  if (body.title !== undefined && body.title.trim()) patch.title = body.title.trim();
-  if (body.description !== undefined) patch.description = body.description;
-  if (body.custom_notes !== undefined) patch.custom_notes = body.custom_notes;
-  if (body.custom_faqs !== undefined) patch.custom_faqs = body.custom_faqs;
-  if (body.currency !== undefined) patch.currency = body.currency || null;
-
-  // Gallery — keep only non-empty strings; mirror first into image_url so the
-  // catalog/list thumbnail stays in sync.
-  if (body.images !== undefined) {
-    const imgs = (Array.isArray(body.images) ? body.images : [])
-      .map((s) => (typeof s === 'string' ? s.trim() : ''))
-      .filter(Boolean)
-      .slice(0, 12);
-    patch.images = imgs;
-    patch.image_url = imgs[0] ?? null;
-  }
-
-  // Source URLs (max 5) — mirror first into url (existing scrape code path).
-  if (body.websites !== undefined) {
-    const sites = (Array.isArray(body.websites) ? body.websites : [])
-      .map((s) => (typeof s === 'string' ? s.trim() : ''))
-      .filter(Boolean)
-      .slice(0, 5);
-    patch.websites = sites;
-    patch.url = sites[0] ?? null;
-  }
-  if (body.say_guidelines !== undefined) patch.say_guidelines = body.say_guidelines;
-  if (body.never_say !== undefined)
-    patch.never_say = Array.isArray(body.never_say) ? body.never_say : [];
-  if (body.escalation_triggers !== undefined)
-    patch.escalation_triggers = Array.isArray(body.escalation_triggers)
-      ? body.escalation_triggers
-      : [];
-  if (body.allowed_offers !== undefined) {
-    const offers = Array.isArray(body.allowed_offers) ? body.allowed_offers : [];
-    patch.allowed_offers = offers;
-    // The merchant edited the offers by hand → mark the row merchant-owned so
-    // the auto-detector (scrape/backfill) never overwrites these values.
-    patch.offers_auto_detected = false;
-    // "Precios de venta" lives here now — derive price_min/max for the
-    // catalog + runner from the offer totals.
-    const prices = offers
-      .map((o) => (o && typeof o === 'object' ? offerPrice(o.total) : null))
-      .filter((n): n is number => n != null);
-    if (prices.length > 0) {
-      patch.price_min = Math.min(...prices);
-      patch.price_max = Math.max(...prices);
+    if (res.motivo === 'no_existe') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-  }
-  if (body.structured_research !== undefined)
-    patch.structured_research = body.structured_research;
-  if (body.health_sensitive !== undefined)
-    patch.health_sensitive = !!body.health_sensitive;
-
-  // Para evitar la race "patch + recompute training_material" en dos
-  // updates separados (review adversarial), leemos el row actual y
-  // armamos training_material desde {currentRow, ...patch} en una sola
-  // operación. Sin ventana de read-modify-write.
-  const { data: current, error: readErr } = await supabase
-    .from('shopify_products')
-    .select('*')
-    .eq(isUuid(id) ? 'id' : 'handle', id)
-    .maybeSingle();
-  if (readErr) {
-    return serverError(readErr);
-  }
-  if (!current) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return serverError(res.error);
   }
 
-  // El handle es el segmento legible de la URL del editor. Para productos
-  // MANUALES lo regeneramos cuando cambia el nombre (conservando el sufijo
-  // estable) para que /productos/<handle> siga al nombre. Los de Shopify NO
-  // se tocan: su handle es el slug real de la tienda y el routing de IA lo
-  // usa para emparejar links que el cliente pega.
-  if (
-    patch.title &&
-    current.shop_domain === 'manual' &&
-    patch.title !== current.title
-  ) {
-    patch.handle = `${slugifyTitle(patch.title as string)}-${handleSuffix(
-      current.external_id as number,
-    )}`;
-  }
-
-  const merged = { ...current, ...patch };
-  const training = buildTrainingMaterial(merged, locale);
-
-  const { data: updated, error } = await supabase
-    .from('shopify_products')
-    .update({ ...patch, training_material: training })
-    .eq('id', current.id)
-    .select('*')
-    .maybeSingle();
-  if (error) {
-    return serverError(error);
-  }
-  if (!updated) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
-  return NextResponse.json({ ok: true, product: updated });
-}
-
-/** Ruta dentro del bucket `product-media` de una URL pública de Supabase
- *  Storage, o null si la URL es externa (Shopify, ML, un CDN…). */
-function mediaPath(url: unknown): string | null {
-  if (typeof url !== 'string') return null;
-  const marker = '/storage/v1/object/public/product-media/';
-  const at = url.indexOf(marker);
-  if (at === -1) return null;
-  const path = decodeURIComponent(url.slice(at + marker.length).split('?')[0]);
-  return path || null;
-}
-
-/** Todas las imágenes de un row (galería + miniatura). */
-function rowImages(row: { images?: unknown; image_url?: unknown }): string[] {
-  const gallery = Array.isArray(row.images) ? row.images : [];
-  return [...gallery, row.image_url].filter(
-    (u): u is string => typeof u === 'string' && !!u,
-  );
+  return NextResponse.json({ ok: true, product: res.producto });
 }
 
 /**
@@ -311,55 +152,13 @@ export async function DELETE(
 
   // RLS (mig 057) ya gatea por miembro del workspace: si el producto no es
   // del workspace del usuario, no lo lee y no lo borra.
-  const { data: product, error: readErr } = await supabase
-    .from('shopify_products')
-    .select('id, workspace_id, title, images, image_url')
-    .eq(isUuid(id) ? 'id' : 'handle', id)
-    .maybeSingle();
-  if (readErr) {
-    return serverError(readErr);
-  }
-  if (!product) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
-  // 1. Imágenes propias en Storage. Antes de borrarlas, descartamos las que
-  //    otro producto del workspace siga referenciando (una galería puede
-  //    reusar una URL si el merchant copió y pegó).
-  const ownPaths = [...new Set(rowImages(product).map(mediaPath).filter(Boolean))] as string[];
-  if (ownPaths.length > 0) {
-    const admin = supabaseAdmin();
-    const { data: others } = await admin
-      .from('shopify_products')
-      .select('images, image_url')
-      .eq('workspace_id', product.workspace_id)
-      .neq('id', product.id);
-    const stillUsed = new Set(
-      ((others ?? []) as Array<{ images?: unknown; image_url?: unknown }>)
-        .flatMap(rowImages)
-        .map(mediaPath)
-        .filter(Boolean) as string[],
-    );
-    const removable = ownPaths.filter((p) => !stillUsed.has(p));
-    if (removable.length > 0) {
-      const { error: storageErr } = await admin.storage
-        .from('product-media')
-        .remove(removable);
-      // Fail-open: un archivo huérfano no debe impedir borrar el producto.
-      if (storageErr) {
-        console.error('[products] no se pudieron borrar las imágenes:', storageErr);
-      }
+  const res = await borrarProducto(supabase, { id, admin: supabaseAdmin() });
+  if (!res.ok) {
+    if (res.motivo === 'no_existe') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    return serverError(res.error);
   }
 
-  // 2. El row. ai_agent_products cae por ON DELETE CASCADE (mig 025).
-  const { error } = await supabase
-    .from('shopify_products')
-    .delete()
-    .eq('id', product.id);
-  if (error) {
-    return serverError(error);
-  }
-
-  return NextResponse.json({ ok: true, deleted_images: ownPaths.length });
+  return NextResponse.json({ ok: true, deleted_images: res.imagenesBorradas });
 }

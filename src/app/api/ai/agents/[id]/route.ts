@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
-import type { AiAgent, AiScope } from '@/lib/ai/types';
+import { channelLabels } from '@/lib/ai/channel-conflict';
+import { pickAgentPatch, updateAgent } from '@/lib/ai/agents/update';
+import type { AiAgent } from '@/lib/ai/types';
 
 async function requireMember(agentId: string, userId: string) {
   const admin = supabaseAdmin();
@@ -65,165 +65,40 @@ export async function PATCH(
       { status: 400 },
     );
 
-  const admin = supabaseAdmin();
-  const update: Record<string, unknown> = {};
-  const ALLOWED: (keyof AiAgent)[] = [
-    'name',
-    'is_active',
-    'persona',
-    'knowledge',
-    'knowledge_url',
-    'language',
-    'tone',
-    'max_response_chars',
-    'reply_delay_seconds',
-    'context_messages',
-    'response_mode',
-    // Autonomia: responde solo o propone y espera (migracion 170)
-    'requires_approval',
-    'inbound_debounce_seconds',
-    'reply_when_assigned',
-    'reply_outside_hours',
-    'business_hours',
-    'escalate_keywords',
-    'escalate_after_messages',
-    'followup_enabled',
-    'followup_delay_hours',
-    'followup_max_count',
-    'proactive_send_mode',
-    'puede_crear_pedidos',
-    // Rol y permisos por acción (migración 164)
-    'role',
-    'permissions',
-    'provider',
-    'model',
-    'scope',
-    'product_scope',
-    'priority',
-    // Voice AI (migration 113 + 115)
-    'voice_enabled',
-    'voice_ai_decides',
-    'voice_provider',
-    'voice_id',
-    'voice_greeting',
-    'voice_system_prompt',
-    'voice_objectives',
-    'voice_max_call_seconds',
-    'voice_calling_hours',
-    'voice_max_retries',
-    'voice_retry_delay_minutes',
-  ];
-  for (const k of ALLOWED) {
-    if (k in body) update[k] = body[k];
-  }
-  if (typeof body.api_key === 'string') {
-    update.api_key_encrypted = body.api_key.trim() ? encrypt(body.api_key.trim()) : null;
-  }
+  // El cuerpo del guardado vive en `@/lib/ai/agents/update`: el Operator
+  // guarda un agente por la misma puerta, con la misma validación de choque de
+  // canal. Acá queda lo que es de HTTP — el idioma y el código de estado.
+  const outcome = await updateAgent(supabaseAdmin(), {
+    agentId: id,
+    workspaceId: target.workspace_id,
+    patch: pickAgentPatch(body),
+    channels: Array.isArray(body.channels) ? body.channels : undefined,
+    productIds: Array.isArray(body.product_ids) ? body.product_ids : undefined,
+  });
 
-  // Un solo chatbot activo por canal. Resolvemos el estado FINAL del agente
-  // (mezcla de lo que llega en el body con lo ya guardado) y, si va a quedar
-  // activo y choca con otro agente activo, bloqueamos antes de tocar nada.
-  const willBeActive =
-    'is_active' in update ? Boolean(update.is_active) : undefined;
-  {
-    const { data: cur } = await admin
-      .from('ai_agents')
-      .select('is_active, scope, role, ai_agent_channels(channel)')
-      .eq('id', id)
-      .maybeSingle();
-    const curRow = cur as
-      | {
-          is_active: boolean
-          scope: string
-          role?: string | null
-          ai_agent_channels?: { channel: string }[]
-        }
-      | null;
-    const finalActive =
-      willBeActive ?? Boolean(curRow?.is_active);
-    const finalScope = (update.scope as string | undefined) ?? curRow?.scope ?? 'workspace';
-    const finalChannels = Array.isArray(body.channels)
-      ? body.channels
-      : (curRow?.ai_agent_channels ?? []).map((c) => c.channel);
-
-    // scope='channels' sin canales deja al agente sin ningún lugar donde
-    // responder, y el detector de conflictos no lo ve porque no ocupa nada.
-    // Se valida sobre el estado final, activo o pausado.
-    if (finalScope === 'channels' && finalChannels.length === 0) {
+  if (!outcome.ok) {
+    const { fail } = outcome;
+    if (fail.code === 'channels_required') {
       return NextResponse.json(
         { error: translate(locale, 'errAi.channelsRequired') },
         { status: 400 },
       );
     }
-
-    if (finalActive) {
-      const conflict = await findChannelConflict(admin, {
-        workspaceId: target.workspace_id,
-        agentId: id,
-        scope: finalScope,
-        channels: finalScope === 'channels' ? finalChannels : [],
-        role: (update.role as string | undefined) ?? curRow?.role ?? 'general',
-      });
-      if (conflict) {
-        return NextResponse.json(
-          {
-            error: translate(locale, 'errAi.channelConflict', {
-              agent: conflict.agentName,
-              channels: channelLabels(conflict.channels, locale),
-            }),
-          },
-          { status: 409 },
-        );
-      }
+    if (fail.code === 'channel_conflict') {
+      return NextResponse.json(
+        {
+          error: translate(locale, 'errAi.channelConflict', {
+            agent: fail.agentName,
+            channels: channelLabels(fail.channels, locale),
+          }),
+        },
+        { status: 409 },
+      );
     }
+    return serverError(fail.error);
   }
 
-  if (Object.keys(update).length) {
-    const { error } = await admin.from('ai_agents').update(update).eq('id', id);
-    if (error) return serverError(error);
-  }
-
-  // Replace per-channel bindings when channels are provided.
-  if (Array.isArray(body.channels)) {
-    await admin.from('ai_agent_channels').delete().eq('agent_id', id);
-    if ((update.scope ?? 'workspace') === 'channels' && body.channels.length) {
-      await admin
-        .from('ai_agent_channels')
-        .insert(body.channels.map((channel) => ({ agent_id: id, channel })));
-    }
-  }
-  // Even if channels weren't sent, if scope flipped to 'workspace', clear bindings.
-  if ((update.scope as AiScope | undefined) === 'workspace') {
-    await admin.from('ai_agent_channels').delete().eq('agent_id', id);
-  }
-
-  // Replace per-product bindings when provided.
-  if (Array.isArray(body.product_ids)) {
-    await admin.from('ai_agent_products').delete().eq('agent_id', id);
-    if ((update.product_scope ?? 'all') === 'specific' && body.product_ids.length) {
-      await admin
-        .from('ai_agent_products')
-        .insert(body.product_ids.map((product_id) => ({ agent_id: id, product_id })));
-    }
-  }
-  if ((update.product_scope as AiAgent['product_scope'] | undefined) === 'all') {
-    await admin.from('ai_agent_products').delete().eq('agent_id', id);
-  }
-
-  // Re-read the agent (with relations) so the client can optimistically
-  // patch its local state without a follow-up GET.
-  const { data: fresh } = await admin
-    .from('ai_agents')
-    .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
-    .eq('id', id)
-    .maybeSingle();
-  const safe = fresh
-    ? (() => {
-        const { api_key_encrypted, ...rest } = fresh as AiAgent;
-        return { ...rest, has_api_key: Boolean(api_key_encrypted) };
-      })()
-    : null;
-  return NextResponse.json({ ok: true, agent: safe });
+  return NextResponse.json({ ok: true, agent: outcome.agent });
 }
 
 export async function DELETE(

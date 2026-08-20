@@ -17,6 +17,7 @@
 import { resolveSegment } from '@/lib/segments/resolve'
 import type { SegmentMatchMode, SegmentRule } from '@/lib/segments/types'
 import { applyTags, ensureTag } from '@/lib/contacts/tags'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántos contactos como mucho devuelve una búsqueda. */
@@ -129,6 +130,187 @@ async function resolverIdsDeEtiqueta(
   })
 }
 
+/**
+ * El camino de vuelta: ids por nombres.
+ *
+ * Un segmento guardado tiene `tagId` adentro, que es un uuid, y devolverlo tal
+ * cual no sirve de nada: no se puede leer y no se puede volver a mandar en un
+ * criterio escrito a mano. Sale en la MISMA forma que entra en
+ * `segmentos.editar`, así que leer un segmento, cambiarle una regla y volver a
+ * guardarlo es copiar y pegar.
+ *
+ * Una etiqueta borrada deja la regla huérfana: ahí se devuelve el `tagId` como
+ * vino y `tag: null` en vez de inventarle un nombre. Inventarlo haría que el
+ * siguiente guardado fallara buscando una etiqueta que no existe, y así al
+ * menos se ve cuál es la regla rota.
+ */
+async function nombrarIdsDeEtiqueta(
+  ctx: CapabilityContext,
+  reglas: SegmentRule[],
+): Promise<ReglaEntrante[]> {
+  const entrantes = reglas as unknown as ReglaEntrante[]
+  if (!entrantes.some((r) => r.type === 'tag' && typeof r.tagId === 'string')) {
+    return entrantes
+  }
+
+  const { data } = await ctx.db
+    .from('tags')
+    .select('id, name')
+    .eq('workspace_id', ctx.workspaceId)
+  const porId = new Map(
+    ((data ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name]),
+  )
+
+  return entrantes.map((r) => {
+    if (r.type !== 'tag' || typeof r.tagId !== 'string') return r
+    const nombre = porId.get(r.tagId) ?? null
+    if (!nombre) return { ...r, tag: null }
+    const resto = { ...r }
+    delete resto.tagId
+    return { ...resto, tag: nombre }
+  })
+}
+
+interface FilaSegmento {
+  id: string
+  name: string
+  description: string | null
+  rules: SegmentRule[]
+  match_mode: SegmentMatchMode
+}
+
+/**
+ * El nombre del segmento, para el dibujo.
+ *
+ * `artifact` es síncrono a propósito —se calcula desde los argumentos, sin
+ * tocar la base— pero el nombre vive en la base y los argumentos sólo traen el
+ * id. Sin esto la tarjeta de una propuesta diría "Segmento" y quien aprueba no
+ * sabría cuál está cambiando. Se llena en cualquier lectura de la fila, y el
+ * `preview` hace una antes de que se dibuje nada; si igual no está, el dibujo
+ * sale con el rótulo genérico y no se rompe.
+ *
+ * La clave lleva la cuenta adelante para que un proceso que atiende a varios
+ * comercios no pueda mostrar el nombre de otro.
+ */
+const NOMBRES_DE_SEGMENTO = new Map<string, string>()
+
+function recordarNombre(ctx: CapabilityContext, id: string, nombre: string) {
+  // Es una ayuda de dibujo, no una caché de datos: cuando crece se tira entera.
+  if (NOMBRES_DE_SEGMENTO.size > 200) NOMBRES_DE_SEGMENTO.clear()
+  NOMBRES_DE_SEGMENTO.set(`${ctx.workspaceId}:${id}`, nombre)
+}
+
+async function leerSegmento(ctx: CapabilityContext, id: unknown): Promise<FilaSegmento> {
+  const limpio = typeof id === 'string' ? id.trim() : ''
+  if (!limpio) throw new Error('Falta el id del segmento.')
+  const { data } = await ctx.db
+    .from('contact_segments')
+    .select('id, name, description, rules, match_mode')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', limpio)
+    .maybeSingle()
+  if (!data) throw new Error('Ese segmento no existe en esta cuenta.')
+  const fila = data as FilaSegmento
+  recordarNombre(ctx, fila.id, fila.name)
+  return fila
+}
+
+// ---------------------------------------------------------------------------
+
+/** Cómo se lee cada operador cuando lo mira una persona. */
+const OPERADORES: Record<string, string> = {
+  has: 'tiene',
+  not_has: 'no tiene',
+  is: 'es',
+  is_not: 'no es',
+  eq: 'igual a',
+  gte: 'al menos',
+  lte: 'como mucho',
+  between: 'entre',
+  contains: 'contiene',
+  equals: 'es igual a',
+  not_equals: 'no es igual a',
+  starts_with: 'empieza con',
+  present: 'tiene',
+  missing: 'no tiene',
+  last_n_days: 'en los últimos',
+  before: 'antes de',
+  after: 'después de',
+  is_customer: 'sí',
+  is_not_customer: 'no',
+  any: 'cualquiera',
+}
+
+const CAMPOS: Record<string, string> = {
+  tag: 'etiqueta',
+  channel: 'canal',
+  created: 'alta',
+  custom_field: 'campo propio',
+  shopify: 'cliente de la tienda',
+  offer: 'oferta',
+  units: 'unidades',
+  spend: 'gasto',
+  orders: 'pedidos',
+  email: 'email',
+  phone: 'teléfono',
+  company: 'empresa',
+  name: 'nombre',
+  country: 'país',
+  city: 'ciudad',
+  last_purchase: 'última compra',
+  last_activity: 'última actividad',
+  last_ai: 'última conversación con la IA',
+}
+
+/**
+ * Una regla, en tres pedazos dibujables.
+ *
+ * El diff del artefacto empareja reglas por `campo|op|valor`, así que las dos
+ * puntas —lo que hay guardado y lo que se pide— tienen que describirse con esta
+ * misma función o cada regla aparecería una vez como quitada y otra como nueva.
+ * Por eso el nombre de la etiqueta se compara en minúsculas: `resolverIdsDeEtiqueta`
+ * ya empareja sin distinguir mayúsculas, y sin bajarlas acá pedir "Comprador"
+ * sobre un segmento que decía "comprador" se vería como un cambio que no existe.
+ */
+function describirRegla(r: ReglaEntrante): { campo: string; op: string; valor: string } {
+  const tipo = String(r.type ?? '')
+  const op = String(r.op ?? '')
+  const campoBase = typeof r.field === 'string' ? r.field : tipo
+  const campo = CAMPOS[campoBase] ?? campoBase
+
+  let valor = ''
+  if (tipo === 'tag') {
+    valor = String(r.tag ?? r.tagId ?? '')
+      .trim()
+      .toLowerCase()
+  } else if (tipo === 'channel') {
+    valor = String(r.channel ?? '')
+  } else if (op === 'between') {
+    valor = `${r.value} y ${r.value2}`
+  } else if (op === 'last_n_days') {
+    valor = `${r.value} días`
+  } else if (r.value != null) {
+    valor = String(r.value)
+  }
+
+  return { campo, op: OPERADORES[op] ?? op, valor }
+}
+
+function artefactoDeSegmento(
+  id: string,
+  nombre: string,
+  reglas: ReglaEntrante[],
+  alcance?: number,
+): Artefacto {
+  return {
+    kind: 'segmento',
+    nombre,
+    alcance,
+    reglas: reglas.map(describirRegla),
+    base: { id, nombre },
+  }
+}
+
 /** El público de una llamada: por ids sueltos, por segmento guardado o por reglas. */
 async function resolverPublico(
   ctx: CapabilityContext,
@@ -146,14 +328,7 @@ async function resolverPublico(
   let de: string
 
   if (typeof args.segmento_id === 'string') {
-    const { data } = await ctx.db
-      .from('contact_segments')
-      .select('name, rules, match_mode')
-      .eq('workspace_id', ctx.workspaceId)
-      .eq('id', args.segmento_id)
-      .maybeSingle()
-    if (!data) throw new Error('Ese segmento no existe en esta cuenta.')
-    const fila = data as { name: string; rules: SegmentRule[]; match_mode: SegmentMatchMode }
+    const fila = await leerSegmento(ctx, args.segmento_id)
     reglas = fila.rules ?? []
     modo = fila.match_mode ?? 'all'
     de = `el segmento "${fila.name}"`
@@ -284,6 +459,102 @@ async function listarSegmentos(ctx: CapabilityContext) {
   }
 }
 
+async function reglasDeSegmento(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const fila = await leerSegmento(ctx, args.segmento_id)
+  return {
+    id: fila.id,
+    nombre: fila.name,
+    descripcion: fila.description,
+    modo: fila.match_mode,
+    reglas: await nombrarIdsDeEtiqueta(ctx, fila.rules ?? []),
+  }
+}
+
+/**
+ * La ficha de UNA persona, por id.
+ *
+ * `contactos.buscar` ya contesta "¿quién es este?" a partir de un teléfono o un
+ * nombre, pero busca por texto: pasarle un uuid no encuentra nada. Y el id es
+ * justamente lo único que devuelven `contactos.listar` y `segmentos.calcular`,
+ * así que mirar a alguien que salió de una lista era imposible sin volver a
+ * escribir su nombre a mano.
+ */
+async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const id = typeof args.contacto_id === 'string' ? args.contacto_id.trim() : ''
+  if (!id) throw new Error('Falta el id del contacto.')
+
+  const { data } = await ctx.db
+    .from('contacts')
+    .select(
+      'id, name, phone, email, company, channel, created_at, opted_out, opted_out_reason, last_inbound_at, last_product, last_offer_chosen, is_shopify_customer, shopify_customer_data',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) throw new Error('Ese contacto no existe en esta cuenta.')
+
+  const c = data as {
+    id: string
+    name: string | null
+    phone: string | null
+    email: string | null
+    company: string | null
+    channel: string | null
+    created_at: string
+    opted_out: boolean | null
+    opted_out_reason: string | null
+    last_inbound_at: string | null
+    last_product: string | null
+    last_offer_chosen: string | null
+    is_shopify_customer: boolean | null
+    shopify_customer_data: {
+      orders_count?: number
+      total_spent?: number | string
+      currency?: string
+      last_order_date?: string | null
+      default_address?: { city?: string | null; country?: string | null }
+    } | null
+  }
+
+  const { data: filas } = await ctx.db
+    .from('contact_tags')
+    .select('tags(name)')
+    .eq('contact_id', c.id)
+  const etiquetas = ((filas ?? []) as unknown as Array<{
+    tags: { name: string } | { name: string }[] | null
+  }>)
+    .map((f) => (Array.isArray(f.tags) ? f.tags[0] : f.tags))
+    .filter((t): t is { name: string } => Boolean(t))
+    .map((t) => t.name)
+
+  const shop = c.shopify_customer_data
+  const direccion = shop?.default_address
+  return {
+    id: c.id,
+    nombre: c.name,
+    telefono: c.phone,
+    email: c.email,
+    empresa: c.company,
+    canal: c.channel,
+    desde: c.created_at,
+    etiquetas,
+    // Lo primero que hay que mirar antes de escribirle: una baja explica que no
+    // le llegue nada.
+    dado_de_baja: c.opted_out === true,
+    motivo_baja: c.opted_out_reason,
+    ultimo_mensaje_suyo: c.last_inbound_at,
+    cliente_de_la_tienda: c.is_shopify_customer === true,
+    pedidos: shop?.orders_count ?? null,
+    gastado: shop?.total_spent ?? null,
+    moneda: shop?.currency ?? null,
+    ultima_compra: shop?.last_order_date ?? null,
+    ciudad: direccion?.city ?? null,
+    pais: direccion?.country ?? null,
+    ultimo_producto: c.last_product,
+    ultima_oferta: c.last_offer_chosen,
+  }
+}
+
 async function contar(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { total, de } = await resolverPublico(ctx, args)
   return { cuantos: total, de }
@@ -357,15 +628,199 @@ async function crearSegmento(ctx: CapabilityContext, args: Record<string, unknow
   return { id: (data as { id: string }).id, nombre, alcanza: contacts.length }
 }
 
+/**
+ * Cambiarle los criterios a un segmento que ya existe.
+ *
+ * Las reglas se REEMPLAZAN enteras, no se suman: es lo mismo que hace la
+ * pantalla al guardar, y sumar en silencio dejaría un criterio viejo que nadie
+ * pidió achicando el público sin que se vea por qué. Para agregar una regla se
+ * leen las que hay con `segmentos.reglas` y se manda la lista completa.
+ */
+async function editarSegmento(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const fila = await leerSegmento(ctx, args.segmento_id)
+  const reglas = await resolverIdsDeEtiqueta(ctx, leerReglas(args.reglas))
+  // Sin `modo` queda el que tenía. Caer a 'all' por defecto le cambiaría el OR
+  // por un AND a un segmento que se armó con OR, sólo porque quien edita las
+  // reglas no habló del tema.
+  const modo: SegmentMatchMode =
+    args.modo === 'any' ? 'any' : args.modo === 'all' ? 'all' : fila.match_mode
+
+  const { contacts } = await resolveSegment(ctx.db, ctx.workspaceId, reglas, modo)
+
+  const { error } = await ctx.db
+    .from('contact_segments')
+    .update({ rules: reglas, match_mode: modo })
+    .eq('id', fila.id)
+    .eq('workspace_id', ctx.workspaceId)
+  if (error) throw new Error(error.message)
+
+  return {
+    id: fila.id,
+    nombre: fila.name,
+    criterios: reglas.length,
+    modo,
+    alcance: contacts.length,
+  }
+}
+
+/** Una etiqueta de la cuenta, buscada por el nombre como lo escribe una persona. */
+async function buscarEtiqueta(
+  ctx: CapabilityContext,
+  nombre: unknown,
+): Promise<{ id: string; name: string }> {
+  const buscado = typeof nombre === 'string' ? nombre.trim() : ''
+  if (!buscado) throw new Error('Falta el nombre de la etiqueta.')
+
+  const { data } = await ctx.db
+    .from('tags')
+    .select('id, name')
+    .eq('workspace_id', ctx.workspaceId)
+  const etiquetas = (data ?? []) as { id: string; name: string }[]
+
+  const exacta = etiquetas.find((t) => t.name === buscado)
+  if (exacta) return exacta
+
+  // Ser tolerante con las mayúsculas ayuda a encontrarla; pero si hay dos que
+  // se diferencian sólo en eso, elegir una sería borrar la que no era.
+  const parecidas = etiquetas.filter(
+    (t) => t.name.trim().toLowerCase() === buscado.toLowerCase(),
+  )
+  if (parecidas.length === 1) return parecidas[0]
+  if (parecidas.length > 1) {
+    throw new Error(
+      `Hay ${parecidas.length} etiquetas con ese nombre y distintas mayúsculas. Escribí el nombre exacto: ${parecidas
+        .map((t) => `"${t.name}"`)
+        .join(', ')}.`,
+    )
+  }
+  throw new Error(
+    `No existe la etiqueta "${buscado}". Las que hay: ${
+      etiquetas.map((t) => t.name).join(', ') || '(ninguna)'
+    }.`,
+  )
+}
+
+/**
+ * Qué se queda sin esa etiqueta si se borra.
+ *
+ * Borrar una etiqueta no es borrar una palabra: `contact_tags` cae en cascada,
+ * así que se va de todos los contactos de una sola vez, y lo que la nombraba
+ * por id —un paso `add_tag`, un disparador `tag_added`, una condición
+ * `tag_presence`, la regla de un segmento— queda apuntando a nada. Eso no falla
+ * ruidosamente: la automatización sigue activa y deja de encontrar a nadie.
+ */
+async function usosDeEtiqueta(ctx: CapabilityContext, tagId: string) {
+  type PasoConAutomatizacion = {
+    automations: { id: string; name: string; deleted_at: string | null } | null
+  }
+  const pasosCon = (columna: string) =>
+    ctx.db
+      .from('automation_steps')
+      .select('automations!inner(id, name, workspace_id, deleted_at)')
+      .eq(columna, tagId)
+      .eq('automations.workspace_id', ctx.workspaceId)
+
+  const [contactos, pasos, condiciones, disparadores, segmentos] = await Promise.all([
+    ctx.db
+      .from('contact_tags')
+      .select('id', { count: 'exact', head: true })
+      .eq('tag_id', tagId),
+    pasosCon('step_config->>tag_id'),
+    pasosCon('step_config->>operand'),
+    ctx.db
+      .from('automations')
+      .select('id, name, deleted_at')
+      .eq('workspace_id', ctx.workspaceId)
+      .eq('trigger_config->>tag_id', tagId),
+    ctx.db
+      .from('contact_segments')
+      .select('name, rules')
+      .eq('workspace_id', ctx.workspaceId),
+  ])
+
+  // La misma automatización puede nombrarla en el disparador y en dos pasos: se
+  // cuenta una vez, que es como la ve el comercio.
+  const automatizaciones = new Map<string, string>()
+  const filasDePaso = [
+    ...(pasos.data ?? []),
+    ...(condiciones.data ?? []),
+  ] as unknown as PasoConAutomatizacion[]
+  for (const fila of filasDePaso) {
+    const a = fila.automations
+    if (a && !a.deleted_at) automatizaciones.set(a.id, a.name)
+  }
+  for (const a of (disparadores.data ?? []) as {
+    id: string
+    name: string
+    deleted_at: string | null
+  }[]) {
+    if (!a.deleted_at) automatizaciones.set(a.id, a.name)
+  }
+
+  const conLaEtiqueta = ((segmentos.data ?? []) as { name: string; rules: SegmentRule[] }[])
+    .filter((s) =>
+      (s.rules ?? []).some((r) => (r as { tagId?: string }).tagId === tagId),
+    )
+    .map((s) => s.name)
+
+  return {
+    contactos: contactos.count ?? 0,
+    automatizaciones: [...automatizaciones.values()],
+    segmentos: conLaEtiqueta,
+  }
+}
+
+async function crearEtiqueta(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const nombre = typeof args.nombre === 'string' ? args.nombre.trim() : ''
+  if (!nombre) throw new Error('Falta el nombre de la etiqueta.')
+  const color = typeof args.color === 'string' ? args.color.trim() : ''
+  if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+    throw new Error(`El color va en hexadecimal, como #10b981, y no "${color}".`)
+  }
+
+  // `ensureTag` busca antes de crear, así que no duplica nada; lo que se mira
+  // acá es otra cosa: si ya existía hay que decirlo, porque contestar "la creé"
+  // sobre una etiqueta que ya estaba es una respuesta falsa.
+  const previa = await buscarEtiqueta(ctx, nombre).catch(() => null)
+  const id = await ensureTag(ctx.db, ctx.workspaceId, nombre, {
+    color: color || undefined,
+  })
+  if (!id) throw new Error('No se pudo crear la etiqueta.')
+
+  return { id, etiqueta: nombre, ya_existia: previa !== null }
+}
+
+async function borrarEtiqueta(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const etiqueta = await buscarEtiqueta(ctx, args.etiqueta)
+  // Se miran los usos ANTES del borrado: después de la cascada ya no hay forma
+  // de saber a cuánta gente la tenía puesta.
+  const usos = await usosDeEtiqueta(ctx, etiqueta.id)
+
+  const { error } = await ctx.db
+    .from('tags')
+    .delete()
+    .eq('id', etiqueta.id)
+    .eq('workspace_id', ctx.workspaceId)
+  if (error) throw new Error(error.message)
+
+  return {
+    etiqueta: etiqueta.name,
+    borrada: true,
+    contactos_afectados: usos.contactos,
+    automatizaciones_afectadas: usos.automatizaciones,
+    segmentos_afectados: usos.segmentos,
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 export const CONTACT_CAPABILITIES: Capability[] = [
   {
     key: 'contactos.listar',
     description:
-      'Una LISTA de contactos, con cuántos pedidos hizo cada uno y cuánto gastó. Sin texto devuelve los últimos que entraron. Es para mirar de a varios; para la ficha completa de una persona (etiquetas, baja, último mensaje) está contactos.buscar.',
+      'Una LISTA de contactos, con cuántos pedidos hizo cada uno y cuánto gastó. Sin texto devuelve los últimos que entraron. Es para mirar de a varios; para la ficha completa de una persona están contactos.detalle (por id) y contactos.buscar (por teléfono, nombre o correo).',
     descriptionEn:
-      'A LIST of contacts with each one\'s order count and lifetime spend. With no text, the most recent ones. For browsing several; for one person\'s full record (tags, opt-out, last message) use contactos.buscar.',
+      "A LIST of contacts with each one's order count and lifetime spend. With no text, the most recent ones. For browsing several; for one person's full record use contactos.detalle (by id) or contactos.buscar (by phone, name or email).",
     risk: 'lectura',
     schema: {
       type: 'object',
@@ -375,6 +830,22 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       },
     },
     run: buscar,
+  },
+  {
+    key: 'contactos.detalle',
+    description:
+      'La ficha de UN contacto a partir de su id: etiquetas, canal, si pidió la baja, cuándo escribió por última vez, cuántos pedidos hizo, cuánto gastó y de dónde es. El id es el que devuelven contactos.listar y segmentos.calcular.',
+    descriptionEn:
+      "One contact's record from their id: tags, channel, whether they opted out, when they last wrote, how many orders they placed, lifetime spend and where they are from. The id is the one contactos.listar and segmentos.calcular return.",
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        contacto_id: { type: 'string', description: 'Id del contacto.' },
+      },
+      required: ['contacto_id'],
+    },
+    run: detalle,
   },
   {
     key: 'etiquetas.listar',
@@ -389,12 +860,28 @@ export const CONTACT_CAPABILITIES: Capability[] = [
   {
     key: 'segmentos.listar',
     description:
-      'Los segmentos guardados: nombre, cuántos criterios tiene cada uno y cuándo se tocó por última vez.',
+      'Los segmentos guardados: nombre, cuántos criterios tiene cada uno y cuándo se tocó por última vez. Para ver qué dice un segmento, segmentos.reglas.',
     descriptionEn:
-      'Saved segments: name, how many rules each has, and when it was last touched.',
+      'Saved segments: name, how many rules each has, and when it was last touched. To see what a segment actually says, use segmentos.reglas.',
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listarSegmentos,
+  },
+  {
+    key: 'segmentos.reglas',
+    description:
+      'Los criterios de UN segmento, con el NOMBRE de cada etiqueta en vez de su id. Es lo que hay que leer antes de cambiar un segmento: vienen en la misma forma que espera segmentos.editar, así que agregar o sacar una regla es mandar esta lista con el cambio hecho.',
+    descriptionEn:
+      'The rules of ONE segment, with each tag NAME instead of its id. Read this before changing a segment: the rules come back in the exact shape segmentos.editar expects, so adding or removing one is sending this same list with the change applied.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        segmento_id: { type: 'string', description: 'Id del segmento, de segmentos.listar.' },
+      },
+      required: ['segmento_id'],
+    },
+    run: reglasDeSegmento,
   },
   {
     key: 'segmentos.calcular',
@@ -467,5 +954,140 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       }`
     },
     run: crearSegmento,
+  },
+  {
+    key: 'segmentos.editar',
+    description:
+      'Reemplaza los criterios de un segmento que ya existe. Las reglas van COMPLETAS: lo que no se manda se pierde, así que primero leelas con segmentos.reglas y mandá la lista entera con el cambio. Si no se manda el modo, queda el que tenía. Devuelve a cuánta gente alcanza después del cambio.',
+    descriptionEn:
+      'Replaces the rules of an existing segment. Rules are sent WHOLE: whatever is left out is dropped, so read them first with segmentos.reglas and send the full list with the change applied. Without an explicit mode, the current one stays. Returns how many people it reaches after the change.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        segmento_id: { type: 'string', description: 'Id del segmento, de segmentos.listar.' },
+        reglas: ESQUEMA_PUBLICO.reglas,
+        modo: {
+          type: 'string',
+          enum: ['all', 'any'],
+          description: 'Si no se manda, queda el que ya tenía el segmento.',
+        },
+      },
+      required: ['segmento_id', 'reglas'],
+    },
+    async preview(ctx, args) {
+      const fila = await leerSegmento(ctx, args.segmento_id).catch(() => null)
+      if (!fila) return 'Ese segmento no existe en esta cuenta.'
+      try {
+        const reglas = await resolverIdsDeEtiqueta(ctx, leerReglas(args.reglas))
+        const modo: SegmentMatchMode =
+          args.modo === 'any' ? 'any' : args.modo === 'all' ? 'all' : fila.match_mode
+        const { contacts } = await resolveSegment(ctx.db, ctx.workspaceId, reglas, modo)
+        const antes = (fila.rules ?? []).length
+        return `«${fila.name}» queda con ${reglas.length} ${
+          reglas.length === 1 ? 'criterio' : 'criterios'
+        } (tenía ${antes}) y pasa a alcanzar a ${contacts.length} ${
+          contacts.length === 1 ? 'contacto' : 'contactos'
+        }.`
+      } catch (e) {
+        return `«${fila.name}» — ${(e as Error).message}`
+      }
+    },
+    // El dibujo sale de los argumentos, con los nombres de etiqueta tal como
+    // llegaron; `artifactBefore` traduce los ids guardados a esos mismos
+    // nombres para que el diff marque sólo lo que de verdad se movió.
+    artifact(ctx, args, result) {
+      let reglas: ReglaEntrante[]
+      try {
+        reglas = leerReglas(args.reglas)
+      } catch {
+        return null
+      }
+      const id = typeof args.segmento_id === 'string' ? args.segmento_id : ''
+      const hecho = result as { nombre?: string; alcance?: number } | undefined
+      const nombre =
+        hecho?.nombre ?? NOMBRES_DE_SEGMENTO.get(`${ctx.workspaceId}:${id}`) ?? 'Segmento'
+      return artefactoDeSegmento(id, nombre, reglas, hecho?.alcance)
+    },
+    async artifactBefore(ctx, args) {
+      const fila = await leerSegmento(ctx, args.segmento_id).catch(() => null)
+      if (!fila) return null
+      return artefactoDeSegmento(
+        fila.id,
+        fila.name,
+        await nombrarIdsDeEtiqueta(ctx, fila.rules ?? []),
+      )
+    },
+    run: editarSegmento,
+  },
+  {
+    key: 'etiquetas.crear',
+    description:
+      'Crea una etiqueta vacía, para poder usarla después en un criterio, en una automatización o al etiquetar contactos. Si ya existe no la duplica: devuelve la que hay.',
+    descriptionEn:
+      'Creates an empty tag so it can be used later in a rule, in an automation or when tagging contacts. If it already exists it is not duplicated: the existing one is returned.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre de la etiqueta.' },
+        color: { type: 'string', description: 'Hexadecimal, como #10b981. Opcional.' },
+      },
+      required: ['nombre'],
+    },
+    async preview(ctx, args) {
+      const nombre = typeof args.nombre === 'string' ? args.nombre.trim() : '(sin nombre)'
+      const previa = await buscarEtiqueta(ctx, args.nombre).catch(() => null)
+      return previa
+        ? `La etiqueta «${previa.name}» ya existe: no se crea de nuevo.`
+        : `Crear la etiqueta «${nombre}», sin contactos adentro.`
+    },
+    run: crearEtiqueta,
+  },
+  {
+    key: 'etiquetas.borrar',
+    description:
+      'Borra una etiqueta de la cuenta. La saca de TODOS los contactos que la tenían y deja apuntando a nada a los segmentos y automatizaciones que la usaban, que siguen activos y dejan de encontrar a nadie. No se deshace: volver atrás es etiquetar de nuevo uno por uno.',
+    descriptionEn:
+      'Deletes a tag from the account. It is removed from EVERY contact that had it and leaves the segments and automations that used it pointing at nothing — they stay active and stop matching anyone. It cannot be undone: going back means tagging everyone again.',
+    risk: 'irreversible',
+    schema: {
+      type: 'object',
+      properties: {
+        etiqueta: { type: 'string', description: 'Nombre de la etiqueta a borrar.' },
+      },
+      required: ['etiqueta'],
+    },
+    async preview(ctx, args) {
+      const etiqueta = await buscarEtiqueta(ctx, args.etiqueta).catch((e: Error) => e)
+      if (etiqueta instanceof Error) return etiqueta.message
+
+      const usos = await usosDeEtiqueta(ctx, etiqueta.id)
+      const partes = [
+        `Borrar «${etiqueta.name}» se la saca a ${usos.contactos} ${
+          usos.contactos === 1 ? 'contacto' : 'contactos'
+        }.`,
+      ]
+      // Lo que la nombra es lo que hay que ir a arreglar después, así que va en
+      // el preview con nombre y apellido y no como un número.
+      if (usos.automatizaciones.length > 0) {
+        partes.push(
+          `${usos.automatizaciones.length === 1 ? 'La usa' : 'La usan'} ${
+            usos.automatizaciones.length
+          } ${
+            usos.automatizaciones.length === 1 ? 'automatización' : 'automatizaciones'
+          } (${usos.automatizaciones.join(', ')}), que dejan de encontrarla.`,
+        )
+      }
+      if (usos.segmentos.length > 0) {
+        partes.push(`También la usan estos segmentos: ${usos.segmentos.join(', ')}.`)
+      }
+      if (usos.automatizaciones.length === 0 && usos.segmentos.length === 0) {
+        partes.push('Ninguna automatización ni segmento la usa.')
+      }
+      partes.push('No se puede deshacer.')
+      return partes.join(' ')
+    },
+    run: borrarEtiqueta,
   },
 ]

@@ -119,7 +119,17 @@ export const ROSTER: SubagentSpec[] = [
     nombreKey: 'operation.subContactos',
     alcance:
       'Sabe a quién le hablamos: busca gente, arma segmentos con criterios y pone etiquetas. Es a quien se le pregunta "¿a cuántos les llega esto?". NO manda mensajes ni campañas.',
-    capacidades: ['contactos.listar', 'contactos.etiquetar', 'etiquetas.', 'segmentos.'],
+    // Claves exactas y no el prefijo `contactos.`: `contactos.buscar` es de la
+    // bandeja, porque es la ficha de UNA persona antes de escribirle. Un
+    // prefijo acá se la robaría, y dos dueños sobre la misma capacidad es peor
+    // que ninguno.
+    capacidades: [
+      'contactos.listar',
+      'contactos.detalle',
+      'contactos.etiquetar',
+      'etiquetas.',
+      'segmentos.',
+    ],
     tier: 'mecanico',
     maxIters: 4,
     instrucciones: [

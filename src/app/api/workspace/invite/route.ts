@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
-import { sanitizeSections } from "@/lib/rbac/sections";
 import { invitesOpen } from "@/lib/auth/signups";
+import {
+  crearInvitacion,
+  esEmailValido,
+  ErrorDeInvitacion,
+} from "@/lib/workspaces/settings";
 
 /**
  * POST /api/workspace/invite
@@ -20,6 +23,10 @@ import { invitesOpen } from "@/lib/auth/signups";
  * frontend stitches to the accept-invite page via the `?invite_token=…`
  * query string). When email delivery is wired in Phase 9, this row
  * becomes the canonical record of pending invites.
+ *
+ * Lo que se guarda y se entrega vive en `crearInvitacion`: acá quedan la
+ * autorización con la sesión y los códigos HTTP. El chat invita llamando a esa
+ * misma función, así que las secciones concedidas se deciden en un solo lugar.
  */
 export async function POST(req: Request): Promise<Response> {
   const block = await csrfGuard(req);
@@ -64,8 +71,7 @@ export async function POST(req: Request): Promise<Response> {
   // Surface a clear 400 when the email is malformed. The accept gate
   // does case-insensitive equality, so an invite for "not-an-email"
   // would just be unredeemable. Better to reject up-front.
-  const emailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailShape.test(body.email.trim())) {
+  if (!esEmailValido(body.email)) {
     return NextResponse.json(
       { error: translate(locale, "errAccount.emailInvalid") },
       { status: 400 },
@@ -87,77 +93,33 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const token = crypto.randomBytes(24).toString("hex");
-  const email = body.email.trim().toLowerCase();
-  const role = body.role ?? "agent";
-  // Admins always have full access. For agents: an explicit array restricts to
-  // those sections; null / omitted stays full access (no footgun on a plain
-  // invite). '{}' (empty, provided) means "no sections" — an explicit choice.
-  const allowedSections =
-    role === "admin" || body.allowed_sections == null
-      ? null
-      : sanitizeSections(body.allowed_sections);
-  const { error } = await admin.from("workspace_invites").insert({
-    workspace_id: body.workspace_id,
-    email,
-    role,
-    token,
-    invited_by: user.id,
-    allowed_sections: allowedSections,
-  });
-  if (error) {
+  try {
+    const invitacion = await crearInvitacion(admin, {
+      workspaceId: body.workspace_id,
+      email: body.email,
+      rol: body.role,
+      secciones: body.allowed_sections,
+      invitadoPor: user.id,
+      // El enlace se arma sobre el dominio por el que entró el pedido: en
+      // preview o en un dominio propio, el del entorno público sería otro.
+      baseUrl: req.url,
+    });
+    return NextResponse.json({
+      ok: true,
+      accept_url: invitacion.enlace,
+      mail_delivered: invitacion.correoEntregado,
+    });
+  } catch (e) {
+    if (e instanceof ErrorDeInvitacion && e.codigo === "email") {
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.emailInvalid") },
+        { status: 400 },
+      );
+    }
     return serverError(
-      error,
+      e instanceof ErrorDeInvitacion ? e.causa : e,
       translate(locale, "errAccount.createInviteFailed"),
       400,
     );
   }
-
-  const acceptUrl = new URL(req.url);
-  acceptUrl.pathname = `/invitacion/${token}`;
-  acceptUrl.search = "";
-
-  // Delivery. Supabase Auth has a transactional invite endpoint; we use
-  // it when SMTP is configured (Supabase project has either a custom
-  // SMTP server or is below the built-in free quota). On a vanilla
-  // self-hosted instance with no SMTP wired, inviteUserByEmail returns
-  // a 500. We swallow that and log the bearer link so an operator can
-  // hand-deliver — see CLAUDE.md note "SMTP not configured in dev".
-  let mailDelivered = false;
-  try {
-    const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        redirectTo: acceptUrl.toString(),
-        data: { workspace_id: body.workspace_id, invite_token: token },
-      },
-    );
-    if (!inviteErr) mailDelivered = true;
-    else
-      console.warn("[workspace/invite] inviteUserByEmail failed:", inviteErr.message);
-  } catch (e) {
-    console.warn("[workspace/invite] inviteUserByEmail threw:", e);
-  }
-
-  if (!mailDelivered) {
-    // No logueamos el token/accept-link en prod: es el secreto bearer del
-    // flujo de invitación y quedaría en logs. El accept_url ya viaja en la
-    // respuesta JSON al admin autenticado para hand-delivery. En dev sí lo
-    // mostramos para poder probar sin SMTP.
-    if (process.env.NODE_ENV !== "production") {
-      console.info(
-        `[workspace/invite] would-send-invite-to=${email} link=${acceptUrl.toString()} (SMTP not configured)`,
-      );
-    } else {
-      console.info(
-        `[workspace/invite] invite created for=${email} (SMTP not configured; accept_url devuelto en la respuesta)`,
-      );
-    }
-  }
-
-  return NextResponse.json({
-    ok: true,
-    accept_url: acceptUrl.toString(),
-    mail_delivered: mailDelivered,
-  });
 }

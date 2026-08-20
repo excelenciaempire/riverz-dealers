@@ -4,6 +4,7 @@ import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
+import { composeDmText } from './rules';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -163,7 +164,7 @@ export async function processCommentForDmRules(
   //    lock: Meta allows one private reply per comment, and the campaign
   //    instant-outreach path can also reply to this same comment — whoever
   //    claims first sends, the other skips.
-  const dmText = composeDm(rule);
+  const dmText = composeDmText(rule);
   const wonReply = await claimCommentPrivateReply(
     db,
     ev.workspaceId,
@@ -233,15 +234,4 @@ function commentMatches(rule: CommentToDmRule, text: string): boolean {
       ? hay.trim() === needle
       : hay.includes(needle);
   });
-}
-
-/** Private replies are text-only — append the button as a labeled link. */
-function composeDm(rule: CommentToDmRule): string {
-  const parts = [rule.dm_message.trim()];
-  const url = rule.dm_button_url?.trim();
-  if (url) {
-    const label = rule.dm_button_label?.trim();
-    parts.push(label ? `👉 ${label}: ${url}` : url);
-  }
-  return parts.join('\n\n');
 }

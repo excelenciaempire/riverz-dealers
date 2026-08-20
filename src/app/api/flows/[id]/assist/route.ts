@@ -9,11 +9,16 @@ import type { Locale } from "@/lib/i18n/config";
 import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
+  NODOS_Y_CONFIG,
+  PUERTOS_Y_CABLEADO,
   isPatch,
   validatePatchedSnapshot,
   type AiPatch,
   type AssistResponse,
 } from "@/lib/flows/ai-patches";
+import { supabaseAdmin } from "@/lib/flows/admin-client";
+import { resolveAnthropicKey } from "@/lib/ai/platform-key";
+import { aiBudgetGuard } from "@/lib/ai/rate-limit";
 
 /**
  * POST /api/flows/[id]/assist
@@ -77,12 +82,13 @@ export async function POST(
   }
   const { data: flow } = await supabase
     .from("flows")
-    .select("id")
+    .select("id, workspace_id")
     .eq("id", id)
     .maybeSingle();
   if (!flow) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const workspaceId = (flow as { workspace_id: string }).workspace_id;
 
   const body = (await request.json().catch(() => null)) as AssistRequestBody | null;
   if (!body || !body.message?.trim() || !body.flow_snapshot) {
@@ -92,8 +98,18 @@ export async function POST(
     );
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  // Cada turno del constructor es una llamada al modelo, y el lienzo invita a
+  // tipear sin parar. Sin techo, una cuenta sola vacía el saldo de la
+  // plataforma y el que se queda sin respuestas automáticas es el resto.
+  const over = await aiBudgetGuard(workspaceId, "standard");
+  if (over) return over;
+
+  // Por la cadena normal (clave del comercio → clave de plataforma → env) y no
+  // leyendo el env directo: sin esto, un comercio con su propia clave pagaba la
+  // cuenta de la plataforma, y una plataforma sin `ANTHROPIC_API_KEY` en el
+  // entorno decía "no configurado" aunque hubiera clave cargada en /admin/ia.
+  const resolved = await resolveAnthropicKey(supabaseAdmin(), { workspaceId });
+  if (!resolved) {
     return NextResponse.json(
       {
         error: translate(locale, "errFlows.assistAnthropicNotConfigured"),
@@ -103,7 +119,7 @@ export async function POST(
   }
 
   // ── Llamada a Claude con tool-use forzado ──
-  const client = getAnthropic(apiKey);
+  const client = getAnthropic(resolved.key);
   const system = buildSystemPrompt(body.flow_snapshot, body.products ?? [], locale);
 
   const historyTurns = (body.history ?? []).slice(-10);
@@ -240,31 +256,10 @@ Reglas:
 - Cuando el usuario quiera mostrar un producto del merchant, usa los productos sincronizados de abajo. Si tu nodo es \`send_cta_url\`, arma el url como https://tienda.com/products/{handle} solo si conoces el dominio; si no, usa send_message con el handle y deja que el usuario complete el dominio.
 
 Tipos de nodo y su \`config\`:
-- \`send_message\`: { text: string, next_node_key?: string }
-- \`send_buttons\`: { text: string, footer_text?: string, buttons: Array<{reply_id: string, title: string (≤20 chars), next_node_key?: string}> } — máximo 3 botones
-- \`send_list\`: { text: string, button_label: string, sections: Array<{title?: string, rows: Array<{reply_id: string, title: string (≤24 chars), description?: string, next_node_key?: string}>}> } — máximo 10 filas en total
-- \`send_image\`/\`send_video\`/\`send_document\`: { url: string (https), caption?: string, next_node_key?: string }
-- \`send_cta_url\`: { text: string, button_title: string, url: string (https), next_node_key?: string }
-- \`collect_input\`: { prompt_text: string, var_key: string (snake_case), next_node_key?: string }
-- \`customer_reply\`: { next_node_key?: string }. Pausa el flujo hasta que el cliente envíe un mensaje (cualquier texto). No envía nada, no captura nada. Úsalo entre dos send_message cuando quieres que el bot mande algo, deje al cliente responder, y recién después siga. NO lo uses después de send_buttons, send_list, collect_input o ai_intent: esos ya esperan respuesta.
-- \`subflow\`: { sub_flow_id: string, next_node_key?: string }. Ejecuta otro flujo reutilizable dentro de este. Usalo para encapsular secuencias comunes (ej: "pedir email y verificar") y referenciarlas desde varios flujos sin duplicar nodos. Si el usuario te pide insertar un subflow, pídele primero el nombre o el id del flujo destino antes de proponer la configuración.
-- \`condition\`: { subject: "var"|"tag"|"contact_field", subject_key: string, operator: "equals"|"contains"|"present"|"absent", value?: string, true_next?: string, false_next?: string }
-- \`set_tag\`: { mode: "add"|"remove", tag_id: string, next_node_key?: string }
-- \`handoff\`: { reason?: string, message?: string }
-- \`wait\`: { amount: number, unit: "minutes"|"hours"|"days", next_node_key?: string }
-- \`ai_intent\`: { prompt_text: string, intents: Array<{intent_key: string, description: string, next_node_key?: string}>, fallback_next_key?: string }
-- \`shopify_lookup\`: { kind: "order_by_number"|"order_by_email"|"last_order"|"product_by_handle", output_prefix: string, found_next_key?: string, not_found_next_key?: string }
-- \`end\`: {}
-- \`start\`: { next_node_key: string }. Úsalo solo si el usuario lo pide explícitamente. Lo normal es marcar el primer paso con \`set_entry\`.
+${NODOS_Y_CONFIG}
 
 Cómo conectar nodos (\`wire\` patch):
-- \`kind_of_port: "text"\` — para todos los nodos lineales (send_message, send_image, etc.). Setea \`next_node_key\`.
-- \`kind_of_port: "button"\` con \`port_index: N\` — el botón N de un send_buttons.
-- \`kind_of_port: "list_row"\` con \`port_index: N\` — la fila N (índice plano que recorre TODAS las secciones).
-- \`kind_of_port: "true_branch"\`/\`false_branch\` — ramas de condition.
-- \`kind_of_port: "found_branch"\`/\`not_found_branch\` — ramas de shopify_lookup.
-- \`kind_of_port: "intent"\` con \`port_index: N\` — la intención N de ai_intent.
-- \`kind_of_port: "intent_fallback"\` — la rama "No entendí" de ai_intent.
+${PUERTOS_Y_CABLEADO}
 
 Posiciones de nuevos nodos: el lienzo es 6000x4000. Los nodos suelen tener ~260px de ancho. Si no especificas \`position\` al agregar, el cliente lo coloca a la derecha del más a la derecha. Si quieres ubicar varios nodos relacionados juntos, devuelve \`position\` en cada uno.
 ${productsBlock}

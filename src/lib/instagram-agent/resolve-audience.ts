@@ -26,31 +26,12 @@ export async function resolveAudience(
     holdout_pct?: number;
   },
 ): Promise<{ queued: number; available: number; holdout: number }> {
-  const cap = Math.max(
-    1,
-    Math.min(2000, campaign.plan.audience.estimated_reach || 200),
+  const cap = audienceCap(campaign.plan.audience.estimated_reach);
+  const { merged } = await listAudienceContacts(
+    supabase,
+    campaign.workspace_id,
+    cap,
   );
-
-  // Tres fuentes, en orden de preferencia:
-  //
-  //  1. SUSCRIPTORES — dieron permiso de Marketing Messages, así que se les
-  //     puede escribir aunque hayan interactuado hace meses. Van primero
-  //     porque son los únicos que no dependen de que la persona haya hecho
-  //     algo esta semana: es la lista que crece sola y le saca a la campaña
-  //     el techo de "sólo quien comentó hace poco".
-  //  2. Comentaristas de los últimos 7 días (respuesta privada).
-  //  3. Quien escribió por DM en las últimas 24 h.
-  //
-  // Encolar el histórico completo sin ninguno de estos tres títulos llenaba la
-  // campaña de destinatarios que morían al instante como "fuera de ventana" y
-  // hacía ver el embudo roto.
-  const [subscribers, commenters, dmers] = await Promise.all([
-    fetchSubscribers(supabase, campaign.workspace_id, cap),
-    fetchReachableByChannel(supabase, campaign.workspace_id, 'ig_comment', cap),
-    fetchReachableByChannel(supabase, campaign.workspace_id, 'instagram', cap),
-  ]);
-
-  const merged = mergeAudience([...subscribers, ...commenters], dmers, cap);
   if (merged.length === 0) return { queued: 0, available: 0, holdout: 0 };
 
   // Reservar un % como grupo de control (holdout) para medir incrementalidad.
@@ -83,6 +64,65 @@ export async function resolveAudience(
 export interface AudienceContact {
   id: string;
   external_id: string | null;
+}
+
+/**
+ * Tope de destinatarios de una campaña. El plan lo estima y acá se acota: sin
+ * el máximo, un plan que se entusiasma pidiendo 50.000 personas encolaría una
+ * consulta enorme para una audiencia que no existe.
+ */
+export function audienceCap(estimatedReach: number | undefined): number {
+  return Math.max(1, Math.min(2000, estimatedReach || 200));
+}
+
+export interface AudienceBreakdown {
+  /** La audiencia final, ya unida y deduplicada, respetando el tope. */
+  merged: AudienceContact[];
+  /** Cuántos aportó cada fuente ANTES de deduplicar. */
+  subscribers: number;
+  commenters: number;
+  dmers: number;
+}
+
+/**
+ * A quién alcanza hoy una campaña, sin escribir nada.
+ *
+ * Está separado de `resolveAudience` porque contestar "¿a cuánta gente le
+ * llegaría esto?" no puede tener el efecto de encolarla: el chat responde esa
+ * pregunta antes de que nadie apruebe nada, y calcularla con la función que
+ * persiste dejaría destinatarios creados por el solo hecho de preguntar.
+ *
+ * Tres fuentes, en orden de preferencia:
+ *
+ *  1. SUSCRIPTORES — dieron permiso de Marketing Messages, así que se les
+ *     puede escribir aunque hayan interactuado hace meses. Van primero
+ *     porque son los únicos que no dependen de que la persona haya hecho
+ *     algo esta semana: es la lista que crece sola y le saca a la campaña
+ *     el techo de "sólo quien comentó hace poco".
+ *  2. Comentaristas de los últimos 7 días (respuesta privada).
+ *  3. Quien escribió por DM en las últimas 24 h.
+ *
+ * Encolar el histórico completo sin ninguno de estos tres títulos llenaba la
+ * campaña de destinatarios que morían al instante como "fuera de ventana" y
+ * hacía ver el embudo roto.
+ */
+export async function listAudienceContacts(
+  supabase: SupabaseClient,
+  workspaceId: string,
+  cap: number,
+): Promise<AudienceBreakdown> {
+  const [subscribers, commenters, dmers] = await Promise.all([
+    fetchSubscribers(supabase, workspaceId, cap),
+    fetchReachableByChannel(supabase, workspaceId, 'ig_comment', cap),
+    fetchReachableByChannel(supabase, workspaceId, 'instagram', cap),
+  ]);
+
+  return {
+    merged: mergeAudience([...subscribers, ...commenters], dmers, cap),
+    subscribers: subscribers.length,
+    commenters: commenters.length,
+    dmers: dmers.length,
+  };
 }
 
 /**

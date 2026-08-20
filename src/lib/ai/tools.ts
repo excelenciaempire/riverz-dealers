@@ -19,11 +19,7 @@ import {
   resolveStoreForLookup,
   lookupOrderNonShopify,
 } from '@/lib/commerce/order-lookup'
-import {
-  registerReportedPayment,
-  pendingOrderFor,
-} from '@/lib/payments/reported-payment'
-import { askForApproval } from '@/lib/approvals/ask'
+import { informarPago } from '@/lib/payments/reported-payment'
 import {
   createCheckoutLink,
   fmtMoney,
@@ -31,12 +27,11 @@ import {
   type PaymentHint,
 } from '@/lib/shopify/create-checkout'
 import {
-  createShopifyOrder,
   type CreateOrderInput,
   type ShippingAddressInput,
 } from '@/lib/shopify/create-order'
+import { crearPedidoConEspejo } from '@/lib/orders/crear'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
-import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
 import { enqueueCall } from '@/lib/voice/queue'
 import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
 
@@ -446,11 +441,12 @@ export async function runTool(
       })
     }
     const input = (toolInput ?? {}) as { amount?: number; note?: string }
-    const res = await registerReportedPayment({
+    const { resultado: res } = await informarPago({
       db: localOrders.db,
       workspaceId: localOrders.workspaceId,
       contactId: localOrders.contactId,
       amount: typeof input.amount === 'number' ? input.amount : null,
+      note: input.note ?? null,
     })
 
     if (res.kind === 'sin_pedido') {
@@ -471,26 +467,8 @@ export async function runTool(
       })
     }
 
-    // No alcanzó para cobrar solo: se le pregunta a una persona del negocio.
-    const pedido = await pendingOrderFor(
-      localOrders.db,
-      localOrders.workspaceId,
-      localOrders.contactId,
-    )
-    await askForApproval({
-      db: localOrders.db,
-      workspaceId: localOrders.workspaceId,
-      kind: 'pago_informado',
-      title: `Pago informado — pedido ${pedido?.orderNumber ?? 's/n'}`,
-      body:
-        `Un cliente dice que ya pagó ${pedido?.total ?? ''} ${pedido?.currency ?? ''}. ` +
-        `${input.note ?? ''} (${res.reason}). ¿Lo marco como pagado en Shopify?`,
-      payload: {
-        order_id: pedido?.id,
-        shopify_order_id: pedido?.shopifyOrderId,
-        contact_id: localOrders.contactId,
-      },
-    })
+    // No alcanzó para cobrar solo. `informarPago` ya le preguntó a una persona
+    // del negocio; acá sólo queda contarle al modelo qué decirle al cliente.
     return JSON.stringify({
       ok: true,
       estado: 'en_verificacion',
@@ -781,68 +759,29 @@ export async function runTool(
       })
     }
 
-    const result = await createShopifyOrder(orderInput, {
-      shopDomain: shopify.shopDomain,
-      accessToken: shopify.accessToken,
-      apiVersion: shopify.apiVersion,
-      pinnedVariantId: shopify.pinnedVariantId ?? null,
-      customerPhone: shopify.customerPhone ?? null,
-      customerEmail: shopify.customerEmail ?? null,
-      config,
-      currency: shopify.currency ?? null,
-    })
-    if ('error' in result) {
-      return JSON.stringify(result)
-    }
-
-    // Espejo en Riverz (tabla orders). Fail-soft: si la persistencia
-    // falla, el pedido YA existe en Shopify, así que NO le decimos a la
-    // clienta que falló — sólo lo logueamos.
-    if (shopify.workspaceId) {
-      try {
-        await supabaseAdmin()
-          .from('orders')
-          .insert({
-            workspace_id: shopify.workspaceId,
-            contact_id: shopify.contactId ?? null,
-            agent_id: shopify.agentId ?? null,
-            conversation_id: shopify.conversationId ?? null,
-            channel: shopify.channel ?? null,
-            shop_domain: shopify.shopDomain,
-            shopify_order_id: result.shopify_order_id,
-            order_number: result.order_number,
-            order_status_url: result.order_status_url,
-            currency: result.currency,
-            total_price: result.total_price,
-            line_items: result.line_items,
-            customer_name: result.customer_name,
-            customer_phone: result.customer_phone,
-            customer_email: result.customer_email,
-            shipping_address: result.shipping_address,
-            payment_method: result.payment_method,
-            financial_status: 'pending',
-            status: 'created',
-            created_by: 'ai',
-            note: input.note ?? null,
-          })
-      } catch (err) {
-        console.error('[ai] order created in Shopify but Riverz insert failed:', err)
-      }
-      // Attribute to the Instagram engine when the order came from an IG
-      // conversation → the unified order-attribution ledger (source 'agent').
-      if (shopify.channel === 'instagram' || shopify.channel === 'ig_comment') {
-        await recordOrderAttribution(supabaseAdmin(), {
-          workspaceId: shopify.workspaceId,
-          shopifyOrderId: result.shopify_order_id,
-          orderName: result.order_number,
-          source: 'agent',
-          contactId: shopify.contactId ?? null,
-          channel: shopify.channel,
-          revenue: result.total_price,
-          currency: result.currency,
-        })
-      }
-    }
+    // El pedido en Shopify + su espejo en Riverz (tabla orders y, si vino de
+    // Instagram, el libro de atribución) van juntos en `crearPedidoConEspejo`.
+    const result = await crearPedidoConEspejo(
+      orderInput,
+      {
+        shopDomain: shopify.shopDomain,
+        accessToken: shopify.accessToken,
+        apiVersion: shopify.apiVersion,
+        pinnedVariantId: shopify.pinnedVariantId ?? null,
+        customerPhone: shopify.customerPhone ?? null,
+        customerEmail: shopify.customerEmail ?? null,
+        config,
+        currency: shopify.currency ?? null,
+      },
+      {
+        workspaceId: shopify.workspaceId,
+        contactId: shopify.contactId,
+        agentId: shopify.agentId,
+        conversationId: shopify.conversationId,
+        channel: shopify.channel,
+        createdBy: 'ai',
+      },
+    )
 
     return JSON.stringify(result)
   }

@@ -118,6 +118,19 @@ export const OPT_IN_FEATURES: FeatureDef[] = [
     // de la experiencia nueva se protegen server-side con `isRiverz2()`.
     sections: [],
   },
+  {
+    // El Operator con equipo: reparte el pedido entre especialistas en vez de
+    // resolverlo con veinticinco herramientas en una sola caja.
+    //
+    // Hace falta un flag NUEVO y no alcanza con `riverz_2`, que ya está
+    // prendido para el 100% de la base: sin éste, cada commit intermedio del
+    // equipo le llegaría a comercios reales. Con éste apagado, el chat corre
+    // exactamente el loop de siempre.
+    key: 'operator_flota',
+    labelKey: 'admin.featureFlota',
+    descKey: 'admin.featureFlotaDesc',
+    sections: [],
+  },
 ];
 
 /** Catálogo completo, para validar una clave que llega de afuera. */
@@ -138,6 +151,11 @@ export function isOptInEnabled(flags: FeatureFlags, key: string): boolean {
 /** ¿Este comercio usa la experiencia Riverz 2.0 (Operación IA)? */
 export function isRiverz2(flags: FeatureFlags): boolean {
   return isOptInEnabled(flags, 'riverz_2');
+}
+
+/** ¿Este comercio ya opera con el equipo de especialistas? */
+export function isOperatorFleet(flags: FeatureFlags): boolean {
+  return isOptInEnabled(flags, 'operator_flota');
 }
 
 /** Feature que cubre esta ruta (o null si ninguna la gatea). */

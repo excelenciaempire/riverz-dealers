@@ -139,6 +139,11 @@ export const admin = {
     es: "Centro de operación, Operator y activación guiada en lugar del panel actual.",
     en: "Operation center, Operator and guided activation instead of the current dashboard.",
   },
+  featureFlota: { es: "Operator con equipo", en: "Operator with a team" },
+  featureFlotaDesc: {
+    es: "El chat reparte el pedido entre especialistas por dominio en vez de resolverlo solo. Con esto apagado funciona como siempre.",
+    en: "The chat splits the request among domain specialists instead of solving it alone. With this off it works as always.",
+  },
   forbidden: { es: "Solo para administradores de la plataforma.", en: "Platform admins only." },
   // Panel de infraestructura (saldo + estado en vivo de todo lo conectado)
   infraTitle: { es: "Infraestructura", en: "Infrastructure" },

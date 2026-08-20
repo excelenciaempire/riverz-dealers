@@ -5,8 +5,8 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
-import { slugifyTitle, handleSuffix } from '@/lib/products/slug';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { crearProducto, tituloDeProducto } from '@/lib/products/write';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -135,10 +135,8 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/products
- * Create a product FROM SCRATCH (no Shopify needed). Stored in the same
- * shopify_products table so it flows into the catalog, the AI agent's
- * "Productos asignados" picker and product detail — identical to a synced
- * product, just with shop_domain='manual' and a generated external_id.
+ * Crea un producto DESDE CERO (sin Shopify). El armado vive en
+ * `@/lib/products/write`, que es el mismo código que usa el Operador.
  */
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
@@ -153,8 +151,7 @@ export async function POST(request: Request) {
   const locale = await getLocale();
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const title = String(body?.title ?? '').trim();
-  if (!title) {
+  if (!tituloDeProducto(body ?? {})) {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.productNameRequired') },
       { status: 400 },
@@ -170,50 +167,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const num = (v: unknown): number | null => {
-    const n = Number(v);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
-  const str = (v: unknown): string | null => {
-    const s = String(v ?? '').trim();
-    return s ? s : null;
-  };
-
-  // external_id is a bigint (Shopify's numeric product id). For manual
-  // products we use a NEGATIVE timestamp-based id so it never collides with a
-  // real Shopify id (always positive) or another manual one. The unique key
-  // is (shop_domain, external_id) and shop_domain is 'manual' here.
-  const externalId = -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
-  const handle = `${slugifyTitle(title)}-${handleSuffix(externalId)}`;
-  const priceMin = num(body?.price_min);
-  const priceMax = num(body?.price_max) ?? priceMin;
-  // Divisa: la que mande el body, o la detectada del workspace (tienda
-  // Shopify / config / catálogo) en vez de un 'COP' hardcodeado.
-  const currency =
-    str(body?.currency) ?? (await resolveWorkspaceCurrency(admin, workspaceId));
-
-  const { data, error } = await admin
-    .from('shopify_products')
-    .insert({
-      user_id: user.id,
-      workspace_id: workspaceId,
-      shop_domain: 'manual',
-      external_id: externalId,
-      handle,
-      title,
-      description: str(body?.description),
-      product_type: str(body?.product_type),
-      price_min: priceMin,
-      price_max: priceMax,
-      currency,
-      image_url: str(body?.image_url),
-      custom_notes: str(body?.custom_notes),
-      scrape_status: 'done',
-      synced_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-
-  if (error) return serverError(error);
-  return NextResponse.json({ id: data.id });
+  const res = await crearProducto(admin, {
+    userId: user.id,
+    workspaceId,
+    datos: body ?? {},
+  });
+  if (!res.ok) {
+    if (res.motivo === 'falta_titulo') {
+      return NextResponse.json(
+        { error: translate(locale, 'errProducts.productNameRequired') },
+        { status: 400 },
+      );
+    }
+    return serverError(res.error);
+  }
+  return NextResponse.json({ id: res.id });
 }

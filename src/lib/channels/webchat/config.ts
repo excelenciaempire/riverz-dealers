@@ -70,7 +70,11 @@ export function normalizeOrigin(value: string): string {
 export function originAllowed(origin: string, domains: string[] | undefined): boolean {
   const host = normalizeOrigin(origin);
   if (!host) return false;
-  if (host === 'localhost' || host.startsWith('localhost:') || host === '127.0.0.1') return true;
+  // El puerto forma parte del host normalizado, así que hay que cortarlo: sin
+  // esto `localhost:3000` pasaba y `127.0.0.1:3000` no, que es la misma máquina
+  // escrita de las dos formas que usa cualquiera para levantar su tienda.
+  const sinPuerto = host.split(':')[0];
+  if (sinPuerto === 'localhost' || sinPuerto === '127.0.0.1' || sinPuerto === '[::1]') return true;
   return (domains ?? []).some((d) => {
     const allowed = normalizeOrigin(d);
     if (!allowed) return false;

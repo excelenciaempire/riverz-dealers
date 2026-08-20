@@ -124,8 +124,23 @@ describe('originAllowed', () => {
     expect(originAllowed('', domains)).toBe(false);
   });
 
-  it('deja pasar localhost para poder probar la instalación', () => {
-    expect(originAllowed('http://localhost:3000', [])).toBe(true);
+  it('deja pasar la máquina local, con puerto o sin él', () => {
+    // Las cuatro formas en que alguien levanta su tienda para probar. Con el
+    // puerto pegado al host, comparar el string entero dejaba pasar
+    // `localhost:3000` y bloqueaba `127.0.0.1:3000`.
+    for (const local of [
+      'http://localhost:3000',
+      'http://localhost',
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1',
+    ]) {
+      expect(originAllowed(local, [])).toBe(true);
+    }
+  });
+
+  it('no confunde un dominio que EMPIEZA con localhost', () => {
+    expect(originAllowed('https://localhost.ladron.net', [])).toBe(false);
+    expect(originAllowed('https://127.0.0.1.ladron.net', [])).toBe(false);
   });
 });
 
