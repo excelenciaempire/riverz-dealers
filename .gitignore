@@ -60,3 +60,7 @@ nv.json
 # Bytecode de Python: lo generan voice-worker/ y voice-pipecat/ al importarse.
 __pycache__/
 *.py[cod]
+
+# Archivos de trabajo que no son del producto
+tmp/
+output/
