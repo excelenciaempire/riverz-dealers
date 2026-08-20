@@ -456,7 +456,11 @@ async function reconcileRiverzOrder(
   }
   if (cancelled) update.status = 'cancelled'
   else if (financial === 'refunded' || financial === 'partially_refunded')
-    update.status = 'refunded'
+    // 'cancelled' y no 'refunded': `orders_status_check` no admite ese valor y
+    // el UPDATE entero fallaba, así que un pedido devuelto en Shopify se
+    // quedaba figurando como pagado en Riverz —y sumando a los ingresos— para
+    // siempre. Es además como ya lo guardan Mercado Libre y Tiendanube.
+    update.status = 'cancelled'
   else if (financial === 'voided') update.status = 'cancelled'
   else if (fulfillment === 'fulfilled') update.status = 'fulfilled'
   else if (financial === 'paid') update.status = 'paid'
