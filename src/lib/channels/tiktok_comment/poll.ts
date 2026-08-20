@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
+import { applyCommentLifecycle, patchFor, type CommentRow } from "../comment-sync";
 import { getFreshTikTokToken } from "./adapter";
 import type { ChannelConnection } from "@/types";
 
@@ -60,7 +61,11 @@ export async function pollAllTikTokConnections(
         const videoId = String(video.item_id ?? video.video_id ?? "");
         if (!videoId) continue;
         const caption = String(video.caption ?? "").slice(0, 80);
-        ingested += await ingestVideoComments(db, conn, businessId, token, videoId, caption);
+        ingested += await ingestVideoComments(db, conn, businessId, token, videoId, caption, {
+          // Marcar borrados sólo en el barrido profundo: es el único que lee el
+          // video entero, y sin la lista completa "no vino" no prueba nada.
+          reconcile: Boolean(opts.deep),
+        });
       }
     } catch (err) {
       console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
@@ -107,9 +112,16 @@ async function listVideos(
 }
 
 /**
- * Ingiere los comentarios de UN video. Devuelve cuántos eran nuevos.
- * Idempotente por comment_id, así que llamarlo de más no duplica nada — lo usan
- * el cron (todos los videos) y el refresco del hilo abierto (un solo video).
+ * Ingiere los comentarios de UN video, en los DOS sentidos. Devuelve cuántos
+ * eran nuevos. Idempotente por comment_id, así que llamarlo de más no duplica
+ * nada — lo usan el cron (todos los videos) y el refresco del hilo abierto.
+ *
+ * Trae, además del comentario de arriba:
+ *  - las respuestas del cliente dentro del hilo;
+ *  - **las respuestas que el comercio escribió desde TikTok**, como mensaje
+ *    saliente (antes se descartaban por ser "nuestras": el hilo mostraba la
+ *    pregunta y nada más, aunque en TikTok estuviera contestada);
+ *  - el estado real de cada comentario: oculto y me gusta.
  *
  * Pagina: `max_count` topea en 30, y un video con más de 30 comentarios dejaba
  * al resto afuera para siempre.
@@ -121,9 +133,15 @@ export async function ingestVideoComments(
   token: string,
   videoId: string,
   caption?: string,
+  opts: { reconcile?: boolean } = {},
 ): Promise<number> {
   let ingested = 0;
   let cursor: string | number | undefined;
+  // Todo lo que TikTok dice que sigue vivo en este video. Con la lista COMPLETA
+  // (sin cortes por error ni por tope de páginas) lo que falta es lo que
+  // borraron desde la app.
+  const vistos = new Set<string>();
+  let listaCompleta = true;
 
   for (let page = 0; page < MAX_COMMENT_PAGES; page++) {
     // Solo los parámetros requeridos: business_id + video_id + max_count
@@ -142,44 +160,245 @@ export async function ingestVideoComments(
         cursor?: string | number;
       };
     };
-    if (!cr.ok || (cj.code ?? 0) !== 0) break;
+    if (!cr.ok || (cj.code ?? 0) !== 0) {
+      listaCompleta = false;
+      break;
+    }
 
     for (const c of cj.data?.comments ?? []) {
       const commentId = String(c.comment_id ?? c.id ?? "");
-      const text = String(c.text ?? "");
-      if (!commentId || !text) continue;
-      // Skip the merchant's own comments/replies (owner flag or same id).
-      if (c.owner === true || String(c.user_id ?? "") === businessId) continue;
-      const username = String(c.username ?? c.user_name ?? "");
-      const createdMs = c.create_time ? Number(c.create_time) * 1000 : Date.now();
-      const created = new Date(createdMs).toISOString();
-      const wrote = await ingestInboundEvent(db, {
-        channel: "tiktok_comment",
-        connection: conn,
-        externalContactId: String(c.user_id ?? username ?? "tiktok"),
-        contactName: String(c.display_name ?? username ?? "") || undefined,
-        externalMessageId: commentId,
-        // One conversation per (video, top-level comment) — replies to the
-        // same comment thread together; sendText parses this key.
-        externalThreadId: `video:${videoId}|comment:${String(c.parent_comment_id ?? commentId)}`,
-        subject: caption ? `Video · ${caption}` : undefined,
-        text,
-        comment: {
-          postId: videoId,
-          parentCommentId: c.parent_comment_id ? String(c.parent_comment_id) : undefined,
-        },
-        receivedAt: created,
-        // Rescate: entra a la bandeja y suma no leído, pero el agente no
-        // contesta en diferido algo de hace días.
-        suppressAutoReply: Date.now() - createdMs > STALE_COMMENT_MS,
-        raw: c,
-      });
-      if (wrote) ingested++;
+      if (!commentId) continue;
+      vistos.add(commentId);
+      // El comentario de arriba es del cliente; el del propio comercio en su
+      // video no le responde a nadie, así que no abre hilo.
+      if (!isOwn(c, businessId)) {
+        if (await ingestOne(db, conn, c, { videoId, caption, topId: commentId })) {
+          ingested++;
+        }
+      }
+      await convergeState(db, conn, c);
+
+      // Las RESPUESTAS del hilo, que viajan anidadas en `reply_list`. Acá está
+      // lo que el comercio contestó DESDE TikTok: sin esto la bandeja mostraba
+      // la pregunta y ninguna respuesta, aunque en TikTok estuviera contestada.
+      const replies = await fetchReplies(businessId, token, videoId, c);
+      for (const r of replies) {
+        const replyId = String(r.comment_id ?? "");
+        if (!replyId) continue;
+        vistos.add(replyId);
+        const wrote = await ingestOne(db, conn, r, {
+          videoId,
+          caption,
+          topId: commentId,
+          // La respuesta del comercio es un mensaje SALIENTE del hilo de quien
+          // comentó: el contacto sigue siendo el cliente, no nosotros.
+          outbound: isOwn(r, businessId),
+          contactIdOverride: String(c.user_id ?? ""),
+        });
+        if (wrote) ingested++;
+        await convergeState(db, conn, r);
+      }
     }
     if (!cj.data?.has_more || cj.data.cursor === undefined) break;
     cursor = cj.data.cursor;
+    if (page === MAX_COMMENT_PAGES - 1) listaCompleta = false;
+  }
+
+  if (opts.reconcile && listaCompleta) {
+    await marcarBorrados(db, conn, videoId, vistos);
   }
   return ingested;
+}
+
+/** ¿Este comentario lo escribió la cuenta del comercio? */
+function isOwn(c: Record<string, unknown>, businessId: string): boolean {
+  return c.owner === true || String(c.user_id ?? "") === businessId;
+}
+
+/**
+ * `create_time` viene en dos formatos según dónde lo leas: epoch en segundos
+ * en la lista de comentarios ("1787008830") y fecha ya formateada, en UTC y
+ * sin zona, dentro de `reply_list` ("2026-08-17 23:49:33"). Leer mal el
+ * segundo dejaba la respuesta con fecha inválida y la ordenaba en cualquier
+ * lado del hilo.
+ */
+function parseCreateTime(raw: unknown): number {
+  const v = String(raw ?? "").trim();
+  if (!v) return Date.now();
+  if (/^\d+$/.test(v)) return Number(v) * 1000;
+  const ms = Date.parse(v.replace(" ", "T") + "Z");
+  return Number.isNaN(ms) ? Date.now() : ms;
+}
+
+/** Guarda un comentario (propio o del cliente) en el hilo que le corresponde. */
+async function ingestOne(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  c: Record<string, unknown>,
+  ctx: {
+    videoId: string;
+    caption?: string;
+    /** Comentario de arriba: es la clave del hilo. */
+    topId: string;
+    outbound?: boolean;
+    /** Para las respuestas: el hilo es del cliente, no de quien responde. */
+    contactIdOverride?: string;
+  },
+): Promise<boolean> {
+  const commentId = String(c.comment_id ?? c.id ?? "");
+  const text = String(c.text ?? "");
+  if (!commentId || !text) return false;
+  const username = String(c.username ?? c.user_name ?? "");
+  const contactId = ctx.contactIdOverride || String(c.user_id ?? username ?? "tiktok");
+  if (!contactId) return false;
+  const createdMs = parseCreateTime(c.create_time);
+
+  return Boolean(
+    await ingestInboundEvent(db, {
+      channel: "tiktok_comment",
+      connection: conn,
+      externalContactId: contactId,
+      // El nombre sólo lo pisa quien es dueño del hilo: si lo trajera una
+      // respuesta nuestra, el contacto pasaría a llamarse como el comercio.
+      contactName: ctx.outbound
+        ? undefined
+        : String(c.display_name ?? username ?? "") || undefined,
+      externalMessageId: commentId,
+      // One conversation per (video, top-level comment) — replies to the
+      // same comment thread together; sendText parses this key.
+      externalThreadId: `video:${ctx.videoId}|comment:${ctx.topId}`,
+      subject: ctx.caption ? `Video · ${ctx.caption}` : undefined,
+      text,
+      comment: {
+        postId: ctx.videoId,
+        parentCommentId: c.parent_comment_id ? String(c.parent_comment_id) : undefined,
+      },
+      receivedAt: new Date(createdMs).toISOString(),
+      outbound: ctx.outbound,
+      // Rescate: entra a la bandeja y suma no leído, pero el agente no
+      // contesta en diferido algo de hace días.
+      suppressAutoReply: Date.now() - createdMs > STALE_COMMENT_MS,
+      raw: c,
+    }),
+  );
+}
+
+/**
+ * Lo que le pasó al comentario EN TikTok se refleja acá: ocultarlo o ponerle
+ * me gusta desde la app deja de ser invisible para la bandeja. `status` es
+ * PUBLIC mientras esté a la vista; cualquier otro valor es que lo ocultaron.
+ */
+async function convergeState(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  c: Record<string, unknown>,
+): Promise<void> {
+  const commentId = String(c.comment_id ?? c.id ?? "");
+  if (!commentId) return;
+  const status = typeof c.status === "string" ? c.status.toUpperCase() : null;
+  const liked = typeof c.liked === "boolean" ? c.liked : null;
+  if (status === null && liked === null) return;
+
+  // Una lectura y, sólo si algo cambió de verdad, una escritura. Llamar dos
+  // veces a applyCommentLifecycle (una por oculto y otra por me gusta) hacía
+  // dos consultas por comentario en cada corrida del poll: sobre 425
+  // comentarios y 288 corridas por día eso solo es ruido.
+  const { data } = await db
+    .from("messages")
+    .select("id, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)")
+    .eq("channel", "tiktok_comment")
+    .eq("message_id", commentId)
+    .eq("conversations.workspace_id", conn.workspace_id);
+  for (const row of (data ?? []) as unknown as CommentRow[]) {
+    const patch = {
+      ...(status === null ? {} : (patchFor(row, status === "PUBLIC" ? "unhide" : "hide") ?? {})),
+      ...(liked === null ? {} : (patchFor(row, liked ? "like" : "unlike") ?? {})),
+    };
+    if (Object.keys(patch).length === 0) continue;
+    await db.from("messages").update(patch).eq("id", row.id);
+  }
+}
+
+/**
+ * Las respuestas de un comentario. Vienen anidadas en `reply_list`, pero ese
+ * arreglo trae sólo las primeras: si `replies` dice que hay más, se piden
+ * paginadas por su endpoint propio.
+ */
+async function fetchReplies(
+  businessId: string,
+  token: string,
+  videoId: string,
+  parent: Record<string, unknown>,
+): Promise<Array<Record<string, unknown>>> {
+  const inline = Array.isArray(parent.reply_list)
+    ? (parent.reply_list as Array<Record<string, unknown>>)
+    : [];
+  const total = Number(parent.replies ?? inline.length) || 0;
+  if (total <= inline.length) return inline;
+
+  const parentId = String(parent.comment_id ?? "");
+  if (!parentId) return inline;
+  const out = new Map<string, Record<string, unknown>>();
+  for (const r of inline) out.set(String(r.comment_id ?? ""), r);
+
+  let cursor: string | number | undefined;
+  for (let page = 0; page < MAX_COMMENT_PAGES; page++) {
+    const url =
+      `${TT}/business/comment/reply/list/?business_id=${encodeURIComponent(businessId)}` +
+      `&video_id=${encodeURIComponent(videoId)}&comment_id=${encodeURIComponent(parentId)}` +
+      `&max_count=${COMMENTS_PER_VIDEO}` +
+      (cursor === undefined ? "" : `&cursor=${encodeURIComponent(String(cursor))}`);
+    const res = await fetch(url, { headers: { "Access-Token": token } });
+    const json = (await res.json().catch(() => ({}))) as {
+      code?: number;
+      data?: {
+        comments?: Array<Record<string, unknown>>;
+        has_more?: boolean;
+        cursor?: string | number;
+      };
+    };
+    if (!res.ok || (json.code ?? 0) !== 0) break;
+    for (const r of json.data?.comments ?? []) {
+      const id = String(r.comment_id ?? "");
+      if (id) out.set(id, r);
+    }
+    if (!json.data?.has_more || json.data.cursor === undefined) break;
+    cursor = json.data.cursor;
+  }
+  out.delete("");
+  return [...out.values()];
+}
+
+/**
+ * Lo que ya no está en TikTok se marca borrado acá. Sólo con la lista completa
+ * del video: si la lectura se cortó a mitad de camino, "no vino" no significa
+ * "lo borraron", y marcar de más vaciaría hilos que están sanos.
+ */
+async function marcarBorrados(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  videoId: string,
+  vistos: Set<string>,
+): Promise<void> {
+  const { data } = await db
+    .from("messages")
+    .select("message_id, conversations!inner(workspace_id, thread_external_id)")
+    .eq("channel", "tiktok_comment")
+    .eq("conversations.workspace_id", conn.workspace_id)
+    .like("conversations.thread_external_id", `video:${videoId}|%`)
+    .not("message_id", "is", null)
+    .neq("status", "failed");
+  const locales = (data ?? []) as Array<{ message_id: string | null }>;
+  for (const row of locales) {
+    const id = row.message_id;
+    if (!id || vistos.has(id)) continue;
+    await applyCommentLifecycle(db, {
+      channel: "tiktok_comment",
+      workspaceId: conn.workspace_id,
+      commentExternalId: id,
+      kind: "delete",
+    });
+  }
 }
 
 /**

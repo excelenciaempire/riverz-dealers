@@ -382,6 +382,10 @@ export interface Message {
    *  Persisted (migration 095) so the state survives reloads and syncs across
    *  panes; written by /api/messages/moderate. */
   is_hidden?: boolean;
+  /** Comentarios: si la cuenta del comercio le puso me gusta. Persistido
+   *  (migración 169) porque el botón nacía siempre apagado; lo escriben
+   *  /api/messages/moderate y el poll de TikTok, que lee el estado real. */
+  is_liked?: boolean | null;
   /** Funcionalidad que envió el mensaje (migración 143): 'ai_agent',
    *  'automation', 'flow', 'broadcast', 'comment_ai'… null = lo escribió una
    *  persona. Ver src/lib/inbox/message-origin.ts. */

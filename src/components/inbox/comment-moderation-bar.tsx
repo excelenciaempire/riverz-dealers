@@ -36,10 +36,15 @@ export function CommentModerationBar({
   // load, and keep it in sync when a realtime UPDATE (e.g. hidden from another
   // pane) refreshes the message prop.
   const [hidden, setHidden] = useState(message.is_hidden ?? false);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(message.is_liked ?? false);
   useEffect(() => {
     setHidden(message.is_hidden ?? false);
   }, [message.is_hidden]);
+  // El me gusta también es estado real (migración 169): TikTok lo informa en
+  // cada lectura, así que si lo likearon desde la app el botón nace encendido.
+  useEffect(() => {
+    setLiked(message.is_liked ?? false);
+  }, [message.is_liked]);
 
   const act = async (action: "hide" | "unhide" | "like" | "unlike" | "delete") => {
     setBusy(action);

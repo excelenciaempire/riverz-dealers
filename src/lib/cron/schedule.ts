@@ -63,14 +63,16 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
   { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
   { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
-  // Cada minuto: es el piso del reloj y TikTok no entrega comentarios al
-  // instante por ninguna vía (su propio webhook comment.update se dispara
-  // "dentro de 5 min"), así que el poll frecuente es de hecho MÁS rápido que el
-  // webhook. Cuesta 11 llamadas por minuto y por cuenta conectada (1 de videos
-  // + 10 de comentarios); con muchas cuentas hay que volver a bajarlo y
-  // apoyarse en el webhook. El hilo abierto además se refresca solo
-  // (/api/conversations/:id/tiktok-refresh), que es lo que se siente instantáneo.
-  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "* * * * *" },
+  // Cada 5 minutos, que es el ritmo al que TikTok entrega de verdad: su propio
+  // webhook comment.update se dispara "dentro de 5 min", así que preguntar más
+  // seguido no adelanta nada. Estaba cada minuto y se medía: 1.434 corridas por
+  // día y ~15.700 llamadas a la API de TikTok para traer 2 o 3 comentarios —
+  // el 37% del cómputo de TODA la plataforma. Cuesta 11 llamadas por corrida y
+  // por cuenta conectada (1 de videos + 10 de comentarios).
+  // Lo que se siente instantáneo no es esto: el hilo abierto se refresca solo
+  // (/api/conversations/:id/tiktok-refresh) y el barrido profundo de 6 h cubre
+  // el catálogo entero.
+  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/5 * * * *" },
   {
     name: "instagram-external-enrich", whatKey: "admin.cronInstagramEnrich",
     path: "/api/cron/instagram-external-enrich",

@@ -170,6 +170,16 @@ export async function POST(req: Request): Promise<Response> {
       .eq("id", m.id);
     if (updErr) console.warn("[moderate] persist is_hidden failed:", updErr.message);
   }
+  if (action === "like" || action === "unlike") {
+    // Igual que el ocultado: el me gusta vivía sólo en la memoria del
+    // componente, así que al recargar el botón volvía a nacer apagado sobre un
+    // comentario ya likeado (migración 169).
+    const { error: updErr } = await admin
+      .from("messages")
+      .update({ is_liked: action === "like" })
+      .eq("id", m.id);
+    if (updErr) console.warn("[moderate] persist is_liked failed:", updErr.message);
+  }
 
   return NextResponse.json({ ok: true });
 }

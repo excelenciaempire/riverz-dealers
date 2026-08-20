@@ -36,12 +36,14 @@ const MAX_PER_RUN = 300;
 /** Parallel Graph reads. Small enough to stay well under Meta's rate limits. */
 const CONCURRENCY = 6;
 
-export type Lifecycle = "delete" | "hide" | "unhide" | "edit";
+export type Lifecycle = "delete" | "hide" | "unhide" | "edit" | "like" | "unlike";
 
 export interface CommentRow {
   id: string;
   message_id: string | null;
   is_hidden: boolean | null;
+  /** Migración 169. Sólo TikTok lo informa hoy; en Meta queda NULL. */
+  is_liked?: boolean | null;
   status: string | null;
   content_text: string | null;
 }
@@ -55,7 +57,7 @@ export interface CommentRow {
 export async function applyCommentLifecycle(
   db: SupabaseClient,
   input: {
-    channel: "fb_comment" | "ig_comment";
+    channel: "fb_comment" | "ig_comment" | "tiktok_comment";
     workspaceId: string;
     commentExternalId: string;
     kind: Lifecycle;
@@ -65,7 +67,7 @@ export async function applyCommentLifecycle(
 ): Promise<boolean> {
   const { data: rows } = await db
     .from("messages")
-    .select("id, is_hidden, status, content_text, conversations!inner(workspace_id)")
+    .select("id, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)")
     .eq("channel", input.channel)
     .eq("message_id", input.commentExternalId)
     .eq("conversations.workspace_id", input.workspaceId);
@@ -108,6 +110,15 @@ export function patchFor(
       if (isDeleted || !text || text === row.content_text) return null;
       return { content_text: text };
     }
+    // El me gusta del comercio (migración 169): lo informa TikTok en cada
+    // lectura, así que la barra de moderación puede nacer con el estado real
+    // en vez de siempre apagado.
+    case "like":
+      if (isDeleted || row.is_liked === true) return null;
+      return { is_liked: true };
+    case "unlike":
+      if (isDeleted || row.is_liked === false) return null;
+      return { is_liked: false };
     default:
       return null;
   }
