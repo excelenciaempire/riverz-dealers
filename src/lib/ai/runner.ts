@@ -841,15 +841,32 @@ function shouldSkip(
  *
  * Nunca lanza: si la marca falla, el runner igual sale sin responder.
  */
+/**
+ * El agente se hace a un lado y deja la conversación para una persona.
+ *
+ * Escribe también POR QUÉ (migración 122). Antes el motivo sólo aparecía en un
+ * log de error: la conversación quedaba en 'pending' y sin la IA, pero
+ * `needs_human_reason` seguía en NULL — y de esa columna dependen el filtro
+ * "necesita a una persona" de la bandeja, su contador y el cartel que explica
+ * el motivo arriba del hilo. Los tres estaban permanentemente vacíos, así que
+ * un cliente que pedía hablar con alguien no se distinguía de una conversación
+ * cualquiera en pausa.
+ */
 async function flagNeedsHuman(
   db: SupabaseClient,
   conversation: Conversation,
-  reason?: string,
+  reason?: 'escalation_keyword' | 'escalate_after_messages' | 'flow_handoff',
 ): Promise<void> {
   try {
     await db
       .from('conversations')
-      .update({ ai_enabled: false, status: 'pending' })
+      .update({
+        ai_enabled: false,
+        status: 'pending',
+        ...(reason
+          ? { needs_human_reason: reason, needs_human_at: new Date().toISOString() }
+          : {}),
+      })
       .eq('id', conversation.id);
   } catch (err) {
     console.error(
