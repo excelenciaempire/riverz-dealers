@@ -19,6 +19,7 @@ import {
   runWithTools,
   type ShopifyToolContext,
 } from './tools';
+import { agentCan } from './roles';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -149,7 +150,12 @@ export async function composeSuperAgentReply(
       productMatch,
     );
     if (shopify) {
-      shopify.canCreateOrders = agent.puede_crear_pedidos === true;
+      // Por `agentCan` y no por la columna suelta: con `permissions` cargado
+      // (migración 164) manda ese. Leyendo la columna directo, un agente con
+      // `permissions.crear_pedidos = true` cerraba pedidos por DM pero no al
+      // contestar un comentario — la misma persona, dos respuestas distintas
+      // según por dónde escribiera.
+      shopify.canCreateOrders = agentCan(agent, 'crear_pedidos');
       shopify.workspaceId = input.workspaceId;
       shopify.agentId = agent.id;
       shopify.contactId = primaryContact.id;

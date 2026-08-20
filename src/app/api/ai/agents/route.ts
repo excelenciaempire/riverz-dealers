@@ -7,7 +7,21 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { findChannelConflict, channelLabels } from '@/lib/ai/channel-conflict';
-import { isAgentRole } from '@/lib/ai/roles';
+import { AGENT_PERMISSIONS, isAgentRole } from '@/lib/ai/roles';
+import type { AgentPermissions } from '@/lib/ai/roles';
+
+/**
+ * Con qué nace un agente: pudiendo hacer todo lo que su rol permita.
+ *
+ * Antes nacía con `permissions` en null, que cae a las columnas viejas y deja
+ * `crear_pedidos` apagado. El resultado era un agente que sabía cerrar la venta
+ * y no lo hacía, por una casilla en una pestaña que casi nadie abría. Quien
+ * quiera recortarle algo lo hace ahí mismo, y elegir un rol sigue aplicando su
+ * preset por encima de esto.
+ */
+const PERMISOS_COMPLETOS: AgentPermissions = Object.fromEntries(
+  AGENT_PERMISSIONS.map((p) => [p, true]),
+) as AgentPermissions;
 import type { AiAgent } from '@/lib/ai/types';
 
 /**
@@ -168,11 +182,16 @@ export async function POST(request: Request) {
     followup_delay_hours: body.followup_delay_hours ?? 24,
     followup_max_count: body.followup_max_count ?? 1,
     proactive_send_mode: body.proactive_send_mode ?? 'auto',
-    puede_crear_pedidos: body.puede_crear_pedidos ?? false,
+    // Un agente nuevo nace pudiendo atender: cerrar la venta es lo que el
+    // comercio espera de él, y dejarlo apagado convertía la capacidad en una
+    // casilla escondida que casi nadie encontraba. Igual no puede crear nada
+    // sin una tienda conectada con permiso de escritura — ahí está el freno
+    // real —, y el que prefiera que no cierre pedidos lo apaga en Avanzado.
+    puede_crear_pedidos: body.puede_crear_pedidos ?? true,
     // Migración 164. Sin rol es 'general', que es como se comportan todos los
-    // agentes anteriores; `permissions` en null usa las columnas viejas.
+    // agentes anteriores.
     role: isAgentRole(body.role) ? body.role : 'general',
-    permissions: body.permissions ?? null,
+    permissions: body.permissions ?? PERMISOS_COMPLETOS,
     provider: body.provider ?? 'anthropic',
     model: body.model ?? 'claude-haiku-4-5-20251001',
     scope: body.scope ?? 'workspace',

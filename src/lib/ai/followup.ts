@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey } from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
+import { agentCan } from './roles';
 import { getAdapter } from '@/lib/channels/registry';
 import type { AiAgent } from './types';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
@@ -112,6 +113,13 @@ export async function runFollowUp(
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
   try {
+    // El permiso existía, tenía interruptor en la pantalla y entrada en cada
+    // preset de rol — y no lo leía nadie: apagarlo no apagaba nada. Un
+    // seguimiento es lo único que el agente manda sin que el cliente escriba
+    // primero, así que es exactamente lo que ese permiso decide.
+    if (!agentCan(agent, 'enviar_proactivo')) {
+      return { sent: false, reason: 'proactive_not_allowed' };
+    }
     // 0. Recuperación de pago: si el asistente envió un link de checkout y
     //    el cliente no pagó, este "seguimiento" se convierte en un mensaje
     //    de recuperación con el link (migraciones 081/082). Reusa el timing

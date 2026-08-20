@@ -34,8 +34,18 @@ import { crearPedidoConEspejo } from '@/lib/orders/crear'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { enqueueCall } from '@/lib/voice/queue'
 import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
+import { searchProducts } from '@/lib/products/search'
 
-export const AGENTIC_LOOP_MAX_ITERS = 3
+/**
+ * Cuántas veces puede pedir herramientas antes de tener que contestar.
+ *
+ * Eran 3, que alcanzaban cuando había una sola herramienta por respuesta.
+ * Con el juego completo, un pedido normal encadena varias — buscar el producto,
+ * mirar el pedido anterior, armar el carrito— y a la cuarta se quedaba sin
+ * vueltas y contestaba a medias. Seis cubre esas cadenas y sigue siendo un
+ * techo: es un cortafuegos contra un bucle, no un presupuesto a gastar.
+ */
+export const AGENTIC_LOOP_MAX_ITERS = 6
 
 /** Context the chat agent needs to escalate a conversation to a phone call. */
 export interface VoiceEscalationContext {
@@ -83,6 +93,11 @@ export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
         type: 'integer',
         minimum: 1,
         description: 'Cuántas unidades extra sumar al pedido.',
+      },
+      order_number: {
+        type: 'string',
+        description:
+          'Número del pedido a editar. En una llamada no hace falta (ya se sabe cuál es); por chat sí, y si la clienta no lo dio, preguntáselo antes de llamar esta tool.',
       },
       reason: {
         type: 'string',
@@ -144,6 +159,37 @@ export interface ShopifyToolContext {
   /** Modo simulación: el panel de prueba lo activa para que create_order
    *  NO cree un pedido real ni escriba en la base. */
   dryRun?: boolean
+}
+
+/**
+ * Buscar en el catálogo.
+ *
+ * El agente ve en su prompt sólo una parte del catálogo. Con esta tool deja de
+ * depender de esa lista: puede contestar por un producto que no está ahí, y
+ * sobre todo puede recomendar a partir de lo que la clienta describe cuando no
+ * sabe cómo se llama lo que busca.
+ */
+export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
+  name: 'buscar_producto',
+  description:
+    'Buscá productos en el catálogo del negocio. Usala SIEMPRE que la clienta pregunte por algo que no ves en el catálogo de tu contexto, o cuando describa lo que necesita sin nombrar un producto ("algo para piel sensible", "un regalo para mi mamá", "el más barato"). Podés buscar por nombre, por lo que hace el producto o por categoría. Devuelve nombre, precio, foto y link. No inventes productos: si la búsqueda no trae nada, decí que no lo tenés.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      query: {
+        type: 'string',
+        description:
+          'Qué buscar. Puede ser el nombre, una característica o para qué sirve. Escribilo como lo diría la clienta.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 10,
+        description: 'Cuántos traer (por defecto 6). Pedí pocos: es un chat, no un listado.',
+      },
+    },
+    required: ['query'],
+  },
 }
 
 /** Definición JSON-Schema de la tool `lookup_order` (formato Anthropic). */
@@ -433,6 +479,34 @@ export async function runTool(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null,
 ): Promise<string> {
+  if (toolName === 'buscar_producto') {
+    // Se apoya en `localOrders` porque es el único contexto que trae `db` y
+    // `workspaceId`, que es todo lo que hace falta para leer el catálogo.
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo buscar en el catálogo en esta conversación.',
+      })
+    }
+    const input = (toolInput ?? {}) as { query?: string; limit?: number }
+    const hits = await searchProducts(localOrders.db, {
+      workspaceId: localOrders.workspaceId,
+      query: String(input.query ?? ''),
+      limit: input.limit,
+    })
+    if (hits.length === 0) {
+      return JSON.stringify({
+        found: false,
+        products: [],
+        // Sin esto el modelo tiende a rellenar el silencio inventando un
+        // producto parecido, que es la peor respuesta posible en una tienda.
+        instruction:
+          'No hay productos que coincidan. Decile con honestidad que no lo tenés y ofrecé buscar otra cosa. NO inventes un producto ni un precio.',
+      })
+    }
+    return JSON.stringify({ found: true, products: hits })
+  }
+
   if (toolName === 'registrar_pago') {
     if (!localOrders) {
       return JSON.stringify({
@@ -529,13 +603,23 @@ export async function runTool(
         message: 'El workspace no tiene Shopify conectado.',
       })
     }
-    if (!shopify.orderId) {
+    const input = (toolInput ?? {}) as {
+      add_units?: number
+      reason?: string
+      order_number?: string
+    }
+    // En una llamada el pedido viene fijado por el bridge de voz. Por chat no
+    // hay ninguno en contexto, así que el modelo tiene que decir cuál — y si no
+    // lo sabe, la salida correcta es preguntárselo a la clienta, no adivinar
+    // sobre el último pedido que encuentre.
+    const pedido = shopify.orderId ?? (input.order_number ?? '').trim()
+    if (!pedido) {
       return JSON.stringify({
         error: 'no_order',
-        message: 'No hay un pedido para editar en esta llamada.',
+        message:
+          'Falta saber a qué pedido sumarle las unidades. Preguntale el número de pedido a la clienta y volvé a intentar.',
       })
     }
-    const input = (toolInput ?? {}) as { add_units?: number; reason?: string }
     const addUnits = Math.floor(Number(input.add_units))
     if (!Number.isFinite(addUnits) || addUnits <= 0) {
       return JSON.stringify({
@@ -545,7 +629,7 @@ export async function runTool(
     }
     const result = await addUnitsToFirstLineItem(
       { shopDomain: shopify.shopDomain, accessToken: shopify.accessToken, apiVersion: shopify.apiVersion },
-      shopify.orderId,
+      pedido,
       addUnits,
     )
     if (!result.ok) {

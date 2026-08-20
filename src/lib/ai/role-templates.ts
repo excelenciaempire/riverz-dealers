@@ -35,11 +35,17 @@ export const ROLE_TEMPLATES: Record<Exclude<AgentRole, 'general'>, RoleTemplate>
       crear_pedidos: false,
       crear_checkout: false,
       registrar_pago: false,
-      editar_pedido: false,
+      // Editar el pedido SÍ: es postventa, y sumar una unidad o corregir algo
+      // sobre un pedido que ya existe es exactamente su trabajo.
+      editar_pedido: true,
       escalar_llamada: true,
       enviar_proactivo: true,
     },
-    escalateKeywords: ['reclamo', 'cancelar', 'devolución', 'devolucion', 'reembolso', 'estafa'],
+    // Sólo lo que el agente NO puede resolver. "Devolución", "cancelar" y
+    // "reembolso" estaban acá cuando eran un callejón sin salida; ahora son
+    // capacidades suyas —propone y una persona aprueba— así que escalar de
+    // entrada sería devolverle al equipo justo el trabajo que vino a sacarle.
+    escalateKeywords: ['reclamo', 'estafa', 'abogado', 'denuncia'],
     recipes: ['nuevo-pedido', 'enviar-tracking', 'post-survey'],
     followupEnabled: false,
   },

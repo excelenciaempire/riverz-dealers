@@ -35,7 +35,9 @@ import {
 import {
   buildCheckoutTool,
   buildOrderTool,
+  BUSCAR_PRODUCTO_TOOL,
   LOOKUP_ORDER_TOOL,
+  UPDATE_ORDER_TOOL,
   ESCALATE_TO_CALL_TOOL,
   REGISTRAR_PAGO_TOOL,
   runWithTools,
@@ -1605,15 +1607,30 @@ async function generateReply(
       : null;
 
   const tools = [
+    // Buscar en el catálogo no depende de qué tienda tenga conectada: lee la
+    // tabla local, que se sincroniza igual desde las cuatro plataformas. Es lo
+    // que le permite contestar por un producto que no entró en su prompt.
+    ...(primaryContact.id ? [BUSCAR_PRODUCTO_TOOL] : []),
+    // "¿Dónde está mi pedido?" es la pregunta más frecuente que recibe
+    // cualquier comercio, y hasta acá sólo la podían contestar los de Shopify.
+    // `runTool` sabe consultar Tiendanube y WooCommerce desde hace tiempo
+    // (`lookupOrderNonShopify`), pero la tool se ofrecía sólo con `shopify`, y
+    // `otherStore` se resuelve justamente cuando NO hay Shopify: el modelo
+    // nunca podía llamarla y toda esa rama era código muerto en producción.
+    ...(shopify || otherStore ? [LOOKUP_ORDER_TOOL] : []),
     ...(shopify
       ? [
-          LOOKUP_ORDER_TOOL,
           ...(agentCan(agent, 'crear_checkout')
             ? [buildCheckoutTool(shopify.config ?? null)]
             : []),
           ...(shopify.canCreateOrders
             ? [buildOrderTool(shopify.config ?? null)]
             : []),
+          // Sumar unidades a un pedido que la clienta ya hizo. Existía sólo
+          // durante una llamada, donde el bridge de voz deja el `orderId` en
+          // contexto; por chat el permiso estaba declarado y no lo leía nadie.
+          // Sin `orderId` fijo, la tool pide el número de pedido.
+          ...(agentCan(agent, 'editar_pedido') ? [UPDATE_ORDER_TOOL] : []),
         ]
       : []),
     ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),

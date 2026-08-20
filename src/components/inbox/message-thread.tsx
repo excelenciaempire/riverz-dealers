@@ -842,15 +842,24 @@ export function MessageThread({
         closed_at: string | null;
         needs_human_reason?: null;
         needs_human_at?: null;
+        ai_enabled?: true;
       } = {
         status,
         closed_at: status === "closed" ? new Date().toISOString() : null,
       };
       // Sacarla de 'pendiente' significa que alguien ya la atendió: se cierra
       // el escalamiento para que el contador de la bandeja no quede inflado.
+      //
+      // Y se le devuelve la palabra al agente. Escalar apaga `ai_enabled`, pero
+      // nada lo volvía a prender: una consulta escalada una vez dejaba a ese
+      // cliente sin IA para siempre —también en las conversaciones siguientes,
+      // porque el hilo se reutiliza— aunque el equipo ya hubiera resuelto el
+      // tema hacía semanas. Quien quiera dejarla apagada tiene el interruptor
+      // del hilo, que es explícito y se ve.
       if (status !== "pending") {
         patch.needs_human_reason = null;
         patch.needs_human_at = null;
+        patch.ai_enabled = true;
       }
       await supabase
         .from("conversations")

@@ -344,7 +344,11 @@ export function AgentEditor({
     agent?.reply_when_assigned ?? false,
   );
   const [escalateKeywords, setEscalateKeywords] = useState<string[]>(
-    agent?.escalate_keywords ?? ['humano', 'agente', 'reembolso'],
+    // Sólo lo que ES un pedido de hablar con una persona. "Reembolso" estaba en
+    // esta lista y no es eso: es una consulta que el agente sabe atender, y
+    // tenerla acá apagaba la IA de esa conversación —para siempre— con que el
+    // cliente escribiera la palabra.
+    agent?.escalate_keywords ?? ['humano', 'persona', 'agente'],
   );
   const [escalateInput, setEscalateInput] = useState('');
   const [responseMode, setResponseMode] = useState<AiResponseMode>(

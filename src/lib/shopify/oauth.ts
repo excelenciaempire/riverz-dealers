@@ -40,6 +40,11 @@ const DEFAULT_SCOPES =
     'write_fulfillments',
     'read_merchant_managed_fulfillment_orders',
     'write_merchant_managed_fulfillment_orders',
+    // Descuentos: `ensureCampaignPriceRule` (instagram-agent/discounts.ts) crea
+    // price rules y códigos únicos desde que existe, pero sin este scope Shopify
+    // contesta 403 y el `catch` lo devuelve como null — o sea que la función
+    // estaba fallando en silencio en todas las tiendas conectadas.
+    'write_discounts',
   ].join(',')
 
 export function shopifyApiVersion(): string {
