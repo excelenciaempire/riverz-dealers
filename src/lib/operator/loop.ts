@@ -25,6 +25,7 @@ import {
 } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
+import { construir, proponer } from './escribir'
 import { systemPrompt } from './prompt'
 import { translate } from '@/lib/i18n/translate'
 
@@ -119,139 +120,6 @@ async function tokensHoy(db: SupabaseClient, workspaceId: string): Promise<numbe
   )
 }
 
-/**
- * Anota una acción que cambia algo y devuelve qué contestarle al modelo.
- *
- * El `preview` se calcula en el servidor y no lo escribe el modelo: es lo que
- * la persona va a leer antes de aprobar, así que tiene que describir lo que
- * realmente se va a ejecutar.
- */
-async function proponer(
-  ctx: CapabilityContext,
-  threadId: string,
-  key: string,
-  args: Record<string, unknown>,
-): Promise<{
-  id: string
-  preview: string | null
-  artefacto: Artefacto | null
-  texto: string
-}> {
-  const cap = findCapability(key)!
-  let preview: string | null = null
-  try {
-    preview = cap.preview ? await cap.preview(ctx, args) : null
-  } catch (e) {
-    preview = e instanceof Error ? e.message : null
-  }
-
-  // Se dibuja desde los argumentos: la persona ve el árbol ANTES de aprobar,
-  // que es cuando le sirve.
-  const artefacto = artefactoDe(cap, ctx, args)
-
-  const { data, error } = await ctx.db
-    .from('operator_actions')
-    .insert({
-      workspace_id: ctx.workspaceId,
-      thread_id: threadId,
-      capability_key: key,
-      args,
-      risk: cap.risk,
-      preview,
-      artifact: artefacto,
-      status: 'propuesto',
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(error.message)
-
-  const id = (data as { id: string }).id
-  return {
-    id,
-    preview,
-    artefacto,
-    texto: JSON.stringify({
-      propuesto: true,
-      action_id: id,
-      nota: 'Quedó esperando aprobación. NO está hecho. Explicá qué haría y qué riesgo tiene.',
-      preview,
-    }),
-  }
-}
-
-/**
- * Construye ahora y deja el registro.
- *
- * Sólo se llega acá con el modo automático prendido y con algo inerte. La fila
- * en `operator_actions` se escribe igual, ya ejecutada: la pregunta "¿qué me
- * hizo el Operador?" se contesta en el mismo lugar sin importar el modo, y sin
- * eso el modo automático sería el que no deja rastro.
- */
-async function construir(
-  ctx: CapabilityContext,
-  threadId: string,
-  key: string,
-  args: Record<string, unknown>,
-): Promise<{
-  id: string
-  preview: string | null
-  artefacto: Artefacto | null
-  texto: string
-}> {
-  const cap = findCapability(key)!
-  let preview: string | null = null
-  try {
-    preview = cap.preview ? await cap.preview(ctx, args) : null
-  } catch {
-    preview = null
-  }
-
-  const salida = await cap.run(ctx, args)
-  const artefacto = artefactoDe(cap, ctx, args, salida)
-
-  const { data } = await ctx.db
-    .from('operator_actions')
-    .insert({
-      workspace_id: ctx.workspaceId,
-      thread_id: threadId,
-      capability_key: key,
-      args,
-      risk: cap.risk,
-      preview,
-      artifact: artefacto,
-      status: 'ejecutado',
-      result: salida ?? null,
-      approved_by: ctx.actor.id ?? null,
-      executed_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single()
-
-  return {
-    id: (data as { id: string } | null)?.id ?? '',
-    preview,
-    artefacto,
-    texto: JSON.stringify({ hecho: true, resultado: salida }).slice(0, 20_000),
-  }
-}
-
-/**
- * El dibujo de lo que se va a hacer, si la capacidad sabe producirlo.
- *
- * Nunca puede tumbar la operación: es lo que se muestra, no lo que se hace.
- */
-function artefactoDe(
-  cap: ReturnType<typeof findCapability>,
-  ctx: CapabilityContext,
-  args: Record<string, unknown>,
-  result?: unknown,
-): Artefacto | null {
-  try {
-    return cap?.artifact?.(ctx, args, result) ?? null
-  } catch {
-    return null
-  }
-}
 
 /**
  * Un nombre corto para la pantalla, sacado de la descripción.

@@ -110,6 +110,19 @@ export interface Capability<A = Record<string, unknown>, R = unknown> {
    * Lo escribe el servidor y no el modelo: es la misma regla que el preview.
    */
   artifact?(ctx: CapabilityContext, args: A, result?: R): Artefacto | null
+  /**
+   * Cómo está la cosa HOY, antes de aplicar estos argumentos.
+   *
+   * Existe sólo para el diff. "Actualizá el carrito abandonado" es un pedido de
+   * cambio, y dibujar el árbol resultante no sirve: quien mira ya conocía esa
+   * automatización y necesita ver qué se movió. Con esto, el artefacto viaja
+   * marcado — lo que estaba atenuado, lo nuevo encendido, lo que se va tachado.
+   *
+   * Opcional a propósito: sin él no hay diff y se dibuja todo plano, que es lo
+   * correcto para una creación. Lo declaran sólo las capacidades que editan
+   * algo que ya existía.
+   */
+  artifactBefore?(ctx: CapabilityContext, args: A): Promise<Artefacto | null>
 }
 
 /** Capacidad con argumentos sueltos, que es como llegan desde un modelo. */

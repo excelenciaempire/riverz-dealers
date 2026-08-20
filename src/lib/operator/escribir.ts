@@ -1,0 +1,208 @@
+/**
+ * El único camino por el que algo cambia en la cuenta.
+ *
+ * Vivía adentro del loop del orquestador, y ahí estaba bien mientras el
+ * orquestador era el único que escribía. Con equipo hay catorce subagentes que
+ * también van a llamar capacidades, y si cada uno escribiera a su manera se
+ * perdería lo que hace confiable a todo esto: que el `preview` describa lo que
+ * de verdad va a pasar, que el artefacto se calcule desde los argumentos y no
+ * desde lo que diga el modelo, y que quede una fila en `operator_actions` sin
+ * importar el modo ni quién lo pidió.
+ *
+ * Dos caminos y nada más:
+ *
+ *  - `proponer` deja la fila esperando un click. El modelo recibe "quedó
+ *    propuesto", no un resultado, así que una instrucción hostil escondida en
+ *    el mensaje de un cliente no puede cambiar nada.
+ *  - `construir` ejecuta. Se llega acá sólo con algo inerte —que queda
+ *    apagado— y con el modo automático prendido o dentro de un plan aprobado.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { findCapability } from '@/lib/capabilities/registry'
+import type { CapabilityContext } from '@/lib/capabilities/types'
+import type { Artefacto } from './artifacts'
+import { conDiff } from './artifacts-diff'
+
+/** Cuánto del resultado se le devuelve al modelo. */
+const TOPE_RESULTADO = 20_000
+
+export interface Escritura {
+  id: string
+  preview: string | null
+  artefacto: Artefacto | null
+  /** Lo que se le contesta al modelo, como texto de `tool_result`. */
+  texto: string
+  /**
+   * Lo que devolvió la capacidad, crudo.
+   *
+   * Sólo cuando se ejecutó. Lo necesita el pizarrón de hechos: los datos que
+   * viajan al paso siguiente —el nombre exacto de la plantilla recién creada,
+   * por ejemplo— salen de ACÁ y no de los argumentos. No es lo mismo: los
+   * argumentos son lo que se pidió, el resultado es lo que quedó, y cuando el
+   * servidor normaliza un nombre o resuelve un id, son distintos.
+   */
+  resultado?: unknown
+}
+
+/**
+ * El dibujo de lo que se va a hacer, si la capacidad sabe producirlo.
+ *
+ * Nunca puede tumbar la operación: es lo que se muestra, no lo que se hace.
+ *
+ * Cuando la capacidad además sabe decir cómo está la cosa HOY, el dibujo sale
+ * marcado con el diff. Es lo que convierte "actualizá el carrito abandonado"
+ * de un árbol que hay que comparar de memoria en un árbol donde se ve qué se
+ * movió.
+ */
+export async function artefactoDe(
+  cap: ReturnType<typeof findCapability>,
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  result?: unknown,
+): Promise<Artefacto | null> {
+  try {
+    const nuevo = cap?.artifact?.(ctx, args, result) ?? null
+    if (!nuevo) return null
+    const previo = cap?.artifactBefore ? await cap.artifactBefore(ctx, args) : null
+    return conDiff(previo, nuevo)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Anota una acción que cambia algo y devuelve qué contestarle al modelo.
+ *
+ * El `preview` se calcula en el servidor y no lo escribe el modelo: es lo que
+ * la persona va a leer antes de aprobar, así que tiene que describir lo que
+ * realmente se va a ejecutar.
+ */
+export async function proponer(
+  ctx: CapabilityContext,
+  threadId: string,
+  key: string,
+  args: Record<string, unknown>,
+): Promise<Escritura> {
+  const cap = findCapability(key)!
+  let preview: string | null = null
+  try {
+    preview = cap.preview ? await cap.preview(ctx, args) : null
+  } catch (e) {
+    preview = e instanceof Error ? e.message : null
+  }
+
+  // Se dibuja desde los argumentos: la persona ve el árbol ANTES de aprobar,
+  // que es cuando le sirve.
+  const artefacto = await artefactoDe(cap, ctx, args)
+
+  const { data, error } = await ctx.db
+    .from('operator_actions')
+    .insert({
+      workspace_id: ctx.workspaceId,
+      thread_id: threadId,
+      capability_key: key,
+      args,
+      risk: cap.risk,
+      preview,
+      artifact: artefacto,
+      status: 'propuesto',
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+
+  const id = (data as { id: string }).id
+  return {
+    id,
+    preview,
+    artefacto,
+    texto: JSON.stringify({
+      propuesto: true,
+      action_id: id,
+      nota: 'Quedó esperando aprobación. NO está hecho. Explicá qué haría y qué riesgo tiene.',
+      preview,
+    }),
+  }
+}
+
+/**
+ * Construye ahora y deja el registro.
+ *
+ * Sólo se llega acá con algo inerte y con permiso: el modo automático prendido,
+ * o un plan que una persona ya aprobó. La fila en `operator_actions` se escribe
+ * igual, ya ejecutada: la pregunta "¿qué me hizo el Operador?" se contesta en el
+ * mismo lugar sin importar el modo, y sin eso el modo automático sería el que
+ * no deja rastro.
+ */
+export async function construir(
+  ctx: CapabilityContext,
+  threadId: string,
+  key: string,
+  args: Record<string, unknown>,
+): Promise<Escritura> {
+  const cap = findCapability(key)!
+  let preview: string | null = null
+  try {
+    preview = cap.preview ? await cap.preview(ctx, args) : null
+  } catch {
+    preview = null
+  }
+
+  // El "antes" se calcula ANTES de ejecutar, o el diff compararía el resultado
+  // contra sí mismo y no marcaría nada.
+  let previo: Artefacto | null = null
+  try {
+    previo = cap.artifactBefore ? await cap.artifactBefore(ctx, args) : null
+  } catch {
+    previo = null
+  }
+
+  const salida = await cap.run(ctx, args)
+
+  let artefacto: Artefacto | null = null
+  try {
+    const nuevo = cap.artifact?.(ctx, args, salida) ?? null
+    artefacto = nuevo ? conDiff(previo, nuevo) : null
+  } catch {
+    artefacto = null
+  }
+
+  const { data } = await ctx.db
+    .from('operator_actions')
+    .insert({
+      workspace_id: ctx.workspaceId,
+      thread_id: threadId,
+      capability_key: key,
+      args,
+      risk: cap.risk,
+      preview,
+      artifact: artefacto,
+      status: 'ejecutado',
+      result: salida ?? null,
+      approved_by: ctx.actor.id ?? null,
+      executed_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  return {
+    id: (data as { id: string } | null)?.id ?? '',
+    preview,
+    artefacto,
+    texto: JSON.stringify({ hecho: true, resultado: salida }).slice(0, TOPE_RESULTADO),
+    resultado: salida,
+  }
+}
+
+/**
+ * El resultado de una lectura, recortado para que no reviente el contexto.
+ *
+ * Ojo, no confundir con `resumirSalida` del loop: aquélla arma una etiqueta
+ * corta para la pantalla ("9 filas"), ésta recorta el JSON que vuelve al
+ * modelo.
+ */
+export function recortarResultado(salida: unknown): string {
+  return JSON.stringify(salida ?? null).slice(0, TOPE_RESULTADO)
+}
+
+export type { SupabaseClient }
