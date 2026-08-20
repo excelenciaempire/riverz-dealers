@@ -287,7 +287,7 @@ export function ChatApp() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@correo.com"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
           />
           <button
             type="submit"
@@ -318,7 +318,11 @@ export function ChatApp() {
               }
             }}
             placeholder="Escribe tu mensaje"
-            className="max-h-32 flex-1 resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            // Colores explícitos: el chat vive en un iframe que hereda el
+            // layout raíz del panel, cuyo `text-foreground` cambia con el tema
+            // del comercio. Sin fijarlos, el texto que escribe el cliente salía
+            // casi blanco sobre blanco.
+            className="max-h-32 flex-1 resize-none rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
           />
           <button
             type="submit"
