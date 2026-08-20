@@ -439,12 +439,13 @@ describe('invariantes del dominio', () => {
     expect(typeof l.preview).toBe('function')
   })
 
-  it('ninguna se declara inerte', () => {
-    // Un envío masivo no se construye solo. Y crear, aunque no le llegue a
-    // nadie, deja una campaña lista para lanzar: esa decisión la toma una
-    // persona revisando el catálogo entero, no este archivo.
-    for (const c of BROADCAST_CAPABILITIES) {
-      expect(c.inerte, c.key).toBeUndefined()
-    }
+  it('lanzar nunca es inerte; armar el borrador sí', () => {
+    // Un envío masivo no se construye solo: `campanas.lanzar` le llega a
+    // cientos de personas y pide un click siempre. Armar el borrador no manda
+    // nada, así que puede construirse dentro de un plan aprobado. El conjunto
+    // completo de lo inerte se congela en `inerte.test.ts`, que es donde se
+    // revisa la línea de una vez y no dominio por dominio.
+    expect(cap('campanas.lanzar').inerte).toBeUndefined()
+    expect(cap('campanas.crear').inerte).toBe(true)
   })
 })

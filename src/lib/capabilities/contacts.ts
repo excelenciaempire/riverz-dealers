@@ -962,6 +962,10 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Replaces the rules of an existing segment. Rules are sent WHOLE: whatever is left out is dropped, so read them first with segmentos.reglas and send the full list with the change applied. Without an explicit mode, the current one stays. Returns how many people it reaches after the change.',
     risk: 'reversible',
+    // Un segmento es un criterio guardado: cambiarlo no manda un mensaje ni
+    // prende nada. Recién importa cuando una campaña lo usa, y lanzarla es otra
+    // decisión con su propio click.
+    inerte: true,
     schema: {
       type: 'object',
       properties: {
@@ -1027,6 +1031,9 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Creates an empty tag so it can be used later in a rule, in an automation or when tagging contacts. If it already exists it is not duplicated: the existing one is returned.',
     risk: 'reversible',
+    // Una etiqueta recién creada no tiene a nadie adentro, así que no dispara
+    // nada ni cambia ningún público. Empieza a importar cuando se usa.
+    inerte: true,
     schema: {
       type: 'object',
       properties: {

@@ -209,12 +209,11 @@ describe('invariantes del dominio', () => {
     expect(typeof c.preview).toBe('function')
   })
 
-  it('ninguna se declara inerte', () => {
-    // Escribirle a alguien que no pidió nada nunca se construye solo, y guardar
-    // el borrador es la puerta de entrada a eso: lo mira una persona.
-    for (const c of PROSPECTING_CAPABILITIES) {
-      expect(c.inerte, c.key).toBeUndefined()
-    }
+  it('lanzar nunca es inerte; guardar el borrador sí', () => {
+    // Escribirle a alguien que no pidió nada nunca se construye solo. El
+    // borrador ni siquiera resuelve la audiencia, así que no alcanza a nadie.
+    expect(cap('prospeccion.lanzar').inerte).toBeUndefined()
+    expect(cap('prospeccion.crear_campana').inerte).toBe(true)
   })
 })
 

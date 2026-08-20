@@ -325,12 +325,14 @@ describe('capacidades de ajustes', () => {
     expect(typeof cap.preview).toBe('function')
   })
 
-  it('nada se construye sin que alguien lo apruebe', () => {
+  it('lo que mueve horarios o le llega a alguien pide permiso', () => {
     // Cambiar la zona horaria mueve el horario de atención de las
-    // automatizaciones que ya están corriendo, e invitar le llega a una persona.
-    for (const c of WORKSPACE_CAPABILITIES.filter((x) => x.risk !== 'lectura')) {
-      expect(esInerte(c, {}), c.key).toBe(false)
-    }
+    // automatizaciones que ya están corriendo, e invitar le llega a una persona
+    // por correo. Renombrar la cuenta lo ve el equipo en su propia barra
+    // lateral y nadie más, así que sí puede construirse dentro de un plan.
+    expect(esInerte(capacidad('ajustes.zona_horaria'), {})).toBe(false)
+    expect(esInerte(capacidad('ajustes.invitar'), {})).toBe(false)
+    expect(esInerte(capacidad('ajustes.renombrar'), {})).toBe(true)
   })
 
   it('el preview de invitar dice a quién, a qué cuenta y con qué acceso', async () => {

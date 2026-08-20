@@ -467,6 +467,8 @@ export const PROSPECTING_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Saves an Instagram prospecting campaign as a DRAFT: the message that would be sent to people who did not ask for anything, to whom and with which offer. It messages nobody and resolves no audience — that only happens on launch.',
     risk: 'reversible',
+    // Borrador: ni siquiera resuelve la audiencia. Eso pasa al lanzarla.
+    inerte: true,
     schema: {
       type: 'object',
       properties: {

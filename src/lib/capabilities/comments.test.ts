@@ -367,10 +367,12 @@ describe('contrato del dominio', () => {
     }
   })
 
-  it('prender una regla nunca es lectura ni se declara inerte', () => {
+  it('prender una regla pide permiso; crearla apagada no', () => {
+    // Prender es lo que hace que a alguien le empiece a llegar un mensaje.
+    // Crearla nace apagada y no dispara nada mientras lo esté.
     const activar = cap('comentarios.activar_regla')
     expect(activar.risk).toBe('irreversible')
     expect(activar.inerte).toBeUndefined()
-    expect(cap('comentarios.crear_regla').inerte).toBeUndefined()
+    expect(cap('comentarios.crear_regla').inerte).toBe(true)
   })
 })

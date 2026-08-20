@@ -165,6 +165,9 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Changes the account name, the one the team sees in the sidebar. It touches nothing customers see. Undone by setting the previous one back.',
     risk: 'reversible',
+    // Lo ve el equipo en su propia barra lateral y nadie más. No sale de la
+    // cuenta ni cambia cuándo pasa nada.
+    inerte: true,
     schema: {
       type: 'object',
       properties: { nombre: { type: 'string' } },

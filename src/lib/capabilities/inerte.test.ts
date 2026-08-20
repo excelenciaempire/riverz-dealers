@@ -22,6 +22,32 @@ const INERTES: Record<string, string> = {
   'automatizaciones.editar_espera': 'cambia un tiempo, no manda nada',
   'agentes.crear_borrador': 'nace pausado, no le contesta a nadie',
   'segmentos.crear': 'guarda un criterio; no prende ni manda nada',
+  'segmentos.editar': 'cambia un criterio guardado; sigue sin mandar nada',
+  'etiquetas.crear': 'una etiqueta vacía no tiene a nadie adentro',
+  'plantillas.crear_borrador': 'queda guardada y sin mandar a Meta',
+  'campanas.crear': 'borrador: guarda a quién y con qué, y no manda nada',
+  'comentarios.crear_regla': 'nace apagada',
+  'prospeccion.crear_campana': 'borrador: ni siquiera resuelve la audiencia',
+  'ajustes.renombrar': 'lo ve el equipo en su barra lateral y nadie más',
+}
+
+/**
+ * Lo que NO es inerte aunque lo parezca, y por qué.
+ *
+ * Son las que más tentación dan de marcar, y las que más caro salen. El
+ * criterio que las deja afuera es el mismo para todas: su efecto depende del
+ * estado de la cuenta, y `inerte` es una función de los ARGUMENTOS. Editar una
+ * automatización pausada no le llega a nadie; editar la misma automatización
+ * prendida cambia lo que se le manda a un cliente en el próximo evento, y desde
+ * los argumentos no hay forma de saber cuál de las dos es.
+ */
+const NO_INERTES_A_PROPOSITO: Record<string, string> = {
+  'automatizaciones.editar': 'si está prendida, cambia lo que se manda ahora mismo',
+  'flujos.editar': 'si está publicado, cambia lo que ve el cliente en la próxima conversación',
+  'agentes.editar': 'si está activo, cambia cómo contesta en el próximo mensaje',
+  'productos.editar': 'los agentes repiten esto ante un cliente en cuanto se guarda',
+  'ajustes.zona_horaria': 'mueve cuándo dispara todo lo que ya está corriendo',
+  'conversaciones.ia': 'prenderla pone a contestar sola una conversación abierta',
 }
 
 describe('qué puede construirse sin preguntar', () => {
@@ -30,6 +56,17 @@ describe('qué puede construirse sin preguntar', () => {
       (c) => c.risk !== 'lectura' && esInerte(c, {}),
     ).map((c) => c.key)
     expect(marcadas.sort()).toEqual(Object.keys(INERTES).sort())
+  })
+
+  it('lo que depende del estado de la cuenta NO se marca inerte', () => {
+    // `inerte` es una función de los argumentos y se evalúa sin tocar la base.
+    // Cualquier cosa cuyo daño dependa de si algo está prendido no se puede
+    // decidir ahí, así que se propone.
+    for (const [key, motivo] of Object.entries(NO_INERTES_A_PROPOSITO)) {
+      const cap = ALL_CAPABILITIES.find((c) => c.key === key)
+      if (!cap) continue
+      expect(esInerte(cap, {}), `${key}: ${motivo}`).toBe(false)
+    }
   })
 
   it('toda lectura es inerte: no cambia nada por definición', () => {

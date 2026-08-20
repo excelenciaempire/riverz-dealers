@@ -577,6 +577,9 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Builds a WhatsApp campaign and leaves it as a DRAFT: it stores the template, the audience and the text each person will get, and sends nothing. It checks that the template exists and that every variable has someone filling it. The audience is a saved segment; opted-out contacts and those without WhatsApp are left out. It has to be launched afterwards to go out.',
     risk: 'reversible',
+    // Borrador: guarda a quién y con qué, y no manda nada. Para que salga hay
+    // que lanzarla, que es otra capacidad y sí pide un click.
+    inerte: true,
     schema: ESQUEMA_CREAR,
     async preview(ctx, args) {
       const nombre = String(args.nombre ?? '(sin nombre)')

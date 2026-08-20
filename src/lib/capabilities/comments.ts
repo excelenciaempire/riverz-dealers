@@ -389,6 +389,8 @@ export const COMMENT_CAPABILITIES: Capability[] = [
     descriptionEn:
       'Creates a comment-to-DM rule, switched OFF. Once turned on, whoever comments using one of the keywords gets a private message, and optionally a public reply under their comment that anyone can read. With no keywords it matches EVERY comment. Undone by deleting it or leaving it off.',
     risk: 'reversible',
+    // Nace apagada. Mientras lo esté, ningún comentario dispara un mensaje.
+    inerte: true,
     schema: {
       type: 'object',
       properties: {

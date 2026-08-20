@@ -391,6 +391,9 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
     descriptionEn:
       'Writes a WhatsApp template and saves it as a DRAFT. It does not go to Meta and cannot be sent yet. Overwrites an existing draft with the same name.',
     risk: 'reversible',
+    // Queda guardada y sin mandar a Meta: no la ve nadie fuera de la cuenta,
+    // y no se puede usar en un envío hasta que Meta la apruebe.
+    inerte: true,
     schema: {
       type: 'object',
       properties: {
