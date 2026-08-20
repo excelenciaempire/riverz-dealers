@@ -257,15 +257,22 @@ const nextConfig: NextConfig = {
         //
         // Se cachea porque entra en cada visita a la tienda y su contenido no
         // depende del comercio (la configuración la pide en tiempo de
-        // ejecución); la versión va en el nombre del archivo, así que publicar
-        // una nueva no espera a que expire ninguna caché.
+        // ejecución).
+        //
+        // Cinco minutos y no una hora: el nombre del archivo NO lleva hash, así
+        // que la caché es lo único que decide cuándo llega un arreglo a las
+        // tiendas. Con una hora, un error del widget seguía sirviéndose durante
+        // una hora después de corregirlo — medido en una prueba real, donde el
+        // navegador siguió mostrando la versión vieja hasta vaciar la caché a
+        // mano. El `stale-while-revalidate` largo hace que ese refresco no le
+        // cueste latencia a nadie: se sirve lo guardado y se renueva detrás.
         source: "/widget/v1.js",
         headers: [
           { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
           { key: "Access-Control-Allow-Origin", value: "*" },
           {
             key: "Cache-Control",
-            value: "public, max-age=3600, stale-while-revalidate=86400",
+            value: "public, max-age=300, stale-while-revalidate=86400",
           },
         ],
       },
