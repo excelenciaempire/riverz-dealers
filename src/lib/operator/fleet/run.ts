@@ -99,13 +99,14 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
       mensajes.push({ role: 'assistant', content: res.content })
       const resultados: Anthropic.ToolResultBlockParam[] = []
 
+      // Las lecturas del subagente van todas juntas, por lo mismo que en el
+      // orquestador: son independientes y el modelo pide varias por respuesta.
+      // Las escrituras siguen en fila y en orden — dos escrituras del mismo
+      // dominio pueden pisarse, y ahí el orden es parte del resultado.
+      const aLeer: Anthropic.ToolUseBlock[] = []
+      const aEscribir: Anthropic.ToolUseBlock[] = []
       for (const uso of usos) {
         const key = capabilityKeyFromToolName(uso.name)
-        const args = (uso.input ?? {}) as Record<string, unknown>
-
-        // El portero, igual que en el orquestador: el nombre lo elige el
-        // modelo, así que se vuelve a preguntar antes de ejecutar. Acá además
-        // se verifica que sea de SU dominio.
         const propia = capacidadesDe(e.agente).some((c) => c.key === key)
         const cap = findCapability(key)
         if (!propia || !cap) {
@@ -117,6 +118,59 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
           })
           continue
         }
+        if (cap.risk === 'lectura') aLeer.push(uso)
+        else aEscribir.push(uso)
+      }
+
+      if (aLeer.length > 0) {
+        const leidas = await Promise.all(
+          aLeer.map(async (uso) => {
+            const key = capabilityKeyFromToolName(uso.name)
+            e.emit({ t: 'tool_start', id: uso.id, key, label: key, agente: e.agente })
+            try {
+              const salida = await findCapability(key)!.run(
+                e.ctx,
+                (uso.input ?? {}) as Record<string, unknown>,
+              )
+              e.emit({
+                t: 'tool_done',
+                id: uso.id,
+                key,
+                ok: true,
+                resumen: 'ok',
+                agente: e.agente,
+              })
+              return {
+                type: 'tool_result' as const,
+                tool_use_id: uso.id,
+                content: recortarResultado(salida),
+              }
+            } catch (err) {
+              const motivo = err instanceof Error ? err.message : 'falló'
+              e.emit({
+                t: 'tool_done',
+                id: uso.id,
+                key,
+                ok: false,
+                resumen: motivo,
+                agente: e.agente,
+              })
+              return {
+                type: 'tool_result' as const,
+                tool_use_id: uso.id,
+                content: motivo,
+                is_error: true,
+              }
+            }
+          }),
+        )
+        resultados.push(...leidas)
+      }
+
+      for (const uso of aEscribir) {
+        const key = capabilityKeyFromToolName(uso.name)
+        const args = (uso.input ?? {}) as Record<string, unknown>
+        const cap = findCapability(key)!
 
         e.emit({
           t: 'tool_start',
@@ -127,22 +181,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
         })
 
         try {
-          if (cap.risk === 'lectura') {
-            const salida = await cap.run(e.ctx, args)
-            resultados.push({
-              type: 'tool_result',
-              tool_use_id: uso.id,
-              content: recortarResultado(salida),
-            })
-            e.emit({
-              t: 'tool_done',
-              id: uso.id,
-              key,
-              ok: true,
-              resumen: 'ok',
-              agente: e.agente,
-            })
-          } else if (e.autoBuild && esInerte(cap, args)) {
+          if (e.autoBuild && esInerte(cap, args)) {
             const c = await construir(e.ctx, e.threadId, key, args)
             construidas++
             // El resultado, no los argumentos: los argumentos son lo que se
@@ -299,7 +338,18 @@ async function llamar(
     {
       quien: e.agente,
       model: perfil.model,
-      system: promptSubagente(e.agente),
+      // El prompt del subagente va en un bloque cacheado. Es constante por
+      // dominio y se reenviaba entero en cada vuelta de cada especialista: con
+      // catorce dominios y varias vueltas cada uno, era lo más caro del turno
+      // después del hilo. El encargo y los hechos van en `messages`, así que
+      // este prefijo es idéntico entre comercios y entre turnos.
+      system: [
+        {
+          type: 'text' as const,
+          text: promptSubagente(e.agente),
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
       messages: mensajes,
       tools,
       maxTokens: perfil.maxTokens,

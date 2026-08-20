@@ -13,7 +13,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getAnthropicStreaming, getAnthropicSubagent } from '@/lib/ai/anthropic-client'
+import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
 import { crearPresupuesto, type GastoAgente } from './fleet/budget'
 import { runOrquestador } from './fleet/orchestrator'
 import { anthropicRunner, type ModelRunner } from './fleet/runner'
@@ -25,7 +25,7 @@ import {
   esInerte,
   findCapability,
 } from '@/lib/capabilities/registry'
-import type { CapabilityContext } from '@/lib/capabilities/types'
+import type { Capability, CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
 import { construir, proponer } from './escribir'
 import { systemPrompt } from './prompt'
@@ -91,13 +91,17 @@ async function transmitir(
 }
 
 /**
- * Techo diario de gasto por cuenta.
+ * No hay techo diario de gasto por cuenta.
  *
- * El Operator corre con la clave de Riverz, así que sin tope una cuenta puede
- * gastar sin límite el saldo de la plataforma. Se cuenta en tokens de entrada
- * porque es lo que domina: cada vuelta reenvía el hilo entero.
+ * Hubo uno de 400.000 tokens de entrada, y el problema no era el número sino
+ * que estaba elegido a ojo: cortaba una tarde de trabajo real igual que un
+ * bucle. El freno de un bucle es el límite por minuto del endpoint, que sigue
+ * puesto; y el gasto real ahora se guarda desglosado por subagente en
+ * `operator_agent_usage`, que es de donde va a salir el número definitivo
+ * cuando haya con qué elegirlo.
+ *
+ * `overBudget` y su texto se quedan: el día que vuelva un tope, vuelve acá.
  */
-const TOPE_DIARIO_TOKENS = 400_000
 
 export interface OperatorTurn {
   text: string
@@ -118,19 +122,6 @@ export interface OperatorTurn {
   porAgente?: Record<string, GastoAgente>
   /** El reparto que quedó esperando aprobación, si hubo. */
   planId?: string
-}
-
-async function tokensHoy(db: SupabaseClient, workspaceId: string): Promise<number> {
-  const desde = new Date(Date.now() - 24 * 3_600_000).toISOString()
-  const { data } = await db
-    .from('operator_messages')
-    .select('prompt_tokens')
-    .eq('workspace_id', workspaceId)
-    .gte('created_at', desde)
-  return ((data ?? []) as { prompt_tokens: number | null }[]).reduce(
-    (a, r) => a + (r.prompt_tokens ?? 0),
-    0,
-  )
 }
 
 
@@ -207,16 +198,6 @@ export async function runOperator(args: {
 
   const locale = args.locale ?? 'es'
 
-  if ((await tokensHoy(db, workspaceId)) > TOPE_DIARIO_TOKENS) {
-    return {
-      text: translate(locale, 'operation.operatorOverBudget'),
-      promptTokens: 0,
-      completionTokens: 0,
-      proposedIds: [],
-      overBudget: true,
-    }
-  }
-
   // Sin clave no se puede contestar, pero tampoco es un error del comercio:
   // es que la cuenta no tiene la IA habilitada. Tirar una excepción dejaba en
   // pantalla un "no hay una clave de IA configurada" que no le dice a nadie
@@ -250,7 +231,12 @@ export async function runOperator(args: {
       threadId,
       history: args.history,
       pedido: args.pedido ?? '',
-      runner: args.runner ?? anthropicRunner(getAnthropicSubagent(resolved.key)),
+      // El cliente de streaming, no el de subagente. Es la diferencia entre
+      // diez minutos y dos: el orquestador es el que tiene a una persona
+      // mirando la pantalla, y un turno con reparto se pasa de dos minutos sin
+      // que nada esté mal. Los subagentes sí usan el corto, que lo arma
+      // `runSubagent` por su cuenta.
+      runner: args.runner ?? anthropicRunner(getAnthropicStreaming(resolved.key)),
       emit,
       presupuesto,
       autoBuild: args.autoBuild === true,
@@ -282,6 +268,60 @@ export async function runOperator(args: {
   let promptTokens = 0
   let completionTokens = 0
 
+  /**
+   * Usar una herramienta ya validada. Nunca tira: un fallo vuelve como
+   * resultado de error para que el modelo lo lea y siga.
+   */
+  const usar = async (
+    block: Anthropic.ToolUseBlock,
+    cap: Capability,
+  ): Promise<Anthropic.ToolResultBlockParam> => {
+    const key = cap.key
+    const toolArgs = (block.input ?? {}) as Record<string, unknown>
+    emit({ t: 'tool_start', id: block.id, key, label: etiquetaDe(cap.description) })
+
+    try {
+      if (cap.risk === 'lectura') {
+        const salida = await cap.run(ctx, toolArgs)
+        const texto = JSON.stringify(salida).slice(0, 20_000)
+        emit({ t: 'tool_done', id: block.id, key, ok: true, resumen: resumirSalida(salida) })
+        return { type: 'tool_result', tool_use_id: block.id, content: texto }
+      }
+
+      if (args.autoBuild && esInerte(cap, toolArgs)) {
+        // Modo automático: lo que deja algo APAGADO se construye en el
+        // momento y se ve aparecer. Lo que se prende o le llega a una
+        // persona cae igual al camino de abajo, en los dos modos.
+        const c = await construir(ctx, threadId, key, toolArgs)
+        emit({
+          t: 'built',
+          id: block.id,
+          actionId: c.id,
+          key,
+          preview: c.preview ?? key,
+          artefacto: c.artefacto ?? undefined,
+        })
+        return { type: 'tool_result', tool_use_id: block.id, content: c.texto }
+      }
+
+      const p = await proponer(ctx, threadId, key, toolArgs)
+      proposedIds.push(p.id)
+      emit({
+        t: 'proposed',
+        id: block.id,
+        actionId: p.id,
+        key,
+        preview: p.preview ?? key,
+        artefacto: p.artefacto ?? undefined,
+      })
+      return { type: 'tool_result', tool_use_id: block.id, content: p.texto }
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : 'falló'
+      emit({ t: 'tool_done', id: block.id, key, ok: false, resumen: motivo })
+      return { type: 'tool_result', tool_use_id: block.id, content: motivo, is_error: true }
+    }
+  }
+
   for (let iter = 0; iter < MAX_ITERS; iter++) {
     emit({ t: 'step', n: iter + 1, de: MAX_ITERS })
     const res = await transmitir(client, { messages, tools, system }, emit)
@@ -300,10 +340,18 @@ export async function runOperator(args: {
     messages.push({ role: 'assistant', content: res.content })
     const results: Anthropic.ToolResultBlockParam[] = []
 
+    // Cuando el modelo pide tres lecturas en la misma respuesta —"mirá las
+    // recetas y las automatizaciones", que es lo que hace todo el tiempo— no
+    // hay motivo para hacerlas una tras otra: una persona las mira al mismo
+    // tiempo. Las lecturas van juntas; lo que cambia algo sigue en serie y en
+    // el orden en que lo pidió, porque dos escrituras del mismo dominio se
+    // pueden pisar.
+    const aLeer: { block: Anthropic.ToolUseBlock; cap: Capability }[] = []
+    const aEscribir: { block: Anthropic.ToolUseBlock; cap: Capability }[] = []
+
     for (const block of res.content) {
       if (block.type !== 'tool_use') continue
       const key = capabilityKeyFromToolName(block.name)
-      const toolArgs = (block.input ?? {}) as Record<string, unknown>
 
       // La lista de habilitadas se vuelve a mirar acá y no sólo al armar las
       // tools: el nombre lo elige el modelo.
@@ -328,58 +376,13 @@ export async function runOperator(args: {
         continue
       }
 
-      emit({ t: 'tool_start', id: block.id, key, label: etiquetaDe(cap.description) })
-
-      try {
-        if (cap.risk === 'lectura') {
-          const salida = await cap.run(ctx, toolArgs)
-          const texto = JSON.stringify(salida).slice(0, 20_000)
-          emit({
-            t: 'tool_done',
-            id: block.id,
-            key,
-            ok: true,
-            resumen: resumirSalida(salida),
-          })
-          results.push({ type: 'tool_result', tool_use_id: block.id, content: texto })
-        } else if (args.autoBuild && esInerte(cap, toolArgs)) {
-          // Modo automático: lo que deja algo APAGADO se construye en el
-          // momento y se ve aparecer. Lo que se prende o le llega a una
-          // persona cae igual al camino de abajo, en los dos modos.
-          const c = await construir(ctx, threadId, key, toolArgs)
-          emit({
-            t: 'built',
-            id: block.id,
-            actionId: c.id,
-            key,
-            preview: c.preview ?? key,
-            artefacto: c.artefacto ?? undefined,
-          })
-          results.push({ type: 'tool_result', tool_use_id: block.id, content: c.texto })
-        } else {
-          const p = await proponer(ctx, threadId, key, toolArgs)
-          proposedIds.push(p.id)
-          emit({
-            t: 'proposed',
-            id: block.id,
-            actionId: p.id,
-            key,
-            preview: p.preview ?? key,
-            artefacto: p.artefacto ?? undefined,
-          })
-          results.push({ type: 'tool_result', tool_use_id: block.id, content: p.texto })
-        }
-      } catch (e) {
-        const motivo = e instanceof Error ? e.message : 'falló'
-        emit({ t: 'tool_done', id: block.id, key, ok: false, resumen: motivo })
-        results.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: motivo,
-          is_error: true,
-        })
-      }
+      ;(cap.risk === 'lectura' ? aLeer : aEscribir).push({ block, cap })
     }
+
+    if (aLeer.length > 0) {
+      results.push(...(await Promise.all(aLeer.map((u) => usar(u.block, u.cap)))))
+    }
+    for (const u of aEscribir) results.push(await usar(u.block, u.cap))
 
     messages.push({ role: 'user', content: results })
   }

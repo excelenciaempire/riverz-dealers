@@ -5,7 +5,7 @@ import { csrfGuard } from '@/lib/csrf'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature-flags'
 import { limitByKey } from '@/lib/rate-limit'
-import { getAnthropicSubagent } from '@/lib/ai/anthropic-client'
+import { getAnthropicStreaming } from '@/lib/ai/anthropic-client'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import { crearPresupuesto } from '@/lib/operator/fleet/budget'
@@ -117,7 +117,8 @@ export async function POST(
           plan,
           ctx,
           threadId,
-          runner: anthropicRunner(getAnthropicSubagent(resolved.key)),
+          // Diez minutos: un plan de varias olas los usa sin que nada falle.
+          runner: anthropicRunner(getAnthropicStreaming(resolved.key)),
           emit: push,
           presupuesto,
         })

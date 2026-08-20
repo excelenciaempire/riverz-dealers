@@ -63,8 +63,15 @@ async function contexto() {
 /**
  * ¿Este comercio pidió que construya sin preguntar?
  *
- * Sin fila, no. Es una elección explícita: nadie estrena la cuenta con el
- * Operador armando cosas por su cuenta.
+ * Sin fila, SÍ. Cambió respecto de la primera versión: arrancar en modo tímido
+ * hacía que la primera experiencia de cualquier cuenta fuera aprobar tres
+ * tarjetas para crear tres borradores que nacen apagados. Lo que se construye
+ * solo es únicamente lo inerte —lo que queda pausado, en borrador, sin salir—,
+ * así que lo peor que pasa sin mirar es que aparezcan cosas apagadas.
+ *
+ * Lo que le llega a una persona, sale a Meta o mueve dinero sigue pidiendo el
+ * click en los dos modos, y el interruptor sigue estando para quien prefiera
+ * aprobar todo.
  */
 async function autoBuildDe(
   admin: ReturnType<typeof supabaseAdmin>,
@@ -75,7 +82,8 @@ async function autoBuildDe(
     .select('auto_build')
     .eq('workspace_id', workspaceId)
     .maybeSingle()
-  return (data as { auto_build?: boolean } | null)?.auto_build === true
+  const fila = data as { auto_build?: boolean } | null
+  return fila?.auto_build !== false
 }
 
 export async function GET(request: Request) {

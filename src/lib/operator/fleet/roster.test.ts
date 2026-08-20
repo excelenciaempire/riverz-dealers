@@ -54,11 +54,13 @@ describe('la partición del catálogo', () => {
     }
   })
 
-  it('nadie puede escribirle a un cliente', () => {
-    // La exclusión más importante del sistema. Vale para el orquestador y
-    // también para cada subagente.
-    expect(subagentForCapability('mensajes.enviar')).toBeNull()
+  it('escribirle a un cliente es de la bandeja, y de nadie más', () => {
+    // Un solo dueño: si dos subagentes pudieran escribirle al mismo cliente,
+    // dos ramas de un plan podrían mandarle dos mensajes distintos sin que
+    // ninguna sepa de la otra.
+    expect(subagentForCapability('mensajes.enviar')).toBe('bandeja')
     for (const id of SUBAGENT_IDS) {
+      if (id === 'bandeja') continue
       expect(
         capacidadesDe(id).some((c) => c.key === 'mensajes.enviar'),
         id,
@@ -66,10 +68,10 @@ describe('la partición del catálogo', () => {
     }
   })
 
-  it('la bandeja diagnostica pero no manda', () => {
+  it('la bandeja diagnostica y también redacta', () => {
     const claves = capacidadesDe('bandeja').map((c) => c.key)
     expect(claves).toContain('mensajes.diagnostico')
-    expect(claves).not.toContain('mensajes.enviar')
+    expect(claves).toContain('mensajes.enviar')
   })
 
   it('contactos y bandeja se reparten las de contacto sin pisarse', () => {
@@ -131,7 +133,9 @@ describe('la forma de cada spec', () => {
       expect(s.instrucciones.length, s.id).toBeGreaterThan(40)
       expect(s.nombreKey, s.id).toMatch(/^operation\./)
       expect(s.maxIters, s.id).toBeGreaterThan(0)
-      expect(s.maxIters, s.id).toBeLessThanOrEqual(6)
+      // Techo por especialista. El presupuesto del turno es el freno real
+      // (`MAX_LLAMADAS_TURNO`); esto sólo evita que uno solo se lo coma entero.
+      expect(s.maxIters, s.id).toBeLessThanOrEqual(8)
     }
   })
 })

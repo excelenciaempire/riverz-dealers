@@ -30,15 +30,15 @@ import type { SubagentId, SubagentSpec } from './types'
  *
  *  - `operacion.estado` y `metricas.resumen` miran la cuenta entera, no un
  *    dominio. Son del orquestador, que las usa para contestar sin delegar.
- *  - `mensajes.enviar` le escribe a un cliente real. No la tiene el orquestador
- *    (ver `FUERA_DE_ALCANCE` en `../capabilities.ts`) y tampoco la tiene el
- *    equipo: esa conversación la abre una persona desde la bandeja.
+ *
+ * `mensajes.enviar` SÍ es de alguien: de la bandeja. Estuvo un tiempo acá con el
+ * argumento de que le escribe a un cliente real, y eso sigue siendo cierto —
+ * pero es `irreversible` y no inerte, así que siempre deja una fila esperando
+ * un click. Excluirla no protegía nada; sólo le impedía al equipo ofrecerse.
  */
 export const SIN_DUENO: Record<string, string> = {
   'operacion.estado': 'mira la cuenta entera, no un dominio: la usa el orquestador',
   'metricas.resumen': 'mira la cuenta entera, no un dominio: la usa el orquestador',
-  'mensajes.enviar':
-    'le escribe a un cliente real: esa conversación la abre una persona desde la bandeja',
 }
 
 export const ROSTER: SubagentSpec[] = [
@@ -49,7 +49,7 @@ export const ROSTER: SubagentSpec[] = [
       'Arma, edita, prende y pausa automatizaciones: lo que pasa solo cuando ocurre un evento (un carrito abandonado, un pedido nuevo, una etiqueta). NO manda campañas ni crea plantillas; si le falta una plantilla aprobada, se la pide al de plantillas.',
     capacidades: ['automatizaciones.'],
     tier: 'constructor',
-    maxIters: 5,
+    maxIters: 7,
     instrucciones: [
       'Antes de armar algo, mirá qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
       'Una automatización nace pausada, siempre. Prenderla es otra decisión y la toma una persona.',
@@ -64,7 +64,7 @@ export const ROSTER: SubagentSpec[] = [
       'Arma y edita flujos conversacionales: los menús con botones donde el cliente elige y la conversación se ramifica. NO es lo mismo que una automatización, que se dispara sola por un evento.',
     capacidades: ['flujos.'],
     tier: 'constructor',
-    maxIters: 5,
+    maxIters: 7,
     instrucciones: [
       'Los cambios se ensayan antes de aplicarse: si el ensayo devuelve un error nuevo, corregí y volvé a intentar en vez de guardar algo roto.',
       'No rehagas el flujo entero para cambiar un nodo. Mandá el cambio mínimo.',
@@ -78,7 +78,7 @@ export const ROSTER: SubagentSpec[] = [
       'Escribe plantillas de WhatsApp y las manda a aprobar a Meta. Es el único que sabe qué exige Meta para que una plantilla no salga rechazada. NO manda campañas ni arma automatizaciones.',
     capacidades: ['plantillas.'],
     tier: 'constructor',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Una plantilla nace en borrador. Mandarla a Meta es otra decisión.',
       'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribí en consecuencia.',
@@ -93,7 +93,7 @@ export const ROSTER: SubagentSpec[] = [
       'Prepara envíos masivos a un público: a quién, con qué plantilla y cuándo. NO arma automatizaciones (eso es lo que pasa solo) ni escribe plantillas.',
     capacidades: ['campanas.'],
     tier: 'constructor',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Antes de preparar una campaña, contá a cuánta gente alcanza el público. Un envío a cero o a toda la base casi siempre es un criterio mal escrito.',
       'La campaña queda preparada y sin salir. Lanzarla es una decisión de una persona, siempre.',
@@ -104,13 +104,18 @@ export const ROSTER: SubagentSpec[] = [
     id: 'bandeja',
     nombreKey: 'operation.subBandeja',
     alcance:
-      'Ordena la bandeja: quién está esperando respuesta, a quién se le asigna, qué se cierra, y por qué a alguien no le llegó un mensaje. NO le escribe a los clientes: eso lo hace una persona.',
-    capacidades: ['conversaciones.', 'contactos.buscar', 'mensajes.diagnostico'],
+      'Ordena la bandeja: quién está esperando respuesta, a quién se le asigna, qué se cierra, y por qué a alguien no le llegó un mensaje. También puede redactar un mensaje para un cliente, que siempre queda esperando aprobación. NO arma campañas ni automatizaciones.',
+    capacidades: [
+      'conversaciones.',
+      'contactos.buscar',
+      'mensajes.diagnostico',
+      'mensajes.enviar',
+    ],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
-      'Cuando alguien pregunta por qué no le llegó un mensaje, la respuesta casi nunca es "el sistema falló": suele ser una baja, la ventana de 24 h o una plantilla sin aprobar. Mirá antes de opinar.',
-      'Vos no le escribís a nadie. Si hace falta contestarle a un cliente, decilo y que lo haga una persona.',
+      'Cuando alguien pregunta por qué no le llegó un mensaje, la respuesta casi nunca es "el sistema falló": suele ser una baja, la ventana de 24 horas o una plantilla sin aprobar. Mira antes de opinar.',
+      'Puedes redactar un mensaje para un cliente, pero no sale hasta que una persona lo aprueba. Escríbelo como lo escribiría el comercio, corto y sin sonar a plantilla, y di a quién se lo mandarías.',
     ].join('\n'),
     puedePedirle: ['contactos'],
   },
@@ -131,7 +136,7 @@ export const ROSTER: SubagentSpec[] = [
       'segmentos.',
     ],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Antes de guardar un segmento, contá a cuánta gente alcanza. Si da cero, el criterio está mal escrito y guardarlo sólo esconde el error.',
       'Las etiquetas se escriben con el nombre exacto que ya existe en la cuenta. Una etiqueta nueva por una letra de diferencia parte la base en dos.',
@@ -145,7 +150,7 @@ export const ROSTER: SubagentSpec[] = [
       'Cuida el catálogo y lo que la IA sabe de cada producto: descripción, preguntas frecuentes, material de entrenamiento. NO vende ni arma pedidos.',
     capacidades: ['productos.'],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Lo que escribas acá lo van a repetir los agentes ante un cliente. Nada de promesas que el negocio no pueda cumplir.',
     ].join('\n'),
@@ -158,7 +163,7 @@ export const ROSTER: SubagentSpec[] = [
       'Se ocupa de los comentarios en Instagram y Facebook: qué se responde en público y cuándo pasar a mensaje privado. NO maneja la bandeja de conversaciones.',
     capacidades: ['comentarios.'],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Un comentario es público: lo que se contesta ahí lo lee cualquiera. Al privado se pasa cuando hay que pedir datos.',
     ].join('\n'),
@@ -171,7 +176,7 @@ export const ROSTER: SubagentSpec[] = [
       'Maneja las llamadas telefónicas: cuándo llamar, a quién y cómo salieron. NO manda mensajes escritos.',
     capacidades: ['voz.'],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Una llamada suena en el teléfono de una persona real y no se puede deshacer. Nunca encoles una sin que alguien lo haya aprobado.',
       'Respetá el horario: llamar a las once de la noche pierde al cliente en vez de recuperarlo.',
@@ -185,7 +190,7 @@ export const ROSTER: SubagentSpec[] = [
       'Arma y configura los agentes de IA que atienden a los clientes: su rol, su tono, qué puede hacer cada uno y qué deriva a una persona. NO contesta conversaciones él mismo.',
     capacidades: ['agentes.'],
     tier: 'constructor',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Un agente nace en borrador y apagado. Prenderlo lo decide una persona.',
       'El rol no es una etiqueta: define qué hace y qué deriva. Un agente de postventa que puede crear pedidos duplica compras.',
@@ -200,7 +205,7 @@ export const ROSTER: SubagentSpec[] = [
       'Sale a buscar clientes en Instagram: arma campañas de mensajes a gente que interactuó con la marca. NO atiende lo que entra.',
     capacidades: ['prospeccion.'],
     tier: 'constructor',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Escribirle a alguien que no pidió nada es lo más fácil de arruinar. Poco volumen, motivo claro, y nunca dos veces a la misma persona.',
     ].join('\n'),
@@ -213,7 +218,7 @@ export const ROSTER: SubagentSpec[] = [
       'Se ocupa de los pedidos y del dinero: consultarlos, armar links de pago, registrar un pago informado y resolver lo que quedó esperando una decisión. Todo lo que toca plata pide aprobación. NO le avisa al cliente ni arma la conversación: manda el link y quien escribe es otro.',
     capacidades: ['pedidos.', 'aprobaciones.'],
     tier: 'mecanico',
-    maxIters: 4,
+    maxIters: 6,
     instrucciones: [
       'Acá se mueve dinero de verdad. Nunca des por hecho un pago que no viste confirmado, y nunca marques pagado algo que no te consta.',
     ].join('\n'),
@@ -226,7 +231,7 @@ export const ROSTER: SubagentSpec[] = [
       'Cuida las conexiones con WhatsApp, Instagram, la tienda y el resto: cuál se cayó, cuál está por vencer, qué falta conectar. NO puede conectar una cuenta nueva, eso necesita a una persona en el navegador.',
     capacidades: ['integraciones.'],
     tier: 'mecanico',
-    maxIters: 3,
+    maxIters: 5,
     instrucciones: [
       'Conectar una cuenta pide un navegador y una persona: vos podés diagnosticar y decir qué hay que hacer, no hacerlo.',
       'Desconectar un canal corta los envíos de toda la cuenta. Nunca es una decisión tuya.',
@@ -240,7 +245,7 @@ export const ROSTER: SubagentSpec[] = [
       'Cambia la configuración de la cuenta: nombre, zona horaria, quién es del equipo y qué puede ver cada uno. NO toca automatizaciones, agentes ni envíos.',
     capacidades: ['ajustes.'],
     tier: 'mecanico',
-    maxIters: 3,
+    maxIters: 5,
     instrucciones: [
       'Invitar a alguien o cambiarle el rol le da poder sobre la cuenta de un comercio. Siempre pasa por aprobación.',
       'La zona horaria mueve todos los horarios de la cuenta a la vez, incluidos los de las automatizaciones que ya están corriendo.',

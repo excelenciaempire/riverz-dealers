@@ -23,18 +23,23 @@ import { ALL_CAPABILITIES } from '@/lib/capabilities/registry'
 import type { Capability } from '@/lib/capabilities/types'
 
 /**
- * Lo que el Operator NO puede tocar, con el motivo al lado.
+ * Lo que el Operator NO puede tocar. Hoy: nada.
  *
- * Ojo: esto no reemplaza a `esInerte`. Esa regla decide si algo se construye
- * solo o pide un click; ésta decide si el chat siquiera lo tiene a mano. Una
- * capacidad puede estar habilitada y aun así pedir aprobación siempre.
+ * Durante un tiempo `mensajes.enviar` estuvo acá, con el argumento de que esa
+ * conversación la abre una persona desde la bandeja. Se sacó, y el motivo es
+ * que el argumento estaba mirando el lugar equivocado: **esta lista nunca fue
+ * la barrera de seguridad**. La barrera es `esInerte`, y funciona distinto.
+ *
+ * Mandar un mensaje es `irreversible` y no es inerte, así que SIEMPRE deja una
+ * fila esperando un click, en todos los modos y para todos. Excluirla de acá no
+ * le sacaba un click a nada: sólo hacía que el chat contestara "eso no se puede
+ * desde acá" en vez de ofrecerse a hacerlo con su vista previa y su botón.
+ *
+ * El mapa queda porque la puerta sigue existiendo. Sacar algo del alcance del
+ * chat es una decisión legítima; lo que no vale es usarla como sustituto de
+ * `esInerte`. Si algo entra acá, entra con su motivo escrito.
  */
-const FUERA_DE_ALCANCE = new Map<string, string>([
-  [
-    'mensajes.enviar',
-    'le escribe a un cliente real: esa conversación la abre una persona desde la bandeja',
-  ],
-])
+const FUERA_DE_ALCANCE = new Map<string, string>()
 
 export const OPERATOR_CAPABILITIES: Capability[] = ALL_CAPABILITIES.filter(
   (c) => !FUERA_DE_ALCANCE.has(c.key),

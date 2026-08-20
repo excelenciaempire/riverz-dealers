@@ -101,13 +101,13 @@ describe('lo que se rechaza, y con qué mensaje', () => {
   })
 
   it('un plan gigante, con la sugerencia de juntar', () => {
-    const r = validarPlan({ pasos: Array.from({ length: 9 }, () => paso('voz')) })
+    const r = validarPlan({ pasos: Array.from({ length: 13 }, () => paso('voz')) })
     expect(r.ok).toBe(false)
     if (r.ok) return
     expect(r.error).toContain('máximo')
     // El mensaje sugiere qué hacer, no sólo que está mal: un error que no dice
     // cómo salir deja al modelo reintentando lo mismo.
-    expect(r.error.toLowerCase()).toContain('juntá')
+    expect(r.error.toLowerCase()).toContain('junta')
   })
 
   it('un encargo interminable', () => {

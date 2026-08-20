@@ -21,7 +21,7 @@ import { olas as calcularOlas } from './olas'
 import { esSubagentId, type SubagentId } from './types'
 
 /** Cuántos pasos como mucho. Más que esto no es un plan, es un proyecto. */
-const MAX_PASOS = 8
+const MAX_PASOS = 12
 const MAX_ENCARGO = 600
 
 export interface PasoValidado {
@@ -58,7 +58,7 @@ export function validarPlan(entrada: unknown): Validacion {
   if (e.pasos.length > MAX_PASOS) {
     return {
       ok: false,
-      error: `Son ${e.pasos.length} pasos y el máximo es ${MAX_PASOS}. Juntá lo que sea del mismo dominio en un solo encargo.`,
+      error: `Son ${e.pasos.length} pasos y el máximo es ${MAX_PASOS}. Junta lo que sea del mismo dominio en un solo encargo.`,
     }
   }
 
@@ -71,7 +71,7 @@ export function validarPlan(entrada: unknown): Validacion {
     const encargo = typeof p?.encargo === 'string' ? p.encargo.trim() : ''
     if (!encargo) return { ok: false, error: `El paso ${i} no dice qué hay que hacer.` }
     if (encargo.length > MAX_ENCARGO) {
-      return { ok: false, error: `El encargo del paso ${i} es larguísimo. Decilo en menos.` }
+      return { ok: false, error: `El encargo del paso ${i} es larguísimo. Dilo en menos.` }
     }
 
     const deps = Array.isArray(p?.depende_de) ? p.depende_de : []

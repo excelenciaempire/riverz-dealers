@@ -14,7 +14,7 @@
 import type { Quien } from './types'
 
 /** Cuántas llamadas al modelo puede hacer un turno, pase lo que pase. */
-export const MAX_LLAMADAS_TURNO = 40
+export const MAX_LLAMADAS_TURNO = 80
 
 export interface GastoAgente {
   prompt: number
@@ -89,11 +89,12 @@ export function crearPresupuesto(
  * nadie mira. Acá hay alguien mirando, la clave es la de la plataforma y un 429
  * con `maxRetries: 0` se pierde entero.
  *
- * Tres a la vez: en un panel de 360 píxeles, tres agentes hablando ya es todo
- * lo que se puede leer, y el paralelismo real de estos planes es de dos o tres
- * ramas, no de diez.
+ * Seis a la vez. Arrancó en tres pensando en cuántos caben en el panel, que era
+ * mirar el problema equivocado: el panel se scrollea y el comercio no está
+ * leyendo cada línea, está esperando el resultado. Seis es lo que un equipo de
+ * verdad hace en paralelo antes de empezar a pisarse.
  */
-export const MAX_EN_PARALELO = 3
+export const MAX_EN_PARALELO = 6
 
 export function crearSemaforo(max: number = MAX_EN_PARALELO) {
   let libres = max

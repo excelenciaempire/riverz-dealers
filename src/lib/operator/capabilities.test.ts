@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { ALL_CAPABILITIES } from '@/lib/capabilities/registry'
+import { ALL_CAPABILITIES, esInerte } from '@/lib/capabilities/registry'
 import { MERCHANT_TOOLS } from '@/lib/mcp/merchant-tools'
 import {
   OPERATOR_CAPABILITIES,
@@ -16,19 +16,22 @@ import {
  * que lo excluido siga excluido, y que nada quede huérfano por olvido.
  */
 describe('capacidades del Operator', () => {
-  it('no puede escribirle a un cliente', () => {
-    // Esa conversación la abre una persona desde la bandeja. Entra cuando
-    // exista el permiso por acción que lo gobierne.
-    expect(operatorCanUse('mensajes.enviar')).toBe(false)
-    expect(OPERATOR_CAPABILITIES.some((c) => c.key === 'mensajes.enviar')).toBe(false)
+  it('puede escribirle a un cliente, y por eso mismo siempre pide permiso', () => {
+    // La lista de capacidades nunca fue la barrera: la barrera es `esInerte`.
+    // Mandar un mensaje es irreversible y no inerte, así que tenerla a mano no
+    // le saca un click a nada — sólo le permite ofrecerse en vez de contestar
+    // "eso no se puede desde acá".
+    expect(operatorCanUse('mensajes.enviar')).toBe(true)
+    const cap = ALL_CAPABILITIES.find((c) => c.key === 'mensajes.enviar')!
+    expect(cap.risk).toBe('irreversible')
+    expect(esInerte(cap, {}), 'mandar un mensaje NUNCA se construye solo').toBe(false)
   })
 
   it('toda exclusión trae su motivo escrito', () => {
-    // Sin motivo, dentro de seis meses nadie sabe si sigue valiendo. Es la
-    // diferencia entre una decisión y un olvido.
-    const excluidas = ALL_CAPABILITIES.filter((c) => !operatorCanUse(c.key))
-    expect(excluidas.length).toBeGreaterThan(0)
-    for (const c of excluidas) {
+    // Hoy no hay ninguna, y el bucle no corre. Queda porque la puerta sigue
+    // existiendo: el día que alguien saque algo del alcance del chat, sin
+    // motivo escrito nadie va a saber en seis meses si sigue valiendo.
+    for (const c of ALL_CAPABILITIES.filter((x) => !operatorCanUse(x.key))) {
       expect(motivoFueraDeAlcance(c.key)?.length ?? 0, c.key).toBeGreaterThan(20)
     }
   })

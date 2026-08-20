@@ -43,8 +43,8 @@ import { esSubagentId } from './types'
 /** Vueltas de razonamiento. Las delegaciones no cuentan acá. */
 const MAX_VUELTAS = 6
 /** Techo duro del turno, delegaciones incluidas. */
-const MAX_ITERS_TOTAL = 14
-const MAX_DELEGACIONES = 8
+const MAX_ITERS_TOTAL = 24
+const MAX_DELEGACIONES = 16
 
 export interface TurnoOrquestador {
   text: string
@@ -113,7 +113,18 @@ export async function runOrquestador(args: {
     const results: Anthropic.ToolResultBlockParam[] = []
     const aDelegar: Anthropic.ToolUseBlock[] = []
 
-    // ── Pasada 1: lo que va en fila ────────────────────────────────────
+    // ── Pasada 1: el plan en fila, las lecturas todas juntas ───────────
+    //
+    // Las lecturas se piden en paralelo porque son independientes entre sí y
+    // porque el modelo casi siempre pide varias en la misma respuesta: "mirá
+    // las recetas y las automatizaciones" son dos consultas que no se deben
+    // nada. En fila, cada una esperaba a la anterior; medido en la primera
+    // corrida real, cuatro lecturas seguidas eran cuatro viajes a la base uno
+    // atrás del otro.
+    //
+    // El plan NO entra en el grupo: escribe en la base y emite un evento, y su
+    // lugar en el orden importa.
+    const aLeer: Anthropic.ToolUseBlock[] = []
     for (const uso of usos) {
       if (uso.name === 'equipo__delegar') {
         aDelegar.push(uso)
@@ -140,26 +151,38 @@ export async function runOrquestador(args: {
         })
         continue
       }
+      aLeer.push(uso)
+    }
 
-      emit({ t: 'tool_start', id: uso.id, key, label: key })
-      try {
-        const salida = await cap.run(ctx, (uso.input ?? {}) as Record<string, unknown>)
-        results.push({
-          type: 'tool_result',
-          tool_use_id: uso.id,
-          content: recortarResultado(salida),
-        })
-        emit({ t: 'tool_done', id: uso.id, key, ok: true, resumen: 'ok' })
-      } catch (e) {
-        const motivo = e instanceof Error ? e.message : 'falló'
-        results.push({
-          type: 'tool_result',
-          tool_use_id: uso.id,
-          content: motivo,
-          is_error: true,
-        })
-        emit({ t: 'tool_done', id: uso.id, key, ok: false, resumen: motivo })
-      }
+    if (aLeer.length > 0) {
+      const leidas = await Promise.all(
+        aLeer.map(async (uso) => {
+          const key = capabilityKeyFromToolName(uso.name)
+          emit({ t: 'tool_start', id: uso.id, key, label: key })
+          try {
+            const salida = await findCapability(key)!.run(
+              ctx,
+              (uso.input ?? {}) as Record<string, unknown>,
+            )
+            emit({ t: 'tool_done', id: uso.id, key, ok: true, resumen: 'ok' })
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: uso.id,
+              content: recortarResultado(salida),
+            }
+          } catch (e) {
+            const motivo = e instanceof Error ? e.message : 'falló'
+            emit({ t: 'tool_done', id: uso.id, key, ok: false, resumen: motivo })
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: uso.id,
+              content: motivo,
+              is_error: true,
+            }
+          }
+        }),
+      )
+      results.push(...leidas)
     }
 
     // ── Pasada 2: los encargos, juntos ─────────────────────────────────

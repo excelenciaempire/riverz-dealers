@@ -6,6 +6,7 @@ import { crearPresupuesto } from './budget'
 import { fakeDb } from './fake-db'
 import { USO_FALSO, fakeRunner } from './fake-runner'
 import { runSubagent } from './run'
+import { specDe } from './roster'
 import type { SubagentId } from './types'
 
 /**
@@ -185,8 +186,8 @@ describe('el andamio de un subagente', () => {
     })
     await promesa
 
-    // `contactos` declara 4 vueltas en el roster.
-    expect(fake.llamadas.length).toBeLessThanOrEqual(4)
+    // Sale del roster: lo que importa es que corte solo, no el número exacto.
+    expect(fake.llamadas.length).toBeLessThanOrEqual(specDe('contactos').maxIters)
   })
 
   it('si el modelo explota, lo cuenta en vez de tumbar el turno', async () => {

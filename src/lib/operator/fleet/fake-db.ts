@@ -25,7 +25,27 @@ export interface FakeDb {
   en(tabla: string): Record<string, unknown>[]
 }
 
-export function fakeDb(): FakeDb {
+/**
+ * Ganchos para frenar una consulta a mitad de camino.
+ *
+ * Existen para una sola cosa: poder afirmar que dos lecturas de la misma
+ * respuesta corren AL MISMO TIEMPO. Sin un freno, las dos terminan en la misma
+ * microtarea y no hay forma de distinguir "en paralelo" de "muy rápido en
+ * serie" sin medir tiempo, que es justo lo que no se puede hacer en una prueba
+ * que tiene que dar igual en una máquina ocupada.
+ *
+ * Reciben el nombre de la tabla para que la prueba cuente sólo las suyas: el
+ * orquestador lee media cuenta para armar su prompt, y esas lecturas también
+ * pasarían por acá.
+ */
+export interface FrenosFakeDb {
+  /** Se espera antes de devolver las filas de una lectura. */
+  antesDeLeer?: (tabla: string) => Promise<void> | void
+  /** Se espera antes de devolver el id de un insert. */
+  antesDeEscribir?: (tabla: string) => Promise<void> | void
+}
+
+export function fakeDb(frenos: FrenosFakeDb = {}): FakeDb {
   const inserts: InsertRegistrado[] = []
   let n = 0
 
@@ -39,6 +59,7 @@ export function fakeDb(): FakeDb {
           select() {
             return {
               async single() {
+                await frenos.antesDeEscribir?.(tabla)
                 return { data: { id }, error: null }
               },
             }
@@ -90,10 +111,16 @@ export function fakeDb(): FakeDb {
         return cadena
       },
       async maybeSingle() {
+        await frenos.antesDeLeer?.(tabla)
         return { data: null, error: null }
       },
-      then(res: (v: { data: unknown[]; error: null; count: number }) => unknown) {
-        return Promise.resolve(res({ data: [], error: null, count: 0 }))
+      then(
+        res: (v: { data: unknown[]; error: null; count: number }) => unknown,
+        rej?: (e: unknown) => unknown,
+      ) {
+        return Promise.resolve(frenos.antesDeLeer?.(tabla))
+          .then(() => ({ data: [] as unknown[], error: null as null, count: 0 }))
+          .then(res, rej)
       },
     }
     return cadena
