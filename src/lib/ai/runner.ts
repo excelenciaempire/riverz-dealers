@@ -36,7 +36,9 @@ import {
   buildCheckoutTool,
   buildOrderTool,
   BUSCAR_PRODUCTO_TOOL,
+  CANCELAR_PEDIDO_TOOL,
   LOOKUP_ORDER_TOOL,
+  REEMBOLSAR_TOOL,
   UPDATE_ORDER_TOOL,
   ESCALATE_TO_CALL_TOOL,
   REGISTRAR_PAGO_TOOL,
@@ -1639,6 +1641,14 @@ async function generateReply(
     // los recordatorios ya vale por sí solo.
     ...(primaryContact.id && agentCan(agent, 'registrar_pago')
       ? [REGISTRAR_PAGO_TOOL]
+      : []),
+    // Postventa. Las dos PROPONEN y decide una persona, así que no hacen falta
+    // Shopify ni un permiso aparte para ofrecerlas: lo que se le habilita al
+    // agente es armar la solicitud, y armarla mal no cuesta nada. Van con
+    // `editar_pedido` porque es el permiso que ya significa "puede tocar un
+    // pedido que existe".
+    ...(primaryContact.id && agentCan(agent, 'editar_pedido')
+      ? [CANCELAR_PEDIDO_TOOL, REEMBOLSAR_TOOL]
       : []),
   ];
   const opciones = {

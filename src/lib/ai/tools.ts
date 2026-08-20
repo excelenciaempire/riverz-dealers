@@ -35,6 +35,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { enqueueCall } from '@/lib/voice/queue'
 import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
 import { searchProducts } from '@/lib/products/search'
+import { proponerCancelacion, proponerReembolso } from './postventa'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -189,6 +190,51 @@ export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
       },
     },
     required: ['query'],
+  },
+}
+
+/**
+ * Cancelar y reembolsar. Las dos PROPONEN: mueven dinero y no se deshacen, así
+ * que la ejecuta una persona del negocio desde el aviso de WhatsApp.
+ *
+ * La descripción se lo dice explícitamente al modelo, porque el error caro acá
+ * no es no hacerlo: es decirle a la clienta que ya está resuelto.
+ */
+export const CANCELAR_PEDIDO_TOOL: Anthropic.Tool = {
+  name: 'cancelar_pedido',
+  description:
+    'Pedí la cancelación de un pedido cuando la clienta la solicita. NO cancela al instante: deja la solicitud armada y una persona del negocio la aprueba en minutos. Contale que ya la pasaste y que le confirmás; NUNCA le digas que el pedido ya está cancelado ni que le devolvieron el dinero. Si no sabés de qué pedido habla, preguntale el número antes de llamar esta tool.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      order_number: {
+        type: 'string',
+        description: 'Número de pedido. Omitilo sólo si la persona tiene un único pedido activo.',
+      },
+      reason: {
+        type: 'string',
+        description: 'Por qué lo quiere cancelar, en las palabras de la clienta.',
+      },
+    },
+    required: [],
+  },
+}
+
+export const REEMBOLSAR_TOOL: Anthropic.Tool = {
+  name: 'reembolsar',
+  description:
+    'Pedí la devolución del dinero de un pedido SIN cancelarlo: llegó incompleto, llegó dañado, o se acordó una bonificación. NO reembolsa al instante: una persona del negocio lo aprueba. Contale que ya lo pasaste; NUNCA le digas que el dinero ya fue devuelto ni prometas una fecha. Si la clienta quiere cancelar la compra entera, usá cancelar_pedido en vez de esta.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      order_number: { type: 'string', description: 'Número de pedido.' },
+      amount: {
+        type: 'number',
+        description: 'Cuánto devolver. Omitilo para devolver todo lo cobrado.',
+      },
+      reason: { type: 'string', description: 'Qué pasó, en las palabras de la clienta.' },
+    },
+    required: [],
   },
 }
 
@@ -505,6 +551,28 @@ export async function runTool(
       })
     }
     return JSON.stringify({ found: true, products: hits })
+  }
+
+  if (toolName === 'cancelar_pedido' || toolName === 'reembolsar') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo gestionar pedidos en esta conversación.',
+      })
+    }
+    const ctx = {
+      db: localOrders.db,
+      workspaceId: localOrders.workspaceId,
+      contactId: localOrders.contactId,
+    }
+    const input = (toolInput ?? {}) as {
+      order_number?: string
+      amount?: number
+      reason?: string
+    }
+    return toolName === 'cancelar_pedido'
+      ? proponerCancelacion(ctx, input)
+      : proponerReembolso(ctx, input)
   }
 
   if (toolName === 'registrar_pago') {

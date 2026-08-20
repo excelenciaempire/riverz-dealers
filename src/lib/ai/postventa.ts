@@ -1,0 +1,195 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { askForApproval } from '@/lib/approvals/ask'
+
+/**
+ * Cancelar y reembolsar, desde una conversación.
+ *
+ * Las dos mueven dinero y no se deshacen, así que el agente **propone y una
+ * persona decide**. No es prudencia de más: quien escribe en el chat es un
+ * desconocido, y el día que un modelo se deje convencer por un mensaje bien
+ * armado, lo peor que puede conseguir es que al comercio le llegue una
+ * pregunta por WhatsApp.
+ *
+ * Lo que sí cambia respecto de antes es quién hace el trabajo. Hasta acá el
+ * agente sólo sabía escalar: la conversación quedaba marcada y alguien tenía
+ * que leer el hilo entero, buscar el pedido y entender qué pasó. Ahora llega
+ * armada — pedido, monto, motivo — y decidir es un sí o un no.
+ */
+
+export interface PostventaCtx {
+  db: SupabaseClient
+  workspaceId: string
+  contactId: string
+}
+
+interface PedidoDelCliente {
+  id: string
+  shopify_order_id: string | null
+  order_number: string | null
+  total_price: number | string | null
+  currency: string | null
+  status: string | null
+  shop_domain: string | null
+}
+
+/**
+ * El pedido del que habla la clienta.
+ *
+ * Con número, ése. Sin número, el último — pero sólo si tiene UNO: elegirle el
+ * pedido a alguien que hizo tres es la forma de cancelar el equivocado.
+ */
+async function resolverPedido(
+  ctx: PostventaCtx,
+  orderNumber?: string,
+): Promise<{ pedido: PedidoDelCliente } | { error: string; message: string }> {
+  let q = ctx.db
+    .from('orders')
+    .select('id, shopify_order_id, order_number, total_price, currency, status, shop_domain')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('contact_id', ctx.contactId)
+    .not('status', 'in', '("cancelled","failed")')
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const num = (orderNumber ?? '').trim().replace(/^#/, '')
+  if (num) q = q.eq('order_number', num)
+
+  const { data } = await q
+  const filas = (data ?? []) as PedidoDelCliente[]
+
+  if (filas.length === 0) {
+    return {
+      error: 'sin_pedido',
+      message: num
+        ? `No encontré el pedido ${num} a nombre de esta persona. Pedile que verifique el número.`
+        : 'No encontré ningún pedido activo de esta persona. Pedile el número de pedido.',
+    }
+  }
+  if (!num && filas.length > 1) {
+    const lista = filas.map((f) => `#${f.order_number ?? '?'}`).join(', ')
+    return {
+      error: 'varios_pedidos',
+      message: `Tiene más de un pedido activo (${lista}). Preguntale cuál antes de seguir.`,
+    }
+  }
+  return { pedido: filas[0] }
+}
+
+function plata(p: PedidoDelCliente): string {
+  const n = typeof p.total_price === 'number' ? p.total_price : Number(p.total_price ?? 0)
+  return Number.isFinite(n) && n > 0 ? `${n} ${p.currency ?? ''}`.trim() : 'monto sin registrar'
+}
+
+/** Deja pedida la cancelación y le dice al modelo qué contarle a la clienta. */
+export async function proponerCancelacion(
+  ctx: PostventaCtx,
+  input: { order_number?: string; reason?: string },
+): Promise<string> {
+  const r = await resolverPedido(ctx, input.order_number)
+  if ('error' in r) return JSON.stringify({ ok: false, ...r })
+  const p = r.pedido
+
+  if (!p.shopify_order_id) {
+    return JSON.stringify({
+      ok: false,
+      // Pedidos de Mercado Libre o espejados a mano: existen en Riverz pero no
+      // hay a qué API pedirle la cancelación.
+      error: 'pedido_no_cancelable',
+      message:
+        'Ese pedido no se puede cancelar automáticamente. Decile que lo pasás al equipo y va a tener respuesta a la brevedad.',
+    })
+  }
+
+  const motivo = (input.reason ?? '').trim().slice(0, 300)
+  const res = await askForApproval({
+    db: ctx.db,
+    workspaceId: ctx.workspaceId,
+    kind: 'cancelar_pedido',
+    title: `¿Cancelar el pedido #${p.order_number ?? p.shopify_order_id}?`,
+    body:
+      `Lo pidió la clienta por chat.\n` +
+      `Importe: ${plata(p)}.\n` +
+      (motivo ? `Motivo: ${motivo}\n` : '') +
+      `Si aceptás, se cancela en la tienda, vuelve el stock y se devuelve lo cobrado.`,
+    payload: {
+      order_id: p.id,
+      shopify_order_id: p.shopify_order_id,
+      shop_domain: p.shop_domain,
+      reason: motivo || 'customer',
+    },
+  })
+
+  if (!res.ok) {
+    return JSON.stringify({
+      ok: false,
+      message:
+        'No pude dejar pedida la cancelación. Decile que lo pasás al equipo y que le confirman en breve.',
+    })
+  }
+
+  return JSON.stringify({
+    ok: true,
+    estado: 'pendiente_de_aprobacion',
+    message:
+      `Quedó pedida la cancelación del pedido #${p.order_number ?? ''}. ` +
+      'Decile que ya lo pasaste y que le confirmás apenas esté. ' +
+      'NO le digas que el pedido ya está cancelado ni que le devolvieron el dinero.',
+  })
+}
+
+/** Lo mismo para un reembolso sin cancelar la compra. */
+export async function proponerReembolso(
+  ctx: PostventaCtx,
+  input: { order_number?: string; amount?: number; reason?: string },
+): Promise<string> {
+  const r = await resolverPedido(ctx, input.order_number)
+  if ('error' in r) return JSON.stringify({ ok: false, ...r })
+  const p = r.pedido
+
+  if (!p.shopify_order_id) {
+    return JSON.stringify({
+      ok: false,
+      error: 'pedido_no_reembolsable',
+      message:
+        'Ese pedido no se puede reembolsar automáticamente. Decile que lo pasás al equipo.',
+    })
+  }
+
+  const motivo = (input.reason ?? '').trim().slice(0, 300)
+  const monto = typeof input.amount === 'number' && input.amount > 0 ? input.amount : null
+
+  const res = await askForApproval({
+    db: ctx.db,
+    workspaceId: ctx.workspaceId,
+    kind: 'reembolsar_pedido',
+    title: `¿Reembolsar ${monto ? `${monto} del` : 'el'} pedido #${p.order_number ?? p.shopify_order_id}?`,
+    body:
+      `Lo pidió la clienta por chat.\n` +
+      `Importe del pedido: ${plata(p)}.\n` +
+      `A devolver: ${monto ?? 'todo lo cobrado'}.\n` +
+      (motivo ? `Motivo: ${motivo}\n` : '') +
+      `El pedido NO se cancela: sólo se devuelve el dinero.`,
+    payload: {
+      order_id: p.id,
+      shopify_order_id: p.shopify_order_id,
+      shop_domain: p.shop_domain,
+      amount: monto,
+      reason: motivo || null,
+    },
+  })
+
+  if (!res.ok) {
+    return JSON.stringify({
+      ok: false,
+      message: 'No pude dejar pedido el reembolso. Decile que lo pasás al equipo.',
+    })
+  }
+
+  return JSON.stringify({
+    ok: true,
+    estado: 'pendiente_de_aprobacion',
+    message:
+      'Quedó pedido el reembolso. Decile que ya lo pasaste y que le confirmás apenas esté. ' +
+      'NO le digas que el dinero ya fue devuelto ni prometas una fecha.',
+  })
+}

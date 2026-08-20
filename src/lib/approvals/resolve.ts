@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { markOrderPaid } from '@/lib/shopify/mark-paid'
+import { cancelOrder, refundOrder } from '@/lib/shopify/order-cancel'
 
 /**
  * La vuelta del humano en el medio: qué pasa cuando el comercio contesta.
@@ -185,6 +186,67 @@ async function ejecutar(
           .eq('workspace_id', fila.workspace_id)
       }
       return { ok: true, message: 'Pedido marcado como pagado en Shopify.' }
+    }
+    case 'cancelar_pedido':
+    case 'reembolsar_pedido': {
+      const shopifyOrderId = String(fila.payload.shopify_order_id ?? '')
+      const orderId = String(fila.payload.order_id ?? '')
+      if (!shopifyOrderId) {
+        return { ok: false, message: 'El pedido no está en Shopify: resolvelo a mano.' }
+      }
+      const admin = await resolveShopifyAdmin(db, fila.workspace_id)
+      if (!admin) return { ok: false, message: 'La tienda no está conectada.' }
+
+      const cancelando = fila.kind === 'cancelar_pedido'
+      const res = cancelando
+        ? await cancelOrder(admin, shopifyOrderId, {
+            reason: String(fila.payload.reason ?? 'customer'),
+          })
+        : await refundOrder(admin, shopifyOrderId, {
+            amount:
+              typeof fila.payload.amount === 'number' ? fila.payload.amount : undefined,
+            reason: (fila.payload.reason as string | null) ?? undefined,
+          })
+
+      if (!res.ok) {
+        // El caso con arreglo se nombra: la tienda se conectó antes de que el
+        // set de permisos incluyera escritura y hay que reconectarla.
+        if (res.error === 'missing_write_scope') {
+          return {
+            ok: false,
+            message: 'Falta permiso de escritura en Shopify. Reconectá la tienda y volvé a intentar.',
+          }
+        }
+        if (res.error === 'sin_cobro_registrado') {
+          return {
+            ok: false,
+            message: 'Ese pedido no tiene un cobro registrado en Shopify: devolvé el dinero por donde entró.',
+          }
+        }
+        return { ok: false, message: res.error ?? 'Shopify no aceptó la operación.' }
+      }
+
+      // El espejo se actualiza igual: el webhook de Shopify también va a
+      // llegar, pero puede tardar, y hasta entonces el pedido seguiría
+      // figurando activo en Riverz — justo mientras alguien mira si funcionó.
+      if (orderId) {
+        await db
+          .from('orders')
+          .update(
+            cancelando
+              ? { status: 'cancelled', financial_status: res.financialStatus ?? 'refunded' }
+              : { financial_status: 'refunded' },
+          )
+          .eq('id', orderId)
+          .eq('workspace_id', fila.workspace_id)
+      }
+
+      return {
+        ok: true,
+        message: cancelando
+          ? 'Pedido cancelado y dinero devuelto en Shopify.'
+          : 'Reembolso hecho en Shopify.',
+      }
     }
     default:
       return { ok: false, message: `No sé cómo ejecutar "${fila.kind}".` }
