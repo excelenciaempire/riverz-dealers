@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { agentCan, pickByRole, roleForInbound } from './roles'
+import { AGENT_ROLES, ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles'
 
 /**
  * El arbitraje entre agentes y los permisos por acción.
@@ -98,5 +98,29 @@ describe('pickByRole', () => {
 
   it('sin candidatos devuelve null', () => {
     expect(pickByRole([], 'ventas')).toBeNull()
+  })
+})
+
+describe('la conducta del rol', () => {
+  it('todo rol menos general le dice al agente qué hace', () => {
+    // El arbitraje mandaba bien la consulta y el agente no se enteraba de cuál
+    // era su trabajo: el rol vivía en la base y en el router, y no llegaba al
+    // prompt. Sin esto, postventa contesta como cualquier otro.
+    for (const r of AGENT_ROLES) {
+      if (r === 'general') {
+        expect(ROLE_BEHAVIOR[r], r).toBeNull()
+        continue
+      }
+      expect(ROLE_BEHAVIOR[r]?.length ?? 0, r).toBeGreaterThan(80)
+    }
+  })
+
+  it('cada rol dice también qué NO hace', () => {
+    // Es la mitad que importa: sin el límite, el de ventas igual intenta
+    // resolver una devolución y el de postventa igual intenta vender.
+    for (const r of AGENT_ROLES) {
+      if (r === 'general') continue
+      expect(ROLE_BEHAVIOR[r] ?? '', r).toMatch(/\bno\b|escal/i)
+    }
   })
 })

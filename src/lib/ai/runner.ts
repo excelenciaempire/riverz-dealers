@@ -3,7 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey, type KeySource } from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
-import { agentCan, pickByRole, roleForInbound } from './roles';
+import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
+import type { AgentRole } from './roles';
 import { transcribeAudio } from './transcribe';
 import type {
   Channel,
@@ -597,6 +598,19 @@ async function pickAgent(
   };
   const all = rows as AgentWithLinks[];
 
+  // Quiénes pueden atender este canal. Se calcula acá arriba porque lo
+  // necesitan dos decisiones: si el agente pegado tiene que soltar el hilo, y
+  // quién lo agarra después. Con una sola lista las dos no se pueden
+  // contradecir.
+  const candidatosDe = (rowsIn: AgentWithLinks[]) => {
+    const delCanal = rowsIn.filter(
+      (row) =>
+        row.scope === 'channels' &&
+        row.ai_agent_channels.some((c) => c.channel === channel),
+    );
+    return delCanal.length > 0 ? delCanal : rowsIn.filter((r) => r.scope === 'workspace');
+  };
+
   // ── Stickiness ──
   // Si la conversación ya tenía un agente respondiendo, lo mantenemos
   // salvo que el cliente acabe de mencionar (HIGH confidence) un
@@ -625,8 +639,29 @@ async function pickAgent(
       // Si llegamos acá, queremos hacer override → caemos al routing
       // por producto abajo (que va a elegir B).
     } else if (sticky) {
-      // No hay match HIGH — el sticky se queda con el thread.
-      return sticky;
+      // No hay match HIGH. El sticky se queda con el hilo, SALVO que lo que
+      // acaba de entrar sea claramente el trabajo de otro rol y ese otro rol
+      // exista en el canal.
+      //
+      // Sin esta salida la flota se apagaba después del primer mensaje: el
+      // arbitraje corría una sola vez, en la primera respuesta, y a partir de
+      // ahí el agente pegado se quedaba con TODO. Alguien que compraba con el
+      // agente de ventas y al día siguiente preguntaba "¿dónde está mi
+      // pedido?" seguía hablando con ventas, con el de postventa mirando.
+      //
+      // Es deliberadamente angosto: `roleForInbound` devuelve null cuando el
+      // mensaje no define nada, y null significa "no te muevas". Sólo una
+      // señal explícita mueve el hilo, así que no hay ping-pong entre agentes
+      // en una conversación normal.
+      const rolPedido = roleForInbound(routing.inboundText ?? '', {
+        hasOpenCart: routing.hasOpenCart,
+      });
+      const otroDelRol =
+        rolPedido && sticky.role !== rolPedido
+          ? candidatosDe(all).find((a) => a.id !== sticky.id && a.role === rolPedido)
+          : null;
+      if (!otroDelRol) return sticky;
+      return otroDelRol;
     }
   }
 
@@ -662,12 +697,7 @@ async function pickAgent(
   // Se juntan TODOS los candidatos del canal en vez de devolver el primero:
   // con uno solo el resultado es idéntico al de siempre, y con varios —una
   // flota por rol— hace falta la lista entera para arbitrar.
-  const delCanal = all.filter(
-    (row) =>
-      row.scope === 'channels' && row.ai_agent_channels.some((c) => c.channel === channel),
-  );
-  const delWorkspace = all.filter((row) => row.scope === 'workspace');
-  const candidatos = delCanal.length > 0 ? delCanal : delWorkspace;
+  const candidatos = candidatosDe(all);
 
   if (candidatos.length === 0) return null;
   if (candidatos.length === 1) return candidatos[0];
@@ -1730,6 +1760,12 @@ export function buildSystemPrompt(
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(agent.persona.trim());
+  // El rol, ANTES del tono y de la persona del comercio. El arbitraje ya
+  // mandaba la consulta al agente correcto, pero el agente no se enteraba de
+  // cuál era su trabajo: el rol vivía en la base y en el router y no llegaba
+  // hasta acá. Un agente de postventa contestaba como cualquier otro.
+  const conducta = ROLE_BEHAVIOR[(agent.role as AgentRole) ?? 'general'];
+  if (conducta) lines.push(conducta);
   lines.push(TONE_INSTRUCTIONS[agent.tone]);
   const idioma = (agent.language || 'es').toLowerCase().slice(0, 2);
   lines.push(`Responde en ${agent.language || 'es'}.`);
