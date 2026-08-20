@@ -1,25 +1,28 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/flows/admin-client";
-import { resolveWorkspaceIdForUser } from "@/lib/workspaces/resolve";
 import { getActiveShopifyConnection } from "@/lib/attribution/shopify";
 import type { ShopifyCustomerSnapshot } from "@/types";
 
 /**
  * GET /api/contacts/[id]/commerce-link
  *
- * "Ver el pedido de esta persona", resuelto sabiendo DE DÓNDE viene la venta.
+ * "Ver la compra de esta persona", resuelto sabiendo DE DÓNDE viene la venta.
  *
  * Un mismo contacto puede haber comprado por la tienda o por Mercado Libre, y
- * cada pedido vive en un panel distinto. El orden de resolución es:
+ * cada pedido vive en un panel distinto; y quien todavía no compró puede tener
+ * un carrito abierto, que es justo lo que el comercio quiere mirar antes de
+ * contestarle. Orden de resolución:
  *
- *   1. El último pedido espejado en `orders` (tiene contact_id y platform):
- *      Shopify → admin del pedido; Mercado Libre → detalle de la venta.
- *   2. Si no hay pedido espejado, el snapshot Shopify del contacto: el último
- *      pedido de `lifetime_orders` (por id) o, sin id, la ficha del cliente.
- *   3. Nada: la respuesta es `{ url: null }` y el botón no se muestra.
+ *   1. Último pedido espejado en `orders` (trae contact_id y platform):
+ *      Shopify → el pedido en el admin; Mercado Libre → el detalle de la venta.
+ *   2. Snapshot Shopify del contacto: último pedido de `lifetime_orders` por
+ *      id, o la ficha del cliente si el snapshot es viejo y no lo guardó.
+ *   3. Carrito abandonado abierto: su enlace de recuperación.
+ *   4. Nada: `{ url: null }` y el botón no se muestra.
  *
- * RLS scopea la lectura de `contacts`/`orders` al workspace de quien llama.
+ * El acceso lo decide la RLS: el contacto se lee con la sesión del usuario, y
+ * todo lo demás se filtra por el workspace de ESE contacto.
  */
 export async function GET(
   _request: Request,
@@ -32,17 +35,28 @@ export async function GET(
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ url: null }, { status: 401 });
 
+  const { data: contactRow } = await supabase
+    .from("contacts")
+    .select("id, workspace_id, phone, email, shopify_customer_data")
+    .eq("id", id)
+    .maybeSingle();
+  const contact = contactRow as {
+    id: string;
+    workspace_id: string;
+    phone: string | null;
+    email: string | null;
+    shopify_customer_data: ShopifyCustomerSnapshot | null;
+  } | null;
+  if (!contact) return NextResponse.json({ url: null }, { status: 404 });
+
   // 1) Último pedido ya espejado en Riverz, sea de la tienda o del marketplace.
   const { data: orderRow } = await supabase
     .from("orders")
-    .select(
-      "platform, shop_domain, shopify_order_id, order_number, order_status_url, created_at",
-    )
+    .select("platform, shop_domain, shopify_order_id, order_number, order_status_url")
     .eq("contact_id", id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-
   const order = orderRow as {
     platform: string | null;
     shop_domain: string | null;
@@ -53,7 +67,7 @@ export async function GET(
 
   if (order) {
     const platform = order.platform ?? "shopify";
-    // Shopify es el único con dominio real: su admin abre el pedido exacto.
+    // Shopify es el único con dominio propio: su admin abre el pedido exacto.
     const url =
       platform === "shopify" && order.shop_domain && order.shopify_order_id
         ? `https://${order.shop_domain}/admin/orders/${order.shopify_order_id}`
@@ -68,22 +82,13 @@ export async function GET(
     }
   }
 
-  // 2) Sin pedido espejado: lo que dejó la sincronización de contactos.
-  const { data: contactRow } = await supabase
-    .from("contacts")
-    .select("shopify_customer_data")
-    .eq("id", id)
-    .maybeSingle();
-  const snap = (contactRow as { shopify_customer_data?: ShopifyCustomerSnapshot } | null)
-    ?.shopify_customer_data;
-  if (!snap) return NextResponse.json({ url: null });
-
   const admin = supabaseAdmin();
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
-  const conn = workspaceId ? await getActiveShopifyConnection(admin, workspaceId) : null;
+  const conn = await getActiveShopifyConnection(admin, contact.workspace_id);
   if (!conn) return NextResponse.json({ url: null });
 
-  const last = snap.lifetime_orders?.[0];
+  // 2) Lo que dejó la sincronización de contactos.
+  const snap = contact.shopify_customer_data;
+  const last = snap?.lifetime_orders?.[0];
   if (last?.id) {
     return NextResponse.json({
       url: `https://${conn.shopDomain}/admin/orders/${last.id}`,
@@ -92,9 +97,9 @@ export async function GET(
       kind: "order",
     });
   }
-  if (snap.customer_id) {
-    // Sin id de pedido, la ficha del cliente en el admin: desde ahí se ve su
-    // historial completo. Mejor que un botón que no lleva a ningún lado.
+  if (snap?.customer_id) {
+    // Sin id de pedido, la ficha del cliente: desde ahí se ve su historial
+    // completo. Mejor que un botón que no lleva a ningún lado.
     return NextResponse.json({
       url: `https://${conn.shopDomain}/admin/customers/${snap.customer_id}`,
       platform: "shopify",
@@ -102,5 +107,38 @@ export async function GET(
       kind: "customer",
     });
   }
+
+  // 3) No compró: el carrito que dejó abierto. Es el caso más común en la
+  //    bandeja — la persona escribe justamente por eso.
+  const digits = (contact.phone ?? "").replace(/\D/g, "");
+  let checkoutQuery = admin
+    .from("shopify_checkouts")
+    .select("abandoned_checkout_url, created_at")
+    .eq("workspace_id", contact.workspace_id)
+    .eq("status", "open")
+    .not("abandoned_checkout_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (contact.email) {
+    checkoutQuery = checkoutQuery.eq("customer_email", contact.email);
+  } else if (digits.length >= 8) {
+    // Los últimos 8 dígitos son la parte que no cambia entre formatos
+    // (0/15 argentino, prefijo con o sin +).
+    checkoutQuery = checkoutQuery.like("customer_phone", `%${digits.slice(-8)}`);
+  } else {
+    return NextResponse.json({ url: null });
+  }
+  const { data: checkoutRow } = await checkoutQuery.maybeSingle();
+  const checkoutUrl = (checkoutRow as { abandoned_checkout_url?: string } | null)
+    ?.abandoned_checkout_url;
+  if (checkoutUrl) {
+    return NextResponse.json({
+      url: checkoutUrl,
+      platform: "shopify",
+      order_number: null,
+      kind: "checkout",
+    });
+  }
+
   return NextResponse.json({ url: null });
 }

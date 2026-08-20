@@ -429,6 +429,7 @@ export const inbox = {
   viewOrder: { es: "Ver pedido", en: "View order" },
   viewOrderInShopify: { es: "Ver pedido en Shopify", en: "View order in Shopify" },
   viewCustomerInShopify: { es: "Ver cliente en Shopify", en: "View customer in Shopify" },
+  viewAbandonedCart: { es: "Ver carrito abandonado", en: "View abandoned cart" },
   viewOrderInMercadoLibre: {
     es: "Ver venta en Mercado Libre",
     en: "View sale in Mercado Libre",

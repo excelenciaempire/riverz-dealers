@@ -17,7 +17,7 @@ interface CommerceLink {
   url: string | null;
   platform?: string;
   order_number?: string | null;
-  kind?: "order" | "customer";
+  kind?: "order" | "customer" | "checkout";
 }
 
 export function CommerceLinkButton({ contactId }: { contactId: string }) {
@@ -53,7 +53,9 @@ export function CommerceLinkButton({ contactId }: { contactId: string }) {
       ? t("inbox.viewOrderInMercadoLibre")
       : link.kind === "customer"
         ? t("inbox.viewCustomerInShopify")
-        : t("inbox.viewOrderInShopify");
+        : link.kind === "checkout"
+          ? t("inbox.viewAbandonedCart")
+          : t("inbox.viewOrderInShopify");
 
   return (
     <a
