@@ -538,6 +538,10 @@ export const contacts = {
     es: "{n} pedidos más sin detalle",
     en: "{n} more orders without detail",
   },
+  buyMissingDetailOne: {
+    es: "1 pedido más sin detalle",
+    en: "1 more order without detail",
+  },
   buyHistorySince: {
     es: "Detalle desde {date}",
     en: "Detail from {date}",

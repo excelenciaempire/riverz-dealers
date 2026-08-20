@@ -89,7 +89,11 @@ export function ContactPurchasesPanel({ contact }: { contact: Contact }) {
     month: 'short',
     year: 'numeric',
   };
-  const money = (v: number) => fmt.currency(v, summary.currency ?? undefined);
+  // En los recuadros el importe va sin centavos: "149.850,00 ARS" no entra en
+  // un tercio del ancho de la ficha y se cortaba a la mitad. El detalle de cada
+  // pedido, más abajo, sí lleva el importe exacto.
+  const money = (v: number) =>
+    fmt.currency(v, summary.currency ?? undefined, { maximumFractionDigits: 0 });
 
   return (
     <div className="space-y-4">
@@ -194,9 +198,11 @@ export function ContactPurchasesPanel({ contact }: { contact: Contact }) {
       {(summary.missingDetail > 0 || historySince) && (
         <p className="text-xs text-muted-foreground">
           {[
-            summary.missingDetail > 0
-              ? t('contacts.buyMissingDetail', { n: summary.missingDetail })
-              : null,
+            summary.missingDetail === 1
+              ? t('contacts.buyMissingDetailOne')
+              : summary.missingDetail > 1
+                ? t('contacts.buyMissingDetail', { n: summary.missingDetail })
+                : null,
             historySince
               ? t('contacts.buyHistorySince', {
                   date: fmt.date(historySince, { month: 'short', year: 'numeric' }),
@@ -236,7 +242,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-2.5">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="truncate text-sm font-medium text-foreground">{value}</p>
+      <p className="text-sm leading-tight font-medium break-words text-foreground">{value}</p>
     </div>
   );
 }
