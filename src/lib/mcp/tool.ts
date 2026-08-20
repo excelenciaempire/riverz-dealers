@@ -18,6 +18,16 @@ export interface McpCaller {
 
 export interface McpTool {
   name: string
+  /**
+   * Qué capacidad publica, cuando publica una.
+   *
+   * El nombre público y la clave interna son distintos a propósito (el nombre
+   * es un contrato con clientes ya configurados), así que sin esto no hay forma
+   * de cruzar el catálogo contra sus consumidores — y una capacidad huérfana,
+   * escrita y probada pero que no puede llamar nadie, pasa todos los tests.
+   * Las dos herramientas escritas a mano no lo traen.
+   */
+  capabilityKey?: string
   description: string
   /**
    * La misma descripción en inglés, para la documentación pública.
@@ -77,6 +87,7 @@ export function desdeCapacidad(name: string, key: string): McpTool {
 
   return {
     name,
+    capabilityKey: key,
     description: cap.description,
     descriptionEn: cap.descriptionEn,
     risk: cap.risk,
