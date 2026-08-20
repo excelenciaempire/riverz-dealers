@@ -74,13 +74,9 @@ export function Mesa() {
         ))}
       </div>
 
-      {m.gasto && (
-        <footer className="shrink-0 border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">
-          {t('operation.mesaGasto', {
-            n: (m.gasto.promptTokens + m.gasto.completionTokens).toLocaleString(),
-          })}
-        </footer>
-      )}
+      {/* El gasto en tokens no va acá. A quien vende no le dice nada y la
+          palabra misma es de las que no usaría nunca; el consumo real se mira
+          en /admin, que es donde importa. */}
     </div>
   )
 

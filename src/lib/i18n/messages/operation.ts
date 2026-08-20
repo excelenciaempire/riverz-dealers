@@ -60,7 +60,6 @@ export const operation = {
   mesaVer: { es: "Ver el equipo", en: "See the team" },
   mesaPlan: { es: "El reparto", en: "The plan" },
   mesaEspera: { es: "espera al {n}", en: "waits for {n}" },
-  mesaGasto: { es: "{n} tokens en este turno", en: "{n} tokens this turn" },
   // Los catorce del equipo, como se ven en la mesa.
   subAutomatizaciones: { es: "Automatizaciones", en: "Automations" },
   subFlujos: { es: "Flujos", en: "Flows" },
