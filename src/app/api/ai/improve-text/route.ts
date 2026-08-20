@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { claveRechazada, resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -232,13 +232,9 @@ export async function POST(request: Request): Promise<Response> {
         break;
       } catch (err) {
         lastErr = err;
-        const status =
-          err && typeof err === 'object' && 'status' in err
-            ? Number((err as { status?: number }).status)
-            : undefined;
         // Sólo se prueba la siguiente clave cuando el problema ES la clave.
         // Un 429 o un 500 del modelo no mejora por cambiar de pagador.
-        if (status === 401 || status === 402 || status === 403) continue;
+        if (claveRechazada(err)) continue;
         throw err;
       }
     }

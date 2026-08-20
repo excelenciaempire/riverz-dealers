@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
-import { resolveAnthropicKey, type KeySource } from './platform-key';
+import {
+  claveRechazada,
+  resolveAnthropicKey,
+  type KeySource,
+} from './platform-key';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
@@ -1485,7 +1489,7 @@ async function generateReply(
     throw new Error('Missing Anthropic API key (agent, platform or ANTHROPIC_API_KEY).');
   }
   const apiKey = resolved.key;
-  const keySource = resolved.source;
+  let keySource = resolved.source;
 
   const client = getAnthropic(apiKey);
   // "One brain": on Instagram, feed the reactive agent the same per-person
@@ -1603,7 +1607,7 @@ async function generateReply(
       ? [REGISTRAR_PAGO_TOOL]
       : []),
   ];
-  const result = await runWithTools(client, {
+  const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
     // anonimizado), así que lookup_order cae a lo ya espejado.
     localOrders: primaryContact.id
@@ -1620,7 +1624,27 @@ async function generateReply(
     shopify,
     otherStore,
     voice: voiceCtx,
-  });
+  };
+
+  // Si la clave que puso el comercio dejó de servir —revocada, o sin saldo— el
+  // asistente se quedaba mudo y nadie se enteraba hasta que alguien miraba la
+  // bandeja días después. Se reintenta una vez con la de la plataforma: peor
+  // que cobrarle a la casa una respuesta es no darla.
+  let result;
+  try {
+    result = await runWithTools(client, opciones);
+  } catch (err) {
+    if (keySource !== 'agent' || !claveRechazada(err)) throw err;
+    const respaldo = await resolveAnthropicKey(db, {
+      workspaceId: agent.workspace_id,
+    });
+    if (!respaldo?.key || respaldo.key === apiKey) throw err;
+    console.warn(
+      `[ai] clave del agente ${agent.id} rechazada; se reintenta con la de ${respaldo.source}`,
+    );
+    result = await runWithTools(getAnthropic(respaldo.key), opciones);
+    keySource = respaldo.source;
+  }
 
   const trimmed =
     result.text.length > agent.max_response_chars

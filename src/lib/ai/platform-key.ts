@@ -119,3 +119,31 @@ export async function resolveAnthropicKey(
   if (env) return { key: env, source: 'env' }
   return null
 }
+
+/**
+ * ¿El proveedor rechazó ESTA clave, o falló la llamada por otra cosa?
+ *
+ * La diferencia decide si tiene sentido reintentar con otra clave. Un 429 o un
+ * 529 no mejoran por cambiar de pagador —es el mismo modelo saturado—, pero una
+ * clave revocada o sin saldo sí: la de la plataforma está ahí al lado.
+ *
+ * Ojo con el saldo: Anthropic **no** devuelve 402. Manda un `400
+ * invalid_request_error` con "Your credit balance is too low", que es
+ * indistinguible de un pedido mal armado si sólo se mira el código. Por eso se
+ * lee el mensaje. Fue exactamente el caso que dejó a un comercio sin respuestas
+ * automáticas durante dos semanas.
+ */
+export function claveRechazada(err: unknown): boolean {
+  const status =
+    err && typeof err === 'object' && 'status' in err
+      ? Number((err as { status?: number }).status)
+      : undefined
+  if (status === 401 || status === 402 || status === 403) return true
+  const msg =
+    err && typeof err === 'object' && 'message' in err
+      ? String((err as { message?: unknown }).message ?? '')
+      : ''
+  return /credit balance is too low|invalid x-api-key|authentication_error/i.test(
+    msg,
+  )
+}
