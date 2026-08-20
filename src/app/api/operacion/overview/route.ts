@@ -8,12 +8,18 @@ import type { CapabilityContext } from '@/lib/capabilities/types'
 import { getLocale } from '@/lib/i18n/server'
 
 /**
- * Lo que muestra el Centro de Operación IA.
+ * Lo único de la operación que la pantalla no puede calcular sola.
  *
- * No calcula nada propio: compone tres capacidades. Es el primer consumidor de
- * la capa desde una pantalla, y es a propósito — si esta vista tuviera sus
- * consultas, volveríamos a tener dos verdades sobre la misma cuenta, que es
- * exactamente lo que se acaba de arreglar.
+ * Devolvía seis bloques —estado, pendientes, agentes, plantillas, campañas— que
+ * alimentaban tarjetas de volumen ("automatizaciones activas", "canales
+ * conectados") que Inicio ya no muestra: son configuración, no resultado. Seis
+ * consultas por carga de pantalla para cifras que nadie mira.
+ *
+ * Queda la única que sigue en pantalla: cuántos mensajes escribió la IA. Está
+ * en `ai_replies`, que el navegador no lee, así que hace falta el viaje.
+ *
+ * No calcula nada propio: usa la capacidad. Si esta vista tuviera su consulta,
+ * volveríamos a tener dos verdades sobre la misma cuenta.
  */
 export const dynamic = 'force-dynamic'
 
@@ -43,30 +49,17 @@ export async function GET(request: Request) {
     locale: await getLocale(),
   }
 
-  // Cada capacidad cae a null por su cuenta. El panel muestra seis cosas
-  // distintas: que falle la lectura de plantillas no puede dejar en blanco las
-  // métricas, los avisos y los pedidos.
-  const intentar = async (key: string, args: Record<string, unknown> = {}) => {
-    try {
-      return await getCapability(key).run(ctx, args)
-    } catch (e) {
-      console.error(`[operacion/overview] ${key}:`, e)
-      return null
-    }
+  // Cae a null por su cuenta: es una tarjeta de más, no puede dejar el panel
+  // entero en blanco.
+  let metricas = null
+  try {
+    metricas = await getCapability('metricas.resumen').run(ctx, { dias })
+  } catch (e) {
+    console.error('[operacion/overview] metricas.resumen:', e)
   }
 
-  const [estado, metricas, pendientes, agentes, plantillas, campanas] =
-    await Promise.all([
-      intentar('operacion.estado'),
-      intentar('metricas.resumen', { dias }),
-      intentar('conversaciones.pendientes', { limite: 5 }),
-      intentar('agentes.listar'),
-      intentar('plantillas.estado'),
-      intentar('campanas.estado', { dias }),
-    ])
-
   return NextResponse.json(
-    { estado, metricas, pendientes, agentes, plantillas, campanas },
+    { metricas },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }

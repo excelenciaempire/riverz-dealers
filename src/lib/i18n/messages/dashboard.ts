@@ -19,6 +19,21 @@ export const dashboard = {
   messagesReceived: { es: "Mensajes recibidos", en: "Messages received" },
   messagesSent: { es: "Mensajes enviados", en: "Messages sent" },
 
+  // Tarjetas de retorno: qué devolvió Riverz, no cuánto se movió.
+  roiRevenue: { es: "Ventas por Riverz", en: "Sales from Riverz" },
+  roiRevenueSub: {
+    es: "{orders} pedidos · {share}% de las ventas",
+    en: "{orders} orders · {share}% of sales",
+  },
+  roiRevenueNone: { es: "Todavía sin ventas atribuidas", en: "No attributed sales yet" },
+  roiStoreRevenue: { es: "Ventas de la tienda", en: "Store sales" },
+  roiAov: { es: "Ticket promedio", en: "Average order value" },
+  roiAiReplies: { es: "Contestó la IA", en: "Answered by AI" },
+  roiAiRepliesSub: { es: "{share}% de lo que salió", en: "{share}% of what went out" },
+  roiFirstReply: { es: "Primera respuesta", en: "First reply" },
+  roiMinutes: { es: "{n} min", en: "{n} min" },
+  roiNoData: { es: "Sin datos", en: "No data" },
+
   // Delta suffixes
   vsYesterday: { es: "vs ayer", en: "vs yesterday" },
   vsYesterdaySoFar: { es: "vs ayer a esta hora", en: "vs yesterday so far" },

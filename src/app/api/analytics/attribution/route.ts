@@ -53,6 +53,25 @@ interface CommerceTotals {
   currency: string;
 }
 
+/**
+ * Lo que pasó por Riverz, contado UNA vez.
+ *
+ * Las cuatro lentes de abajo se pisan: un pedido cuya persona recibió la
+ * campaña Y pasó por la automatización aparece en las dos. Para responder "¿qué
+ * me devolvió Riverz?" hace falta un número solo, así que acá se cuenta el
+ * PEDIDO —no la lente— y un pedido tocado por tres cosas suma una vez.
+ *
+ * Deja afuera al Agente de IG: ese lente no viene de estos pedidos sino del
+ * revenue que su propio motor ya atribuyó por destinatario, sin id de pedido
+ * con qué deduplicar. Sumarlo daría un número más alto y posiblemente repetido;
+ * se sigue viendo aparte en el detalle.
+ */
+interface Attributed {
+  revenue: number;
+  orders: number;
+  currency: string;
+}
+
 const EMPTY_TOTALS: CommerceTotals = {
   revenue: { current: 0, previous: 0 },
   orders: { current: 0, previous: 0 },
@@ -67,6 +86,7 @@ function emptyResponse(days: number) {
     by_automation: [] as AttrRow[],
     by_instagram_agent: [] as AttrRow[],
     totals: EMPTY_TOTALS,
+    attributed: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
   };
 }
 
@@ -235,6 +255,7 @@ export async function GET(request: Request) {
   const byBroadcast = new Map<string, AttrRow>();
   const byFlow = new Map<string, AttrRow>();
   const byAutomation = new Map<string, AttrRow>();
+  const attributed: Attributed = { revenue: 0, orders: 0, currency: totals.currency };
 
   for (const order of orders) {
     const cId =
@@ -247,6 +268,9 @@ export async function GET(request: Request) {
     const lookback = new Date(orderTime - lookbackMs).toISOString();
     const total = Number(order.total_price ?? '0');
     const currency = order.currency || 'USD';
+    // Este pedido, ¿lo tocó algo de Riverz? Basta con una lente para contarlo,
+    // y tres no lo cuentan tres veces.
+    let tocado = false;
 
     // Last broadcast send to this contact in the lookback window.
     const { data: bcRow } = await admin
@@ -268,6 +292,7 @@ export async function GET(request: Request) {
         total,
         currency,
       );
+      tocado = true;
     }
 
     // Last flow run for this contact in the lookback window.
@@ -291,6 +316,7 @@ export async function GET(request: Request) {
         total,
         currency,
       );
+      tocado = true;
     }
 
     // Last successful/partial automation run for this contact in the window.
@@ -315,8 +341,17 @@ export async function GET(request: Request) {
         total,
         currency,
       );
+      tocado = true;
+    }
+
+    if (tocado) {
+      attributed.orders += 1;
+      attributed.revenue += total;
+      attributed.currency = currency;
     }
   }
+
+  attributed.revenue = Math.round(attributed.revenue * 100) / 100;
 
   return NextResponse.json({
     days,
@@ -325,6 +360,7 @@ export async function GET(request: Request) {
     by_automation: sortByRevenue(byAutomation),
     by_instagram_agent,
     totals,
+    attributed,
   });
 }
 

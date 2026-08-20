@@ -17,6 +17,8 @@ import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
+import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
+import { useAtribucion } from '@/lib/dashboard/use-attribution'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
 import {
@@ -63,21 +65,22 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed'
  * las métricas— en vez de apilar dos paneles uno abajo del otro.
  */
 export function PanelDashboard({
-  slotAtencion,
-  slotEstado,
-  slotDatos,
-  tarjetasExtra,
+  roi = false,
+  respuestasIa = null,
   onRango,
   ocultarChecklist = false,
 }: {
-  /** Va con lo que necesita a una persona, después de las aprobaciones. */
-  slotAtencion?: React.ReactNode
-  /** Va después de las tarjetas de métricas. */
-  slotEstado?: React.ReactNode
-  /** Va antes de los ingresos atribuidos y la actividad. */
-  slotDatos?: React.ReactNode
-  /** Tarjetas que entran DENTRO de la misma grilla de métricas. */
-  tarjetasExtra?: React.ReactNode
+  /**
+   * Cambia las cuatro tarjetas de volumen por las seis de retorno.
+   *
+   * Es un interruptor y no dos componentes porque todo lo demás —el filtro de
+   * fechas, los gráficos, el tiempo real, la atribución— es exactamente el
+   * mismo. Duplicar la pantalla para cambiar seis tarjetas volvería a dejar dos
+   * verdades sobre la misma cuenta.
+   */
+  roi?: boolean
+  /** Mensajes que escribió la IA en el período; sólo lo sabe la operación. */
+  respuestasIa?: number | null
   /**
    * Cuántos días abarca el filtro activo. Quien agregue tarjetas propias las
    * tiene que medir sobre el mismo período: dos cifras de la misma pantalla
@@ -228,6 +231,10 @@ export function PanelDashboard({
 
   const suffix = deltaSuffix(preset, t)
 
+  // Una sola vez, para las tarjetas de arriba Y el desglose de abajo: el
+  // endpoint hace una consulta por pedido del rango y pedirlo dos veces se nota.
+  const atribucion = useAtribucion(rangeIso?.start ?? null, rangeIso?.end ?? null)
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -246,8 +253,6 @@ export function PanelDashboard({
           cliente esperando. */}
       <PendingApprovals />
 
-      {slotAtencion}
-
       {/* Checklist de onboarding. Solo aparece mientras falte algo (o se oculte). */}
       {!ocultarChecklist && <SetupChecklist />}
 
@@ -258,9 +263,22 @@ export function PanelDashboard({
       </div>
 
       {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-4 sm:grid-cols-2',
+          roi ? 'lg:grid-cols-3' : 'lg:grid-cols-4',
+        )}
+      >
         {metricsLoading || !metrics ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: roi ? 6 : 4 }).map((_, i) => <SkeletonCard key={i} />)
+        ) : roi ? (
+          <TarjetasRoi
+            metrics={metrics}
+            atribucion={atribucion}
+            responseTime={responseTime}
+            respuestasIa={respuestasIa}
+            sufijo={suffix}
+          />
         ) : (
           <>
             <MetricCard
@@ -287,12 +305,9 @@ export function PanelDashboard({
               icon={Send}
               delta={deltaFor(metrics.messagesSent.current, metrics.messagesSent.previous, suffix, t, fmt.number)}
             />
-            {tarjetasExtra}
           </>
         )}
       </div>
-
-      {slotEstado}
 
       {/* Channel mix — volume per channel over the selected range. */}
       {metrics && metrics.channelMix.length > 0 && (
@@ -305,11 +320,9 @@ export function PanelDashboard({
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
 
-      {slotDatos}
-
-      {/* Lo que genero Riverz, en plata. El calculo ya existia y no lo miraba
-          nadie: no tenia pantalla. */}
-      <AttributedRevenue start={rangeIso?.start ?? null} end={rangeIso?.end ?? null} />
+      {/* De donde salio esa plata: cual automatizacion, cual campana, cual
+          flujo. El total ya esta arriba; esto es la pregunta que sigue. */}
+      <AttributedRevenue data={atribucion} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

@@ -50,7 +50,7 @@ export const health: Namespace = {
   },
 
   // Ingresos atribuidos
-  revenueTitle: { es: "Lo que generó Riverz", en: "What Riverz generated" },
+  revenueTitle: { es: "De dónde salió esa plata", en: "Where that money came from" },
   revenueStoreTotal: {
     es: "Tienda: {total} en {orders} pedidos",
     en: "Store: {total} across {orders} orders",
