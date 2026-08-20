@@ -134,22 +134,37 @@ export async function POST(request: Request): Promise<Response> {
   const overBudget = await aiBudgetGuard(workspaceId);
   if (overBudget) return overBudget;
 
-  // La clave del comercio manda; si no tiene, la de la plataforma o la del
-  // entorno (mismo orden que el resto del producto).
+  // Con qué clave se paga esto.
+  //
+  // La del comercio manda, igual que en el resto del producto — pero acá hay
+  // una trampa que no existe cuando contesta un agente: este botón no tiene
+  // agente. Tomar "la clave de cualquier agente del workspace" hacía que un
+  // agente de prueba, apagado y con una clave vieja, se llevara puesta la
+  // función entera (401 invalid x-api-key). Así que sólo cuentan las claves de
+  // agentes ACTIVOS, y si esa clave no sirve se reintenta con la de la
+  // plataforma en vez de devolver un error que el comercio no puede arreglar.
   const { data: agentRow } = await admin
     .from('ai_agents')
     .select('api_key_encrypted')
     .eq('workspace_id', workspaceId)
+    .eq('is_active', true)
     .not('api_key_encrypted', 'is', null)
     .limit(1)
     .maybeSingle();
-  const resolved = await resolveAnthropicKey(admin, {
+  const keys: string[] = [];
+  const agentKeyEncrypted =
+    (agentRow as { api_key_encrypted?: string | null } | null)
+      ?.api_key_encrypted ?? null;
+  const withAgent = await resolveAnthropicKey(admin, {
     workspaceId,
-    agentKeyEncrypted:
-      (agentRow as { api_key_encrypted?: string | null } | null)
-        ?.api_key_encrypted ?? null,
+    agentKeyEncrypted,
   });
-  if (!resolved?.key) {
+  if (withAgent?.key) keys.push(withAgent.key);
+  if (withAgent?.source === 'agent') {
+    const platform = await resolveAnthropicKey(admin, { workspaceId });
+    if (platform?.key && platform.key !== withAgent.key) keys.push(platform.key);
+  }
+  if (keys.length === 0) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.missingApiKey') },
       { status: 500 },
@@ -180,13 +195,32 @@ export async function POST(request: Request): Promise<Response> {
     : `Borrador a reescribir:\n${text}`;
 
   try {
-    const client = getAnthropic(resolved.key);
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1200,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    let response: Awaited<
+      ReturnType<ReturnType<typeof getAnthropic>['messages']['create']>
+    > | null = null;
+    let lastErr: unknown = null;
+    for (const key of keys) {
+      try {
+        response = await getAnthropic(key).messages.create({
+          model: MODEL,
+          max_tokens: 1200,
+          system: SYSTEM,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        break;
+      } catch (err) {
+        lastErr = err;
+        const status =
+          err && typeof err === 'object' && 'status' in err
+            ? Number((err as { status?: number }).status)
+            : undefined;
+        // Sólo se prueba la siguiente clave cuando el problema ES la clave.
+        // Un 429 o un 500 del modelo no mejora por cambiar de pagador.
+        if (status === 401 || status === 402 || status === 403) continue;
+        throw err;
+      }
+    }
+    if (!response) throw lastErr ?? new Error('no_key_worked');
     const improved = response.content
       .map((b) => (b.type === 'text' ? b.text : ''))
       .join('')
