@@ -23,8 +23,15 @@ import { desdeCapacidad, type McpTool } from './tool'
 export const MERCHANT_TOOLS: McpTool[] = [
   desdeCapacidad('conversaciones_pendientes', 'conversaciones.pendientes'),
   desdeCapacidad('contacto_buscar', 'contactos.buscar'),
+  desdeCapacidad('contactos_listar', 'contactos.listar'),
   desdeCapacidad('metricas', 'metricas.resumen'),
   desdeCapacidad('plantillas_estado', 'plantillas.estado'),
   desdeCapacidad('campanas_estado', 'campanas.estado'),
   desdeCapacidad('pedidos_listar', 'pedidos.listar'),
+  // A quién le hablamos. Van de a tres porque solas no sirven: primero se mira
+  // con qué nombres se puede segmentar, después a cuánta gente alcanza el
+  // criterio, y recién ahí se guarda o se etiqueta.
+  desdeCapacidad('etiquetas_listar', 'etiquetas.listar'),
+  desdeCapacidad('segmentos_listar', 'segmentos.listar'),
+  desdeCapacidad('segmentos_calcular', 'segmentos.calcular'),
 ]

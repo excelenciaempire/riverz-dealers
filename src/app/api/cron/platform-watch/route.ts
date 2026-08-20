@@ -73,10 +73,13 @@ async function cronHandler(request: Request) {
 
   const admin = supabaseAdmin()
 
-  const [porWorkspace, { data: runs }] = await Promise.all([
+  const [porWorkspace, salud] = await Promise.all([
     collectPlatformIssues(admin),
     admin.rpc('admin_cron_health'),
   ])
+  const runs = salud.data as
+    | Array<{ name: string; status: string; started_at: string | null }>
+    | null
 
   // Nombres de comercio para que el mensaje diga algo más que un uuid.
   const nombres = new Map<string, string>()
@@ -94,16 +97,41 @@ async function cronHandler(request: Request) {
 
   // Los trabajos de fondo entran a la misma lista: un cron muerto no le pertenece
   // a ningún comercio, pero es lo que hace que dejen de salir los mensajes.
-  const ultima = new Map<string, { status?: string; started_at?: string | null }>()
-  for (const r of (runs ?? []) as { name: string; status: string; started_at: string | null }[]) {
-    ultima.set(r.name, r)
-  }
+  //
+  // "No pude leer el estado" NO es "están todos muertos". Cuando la consulta de
+  // salud fallaba o volvía vacía, este bloque marcaba los 41 trabajos como
+  // caídos, mandaba el correo "algo nuevo se rompió" con la lista entera, y al
+  // tick siguiente —con la lectura ya sana— la huella se vaciaba. Cada ida y
+  // vuelta era otro correo, y a la tercera vez nadie los lee: el aviso que
+  // importa se pierde entre las falsas alarmas. Sin datos no se opina.
   const cronsRotos: string[] = []
-  for (const job of SCHEDULED_JOBS) {
-    const run = ultima.get(job.name)
-    if (run?.status === 'error' || isStale(job.schedule, run?.started_at ?? null)) {
-      cronsRotos.push(job.name)
-      actuales.set(`cron:${job.name}`, {
+  const saludLegible = !salud.error && (runs?.length ?? 0) > 0
+  if (!saludLegible) {
+    log.warn('estado de los trabajos ilegible: no se evalúan crons este tick', {
+      error: salud.error?.message ?? null,
+      filas: runs?.length ?? 0,
+    })
+  } else {
+    const ultima = new Map<string, { status?: string; started_at?: string | null }>()
+    for (const r of runs ?? []) ultima.set(r.name, r)
+    for (const job of SCHEDULED_JOBS) {
+      const run = ultima.get(job.name)
+      if (run?.status === 'error' || isStale(job.schedule, run?.started_at ?? null)) {
+        cronsRotos.push(job.name)
+      }
+    }
+    // Si "se cayó" más de la mitad del catálogo de golpe, lo que se cayó es la
+    // lectura, no los trabajos: 41 fallas independientes en el mismo minuto no
+    // existen. Se registra y no se avisa.
+    if (cronsRotos.length > SCHEDULED_JOBS.length / 2) {
+      log.warn('demasiados trabajos en rojo a la vez: se ignora por sospechoso', {
+        rotos: cronsRotos.length,
+        total: SCHEDULED_JOBS.length,
+      })
+      cronsRotos.length = 0
+    }
+    for (const name of cronsRotos) {
+      actuales.set(`cron:${name}`, {
         ws: '',
         issue: { kind: 'automation_failed', severity: 'critical', count: 1, href: '' },
       })

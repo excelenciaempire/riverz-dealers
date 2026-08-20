@@ -21,6 +21,7 @@ const INERTES: Record<string, string> = {
   'automatizaciones.crear_desde_receta': 'nace pausada y sin plantilla',
   'automatizaciones.editar_espera': 'cambia un tiempo, no manda nada',
   'agentes.crear_borrador': 'nace pausado, no le contesta a nadie',
+  'segmentos.crear': 'guarda un criterio; no prende ni manda nada',
 }
 
 describe('qué puede construirse sin preguntar', () => {
@@ -54,6 +55,24 @@ describe('qué puede construirse sin preguntar', () => {
     // Aprobar puede marcar un pedido como pagado en Shopify.
     expect(esInerte(getCapability('aprobaciones.decidir'), { aprobar: true })).toBe(false)
     expect(esInerte(getCapability('aprobaciones.decidir'), { aprobar: false })).toBe(false)
+  })
+
+  it('etiquetar a poca gente se hace; a mucha se pregunta', () => {
+    // `tag_added` ES un disparador de automatizaciones. Hoy nada lo dispara al
+    // escribir en `contact_tags`, pero el día que alguien lo conecte, etiquetar
+    // cuatro mil contactos sería mandarles cuatro mil mensajes. Por eso la línea
+    // es la escala y no la operación.
+    const etq = getCapability('contactos.etiquetar')
+    expect(esInerte(etq, { etiqueta: 'vip', contactos: ['a', 'b'] })).toBe(true)
+    expect(
+      esInerte(etq, {
+        etiqueta: 'vip',
+        contactos: Array.from({ length: 26 }, (_, i) => String(i)),
+      }),
+    ).toBe(false)
+    // Por criterio no se sabe a cuántos alcanza hasta resolverlo: se pregunta.
+    expect(esInerte(etq, { etiqueta: 'vip', reglas: [{ type: 'shopify' }] })).toBe(false)
+    expect(esInerte(etq, { etiqueta: 'vip', segmento_id: 'x' })).toBe(false)
   })
 
   it('sin declaración, se propone', () => {
