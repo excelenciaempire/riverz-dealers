@@ -316,6 +316,10 @@
       addToCart(data.path).then(
         function () {
           post({ type: 'riverz:cart_result', ok: true });
+          // "Ir a pagar": el producto ya está en el carrito, así que la tienda
+          // lleva a su propio checkout con todo lo que la persona haya juntado
+          // —lo del chat y lo que ya tuviera—, no sólo con este artículo.
+          if (data.after === 'checkout') location.href = '/checkout';
         },
         function () {
           post({ type: 'riverz:cart_result', ok: false });

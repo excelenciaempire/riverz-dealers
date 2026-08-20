@@ -79,23 +79,34 @@ describe('enlaces', () => {
     expect(html).toContain('target="_blank"');
   });
 
-  it('el enlace de carrito de LA tienda se vuelve un botón de compra', () => {
+  it('el enlace de carrito de LA tienda se vuelve una tarjeta de compra', () => {
     const html = render(
       'Listo: https://tienda.com/cart/123:1?attributes[riverz_origin]=ai',
       'https://tienda.com',
     );
-    expect(html).toContain('Agregar al carrito');
-    expect(html).toContain('<button');
+    // Dos caminos, que son dos intenciones distintas: seguir conversando o
+    // terminar de comprar.
+    expect(html).toContain('Agregar');
+    expect(html).toContain('Ir a pagar');
+    // Y ya no queda la URL cruda a la vista.
+    expect(html).not.toContain('href="https://tienda.com/cart/123:1');
   });
 
-  it('un carrito de OTRO dominio sigue siendo un enlace, no un botón', () => {
+  it('un carrito de OTRO dominio sigue siendo un enlace, no una tarjeta', () => {
     const html = render('https://otra.com/cart/123:1', 'https://tienda.com');
-    expect(html).not.toContain('Agregar al carrito');
+    expect(html).not.toContain('Ir a pagar');
     expect(html).toContain('href="https://otra.com/cart/123:1"');
   });
 
-  it('sin saber el dominio de la tienda, no inventa botones', () => {
+  it('sin saber el dominio de la tienda, no inventa tarjetas', () => {
     const html = render('https://tienda.com/cart/123:1', null);
-    expect(html).not.toContain('Agregar al carrito');
+    expect(html).not.toContain('Ir a pagar');
+  });
+
+  it('un enlace de carrito con variante no numerica no arma tarjeta', () => {
+    // La variante alimenta la consulta que resuelve el producto: si no es un
+    // id, no hay nada que resolver y es mejor el enlace de siempre.
+    const html = render('https://tienda.com/cart/abc:1', 'https://tienda.com');
+    expect(html).not.toContain('Ir a pagar');
   });
 });

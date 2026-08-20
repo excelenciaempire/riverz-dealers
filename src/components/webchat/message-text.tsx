@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
+import { ProductCard } from './product-card';
 
 /**
  * El texto de una burbuja: con formato, con los enlaces vivos, y con el de
@@ -28,13 +29,17 @@ const URL_RE = /(https?:\/\/[^\s<>"')]+)/g;
  *  para no comerse un asterisco suelto en medio de una frase. */
 const INLINE_RE = /(\*\*[^*\n]+\*\*|__[^_\n]+__|`[^`\n]+`|\*[^*\s][^*\n]*\*)/g;
 
-function parseCartLink(href: string, storeOrigin: string | null): { path: string } | null {
+function parseCartLink(
+  href: string,
+  storeOrigin: string | null,
+): { path: string; variantId: string } | null {
   if (!storeOrigin) return null;
   try {
     const url = new URL(href);
     if (url.origin !== storeOrigin) return null;
-    if (!/^\/cart\/[\w-]+:\d+/.test(url.pathname)) return null;
-    return { path: url.pathname + url.search };
+    const m = /^\/cart\/(\d+):\d+/.exec(url.pathname);
+    if (!m) return null;
+    return { path: url.pathname + url.search, variantId: m[1] };
   } catch {
     return null;
   }
@@ -66,11 +71,14 @@ export function MessageText({
   storeOrigin,
   color,
   ink,
+  session,
 }: {
   text: string;
   storeOrigin: string | null;
   color: string;
   ink: string;
+  /** Token del chat: la tarjeta lo necesita para resolver el producto. */
+  session?: string | null;
 }) {
   // Se trabaja por líneas para poder reconocer viñetas sin un parser entero.
   const lineas = text.split('\n');
@@ -87,7 +95,17 @@ export function MessageText({
           if (i % 2 === 0) return <Fragment key={k}>{inline(part, k)}</Fragment>;
           const cart = parseCartLink(part, storeOrigin);
           if (cart) {
-            return <BuyButton key={k} path={cart.path} href={part} color={color} ink={ink} />;
+            return (
+              <ProductCard
+                key={k}
+                path={cart.path}
+                href={part}
+                variantId={cart.variantId}
+                session={session}
+                color={color}
+                ink={ink}
+              />
+            );
           }
           return (
             <a
@@ -119,75 +137,5 @@ export function MessageText({
         );
       })}
     </>
-  );
-}
-
-function BuyButton({
-  path,
-  href,
-  color,
-  ink,
-}: {
-  path: string;
-  href: string;
-  color: string;
-  ink: string;
-}) {
-  const [state, setState] = useState<'idle' | 'adding' | 'added'>('idle');
-
-  const add = () => {
-    if (state !== 'idle') return;
-    setState('adding');
-    // El cargador contesta con el resultado real; si en dos segundos y medio no
-    // dice nada —tienda que no es Shopify, API bloqueada— se abre el enlace,
-    // que hace lo mismo por el camino largo.
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', onReply);
-      setState('idle');
-      window.open(href, '_blank', 'noopener');
-    }, 2500);
-
-    function onReply(event: MessageEvent) {
-      if (event.data?.type !== 'riverz:cart_result') return;
-      clearTimeout(timer);
-      window.removeEventListener('message', onReply);
-      if (event.data.ok) setState('added');
-      else {
-        setState('idle');
-        window.open(href, '_blank', 'noopener');
-      }
-    }
-    window.addEventListener('message', onReply);
-    window.parent?.postMessage({ type: 'riverz:add_to_cart', path }, '*');
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={add}
-      disabled={state !== 'idle'}
-      className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm font-semibold transition disabled:opacity-70"
-      style={{ background: ink, color }}
-    >
-      {state === 'added' ? (
-        <>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-          Agregado al carrito
-        </>
-      ) : state === 'adding' ? (
-        'Agregando…'
-      ) : (
-        <>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="9" cy="20" r="1" />
-            <circle cx="18" cy="20" r="1" />
-            <path d="M2 3h3l2.4 12.1a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 2-1.6L21 7H6" />
-          </svg>
-          Agregar al carrito
-        </>
-      )}
-    </button>
   );
 }

@@ -312,7 +312,13 @@ export function ChatApp() {
             failed={'failed' in m ? Boolean(m.failed) : false}
           >
             {m.text ? (
-              <MessageText text={m.text} storeOrigin={storeOrigin} color={color} ink={ink} />
+              <MessageText
+                text={m.text}
+                storeOrigin={storeOrigin}
+                color={color}
+                ink={ink}
+                session={session}
+              />
             ) : null}
             {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}
           </Bubble>
