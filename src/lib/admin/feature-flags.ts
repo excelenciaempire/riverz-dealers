@@ -89,6 +89,12 @@ export const FEATURES: FeatureDef[] = [
     descKey: 'admin.featureOrdersDesc',
     sections: ['/pedidos'],
   },
+  {
+    key: 'webchat',
+    labelKey: 'admin.featureWebchat',
+    descKey: 'admin.featureWebchatDesc',
+    sections: ['/chat-web'],
+  },
 ];
 
 /**

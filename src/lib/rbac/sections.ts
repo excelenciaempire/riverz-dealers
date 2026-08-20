@@ -26,6 +26,7 @@ export const GATEABLE_SECTIONS: GateableSection[] = [
   { key: "/asistente", labelKey: "nav.assistant" },
   { key: "/menus", labelKey: "nav.flows" },
   { key: "/voz", labelKey: "nav.voice" },
+  { key: "/chat-web", labelKey: "nav.webchat" },
   { key: "/campanas", labelKey: "nav.campaigns" },
   { key: "/automatizaciones", labelKey: "nav.automations" },
   { key: "/plantillas", labelKey: "nav.templates" },

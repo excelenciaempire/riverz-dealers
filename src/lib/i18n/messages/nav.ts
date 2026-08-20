@@ -22,6 +22,7 @@ export const nav = {
   assistant: { es: "Asistente IA", en: "AI Assistant" },
   flows: { es: "Flujos", en: "Flows" },
   voice: { es: "Llamadas", en: "Calls" },
+  webchat: { es: "Chat web", en: "Web chat" },
   admin: { es: "Admin", en: "Admin" },
   campaigns: { es: "Campañas", en: "Campaigns" },
   automations: { es: "Automatizaciones", en: "Automations" },

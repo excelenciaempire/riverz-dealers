@@ -15,6 +15,20 @@ import type { AgentPermissions, AgentRole } from './roles';
  */
 export const MIN_DEBOUNCE_SECONDS = 8;
 
+/**
+ * Lo mismo, para el chat web.
+ *
+ * Los 8 segundos están calibrados para WhatsApp, donde nadie mira la pantalla
+ * esperando: la persona escribe, bloquea el teléfono y vuelve. En un chat
+ * abierto en la web es al revés — se queda mirando el cursor, y ocho segundos
+ * de nada parecen un widget roto. Dos alcanzan para agrupar la ráfaga de quien
+ * manda tres frases seguidas, que es lo único que el debounce está evitando.
+ *
+ * Es un valor fijo del canal, no un piso: el `inbound_debounce_seconds` que el
+ * comercio eligió lo eligió pensando en WhatsApp.
+ */
+export const WEBCHAT_DEBOUNCE_SECONDS = 2;
+
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';

@@ -34,6 +34,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   // un usuario en inglés navegaba de /inbox a /voz y la URL cambiaba de idioma
   // sola. Cubre también /voz/campanas, que traduce por el primer segmento.
   voz: "calls",
+  "chat-web": "web-chat",
   campanas: "broadcasts",
   automatizaciones: "automations",
   plantillas: "templates",

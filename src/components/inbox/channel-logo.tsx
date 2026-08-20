@@ -32,6 +32,9 @@ const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
   ig_comment: { src: "/channels/instagram.svg", alt: "Instagram" },
   mercadolibre: { src: "/channels/mercadolibre.svg", alt: "Mercado Libre" },
   tiktok_comment: { src: "/channels/tiktok.svg", alt: "TikTok" },
+  // El chat web no es de nadie: no hay marca que poner, así que lleva un ícono
+  // propio en el verde de Riverz en vez del genérico.
+  webchat: { src: "/channels/webchat.svg", alt: "Chat web" },
 };
 
 export function ChannelLogo({ channel, size = 20, className, src, alt }: ChannelLogoProps) {

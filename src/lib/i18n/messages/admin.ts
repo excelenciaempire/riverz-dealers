@@ -121,6 +121,11 @@ export const admin = {
     es: "Pedidos que la IA crea desde la conversación.",
     en: "Orders the AI creates from the conversation.",
   },
+  featureWebchat: { es: "Chat web", en: "Web chat" },
+  featureWebchatDesc: {
+    es: "El chat que el comercio instala en su tienda.",
+    en: "The chat merchants install on their store.",
+  },
   featureSaved: { es: "Guardado", en: "Saved" },
   featureSaveError: { es: "No se pudo guardar", en: "Couldn't save" },
   // Experiencias opt-in: arrancan apagadas y se prenden por comercio

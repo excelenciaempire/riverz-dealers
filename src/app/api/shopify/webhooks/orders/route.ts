@@ -11,6 +11,11 @@ import {
   upsertWhatsappContact,
 } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
+import {
+  linkOrphanPurchases,
+  recordPurchases,
+  shopifyOrderToPurchase,
+} from '@/lib/contacts/purchases'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
@@ -18,6 +23,7 @@ import { captureWebhookFailure } from '@/lib/webhooks/capture'
 import { getAdapter } from '@/lib/channels/registry'
 import { fmtMoney } from '@/lib/shopify/create-checkout'
 import { resolveOfferChosen } from '@/lib/shopify/offers'
+import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
 import type {
   AutomationTriggerType,
   Channel,
@@ -104,6 +110,19 @@ export async function POST(request: Request) {
       )
     }
 
+    // Historial de compras del contacto (migración 172). Va ANTES de decidir
+    // si hay algo que anunciar: un pedido que no dispara ninguna automatización
+    // igual es una compra, y si no se guarda acá se pierde — Shopify sólo deja
+    // releer los últimos 60 días sin el permiso `read_all_orders`.
+    {
+      const purchase = shopifyOrderToPurchase(shopDomain, order)
+      if (purchase) {
+        await recordPurchases(admin, workspaceId, [purchase]).catch((err) =>
+          console.error('[shopify] historial de compras falló:', err),
+        )
+      }
+    }
+
     // Una actualización puede traer más de una transición; se emiten todas.
     let triggerTypes: AutomationTriggerType[] = []
     if (topic === 'orders/create') {
@@ -142,6 +161,22 @@ export async function POST(request: Request) {
           .eq('shop_domain', shopDomain)
           .eq('checkout_id', checkoutToken)
       }
+
+      // Chat web: si el carrito venía estampado con el id del visitante, esta
+      // compra es de alguien que estuvo conversando en la tienda. Se le pone
+      // nombre al visitante anónimo, se lo fusiona con el cliente que el
+      // comercio ya conocía y el pedido queda atado a SU conversación.
+      //
+      // Va antes de todo lo demás a propósito: lo que sigue se corta si el
+      // pedido no trae teléfono, y un comprador por chat bien puede no
+      // haberlo dejado. La atribución no puede depender de eso.
+      await attributeWebchatOrder(admin, {
+        workspaceId,
+        shopDomain,
+        order,
+      }).catch((err) =>
+        console.error('[shopify] webchat attribution failed:', err),
+      )
 
       // Sembrar el estado inicial del pedido (sin disparar) para que la primera
       // actualización real compute transiciones correctas (pagado/cancelado/…)
@@ -240,6 +275,15 @@ export async function POST(request: Request) {
       legacyExternalId: extractShopifyLegacyPhone(order),
     })
     if (!contactId) return NextResponse.json({ ok: true })
+
+    // El pedido se guardó recién, cuando todavía no había contacto. Ahora que
+    // existe, se le engancha —junto con las compras anteriores del mismo
+    // email o teléfono que hubieran quedado sueltas.
+    await linkOrphanPurchases(admin, workspaceId, {
+      id: contactId,
+      email: (order.email as string) ?? null,
+      phone,
+    }).catch((err) => console.error('[shopify] enganche de compras falló:', err))
 
     // Stamp the contact onto the fulfillment-state row (migration 061)
     // so the post-delivery feedback cron messages the customer who

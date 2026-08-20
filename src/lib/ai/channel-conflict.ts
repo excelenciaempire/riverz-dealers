@@ -31,6 +31,7 @@ export const AI_CHANNELS = [
   'outlook',
   'mercadolibre',
   'voice',
+  'webchat',
 ] as const;
 
 // Los canales son marcas y no se traducen; las llamadas sí son una palabra
@@ -47,11 +48,11 @@ const CHANNEL_LABELS: Record<string, string> = {
 
 export function channelLabels(channels: string[], locale?: Locale): string {
   return channels
-    .map((c) =>
-      c === 'voice'
-        ? translate(locale ?? DEFAULT_LOCALE, 'nav.voice')
-        : (CHANNEL_LABELS[c] ?? c),
-    )
+    .map((c) => {
+      if (c === 'voice') return translate(locale ?? DEFAULT_LOCALE, 'nav.voice');
+      if (c === 'webchat') return translate(locale ?? DEFAULT_LOCALE, 'nav.webchat');
+      return CHANNEL_LABELS[c] ?? c;
+    })
     .join(', ');
 }
 

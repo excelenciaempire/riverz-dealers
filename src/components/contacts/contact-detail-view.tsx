@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ContactTags } from '@/components/contacts/contact-tags';
 import { ContactChatLinks } from '@/components/contacts/contact-chat-links';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
+import { ContactPurchasesPanel } from '@/components/contacts/contact-purchases-panel';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -254,6 +255,12 @@ export function ContactDetailView({
                   {t('contacts.detailDetails')}
                 </TabsTrigger>
                 <TabsTrigger
+                  value="purchases"
+                  className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
+                >
+                  {t('contacts.tabPurchases')}
+                </TabsTrigger>
+                <TabsTrigger
                   value="activity"
                   className="data-active:bg-accent data-active:text-accent-ink text-muted-foreground"
                 >
@@ -353,6 +360,11 @@ export function ContactDetailView({
                     {t('contacts.save')}
                   </Button>
                 </div>
+              </TabsContent>
+
+              {/* Purchases Tab */}
+              <TabsContent value="purchases" className="flex-1 overflow-y-auto px-4 py-3">
+                {contact && <ContactPurchasesPanel contact={contact} />}
               </TabsContent>
 
               {/* Activity Tab */}

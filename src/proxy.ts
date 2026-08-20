@@ -19,14 +19,20 @@ import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host
 // server stacks in the browser via `eval`. Prod ships without it.
 function buildCsp(
   nonce: string,
-  opts?: { shopifyEmbedded?: { shop: string | null } },
+  opts?: {
+    shopifyEmbedded?: { shop: string | null }
+    /** Lista explícita de orígenes que pueden embeber esta ruta (chat web). */
+    frameAncestors?: string
+  },
 ): string {
   const isDev = process.env.NODE_ENV === 'development'
   // /shopify/embedded renders inside the Shopify admin iframe: allow that
   // ancestry (pinned to the requesting shop when known) and the App Bridge
   // CDN script. Every other route keeps frame-ancestors 'none'.
   const shopifyEmbedded = opts?.shopifyEmbedded
-  const frameAncestors = shopifyEmbedded
+  const frameAncestors = opts?.frameAncestors
+    ? `frame-ancestors ${opts.frameAncestors}`
+    : shopifyEmbedded
     ? `frame-ancestors https://admin.shopify.com${
         shopifyEmbedded.shop
           ? ` https://${shopifyEmbedded.shop}`
@@ -183,6 +189,29 @@ export async function proxy(request: NextRequest) {
     return applyCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp)
   }
 
+  // Chat web. Nada de acá tiene sesión de Riverz: quien lo abre es un visitante
+  // de la tienda del comercio, y la autorización la da el token del widget. Sin
+  // este atajo cada mensaje escrito en el chat —y cada sondeo, que son varios
+  // por minuto y por pestaña abierta— pagaría una verificación de sesión de
+  // Supabase que siempre da vacío.
+  //
+  // La página del chat, además, se sirve DENTRO de un iframe en la tienda: el
+  // `frame-ancestors 'none'` general la bloquearía. Se abre a cualquier sitio
+  // https porque el control de quién puede embeberla no es el navegador sino el
+  // token de sesión, que sólo se emite para los dominios que el comercio
+  // autorizó.
+  const webchatPath =
+    request.nextUrl.pathname.startsWith('/widget/') ||
+    request.nextUrl.pathname.startsWith('/api/widget/')
+  if (webchatPath) {
+    const widgetCsp = buildCsp(nonce, { frameAncestors: 'https: http://localhost:*' })
+    requestHeaders.set('Content-Security-Policy', widgetCsp)
+    return applyCsp(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+      widgetCsp,
+    )
+  }
+
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } })
 
   const supabase = createServerClient(
@@ -267,6 +296,7 @@ export async function proxy(request: NextRequest) {
     '/menus',
     '/comentarios',
     '/voz',
+    '/chat-web',
     '/plantillas',
     '/campanas',
     '/automatizaciones',

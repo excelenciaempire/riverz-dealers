@@ -11,7 +11,8 @@ export type Channel =
   | 'ig_comment'
   | 'mercadolibre'
   | 'tiktok_comment'
-  | 'voice';
+  | 'voice'
+  | 'webchat';
 
 export const CHANNELS: Channel[] = [
   'whatsapp',
@@ -24,6 +25,7 @@ export const CHANNELS: Channel[] = [
   'mercadolibre',
   'tiktok_comment',
   'voice',
+  'webchat',
 ];
 
 // ============================================================
@@ -181,6 +183,48 @@ export interface ShopifyCustomerSnapshot {
     total_price: string | number;
     line_items_titles: string[];
   }>;
+}
+
+/**
+ * Un pedido del historial de compras del contacto (migración 172).
+ * Acumulativo y por plataforma: es lo que la ficha muestra en detalle.
+ */
+export interface ContactPurchase {
+  id: string;
+  workspace_id: string;
+  contact_id: string | null;
+  platform: 'shopify' | 'tiendanube' | 'woocommerce' | 'mercadolibre';
+  shop_domain: string | null;
+  external_id: string;
+  order_number: string | null;
+  placed_at: string | null;
+  currency: string | null;
+  total: number | string | null;
+  financial_status: string | null;
+  fulfillment_status: string | null;
+  line_items: Array<{ title: string; quantity: number; price: number | null }>;
+  customer_email: string | null;
+  customer_phone: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Las cuentas de compra de un contacto, ya resueltas para mostrar. */
+export interface ContactPurchaseSummary {
+  /** Pedidos de toda la vida del cliente (lo que informa la tienda). */
+  ordersCount: number;
+  /** Pedidos que Riverz tiene guardados con detalle. */
+  recordedCount: number;
+  /** Diferencia entre los dos: pedidos contados y sin detalle. */
+  missingDetail: number;
+  totalSpent: number;
+  currency: string | null;
+  averageOrder: number | null;
+  firstPurchaseAt: string | null;
+  lastPurchaseAt: string | null;
+  daysSinceLast: number | null;
+  isRepeat: boolean;
+  topProducts: Array<{ title: string; quantity: number }>;
 }
 
 export interface Tag {
@@ -1072,4 +1116,39 @@ export interface VoiceCampaign {
   };
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Configuración del chat web, guardada en `channel_connections.config` de la
+ * fila channel='webchat' (una por comercio, migración 171).
+ *
+ * Nada de esto es secreto: el visitante lo recibe al abrir el widget. La llave
+ * pública que instala el comercio se deriva por HMAC del workspace, así que no
+ * hay credencial que guardar (ver `src/lib/channels/webchat/token.ts`).
+ */
+export interface WebchatConfig {
+  /** El widget responde. Apagado = el snippet queda inerte sin desinstalarlo. */
+  enabled?: boolean;
+  /** Agente de IA que atiende. Ausente = lo elige `pickAgent` como en todo canal. */
+  agent_id?: string | null;
+  /** Color de marca del launcher y las burbujas propias (#RRGGBB). */
+  primary_color?: string;
+  position?: 'right' | 'left';
+  /** Primer mensaje que ve quien abre el chat. No se guarda como mensaje: es
+   *  cartelería, y guardarlo abriría una conversación por cada visitante que
+   *  solo mira. */
+  greeting?: string;
+  /** Nombre y avatar que ve el visitante (la marca, no el agente). */
+  brand_name?: string;
+  avatar_url?: string;
+  /**
+   * Dominios donde el widget puede arrancar. Es el control de acceso real:
+   * la llave pública viaja en el HTML de la tienda, así que quien la copie
+   * solo puede usarla desde estos orígenes. Vacío = ninguno (el snippet trae
+   * el dominio propuesto al instalar).
+   */
+  allowed_domains?: string[];
+  /** Pedir email antes de escribir. Off por defecto: la fricción mata la
+   *  conversación, y el email igual se captura solo si la persona compra. */
+  require_email?: boolean;
 }

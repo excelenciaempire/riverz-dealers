@@ -8,6 +8,7 @@ import {
   type ShopifyOrderLite,
 } from './enrich';
 import { applyCategoryTags } from './tags';
+import { recordPurchases, type PurchaseInput } from './purchases';
 import { enrichContactFromStore } from '@/lib/commerce/enrich';
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 
@@ -71,6 +72,9 @@ interface OrderRow extends ShopifyOrderLite {
   email?: string | null;
   phone?: string | null;
   currency?: string | null;
+  financial_status?: string | null;
+  fulfillment_status?: string | null;
+  line_items?: Array<{ title: string; quantity?: number; price?: string }>;
   shipping_address?: ShopifyAddress | null;
   billing_address?: ShopifyAddress | null;
 }
@@ -87,12 +91,15 @@ interface ShopifyAddress {
 
 interface OrderIndex {
   /** Pedidos del cliente registrado, para el detalle de la ficha. */
-  byCustomer: Map<string, ShopifyOrderLite[]>;
+  byCustomer: Map<string, OrderRow[]>;
   /** Pedidos SIN cuenta, por email y por los últimos 8 dígitos del teléfono.
    *  Quien compra como invitado no genera ficha de cliente en Shopify: sin
    *  esto quedaba marcado como comprador y con la ficha vacía para siempre. */
   guestByEmail: Map<string, OrderRow[]>;
   guestByPhone: Map<string, OrderRow[]>;
+  /** Pedido más antiguo que la tienda dejó leer. Sin `read_all_orders`,
+   *  Shopify corta en 60 días: la ficha necesita decirlo. */
+  oldest: string | null;
 }
 
 export async function syncAllWorkspaces(db: SupabaseClient): Promise<BulkSyncResult[]> {
@@ -173,6 +180,14 @@ export async function syncWorkspaceContacts(
   // grabar una mentira que dura una semana.
   const index = await buildCustomerIndex(connection);
   const orders = await fetchOrders(connection);
+  // Hasta dónde llega lo que la tienda deja leer. La ficha lo usa para no
+  // hacer pasar "3 pedidos desde que conectaste" por "compró 3 veces".
+  //
+  // Se guarda el más antiguo que se haya visto NUNCA, no el de esta corrida:
+  // la ventana de 60 días de Shopify se corre sola hacia adelante, y los
+  // pedidos ya guardados no dejan de existir porque la tienda deje de
+  // mostrarlos.
+  if (orders.oldest) await rememberHistoryStart(db, workspaceId, connection.shopDomain, orders.oldest);
 
   const now = new Date().toISOString();
   let matched = 0;
@@ -181,11 +196,26 @@ export async function syncWorkspaceContacts(
 
   await mapWithConcurrency(contacts, WRITE_CONCURRENCY, async (contact) => {
     const customer = lookup(index, contact);
+    // Los pedidos del contacto, del más nuevo al más viejo — el orden en que
+    // Shopify los devuelve no está garantizado y la ficha lo da por sentado.
+    const contactOrders = newestFirst(
+      customer ? (orders.byCustomer.get(String(customer.id)) ?? []) : guestOrders(orders, contact),
+    );
     // Sin cuenta de cliente, todavía puede haber comprado como invitado: los
     // pedidos guardan su email, su teléfono y su dirección de envío.
     const snapshot: ShopifyCustomerSnapshot | null = customer
-      ? buildSnapshot(customer, orders.byCustomer.get(String(customer.id)) ?? [])
-      : guestSnapshot(orders, contact);
+      ? buildSnapshot(customer, contactOrders)
+      : guestSnapshot(contactOrders);
+    // El historial se escribe SIEMPRE que haya pedidos, incluso si el cliente
+    // no quedó emparejado: es acumulativo y no se pierde en la próxima
+    // corrida, a diferencia del snapshot, que se pisa entero.
+    if (contactOrders.length > 0) {
+      await recordPurchases(
+        db,
+        workspaceId,
+        toPurchases(connection.shopDomain, contact.id, contactOrders),
+      ).catch(() => 0);
+    }
     if (!snapshot) {
       // Certeza, no conjetura: se revisó la lista completa de la tienda.
       unmatched++;
@@ -236,6 +266,45 @@ export async function syncWorkspaceContacts(
     unmatched,
     pending: Math.max(0, (count ?? 0) - contacts.length),
   };
+}
+
+/** Deja anotado el pedido más viejo que esta tienda dejó leer alguna vez. */
+async function rememberHistoryStart(
+  db: SupabaseClient,
+  workspaceId: string,
+  shopDomain: string,
+  oldest: string,
+): Promise<void> {
+  const { data } = await db
+    .from('shopify_connections')
+    .select('id, purchase_history_since')
+    .eq('workspace_id', workspaceId)
+    .eq('shop_domain', shopDomain)
+    .limit(1)
+    .maybeSingle();
+  const row = data as { id: string; purchase_history_since: string | null } | null;
+  if (!row) return;
+  if (row.purchase_history_since && row.purchase_history_since <= oldest) return;
+  await db
+    .from('shopify_connections')
+    .update({ purchase_history_since: oldest })
+    .eq('id', row.id);
+}
+
+/** Pedidos de quien compró sin cuenta, buscados por email y por teléfono. */
+function guestOrders(orders: OrderIndex, contact: Contact): OrderRow[] {
+  const email = contact.email?.trim().toLowerCase();
+  const digits = normalizePhone(contact.phone ?? '');
+  return (
+    (email ? orders.guestByEmail.get(email) : undefined) ??
+    (digits.length >= 8 ? orders.guestByPhone.get(digits.slice(-8)) : undefined) ??
+    []
+  );
+}
+
+/** Del más nuevo al más viejo. Los sin fecha van al final. */
+function newestFirst(orders: OrderRow[]): OrderRow[] {
+  return [...orders].sort((a, b) => (a.created_at ?? '') < (b.created_at ?? '') ? 1 : -1);
 }
 
 /** Busca el contacto en el índice: primero email, después teléfono. */
@@ -301,11 +370,13 @@ async function buildCustomerIndex(
  * esas son las compras de invitado.
  */
 async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<OrderIndex> {
-  const byCustomer = new Map<string, ShopifyOrderLite[]>();
+  const byCustomer = new Map<string, OrderRow[]>();
   const guestByEmail = new Map<string, OrderRow[]>();
   const guestByPhone = new Map<string, OrderRow[]>();
+  let oldest: string | null = null;
   const fields =
-    'id,name,total_price,created_at,line_items,customer,email,phone,currency,shipping_address,billing_address';
+    'id,name,order_number,total_price,created_at,line_items,customer,email,phone,currency,' +
+    'financial_status,fulfillment_status,shipping_address,billing_address';
   try {
     for await (const page of paginate<{ orders?: OrderRow[] }>(
       connection,
@@ -313,20 +384,10 @@ async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<Orde
       MAX_ORDER_PAGES,
     )) {
       for (const o of page.orders ?? []) {
+        if (o.created_at && (oldest == null || o.created_at < oldest)) oldest = o.created_at;
         const cid = o.customer?.id ? String(o.customer.id) : '';
         if (cid) {
-          const list = byCustomer.get(cid) ?? [];
-          // El snapshot sólo guarda los 10 más recientes.
-          if (list.length < 10) {
-            list.push({
-              id: o.id,
-              name: o.name,
-              total_price: o.total_price,
-              created_at: o.created_at,
-              line_items: o.line_items,
-            });
-            byCustomer.set(cid, list);
-          }
+          push(byCustomer, cid, o);
           continue;
         }
         const email = o.email?.trim().toLowerCase();
@@ -342,15 +403,47 @@ async function fetchOrders(connection: ShopifyConnectionForEnrich): Promise<Orde
     // dirección, gasto y cantidad de pedidos, que es lo que se muestra.
     console.warn('[contacts/bulk-sync] no se pudieron leer los pedidos:', err);
   }
-  return { byCustomer, guestByEmail, guestByPhone };
+  return { byCustomer, guestByEmail, guestByPhone, oldest };
 }
+
+/** Tope por cliente. El snapshot muestra 10; el historial guarda hasta acá. */
+const MAX_ORDERS_PER_CONTACT = 50;
 
 function push(map: Map<string, OrderRow[]>, key: string, order: OrderRow): void {
   const list = map.get(key) ?? [];
-  if (list.length < 10) {
+  if (list.length < MAX_ORDERS_PER_CONTACT) {
     list.push(order);
     map.set(key, list);
   }
+}
+
+/** Pedidos de Shopify traducidos al historial de compras del contacto. */
+function toPurchases(
+  shopDomain: string,
+  contactId: string,
+  orders: OrderRow[],
+): PurchaseInput[] {
+  return orders
+    .filter((o) => o.id != null)
+    .map((o) => ({
+      platform: 'shopify' as const,
+      shopDomain,
+      externalId: String(o.id),
+      orderNumber: o.name ?? null,
+      placedAt: o.created_at ?? null,
+      currency: o.currency ?? null,
+      total: o.total_price ?? null,
+      financialStatus: o.financial_status ?? null,
+      fulfillmentStatus: o.fulfillment_status ?? null,
+      lineItems: (o.line_items ?? []).map((li) => ({
+        title: li.title,
+        quantity: li.quantity ?? 1,
+        price: li.price ?? null,
+      })),
+      customerEmail: o.email ?? null,
+      customerPhone: o.phone ?? o.shipping_address?.phone ?? null,
+      contactId,
+    }));
 }
 
 /**
@@ -358,15 +451,8 @@ function push(map: Map<string, OrderRow[]>, key: string, order: OrderRow): void 
  * un cliente, así que la única huella es el pedido: de ahí salen la dirección
  * de envío, el total gastado y cuántas veces compró.
  */
-function guestSnapshot(orders: OrderIndex, contact: Contact): ShopifyCustomerSnapshot | null {
-  const email = contact.email?.trim().toLowerCase();
-  const digits = normalizePhone(contact.phone ?? '');
-  const found =
-    (email ? orders.guestByEmail.get(email) : undefined) ??
-    (digits.length >= 8 ? orders.guestByPhone.get(digits.slice(-8)) : undefined);
-  if (!found || found.length === 0) return null;
-
-  const sorted = [...found].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+function guestSnapshot(sorted: OrderRow[]): ShopifyCustomerSnapshot | null {
+  if (sorted.length === 0) return null;
   const latest = sorted[0];
   const addr = latest.shipping_address ?? latest.billing_address ?? null;
   return {

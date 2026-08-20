@@ -89,6 +89,38 @@ export async function loadContactActivity(
       })(),
     ),
 
+    // ── Compras en la tienda (migración 172) ───────────────────
+    // `orders` son los pedidos que originó el asistente; éstos son los que
+    // hizo el cliente por su cuenta. Sin ellos la línea de tiempo mostraba
+    // conversaciones y campañas pero no la compra que las siguió.
+    safe(
+      (async () => {
+        const { data } = await db
+          .from('contact_purchases')
+          .select('*')
+          .eq('contact_id', id)
+          .order('placed_at', { ascending: false })
+          .limit(50)
+        return (data ?? []).map((r: Row) => {
+          // Sin el "#" de Shopify: es la misma clave con la que se compara
+          // contra el espejo del asistente para no mostrar el pedido dos veces.
+          const num = pick(r, 'order_number', 'external_id').replace(/^#/, '')
+          const total = pick(r, 'total')
+          const cur = pick(r, 'currency')
+          return {
+            id: `purchase-${str(r.id)}`,
+            at: pick(r, 'placed_at', 'created_at'),
+            kind: 'order' as const,
+            detail:
+              [num && `#${num}`, total && `${total} ${cur}`.trim()]
+                .filter(Boolean)
+                .join(' · ') || '',
+            status: pick(r, 'fulfillment_status', 'financial_status') || null,
+          }
+        })
+      })(),
+    ),
+
     // ── Abandoned carts (matched by phone) ─────────────────────
     safe(
       (async () => {
@@ -250,7 +282,18 @@ export async function loadContactActivity(
 
   const all = (await Promise.all(sources)).flat().filter((e) => e.at)
   all.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
-  return all.slice(0, 200)
+  // Un pedido que el asistente originó está en las DOS tablas —`orders` y
+  // `contact_purchases`— y aparecería dos veces. Se muestra una: gana el
+  // primero, que por el orden de las fuentes es el espejo del asistente.
+  const seenOrders = new Set<string>()
+  const deduped = all.filter((e) => {
+    if (e.kind !== 'order' || !e.detail) return true
+    const key = e.detail.split(' · ')[0]
+    if (seenOrders.has(key)) return false
+    seenOrders.add(key)
+    return true
+  })
+  return deduped.slice(0, 200)
 }
 
 /** Batch-fetch `id → name` for a table, tolerant of an absent `name` column. */

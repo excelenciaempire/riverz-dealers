@@ -183,6 +183,25 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
+        // El cargador del chat web. Es lo único de la app pensado para que
+        // OTRO sitio lo pida: el `Cross-Origin-Resource-Policy: same-origin`
+        // de más abajo hace que el navegador de la tienda descarte el script
+        // sin decir por qué, así que acá se invierte para este archivo solo.
+        // Se cachea porque entra en cada visita a la tienda y su contenido no
+        // depende del comercio (la configuración la pide en tiempo de
+        // ejecución); la versión va en el nombre, así que publicar una nueva
+        // no espera a que expire ninguna caché.
+        source: "/widget/v1.js",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           {
@@ -204,11 +223,16 @@ const nextConfig: NextConfig = {
       // render inside the Shopify admin iframe (the proxy serves it with
       // frame-ancestors pinned to admin.shopify.com + the shop). In dev,
       // Superconductor's live preview frames the app, so no XFO at all.
+      // /widget/ queda fuera por la misma razón: el chat se sirve dentro de un
+      // iframe en la tienda del comercio, y X-Frame-Options no admite una lista
+      // de orígenes. Quién puede embeberlo lo decide el CSP frame-ancestors que
+      // pone el proxy, y sobre todo el token de sesión, que sólo se emite para
+      // los dominios que el comercio autorizó.
       ...(process.env.NODE_ENV === "development"
         ? []
         : [
             {
-              source: "/((?!shopify/embedded).*)",
+              source: "/((?!shopify/embedded|widget).*)",
               headers: [{ key: "X-Frame-Options", value: "DENY" }],
             },
           ]),

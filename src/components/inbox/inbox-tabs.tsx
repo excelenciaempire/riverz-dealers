@@ -14,6 +14,7 @@ export const MESSAGE_CHANNELS: Channel[] = [
   "gmail",
   "outlook",
   "mercadolibre",
+  "webchat",
 ];
 export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment", "tiktok_comment"];
 

@@ -86,6 +86,9 @@ export interface CreateCheckoutContext {
   /** Divisa canónica del workspace ya resuelta por el runner. Fallback antes
    *  de caer a la divisa de /shop.json cuando la config no fija una. */
   currency?: string | null
+  /** Chat web: id del visitante, para estampar el carrito y poder atribuir la
+   *  venta a la conversación. Vacío en el resto de canales. */
+  visitorId?: string | null
 }
 
 export interface CreateCheckoutResult {
@@ -288,6 +291,15 @@ export async function createCheckoutLink(
   // la confirmación por atribución (sin chocar con la automatización
   // "Nuevo pedido"). Ver src/app/api/shopify/webhooks/orders/route.ts.
   params.set('attributes[riverz_origin]', 'ai')
+  // Chat web: el id del visitante viaja con el carrito hasta el pedido, que es
+  // lo que después permite decir "esta venta salió de esta conversación".
+  //
+  // Hace falta acá aunque el widget ya estampe el carrito, porque un enlace de
+  // carrito REEMPLAZA el carrito de Shopify: lo que se hubiera estampado antes
+  // se pierde justo cuando la persona decide comprar.
+  if (ctx.visitorId) {
+    params.set('attributes[riverz_wvid]', ctx.visitorId)
+  }
   if (hasTransferDiscount) {
     params.set('attributes[pago]', transferLabel)
     params.set('attributes[descuento_pendiente_ars]', String(transferAmount))

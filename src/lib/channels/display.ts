@@ -89,6 +89,16 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     // No inbox composer — calls are placed by the voice agent, not typed.
     replyOnly: true,
   },
+  webchat: {
+    channel: "webchat",
+    label: "Chat web",
+    shortLabel: "Web",
+    badge: "bg-lime-500/10 text-lime-300 ring-1 ring-lime-500/30",
+    accent: "#A3E635",
+    // Se contesta, pero no se inicia: sin la pestaña abierta no hay a quién
+    // escribirle. Una campaña no puede salir por acá.
+    replyOnly: true,
+  },
 };
 
 export function channelDisplay(channel: Channel): ChannelDisplay {

@@ -3,6 +3,7 @@ import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshMLToken } from "./adapter";
 import { upsertContact } from "../inbox-writer";
+import { recordPurchases } from "@/lib/contacts/purchases";
 import { getLogger } from "@/lib/log/logger";
 
 const ML = "https://api.mercadolibre.com";
@@ -253,6 +254,31 @@ async function upsertOrder(
   // (el índice único era parcial y ON CONFLICT lo rechazaba). Un contador que
   // miente es peor que un fallo ruidoso.
   if (error) throw new Error(`orders upsert: ${error.message}`);
+
+  // La misma venta, en el historial de compras del contacto (migración 172),
+  // para que la ficha muestre lo que compró en Mercado Libre junto a lo que
+  // compró en la tienda. Best-effort: el espejo de `orders` ya quedó escrito.
+  if (contactId) {
+    await recordPurchases(db, conn.workspace_id, [
+      {
+        platform: "mercadolibre",
+        shopDomain: row.shop_domain,
+        externalId: String(o.id),
+        orderNumber: String(o.id),
+        placedAt: o.date_created ?? null,
+        currency: o.currency_id ?? null,
+        total: Number(o.total_amount ?? 0),
+        financialStatus: row.financial_status,
+        fulfillmentStatus: row.fulfillment_status,
+        lineItems: (o.order_items ?? []).map((i) => ({
+          title: i.item?.title ?? "",
+          quantity: i.quantity ?? 1,
+          price: i.unit_price ?? 0,
+        })),
+        contactId,
+      },
+    ]);
+  }
 }
 
 async function fetchShipment(

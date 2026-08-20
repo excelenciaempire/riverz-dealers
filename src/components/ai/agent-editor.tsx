@@ -115,6 +115,7 @@ const CHANNELS: { value: Channel; label: string; icon: string | null }[] = [
   { value: 'gmail', label: 'Gmail', icon: '/channels/gmail.svg' },
   { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
   { value: 'mercadolibre', label: 'Mercado Libre', icon: '/channels/mercadolibre.svg' },
+  { value: 'webchat', label: 'nav.webchat', icon: '/channels/webchat.svg' },
 ];
 
 /**
@@ -1280,7 +1281,11 @@ export function AgentEditor({
                         ) : (
                           <PhoneCall className="h-4 w-4 shrink-0" />
                         )}
-                        {c.icon ? c.label : t(c.label)}
+                        {/* Los canales son marcas y van literales; los que no
+                            —llamadas, chat web— traen una clave i18n. Se
+                            distinguían por si tenían logo, y eso se rompió el
+                            día que uno sin marca tuvo ícono propio. */}
+                        {c.label.includes('.') ? t(c.label) : c.label}
                       </button>
                     );
                   })}

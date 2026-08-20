@@ -374,6 +374,7 @@ export const contacts = {
     es: "Comentarios de TikTok",
     en: "TikTok comments",
   },
+  channelWebchat: { es: "Chat web", en: "Web chat" },
 
   // Rule type labels + descriptions
   ruleTagLabel: { es: "Etiqueta", en: "Tag" },
@@ -519,4 +520,30 @@ export const contacts = {
   actTag: { es: "Etiqueta añadida", en: "Tag added" },
   actNote: { es: "Nota", en: "Note" },
   actFlow: { es: "Flujo", en: "Flow" },
+
+  // Historial de compras del contacto (migración 172).
+  tabPurchases: { es: "Compras", en: "Purchases" },
+  buyRepeat: { es: "Cliente recurrente", en: "Repeat customer" },
+  buyOnce: { es: "Compró una vez", en: "Bought once" },
+  buyNever: { es: "Todavía no compró", en: "Hasn't bought yet" },
+  buyAverage: { es: "Ticket promedio", en: "Average order" },
+  buyFirst: { es: "Primera compra", en: "First purchase" },
+  buyLast: { es: "Última compra", en: "Last purchase" },
+  buyToday: { es: "hoy", en: "today" },
+  buyDaysAgo: { es: "hace {n} días", en: "{n} days ago" },
+  buyTopProducts: { es: "Más comprado", en: "Most bought" },
+  buyHistory: { es: "Historial", en: "History" },
+  buyUnits: { es: "{n} u.", en: "{n} u." },
+  buyMissingDetail: {
+    es: "{n} pedidos más sin detalle",
+    en: "{n} more orders without detail",
+  },
+  buyHistorySince: {
+    es: "Detalle desde {date}",
+    en: "Detail from {date}",
+  },
+  buyNoStore: {
+    es: "Conectá tu tienda para ver las compras acá",
+    en: "Connect your store to see purchases here",
+  },
 } satisfies Namespace;

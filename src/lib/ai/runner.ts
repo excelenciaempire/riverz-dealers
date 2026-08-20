@@ -18,7 +18,7 @@ import type {
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
-import { MIN_DEBOUNCE_SECONDS } from './types';
+import { MIN_DEBOUNCE_SECONDS, WEBCHAT_DEBOUNCE_SECONDS } from './types';
 import {
   withinBusinessHours,
   containsEscalationKeyword as hasEscalationKeyword,
@@ -167,7 +167,9 @@ export async function runAiAgent(
     // Floor at MIN_DEBOUNCE_SECONDS if the agent has it set lower — the
     // editor ofrece ese mismo mínimo, así que UI y runtime coinciden.
     const debounceMs =
-      Math.max(agent.inbound_debounce_seconds, MIN_DEBOUNCE_SECONDS) * 1000;
+      (args.conversation.channel === 'webchat'
+        ? WEBCHAT_DEBOUNCE_SECONDS
+        : Math.max(agent.inbound_debounce_seconds, MIN_DEBOUNCE_SECONDS)) * 1000;
     await sleep(debounceMs);
     const inboundId = args.inboundMessage.id;
     const inboundTs = args.inboundMessage.created_at;
@@ -264,6 +266,12 @@ export async function runAiAgent(
       shopify.channel = args.channel;
       shopify.contactName = args.contact.name ?? null;
       shopify.currency = shopify.config?.currency || businessCurrency;
+      // Chat web: quien habla es un visitante anónimo del sitio, y su id es lo
+      // único que va a poder atar la compra a esta charla cuando el pedido
+      // llegue por webhook. En el resto de canales no aplica — ahí el cliente
+      // ya viene con teléfono o correo.
+      shopify.visitorId =
+        args.channel === 'webchat' ? (args.contact.external_id ?? null) : null;
     }
     let reply: Awaited<ReturnType<typeof generateReply>>;
     try {
@@ -470,7 +478,11 @@ export async function runAiAgent(
       return;
     }
 
-    if (agent.reply_delay_seconds > 0) {
+    // La espera "para que no parezca un robot" es de mensajería: en WhatsApp
+    // una respuesta instantánea delata al bot. En un chat web delata lo
+    // contrario — nadie espera frente a una pantalla a que le contesten tarde
+    // a propósito.
+    if (agent.reply_delay_seconds > 0 && args.conversation.channel !== 'webchat') {
       await sleep(agent.reply_delay_seconds * 1000);
     }
 

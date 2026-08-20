@@ -36,6 +36,7 @@ import {
   Sun,
   PhoneCall,
   MessageSquareReply,
+  MessagesSquare,
   Radar,
 } from "lucide-react";
 import {
@@ -101,6 +102,7 @@ const navGroups: NavGroup[] = [
       { href: "/menus", label: "nav.flows", icon: Workflow },
       { href: "/comentarios", label: "nav.comments", icon: MessageSquareReply },
       { href: "/voz", label: "nav.voice", icon: PhoneCall },
+      { href: "/chat-web", label: "nav.webchat", icon: MessagesSquare },
     ],
   },
   {

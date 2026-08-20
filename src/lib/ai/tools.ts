@@ -135,6 +135,13 @@ export interface ShopifyToolContext {
   channel?: string | null
   /** Nombre del contacto, prellenado desde la conversación. */
   contactName?: string | null
+  /**
+   * Chat web: el id que identifica al visitante en su navegador. Se estampa en
+   * el enlace de carrito para que el pedido resultante quede atado a ESTA
+   * conversación (ver `attributeWebchatOrder`). Vacío en el resto de canales,
+   * donde el cliente ya se identifica por teléfono o correo.
+   */
+  visitorId?: string | null
   /** Id del pedido Shopify (numérico) para editar en vivo durante una llamada
    *  de confirmación COD (tool `update_order` / upsell). Lo setea el bridge de
    *  voz desde el contexto de la llamada. */

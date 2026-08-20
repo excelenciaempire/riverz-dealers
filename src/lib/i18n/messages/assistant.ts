@@ -28,6 +28,7 @@ export const assistant = {
   channelFbComments: { es: "Comentarios FB", en: "FB comments" },
   channelIgComments: { es: "Comentarios IG", en: "IG comments" },
   channelTiktokComments: { es: "Comentarios TikTok", en: "TikTok comments" },
+  channelWebchat: { es: "Chat web", en: "Web chat" },
 
   // Toasts / confirms (list page)
   loadError: { es: "No se cargaron los agentes", en: "Couldn't load agents" },

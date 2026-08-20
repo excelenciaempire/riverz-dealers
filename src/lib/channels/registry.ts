@@ -10,6 +10,7 @@ import { igCommentAdapter } from "./ig_comment/adapter";
 import { mercadoLibreAdapter } from "./mercadolibre/adapter";
 import { tikTokCommentAdapter } from "./tiktok_comment/adapter";
 import { voiceAdapter } from "./voice/adapter";
+import { webchatAdapter } from "./webchat/adapter";
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
   whatsapp: whatsappAdapter,
@@ -22,6 +23,7 @@ const ADAPTERS: Record<Channel, ChannelAdapter> = {
   mercadolibre: mercadoLibreAdapter,
   tiktok_comment: tikTokCommentAdapter,
   voice: voiceAdapter,
+  webchat: webchatAdapter,
 };
 
 export function getAdapter(channel: Channel): ChannelAdapter {

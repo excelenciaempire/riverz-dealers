@@ -3,6 +3,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
+import { linkOrphanPurchases, recordPurchases } from '@/lib/contacts/purchases'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import {
   normalizeToWhatsApp,
@@ -225,6 +226,30 @@ export async function ingestOrder(
   await reconcileOrder(admin, { shopDomain, order })
   await trackUnpaidOrder(admin, { platform, workspaceId, shopDomain, order })
 
+  // Historial de compras del contacto (migración 172). Antes del corte por
+  // trigger: un pedido sin transición que anunciar sigue siendo una compra, y
+  // la ficha del cliente tiene que poder mostrarla.
+  await recordPurchases(admin, workspaceId, [
+    {
+      platform,
+      shopDomain,
+      externalId: order.externalId,
+      orderNumber: order.name || order.orderNumber || null,
+      placedAt: order.createdAt,
+      currency: order.currency,
+      total: order.totalPrice,
+      financialStatus: order.state.financialStatus,
+      fulfillmentStatus: order.state.fulfillmentStatus,
+      lineItems: order.lineItems.map((li) => ({
+        title: li.title,
+        quantity: li.quantity,
+        price: li.price,
+      })),
+      customerEmail: order.customer.email,
+      customerPhone: order.customer.phone,
+    },
+  ]).catch((err) => console.error(`[${platform}] historial de compras falló:`, err))
+
   if (!trigger) return { status: 'no_transition' }
 
   const phone = resolvePhone(order.customer)
@@ -238,6 +263,14 @@ export async function ingestOrder(
     legacyExternalId: legacyPhone(order.customer),
   })
   if (!contactId) return { status: 'no_contact', trigger }
+
+  // Enganchar al contacto este pedido y cualquier compra anterior del mismo
+  // email o teléfono que se hubiera guardado antes de que el contacto existiera.
+  await linkOrphanPurchases(admin, workspaceId, {
+    id: contactId,
+    email: order.customer.email,
+    phone,
+  }).catch((err) => console.error(`[${platform}] enganche de compras falló:`, err))
 
   // Dejar el contacto pegado al estado del pedido para que el cron de
   // feedback post-entrega le escriba a QUIEN hizo ESTE pedido, en vez de

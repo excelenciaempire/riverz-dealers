@@ -46,6 +46,7 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'total_spent', labelKey: 'contacts.shopTotalSpent', get: (c) => String(sdOf(c)?.total_spent ?? sdOf(c)?.totalSpent ?? '') },
   { key: 'currency', labelKey: 'contacts.shopCurrency', get: (c) => String(sdOf(c)?.currency ?? '') },
   { key: 'orders', labelKey: 'contacts.shopOrders', get: (c) => String(sdOf(c)?.orders_count ?? sdOf(c)?.ordersCount ?? '') },
+  { key: 'last_purchase', labelKey: 'contacts.buyLast', get: (c, _tags, fmt) => { const d = sdOf(c)?.last_order_date; return d ? fmt.date(String(d), { year: 'numeric', month: '2-digit', day: '2-digit' }) : ''; } },
   { key: 'address', labelKey: 'contacts.shopAddress', get: (c) => { const a = addrOf(c); return a ? [a.address1, a.address2].filter(Boolean).join(' ') : ''; } },
   { key: 'city', labelKey: 'contacts.shopCity', get: (c) => String(addrOf(c)?.city ?? '') },
   { key: 'province', labelKey: 'contacts.shopProvince', get: (c) => String(addrOf(c)?.province ?? '') },

@@ -44,6 +44,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   mercadolibre: 'Mercado Libre',
   tiktok_comment: 'assistant.channelTiktokComments',
   voice: 'Voz',
+  webchat: 'assistant.channelWebchat',
 };
 
 export default function AiAgentsPage() {
@@ -235,7 +236,7 @@ function AgentCard({
                     })
                     .join(' · ')}
           </p>
-        </div>
+        </div>
         <span
           className={cn(
             'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',

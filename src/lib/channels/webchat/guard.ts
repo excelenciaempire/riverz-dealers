@@ -1,0 +1,117 @@
+import { NextResponse } from 'next/server';
+import type { ChannelConnection, WebchatConfig } from '@/types';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { limitByKey, clientIp, rateLimitResponse } from '@/lib/rate-limit';
+import { isWorkspaceSuspended } from '@/lib/workspaces/suspension';
+import { getFeatureFlags, isFeatureEnabled } from '@/lib/admin/feature-flags';
+import { getWebchatConnection, webchatConfig } from './connection-store';
+import { sessionFromRequest, type WebchatSession } from './token';
+
+/**
+ * Lo que toda ruta del widget comprueba antes de hacer nada.
+ *
+ * Son endpoints sin sesión, abiertos a Internet y llamados desde el navegador
+ * de cualquier visitante de la tienda, así que las comprobaciones van todas
+ * juntas en un lugar: si una ruta nueva se olvida de una, el agujero queda en
+ * producción y nadie se entera hasta que alguien lo usa.
+ *
+ * Los tres cortes que importan, en orden de costo:
+ *   1. cupo por IP y por comercio (antes de tocar la base),
+ *   2. el widget está encendido y la cuenta al día,
+ *   3. la funcionalidad no está apagada por plataforma.
+ */
+
+/** Cupos. El chat web es más ruidoso que el resto: un visitante escribe rápido
+ *  y el sondeo es constante, así que el límite de lectura es alto a propósito
+ *  y el de escritura, no. */
+export const WEBCHAT_LIMITS = {
+  /** Abrir sesión: una por carga de página; de a ráfagas sólo si algo falla. */
+  session: { limit: 30, windowMs: 60_000 },
+  /** Escribir. Nadie escribe 30 mensajes en un minuto de verdad. */
+  send: { limit: 30, windowMs: 60_000 },
+  /** Sondear mensajes nuevos: uno cada 2,5 s por pestaña, más margen. */
+  poll: { limit: 120, windowMs: 60_000 },
+  identify: { limit: 10, windowMs: 60_000 },
+} as const;
+
+export interface WebchatContext {
+  workspaceId: string;
+  connection: ChannelConnection;
+  config: WebchatConfig;
+}
+
+type Guard = { ok: true; ctx: WebchatContext } | { ok: false; response: NextResponse };
+
+/** El cupo de esta IP para esta acción, sin tocar la base. */
+export async function checkIpLimit(
+  req: Request,
+  action: keyof typeof WEBCHAT_LIMITS,
+): Promise<NextResponse | null> {
+  const result = await limitByKey(`webchat:${action}:ip:${clientIp(req)}`, WEBCHAT_LIMITS[action]);
+  return result.success ? null : rateLimitResponse(result);
+}
+
+/**
+ * Carga la conexión del comercio y comprueba que el chat pueda atender.
+ *
+ * Todo lo que impide atender responde 404, no 403: quien prueba llaves a mano
+ * no debe poder distinguir "no existe" de "existe pero está apagado" ni de
+ * "existe y la cuenta está suspendida". La única excepción es el cupo, que sí
+ * dice 429 porque el widget legítimo necesita saber cuándo reintentar.
+ */
+export async function loadWebchat(req: Request, workspaceId: string): Promise<Guard> {
+  const notFound = {
+    ok: false as const,
+    response: NextResponse.json({ error: 'not_found' }, { status: 404 }),
+  };
+
+  const perWorkspace = await limitByKey(`webchat:ws:${workspaceId}`, {
+    limit: 600,
+    windowMs: 60_000,
+  });
+  if (!perWorkspace.success) {
+    return { ok: false, response: rateLimitResponse(perWorkspace) };
+  }
+
+  const connection = await getWebchatConnection(workspaceId);
+  if (!connection) return notFound;
+  const config = webchatConfig(connection);
+  if (!config.enabled) return notFound;
+
+  const admin = supabaseAdmin();
+  if (await isWorkspaceSuspended(admin, workspaceId)) return notFound;
+
+  const flags = await getFeatureFlags(admin, workspaceId);
+  if (!isFeatureEnabled(flags, 'webchat')) return notFound;
+
+  return { ok: true, ctx: { workspaceId, connection, config } };
+}
+
+/**
+ * Las rutas que ya tienen sesión: valida el token y carga el comercio de una.
+ * El visitante nunca dice a qué workspace ni a qué conversación pertenece —
+ * sale todo del token firmado, así que no hay nada que pueda pedir prestado.
+ */
+export async function requireSession(
+  req: Request,
+  action: keyof typeof WEBCHAT_LIMITS,
+): Promise<
+  { ok: true; session: WebchatSession; ctx: WebchatContext } | { ok: false; response: NextResponse }
+> {
+  const limited = await checkIpLimit(req, action);
+  if (limited) return { ok: false, response: limited };
+
+  const session = sessionFromRequest(req);
+  if (!session) {
+    // 401 y no 404: el widget distingue "hay que renovar la sesión" de "este
+    // chat ya no existe", y con lo segundo se apagaría solo para siempre.
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'session_expired' }, { status: 401 }),
+    };
+  }
+
+  const guard = await loadWebchat(req, session.workspaceId);
+  if (!guard.ok) return guard;
+  return { ok: true, session, ctx: guard.ctx };
+}

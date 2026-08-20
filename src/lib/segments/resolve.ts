@@ -232,7 +232,16 @@ function evaluateRule(
           : rule.field === 'last_activity'
             ? 'last_inbound_at'
             : 'last_ai_conversation_at';
-      const raw = (contact as unknown as Record<string, unknown>)[column];
+      // "Última compra" venía de `last_offer_at`, que sólo se escribe cuando
+      // el pedido matchea una oferta configurada. Un comercio sin ofertas
+      // armadas tenía a todos sus compradores con la fecha vacía, así que la
+      // regla no seleccionaba a nadie. La fecha del último pedido de la
+      // tienda es el dato real; la oferta queda como respaldo.
+      const raw =
+        rule.field === 'last_purchase'
+          ? (shopData(contact)?.last_order_date ??
+            (contact as unknown as Record<string, unknown>).last_offer_at)
+          : (contact as unknown as Record<string, unknown>)[column];
       if (!raw) return false; // never happened → never matches a date window
       const ts = new Date(String(raw)).getTime();
       if (Number.isNaN(ts)) return false;
