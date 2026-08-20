@@ -436,6 +436,40 @@ export async function runAiAgent(
       }
     }
 
+    // ── Agente que propone, persona que envía (migración 170) ──
+    // Todo lo de arriba ya corrió: producto, contexto, herramientas, la
+    // respuesta está escrita. Lo único que no pasa es el envío. Queda como
+    // propuesta en la bandeja y sale con un clic.
+    //
+    // Va acá y no antes de generar: el valor del modo es que la respuesta
+    // esté lista cuando la persona abre el chat, no que se genere recién
+    // cuando la pide. Y va después de los guardas de frescura: proponer una
+    // respuesta a un mensaje que el cliente ya reemplazó es ruido.
+    if (agent.requires_approval) {
+      const { error: draftErr } = await db
+        .from('ai_pending_replies')
+        .upsert(
+          {
+            workspace_id: args.workspaceId,
+            conversation_id: args.conversation.id,
+            agent_id: agent.id,
+            agent_name: agent.name ?? null,
+            content_text: replyText,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: 'conversation_id' },
+        );
+      await logReply(db, agent, args, {
+        status: draftErr ? 'failed' : 'skipped',
+        skip_reason: draftErr ? undefined : 'awaiting_approval',
+        error: draftErr?.message,
+        prompt_tokens: reply.promptTokens,
+        completion_tokens: reply.completionTokens,
+        key_source: reply.keySource,
+      });
+      return;
+    }
+
     if (agent.reply_delay_seconds > 0) {
       await sleep(agent.reply_delay_seconds * 1000);
     }

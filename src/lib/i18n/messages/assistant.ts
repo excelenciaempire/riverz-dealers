@@ -259,6 +259,17 @@ export const assistant = {
     es: "Cómo entrega la respuesta el asistente y cuánto espera antes de hablar.",
     en: "How the assistant delivers its reply and how long it waits before speaking.",
   },
+  autonomyLabel: { es: "Autonomía", en: "Autonomy" },
+  autonomyAuto: { es: "Responde solo", en: "Replies on its own" },
+  autonomyAutoHint: {
+    es: "Envía la respuesta al cliente sin esperar a nadie.",
+    en: "Sends the reply to the customer without waiting for anyone.",
+  },
+  autonomyApproval: { es: "Aprobar cada mensaje", en: "Approve every message" },
+  autonomyApprovalHint: {
+    es: "Deja la respuesta lista en la bandeja y sale con un clic.",
+    en: "Leaves the reply ready in the inbox; one click sends it.",
+  },
   responseModeLabel: { es: "Modo de respuesta", en: "Response mode" },
   responseModeSingle: { es: "Un solo mensaje", en: "Single message" },
   responseModeSingleHint: { es: "Una respuesta completa por turno.", en: "One complete reply per turn." },

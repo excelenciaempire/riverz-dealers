@@ -50,6 +50,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MessageComposer } from "./message-composer";
+import { PendingReplyCard } from "./pending-reply-card";
 import { VoiceCallCard } from "./voice-call-view";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
@@ -1688,18 +1689,25 @@ export function MessageThread({
            time (comments, DMs, emails). Without this gate, fb_comment
            threads opened a day after a comment landed showed the
            composer in "expired" state and blocked the reply. */
-        <MessageComposer
-          conversationId={conversation.id}
-          channel={conversation.channel}
-          sessionExpired={
-            conversation.channel === "whatsapp" && sessionInfo.expired
-          }
-          onSend={handleSend}
-          onSendMedia={handleSendMedia}
-          onOpenTemplates={handleOpenTemplates}
-          replyTo={replyTo}
-          onClearReply={() => setReplyTo(null)}
-        />
+        <>
+          {/* Respuesta propuesta por un agente que necesita aprobación. */}
+          <PendingReplyCard
+            conversationId={conversation.id}
+            onSend={(text) => handleSend(text)}
+          />
+          <MessageComposer
+            conversationId={conversation.id}
+            channel={conversation.channel}
+            sessionExpired={
+              conversation.channel === "whatsapp" && sessionInfo.expired
+            }
+            onSend={handleSend}
+            onSendMedia={handleSendMedia}
+            onOpenTemplates={handleOpenTemplates}
+            replyTo={replyTo}
+            onClearReply={() => setReplyTo(null)}
+          />
+        </>
       )}
 
       <TemplatePicker

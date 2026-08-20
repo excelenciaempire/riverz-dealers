@@ -157,6 +157,27 @@ const PERM_KEY: Record<AgentPermission, string> = {
   enviar_proactivo: 'EnviarProactivo',
 };
 
+/**
+ * Cuanta correa tiene el asistente.
+ *
+ * `auto` es lo de siempre: contesta y manda. `approval` escribe la respuesta
+ * igual —con el mismo contexto y las mismas herramientas— pero la deja en la
+ * bandeja para que una persona la envie con un clic. Es el punto medio entre
+ * tener el asistente apagado y confiarle el chat entero.
+ */
+const AUTONOMY_MODES: { value: 'auto' | 'approval'; label: string; hint: string }[] = [
+  {
+    value: 'auto',
+    label: 'assistant.autonomyAuto',
+    hint: 'assistant.autonomyAutoHint',
+  },
+  {
+    value: 'approval',
+    label: 'assistant.autonomyApproval',
+    hint: 'assistant.autonomyApprovalHint',
+  },
+];
+
 const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] = [
   {
     value: 'single',
@@ -328,6 +349,10 @@ export function AgentEditor({
   const [responseMode, setResponseMode] = useState<AiResponseMode>(
     agent?.response_mode ?? 'dynamic',
   );
+  // Autonomia: responde solo o deja la respuesta para aprobar (migracion 170).
+  const [requiresApproval, setRequiresApproval] = useState<boolean>(
+    agent?.requires_approval ?? false,
+  );
   const [inboundDebounce, setInboundDebounce] = useState<number>(
     agent?.inbound_debounce_seconds ?? 15,
   );
@@ -452,6 +477,9 @@ export function AgentEditor({
   );
   const RESPONSE_MODE_LABELS = Object.fromEntries(
     RESPONSE_MODES.map((m) => [m.value, t(m.label)]),
+  );
+  const AUTONOMY_LABELS = Object.fromEntries(
+    AUTONOMY_MODES.map((m) => [m.value, t(m.label)]),
   );
   const TIMEZONE_LABELS = Object.fromEntries(
     TIMEZONES.map((tz) => [tz.value, t(tz.label)]),
@@ -723,6 +751,7 @@ export function AgentEditor({
       // usa loadContext, así que cualquier valor >= ese equivale a "todo".
       context_messages: 100,
       response_mode: responseMode,
+      requires_approval: requiresApproval,
       inbound_debounce_seconds: inboundDebounce,
       reply_when_assigned: replyWhenAssigned,
       // El horario es un único control: si está activado, sólo responde
@@ -1477,6 +1506,29 @@ export function AgentEditor({
                   title={t('assistant.responseBehaviorTitle')}
                   hint={t('assistant.responseBehaviorHint')}
                 >
+                  <Field label={t('assistant.autonomyLabel')}>
+                    <Select
+                      value={requiresApproval ? 'approval' : 'auto'}
+                      onValueChange={(v) => setRequiresApproval(v === 'approval')}
+                    >
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={AUTONOMY_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AUTONOMY_MODES.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-foreground">{t(m.label)}</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {t(m.hint)}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
                   <Field label={t('assistant.responseModeLabel')}>
                     <Select
                       value={responseMode}

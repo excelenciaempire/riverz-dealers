@@ -79,6 +79,8 @@ export async function PATCH(
     'reply_delay_seconds',
     'context_messages',
     'response_mode',
+    // Autonomia: responde solo o propone y espera (migracion 170)
+    'requires_approval',
     'inbound_debounce_seconds',
     'reply_when_assigned',
     'reply_outside_hours',

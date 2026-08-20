@@ -76,6 +76,11 @@ export interface AiAgent {
    *  se cancela. 0 = desactivado. Migration 034. */
   inbound_debounce_seconds: number;
 
+  /** TRUE = el asistente escribe la respuesta pero no la manda: queda como
+   *  propuesta en la bandeja y una persona la envía con un clic.
+   *  FALSE (default) = responde solo. Migración 170. */
+  requires_approval: boolean;
+
   reply_when_assigned: boolean;
   reply_outside_hours: boolean;
   business_hours: BusinessHours | null;

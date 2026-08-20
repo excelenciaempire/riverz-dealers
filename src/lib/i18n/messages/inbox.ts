@@ -296,6 +296,17 @@ export const inbox = {
     es: "No se pudo mejorar el texto",
     en: "Couldn't improve the text",
   },
+
+  // Respuesta propuesta por un agente en modo "aprobar cada mensaje"
+  pendingReplyTitle: { es: "Respuesta lista", en: "Reply ready" },
+  pendingReplyFrom: { es: "{name} propone", en: "{name} suggests" },
+  pendingReplySend: { es: "Enviar", en: "Send" },
+  pendingReplyDiscard: { es: "Descartar", en: "Discard" },
+  pendingReplyFailed: {
+    es: "No se pudo enviar la respuesta",
+    en: "Couldn't send the reply",
+  },
+  pendingReplyBadge: { es: "Respuesta lista", en: "Reply ready" },
   composerExpiredPlaceholder: {
     es: "Sesión expirada. Usa una plantilla.",
     en: "Session expired. Use a template.",

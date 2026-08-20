@@ -234,6 +234,23 @@ export async function runFollowUp(
     const finalText = text.slice(0, agent.max_response_chars || 500).trim();
     if (!finalText) return { sent: false, reason: 'empty' };
 
+    // Un agente que necesita aprobación tampoco manda seguimientos solo: el
+    // seguimiento queda como propuesta, igual que una respuesta (migración 170).
+    if (agent.requires_approval) {
+      await db.from('ai_pending_replies').upsert(
+        {
+          workspace_id: agent.workspace_id,
+          conversation_id: conversation.id,
+          agent_id: agent.id,
+          agent_name: agent.name ?? null,
+          content_text: finalText,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'conversation_id' },
+      );
+      return { sent: false, reason: 'awaiting_approval' };
+    }
+
     // 4. Envío por el canal (solo DM: whatsapp / instagram / messenger).
     const adapter = getAdapter(conversation.channel);
     const sendResult = await adapter.sendText({

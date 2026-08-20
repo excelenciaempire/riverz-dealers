@@ -157,6 +157,7 @@ export async function POST(request: Request) {
     reply_delay_seconds: body.reply_delay_seconds ?? 0,
     context_messages: body.context_messages ?? 100,
     response_mode: body.response_mode ?? 'dynamic',
+    requires_approval: body.requires_approval ?? false,
     inbound_debounce_seconds: body.inbound_debounce_seconds ?? 15,
     reply_when_assigned: body.reply_when_assigned ?? false,
     reply_outside_hours: body.reply_outside_hours ?? true,
