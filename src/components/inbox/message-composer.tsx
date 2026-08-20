@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2 } from "lucide-react";
+import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReplyQuote } from "./reply-quote";
 import { useT } from "@/hooks/use-locale";
 import { useSnippets } from "@/hooks/use-snippets";
+import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Channel } from "@/types";
 
 /** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
@@ -65,6 +66,7 @@ export function MessageComposer({
   onClearReply,
 }: MessageComposerProps) {
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   // Capacidades por canal, según lo que el adapter sabe enviar de verdad.
   // Mandan archivos: WhatsApp, Instagram y Messenger (Send API de Meta),
   // Gmail y Outlook (dentro del MIME del correo) y Mercado Libre (subida a su
@@ -87,6 +89,8 @@ export function MessageComposer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // Mejorar redaccion: un clic reescribe el borrador antes de enviarlo.
+  const [improving, setImproving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Ref-guard adicional: setState es async, así que si el agente
   // pulsa Enter rapidísimo el segundo handler todavía lee
@@ -230,6 +234,56 @@ export function MessageComposer({
       setSending(false);
     }
   }, [text, pendingFile, sessionExpired, onSend, onSendMedia, replyTo?.id]);
+
+  /**
+   * Un clic: el borrador vuelve bien redactado. Es reescritura, no
+   * respuesta — el modelo no agrega datos ni cambia el idioma. Si el
+   * resultado no convence, el toast ofrece deshacer.
+   */
+  const handleImprove = useCallback(async () => {
+    const draft = text.trim();
+    if (!draft || improving || sessionExpired) return;
+    setImproving(true);
+    try {
+      const res = await fetchWithCsrf("/api/ai/improve-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: draft, conversation_id: conversationId }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { text?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.text) {
+        toast.error(data?.error || t("inbox.improveTextFailed"));
+        return;
+      }
+      if (data.text.trim() === draft) {
+        toast(t("inbox.improveTextUnchanged"));
+        return;
+      }
+      setText(data.text);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(data.text!.length, data.text!.length);
+        adjustHeight();
+      });
+      toast(t("inbox.improveText"), {
+        action: {
+          label: t("inbox.improveTextUndo"),
+          onClick: () => {
+            setText(draft);
+            requestAnimationFrame(adjustHeight);
+          },
+        },
+      });
+    } catch {
+      toast.error(t("inbox.improveTextFailed"));
+    } finally {
+      setImproving(false);
+    }
+  }, [text, improving, sessionExpired, fetchWithCsrf, conversationId, t, adjustHeight]);
 
   const handleFilePick = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -510,6 +564,23 @@ export function MessageComposer({
             sessionExpired && "cursor-not-allowed opacity-50"
           )}
         />
+
+        {/* Mejorar redacción: reescribe el borrador antes de enviarlo. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+          onClick={handleImprove}
+          disabled={!text.trim() || sessionExpired || sending || improving}
+          title={t("inbox.improveText")}
+          aria-label={t("inbox.improveText")}
+        >
+          {improving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+        </Button>
 
         {/* Plantillas aprobadas de WhatsApp (donde WhatsApp pone los stickers). */}
         {canUseTemplates && (

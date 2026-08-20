@@ -286,6 +286,16 @@ export const inbox = {
   removeAttachment: { es: "Quitar adjunto", en: "Remove attachment" },
   fileTooLarge: { es: "El archivo supera 25 MB", en: "File exceeds 25 MB" },
   sendMessage: { es: "Enviar mensaje", en: "Send message" },
+  improveText: { es: "Mejorar redacción", en: "Improve writing" },
+  improveTextUndo: { es: "Deshacer", en: "Undo" },
+  improveTextUnchanged: {
+    es: "El texto ya estaba bien",
+    en: "The text was already fine",
+  },
+  improveTextFailed: {
+    es: "No se pudo mejorar el texto",
+    en: "Couldn't improve the text",
+  },
   composerExpiredPlaceholder: {
     es: "Sesión expirada. Usa una plantilla.",
     en: "Session expired. Use a template.",

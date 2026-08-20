@@ -722,23 +722,12 @@ function EmailBody({ message }: { message: Message }) {
   const { primary, quoted } = splitEmailQuote(rawText);
 
   if (emailIsHtml(message)) {
-    // Una respuesta trae el mensaje nuevo arriba y todo el correo anterior
-    // abajo. Si sólo se dibuja el HTML, esas dos o tres líneas —lo único
-    // que la persona escribió— quedan perdidas encima de un correo entero
-    // con su logo y sus imágenes, y a simple vista parece que no dijo nada.
-    //
-    // Se muestran primero, en grande, y el correo completo sigue debajo tal
-    // cual: el diseño no se toca, sólo deja de tapar lo que importa.
-    return (
-      <div className="space-y-2">
-        {primary && (
-          <div className="rounded-lg bg-muted/50 px-3 py-2">
-            <LinkifiedText text={primary} />
-          </div>
-        )}
-        <EmailHtmlBody html={(message.html_body as string).trim()} />
-      </div>
-    );
+    // Sólo el correo, tal cual llegó. La parte de texto plano de un correo
+    // con diseño es la misma información otra vez —encabezado, pie legal,
+    // enlace de baja— apilada encima del correo real. El texto nuevo de una
+    // respuesta también viene dentro del HTML, arriba de la cita, así que no
+    // se pierde nada al no repetirlo.
+    return <EmailHtmlBody html={(message.html_body as string).trim()} />;
   }
 
   const isReply = quoted.length > 0;

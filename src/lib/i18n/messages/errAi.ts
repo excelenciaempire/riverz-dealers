@@ -26,6 +26,20 @@ export const errAi = {
     es: "El mensaje es requerido",
     en: "message is required",
   },
+
+  // Mejorar el borrador del composer
+  textRequired: {
+    es: "Escribe algo primero",
+    en: "Write something first",
+  },
+  textTooLong: {
+    es: "El texto es demasiado largo para mejorarlo",
+    en: "The text is too long to improve",
+  },
+  improveFailed: {
+    es: "No se pudo mejorar el texto",
+    en: "Couldn't improve the text",
+  },
   urlInvalidHttps: {
     es: "URL inválida. Debe empezar con https://",
     en: "Invalid URL. It must start with https://",
