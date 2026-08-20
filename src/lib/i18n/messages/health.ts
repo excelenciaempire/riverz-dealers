@@ -51,20 +51,27 @@ export const health: Namespace = {
 
   // Ingresos atribuidos
   revenueTitle: { es: "De dónde salió esa plata", en: "Where that money came from" },
+  revenueAttributedTotal: {
+    es: "{total} en {orders} pedidos",
+    en: "{total} across {orders} orders",
+  },
   revenueStoreTotal: {
     es: "Tienda: {total} en {orders} pedidos",
     en: "Store: {total} across {orders} orders",
   },
-  revenueByAutomation: { es: "Por automatización", en: "By automation" },
-  revenueByBroadcast: { es: "Por campaña", en: "By campaign" },
-  revenueByFlow: { es: "Por flujo", en: "By flow" },
-  revenueByIgAgent: { es: "Agente de Instagram", en: "Instagram agent" },
+  // Qué clase de cosa hizo esa plata. Va al lado del nombre y no como
+  // encabezado de una lista propia: casi siempre hay una sola clase, y cuatro
+  // encabezados para una fila cada uno son ruido, no estructura.
+  kindAutomation: { es: "Automatización", en: "Automation" },
+  kindBroadcast: { es: "Campaña", en: "Campaign" },
+  kindFlow: { es: "Flujo", en: "Flow" },
+  kindIgAgent: { es: "Agente IG", en: "IG agent" },
   revenueNothingAttributed: {
     es: "Todavía no hay pedidos que se puedan atribuir a un envío de Riverz en este rango.",
     en: "No orders in this range can be traced back to a Riverz message yet.",
   },
   revenueDisclaimer: {
-    es: "Cuenta el pedido de quien recibió un mensaje en las 72 h previas. Las vistas no se suman entre sí: un mismo pedido puede aparecer en varias.",
-    en: "Counts orders from people who got a message in the previous 72h. The views don't add up: one order can appear in several.",
+    es: "Cuenta el pedido de quien recibió un mensaje en las 72 h previas. Un mismo pedido puede aparecer en más de una fila; el total lo cuenta una sola vez.",
+    en: "Counts orders from people who got a message in the previous 72h. One order can appear in more than one row; the total counts it once.",
   },
 };

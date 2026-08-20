@@ -35,8 +35,40 @@ export interface Atribucion {
   not_connected?: boolean
 }
 
-export function useAtribucion(start: string | null, end: string | null) {
+/**
+ * Cada cuánto puede moverse el fin del rango.
+ *
+ * El panel es en vivo: cada mensaje que entra dispara un refresco, y ese
+ * refresco recalcula el rango con `new Date()`. Con el fin al milisegundo, el
+ * rango era distinto CADA VEZ y esto se volvía a pedir en cada tick — un
+ * endpoint que hace una consulta por pedido del período, disparado por cada
+ * cliente que escribe. En una cuenta con movimiento eso es un martilleo, y de
+ * paso deja la cifra de arriba y el desglose de abajo mostrando dos respuestas
+ * distintas mientras una de las dos vuelve.
+ *
+ * Redondeando el fin a bloques de cinco minutos —hacia arriba, para no perder
+ * los pedidos de recién— el rango se repite y el pedido se hace una sola vez.
+ * La contrapartida es que una venta tarda a lo sumo cinco minutos en contarse,
+ * que para atribución de ingresos no cambia ninguna decisión.
+ */
+const BLOQUE_MS = 5 * 60_000
+
+export function estabilizar(iso: string, haciaArriba: boolean): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return iso
+  const n = haciaArriba
+    ? Math.ceil(t / BLOQUE_MS) * BLOQUE_MS
+    : Math.floor(t / BLOQUE_MS) * BLOQUE_MS
+  return new Date(n).toISOString()
+}
+
+export function useAtribucion(startBruto: string | null, endBruto: string | null) {
   const [data, setData] = useState<Atribucion | null>(null)
+
+  // El inicio siempre cae en un límite de día, así que redondear hacia abajo no
+  // lo mueve; se hace igual para que el par sea estable de las dos puntas.
+  const start = startBruto ? estabilizar(startBruto, false) : null
+  const end = endBruto ? estabilizar(endBruto, true) : null
 
   useEffect(() => {
     if (!start || !end) return

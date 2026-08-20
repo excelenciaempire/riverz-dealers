@@ -1,40 +1,36 @@
 'use client'
 
-import { Bot, Clock, DollarSign, MessageSquare, Receipt, Sparkles } from 'lucide-react'
+import { Bot, Inbox, MessageSquare, Send, Sparkles, UserPlus } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
 import { MetricCard } from '@/components/dashboard/metric-card'
 import type { Atribucion } from '@/lib/dashboard/use-attribution'
-import type { MetricsBundle, ResponseTimeReport } from '@/lib/dashboard/types'
+import type { MetricsBundle } from '@/lib/dashboard/types'
 
 /**
- * Lo que Riverz devuelve, no lo que Riverz mueve.
+ * Lo que generó Riverz, y las cifras de siempre.
  *
- * Antes acá había volumen —mensajes que entraron, mensajes que salieron,
- * contactos nuevos, automatizaciones activas, canales conectados—. Todo eso
- * sube igual si la cuenta anda bien o si anda mal: son cifras que no responden
- * la única pregunta que se hace quien paga, que es si le conviene seguir
- * pagando.
+ * La primera tarjeta es la que no existía y es la que contesta si conviene
+ * seguir pagando: la plata de los pedidos que pasaron por Riverz, sobre el
+ * total que vendió la tienda. Las otras cinco son las de toda la vida.
  *
- * Estas seis sí. Tres son plata (cuánto entró por Riverz, cuánto vendió la
- * tienda, cuánto vale un pedido) y tres son el trabajo que Riverz hizo en lugar
- * de una persona (cuánto contestó la IA, cuánta demanda llegó, cuánto tarda la
- * primera respuesta).
+ * Lo que NO está, y es a propósito: las ventas totales de la tienda y el ticket
+ * promedio. Son del comercio, no de Riverz — sin nosotros pasan igual. La
+ * facturación de la tienda sigue apareciendo, pero como el denominador del
+ * porcentaje de la primera tarjeta, que es donde significa algo.
  *
- * "Automatizaciones activas" no está a propósito: tener cuatro prendidas no es
- * un logro, es una configuración. Lo que importa es cuánto facturaron, y eso
- * está en el desglose de abajo.
+ * Tampoco están "automatizaciones activas", "canales conectados" ni "agentes
+ * activos": eso es configuración, no resultado. Suben igual cuando la cuenta
+ * anda mal.
  */
 export function TarjetasRoi({
   metrics,
   atribucion,
-  responseTime,
   respuestasIa,
   sufijo,
 }: {
   metrics: MetricsBundle
   atribucion: Atribucion | null
-  responseTime: ResponseTimeReport | null
   /** Mensajes que escribió la IA en el período. */
   respuestasIa: number | null
   /** "vs 7 días previos", ya traducido. */
@@ -43,91 +39,47 @@ export function TarjetasRoi({
   const t = useT()
   const fmt = useFormat()
 
-  const moneda = atribucion?.totals?.currency
+  const cargando = atribucion === null
+  const sinTienda = !cargando && atribucion.not_connected === true
   const ventasTienda = atribucion?.totals?.revenue.current ?? 0
-  const ventasPrevias = atribucion?.totals?.revenue.previous ?? 0
-  const pedidos = atribucion?.totals?.orders.current ?? 0
-  const pedidosPrevios = atribucion?.totals?.orders.previous ?? 0
   const porRiverz = atribucion?.attributed
 
-  // Sin tienda conectada no hay plata que mostrar y las tres tarjetas de
-  // comercio no aplican. Mientras todavía no se sabe, se muestran con un
-  // guion: esconderlas y hacerlas aparecer un segundo después movería de lugar
-  // las otras tres justo cuando alguien las está leyendo.
-  const cargando = atribucion === null
-  const hayComercio = cargando || !atribucion.not_connected
-  const plata = (v: number) => (cargando ? '—' : fmt.currency(v, moneda))
-
-  const aov = pedidos > 0 ? ventasTienda / pedidos : 0
-  const aovPrev = pedidosPrevios > 0 ? ventasPrevias / pedidosPrevios : 0
-
   const salientes = metrics.messagesSent.current
-  const primera = responseTime?.first.thisPeriodAvg ?? null
-  const primeraPrev = responseTime?.first.prevPeriodAvg ?? null
 
   return (
     <>
-      {hayComercio && (
-        <>
-          <MetricCard
-            title={t('dashboard.roiRevenue')}
-            value={
-              cargando
-                ? '—'
-                : fmt.currency(porRiverz?.revenue ?? 0, porRiverz?.currency ?? moneda)
-            }
-            icon={Sparkles}
-            subtitle={
-              cargando
-                ? undefined
-                : porRiverz && porRiverz.orders > 0
-                  ? t('dashboard.roiRevenueSub', {
-                      orders: porRiverz.orders,
-                      share:
-                        ventasTienda > 0
-                          ? Math.round((porRiverz.revenue / ventasTienda) * 100)
-                          : 0,
-                    })
-                  : t('dashboard.roiRevenueNone')
-            }
-          />
-          <MetricCard
-            title={t('dashboard.roiStoreRevenue')}
-            value={plata(ventasTienda)}
-            icon={DollarSign}
-            delta={
-              cargando
-                ? undefined
-                : delta(ventasTienda, ventasPrevias, sufijo, t, (v) =>
-                    fmt.currency(v, moneda),
-                  )
-            }
-          />
-          <MetricCard
-            title={t('dashboard.roiAov')}
-            value={plata(aov)}
-            icon={Receipt}
-            delta={
-              cargando
-                ? undefined
-                : delta(aov, aovPrev, sufijo, t, (v) => fmt.currency(v, moneda))
-            }
-          />
-        </>
+      {/* Sin tienda conectada no hay pedidos que atribuir y la tarjeta no
+          aplica. Mientras todavía no se sabe se muestra con un guion: hacerla
+          aparecer un segundo después correría las otras cinco de lugar justo
+          cuando alguien las está leyendo. */}
+      {!sinTienda && (
+        <MetricCard
+          title={t('dashboard.roiRevenue')}
+          value={
+            cargando
+              ? '—'
+              : fmt.currency(
+                  porRiverz?.revenue ?? 0,
+                  porRiverz?.currency ?? atribucion?.totals?.currency,
+                )
+          }
+          icon={Sparkles}
+          subtitle={
+            cargando
+              ? undefined
+              : porRiverz && porRiverz.orders > 0
+                ? t('dashboard.roiRevenueSub', {
+                    orders: porRiverz.orders,
+                    share:
+                      ventasTienda > 0
+                        ? Math.round((porRiverz.revenue / ventasTienda) * 100)
+                        : 0,
+                  })
+                : t('dashboard.roiRevenueNone')
+          }
+        />
       )}
 
-      <MetricCard
-        title={t('dashboard.roiAiReplies')}
-        value={respuestasIa === null ? '—' : fmt.number(respuestasIa)}
-        icon={Bot}
-        subtitle={
-          respuestasIa !== null && salientes > 0
-            ? t('dashboard.roiAiRepliesSub', {
-                share: Math.min(100, Math.round((respuestasIa / salientes) * 100)),
-              })
-            : undefined
-        }
-      />
       <MetricCard
         title={t('dashboard.conversations')}
         value={fmt.number(metrics.conversations.current)}
@@ -141,26 +93,44 @@ export function TarjetasRoi({
         )}
       />
       <MetricCard
-        title={t('dashboard.roiFirstReply')}
-        value={
-          primera === null
-            ? t('dashboard.roiNoData')
-            : t('dashboard.roiMinutes', { n: fmt.number(Math.round(primera)) })
-        }
-        icon={Clock}
-        // Acá menos es mejor: bajar de 40 a 12 minutos tiene que verse verde,
-        // no rojo. Por eso el signo va invertido.
-        delta={
-          primera !== null && primeraPrev !== null
-            ? invertir(
-                delta(
-                  Math.round(primera),
-                  Math.round(primeraPrev),
-                  sufijo,
-                  t,
-                  (v) => t('dashboard.roiMinutes', { n: fmt.number(v) }),
-                ),
-              )
+        title={t('dashboard.newContacts')}
+        value={fmt.number(metrics.newContacts.current)}
+        icon={UserPlus}
+        delta={delta(
+          metrics.newContacts.current,
+          metrics.newContacts.previous,
+          sufijo,
+          t,
+          fmt.number,
+        )}
+      />
+      <MetricCard
+        title={t('dashboard.messagesReceived')}
+        value={fmt.number(metrics.messagesReceived.current)}
+        icon={Inbox}
+        delta={delta(
+          metrics.messagesReceived.current,
+          metrics.messagesReceived.previous,
+          sufijo,
+          t,
+          fmt.number,
+        )}
+      />
+      <MetricCard
+        title={t('dashboard.messagesSent')}
+        value={fmt.number(salientes)}
+        icon={Send}
+        delta={delta(salientes, metrics.messagesSent.previous, sufijo, t, fmt.number)}
+      />
+      <MetricCard
+        title={t('dashboard.roiAiReplies')}
+        value={respuestasIa === null ? '—' : fmt.number(respuestasIa)}
+        icon={Bot}
+        subtitle={
+          respuestasIa !== null && salientes > 0
+            ? t('dashboard.roiAiRepliesSub', {
+                share: Math.min(100, Math.round((respuestasIa / salientes) * 100)),
+              })
             : undefined
         }
       />
@@ -186,8 +156,4 @@ function delta(
           suffix: sufijo,
         })
   return { sign: d, label }
-}
-
-function invertir(d: { sign: number; label: string }) {
-  return { sign: -d.sign, label: d.label }
 }

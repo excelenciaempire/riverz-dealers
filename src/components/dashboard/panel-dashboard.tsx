@@ -275,7 +275,6 @@ export function PanelDashboard({
           <TarjetasRoi
             metrics={metrics}
             atribucion={atribucion}
-            responseTime={responseTime}
             respuestasIa={respuestasIa}
             sufijo={suffix}
           />
