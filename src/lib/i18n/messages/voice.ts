@@ -151,7 +151,7 @@ export const voice = {
   testCallPlaceholder: { es: "+54 9 11 1234 5678", en: "+1 555 123 4567" },
   testCallQueued: { es: "Llamando ahora", en: "Calling now" },
   testCallSaveFirst: {
-    es: "Guardá el agente antes de probar la llamada.",
+    es: "Guarda el agente antes de probar la llamada.",
     en: "Save the agent before testing the call.",
   },
   recordingEnabled: { es: "Grabar llamadas", en: "Record calls" },

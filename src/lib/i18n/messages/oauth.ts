@@ -29,9 +29,9 @@ export const oauth: Namespace = {
   },
   allow: { es: "Autorizar", en: "Authorize" },
   deny: { es: "Cancelar", en: "Cancel" },
-  failed: { es: "No se pudo autorizar. Probá de nuevo.", en: "Couldn't authorize. Try again." },
+  failed: { es: "No se pudo autorizar. Prueba de nuevo.", en: "Couldn't authorize. Try again." },
   badRequest: {
-    es: "Este pedido de autorización está incompleto. Volvé a intentarlo desde la aplicación que te trajo.",
+    es: "Este pedido de autorización está incompleto. Vuelve a intentarlo desde la aplicación que te trajo.",
     en: "This authorization request is incomplete. Start again from the app that sent you here.",
   },
   unknownClient: {

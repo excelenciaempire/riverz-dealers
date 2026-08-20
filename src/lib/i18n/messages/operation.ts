@@ -13,18 +13,18 @@ export const operation = {
   // Operator
   operatorTitle: { es: "Operator", en: "Operator" },
   operatorHint: {
-    es: "Preguntale por tu operación o pedile un cambio. Antes de tocar nada, te muestra qué haría.",
+    es: "Pregúntale por tu operación o pídele un cambio. Antes de tocar nada, te muestra qué haría.",
     en: "Ask about your operation or request a change. Before touching anything, it shows you what it would do.",
   },
-  operatorPlaceholder: { es: "¿Qué necesitás?", en: "What do you need?" },
+  operatorPlaceholder: { es: "¿Qué necesitas?", en: "What do you need?" },
   operatorSend: { es: "Enviar", en: "Send" },
   operatorThinking: { es: "Pensando…", en: "Thinking…" },
   operatorError: {
-    es: "No se pudo responder. Probá de nuevo.",
+    es: "No se pudo responder. Prueba de nuevo.",
     en: "Couldn't reply. Try again.",
   },
   operatorRateLimited: {
-    es: "Demasiadas consultas seguidas. Esperá un minuto.",
+    es: "Demasiadas consultas seguidas. Espera un minuto.",
     en: "Too many requests in a row. Wait a minute.",
   },
   // Los dos modos. El texto dice qué VA A PASAR, no cómo se llama el modo:
@@ -38,24 +38,24 @@ export const operation = {
     en: "Asks before building",
   },
   operatorNoKey: {
-    es: "El Operador todavía no está habilitado en esta cuenta. Escribile a Riverz para activarlo.",
+    es: "El Operador todavía no está habilitado en esta cuenta. Escríbele a Riverz para activarlo.",
     en: "The Operator isn't enabled on this account yet. Contact Riverz to turn it on.",
   },
   operatorOverBudget: {
-    es: "Llegaste al límite de uso del Operador por hoy. Volvé a intentar mañana.",
+    es: "Llegaste al límite de uso del Operador por hoy. Vuelve a intentar mañana.",
     en: "You've hit today's Operator usage limit. Try again tomorrow.",
   },
   operatorTry1: { es: "¿Cómo viene la semana?", en: "How is the week going?" },
   operatorTry2: { es: "¿Qué está frenando las ventas?", en: "What is holding sales back?" },
   operatorTry3: {
-    es: "Activá recuperación de carritos",
+    es: "Activa la recuperación de carritos",
     en: "Turn on cart recovery",
   },
 
   // Activación guiada
-  activateTitle: { es: "Activá tu Operación IA", en: "Activate your AI Operation" },
+  activateTitle: { es: "Activa tu Operación IA", en: "Activate your AI Operation" },
   activateSubtitle: {
-    es: "Conectá tu tienda y tus canales. Riverz arma el equipo y vos aprobás antes de que atienda a nadie.",
+    es: "Conecta tu tienda y tus canales. Riverz arma el equipo y tú apruebas antes de que atienda a nadie.",
     en: "Connect your store and channels. Riverz builds the team and you approve before it talks to anyone.",
   },
   activateCta: { es: "Activar mi operación", en: "Activate my operation" },
@@ -86,12 +86,12 @@ export const operation = {
   brandDone: { es: "Listo: preparé este agente", en: "Done: here's the agent I prepared" },
   brandSkip: { es: "Saltar este paso", en: "Skip this step" },
   brandError: {
-    es: "No se pudo leer ese sitio. Podés seguir sin esto.",
+    es: "No se pudo leer ese sitio. Puedes seguir sin esto.",
     en: "Couldn't read that site. You can continue without it.",
   },
 
-  goalTitle: { es: "¿Qué querés resolver primero?", en: "What do you want to solve first?" },
-  goalHint: { es: "Podés elegir más de uno.", en: "You can pick more than one." },
+  goalTitle: { es: "¿Qué quieres resolver primero?", en: "What do you want to solve first?" },
+  goalHint: { es: "Puedes elegir más de uno.", en: "You can pick more than one." },
   pbAftersaleTitle: { es: "Bajar la carga de postventa", en: "Reduce after-sales load" },
   pbAftersaleWhat: {
     es: "Estado del pedido, guías, cambios y preguntas frecuentes, sin que nadie las conteste a mano.",
@@ -119,7 +119,7 @@ export const operation = {
   planApplying: { es: "Creando…", en: "Creating…" },
   planDone: { es: "Listo. Tu operación está armada.", en: "Done. Your operation is set up." },
   planDoneHint: {
-    es: "Revisá cada pieza y prendé lo que quieras que empiece a trabajar.",
+    es: "Revisa cada pieza y enciende lo que quieras que empiece a trabajar.",
     en: "Review each piece and turn on whatever you want working.",
   },
   goToCenter: { es: "Ir al centro de operación", en: "Go to the operation center" },
