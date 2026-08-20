@@ -184,22 +184,21 @@ const nextConfig: NextConfig = {
    * below — Next.js merges headers from every matching rule, so
    * they apply to every response regardless of which cache rule
    * matched.
+   *
+   * EL ORDEN IMPORTA, y al revés de lo que parece. Cuando dos reglas
+   * matchean la misma ruta y traen la misma clave, gana la ÚLTIMA — no la
+   * más específica. Medido en producción el 2026-08-20: con `/api/:path*`
+   * (no-store) declarada ANTES del catch-all, la respuesta de una ruta de
+   * API salía con `public, s-maxage=300`. O sea: todas las respuestas de
+   * API, incluidas las que devuelven un token de sesión, se anunciaban como
+   * cacheables por cualquier intermediario compartido.
+   *
+   * Por eso lo general va primero y las excepciones al final: sólo así una
+   * excepción es una excepción.
    */
   async headers() {
     return [
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
-        source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
-      },
+      // ── Lo general ───────────────────────────────────────────────
       {
         source: "/:path*",
         headers: [
@@ -236,14 +235,25 @@ const nextConfig: NextConfig = {
               headers: [{ key: "X-Frame-Options", value: "DENY" }],
             },
           ]),
+      // ── Las excepciones, al final para que ganen ─────────────────
       {
-        // ÚLTIMA a propósito. El cargador del chat web es lo único de la app
-        // pensado para que OTRO sitio lo pida, y necesita valores distintos a
-        // los generales. Next.js suma las cabeceras de cada regla que matchea y
-        // para una misma clave gana la ÚLTIMA — se comprobó en producción: con
-        // esta regla arriba, el catch-all la pisaba y el script salía con
-        // `Cross-Origin-Resource-Policy: same-origin`, que hace que el
-        // navegador de la tienda lo descarte sin decir por qué.
+        // Nombres con hash de contenido: un build nuevo produce archivos
+        // nuevos, así que los viejos se pueden guardar para siempre.
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        // Toda respuesta de API es de UNA persona y no se comparte jamás.
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        // El cargador del chat web es lo único de la app pensado para que OTRO
+        // sitio lo pida: con el `Cross-Origin-Resource-Policy: same-origin`
+        // general, el navegador de la tienda lo descarta sin decir por qué y el
+        // chat no aparece en ninguna parte.
         //
         // Se cachea porque entra en cada visita a la tienda y su contenido no
         // depende del comercio (la configuración la pide en tiempo de
