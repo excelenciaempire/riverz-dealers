@@ -45,6 +45,10 @@ export const operation = {
     es: "Llegaste al límite de uso del Operador por hoy. Vuelve a intentar mañana.",
     en: "You've hit today's Operator usage limit. Try again tomorrow.",
   },
+  // Historial: cada conversación es su propio contexto.
+  chatNuevo: { es: "Chat nuevo", en: "New chat" },
+  chatBorrar: { es: "Borrar esta conversación", en: "Delete this conversation" },
+
   operatorTry1: { es: "¿Cómo viene la semana?", en: "How is the week going?" },
   operatorTry2: { es: "¿Qué está frenando las ventas?", en: "What is holding sales back?" },
   operatorTry3: {

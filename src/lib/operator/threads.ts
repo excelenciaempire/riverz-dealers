@@ -116,9 +116,127 @@ export async function loadActions(
 ) {
   const { data } = await db
     .from('operator_actions')
-    .select('id, capability_key, args, risk, status, preview, result, created_at')
+    .select('id, capability_key, args, risk, status, preview, artifact, result, created_at')
     .eq('thread_id', threadId)
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: true })
   return data ?? []
+}
+
+export interface ResumenHilo {
+  id: string
+  titulo: string
+  actualizado: string
+  /** Cuántos turnos tiene: sirve para no ofrecer hilos vacíos. */
+  mensajes: number
+  /** Cuántas decisiones quedaron esperando en ese hilo. */
+  pendientes: number
+}
+
+/** Cuántos hilos se listan. Más que esto ya nadie los busca en una lista. */
+const TOPE_HILOS = 40
+
+/**
+ * Las conversaciones anteriores del comercio.
+ *
+ * Cada hilo es su propio contexto: lo que se habló en uno no entra en el otro.
+ * Eso ya era cierto en el servidor —el contexto se arma con `loadMessages` de
+ * UN hilo— pero no se podía usar, porque la pantalla abría un hilo nuevo en
+ * cada carga y no había forma de volver a ninguno. Se guardaba todo y no se
+ * leía nada.
+ *
+ * Los conteos se piden de a uno y no con un `join`: PostgREST devuelve los
+ * agregados anidados como filas embebidas, así que un `join` acá traería todos
+ * los mensajes de los cuarenta hilos para contarlos en memoria. Cuarenta
+ * consultas con `head: true` no traen ni una fila.
+ */
+export async function listarHilos(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<ResumenHilo[]> {
+  const { data } = await db
+    .from('operator_threads')
+    .select('id, title, updated_at, created_at')
+    .eq('workspace_id', workspaceId)
+    .order('updated_at', { ascending: false })
+    .limit(TOPE_HILOS)
+
+  const hilos = (data ?? []) as Array<{
+    id: string
+    title: string | null
+    updated_at: string | null
+    created_at: string
+  }>
+  if (hilos.length === 0) return []
+
+  const conteos = await Promise.all(
+    hilos.map(async (h) => {
+      const [msgs, pend] = await Promise.all([
+        db
+          .from('operator_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('thread_id', h.id)
+          .eq('workspace_id', workspaceId),
+        db
+          .from('operator_actions')
+          .select('id', { count: 'exact', head: true })
+          .eq('thread_id', h.id)
+          .eq('workspace_id', workspaceId)
+          .eq('status', 'propuesto'),
+      ])
+      return { mensajes: msgs.count ?? 0, pendientes: pend.count ?? 0 }
+    }),
+  )
+
+  return hilos
+    .map((h, i) => ({
+      id: h.id,
+      titulo: (h.title ?? '').trim() || 'Sin título',
+      actualizado: h.updated_at ?? h.created_at,
+      mensajes: conteos[i].mensajes,
+      pendientes: conteos[i].pendientes,
+    }))
+    // Un hilo sin mensajes es una conversación que se abrió y se abandonó antes
+    // de escribir nada: ofrecerla sólo ensucia la lista.
+    .filter((h) => h.mensajes > 0)
+}
+
+/**
+ * Borra un hilo y todo lo suyo.
+ *
+ * Las acciones NO se borran: se las desata del hilo. Una automatización que se
+ * creó de verdad sigue existiendo en la cuenta después de borrar la
+ * conversación, y su registro de auditoría tiene que sobrevivir a que alguien
+ * limpie el historial. Borrar el rastro de lo que se hizo sería la forma más
+ * fácil de esconder un cambio.
+ */
+export async function borrarHilo(
+  db: SupabaseClient,
+  threadId: string,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from('operator_threads')
+    .select('id')
+    .eq('id', threadId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!data) return false
+
+  await db
+    .from('operator_actions')
+    .update({ thread_id: null })
+    .eq('thread_id', threadId)
+    .eq('workspace_id', workspaceId)
+  await db
+    .from('operator_messages')
+    .delete()
+    .eq('thread_id', threadId)
+    .eq('workspace_id', workspaceId)
+  await db
+    .from('operator_threads')
+    .delete()
+    .eq('id', threadId)
+    .eq('workspace_id', workspaceId)
+  return true
 }

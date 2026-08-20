@@ -7,13 +7,17 @@ import {
   Brain,
   Check,
   Loader2,
+  MessageSquarePlus,
   PlusCircle,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
+import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
+import type { ResumenHilo } from '@/lib/operator/threads'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { VistaArtefacto } from './artefacto'
 import { cn } from '@/lib/utils'
@@ -159,17 +163,25 @@ export function OperatorChat({
   const [vivo, setVivo] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [auto, setAuto] = useState<boolean | null>(null)
+  const [hilos, setHilos] = useState<ResumenHilo[]>([])
+  const [cargandoHilo, setCargandoHilo] = useState(false)
   const finalRef = useRef<HTMLDivElement | null>(null)
 
   // El modo es de la cuenta, no del navegador: se lee del servidor al abrir.
+  // De paso vienen las conversaciones anteriores, que es la misma consulta.
   useEffect(() => {
     let cancelado = false
     void (async () => {
       try {
         const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
         if (!res.ok || cancelado) return
-        const json = (await res.json()) as { autoBuild?: boolean }
-        if (!cancelado) setAuto(json.autoBuild === true)
+        const json = (await res.json()) as {
+          autoBuild?: boolean
+          hilos?: ResumenHilo[]
+        }
+        if (cancelado) return
+        setAuto(json.autoBuild === true)
+        setHilos(json.hilos ?? [])
       } catch {
         /* si no se puede leer, el interruptor no se muestra */
       }
@@ -178,6 +190,61 @@ export function OperatorChat({
       cancelado = true
     }
   }, [])
+
+  /**
+   * Abre una conversación anterior.
+   *
+   * Cada hilo es su propio contexto: lo que se habló en uno no entra en el
+   * otro. Eso ya era cierto en el servidor, pero no se podía usar porque la
+   * pantalla abría un hilo nuevo en cada carga y no había forma de volver a
+   * ninguno. Se guardaba todo y no se leía nada.
+   */
+  const abrirHilo = useCallback(async (id: string) => {
+    setCargandoHilo(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/operacion/operator?thread=${id}`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error('no se pudo')
+      const json = (await res.json()) as {
+        mensajes?: { id: string; role: 'user' | 'assistant'; text: string }[]
+        acciones?: Accion[]
+      }
+      setThread(id)
+      setMensajes((json.mensajes ?? []) as Mensaje[])
+      setAcciones(json.acciones ?? [])
+      setVivo(null)
+    } catch {
+      setError(t('operation.operatorError'))
+    } finally {
+      setCargandoHilo(false)
+    }
+  }, [t])
+
+  /** Empezar de cero. El hilo anterior queda guardado y accesible. */
+  const nuevoChat = useCallback(() => {
+    setThread(null)
+    setMensajes([])
+    setAcciones([])
+    setVivo(null)
+    setError(null)
+    setTexto('')
+  }, [])
+
+  const borrarChat = useCallback(
+    async (id: string) => {
+      // Optimista: si falla, la lista se repone sola en la próxima carga.
+      setHilos((hs) => hs.filter((h) => h.id !== id))
+      if (id === thread) nuevoChat()
+      try {
+        await fetchWithCsrf(`/api/operacion/operator?thread=${id}`, { method: 'DELETE' })
+      } catch {
+        /* silencioso: borrar es una comodidad, no una operación crítica */
+      }
+    },
+    [fetchWithCsrf, nuevoChat, thread],
+  )
 
   const cambiarModo = useCallback(
     async (next: boolean) => {
@@ -296,7 +363,13 @@ export function OperatorChat({
           const r = await fetch(`/api/operacion/operator?thread=${hilo}`, {
             cache: 'no-store',
           })
-          if (r.ok) setAcciones(((await r.json()).acciones ?? []) as Accion[])
+          if (r.ok) {
+            const json = (await r.json()) as { acciones?: Accion[]; hilos?: ResumenHilo[] }
+            setAcciones(json.acciones ?? [])
+            // La misma respuesta trae la lista: así una conversación recién
+            // empezada aparece en el historial sin pedir nada más.
+            setHilos(json.hilos ?? [])
+          }
         }
       } catch {
         setError(t('operation.operatorError'))
@@ -356,6 +429,19 @@ export function OperatorChat({
             {t('operation.operatorTitle')}
           </h2>
         </div>
+      )}
+
+      {/* Las conversaciones anteriores. Sólo aparece cuando hay alguna: en una
+          cuenta nueva, una barra vacía sobre un chat vacío es ruido. */}
+      {fullscreen && (hilos.length > 0 || thread) && (
+        <BarraHilos
+          hilos={hilos}
+          activo={thread}
+          cargando={cargandoHilo}
+          onAbrir={abrirHilo}
+          onNuevo={nuevoChat}
+          onBorrar={borrarChat}
+        />
       )}
 
       <div className={cn('flex-1 overflow-y-auto', !fullscreen && 'p-4')}>
@@ -503,6 +589,102 @@ export function OperatorChat({
           </button>
         )}
       </form>
+    </div>
+  )
+}
+
+/**
+ * Las conversaciones anteriores.
+ *
+ * Cada una es su propio contexto: lo que se habló en una no entra en la otra.
+ * Eso ya era cierto del lado del servidor, pero era invisible — la pantalla
+ * abría un hilo nuevo en cada carga y no había forma de volver a ninguno, así
+ * que todo se guardaba y no se leía nunca.
+ *
+ * Va como una tira horizontal y no como una columna a la izquierda: el menú de
+ * la aplicación ya ocupa ese lado, y una segunda columna dejaría la
+ * conversación de setecientos píxeles apretada contra el borde. Acá ocupa
+ * cuarenta píxeles de alto y se sale del camino.
+ */
+function BarraHilos({
+  hilos,
+  activo,
+  cargando,
+  onAbrir,
+  onNuevo,
+  onBorrar,
+}: {
+  hilos: ResumenHilo[]
+  activo: string | null
+  cargando: boolean
+  onAbrir: (id: string) => void
+  onNuevo: () => void
+  onBorrar: (id: string) => void
+}) {
+  const t = useT()
+  const fmt = useFormat()
+
+  return (
+    <div className="shrink-0 border-b border-border">
+      <div className="mx-auto flex w-full max-w-3xl items-center gap-1.5 overflow-x-auto px-4 py-2">
+        <button
+          type="button"
+          onClick={onNuevo}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors',
+            activo === null
+              ? 'border-accent-ink/30 bg-primary/10 text-accent-ink'
+              : 'border-border text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <MessageSquarePlus className="size-3.5" />
+          {t('operation.chatNuevo')}
+        </button>
+
+        {hilos.map((h) => (
+          <div
+            key={h.id}
+            className={cn(
+              'group inline-flex shrink-0 items-center gap-1 rounded-full border pr-1 pl-3 text-xs transition-colors',
+              h.id === activo
+                ? 'border-accent-ink/30 bg-primary/10'
+                : 'border-border hover:bg-muted/40',
+            )}
+          >
+            <button
+              type="button"
+              disabled={cargando}
+              onClick={() => onAbrir(h.id)}
+              title={`${h.titulo} · ${fmt.dateTime(h.actualizado, {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`}
+              className={cn(
+                'max-w-[13rem] truncate py-1.5',
+                h.id === activo ? 'text-accent-ink' : 'text-muted-foreground',
+              )}
+            >
+              {h.titulo}
+            </button>
+            {/* Un punto, no un número: cuántas decisiones esperan se cuenta
+                adentro; acá sólo hace falta saber que hay algo esperando. */}
+            {h.pendientes > 0 && (
+              <span className="size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
+            )}
+            <button
+              type="button"
+              onClick={() => onBorrar(h.id)}
+              aria-label={t('operation.chatBorrar')}
+              title={t('operation.chatBorrar')}
+              className="rounded-full p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+            >
+              <Trash2 className="size-3" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

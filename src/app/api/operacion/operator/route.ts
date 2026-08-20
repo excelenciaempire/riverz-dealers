@@ -9,7 +9,9 @@ import { runOperator } from '@/lib/operator/loop'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import {
   appendMessage,
+  borrarHilo,
   ensureThread,
+  listarHilos,
   loadActions,
   loadMessages,
   toAnthropic,
@@ -68,9 +70,18 @@ export async function GET(request: Request) {
   if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
 
   const threadId = new URL(request.url).searchParams.get('thread')
-  const autoBuild = await autoBuildDe(ctx.admin, ctx.workspaceId)
+  // La lista de hilos viaja siempre: la pantalla la necesita tanto al abrir una
+  // conversación como al arrancar en blanco, y son dos consultas baratas.
+  const [autoBuild, hilos] = await Promise.all([
+    autoBuildDe(ctx.admin, ctx.workspaceId),
+    listarHilos(ctx.admin, ctx.workspaceId),
+  ])
+
   if (!threadId) {
-    return NextResponse.json({ mensajes: [], acciones: [], autoBuild })
+    return NextResponse.json(
+      { mensajes: [], acciones: [], autoBuild, hilos },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   }
 
   const [mensajes, acciones] = await Promise.all([
@@ -78,9 +89,30 @@ export async function GET(request: Request) {
     loadActions(ctx.admin, threadId, ctx.workspaceId),
   ])
   return NextResponse.json(
-    { mensajes, acciones, autoBuild },
+    { mensajes, acciones, autoBuild, hilos },
     { headers: { 'Cache-Control': 'no-store' } },
   )
+}
+
+/**
+ * Borrar una conversación.
+ *
+ * Lo que se hizo desde ella no se borra: las acciones se desatan del hilo pero
+ * quedan. Una automatización creada sigue existiendo en la cuenta después de
+ * limpiar el historial, y su registro de auditoría tiene que sobrevivir a eso.
+ */
+export async function DELETE(request: Request) {
+  const block = await csrfGuard(request)
+  if (block) return block
+  const ctx = await contexto()
+  if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
+
+  const threadId = new URL(request.url).searchParams.get('thread')
+  if (!threadId) return NextResponse.json({ error: 'falta thread' }, { status: 400 })
+
+  const ok = await borrarHilo(ctx.admin, threadId, ctx.workspaceId)
+  if (!ok) return NextResponse.json({ error: 'no existe' }, { status: 404 })
+  return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(request: Request) {
