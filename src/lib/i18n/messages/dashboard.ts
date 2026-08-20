@@ -19,6 +19,11 @@ export const dashboard = {
   messagesReceived: { es: "Mensajes recibidos", en: "Messages received" },
   messagesSent: { es: "Mensajes enviados", en: "Messages sent" },
 
+  setupWithAssistant: {
+    es: "Que lo haga el asistente",
+    en: "Let the assistant do it",
+  },
+
   // Tarjetas de retorno: qué devolvió Riverz, no cuánto se movió.
   roiRevenue: { es: "Ventas por Riverz", en: "Sales from Riverz" },
   roiRevenueSub: {

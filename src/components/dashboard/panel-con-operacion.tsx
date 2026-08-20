@@ -36,9 +36,12 @@ function PanelDeRetorno() {
   const { data } = useOperacion(dias)
 
   return (
+    // El checklist se queda. Esconderlo fue un error caro: con el flag prendido
+    // para todos, cada comercio perdió su guía de arranque, y el asistente que
+    // la reemplazaba no estaba enlazado desde ninguna pantalla. Ahora conviven —
+    // el asistente es un atajo DENTRO del checklist, no su reemplazo.
     <PanelDashboard
       roi
-      ocultarChecklist
       onRango={setDias}
       respuestasIa={data?.metricas?.ia.respondio ?? null}
     />

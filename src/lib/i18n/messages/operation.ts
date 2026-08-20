@@ -211,8 +211,16 @@ export const operation = {
   stepAutoActivar: { es: "Prendiendo una automatización", en: "Turning on an automation" },
   stepAutoEspera: { es: "Ajustando una espera", en: "Adjusting a wait" },
   stepAutoCrear: { es: "Armando la automatización", en: "Building the automation" },
+  stepAutoCrearCero: { es: "Armando una automatización", en: "Building an automation" },
   stepAprobPend: { es: "Mirando qué espera aprobación", en: "Checking what awaits approval" },
   stepAprobDecidir: { es: "Resolviendo una aprobación", en: "Resolving an approval" },
+  // A quién le hablamos
+  stepContactosListar: { es: "Mirando los contactos", en: "Checking the contacts" },
+  stepEtiquetas: { es: "Viendo qué etiquetas hay", en: "Checking available tags" },
+  stepSegmentosListar: { es: "Mirando los segmentos", en: "Checking the segments" },
+  stepSegmentoCalcular: { es: "Contando a cuánta gente alcanza", en: "Counting how many it reaches" },
+  stepSegmentoCrear: { es: "Guardando el segmento", en: "Saving the segment" },
+  stepEtiquetar: { es: "Etiquetando contactos", en: "Tagging contacts" },
 
   // Acciones propuestas
   proposedTitle: { es: "Esperando tu aprobación", en: "Waiting for your approval" },

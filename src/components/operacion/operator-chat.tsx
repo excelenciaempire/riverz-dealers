@@ -98,8 +98,18 @@ const PASO_LABEL: Record<string, string> = {
   'automatizaciones.activar': 'operation.stepAutoActivar',
   'automatizaciones.editar_espera': 'operation.stepAutoEspera',
   'automatizaciones.crear_desde_receta': 'operation.stepAutoCrear',
+  // Faltaba justo la que arma desde cero: sin entrada acá caía al respaldo del
+  // servidor, que es la primera cláusula de la descripción escrita para el
+  // modelo — dos renglones donde tenía que haber un verbo.
+  'automatizaciones.crear': 'operation.stepAutoCrearCero',
   'aprobaciones.pendientes': 'operation.stepAprobPend',
   'aprobaciones.decidir': 'operation.stepAprobDecidir',
+  'contactos.listar': 'operation.stepContactosListar',
+  'etiquetas.listar': 'operation.stepEtiquetas',
+  'segmentos.listar': 'operation.stepSegmentosListar',
+  'segmentos.calcular': 'operation.stepSegmentoCalcular',
+  'segmentos.crear': 'operation.stepSegmentoCrear',
+  'contactos.etiquetar': 'operation.stepEtiquetar',
 }
 
 /** El turno en curso. */

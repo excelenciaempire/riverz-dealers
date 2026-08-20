@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSetupStatus } from '@/hooks/use-setup-status';
+import { useRiverz2 } from '@/hooks/use-feature-flags';
 import { useT } from '@/hooks/use-locale';
 
 // El merchant puede ocultar el checklist aunque no lo haya completado; la
@@ -33,6 +34,7 @@ const DISMISS_KEY = 'riverz.setupChecklistDismissed';
  */
 export function SetupChecklist() {
   const status = useSetupStatus();
+  const riverz2 = useRiverz2();
   const t = useT();
 
   // Leído en un efecto (no en el initializer) a propósito: servidor y cliente
@@ -159,6 +161,21 @@ export function SetupChecklist() {
           <p className="mt-1 text-xs text-muted-foreground">
             {t('dashboard.followOrder')}
           </p>
+          {/* La única entrada al asistente de activación en toda la aplicación.
+              Vive acá y no en el menú porque es de una sola vez: quien todavía
+              tiene pasos pendientes es exactamente quien lo necesita, y el
+              camino manual sigue estando al lado. */}
+          {riverz2 && (
+            <Button
+              render={<Link href="/operacion/activar" />}
+              size="xs"
+              variant="ghost"
+              className="mt-2 -ml-2 text-primary"
+            >
+              {t('dashboard.setupWithAssistant')}
+              <ArrowRight className="size-3" aria-hidden />
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1" aria-hidden>

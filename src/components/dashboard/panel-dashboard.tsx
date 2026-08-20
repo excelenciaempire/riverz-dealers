@@ -68,7 +68,6 @@ export function PanelDashboard({
   roi = false,
   respuestasIa = null,
   onRango,
-  ocultarChecklist = false,
 }: {
   /**
    * Cambia las cuatro tarjetas de volumen por las seis de retorno.
@@ -87,8 +86,6 @@ export function PanelDashboard({
    * midiendo ventanas distintas es peor que no mostrar una de las dos.
    */
   onRango?: (dias: number) => void
-  /** En Riverz 2.0 el asistente de activación reemplaza al checklist. */
-  ocultarChecklist?: boolean
 } = {}) {
   const t = useT()
   const fmt = useFormat()
@@ -253,8 +250,8 @@ export function PanelDashboard({
           cliente esperando. */}
       <PendingApprovals />
 
-      {/* Checklist de onboarding. Solo aparece mientras falte algo (o se oculte). */}
-      {!ocultarChecklist && <SetupChecklist />}
+      {/* Checklist de onboarding. Se esconde solo cuando ya no falta nada. */}
+      <SetupChecklist />
 
       {/* Filtro de fecha — debajo del checklist. Si el checklist se oculta,
           queda justo bajo el header. */}
