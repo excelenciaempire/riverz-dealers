@@ -39,6 +39,13 @@ import { proponerCancelacion, proponerReembolso } from './postventa'
 import { crearLinkDePago } from '@/lib/mercadopago/preference'
 import { emitirCupon } from '@/lib/shopify/discounts'
 import { crearPedidoEnLaTienda } from '@/lib/commerce/create-order'
+import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
+import {
+  cerrarConversacion,
+  etiquetarContacto,
+  verContacto,
+  verProducto,
+} from './bandeja'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -238,6 +245,76 @@ export const REEMBOLSAR_TOOL: Anthropic.Tool = {
       reason: { type: 'string', description: 'Qué pasó, en las palabras de la clienta.' },
     },
     required: [],
+  },
+}
+
+export const ABRIR_DEVOLUCION_TOOL: Anthropic.Tool = {
+  name: 'abrir_devolucion',
+  description:
+    'Registrá una devolución o un cambio cuando la clienta dice que el producto llegó mal, no era lo que esperaba o quiere otro. NO devuelve dinero ni cancela: deja el caso anotado con el pedido, el motivo y las fotos que ella ya mandó, y el equipo lo revisa. Si además pide que le devuelvan la plata, usá reembolsar. Contale que quedó registrada; NUNCA le digas que está aprobada ni le prometas una fecha.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      order_number: { type: 'string', description: 'Número de pedido.' },
+      kind: {
+        type: 'string',
+        enum: ['devolucion', 'cambio'],
+        description: 'Qué quiere: devolver el producto o cambiarlo por otro.',
+      },
+      reason: { type: 'string', description: 'El motivo, resumido en pocas palabras.' },
+      customer_note: {
+        type: 'string',
+        description: 'Lo que la clienta escribió, tal cual, sin resumir.',
+      },
+    },
+    required: [],
+  },
+}
+
+export const VER_CONTACTO_TOOL: Anthropic.Tool = {
+  name: 'ver_contacto',
+  description:
+    'La ficha de la persona con la que estás hablando: qué compró antes, cuánto gastó, de dónde es y con qué etiquetas está. Usala para personalizar la respuesta. No recites los datos: nadie quiere que le lean su propia ficha.',
+  input_schema: { type: 'object' as const, properties: {}, required: [] },
+}
+
+export const ETIQUETAR_CONTACTO_TOOL: Anthropic.Tool = {
+  name: 'etiquetar_contacto',
+  description:
+    'Ponele (o sacale) una etiqueta a la persona con la que estás hablando, para que el equipo la encuentre después: "quiere-talle-M", "espera-reposición", "mayorista". Es una nota interna: no se la menciones en la conversación.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      etiqueta: { type: 'string', description: 'Nombre corto, en minúsculas y con guiones.' },
+      quitar: { type: 'boolean', description: 'true para sacarla en vez de ponerla.' },
+    },
+    required: ['etiqueta'],
+  },
+}
+
+export const CERRAR_CONVERSACION_TOOL: Anthropic.Tool = {
+  name: 'cerrar_conversacion',
+  description:
+    'Cerrá el caso cuando la consulta quedó resuelta y no hay nada pendiente. Despedite normalmente; no anuncies que "cerraste la conversación", que para la clienta no significa nada. Si quedó algo esperando a una persona del equipo, NO la cierres.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      motivo: { type: 'string', description: 'En qué quedó, en una línea.' },
+    },
+    required: [],
+  },
+}
+
+export const VER_PRODUCTO_TOOL: Anthropic.Tool = {
+  name: 'ver_producto',
+  description:
+    'La ficha completa de UN producto del catálogo por su nombre: precio real, variantes, foto y enlace. Usala cuando ya sabés cuál es y necesitás el dato exacto. Para explorar o recomendar, usá buscar_producto.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      producto: { type: 'string', description: 'Nombre del producto.' },
+    },
+    required: ['producto'],
   },
 }
 
@@ -680,6 +757,61 @@ export interface LocalOrdersContext {
   contactId: string
   /** Para poder pasarle la conversación a una persona cuando algo queda a medias. */
   conversationId?: string | null
+  agentId?: string | null
+  /**
+   * Herramientas que el comercio puso "con aprobación": el agente las prepara
+   * y una persona confirma. No se ejecutan acá.
+   */
+  requiereAprobacion?: readonly string[]
+}
+
+/**
+ * El freno.
+ *
+ * Cuando una herramienta está en modo aprobación, `runTool` no la ejecuta:
+ * deja la solicitud anotada, le avisa al comercio por WhatsApp y le dice al
+ * modelo exactamente qué contarle a la clienta. Con el sí, `resolve.ts` la
+ * corre con el mismo argumento que el modelo había propuesto.
+ *
+ * Va antes que todo lo demás a propósito. Poner el freno adentro de cada
+ * herramienta sería catorce lugares donde olvidarse de uno, y el que se olvide
+ * es el que va a mover dinero sin que nadie lo haya querido.
+ */
+async function pedirPermiso(
+  ctx: LocalOrdersContext,
+  toolName: string,
+  toolInput: unknown,
+): Promise<string> {
+  const { askForApproval } = await import('@/lib/approvals/ask')
+  const { resumirHerramienta } = await import('./tool-labels')
+  const { titulo, cuerpo, comoContarlo } = resumirHerramienta(toolName, toolInput)
+
+  const res = await askForApproval({
+    db: ctx.db,
+    workspaceId: ctx.workspaceId,
+    kind: 'herramienta',
+    title: titulo,
+    body: cuerpo,
+    payload: {
+      tool: toolName,
+      input: (toolInput ?? {}) as Record<string, unknown>,
+      contact_id: ctx.contactId,
+      conversation_id: ctx.conversationId ?? null,
+      agent_id: ctx.agentId ?? null,
+    },
+  })
+
+  if (!res.ok) {
+    return JSON.stringify({
+      ok: false,
+      message: 'No pude dejarlo pedido. Decile que lo pasás al equipo y que le confirman en breve.',
+    })
+  }
+  return JSON.stringify({
+    ok: true,
+    estado: 'pendiente_de_aprobacion',
+    message: comoContarlo,
+  })
 }
 
 /**
@@ -735,6 +867,54 @@ export async function runTool(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null,
 ): Promise<string> {
+  // El freno, antes que nada: lo que el comercio puso "con aprobación" no se
+  // ejecuta acá, se deja pedido. Ver `pedirPermiso`.
+  if (localOrders?.requiereAprobacion?.includes(toolName)) {
+    return pedirPermiso(localOrders, toolName, toolInput)
+  }
+
+  if (toolName === 'ver_contacto' || toolName === 'etiquetar_contacto' ||
+      toolName === 'cerrar_conversacion' || toolName === 'ver_producto') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No tengo la ficha de esta conversación.',
+      })
+    }
+    const ctx = {
+      db: localOrders.db,
+      workspaceId: localOrders.workspaceId,
+      contactId: localOrders.contactId,
+      conversationId: localOrders.conversationId ?? null,
+    }
+    const input = (toolInput ?? {}) as Record<string, unknown>
+    if (toolName === 'ver_contacto') return verContacto(ctx)
+    if (toolName === 'ver_producto') return verProducto(ctx, input as { producto?: string })
+    if (toolName === 'cerrar_conversacion') {
+      return cerrarConversacion(ctx)
+    }
+    return etiquetarContacto(ctx, input as { etiqueta?: string; quitar?: boolean })
+  }
+
+  if (toolName === 'abrir_devolucion') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo registrar devoluciones en esta conversación.',
+      })
+    }
+    return abrirDevolucion(
+      {
+        db: localOrders.db,
+        workspaceId: localOrders.workspaceId,
+        contactId: localOrders.contactId,
+        conversationId: localOrders.conversationId ?? null,
+        agentId: localOrders.agentId ?? null,
+      },
+      (toolInput ?? {}) as AbrirDevolucionInput,
+    )
+  }
+
   if (toolName === 'buscar_producto') {
     // Se apoya en `localOrders` porque es el único contexto que trae `db` y
     // `workspaceId`, que es todo lo que hace falta para leer el catálogo.

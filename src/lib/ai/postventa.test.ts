@@ -4,6 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // sobre una variable de acá: se declara adentro y se recupera después.
 vi.mock('@/lib/approvals/ask', () => ({
   askForApproval: vi.fn(async () => ({ ok: true, approvalId: 'ap-1', notified: true })),
+  // El literal real de la columna. Va acá y no inventado: el dedupe buscaba
+  // 'pending' contra una columna que guarda 'pendiente' y no encontraba nunca.
+  APROBACION_PENDIENTE: 'pendiente',
 }));
 
 import { askForApproval } from '@/lib/approvals/ask';

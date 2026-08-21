@@ -50,6 +50,8 @@ import {
 } from '@/components/ai/voice-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
+import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
+import type { AgentTools } from '@/lib/ai/toolbox';
 import type { TFn } from '@/lib/i18n/translate';
 import type {
   AiAgent,
@@ -62,10 +64,7 @@ import type {
 } from '@/lib/ai/types';
 import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
 import {
-  AGENT_PERMISSIONS,
   AGENT_ROLES,
-  agentCan,
-  type AgentPermission,
   type AgentPermissions,
   type AgentRole,
 } from '@/lib/ai/roles';
@@ -147,15 +146,6 @@ const ROLE_KEY: Record<AgentRole, string> = {
   postventa: 'Aftersale',
   recuperacion: 'Recovery',
   retencion: 'Retention',
-};
-
-const PERM_KEY: Record<AgentPermission, string> = {
-  crear_pedidos: 'CrearPedidos',
-  crear_checkout: 'CrearCheckout',
-  registrar_pago: 'RegistrarPago',
-  editar_pedido: 'EditarPedido',
-  escalar_llamada: 'EscalarLlamada',
-  enviar_proactivo: 'EnviarProactivo',
 };
 
 /**
@@ -390,6 +380,22 @@ export function AgentEditor({
   const [permissions, setPermissions] = useState<AgentPermissions | null>(
     agent?.permissions ?? null,
   );
+  // La correa por herramienta (migración 180). En null cada una hereda del
+  // permiso viejo: aplicar esto no le cambió el agente a nadie.
+  const [tools, setTools] = useState<AgentTools | null>(
+    (agent?.tools as AgentTools | null) ?? null,
+  );
+  // Qué de todo eso tiene HOY con qué hacerse en esta cuenta. La pizarra deja
+  // prender todo igual —apagar algo de antemano o dejarlo listo para cuando se
+  // conecte la tienda son las dos cosas razonables—, pero un interruptor
+  // prendido que no hace nada y no dice por qué es peor que uno apagado.
+  const [disponible, setDisponible] = useState<Disponibilidad>({
+    tienda: false,
+    shopify: false,
+    cobro: false,
+    descuento: false,
+    voz: false,
+  });
 
   /**
    * Cambiar de rol trae su preset de permisos.
@@ -404,6 +410,10 @@ export function AgentEditor({
     if (preset) {
       setPermissions(preset.permissions);
       setPuedeCrearPedidos(preset.permissions.crear_pedidos === true);
+      // La pizarra vuelve a heredar del preset. Dejarla como estaba haría que
+      // elegir "Postventa" moviera los permisos por debajo y la pantalla
+      // siguiera mostrando lo de antes.
+      setTools(null);
     }
   };
   // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
@@ -599,6 +609,29 @@ export function AgentEditor({
     };
   }, [productScope, catalog.length]);
 
+  // Con qué cuenta HOY esta cuenta, para que la pizarra pueda decir por qué una
+  // herramienta prendida todavía no va a hacer nada.
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/ai/agents/disponibilidad?workspace_id=${encodeURIComponent(workspaceId)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as Disponibilidad;
+        if (!cancelled) setDisponible(json);
+      } catch {
+        // Si no se pudo saber, la pizarra sigue funcionando: lo único que se
+        // pierde es la línea que explica qué falta conectar.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
   // Estado de la conexión Shopify (gatea "Cierre de ventas").
   useEffect(() => {
     let cancelled = false;
@@ -777,6 +810,7 @@ export function AgentEditor({
       puede_crear_pedidos: puedeCrearPedidos,
       role,
       permissions,
+      tools,
       // Voice AI (migration 113 + 115)
       voice_enabled: voice.voice_enabled,
       voice_ai_decides: voice.voice_ai_decides,
@@ -1488,27 +1522,12 @@ export function AgentEditor({
                     </p>
                   </Field>
 
-                  <div className="space-y-2.5">
-                    {AGENT_PERMISSIONS.map((p) => (
-                      <label
-                        key={p}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="text-foreground">
-                          {t(`operation.perm${PERM_KEY[p]}`)}
-                        </span>
-                        <Switch
-                          checked={agentCan(
-                            { permissions, puede_crear_pedidos: puedeCrearPedidos },
-                            p,
-                          )}
-                          onCheckedChange={(c) =>
-                            setPermissions((prev) => ({ ...(prev ?? {}), [p]: c }))
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
+                  <ToolSwitchboard
+                    agent={{ permissions, puede_crear_pedidos: puedeCrearPedidos }}
+                    tools={tools}
+                    onChange={setTools}
+                    disponible={disponible}
+                  />
                 </SectionCard>
 
                 <SectionCard

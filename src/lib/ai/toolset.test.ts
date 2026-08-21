@@ -72,6 +72,15 @@ describe('el toolset del agente que habla con clientes', () => {
       'REGISTRAR_PAGO_TOOL',
       'ESCALATE_TO_CALL_TOOL',
       'CREAR_LINK_DE_PAGO_TOOL',
+      'ABRIR_DEVOLUCION_TOOL',
+      // Las de bandeja. Entran porque NINGUNA recibe un id: el contacto y la
+      // conversación salen del contexto que arma el servidor, así que el radio
+      // es la persona que está escribiendo y nadie más. Las del registro del
+      // Operator, que sí reciben un id —o un segmento entero—, siguen afuera.
+      'VER_PRODUCTO_TOOL',
+      'VER_CONTACTO_TOOL',
+      'ETIQUETAR_CONTACTO_TOOL',
+      'CERRAR_CONVERSACION_TOOL',
       'buildCheckoutTool',
       'buildOrderTool',
       'buildDescuentoTool',
@@ -129,5 +138,30 @@ describe('las acciones que mueven dinero', () => {
     expect(desde).toBeGreaterThan(-1);
     const bloque = runner.slice(desde, runner.indexOf('keySource = respaldo.source', desde));
     expect(bloque).toContain('efectos.ejecutados');
+  });
+});
+
+describe('la pizarra de herramientas', () => {
+  it('el toolset sale de `toolMode` y no de banderas sueltas', () => {
+    // Antes cada capacidad se prendía en un lugar distinto y varias estaban
+    // cableadas: cancelar y reembolsar existían si el agente tenía permiso de
+    // editar pedidos, que no es lo mismo. Si esto se rompe, volvió a haber una
+    // herramienta que el comercio no puede apagar desde su pantalla.
+    const bloque = bloqueDeTools();
+    expect(bloque).toContain("puede('");
+    expect(bloque).not.toContain('agentCan(');
+  });
+
+  it('cada herramienta que se ofrece está en el catálogo', async () => {
+    // Una tool nueva sin entrada en el catálogo es una capacidad que el agente
+    // usa y que no aparece en ninguna pantalla.
+    const { AGENT_TOOLBOX } = await import('./toolbox');
+    const bloque = bloqueDeTools();
+    const claves = new Set(AGENT_TOOLBOX.map((t) => t.key));
+    const consultadas = [...bloque.matchAll(/puede\('([a-z_]+)'\)/g)].map((m) => m[1]);
+    expect(consultadas.length).toBeGreaterThan(10);
+    for (const k of consultadas) {
+      expect(claves, k).toContain(k);
+    }
   });
 });

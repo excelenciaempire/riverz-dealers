@@ -19,6 +19,17 @@ import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
  * La respuesta vuelve por el mismo lado y ejecuta. Ver resolve.ts.
  */
 
+/**
+ * El estado de una solicitud que todavía espera.
+ *
+ * Es una constante y no un literal suelto porque ya se escribió mal una vez: el
+ * dedupe de las cancelaciones buscaba `'pending'` —en inglés, como casi todo el
+ * resto del esquema— contra una columna que guarda `'pendiente'`. No coincidía
+ * nunca, así que el freno que evitaba dos solicitudes idénticas al comercio no
+ * frenaba nada, y no fallaba: simplemente no encontraba.
+ */
+export const APROBACION_PENDIENTE = 'pendiente'
+
 export interface AskInput {
   db: SupabaseClient
   workspaceId: string

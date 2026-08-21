@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { markOrderPaid } from '@/lib/shopify/mark-paid'
 import { cancelOrder, refundOrder } from '@/lib/shopify/order-cancel'
+import { APROBACION_PENDIENTE } from './ask'
 
 /**
  * La vuelta del humano en el medio: qué pasa cuando el comercio contesta.
@@ -59,7 +60,7 @@ export async function resolveByCode(
   const { data } = await db
     .from('approval_requests')
     .select('id, workspace_id, kind, payload, status, expires_at, title')
-    .eq('status', 'pendiente')
+    .eq('status', APROBACION_PENDIENTE)
     .like('notified_phone', `%${ultimos8}`)
     .order('created_at', { ascending: false })
     .limit(50)
@@ -123,7 +124,7 @@ export async function decidir(
       decided_by: args.decidedBy ?? null,
     })
     .eq('id', args.approvalId)
-    .eq('status', 'pendiente')
+    .eq('status', APROBACION_PENDIENTE)
   if (args.workspaceId) q = q.eq('workspace_id', args.workspaceId)
   const { data, error } = await q
     .select('id, workspace_id, kind, payload, title')
@@ -186,6 +187,15 @@ async function ejecutar(
           .eq('workspace_id', fila.workspace_id)
       }
       return { ok: true, message: 'Pedido marcado como pagado en Shopify.' }
+    }
+    // Cualquier herramienta que el comercio puso "con aprobación": el agente
+    // la preparó, alguien dijo que sí, y acá se ejecuta con el mismo argumento
+    // que esa persona leyó.
+    case 'herramienta': {
+      const { leerHerramienta, ejecutarHerramienta } = await import('./ejecutar-herramienta')
+      const h = leerHerramienta(fila.payload)
+      if (!h) return { ok: false, message: 'Esa solicitud no dice qué hacer.' }
+      return ejecutarHerramienta(db, fila.workspace_id, h)
     }
     case 'cancelar_pedido':
     case 'reembolsar_pedido': {

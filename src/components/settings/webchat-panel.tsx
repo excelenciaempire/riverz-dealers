@@ -28,6 +28,9 @@ interface Stats {
   orders: number;
   revenue: number;
   currency: string | null;
+  /** El total de CADA moneda, de mayor a menor volumen. Una tienda que vende
+   *  en pesos y en dólares no tiene un solo número. */
+  revenue_by_currency?: { currency: string | null; revenue: number; orders: number }[];
 }
 
 export function WebchatPanel() {
@@ -309,6 +312,17 @@ export function WebchatPanel() {
                   ? format.currency(stats.revenue, stats.currency)
                   : String(Math.round(stats.revenue))
               }
+              // Las otras monedas debajo, sin inventar un total.
+              //
+              // Antes se sumaban todas y el resultado se etiquetaba con la
+              // moneda del primer pedido: una tienda que vende en pesos y en
+              // dólares veía "1.250.000 USD". Es el número con el que el
+              // comercio decide si el canal vale la pena.
+              extra={(stats.revenue_by_currency ?? [])
+                .slice(1)
+                .map((r) =>
+                  r.currency ? format.currency(r.revenue, r.currency) : String(Math.round(r.revenue)),
+                )}
             />
           </div>
         ) : (
@@ -354,10 +368,24 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  extra,
+}: {
+  label: string;
+  value: string;
+  /** Lo que no entra en un solo número: el resto de las monedas. */
+  extra?: string[];
+}) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 p-3">
       <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
+      {(extra ?? []).map((e) => (
+        <p key={e} className="text-xs font-medium tabular-nums text-muted-foreground">
+          {e}
+        </p>
+      ))}
       <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );

@@ -4,6 +4,7 @@ import type {
   VoiceObjectives,
 } from '@/types';
 import type { AgentPermissions, AgentRole } from './roles';
+import type { AgentTools } from './toolbox';
 
 /**
  * Piso real de la espera antes de responder (`inbound_debounce_seconds`).
@@ -85,6 +86,15 @@ export interface AiAgent {
    * que es como se comportan los agentes anteriores a la migración.
    */
   permissions: AgentPermissions | null;
+  /**
+   * La correa de cada herramienta. Migración 180.
+   *
+   * `{ "<herramienta>": "off" | "aprobacion" | "auto" }`. El modo del medio es
+   * el punto: deja la propuesta armada y una persona confirma. `null` —o una
+   * herramienta sin entrada— hereda de `permissions`, así que aplicar esto no
+   * le cambió el agente a nadie. Ver `src/lib/ai/toolbox.ts`.
+   */
+  tools: AgentTools | null;
 
   persona: string;
   knowledge: string | null;

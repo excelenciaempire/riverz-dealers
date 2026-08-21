@@ -216,6 +216,123 @@ export const operation = {
   permEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
   permEscalarLlamada: { es: "Llamar por teléfono", en: "Place a phone call" },
   permEnviarProactivo: { es: "Escribir primero", en: "Message first" },
+  // La pizarra: qué hace el agente y cuándo entra una persona
+  toolsTitle: { es: "Qué puede hacer", en: "What it can do" },
+  toolsHint: {
+    es: "Elegí qué hace solo y qué te pasa a vos antes de hacerlo. Lo que apagues, lo deriva a tu equipo.",
+    en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",
+  },
+  toolModeOff: { es: "No lo hace", en: "Doesn't" },
+  toolModeAprobacion: { es: "Me pregunta", en: "Asks me" },
+  toolModeAuto: { es: "Lo hace solo", en: "On its own" },
+  toolModeAprobacionHint: {
+    es: "Lo prepara, te llega por WhatsApp y se hace cuando decís que sí.",
+    en: "It prepares it, you get a WhatsApp, and it happens once you say yes.",
+  },
+  toolGroupCatalogo: { es: "Catálogo", en: "Catalog" },
+  toolGroupVenta: { es: "Vender", en: "Selling" },
+  toolGroupPedidos: { es: "Pedidos", en: "Orders" },
+  toolGroupPostventa: { es: "Postventa", en: "After-sale" },
+  toolGroupConversacion: { es: "En la conversación", en: "In the conversation" },
+  toolNeedsTienda: { es: "Necesita una tienda conectada", en: "Needs a connected store" },
+  toolNeedsShopify: { es: "Necesita Shopify", en: "Needs Shopify" },
+  toolNeedsCobro: { es: "Necesita Mercado Pago", en: "Needs Mercado Pago" },
+  toolNeedsDescuento: {
+    es: "Necesita un tope de descuento mayor que 0",
+    en: "Needs a discount cap above 0",
+  },
+  toolNeedsVoz: { es: "Necesita llamadas activadas", en: "Needs calling enabled" },
+  toolNoAutoHint: {
+    es: "No se puede deshacer, así que siempre pasa por vos.",
+    en: "It cannot be undone, so it always goes through you.",
+  },
+
+  toolBuscarProducto: { es: "Buscar en el catálogo", en: "Search the catalog" },
+  toolBuscarProductoHint: {
+    es: "Recomendar a partir de lo que la persona describe, aunque no sepa el nombre.",
+    en: "Recommend from what the person describes, even without the product name.",
+  },
+  toolVerProducto: { es: "Ver la ficha de un producto", en: "Open a product's details" },
+  toolVerProductoHint: {
+    es: "Precio real, variantes y foto. Sin esto cotiza de memoria.",
+    en: "Real price, variants and photo. Without it, it quotes from memory.",
+  },
+  toolCrearCheckout: { es: "Mandar el link de compra", en: "Send the checkout link" },
+  toolCrearCheckoutHint: {
+    es: "Arma el carrito de Shopify con lo que eligió y lo lleva a pagar.",
+    en: "Builds the Shopify cart with what they chose and takes them to pay.",
+  },
+  toolCrearLinkDePago: { es: "Cobrar por link", en: "Charge with a link" },
+  toolCrearLinkDePagoHint: {
+    es: "Para las tiendas sin checkout propio. El dinero va a tu cuenta.",
+    en: "For stores without their own checkout. The money goes to your account.",
+  },
+  toolOfrecerDescuento: { es: "Ofrecer un descuento", en: "Offer a discount" },
+  toolOfrecerDescuentoHint: {
+    es: "Un cupón de un solo uso, nunca por encima del tope que fijaste.",
+    en: "A single-use coupon, never above the cap you set.",
+  },
+  toolCrearPedido: { es: "Crear el pedido", en: "Create the order" },
+  toolCrearPedidoHint: {
+    es: "Lo arma y lo crea en tu tienda. En Tiendanube y WooCommerce es además la forma de mandarla a pagar: devuelve el enlace de pago.",
+    en: "Builds it and creates it in your store. On Tiendanube and WooCommerce it is also how you send them to pay: it returns the payment link.",
+  },
+  toolLookupOrder: { es: "Consultar un pedido", en: "Look up an order" },
+  toolLookupOrderHint: {
+    es: "¿Dónde está mi pedido? es la pregunta más frecuente que recibe un comercio.",
+    en: "Where is my order? is the most common question any store gets.",
+  },
+  toolRegistrarPago: { es: "Dar por pagado", en: "Mark as paid" },
+  toolRegistrarPagoHint: {
+    es: "Cuando manda el comprobante de una transferencia y le cortan los recordatorios.",
+    en: "When they send a transfer receipt and the reminders stop.",
+  },
+  toolEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
+  toolEditarPedidoHint: {
+    es: "Sumar unidades a algo que ya compró.",
+    en: "Add units to something they already bought.",
+  },
+  toolCancelarPedido: { es: "Cancelar un pedido", en: "Cancel an order" },
+  toolCancelarPedidoHint: {
+    es: "Cancela en la tienda, vuelve el stock y se devuelve lo cobrado.",
+    en: "Cancels in the store, restocks, and returns what was charged.",
+  },
+  toolReembolsar: { es: "Devolver el dinero", en: "Refund the money" },
+  toolReembolsarHint: {
+    es: "Sin cancelar la compra: llegó incompleto, llegó dañado, una bonificación.",
+    en: "Without cancelling the purchase: arrived incomplete, arrived damaged, a goodwill credit.",
+  },
+  toolAbrirDevolucion: { es: "Abrir una devolución o cambio", en: "Open a return or exchange" },
+  toolAbrirDevolucionHint: {
+    es: "Deja el caso anotado con el pedido, el motivo y las fotos que ya mandó.",
+    en: "Files the case with the order, the reason and the photos they already sent.",
+  },
+  toolEscalarLlamada: { es: "Llamar por teléfono", en: "Place a phone call" },
+  toolEscalarLlamadaHint: {
+    es: "Cuando por escrito no alcanza y conviene hablar.",
+    en: "When writing is not enough and talking is better.",
+  },
+  toolEnviarProactivo: { es: "Escribir primero", en: "Message first" },
+  toolEnviarProactivoHint: {
+    es: "Retomar una conversación que quedó a medias.",
+    en: "Pick up a conversation that stalled.",
+  },
+  toolVerContacto: { es: "Ver la ficha de quien escribe", en: "See who is writing" },
+  toolVerContactoHint: {
+    es: "Qué compró antes y con qué etiquetas está, para no hacerle repetir todo.",
+    en: "What they bought before and how they are tagged, so they don't repeat themselves.",
+  },
+  toolEtiquetarContacto: { es: "Etiquetar a la persona", en: "Tag the person" },
+  toolEtiquetarContactoHint: {
+    es: "Una nota interna para que tu equipo la encuentre después.",
+    en: "An internal note so your team can find them later.",
+  },
+  toolCerrarConversacion: { es: "Cerrar el caso", en: "Close the case" },
+  toolCerrarConversacionHint: {
+    es: "Cuando la consulta quedó resuelta y no hay nada pendiente.",
+    en: "When the question is resolved and nothing is left open.",
+  },
+
   roleLabel: { es: "Rol", en: "Role" },
   roleHint: {
     es: "Decide qué conversaciones atiende cuando hay más de un agente en el mismo canal.",

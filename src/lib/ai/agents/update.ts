@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { findChannelConflict } from '../channel-conflict'
 import { encrypt } from '@/lib/whatsapp/encryption'
 import type { AiAgent } from '../types'
+import { sanitizeTools } from '../toolbox'
 
 /**
  * Los campos que se pueden guardar desde afuera.
@@ -50,6 +51,8 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   // Rol y permisos por acción (migración 164)
   'role',
   'permissions',
+  // La correa de cada herramienta (migración 180)
+  'tools',
   'provider',
   'model',
   'scope',
@@ -99,6 +102,11 @@ export function pickAgentPatch(
   if (typeof body.api_key === 'string') {
     patch.api_key_encrypted = body.api_key.trim() ? encrypt(body.api_key.trim()) : null
   }
+  // `tools` es lo que decide si una herramienta se ejecuta sola: se filtra
+  // contra el catálogo antes de escribir. El cuerpo de un PATCH lo arma un
+  // cliente que no controlamos, y un modo inventado —o una clave que ya no
+  // existe— no puede terminar mandando sobre plata que sale.
+  if ('tools' in patch) patch.tools = sanitizeTools(patch.tools)
   return patch
 }
 

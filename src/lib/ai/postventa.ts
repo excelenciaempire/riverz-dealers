@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { askForApproval } from '@/lib/approvals/ask'
+import { askForApproval, APROBACION_PENDIENTE } from '@/lib/approvals/ask'
 
 /**
  * Cancelar y reembolsar, desde una conversación.
@@ -137,7 +137,7 @@ async function yaPedido(
     .select('id')
     .eq('workspace_id', ctx.workspaceId)
     .eq('kind', kind)
-    .eq('status', 'pending')
+    .eq('status', APROBACION_PENDIENTE)
     .contains('payload', { shopify_order_id: shopifyOrderId })
     .limit(1)
     .maybeSingle()

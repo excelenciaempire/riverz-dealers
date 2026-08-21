@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TiendanubeClient } from '@/lib/commerce/providers/tiendanube'
-import { WooCommerceClient } from '@/lib/commerce/providers/woocommerce'
+import { WooCommerceClient, wooFechaAIso } from '@/lib/commerce/providers/woocommerce'
 import type { ShopifyOrder } from '@/lib/attribution/shopify'
 import { resolveStoreForLookup } from './order-lookup'
 
@@ -114,6 +114,8 @@ interface PedidoWoo {
   total?: string
   currency?: string
   date_created?: string
+  /** El mismo instante en UTC. Es el que sirve: ver `wooFechaAIso`. */
+  date_created_gmt?: string
   coupon_lines?: { code?: string }[]
   billing?: { email?: string; phone?: string }
   shipping?: { phone?: string }
@@ -128,10 +130,12 @@ function deWoo(p: PedidoWoo): ShopifyOrder {
     phone: tel,
     total_price: p.total ?? '0',
     currency: p.currency ?? undefined,
-    // WooCommerce manda la fecha en la zona de la tienda y sin sufijo. Se
-    // asume UTC: sin esto, `Date.parse` la interpreta en la zona del servidor
-    // y un pedido puede caer en la ventana equivocada.
-    created_at: normalizarFecha(p.date_created),
+    // WooCommerce manda `date_created` en la zona de la TIENDA y sin sufijo,
+    // así que pegarle una Z lo corría por el desfase de esa tienda: un pedido
+    // de Buenos Aires aparecía tres horas movido y caía en el día —o en la
+    // ventana de atribución— equivocado. Al lado viene `date_created_gmt`, que
+    // es el mismo instante en UTC. Se usa el mismo lector que el adaptador.
+    created_at: wooFechaAIso(p.date_created, p.date_created_gmt) ?? new Date(0).toISOString(),
     discount_codes: (p.coupon_lines ?? []).map((c) => ({ code: c.code })),
     contact_email: correo ?? null,
     customer: { email: correo ?? null, phone: tel ?? null },
@@ -140,7 +144,3 @@ function deWoo(p: PedidoWoo): ShopifyOrder {
   }
 }
 
-function normalizarFecha(v: string | undefined): string {
-  if (!v) return new Date(0).toISOString()
-  return /[zZ]|[+-]\d{2}:?\d{2}$/.test(v) ? v : `${v}Z`
-}
