@@ -30,18 +30,25 @@ export interface PostventaCtx {
  * Se usa cuando la solicitud quedó anotada pero el aviso al comercio no salió:
  * la clienta ya escuchó "te confirmo en breve" y nadie del otro lado se enteró,
  * así que el hilo no puede quedar esperando solo.
+ *
+ * A diferencia del escalamiento por palabra clave, acá el agente NO se apaga:
+ * la persona sigue conversando y puede preguntar otra cosa. Lo que hace falta
+ * es que el comercio vea el hilo, no que la clienta se quede sin nadie.
  */
 async function pedirAyuda(ctx: PostventaCtx, motivo: string): Promise<void> {
   if (!ctx.conversationId) return
-  await ctx.db
+  // Las mismas columnas que usa el escalamiento del runner. No hay un booleano
+  // `needs_human`: lo que marca el hilo es tener `needs_human_at` puesto.
+  const { error } = await ctx.db
     .from('conversations')
     .update({
-      needs_human: true,
+      status: 'pending',
       needs_human_reason: motivo,
       needs_human_at: new Date().toISOString(),
     })
     .eq('id', ctx.conversationId)
     .eq('workspace_id', ctx.workspaceId)
+  if (error) console.error('[postventa] no se pudo pedir ayuda:', error.message)
 }
 
 interface PedidoDelCliente {

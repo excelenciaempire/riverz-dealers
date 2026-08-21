@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // `vi.mock` se iza al tope del archivo, así que la fábrica no puede cerrar
 // sobre una variable de acá: se declara adentro y se recupera después.
 vi.mock('@/lib/approvals/ask', () => ({
-  askForApproval: vi.fn(async () => ({ ok: true, approvalId: 'ap-1' })),
+  askForApproval: vi.fn(async () => ({ ok: true, approvalId: 'ap-1', notified: true })),
 }));
 
 import { askForApproval } from '@/lib/approvals/ask';
@@ -26,7 +26,8 @@ type Fila = Record<string, unknown>;
  * @param pendientes Solicitudes de aprobación ya abiertas para este pedido.
  */
 function db(filas: Fila[], pendientes: Fila[] = []) {
-  return {
+  const updates: Array<{ tabla: string; patch: Record<string, unknown> }> = [];
+  const cliente = {
     from(tabla: string) {
       const datos = tabla === 'approval_requests' ? pendientes : filas;
       // `limit` es el final de una cadena y también el paso previo a
@@ -39,13 +40,24 @@ function db(filas: Fila[], pendientes: Fila[] = []) {
       };
       const q: Record<string, unknown> = { limit: () => resultado };
       for (const m of ['select', 'eq', 'not', 'order', 'contains', 'is']) q[m] = () => q;
+      // `update` guarda el parche y sigue encadenando con los `.eq(...)`, que
+      // es la forma en la que se escribe una fila en este repo.
+      q.update = (patch: Record<string, unknown>) => {
+        updates.push({ tabla, patch });
+        const fin: Record<string, unknown> = {
+          then: (r: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(r),
+        };
+        fin.eq = () => fin;
+        return fin;
+      };
       return q;
     },
-  } as never;
+  };
+  return { cliente: cliente as never, updates };
 }
 
 const ctx = (filas: Fila[], pendientes: Fila[] = []) => ({
-  db: db(filas, pendientes),
+  db: db(filas, pendientes).cliente,
   workspaceId: 'w1',
   contactId: 'c1',
 });
@@ -146,5 +158,47 @@ describe('reembolsar', () => {
   it('le prohíbe al modelo decir que el dinero ya volvió', async () => {
     const out = JSON.parse(await proponerReembolso(ctx([pedido()]), {}));
     expect(out.message).toMatch(/NO le digas/);
+  });
+});
+
+describe('cuando el aviso no sale', () => {
+  it('marca el hilo para que lo mire una persona, con las columnas que existen', async () => {
+    // La fila queda esperando en el panel, pero nadie se enteró — y a la
+    // clienta ya se le dijo "te confirmo en breve". Sin esta marca, ese hilo
+    // espera solo.
+    //
+    // Y las columnas importan: no hay un booleano `needs_human` en
+    // `conversations`; lo que marca el hilo es tener `needs_human_at` puesto.
+    // Escribir una columna inexistente falla en silencio.
+    pedirAprobacion.mockResolvedValueOnce({
+      ok: true,
+      approvalId: 'ap-9',
+      notified: false,
+    } as never);
+    const doble = db([pedido()]);
+    const out = JSON.parse(
+      await proponerCancelacion(
+        { db: doble.cliente, workspaceId: 'w1', contactId: 'c1', conversationId: 'conv-1' },
+        {},
+      ),
+    );
+    expect(out.ok).toBe(true);
+    const marca = doble.updates.find((u) => u.tabla === 'conversations');
+    expect(marca).toBeTruthy();
+    expect(Object.keys(marca!.patch).sort()).toEqual([
+      'needs_human_at',
+      'needs_human_reason',
+      'status',
+    ]);
+    expect(marca!.patch.status).toBe('pending');
+  });
+
+  it('cuando sí sale, no molesta a nadie', async () => {
+    const doble = db([pedido()]);
+    await proponerCancelacion(
+      { db: doble.cliente, workspaceId: 'w1', contactId: 'c1', conversationId: 'conv-1' },
+      {},
+    );
+    expect(doble.updates.find((u) => u.tabla === 'conversations')).toBeUndefined();
   });
 });
