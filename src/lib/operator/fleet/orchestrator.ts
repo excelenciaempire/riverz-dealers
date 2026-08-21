@@ -85,13 +85,22 @@ export async function runOrquestador(args: {
   // Un turno son varias llamadas al modelo, y el hilo las muestra como un solo
   // mensaje. Sin esto, la última frase de una llamada y la primera de la
   // siguiente salían pegadas: "…antes de enviarla.Dejé el plan esperando".
-  const hilo = { yaEscribio: false }
+  // `planListo` apaga el texto que viene DESPUÉS de guardar un plan. La nota de
+  // la herramienta pide no repetirlo y el modelo igual escribe un párrafo que
+  // dice lo mismo que el de arriba: el bloqueo que ya contó, otra vez. Si
+  // todavía no había dicho nada, lo deja pasar, para no dejar la tarjeta sola
+  // sin una palabra.
+  const hilo = { yaEscribio: false, planListo: false }
+  const mudo = () => hilo.planListo && hilo.yaEscribio
 
   while (vueltas < MAX_VUELTAS && iter < MAX_ITERS_TOTAL) {
     iter++
     emit({ t: 'step', n: vueltas + 1, de: MAX_VUELTAS })
 
     if (!presupuesto.puedeLlamar()) break
+    // Se pregunta ANTES: la primera frase de esta llamada prende `yaEscribio`,
+    // así que preguntarlo después daría mudo en la llamada que sí habló.
+    const eraMudo = mudo()
     const res = await llamar(args, system, tools, messages, hilo)
     presupuesto.sumar('orquestador', {
       input: res.usage?.input_tokens,
@@ -101,7 +110,7 @@ export async function runOrquestador(args: {
     })
 
     const texto = textoDe(res)
-    if (texto.trim()) ultimoTexto = texto.trim()
+    if (texto.trim() && !eraMudo) ultimoTexto = texto.trim()
     if (res.stop_reason !== 'tool_use') {
       return {
         text: ultimoTexto,
@@ -139,7 +148,10 @@ export async function runOrquestador(args: {
       if (uso.name === 'equipo__plan') {
         const r = await manejarPlan(args, uso)
         results.push(r.result)
-        if (r.planId) planId = r.planId
+        if (r.planId) {
+          planId = r.planId
+          hilo.planListo = true
+        }
         continue
       }
 
@@ -269,13 +281,14 @@ export async function runOrquestador(args: {
   // Se acabaron las vueltas: una última sin herramientas, para cerrar con algo
   // legible en vez de dejar la pantalla en blanco.
   if (presupuesto.puedeLlamar()) {
+    const cerroMudo = mudo()
     const cierre = await llamar(args, system, [], messages, hilo)
     presupuesto.sumar('orquestador', {
       input: cierre.usage?.input_tokens,
       output: cierre.usage?.output_tokens,
     })
     const t = textoDe(cierre).trim()
-    if (t) ultimoTexto = t
+    if (t && !cerroMudo) ultimoTexto = t
   }
 
   return { text: ultimoTexto, ...presupuesto.total(), proposedIds, planId }
@@ -382,7 +395,7 @@ async function llamar(
   system: Anthropic.TextBlockParam[],
   tools: Anthropic.Tool[],
   messages: Anthropic.MessageParam[],
-  hilo: { yaEscribio: boolean },
+  hilo: { yaEscribio: boolean; planListo: boolean },
 ): Promise<Anthropic.Message> {
   let abrio = false
   return args.runner(
@@ -401,6 +414,8 @@ async function llamar(
         args.emit({ t: 'thinking', delta: d.delta })
         return
       }
+      // Con el plan ya en pantalla y algo ya dicho, lo que siga sobra.
+      if (hilo.planListo && hilo.yaEscribio) return
       if (!abrio) {
         abrio = true
         if (hilo.yaEscribio) args.emit({ t: 'text', delta: '\n\n' })
