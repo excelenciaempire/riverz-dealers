@@ -36,6 +36,7 @@ import { enqueueCall } from '@/lib/voice/queue'
 import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
 import { searchProducts } from '@/lib/products/search'
 import { proponerCancelacion, proponerReembolso } from './postventa'
+import { crearLinkDePago } from '@/lib/mercadopago/preference'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -235,6 +236,43 @@ export const REEMBOLSAR_TOOL: Anthropic.Tool = {
       reason: { type: 'string', description: 'Qué pasó, en las palabras de la clienta.' },
     },
     required: [],
+  },
+}
+
+/**
+ * Cobrar, para el comercio que no tiene Shopify.
+ *
+ * El checkout de Shopify resuelve el pago solo, pero Tiendanube, WooCommerce y
+ * Mercado Libre no tienen equivalente en Riverz: esas conversaciones terminaban
+ * en "pasame el alias". Con esto el agente manda un link de Mercado Pago y la
+ * clienta paga con tarjeta ahí mismo.
+ */
+export const CREAR_LINK_DE_PAGO_TOOL: Anthropic.Tool = {
+  name: 'crear_link_de_pago',
+  description:
+    'Generá un link de pago de Mercado Pago cuando la clienta ya quiere pagar y la tienda no tiene un checkout propio. Pasá qué le estás cobrando, con precio unitario y cantidad. El dinero va a la cuenta del negocio. Cotizá SÓLO precios reales del catálogo: no inventes montos ni descuentos. Si ya generaste un link en esta conversación y no cambió nada, reusá ese en vez de crear otro.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      items: {
+        type: 'array',
+        description: 'Qué se le cobra.',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Nombre del producto.' },
+            quantity: { type: 'integer', minimum: 1, default: 1 },
+            unit_price: { type: 'number', description: 'Precio POR UNIDAD, no el total.' },
+          },
+          required: ['title', 'unit_price'],
+        },
+      },
+      customer_email: {
+        type: 'string',
+        description: 'Correo de la clienta, si lo dio. Le prellena el pago.',
+      },
+    },
+    required: ['items'],
   },
 }
 
@@ -579,6 +617,47 @@ export async function runTool(
       })
     }
     return JSON.stringify({ found: true, products: hits })
+  }
+
+  if (toolName === 'crear_link_de_pago') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo generar links de pago en esta conversación.',
+      })
+    }
+    const input = (toolInput ?? {}) as {
+      items?: Array<{ title?: string; quantity?: number; unit_price?: number }>
+      customer_email?: string
+    }
+    const res = await crearLinkDePago(localOrders.db, {
+      workspaceId: localOrders.workspaceId,
+      items: (input.items ?? []).map((i) => ({
+        title: String(i.title ?? ''),
+        quantity: Number(i.quantity ?? 1),
+        unit_price: Number(i.unit_price),
+      })),
+      payerEmail: input.customer_email ?? null,
+    })
+    if ('error' in res) {
+      return JSON.stringify({
+        ok: false,
+        // El motivo importa: sin Mercado Pago conectado no hay nada que
+        // reintentar, y el modelo tiene que ofrecer otra cosa en vez de
+        // insistir con una herramienta que no va a funcionar.
+        error: res.error,
+        message:
+          res.error === 'sin_conexion'
+            ? 'No hay forma de cobrar por link en esta cuenta. Ofrecele coordinar el pago con el equipo.'
+            : 'No pude generar el link. Ofrecele coordinar el pago con el equipo.',
+      })
+    }
+    return JSON.stringify({
+      ok: true,
+      payment_url: res.url,
+      message:
+        'Pasale el link para que pague con tarjeta. Cuando pague, el pedido se marca solo. NO le digas que ya está pagado.',
+    })
   }
 
   if (toolName === 'cancelar_pedido' || toolName === 'reembolsar') {

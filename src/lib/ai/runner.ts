@@ -37,6 +37,7 @@ import {
   buildOrderTool,
   BUSCAR_PRODUCTO_TOOL,
   CANCELAR_PEDIDO_TOOL,
+  CREAR_LINK_DE_PAGO_TOOL,
   LOOKUP_ORDER_TOOL,
   REEMBOLSAR_TOOL,
   UPDATE_ORDER_TOOL,
@@ -1649,6 +1650,16 @@ async function generateReply(
     // pedido que existe".
     ...(primaryContact.id && agentCan(agent, 'editar_pedido')
       ? [CANCELAR_PEDIDO_TOOL, REEMBOLSAR_TOOL]
+      : []),
+    // Link de pago, SÓLO si no hay checkout de Shopify.
+    //
+    // Con Shopify el checkout ya cobra, muestra el total real y aplica los
+    // descuentos de la tienda: ofrecer además un link de Mercado Pago sería
+    // darle al modelo dos caminos para lo mismo, y elegiría mal la mitad de las
+    // veces. Esto existe para el comercio que hoy no puede cobrar de ninguna
+    // forma — Tiendanube, WooCommerce, Mercado Libre.
+    ...(!shopify && primaryContact.id && agentCan(agent, 'crear_checkout')
+      ? [CREAR_LINK_DE_PAGO_TOOL]
       : []),
   ];
   const opciones = {
