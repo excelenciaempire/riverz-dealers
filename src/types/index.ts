@@ -271,7 +271,10 @@ export type ConversationStatus = 'open' | 'pending' | 'closed';
 export type NeedsHumanReason =
   | 'escalation_keyword'
   | 'escalate_after_messages'
-  | 'flow_handoff';
+  | 'flow_handoff'
+  /** Cortacircuitos: demasiadas respuestas al mismo contacto en poco
+   *  tiempo (migración 178). */
+  | 'reply_burst_guard';
 
 export interface Conversation {
   id: string;

@@ -17,6 +17,10 @@ export const inbox = {
   needsHumanKeyword: { es: "El cliente pidió hablar con una persona", en: "The customer asked for a person" },
   needsHumanMaxReplies: { es: "El asistente agotó sus respuestas para este chat", en: "The assistant used up its replies for this chat" },
   needsHumanFlow: { es: "Un flujo lo pasó a una persona", en: "A flow handed it to a person" },
+  needsHumanBurst: {
+    es: "Se enviaron demasiados mensajes seguidos a este contacto",
+    en: "Too many messages were sent to this contact in a row",
+  },
 
   // Status filter (conversation list)
   filterAll: { es: "Todas", en: "All" },

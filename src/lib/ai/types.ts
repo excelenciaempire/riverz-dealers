@@ -29,6 +29,21 @@ export const MIN_DEBOUNCE_SECONDS = 8;
  */
 export const WEBCHAT_DEBOUNCE_SECONDS = 2;
 
+/**
+ * Cortacircuitos: cuántos mensajes puede mandarle el sistema a UN contacto en
+ * `BURST_WINDOW_MS` antes de darse por roto y apagarse.
+ *
+ * El 20 de agosto de 2026 el agente se trabó con el robot de Outlook y mandó
+ * 549 correos en cuatro horas, hasta que Microsoft bloqueó la casilla del
+ * comercio. Con este fusible se habría cortado en el número 20.
+ *
+ * Veinte por hora está bien arriba de cualquier conversación real: el debounce
+ * ya agrupa las ráfagas del cliente, así que veinte respuestas en una hora al
+ * mismo contacto no es una charla, es un lazo.
+ */
+export const BURST_MAX_REPLIES = 20;
+export const BURST_WINDOW_MS = 60 * 60 * 1000;
+
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';

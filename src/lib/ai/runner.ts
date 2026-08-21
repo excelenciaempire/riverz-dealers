@@ -22,7 +22,12 @@ import type {
 import { getAdapter } from '@/lib/channels/registry';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
-import { MIN_DEBOUNCE_SECONDS, WEBCHAT_DEBOUNCE_SECONDS } from './types';
+import {
+  BURST_MAX_REPLIES,
+  BURST_WINDOW_MS,
+  MIN_DEBOUNCE_SECONDS,
+  WEBCHAT_DEBOUNCE_SECONDS,
+} from './types';
 import {
   withinBusinessHours,
   containsEscalationKeyword as hasEscalationKeyword,
@@ -162,6 +167,46 @@ export async function runAiAgent(
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'escalate_after_messages',
+        });
+        return;
+      }
+    }
+
+    // ── Cortacircuitos: ráfaga de respuestas al mismo contacto ──────────
+    // El filtro de remitentes automáticos ataja el caso conocido (rebotes,
+    // autorespuestas, boletines). Esto es el fusible para el que no vimos
+    // venir: si el agente ya le mandó BURST_MAX_REPLIES mensajes a este
+    // contacto en la última hora, algo se rompió y nadie del otro lado es una
+    // persona. Se apaga y queda para que lo mire alguien.
+    //
+    // Se cuenta por CONTACTO, no por conversación: en el bucle con el robot de
+    // Outlook el hilo se partía cada hora, así que un tope por conversación
+    // habría vuelto a arrancar de cero cada vez. Y se cuenta `sender_type =
+    // bot` (no sólo la IA) porque lo que hay que frenar es el volumen que sale
+    // hacia esa persona, venga del agente, de un flujo o de una automatización.
+    const burstSince = new Date(Date.now() - BURST_WINDOW_MS).toISOString();
+    const { data: burstConvs } = await db
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', args.contact.id)
+      .limit(50);
+    const burstConvIds = (burstConvs ?? []).map((c: { id: string }) => c.id);
+    if (burstConvIds.length > 0) {
+      const { count: burstCount } = await db
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .in('conversation_id', burstConvIds)
+        .eq('sender_type', 'bot')
+        .gte('created_at', burstSince);
+      if ((burstCount ?? 0) >= BURST_MAX_REPLIES) {
+        console.error(
+          `[ai] cortacircuitos: ${burstCount} respuestas al contacto ${args.contact.id} ` +
+            `en ${BURST_WINDOW_MS / 60000} min — se apaga la IA en este hilo`,
+        );
+        await flagNeedsHuman(db, args.conversation, 'reply_burst_guard');
+        await logReply(db, agent, args, {
+          status: 'skipped',
+          skip_reason: 'reply_burst_guard',
         });
         return;
       }
@@ -862,7 +907,11 @@ function shouldSkip(
 async function flagNeedsHuman(
   db: SupabaseClient,
   conversation: Conversation,
-  reason?: 'escalation_keyword' | 'escalate_after_messages' | 'flow_handoff',
+  reason?:
+    | 'escalation_keyword'
+    | 'escalate_after_messages'
+    | 'flow_handoff'
+    | 'reply_burst_guard',
 ): Promise<void> {
   try {
     await db

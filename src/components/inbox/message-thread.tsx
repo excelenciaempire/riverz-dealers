@@ -168,6 +168,7 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   escalation_keyword: "inbox.needsHumanKeyword",
   escalate_after_messages: "inbox.needsHumanMaxReplies",
   flow_handoff: "inbox.needsHumanFlow",
+  reply_burst_guard: "inbox.needsHumanBurst",
 };
 
 const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [

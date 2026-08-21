@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { htmlToText } from "../html-to-text";
+import { detectAutomatedSender } from "../email/automated-sender";
 
 /**
  * Gmail does not push inbound mail without a Pub/Sub topic. To avoid
@@ -290,11 +291,26 @@ async function buildInboundEvent(
       )
     : [];
 
+  // Mismo portero que en Outlook: rebotes, autorespuestas y boletines se
+  // guardan y se ven, pero no despiertan al agente.
+  const machine = detectAutomatedSender({
+    from,
+    subject,
+    headers,
+    contentType: msg.payload?.mimeType,
+  });
+  if (machine.automated) {
+    console.info(
+      `[gmail-poll] remitente automático (${machine.reason}), no se responde solo: ${email}`,
+    );
+  }
+
   return {
     channel: "gmail",
     connection,
     externalContactId: email,
     contactName: name || undefined,
+    suppressAutoReply: machine.automated || undefined,
     externalMessageId: messageIdHeader || msg.id,
     externalThreadId: msg.threadId,
     subject,

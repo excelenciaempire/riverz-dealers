@@ -14,6 +14,7 @@ import { timingSafeStringEqual } from "../verify-webhook";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { htmlToText } from "../html-to-text";
+import { detectAutomatedSender } from "../email/automated-sender";
 import {
   fetchOutlookMessage,
   fetchOutlookAttachments,
@@ -172,11 +173,26 @@ export const outlookAdapter: ChannelAdapter = {
             email,
           )
         : [];
+      // El aviso de Graph llega por otro camino que el sondeo, así que el
+      // filtro de remitentes automáticos tiene que estar en los dos.
+      const machine = detectAutomatedSender({
+        from: email,
+        subject: msg.subject,
+        headers: msg.internetMessageHeaders,
+      });
+      if (machine.automated) {
+        log.info("remitente automático: entra a la bandeja, no se responde solo", {
+          connectionId: connection.id,
+          from: email,
+          reason: machine.reason,
+        });
+      }
       events.push({
         channel: "outlook",
         connection,
         externalContactId: email,
         contactName: from?.name || undefined,
+        suppressAutoReply: machine.automated || undefined,
         externalMessageId: msg.internetMessageId || msg.id,
         externalThreadId: msg.conversationId,
         subject: msg.subject ?? "",

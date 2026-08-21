@@ -223,7 +223,7 @@ export async function fetchOutlookMessage(
   const u = new URL(`${GRAPH_API}/me/messages/${graphMessageId}`);
   u.searchParams.set(
     "$select",
-    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead,hasAttachments",
+    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,isRead,hasAttachments,internetMessageHeaders",
   );
   const r = await fetch(u.toString(), {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -244,6 +244,7 @@ export interface GraphMessageFull {
   receivedDateTime?: string;
   isRead?: boolean;
   hasAttachments?: boolean;
+  internetMessageHeaders?: { name: string; value: string }[];
 }
 
 /**

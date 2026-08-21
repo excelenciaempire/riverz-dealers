@@ -6,6 +6,7 @@ import { fetchOutlookAttachments } from "./watch";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { htmlToText } from "../html-to-text";
+import { detectAutomatedSender } from "../email/automated-sender";
 
 /**
  * Microsoft Graph polls every connected Outlook/Hotmail mailbox via
@@ -226,7 +227,7 @@ async function listFolder(
   const u = new URL(`${GRAPH_API}/me/mailFolders/${folder}/messages`);
   u.searchParams.set(
     "$select",
-    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,sentDateTime,isRead,hasAttachments",
+    "id,internetMessageId,conversationId,from,toRecipients,subject,bodyPreview,body,receivedDateTime,sentDateTime,isRead,hasAttachments,internetMessageHeaders",
   );
   u.searchParams.set("$top", "50");
   u.searchParams.set("$orderby", `${dateField} asc`);
@@ -308,6 +309,7 @@ interface GraphMessage {
   sentDateTime?: string;
   isRead?: boolean;
   hasAttachments?: boolean;
+  internetMessageHeaders?: { name: string; value: string }[];
 }
 
 function buildInboundEvent(
@@ -320,11 +322,24 @@ function buildInboundEvent(
 
   const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
   const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
+  // Rebotes, autorespuestas y boletines entran a la bandeja pero NADIE los
+  // contesta solo. Ver `email/automated-sender.ts`.
+  const machine = detectAutomatedSender({
+    from: email,
+    subject: msg.subject,
+    headers: msg.internetMessageHeaders,
+  });
+  if (machine.automated) {
+    console.info(
+      `[outlook-poll] remitente automático (${machine.reason}), no se responde solo: ${email}`,
+    );
+  }
   return {
     channel: "outlook",
     connection,
     externalContactId: email,
     contactName: from?.name || undefined,
+    suppressAutoReply: machine.automated || undefined,
     externalMessageId: msg.internetMessageId || msg.id,
     externalThreadId: msg.conversationId,
     subject: msg.subject ?? "",
