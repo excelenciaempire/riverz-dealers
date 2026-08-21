@@ -18,6 +18,8 @@ import {
 } from '@/lib/operator/threads'
 import { guardarGasto } from '@/lib/operator/gasto'
 import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
+import { claveRechazada } from '@/lib/ai/platform-key'
 
 /**
  * Hablar con el Operator.
@@ -234,7 +236,19 @@ export async function POST(request: Request) {
         if (turno.overBudget) push({ t: 'text', delta: turno.text })
         push({ t: 'done', thread: threadId })
       } catch (err) {
-        push({ t: 'error', message: err instanceof Error ? err.message : 'failed' })
+        // Lo que salía era el JSON crudo de Anthropic, en inglés y en rojo:
+        // «400 {"type":"error",...,"Your credit balance is too low..."}». Nadie
+        // que venda cremas tiene por qué leer eso. El único caso que le sirve
+        // saber es que la plataforma se quedó sin saldo, y eso se lo decimos
+        // con palabras; el detalle técnico queda en el log.
+        if (err) console.error('[operator] turno caído', err)
+        push({
+          t: 'error',
+          message: translate(
+            locale,
+            claveRechazada(err) ? 'operation.operatorSinSaldo' : 'operation.operatorError',
+          ),
+        })
       } finally {
         cerrado = true
         try {

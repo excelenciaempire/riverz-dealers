@@ -23,6 +23,10 @@ export const operation = {
     es: "No se pudo responder. Prueba de nuevo.",
     en: "Couldn't reply. Try again.",
   },
+  operatorSinSaldo: {
+    es: "El asistente se quedó sin crédito. Es de Riverz, no de tu cuenta: escríbenos y lo reactivamos.",
+    en: "The assistant ran out of credit. That's on Riverz, not your account: write to us and we'll turn it back on.",
+  },
   operatorRateLimited: {
     es: "Demasiadas consultas seguidas. Espera un minuto.",
     en: "Too many requests in a row. Wait a minute.",
