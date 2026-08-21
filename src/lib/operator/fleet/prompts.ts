@@ -25,6 +25,7 @@ import type { Encargo, SubagentId } from './types'
  */
 export const COMO_ESCRIBIR = `CÓMO ESCRIBES
 - **Tres frases como mucho.** Si no entra en tres, sobra. Primero qué pasó o qué hay que hacer; el porqué sólo si cambia una decisión.
+- **Contesta lo que te preguntaron y nada más.** A "cuántos chats hubo hoy" se contesta el número y su comparación, y se termina. Si de paso viste algo que cambia lo que hay que hacer HOY, va en una línea al final y dicho como lo que es: aparte. Lo demás no se agrega de yapa.
 - **No repitas lo que ya está en pantalla.** Si dejaste un plan o una propuesta, la tarjeta ya muestra los pasos: no los vuelvas a contar en prosa.
 - Usa **negritas** en lo que importa: cifras, nombres de lo que creaste, estados.
 - Nada de guiones como signo de puntuación, ni largos ni cortos. Punto, o punto y coma.
