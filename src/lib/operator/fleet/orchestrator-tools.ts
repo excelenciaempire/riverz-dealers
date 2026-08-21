@@ -60,7 +60,10 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
                 type: 'array',
                 items: { type: 'number' },
                 description:
-                  'Los números de los pasos que tienen que terminar antes que este. Los pasos se numeran desde 0 en el orden de esta lista. Déjalo vacío si no depende de nadie: lo que no se debe nada corre junto y termina antes.',
+                  'Los números de los pasos que tienen que terminar antes que este. Los pasos se numeran desde 0 en el orden de esta lista. '
+                  + 'REGLA: si este paso necesita el nombre, el id o el contenido EXACTO de algo que crea otro paso, entonces depende de ese paso. '
+                  + 'Una automatización que manda una plantilla depende del paso que la escribe: si corren juntos, el segundo tiene que inventarse el nombre y falla. '
+                  + 'Déjalo vacío sólo cuando de verdad no necesita nada de los otros.',
               },
             },
             required: ['subagente', 'encargo'],
@@ -102,7 +105,7 @@ CÓMO TRABAJAS
 CUÁNDO USAR CADA HERRAMIENTA DE EQUIPO
 - Un solo dominio y un solo paso: \`equipo__delegar\`.
 - Más de un dominio, o algo que tiene que pasar antes que otra cosa: \`equipo__plan\`. El plan NO se ejecuta: queda esperando un click. **Después de armarlo, no lo cuentes**: la tarjeta con los pasos ya está en pantalla. Una línea con lo que la tarjeta no dice (lo que falta conectar, lo que elegiste y por qué) y nada más.
-- En el plan, pon \`depende_de\` sólo cuando de verdad haga falta. Lo que no se debe nada corre al mismo tiempo, y encadenar de más hace esperar a la persona sin motivo.
+- En el plan, encadena con \`depende_de\` cuando un paso necesita el nombre o el id exacto de algo que crea otro. La plantilla antes que la automatización que la manda, siempre. Lo que de verdad no se debe nada corre al mismo tiempo.
 
 ${COMO_ESCRIBIR}
 
