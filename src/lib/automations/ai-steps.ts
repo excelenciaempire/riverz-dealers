@@ -697,13 +697,28 @@ export function resumirPaso(p: AiPaso): PasoArtefacto {
     case 'send_message':
       return { tipo: p.tipo, resumen: `«${corto(p.texto ?? '')}»` }
     case 'send_template':
-      return { tipo: p.tipo, resumen: `Plantilla ${p.plantilla ?? ''}` }
+      // Una receta deja la plantilla en blanco a propósito, para que el
+      // comercio elija. Dibujarlo como "Plantilla " a secas no dice que falta.
+      return {
+        tipo: p.tipo,
+        resumen: p.plantilla ? `Plantilla ${p.plantilla}` : 'Falta elegir la plantilla',
+      }
     case 'wait':
       return { tipo: p.tipo, resumen: `Espera ${p.cantidad} ${enCastellano(p.unidad)}` }
     case 'add_tag':
-      return { tipo: p.tipo, resumen: `Le pone la etiqueta «${p.etiqueta ?? ''}»` }
+      return {
+        tipo: p.tipo,
+        resumen: p.etiqueta
+          ? `Le pone la etiqueta «${p.etiqueta}»`
+          : 'Falta elegir la etiqueta que le pone',
+      }
     case 'remove_tag':
-      return { tipo: p.tipo, resumen: `Le saca la etiqueta «${p.etiqueta ?? ''}»` }
+      return {
+        tipo: p.tipo,
+        resumen: p.etiqueta
+          ? `Le saca la etiqueta «${p.etiqueta}»`
+          : 'Falta elegir la etiqueta que le saca',
+      }
     case 'close_conversation':
       return { tipo: p.tipo, resumen: 'Cierra la conversación' }
     case 'assign_conversation':

@@ -3,6 +3,7 @@
 import { Fragment } from 'react'
 import { Check, Loader2, Sparkles, X } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
+import { TextoRico } from '@/components/ui/texto-rico'
 import { cn } from '@/lib/utils'
 import type { AgenteEnMesa, PlanEnMesa } from './mesa-contexto'
 
@@ -149,7 +150,9 @@ function Nodo({
         <span className="truncate font-medium text-foreground">{nombre}</span>
       </div>
       {ultima && (
-        <p className="mt-0.5 line-clamp-2 leading-snug text-muted-foreground">{ultima}</p>
+        <div className="mt-0.5 line-clamp-2 leading-snug text-muted-foreground">
+          <TextoRico text={ultima} />
+        </div>
       )}
     </div>
   )

@@ -8,6 +8,7 @@ import { useT } from '@/hooks/use-locale'
 import { cn } from '@/lib/utils'
 import { VistaArtefacto } from './artefacto'
 import { MapaEquipo } from './mapa-equipo'
+import { TextoRico } from '@/components/ui/texto-rico'
 import {
   mesaTieneAlgo,
   useMesa,
@@ -213,9 +214,9 @@ function FilaAgente({ agente }: { agente: AgenteEnMesa }) {
         )}
       </div>
       {agente.ultima && (
-        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-          {agente.ultima}
-        </p>
+        <div className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+          <TextoRico text={agente.ultima} />
+        </div>
       )}
     </div>
   )
