@@ -151,7 +151,7 @@ export async function runOrquestador(args: {
         results.push({
           type: 'tool_result',
           tool_use_id: uso.id,
-          content: `${uso.name} no la podés usar vos. Si cambia algo, delegala al especialista del dominio.`,
+          content: `${uso.name} no la puedes usar tú. Si cambia algo, delégala al especialista del dominio.`,
           is_error: true,
         })
         continue
@@ -298,7 +298,7 @@ async function manejarPlan(
       result: {
         type: 'tool_result',
         tool_use_id: uso.id,
-        content: `${v.error} Corregí el plan y volvé a mandarlo.`,
+        content: `${v.error} Corrige el plan y vuelve a mandarlo.`,
         is_error: true,
       },
     }
@@ -331,7 +331,15 @@ async function manejarPlan(
       content: JSON.stringify({
         plan_id: planId,
         estado: 'esperando_aprobacion',
-        nota: 'El reparto quedó a la vista y espera un click. NO está hecho. Contá en una línea qué va a hacer el equipo y no digas que ya está.',
+        // Esta nota es lo último que el modelo lee antes de escribir, así que
+        // pesa más que cualquier regla del prompt del sistema. Decía "cuenta
+        // en una línea qué va a hacer el equipo", y el modelo obedecía: volvía
+        // a narrar el reparto que la tarjeta ya mostraba, a veces dos veces.
+        nota:
+          'El reparto YA está en pantalla, con sus pasos numerados y el botón para aprobar. '
+          + 'NO lo describas ni lo repitas: quien te habla lo está viendo. '
+          + 'Si queda algo que la tarjeta no dice (qué falta conectar, qué elegiste y por qué), dilo en UNA frase. '
+          + 'Si no queda nada, no escribas nada más. Y no digas que está hecho, porque no lo está.',
       }),
     },
   }

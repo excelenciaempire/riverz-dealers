@@ -127,6 +127,13 @@ const PASO_LABEL: Record<string, string> = {
   'contactos.etiquetar': 'operation.stepEtiquetar',
 }
 
+/** La primera frase de un texto. Lo que se muestra de un encargo. */
+function primeraFrase(texto: string): string {
+  const m = texto.match(/^[^.!?]*[.!?]/)
+  const f = (m ? m[0] : texto).trim()
+  return f.length > 4 ? f : texto.trim()
+}
+
 interface PlanPendiente {
   planId: string
   porque: string
@@ -961,9 +968,11 @@ function TarjetaPlan({
             </span>
             <span className="min-w-0 flex-1 leading-snug">
               <span className="font-medium text-foreground">{p.agente}</span>{" "}
-              {/* Dos líneas y corta. El encargo completo es la instrucción que
-                  recibe el especialista, no algo para leer entero acá. */}
-              <span className="line-clamp-2 text-muted-foreground">{p.encargo}</span>
+              {/* La primera frase, y cortada a dos líneas. El encargo completo
+                  es la instrucción que recibe el especialista —lleva el detalle
+                  que necesita para no adivinar— y no algo para leer entero acá:
+                  dos párrafos por paso convertían la tarjeta en un muro. */}
+              <span className="line-clamp-2 text-muted-foreground">{primeraFrase(p.encargo)}</span>
               {p.dependeDe.length > 0 && (
                 <span className="text-muted-foreground/70">
                   {" "}
