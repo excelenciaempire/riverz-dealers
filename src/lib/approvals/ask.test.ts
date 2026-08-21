@@ -26,12 +26,16 @@ vi.mock('@/lib/admin/platform-whatsapp', () => ({
 }))
 
 const enviados: Array<{ to: string; text: string }> = []
+const plantillas: Array<{ to: string; params: string[] }> = []
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTextMessage: vi.fn(async (a: { to: string; text: string }) => {
     enviados.push({ to: a.to, text: a.text })
     return { messageId: 'wamid.1' }
   }),
-  sendTemplateMessage: vi.fn(async () => ({ messageId: 'wamid.2' })),
+  sendTemplateMessage: vi.fn(async (a: { to: string; params: string[] }) => {
+    plantillas.push({ to: a.to, params: a.params })
+    return { messageId: 'wamid.2' }
+  }),
 }))
 
 const OWNER = '11111111-1111-1111-1111-111111111111'
@@ -123,5 +127,74 @@ describe('askForApproval', () => {
     expect(res.approvalId).toBeTruthy()
     expect(res.error).toMatch(/tel/i)
     expect(enviados).toHaveLength(0)
+  })
+})
+
+describe('el aviso por plantilla', () => {
+  beforeEach(() => {
+    plantillas.length = 0
+    enviados.length = 0
+    profilesFilter = null
+  })
+
+  it('manda los parámetros en UNA línea', async () => {
+    // Una plantilla de WhatsApp no admite saltos de línea en sus parámetros:
+    // Meta rechaza el envío entero. Los cuerpos de las aprobaciones se arman
+    // con `\n` —importe, motivo, qué pasa si acepta—, así que con la plantilla
+    // configurada TODO aviso de cancelación y de reembolso fallaba, siempre y
+    // en silencio: la fila quedaba esperando en el panel, el comercio nunca se
+    // enteraba, y a la clienta ya se le había dicho que estaba pedido.
+    const { platformWhatsApp } = await import('@/lib/admin/platform-whatsapp')
+    vi.mocked(platformWhatsApp).mockResolvedValueOnce({
+      phoneNumberId: '123',
+      token: 't',
+      templateName: 'riverz_aviso',
+      templateLanguage: 'es',
+      displayPhoneNumber: null,
+    } as never)
+
+    const res = await askForApproval({
+      db: fakeDb([{ user_id: OWNER, phone: '5491155555555' }]),
+      workspaceId: WS,
+      kind: 'reembolsar_pedido',
+      title: '¿Reembolsar el pedido #1042?',
+      body: 'Lo pidió la clienta por chat.\nImporte del pedido: 69000 COP.\nA devolver: todo lo cobrado.\n',
+    })
+
+    expect(plantillas).toHaveLength(1)
+    for (const p of plantillas[0].params) {
+      expect(p).not.toMatch(/[\n\t]/)
+      expect(p).not.toMatch(/ {2,}/)
+    }
+    // Y el contenido sigue estando: aplanar no puede ser perder.
+    expect(plantillas[0].params[1]).toContain('69000 COP')
+    expect(plantillas[0].params[1]).toContain('todo lo cobrado')
+    expect(res.notified).toBe(true)
+  })
+
+  it('separa "quedó anotada" de "alguien se enteró"', async () => {
+    // Mirando sólo `ok`, el agente le decía a la clienta "ya lo pasé, te
+    // confirman en breve" mientras del otro lado no había sonado nada.
+    const res = await askForApproval({
+      db: fakeDb([{ user_id: OWNER, phone: null }]),
+      workspaceId: WS,
+      kind: 'cancelar_pedido',
+      title: '¿Cancelar el pedido #1042?',
+      body: 'Lo pidió la clienta por chat.',
+    })
+    expect(res.ok).toBe(true)
+    expect(res.approvalId).toBeTruthy()
+    expect(res.notified).toBe(false)
+  })
+
+  it('cuando sí sale, lo dice', async () => {
+    const res = await askForApproval({
+      db: fakeDb([{ user_id: OWNER, phone: '5491155555555' }]),
+      workspaceId: WS,
+      kind: 'pago_informado',
+      title: 'Pago informado',
+      body: 'Dice que pagó',
+    })
+    expect(res.notified).toBe(true)
   })
 })

@@ -34,6 +34,7 @@
   if (!KEY) return;
   var BASE = new URL(script.src).origin;
   var STORAGE_VISITOR = 'riverz_wvid';
+  var STORAGE_PROOF = 'riverz_wsig';
   var STORAGE_OPEN = 'riverz_wopen';
 
   /**
@@ -211,14 +212,26 @@
 
   // ── Sesión ─────────────────────────────────────────────────────
 
-  function start() {
+  /**
+   * Pide una sesión. Emitirla es tarea de este archivo y de ningún otro: el
+   * endpoint decide contra el `Origin` de la TIENDA si la llave se está usando
+   * donde corresponde, y ese origen sólo lo tiene el código que corre en la
+   * página del comercio. Desde el iframe, que vive en nuestro dominio, esa
+   * comprobación ya no dice nada.
+   */
+  function mintSession() {
     var visitorId = storage(STORAGE_VISITOR);
-    fetch(BASE + '/api/widget/session', {
+    return fetch(BASE + '/api/widget/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         k: KEY,
         visitorId: visitorId || undefined,
+        // La prueba de que ese id es de esta persona. El id se publica —viaja
+        // en el carrito hasta el pedido, para poder atribuir la venta—, así que
+        // sin esto quien lo leyera pedía una sesión con él y se quedaba con la
+        // conversación ajena. Esto no sale nunca del navegador.
+        visitorProof: storage(STORAGE_PROOF) || undefined,
         page: { url: location.href, title: document.title },
         locale: (navigator.language || 'es').slice(0, 2),
       }),
@@ -231,7 +244,14 @@
         state.session = data.sessionToken;
         state.settings = data.settings || {};
         if (data.visitorId) storage(STORAGE_VISITOR, data.visitorId);
+        if (data.visitorProof) storage(STORAGE_PROOF, data.visitorProof);
+        return data;
+      });
+  }
 
+  function start() {
+    mintSession()
+      .then(function () {
         applyPosition(state.settings.position);
         renderLauncher();
         root.appendChild(launcher);
@@ -340,6 +360,22 @@
       });
   }
 
+  /**
+   * Lleva al checkout de la tienda, con todo lo que la persona haya juntado
+   * —lo del chat y lo que ya tuviera—, no sólo con este artículo.
+   *
+   * Con cupón se pasa por `/discount/CODE`, que es la única forma de aplicarlo:
+   * la API de carrito no acepta códigos, así que ir derecho al checkout dejaba
+   * pagando precio de lista a quien el agente le acababa de prometer un
+   * descuento.
+   */
+  function goCheckout(carrito) {
+    location.href =
+      carrito && carrito.discount
+        ? '/discount/' + encodeURIComponent(carrito.discount) + '?redirect=/checkout'
+        : '/checkout';
+  }
+
   // Mensajes desde el iframe.
   window.addEventListener('message', function (event) {
     if (event.origin !== BASE || !event.data || typeof event.data !== 'object') return;
@@ -355,21 +391,28 @@
       addToCart(data.path).then(
         function (carrito) {
           post({ type: 'riverz:cart_result', ok: true });
-          if (data.after !== 'checkout') return;
-          // "Ir a pagar": el producto ya está en el carrito, así que la tienda
-          // lleva a su propio checkout con todo lo que la persona haya juntado
-          // —lo del chat y lo que ya tuviera—, no sólo con este artículo.
-          //
-          // Con cupón se pasa por `/discount/CODE`, que es la única forma de
-          // aplicarlo: la API de carrito no acepta códigos, así que ir derecho
-          // al checkout dejaba pagando precio de lista a quien el agente le
-          // acababa de prometer un descuento.
-          location.href = carrito && carrito.discount
-            ? '/discount/' + encodeURIComponent(carrito.discount) + '?redirect=/checkout'
-            : '/checkout';
+          if (data.after === 'checkout') goCheckout(carrito);
         },
         function () {
           post({ type: 'riverz:cart_result', ok: false });
+        },
+      );
+    } else if (data.type === 'riverz:go_checkout') {
+      // Quien primero agregó y después decidió pagar ya tiene el producto en
+      // el carrito: volver a agregarlo le cobraba dos unidades de algo que
+      // pidió una sola vez. Falta sólo el cupón, que no se aplica al agregar.
+      goCheckout(parseCart(data.path));
+    } else if (data.type === 'riverz:resume') {
+      // El token del chat caduca a las 24 h. Recargar el iframe no lo renueva:
+      // el token viaja en el fragmento y el chat lo borra apenas lo lee, así
+      // que la recarga volvía sin sesión y dejaba una caja de texto que no
+      // mandaba nada.
+      mintSession().then(
+        function () {
+          post({ type: 'riverz:session', token: state.session });
+        },
+        function () {
+          post({ type: 'riverz:session', token: null });
         },
       );
     }

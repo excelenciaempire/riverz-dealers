@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { verifyWidgetKey, mintSession } from '@/lib/channels/webchat/token';
+import {
+  verifyWidgetKey,
+  mintSession,
+  visitorProof,
+  visitorProofValid,
+  VISITOR_ID_RE,
+} from '@/lib/channels/webchat/token';
 import { originAllowed, normalizeOrigin, widgetSettings } from '@/lib/channels/webchat/config';
 import { checkIpLimit, loadWebchat } from '@/lib/channels/webchat/guard';
 
@@ -40,6 +46,32 @@ export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(origin || '*') });
 }
 
+/**
+ * Con qué id sigue este visitante.
+ *
+ * Tres caminos, en orden: con prueba válida, el suyo; sin prueba pero con un id
+ * que nadie usó todavía, ése (es el visitante que instaló el widget antes de
+ * que existiera la prueba, y no hay nada que robarle); en cualquier otro caso,
+ * uno nuevo. Reclamar el id de alguien que ya conversó nunca funciona.
+ */
+async function resolverVisitante(
+  workspaceId: string,
+  proposed: string,
+  proof: string,
+): Promise<string> {
+  if (!VISITOR_ID_RE.test(proposed)) return `wv_${randomUUID()}`;
+  if (visitorProofValid(workspaceId, proposed, proof)) return proposed;
+
+  const { data } = await supabaseAdmin()
+    .from('contacts')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'webchat')
+    .eq('external_id', proposed)
+    .maybeSingle();
+  return data ? `wv_${randomUUID()}` : proposed;
+}
+
 export async function POST(request: Request) {
   const origin = request.headers.get('origin') ?? '';
   const cors = corsHeaders(origin || '*');
@@ -55,6 +87,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     k?: string;
     visitorId?: string;
+    visitorProof?: string;
     page?: { url?: string; title?: string };
     locale?: string;
   } | null;
@@ -81,8 +114,19 @@ export async function POST(request: Request) {
   // hilo se perdía en cada recarga. Llega por el cuerpo, y se acepta sólo con
   // la forma que emitimos — es un identificador que termina siendo el
   // `external_id` del contacto, y no puede ser texto libre de un desconocido.
+  //
+  // Pero la forma no alcanzaba. El id se publica a propósito: viaja en los
+  // atributos del carrito para poder atribuir la venta, queda en el pedido y
+  // cualquier script de la tienda lo lee. Aceptándolo pelado, quien lo viera
+  // pedía una sesión con él y heredaba la conversación de esa persona, sus
+  // comprobantes y la posibilidad de escribir en su nombre. Ahora hace falta la
+  // prueba, que vive sólo en el navegador de su dueño.
   const proposed = (body.visitorId ?? '').trim();
-  const visitorId = /^wv_[0-9a-f-]{36}$/.test(proposed) ? proposed : `wv_${randomUUID()}`;
+  const visitorId = await resolverVisitante(
+    workspaceId,
+    proposed,
+    (body.visitorProof ?? '').trim(),
+  );
 
   const sessionToken = mintSession({
     workspaceId,
@@ -100,6 +144,7 @@ export async function POST(request: Request) {
     {
       sessionToken,
       visitorId,
+      visitorProof: visitorProof(workspaceId, visitorId),
       settings: widgetSettings(config, (workspace as { name?: string } | null)?.name ?? 'Riverz'),
     },
     { headers: cors },

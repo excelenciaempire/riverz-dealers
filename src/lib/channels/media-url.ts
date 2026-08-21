@@ -87,6 +87,32 @@ function decodePath(path: string): string | null {
 }
 
 /**
+ * Ruta del bucket a partir de los segmentos de una URL, o null si alguno no
+ * puede ser un nombre de archivo nuestro.
+ *
+ * Next ya entrega los segmentos DECODIFICADOS. Las dos rutas de lectura los
+ * volvían a decodificar, y esa segunda vuelta era una travesía de directorios:
+ * `%252e%252e` llega como `%2e%2e`, el segundo decode lo convierte en `..`, y
+ * el parser de URL lo colapsa dentro del enlace firmado. Con eso, los dos
+ * primeros segmentos —que son justo los que se comparan contra la sesión—
+ * dejaban de decidir nada: bastaba poner los propios y subir con `..` hasta el
+ * adjunto de otra cuenta. Por ahí viajan comprobantes de pago y documentos.
+ *
+ * Así que no se decodifica de nuevo y se acepta sólo lo que esta app escribe:
+ * ids y nombres planos. Es una lista blanca a propósito: enumerar lo que hay
+ * que prohibir es exactamente cómo se llegó hasta acá.
+ */
+const SEGMENTO_SEGURO = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export function storagePathFromSegments(segments: string[]): string | null {
+  if (segments.length === 0) return null;
+  for (const s of segments) {
+    if (!SEGMENTO_SEGURO.test(s) || s.includes('..')) return null;
+  }
+  return segments.join('/');
+}
+
+/**
  * URL firmada de un objeto del bucket. null si Storage la rechaza (objeto
  * borrado, ruta mal formada) — quien llama decide si eso es fatal.
  */

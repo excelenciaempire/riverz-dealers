@@ -35,8 +35,32 @@ export interface AskInput {
 export interface AskResult {
   ok: boolean
   approvalId?: string
-  /** Por qué no se pudo preguntar. La acción NO se ejecuta igual. */
+  /**
+   * ¿Le LLEGÓ al comercio?
+   *
+   * Separado de `ok` a propósito. `ok` dice que la pregunta quedó anotada y
+   * espera en el panel; esto dice que además alguien se enteró. Quien mira sólo
+   * `ok` le termina diciendo a la clienta "ya lo pasé, te confirman en breve"
+   * mientras del otro lado no sonó nada — y eso, en una cancelación o un
+   * reembolso, es una promesa que nadie va a cumplir.
+   */
+  notified: boolean
+  /** Por qué no se pudo preguntar o avisar. La acción NO se ejecuta igual. */
   error?: string
+}
+
+/**
+ * Una plantilla de WhatsApp no admite saltos de línea, tabulaciones ni corridas
+ * largas de espacios en sus parámetros: Meta rechaza el envío entero.
+ *
+ * Los cuerpos de las aprobaciones se arman con `\n` —importe, motivo, qué pasa
+ * si acepta—, así que con la plantilla configurada TODO aviso de cancelación y
+ * de reembolso fallaba, siempre, en silencio: la fila quedaba esperando en el
+ * panel, el comercio nunca se enteraba y a la clienta ya se le había dicho que
+ * estaba pedido.
+ */
+function unaLinea(texto: string): string {
+  return texto.replace(/\s*\n+\s*/g, ' · ').replace(/[\t ]{2,}/g, ' ').trim()
 }
 
 /**
@@ -66,11 +90,16 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
     })
     .select('id')
     .single()
-  if (error) return { ok: false, error: error.message }
+  if (error) return { ok: false, notified: false, error: error.message }
   const approvalId = (data as { id: string }).id
 
   if (!destino) {
-    return { ok: true, approvalId, error: 'nadie con teléfono a quién preguntarle' }
+    return {
+      ok: true,
+      approvalId,
+      notified: false,
+      error: 'nadie con teléfono a quién preguntarle',
+    }
   }
 
   const enviado = await avisar(destino, input.title, input.body, approvalId)
@@ -80,7 +109,12 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
       .update({ notified_message_id: enviado.messageId })
       .eq('id', approvalId)
   }
-  return { ok: true, approvalId, error: enviado.error }
+  return {
+    ok: true,
+    approvalId,
+    notified: Boolean(enviado.messageId),
+    error: enviado.error,
+  }
 }
 
 /**
@@ -171,7 +205,10 @@ async function avisar(
         to,
         templateName: plataforma.templateName,
         language: plataforma.templateLanguage,
-        params: [title, `${body} — responde SI ${codigo} o NO ${codigo}`],
+        params: [
+          unaLinea(title),
+          unaLinea(`${body} — responde SI ${codigo} o NO ${codigo}`),
+        ],
       })
       return { messageId: res.messageId ?? undefined }
     }

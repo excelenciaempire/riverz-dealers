@@ -64,9 +64,18 @@ export function normalizeOrigin(value: string): string {
  * sólo produce widgets que no cargan. Lo que NO cubre es "otramitienda.com" —
  * de ahí que se compare contra el punto y no contra el sufijo pelado.
  *
- * `localhost` entra siempre: sin eso no hay forma de probar la instalación
- * antes de publicarla.
+ * `localhost` sólo entra fuera de producción.
+ *
+ * Entraba siempre, y eso anulaba la lista entera: la llave de instalación está
+ * a la vista en el HTML de cualquier tienda, así que bastaba pedir la sesión
+ * con `Origin: http://localhost` desde cualquier máquina del mundo para
+ * conseguir un token bueno del comercio ajeno — y con él escribir en su bandeja
+ * (cada mensaje dispara una respuesta del agente, que se paga), subir archivos
+ * a su bucket y recorrerle el catálogo. Probar la instalación antes de
+ * publicarla se hace en desarrollo, o agregando el dominio a la lista.
  */
+const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 export function originAllowed(origin: string, domains: string[] | undefined): boolean {
   const host = normalizeOrigin(origin);
   if (!host) return false;
@@ -74,7 +83,7 @@ export function originAllowed(origin: string, domains: string[] | undefined): bo
   // esto `localhost:3000` pasaba y `127.0.0.1:3000` no, que es la misma máquina
   // escrita de las dos formas que usa cualquiera para levantar su tienda.
   const sinPuerto = host.split(':')[0];
-  if (sinPuerto === 'localhost' || sinPuerto === '127.0.0.1' || sinPuerto === '[::1]') return true;
+  if (LOCAL.has(sinPuerto)) return process.env.NODE_ENV !== 'production';
   return (domains ?? []).some((d) => {
     const allowed = normalizeOrigin(d);
     if (!allowed) return false;

@@ -106,4 +106,14 @@ describe('las acciones que mueven dinero', () => {
     expect(resolve).toContain('cancelOrder');
     expect(resolve).toContain('refundOrder');
   });
+
+  it('el reintento con la clave de la plataforma no repite lo ya hecho', () => {
+    // El reintento vuelve a arrancar con los mensajes originales, sin los
+    // resultados de las herramientas que ya corrieron. Si eso pasa después de
+    // crear un pedido, crea el segundo.
+    const desde = runner.indexOf('claveRechazada(err)');
+    expect(desde).toBeGreaterThan(-1);
+    const bloque = runner.slice(desde, runner.indexOf('keySource = respaldo.source', desde));
+    expect(bloque).toContain('efectos.ejecutados');
+  });
 });

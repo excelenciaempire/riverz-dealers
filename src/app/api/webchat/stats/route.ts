@@ -12,7 +12,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
  *                     medida real de si el agente sirve.
  *   escaladas       — las que sí necesitaron a alguien del equipo.
  *   pedidos         — compras que salieron de una de esas conversaciones.
- *   ingreso         — cuánto dinero fue eso.
+ *   ingreso         — cuánto dinero fue eso, separado por divisa.
  *
  * "Resuelta" se deriva, no se guarda: una conversación de chat web que nadie
  * del equipo tocó y que no pidió humano, la resolvió el agente. Guardar un
@@ -73,12 +73,30 @@ export async function GET() {
   // infla justo el número que el comercio va a usar para decidir si el canal
   // vale la pena. (`orders.status` sólo admite created|paid|fulfilled|
   // cancelled|failed — no hay 'refunded' que filtrar.)
-  const revenue = orders
-    .filter((o) => o.status !== 'cancelled' && o.status !== 'failed')
-    .reduce((sum, o) => {
-      const n = typeof o.total_price === 'number' ? o.total_price : parseFloat(String(o.total_price ?? ''));
-      return Number.isFinite(n) ? sum + n : sum;
-    }, 0);
+  //
+  // Y se agrupa por divisa. Antes se sumaba todo junto y al total se le pegaba
+  // la divisa del primer pedido de la lista: una tienda que vende en pesos y
+  // en dólares veía 1.250.000 "USD", un número que no existe.
+  const porDivisa = new Map<string, { revenue: number; orders: number }>();
+  for (const o of orders) {
+    if (o.status === 'cancelled' || o.status === 'failed') continue;
+    const n =
+      typeof o.total_price === 'number' ? o.total_price : parseFloat(String(o.total_price ?? ''));
+    if (!Number.isFinite(n)) continue;
+    const code = (o.currency ?? '').trim().toUpperCase();
+    const acc = porDivisa.get(code) ?? { revenue: 0, orders: 0 };
+    acc.revenue += n;
+    acc.orders += 1;
+    porDivisa.set(code, acc);
+  }
+  const revenueByCurrency = [...porDivisa.entries()]
+    .map(([currency, v]) => ({ currency: currency || null, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // `revenue` + `currency` siguen siendo la divisa que más movió, no la mezcla:
+  // la tarjeta de Ajustes muestra ese par y con una sola divisa —el caso
+  // normal— da exactamente lo mismo que antes.
+  const principal = revenueByCurrency[0] ?? null;
 
   return NextResponse.json({
     period_days: WINDOW_DAYS,
@@ -86,7 +104,8 @@ export async function GET() {
     resolved: conversations.length - escalated,
     escalated,
     orders: orders.length,
-    revenue,
-    currency: orders.find((o) => o.currency)?.currency ?? null,
+    revenue: principal?.revenue ?? 0,
+    currency: principal?.currency ?? null,
+    revenue_by_currency: revenueByCurrency,
   });
 }

@@ -18,12 +18,20 @@ import {
   type CreateOrderInput,
   type CreateOrderResult,
 } from '@/lib/shopify/create-order'
+import type { CommercePlatform } from '@/lib/commerce/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** Dónde queda anotado el pedido del lado de Riverz. */
 export interface EspejoDePedido {
   /** Sin cuenta no hay espejo: el pedido se crea igual y no se anota. */
   workspaceId?: string | null
+  /**
+   * En qué tienda quedó el pedido. Se escribe siempre: la columna tiene
+   * DEFAULT 'shopify' (migración 126), así que omitirla no deja el dato en
+   * blanco —lo deja MAL, y un pedido de otra plataforma queda para siempre
+   * contado como de Shopify.
+   */
+  platform?: CommercePlatform
   contactId?: string | null
   agentId?: string | null
   conversationId?: string | null
@@ -50,6 +58,7 @@ export async function crearPedidoConEspejo(
     try {
       await db.from('orders').insert({
         workspace_id: espejo.workspaceId,
+        platform: espejo.platform ?? 'shopify',
         contact_id: espejo.contactId ?? null,
         agent_id: espejo.agentId ?? null,
         conversation_id: espejo.conversationId ?? null,

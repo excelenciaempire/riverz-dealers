@@ -21,6 +21,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 const KEY_DOMAIN = 'web-widget';
 const SESSION_DOMAIN = 'web-widget-session';
+const VISITOR_DOMAIN = 'web-widget-visitor';
 
 /** Vida del token de sesión. Un día: lo suficiente para que quien vuelve por
  *  la tarde siga en el mismo hilo, poco para que uno filtrado sirva de algo.
@@ -61,6 +62,39 @@ export function verifyWidgetKey(token: string): string | null {
   if (at <= 0) return null;
   const workspaceId = token.slice(0, at);
   return equals(token, widgetKey(workspaceId)) ? workspaceId : null;
+}
+
+// ── Prueba de visitante ──────────────────────────────────────────
+
+/** La forma que emitimos: `wv_` y un UUID de verdad. */
+export const VISITOR_ID_RE =
+  /^wv_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * El secreto que acompaña al id del visitante.
+ *
+ * El id NO es un secreto y no puede serlo: se estampa en el carrito de la
+ * tienda (`attributes[riverz_wvid]`) para poder atribuir la venta, Shopify lo
+ * arrastra hasta el pedido, y cualquier script de la página lo lee del
+ * almacenamiento local. Aceptándolo pelado, quien lo viera se quedaba con el
+ * hilo entero de esa persona: su conversación, los comprobantes que subió y la
+ * posibilidad de escribir en su nombre.
+ *
+ * Así que el id sigue siendo público y esta firma es lo que prueba que es tuyo.
+ * Vive junto al id en el dominio de la TIENDA, nunca viaja al pedido y no se
+ * guarda en ninguna tabla.
+ */
+export function visitorProof(workspaceId: string, visitorId: string): string {
+  return sign(VISITOR_DOMAIN, `${workspaceId}:${visitorId}`);
+}
+
+export function visitorProofValid(
+  workspaceId: string,
+  visitorId: string,
+  proof: string | null | undefined,
+): boolean {
+  if (!proof) return false;
+  return equals(proof, visitorProof(workspaceId, visitorId));
 }
 
 // ── Token de sesión ──────────────────────────────────────────────
@@ -111,9 +145,28 @@ export function verifySession(token: string | null | undefined): WebchatSession 
   return session;
 }
 
-/** Lee el `Authorization: Bearer …` de un request del widget. */
-export function sessionFromRequest(req: Request): WebchatSession | null {
+/**
+ * Lee el `Authorization: Bearer …` de un request del widget.
+ *
+ * `permitirQuery` lo acepta además como `?t=`, y existe por una sola razón:
+ * un `<img src>` no manda cabeceras. Los adjuntos se dibujan con `<img>`,
+ * `<video>` y `<audio>`, así que exigir la cabecera hacía que TODA foto que
+ * mandaba el comercio —y la que acababa de subir el visitante— respondiera 401
+ * y se viera como una burbuja rota. Sólo lo habilita la ruta de lectura de
+ * archivos; para escribir sigue haciendo falta la cabecera, que no queda en el
+ * historial del navegador ni en el `Referer`.
+ */
+export function sessionFromRequest(
+  req: Request,
+  opciones?: { permitirQuery?: boolean },
+): WebchatSession | null {
   const header = req.headers.get('authorization') ?? '';
   const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
-  return verifySession(bearer);
+  const desdeHeader = verifySession(bearer);
+  if (desdeHeader || !opciones?.permitirQuery) return desdeHeader;
+  try {
+    return verifySession(new URL(req.url).searchParams.get('t'));
+  } catch {
+    return null;
+  }
 }

@@ -508,7 +508,7 @@ interface WooAddress {
   phone?: string
 }
 
-interface WooMeta {
+export interface WooMeta {
   key?: string
   value?: unknown
 }
@@ -524,6 +524,8 @@ interface WooOrder {
   date_paid?: string | null
   date_completed?: string | null
   date_created?: string | null
+  /** La misma fecha en UTC. Es la que sirve: ver `wooFechaAIso`. */
+  date_created_gmt?: string | null
   billing?: WooAddress
   shipping?: WooAddress
   line_items?: WooLineItem[]
@@ -623,17 +625,25 @@ function normalizeWooState(status: string) {
   }
 }
 
+export interface WooTracking {
+  number: string
+  company: string
+  url: string
+}
+
 /**
  * El seguimiento no existe en el core de WooCommerce: lo agregan plugins
  * que lo guardan en `meta_data`. Leemos las claves de los más usados
  * (WooCommerce Shipment Tracking, AST) y, si no hay ninguna, devolvemos
  * vacío — la automatización de tracking simplemente no dispara.
+ *
+ * Es la ÚNICA lectura del seguimiento de WooCommerce que hay. Había otra en
+ * `order-lookup.ts` que miraba claves distintas (`_shipping_provider`,
+ * `_tracking_url`) y por eso el mismo pedido mostraba el número de
+ * seguimiento por el camino del webhook y no por el de "¿dónde está mi
+ * pedido?", que es justo donde el cliente lo pide.
  */
-function extractWooTracking(meta: WooMeta[] | undefined): {
-  number: string
-  company: string
-  url: string
-} {
+export function extractWooTracking(meta: WooMeta[] | undefined): WooTracking {
   const empty = { number: '', company: '', url: '' }
   if (!Array.isArray(meta)) return empty
   const find = (keys: string[]): string => {
@@ -646,8 +656,13 @@ function extractWooTracking(meta: WooMeta[] | undefined): {
   }
   const direct = {
     number: find(['_tracking_number', 'tracking_number']),
-    company: find(['_tracking_provider', 'tracking_provider', '_custom_tracking_provider']),
-    url: find(['_custom_tracking_link', 'tracking_url']),
+    company: find([
+      '_tracking_provider',
+      'tracking_provider',
+      '_custom_tracking_provider',
+      '_shipping_provider',
+    ]),
+    url: find(['_custom_tracking_link', 'tracking_url', '_tracking_url']),
   }
   if (direct.number) return direct
 
@@ -663,6 +678,27 @@ function extractWooTracking(meta: WooMeta[] | undefined): {
     }
   }
   return empty
+}
+
+/**
+ * La fecha del pedido, en UTC.
+ *
+ * WooCommerce manda `date_created` en la zona de la tienda y SIN sufijo, así
+ * que quien la lea la va a interpretar en la suya: un pedido de una tienda en
+ * Buenos Aires aparecía tres horas corrido, y con eso caía en el día —o en la
+ * ventana de atribución— equivocado. Al lado viene `date_created_gmt`, que es
+ * el mismo instante en UTC y sólo le falta la Z.
+ */
+export function wooFechaAIso(
+  local: string | null | undefined,
+  gmt: string | null | undefined,
+): string | null {
+  const conZ = (v: string) => (/[zZ]|[+-]\d{2}:?\d{2}$/.test(v) ? v : `${v}Z`)
+  if (gmt && gmt.trim()) return conZ(gmt.trim())
+  // Sin la versión GMT no hay forma de saber el desfase de la tienda; se
+  // asume UTC, que es lo mismo que hacía antes pero dicho en voz alta.
+  if (local && local.trim()) return conZ(local.trim())
+  return null
 }
 
 /**
@@ -739,7 +775,7 @@ export function normalizeWooOrder(
     trackingCompany: tracking.company,
     trackingUrl: tracking.url,
     checkoutToken: o.cart_hash || null,
-    createdAt: o.date_created ?? null,
+    createdAt: wooFechaAIso(o.date_created, o.date_created_gmt),
     raw: o as unknown as Record<string, unknown>,
   }
 }

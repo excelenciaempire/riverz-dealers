@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import {
   INBOX_SIGNED_TTL_SECONDS,
   signMediaPath,
+  storagePathFromSegments,
 } from "@/lib/channels/media-url";
 
 /**
@@ -39,6 +40,13 @@ export async function GET(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  // Antes de consultar nada: si la ruta no es un nombre de archivo nuestro, el
+  // primer segmento deja de ser la autorización que este chequeo cree que es.
+  const storagePath = storagePathFromSegments(path);
+  if (!storagePath) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,7 +65,6 @@ export async function GET(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const storagePath = path.map((p) => decodeURIComponent(p)).join("/");
   const signed = await signMediaPath(storagePath, INBOX_SIGNED_TTL_SECONDS);
   if (!signed) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });

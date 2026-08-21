@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { INBOX_SIGNED_TTL_SECONDS, signMediaPath } from '@/lib/channels/media-url';
+import {
+  INBOX_SIGNED_TTL_SECONDS,
+  signMediaPath,
+  storagePathFromSegments,
+} from '@/lib/channels/media-url';
 import { requireSession } from '@/lib/channels/webchat/guard';
 
 /**
@@ -25,7 +29,9 @@ export async function GET(
   req: Request,
   context: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
-  const guard = await requireSession(req, 'poll');
+  // El token va por `?t=` porque un `<img>` no manda cabeceras: exigiendo la
+  // cabecera, cada foto que mandaba el comercio se veía como una burbuja rota.
+  const guard = await requireSession(req, 'poll', { tokenEnQuery: true });
   if (!guard.ok) return guard.response;
   const { session } = guard;
 
@@ -33,6 +39,14 @@ export async function GET(
   if (!path || path.length < 3) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+
+  // Antes de comparar nada: si la ruta no es un nombre de archivo nuestro, los
+  // dos primeros segmentos dejan de ser la autorización que esto cree que es.
+  const storagePath = storagePathFromSegments(path);
+  if (!storagePath) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
   const [workspaceId, duenio] = path;
   if (workspaceId !== session.workspaceId) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -63,7 +77,6 @@ export async function GET(
     }
   }
 
-  const storagePath = path.map((p) => decodeURIComponent(p)).join('/');
   const signed = await signMediaPath(storagePath, INBOX_SIGNED_TTL_SECONDS);
   if (!signed) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });

@@ -17,6 +17,7 @@ import {
   appMediaUrl,
   isManagedMediaUrl,
   resolveMediaFetchUrl,
+  storagePathFromSegments,
   storagePathFromUrl,
 } from "./media-url";
 
@@ -77,5 +78,33 @@ describe("resolveMediaFetchUrl", () => {
   it("no toca una URL ajena", async () => {
     const external = "https://cdn.shopify.com/s/files/1/producto.jpg";
     expect(await resolveMediaFetchUrl(external)).toBe(external);
+  });
+});
+
+describe("storagePathFromSegments", () => {
+  const WS = "11111111-1111-1111-1111-111111111111";
+  const CONV = "22222222-2222-2222-2222-222222222222";
+
+  it("arma la ruta de un adjunto normal", () => {
+    expect(storagePathFromSegments([WS, CONV, "foto.jpg"])).toBe(`${WS}/${CONV}/foto.jpg`);
+  });
+
+  it("no deja subir de directorio", () => {
+    // Next entrega los segmentos YA decodificados y las dos rutas de lectura
+    // los decodificaban otra vez: `%252e%252e` llegaba como `%2e%2e`, el
+    // segundo decode lo volvía `..` y el parser de URL lo colapsaba dentro del
+    // enlace firmado. Con eso, los dos primeros segmentos —justo los que se
+    // comparan contra la sesión— dejaban de decidir nada: bastaba poner los
+    // propios y trepar hasta el adjunto de otra cuenta.
+    expect(storagePathFromSegments([WS, CONV, "..", "..", "otro", "x.jpg"])).toBeNull();
+    expect(storagePathFromSegments([WS, "%2e%2e", "x.jpg"])).toBeNull();
+    expect(storagePathFromSegments([WS, "..%2f..", "x.jpg"])).toBeNull();
+  });
+
+  it("rechaza separadores y segmentos vacíos", () => {
+    expect(storagePathFromSegments([WS, "a/b", "x.jpg"])).toBeNull();
+    expect(storagePathFromSegments([WS, String.raw`a\b`, "x.jpg"])).toBeNull();
+    expect(storagePathFromSegments([WS, "", "x.jpg"])).toBeNull();
+    expect(storagePathFromSegments([])).toBeNull();
   });
 });

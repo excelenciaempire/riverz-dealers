@@ -196,7 +196,16 @@ export async function getStoreByExternalId(
   return data ? toCredentials(data as unknown as ConnectionRow) : null
 }
 
-/** La conexión de un workspace para una plataforma (tarjeta de Ajustes, crons). */
+/**
+ * La conexión ACTIVA de un workspace para una plataforma (resync, crons,
+ * descarga del plugin).
+ *
+ * El filtro de estado no es cosmético: una reconexión deja la fila vieja en
+ * 'expired' o 'uninstalled' y, sin él, ganaba la más reciente de cualquier
+ * estado. El comercio reconectaba, la tarjeta quedaba en verde y cada llamada
+ * salía con la credencial revocada. Para MOSTRAR el estado está
+ * `getPublicConnection`, que sí tiene que ver las caídas.
+ */
 export async function getStoreForWorkspace(
   db: SupabaseClient,
   platform: CommercePlatform,
@@ -207,6 +216,7 @@ export async function getStoreForWorkspace(
     .select(SELECT_COLUMNS)
     .eq('platform', platform)
     .eq('workspace_id', workspaceId)
+    .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
     .maybeSingle()

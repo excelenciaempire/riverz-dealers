@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { widgetKey, verifyWidgetKey, mintSession, verifySession } from './token';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import {
+  widgetKey,
+  verifyWidgetKey,
+  mintSession,
+  verifySession,
+  sessionFromRequest,
+  visitorProof,
+  visitorProofValid,
+  VISITOR_ID_RE,
+} from './token';
 import { normalizeOrigin, originAllowed } from './config';
 import { visitorIdFromOrder } from './attribution';
 
@@ -124,7 +133,7 @@ describe('originAllowed', () => {
     expect(originAllowed('', domains)).toBe(false);
   });
 
-  it('deja pasar la máquina local, con puerto o sin él', () => {
+  it('deja pasar la máquina local en desarrollo, con puerto o sin él', () => {
     // Las cuatro formas en que alguien levanta su tienda para probar. Con el
     // puerto pegado al host, comparar el string entero dejaba pasar
     // `localhost:3000` y bloqueaba `127.0.0.1:3000`.
@@ -138,9 +147,88 @@ describe('originAllowed', () => {
     }
   });
 
+  it('en PRODUCCIÓN la máquina local no pasa', () => {
+    // Pasaba siempre, y eso anulaba la lista entera: la llave de instalación
+    // está a la vista en el HTML de cualquier tienda, así que bastaba pedir la
+    // sesión con `Origin: http://localhost` desde cualquier parte para
+    // conseguir un token bueno del comercio ajeno.
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(originAllowed('http://localhost:3000', [])).toBe(false);
+      expect(originAllowed('http://127.0.0.1', domains)).toBe(false);
+      // Lo que SÍ está en la lista sigue entrando.
+      expect(originAllowed('https://mitienda.com', domains)).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('no confunde un dominio que EMPIEZA con localhost', () => {
     expect(originAllowed('https://localhost.ladron.net', [])).toBe(false);
     expect(originAllowed('https://127.0.0.1.ladron.net', [])).toBe(false);
+  });
+});
+
+describe('prueba de visitante', () => {
+  // El id se publica a propósito —viaja en los atributos del carrito hasta el
+  // pedido, para poder atribuir la venta— así que aceptarlo pelado entregaba la
+  // conversación de esa persona a cualquiera que lo leyera.
+  const visitante = 'wv_73f8d901-a0d2-4a95-9bcc-4aaceb96e7d3';
+
+  it('reconoce la prueba que emitió', () => {
+    expect(visitorProofValid(WORKSPACE, visitante, visitorProof(WORKSPACE, visitante))).toBe(true);
+  });
+
+  it('no vale sin prueba, ni con una inventada', () => {
+    expect(visitorProofValid(WORKSPACE, visitante, '')).toBe(false);
+    expect(visitorProofValid(WORKSPACE, visitante, null)).toBe(false);
+    expect(visitorProofValid(WORKSPACE, visitante, 'x'.repeat(32))).toBe(false);
+  });
+
+  it('la de OTRO visitante no sirve para éste', () => {
+    const otro = 'wv_00000000-1111-2222-3333-444444444444';
+    expect(visitorProofValid(WORKSPACE, visitante, visitorProof(WORKSPACE, otro))).toBe(false);
+  });
+
+  it('la de otro comercio tampoco', () => {
+    const otroWs = '99999999-8888-7777-6666-555555555555';
+    expect(visitorProofValid(WORKSPACE, visitante, visitorProof(otroWs, visitante))).toBe(false);
+  });
+
+  it('sólo acepta la forma que emitimos', () => {
+    expect(VISITOR_ID_RE.test(visitante)).toBe(true);
+    // Antes alcanzaba con `[0-9a-f-]{36}`, que da por bueno un id de 36 guiones
+    // — y un id canónico y compartible es justo lo que no hay que regalar.
+    expect(VISITOR_ID_RE.test(`wv_${'-'.repeat(36)}`)).toBe(false);
+    expect(VISITOR_ID_RE.test('wv_no-es-un-uuid')).toBe(false);
+  });
+});
+
+describe('token por query', () => {
+  const pedido = (url: string, headers: Record<string, string> = {}) =>
+    new Request(url, { headers });
+
+  it('la cabecera sigue siendo el camino normal', () => {
+    const t = mintSession({ workspaceId: WORKSPACE, visitorId: 'wv_x', origin: 'mitienda.com' });
+    const s = sessionFromRequest(pedido('https://riverz.co/api/widget/messages', {
+      authorization: `Bearer ${t}`,
+    }));
+    expect(s?.workspaceId).toBe(WORKSPACE);
+  });
+
+  it('acepta `?t=` sólo donde se habilita', () => {
+    // Un `<img>` no manda cabeceras: exigiéndolas, cada foto que mandaba el
+    // comercio se veía como un cuadro roto. Escribir sigue pidiendo la
+    // cabecera, que no queda en el historial ni en el `Referer`.
+    const t = mintSession({ workspaceId: WORKSPACE, visitorId: 'wv_x', origin: 'mitienda.com' });
+    const req = pedido(`https://riverz.co/api/widget/media/a/b/c.jpg?t=${encodeURIComponent(t)}`);
+    expect(sessionFromRequest(req)).toBeNull();
+    expect(sessionFromRequest(req, { permitirQuery: true })?.workspaceId).toBe(WORKSPACE);
+  });
+
+  it('un `?t=` fabricado no entra ni con el permiso puesto', () => {
+    const req = pedido('https://riverz.co/api/widget/media/a/b/c.jpg?t=basura.firma');
+    expect(sessionFromRequest(req, { permitirQuery: true })).toBeNull();
   });
 });
 

@@ -71,7 +71,17 @@ export function ProductCard({
   /** Le pide al cargador —que corre en el dominio de la tienda— que agregue.
    *  `after` decide si además lo lleva al checkout. */
   const pedir = (after: 'stay' | 'checkout') => {
-    if (estado !== 'idle') return;
+    if (estado === 'adding') return;
+
+    // Ya agregado y ahora quiere pagar: el producto está en el carrito, así que
+    // volver a agregarlo le cobraba dos unidades de algo que pidió una vez.
+    // Antes esto no llegaba a pasar por otro motivo peor — el botón quedaba
+    // vivo a la vista y no hacía nada, que es el último clic del embudo.
+    if (estado === 'added') {
+      if (after === 'checkout') window.parent?.postMessage({ type: 'riverz:go_checkout', path }, '*');
+      return;
+    }
+
     setEstado('adding');
     const timer = setTimeout(() => {
       window.removeEventListener('message', onReply);
@@ -80,6 +90,9 @@ export function ProductCard({
     }, 3000);
 
     function onReply(event: MessageEvent) {
+      // Sólo del contenedor: cualquier página que embeba el chat podía fingir
+      // un "listo, agregado" sin que nada se hubiera agregado.
+      if (event.source !== window.parent) return;
       if (event.data?.type !== 'riverz:cart_result') return;
       clearTimeout(timer);
       window.removeEventListener('message', onReply);

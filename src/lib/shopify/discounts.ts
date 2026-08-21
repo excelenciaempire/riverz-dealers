@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShopifyAdminClient } from './admin-client'
 import { decrypt } from '@/lib/whatsapp/encryption'
@@ -111,11 +112,22 @@ async function reglaDePrecio(
 ): Promise<string | null> {
   const titulo = `Riverz ${pct}%`
   try {
-    const existentes = await client.rest<{
-      price_rules?: Array<{ id?: number; title?: string }>
-    }>('/price_rules.json?limit=250')
-    const ya = (existentes.price_rules ?? []).find((r) => r.title === titulo)
-    if (ya?.id) return String(ya.id)
+    // Paginado. Una sola página de 250 alcanzaba sólo para una tienda chica: con
+    // una app de combos instalada se pasan de 250 reglas sin esfuerzo, la
+    // nuestra quedaba fuera de la primera página y se creaba una `Riverz 10%`
+    // nueva en cada emisión, hasta llenarle el panel de reglas idénticas.
+    let desde = 0
+    for (let pagina = 0; pagina < 12; pagina++) {
+      const existentes = await client.rest<{
+        price_rules?: Array<{ id?: number; title?: string }>
+      }>(`/price_rules.json?limit=250${desde ? `&since_id=${desde}` : ''}`)
+      const lote = existentes.price_rules ?? []
+      const ya = lote.find((r) => r.title === titulo)
+      if (ya?.id) return String(ya.id)
+      if (lote.length < 250) break
+      desde = Number(lote[lote.length - 1]?.id ?? 0)
+      if (!desde) break
+    }
 
     const creada = await client.rest<{ price_rule?: { id?: number } }>('/price_rules.json', {
       method: 'POST',
@@ -140,6 +152,15 @@ async function reglaDePrecio(
   } catch {
     return null
   }
+}
+
+/** Cinco caracteres al azar, sin los que se confunden al dictarlos por chat. */
+function azar(): string {
+  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = randomBytes(5)
+  let out = ''
+  for (const b of bytes) out += alfabeto[b % alfabeto.length]
+  return out
 }
 
 function slug(nombre: string | null | undefined): string {
@@ -215,8 +236,12 @@ async function emitir(
     return { code: p.code, percent: p.percent }
   }
 
+  // Un porcentaje ilegible cae al MÍNIMO, no al máximo. El número lo escribe el
+  // modelo: con `percent: "quince"` o `null` el resultado era `NaN`, y el
+  // respaldo era el tope entero — o sea, un argumento mal formado regalaba el
+  // descuento más grande que el comercio autoriza.
   const pedido = Math.floor(Number(args.pedido))
-  const pct = Math.max(1, Math.min(tope, Number.isFinite(pedido) ? pedido : tope))
+  const pct = Number.isFinite(pedido) ? Math.max(1, Math.min(tope, pedido)) : 1
 
   const tienda = await adminDeLaTienda(db, args.workspaceId)
   if (!tienda) {
@@ -231,13 +256,15 @@ async function emitir(
     return { error: 'shopify_rechazo', message: 'No se pudo preparar el descuento.' }
   }
 
+  // Todos los códigos llevan una parte al azar, siempre.
+  //
+  // El primer candidato era `NOMBRE + porcentaje`, y un visitante anónimo del
+  // chat web no tiene nombre: el primer cupón de una tienda salía literalmente
+  // `HOLA10`. Como la regla vale para cualquier cliente (`customer_selection:
+  // 'all'`) y se gasta con un solo uso, adivinarlo no era leer el descuento
+  // ajeno: era quemárselo a la persona a la que se lo acabábamos de prometer.
   const base = slug(args.contactName)
-  const sufijo = args.contactId.replace(/-/g, '').toUpperCase()
-  const candidatos = [
-    `${base}${pct}`,
-    `${base}${pct}${sufijo.slice(0, 3)}`,
-    `${base}${pct}${sufijo.slice(3, 8)}`,
-  ]
+  const candidatos = [0, 1, 2].map(() => `${base}${pct}${azar()}`)
 
   for (const code of candidatos) {
     try {
@@ -256,10 +283,29 @@ async function emitir(
         price_rule_id: ruleId,
       })
       if (errInsert) {
-        // El código ya existe en Shopify, pero sin la fila se pierden las dos
-        // cosas para las que existe la tabla: medir cuánto se regaló, y no
-        // volver a acuñarle otro a la misma persona la próxima vez que pida.
-        // Un error acá se mira; no se entrega el cupón y se sigue de largo.
+        // Choque contra el índice único por contacto: otra llamada del mismo
+        // turno ya le emitió uno. El bucle de herramientas puede pedir dos
+        // `tool_use` a la vez, así que esto pasa de verdad.
+        //
+        // Antes se devolvía error, y quedaba lo peor de los dos mundos: el
+        // cupón vivo en la tienda y el modelo diciéndole a la clienta que no se
+        // pudo. Se le entrega el que ya tiene.
+        if (errInsert.code === '23505') {
+          const { data: gemelo } = await db
+            .from('agent_discounts')
+            .select('code, percent')
+            .eq('workspace_id', args.workspaceId)
+            .eq('contact_id', args.contactId)
+            .is('redeemed_at', null)
+            .maybeSingle()
+          if (gemelo) {
+            const g = gemelo as { code: string; percent: number }
+            return { code: g.code, percent: g.percent }
+          }
+        }
+        // Cualquier otro fallo: sin la fila se pierden las dos cosas para las
+        // que existe la tabla —medir cuánto se regaló y no acuñarle otro a la
+        // misma persona—, así que no se entrega el cupón.
         console.error('[descuentos] no se registró el cupón:', errInsert.message)
         return {
           error: 'shopify_rechazo',

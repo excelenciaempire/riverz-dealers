@@ -267,7 +267,27 @@ export async function createCheckoutLink(
     .filter((i) => /^\d+$/.test(i.variant_id))
   if (lineas.length > 0) {
     const { domain: storefront } = await resolveStorefront(ctx)
-    const qs = attributesQuery(ctx, false, null, null, input.discount_code)
+    // El descuento por transferencia también acá.
+    //
+    // Iba fijo en `false`, así que el carrito de dos productos llegaba sin la
+    // marca que el equipo mira para aplicarlo — mientras `pagoLabel`, abajo,
+    // seguía diciéndole a la clienta que podía pagar por transferencia. La
+    // misma persona, pagando igual, tenía el descuento con un producto y no con
+    // dos: o se pierde la venta o alguien lo compensa a mano.
+    const montoTransferencia =
+      typeof config?.transfer_discount_amount === 'number'
+        ? config.transfer_discount_amount
+        : null
+    const etiquetaTransferencia = config?.transfer_discount_label || 'transferencia'
+    const conTransferencia =
+      input.payment_hint === 'transfer' && montoTransferencia != null && montoTransferencia > 0
+    const qs = attributesQuery(
+      ctx,
+      conTransferencia,
+      etiquetaTransferencia,
+      montoTransferencia,
+      input.discount_code,
+    )
     const path = lineas.map((l) => `${l.variant_id}:${l.quantity}`).join(',')
     const unidades = lineas.reduce((n, l) => n + l.quantity, 0)
     return {

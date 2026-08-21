@@ -123,9 +123,15 @@ export async function attributeWebchatOrder(
   const shopifyOrderId = order.id != null ? String(order.id) : null;
   if (!shopifyOrderId) return { attributed: true };
 
+  // Acotado al workspace, además de a la tienda. La misma tienda puede estar
+  // conectada a dos cuentas —pasa con el reclamo diferido y con las de prueba—,
+  // y sin este corte la actualización de abajo le pisaba `contact_id` y
+  // `channel` a la fila de la OTRA cuenta; con dos filas coincidiendo,
+  // `maybeSingle` devolvía error y el pedido terminaba duplicado.
   const { data: existing } = await admin
     .from('orders')
     .select('id')
+    .eq('workspace_id', args.workspaceId)
     .eq('shop_domain', args.shopDomain)
     .eq('shopify_order_id', shopifyOrderId)
     .maybeSingle();

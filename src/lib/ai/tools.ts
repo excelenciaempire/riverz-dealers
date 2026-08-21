@@ -656,10 +656,30 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
  * hay ningún dato con el que interrogar su API después. Lo único que ata el
  * pedido a la persona es el vínculo que guardó el sincronizador.
  */
+/**
+ * Las herramientas que dejan algo hecho afuera: un pedido en la tienda, un
+ * cobro, un cupón, una solicitud esperando al comercio.
+ *
+ * Consultar el catálogo o un pedido se puede repetir sin consecuencias; esto
+ * no. La lista existe para que un reintento sepa que ya no puede volver a
+ * empezar de cero.
+ */
+const DEJA_HUELLA = new Set([
+  'create_order',
+  'update_order',
+  'registrar_pago',
+  'cancelar_pedido',
+  'reembolsar',
+  'crear_link_de_pago',
+  'ofrecer_descuento',
+])
+
 export interface LocalOrdersContext {
   db: SupabaseClient
   workspaceId: string
   contactId: string
+  /** Para poder pasarle la conversación a una persona cuando algo queda a medias. */
+  conversationId?: string | null
 }
 
 /**
@@ -802,10 +822,27 @@ export async function runTool(
         message: verificados.message,
       })
     }
+    // El pedido al que se le ata el cobro, si esta persona ya tiene uno
+    // esperando pago. Es lo que viaja como `external_reference` y lo único que
+    // permite que el webhook de Mercado Pago sepa qué marcar: sin esto el pago
+    // llegaba huérfano y la promesa de la línea de abajo —"el pedido se marca
+    // solo"— no podía cumplirse nunca.
+    const { data: pendiente } = await localOrders.db
+      .from('orders')
+      .select('id')
+      .eq('workspace_id', localOrders.workspaceId)
+      .eq('contact_id', localOrders.contactId)
+      .in('status', ['created', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const orderId = (pendiente as { id?: string } | null)?.id ?? null
+
     const res = await crearLinkDePago(localOrders.db, {
       workspaceId: localOrders.workspaceId,
       items: verificados.items,
       payerEmail: input.customer_email ?? null,
+      orderId,
     })
     if ('error' in res) {
       return JSON.stringify({
@@ -823,8 +860,12 @@ export async function runTool(
     return JSON.stringify({
       ok: true,
       payment_url: res.url,
-      message:
-        'Pasale el link para que pague con tarjeta. Cuando pague, el pedido se marca solo. NO le digas que ya está pagado.',
+      message: orderId
+        ? 'Pasale el link para que pague con tarjeta. Cuando pague, el pedido se marca solo. NO le digas que ya está pagado.'
+        : // Sin pedido al que atarlo, el pago entra a la cuenta pero nadie lo
+          // concilia solo. Prometerlo igual dejaba a la clienta esperando una
+          // confirmación que no iba a llegar.
+          'Pasale el link para que pague con tarjeta. NO le digas que ya está pagado ni que se confirma solo: avisale que le confirmás vos cuando entre.',
     })
   }
 
@@ -839,6 +880,7 @@ export async function runTool(
       db: localOrders.db,
       workspaceId: localOrders.workspaceId,
       contactId: localOrders.contactId,
+      conversationId: localOrders.conversationId ?? null,
     }
     const input = (toolInput ?? {}) as {
       order_number?: string
@@ -951,17 +993,38 @@ export async function runTool(
       reason?: string
       order_number?: string
     }
-    // En una llamada el pedido viene fijado por el bridge de voz. Por chat no
-    // hay ninguno en contexto, así que el modelo tiene que decir cuál — y si no
-    // lo sabe, la salida correcta es preguntárselo a la clienta, no adivinar
-    // sobre el último pedido que encuentre.
-    const pedido = shopify.orderId ?? (input.order_number ?? '').trim()
+    // En una llamada el pedido viene fijado por el bridge de voz, y ahí llega
+    // el id interno de Shopify. Por chat el modelo sólo puede decir el número
+    // VISIBLE ("pedido 1042"), que no es ese id: interpolado en el `gid://`
+    // daba una edición que Shopify nunca encontraba, así que la rama de chat
+    // fallaba siempre. Se traduce contra los pedidos de ESTA persona, que de
+    // paso es el único recorte de pertenencia que hay — sin él, un número
+    // acertado editaba el pedido de cualquiera, sin aprobación de nadie.
+    let pedido = shopify.orderId ?? ''
     if (!pedido) {
-      return JSON.stringify({
-        error: 'no_order',
-        message:
-          'Falta saber a qué pedido sumarle las unidades. Preguntale el número de pedido a la clienta y volvé a intentar.',
-      })
+      const numero = (input.order_number ?? '').trim()
+      if (!numero || !localOrders) {
+        return JSON.stringify({
+          error: 'no_order',
+          message:
+            'Falta saber a qué pedido sumarle las unidades. Preguntale el número de pedido a la clienta y volvé a intentar.',
+        })
+      }
+      const { data: fila } = await localOrders.db
+        .from('orders')
+        .select('shopify_order_id')
+        .eq('workspace_id', localOrders.workspaceId)
+        .eq('contact_id', localOrders.contactId)
+        .eq('order_number', numero.replace(/^#/, ''))
+        .limit(1)
+        .maybeSingle()
+      pedido = (fila as { shopify_order_id?: string } | null)?.shopify_order_id ?? ''
+      if (!pedido) {
+        return JSON.stringify({
+          error: 'no_order',
+          message: `No encontré el pedido ${numero} a nombre de esta persona. Pedile que verifique el número.`,
+        })
+      }
     }
     const addUnits = Math.floor(Number(input.add_units))
     if (!Number.isFinite(addUnits) || addUnits <= 0) {
@@ -1109,6 +1172,12 @@ export async function runTool(
         storefrontDomain: shopify.storefrontDomain ?? null,
         config,
         currency: shopify.currency ?? null,
+        // Sin esto el enlace salía sin `attributes[riverz_wvid]` y la
+        // atribución del chat web no llegaba a ocurrir NUNCA: el pedido volvía
+        // por el webhook sin el id, `attributeWebchatOrder` cortaba en la
+        // primera línea y el comercio veía 0 pedidos y 0 ingresos por el canal.
+        // El runner lo venía cargando y esta línea faltaba.
+        visitorId: shopify.visitorId ?? null,
       },
     )
     // Registrar "pago pendiente" en la conversación: hace al asistente
@@ -1341,6 +1410,9 @@ export async function runWithTools(
     /** Present → la tienda del comercio no es Shopify: lookup_order consulta
      *  la API de Tiendanube o WooCommerce. */
     otherStore?: OtherStoreContext | null
+    /** Cuántas herramientas con efecto real corrieron. Lo mira quien reintenta:
+     *  volver a empezar después de crear un pedido crea el segundo. */
+    efectos?: { ejecutados: number }
   },
 ): Promise<{
   text: string
@@ -1424,6 +1496,9 @@ export async function runWithTools(
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
+      // Se anota ANTES de correrla: si la herramienta explota a mitad, el
+      // efecto puede haber ocurrido igual.
+      if (args.efectos && DEJA_HUELLA.has(block.name)) args.efectos.ejecutados += 1
       const result = await runTool(
         block.name,
         block.input,

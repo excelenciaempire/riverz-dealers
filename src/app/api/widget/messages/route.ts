@@ -44,11 +44,18 @@ function mediaKind(mime: string | null, tipo: string | null): MediaKind {
  * visitante siempre da 401. Se reescribe al equivalente público-pero-acotado,
  * que autoriza con el token del chat y sólo sirve adjuntos de SU conversación.
  * Cualquier otra URL (una CDN de Shopify) se devuelve tal cual.
+ *
+ * El token viaja en la URL porque el destino de ésta es un `<img src>`, y un
+ * `<img>` no manda cabeceras. Sin esto, cada foto que mandaba el comercio —y la
+ * que el propio visitante acababa de subir— respondía 401 y se veía como un
+ * cuadro roto, con el enlace de reserva devolviendo `session_expired`.
  */
-function widgetMediaUrl(url: string | null): string | null {
+function widgetMediaUrl(url: string | null, token: string): string | null {
   if (!url) return null;
   const at = url.indexOf('/api/media/');
-  return at === -1 ? url : `/api/widget/media/${url.slice(at + '/api/media/'.length)}`;
+  if (at === -1) return url;
+  const ruta = url.slice(at + '/api/media/'.length);
+  return `/api/widget/media/${ruta}?t=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -193,6 +200,12 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
   const { session } = guard;
 
+  // El mismo token que trae la petición se le pega a la URL de cada adjunto:
+  // el `<img>` que la va a pedir no puede mandar la cabecera.
+  const tokenDelChat = (request.headers.get('authorization') ?? '')
+    .replace(/^bearer\s+/i, '')
+    .trim();
+
   const url = new URL(request.url);
   const cursor = decodeCursor(url.searchParams.get('after'));
 
@@ -255,7 +268,7 @@ export async function GET(request: Request) {
     .filter((m) => (m.content_text ?? '').trim().length > 0 || Boolean(m.media_url ?? m.attachments?.[0]?.url))
     .map((m) => {
       const adjunto = m.attachments?.[0];
-      const url = widgetMediaUrl(m.media_url ?? adjunto?.url ?? null);
+      const url = widgetMediaUrl(m.media_url ?? adjunto?.url ?? null, tokenDelChat);
       return {
         id: m.id,
         sender: (m.sender_type === 'customer'

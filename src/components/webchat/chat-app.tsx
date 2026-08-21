@@ -42,7 +42,25 @@ interface Settings {
 const POLL_ACTIVE_MS = 2500;
 const POLL_HIDDEN_MS = 15000;
 
-type Pending = { id: string; text: string; failed?: boolean; media?: Media };
+/** Cuánto se espera una respuesta antes de bajar los puntitos.
+ *
+ *  No es un adorno: sólo se apagaban cuando llegaba un mensaje que no era del
+ *  visitante, así que TODO camino en el que la IA no contesta —el agente
+ *  apagado, fuera de horario, un error del proveedor, y sobre todo el modo en
+ *  que la respuesta queda esperando la aprobación de una persona— dejaba un
+ *  "está escribiendo…" eterno. */
+const WAIT_TIMEOUT_MS = 45_000;
+
+type Pending = {
+  id: string;
+  text: string;
+  failed?: boolean;
+  media?: Media;
+  /** Id que le dio el servidor. Es con lo que se descarta el eco local. */
+  serverId?: string;
+  /** Miniatura local que hay que liberar cuando la burbuja se va. */
+  objectUrl?: string;
+};
 
 export function ChatApp() {
   const [session, setSession] = useState<string | null>(null);
@@ -54,6 +72,7 @@ export function ChatApp() {
   const [email, setEmail] = useState('');
   const [identified, setIdentified] = useState(false);
   const [expired, setExpired] = useState(false);
+  const [reanudando, setReanudando] = useState(false);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
 
   const cursor = useRef<string | null>(null);
@@ -69,13 +88,30 @@ export function ChatApp() {
     if (match) history.replaceState(null, '', window.location.pathname);
 
     const onMessage = (event: MessageEvent) => {
+      // Sólo del contenedor, y sólo si el origen que dice ser es el que el
+      // navegador ve. `storeOrigin` es la puerta que decide si un enlace se
+      // dibuja como un botón de compra de la tienda: cualquier página que
+      // embeba este iframe podía anunciarse como otra y hacer que un enlace
+      // suyo pareciera un checkout del comercio.
+      if (event.source !== window.parent) return;
       if (!event.data || typeof event.data !== 'object') return;
       if (event.data.type === 'riverz:context' && typeof event.data.url === 'string') {
         try {
-          setStoreOrigin(new URL(event.data.url).origin);
+          if (new URL(event.data.url).origin === event.origin) setStoreOrigin(event.origin);
         } catch {
           /* la tienda mandó algo que no es una URL */
         }
+      }
+      // Sesión nueva tras vencer: la emite el cargador, que es el único que
+      // corre en el dominio de la tienda.
+      if (event.data.type === 'riverz:session') {
+        if (typeof event.data.token === 'string' && event.data.token) {
+          cursor.current = null;
+          setMessages([]);
+          setSession(event.data.token);
+          setExpired(false);
+        }
+        setReanudando(false);
       }
     };
     window.addEventListener('message', onMessage);
@@ -114,15 +150,35 @@ export function ChatApp() {
       const fresh = data.messages.filter((m) => !seen.has(m.id));
       return fresh.length ? [...prev, ...fresh] : prev;
     });
-    // Un mensaje del visitante que vuelve del servidor ya no es optimista:
-    // se descarta el eco local para no verlo dos veces.
+    // Un mensaje del visitante que vuelve del servidor ya no es optimista: se
+    // descarta el eco local para no verlo dos veces.
+    //
+    // Por ID y no por texto. Comparando el texto, mandar "hola" dos veces
+    // —o dos archivos seguidos, que llegan los dos con el texto vacío— borraba
+    // las dos burbujas con el primer eco y la segunda reaparecía un ciclo
+    // después, saltando de lugar.
     if (data.messages.some((m) => m.sender === 'visitor')) {
-      setPending((prev) =>
-        prev.filter((p) => !data.messages.some((m) => m.sender === 'visitor' && m.text === p.text)),
-      );
+      const llegaron = new Set(data.messages.map((m) => m.id));
+      setPending((prev) => {
+        const quedan = prev.filter((p) => !p.serverId || !llegaron.has(p.serverId));
+        // La miniatura local ya no se muestra: sin liberarla, cada foto de una
+        // conversación de soporte quedaba en memoria hasta cerrar la pestaña.
+        for (const p of prev) {
+          if (p.objectUrl && !quedan.includes(p)) URL.revokeObjectURL(p.objectUrl);
+        }
+        return quedan.length === prev.length ? prev : quedan;
+      });
     }
     if (data.messages.some((m) => m.sender !== 'visitor')) setWaiting(false);
   }, [session]);
+
+  // Los puntitos no pueden quedarse para siempre: hay caminos legítimos en los
+  // que no llega ninguna respuesta.
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setWaiting(false), WAIT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [waiting]);
 
   useEffect(() => {
     if (!session || expired) return;
@@ -185,6 +241,10 @@ export function ChatApp() {
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
+      const { message_id: serverId } = (await res.json()) as { message_id?: string };
+      if (serverId) {
+        setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, serverId } : p)));
+      }
       poll().catch(() => {});
     } catch {
       setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, failed: true } : p)));
@@ -205,6 +265,7 @@ export function ChatApp() {
         {
           id: clientMessageId,
           text: '',
+          objectUrl: previo,
           media: { url: previo, kind: file.type.startsWith('image/') ? 'image' : 'file', name: file.name },
         },
       ]);
@@ -225,6 +286,10 @@ export function ChatApp() {
           return;
         }
         if (!res.ok) throw new Error(String(res.status));
+        const { message_id: serverId } = (await res.json()) as { message_id?: string | null };
+        if (serverId) {
+          setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, serverId } : p)));
+        }
         poll().catch(() => {});
       } catch {
         setPending((prev) =>
@@ -328,7 +393,17 @@ export function ChatApp() {
       </div>
 
       {expired ? (
-        <Notice onRetry={() => window.location.reload()} />
+        // Recargar NO servía: el token viaja en el fragmento y se borra apenas
+        // se lee, así que la recarga volvía sin sesión y dejaba un chat de
+        // aspecto normal donde escribir no hacía absolutamente nada. La sesión
+        // la emite el cargador, que es quien corre en el dominio de la tienda.
+        <Notice
+          esperando={reanudando}
+          onRetry={() => {
+            setReanudando(true);
+            window.parent?.postMessage({ type: 'riverz:resume' }, '*');
+          }}
+        />
       ) : needsEmail ? (
         <form
           className="border-t border-neutral-200 p-3"
@@ -462,16 +537,17 @@ function Typing() {
   );
 }
 
-function Notice({ onRetry }: { onRetry: () => void }) {
+function Notice({ onRetry, esperando }: { onRetry: () => void; esperando?: boolean }) {
   return (
     <div className="border-t border-neutral-200 p-3 text-center">
       <p className="text-sm text-neutral-600">La conversación caducó.</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-1 text-sm font-semibold text-neutral-900 underline"
+        disabled={esperando}
+        className="mt-1 text-sm font-semibold text-neutral-900 underline disabled:opacity-60"
       >
-        Reanudar
+        {esperando ? 'Reanudando…' : 'Reanudar'}
       </button>
     </div>
   );

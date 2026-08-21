@@ -471,13 +471,19 @@ async function reconcileRiverzOrder(
     if (!Number.isNaN(t)) update.total_price = t
   }
   if (cancelled) update.status = 'cancelled'
-  else if (financial === 'refunded' || financial === 'partially_refunded')
-    // 'cancelled' y no 'refunded': `orders_status_check` no admite ese valor y
-    // el UPDATE entero fallaba, así que un pedido devuelto en Shopify se
-    // quedaba figurando como pagado en Riverz —y sumando a los ingresos— para
-    // siempre. Es además como ya lo guardan Mercado Libre y Tiendanube.
+  // 'cancelled' y no 'refunded': `orders_status_check` no admite ese valor y
+  // el UPDATE entero fallaba, así que un pedido devuelto en Shopify se
+  // quedaba figurando como pagado en Riverz —y sumando a los ingresos— para
+  // siempre. Es además como ya lo guardan Mercado Libre y Tiendanube.
+  //
+  // El reembolso PARCIAL no entra acá. Devolver $5 de envío de un pedido de
+  // $100 no cancela nada, y darlo por cancelado le sacaba al comercio los $95
+  // enteros del ingreso y escondía el pedido del agente —la consulta de
+  // posventa descarta los cancelados—, así que la clienta que llamaba por ese
+  // mismo envío escuchaba "no encontré ningún pedido activo". Lo único que se
+  // mueve es `financial_status`, que ya se guardó arriba.
+  else if (financial === 'refunded' || financial === 'voided')
     update.status = 'cancelled'
-  else if (financial === 'voided') update.status = 'cancelled'
   else if (fulfillment === 'fulfilled') update.status = 'fulfilled'
   else if (financial === 'paid') update.status = 'paid'
 

@@ -20,6 +20,28 @@ export interface PostventaCtx {
   db: SupabaseClient
   workspaceId: string
   contactId: string
+  /** Para poder pasarle el hilo a una persona si el aviso no salió. */
+  conversationId?: string | null
+}
+
+/**
+ * Marca la conversación para que la mire alguien.
+ *
+ * Se usa cuando la solicitud quedó anotada pero el aviso al comercio no salió:
+ * la clienta ya escuchó "te confirmo en breve" y nadie del otro lado se enteró,
+ * así que el hilo no puede quedar esperando solo.
+ */
+async function pedirAyuda(ctx: PostventaCtx, motivo: string): Promise<void> {
+  if (!ctx.conversationId) return
+  await ctx.db
+    .from('conversations')
+    .update({
+      needs_human: true,
+      needs_human_reason: motivo,
+      needs_human_at: new Date().toISOString(),
+    })
+    .eq('id', ctx.conversationId)
+    .eq('workspace_id', ctx.workspaceId)
 }
 
 interface PedidoDelCliente {
@@ -167,6 +189,12 @@ export async function proponerCancelacion(
     })
   }
 
+  // Si el aviso no salió, la fila igual quedó esperando en el panel — pero
+  // nadie se enteró. Decirle a la clienta "te confirmo en breve" ahí es una
+  // promesa que no depende de nadie, así que la conversación pasa a manos de
+  // una persona en vez de quedar esperando sola.
+  if (!res.notified) await pedirAyuda(ctx, 'cancelación pedida y sin avisar')
+
   return JSON.stringify({
     ok: true,
     estado: 'pendiente_de_aprobacion',
@@ -244,6 +272,8 @@ export async function proponerReembolso(
       message: 'No pude dejar pedido el reembolso. Decile que lo pasás al equipo.',
     })
   }
+
+  if (!res.notified) await pedirAyuda(ctx, 'reembolso pedido y sin avisar')
 
   return JSON.stringify({
     ok: true,

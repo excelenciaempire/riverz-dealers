@@ -1686,7 +1686,12 @@ async function generateReply(
     // Mercado Libre no permite consultar pedidos en vivo (comprador
     // anonimizado), así que lookup_order cae a lo ya espejado.
     localOrders: primaryContact.id
-      ? { db, workspaceId: agent.workspace_id, contactId: primaryContact.id }
+      ? {
+          db,
+          workspaceId: agent.workspace_id,
+          contactId: primaryContact.id,
+          conversationId: shopify?.conversationId ?? null,
+        }
       : null,
     model: agent.model || 'claude-haiku-4-5-20251001',
     max_tokens: Math.max(
@@ -1699,6 +1704,8 @@ async function generateReply(
     shopify,
     otherStore,
     voice: voiceCtx,
+    // Lo lleva el reintento de más abajo: dice si ya hay algo hecho afuera.
+    efectos: { ejecutados: 0 },
   };
 
   // Si la clave que puso el comercio dejó de servir —revocada, o sin saldo— el
@@ -1710,6 +1717,23 @@ async function generateReply(
     result = await runWithTools(client, opciones);
   } catch (err) {
     if (keySource !== 'agent' || !claveRechazada(err)) throw err;
+
+    // Pero sólo si no se hizo nada todavía.
+    //
+    // El reintento vuelve a arrancar con los mensajes ORIGINALES, sin los
+    // resultados de las herramientas que ya corrieron. La falta de saldo
+    // aparece entre una vuelta y la siguiente, así que el caso real es: la
+    // primera vuelta creó el pedido en Shopify, la segunda se quedó sin clave,
+    // y el reintento reprocesa el mismo mensaje de la clienta y crea el
+    // segundo. Con `crear_link_de_pago` son dos cobros; con `cancelar_pedido`,
+    // dos solicitudes idénticas al comercio.
+    if (opciones.efectos.ejecutados > 0) {
+      console.warn(
+        `[ai] clave del agente ${agent.id} rechazada, pero ya corrieron herramientas con efecto: no se reintenta`,
+      );
+      throw err;
+    }
+
     const respaldo = await resolveAnthropicKey(db, {
       workspaceId: agent.workspace_id,
     });

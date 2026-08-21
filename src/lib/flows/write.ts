@@ -133,12 +133,22 @@ export async function guardarGrafo(
     userId?: string | null
   },
 ): Promise<FlujoGuardado> {
-  const { error: updErr } = await db
+  // El `.select()` no es para leer: es para saber CUÁNTAS filas tocó. Un menú
+  // de otra cuenta no matchea el filtro de workspace y Postgres no lo llama
+  // error —cero filas, todo bien—, así que el guardado seguía de largo hasta el
+  // borrado de pasos de abajo, que no tiene forma de filtrar por cuenta (los
+  // pasos no llevan workspace) y corre con el cliente de servicio. Un flowId
+  // ajeno alcanzaba para dejar sin pasos el menú de otro comercio, en silencio.
+  const { data: tocadas, error: updErr } = await db
     .from('flows')
     .update({ ...(input.campos ?? {}), updated_at: new Date().toISOString() })
     .eq('id', input.flowId)
     .eq('workspace_id', input.workspaceId)
+    .select('id')
   if (updErr) throw new Error(updErr.message)
+  if (!Array.isArray(tocadas) || tocadas.length === 0) {
+    throw new Error('ese menú no existe en esta cuenta')
+  }
 
   if (input.nodos !== undefined) {
     const { error: delErr } = await db

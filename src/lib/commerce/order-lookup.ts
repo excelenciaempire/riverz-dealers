@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { TiendanubeClient } from '@/lib/commerce/providers/tiendanube'
-import { WooCommerceClient } from '@/lib/commerce/providers/woocommerce'
+import {
+  WooCommerceClient,
+  extractWooTracking,
+  wooFechaAIso,
+} from '@/lib/commerce/providers/woocommerce'
 import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import type { CommercePlatform } from './types'
 
@@ -33,10 +37,21 @@ export interface LookupResult {
 
 const VACIO: LookupResult = { found: false }
 
-/** Conexión activa del workspace, sea de la plataforma que sea. */
+/**
+ * La tienda activa del workspace.
+ *
+ * `platform` la fija. Sin ella se devuelve la más reciente que NO sea Shopify,
+ * porque quien llama así ya resolvió Shopify por su cuenta y descarta el
+ * resultado cuando viene de ahí: una cuenta con Shopify y Tiendanube
+ * conectadas se quedaba sin respuesta —ganaba la conexión más nueva y tapaba
+ * la única tienda que ese camino podía consultar—, y la clienta que preguntaba
+ * "¿dónde está mi pedido?" recibía un "no lo encontré" de una tienda que nunca
+ * tuvo ese pedido.
+ */
 export async function resolveStoreForLookup(
   db: SupabaseClient,
   workspaceId: string,
+  platform?: CommercePlatform,
 ): Promise<{
   platform: CommercePlatform
   shopDomain: string
@@ -45,22 +60,30 @@ export async function resolveStoreForLookup(
   accessToken: string
   apiSecret: string | null
 } | null> {
-  const { data } = await db
-    .from('shopify_connections')
-    .select('platform, shop_domain, external_store_id, store_url, access_token, api_secret')
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'active')
-    .order('installed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  const row = data as {
+  interface Fila {
     platform?: string
     shop_domain?: string
     external_store_id?: string | null
     store_url?: string | null
     access_token?: string
     api_secret?: string | null
-  } | null
+  }
+
+  let q = db
+    .from('shopify_connections')
+    .select('platform, shop_domain, external_store_id, store_url, access_token, api_secret')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'active')
+  if (platform) q = q.eq('platform', platform)
+
+  // Sin `limit(1)`: reinstalar con otro usuario de la misma cuenta deja otra
+  // fila activa (la constraint es (user_id, shop_domain)), así que la más
+  // reciente de UNA plataforma puede tapar a las demás.
+  const { data } = await q.order('installed_at', { ascending: false }).limit(10)
+  const filas = (Array.isArray(data) ? data : []) as Fila[]
+  const row = platform
+    ? (filas[0] ?? null)
+    : (filas.find((f) => (f.platform ?? 'shopify') !== 'shopify') ?? null)
   if (!row?.access_token || !row.shop_domain) return null
   try {
     return {
@@ -198,6 +221,7 @@ interface PedidoWoo {
   total?: string
   currency?: string
   date_created?: string
+  date_created_gmt?: string
   billing?: { email?: string; phone?: string }
   line_items?: { name?: string; quantity?: number }[]
   meta_data?: { key?: string; value?: unknown }[]
@@ -241,17 +265,11 @@ function pedidoWooAVars(p: PedidoWoo): Record<string, string> {
   const items = (p.line_items ?? [])
     .map((li) => `${li.quantity ?? 1}× ${li.name ?? ''}`)
     .join(', ')
-  // WooCommerce guarda el seguimiento en meta_data y la clave depende del
-  // plugin que use el comercio; se buscan las dos más comunes.
-  const meta = p.meta_data ?? []
-  const buscarMeta = (claves: string[]): string => {
-    for (const m of meta) {
-      if (m.key && claves.includes(m.key) && typeof m.value === 'string') {
-        return m.value
-      }
-    }
-    return ''
-  }
+  // El seguimiento sale del adaptador y no de una segunda lista de claves acá:
+  // cada plugin de WooCommerce guarda las suyas, y tener dos lecturas distintas
+  // hacía que el mismo pedido tuviera número de seguimiento por un camino y no
+  // por el otro.
+  const tracking = extractWooTracking(p.meta_data)
   return limpiar({
     order_number: String(p.number ?? p.id ?? ''),
     order_name: p.number ? `#${p.number}` : '',
@@ -260,12 +278,15 @@ function pedidoWooAVars(p: PedidoWoo): Record<string, string> {
     fulfillment_status: p.status === 'completed' ? 'fulfilled' : '',
     total_price: p.total ?? '',
     currency: p.currency ?? '',
-    created_at: p.date_created ?? '',
+    created_at: wooFechaAIso(p.date_created, p.date_created_gmt) ?? '',
     order_status_url: '',
     items,
-    tracking_number: buscarMeta(['_tracking_number', '_wc_shipment_tracking_items']),
-    tracking_company: buscarMeta(['_tracking_provider', '_shipping_provider']),
-    tracking_url: buscarMeta(['_tracking_url']),
+    tracking_number: tracking.number,
+    tracking_company: tracking.company,
+    tracking_url:
+      tracking.url ||
+      resolveCarrierTrackingUrl(tracking.company, tracking.number) ||
+      '',
   })
 }
 

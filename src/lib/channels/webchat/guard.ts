@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { limitByKey, clientIp, rateLimitResponse } from '@/lib/rate-limit';
 import { isWorkspaceSuspended } from '@/lib/workspaces/suspension';
 import { getFeatureFlags, isFeatureEnabled } from '@/lib/admin/feature-flags';
+import { originAllowed } from './config';
 import { getWebchatConnection, webchatConfig } from './connection-store';
 import { sessionFromRequest, type WebchatSession } from './token';
 
@@ -59,7 +60,11 @@ export async function checkIpLimit(
  * "existe y la cuenta está suspendida". La única excepción es el cupo, que sí
  * dice 429 porque el widget legítimo necesita saber cuándo reintentar.
  */
-export async function loadWebchat(req: Request, workspaceId: string): Promise<Guard> {
+export async function loadWebchat(
+  req: Request,
+  workspaceId: string,
+  action?: keyof typeof WEBCHAT_LIMITS,
+): Promise<Guard> {
   const notFound = {
     ok: false as const,
     response: NextResponse.json({ error: 'not_found' }, { status: 404 }),
@@ -67,10 +72,19 @@ export async function loadWebchat(req: Request, workspaceId: string): Promise<Gu
 
   // Techo por comercio. Cubre lo que los otros dos cupos no ven: mucha gente
   // distinta —o muchos visitantes fabricados— pegándole al mismo chat a la vez.
-  // 240 por minuto deja lugar a decenas de personas conversando de verdad y
-  // corta una avalancha antes de que se coma su saldo de IA.
-  const perWorkspace = await limitByKey(`webchat:ws:${workspaceId}`, {
-    limit: 240,
+  //
+  // Va separado por tipo de acción porque el sondeo no cuesta lo mismo que
+  // escribir, y mezclarlos convertía el techo en un apagón: cada pestaña
+  // abierta sondea 24 veces por minuto, así que diez personas con el chat
+  // abierto —sin escribir una palabra— agotaban el cupo entero y a partir de
+  // ahí el widget respondía 429 a todo el mundo. Quien estaba conversando veía
+  // que el agente no volvía nunca, y quien llegaba después no podía ni abrirlo.
+  //
+  // Lo que hay que frenar es lo que se paga: cada mensaje dispara una respuesta
+  // del agente. Leer es barato y su techo sólo está para una avalancha real.
+  const techo = action === 'poll' ? 3_000 : 240;
+  const perWorkspace = await limitByKey(`webchat:ws:${action === 'poll' ? 'r' : 'w'}:${workspaceId}`, {
+    limit: techo,
     windowMs: 60_000,
   });
   if (!perWorkspace.success) {
@@ -99,13 +113,14 @@ export async function loadWebchat(req: Request, workspaceId: string): Promise<Gu
 export async function requireSession(
   req: Request,
   action: keyof typeof WEBCHAT_LIMITS,
+  opciones?: { tokenEnQuery?: boolean },
 ): Promise<
   { ok: true; session: WebchatSession; ctx: WebchatContext } | { ok: false; response: NextResponse }
 > {
   const limited = await checkIpLimit(req, action);
   if (limited) return { ok: false, response: limited };
 
-  const session = sessionFromRequest(req);
+  const session = sessionFromRequest(req, { permitirQuery: opciones?.tokenEnQuery });
   if (!session) {
     // 401 y no 404: el widget distingue "hay que renovar la sesión" de "este
     // chat ya no existe", y con lo segundo se apagaría solo para siempre.
@@ -130,7 +145,20 @@ export async function requireSession(
     return { ok: false, response: rateLimitResponse(porVisitante) };
   }
 
-  const guard = await loadWebchat(req, session.workspaceId);
+  const guard = await loadWebchat(req, session.workspaceId, action);
   if (!guard.ok) return guard;
+
+  // El origen se validó al abrir la sesión, pero el token vive 24 h: sacar un
+  // dominio de la lista —justamente lo que hace un comercio cuando descubre que
+  // alguien le está usando el chat desde otro sitio— no cortaba nada hasta el
+  // día siguiente. 401 y no 404 para que el widget legítimo pida una sesión
+  // nueva en vez de apagarse solo.
+  if (!originAllowed(session.origin, guard.ctx.config.allowed_domains)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'session_expired' }, { status: 401 }),
+    };
+  }
+
   return { ok: true, session, ctx: guard.ctx };
 }

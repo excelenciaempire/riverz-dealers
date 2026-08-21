@@ -17,7 +17,7 @@ function db(filas: Fila[], porTag: Fila[] = []) {
     llamada += 1;
     const datos = llamada === 1 ? filas : porTag;
     const q: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'or', 'order', 'contains']) {
+    for (const m of ['select', 'eq', 'or', 'order', 'contains', 'overlaps']) {
       q[m] = vi.fn(() => q);
     }
     q.limit = vi.fn(() => Promise.resolve({ data: datos, error: null }));
@@ -111,7 +111,7 @@ describe('searchProducts', () => {
     const roto = {
       from: () => {
         const q: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'or', 'order', 'contains']) q[m] = () => q;
+        for (const m of ['select', 'eq', 'or', 'order', 'contains', 'overlaps']) q[m] = () => q;
         q.limit = () => Promise.resolve({ data: null, error: { message: 'boom' } });
         return q;
       },

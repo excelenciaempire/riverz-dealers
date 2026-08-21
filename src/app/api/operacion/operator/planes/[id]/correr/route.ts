@@ -15,6 +15,7 @@ import { anthropicRunner } from '@/lib/operator/fleet/runner'
 import { guardarGasto } from '@/lib/operator/gasto'
 import { appendMessage } from '@/lib/operator/threads'
 import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 
 /**
@@ -110,9 +111,11 @@ export async function POST(
       // un proxy y para la persona que está mirando.
       const latido = setInterval(() => push({ t: 'latido' }), 10_000)
 
+      const presupuesto = crearPresupuesto()
+      let cierre: string | null = null
+
       try {
         push({ t: 'plan_estado', planId, estado: 'corriendo' })
-        const presupuesto = crearPresupuesto()
         const r = await ejecutarPlan({
           plan,
           ctx,
@@ -123,34 +126,44 @@ export async function POST(
           presupuesto,
         })
 
-        const total = presupuesto.total()
-        await guardarGasto(admin, {
-          workspaceId,
-          threadId,
-          porAgente: presupuesto.porAgente(),
-        })
-
         // El cierre en el hilo: qué quedó hecho y qué quedó esperando. Sin
         // esto, la conversación termina con el plan propuesto y nunca cuenta
         // cómo salió.
-        const cierre = resumirCierre(r)
+        cierre = resumirCierre(r)
         push({ t: 'text', delta: cierre })
-        await appendMessage(admin, {
-          threadId,
-          workspaceId,
-          role: 'assistant',
-          text: cierre,
-          promptTokens: total.promptTokens,
-          completionTokens: total.completionTokens,
-        }).catch(() => {
-          /* si el plan no cuelga de un hilo de chat, no hay dónde anotarlo */
-        })
-
-        push({ t: 'done', thread: threadId })
       } catch (err) {
         push({ t: 'error', message: err instanceof Error ? err.message : 'failed' })
       } finally {
         clearInterval(latido)
+
+        // La contabilidad va acá y no en el camino feliz: un plan que se cae a
+        // la mitad ya quemó los tokens de todas las ramas que corrieron en
+        // paralelo. Anotándolo sólo al terminar bien, el tope diario —que sale
+        // de sumar `operator_messages`— no veía nada de eso y el día siguiente
+        // arrancaba creyendo que no se gastó.
+        const total = presupuesto.total()
+        const huboGasto = total.promptTokens > 0 || total.completionTokens > 0
+        // Si se cayó antes de llamar al modelo no hay nada que contabilizar, y
+        // dejar el mensaje igual sería ensuciar el hilo con un turno vacío.
+        if (cierre !== null || huboGasto) {
+          await guardarGasto(admin, {
+            workspaceId,
+            threadId,
+            porAgente: presupuesto.porAgente(),
+          })
+          await appendMessage(admin, {
+            threadId,
+            workspaceId,
+            role: 'assistant',
+            text: cierre ?? translate(locale, 'operation.operatorError'),
+            promptTokens: total.promptTokens,
+            completionTokens: total.completionTokens,
+          }).catch(() => {
+            /* si el plan no cuelga de un hilo de chat, no hay dónde anotarlo */
+          })
+        }
+
+        if (cierre !== null) push({ t: 'done', thread: threadId })
         cerrado = true
         try {
           controller.close()

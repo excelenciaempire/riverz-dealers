@@ -54,8 +54,15 @@ export function tiendanubeConfigured(): boolean {
   return Boolean(process.env.TIENDANUBE_APP_ID && process.env.TIENDANUBE_CLIENT_SECRET)
 }
 
-/** Los permisos que pedimos. Se configuran en el portal de partners; los
- *  declaramos acá solo para documentar de qué depende cada feature. */
+/**
+ * Los permisos sin los cuales la integración no funciona.
+ *
+ * NO se piden en la URL de autorización: los fija la app en el portal de
+ * partners y Tiendanube los devuelve ya otorgados en el canje del token. Acá
+ * sirven para comprobarlos (`missingTiendanubeScopes`), que es lo único que
+ * avisa cuando alguien cambia los permisos en el portal — de otro modo la
+ * conexión queda verde y lo que falla es una función suelta, semanas después.
+ */
 export const TIENDANUBE_SCOPES = [
   'read_products',
   'read_orders',
@@ -63,13 +70,29 @@ export const TIENDANUBE_SCOPES = [
   'read_customers',
 ] as const
 
+/** Los permisos requeridos que el token NO trae. */
+export function missingTiendanubeScopes(granted: string | null | undefined): string[] {
+  // Tiendanube los devuelve separados por coma o por espacio según la versión.
+  const tiene = new Set(
+    String(granted ?? '')
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
+  // Sin scope declarado no hay nada que comprobar: dar la conexión por rota
+  // sería peor que confiar en el portal.
+  if (tiene.size === 0) return []
+  return TIENDANUBE_SCOPES.filter((s) => !tiene.has(s))
+}
+
 // ── OAuth ────────────────────────────────────────────────────────────
 
 /**
  * URL de autorización. Ojo: Tiendanube NO acepta `redirect_uri` acá —
  * la URL de retorno se fija en la configuración de la app en el portal
  * de partners. Si el callback no coincide con lo configurado allá, el
- * flujo muere del lado de ellos sin que podamos detectarlo.
+ * flujo muere del lado de ellos sin que podamos detectarlo. Los permisos
+ * viajan por el mismo camino: tampoco se piden por query.
  */
 export function buildTiendanubeAuthorizeUrl(appId: string, state: string): string {
   return `https://www.tiendanube.com/apps/${encodeURIComponent(appId)}/authorize?state=${encodeURIComponent(state)}`
@@ -119,6 +142,13 @@ export async function exchangeTiendanubeCode(args: {
   if (!data.access_token || data.user_id == null) {
     throw new Error('Respuesta de Tiendanube sin access_token/user_id')
   }
+  const faltan = missingTiendanubeScopes(data.scope)
+  if (faltan.length > 0) {
+    // No se corta la conexión: lo que el token sí trae sigue sirviendo, y
+    // negarle la instalación al comercio por un permiso que él no controla
+    // sería peor. El log es el único aviso de que el portal cambió.
+    console.error('[tiendanube] permisos faltantes en el token:', faltan.join(', '))
+  }
   return {
     accessToken: data.access_token,
     storeId: String(data.user_id),
@@ -127,6 +157,29 @@ export async function exchangeTiendanubeCode(args: {
 }
 
 // ── Cliente ──────────────────────────────────────────────────────────
+
+/**
+ * Error de la API con el código HTTP a mano.
+ *
+ * Hace falta para separar el 422 de "ese webhook ya existe" —que es el
+ * resultado NORMAL de reconectar— de un 422 de verdad. Antes los dos
+ * terminaban en el mismo `console.error` y en el mismo "listo": una tienda
+ * podía quedarse sin webhooks y el alta figuraba como exitosa.
+ */
+export class TiendanubeApiError extends Error {
+  constructor(
+    readonly status: number,
+    detail: string,
+  ) {
+    super(`Tiendanube API ${status}: ${detail}`)
+    this.name = 'TiendanubeApiError'
+  }
+}
+
+/** Tiendanube contesta 422 cuando el par (url, event) ya está registrado. */
+function esWebhookRepetido(err: unknown): boolean {
+  return err instanceof TiendanubeApiError && err.status === 422
+}
 
 export class TiendanubeClient {
   constructor(
@@ -166,7 +219,7 @@ export class TiendanubeClient {
           `Tiendanube 401: ${text.slice(0, 200)}`,
         )
       }
-      throw new Error(`Tiendanube API ${res.status}: ${text.slice(0, 300)}`)
+      throw new TiendanubeApiError(res.status, text.slice(0, 300))
     }
     // 204 en DELETE y en algunos POST — no intentar parsear.
     const totalRaw = res.headers.get('x-total-count')
@@ -214,22 +267,35 @@ export class TiendanubeClient {
   }
 
   /**
-   * Registra los webhooks que necesitamos. Idempotente por fuerza bruta:
-   * Tiendanube devuelve 422 si (url, event) ya existe, y lo tratamos como
-   * éxito — reconectar no debe romper por webhooks que ya están puestos.
+   * Registra los webhooks que necesitamos. Idempotente: Tiendanube devuelve
+   * 422 si (url, event) ya existe y eso es éxito —reconectar no debe romper
+   * por webhooks que ya están puestos—, pero cualquier otro fallo se cuenta
+   * como fallo y queda en el resultado.
    *
    * No incluye carritos: la plataforma no emite ese evento (ver el cron
    * de recuperación).
    */
-  async registerWebhooks(callbackBaseUrl: string): Promise<void> {
+  async registerWebhooks(
+    callbackBaseUrl: string,
+  ): Promise<{ creados: number; existentes: number; fallidos: string[] }> {
     const url = `${callbackBaseUrl}${TIENDANUBE_WEBHOOK_PATH}`
+    let creados = 0
+    let existentes = 0
+    const fallidos: string[] = []
     for (const event of TIENDANUBE_WEBHOOK_EVENTS) {
       try {
         await this.request('/webhooks', { method: 'POST', body: { event, url } })
+        creados++
       } catch (err) {
+        if (esWebhookRepetido(err)) {
+          existentes++
+          continue
+        }
+        fallidos.push(event)
         console.error(`[tiendanube] alta de webhook ${event} falló:`, err)
       }
     }
+    return { creados, existentes, fallidos }
   }
 
   /**
@@ -291,6 +357,12 @@ export class TiendanubeClient {
         })
         created++
       } catch (err) {
+        // El 422 acá significa que el listado no lo mostró pero ya estaba: se
+        // cuenta como conservado, no como creado ni como caído.
+        if (esWebhookRepetido(err)) {
+          kept++
+          continue
+        }
         console.error(`[tiendanube] realta de webhook ${event} falló:`, err)
       }
     }

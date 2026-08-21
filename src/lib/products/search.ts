@@ -78,7 +78,11 @@ export async function searchProducts(
   // `%` es un comodín de `ilike`, y `,` separa las ramas del `.or()` de
   // PostgREST: sin escaparlos, una búsqueda con esos caracteres devolvía
   // cualquier cosa o rompía la consulta entera.
-  const seguro = q.replace(/[%,()]/g, ' ').trim();
+  //
+  // `*` va en la misma lista: PostgREST lo traduce a `%` dentro de `like` e
+  // `ilike`, así que se colaba como comodín aunque el `%` estuviera tapado, y
+  // una pregunta con un asterisco devolvía catálogo indiscriminado.
+  const seguro = q.replace(/[%*,()]/g, ' ').trim();
   if (!seguro) return [];
 
   const { data, error } = await db
@@ -100,16 +104,24 @@ export async function searchProducts(
   // en el mismo `or` de texto. Sólo si la primera trajo poco: la mayoría de las
   // preguntas se resuelven por nombre y no vale un viaje extra.
   if (filas.length < limite) {
-    const { data: porTag } = await db
-      .from('shopify_products')
-      .select(
-        'id, title, handle, url, image_url, price_min, price_max, currency, tags, description, raw',
-      )
-      .eq('workspace_id', args.workspaceId)
-      .contains('tags', [seguro])
-      .limit(limite);
-    for (const f of (porTag ?? []) as Row[]) {
-      if (!filas.some((x) => x.id === f.id)) filas.push(f);
+    // Por PALABRA, no por la pregunta entera. `contains(['algo para piel
+    // sensible'])` exige una etiqueta escrita exactamente así, que no existe en
+    // ningún catálogo: la rama que este bloque promete —encontrar por
+    // etiqueta— no acertaba nunca, ni siquiera cuando la persona escribía el
+    // nombre de una etiqueta y algo más.
+    const palabras = seguro.split(/\s+/).filter((t) => t.length > 2).slice(0, 4);
+    if (palabras.length > 0) {
+      const { data: porTag } = await db
+        .from('shopify_products')
+        .select(
+          'id, title, handle, url, image_url, price_min, price_max, currency, tags, description, raw',
+        )
+        .eq('workspace_id', args.workspaceId)
+        .overlaps('tags', palabras)
+        .limit(limite);
+      for (const f of (porTag ?? []) as Row[]) {
+        if (!filas.some((x) => x.id === f.id)) filas.push(f);
+      }
     }
   }
 
