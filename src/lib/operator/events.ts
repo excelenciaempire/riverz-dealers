@@ -56,6 +56,9 @@ export type OperatorEvent =
       id: string
       actionId: string
       key: string
+      /** El nombre del paso, en castellano. Al correr un plan no hay `tool_start`
+       *  que lo haya dicho antes, y sin esto se imprimía la clave cruda. */
+      label?: string
       preview: string
       /** Lo mismo, dibujable: el árbol de la automatización, la plantilla. */
       artefacto?: Artefacto
@@ -67,6 +70,9 @@ export type OperatorEvent =
       id: string
       actionId: string
       key: string
+      /** El nombre del paso, en castellano. Al correr un plan no hay `tool_start`
+       *  que lo haya dicho antes, y sin esto se imprimía la clave cruda. */
+      label?: string
       preview: string
       artefacto?: Artefacto
       agente?: SubagentId

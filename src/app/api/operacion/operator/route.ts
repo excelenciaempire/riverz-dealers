@@ -7,6 +7,7 @@ import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature
 import { limitByKey } from '@/lib/rate-limit'
 import { runOperator } from '@/lib/operator/loop'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
+import { grabador } from '@/lib/operator/bloques'
 import {
   appendMessage,
   borrarHilo,
@@ -171,7 +172,12 @@ export async function POST(request: Request) {
     async start(controller) {
       const enc = new TextEncoder()
       let cerrado = false
+      // Todos los eventos pasan por acá, así que el turno se arma de paso y
+      // queda listo para guardarse. Sin eso, al recargar la conversación el
+      // hilo volvía sin pasos y las acciones caían todas juntas al final.
+      const turnoVisto = grabador()
       const push = (e: OperatorEvent) => {
+        turnoVisto.ver(e)
         if (cerrado) return
         try {
           controller.enqueue(enc.encode(encodeEvent(e)))
@@ -219,6 +225,7 @@ export async function POST(request: Request) {
           workspaceId: ctx.workspaceId,
           role: 'assistant',
           text: turno.text,
+          bloques: turnoVisto.bloques,
           promptTokens: turno.promptTokens,
           completionTokens: turno.completionTokens,
         })

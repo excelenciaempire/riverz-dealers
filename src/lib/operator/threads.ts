@@ -10,6 +10,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Bloque } from './bloques'
 import { titleFrom } from './prompt'
 
 /** Cuántos turnos se le reenvían al modelo. Alcanza para seguir un hilo. */
@@ -19,6 +20,8 @@ export interface ThreadMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  /** El turno tal como se vio ocurrir, si se guardó. */
+  bloques?: Bloque[]
   created_at: string
 }
 
@@ -66,12 +69,15 @@ export async function loadMessages(
   return ((data ?? []) as Array<{
     id: string
     role: 'user' | 'assistant'
-    content: { text?: string }
+    content: { text?: string; bloques?: Bloque[] }
     created_at: string
   }>).map((r) => ({
     id: r.id,
     role: r.role,
     text: r.content?.text ?? '',
+    // Los mensajes viejos no los tienen: ahí el hilo se ve como antes y las
+    // acciones caen a la lista de abajo, que sigue existiendo justo para eso.
+    bloques: Array.isArray(r.content?.bloques) ? r.content.bloques : undefined,
     created_at: r.created_at,
   }))
 }
@@ -91,6 +97,16 @@ export async function appendMessage(
     workspaceId: string
     role: 'user' | 'assistant'
     text: string
+    /**
+     * El turno tal como se vio ocurrir.
+     *
+     * `content` ya era `jsonb` y guardaba sólo `{text}`, así que esto no
+     * necesita migración. Sin guardarlo, al recargar una conversación el hilo
+     * volvía como un párrafo pelado: los pasos desaparecían y TODAS las
+     * acciones del historial se amontonaban al final, lejos del momento en que
+     * ocurrieron.
+     */
+    bloques?: Bloque[]
     promptTokens?: number
     completionTokens?: number
   },
@@ -99,7 +115,10 @@ export async function appendMessage(
     thread_id: input.threadId,
     workspace_id: input.workspaceId,
     role: input.role,
-    content: { text: input.text },
+    content: {
+      text: input.text,
+      ...(input.bloques && input.bloques.length > 0 ? { bloques: input.bloques } : {}),
+    },
     prompt_tokens: input.promptTokens ?? null,
     completion_tokens: input.completionTokens ?? null,
   })

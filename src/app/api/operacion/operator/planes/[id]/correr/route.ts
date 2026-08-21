@@ -14,6 +14,7 @@ import { cargarPlan, reclamarPlan } from '@/lib/operator/fleet/plan'
 import { anthropicRunner } from '@/lib/operator/fleet/runner'
 import { guardarGasto } from '@/lib/operator/gasto'
 import { appendMessage } from '@/lib/operator/threads'
+import { grabador } from '@/lib/operator/bloques'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import type { CapabilityContext } from '@/lib/capabilities/types'
@@ -97,7 +98,12 @@ export async function POST(
     async start(controller) {
       const enc = new TextEncoder()
       let cerrado = false
+      // Igual que en el turno normal: el trabajo del equipo se graba de paso
+      // para que, al volver a abrir la conversación, cada cosa que se construyó
+      // siga estando donde ocurrió.
+      const turnoVisto = grabador()
       const push = (e: OperatorEvent) => {
+        turnoVisto.ver(e)
         if (cerrado) return
         try {
           controller.enqueue(enc.encode(encodeEvent(e)))
@@ -156,6 +162,7 @@ export async function POST(
             workspaceId,
             role: 'assistant',
             text: cierre ?? translate(locale, 'operation.operatorError'),
+            bloques: turnoVisto.bloques,
             promptTokens: total.promptTokens,
             completionTokens: total.completionTokens,
           }).catch(() => {

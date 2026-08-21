@@ -294,6 +294,7 @@ export async function runOperator(args: {
           id: block.id,
           actionId: c.id,
           key,
+          label: etiquetaDe(cap, locale),
           preview: c.preview ?? key,
           artefacto: c.artefacto ?? undefined,
         })
@@ -307,6 +308,7 @@ export async function runOperator(args: {
         id: block.id,
         actionId: p.id,
         key,
+        label: etiquetaDe(cap, locale),
         preview: p.preview ?? key,
         artefacto: p.artefacto ?? undefined,
       })

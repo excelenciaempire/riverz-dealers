@@ -15,11 +15,16 @@ import {
   X,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
+import { TextoRico } from '@/components/ui/texto-rico'
+import {
+  aplicarEvento,
+  aplicarEventoDePlan,
+  type Bloque,
+} from '@/lib/operator/bloques'
 import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
 import type { ResumenHilo } from '@/lib/operator/threads'
-import type { Artefacto } from '@/lib/operator/artifacts'
 import { VistaArtefacto } from './artefacto'
 import { useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
@@ -53,39 +58,6 @@ interface Accion {
   status: 'propuesto' | 'ejecutado' | 'rechazado' | 'fallido'
   preview: string | null
 }
-
-/**
- * El turno en el orden en que pasó.
- *
- * Texto y pasos van en UNA lista y no en dos, porque se intercalan: el Operator
- * dice qué va a hacer, lo hace, cuenta lo que encontró, hace otra cosa. Con
- * listas separadas, la frase "voy a mirar cómo viene la cuenta" terminaba
- * debajo de la consulta que anunciaba.
- */
-type Bloque =
-  | { k: 'texto'; id: string; texto: string }
-  | {
-      k: 'paso'
-      id: string
-      key: string
-      /** Lo que manda el servidor, por si la capacidad no tiene etiqueta corta. */
-      label: string
-      // `ok` es una lectura que salió bien; `hecho` es algo que se construyó de
-      // verdad. Se ven distinto a propósito: una cosa es que haya mirado y otra
-      // que haya creado.
-      estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho'
-      detalle?: string
-      /**
-       * La fila de `operator_actions`, cuando el paso dejó una.
-       *
-       * Es lo que permite que el hilo no mienta después de aprobar: sin esto,
-       * el paso queda congelado en "propuesto" para siempre y abajo aparece la
-       * misma cosa otra vez diciendo "Hecho".
-       */
-      actionId?: string
-      /** Lo que se armó, dibujable. */
-      artefacto?: Artefacto
-    }
 
 /**
  * Cómo se lee cada paso en la pantalla.
@@ -146,24 +118,6 @@ interface Vivo {
   /** Razonamiento del modelo, cuando lo expone (ver `events.ts`). */
   thinking: string
   bloques: Bloque[]
-}
-
-/** Suma un delta de texto al último bloque, o abre uno nuevo si venía un paso. */
-function conTexto(bloques: Bloque[], delta: string): Bloque[] {
-  const ultimo = bloques[bloques.length - 1]
-  if (ultimo?.k === 'texto') {
-    return [...bloques.slice(0, -1), { ...ultimo, texto: ultimo.texto + delta }]
-  }
-  return [...bloques, { k: 'texto', id: `t${bloques.length}`, texto: delta }]
-}
-
-/** Cambia el estado de un paso ya abierto, dejándolo donde está. */
-function conPaso(
-  bloques: Bloque[],
-  id: string,
-  patch: Partial<Extract<Bloque, { k: 'paso' }>>,
-): Bloque[] {
-  return bloques.map((b) => (b.k === 'paso' && b.id === id ? { ...b, ...patch } : b))
 }
 
 export function OperatorChat({
@@ -359,40 +313,18 @@ export function OperatorChat({
                 pasos: e.pasos,
                 estado: 'esperando',
               })
-            } else if (e.t === 'text') {
-              final += e.delta
-              bloques = conTexto(bloques, e.delta)
             } else if (e.t === 'thinking') {
               thinking += e.delta
-            } else if (e.t === 'tool_start') {
-              bloques = [
-                ...bloques,
-                { k: 'paso', id: e.id, key: e.key, label: e.label, estado: 'corriendo' },
-              ]
-            } else if (e.t === 'tool_done') {
-              bloques = conPaso(bloques, e.id, {
-                estado: e.ok ? 'ok' : 'error',
-                detalle: e.ok ? undefined : e.resumen,
-              })
-            } else if (e.t === 'proposed') {
-              bloques = conPaso(bloques, e.id, {
-                estado: 'propuesto',
-                detalle: e.preview,
-                artefacto: e.artefacto,
-                actionId: e.actionId,
-              })
-            } else if (e.t === 'built') {
-              bloques = conPaso(bloques, e.id, {
-                estado: 'hecho',
-                detalle: e.preview,
-                artefacto: e.artefacto,
-                actionId: e.actionId,
-              })
             } else if (e.t === 'error') {
               setError(e.message)
             } else if (e.t === 'done') {
               hilo = e.thread
             }
+            if (e.t === 'text') final += e.delta
+            // El mismo reductor que usa el servidor para guardar el turno: con
+            // dos copias, el hilo se veía de una forma en vivo y de otra al
+            // recargarlo.
+            bloques = aplicarEvento(bloques, e)
           }
           // Un solo repintado por chunk y no uno por evento: con deltas de
           // texto llegando de a decenas, actualizar en cada uno hace parpadear
@@ -525,40 +457,12 @@ export function OperatorChat({
           buffer = rest
           for (const e of events) {
             aLaMesa({ tipo: 'evento', e })
-            if (e.t === 'text') {
-              final += e.delta
-              bloques = conTexto(bloques, e.delta)
-            } else if (e.t === 'proposed') {
-              bloques = [
-                ...bloques,
-                {
-                  k: 'paso',
-                  id: e.id,
-                  key: e.key,
-                  label: e.key,
-                  estado: 'propuesto',
-                  detalle: e.preview,
-                  artefacto: e.artefacto,
-                  actionId: e.actionId,
-                },
-              ]
-            } else if (e.t === 'built') {
-              bloques = [
-                ...bloques,
-                {
-                  k: 'paso',
-                  id: e.id,
-                  key: e.key,
-                  label: e.key,
-                  estado: 'hecho',
-                  detalle: e.preview,
-                  artefacto: e.artefacto,
-                  actionId: e.actionId,
-                },
-              ]
-            } else if (e.t === 'error') {
-              setError(e.message)
-            }
+            if (e.t === 'text') final += e.delta
+            if (e.t === 'error') setError(e.message)
+            // Al correr un plan no hay `tool_start` antes de cada paso: el
+            // reductor lo abre con la etiqueta que trae el evento, en vez de
+            // imprimir la clave cruda de la capacidad.
+            bloques = aplicarEventoDePlan(bloques, e)
           }
           setVivo({ thinking: '', bloques })
         }
@@ -591,23 +495,25 @@ export function OperatorChat({
     [aLaMesa, fetchWithCsrf, t, thread],
   )
 
-  const pendientes = acciones.filter((a) => a.status === 'propuesto')
   /**
-   * Lo resuelto que NO se vio pasar en el hilo.
+   * Todo lo que se vio pasar en el hilo, por su id de acción.
    *
-   * Cuando el paso ya está arriba con su estado, repetirlo abajo muestra dos
-   * veces la misma cosa — y como la tarjeta se trunca, la segunda versión
-   * además dice menos. La lista sirve para lo que viene de una conversación
-   * anterior, donde no hay bloques que lo cuenten.
+   * Lo que está arriba, en el paso donde ocurrió, no se repite abajo: mostrar
+   * dos veces la misma cosa —y la segunda truncada— era lo que hacía parecer
+   * que el texto aparecía y se borraba. Ahora los bloques se guardan con el
+   * mensaje, así que esto sigue valiendo después de recargar; antes se vaciaba
+   * y TODAS las acciones del historial caían amontonadas al final.
    */
+  const porAccion = new Map(acciones.map((a) => [a.id, a]))
   const enElHilo = new Set(
-    mensajes.flatMap((m) =>
-      (m.bloques ?? []).flatMap((b) => (b.k === 'paso' && b.actionId ? [b.actionId] : [])),
+    [...mensajes.map((m) => m.bloques ?? []), vivo?.bloques ?? []].flatMap((bs) =>
+      bs.flatMap((b) => (b.k === 'paso' && b.actionId ? [b.actionId] : [])),
     ),
   )
-  const resueltas = acciones.filter(
-    (a) => a.status !== 'propuesto' && !enElHilo.has(a.id),
-  )
+  // Las de una conversación vieja sin bloques, que no tienen dónde ir arriba.
+  const sueltas = acciones.filter((a) => !enElHilo.has(a.id))
+  const pendientes = sueltas.filter((a) => a.status === 'propuesto')
+  const resueltas = sueltas.filter((a) => a.status !== 'propuesto')
 
   return (
     <div
@@ -677,25 +583,34 @@ export function OperatorChat({
 
         {mensajes.map((m) =>
           m.bloques?.length ? (
-            <Turno key={m.id} bloques={m.bloques} />
+            <Turno key={m.id} bloques={m.bloques} acciones={porAccion} onDecidir={decidir} />
           ) : (
             <div
               key={m.id}
               className={cn(
                 // `w-fit`: la burbuja mide lo que dice. Sin eso, "hola" ocupaba
                 // el ancho de la columna y parecía un cartel.
-                'w-fit max-w-[75%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap',
+                'w-fit max-w-[75%] rounded-2xl px-3.5 py-2 text-sm break-words',
                 m.role === 'user'
                   ? 'ml-auto bg-primary text-primary-foreground'
                   : 'bg-muted text-foreground',
               )}
             >
-              {m.text}
+              {/* Lo que escribe una persona no lleva formato; lo que contesta
+                  el asistente sí, y sin esto se leía «**recompra_1_unidad**». */}
+              {m.role === 'user' ? m.text : <TextoRico text={m.text} />}
             </div>
           ),
         )}
 
-        {vivo && <Turno bloques={vivo.bloques} thinking={vivo.thinking} />}
+        {vivo && (
+          <Turno
+            bloques={vivo.bloques}
+            thinking={vivo.thinking}
+            acciones={porAccion}
+            onDecidir={decidir}
+          />
+        )}
 
         {pensando && !vivo?.bloques.length && !vivo?.thinking && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1023,7 +938,18 @@ function TarjetaPlan({
  * ve que está trabajando y en qué. El texto aparece abajo, en la misma burbuja
  * en la que va a quedar cuando termine, para que no salte de lugar al cerrar.
  */
-function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) {
+function Turno({
+  bloques,
+  thinking,
+  acciones,
+  onDecidir,
+}: {
+  bloques: Bloque[]
+  thinking?: string
+  /** Las acciones por id, para dibujar la que espera donde ocurrió. */
+  acciones?: Map<string, Accion>
+  onDecidir?: (id: string, aprobar: boolean) => void
+}) {
   const t = useT()
   return (
     <div className="space-y-2">
@@ -1039,17 +965,25 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
         </div>
       ) : null}
 
-      {bloques.map((b) =>
-        b.k === 'texto' ? (
+      {bloques.map((b) => {
+        if (b.k === 'texto') {
+          return (
+            <div
+              key={b.id}
+              className="w-fit max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm break-words text-foreground"
+            >
+              <TextoRico text={b.texto} />
+            </div>
+          )
+        }
+        // La acción de este paso, para decidirla acá mismo. Estaba al final del
+        // hilo, agrupada bajo "Esperando tu aprobación", lejos del momento en
+        // que ocurrió — y a tres turnos de distancia ya no se sabía a cuál de
+        // todas correspondía.
+        const accion = b.actionId ? acciones?.get(b.actionId) : undefined
+        return (
+          <div key={b.id} className="space-y-2">
           <div
-            key={b.id}
-            className="w-fit max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm whitespace-pre-wrap text-foreground"
-          >
-            {b.texto}
-          </div>
-        ) : (
-          <div
-            key={b.id}
             className={cn(
               'flex items-start gap-2 text-xs',
               // Lo construido se destaca: es lo único de la lista que dejó algo
@@ -1096,8 +1030,12 @@ function Turno({ bloques, thinking }: { bloques: Bloque[]; thinking?: string }) 
               )}
             </span>
           </div>
-        ),
-      )}
+          {accion?.status === 'propuesto' && onDecidir && (
+            <TarjetaAccion accion={accion} onDecidir={onDecidir} />
+          )}
+          </div>
+        )
+      })}
     </div>
   )
 }
