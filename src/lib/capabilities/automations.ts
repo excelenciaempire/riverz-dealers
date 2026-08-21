@@ -443,7 +443,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.recetas',
     description:
-      'Las recetas disponibles para crear una automatización ya armada (carrito abandonado, pago rechazado, nuevo pedido, tracking, encuesta, recompras).',
+      'Las automatizaciones listas para usar, ya armadas (carrito abandonado, pago rechazado, nuevo pedido, seguimiento del envío, encuesta, recompras). Al hablar con la persona llámalas por su nombre, nunca "receta": esa palabra es de acá adentro.',
     descriptionEn:
       'The available recipes to create a ready-made automation (abandoned cart, rejected payment, new order, tracking, survey, repurchase).',
     risk: 'lectura',
@@ -584,7 +584,7 @@ Se aplican en orden, cada uno sobre cómo quedó el anterior. Antes de escribir 
 
   {
     key: 'automatizaciones.crear',
-    description: `Arma una automatización desde cero, con sus pasos. Para lo que no cubre ninguna receta. Nace pausada.
+    description: `Arma una automatización desde cero, con sus pasos. Para lo que no cubre ninguna de las listas para usar. Nace pausada.
 Disparadores: ${AI_TRIGGERS.map((x) => `${x.value} (${x.que})`).join('; ')}.
 Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de una plantilla YA aprobada — consultá plantillas.estado antes), wait (cantidad + unidad), add_tag (nombre de etiqueta), condition (sujeto + operando, con ramas si/no), close_conversation.`,
     descriptionEn:
@@ -617,7 +617,7 @@ Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de 
   {
     key: 'automatizaciones.crear_desde_receta',
     description:
-      'Crea una automatización a partir de una receta, con sus pasos ya armados. Nace pausada: hay que completar la plantilla y la etiqueta antes de prenderla.',
+      'Crea una automatización a partir de una de las listas para usar, con sus pasos ya armados. Nace pausada: hay que completar la plantilla y la etiqueta antes de prenderla.',
     descriptionEn:
       'Creates an automation from a recipe, with its steps already built. It starts paused: the template and the tag must be filled in before turning it on.',
     risk: 'reversible',
@@ -626,7 +626,7 @@ Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de 
       properties: {
         receta: {
           type: 'string',
-          description: 'Clave de la receta, de automatizaciones.recetas.',
+          description: 'Cuál de las listas para usar, de automatizaciones.recetas.',
         },
       },
       required: ['receta'],

@@ -249,7 +249,7 @@ export const operation = {
   stepAgenteCrear: { es: "Preparando un agente", en: "Preparing an agent" },
   stepAgenteActivar: { es: "Prendiendo un agente", en: "Turning on an agent" },
   stepAutosListar: { es: "Mirando las automatizaciones", en: "Checking the automations" },
-  stepRecetas: { es: "Viendo qué recetas hay", en: "Checking available recipes" },
+  stepRecetas: { es: "Viendo qué se puede armar", en: "Checking what can be set up" },
   stepAutoActivar: { es: "Prendiendo una automatización", en: "Turning on an automation" },
   stepAutoEspera: { es: "Ajustando una espera", en: "Adjusting a wait" },
   stepAutoCrear: { es: "Armando la automatización", en: "Building the automation" },

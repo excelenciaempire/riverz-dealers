@@ -40,7 +40,7 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
   {
     name: 'equipo__plan',
     description:
-      'Arma el reparto completo y lo deja esperando aprobación. NO ejecuta nada. Usala cuando hay más de un dominio en juego, o cuando algo tiene que estar hecho antes que otra cosa. Después de llamarla, contá en una línea qué va a hacer el equipo; nunca digas que ya está hecho.',
+      'Reparte un pedido grande entre varios especialistas y lo deja esperando una sola aprobación. Úsala cuando toca más de un dominio o cuando algo tiene que pasar antes que otra cosa. No escribas nada ANTES de llamarla: escribe una sola vez, después, y sólo lo que la tarjeta del plan no muestre.',
     input_schema: {
       type: 'object',
       properties: {
