@@ -37,6 +37,7 @@ import { addUnitsToFirstLineItem } from '@/lib/shopify/order-edit'
 import { searchProducts } from '@/lib/products/search'
 import { proponerCancelacion, proponerReembolso } from './postventa'
 import { crearLinkDePago } from '@/lib/mercadopago/preference'
+import { emitirCupon } from '@/lib/shopify/discounts'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -276,6 +277,37 @@ export const CREAR_LINK_DE_PAGO_TOOL: Anthropic.Tool = {
   },
 }
 
+/**
+ * Ofrecer un descuento.
+ *
+ * El tope lo pone el comercio y se aplica en el servidor: el modelo propone un
+ * porcentaje y sale el que esté permitido, nunca al revés. Con el tope en 0
+ * —el default— esta tool no se le ofrece al agente.
+ */
+export function buildDescuentoTool(tope: number): Anthropic.Tool {
+  return {
+    name: 'ofrecer_descuento',
+    description:
+      `Generá un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Podés ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Usalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repetile ESE código en vez de pedir otro.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        percent: {
+          type: 'integer',
+          minimum: 1,
+          maximum: tope,
+          description: `Cuánto descontar. El máximo autorizado es ${tope}%.`,
+        },
+        reason: {
+          type: 'string',
+          description: 'Por qué se lo das (una frase corta). Queda registrado.',
+        },
+      },
+      required: ['percent'],
+    },
+  }
+}
+
 /** Definición JSON-Schema de la tool `lookup_order` (formato Anthropic). */
 export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
   name: 'lookup_order',
@@ -367,6 +399,11 @@ export function buildCheckoutTool(
               required: ['variant_id'],
             },
           },
+          discount_code: {
+            type: 'string',
+            description:
+              'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos.',
+          },
           payment_hint,
         },
         // `offer` deja de ser obligatorio: con `items` la clienta armó su
@@ -403,6 +440,11 @@ export function buildCheckoutTool(
           default: 1,
           description:
             'Cantidad de unidades del producto del que están hablando. Por defecto 1. Si la clienta quiere VARIOS productos distintos, usá items en vez de esto.',
+        },
+        discount_code: {
+          type: 'string',
+          description:
+            'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos.',
         },
         payment_hint,
       },
@@ -617,6 +659,39 @@ export async function runTool(
       })
     }
     return JSON.stringify({ found: true, products: hits })
+  }
+
+  if (toolName === 'ofrecer_descuento') {
+    if (!localOrders) {
+      return JSON.stringify({
+        error: 'sin_contexto',
+        message: 'No puedo generar descuentos en esta conversación.',
+      })
+    }
+    const input = (toolInput ?? {}) as { percent?: number; reason?: string }
+    const res = await emitirCupon(localOrders.db, {
+      workspaceId: localOrders.workspaceId,
+      contactId: localOrders.contactId,
+      conversationId: shopify?.conversationId ?? null,
+      agentId: shopify?.agentId ?? null,
+      contactName: shopify?.contactName ?? null,
+      pedido: Number(input.percent ?? 0),
+    })
+    if ('error' in res) {
+      return JSON.stringify({
+        ok: false,
+        message:
+          'No pude generar el descuento. No le prometas ninguna rebaja; seguí con el precio de lista.',
+      })
+    }
+    return JSON.stringify({
+      ok: true,
+      code: res.code,
+      percent: res.percent,
+      // El porcentaje que sale puede ser MENOR al que pidió el modelo: el tope
+      // manda. Decírselo evita que anuncie uno y entregue otro.
+      message: `Decile que tiene ${res.percent}% con el código ${res.code}, que es suyo y de un solo uso. Si el porcentaje es menor al que pensabas, ofrecé ESE, no el otro.`,
+    })
   }
 
   if (toolName === 'crear_link_de_pago') {
@@ -906,6 +981,7 @@ export async function runTool(
       offer?: string
       quantity?: number
       items?: Array<{ variant_id: string; quantity?: number }>
+      discount_code?: string
       payment_hint?: PaymentHint
     }
     const config = shopify.config ?? null
@@ -929,6 +1005,7 @@ export async function runTool(
         offer: input.offer,
         quantity: input.quantity,
         items: input.items,
+        discount_code: input.discount_code,
         payment_hint: input.payment_hint,
       },
       {

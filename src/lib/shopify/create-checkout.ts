@@ -80,6 +80,14 @@ export interface CreateCheckoutInput {
    * productos concretos, eso es lo que la clienta pidió.
    */
   items?: Array<{ variant_id: string; quantity?: number }>
+  /**
+   * Cupón ya emitido para esta persona (`ofrecer_descuento`).
+   *
+   * Shopify lo aplica solo si viaja en el propio enlace: sin esto la clienta
+   * tenía que acordarse de tipearlo en el checkout, que es justo donde se
+   * pierde la venta que el descuento venía a rescatar.
+   */
+  discount_code?: string
   payment_hint?: PaymentHint
 }
 
@@ -203,8 +211,13 @@ function attributesQuery(
   hasTransferDiscount: boolean,
   transferLabel: string | null,
   transferAmount: number | null,
+  discountCode?: string | null,
 ): string {
   const params = new URLSearchParams()
+  // `discount` es un parámetro propio de Shopify, no un atributo: aplica el
+  // cupón al entrar, sin que nadie tenga que tipearlo.
+  const cupon = (discountCode ?? '').trim()
+  if (/^[A-Za-z0-9_-]{3,40}$/.test(cupon)) params.set('discount', cupon)
   // Marca de origen: la orden resultante lleva este note_attribute para que el
   // webhook orders/create sepa que vino de un link del asistente.
   params.set('attributes[riverz_origin]', 'ai')
@@ -254,7 +267,7 @@ export async function createCheckoutLink(
     .filter((i) => /^\d+$/.test(i.variant_id))
   if (lineas.length > 0) {
     const { domain: storefront } = await resolveStorefront(ctx)
-    const qs = attributesQuery(ctx, false, null, null)
+    const qs = attributesQuery(ctx, false, null, null, input.discount_code)
     const path = lineas.map((l) => `${l.variant_id}:${l.quantity}`).join(',')
     const unidades = lineas.reduce((n, l) => n + l.quantity, 0)
     return {
@@ -380,6 +393,7 @@ export async function createCheckoutLink(
     hasTransferDiscount,
     transferLabel,
     transferAmount,
+    input.discount_code,
   )
   const checkoutUrl = `https://${storefront}/cart/${variantId}:${qty}${qs ? '?' + qs : ''}`
 

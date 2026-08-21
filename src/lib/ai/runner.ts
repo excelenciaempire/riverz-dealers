@@ -36,6 +36,7 @@ import {
   buildCheckoutTool,
   buildOrderTool,
   BUSCAR_PRODUCTO_TOOL,
+  buildDescuentoTool,
   CANCELAR_PEDIDO_TOOL,
   CREAR_LINK_DE_PAGO_TOOL,
   LOOKUP_ORDER_TOOL,
@@ -49,6 +50,7 @@ import {
 } from './tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -1597,6 +1599,13 @@ async function generateReply(
   // está OFF, create_checkout (link) sigue disponible como hasta ahora.
   // Voice escalation: let the chat agent place a call when it's the better
   // move — only if voice + "AI decides" are on and we have a phone to dial.
+  // Cuánto puede descontar este comercio. Se lee acá, una vez por respuesta:
+  // el tope viaja dentro de la descripción de la tool, así que el modelo ve el
+  // número real y no propone uno que después se le va a recortar.
+  const topeDescuento = primaryContact.id
+    ? await topeDeDescuento(db, agent.workspace_id).catch(() => 0)
+    : 0;
+
   const voiceCtx: VoiceEscalationContext | null =
     agent.voice_enabled &&
     agent.voice_ai_decides &&
@@ -1660,6 +1669,12 @@ async function generateReply(
     // forma — Tiendanube, WooCommerce, Mercado Libre.
     ...(!shopify && primaryContact.id && agentCan(agent, 'crear_checkout')
       ? [CREAR_LINK_DE_PAGO_TOOL]
+      : []),
+    // Descuento. El tope lo pone el comercio y con 0 —el default— la
+    // herramienta ni se ofrece: un descuento es margen, y ningún default puede
+    // decidir cuánto está dispuesto a regalar un negocio que no lo pidió.
+    ...(topeDescuento > 0 && primaryContact.id && agentCan(agent, 'crear_checkout')
+      ? [buildDescuentoTool(topeDescuento)]
       : []),
   ];
   const opciones = {
