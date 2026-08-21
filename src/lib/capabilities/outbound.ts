@@ -222,6 +222,32 @@ function botonesDe(fila: FilaPlantilla): Array<{ texto: string; tipo: string }> 
   })
 }
 
+/** Cómo quedó guardada una plantilla, dibujable. Leída de la base, no de los argumentos. */
+export async function artefactoGuardadoDePlantilla(
+  ctx: CapabilityContext,
+  templateId: string,
+): Promise<Artefacto | null> {
+  const { data } = await ctx.db
+    .from('message_templates')
+    .select(COLUMNAS_PLANTILLA)
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', templateId)
+    .maybeSingle()
+  const fila = data as unknown as FilaPlantilla | null
+  if (!fila) return null
+  const estado = (fila.status ?? '').toLowerCase() === 'draft' ? 'borrador' : 'en_revision'
+  return artefactoPlantilla({
+    nombre: fila.name,
+    categoria: String(fila.category ?? 'MARKETING'),
+    idioma: fila.language,
+    cuerpo: fila.body_text ?? '',
+    encabezado: fila.header_content,
+    pie: fila.footer_text,
+    botones: botonesDe(fila),
+    estado,
+  })
+}
+
 async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknown>) {
   const idioma = typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es'
   const previa = await buscarPorNombre(ctx, args.nombre, idioma)

@@ -40,6 +40,7 @@ import {
   type TemplateSlug,
 } from '@/lib/automations/templates'
 import { translate } from '@/lib/i18n/translate'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext) {
@@ -155,6 +156,23 @@ async function cargar(ctx: CapabilityContext, automationId: string): Promise<Car
     },
     nombresEtiqueta: await nombresDeEtiqueta(ctx),
   }
+}
+
+/**
+ * Cómo quedó GUARDADA una automatización, dibujable.
+ *
+ * No es lo mismo que el artefacto que se calcula al proponerla: aquél sale de
+ * los argumentos del modelo y éste de la base. La diferencia es justo lo que
+ * hay que poder mirar —las etiquetas ya resueltas, los pasos que de verdad
+ * entraron— y fue lo que destapó que una automatización creada desde el chat
+ * no se parecía a lo que el chat había dicho.
+ */
+export async function artefactoGuardadoDeAutomatizacion(
+  ctx: CapabilityContext,
+  automationId: string,
+): Promise<Artefacto | null> {
+  const { id, snapshot, nombresEtiqueta } = await cargar(ctx, automationId)
+  return artefactoDeSnapshot(snapshot, { id, nombresEtiqueta })
 }
 
 async function ver(ctx: CapabilityContext, args: Record<string, unknown>) {

@@ -60,6 +60,13 @@ export const operation = {
 
   // La mesa de trabajo: qué está armando el equipo, ahora.
   mesaTitulo: { es: "El equipo", en: "The team" },
+  mesaVerComoQuedo: { es: "Ver cómo quedó", en: "See how it turned out" },
+  mapaOperador: { es: "Operador", en: "Operator" },
+  mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
+  mesaEsLoPropuesto: {
+    es: "Esto es lo que se propuso; lo guardado ya no está.",
+    en: "This is what was proposed; the saved version is gone.",
+  },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
   mesaVer: { es: "Ver el equipo", en: "See the team" },
   mesaPlan: { es: "El reparto", en: "The plan" },

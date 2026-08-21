@@ -41,10 +41,26 @@ export interface PlanEnMesa {
   estado: 'propuesto' | 'corriendo' | 'terminado' | 'parcial' | 'fallido' | 'rechazado' | 'aprobado'
 }
 
+/**
+ * Lo que alguien pidió mirar con el botón «Ver cómo quedó».
+ *
+ * `real` distingue lo leído de la base de lo que se había propuesto: entre una
+ * cosa y la otra los nombres se convierten en ids y algún paso puede no haber
+ * entrado, y esa diferencia es justo la que hay que poder ver.
+ */
+export interface FijadoEnMesa {
+  artefacto: Artefacto
+  real: boolean
+  /** Para el enlace a la pantalla de siempre, cuando se puede. */
+  entidadId: string | null
+  capabilityKey: string
+}
+
 export interface EstadoMesa {
   agentes: AgenteEnMesa[]
   plan: PlanEnMesa | null
   lienzos: LienzoEnMesa[]
+  fijado: FijadoEnMesa | null
   gasto: { promptTokens: number; completionTokens: number } | null
   /** Alguien del equipo está trabajando ahora mismo. */
   activo: boolean
@@ -54,14 +70,19 @@ const VACIA: EstadoMesa = {
   agentes: [],
   plan: null,
   lienzos: [],
+  fijado: null,
   gasto: null,
   activo: false,
 }
 
-type Accion = { tipo: 'evento'; e: OperatorEvent } | { tipo: 'limpiar' }
+type Accion =
+  | { tipo: 'evento'; e: OperatorEvent }
+  | { tipo: 'fijar'; fijado: FijadoEnMesa | null }
+  | { tipo: 'limpiar' }
 
 function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
   if (a.tipo === 'limpiar') return VACIA
+  if (a.tipo === 'fijar') return { ...s, fijado: a.fijado }
   const e = a.e
 
   const conAgente = (id: SubagentId, patch: Partial<AgenteEnMesa>): EstadoMesa => {
@@ -190,5 +211,5 @@ export function useMesaDispatch() {
  * la misma frase dos veces en la misma pantalla.
  */
 export function mesaTieneAlgo(m: EstadoMesa): boolean {
-  return m.agentes.length > 0 || m.lienzos.length > 0
+  return m.agentes.length > 0 || m.lienzos.length > 0 || m.fijado !== null
 }

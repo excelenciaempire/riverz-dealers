@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Brain,
   Check,
+  Eye,
   History,
   Loader2,
   MessageSquarePlus,
@@ -24,6 +25,7 @@ import {
 import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
 import { VistaArtefacto } from './artefacto'
 import { useMesaDispatch } from './mesa-contexto'
@@ -390,6 +392,43 @@ export function OperatorChat({
     )
   }, [])
 
+  /**
+   * Traer al panel cómo quedó lo que se construyó.
+   *
+   * Se pide al servidor y no se reusa el artefacto del bloque a propósito: el
+   * del bloque es lo que se PROPUSO, calculado desde los argumentos del modelo.
+   * Entre proponer y guardar los nombres se convierten en ids y algún paso
+   * puede no haber entrado — y ahí estaba escondida una automatización que en
+   * el chat se veía bien y no podía funcionar.
+   */
+  const verComoQuedo = useCallback(
+    async (actionId: string, key: string) => {
+      try {
+        const res = await fetch(`/api/operacion/operator/acciones/${actionId}/artefacto`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) return
+        const json = (await res.json()) as {
+          artefacto: Artefacto
+          real: boolean
+          entidadId: string | null
+        }
+        aLaMesa({
+          tipo: 'fijar',
+          fijado: {
+            artefacto: json.artefacto,
+            real: json.real,
+            entidadId: json.entidadId,
+            capabilityKey: key,
+          },
+        })
+      } catch {
+        /* si no se puede traer, no pasa nada: el paso sigue con su dibujo */
+      }
+    },
+    [aLaMesa],
+  )
+
   const decidir = useCallback(
     async (id: string, aprobar: boolean) => {
       setAcciones((a) =>
@@ -583,7 +622,13 @@ export function OperatorChat({
 
         {mensajes.map((m) =>
           m.bloques?.length ? (
-            <Turno key={m.id} bloques={m.bloques} acciones={porAccion} onDecidir={decidir} />
+            <Turno
+              key={m.id}
+              bloques={m.bloques}
+              acciones={porAccion}
+              onDecidir={decidir}
+              onVer={verComoQuedo}
+            />
           ) : (
             <div
               key={m.id}
@@ -609,6 +654,7 @@ export function OperatorChat({
             thinking={vivo.thinking}
             acciones={porAccion}
             onDecidir={decidir}
+            onVer={verComoQuedo}
           />
         )}
 
@@ -943,12 +989,14 @@ function Turno({
   thinking,
   acciones,
   onDecidir,
+  onVer,
 }: {
   bloques: Bloque[]
   thinking?: string
   /** Las acciones por id, para dibujar la que espera donde ocurrió. */
   acciones?: Map<string, Accion>
   onDecidir?: (id: string, aprobar: boolean) => void
+  onVer?: (actionId: string, key: string) => void
 }) {
   const t = useT()
   return (
@@ -1027,6 +1075,19 @@ function Turno({
                 <div className="mt-2">
                   <VistaArtefacto artefacto={b.artefacto} />
                 </div>
+              )}
+              {/* Lo construido se puede mirar sin salir del chat: el panel de
+                  la derecha lo dibuja LEÍDO DE LA BASE, que no es lo mismo que
+                  lo que se propuso. */}
+              {b.estado === 'hecho' && b.actionId && onVer && (
+                <button
+                  type="button"
+                  onClick={() => onVer(b.actionId!, b.key)}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent-ink transition-colors hover:bg-primary/10"
+                >
+                  <Eye className="size-3" />
+                  {t('operation.mesaVerComoQuedo')}
+                </button>
               )}
             </span>
           </div>
