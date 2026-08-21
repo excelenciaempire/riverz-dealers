@@ -150,7 +150,7 @@ export function Mesa() {
         />
       )}
       {!enCajon && (
-        <BotonVer className="lg:hidden" activo={m.activo} onClick={() => setEnCajon(true)} />
+        <BotonVer className="flex lg:hidden" activo={m.activo} onClick={() => setEnCajon(true)} />
       )}
     </>
   )
@@ -171,7 +171,7 @@ function BotonVer({
       type="button"
       onClick={onClick}
       className={cn(
-        'fixed right-4 bottom-24 z-40 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-2 text-xs shadow-sm transition-colors hover:text-foreground',
+        'fixed right-4 bottom-24 z-40 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-2 text-xs shadow-sm transition-colors hover:text-foreground',
         className,
       )}
     >
