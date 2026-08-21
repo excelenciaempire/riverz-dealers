@@ -1670,6 +1670,11 @@ async function generateReply(
     ...(!shopify && primaryContact.id && agentCan(agent, 'crear_checkout')
       ? [CREAR_LINK_DE_PAGO_TOOL]
       : []),
+    // Crear el pedido en una tienda que no es Shopify. Mismo permiso y mismo
+    // freno que el camino de Shopify: sin `crear_pedidos` no se ofrece.
+    ...(!shopify && otherStore && primaryContact.id && agentCan(agent, 'crear_pedidos')
+      ? [buildOrderTool(null)]
+      : []),
     // Descuento. El tope lo pone el comercio y con 0 —el default— la
     // herramienta ni se ofrece: un descuento es margen, y ningún default puede
     // decidir cuánto está dispuesto a regalar un negocio que no lo pidió.

@@ -38,6 +38,7 @@ import { searchProducts } from '@/lib/products/search'
 import { proponerCancelacion, proponerReembolso } from './postventa'
 import { crearLinkDePago } from '@/lib/mercadopago/preference'
 import { emitirCupon } from '@/lib/shopify/discounts'
+import { crearPedidoEnLaTienda } from '@/lib/commerce/create-order'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -484,6 +485,19 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
   const hasTransferDiscount = transferAmount != null && transferAmount > 0
 
   const properties: Record<string, unknown> = {
+    items: {
+      type: 'array',
+      description:
+        'Qué lleva. Pasá cada producto con el variant_id que te devolvió buscar_producto y su cantidad. En una tienda que no es Shopify es OBLIGATORIO: no hay un producto por defecto que adivinar.',
+      items: {
+        type: 'object',
+        properties: {
+          variant_id: { type: 'string', description: 'variant_id del producto.' },
+          quantity: { type: 'integer', minimum: 1, default: 1 },
+        },
+        required: ['variant_id'],
+      },
+    },
     customer_name: {
       type: 'string',
       description:
@@ -1042,10 +1056,76 @@ export async function runTool(
     return JSON.stringify(result)
   }
   if (toolName === 'create_order') {
+    // Sin Shopify, el pedido se crea en la tienda que SÍ tenga el comercio.
+    // Tiendanube y WooCommerce podían conversar y no podían vender: llegaban
+    // hasta "te paso el link" y ahí se terminaba, con las credenciales de
+    // escritura ya otorgadas.
+    if (!shopify && otherStore && localOrders) {
+      const input = (toolInput ?? {}) as {
+        quantity?: number
+        items?: Array<{ variant_id: string; quantity?: number }>
+        customer_name?: string
+        customer_email?: string
+        customer_phone?: string
+        shipping_address?: Record<string, string>
+        note?: string
+        confirmed?: boolean
+      }
+      // La confirmación explícita es el mismo freno que en Shopify: un pedido
+      // creado por las dudas es una venta que nadie pidió.
+      if (input.confirmed !== true) {
+        return JSON.stringify({
+          error: 'not_confirmed',
+          message: 'Confirmá con la clienta antes de crear el pedido.',
+        })
+      }
+      const lineas = (input.items ?? []).map((i) => ({
+        variant_id: String(i.variant_id ?? ''),
+        quantity: Number(i.quantity ?? 1),
+      }))
+      const res = await crearPedidoEnLaTienda(localOrders.db, {
+        workspaceId: localOrders.workspaceId,
+        lineas,
+        cliente: {
+          name: input.customer_name ?? null,
+          email: input.customer_email ?? null,
+          phone: input.customer_phone ?? null,
+          address: input.shipping_address
+            ? {
+                address1: input.shipping_address.address1 ?? null,
+                city: input.shipping_address.city ?? null,
+                province: input.shipping_address.province ?? null,
+                zip: input.shipping_address.zip ?? null,
+                country: input.shipping_address.country ?? null,
+              }
+            : null,
+        },
+        nota: input.note ?? null,
+      })
+      if ('error' in res) {
+        return JSON.stringify({
+          ok: false,
+          message:
+            res.error === 'sin_lineas'
+              ? 'Falta decir qué producto lleva. Usá buscar_producto para obtener su variant_id.'
+              : 'No pude crear el pedido. No le digas a la clienta que quedó hecho; ofrecé que lo confirme el equipo.',
+        })
+      }
+      return JSON.stringify({
+        ok: true,
+        order_number: res.order_number,
+        total: res.total,
+        currency: res.currency,
+        payment_url: res.pay_url,
+        message: res.pay_url
+          ? 'El pedido quedó creado y pendiente de pago. Pasale el link para que lo abone.'
+          : 'El pedido quedó creado y pendiente de pago. Contale cómo seguir con el pago.',
+      })
+    }
     if (!shopify) {
       return JSON.stringify({
         error: 'no_shopify_connection',
-        message: 'El workspace no tiene Shopify conectado.',
+        message: 'El workspace no tiene una tienda conectada donde crear el pedido.',
       })
     }
     if (!shopify.canCreateOrders) {
