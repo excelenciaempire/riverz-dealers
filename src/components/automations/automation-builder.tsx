@@ -86,6 +86,11 @@ import {
   type DataPoint,
 } from "@/lib/automations/data-points"
 import {
+  TIME_DP_ID,
+  cfgDeDato,
+  datoDeCfg,
+} from "@/lib/automations/condition-config"
+import {
   compileSwitch,
   collapseSwitch,
   type SwitchData,
@@ -583,58 +588,11 @@ const GROUP_LABEL: Record<string, string> = {
   message: "automations.dpGroupMessage",
 }
 
-const TIME_DP_ID = "time_of_day"
-
-/** Default op when a data point is first picked. */
-function defaultOpFor(dp: DataPoint): string | undefined {
-  return dp.condition.kind === 'var' || dp.condition.kind === 'contact_field'
-    ? 'eq'
-    : undefined
-}
-
-/** Reverse-map a stored condition config back to a registry data point id. */
-function dataPointIdFromCfg(
-  subject: string | undefined,
-  operand: string | undefined,
-  dps: DataPoint[],
-): string | undefined {
-  if (subject === 'time_of_day') return TIME_DP_ID
-  return dps.find((d) => {
-    const c = d.condition
-    if (subject === 'context_var') return c.kind === 'var' && c.varKey === operand
-    if (subject === 'contact_field') return c.kind === 'contact_field' && c.column === operand
-    if (subject === 'tag_presence') return c.kind === 'tag'
-    if (subject === 'in_segment') return c.kind === 'segment'
-    if (subject === 'message_content') return c.kind === 'message'
-    if (subject === 'purchased') return c.kind === 'purchased'
-    if (subject === 'messaged') return c.kind === 'messaged'
-    if (subject === 'rejected_open') return c.kind === 'rejected_open'
-    if (subject === 'order_paid') return c.kind === 'order_paid'
-    return false
-  })?.id
-}
-
-/** Build the condition config for a freshly-picked data point. */
-function cfgForDataPoint(dp: DataPoint): Record<string, unknown> {
-  const c = dp.condition
-  if (c.kind === 'var')
-    return { subject: 'context_var', operand: c.varKey, op: defaultOpFor(dp), value: '', value2: undefined }
-  if (c.kind === 'contact_field')
-    return { subject: 'contact_field', operand: c.column, op: defaultOpFor(dp), value: '', value2: undefined }
-  if (c.kind === 'tag') return { subject: 'tag_presence', operand: '', op: undefined, value: '', value2: undefined }
-  if (c.kind === 'segment') return { subject: 'in_segment', operand: '', op: undefined, value: '', value2: undefined }
-  // `operand` es la ventana y `value` el lado que se quiere.
-  if (c.kind === 'purchased')
-    return { subject: 'purchased', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
-  if (c.kind === 'messaged')
-    return { subject: 'messaged', operand: 'since_trigger', op: undefined, value: 'false', value2: undefined }
-  if (c.kind === 'rejected_open')
-    return { subject: 'rejected_open', operand: '48h', op: undefined, value: 'false', value2: undefined }
-  // Sin ventana: la pregunta es por el pedido de ESTE flujo, no por un plazo.
-  if (c.kind === 'order_paid')
-    return { subject: 'order_paid', operand: undefined, op: undefined, value: 'false', value2: undefined }
-  return { subject: 'message_content', operand: '', value: '', op: undefined, value2: undefined }
-}
+// El mapeo dato → condición ya NO vive acá: se mudó a
+// `src/lib/automations/condition-config.ts` para que el Operador entre por la
+// misma puerta. Escribiendo el `subject` a mano llegó a guardar uno que no
+// existe, y la automatización contestaba que no para siempre. Importarlo desde
+// los dos lados es lo que hace que no puedan volver a divergir.
 
 function ConditionFields({
   cfg,
@@ -652,7 +610,7 @@ function ConditionFields({
   const subject = cfg.subject as string | undefined
   const operand = cfg.operand as string | undefined
   const dps = conditionDataPoints(trigger, { hasVoiceCall })
-  const currentId = dataPointIdFromCfg(subject, operand, dps)
+  const currentId = datoDeCfg(subject, operand, dps)
   const dp = currentId && currentId !== TIME_DP_ID ? dataPointById(currentId) : undefined
   const groups = ["order", "contact", "message"].filter((g) => dps.some((d) => d.group === g))
 
@@ -662,7 +620,7 @@ function ConditionFields({
       return
     }
     const d = dataPointById(id)
-    if (d) set(cfgForDataPoint(d))
+    if (d) set(cfgDeDato(d))
   }
 
   return (
@@ -3729,7 +3687,7 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   if (!subject) return t("automations.previewDefineCondition")
   if (subject === "time_of_day")
     return operand ? `${t("automations.dpTimeOfDay")}: ${operand}` : t("automations.previewDefineCondition")
-  const id = dataPointIdFromCfg(subject, operand, DATA_POINTS)
+  const id = datoDeCfg(subject, operand, DATA_POINTS)
   const dp = id && id !== TIME_DP_ID ? dataPointById(id) : undefined
   if (!dp) return t("automations.previewDefineCondition")
   const label = t(dp.labelKey)

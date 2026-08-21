@@ -99,7 +99,7 @@ describe('rutas', () => {
       rescate().pasos,
       new Map([['11111111-1111-1111-1111-111111111111', 'comprador']]),
     )
-    expect(rutas.find((r) => r.ruta === '3.si.1')?.que).toBe('Etiqueta «comprador»')
+    expect(rutas.find((r) => r.ruta === '3.si.1')?.que).toBe('Le pone la etiqueta «comprador»')
   })
 })
 

@@ -1,4 +1,4 @@
-import type { AutomationTriggerType } from '@/types'
+import { CONDITION_SUBJECTS, type AutomationTriggerType } from '@/types'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -19,7 +19,10 @@ import type { AutomationTriggerType } from '@/types'
  * sin él. "¿Pagó el pedido?" es sobre el pedido de este flujo, no sobre una
  * ventana de tiempo ni una columna.
  */
-const SUBJECTS_WITHOUT_OPERAND = new Set(['order_paid'])
+const SUBJECTS_WITHOUT_OPERAND = new Set(['order_paid', 'message_content'])
+
+/** Las preguntas que el motor sabe contestar, para poder comparar acá. */
+const SUBJECTS = new Set<string>(CONDITION_SUBJECTS)
 
 export interface ValidationIssue {
   /** Dot-path for the UI to highlight; stable enough to build a table. */
@@ -115,6 +118,27 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
     case 'condition':
       if (!nonEmpty(c.subject)) {
         issues.push({ path: `${path}.subject`, message: 'condition subject is required' })
+      } else if (!SUBJECTS.has(String(c.subject))) {
+        // Un sujeto que no está en la lista cae al `default: return false` del
+        // motor: la pregunta contesta que no para siempre. Marcarlo no puede
+        // romper nada que hoy funcione — nombra algo que ya estaba roto en
+        // silencio. Pasó con `subject: "tag"`, y la automatización entera no le
+        // escribió nunca a nadie.
+        issues.push({
+          path: `${path}.subject`,
+          message: `unknown condition subject: ${String(c.subject)}`,
+        })
+      } else if (
+        (String(c.subject) === 'tag_presence' || String(c.subject) === 'in_segment') &&
+        nonEmpty(c.operand) &&
+        !isUuid(c.operand)
+      ) {
+        // El motor compara contra un id. Con un nombre ahí, el filtro no
+        // matchea nunca: mismo argumento que el de `add_tag.tag_id`.
+        issues.push({
+          path: `${path}.operand`,
+          message: 'condition operand must be an existing tag or segment',
+        })
       }
       // `operand` es el complemento del sujeto: la columna, la etiqueta, la
       // ventana. Hay sujetos que no lo necesitan porque la pregunta ya está

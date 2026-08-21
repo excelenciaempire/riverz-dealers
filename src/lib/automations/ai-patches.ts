@@ -34,12 +34,16 @@ import {
   artefactoDePlan,
   pasoDesdeIA,
   resumirPaso,
+  simularResolucion,
   type AiPaso,
 } from './ai-steps'
+import { datoDeCfg } from './condition-config'
+import { DATA_POINTS } from './data-points'
 import { activationIssues } from './activation'
 import type { BuilderStepInput } from './steps-tree'
 import type { ValidationIssue } from './validate'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import type { AutomationTriggerType } from '@/types'
 
 export type UnidadEspera = 'minutes' | 'hours' | 'days'
 
@@ -424,12 +428,18 @@ export function aplicarPatches(
       }
 
       case 'agregar_paso': {
-        const nuevo = pasoDesdeIA(p.nuevo)
+        // El traductor devuelve QUÉ falló, no `null` a secas: el mensaje
+        // genérico de antes ("falta el texto, la plantilla, la espera o el
+        // sujeto") no le decía al modelo cuál de las cuatro era, y sobre una
+        // condición mal escrita no decía nada útil.
+        const { paso: nuevo, problemas: suyos } = pasoDesdeIA(p.nuevo, {
+          disparador: antes.disparador as AutomationTriggerType,
+        })
         if (!nuevo) {
-          problemas.push({
-            path,
-            message: `el paso nuevo venía incompleto (${p.nuevo.tipo}: falta el texto, la plantilla, la espera o el sujeto)`,
-          })
+          for (const q of suyos) problemas.push({ path, message: q.message })
+          if (suyos.length === 0) {
+            problemas.push({ path, message: `el paso nuevo venía incompleto (${p.nuevo.tipo})` })
+          }
           break
         }
         const sitio = p.donde ? ubicar(despues.pasos, p.donde) : { lista: despues.pasos, indice: -1 }
@@ -491,11 +501,13 @@ function problemasDeActivacion(s: AutomatizacionSnapshot): ValidationIssue[] {
   return activationIssues({
     triggerType: s.disparador,
     triggerConfig: s.triggerConfig,
-    steps: s.pasos,
-  }).filter((i) => !i.path.endsWith('.tag_id'))
-  // La etiqueta se ignora por lo mismo que en `planDesdeIA`: un paso agregado
-  // acá viaja con el NOMBRE, y el uuid se lo pone `resolverEtiquetas` recién al
-  // guardar. Contarlo como error frenaría toda edición que agregue una etiqueta.
+    steps: simularResolucion(s.pasos),
+  })
+  // Los nombres que todavía no se convirtieron en id se completan con uno de
+  // mentira antes de validar. Antes esto se resolvía filtrando los problemas
+  // cuya ruta terminaba en `.tag_id`, y esa lista de sufijos se desactualiza
+  // sola en cuanto aparece una referencia más — y de paso escondía un hueco
+  // vacío que NO tenía un nombre detrás, que sí es un error de verdad.
 }
 
 /**
@@ -605,14 +617,43 @@ export function aIA(
           texto(c.tag_name) ??
           (typeof c.tag_id === 'string' ? nombresEtiqueta?.get(c.tag_id) ?? c.tag_id : undefined),
       }
-    case 'condition':
+    case 'condition': {
+      // De vuelta al DATO, que es el vocabulario del lienzo y el del chat. Sin
+      // esto el árbol se dibujaba como "¿contact_field last_offer_units?", que
+      // no le dice nada a quien está por aprobarlo.
+      const subject = texto(c.subject)
+      const operand = texto(c.operand)
+      const dato = datoDeCfg(subject, operand, DATA_POINTS)
+      const esEtiqueta = subject === 'tag_presence'
+      const esGrupo = subject === 'in_segment'
       return {
         tipo: 'condition',
-        sujeto: texto(c.subject),
-        operando: texto(c.operand),
+        dato,
+        comparador: texto(c.op),
+        valor: texto(c.value),
+        valor2: texto(c.value2),
+        ...(esEtiqueta
+          ? {
+              etiqueta:
+                texto(c.tag_name) ?? (operand ? nombresEtiqueta?.get(operand) ?? operand : undefined),
+            }
+          : {}),
+        ...(esGrupo ? { grupo: texto(c.segment_name) ?? operand } : {}),
+        ...(subject === 'purchased' || subject === 'messaged' || subject === 'rejected_open'
+          ? { ventana: operand }
+          : {}),
         si: (paso.branches?.yes ?? []).map((p) => aIA(p, nombresEtiqueta)),
         no: (paso.branches?.no ?? []).map((p) => aIA(p, nombresEtiqueta)),
       }
+    }
+    case 'assign_conversation':
+      return { tipo: 'assign_conversation' }
+    case 'update_contact_field':
+      return { tipo: 'update_contact_field', campo: texto(c.field), valor: texto(c.value) }
+    case 'send_webhook':
+      return { tipo: 'send_webhook', url: texto(c.url) }
+    case 'voice_call':
+      return { tipo: 'voice_call', agente_voz: texto(c.agent_name) }
     default:
       return { tipo: paso.step_type }
   }

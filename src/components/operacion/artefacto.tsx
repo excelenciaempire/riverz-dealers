@@ -6,8 +6,11 @@ import {
   FileText,
   GitBranch,
   MessageSquare,
+  PhoneCall,
   Tag,
+  UserCog,
   Users,
+  Webhook,
   Workflow,
   XCircle,
 } from 'lucide-react'
@@ -41,6 +44,9 @@ const ICONO: Record<string, typeof Clock> = {
   close_conversation: XCircle,
   assign_conversation: Users,
   condition: GitBranch,
+  update_contact_field: UserCog,
+  send_webhook: Webhook,
+  voice_call: PhoneCall,
 }
 
 /**

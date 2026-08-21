@@ -133,7 +133,10 @@ describe("validateStepsForActivation", () => {
     const issues = validateStepsForActivation([
       {
         step_type: "condition",
-        step_config: { subject: "tag", operand: "vip" },
+        step_config: {
+          subject: "tag_presence",
+          operand: "11111111-1111-4111-8111-111111111111",
+        },
         branches: {
           yes: [{ step_type: "add_tag", step_config: { tag_id: "" } }],
           no: [
@@ -148,6 +151,42 @@ describe("validateStepsForActivation", () => {
     expect(issues.map((i) => i.path)).toEqual([
       "steps[0].yes.steps[0].tag_id",
       "steps[0].no.steps[0].text",
+    ]);
+  });
+
+  it("marca un sujeto de condición que el motor no sabe contestar", () => {
+    // Este es el fixture que ANTES tenía esta suite: `subject: "tag"`, que no
+    // existe. Pasaba con dos issues y ninguno hablaba del sujeto, así que el
+    // test documentaba el bug en vez de atraparlo. Un sujeto fuera de la lista
+    // cae al `default: return false` del motor: la pregunta contesta que no
+    // para siempre, sin dejar rastro en ningún registro.
+    const issues = validateStepsForActivation([
+      {
+        step_type: "condition",
+        step_config: { subject: "tag", operand: "vip" },
+        branches: { yes: [{ step_type: "close_conversation", step_config: {} }] },
+      },
+    ]);
+    expect(issues).toEqual([
+      { path: "steps[0].subject", message: "unknown condition subject: tag" },
+    ]);
+  });
+
+  it("marca una etiqueta puesta por nombre donde va un id", () => {
+    // El motor compara `tag_id` contra `operand`. Con el nombre ahí, el filtro
+    // no matchea nunca. Mismo argumento que el de `add_tag.tag_id`.
+    const issues = validateStepsForActivation([
+      {
+        step_type: "condition",
+        step_config: { subject: "tag_presence", operand: "unidades: 1" },
+        branches: { yes: [{ step_type: "close_conversation", step_config: {} }] },
+      },
+    ]);
+    expect(issues).toEqual([
+      {
+        path: "steps[0].operand",
+        message: "condition operand must be an existing tag or segment",
+      },
     ]);
   });
 

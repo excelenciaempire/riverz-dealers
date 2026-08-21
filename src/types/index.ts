@@ -782,29 +782,38 @@ export interface WaitStepConfig {
   unit: 'minutes' | 'hours' | 'days';
 }
 
-export type ConditionSubject =
-  | 'contact_field'
-  | 'tag_presence'
-  | 'message_content'
-  | 'time_of_day'
-  | 'in_segment'
-  | 'context_var'
-  // Se evalua EN VIVO contra los pedidos de la tienda, no contra el contexto
-  // capturado al disparar. `operand` es la ventana ("3h", "7d"): sirve en
-  // cualquier automatizacion, no solo despues de un pago rechazado.
-  | 'purchased'
-  // Si ya le mandamos un mensaje nuestro en la ventana pedida. Deja que un
-  // flujo se aparte cuando otro ya hablo con esa persona, a la vista y no
-  // escondido en un cron.
-  | 'messaged'
-  // Si tiene un pago rechazado sin resolver. Un rechazo de tarjeta deja el
-  // checkout abierto, asi que la misma persona entra por los dos rescates:
-  // esto deja que el de carrito se aparte, dicho en el lienzo.
-  | 'rejected_open'
-  // Si el pedido ya figura pagado, consultado a la tienda en el momento. El
-  // webhook trae el estado que tenia al crearse, y despues de una espera eso
-  // ya no dice nada: es la pregunta de los pedidos por transferencia.
-  | 'order_paid';
+/**
+ * Las preguntas que el motor sabe contestar.
+ *
+ * Es un `const` y no sólo un tipo porque hace falta EN EJECUCIÓN: la validación
+ * tiene que poder comparar contra la lista real. Sin eso, un sujeto inventado
+ * —pasó: `"tag"`— se guardaba sin una queja, el motor caía a su `default:
+ * return false`, y la pregunta contestaba que no para siempre sin dejar rastro.
+ *
+ * `purchased` se evalua EN VIVO contra los pedidos de la tienda, no contra el
+ * contexto capturado al disparar; `operand` es la ventana ("3h", "7d").
+ * `messaged` dice si ya le mandamos un mensaje nuestro en esa ventana, y deja
+ * que un flujo se aparte cuando otro ya habló con esa persona, a la vista y no
+ * escondido en un cron. `rejected_open` dice si tiene un pago rechazado sin
+ * resolver: un rechazo de tarjeta deja el checkout abierto, así que la misma
+ * persona entra por los dos rescates. `order_paid` le pregunta a la tienda en
+ * el momento, porque el webhook trae el estado que el pedido tenía al crearse y
+ * después de una espera eso ya no dice nada.
+ */
+export const CONDITION_SUBJECTS = [
+  'contact_field',
+  'tag_presence',
+  'message_content',
+  'time_of_day',
+  'in_segment',
+  'context_var',
+  'purchased',
+  'messaged',
+  'rejected_open',
+  'order_paid',
+] as const;
+
+export type ConditionSubject = (typeof CONDITION_SUBJECTS)[number];
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

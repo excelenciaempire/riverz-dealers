@@ -15,8 +15,10 @@ import { installTemplate } from '@/lib/automations/install-template'
 import {
   AI_STEPS_SCHEMA,
   AI_TRIGGERS,
+  MAX_PROFUNDIDAD,
   artefactoDePlan,
   planDesdeIA,
+  type AiEntradaPlan,
   type AiPaso,
 } from '@/lib/automations/ai-steps'
 import {
@@ -29,7 +31,7 @@ import {
   type Ensayo,
 } from '@/lib/automations/ai-patches'
 import { insertSteps, loadStepsTree, replaceSteps } from '@/lib/automations/steps-tree'
-import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
+import { resolverReferencias } from '@/lib/automations/resolve-tag-seeds'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import {
   AUTOMATION_TEMPLATES,
@@ -290,10 +292,13 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
   // hay ninguna razón para hacerle pasar eso a una automatización a la que sólo
   // le cambiaron el nombre.
   if (JSON.stringify(snapshot.pasos) !== JSON.stringify(despues.pasos)) {
-    const err = await replaceSteps(
-      id,
-      await resolverEtiquetas(ctx.db, ctx.workspaceId, despues.pasos),
-    )
+    const refs = await resolverReferencias(ctx.db, ctx.workspaceId, { pasos: despues.pasos })
+    if (refs.problemas.length > 0) {
+      // Aplicar la mitad de una edición es peor que no aplicar ninguna: la
+      // misma regla que ya rige el ensayo de los patches.
+      throw new Error(`no se pudo editar — ${refs.problemas.map((q) => q.message).join('; ')}`)
+    }
+    const err = await replaceSteps(id, refs.pasos)
     if (err) throw new Error(err)
   }
 
@@ -329,18 +334,37 @@ async function recetas(ctx: CapabilityContext) {
  * igual: lo que cambia es de dónde salen los pasos, no cuándo empieza a
  * escribirle a la gente.
  */
-async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
-  const { plan, problemas } = planDesdeIA({
+/** Los argumentos del modelo, con la forma que espera `planDesdeIA`. */
+function entradaDePlan(args: Record<string, unknown>): AiEntradaPlan {
+  return {
     nombre: args.nombre as string,
     disparador: args.disparador as string,
+    dias: typeof args.dias === 'number' ? args.dias : undefined,
+    palabras: Array.isArray(args.palabras) ? (args.palabras as string[]) : undefined,
+    coincidencia: typeof args.coincidencia === 'string' ? args.coincidencia : undefined,
     pasos: args.pasos as AiPaso[],
-  })
+  }
+}
+
+async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const { plan, problemas } = planDesdeIA(entradaDePlan(args))
   if (!plan) {
     // Se devuelve legible para que el modelo pueda corregir en la misma vuelta
     // en vez de fallar y quedarse ahí.
     throw new Error(
       `no se puede crear así — ${problemas.map((p) => `${p.path}: ${p.message}`).join('; ')}`,
     )
+  }
+
+  // Los nombres se convierten en ids ANTES de escribir nada. Antes era al
+  // revés —insertar, resolver, y borrar la fila si algo falló— y un nombre de
+  // grupo mal escrito dejaba una etiqueta recién creada colgada en la cuenta.
+  const refs = await resolverReferencias(ctx.db, ctx.workspaceId, {
+    pasos: plan.pasos,
+    triggerConfig: plan.disparadorConfig,
+  })
+  if (refs.problemas.length > 0) {
+    throw new Error(`no se puede crear así — ${refs.problemas.map((p) => p.message).join('; ')}`)
   }
 
   const userId =
@@ -353,7 +377,10 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
       workspace_id: ctx.workspaceId,
       name: plan.nombre,
       trigger_type: plan.disparador,
-      trigger_config: {},
+      // Con `{}` fijo —que es lo que había— ninguna automatización por
+      // inactividad se podía crear: la validación pedía los días y el modelo
+      // no tenía dónde ponerlos.
+      trigger_config: refs.triggerConfig,
       is_active: false,
     })
     .select('id, name, trigger_type, is_active')
@@ -361,13 +388,7 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
   if (error || !data) throw new Error(error?.message ?? 'no se pudo crear')
   const automation = data as { id: string; name: string }
 
-  // Las etiquetas viajan por nombre y acá se convierten en filas reales de la
-  // cuenta, creándolas si no existían. Sin esto, el paso guarda un texto donde
-  // va un uuid y la corrida falla contra la clave foránea.
-  const err = await insertSteps(
-    automation.id,
-    await resolverEtiquetas(ctx.db, ctx.workspaceId, plan.pasos),
-  )
+  const err = await insertSteps(automation.id, refs.pasos)
   if (err) {
     await ctx.db.from('automations').delete().eq('id', automation.id)
     throw new Error(err)
@@ -375,8 +396,8 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
 
   return {
     ...automation,
-    pasos: plan.pasos.length,
-    nota: 'Queda pausada. Revisala y prendela cuando quieras.',
+    pasos: plan.total,
+    nota: 'Queda pausada. Revísala y préndela cuando quieras.',
   }
 }
 
@@ -391,7 +412,7 @@ async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unk
     ...automation,
     // Se dice acá y no en la descripción porque es lo que hay que hacer
     // ahora: la receta deja en blanco la plantilla y la etiqueta a propósito.
-    nota: 'Queda pausada. Completá el nombre de la plantilla y la etiqueta antes de prenderla.',
+    nota: 'Queda pausada. Completa el nombre de la plantilla y la etiqueta antes de prenderla.',
   }
 }
 
@@ -584,33 +605,28 @@ Se aplican en orden, cada uno sobre cómo quedó el anterior. Antes de escribir 
 
   {
     key: 'automatizaciones.crear',
-    description: `Arma una automatización desde cero, con sus pasos. Para lo que no cubre ninguna de las listas para usar. Nace pausada.
-Disparadores: ${AI_TRIGGERS.map((x) => `${x.value} (${x.que})`).join('; ')}.
-Pasos: send_message (texto, admite {{nombre}}), send_template (nombre exacto de una plantilla YA aprobada — consultá plantillas.estado antes), wait (cantidad + unidad), add_tag (nombre de etiqueta), condition (sujeto + operando, con ramas si/no), close_conversation.`,
+    description: `Arma una automatización desde cero, con sus pasos y sus preguntas. Para lo que no cubre ninguna de las listas para usar. Nace pausada.
+Disparadores: ${AI_TRIGGERS.map((x) => `${x.value} = cuando ${x.que}${x.pide ? ` [pide ${x.pide}]` : ''}`).join('; ')}.
+Pasos: send_message, send_template (nombre exacto de una plantilla YA aprobada — consulta plantillas.estado antes), wait, add_tag, remove_tag, condition, close_conversation, assign_conversation, update_contact_field, send_webhook, voice_call.
+Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista del esquema y el resto lo arma el sistema. Hasta ${MAX_PROFUNDIDAD} preguntas encadenadas.`,
     descriptionEn:
       'Builds an automation from scratch, with its steps, for what no recipe covers. It starts paused.',
     risk: 'reversible',
     inerte: true,
     schema: AI_STEPS_SCHEMA,
     async preview(ctx, args) {
-      const { plan, problemas } = planDesdeIA({
-        nombre: args.nombre as string,
-        disparador: args.disparador as string,
-        pasos: args.pasos as AiPaso[],
-      })
+      const { plan, problemas } = planDesdeIA(entradaDePlan(args))
       if (!plan) {
         return `Todavía no se puede: ${problemas.map((p) => p.message).join('; ')}.`
       }
       const cuando =
         AI_TRIGGERS.find((x) => x.value === plan.disparador)?.que ?? plan.disparador
-      return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.pasos.length} paso(s). Nace pausada.`
+      // `total` y no `pasos.length`: la raíz de una automatización con ramas
+      // son dos o tres pasos y el árbol entero dieciséis. La vista previa decía
+      // "1 paso(s)" sobre algo que tenía dieciséis.
+      return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.total} paso(s). Nace pausada.`
     },
-    artifact: (_ctx, args) =>
-      artefactoDePlan({
-        nombre: args.nombre as string,
-        disparador: args.disparador as string,
-        pasos: args.pasos as AiPaso[],
-      }),
+    artifact: (_ctx, args) => artefactoDePlan(entradaDePlan(args)),
     run: crear,
   },
 

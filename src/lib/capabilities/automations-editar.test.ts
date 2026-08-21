@@ -160,7 +160,7 @@ describe('ver', () => {
       automation_id: AUTO,
     })) as { pasos: { ruta: string; que: string }[]; falta_para_prenderla: string[] }
     expect(r.pasos.map((p) => p.ruta)).toEqual(['1', '2', '3'])
-    expect(r.pasos[2].que).toBe('Etiqueta «carrito-recuperado»')
+    expect(r.pasos[2].que).toBe('Le pone la etiqueta «carrito-recuperado»')
     expect(r.falta_para_prenderla).toEqual([])
   })
 })
