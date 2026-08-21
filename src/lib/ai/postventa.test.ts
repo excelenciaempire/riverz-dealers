@@ -191,6 +191,9 @@ describe('cuando el aviso no sale', () => {
       'status',
     ]);
     expect(marca!.patch.status).toBe('pending');
+    // Y el motivo no es texto libre: la migración 178 lo acotó a una lista, así
+    // que una frase inventada hacía fallar el UPDATE entero.
+    expect(marca!.patch.needs_human_reason).toBe('approval_unnotified');
   });
 
   it('cuando sí sale, no molesta a nadie', async () => {

@@ -35,15 +35,19 @@ export interface PostventaCtx {
  * la persona sigue conversando y puede preguntar otra cosa. Lo que hace falta
  * es que el comercio vea el hilo, no que la clienta se quede sin nadie.
  */
-async function pedirAyuda(ctx: PostventaCtx, motivo: string): Promise<void> {
+async function pedirAyuda(ctx: PostventaCtx): Promise<void> {
   if (!ctx.conversationId) return
   // Las mismas columnas que usa el escalamiento del runner. No hay un booleano
   // `needs_human`: lo que marca el hilo es tener `needs_human_at` puesto.
+  //
+  // Y el motivo NO es texto libre: la migración 178 lo acotó a una lista, así
+  // que una frase inventada acá hacía fallar el UPDATE entero y dejaba el hilo
+  // sin marcar — el mismo silencio que esa migración vino a evitar.
   const { error } = await ctx.db
     .from('conversations')
     .update({
       status: 'pending',
-      needs_human_reason: motivo,
+      needs_human_reason: 'approval_unnotified',
       needs_human_at: new Date().toISOString(),
     })
     .eq('id', ctx.conversationId)
@@ -200,7 +204,7 @@ export async function proponerCancelacion(
   // nadie se enteró. Decirle a la clienta "te confirmo en breve" ahí es una
   // promesa que no depende de nadie, así que la conversación pasa a manos de
   // una persona en vez de quedar esperando sola.
-  if (!res.notified) await pedirAyuda(ctx, 'cancelación pedida y sin avisar')
+  if (!res.notified) await pedirAyuda(ctx)
 
   return JSON.stringify({
     ok: true,
@@ -280,7 +284,7 @@ export async function proponerReembolso(
     })
   }
 
-  if (!res.notified) await pedirAyuda(ctx, 'reembolso pedido y sin avisar')
+  if (!res.notified) await pedirAyuda(ctx)
 
   return JSON.stringify({
     ok: true,
