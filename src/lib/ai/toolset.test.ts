@@ -107,6 +107,20 @@ describe('las acciones que mueven dinero', () => {
     expect(resolve).toContain('refundOrder');
   });
 
+  it('cancelar comprueba que el dinero haya vuelto, no lo da por hecho', () => {
+    // `cancel.json` recibe `refund` como bandera y la versión actual de la API
+    // lo documenta como un objeto de transacciones: puede estar ignorándola.
+    // Cancelar sin reembolsar deja al cliente sin producto y sin plata.
+    const resolve = readFileSync(join(process.cwd(), 'src/lib/approvals/resolve.ts'), 'utf8');
+    const desde = resolve.indexOf('const cancelando');
+    expect(desde).toBeGreaterThan(-1);
+    const bloque = resolve.slice(desde, resolve.indexOf('El espejo se actualiza', desde));
+    // Se mira lo que Shopify informó y recién ahí se devuelve, que es lo que
+    // impide devolver dos veces si la bandera sí funcionaba.
+    expect(bloque).toContain("res.financialStatus !== 'refunded'");
+    expect(bloque).toContain('refundOrder');
+  });
+
   it('el reintento con la clave de la plataforma no repite lo ya hecho', () => {
     // El reintento vuelve a arrancar con los mensajes originales, sin los
     // resultados de las herramientas que ya corrieron. Si eso pasa después de

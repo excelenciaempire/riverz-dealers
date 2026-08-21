@@ -198,7 +198,7 @@ async function ejecutar(
       if (!admin) return { ok: false, message: 'La tienda no está conectada.' }
 
       const cancelando = fila.kind === 'cancelar_pedido'
-      const res = cancelando
+      let res = cancelando
         ? await cancelOrder(admin, shopifyOrderId, {
             reason: String(fila.payload.reason ?? 'customer'),
           })
@@ -232,6 +232,29 @@ async function ejecutar(
         return { ok: false, message: res.error ?? 'Shopify no aceptó la operación.' }
       }
 
+      // Cancelar tiene que devolver el dinero, y no se confía en que lo haya
+      // hecho: `cancel.json` recibe `refund` como bandera y la versión actual
+      // de la API la documenta como un objeto de transacciones, así que puede
+      // estar ignorándola. En vez de adivinar, se mira lo que Shopify informó:
+      // si el pago NO quedó devuelto, se devuelve explícitamente. Condicionarlo
+      // al estado observado es lo que impide devolver dos veces si la bandera
+      // sí funcionaba.
+      //
+      // Cancelar sin reembolsar deja al cliente sin producto y sin plata, que
+      // es el peor resultado posible de los dos.
+      if (cancelando && res.ok && res.financialStatus && res.financialStatus !== 'refunded') {
+        if (res.financialStatus === 'paid' || res.financialStatus === 'partially_refunded') {
+          const vuelto = await refundOrder(admin, shopifyOrderId, { reason: 'cancelación' })
+          if (vuelto.ok) res = { ok: true, financialStatus: 'refunded' }
+          else {
+            console.warn(
+              `[aprobaciones] pedido ${shopifyOrderId} cancelado pero el reembolso falló:`,
+              vuelto.error,
+            )
+          }
+        }
+      }
+
       // El espejo se actualiza igual: el webhook de Shopify también va a
       // llegar, pero puede tardar, y hasta entonces el pedido seguiría
       // figurando activo en Riverz — justo mientras alguien mira si funcionó.
@@ -240,7 +263,14 @@ async function ejecutar(
           .from('orders')
           .update(
             cancelando
-              ? { status: 'cancelled', financial_status: res.financialStatus ?? 'refunded' }
+              ? {
+                  status: 'cancelled',
+                  // Sin dato de Shopify no se inventa "refunded": un pedido
+                  // contra reembolso que se cancela queda anotado como
+                  // devuelto aunque nunca haya entrado un peso, y ese es el
+                  // número que después se cuadra contra la caja.
+                  financial_status: res.financialStatus ?? 'voided',
+                }
               : { financial_status: 'refunded' },
           )
           .eq('id', orderId)
