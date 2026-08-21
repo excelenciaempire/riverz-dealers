@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CommentReplyMode } from './dm-opportunity';
+
+export type { CommentReplyMode };
 
 export type ProactiveGate = { ok: boolean; reason?: 'paused' | 'daily_cap' };
 
@@ -75,11 +78,29 @@ export async function featureEnabled(
 export interface CommentReplySettings {
   audience: 'intent' | 'all';
   maxThreadReplies: number;
+  /**
+   * Qué sale cuando la IA contesta un comentario (migración 177). Una sola
+   * decisión en vez de dos interruptores enfrentados:
+   *
+   *   dm           — solo por privado.
+   *   public_dm    — en el comentario y por privado, siempre.
+   *   public_smart — en el comentario siempre; por privado solo si hay
+   *                  oportunidad o el asunto es privado.
+   *   public       — solo en el comentario.
+   */
+  replyMode: CommentReplyMode;
   /** Además del DM, publicar una respuesta en el propio comentario. */
   publicReply: boolean;
   /** Contestar también los comentarios de Facebook, no solo los de Instagram. */
   facebook: boolean;
 }
+
+export const COMMENT_REPLY_MODES: CommentReplyMode[] = [
+  'dm',
+  'public_dm',
+  'public_smart',
+  'public',
+];
 
 export async function loadCommentSettings(
   db: SupabaseClient,
@@ -88,7 +109,7 @@ export async function loadCommentSettings(
   const { data } = await db
     .from('ig_proactive_settings')
     .select(
-      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook',
+      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, comment_reply_mode',
     )
     .eq('workspace_id', workspaceId)
     .maybeSingle();
@@ -97,14 +118,26 @@ export async function loadCommentSettings(
     comment_max_thread_replies?: number | null;
     comment_public_reply?: boolean | null;
     comment_facebook?: boolean | null;
+    comment_reply_mode?: string | null;
   } | null;
+  // Sin modo guardado (fila vieja, migración sin aplicar) se deriva del
+  // interruptor anterior: nadie cambia de conducta por leer una columna nueva.
+  const replyMode = COMMENT_REPLY_MODES.includes(
+    s?.comment_reply_mode as CommentReplyMode,
+  )
+    ? (s?.comment_reply_mode as CommentReplyMode)
+    : s?.comment_public_reply === true
+      ? 'public_dm'
+      : 'dm';
   return {
     audience: s?.comment_audience === 'all' ? 'all' : 'intent',
     maxThreadReplies:
       typeof s?.comment_max_thread_replies === 'number'
         ? Math.max(0, s.comment_max_thread_replies)
         : 3,
-    publicReply: s?.comment_public_reply === true,
+    replyMode,
+    // 'dm' es el único modo que no publica nada bajo el post.
+    publicReply: replyMode !== 'dm',
     facebook: s?.comment_facebook === true,
   };
 }

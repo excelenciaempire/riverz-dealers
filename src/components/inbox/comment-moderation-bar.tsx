@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Heart, Trash2, ExternalLink } from "lucide-react";
+import { Eye, EyeOff, Heart, Trash2, ExternalLink, Send } from "lucide-react";
 import type { Channel, Message } from "@/types";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
@@ -11,6 +11,7 @@ import {
   DeleteMessageDialog,
   type DeleteScope,
 } from "./delete-message-dialog";
+import { CommentDmDialog } from "./comment-dm-dialog";
 
 interface CommentModerationBarProps {
   message: Message;
@@ -41,6 +42,7 @@ export function CommentModerationBar({
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [dmOpen, setDmOpen] = useState(false);
   // Seed from the persisted flag (migration 095) so the state is correct on
   // load, and keep it in sync when a realtime UPDATE (e.g. hidden from another
   // pane) refreshes the message prop.
@@ -142,6 +144,18 @@ export function CommentModerationBar({
           {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
         </button>
       )}
+      {/* Escribirle al privado. Sólo sobre comentarios ajenos y sólo en Meta:
+          TikTok no tiene mensajes directos por API. */}
+      {!own && (channel === "fb_comment" || channel === "ig_comment") && (
+        <button
+          onClick={() => setDmOpen(true)}
+          title={t("inbox.commentDmTitle")}
+          aria-label={t("inbox.commentDmTitle")}
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Send className="size-3" />
+        </button>
+      )}
       <button
         onClick={() => setDeleteOpen(true)}
         disabled={busy !== null}
@@ -172,6 +186,12 @@ export function CommentModerationBar({
         onOpenChange={setDeleteOpen}
         channel={channel}
         onConfirm={runDelete}
+      />
+      <CommentDmDialog
+        open={dmOpen}
+        onOpenChange={setDmOpen}
+        messageId={message.id}
+        commentText={message.content_text ?? ""}
       />
     </div>
   );

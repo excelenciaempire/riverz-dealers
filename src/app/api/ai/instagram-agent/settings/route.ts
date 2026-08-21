@@ -18,6 +18,9 @@ import { translate } from '@/lib/i18n/translate';
  * cumplía. Se quita en vez de construir una cola de aprobación que nadie pidió.
  */
 
+/** Los cuatro modos de respuesta a un comentario (migración 177). */
+const REPLY_MODES = ['dm', 'public_dm', 'public_smart', 'public'];
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -36,7 +39,7 @@ export async function GET() {
     ? await supabase
         .from('ig_proactive_settings')
         .select(
-          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, marketing_optin_enabled',
+          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, comment_reply_mode, marketing_optin_enabled',
         )
         .eq('workspace_id', workspaceId)
         .maybeSingle()
@@ -50,6 +53,7 @@ export async function GET() {
     comment_max_thread_replies?: number;
     comment_public_reply?: boolean;
     comment_facebook?: boolean;
+    comment_reply_mode?: string;
     marketing_optin_enabled?: boolean;
   } | null;
   return NextResponse.json({
@@ -66,6 +70,13 @@ export async function GET() {
         : 3,
     comment_public_reply: s?.comment_public_reply === true,
     comment_facebook: s?.comment_facebook === true,
+    // Qué sale cuando la IA contesta (migración 177). Sin modo guardado se
+    // deriva del interruptor viejo, igual que en el motor.
+    comment_reply_mode: REPLY_MODES.includes(s?.comment_reply_mode ?? '')
+      ? s?.comment_reply_mode
+      : s?.comment_public_reply === true
+        ? 'public_dm'
+        : 'dm',
     // A diferencia del resto, este arranca APAGADO: agrega un mensaje que el
     // cliente ve, así que se enciende a propósito o no se enciende.
     marketing_optin_enabled: s?.marketing_optin_enabled === true,
@@ -106,6 +117,7 @@ export async function POST(request: Request) {
     body.comment_max_thread_replies != null ||
     typeof body.comment_public_reply === 'boolean' ||
     typeof body.comment_facebook === 'boolean' ||
+    typeof body.comment_reply_mode === 'string' ||
     typeof body.marketing_optin_enabled === 'boolean'
   ) {
     const patch: Record<string, unknown> = { workspace_id: workspaceId };
@@ -119,6 +131,12 @@ export async function POST(request: Request) {
     }
     if (typeof body.comment_facebook === 'boolean') {
       patch.comment_facebook = body.comment_facebook;
+    }
+    if (REPLY_MODES.includes(body.comment_reply_mode)) {
+      patch.comment_reply_mode = body.comment_reply_mode;
+      // El interruptor viejo se sigue escribiendo: si algún día se lee esa
+      // columna otra vez, dice lo mismo que el modo.
+      patch.comment_public_reply = body.comment_reply_mode !== 'dm';
     }
     if (typeof body.marketing_optin_enabled === 'boolean') {
       patch.marketing_optin_enabled = body.marketing_optin_enabled;

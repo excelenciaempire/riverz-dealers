@@ -228,6 +228,7 @@ async function reglas(ctx: CapabilityContext) {
       publicacion: r.post_id,
       prioridad: r.priority,
       dm: composeDmText(r),
+      recurso: r.dm_attachment_url,
       respuesta_publica: r.public_reply_enabled ? (r.public_reply_templates ?? []) : [],
       dm_enviados: r.dm_sent_count,
     })),
@@ -255,6 +256,7 @@ async function crearRegla(ctx: CapabilityContext, args: Record<string, unknown>)
     dm_message: dm,
     dm_button_label: typeof args.boton_texto === 'string' ? args.boton_texto : null,
     dm_button_url: typeof args.boton_enlace === 'string' ? args.boton_enlace : null,
+    dm_attachment_url: typeof args.recurso === 'string' ? args.recurso : null,
     // Nace apagada SIEMPRE, venga lo que venga en los argumentos: mientras no
     // se prenda no le escribe a nadie y se puede leer entera antes.
     is_active: false,
@@ -320,6 +322,9 @@ async function previewActivar(ctx: CapabilityContext, args: Record<string, unkno
     `Prendería «${regla.name}»: ${disparo} en ${donde} recibe un mensaje privado real.`,
   )
   partes.push(`El mensaje privado dice: "${composeDmText(regla)}"`)
+  if (regla.dm_attachment_url) {
+    partes.push(`Con un archivo adjunto: ${regla.dm_attachment_url}`)
+  }
 
   const publicas = (regla.public_reply_templates ?? []).filter((t) => t.trim())
   if (regla.public_reply_enabled && publicas.length > 0) {
@@ -418,6 +423,11 @@ export const COMMENT_CAPABILITIES: Capability[] = [
         },
         boton_texto: { type: 'string', description: 'Etiqueta del enlace del privado.' },
         boton_enlace: { type: 'string', description: 'Se pega al final del privado.' },
+        recurso: {
+          type: 'string',
+          description:
+            'Enlace a una imagen, video o PDF que va ADJUNTO en el mismo privado (catálogo, cupón). Si la red lo rechaza, se manda como enlace.',
+        },
         publicacion: {
           type: 'string',
           description: 'Id de una publicación. Sin esto, vale para todas.',

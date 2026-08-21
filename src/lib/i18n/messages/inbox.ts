@@ -448,6 +448,19 @@ export const inbox = {
   back: { es: "Atrás", en: "Back" },
   send: { es: "Enviar", en: "Send" },
 
+  // Escribirle al privado a quien comentó
+  commentDmTitle: { es: "Escribir al privado", en: "Send a DM" },
+  commentDmPlaceholder: {
+    es: "Tu mensaje…",
+    en: "Your message…",
+  },
+  commentDmSent: { es: "Mensaje enviado", en: "Message sent" },
+  commentDmOpen: { es: "Ver conversación", en: "Open conversation" },
+  commentDmFailed: {
+    es: "No se pudo escribir al privado",
+    en: "Couldn't send the DM",
+  },
+
   // Shopify contact panel
   shopifyCustomer: { es: "Cliente Shopify", en: "Shopify customer" },
   viewInShopify: { es: "Ver en Shopify", en: "View in Shopify" },

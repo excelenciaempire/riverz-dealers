@@ -882,6 +882,11 @@ export const settings = {
     es: "Escribe el mensaje del DM",
     en: "Write the DM message",
   },
+  c2dmAttachmentLabel: { es: "Recurso (opcional)", en: "Resource (optional)" },
+  c2dmAttachmentHint: {
+    es: "Enlace a una imagen, video o PDF: llega adjunto en el mismo DM.",
+    en: "Link to an image, video or PDF: it arrives attached in the same DM.",
+  },
   c2dmButtonLabelLabel: { es: "Texto del enlace (opcional)", en: "Link text (optional)" },
   c2dmButtonUrlLabel: { es: "Enlace (opcional)", en: "Link URL (optional)" },
   c2dmActiveLabel: { es: "Activa", en: "Active" },

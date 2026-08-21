@@ -18,7 +18,7 @@ export type CommentRuleChannel = 'ig_comment' | 'fb_comment';
 
 /** Lo que se devuelve hacia afuera. Nunca `workspace_id` ni `created_by`. */
 export const RULE_COLUMNS =
-  'id, name, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, is_active, priority, created_at';
+  'id, name, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, dm_attachment_url, dm_attachment_type, is_active, priority, created_at';
 
 export interface CommentRule {
   id: string;
@@ -33,9 +33,41 @@ export interface CommentRule {
   dm_message: string;
   dm_button_label: string | null;
   dm_button_url: string | null;
+  /** Un recurso que acompaña al DM: catálogo en PDF, cupón en imagen, video. */
+  dm_attachment_url: string | null;
+  dm_attachment_type: CommentRuleAttachmentType | null;
   is_active: boolean;
   priority: number;
   created_at: string;
+}
+
+/** Lo que Meta acepta como adjunto en un DM (migración 177). */
+export type CommentRuleAttachmentType = 'image' | 'video' | 'audio' | 'file';
+
+const ATTACHMENT_TYPES: CommentRuleAttachmentType[] = [
+  'image',
+  'video',
+  'audio',
+  'file',
+];
+
+/**
+ * El tipo del recurso. Si no lo mandan, se deduce de la extensión: nadie que
+ * pega el enlace de su catálogo debería tener que elegir "archivo" en un menú.
+ */
+export function attachmentTypeFor(
+  url: string | null,
+  declared?: unknown,
+): CommentRuleAttachmentType | null {
+  if (!url) return null;
+  if (ATTACHMENT_TYPES.includes(declared as CommentRuleAttachmentType)) {
+    return declared as CommentRuleAttachmentType;
+  }
+  const clean = url.split('?')[0].toLowerCase();
+  if (/\.(jpe?g|png|gif|webp)$/.test(clean)) return 'image';
+  if (/\.(mp4|mov|webm)$/.test(clean)) return 'video';
+  if (/\.(mp3|ogg|m4a|wav)$/.test(clean)) return 'audio';
+  return 'file';
 }
 
 /** Una regla con cuántos DMs mandó, que es lo único que se deriva del log. */
@@ -54,6 +86,8 @@ export interface CommentRuleInput {
   dm_message?: string;
   dm_button_label?: string | null;
   dm_button_url?: string | null;
+  dm_attachment_url?: string | null;
+  dm_attachment_type?: unknown;
   is_active?: boolean;
   priority?: number;
 }
@@ -107,6 +141,11 @@ export function ruleFields(input: CommentRuleInput): CommentRuleFields {
     dm_message: (input.dm_message ?? '').trim(),
     dm_button_label: nullIfBlank(input.dm_button_label),
     dm_button_url: nullIfBlank(input.dm_button_url),
+    dm_attachment_url: nullIfBlank(input.dm_attachment_url),
+    dm_attachment_type: attachmentTypeFor(
+      nullIfBlank(input.dm_attachment_url),
+      input.dm_attachment_type,
+    ),
     is_active: input.is_active ?? true,
     priority: typeof input.priority === 'number' ? input.priority : 100,
   };

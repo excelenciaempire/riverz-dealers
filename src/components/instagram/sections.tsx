@@ -1345,6 +1345,14 @@ export function AttributedOrders({ overview }: { overview: IgOverview }) {
  */
 export type CommentAudience = 'intent' | 'all';
 
+/**
+ * Qué sale cuando la IA contesta un comentario (migración 177). Una sola
+ * decisión: antes eran "responder también en público" (interruptor) y "manda
+ * DM siempre" (clavado en el código), y de las dos juntas salía una conducta
+ * que no estaba escrita en ningún lado.
+ */
+export type CommentReplyMode = 'dm' | 'public_dm' | 'public_smart' | 'public';
+
 export interface ProactiveSettings {
   loaded: boolean;
   paused: boolean;
@@ -1355,8 +1363,8 @@ export interface ProactiveSettings {
   audience: CommentAudience;
   /** Cuántas veces insiste en un mismo hilo. 0 = sin tope. */
   maxThreadReplies: number;
-  /** Además del DM, publica una respuesta en el propio comentario. */
-  publicReply: boolean;
+  /** Qué sale cuando contesta: público, privado o las dos (migración 177). */
+  replyMode: CommentReplyMode;
   /** Contesta también los comentarios de Facebook. */
   facebook: boolean;
   /** Pide permiso para escribir fuera de la ventana de Meta (migración 148). */
@@ -1367,7 +1375,7 @@ export interface ProactiveSettings {
   setCap: (v: number) => void;
   setAudience: (v: CommentAudience) => void;
   setMaxThreadReplies: (v: number) => void;
-  setPublicReply: (v: boolean) => void;
+  setReplyMode: (v: CommentReplyMode) => void;
   setFacebook: (v: boolean) => void;
   setMarketingOptin: (v: boolean) => void;
   save: (next: {
@@ -1377,7 +1385,7 @@ export interface ProactiveSettings {
     outreach_enabled?: boolean;
     comment_audience?: CommentAudience;
     comment_max_thread_replies?: number;
-    comment_public_reply?: boolean;
+    comment_reply_mode?: CommentReplyMode;
     comment_facebook?: boolean;
     marketing_optin_enabled?: boolean;
   }) => void;
@@ -1391,7 +1399,7 @@ export function useProactiveSettings(): ProactiveSettings {
   const [cap, setCap] = useState(500);
   const [audience, setAudience] = useState<CommentAudience>('intent');
   const [maxThreadReplies, setMaxThreadReplies] = useState(3);
-  const [publicReply, setPublicReply] = useState(false);
+  const [replyMode, setReplyMode] = useState<CommentReplyMode>('dm');
   const [facebook, setFacebook] = useState(false);
   // Pedir permiso para escribir fuera de la ventana. Arranca APAGADO: es una
   // burbuja más que el cliente recibe, no algo que se le agregue solo.
@@ -1414,7 +1422,13 @@ export function useProactiveSettings(): ProactiveSettings {
               ? j.comment_max_thread_replies
               : 3,
           );
-          setPublicReply(j.comment_public_reply === true);
+          setReplyMode(
+            REPLY_MODES.includes(j.comment_reply_mode)
+              ? (j.comment_reply_mode as CommentReplyMode)
+              : j.comment_public_reply === true
+                ? 'public_dm'
+                : 'dm',
+          );
           setFacebook(j.comment_facebook === true);
           setMarketingOptin(j.marketing_optin_enabled === true);
           setLoaded(true);
@@ -1434,7 +1448,7 @@ export function useProactiveSettings(): ProactiveSettings {
       outreach_enabled?: boolean;
       comment_audience?: CommentAudience;
       comment_max_thread_replies?: number;
-      comment_public_reply?: boolean;
+      comment_reply_mode?: CommentReplyMode;
       comment_facebook?: boolean;
       marketing_optin_enabled?: boolean;
     }) => {
@@ -1455,7 +1469,7 @@ export function useProactiveSettings(): ProactiveSettings {
     cap,
     audience,
     maxThreadReplies,
-    publicReply,
+    replyMode,
     facebook,
     marketingOptin,
     setPaused,
@@ -1464,7 +1478,7 @@ export function useProactiveSettings(): ProactiveSettings {
     setCap,
     setAudience,
     setMaxThreadReplies,
-    setPublicReply,
+    setReplyMode,
     setFacebook,
     setMarketingOptin,
     save,
@@ -1598,15 +1612,29 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
         }}
       />
 
-      <OptionRow
-        title={t('igAgent.publicReplyLabel')}
-        hint={t('igAgent.publicReplyHint')}
-        checked={settings.publicReply}
-        onChange={(v) => {
-          settings.setPublicReply(v);
-          settings.save({ comment_public_reply: v });
-        }}
-      />
+      {/* Dónde contesta. Una sola pregunta con cuatro respuestas, en vez de un
+          interruptor de "también en público" con el DM invisible detrás. La
+          tercera es la nueva: contesta a la vista de todos y abre el privado
+          solo cuando hay algo que ganar o algo que no se dice en público. */}
+      <div>
+        <p className="text-[13px] font-medium text-foreground">
+          {t('igAgent.replyModeLabel')}
+        </p>
+        <div className="mt-2 space-y-1.5">
+          {REPLY_MODES.map((mode) => (
+            <ModeRow
+              key={mode}
+              title={t(`igAgent.replyMode_${mode}`)}
+              hint={t(`igAgent.replyModeHint_${mode}`)}
+              selected={settings.replyMode === mode}
+              onSelect={() => {
+                settings.setReplyMode(mode);
+                settings.save({ comment_reply_mode: mode });
+              }}
+            />
+          ))}
+        </div>
+      </div>
 
       <OptionRow
         title={t('igAgent.facebookLabel')}
@@ -1618,6 +1646,58 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
         }}
       />
     </div>
+  );
+}
+
+/** Los cuatro modos, en el orden en que se leen: de menos público a más. */
+const REPLY_MODES: CommentReplyMode[] = [
+  'dm',
+  'public_dm',
+  'public_smart',
+  'public',
+];
+
+/** Una opción de "dónde contesta". Se elige una, como una radio. */
+function ModeRow({
+  title,
+  hint,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  hint: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors',
+        selected
+          ? 'border-accent-ink/40 bg-accent/40'
+          : 'border-transparent hover:bg-accent/20',
+      )}
+    >
+      <span
+        className={cn(
+          'mt-[3px] flex size-3.5 shrink-0 items-center justify-center rounded-full border',
+          selected ? 'border-accent-ink' : 'border-border',
+        )}
+      >
+        {selected && <span className="size-1.5 rounded-full bg-accent-ink" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-medium text-foreground">
+          {title}
+        </span>
+        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+    </button>
   );
 }
 

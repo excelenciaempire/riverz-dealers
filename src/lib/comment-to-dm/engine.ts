@@ -4,6 +4,7 @@ import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
+import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
 import { composeDmText } from './rules';
 
 /**
@@ -22,6 +23,7 @@ type CommentChannel = 'ig_comment' | 'fb_comment';
 
 interface CommentToDmRule {
   id: string;
+  name: string;
   workspace_id: string;
   channel: CommentChannel;
   post_id: string | null;
@@ -33,6 +35,8 @@ interface CommentToDmRule {
   dm_message: string;
   dm_button_label: string | null;
   dm_button_url: string | null;
+  dm_attachment_url: string | null;
+  dm_attachment_type: 'image' | 'video' | 'audio' | 'file' | null;
   priority: number;
 }
 
@@ -69,7 +73,7 @@ export async function processCommentForDmRules(
   const { data: rules } = await db
     .from('comment_to_dm_rules')
     .select(
-      'id, workspace_id, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, priority',
+      'id, name, workspace_id, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, dm_attachment_url, dm_attachment_type, priority',
     )
     .eq('workspace_id', ev.workspaceId)
     .eq('channel', ev.channel)
@@ -164,7 +168,6 @@ export async function processCommentForDmRules(
   //    lock: Meta allows one private reply per comment, and the campaign
   //    instant-outreach path can also reply to this same comment — whoever
   //    claims first sends, the other skips.
-  const dmText = composeDmText(rule);
   const wonReply = await claimCommentPrivateReply(
     db,
     ev.workspaceId,
@@ -175,6 +178,43 @@ export async function processCommentForDmRules(
     dmStatus = 'skipped';
     errMsg = errMsg ?? 'private reply ya enviado para este comentario';
   } else {
+    // 2.a El recurso (catálogo, cupón, video) va PRIMERO y como adjunto de
+    //     verdad. Si Meta lo rechaza —hay tipos que no admite en una respuesta
+    //     privada—, el enlace se pega al final del texto: el recurso llega
+    //     igual, sólo que como link. Por eso el adjunto se intenta antes de
+    //     componer el texto.
+    let attachmentFallbackUrl: string | null = null;
+    if (rule.dm_attachment_url) {
+      const dmAdapter = getAdapter(DM_CHANNEL[ev.channel]);
+      try {
+        if (!dmAdapter.sendMedia) throw new Error('canal sin adjuntos');
+        await dmAdapter.sendMedia({
+          channel: DM_CHANNEL[ev.channel],
+          connection: ev.connection,
+          conversation: { id: '' } as unknown as Conversation,
+          contact: {
+            id: ev.contact.id,
+            external_id: ev.contact.external_id,
+          } as unknown as Contact,
+          commentId: ev.commentId,
+          mediaUrl: rule.dm_attachment_url,
+          mediaType:
+            rule.dm_attachment_type === 'file' || !rule.dm_attachment_type
+              ? 'document'
+              : rule.dm_attachment_type,
+        });
+      } catch (err) {
+        attachmentFallbackUrl = rule.dm_attachment_url;
+        console.warn(
+          '[comment-to-dm] adjunto rechazado, va como enlace:',
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+
+    const dmText = attachmentFallbackUrl
+      ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
+      : composeDmText(rule);
     try {
       const res = await getAdapter(DM_CHANNEL[ev.channel]).sendText({
         channel: DM_CHANNEL[ev.channel],
@@ -189,6 +229,23 @@ export async function processCommentForDmRules(
       } satisfies OutboundText);
       dmStatus = 'sent';
       dmExternalId = res.externalMessageId ?? null;
+      // Que se VEA en la bandeja, en el acto y en los dos hilos (el privado y
+      // el del comentario). Antes dependía del eco de Meta: el comercio veía el
+      // comentario del cliente y ninguna respuesta, aunque la regla hubiera
+      // mandado el DM. Best-effort y con dedup por texto, así que el eco no
+      // duplica nada.
+      await recordProactiveDm(db, {
+        workspaceId: ev.workspaceId,
+        contactId: ev.contact.id,
+        externalId: ev.contact.external_id,
+        dmChannel: DM_CHANNEL[ev.channel],
+        commentChannel: ev.channel,
+        connection: ev.connection,
+        text: dmText,
+        commentContactId: ev.contact.id,
+        origin: 'comment_rule',
+        originName: rule.name ?? null,
+      });
       // Cuenta para el tope diario: es un DM proactivo más saliendo de esta
       // cuenta, y el límite protege la reputación del número, no una
       // funcionalidad concreta. `kind` lo mantiene separado en las

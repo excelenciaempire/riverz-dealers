@@ -61,7 +61,9 @@ export async function recordProactiveDm(
     origin?: string | null;
     originName?: string | null;
   },
-): Promise<void> {
+): Promise<string | null> {
+  // Devuelve la conversación de DM donde quedó el mensaje (null si no se pudo
+  // registrar): quien lo mandó a mano puede ir a verla sin buscarla a ojo.
   try {
     const now = new Date().toISOString();
     const preview = input.text.slice(0, 200);
@@ -111,7 +113,7 @@ export async function recordProactiveDm(
         .single();
       conversationId = (created as { id?: string } | null)?.id ?? null;
     }
-    if (!conversationId) return;
+    if (!conversationId) return null;
 
     // 2. ¿Ya está? (el eco pudo ganarnos la carrera). Mismo hilo + mismo texto
     //    en los últimos minutos = el mismo mensaje.
@@ -162,8 +164,10 @@ export async function recordProactiveDm(
         originName: input.originName ?? null,
       });
     }
+    return conversationId;
   } catch (err) {
     console.error('[ig-agent] no se pudo registrar el DM en la bandeja:', err);
+    return null;
   }
 }
 

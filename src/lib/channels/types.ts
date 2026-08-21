@@ -142,6 +142,10 @@ export interface OutboundMedia {
   /** Filename shown to the recipient — documents only. */
   filename?: string;
   replyToExternalId?: string;
+  /** Instagram & Messenger — igual que en `OutboundText`: el adjunto sale como
+   *  RESPUESTA PRIVADA a este comentario (`recipient: { comment_id }`). Es la
+   *  única forma de mandarle un archivo a alguien que sólo comentó. */
+  commentId?: string;
 }
 
 export interface OutboundTemplate {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, MoreHorizontal } from "lucide-react";
+import { Loader2, Plus, MoreHorizontal, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,8 @@ interface RuleRow {
   dm_message: string;
   dm_button_label: string | null;
   dm_button_url: string | null;
+  dm_attachment_url: string | null;
+  dm_attachment_type: string | null;
   is_active: boolean;
   priority: number;
   dm_sent_count: number;
@@ -323,6 +325,7 @@ interface RuleDraft {
   dm_message: string;
   dm_button_label: string;
   dm_button_url: string;
+  dm_attachment_url: string;
 }
 
 function RuleEditor({
@@ -355,6 +358,7 @@ function RuleEditor({
     dm_message: rule?.dm_message ?? "",
     dm_button_label: rule?.dm_button_label ?? "",
     dm_button_url: rule?.dm_button_url ?? "",
+    dm_attachment_url: rule?.dm_attachment_url ?? "",
   }));
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof RuleDraft>(k: K, v: RuleDraft[K]) =>
@@ -399,6 +403,9 @@ function RuleEditor({
         dm_message: draft.dm_message.trim(),
         dm_button_label: draft.dm_button_label.trim() || null,
         dm_button_url: draft.dm_button_url.trim() || null,
+        // El tipo lo deduce el servidor por la extensión: nadie que pega el
+        // enlace de su catálogo debería elegir "archivo" en un menú.
+        dm_attachment_url: draft.dm_attachment_url.trim() || null,
         // Una regla nueva nace encendida; apagarla es cosa del interruptor de
         // la lista, que es donde se ve el estado.
         is_active: rule?.is_active ?? true,
@@ -505,6 +512,18 @@ function RuleEditor({
                 </Field>
               </div>
 
+              <Field
+                label={t("settings.c2dmAttachmentLabel")}
+                hint={t("settings.c2dmAttachmentHint")}
+              >
+                <Input
+                  value={draft.dm_attachment_url}
+                  onChange={(e) => set("dm_attachment_url", e.target.value)}
+                  placeholder="https://"
+                  className="font-mono text-xs"
+                />
+              </Field>
+
               <label className="flex items-center justify-between gap-3 pt-1">
                 <span className="text-[13px] text-foreground">
                   {t("settings.c2dmPublicReplyEnabled")}
@@ -576,6 +595,12 @@ function Field({
  * (`composeDm`): texto plano al final, porque la respuesta privada de Meta no
  * admite botones.
  */
+/** El nombre del archivo, que es lo único legible de una URL larga. */
+function fileNameFrom(url: string): string {
+  const clean = url.trim().split("?")[0];
+  return clean.split("/").filter(Boolean).pop() ?? clean;
+}
+
 function RulePreview({ draft }: { draft: RuleDraft }) {
   const t = useT();
   const publicText = draft.public_reply_templates
@@ -613,6 +638,14 @@ function RulePreview({ draft }: { draft: RuleDraft }) {
               <span className="mt-2 block break-all text-accent-ink">
                 👉 {label ? `${label}: ` : ""}
                 {url}
+              </span>
+            )}
+            {draft.dm_attachment_url.trim() && (
+              <span className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Paperclip className="size-3 shrink-0" />
+                <span className="truncate">
+                  {fileNameFrom(draft.dm_attachment_url)}
+                </span>
               </span>
             )}
           </div>

@@ -32,8 +32,15 @@ export async function sendMetaMedia(
   if (!encrypted) throw new Error(`[${channel}] connection missing access_token`);
   const accessToken = decrypt(encrypted);
 
-  const recipientId = input.contact.external_id;
-  if (!recipientId) {
+  // Dos formas de destinatario, igual que en el texto: la respuesta privada a
+  // un comentario (`comment_id`) —única vía para mandarle algo a quien sólo
+  // comentó— y el DM normal por id.
+  const recipient = input.commentId
+    ? { comment_id: input.commentId }
+    : input.contact.external_id
+      ? { id: input.contact.external_id }
+      : null;
+  if (!recipient) {
     throw new Error(`[${channel}] contact missing external_id`);
   }
 
@@ -52,7 +59,7 @@ export async function sendMetaMedia(
       body: JSON.stringify(
         withAppsecretProofBody(
           {
-            recipient: { id: recipientId },
+            recipient,
             ...(useHumanAgentTag
               ? { messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" }
               : { messaging_type: "RESPONSE" }),
@@ -80,7 +87,10 @@ export async function sendMetaMedia(
   // ventana de 24 h reintenta una vez con la etiqueta HUMAN_AGENT (7 días).
   // Y, como allá, si el reintento también falla se conserva el error ORIGINAL:
   // el "(#10) To use 'Human Agent'…" del permiso sin aprobar no explica nada.
-  if (!res.ok) {
+  // La respuesta privada a un comentario trae su propia ventana de 7 días y no
+  // admite etiqueta: reintentar con HUMAN_AGENT ahí solo cambia un error por
+  // otro más confuso.
+  if (!res.ok && !input.commentId) {
     const firstErr = parseMetaError(detail);
     if (describeMetaSendError(channel, res.status, firstErr).category === "outside_window") {
       const retry = await send(true);

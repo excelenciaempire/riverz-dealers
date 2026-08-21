@@ -200,6 +200,34 @@ export const igAgent = {
     es: "Una línea corta en el post; el precio y el código van en el DM.",
     en: "A short line on the post; price and code go in the DM.",
   },
+  // Dónde contesta la IA un comentario (migración 177)
+  replyModeLabel: { es: "Dónde contesta", en: "Where it replies" },
+  replyMode_dm: { es: "Solo por privado", en: "Private message only" },
+  replyModeHint_dm: {
+    es: "Un DM a quien comentó; el post queda igual.",
+    en: "A DM to whoever commented; the post stays as is.",
+  },
+  replyMode_public_dm: {
+    es: "En el comentario y por privado",
+    en: "On the comment and by DM",
+  },
+  replyModeHint_public_dm: {
+    es: "Una línea en el post y la respuesta completa en el DM.",
+    en: "A line on the post and the full answer in the DM.",
+  },
+  replyMode_public_smart: {
+    es: "En el comentario, y por privado si hay oportunidad",
+    en: "On the comment, and by DM when there's an opportunity",
+  },
+  replyModeHint_public_smart: {
+    es: "Abre el privado si quiere comprar, pregunta por su pedido o reclama.",
+    en: "Opens the DM when they want to buy, ask about an order or complain.",
+  },
+  replyMode_public: { es: "Solo en el comentario", en: "On the comment only" },
+  replyModeHint_public: {
+    es: "Nunca escribe al privado.",
+    en: "Never sends a DM.",
+  },
   facebookLabel: {
     es: "Contestar también Facebook",
     en: "Also reply on Facebook",
@@ -209,8 +237,8 @@ export const igAgent = {
     en: "Same as Instagram, but through Messenger.",
   },
   autoReplyCommentsHint: {
-    es: "Contesta por privado a quien comenta en tus posts.",
-    en: "Replies privately to whoever comments on your posts.",
+    es: "Contesta a quien comenta en tus posts.",
+    en: "Replies to whoever comments on your posts.",
   },
 
   // Order attribution ledger

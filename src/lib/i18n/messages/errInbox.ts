@@ -56,6 +56,27 @@ export const errInbox = {
     en: "conversation_id and text are required",
   },
   conversationNotFound: { es: "Conversación no encontrada", en: "Conversation not found" },
+
+  // comments/dm — escribirle al privado a quien comentó
+  empty_text: { es: "Escribe un mensaje", en: "Write a message" },
+  message_not_found: { es: "Comentario no encontrado", en: "Comment not found" },
+  not_a_comment: {
+    es: "Esto no es un comentario",
+    en: "This isn't a comment",
+  },
+  conversation_not_found: {
+    es: "Conversación no encontrada",
+    en: "Conversation not found",
+  },
+  contact_not_found: { es: "Contacto no encontrado", en: "Contact not found" },
+  channel_not_connected: {
+    es: "Conecta la cuenta para poder escribir al privado",
+    en: "Connect the account to send DMs",
+  },
+  no_recipient: {
+    es: "Esta persona no se puede contactar por privado",
+    en: "This person can't be reached by DM",
+  },
   templateUnsupported: {
     es: "Este canal no admite plantillas",
     en: "This channel does not support templates",

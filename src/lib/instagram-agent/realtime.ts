@@ -26,6 +26,7 @@ import {
   featureEnabled,
   loadCommentSettings,
 } from './controls';
+import { decideCommentDm } from './dm-opportunity';
 import { recordProactiveDm } from './record-dm';
 import { loadCustomerContext } from './customer-context';
 import { loadOrderStatus } from './order-status';
@@ -775,38 +776,56 @@ async function autonomousCommentReply(
   }
   if (!text.trim()) return;
 
+  // ¿Además del comentario, hace falta abrir el privado? Lo decide el modo que
+  // eligió el comercio (migración 177). En 'public_smart' pregunta al
+  // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
+  // un "qué linda foto" es perderla para el que sí quería comprar.
+  const decision = await decideCommentDm({
+    mode: commentCfg.replyMode,
+    apiKey,
+    comment: engagement,
+    reply: text,
+    hasOrderQuestion: Boolean(orderStatus),
+  });
+
+  let dmSent = false;
   try {
-    await adapter.sendText({
-      channel: dmChannel,
-      connection,
-      conversation: { id: '' } as unknown as Conversation,
-      contact: {
-        id: opts.contact.id,
-        external_id: opts.contact.external_id,
-      } as unknown as Contact,
-      commentId: opts.commentId,
-      text,
-    } satisfies OutboundText);
-    await recordProactiveDm(db, {
-      workspaceId: opts.workspaceId,
-      contactId: opts.contact.id,
-      externalId: opts.contact.external_id,
-      dmChannel,
-      commentChannel,
-      connection,
-      text,
-      commentContactId: opts.commentId ? opts.contact.id : null,
-      // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
-      // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
-      origin: 'comment_ai',
-      originName: null,
-    });
+    if (decision.dm) {
+      await adapter.sendText({
+        channel: dmChannel,
+        connection,
+        conversation: { id: '' } as unknown as Conversation,
+        contact: {
+          id: opts.contact.id,
+          external_id: opts.contact.external_id,
+        } as unknown as Contact,
+        commentId: opts.commentId,
+        text,
+      } satisfies OutboundText);
+      dmSent = true;
+      await recordProactiveDm(db, {
+        workspaceId: opts.workspaceId,
+        contactId: opts.contact.id,
+        externalId: opts.contact.external_id,
+        dmChannel,
+        commentChannel,
+        connection,
+        text,
+        commentContactId: opts.commentId ? opts.contact.id : null,
+        // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
+        // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
+        origin: 'comment_ai',
+        originName: null,
+      });
+    }
 
     // Respuesta pública en el propio comentario, si el comercio la pidió.
     // Va DESPUÉS del DM y en su propio try: es lo que puede fallar por
     // permisos de Meta, y un fallo aquí no debe tumbar un DM ya enviado.
     if (commentCfg.publicReply) {
-      const publicText = publicReplyFrom(text);
+      // Sin DM, lo público NO puede decir "te escribí por privado": es la
+      // respuesta entera, ahí mismo.
+      const publicText = publicReplyFrom(text, dmSent);
       try {
         await getAdapter(commentChannel).sendText({
           channel: commentChannel,
@@ -841,27 +860,42 @@ async function autonomousCommentReply(
     // 'comment', no 'outreach': esto es Comentarios contestando, no una
     // campaña saliendo a buscar. Compartían el mismo kind y las dos pantallas
     // se apuntaban el mismo envío.
-    await logProactiveSend(db, {
-      workspaceId: opts.workspaceId,
-      contactId: opts.contact.id,
-      kind: 'comment',
-      text,
-    });
+    //
+    // Solo si el DM salió: este libro cuenta DMs (y de él sale el tope diario).
+    // Registrar una respuesta pública como DM inflaba la cifra y le comía el
+    // presupuesto de envío a la cuenta sin haber escrito a nadie.
+    if (dmSent) {
+      await logProactiveSend(db, {
+        workspaceId: opts.workspaceId,
+        contactId: opts.contact.id,
+        kind: 'comment',
+        text,
+      });
+    }
   } catch (err) {
     console.error('[ig-agent] respuesta autónoma falló:', err);
   }
 }
 
 /**
- * El texto que se publica EN el comentario, derivado del DM.
+ * El texto que se publica EN el comentario.
  *
- * Lo lee cualquiera que pase por el post, así que no repite el mensaje privado
- * —que lleva precios, códigos y datos del pedido— sino que avisa de que la
- * respuesta ya salió por privado. Corto: Meta corta los comentarios largos y
- * un párrafo bajo una foto se lee como spam.
+ * Con DM enviado: lo lee cualquiera que pase por el post, así que no repite el
+ * mensaje privado —que lleva precios, códigos y datos del pedido— sino que
+ * avisa de que la respuesta ya salió por privado. Corto: Meta corta los
+ * comentarios largos y un párrafo bajo una foto se lee como spam.
+ *
+ * Sin DM (modo 'público' o el clasificador dijo que no hacía falta): la
+ * respuesta ES esta, así que va entera —recortada a lo que se lee bajo una
+ * foto— y sin prometer un privado que nadie va a recibir.
  */
-function publicReplyFrom(dmText: string): string {
-  const first = dmText.split('\n')[0]?.trim() ?? '';
+export function publicReplyFrom(dmText: string, dmSent = true): string {
+  const clean = dmText.trim();
+  if (!dmSent) {
+    if (!clean) return '';
+    return clean.length > 480 ? `${clean.slice(0, 477).trimEnd()}…` : clean;
+  }
+  const first = clean.split('\n')[0]?.trim() ?? '';
   const short = first.length > 120 ? `${first.slice(0, 117).trimEnd()}…` : first;
   return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
 }

@@ -17,7 +17,8 @@ export async function claimCommentPrivateReply(
   db: SupabaseClient,
   workspaceId: string,
   commentExternalId: string,
-  claimedBy: 'campaign' | 'rule',
+  /** 'human' = alguien del equipo escribió al privado desde la bandeja. */
+  claimedBy: 'campaign' | 'rule' | 'human',
 ): Promise<boolean> {
   const { error } = await db.from('ig_private_reply_claims').insert({
     workspace_id: workspaceId,
