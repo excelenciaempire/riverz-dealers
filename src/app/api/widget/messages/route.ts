@@ -66,7 +66,15 @@ function decodeCursor(cursor: string | null): { at: string; id: string } | null 
   if (!cursor) return null;
   try {
     const [at, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-    return at && id ? { at, id } : null;
+    // Se comprueba la FORMA, no sólo que haya dos partes: estos dos valores se
+    // interpolan en un filtro de PostgREST, y el cursor lo elige quien llama.
+    // Con un cursor fabricado se podían inyectar expresiones de filtro; el
+    // recorte por conversación va aparte y aguanta, pero rompía el parseo y
+    // dejaba el sondeo en 502 — o sea, el chat mudo.
+    if (!at || !id) return null;
+    if (!/^[0-9T:.+\-\s]{10,40}$/.test(at)) return null;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    return { at, id };
   } catch {
     return null;
   }

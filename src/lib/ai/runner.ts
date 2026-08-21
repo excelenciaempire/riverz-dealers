@@ -1633,7 +1633,7 @@ async function generateReply(
     ...(shopify
       ? [
           ...(agentCan(agent, 'crear_checkout')
-            ? [buildCheckoutTool(shopify.config ?? null)]
+            ? [buildCheckoutTool(shopify.config ?? null, topeDescuento > 0)]
             : []),
           ...(shopify.canCreateOrders
             ? [buildOrderTool(shopify.config ?? null)]

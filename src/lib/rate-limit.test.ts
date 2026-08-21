@@ -231,18 +231,36 @@ describe('clientIp detrás de Cloudflare', () => {
     // x-forwarded-for es el nodo de borde, y esos rotan — con él, cada
     // petición estrenaba cupo y el límite por IP no frenaba nada.
     expect(
-      clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.71.1.9' })),
+      clientIp(
+        req({
+          'cf-ray': 'abc-MIA',
+          'cf-connecting-ip': '203.0.113.7',
+          'x-forwarded-for': '203.0.113.7, 172.71.1.9',
+        }),
+      ),
     ).toBe('203.0.113.7');
   });
 
   it('la misma IP de cliente da la misma clave aunque rote el borde', () => {
-    const a = clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.71.1.9' }));
-    const b = clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.68.44.2' }));
+    const a = clientIp(req({ 'cf-ray': 'r1', 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.71.1.9' }));
+    const b = clientIp(req({ 'cf-ray': 'r2', 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '203.0.113.7, 172.68.44.2' }));
     expect(a).toBe(b);
   });
 
-  it('acepta true-client-ip como alternativa', () => {
-    expect(clientIp(req({ 'true-client-ip': '198.51.100.4' }))).toBe('198.51.100.4');
+  it('acepta true-client-ip como alternativa, si viene por Cloudflare', () => {
+    expect(clientIp(req({ 'cf-ray': 'abc-MIA', 'true-client-ip': '198.51.100.4' }))).toBe(
+      '198.51.100.4',
+    );
+  });
+
+  it('IGNORA la cabecera si la peticion no paso por Cloudflare', () => {
+    // El host del origen sigue siendo alcanzable: sin esto, pegandole directo
+    // con una `cf-connecting-ip` distinta en cada llamada, cada una estrenaba
+    // su propio cupo — el mismo agujero que este arreglo vino a cerrar.
+    expect(clientIp(req({ 'cf-connecting-ip': '203.0.113.7' }))).toBe('unknown');
+    expect(
+      clientIp(req({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '1.2.3.4, 10.0.0.1' })),
+    ).toBe('10.0.0.1');
   });
 
   it('sin Cloudflare sigue leyendo x-forwarded-for como antes', () => {

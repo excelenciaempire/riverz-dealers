@@ -24,6 +24,7 @@ import { getAdapter } from '@/lib/channels/registry'
 import { fmtMoney } from '@/lib/shopify/create-checkout'
 import { resolveOfferChosen } from '@/lib/shopify/offers'
 import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
+import { marcarCuponesUsados } from '@/lib/shopify/discounts'
 import type {
   AutomationTriggerType,
   Channel,
@@ -170,6 +171,21 @@ export async function POST(request: Request) {
       // Va antes de todo lo demás a propósito: lo que sigue se corta si el
       // pedido no trae teléfono, y un comprador por chat bien puede no
       // haberlo dejado. La atribución no puede depender de eso.
+      // Los cupones que el agente emitió y esta compra usó: se sellan para no
+      // volver a ofrecer un código que Shopify ya dio por agotado.
+      {
+        const usados = Array.isArray(order.discount_codes)
+          ? (order.discount_codes as Array<{ code?: string }>)
+              .map((d) => String(d?.code ?? ''))
+              .filter(Boolean)
+          : []
+        if (usados.length > 0) {
+          await marcarCuponesUsados(admin, workspaceId, usados).catch((err) =>
+            console.error('[shopify] no se pudieron sellar los cupones:', err),
+          )
+        }
+      }
+
       await attributeWebchatOrder(admin, {
         workspaceId,
         shopDomain,

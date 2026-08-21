@@ -32,7 +32,7 @@ const INLINE_RE = /(\*\*[^*\n]+\*\*|__[^_\n]+__|`[^`\n]+`|\*[^*\s][^*\n]*\*)/g;
 function parseCartLink(
   href: string,
   storeOrigin: string | null,
-): { path: string; variantId: string; lineas: number } | null {
+): { path: string; variantId: string; lineas: number; unidades: number } | null {
   if (!storeOrigin) return null;
   try {
     const url = new URL(href);
@@ -47,6 +47,9 @@ function parseCartLink(
       // represente el carrito, y el botón agrega todo igual.
       variantId: lineas[0].split(':')[0],
       lineas: lineas.length,
+      // Las unidades importan para el precio: `/cart/111:3` es UNA línea pero
+      // tres unidades, y mostrar el unitario ahí se lee como el total.
+      unidades: lineas.reduce((n, l) => n + (Number(l.split(':')[1]) || 1), 0),
     };
   } catch {
     return null;
@@ -110,6 +113,7 @@ export function MessageText({
                 href={part}
                 variantId={cart.variantId}
                 lineas={cart.lineas}
+                unidades={cart.unidades}
                 session={session}
                 color={color}
                 ink={ink}

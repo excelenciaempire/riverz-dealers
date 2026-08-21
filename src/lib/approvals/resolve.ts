@@ -223,6 +223,12 @@ async function ejecutar(
             message: 'Ese pedido no tiene un cobro registrado en Shopify: devolvé el dinero por donde entró.',
           }
         }
+        if (res.error === 'monto_mayor_al_cobrado') {
+          return {
+            ok: false,
+            message: 'El importe pedido supera lo que se cobró de ese pedido. No se devolvió nada.',
+          }
+        }
         return { ok: false, message: res.error ?? 'Shopify no aceptó la operación.' }
       }
 
@@ -241,10 +247,17 @@ async function ejecutar(
           .eq('workspace_id', fila.workspace_id)
       }
 
+      // El texto dice lo que Shopify informó, no lo que se pidió. Afirmar
+      // "dinero devuelto" sin mirar el estado hacía que el comercio cerrara el
+      // caso —y se lo transmitiera a la clienta— cuando el pedido había quedado
+      // cancelado sin devolver nada.
+      const devuelto = res.financialStatus === 'refunded'
       return {
         ok: true,
         message: cancelando
-          ? 'Pedido cancelado y dinero devuelto en Shopify.'
+          ? devuelto
+            ? 'Pedido cancelado y dinero devuelto en Shopify.'
+            : `Pedido cancelado en Shopify. El pago quedó como "${res.financialStatus ?? 'sin cambios'}": revisá si hay que devolver el dinero a mano.`
           : 'Reembolso hecho en Shopify.',
       }
     }

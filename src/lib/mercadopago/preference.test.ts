@@ -16,12 +16,23 @@ const db = {} as never;
 const items = [{ title: 'Serum', quantity: 2, unit_price: 69000 }];
 
 function respuestaMp(body: unknown, ok = true, status = 201) {
+  // Sin `as never`: hace falta poder leer `.mock.calls` para inspeccionar qué
+  // se le mandó a Mercado Pago, que es la mitad de lo que estas pruebas miran.
   return vi.fn(async () => ({
     ok,
     status,
     json: async () => body,
     text: async () => JSON.stringify(body),
-  })) as never;
+  }));
+}
+
+/** El cuerpo JSON que se le mandó a Mercado Pago en la llamada `n`. */
+function cuerpoEnviado(f: ReturnType<typeof respuestaMp>, n = 0) {
+  // El doble no declara argumentos, así que TypeScript tipa `calls` como
+  // tuplas vacías: se lee por `unknown[]`, que es lo que realmente llega.
+  const args = f.mock.calls[n] as unknown as unknown[];
+  const init = args?.[1] as { body?: string } | undefined;
+  return JSON.parse(init?.body ?? '{}');
 }
 
 beforeEach(() => {
@@ -39,7 +50,7 @@ describe('crearLinkDePago', () => {
     const f = respuestaMp({ id: 'p', init_point: 'https://mp/pay' });
     vi.stubGlobal('fetch', f);
     await crearLinkDePago(db, { workspaceId: 'w1', items });
-    const cuerpo = JSON.parse((vi.mocked(f).mock.calls[0][1] as { body: string }).body);
+    const cuerpo = cuerpoEnviado(f);
     expect(cuerpo.notification_url).toContain('/api/mercadopago/webhook/w1/');
   });
 
@@ -48,7 +59,7 @@ describe('crearLinkDePago', () => {
     const f = respuestaMp({ id: 'p', init_point: 'https://mp/pay' });
     vi.stubGlobal('fetch', f);
     await crearLinkDePago(db, { workspaceId: 'w1', items, orderId: 'o-9' });
-    const cuerpo = JSON.parse((vi.mocked(f).mock.calls[0][1] as { body: string }).body);
+    const cuerpo = cuerpoEnviado(f);
     expect(cuerpo.external_reference).toBe('o-9');
   });
 
@@ -72,7 +83,7 @@ describe('crearLinkDePago', () => {
       workspaceId: 'w1',
       items: [{ title: 'A', quantity: -3, unit_price: 100 }],
     });
-    const cuerpo = JSON.parse((vi.mocked(f).mock.calls[0][1] as { body: string }).body);
+    const cuerpo = cuerpoEnviado(f);
     expect(cuerpo.items[0].quantity).toBe(1);
   });
 

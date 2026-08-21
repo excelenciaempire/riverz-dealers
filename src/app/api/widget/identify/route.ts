@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { Contact } from '@/types';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { linkUnifiedContact } from '@/lib/contacts/dedupe';
 import { requireSession } from '@/lib/channels/webchat/guard';
 import { getLogger } from '@/lib/log/logger';
 
@@ -16,10 +15,11 @@ const log = getLogger('widget.identify');
  * este contacto tiene que dejar de ser un desconocido más para convertirse en
  * el cliente que el comercio ya conocía por WhatsApp o por Shopify.
  *
- * Eso lo resuelve `linkUnifiedContact`, que es lo mismo que ya une al mismo
- * humano entre canales (migración 050): a partir de acá el agente lee su
- * historial y sus compras aunque la conversación haya empezado sin saber quién
- * era.
+ * Lo que NO hace: fusionarlo con el cliente que el comercio ya conocía. Acá el
+ * correo es una AFIRMACIÓN de alguien anónimo, y fusionar sobre eso permitía
+ * quedarse con la ficha de otra persona —sus pedidos incluidos— escribiendo su
+ * correo en un chat. Esa unión ocurre cuando la identidad está PROBADA: al
+ * comprar, con los datos que la tienda efectivamente cobró.
  *
  * Sólo agrega. Un dato que el visitante escribe no pisa el que el comercio ya
  * tenía: un nombre mal tipeado en un chat no puede renombrar a un cliente.
@@ -43,7 +43,10 @@ export async function POST(request: Request) {
   const email = str(body.email).trim().toLowerCase().slice(0, 200);
   const name = str(body.name).trim().slice(0, 120);
   const phone = str(body.phone).trim().slice(0, 32);
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+  // Un correo de verdad, sin comodines. `%` y `_` son comodines de `ilike`, y
+  // el correo termina en una búsqueda de contactos: con `%@%.%` una sola
+  // llamada matcheaba a TODOS los del comercio.
+  if (email && !/^[a-z0-9._+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(email)) {
     return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
   }
   if (!email && !name && !phone) {
@@ -74,17 +77,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, linked: false });
   }
 
-  const { data: updated, error } = await admin
-    .from('contacts')
-    .update(patch)
-    .eq('id', contact.id)
-    .select('*')
-    .single();
+  const { error } = await admin.from('contacts').update(patch).eq('id', contact.id);
   if (error) {
     log.captureException(error, { workspaceId: session.workspaceId });
     return NextResponse.json({ error: 'update_failed' }, { status: 502 });
   }
 
-  const primaryId = await linkUnifiedContact(admin, updated as Contact).catch(() => contact.id);
-  return NextResponse.json({ ok: true, linked: primaryId !== contact.id });
+  // A propósito NO se fusiona con otros contactos.
+  //
+  // Acá el dato es una AFIRMACIÓN de alguien anónimo: escribió un correo en un
+  // chat, nadie lo verificó. Fusionar sobre eso era una toma de cuenta en dos
+  // pasos — poner el correo de otra clienta y quedarse con su ficha, sus
+  // pedidos y la posibilidad de pedir que se los reembolsen. El agente lee
+  // mensajes de desconocidos: acá esa frase deja de ser teórica.
+  //
+  // La fusión sigue existiendo donde la identidad está PROBADA: cuando la
+  // persona compra de verdad, `attributeWebchatOrder` une el visitante con el
+  // cliente usando los datos que Shopify cobró. Ahí no hay nada que afirmar.
+  return NextResponse.json({ ok: true, linked: false });
 }

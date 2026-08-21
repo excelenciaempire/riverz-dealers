@@ -97,13 +97,46 @@ export async function refundOrder(
       }>
     }>(`/orders/${orderId}/transactions.json`)
 
-    const cobro = transactions.find(
+    const cobros = transactions.filter(
       (t) => (t.kind === 'sale' || t.kind === 'capture') && t.status === 'success',
     )
-    if (!cobro) {
+    if (cobros.length === 0) {
       // Pasa con contrareembolso y con transferencias que nadie registró: no
       // hay nada que devolver por API porque el dinero nunca entró por acá.
       return { ok: false, error: 'sin_cobro_registrado' }
+    }
+
+    // TODAS las transacciones, no la primera.
+    //
+    // Un pedido pagado en parte con gift card y en parte con tarjeta tiene dos
+    // cobros. Devolviendo sólo el primero se reembolsaba una fracción, se
+    // informaba "listo" y la clienta reclamaba el resto — con el caso ya
+    // cerrado del lado del comercio.
+    let restante = opts?.amount != null ? opts.amount : null
+    const lineas: Array<Record<string, unknown>> = []
+    for (const t of cobros) {
+      const disponible = Number(t.amount)
+      if (!Number.isFinite(disponible) || disponible <= 0) continue
+      const monto = restante == null ? disponible : Math.min(restante, disponible)
+      if (monto <= 0) break
+      lineas.push({
+        parent_id: t.id,
+        amount: monto.toFixed(2),
+        kind: 'refund',
+        gateway: t.gateway,
+      })
+      if (restante != null) {
+        restante -= monto
+        if (restante <= 0) break
+      }
+    }
+    if (lineas.length === 0) {
+      return { ok: false, error: 'sin_cobro_registrado' }
+    }
+    // Se pidió más de lo que hay cobrado: mejor decirlo que devolver de menos
+    // y dar el caso por cerrado.
+    if (restante != null && restante > 0.009) {
+      return { ok: false, error: 'monto_mayor_al_cobrado' }
     }
 
     await c.rest(`/orders/${orderId}/refunds.json`, {
@@ -112,14 +145,7 @@ export async function refundOrder(
         refund: {
           note: opts?.reason ?? 'Reembolso solicitado por el cliente',
           notify: false,
-          transactions: [
-            {
-              parent_id: cobro.id,
-              amount: opts?.amount != null ? opts.amount.toFixed(2) : cobro.amount,
-              kind: 'refund',
-              gateway: cobro.gateway,
-            },
-          ],
+          transactions: lineas,
         },
       },
     })

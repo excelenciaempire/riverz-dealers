@@ -76,8 +76,39 @@ async function resolverPedido(
 }
 
 function plata(p: PedidoDelCliente): string {
-  const n = typeof p.total_price === 'number' ? p.total_price : Number(p.total_price ?? 0)
-  return Number.isFinite(n) && n > 0 ? `${n} ${p.currency ?? ''}`.trim() : 'monto sin registrar'
+  const n = totalDe(p)
+  return n != null && n > 0 ? `${n} ${p.currency ?? ''}`.trim() : 'monto sin registrar'
+}
+
+function totalDe(p: PedidoDelCliente): number | null {
+  const n = typeof p.total_price === 'number' ? p.total_price : Number(p.total_price ?? NaN)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * ¿Ya hay una solicitud esperando por este pedido?
+ *
+ * Sin esto, insistir generaba una segunda: al comercio le llegaban dos avisos
+ * idénticos ("¿Reembolsar 5000 del pedido #1042?"), aprobaba los dos creyendo
+ * que era el mismo repetido, y se devolvía el doble. El guard de la aprobación
+ * evita ejecutar UNA dos veces, no dos distintas. Y el modelo puede pedir dos
+ * en un mismo turno, así que no alcanza con confiar en él.
+ */
+async function yaPedido(
+  ctx: PostventaCtx,
+  kind: string,
+  shopifyOrderId: string,
+): Promise<boolean> {
+  const { data } = await ctx.db
+    .from('approval_requests')
+    .select('id')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('kind', kind)
+    .eq('status', 'pending')
+    .contains('payload', { shopify_order_id: shopifyOrderId })
+    .limit(1)
+    .maybeSingle()
+  return Boolean(data)
 }
 
 /** Deja pedida la cancelación y le dice al modelo qué contarle a la clienta. */
@@ -97,6 +128,15 @@ export async function proponerCancelacion(
       error: 'pedido_no_cancelable',
       message:
         'Ese pedido no se puede cancelar automáticamente. Decile que lo pasás al equipo y va a tener respuesta a la brevedad.',
+    })
+  }
+
+  if (await yaPedido(ctx, 'cancelar_pedido', p.shopify_order_id)) {
+    return JSON.stringify({
+      ok: true,
+      estado: 'pendiente_de_aprobacion',
+      message:
+        'Ya habías pedido la cancelación de ese pedido y sigue esperando la confirmación del equipo. Deciselo así, sin volver a prometer nada nuevo.',
     })
   }
 
@@ -155,8 +195,28 @@ export async function proponerReembolso(
     })
   }
 
+  if (await yaPedido(ctx, 'reembolsar_pedido', p.shopify_order_id)) {
+    return JSON.stringify({
+      ok: true,
+      estado: 'pendiente_de_aprobacion',
+      message:
+        'Ya habías pedido un reembolso de ese pedido y sigue esperando la confirmación del equipo. Deciselo así, sin volver a prometer nada nuevo.',
+    })
+  }
+
   const motivo = (input.reason ?? '').trim().slice(0, 300)
-  const monto = typeof input.amount === 'number' && input.amount > 0 ? input.amount : null
+  const total = totalDe(p)
+  const pedido = typeof input.amount === 'number' && input.amount > 0 ? input.amount : null
+  // Nunca por encima de lo que costó el pedido. El monto lo propone el modelo,
+  // y una coma de más en un mensaje convierte 5.000 en 500.000.
+  if (pedido != null && total != null && pedido > total) {
+    return JSON.stringify({
+      ok: false,
+      error: 'monto_mayor_al_pedido',
+      message: `Ese pedido costó ${plata(p)}: no se puede devolver más que eso. Pedí un importe menor o el total.`,
+    })
+  }
+  const monto = pedido
 
   const res = await askForApproval({
     db: ctx.db,

@@ -59,6 +59,32 @@ async function adminDeLaTienda(
   }
 }
 
+/**
+ * Marca los cupones que un pedido usó.
+ *
+ * Sin esto la fila se quedaba con `redeemed_at` en null para siempre, y el
+ * dedupe —que busca justamente por eso— le devolvía a la clienta el MISMO
+ * código la próxima vez que pidiera. Un código que en Shopify ya está agotado
+ * (`usage_limit: 1`): el agente se lo daba con seguridad y el checkout lo
+ * rechazaba, justo en el momento que el descuento venía a rescatar.
+ *
+ * Lo llama el webhook de pedidos. Best-effort: no puede tumbar el webhook.
+ */
+export async function marcarCuponesUsados(
+  db: SupabaseClient,
+  workspaceId: string,
+  codigos: string[],
+): Promise<void> {
+  const limpios = codigos.map((c) => (c ?? '').trim()).filter(Boolean)
+  if (limpios.length === 0) return
+  await db
+    .from('agent_discounts')
+    .update({ redeemed_at: new Date().toISOString() })
+    .eq('workspace_id', workspaceId)
+    .in('code', limpios)
+    .is('redeemed_at', null)
+}
+
 /** Cuánto puede descontar este comercio. 0 = no puede. */
 export async function topeDeDescuento(
   db: SupabaseClient,
@@ -219,7 +245,7 @@ async function emitir(
         method: 'POST',
         body: { discount_code: { code } },
       })
-      await db.from('agent_discounts').insert({
+      const { error: errInsert } = await db.from('agent_discounts').insert({
         workspace_id: args.workspaceId,
         contact_id: args.contactId,
         conversation_id: args.conversationId ?? null,
@@ -229,6 +255,17 @@ async function emitir(
         shop_domain: tienda.shopDomain,
         price_rule_id: ruleId,
       })
+      if (errInsert) {
+        // El código ya existe en Shopify, pero sin la fila se pierden las dos
+        // cosas para las que existe la tabla: medir cuánto se regaló, y no
+        // volver a acuñarle otro a la misma persona la próxima vez que pida.
+        // Un error acá se mira; no se entrega el cupón y se sigue de largo.
+        console.error('[descuentos] no se registró el cupón:', errInsert.message)
+        return {
+          error: 'shopify_rechazo',
+          message: 'No se pudo registrar el descuento.',
+        }
+      }
       return { code, percent: pct }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

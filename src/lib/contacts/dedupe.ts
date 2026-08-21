@@ -40,6 +40,12 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed.includes('@')) return null;
+  // Sin comodines. Este valor va directo a un `ilike`, donde `%` y `_` NO son
+  // literales: un contacto con el correo `%@%.%` hacía que la búsqueda de
+  // duplicados matcheara a TODOS los del comercio y los fusionara a todos en
+  // una sola ficha, sin vuelta atrás. Un correo real no los lleva, así que
+  // descartarlo no pierde nada.
+  if (/[%_]/.test(trimmed)) return null;
   return trimmed;
 }
 

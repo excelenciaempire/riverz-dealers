@@ -247,10 +247,23 @@ export function clientIp(req: Request): string {
   // pasaron las 100. (Lo que sí frenaba era el límite por correo del login, que
   // usa una clave estable — por eso el agujero no se veía.)
   //
-  // `cf-connecting-ip` la pone Cloudflare y no la puede falsear el cliente: si
-  // llega una del cliente, Cloudflare la reemplaza. Va primero.
-  const cf = req.headers.get("cf-connecting-ip") ?? req.headers.get("true-client-ip");
-  if (cf?.trim()) return cf.trim();
+  // `cf-connecting-ip` la pone Cloudflare y no la puede falsear quien entra por
+  // ahí: si el cliente manda una, Cloudflare la reemplaza.
+  //
+  // Pero sólo vale si la petición pasó por Cloudflare, y el host del origen
+  // sigue siendo alcanzable: pegándole directo con una `cf-connecting-ip`
+  // distinta en cada llamada, cada una estrenaría cupo — el mismo agujero que
+  // esto vino a cerrar. `cf-ray` es un identificador que Cloudflare agrega a
+  // TODA petición que atraviesa: exigirlo hace que la cabecera sólo se crea
+  // cuando viene acompañada de la huella del proxy.
+  //
+  // Lo que esto NO puede arreglar solo: que el host del origen esté abierto.
+  // Cerrarlo es del lado de la plataforma.
+  const porCloudflare = req.headers.get("cf-ray");
+  if (porCloudflare) {
+    const cf = req.headers.get("cf-connecting-ip") ?? req.headers.get("true-client-ip");
+    if (cf?.trim()) return cf.trim();
+  }
 
   const trustedHops = Math.max(
     1,

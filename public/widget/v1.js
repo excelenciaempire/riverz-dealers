@@ -266,30 +266,68 @@
    * chat y terminó media hora más tarde en el checkout es indistinguible de
    * cualquier otra.
    */
-  function stampCart() {
+  function stampCart(extra) {
+    var attrs = { riverz_origin: 'chat_web' };
     var visitorId = storage(STORAGE_VISITOR);
-    if (!visitorId) return Promise.resolve();
+    if (visitorId) attrs.riverz_wvid = visitorId;
+    // Los atributos que el agente puso en el enlace —el modo de pago, el
+    // descuento pendiente por transferencia— viajan con el carrito hasta el
+    // pedido. Pisarlos con sólo los nuestros los perdía en silencio.
+    for (var k in extra || {}) attrs[k] = extra[k];
     return fetch('/cart/update.js', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ attributes: { riverz_wvid: visitorId, riverz_origin: 'chat_web' } }),
+      body: JSON.stringify({ attributes: attrs }),
     }).catch(function () {});
   }
 
-  /** Agrega al carrito lo que el enlace del agente describe: /cart/{id}:{qty} */
+  /**
+   * Lee el enlace que arma el agente: `/cart/{id}:{qty},{id}:{qty}…?…`
+   *
+   * Devuelve TODAS las líneas, los `attributes[...]` y el cupón. Antes se leía
+   * sólo la primera línea con una expresión anclada al principio: quien pedía
+   * dos productos se llevaba uno, y el chat le decía que estaba todo bien.
+   */
+  function parseCart(path) {
+    var partes = (path || '').split('?');
+    var m = /^\/cart\/([\d:,]+)/.exec(partes[0]);
+    if (!m) return null;
+
+    var items = [];
+    var pares = m[1].split(',');
+    for (var i = 0; i < pares.length; i++) {
+      var p = /^(\d+):(\d+)$/.exec(pares[i]);
+      if (p) items.push({ id: Number(p[1]), quantity: Number(p[2]) });
+    }
+    if (!items.length) return null;
+
+    var attrs = {};
+    var discount = null;
+    if (partes[1]) {
+      var qs = new URLSearchParams(partes[1]);
+      qs.forEach(function (valor, clave) {
+        var a = /^attributes\[(.+)\]$/.exec(clave);
+        if (a) attrs[a[1]] = valor;
+        else if (clave === 'discount') discount = valor;
+      });
+    }
+    return { items: items, attrs: attrs, discount: discount };
+  }
+
+  /** Agrega al carrito todo lo que el enlace describe. */
   function addToCart(path) {
-    var match = /^\/cart\/(\d+):(\d+)/.exec(path || '');
-    if (!match) return Promise.reject(new Error('bad_path'));
+    var carrito = parseCart(path);
+    if (!carrito) return Promise.reject(new Error('bad_path'));
     return fetch('/cart/add.js', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ items: [{ id: Number(match[1]), quantity: Number(match[2]) }] }),
+      body: JSON.stringify({ items: carrito.items }),
     })
       .then(function (r) {
         if (!r.ok) throw new Error('add ' + r.status);
-        return stampCart();
+        return stampCart(carrito.attrs);
       })
       .then(function () {
         // El contador del carrito del tema no se entera de un alta por API.
@@ -298,6 +336,7 @@
         // que es un defecto cosmético y no una venta perdida.
         document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true }));
         document.dispatchEvent(new CustomEvent('cart:build', { bubbles: true }));
+        return carrito;
       });
   }
 
@@ -314,12 +353,20 @@
       stampCart();
     } else if (data.type === 'riverz:add_to_cart') {
       addToCart(data.path).then(
-        function () {
+        function (carrito) {
           post({ type: 'riverz:cart_result', ok: true });
+          if (data.after !== 'checkout') return;
           // "Ir a pagar": el producto ya está en el carrito, así que la tienda
           // lleva a su propio checkout con todo lo que la persona haya juntado
           // —lo del chat y lo que ya tuviera—, no sólo con este artículo.
-          if (data.after === 'checkout') location.href = '/checkout';
+          //
+          // Con cupón se pasa por `/discount/CODE`, que es la única forma de
+          // aplicarlo: la API de carrito no acepta códigos, así que ir derecho
+          // al checkout dejaba pagando precio de lista a quien el agente le
+          // acababa de prometer un descuento.
+          location.href = carrito && carrito.discount
+            ? '/discount/' + encodeURIComponent(carrito.discount) + '?redirect=/checkout'
+            : '/checkout';
         },
         function () {
           post({ type: 'riverz:cart_result', ok: false });

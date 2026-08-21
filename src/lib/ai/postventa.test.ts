@@ -21,15 +21,31 @@ const pedirAprobacion = vi.mocked(askForApproval);
 
 type Fila = Record<string, unknown>;
 
-function db(filas: Fila[]) {
-  const q: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'not', 'order']) q[m] = vi.fn(() => q);
-  q.limit = vi.fn(() => Promise.resolve({ data: filas, error: null }));
-  return { from: vi.fn(() => q) } as never;
+/**
+ * @param filas   Los pedidos de la persona.
+ * @param pendientes Solicitudes de aprobación ya abiertas para este pedido.
+ */
+function db(filas: Fila[], pendientes: Fila[] = []) {
+  return {
+    from(tabla: string) {
+      const datos = tabla === 'approval_requests' ? pendientes : filas;
+      // `limit` es el final de una cadena y también el paso previo a
+      // `maybeSingle`: tiene que poder esperarse Y seguir encadenando.
+      const resultado = {
+        data: datos,
+        error: null,
+        then: (r: (v: unknown) => unknown) => Promise.resolve({ data: datos, error: null }).then(r),
+        maybeSingle: async () => ({ data: datos[0] ?? null, error: null }),
+      };
+      const q: Record<string, unknown> = { limit: () => resultado };
+      for (const m of ['select', 'eq', 'not', 'order', 'contains', 'is']) q[m] = () => q;
+      return q;
+    },
+  } as never;
 }
 
-const ctx = (filas: Fila[]) => ({
-  db: db(filas),
+const ctx = (filas: Fila[], pendientes: Fila[] = []) => ({
+  db: db(filas, pendientes),
   workspaceId: 'w1',
   contactId: 'c1',
 });
@@ -85,6 +101,15 @@ describe('cancelar', () => {
     );
     expect(out.ok).toBe(false);
     expect(out.error).toBe('pedido_no_cancelable');
+    expect(pedirAprobacion).not.toHaveBeenCalled();
+  });
+
+  it('insistir no genera una segunda solicitud', async () => {
+    // Dos avisos idénticos al comercio se leen como el mismo repetido: aprueba
+    // los dos y el pedido se cancela una vez, pero el reembolso se paga dos.
+    const out = JSON.parse(await proponerCancelacion(ctx([pedido()], [{ id: 'ap-1' }]), {}));
+    expect(out.ok).toBe(true);
+    expect(out.estado).toBe('pendiente_de_aprobacion');
     expect(pedirAprobacion).not.toHaveBeenCalled();
   });
 

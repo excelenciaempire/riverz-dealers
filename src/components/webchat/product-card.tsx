@@ -33,6 +33,7 @@ export function ProductCard({
   href,
   variantId,
   lineas = 1,
+  unidades = 1,
   session,
   color,
   ink,
@@ -42,6 +43,8 @@ export function ProductCard({
   variantId: string;
   /** Cuántos productos distintos trae el carrito. */
   lineas?: number;
+  /** Cuántas unidades en total. Con más de una, el unitario no es el total. */
+  unidades?: number;
   session?: string | null;
   color: string;
   ink: string;
@@ -90,14 +93,19 @@ export function ProductCard({
     window.parent?.postMessage({ type: 'riverz:add_to_cart', path, after }, '*');
   };
 
+  // Sin moneda no se inventa una: con `currency` vacío se caía a USD y un
+  // precio de 69.900 pesos se mostraba como "US$ 69.900". Mejor el número solo
+  // que un número en la moneda de otro país.
   const precio =
-    prod?.price != null
-      ? new Intl.NumberFormat('es', {
-          style: 'currency',
-          currency: prod.currency || 'USD',
-          maximumFractionDigits: 0,
-        }).format(prod.price)
-      : null;
+    prod?.price == null
+      ? null
+      : prod.currency
+        ? new Intl.NumberFormat('es', {
+            style: 'currency',
+            currency: prod.currency,
+            maximumFractionDigits: 0,
+          }).format(prod.price)
+        : new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(prod.price);
 
   return (
     <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white">
@@ -119,7 +127,9 @@ export function ProductCard({
             ) : null}
           </p>
         ) : null}
-        {precio && lineas === 1 ? (
+        {/* Sólo si el precio que se muestra ES lo que se va a cobrar: con
+            varios productos o varias unidades, el unitario engaña. */}
+        {precio && lineas === 1 && unidades === 1 ? (
           <p className="mt-0.5 text-sm text-neutral-600">{precio}</p>
         ) : null}
         <div className="mt-2 flex gap-1.5">

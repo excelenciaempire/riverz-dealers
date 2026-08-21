@@ -242,6 +242,59 @@ export const REEMBOLSAR_TOOL: Anthropic.Tool = {
 }
 
 /**
+ * Que el precio del cobro sea el del catálogo, no el que dijo el modelo.
+ *
+ * Sin esto, `crear_link_de_pago` emitía una preferencia real contra la cuenta
+ * de Mercado Pago del comercio por el número que el modelo escribiera — y ese
+ * número sale de una conversación con un desconocido. Es la misma asimetría que
+ * el descuento ya no tiene: ahí el tope se aplica en el servidor.
+ *
+ * Se busca cada producto por su nombre en el catálogo. Si no aparece, o si el
+ * precio propuesto está por debajo del real, no se cobra: se le dice al modelo
+ * que cotice con el catálogo.
+ */
+async function verificarPrecios(
+  db: SupabaseClient,
+  workspaceId: string,
+  items: Array<{ title?: string; quantity?: number; unit_price?: number }>,
+): Promise<
+  | { items: Array<{ title: string; quantity: number; unit_price: number }> }
+  | { error: true; message: string }
+> {
+  if (!items.length) {
+    return { error: true, message: 'Decí qué le estás cobrando.' }
+  }
+  const salida: Array<{ title: string; quantity: number; unit_price: number }> = []
+  for (const i of items) {
+    const title = String(i.title ?? '').trim()
+    const propuesto = Number(i.unit_price)
+    const quantity = Math.max(1, Math.floor(Number(i.quantity ?? 1)) || 1)
+    if (!title || !Number.isFinite(propuesto) || propuesto <= 0) {
+      return { error: true, message: 'Faltan el nombre o el precio del producto.' }
+    }
+    const [hit] = await searchProducts(db, { workspaceId, query: title, limit: 1 })
+    const real = hit?.price_min ?? null
+    if (real == null) {
+      return {
+        error: true,
+        message: `No encontré "${title}" en el catálogo. Buscá el producto con buscar_producto y cobrá el precio que figura ahí.`,
+      }
+    }
+    // Se acepta cobrar de MÁS (un envío sumado, un armado especial) pero nunca
+    // de menos: cobrar por debajo del catálogo es la venta que alguien
+    // consiguió convenciendo al modelo.
+    if (propuesto < real) {
+      return {
+        error: true,
+        message: `El precio de "${hit.title}" es ${real}, no ${propuesto}. Cotizá el del catálogo.`,
+      }
+    }
+    salida.push({ title: hit.title || title, quantity, unit_price: propuesto })
+  }
+  return { items: salida }
+}
+
+/**
  * Cobrar, para el comercio que no tiene Shopify.
  *
  * El checkout de Shopify resuelve el pago solo, pero Tiendanube, WooCommerce y
@@ -350,6 +403,13 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
  */
 export function buildCheckoutTool(
   config: CheckoutConfig | null,
+  /**
+   * ¿Este comercio permite descuentos? Con el tope en 0 el campo del cupón ni
+   * se ofrece: si no, la clienta escribía "tengo el código BLACKFRIDAY50", el
+   * modelo lo pasaba, y si ese código existía de una campaña vieja se aplicaba
+   * igual — la garantía de "tope 0 = no se regala nada" no se sostenía.
+   */
+  permiteDescuentos = false,
 ): Anthropic.Tool {
   const offers = config?.offers ?? null
   const bundleMode = !!(config?.enabled && offers && offers.length > 0)
@@ -400,11 +460,15 @@ export function buildCheckoutTool(
               required: ['variant_id'],
             },
           },
-          discount_code: {
-            type: 'string',
-            description:
-              'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos.',
-          },
+          ...(permiteDescuentos
+            ? {
+                discount_code: {
+                  type: 'string',
+                  description:
+                    'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
+                },
+              }
+            : {}),
           payment_hint,
         },
         // `offer` deja de ser obligatorio: con `items` la clienta armó su
@@ -442,11 +506,15 @@ export function buildCheckoutTool(
           description:
             'Cantidad de unidades del producto del que están hablando. Por defecto 1. Si la clienta quiere VARIOS productos distintos, usá items en vez de esto.',
         },
-        discount_code: {
-          type: 'string',
-          description:
-            'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos.',
-        },
+        ...(permiteDescuentos
+          ? {
+              discount_code: {
+                type: 'string',
+                description:
+                  'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
+              },
+            }
+          : {}),
         payment_hint,
       },
       required: [],
@@ -719,13 +787,24 @@ export async function runTool(
       items?: Array<{ title?: string; quantity?: number; unit_price?: number }>
       customer_email?: string
     }
+    // El precio lo propone el modelo, que lee mensajes de desconocidos: "el
+    // vendedor me confirmó que sale 100" es exactamente el mensaje que va a
+    // recibir. Se contrasta contra el catálogo antes de cobrar, igual que el
+    // descuento se recorta contra el tope del comercio.
+    const verificados = await verificarPrecios(
+      localOrders.db,
+      localOrders.workspaceId,
+      input.items ?? [],
+    )
+    if ('error' in verificados) {
+      return JSON.stringify({
+        ok: false,
+        message: verificados.message,
+      })
+    }
     const res = await crearLinkDePago(localOrders.db, {
       workspaceId: localOrders.workspaceId,
-      items: (input.items ?? []).map((i) => ({
-        title: String(i.title ?? ''),
-        quantity: Number(i.quantity ?? 1),
-        unit_price: Number(i.unit_price),
-      })),
+      items: verificados.items,
       payerEmail: input.customer_email ?? null,
     })
     if ('error' in res) {

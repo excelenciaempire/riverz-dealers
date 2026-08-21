@@ -46,8 +46,25 @@ export async function GET(request: Request) {
     url: string | null;
     price_min: number | string | null;
     currency: string | null;
-    raw: { images?: Array<{ src?: string }> } | null;
+    raw: {
+      images?: Array<{ src?: string }>;
+      variants?: Array<{
+        id?: number | string;
+        price?: number | string | null;
+        promotional_price?: number | string | null;
+      }>;
+    } | null;
   };
+
+  // El precio de ESTA variante, no el mínimo del producto.
+  //
+  // Un serum de 50 ml a $20.000 y de 200 ml a $60.000 son el mismo producto:
+  // devolviendo `price_min`, la tarjeta del de 200 ml decía $20.000 y en el
+  // checkout aparecían $60.000. Mostrar un precio y cobrar otro es la peor
+  // forma de perder una venta que ya estaba hecha.
+  const variante = (row.raw?.variants ?? []).find((v) => String(v?.id ?? '') === variant);
+  const precioVariante = variante?.promotional_price ?? variante?.price ?? null;
+  const precio = precioVariante != null ? Number(precioVariante) : Number(row.price_min ?? NaN);
 
   return NextResponse.json({
     title: row.title ?? '',
@@ -55,7 +72,7 @@ export async function GET(request: Request) {
     // guardara; la foto igual está en el volcado crudo.
     image: row.image_url || row.raw?.images?.[0]?.src || null,
     url: row.url,
-    price: row.price_min != null ? Number(row.price_min) : null,
+    price: Number.isFinite(precio) ? precio : null,
     currency: row.currency,
   });
 }
