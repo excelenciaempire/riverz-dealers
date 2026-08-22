@@ -58,9 +58,6 @@ function describe(kind: Issue['kind'], count: number, detail?: string | null): s
       return `${count} conexión(es) caídas${extra}`
     case 'template_rejected':
       return `${count} plantilla(s) rechazadas${extra}`
-    case 'nadie_atiende':
-      // El aviso mas caro de la lista: entran mensajes y no contesta nadie.
-      return `${count} canal(es) recibiendo mensajes SIN ningun agente atendiendo`
     case 'broadcast_stalled':
       return `${count} campaña(s) trabadas${extra}`
   }

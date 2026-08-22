@@ -34,8 +34,7 @@ export type IssueKind =
   | 'whatsapp_blocked'
   | 'connection_error'
   | 'template_rejected'
-  | 'broadcast_stalled'
-  | 'nadie_atiende';
+  | 'broadcast_stalled';
 
 export interface Issue {
   /** Clave estable; la UI la traduce y decide el link. */
@@ -75,8 +74,6 @@ function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id'>): string {
       return '/plantillas';
     case 'broadcast_stalled':
       return '/campanas';
-    case 'nadie_atiende':
-      return '/asistente';
   }
 }
 
@@ -96,52 +93,6 @@ export function toIssue(row: IssueRow): Issue {
   };
 }
 
-/**
- * Canales conectados y nadie atendiendo.
- *
- * Es el modo de falla más caro que tuvo este producto y el más silencioso: el
- * 2026-08-05 se quedó sin saldo la clave de IA, alguien borró los cuatro
- * agentes de un comercio, y durante **quince días** los mensajes de sus
- * clientes entraron a una bandeja donde no contestaba nadie. Ninguna pantalla
- * lo decía. Se descubrió leyendo la base a mano.
- *
- * No está en el SQL de la migración 152 con los demás porque no es un error de
- * nada: es una AUSENCIA, y las ausencias no dejan filas. Hay que ir a buscarlas.
- *
- * La condición es la que importa: canales conectados —o sea, mensajes
- * entrando— y cero agentes vivos y activos. Un comercio sin canales todavía no
- * empezó y no necesita que le avisen nada.
- */
-async function nadieAtiende(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<Issue | null> {
-  const [canales, agentes] = await Promise.all([
-    db
-      .from('channel_connections')
-      .select('id', { count: 'exact', head: true })
-      .eq('workspace_id', workspaceId)
-      .eq('status', 'connected'),
-    db
-      .from('ai_agents')
-      .select('id', { count: 'exact', head: true })
-      .eq('workspace_id', workspaceId)
-      .eq('is_active', true)
-      .is('deleted_at', null),
-  ]);
-
-  const conectados = canales.count ?? 0;
-  if (conectados === 0 || (agentes.count ?? 0) > 0) return null;
-
-  return {
-    kind: 'nadie_atiende',
-    severity: 'critical',
-    count: conectados,
-    detail: null,
-    href: '/asistente',
-  };
-}
-
 /** Lo que necesita atención en UN comercio. */
 export async function collectWorkspaceIssues(
   db: SupabaseClient,
@@ -152,11 +103,6 @@ export async function collectWorkspaceIssues(
   });
   if (error) throw new Error(`[health] admin_workspace_issues: ${error.message}`);
   const issues = ((data ?? []) as IssueRow[]).map(toIssue);
-
-  // Se busca aparte porque es una ausencia y las ausencias no dejan filas.
-  // Fail-soft: que falle esta consulta no puede tapar los demás avisos.
-  const sinAgente = await nadieAtiende(db, workspaceId).catch(() => null);
-  if (sinAgente) issues.push(sinAgente);
 
   return issues.sort(porGravedad);
 }
