@@ -61,6 +61,7 @@ export const operation = {
   // La mesa de trabajo: qué está armando el equipo, ahora.
   mesaTitulo: { es: "El equipo", en: "The team" },
   mesaVerComoQuedo: { es: "Ver cómo quedó", en: "See how it turned out" },
+  mesaVerElDetalle: { es: "Ver el detalle", en: "See the detail" },
   mapaOperador: { es: "Operador", en: "Operator" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
   mesaEsLoPropuesto: {

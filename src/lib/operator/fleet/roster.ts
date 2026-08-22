@@ -10,7 +10,7 @@
  * consulta al agente equivocado todos los días y el comercio no ve por qué. Eso
  * sigue valiendo allá, donde el error es invisible y sale por WhatsApp. Acá el
  * error es visible: el reparto se muestra entero y hay que aprobarlo antes de
- * que corra. Y no existe forma determinista de convertir "armá recuperación de
+ * que corra. Y no existe forma determinista de convertir "arma recuperación de
  * carritos" en tres encargos: eso es exactamente lo que sabe hacer un modelo.
  *
  * Lo que sí es determinista es esto: la partición. Un subagente recibe SÓLO las
@@ -51,9 +51,10 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'constructor',
     maxIters: 7,
     instrucciones: [
-      'Antes de armar algo, mirá qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
+      'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
       'Una automatización nace pausada, siempre. Prenderla es otra decisión y la toma una persona.',
-      'Para `send_template` hace falta el nombre exacto de una plantilla YA aprobada. Si no la tenés a mano, pedísela al de plantillas en vez de inventar un nombre.',
+      'Para `send_template` hace falta el nombre exacto de una plantilla YA aprobada. El mapa de la cuenta te dice cuáles hay. Si la que necesitas no está, PÍDESELA al de plantillas con `equipo__pedir` y espera su respuesta: inventar un nombre deja la automatización muerta.',
+      'Si el pedido es un mensaje DISTINTO por cada camino, hacen falta tantas plantillas como caminos. Reusar la misma en las tres ramas no es lo que pidieron: pide las que falten antes de armar.',
     ].join('\n'),
     puedePedirle: ['plantillas'],
   },
@@ -66,8 +67,8 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'constructor',
     maxIters: 7,
     instrucciones: [
-      'Los cambios se ensayan antes de aplicarse: si el ensayo devuelve un error nuevo, corregí y volvé a intentar en vez de guardar algo roto.',
-      'No rehagas el flujo entero para cambiar un nodo. Mandá el cambio mínimo.',
+      'Los cambios se ensayan antes de aplicarse: si el ensayo devuelve un error nuevo, corrige y volvé a intentar en vez de guardar algo roto.',
+      'No rehagas el flujo entero para cambiar un nodo. Manda el cambio mínimo.',
     ].join('\n'),
     puedePedirle: [],
   },
@@ -82,7 +83,7 @@ export const ROSTER: SubagentSpec[] = [
     instrucciones: [
       'Una plantilla nace en borrador. Mandarla a Meta es otra decisión.',
       'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribí en consecuencia.',
-      'Antes de escribir una nueva, fijate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
+      'Antes de escribir una nueva, fíjate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
     ].join('\n'),
     puedePedirle: [],
   },
@@ -95,7 +96,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'constructor',
     maxIters: 6,
     instrucciones: [
-      'Antes de preparar una campaña, contá a cuánta gente alcanza el público. Un envío a cero o a toda la base casi siempre es un criterio mal escrito.',
+      'Antes de preparar una campaña, cuenta a cuánta gente alcanza el público. Un envío a cero o a toda la base casi siempre es un criterio mal escrito.',
       'La campaña queda preparada y sin salir. Lanzarla es una decisión de una persona, siempre.',
     ].join('\n'),
     puedePedirle: ['plantillas', 'contactos'],
@@ -138,7 +139,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'mecanico',
     maxIters: 6,
     instrucciones: [
-      'Antes de guardar un segmento, contá a cuánta gente alcanza. Si da cero, el criterio está mal escrito y guardarlo sólo esconde el error.',
+      'Antes de guardar un segmento, cuenta a cuánta gente alcanza. Si da cero, el criterio está mal escrito y guardarlo sólo esconde el error.',
       'Las etiquetas se escriben con el nombre exacto que ya existe en la cuenta. Una etiqueta nueva por una letra de diferencia parte la base en dos.',
     ].join('\n'),
     puedePedirle: [],
@@ -194,7 +195,7 @@ export const ROSTER: SubagentSpec[] = [
     instrucciones: [
       'Un agente nace en borrador y apagado. Prenderlo lo decide una persona.',
       'El rol no es una etiqueta: define qué hace y qué deriva. Un agente de postventa que puede crear pedidos duplica compras.',
-      'Dos agentes con el mismo rol en el mismo canal se pelean el tráfico. Antes de prender uno, mirá quién está atendiendo ahí.',
+      'Dos agentes con el mismo rol en el mismo canal se pelean el tráfico. Antes de prender uno, mira quién está atendiendo ahí.',
     ].join('\n'),
     puedePedirle: ['plantillas'],
   },
@@ -233,7 +234,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'mecanico',
     maxIters: 5,
     instrucciones: [
-      'Conectar una cuenta pide un navegador y una persona: vos podés diagnosticar y decir qué hay que hacer, no hacerlo.',
+      'Conectar una cuenta pide un navegador y una persona: vos puedes diagnosticar y decir qué hay que hacer, no hacerlo.',
       'Desconectar un canal corta los envíos de toda la cuenta. Nunca es una decisión tuya.',
     ].join('\n'),
     puedePedirle: [],
@@ -270,7 +271,7 @@ function cubre(spec: SubagentSpec, key: string): boolean {
  * De quién es esta capacidad. `null` = de nadie del equipo (ver `SIN_DUENO`).
  *
  * Una capacidad de dos dueños sería peor que una huérfana: dos subagentes
- * pisándose sobre lo mismo, sin que nadie sepa cuál corrió. La prueba del
+ * pisandose sobre lo mismo, sin que nadie sepa cuál corrió. La prueba del
  * roster exige que la partición sea total y sin solapamiento.
  */
 export function subagentForCapability(key: string): SubagentId | null {

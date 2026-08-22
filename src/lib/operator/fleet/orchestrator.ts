@@ -74,7 +74,10 @@ export async function runOrquestador(args: {
     ...TOOLS_EQUIPO,
   ]
 
-  const system = await armarSystem(ctx, args.pedido)
+  // El mapa se carga UNA vez y viaja a los especialistas: sin él trabajan a
+  // ciegas y terminan inventando un nombre de etiqueta o de plantilla.
+  const mapa = await mapaDelTurno(ctx)
+  const system = armarSystem(mapa, args.pedido)
   const messages: Anthropic.MessageParam[] = [...args.history]
   const proposedIds: string[] = []
   let planId: string | undefined
@@ -225,6 +228,7 @@ export async function runOrquestador(args: {
               emit,
               presupuesto,
               autoBuild: args.autoBuild,
+              mapa,
             })
             proposedIds.push(...Array(r.propuestas).fill(''))
             return { uso, r }
@@ -366,20 +370,19 @@ async function manejarPlan(
  * la cuenta, que cambia por comercio: si fuera antes del corte, el caché no
  * acertaría nunca y nadie se enteraría, porque funcionar funciona igual.
  */
-async function armarSystem(
-  ctx: CapabilityContext,
-  pedido: string,
-): Promise<Anthropic.TextBlockParam[]> {
-  const estable = `${PROMPT_ORQUESTADOR}\n\nEL EQUIPO\n${rosterComoTexto()}`
-
-  let mapa = ''
+/** Lo que hay en la cuenta, en texto. Vacío si no se pudo leer. */
+export async function mapaDelTurno(ctx: CapabilityContext): Promise<string> {
   try {
-    mapa = mapaComoTexto(await cargarMapa(ctx.db, ctx.workspaceId))
+    return mapaComoTexto(await cargarMapa(ctx.db, ctx.workspaceId))
   } catch {
     // Sin mapa el turno sigue: el equipo va a consultar lo que necesite. Sin
     // turno, no hay nada.
-    mapa = ''
+    return ''
   }
+}
+
+function armarSystem(mapa: string, pedido: string): Anthropic.TextBlockParam[] {
+  const estable = `${PROMPT_ORQUESTADOR}\n\nEL EQUIPO\n${rosterComoTexto()}`
 
   const pista = pistaComoTexto(leerIntencion(pedido))
   const variable = [mapa, pista].filter(Boolean).join('\n\n')

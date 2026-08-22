@@ -265,3 +265,79 @@ describe('lo que le deja al paso siguiente', () => {
     expect(r.resumen.length).toBeLessThanOrEqual(240)
   })
 })
+
+describe('pedirle algo a otro del equipo', () => {
+  it('el que arma automatizaciones puede pedir una plantilla, y recibe el nombre', async () => {
+    // El caso que lo motiva, entero: sin esto el de automatizaciones usaba la
+    // única plantilla que había para las tres ramas de un pedido que pedía tres
+    // mensajes distintos.
+    const eventos: OperatorEvent[] = []
+    const fake = fakeRunner({
+      automatizaciones: [
+        {
+          usa: [
+            { name: 'equipo__pedir', input: { a: 'plantillas', encargo: 'Escribe la de 4+' } },
+          ],
+        },
+        { texto: 'Listo, ya la tengo.' },
+      ],
+      plantillas: [
+        {
+          usa: [
+            {
+              name: 'plantillas__crear_borrador',
+              input: { nombre: 'recompra_4_mas', cuerpo: 'Hola {{1}}' },
+            },
+          ],
+        },
+        { texto: 'Escribí recompra_4_mas.' },
+      ],
+    })
+    const db = fakeDb()
+    const r = await runSubagent({
+      agente: 'automatizaciones',
+      encargo: { texto: 'armá la recompra', hechos: [] },
+      ctx: { db: db.db, workspaceId: 'ws-1', actor: { type: 'operator', id: 'u-1' }, locale: 'es' },
+      threadId: 'th-1',
+      runner: fake.runner,
+      emit: (e) => eventos.push(e),
+      presupuesto: crearPresupuesto(),
+      autoBuild: true,
+    })
+
+    expect(r.ok).toBe(true)
+    expect(eventos.some((e) => e.t === 'agente_pide' && e.a === 'plantillas')).toBe(true)
+    // El de plantillas corrió de verdad, con SUS herramientas.
+    const suya = fake.llamadas.find((l) => l.quien === 'plantillas')
+    expect(suya).toBeDefined()
+    expect(suya!.tools.every((t) => t.startsWith('plantillas__'))).toBe(true)
+    // Y el que pidió siguió trabajando con la respuesta en la mano.
+    expect(fake.llamadas.filter((l) => l.quien === 'automatizaciones').length).toBeGreaterThan(1)
+  })
+
+  it('sólo le puede pedir a quien dice el roster', async () => {
+    const { promesa, fake } = correr('automatizaciones', {
+      automatizaciones: [
+        { usa: [{ name: 'equipo__pedir', input: { a: 'voz', encargo: 'llamá a alguien' } }] },
+        { texto: 'No podía.' },
+      ],
+    })
+    await promesa
+    expect(fake.llamadas.some((l) => l.quien === 'voz')).toBe(false)
+  })
+
+  it('quien recibe un pedido no puede encadenar otro', async () => {
+    // Sin el tope, dos que se apuntan mutuamente se llaman para siempre.
+    const { promesa, fake } = correr('plantillas', {
+      plantillas: [{ texto: 'listo' }],
+    })
+    await promesa
+    expect(fake.llamadas[0].tools).not.toContain('equipo__pedir')
+  })
+
+  it('el que no le puede pedir a nadie no recibe la herramienta', async () => {
+    const { promesa, fake } = correr('voz', { voz: [{ texto: 'listo' }] })
+    await promesa
+    expect(fake.llamadas[0].tools).not.toContain('equipo__pedir')
+  })
+})

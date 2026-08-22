@@ -52,13 +52,19 @@ export function MapaEquipo({
   agentes,
   activo,
 }: {
-  plan: PlanEnMesa
+  /** Sin plan es una sola delegación: un especialista, una ola. */
+  plan: PlanEnMesa | null
   agentes: AgenteEnMesa[]
   activo: boolean
 }) {
   const t = useT()
   const porAgente = new Map(agentes.map((a) => [a.id, a]))
-  const olas = olasDelPlan(plan.pasos)
+  // El mapa se dibuja siempre, con plan o sin él. Antes, un pedido que se
+  // resolvía con un solo especialista caía a una lista y el panel no se parecía
+  // en nada al de un pedido grande: se veía como si el equipo no existiera.
+  const olas = plan
+    ? olasDelPlan(plan.pasos)
+    : [agentes.map((a, i) => ({ i, agente: a.id, encargo: '', dependeDe: [] }))]
 
   return (
     <section className="space-y-1">

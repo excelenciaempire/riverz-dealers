@@ -1,19 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ExternalLink, Loader2, PanelRightClose, Users, X } from 'lucide-react'
+import { ExternalLink, PanelRightClose, Users, X } from 'lucide-react'
 import Link from '@/components/i18n/locale-link'
 import { toShortId } from '@/lib/short-id'
 import { useT } from '@/hooks/use-locale'
 import { cn } from '@/lib/utils'
 import { VistaArtefacto } from './artefacto'
 import { MapaEquipo } from './mapa-equipo'
-import { TextoRico } from '@/components/ui/texto-rico'
 import {
   mesaTieneAlgo,
   useMesa,
   useMesaDispatch,
-  type AgenteEnMesa,
   type FijadoEnMesa,
 } from './mesa-contexto'
 
@@ -70,20 +68,12 @@ export function Mesa() {
             lado de la tarjeta del hilo, que además es la que tiene los
             botones: dos veces el mismo párrafo en la misma pantalla. Lo que
             va acá es quién está trabajando, que es otra cosa. */}
-        {/* Con un plan corriendo, el mapa: lo que va junto se ve junto y lo
-            que espera se ve esperando, que es lo único que hace falta saber
-            mientras se espera. Sin plan es una sola delegación, y ahí un mapa
-            de un nodo dice menos que la línea de lo que está haciendo. */}
-        {m.plan && m.agentes.length > 0 ? (
+        {/* El mapa, siempre: lo que va junto se ve junto y lo que espera se ve
+            esperando. Con un solo especialista es un nodo, y aun así se lee
+            igual que un pedido grande, que es lo que hace que el panel sea el
+            mismo lugar siempre. */}
+        {m.agentes.length > 0 && (
           <MapaEquipo plan={m.plan} agentes={m.agentes} activo={m.activo} />
-        ) : (
-          m.agentes.length > 0 && (
-            <section className="space-y-1.5">
-              {m.agentes.map((a) => (
-                <FilaAgente key={a.id} agente={a} />
-              ))}
-            </section>
-          )
         )}
 
         {/* Los lienzos van al final y no arriba: mientras el equipo trabaja, lo
@@ -182,53 +172,6 @@ function BotonVer({
   )
 }
 
-function FilaAgente({ agente }: { agente: AgenteEnMesa }) {
-  const Icono =
-    agente.estado === 'trabajando' ? Loader2 : agente.estado === 'listo' ? Check : X
-  return (
-    <div
-      className={cn(
-        'rounded-lg border px-3 py-2',
-        agente.estado === 'fallido'
-          ? 'border-red-500/30 bg-red-500/5'
-          : agente.estado === 'listo'
-            ? 'border-accent-ink/25 bg-primary/5'
-            : 'border-border bg-background',
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <Icono
-          className={cn(
-            'size-3.5 shrink-0',
-            agente.estado === 'trabajando' && 'animate-spin text-muted-foreground',
-            agente.estado === 'listo' && 'text-accent-ink',
-            agente.estado === 'fallido' && 'text-red-600 dark:text-red-400',
-          )}
-        />
-        <span className="text-xs font-medium text-foreground">{agente.id}</span>
-        {(agente.propuestas > 0 || agente.construidas > 0) && (
-          <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
-            {agente.construidas > 0 && `${agente.construidas} ✓`}
-            {agente.propuestas > 0 && ` ${agente.propuestas} ⏳`}
-          </span>
-        )}
-      </div>
-      {agente.ultima && (
-        <div className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-          <TextoRico text={agente.ultima} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * Cómo quedó lo que se construyó, sin salir del chat.
- *
- * El dibujo viene del servidor leído de la BASE, no del artefacto que se
- * calculó al proponerlo. Cuando no se pudo leer —porque ya no está— se dice,
- * en vez de mostrar lo propuesto como si fuera lo guardado.
- */
 function VistaFijado({
   fijado,
   onCerrar,

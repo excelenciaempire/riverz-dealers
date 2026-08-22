@@ -46,6 +46,26 @@ export interface EntradaSubagente {
   autoBuild: boolean
   /** Índice del paso dentro del plan, cuando viene de uno. */
   paso?: number
+  /**
+   * Lo que hay en la cuenta, en texto.
+   *
+   * Sin esto el especialista trabaja a ciegas: el que arma automatizaciones no
+   * sabe qué etiquetas existen ni qué plantillas están aprobadas, y depende de
+   * que quien coordina se lo haya escrito en el encargo. Cuando no se lo
+   * escribió, inventa un nombre — que es exactamente cómo se guardó una
+   * automatización que no podía funcionar.
+   *
+   * Lo carga el orquestador UNA vez por turno y se lo pasa a todos: no cuesta
+   * una consulta más.
+   */
+  mapa?: string
+  /**
+   * Cuántos escalones de "pedile a otro" van.
+   *
+   * Uno y nada más. Un especialista puede pedirle algo a otro; ese otro ya no.
+   * Sin el tope, dos que se apuntan mutuamente se llaman para siempre.
+   */
+  profundidad?: number
 }
 
 export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagente> {
@@ -53,7 +73,11 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
   const perfil = MODELOS[spec.tier]
   // El `as` es el mismo que usa el orquestador: `CapabilitySchema` es un JSON
   // Schema cerrado y el tipo del SDK pide una firma de índice abierta.
-  const tools = capacidadesAnthropic(e.agente)
+  const puedePedir = (e.profundidad ?? 0) === 0 && spec.puedePedirle.length > 0
+  const tools = [
+    ...capacidadesAnthropic(e.agente),
+    ...(puedePedir ? [herramientaDePedir(spec.puedePedirle)] : []),
+  ]
 
   e.emit({
     t: 'agente_inicio',
@@ -106,7 +130,20 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
       // dominio pueden pisarse, y ahí el orden es parte del resultado.
       const aLeer: Anthropic.ToolUseBlock[] = []
       const aEscribir: Anthropic.ToolUseBlock[] = []
+      const aPedir: Anthropic.ToolUseBlock[] = []
       for (const uso of usos) {
+        if (uso.name === TOOL_PEDIR) {
+          if (puedePedir) aPedir.push(uso)
+          else {
+            resultados.push({
+              type: 'tool_result',
+              tool_use_id: uso.id,
+              content: 'No puedes encadenar pedidos. Resuelve lo tuyo y dilo al final.',
+              is_error: true,
+            })
+          }
+          continue
+        }
         const key = capabilityKeyFromToolName(uso.name)
         const propia = capacidadesDe(e.agente).some((c) => c.key === key)
         const cap = findCapability(key)
@@ -121,6 +158,10 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
         }
         if (cap.risk === 'lectura') aLeer.push(uso)
         else aEscribir.push(uso)
+      }
+
+      for (const uso of aPedir) {
+        resultados.push(await pedirle(e, uso))
       }
 
       if (aLeer.length > 0) {
@@ -358,6 +399,9 @@ async function llamar(
           text: promptSubagente(e.agente),
           cache_control: { type: 'ephemeral' as const },
         },
+        // El mapa va DESPUÉS del corte del caché: cambia por comercio, y
+        // adentro del prefijo cacheado rompería el caché entre cuentas.
+        ...(e.mapa ? [{ type: 'text' as const, text: e.mapa }] : []),
       ],
       messages: mensajes,
       tools,
@@ -377,6 +421,85 @@ async function llamar(
   if (resto) e.emit({ t: 'agente_dice', agente: e.agente, texto: resto })
 
   return res
+}
+
+/** El nombre de la herramienta con la que un especialista le pide a otro. */
+const TOOL_PEDIR = 'equipo__pedir'
+
+/**
+ * Pedirle algo a otro especialista.
+ *
+ * El roster ya decía quién puede pedirle a quién (`puedePedirle`) y había una
+ * prueba cuidando que no hubiera ciclos, pero **nadie leía ese campo**: ningún
+ * subagente recibía la herramienta y el evento `agente_pide` no lo emitía
+ * nadie. Toda coordinación pasaba por quien reparte, y el caso que lo destapó
+ * es el de siempre: el que arma automatizaciones necesita una plantilla que no
+ * existe, no la puede escribir, y termina usando la única que había para las
+ * tres ramas.
+ */
+function herramientaDePedir(destinatarios: SubagentId[]): Anthropic.Tool {
+  return {
+    name: TOOL_PEDIR,
+    description: `Le pide algo a otro del equipo y espera su respuesta. Úsala cuando para terminar lo tuyo necesitas algo que NO es de tu dominio — por ejemplo una plantilla que todavía no existe. Puedes pedirle a: ${destinatarios.join(', ')}. Dile qué necesitas y para qué, como si no supiera nada de esta conversación.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        a: { type: 'string', enum: destinatarios },
+        encargo: { type: 'string', description: 'Qué necesitas, concreto y completo.' },
+      },
+      required: ['a', 'encargo'],
+    },
+  } as Anthropic.Tool
+}
+
+async function pedirle(
+  e: EntradaSubagente,
+  uso: Anthropic.ToolUseBlock,
+): Promise<Anthropic.ToolResultBlockParam> {
+  const args = (uso.input ?? {}) as { a?: string; encargo?: string }
+  const a = String(args.a ?? '') as SubagentId
+  const texto = String(args.encargo ?? '').trim()
+  const spec = specDe(e.agente)
+
+  if (!spec.puedePedirle.includes(a)) {
+    return {
+      type: 'tool_result',
+      tool_use_id: uso.id,
+      content: `A «${a}» no le puedes pedir. Puedes pedirle a: ${spec.puedePedirle.join(', ')}.`,
+      is_error: true,
+    }
+  }
+  if (!texto) {
+    return {
+      type: 'tool_result',
+      tool_use_id: uso.id,
+      content: 'El pedido no dice qué necesitas.',
+      is_error: true,
+    }
+  }
+
+  e.emit({ t: 'agente_pide', agente: e.agente, a, texto })
+
+  const r = await runSubagent({
+    ...e,
+    agente: a,
+    encargo: { texto, hechos: [] },
+    profundidad: (e.profundidad ?? 0) + 1,
+  })
+
+  // Lo que vuelve son datos duros, no una frase: el nombre exacto de lo que el
+  // otro creó es justo lo que este especialista necesita para no inventarlo.
+  const refs = r.refs
+    ? Object.entries(r.refs)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ')
+    : ''
+  return {
+    type: 'tool_result',
+    tool_use_id: uso.id,
+    content: `[${a}] ${r.resumen}${refs ? ` — ${refs}` : ''}`,
+    is_error: !r.ok,
+  }
 }
 
 function capacidadesAnthropic(agente: SubagentId): Anthropic.Tool[] {

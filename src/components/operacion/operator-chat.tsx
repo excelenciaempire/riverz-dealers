@@ -1076,23 +1076,30 @@ function Turno({
                   {b.detalle}
                 </span>
               )}
-              {b.artefacto && (
-                <div className="mt-2">
-                  <VistaArtefacto artefacto={b.artefacto} />
-                </div>
-              )}
-              {/* Lo construido se puede mirar sin salir del chat: el panel de
-                  la derecha lo dibuja LEÍDO DE LA BASE, que no es lo mismo que
-                  lo que se propuso. */}
-              {b.estado === 'hecho' && b.actionId && onVer && (
+              {/* El lienzo NO se dibuja acá: va en el panel de la derecha, que
+                  es donde pediste verlo, y donde el equipo ya lo va dibujando
+                  mientras trabaja. Estaba en los dos lados y quedaba el mismo
+                  árbol dos veces en la misma pantalla. Acá queda el botón, que
+                  además lo trae LEÍDO DE LA BASE y no como se propuso. */}
+              {b.artefacto && b.actionId && onVer && (
                 <button
                   type="button"
                   onClick={() => onVer(b.actionId!, b.key)}
                   className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent-ink transition-colors hover:bg-primary/10"
                 >
                   <Eye className="size-3" />
-                  {t('operation.mesaVerComoQuedo')}
+                  {b.estado === 'hecho'
+                    ? t('operation.mesaVerComoQuedo')
+                    : t('operation.mesaVerElDetalle')}
                 </button>
+              )}
+              {/* Sin acción a la que pedirle el dibujo, el de acá es lo único
+                  que hay. Pasa con lo que se propone dentro de un plan que
+                  todavía no se aprobó. */}
+              {b.artefacto && !b.actionId && (
+                <div className="mt-2">
+                  <VistaArtefacto artefacto={b.artefacto} />
+                </div>
               )}
             </span>
           </div>

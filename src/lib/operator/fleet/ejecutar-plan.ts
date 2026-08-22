@@ -27,6 +27,7 @@ import type { EmitFn } from '../events'
 import { crearSemaforo, type Presupuesto } from './budget'
 import { alcanzadosPor } from './olas'
 import { marcarPaso, marcarPlan, type PlanGuardado } from './plan'
+import { mapaDelTurno } from './orchestrator'
 import { runSubagent } from './run'
 import type { ModelRunner } from './runner'
 import type { Hecho, ResultadoSubagente } from './types'
@@ -53,6 +54,9 @@ export async function ejecutarPlan(args: {
 }): Promise<ResultadoPlan> {
   const { plan, ctx, emit } = args
   const conCupo = crearSemaforo()
+  // Correr un plan es otra petición HTTP: el mapa que cargó el turno anterior
+  // ya no está, y sin él los especialistas vuelven a trabajar a ciegas.
+  const mapa = await mapaDelTurno(ctx)
 
   // Los hechos van por índice de paso: cada uno recibe SÓLO los de aquellos de
   // los que depende. Pasarle todo a todos sería llenarle el contexto de cosas
@@ -92,6 +96,7 @@ export async function ejecutarPlan(args: {
             // inerte sigue proponiendo, adentro del plan y fuera de él.
             autoBuild: true,
             paso: i,
+            mapa,
           })
           return { i, paso, r }
         }),
