@@ -30,9 +30,16 @@
     })();
   if (!script) return;
 
-  var KEY = script.getAttribute('data-riverz-key');
+  // La llave, del atributo o de la propia URL.
+  //
+  // El atributo es lo que se pega a mano. La query hace falta para la
+  // instalación automática en Shopify: un ScriptTag sólo deja poner un `src`,
+  // no atributos, así que sin esto el widget instalado por la app no arrancaba
+  // nunca — y ese es justo el camino donde el comercio no toca código.
+  var src = new URL(script.src);
+  var KEY = script.getAttribute('data-riverz-key') || src.searchParams.get('k');
   if (!KEY) return;
-  var BASE = new URL(script.src).origin;
+  var BASE = src.origin;
   var STORAGE_VISITOR = 'riverz_wvid';
   var STORAGE_PROOF = 'riverz_wsig';
   var STORAGE_OPEN = 'riverz_wopen';

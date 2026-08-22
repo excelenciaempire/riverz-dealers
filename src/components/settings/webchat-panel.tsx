@@ -31,6 +31,22 @@ interface Stats {
   /** El total de CADA moneda, de mayor a menor volumen. Una tienda que vende
    *  en pesos y en dólares no tiene un solo número. */
   revenue_by_currency?: { currency: string | null; revenue: number; orders: number }[];
+  /** Qué tan seguido cerró el caso solo, y contra el período anterior. */
+  resolution_rate: number | null;
+  resolution_rate_previous: number | null;
+  /** Cuánta gente calificó y a cuánta le sirvió. */
+  rated: number;
+  satisfaction_rate: number | null;
+  /** Mediana de segundos hasta la primera respuesta. */
+  first_response_seconds: number | null;
+}
+
+/** "18 s", "4 min", "2 h". Un número en segundos no se lee. */
+function espera(segundos: number | null): string {
+  if (segundos == null) return '—';
+  if (segundos < 90) return `${segundos} s`;
+  if (segundos < 5400) return `${Math.round(segundos / 60)} min`;
+  return `${Math.round(segundos / 3600)} h`;
 }
 
 export function WebchatPanel() {
@@ -43,6 +59,10 @@ export function WebchatPanel() {
   const [copied, setCopied] = useState(false);
   const [cfg, setCfg] = useState<WebchatConfig>({});
   const [snippet, setSnippet] = useState('');
+  // Instalación automática en Shopify. `null` = todavía no se sabe (o no hay
+  // tienda conectada, que es el caso en el que este bloque no aplica).
+  const [instalado, setInstalado] = useState<boolean | null>(null);
+  const [instalando, setInstalando] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
   const [suggested, setSuggested] = useState<string[]>([]);
@@ -101,6 +121,19 @@ export function WebchatPanel() {
     save({ allowed_domains: [...domains, value] });
   };
 
+  useEffect(() => {
+    let cancelado = false;
+    fetch('/api/webchat/install')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelado && j) setInstalado(j.installed);
+      })
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -117,6 +150,24 @@ export function WebchatPanel() {
     : domains.length === 0
       ? t('webchat.whyNoDomains')
       : null;
+
+  const instalar = async (poner: boolean) => {
+    setInstalando(true);
+    try {
+      const res = await fetchWithCsrf('/api/webchat/install', {
+        method: poner ? 'POST' : 'DELETE',
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        setInstalado(poner);
+        toast.success(t(poner ? 'webchat.installedOk' : 'webchat.uninstalledOk'));
+      } else {
+        toast.error(json?.message ?? t('webchat.installFailed'));
+      }
+    } finally {
+      setInstalando(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -136,6 +187,33 @@ export function WebchatPanel() {
           </div>
           <Switch checked={enabled} onCheckedChange={(c) => save({ enabled: c })} />
         </Row>
+
+        {/* Instalación automática. Aparece sólo con Shopify conectado — donde
+            no hay tienda, ofrecer un botón que no puede funcionar es peor que
+            no ofrecerlo. El snippet de abajo sigue estando para todos los
+            demás y para quien prefiera pegarlo a mano. */}
+        {instalado !== null ? (
+          <div className="mt-4 border-t border-border pt-4">
+            <Row>
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {t('webchat.installAuto')}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t(instalado ? 'webchat.installAutoOn' : 'webchat.installAutoHint')}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={instalado ? 'outline' : 'default'}
+              disabled={instalando}
+              onClick={() => instalar(!instalado)}
+            >
+              {t(instalado ? 'webchat.uninstall' : 'webchat.installNow')}
+            </Button>
+            </Row>
+          </div>
+        ) : null}
 
         <div className="mt-4 border-t border-border pt-4">
           <p className="text-sm font-medium text-foreground">{t('webchat.install')}</p>
@@ -303,7 +381,32 @@ export function WebchatPanel() {
         {stats && stats.conversations > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label={t('webchat.conversations')} value={String(stats.conversations)} />
-            <Stat label={t('webchat.resolvedByAi')} value={String(stats.resolved)} />
+            <Stat
+              label={t('webchat.resolutionRate')}
+              value={stats.resolution_rate == null ? '—' : `${stats.resolution_rate}%`}
+              // Contra el período anterior: un porcentaje solo no dice si el
+              // canal está mejorando, que es lo único que se hace con esto.
+              extra={
+                stats.resolution_rate != null && stats.resolution_rate_previous != null
+                  ? [
+                      `${stats.resolution_rate >= stats.resolution_rate_previous ? '+' : ''}${
+                        stats.resolution_rate - stats.resolution_rate_previous
+                      } pts`,
+                    ]
+                  : undefined
+              }
+            />
+            <Stat
+              label={t('webchat.satisfaction')}
+              value={stats.satisfaction_rate == null ? '—' : `${stats.satisfaction_rate}%`}
+              extra={
+                stats.rated > 0 ? [t('webchat.ratedCount', { n: String(stats.rated) })] : undefined
+              }
+            />
+            <Stat
+              label={t('webchat.firstResponse')}
+              value={espera(stats.first_response_seconds)}
+            />
             <Stat label={t('webchat.ordersAttributed')} value={String(stats.orders)} />
             <Stat
               label={t('webchat.revenue')}

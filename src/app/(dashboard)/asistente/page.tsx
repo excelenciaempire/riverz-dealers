@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
+import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
@@ -154,6 +155,17 @@ export default function AiAgentsPage() {
           ))}
         </div>
       )}
+
+      {/* Lo que no supo contestar. Va acá y no en una pantalla aparte porque es
+          conocimiento del agente: se mira en el mismo lugar donde se lo edita,
+          que es donde uno va a cargar la respuesta que falta. */}
+      {!loading && agents.length > 0 ? (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground">{t('gaps.title')}</h2>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">{t('gaps.hint')}</p>
+          <AnswerGapsPanel />
+        </section>
+      ) : null}
 
       {editing && workspace && (
         <AgentEditor

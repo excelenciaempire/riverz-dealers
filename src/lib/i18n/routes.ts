@@ -42,6 +42,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   comentarios: "comments",
   productos: "products",
   pedidos: "orders",
+  devoluciones: "returns",
   metricas: "metrics",
   integraciones: "integrations",
   ajustes: "settings",

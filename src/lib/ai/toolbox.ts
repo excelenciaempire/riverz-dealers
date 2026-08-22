@@ -168,6 +168,13 @@ export const AGENT_TOOLBOX: readonly ToolSpec[] = [
     legacy: 'enviar_proactivo',
     requires: null,
   },
+  {
+    key: 'no_se_la_respuesta',
+    group: 'conversacion',
+    modes: ['off', 'auto'],
+    fallback: 'auto',
+    requires: null,
+  },
   { key: 'ver_contacto', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'etiquetar_contacto', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'cerrar_conversacion', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },

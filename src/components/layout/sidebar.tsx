@@ -25,6 +25,7 @@ import {
   Blocks,
   Settings,
   ShoppingBag,
+  PackageOpen,
   Receipt,
   Workflow,
   LogOut,
@@ -119,6 +120,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/productos", label: "nav.products", icon: ShoppingBag },
       { href: "/pedidos", label: "nav.orders", icon: Receipt },
+      { href: "/devoluciones", label: "nav.returns", icon: PackageOpen },
     ],
   },
 ];

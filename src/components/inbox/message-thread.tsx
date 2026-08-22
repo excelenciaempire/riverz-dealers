@@ -169,6 +169,8 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   escalate_after_messages: "inbox.needsHumanMaxReplies",
   flow_handoff: "inbox.needsHumanFlow",
   reply_burst_guard: "inbox.needsHumanBurst",
+  approval_unnotified: "inbox.needsHumanApproval",
+  answer_gap: "inbox.needsHumanUnknown",
 };
 
 const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [
@@ -1408,11 +1410,23 @@ export function MessageThread({
           abre no sabe por qué el asistente dejó de responder ni desde cuándo
           espera el cliente — antes el escalamiento era completamente mudo. */}
       {conversation.needs_human_reason && (
-        <div className="flex items-center gap-2 border-b border-border bg-amber-500/10 px-3 py-2 sm:px-4">
-          <UserRound className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <p className="min-w-0 flex-1 text-xs text-amber-700 dark:text-amber-300">
-            {t(NEEDS_HUMAN_REASON_KEY[conversation.needs_human_reason])}
-          </p>
+        <div className="flex items-start gap-2 border-b border-border bg-amber-500/10 px-3 py-2 sm:px-4">
+          <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {t(NEEDS_HUMAN_REASON_KEY[conversation.needs_human_reason])}
+            </p>
+            {/* Qué pasó hasta acá, en dos líneas.
+                El resumen rodante ya existía y no se mostraba en ningún lado:
+                quien tomaba un hilo escalado abría la conversación y leía todo
+                de nuevo — que es el peor momento del producto, porque pasa
+                justo cuando el cliente ya está esperando. */}
+            {conversation.ai_summary ? (
+              <p className="mt-1 text-xs leading-snug text-amber-800/80 dark:text-amber-200/80">
+                {conversation.ai_summary}
+              </p>
+            ) : null}
+          </div>
         </div>
       )}
 

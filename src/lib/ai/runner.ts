@@ -45,6 +45,7 @@ import {
   BUSCAR_PRODUCTO_TOOL,
   CERRAR_CONVERSACION_TOOL,
   ETIQUETAR_CONTACTO_TOOL,
+  NO_SE_TOOL,
   VER_CONTACTO_TOOL,
   VER_PRODUCTO_TOOL,
   buildDescuentoTool,
@@ -1742,6 +1743,10 @@ async function generateReply(
       : []),
     // Lo que hace una persona en la bandeja mientras atiende. Ninguna recibe un
     // id: el contacto y la conversación salen del contexto, no del modelo.
+    // Reconocer que no sabe. Se ofrece siempre que haya con qué anotarlo: sin
+    // esta salida, el modelo improvisa una respuesta plausible sobre envíos o
+    // garantías, que es el error que más caro sale y el más difícil de ver.
+    ...(primaryContact.id && puede('no_se_la_respuesta') ? [NO_SE_TOOL] : []),
     ...(primaryContact.id && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
     ...(primaryContact.id && puede('etiquetar_contacto') ? [ETIQUETAR_CONTACTO_TOOL] : []),
     ...(primaryContact.id && puede('cerrar_conversacion') ? [CERRAR_CONVERSACION_TOOL] : []),
@@ -1756,6 +1761,7 @@ async function generateReply(
           contactId: primaryContact.id,
           conversationId: shopify?.conversationId ?? null,
           agentId: agent.id,
+          channel: shopify?.channel ?? null,
           // Las que el comercio puso "con aprobación". Cancelar y reembolsar
           // quedan afuera porque ya preguntan por su cuenta: ponerles el freno
           // encima pediría dos confirmaciones por lo mismo.

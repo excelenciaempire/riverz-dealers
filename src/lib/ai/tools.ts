@@ -40,6 +40,7 @@ import { crearLinkDePago } from '@/lib/mercadopago/preference'
 import { emitirCupon } from '@/lib/shopify/discounts'
 import { crearPedidoEnLaTienda } from '@/lib/commerce/create-order'
 import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
+import { registrarHueco } from './answer-gaps'
 import {
   cerrarConversacion,
   etiquetarContacto,
@@ -302,6 +303,26 @@ export const CERRAR_CONVERSACION_TOOL: Anthropic.Tool = {
       motivo: { type: 'string', description: 'En qué quedó, en una línea.' },
     },
     required: [],
+  },
+}
+
+export const NO_SE_TOOL: Anthropic.Tool = {
+  name: 'no_se_la_respuesta',
+  description:
+    'Llamala cuando te preguntan algo que NO podés contestar con lo que sabés del negocio: un dato que no está en tu conocimiento ni en el catálogo, una política que nadie te cargó. Anota la pregunta para que el equipo la responda y le pasa la conversación a una persona. Usala ANTES de improvisar: una respuesta aproximada sobre envíos, garantías o plazos es peor que decir que lo consultás.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      pregunta: {
+        type: 'string',
+        description: 'Lo que preguntó la clienta, en sus palabras.',
+      },
+      falta: {
+        type: 'string',
+        description: 'Qué dato te faltó para poder contestarla.',
+      },
+    },
+    required: ['pregunta'],
   },
 }
 
@@ -758,6 +779,8 @@ export interface LocalOrdersContext {
   /** Para poder pasarle la conversación a una persona cuando algo queda a medias. */
   conversationId?: string | null
   agentId?: string | null
+  /** Por dónde llegó, para poder decir después dónde falló el agente. */
+  channel?: string | null
   /**
    * Herramientas que el comercio puso "con aprobación": el agente las prepara
    * y una persona confirma. No se ejecutan acá.
@@ -894,6 +917,26 @@ export async function runTool(
       return cerrarConversacion(ctx)
     }
     return etiquetarContacto(ctx, input as { etiqueta?: string; quitar?: boolean })
+  }
+
+  if (toolName === 'no_se_la_respuesta') {
+    if (!localOrders) {
+      return JSON.stringify({
+        ok: false,
+        message: 'No lo pude anotar. Decile con honestidad que eso no lo sabés.',
+      })
+    }
+    return registrarHueco(
+      {
+        db: localOrders.db,
+        workspaceId: localOrders.workspaceId,
+        contactId: localOrders.contactId,
+        conversationId: localOrders.conversationId ?? null,
+        agentId: localOrders.agentId ?? null,
+        channel: localOrders.channel ?? null,
+      },
+      (toolInput ?? {}) as { pregunta?: string; falta?: string },
+    )
   }
 
   if (toolName === 'abrir_devolucion') {

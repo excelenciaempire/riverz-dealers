@@ -73,6 +73,9 @@ describe('el toolset del agente que habla con clientes', () => {
       'ESCALATE_TO_CALL_TOOL',
       'CREAR_LINK_DE_PAGO_TOOL',
       'ABRIR_DEVOLUCION_TOOL',
+      // Reconocer que no sabe: anota la pregunta y traspasa. Es lo contrario
+      // de una capacidad sobre la cuenta.
+      'NO_SE_TOOL',
       // Las de bandeja. Entran porque NINGUNA recibe un id: el contacto y la
       // conversación salen del contexto que arma el servidor, así que el radio
       // es la persona que está escribiendo y nadie más. Las del registro del

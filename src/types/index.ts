@@ -274,7 +274,13 @@ export type NeedsHumanReason =
   | 'flow_handoff'
   /** Cortacircuitos: demasiadas respuestas al mismo contacto en poco
    *  tiempo (migración 178). */
-  | 'reply_burst_guard';
+  | 'reply_burst_guard'
+  /** Hay una cancelación o un reembolso pedido que el comercio nunca recibió
+   *  por WhatsApp (migración 179). */
+  | 'approval_unnotified'
+  /** El agente reconoció que no sabía la respuesta y anotó la pregunta
+   *  (migración 182). */
+  | 'answer_gap';
 
 export interface Conversation {
   id: string;

@@ -73,6 +73,10 @@ export function ChatApp() {
   const [identified, setIdentified] = useState(false);
   const [expired, setExpired] = useState(false);
   const [reanudando, setReanudando] = useState(false);
+  // Si sirvió. Se pregunta una sola vez y sólo cuando ya hubo conversación de
+  // verdad: pedirle una calificación a quien acaba de escribir "hola" no mide
+  // nada y molesta.
+  const [califico, setCalifico] = useState<null | boolean>(null);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
 
   const cursor = useRef<string | null>(null);
@@ -301,6 +305,21 @@ export function ChatApp() {
     [session, expired, poll],
   );
 
+  const calificar = useCallback(
+    async (util: boolean) => {
+      if (!session || califico !== null) return;
+      // Se pinta antes de que conteste el servidor: es un gesto de un toque y
+      // esperar el ida y vuelta lo hace sentir roto.
+      setCalifico(util);
+      await fetch('/api/widget/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+        body: JSON.stringify({ util }),
+      }).catch(() => {});
+    },
+    [session, califico],
+  );
+
   const identify = useCallback(async () => {
     const value = email.trim();
     if (!value || !session) return;
@@ -390,6 +409,13 @@ export function ChatApp() {
         ))}
 
         {waiting ? <Typing /> : null}
+
+        {/* La calificación va acá abajo y no en un modal: interrumpir para
+            preguntar "¿te sirvió?" es la forma más rápida de que la respuesta
+            sea que no. Aparece cuando hubo ida y vuelta de verdad. */}
+        {!waiting && !expired && messages.filter((m) => m.sender !== 'visitor').length >= 2 ? (
+          <Rating valor={califico} onVotar={calificar} />
+        ) : null}
       </div>
 
       {expired ? (
@@ -533,6 +559,40 @@ function Typing() {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** ¿Sirvió? Dos pulgares y nada más: cualquier cosa que pida escribir baja la
+ *  respuesta a la décima parte, y lo que se necesita es el número. */
+function Rating({
+  valor,
+  onVotar,
+}: {
+  valor: boolean | null;
+  onVotar: (util: boolean) => void;
+}) {
+  if (valor !== null) {
+    return (
+      <p className="mt-3 text-center text-[11px] text-neutral-500">
+        {valor ? 'Gracias por avisar.' : 'Gracias, se lo paso al equipo.'}
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 flex items-center justify-center gap-2">
+      <span className="text-[11px] text-neutral-500">¿Te sirvió?</span>
+      {[true, false].map((util) => (
+        <button
+          key={String(util)}
+          type="button"
+          onClick={() => onVotar(util)}
+          aria-label={util ? 'Sí' : 'No'}
+          className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-600 transition hover:bg-neutral-50"
+        >
+          {util ? '👍' : '👎'}
+        </button>
+      ))}
     </div>
   );
 }

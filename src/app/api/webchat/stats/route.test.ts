@@ -16,18 +16,32 @@ interface FilaPedido {
 const filas = {
   conversations: [] as Array<Record<string, unknown>>,
   orders: [] as FilaPedido[],
+  messages: [] as Array<Record<string, unknown>>,
 };
 
 function fakeAdmin() {
   return {
-    from(table: 'conversations' | 'orders') {
+    from(table: 'conversations' | 'orders' | 'messages') {
+      // `lt` acota el período ANTERIOR y `in`/`order`/`limit` leen los mensajes
+      // para medir la primera respuesta: sin ellos la cadena se corta.
+      let periodoAnterior = false;
       const chain: Record<string, unknown> = {
         select: () => chain,
         eq: () => chain,
         is: () => chain,
+        in: () => chain,
+        order: () => chain,
+        limit: () => chain,
         gte: () => chain,
+        lt: () => {
+          periodoAnterior = true;
+          return chain;
+        },
         then: (ok: (v: unknown) => unknown, fail?: (e: unknown) => unknown) =>
-          Promise.resolve({ data: filas[table], error: null }).then(ok, fail),
+          Promise.resolve({
+            data: table === 'messages' ? [] : periodoAnterior ? [] : filas[table],
+            error: null,
+          }).then(ok, fail),
       };
       return chain;
     },
@@ -63,7 +77,16 @@ async function stats(): Promise<Cuerpo> {
 }
 
 beforeEach(() => {
-  filas.conversations = [{ status: 'open', assigned_agent_id: null, needs_human_at: null }];
+  filas.conversations = [
+    {
+      id: 'c1',
+      status: 'open',
+      assigned_agent_id: null,
+      needs_human_at: null,
+      csat: null,
+      created_at: new Date().toISOString(),
+    },
+  ];
   filas.orders = [];
 });
 

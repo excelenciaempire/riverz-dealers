@@ -21,6 +21,14 @@ export const inbox = {
     es: "Se enviaron demasiados mensajes seguidos a este contacto",
     en: "Too many messages were sent to this contact in a row",
   },
+  needsHumanApproval: {
+    es: "Hay algo pedido que el agente no pudo avisarte por WhatsApp.",
+    en: "Something is pending that the agent could not text you about.",
+  },
+  needsHumanUnknown: {
+    es: "El agente no supo contestar y anotó la pregunta.",
+    en: "The agent did not know the answer and logged the question.",
+  },
 
   // Status filter (conversation list)
   filterAll: { es: "Todas", en: "All" },

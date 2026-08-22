@@ -45,6 +45,11 @@ const DEFAULT_SCOPES =
     // contesta 403 y el `catch` lo devuelve como null — o sea que la función
     // estaba fallando en silencio en todas las tiendas conectadas.
     'write_discounts',
+    // Chat web: instalarlo sin que nadie toque el código del tema. Copiar un
+    // snippet a `theme.liquid` es el paso donde se cae la adopción — el
+    // comercio que conectó la tienda en dos clics tiene que abrir el editor de
+    // código, y la mitad no lo hace.
+    'write_script_tags',
   ].join(',')
 
 export function shopifyApiVersion(): string {
