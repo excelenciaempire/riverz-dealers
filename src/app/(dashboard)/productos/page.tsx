@@ -52,7 +52,28 @@ interface ProductRow {
   scrape_status: 'idle' | 'queued' | 'scraping' | 'done' | 'failed';
   ai_research_status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
   assigned_agent_count: number;
+  /**
+   * Dónde más se vende lo mismo. Presente sólo cuando el producto está
+   * unificado (migración 183): una fila por plataforma, plegadas en ésta.
+   */
+  listings?: Array<{
+    id: string;
+    platform: string;
+    title: string;
+    price_min: number | null;
+    currency: string | null;
+    url: string | null;
+    is_master: boolean;
+  }>;
 }
+
+/** "shopify" → "Shopify". Los nombres propios se escriben como se escriben. */
+const CANAL: Record<string, string> = {
+  shopify: 'Shopify',
+  mercadolibre: 'Mercado Libre',
+  tiendanube: 'Tiendanube',
+  woocommerce: 'WooCommerce',
+};
 
 export default function ProductosPage() {
   const t = useT();
@@ -367,6 +388,13 @@ function ProductCard({
         ? formatPrice(product.price_min, product.currency, fallbackCurrency)
         : `${formatPrice(product.price_min, product.currency, fallbackCurrency)} – ${formatPrice(product.price_max ?? 0, product.currency, fallbackCurrency)}`;
 
+  // Dónde más se vende. Antes cada publicación era una tarjeta suelta: el
+  // comercio veía cuatro veces el mismo serum y no sabía cuál editar. Ahora es
+  // uno, y esta línea dice en qué canales está y a cuánto en cada uno — los
+  // precios difieren de verdad (las comisiones del marketplace están adentro),
+  // así que no se elige uno ni se promedian.
+  const canales = product.listings ?? [];
+
   return (
     <Link
       href={`/productos/${product.handle || product.id}`}
@@ -411,6 +439,27 @@ function ProductCard({
             {product.vendor ?? product.product_type ?? '—'}
             {price ? ` · ${price}` : ''}
           </p>
+          {/* En qué canales está y a cuánto en cada uno. Sólo aparece cuando el
+              producto está unificado; para uno de un solo canal repetiría el
+              precio de arriba. */}
+          {canales.length > 1 ? (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {canales.map((l) => (
+                <span
+                  key={l.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                  title={l.title}
+                >
+                  <span className="font-medium text-foreground">
+                    {CANAL[l.platform] ?? l.platform}
+                  </span>
+                  {l.price_min != null
+                    ? formatPrice(l.price_min, l.currency, fallbackCurrency)
+                    : ''}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <div
