@@ -145,6 +145,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     timeoutMs: 1_800_000,
   },
   { name: "pii-purge", whatKey: "admin.cronPiiPurge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
+  // Acumula lo que consumio cada cuenta: conversaciones atendidas por IA,
+  // respuestas, tokens y lo que nos costo. Corre sobre AYER —que ya cerro, asi
+  // que el numero es definitivo— y sobre HOY, para que la pantalla del comercio
+  // no muestre el consumo con un dia de atraso. Volver a correrlo es seguro: la
+  // clave es (cuenta, dia) y se pisa.
+  { name: "billing-usage", whatKey: "admin.cronBillingUsage", path: "/api/cron/billing-usage", schedule: "15 * * * *" },
   // Avisa por correo lo que se rompió en silencio. Una vez por día: la
   // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
   { name: "issues-alert", whatKey: "admin.cronIssuesAlert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },

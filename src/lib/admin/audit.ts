@@ -46,6 +46,13 @@ export type AdminAction =
   // Descarga de recursos que el equipo entrega a un comercio. No lleva
   // datos de nadie, pero queda registrada igual: es una salida de archivo
   // desde el panel y conviene poder decir quién la pidió.
+  // Facturacion. Es la escritura del panel que decide cuanta plata entra: se
+  // audita quien cambio un precio y a quien le cambio el trato, porque "a este
+  // comercio se lo dejamos gratis" es una decision que en seis meses nadie
+  // recuerda haber tomado.
+  | 'view.billing'
+  | 'update.billing_plan'
+  | 'update.billing_subscription'
   | 'download.woocommerce_plugin';
 
 interface AuditEntry {

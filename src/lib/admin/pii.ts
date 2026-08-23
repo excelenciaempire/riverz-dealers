@@ -19,6 +19,12 @@
 /** Columnas que el panel no puede leer, por tabla. */
 export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   messages: ['content_text', 'media_url', 'media_filename'],
+  // Facturacion: no lleva datos de nadie. Se declara igual porque una tabla sin
+  // declarar se rechaza, que es justo lo que obliga a mirar sus columnas antes
+  // de leerla desde el panel.
+  billing_plans: [],
+  workspace_subscriptions: [],
+  billing_usage_daily: [],
   conversations: ['last_message_text', 'ai_summary'],
   contacts: [
     'name',

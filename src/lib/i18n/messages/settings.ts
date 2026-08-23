@@ -917,4 +917,50 @@ export const settings = {
   c2dmPreview: { es: "Así se ve", en: "How it looks" },
   c2dmPreviewPublic: { es: "En el comentario", en: "On the comment" },
   c2dmPreviewDm: { es: "En el DM", en: "In the DM" },
+
+  tabBilling: { es: "Plan", en: "Plan" },
+
+  // Facturación, en Ajustes.
+  billingTitle: { es: "Plan y facturación", en: "Plan and billing" },
+  billingTrial: {
+    es: "Te quedan {n} días de prueba.",
+    en: "{n} days of trial left.",
+  },
+  billingTrialLast: {
+    es: "Hoy es el último día de prueba.",
+    en: "Today is the last day of your trial.",
+  },
+  billingExpired: {
+    es: "La prueba terminó. Pon una tarjeta para seguir.",
+    en: "Your trial ended. Add a card to continue.",
+  },
+  billingComped: {
+    es: "Tu cuenta está sin cargo.",
+    en: "Your account is free of charge.",
+  },
+  billingActive: { es: "Suscripción activa.", en: "Subscription active." },
+  billingPastDue: {
+    es: "No pudimos cobrar. Revisa la tarjeta.",
+    en: "We could not charge you. Check your card.",
+  },
+  billingCanceled: {
+    es: "La suscripción está cancelada.",
+    en: "Your subscription is canceled.",
+  },
+  billingCancelAtEnd: {
+    es: "Se cancela al final del período.",
+    en: "It cancels at the end of the period.",
+  },
+  billingThisPeriod: { es: "Este período", en: "This period" },
+  billingConversations: {
+    es: "{n} de {total} conversaciones",
+    en: "{n} of {total} conversations",
+  },
+  billingOver: {
+    es: "{n} por encima del cupo",
+    en: "{n} over the quota",
+  },
+  billingTotal: { es: "Total", en: "Total" },
+  billingSubscribe: { es: "Poner tarjeta", en: "Add a card" },
+  billingManage: { es: "Administrar", en: "Manage" },
 } satisfies Namespace;

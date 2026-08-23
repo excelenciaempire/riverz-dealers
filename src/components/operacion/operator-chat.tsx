@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from '@/components/i18n/locale-link'
 import {
   AlertTriangle,
   ArrowUp,
   Check,
+  ClipboardList,
   History,
   Loader2,
   MessageSquarePlus,
@@ -658,7 +660,17 @@ export function OperatorChat({
           `absolute` se montaba encima del primer mensaje en cuanto la columna
           se angostó. Acá tiene su alto y su lugar, contra el borde derecho. */}
       {fullscreen && (
-        <div className="flex h-14 shrink-0 items-center justify-end px-5">
+        <div className="flex h-14 shrink-0 items-center justify-end gap-3 px-5">
+          {/* Lo que ya se aprobó vive en su propia pantalla: acá se decide, allá
+              se revisa. Un historial de decisiones adentro del chat obligaría a
+              desplazarse por conversaciones para reconstruir una semana. */}
+          <Link
+            href="/operacion/actividad"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+          >
+            <ClipboardList className="size-3.5" />
+            {t('operation.actividadVer')}
+          </Link>
           <BotonHilos
             hilos={hilos}
             activo={thread}
