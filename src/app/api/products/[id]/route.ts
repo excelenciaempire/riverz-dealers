@@ -9,6 +9,7 @@ import {
   borrarProducto,
   type CambiosDeProducto,
 } from '@/lib/products/write';
+import { leerFuentes } from '@/lib/products/scrape-sources';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -122,7 +123,21 @@ export async function PATCH(
     return serverError(res.error);
   }
 
-  return NextResponse.json({ ok: true, product: res.producto });
+  // Se agregó (o se cambió) una fuente: se lee sola, sin bloquear el guardado.
+  //
+  // La lectura tarda varios segundos por página y son hasta cinco. Hacer
+  // esperar al comercio para guardar un nombre sería peor que el problema que
+  // esto resuelve, así que el editor guarda ya y la lectura avanza detrás: el
+  // estado queda en `scrape_status`, que la pantalla del producto ya consulta.
+  if (res.fuentesCambiaron) {
+    void leerFuentes(supabase, res.producto, locale).catch(() => {});
+  }
+
+  return NextResponse.json({
+    ok: true,
+    product: res.producto,
+    releyendo: res.fuentesCambiaron,
+  });
 }
 
 /**

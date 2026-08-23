@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { enrichProducts } from '@/lib/products/enrich'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { persistStoreConnection } from './connection'
 import { upsertCatalog } from './catalog'
@@ -256,6 +257,27 @@ export async function syncWooCatalog(
 
 /** Vuelve a traer el catálogo de una tienda ya conectada. */
 export async function resyncCatalog(
+  db: SupabaseClient,
+  store: StoreCredentials,
+): Promise<{ synced: number; deleted: number }> {
+  const resultado = await sincronizar(db, store)
+  // Y se enriquece: leer la página de cada producto y sacarle lo que la API de
+  // la tienda no devuelve —ingredientes, medidas, modo de uso, garantía—, que
+  // es justo lo que la gente pregunta.
+  //
+  // Corría sólo para Shopify. Un comercio de Tiendanube o WooCommerce tenía el
+  // catálogo sincronizado y el conocimiento vacío: su agente sabía el título y
+  // el precio, y nada más. No se espera el resultado — son varias páginas por
+  // producto y el catálogo ya está listo para usarse sin esto.
+  void enrichProducts(db, {
+    workspaceId: store.workspaceId,
+    max: 25,
+    locale: 'es',
+  }).catch(() => {})
+  return resultado
+}
+
+async function sincronizar(
   db: SupabaseClient,
   store: StoreCredentials,
 ): Promise<{ synced: number; deleted: number }> {

@@ -38,5 +38,16 @@ export const gaps = {
   empty: { es: "No quedó ninguna sin contestar.", en: "Nothing went unanswered." },
   times: { es: "Preguntada {n} veces", en: "Asked {n} times" },
   markDone: { es: "Ya la cargué", en: "Added" },
+  answer: { es: "Responder", en: "Answer" },
+  pickProduct: { es: "¿De qué producto es?", en: "Which product is it about?" },
+  answerPlaceholder: {
+    es: "La respuesta, como se la darías a un cliente.",
+    en: "The answer, the way you would give it to a customer.",
+  },
+  saveAnswer: { es: "Guardar en el producto", en: "Save to the product" },
+  answered: {
+    es: "Listo. El agente ya sabe contestarla.",
+    en: "Done. The agent can answer it now.",
+  },
   saveFailed: { es: "No se pudo guardar.", en: "Could not save." },
 } satisfies Namespace;

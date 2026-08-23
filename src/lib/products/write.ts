@@ -68,7 +68,20 @@ type Falla = { ok: false; motivo: MotivoDeFalla; error?: unknown }
 
 export type ResultadoCrear = { ok: true; id: string } | Falla
 export type ResultadoActualizar =
-  | { ok: true; producto: Record<string, unknown> }
+  | {
+      ok: true
+      producto: Record<string, unknown>
+      /**
+       * El comercio cambió de dónde sale el conocimiento de este producto.
+       *
+       * Lo mira la ruta para volver a leer las páginas. Antes agregar una
+       * fuente guardaba la URL y no pasaba absolutamente nada: el contenido
+       * viejo seguía ahí, el agente seguía sin saber, y la única forma de
+       * enterarse era apretar el botón de leer — que casi nadie encuentra
+       * después de haber guardado.
+       */
+      fuentesCambiaron: boolean
+    }
   | Falla
 export type ResultadoBorrar = { ok: true; imagenesBorradas: number } | Falla
 
@@ -246,6 +259,22 @@ export async function actualizarProducto(
     )}`
   }
 
+  // ¿Cambió de dónde se lee? Se compara el conjunto, no el orden: reordenar
+  // las fuentes no justifica volver a leer cinco páginas.
+  const antes = new Set(
+    (Array.isArray(actual.websites) ? (actual.websites as unknown[]) : [])
+      .map((x) => String(x ?? '').trim())
+      .filter(Boolean),
+  )
+  const despues = new Set(
+    (Array.isArray(patch.websites) ? (patch.websites as unknown[]) : [])
+      .map((x) => String(x ?? '').trim())
+      .filter(Boolean),
+  )
+  const fuentesCambiaron =
+    patch.websites !== undefined &&
+    (antes.size !== despues.size || [...despues].some((u) => !antes.has(u)))
+
   const training = buildTrainingMaterial({ ...actual, ...patch }, locale)
 
   const { data: updated, error } = await db
@@ -257,7 +286,11 @@ export async function actualizarProducto(
   if (error) return { ok: false, motivo: 'error_db', error }
   if (!updated) return { ok: false, motivo: 'no_existe' }
 
-  return { ok: true, producto: updated as Record<string, unknown> }
+  return {
+    ok: true,
+    producto: updated as Record<string, unknown>,
+    fuentesCambiaron,
+  }
 }
 
 // ---------------------------------------------------------------------------
