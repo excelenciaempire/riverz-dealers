@@ -2080,6 +2080,41 @@ async function resolveDefaultVariantId(
   }
 }
 
+/**
+ * La persona del agente, sin la basura de un bug ya arreglado.
+ *
+ * La generación desde el producto hacía `String(x)` sobre listas que a veces
+ * traen objetos (`{objection, rebuttal}`), y escribía "[object Object]" DENTRO
+ * de la persona — o sea, dentro del prompt. Se arregló en el editor
+ * (`researchText`), pero eso sólo protege a las personas que se generen desde
+ * entonces: los agentes que ya lo tenían guardado lo siguen mandando en cada
+ * respuesta. Medido en el asesor de Serum Pilar: "Maneja con tacto estas
+ * objeciones comunes: [object Object]; [object Object]; [object Object]".
+ *
+ * Se limpia acá, al armar el prompt, porque es el único lugar por el que pasan
+ * todos: los viejos, los nuevos y los que se importen mañana. Si al sacar la
+ * lista la oración se queda sin contenido, se va entera — una instrucción vacía
+ * ocupa lugar y no dice nada.
+ */
+export function limpiarPersona(persona: string): string {
+  if (!persona.includes('[object Object]')) return persona.trim();
+  return persona
+    .split('\n')
+    .map((linea) => {
+      if (!linea.includes('[object Object]')) return linea;
+      // Se cortan las oraciones que quedaron sin nada que decir.
+      const limpio = linea
+        .split(/(?<=\.)\s+/)
+        .filter((oracion) => !oracion.includes('[object Object]'))
+        .join(' ')
+        .trim();
+      return limpio;
+    })
+    .filter((linea, i, todas) => linea !== '' || (i > 0 && todas[i - 1] !== ''))
+    .join('\n')
+    .trim();
+}
+
 export function buildSystemPrompt(
   agent: AiAgent,
   contact: Contact,
@@ -2094,7 +2129,7 @@ export function buildSystemPrompt(
   businessCurrency: string = 'COP',
 ): string {
   const lines: string[] = [];
-  if (agent.persona) lines.push(agent.persona.trim());
+  if (agent.persona) lines.push(limpiarPersona(agent.persona));
   // El rol, ANTES del tono y de la persona del comercio. El arbitraje ya
   // mandaba la consulta al agente correcto, pero el agente no se enteraba de
   // cuál era su trabajo: el rol vivía en la base y en el router y no llegaba
