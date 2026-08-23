@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { markOrderPaid } from '@/lib/shopify/mark-paid'
 import { cancelOrder, refundOrder } from '@/lib/shopify/order-cancel'
+import { cancelarPedidoEnLaTienda } from '@/lib/commerce/order-cancel'
 import { APROBACION_PENDIENTE } from './ask'
 
 /**
@@ -204,10 +205,39 @@ async function ejecutar(
       if (!shopifyOrderId) {
         return { ok: false, message: 'El pedido no está en Shopify: resolvelo a mano.' }
       }
-      const admin = await resolveShopifyAdmin(db, fila.workspace_id)
-      if (!admin) return { ok: false, message: 'La tienda no está conectada.' }
-
       const cancelando = fila.kind === 'cancelar_pedido'
+      const admin = await resolveShopifyAdmin(db, fila.workspace_id)
+
+      // Sin Shopify la tienda puede ser Tiendanube o WooCommerce, y ahí
+      // cancelar también se puede. Antes esto cortaba con "la tienda no está
+      // conectada" DESPUÉS de que el agente le prometiera la cancelación a la
+      // clienta y el comercio dijera que sí: lo peor de los dos mundos.
+      //
+      // Reembolsar no: en esas plataformas el cobro suele estar afuera (un link
+      // de pago, una transferencia) y no hay a quién pedirle la devolución.
+      if (!admin) {
+        if (!cancelando) {
+          return {
+            ok: false,
+            message: 'El cobro de ese pedido no se hizo por la tienda: devolvé el dinero por donde entró.',
+          }
+        }
+        const local = await cancelarPedidoEnLaTienda(db, {
+          workspaceId: fila.workspace_id,
+          externalOrderId: shopifyOrderId,
+          reason: (fila.payload.reason as string | null) ?? null,
+        })
+        if (!local.ok) return { ok: false, message: local.message }
+        if (orderId) {
+          await db
+            .from('orders')
+            .update({ status: 'cancelled', financial_status: 'voided' })
+            .eq('id', orderId)
+            .eq('workspace_id', fila.workspace_id)
+        }
+        return { ok: true, message: 'El pedido quedó cancelado en la tienda.' }
+      }
+
       let res = cancelando
         ? await cancelOrder(admin, shopifyOrderId, {
             reason: String(fila.payload.reason ?? 'customer'),

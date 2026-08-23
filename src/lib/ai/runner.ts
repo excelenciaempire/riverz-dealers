@@ -1788,8 +1788,20 @@ async function generateReply(
     ...(primaryContact.id && puede('registrar_pago') ? [REGISTRAR_PAGO_TOOL] : []),
     // Postventa. Cancelar y reembolsar PROPONEN siempre: no admiten el modo
     // automático, así que acá sólo se pregunta si están prendidas.
-    ...(primaryContact.id && puede('cancelar_pedido') ? [CANCELAR_PEDIDO_TOOL] : []),
-    ...(primaryContact.id && puede('reembolsar') ? [REEMBOLSAR_TOOL] : []),
+    //
+    // Y si hay dónde ejecutarlas. Se ofrecían sin mirar la tienda, y quien las
+    // ejecuta cuando el comercio dice que sí (`approvals/resolve.ts`) sólo
+    // sabía hablar con Shopify: el agente ofrecía cancelar, le decía a la
+    // clienta "ya lo pasé al equipo", el comercio recibía el aviso, apretaba
+    // que sí — y ahí fallaba. Una promesa incumplible, hecha por nosotros.
+    //
+    // Cancelar ya funciona también en Tiendanube y WooCommerce. Reembolsar no:
+    // ahí el cobro suele estar afuera de la tienda (un link de pago, una
+    // transferencia) y no hay a quién pedirle la devolución.
+    ...(primaryContact.id && (shopify || otherStore) && puede('cancelar_pedido')
+      ? [CANCELAR_PEDIDO_TOOL]
+      : []),
+    ...(primaryContact.id && shopify && puede('reembolsar') ? [REEMBOLSAR_TOOL] : []),
     // Devoluciones y cambios. No mueven dinero: dejan el caso anotado con el
     // pedido, el motivo y las fotos que la clienta ya mandó.
     ...(primaryContact.id && puede('abrir_devolucion') ? [ABRIR_DEVOLUCION_TOOL] : []),
