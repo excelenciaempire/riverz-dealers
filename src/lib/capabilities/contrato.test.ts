@@ -122,6 +122,8 @@ describe('las piezas que el banco sabe dibujar', () => {
     'automatizaciones.crear',
     'automatizaciones.crear_desde_receta',
     'automatizaciones.editar',
+    'automatizaciones.editar_espera',
+    'comentarios.crear_regla',
     'agentes.crear_borrador',
     'agentes.editar',
     'segmentos.crear',

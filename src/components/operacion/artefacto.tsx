@@ -147,6 +147,35 @@ export function VistaArtefacto({ artefacto }: { artefacto: Artefacto }) {
         </Marco>
       )
 
+    case 'regla':
+      return (
+        <Marco titulo={artefacto.nombre} bajada={artefacto.cuando} base={artefacto.base}>
+          <p className="app-eyebrow text-muted-foreground">{artefacto.red}</p>
+          {/* El privado primero y entero: es lo que le va a llegar a alguien.
+              Recortarlo acá sería pedir que se apruebe un texto sin leerlo. */}
+          <p className="rounded-lg border border-border px-2.5 py-2 text-xs leading-snug whitespace-pre-line text-foreground">
+            {artefacto.privado}
+          </p>
+          {artefacto.boton && (
+            <p className="text-[11px] text-accent-ink">
+              {artefacto.boton.texto} → {artefacto.boton.enlace}
+            </p>
+          )}
+          {artefacto.publico.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {artefacto.publico.map((r, i) => (
+                <li
+                  key={`${i}-${r.slice(0, 8)}`}
+                  className="rounded-lg border border-dashed border-border px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground"
+                >
+                  {r}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Marco>
+      )
+
     case 'flujo':
       return (
         <Marco titulo={artefacto.nombre} base={artefacto.base}>

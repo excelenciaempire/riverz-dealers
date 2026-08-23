@@ -94,6 +94,27 @@ export type Artefacto =
       base?: BaseArtefacto
     }
   | {
+      /**
+       * Una regla de comentario a mensaje privado.
+       *
+       * Es la única pieza que le escribe a una persona, y encima puede publicar
+       * bajo su comentario donde lo lee cualquiera. Contarla en una línea era
+       * pedir que se apruebe un texto que no se leyó entero.
+       */
+      kind: 'regla'
+      nombre: string
+      /** En qué red escucha. */
+      red: string
+      /** Qué la dispara, en palabras. */
+      cuando: string
+      /** El mensaje privado, que lee sólo quien comentó. */
+      privado: string
+      /** Lo que se publica bajo el comentario. Vacío = no se responde en público. */
+      publico: string[]
+      boton?: { texto: string; enlace: string }
+      base?: BaseArtefacto
+    }
+  | {
       kind: 'flujo'
       nombre: string
       nodos: { clave: string; tipo: string; resumen: string; cambio?: Cambio }[]
@@ -111,6 +132,7 @@ export type KindArtefacto = Artefacto['kind']
  */
 export const KINDS_ARTEFACTO = [
   'automatizacion',
+  'regla',
   'agente',
   'plantilla',
   'segmento',

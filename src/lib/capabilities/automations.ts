@@ -222,6 +222,20 @@ const ENSAYOS = new Map<string, { hasta: number; valor: EnsayoDeEdicion }>()
 const VIDA_ENSAYO_MS = 30_000
 const TOPE_ENSAYOS = 20
 
+/**
+ * Lo que la vista previa de una espera dejó cargado.
+ *
+ * `artifact` es SÍNCRONO —se llama al proponer, cuando ya no se puede leer la
+ * base— así que el árbol tiene que quedar de la pasada anterior. Es la misma
+ * idea que el ensayo de `editar`, más chica: acá no hay nada que ensayar, sólo
+ * el árbol sobre el que se va a cambiar un número.
+ */
+const ESPERAS = new Map<string, { hasta: number; id: string; snapshot: AutomatizacionSnapshot }>()
+
+function claveEspera(ctx: CapabilityContext, args: Record<string, unknown>): string {
+  return `${ctx.workspaceId}|${args.step_id}`
+}
+
 function claveEnsayo(ctx: CapabilityContext, args: Record<string, unknown>): string {
   return `${ctx.workspaceId}|${args.automation_id}|${JSON.stringify(args.patches ?? null)}`
 }
@@ -470,6 +484,35 @@ async function borrarAutomatizacion(
   return `Se borró «${nombre}».`
 }
 
+/**
+ * El árbol con una espera cambiada, sin tocar el resto.
+ *
+ * Se busca por el id del paso y se recorre entero, ramas incluidas: una espera
+ * puede estar a tres condiciones de profundidad, y el dibujo tiene que mostrar
+ * el árbol completo con ese número movido y nada más.
+ */
+function conEsperaCambiada(
+  pasos: BuilderStepInput[],
+  stepId: string,
+  amount: number,
+  unit: string,
+): BuilderStepInput[] {
+  return pasos.map((p) => {
+    const propio =
+      (p as { id?: string }).id === stepId
+        ? { ...p, step_config: { ...(p.step_config ?? {}), amount, unit } }
+        : p
+    if (!propio.branches) return propio
+    return {
+      ...propio,
+      branches: {
+        yes: conEsperaCambiada(propio.branches.yes ?? [], stepId, amount, unit),
+        no: conEsperaCambiada(propio.branches.no ?? [], stepId, amount, unit),
+      },
+    }
+  })
+}
+
 async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unknown>) {
   const automation = await installTemplate(ctx.db, {
     templateId: String(args.receta),
@@ -625,11 +668,12 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     async preview(ctx, args) {
       const { data } = await ctx.db
         .from('automation_steps')
-        .select('step_config, automations!inner(name, workspace_id)')
+        .select('automation_id, step_config, automations!inner(name, workspace_id)')
         .eq('id', String(args.step_id))
         .maybeSingle()
       const fila = data as
         | {
+            automation_id?: string
             step_config?: { amount?: number; unit?: string }
             automations?: { name?: string; workspace_id?: string }
           }
@@ -640,7 +684,46 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       const antes = fila.step_config
         ? `${fila.step_config.amount} ${fila.step_config.unit}`
         : 'la espera actual'
+
+      // De paso queda cargado el árbol, para poder dibujarlo. `artifact` es
+      // síncrono y no puede leer la base.
+      if (fila.automation_id) {
+        try {
+          const cargada = await cargar(ctx, fila.automation_id)
+          const ahora = Date.now()
+          for (const [k, v] of ESPERAS) if (v.hasta <= ahora) ESPERAS.delete(k)
+          ESPERAS.set(claveEspera(ctx, args), {
+            hasta: ahora + VIDA_ENSAYO_MS,
+            id: cargada.id,
+            snapshot: cargada.snapshot,
+          })
+        } catch {
+          // Sin árbol se sigue igual: el dibujo es lo que se muestra, no lo
+          // que se hace.
+        }
+      }
+
       return `En «${fila.automations?.name ?? 'la automatización'}» cambiaría la espera de ${antes} a ${args.amount} ${args.unit}.`
+    },
+    /** El árbol como quedaría, con la espera nueva puesta en su paso. */
+    artifact(ctx, args) {
+      const guardado = ESPERAS.get(claveEspera(ctx, args))
+      if (!guardado || guardado.hasta <= Date.now()) return null
+      const pasos = conEsperaCambiada(
+        guardado.snapshot.pasos,
+        String(args.step_id),
+        Number(args.amount),
+        String(args.unit),
+      )
+      return artefactoDeSnapshot(
+        { ...guardado.snapshot, pasos },
+        { id: guardado.id },
+      )
+    },
+    async artifactBefore(ctx, args) {
+      const guardado = ESPERAS.get(claveEspera(ctx, args))
+      if (!guardado || guardado.hasta <= Date.now()) return null
+      return artefactoDeSnapshot(guardado.snapshot, { id: guardado.id })
     },
     run: editarEspera,
   },

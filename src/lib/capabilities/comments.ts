@@ -453,6 +453,41 @@ export const COMMENT_CAPABILITIES: Capability[] = [
           : 'Instagram'
       } para ${disparo}. Queda apagada: no le escribe a nadie hasta que la prendas.`
     },
+    /**
+     * El mensaje entero, antes de aprobarlo.
+     *
+     * Es la única pieza del catálogo que le escribe a una persona y encima
+     * puede publicar bajo su comentario, donde lo lee cualquiera. La vista
+     * previa la contaba en una línea: se aprobaba un texto que no se había
+     * leído.
+     */
+    artifact(_ctx, args) {
+      const dm = String(args.dm ?? '').trim()
+      const nombre = String(args.nombre ?? '').trim()
+      if (!dm || !nombre) return null
+      const canal = CANAL_DE[String(args.canal ?? '').toLowerCase()]
+      const palabras = Array.isArray(args.palabras_clave)
+        ? (args.palabras_clave as unknown[]).filter((k): k is string => typeof k === 'string')
+        : []
+      const boton =
+        typeof args.boton_texto === 'string' && typeof args.boton_enlace === 'string'
+          ? { texto: args.boton_texto, enlace: args.boton_enlace }
+          : undefined
+      return {
+        kind: 'regla',
+        nombre,
+        red: canal ? RED[canal] : 'Instagram',
+        cuando:
+          palabras.length === 0
+            ? 'Cualquier comentario'
+            : `Comentarios con ${palabras.map((k) => `«${k}»`).join(' o ')}`,
+        privado: dm,
+        publico: (Array.isArray(args.respuesta_publica) ? args.respuesta_publica : []).filter(
+          (r): r is string => typeof r === 'string',
+        ),
+        ...(boton ? { boton } : {}),
+      }
+    },
     run: crearRegla,
   },
 
