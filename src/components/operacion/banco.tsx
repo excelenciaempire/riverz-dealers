@@ -36,6 +36,7 @@ export function Banco({ className }: { className?: string }) {
   const ultimoLienzo = m.lienzos[m.lienzos.length - 1]
   const pieza: Artefacto | null = m.fijado?.artefacto ?? ultimoLienzo?.artefacto ?? null
   const fijado = m.fijado
+  const enLienzo = pieza?.kind === 'automatizacion'
 
   return (
     <section
@@ -44,7 +45,11 @@ export function Banco({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="app-trama pointer-events-none absolute inset-0 opacity-70" aria-hidden />
+      {/* La trama sólo cuando NO hay lienzo: `CanvasViewport` dibuja la suya, y
+          dos retículas de distinto paso una encima de otra se ven mal. */}
+      {!enLienzo && (
+        <div className="app-trama pointer-events-none absolute inset-0 opacity-70" aria-hidden />
+      )}
       <div
         className={cn(
           'app-halo pointer-events-none absolute inset-0',
