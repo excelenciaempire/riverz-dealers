@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
-import { COMMENT_DELETED_TEXT } from "@/lib/channels/display";
+import { ingestVideoComments } from "@/lib/channels/tiktok_comment/poll";
+import { applyCommentLifecycle } from "@/lib/channels/comment-sync";
+import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import type { ChannelConnection } from "@/types";
-
-const TT = "https://business-api.tiktok.com/open_api/v1.3";
 
 /**
  * POST /api/tiktok/webhook
@@ -30,9 +29,23 @@ export async function POST(req: Request): Promise<Response> {
   const secret = process.env.TIKTOK_APP_SECRET ?? "";
   const sig = req.headers.get("tiktok-signature") ?? "";
   if (!secret || !verifySignature(rawBody, sig, secret)) {
-    // Untrusted delivery: don't process, but 200 so TikTok stops retrying it.
+    // Entrega no confiable: no se procesa, pero se guarda. Antes se descartaba
+    // en silencio, y como TikTok recibe 200 igual, un secreto mal puesto o un
+    // cambio de formato de la firma se veia EXACTAMENTE igual que "TikTok no
+    // manda nada": comentarios que llegaban tarde por el poll y nadie sabia
+    // por que. Queda en webhook_events_raw, que es donde se mira.
+    await captureWebhookFailure({
+      provider: "tiktok",
+      rawBody,
+      signature: sig || null,
+      error: secret ? "firma invalida" : "falta TIKTOK_APP_SECRET",
+    });
     return NextResponse.json({ ok: false });
   }
+
+  // Rastro de que TikTok SI entrego. Es la unica forma de distinguir "el
+  // webhook no llega" de "el webhook llega y algo falla despues".
+  const entrega = await registrarEntrega(rawBody, sig);
 
   let payload: {
     event?: string;
@@ -42,9 +55,11 @@ export async function POST(req: Request): Promise<Response> {
   try {
     payload = JSON.parse(rawBody);
   } catch {
+    await cerrarEntrega(entrega, "cuerpo ilegible");
     return NextResponse.json({ ok: true });
   }
   if (payload.event !== "comment.update" || !payload.user_openid) {
+    await cerrarEntrega(entrega, `evento ignorado: ${payload.event ?? "?"}`);
     return NextResponse.json({ ok: true });
   }
 
@@ -58,12 +73,16 @@ export async function POST(req: Request): Promise<Response> {
   try {
     content = JSON.parse(payload.content ?? "{}");
   } catch {
+    await cerrarEntrega(entrega, "content ilegible");
     return NextResponse.json({ ok: true });
   }
   const commentId = String(content.comment_id ?? "");
   const videoId = String(content.video_id ?? "");
   const action = String(content.comment_action ?? "");
-  if (!commentId || !action) return NextResponse.json({ ok: true });
+  if (!commentId || !action) {
+    await cerrarEntrega(entrega, "sin comment_id o comment_action");
+    return NextResponse.json({ ok: true });
+  }
 
   const db = supabaseAdmin();
   const businessId = String(payload.user_openid);
@@ -77,119 +96,113 @@ export async function POST(req: Request): Promise<Response> {
   const conns = ((rows ?? []) as ChannelConnection[]).filter(
     (c) => String((c.config as Record<string, unknown> | null)?.business_id ?? "") === businessId,
   );
-  if (conns.length === 0) return NextResponse.json({ ok: true });
+  if (conns.length === 0) {
+    await cerrarEntrega(entrega, `sin conexion para business_id ${businessId}`);
+    return NextResponse.json({ ok: true });
+  }
 
+  let fallo: string | null = null;
   for (const conn of conns) {
     try {
-      await applyToConnection(db, conn, { commentId, videoId, action, content });
+      await applyToConnection(db, conn, { commentId, videoId, action });
     } catch (err) {
       console.error("[tiktok/webhook] apply failed:", err);
+      fallo = err instanceof Error ? err.message : String(err);
     }
   }
+  await cerrarEntrega(entrega, fallo);
   return NextResponse.json({ ok: true });
+}
+
+/** Deja la entrega anotada apenas se verifica la firma y devuelve su id. */
+async function registrarEntrega(rawBody: string, sig: string): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin()
+      .from("webhook_events_raw")
+      .insert({ provider: "tiktok", raw_body: rawBody.slice(0, 100_000), signature: sig || null })
+      .select("id")
+      .maybeSingle();
+    return (data as { id?: string } | null)?.id ?? null;
+  } catch {
+    return null; // el rastro no puede tumbar la entrega
+  }
+}
+
+/** Cierra la entrega: procesada, o procesada con error. */
+async function cerrarEntrega(id: string | null, error: string | null): Promise<void> {
+  if (!id) return;
+  try {
+    await supabaseAdmin()
+      .from("webhook_events_raw")
+      .update({ processed_at: new Date().toISOString(), last_error: error?.slice(0, 1000) ?? null })
+      .eq("id", id);
+  } catch {
+    /* best-effort */
+  }
 }
 
 async function applyToConnection(
   db: ReturnType<typeof supabaseAdmin>,
   conn: ChannelConnection,
-  ev: {
-    commentId: string;
-    videoId: string;
-    action: string;
-    content: { parent_comment_id?: string | number };
-  },
+  ev: { commentId: string; videoId: string; action: string },
 ): Promise<void> {
   const workspaceId = conn.workspace_id;
-  // Localizar el mensaje ya guardado de este comentario en ESTE workspace.
+
+  if (ev.action === "delete") {
+    await applyCommentLifecycle(db, {
+      channel: "tiktok_comment",
+      workspaceId,
+      commentExternalId: ev.commentId,
+      kind: "delete",
+    });
+    return;
+  }
+  if (ev.action === "set_to_hidden" || ev.action === "set_to_friends_only") {
+    await applyCommentLifecycle(db, {
+      channel: "tiktok_comment",
+      workspaceId,
+      commentExternalId: ev.commentId,
+      kind: "hide",
+    });
+    return;
+  }
+  if (ev.action === "set_to_public") {
+    await applyCommentLifecycle(db, {
+      channel: "tiktok_comment",
+      workspaceId,
+      commentExternalId: ev.commentId,
+      kind: "unhide",
+    });
+    return;
+  }
+  if (ev.action !== "insert" || !ev.videoId) return;
+
+  // Si el poll se adelanto no hay nada que hacer.
   const { data: existing } = await db
     .from("messages")
-    .select("id, is_hidden, conversation_id, conversations!inner(workspace_id)")
+    .select("id, conversations!inner(workspace_id)")
     .eq("message_id", ev.commentId)
     .eq("channel", "tiktok_comment")
     .eq("conversations.workspace_id", workspaceId)
     .maybeSingle();
+  if (existing) return;
 
-  if (ev.action === "delete") {
-    if (existing) {
-      await db
-        .from("messages")
-        .update({ status: "failed", content_text: COMMENT_DELETED_TEXT })
-        .eq("id", (existing as { id: string }).id);
-    }
-    return;
-  }
-  if (ev.action === "set_to_hidden" || ev.action === "set_to_friends_only") {
-    if (existing) {
-      await db.from("messages").update({ is_hidden: true }).eq("id", (existing as { id: string }).id);
-    }
-    return;
-  }
-  if (ev.action === "set_to_public") {
-    if (existing) {
-      await db.from("messages").update({ is_hidden: false }).eq("id", (existing as { id: string }).id);
-    }
-    return;
-  }
-  if (ev.action === "insert") {
-    // Nuevo comentario: si ya existe (el poll lo trajo) no hay nada que hacer.
-    if (existing) return;
-    await ingestFreshComment(db, conn, ev.commentId, ev.videoId, ev.content.parent_comment_id);
-  }
-}
-
-/** Trae el texto/autor del comentario recién creado y lo ingiere (instantáneo,
- *  sin esperar al poll). Idempotente por message_id. */
-async function ingestFreshComment(
-  db: ReturnType<typeof supabaseAdmin>,
-  conn: ChannelConnection,
-  commentId: string,
-  videoId: string,
-  parentCommentId: string | number | undefined,
-): Promise<void> {
+  // Se ingiere el video entero en vez de buscar el comentario a mano. La
+  // busqueda a mano miraba SOLO la primera pagina de comentarios de arriba:
+  // perdia todo lo que llega anidado dentro de un hilo, descartaba las
+  // respuestas que el comercio escribe desde la app de TikTok y tiraba los
+  // comentarios de solo sticker. Es idempotente por comment_id, asi que
+  // traer de mas no duplica.
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const businessId = String(cfg.business_id ?? "");
-  if (!businessId || !videoId) return;
+  if (!businessId) return;
   let token: string;
   try {
     token = await getFreshTikTokToken(conn);
   } catch {
-    return; // el poll lo recuperará
+    return; // el poll lo recuperara
   }
-  const url =
-    `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
-    `&video_id=${encodeURIComponent(videoId)}&max_count=30`;
-  const r = await fetch(url, { headers: { "Access-Token": token } });
-  const j = (await r.json().catch(() => ({}))) as {
-    code?: number;
-    data?: { comments?: Array<Record<string, unknown>> };
-  };
-  if (!r.ok || (j.code ?? 0) !== 0) return;
-  const c = (j.data?.comments ?? []).find(
-    (x) => String(x.comment_id ?? x.id ?? "") === commentId,
-  );
-  if (!c) return;
-  const text = String(c.text ?? "");
-  if (!text) return;
-  if (c.owner === true || String(c.user_id ?? "") === businessId) return;
-  const username = String(c.username ?? c.user_name ?? "");
-  const created = c.create_time
-    ? new Date(Number(c.create_time) * 1000).toISOString()
-    : new Date().toISOString();
-  await ingestInboundEvent(db, {
-    channel: "tiktok_comment",
-    connection: conn,
-    externalContactId: String(c.user_id ?? username ?? "tiktok"),
-    contactName: String(c.display_name ?? username ?? "") || undefined,
-    externalMessageId: commentId,
-    externalThreadId: `video:${videoId}|comment:${String(parentCommentId ?? commentId)}`,
-    text,
-    comment: {
-      postId: videoId,
-      parentCommentId: parentCommentId ? String(parentCommentId) : undefined,
-    },
-    receivedAt: created,
-    raw: c,
-  });
+  await ingestVideoComments(db, conn, businessId, token, ev.videoId);
 }
 
 /** Verifica `TikTok-Signature: t=<unix>,s=<hmac>`. HMAC-SHA256 de `${t}.${body}`
