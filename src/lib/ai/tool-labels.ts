@@ -27,7 +27,7 @@ function numero(v: unknown): number | null {
 }
 
 const ESPERA =
-  'Decile que ya lo pasaste al equipo y que le confirmás apenas esté. ' +
+  'Dile que ya lo pasaste al equipo y que le confirmas apenas esté. ' +
   'NO le digas que ya está hecho ni le prometas una fecha.'
 
 export function resumirHerramienta(tool: string, input: unknown): ResumenHerramienta {
@@ -46,7 +46,7 @@ export function resumirHerramienta(tool: string, input: unknown): ResumenHerrami
         cuerpo:
           `Lo pidió la clienta por chat.\n` +
           (detalle ? `Lleva: ${detalle}.\n` : '') +
-          `Si aceptás, se crea en la tienda y se le manda para pagar.`,
+          `Si aceptas, se crea en la tienda y se le manda para pagar.`,
         comoContarlo: `Le estoy confirmando el pedido con el equipo. ${ESPERA}`,
       }
     }
@@ -87,7 +87,7 @@ export function resumirHerramienta(tool: string, input: unknown): ResumenHerrami
         titulo: `¿Dar por pagado el pedido${dePedido ? dePedido : ''}?`,
         cuerpo:
           `La clienta dice que ya transfirió${dePedido}.\n` +
-          `Si aceptás, el pedido queda cobrado y dejan de salirle los recordatorios.`,
+          `Si aceptas, el pedido queda cobrado y dejan de salirle los recordatorios.`,
         comoContarlo: `Estoy verificando el pago. ${ESPERA}`,
       }
     case 'editar_pedido': {

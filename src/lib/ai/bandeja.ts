@@ -76,7 +76,7 @@ export async function verContacto(ctx: BandejaCtx): Promise<string> {
     segmento: c.ai_segment ?? null,
     cliente_desde: c.created_at ?? null,
     message:
-      'Es la ficha de quien está escribiendo. Usala para personalizar, no la recites: nadie quiere que le lean sus propios datos.',
+      'Es la ficha de quien está escribiendo. Úsala para personalizar, no la recites: nadie quiere que le lean sus propios datos.',
   })
 }
 
@@ -151,7 +151,7 @@ export async function cerrarConversacion(ctx: BandejaCtx): Promise<string> {
   return JSON.stringify({
     ok: true,
     message:
-      'Cerré el caso. Despedite normalmente y no anuncies que "cerraste la conversación": para la clienta eso no significa nada.',
+      'Cerré el caso. Despídete normalmente y no anuncies que "cerraste la conversación": para la clienta eso no significa nada.',
   })
 }
 
@@ -162,7 +162,7 @@ export async function verProducto(
 ): Promise<string> {
   const q = (input.producto ?? '').trim().slice(0, 120)
   if (q.length < 2) {
-    return JSON.stringify({ ok: false, message: 'Decime qué producto querés mirar.' })
+    return JSON.stringify({ ok: false, message: 'Dime qué producto quieres mirar.' })
   }
   const { searchProducts } = await import('@/lib/products/search')
   const [hit] = await searchProducts(ctx.db, {
@@ -173,7 +173,7 @@ export async function verProducto(
   if (!hit) {
     return JSON.stringify({
       ok: false,
-      message: `No encontré "${q}" en el catálogo. Probá con buscar_producto para ver qué hay parecido.`,
+      message: `No encontré "${q}" en el catálogo. Prueba con buscar_producto para ver qué hay parecido.`,
     })
   }
   return JSON.stringify({

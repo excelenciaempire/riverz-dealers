@@ -51,7 +51,7 @@ export async function registrarHueco(
   if (pregunta.length < 3) {
     return JSON.stringify({
       ok: false,
-      message: 'Decí cuál fue la pregunta que no pudiste contestar.',
+      message: 'Di cuál fue la pregunta que no pudiste contestar.',
     })
   }
 
@@ -86,7 +86,7 @@ export async function registrarHueco(
   return JSON.stringify({
     ok: true,
     message:
-      'Quedó anotado y el equipo lo va a ver. Decile con honestidad que eso no lo sabés y que le confirman en un rato. ' +
+      'Quedó anotado y el equipo lo va a ver. Dile con honestidad que eso no lo sabes y que le confirman en un rato. ' +
       'NO inventes una respuesta aproximada ni le prometas una fecha.',
   })
 }

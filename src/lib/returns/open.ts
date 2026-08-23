@@ -87,7 +87,7 @@ async function resolverPedido(
     const lista = filas.map((f) => `#${f.order_number ?? '?'}`).join(', ')
     return {
       error: 'varios_pedidos',
-      message: `Tiene más de un pedido (${lista}). Preguntale por cuál es antes de abrirla.`,
+      message: `Tiene más de un pedido (${lista}). Pregúntale por cuál es antes de abrirla.`,
     }
   }
   return { pedido: filas[0] }
@@ -139,12 +139,12 @@ export async function abrirDevolucion(
         ok: true,
         estado: 'ya_abierta',
         message:
-          'Ya hay una devolución abierta para ese pedido. Deciselo así, sin abrir otra ni prometer nada nuevo.',
+          'Ya hay una devolución abierta para ese pedido. Díselo así, sin abrir otra ni prometer nada nuevo.',
       })
     }
     return JSON.stringify({
       ok: false,
-      message: 'No pude registrar la devolución. Decile que lo pasás al equipo.',
+      message: 'No pude registrar la devolución. Dile que lo pasas al equipo.',
     })
   }
 
@@ -173,7 +173,7 @@ export async function abrirDevolucion(
       (fotos.length > 0
         ? 'Las fotos que mandó ya quedaron adjuntas. '
         : 'Si todavía no mandó fotos del producto, pediselas: aceleran la revisión. ') +
-      'Decile que el equipo la revisa y le confirma. ' +
+      'Dile que el equipo la revisa y le confirma. ' +
       'NO le digas que está aprobada ni le prometas un reembolso ni una fecha.',
   })
 }

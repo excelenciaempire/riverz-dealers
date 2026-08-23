@@ -239,10 +239,10 @@ function pagoLabel(hint: PaymentHint, config: CheckoutConfig | null): string {
   const methods = config?.payment_methods ?? null
   const card = !methods || methods.includes('card')
   const mp = !methods || methods.includes('mercado_pago')
-  if (hint === 'transfer') return 'Podés pagar por transferencia; te pasamos los datos.'
+  if (hint === 'transfer') return 'Puedes pagar por transferencia; te pasamos los datos.'
   return card && mp
-    ? 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
-    : 'Podés completar el pago en el checkout de la tienda.'
+    ? 'Puedes pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
+    : 'Puedes completar el pago en el checkout de la tienda.'
 }
 
 export async function createCheckoutLink(
@@ -302,7 +302,7 @@ export async function createCheckoutLink(
       total_label: '',
       payment_label: pagoLabel(input.payment_hint ?? 'card_or_mp', config),
       next_step_for_pili:
-        'Pasale el link y decile que ahí ve el total con todo junto. No inventes el precio total.',
+        'Pásale el link y dile que ahí ve el total con todo junto. No inventes el precio total.',
     }
   }
 
@@ -317,7 +317,7 @@ export async function createCheckoutLink(
       const valid = (offers ?? []).map((o) => o.key).join(' | ')
       return {
         error: 'invalid_offer',
-        message: `Oferta "${key ?? ''}" no reconocida. Usá ${valid}.`,
+        message: `Oferta "${key ?? ''}" no reconocida. Usa ${valid}.`,
       }
     }
     qty = matchedOffer.qty
@@ -336,7 +336,7 @@ export async function createCheckoutLink(
     return {
       error: 'no_variant',
       message:
-        'No pude resolver el producto de esta tienda. Pedí ayuda al equipo humano para armar el link.',
+        'No pude resolver el producto de esta tienda. Pide ayuda al equipo humano para armar el link.',
     }
   }
 
@@ -374,7 +374,7 @@ export async function createCheckoutLink(
       ) {
         return {
           error: 'out_of_stock',
-          message: `No hay stock suficiente para ${offerLabel} ahora mismo (quedan ${variant.inventory_quantity}). Ofrecele anotarse en lista de espera o sugerí otra cantidad.`,
+          message: `No hay stock suficiente para ${offerLabel} ahora mismo (quedan ${variant.inventory_quantity}). Ofrécele anotarse en lista de espera o sugiere otra cantidad.`,
         }
       }
       if (!bundleMode && variant?.price != null) {
@@ -456,14 +456,14 @@ export async function createCheckoutLink(
   const paymentLabel = hasTransferDiscount
     ? `En el checkout vas a ver el total completo; cuando confirmes la ${transferLabel} te devolvemos ${fmtMoney(transferAmount!, currency)}.`
     : acceptsCard && acceptsMp
-      ? 'Podés pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
-      : 'Podés completar el pago en el checkout de Shopify.'
+      ? 'Puedes pagar con tarjeta (hasta 3 cuotas sin interés) o Mercado Pago en el checkout.'
+      : 'Puedes completar el pago en el checkout de Shopify.'
 
   const nextStepForPili = hasTransferDiscount
-    ? `Mandale el link. El total en Shopify es el total completo; cuando confirme la ${transferLabel} el equipo le devuelve ${fmtMoney(transferAmount!, currency)}.`
+    ? `Mándale el link. El total en Shopify es el total completo; cuando confirme la ${transferLabel} el equipo le devuelve ${fmtMoney(transferAmount!, currency)}.`
     : bundleMode
-      ? 'Mandale el link y decile que en el checkout completa dirección y elige tarjeta o Mercado Pago. El descuento del bundle ya se aplica automático.'
-      : 'Mandale el link y decile que en el checkout completa dirección y método de pago.'
+      ? 'Mándale el link y dile que en el checkout completa dirección y elige tarjeta o Mercado Pago. El descuento del bundle ya se aplica automático.'
+      : 'Mándale el link y dile que en el checkout completa dirección y método de pago.'
 
   return {
     checkout_url: checkoutUrl,

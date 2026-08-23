@@ -1079,8 +1079,8 @@ export async function runTool(
         error: res.error,
         message:
           res.error === 'sin_conexion'
-            ? 'No hay forma de cobrar por link en esta cuenta. Ofrecele coordinar el pago con el equipo.'
-            : 'No pude generar el link. Ofrecele coordinar el pago con el equipo.',
+            ? 'No hay forma de cobrar por link en esta cuenta. Ofrécele coordinar el pago con el equipo.'
+            : 'No pude generar el link. Ofrécele coordinar el pago con el equipo.',
       })
     }
     return JSON.stringify({

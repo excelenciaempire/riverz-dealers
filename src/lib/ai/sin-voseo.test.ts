@@ -3,48 +3,68 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
- * Nada de voseo en lo que lee el modelo ni en lo que lee el comercio.
+ * Nada de voseo en el camino del agente.
  *
- * El prompt le ordena al agente "escribe en español neutro, nunca uses voseo
- * rioplatense" — y después se lo demostraba doce veces: en sus propios
- * párrafos, en las 31 descripciones de herramientas y en los mensajes que esas
- * herramientas devuelven ("Decile con honestidad que eso no lo sabés"). Una
- * regla contra doce ejemplos: así es como el voseo termina saliendo por el chat
- * a un cliente, que es el defecto que este proyecto viene corrigiendo desde
- * hace cinco commits.
+ * El prompt le ordena "escribe en español neutro, nunca uses voseo rioplatense"
+ * — y después se lo demostraba doce veces: en sus propios párrafos, en las 31
+ * descripciones de herramientas y en los mensajes que esas herramientas
+ * devuelven ("Dile con honestidad que eso no lo sabes"). Una regla contra doce
+ * ejemplos: así es como el voseo termina saliendo por el chat a un cliente.
  *
  * Se leen los archivos como texto en vez de importar las cadenas: muchas se
- * arman dentro de funciones con parámetros, y lo que importa es que no exista
- * la forma escrita en ningún lado.
+ * arman dentro de funciones con parámetros, y lo que importa es que la forma
+ * escrita no exista en ningún lado.
  *
- * La única excepción es la línea que ENSEÑA cuál es la forma prohibida. Ahí el
- * voseo es el ejemplo, y corregirlo convertiría la instrucción en un sinsentido
- * que se prohíbe a sí misma.
+ * **Por qué una lista y no todo `src`.** Barrer el repo entero rompe tres cosas
+ * que NO son descuidos:
+ *
+ *   - `lib/voice/**` tiene un modo rioplatense deliberado, con su propio test
+ *     que exige el voseo (`voice/rioplatense.test.ts`). Es una variante, no un
+ *     error.
+ *   - `operator/fleet/intencion.ts` y `channels/email/automated-sender.ts` no
+ *     ESCRIBEN texto: LEEN el que escribió otro. Sacarles el voseo de las
+ *     listas es dejar de entender a quien lo usa.
+ *   - Los catálogos de i18n y las capacidades del Operator todavía tienen
+ *     voseo. Está anotado; no entra acá hasta que se limpie, porque un test que
+ *     falla desde el día uno se termina borrando.
  */
 
 const RAIZ = join(process.cwd(), 'src', 'lib')
 
 const ARCHIVOS = [
+  // El prompt y las herramientas del agente
   'ai/tools.ts',
   'ai/runner.ts',
   'ai/postventa.ts',
+  'ai/bandeja.ts',
+  'ai/answer-gaps.ts',
+  'ai/guardrails.ts',
+  'ai/roles.ts',
+  'ai/tool-labels.ts',
+  // Lo que devuelven las herramientas de comercio y postventa
+  'returns/open.ts',
+  'shopify/create-checkout.ts',
+  'shopify/create-order.ts',
+  // Lo que lee el COMERCIO cuando le piden aprobar algo
   'approvals/ask.ts',
   'approvals/resolve.ts',
 ]
 
-/** La línea que enseña qué NO escribir. */
+/** La línea que enseña qué NO escribir. Ahí el voseo es el ejemplo, y
+ *  corregirlo convertiría la instrucción en un sinsentido que se prohíbe a sí
+ *  misma — cosa que pasó en la primera barrida. */
 const EXCEPCION = 'Nunca uses voseo rioplatense'
 
 /**
- * Imperativos agudos y presentes voseantes. Se listan a mano en vez de usar una
- * regla morfológica: `está`, `además` y `acá` terminan igual y no son voseo, y
- * un falso positivo en un test que nadie puede arreglar rápido se termina
- * borrando.
+ * Se listan a mano en vez de usar una regla morfológica: `está`, `además` y
+ * `acá` terminan igual y no son voseo, y un falso positivo en un test que nadie
+ * puede arreglar rápido se termina borrando.
  */
 const FORMAS = [
   // presente
   'tenés', 'podés', 'querés', 'sabés', 'necesitás', 'venís', 'decís', 'hacés',
   'recibís', 'consultás', 'aceptás', 'confirmás', 'llamás', 'pasás', 'devolvés',
+  'mandás',
   // imperativo
   'buscá', 'usá', 'pedí', 'pasá', 'mandá', 'contá', 'decí', 'mirá', 'dejá',
   'seguí', 'volvé', 'ofrecé', 'avisá', 'anotá', 'cotizá', 'revisá', 'armá',
@@ -52,11 +72,25 @@ const FORMAS = [
   'reuní', 'confirmá', 'esperá', 'llamá', 'generá', 'registrá', 'cerrá',
   'programá', 'agregá', 'explicá', 'reconocé', 'cobrá', 'reusá', 'rechazá',
   'invitá', 'contestá', 'tratá', 'respondé', 'aclará', 'acordá', 'reconectá',
+  'sugerí', 'conectá', 'recomendá',
   // enclíticos
   'decile', 'pedile', 'contale', 'pasale', 'avisale', 'ponele', 'sacale',
   'usala', 'usalo', 'llamala', 'llamalo', 'mostrale', 'preguntale', 'pedilo',
   'deciselo', 'repetile', 'resolvelo', 'despedite', 'confirmaselo', 'fijate',
+  'ofrecele', 'mandale', 'contestale', 'decime',
 ]
+
+/**
+ * Palabra entera a los dos lados.
+ *
+ * Sin esto, "automática" contiene "tomá" y una barrida por subcadena la
+ * convirtió en "automatica" — que rompió la detección de autorespuestas de
+ * correo. El límite no es un detalle: es lo que separa corregir de romper.
+ */
+const REGLAS = FORMAS.map((f) => ({
+  forma: f,
+  re: new RegExp(`(?<![a-záéíóúñ])${f}(?![a-záéíóúñ])`, 'i'),
+}))
 
 /** Se ignoran los comentarios: son para quien programa, no para nadie más. */
 function lineasVivas(texto: string): { n: number; texto: string }[] {
@@ -78,9 +112,7 @@ describe('el prompt no se contradice a sí mismo', () => {
       for (const { n, texto } of lineasVivas(contenido)) {
         if (texto.includes(EXCEPCION)) continue
         const bajo = texto.toLowerCase()
-        for (const forma of FORMAS) {
-          // Con límites de palabra: "usá" no puede saltar dentro de "usuario".
-          const re = new RegExp(`(^|[^a-záéíóúñ])${forma}($|[^a-záéíóúñ])`, 'i')
+        for (const { forma, re } of REGLAS) {
           if (re.test(bajo)) encontrado.push(`${rel}:${n} — "${forma}"`)
         }
       }
@@ -96,5 +128,12 @@ describe('el prompt no se contradice a sí mismo', () => {
     expect(linea).toContain('tenés')
     expect(linea).toContain('recibís')
     expect(linea).toContain('querés')
+  })
+
+  it('el modo rioplatense de voz sigue intacto: es una variante, no un descuido', () => {
+    const constantes = readFileSync(join(RAIZ, 'voice/constants.ts'), 'utf8')
+    // Si alguien barre el repo entero, esto se cae antes que un cliente
+    // argentino escuche a su asistente hablándole de "tú".
+    expect(constantes).toMatch(/vos|tenés|podés|decí/i)
   })
 })

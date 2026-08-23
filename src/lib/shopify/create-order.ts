@@ -130,7 +130,7 @@ export async function createShopifyOrder(
       const valid = (offers ?? []).map((o) => o.key).join(' | ')
       return {
         error: 'invalid_offer',
-        message: `Oferta "${input.offer ?? ''}" no reconocida. Usá ${valid}.`,
+        message: `Oferta "${input.offer ?? ''}" no reconocida. Usa ${valid}.`,
       }
     }
     qty = matchedOffer.qty
@@ -149,7 +149,7 @@ export async function createShopifyOrder(
     return {
       error: 'no_variant',
       message:
-        'No pude resolver el producto de esta tienda para crear el pedido. Pedí ayuda al equipo humano.',
+        'No pude resolver el producto de esta tienda para crear el pedido. Pide ayuda al equipo humano.',
     }
   }
 
@@ -194,7 +194,7 @@ export async function createShopifyOrder(
   ) {
     return {
       error: 'out_of_stock',
-      message: `No hay stock suficiente para ${offerLabel} (quedan ${variantInfo.inventory_quantity}). Ofrecé otra cantidad o lista de espera; no crees el pedido.`,
+      message: `No hay stock suficiente para ${offerLabel} (quedan ${variantInfo.inventory_quantity}). Ofrece otra cantidad o lista de espera; no crees el pedido.`,
     }
   }
 
@@ -307,7 +307,7 @@ export async function createShopifyOrder(
         return {
           error: 'missing_write_scope',
           message:
-            'No tengo permiso para crear pedidos en esta tienda (falta reconectar Shopify con permisos de pedidos). No prometas el pedido; avisá que una persona del equipo lo arma.',
+            'No tengo permiso para crear pedidos en esta tienda (falta reconectar Shopify con permisos de pedidos). No prometas el pedido; avisa que una persona del equipo lo arma.',
         }
       }
       return {
@@ -350,7 +350,7 @@ export async function createShopifyOrder(
       (created.order_number != null ? String(created.order_number) : '')).trim() ||
     String(created.id)
   const nextStep = hasTransferDiscount
-    ? `Pedido ${orderNumber} creado. Avisale que el total se confirma al validar la ${transferLabel} (crédito de ${transferAmount} ${currency}).`
+    ? `Pedido ${orderNumber} creado. Avísale que el total se confirma al validar la ${transferLabel} (crédito de ${transferAmount} ${currency}).`
     : `Pedido ${orderNumber} creado. Confirmale el número y los próximos pasos de pago/entrega.`
 
   return {
