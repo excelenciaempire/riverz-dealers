@@ -11,7 +11,12 @@ import { cn } from '@/lib/utils'
 import { VistaArtefacto } from './artefacto'
 import { LienzoAutomatizacion } from './lienzo-automatizacion'
 import { CintaEquipo } from './mapa-equipo'
-import { useMesa, useMesaDispatch, type FijadoEnMesa } from './mesa-contexto'
+import {
+  useMesa,
+  useMesaDispatch,
+  type EstadoMesa,
+  type FijadoEnMesa,
+} from './mesa-contexto'
 
 /**
  * El banco de trabajo: la pieza, a tamaño real, mientras se arma.
@@ -26,6 +31,17 @@ import { useMesa, useMesaDispatch, type FijadoEnMesa } from './mesa-contexto'
  * halo respira mientras alguien del equipo está trabajando y se apaga cuando no
  * hay nadie, así que el estado del turno se ve sin leer una palabra.
  */
+/**
+ * ¿Hay algo sobre la mesa?
+ *
+ * El banco no está abierto por costumbre. Una conversación que todavía no armó
+ * nada no tiene pieza que mirar, y medio ancho de pantalla ocupado por un
+ * lienzo vacío es peor que no tenerlo: es una promesa sin cumplir.
+ */
+export function bancoTieneAlgo(m: EstadoMesa): boolean {
+  return m.agentes.length > 0 || m.lienzos.length > 0 || m.fijado !== null
+}
+
 export function Banco({ className }: { className?: string }) {
   const m = useMesa()
   const aLaMesa = useMesaDispatch()
@@ -108,11 +124,7 @@ export function Banco({ className }: { className?: string }) {
           <div className="relative z-10 min-h-0 flex-1">
             {pieza.kind === 'automatizacion' ? (
               <CanvasViewport className="h-full" initialFit="fit">
-                <LienzoAutomatizacion
-                  cuando={pieza.cuando}
-                  pasos={pieza.pasos}
-                  hayDiff={Boolean(pieza.base)}
-                />
+                <LienzoAutomatizacion cuando={pieza.cuando} pasos={pieza.pasos} />
               </CanvasViewport>
             ) : (
               // Una plantilla o un segmento no son un árbol: se leen enteros de
@@ -165,9 +177,8 @@ export function BancoEnHoja() {
   const m = useMesa()
   const t = useT()
   const [abierta, setAbierta] = useState(false)
-  const hayAlgo = m.agentes.length > 0 || m.lienzos.length > 0 || m.fijado !== null
 
-  if (!hayAlgo) return null
+  if (!bancoTieneAlgo(m)) return null
 
   return (
     <>

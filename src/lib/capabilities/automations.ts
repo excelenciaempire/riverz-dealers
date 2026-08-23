@@ -360,6 +360,7 @@ function entradaDePlan(args: Record<string, unknown>): AiEntradaPlan {
     dias: typeof args.dias === 'number' ? args.dias : undefined,
     palabras: Array.isArray(args.palabras) ? (args.palabras as string[]) : undefined,
     coincidencia: typeof args.coincidencia === 'string' ? args.coincidencia : undefined,
+    mismo_mensaje: args.mismo_mensaje === true,
     pasos: args.pasos as AiPaso[],
   }
 }

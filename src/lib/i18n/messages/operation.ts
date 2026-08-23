@@ -70,6 +70,7 @@ export const operation = {
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
+  lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
   // Cómo se lee un paso YA hecho. El gerundio cuenta lo que pasa; sobre algo
   // terminado hay que usar el pasado o la pantalla dice lo contrario que la base.
   hechoAutoCrear: { es: "Automatización creada", en: "Automation created" },

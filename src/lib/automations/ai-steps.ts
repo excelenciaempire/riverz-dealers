@@ -251,6 +251,11 @@ export const AI_STEPS_SCHEMA = {
         'Para customer_inactive (días sin comprar) y post_delivery_feedback (días desde la entrega).',
     },
     palabras: { type: 'array', items: { type: 'string' }, description: 'Para keyword_match.' },
+    mismo_mensaje: {
+      type: 'boolean',
+      description:
+        'Ponlo en true SÓLO si la persona te confirmó que quiere EL MISMO mensaje en todos los caminos. Sin esto, repetir una plantilla en dos ramas se rechaza.',
+    },
     coincidencia: { type: 'string', enum: ['exact', 'contains'] },
     pasos: { type: 'array', items: AI_PASO_SCHEMA },
   },
@@ -828,7 +833,45 @@ export interface AiEntradaPlan {
   dias?: number
   palabras?: string[]
   coincidencia?: string
+  /** La persona confirmó que quiere el mismo mensaje en todos los caminos. */
+  mismo_mensaje?: boolean
   pasos?: AiPaso[]
+}
+
+/**
+ * La misma plantilla en dos caminos distintos.
+ *
+ * Pasó en una cuenta real: se pidió «una recompra con un mensaje DISTINTO según
+ * si compró 1, 2-3 o 4+ unidades», y las tres ramas terminaron mandando
+ * `recompra_1` — la única plantilla aprobada que había. Nadie mintió: el
+ * especialista no podía escribir plantillas y usó la que tenía. El resultado es
+ * una automatización que se ve bien, se puede prender, y hace exactamente lo
+ * contrario de lo que se pidió.
+ *
+ * Ramificar para mandar lo mismo no tiene sentido, así que se corta y se dice
+ * qué hacer: pedirle las que faltan al de plantillas, o preguntarle a la
+ * persona. Si de verdad quiere el mismo mensaje, lo confirma y viene con
+ * `mismo_mensaje`.
+ */
+function plantillaRepetida(pasos: BuilderStepInput[]): string | null {
+  const porRama = new Map<string, number>()
+  const mirar = (lista: BuilderStepInput[], enRama: boolean) => {
+    for (const p of lista) {
+      if (enRama && p.step_type === 'send_template') {
+        const n = String((p.step_config as { template_name?: string }).template_name ?? '')
+        if (n) porRama.set(n, (porRama.get(n) ?? 0) + 1)
+      }
+      if (p.branches) {
+        mirar(p.branches.yes ?? [], true)
+        mirar(p.branches.no ?? [], true)
+      }
+    }
+  }
+  mirar(pasos, false)
+  for (const [nombre, veces] of porRama) {
+    if (veces > 1) return nombre
+  }
+  return null
 }
 
 /**
@@ -965,6 +1008,19 @@ export function planDesdeIA(entrada: AiEntradaPlan): {
   }
 
   if (problemas.length > 0) return { plan: null, problemas }
+
+  const repetida = entrada.mismo_mensaje ? null : plantillaRepetida(pasos)
+  if (repetida) {
+    return {
+      plan: null,
+      problemas: [
+        {
+          path: 'pasos',
+          message: `la plantilla «${repetida}» se manda en más de un camino, así que ramificar no cambia nada. Si cada camino tiene que decir algo distinto, pídele al de plantillas las que faltan; si no sabes, pregúntale a la persona. Y si de verdad quiere el mismo mensaje en todos, mándalo otra vez con mismo_mensaje en true.`,
+        },
+      ],
+    }
+  }
 
   // La misma puerta que cruza el editor: si esto no pasa, la automatización no
   // se va a poder prender nunca y crearla así sería crear algo muerto.

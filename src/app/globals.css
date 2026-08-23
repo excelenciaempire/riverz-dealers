@@ -442,3 +442,69 @@ html[data-theme="dark"] {
     color: var(--primary-foreground);
   }
 }
+
+@layer components {
+  /* «Construyendo»: tres segmentos que se encienden en fila.
+   *
+   * Un `Loader2` girando es el mismo spinner que usa todo lo que carga en esta
+   * app, así que no distingue "estoy trayendo datos" de "estoy armando algo".
+   * Esto no gira: se arma, que es lo que está pasando. */
+  .app-armando > span {
+    animation: app-armar 1.5s ease-in-out infinite;
+    transform-origin: left center;
+  }
+  .app-armando > span:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+  .app-armando > span:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+  @keyframes app-armar {
+    0%,
+    70%,
+    100% {
+      transform: scaleX(0.25);
+      opacity: 0.35;
+    }
+    35% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+  }
+
+  /* El brillo que recorre una superficie mientras se trabaja sobre ella. */
+  .app-brillo {
+    position: relative;
+    overflow: hidden;
+  }
+  .app-brillo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklab, var(--primary) 16%, transparent) 45%,
+      transparent 70%
+    );
+    transform: translateX(-100%);
+    animation: app-barrer 2.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes app-barrer {
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-armando > span,
+    .app-brillo::after {
+      animation: none;
+    }
+    .app-armando > span {
+      transform: none;
+      opacity: 0.7;
+    }
+  }
+}

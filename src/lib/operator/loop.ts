@@ -257,7 +257,7 @@ export async function runOperator(args: {
 
   // El prompt cambia con el modo: decirle "nunca ejecutás" mientras la
   // herramienta sí ejecuta hacía que contara como propuesta algo ya creado.
-  const system = systemPrompt(args.autoBuild === true)
+  const system = systemPrompt()
   const tools = capabilitiesAsAnthropicTools(OPERATOR_CAPABILITIES) as Anthropic.Tool[]
   const messages: Anthropic.MessageParam[] = [...args.history]
   const proposedIds: string[] = []

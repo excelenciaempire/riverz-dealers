@@ -6,7 +6,6 @@ import {
   ArrowUp,
   Check,
   Eye,
-  Hand,
   History,
   Loader2,
   MessageSquarePlus,
@@ -14,7 +13,6 @@ import {
   Sparkles,
   Trash2,
   X,
-  Zap,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
 import { TextoRico } from '@/components/ui/texto-rico'
@@ -155,7 +153,6 @@ export function OperatorChat({
   const [pensando, setPensando] = useState(false)
   const [vivo, setVivo] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [auto, setAuto] = useState<boolean | null>(null)
   const [hilos, setHilos] = useState<ResumenHilo[]>([])
   /**
    * El reparto que quedó esperando un click.
@@ -177,11 +174,9 @@ export function OperatorChat({
         const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
         if (!res.ok || cancelado) return
         const json = (await res.json()) as {
-          autoBuild?: boolean
           hilos?: ResumenHilo[]
         }
         if (cancelado) return
-        setAuto(json.autoBuild === true)
         setHilos(json.hilos ?? [])
       } catch {
         /* si no se puede leer, el interruptor no se muestra */
@@ -250,26 +245,6 @@ export function OperatorChat({
     },
     [fetchWithCsrf, nuevoChat, thread],
   )
-
-  const cambiarModo = useCallback(
-    async (next: boolean) => {
-      setAuto(next)
-      try {
-        await fetchWithCsrf('/api/operacion/modo', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ auto: next }),
-        })
-      } catch {
-        setAuto(!next)
-      }
-    },
-    [fetchWithCsrf],
-  )
-
-  useEffect(() => {
-    finalRef.current?.scrollIntoView({ block: 'end' })
-  }, [mensajes, pensando, vivo?.bloques])
 
   const enviar = useCallback(
     async (valor: string) => {
@@ -654,12 +629,7 @@ export function OperatorChat({
           />
         )}
 
-        {pensando && !vivo?.bloques.length && !vivo?.thinking && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
-            {t('operation.operatorThinking')}
-          </div>
-        )}
+        {pensando && !vivo?.bloques.length && !vivo?.thinking && <Armando />}
 
         {plan && plan.estado !== 'rechazado' && (
           <TarjetaPlan
@@ -729,25 +699,6 @@ export function OperatorChat({
         {/* Debajo del compositor y no en una pantalla de ajustes: es una
             decisión sobre lo que va a pasar en el próximo mensaje, así que se
             toma mirando el mensaje. */}
-        {/* El modo, como ficha y no como pie de página de 11px. Que construya
-            solo cambia lo que va a pasar con el próximo mensaje, y leerlo
-            después —cuando algo ya se creó— es tarde. Mismo lenguaje que el
-            banco: relleno si actúa, trazo si espera. */}
-        {auto !== null && (
-          <button
-            type="button"
-            onClick={() => void cambiarModo(!auto)}
-            className={cn(
-              'mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] uppercase transition-colors',
-              auto
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-dashed border-border text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {auto ? <Zap className="size-3" /> : <Hand className="size-3" />}
-            {t(auto ? 'operation.modeAuto' : 'operation.modeAsk')}
-          </button>
-        )}
       </form>
     </div>
   )
@@ -982,6 +933,30 @@ function TarjetaPlan({
  * en la que va a quedar cuando termine, para que no salte de lugar al cerrar.
  */
 /**
+ * Mientras piensa qué hacer.
+ *
+ * Un spinner girando es el mismo que usa cualquier cosa que carga en esta app,
+ * así que no distingue "estoy trayendo datos" de "estoy armando algo". Estos
+ * tres segmentos se encienden en fila, como algo que se ensambla, y el brillo
+ * recorre la superficie: dice que hay trabajo en curso, no que hay una espera.
+ */
+function Armando() {
+  const t = useT()
+  return (
+    <div className="app-glass app-brillo rounded-xl px-3 py-2.5">
+      <p className="app-eyebrow flex items-center gap-2 text-accent-ink">
+        {t('operation.operatorThinking')}
+      </p>
+      <div className="app-armando mt-2 flex items-center gap-1" aria-hidden>
+        <span className="h-1 w-10 rounded-full bg-accent-ink" />
+        <span className="h-1 w-6 rounded-full bg-accent-ink" />
+        <span className="h-1 w-14 rounded-full bg-accent-ink" />
+      </div>
+    </div>
+  )
+}
+
+/**
  * Lo que se dijo, sin burbujas.
  *
  * Lo que pediste va con el resaltador de la marca —un marcador sobre el texto,
@@ -1036,6 +1011,15 @@ function Turno({
   onVer?: (actionId: string, key: string) => void
 }) {
   const t = useT()
+  // Las que esperan decisión, en el orden en que ocurrieron.
+  const esperando = onDecidir
+    ? bloques.flatMap((b) => {
+        if (b.k !== 'paso' || !b.actionId) return []
+        const a = acciones?.get(b.actionId)
+        return a?.status === 'propuesto' ? [a] : []
+      })
+    : []
+
   return (
     <div className="space-y-3">
       {thinking ? (
@@ -1049,7 +1033,6 @@ function Turno({
           return <Dicho key={b.id} role="assistant" text={b.texto} />
         }
 
-        const accion = b.actionId ? acciones?.get(b.actionId) : undefined
         const hecho = b.estado === 'hecho'
         const claveHecho = hecho ? PASO_HECHO[b.key] : undefined
         const etiqueta = claveHecho
@@ -1085,56 +1068,58 @@ function Turno({
         }
 
         return (
-          <div key={b.id} className="space-y-2">
-            <div
-              className={cn(
-                'rounded-xl p-3',
+          <div
+            key={b.id}
+            className={cn(
+              'rounded-xl p-3',
                 // Lo hecho ya está en la cuenta; lo propuesto todavía no. Se
                 // ven distinto sin leer una palabra.
-                hecho
-                  ? 'app-glass'
-                  : 'border border-dashed border-accent-ink/40 bg-primary/5',
+              hecho
+                ? 'app-glass'
+                : 'border border-dashed border-accent-ink/40 bg-primary/5',
+            )}
+          >
+            <p className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.14em] uppercase">
+              {hecho ? (
+                <PlusCircle className="size-3 shrink-0 text-accent-ink" />
+              ) : (
+                <Sparkles className="size-3 shrink-0 text-accent-ink" />
               )}
-            >
-              <p className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.14em] uppercase">
-                {hecho ? (
-                  <PlusCircle className="size-3 shrink-0 text-accent-ink" />
-                ) : (
-                  <Sparkles className="size-3 shrink-0 text-accent-ink" />
-                )}
-                <span className="text-accent-ink">{etiqueta}</span>
+              <span className="text-accent-ink">{etiqueta}</span>
+            </p>
+            {b.detalle && (
+              <p className="mt-1.5 text-xs leading-snug text-foreground">
+                {hecho ? sinCondicional(b.detalle) : b.detalle}
               </p>
-              {b.detalle && (
-                <p className="mt-1.5 text-xs leading-snug text-foreground">
-                  {hecho ? sinCondicional(b.detalle) : b.detalle}
-                </p>
-              )}
-              {b.artefacto && b.actionId && onVer && (
-                <button
-                  type="button"
-                  onClick={() => onVer(b.actionId!, b.key)}
-                  className="app-card-cta mt-2 text-[10px] text-accent-ink transition-opacity hover:opacity-70"
-                >
-                  <Eye className="size-3" />
-                  {hecho
-                    ? t('operation.mesaVerComoQuedo')
-                    : t('operation.mesaVerElDetalle')}
-                </button>
-              )}
-              {/* Sin acción a la que pedirle el dibujo, el de acá es lo único
-                  que hay. Pasa dentro de un plan que todavía no se aprobó. */}
-              {b.artefacto && !b.actionId && (
-                <div className="mt-2">
-                  <VistaArtefacto artefacto={b.artefacto} />
-                </div>
-              )}
-            </div>
-            {accion?.status === 'propuesto' && onDecidir && (
-              <TarjetaAccion accion={accion} onDecidir={onDecidir} />
+            )}
+            {b.artefacto && b.actionId && onVer && (
+              <button
+                type="button"
+                onClick={() => onVer(b.actionId!, b.key)}
+                className="app-card-cta mt-2 text-[10px] text-accent-ink transition-opacity hover:opacity-70"
+              >
+                <Eye className="size-3" />
+                {hecho ? t('operation.mesaVerComoQuedo') : t('operation.mesaVerElDetalle')}
+              </button>
+            )}
+            {/* Sin acción a la que pedirle el dibujo, el de acá es lo único
+                que hay. Pasa dentro de un plan que todavía no se aprobó. */}
+            {b.artefacto && !b.actionId && (
+              <div className="mt-2">
+                <VistaArtefacto artefacto={b.artefacto} />
+              </div>
             )}
           </div>
         )
       })}
+
+      {/* Lo que espera tu decisión va SIEMPRE al final del turno, después de
+          todo lo que el equipo dijo. Antes se dibujaba pegado al paso que la
+          originó, y con dos o tres frases debajo el botón quedaba en el medio
+          de la conversación: había que buscar dónde decidir. */}
+      {esperando.map((a) => (
+        <TarjetaAccion key={a.id} accion={a} onDecidir={onDecidir!} />
+      ))}
     </div>
   )
 }

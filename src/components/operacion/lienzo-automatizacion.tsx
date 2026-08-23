@@ -1,213 +1,200 @@
 'use client'
 
 import { Fragment } from 'react'
+import Image from 'next/image'
 import {
-  Clock,
-  FileText,
-  GitBranch,
-  MessageSquare,
-  PhoneCall,
-  Tag,
-  UserCog,
-  Users,
-  Webhook,
-  XCircle,
-  Zap,
-} from 'lucide-react'
+  BranchFan,
+  HEAD_H,
+  LINE,
+  STEP_META,
+} from '@/components/automations/lienzo-piezas'
+import type { BuilderStepType } from '@/components/automations/automation-builder'
+import { useT } from '@/hooks/use-locale'
 import { cn } from '@/lib/utils'
-import type { Cambio, PasoArtefacto } from '@/lib/operator/artifacts'
+import type { PasoArtefacto } from '@/lib/operator/artifacts'
 
 /**
- * La automatización sobre el banco, con la forma que tiene en su editor.
+ * La automatización sobre el banco, con las MISMAS piezas que su editor.
  *
- * No es el editor: son 4.200 líneas con nueve contextos, arrastre y un guardado
- * que navega. Es su MISMA GRAMÁTICA en modo lectura — el disparador a la
- * izquierda, el flujo hacia la derecha, las ramas colgando con su etiqueta— y
- * las mismas tarjetas de 320px, para que se lea como el mismo objeto y no como
- * una miniatura de otra cosa.
+ * No es el editor —son cuatro mil líneas con arrastre, nueve contextos y un
+ * guardado que navega— pero tampoco es un dibujo aparte: el mapa de estilos por
+ * tipo de paso y el abanico de ramas se importan de `lienzo-piezas.tsx`, que es
+ * de donde los toma el editor. Las tarjetas son las mismas, con los mismos
+ * colores, los mismos iconos y el mismo alto. Una copia propia se habría
+ * separado el primer día que alguien tocara un color, y entonces el chat
+ * mostraría algo parecido en vez de lo mismo.
  *
- * **El lima significa una sola cosa acá: esto le llega a una persona.** Un paso
- * que deja algo apagado va en trazo; uno que manda un mensaje o hace una
- * llamada va relleno. Es el modelo de seguridad del producto —la línea que
- * decide qué se construye solo y qué espera una mano— convertido en gráfica, en
- * vez de dieciséis filas grises iguales.
- *
- * La disposición es flex anidado y no coordenadas: un árbol chico se acomoda
- * solo, sin medir nada y sin que un texto largo descoloque un conector.
+ * Lo único que cambia es que acá no se puede tocar nada: sin asa, sin acordeón
+ * y sin el «+ Añadir» entre paso y paso, que se reemplaza por el tramo de línea
+ * que ese botón dibujaba.
  */
-
-const ICONO: Record<string, typeof Clock> = {
-  wait: Clock,
-  send_message: MessageSquare,
-  send_template: FileText,
-  add_tag: Tag,
-  remove_tag: Tag,
-  close_conversation: XCircle,
-  assign_conversation: Users,
-  condition: GitBranch,
-  update_contact_field: UserCog,
-  send_webhook: Webhook,
-  voice_call: PhoneCall,
-}
-
-/** Los pasos que salen al mundo. Son los que se dibujan en lima. */
-const SALE_AL_MUNDO = new Set(['send_message', 'send_template', 'voice_call'])
-
-/** El tono del diff, cuando se está editando algo que ya existía. */
-const TONO: Record<Cambio, string> = {
-  igual: 'opacity-60',
-  nuevo: 'ring-accent-ink/40',
-  editado: 'ring-accent-ink/40',
-  quitado: 'opacity-40 line-through',
-}
-
 export function LienzoAutomatizacion({
   cuando,
   pasos,
-  hayDiff,
 }: {
   /** Cuándo se dispara, en palabras. */
   cuando: string
   pasos: PasoArtefacto[]
-  /** Si esto es una edición, los pasos traen su cambio y se tiñen. */
-  hayDiff?: boolean
 }) {
   return (
-    <div className="flex w-max items-center gap-0 px-10 py-14">
+    <div className="flex w-max items-start gap-0 px-8 py-10">
       <Disparador cuando={cuando} />
-      <Tramo pasos={pasos} hayDiff={hayDiff} />
+      <Tramo pasos={pasos} />
     </div>
   )
 }
 
+/** La tarjeta del disparador, con la misma cabecera que las demás. */
 function Disparador({ cuando }: { cuando: string }) {
+  const t = useT()
   return (
-    <div className="app-glass w-80 shrink-0 rounded-xl p-4">
-      <p className="app-eyebrow">Cuando</p>
-      <p className="mt-1.5 flex items-start gap-2 text-sm leading-snug text-foreground">
-        <Zap className="mt-0.5 size-4 shrink-0 text-accent-ink" />
-        {cuando}
-      </p>
-    </div>
-  )
-}
-
-/** Una fila de pasos que corren uno tras otro. */
-function Tramo({ pasos, hayDiff }: { pasos: PasoArtefacto[]; hayDiff?: boolean }) {
-  if (pasos.length === 0) return <Vacio />
-  return (
-    <div className="flex items-center">
-      {pasos.map((p, i) => (
-        <Fragment key={`${p.tipo}-${i}`}>
-          <Flecha />
-          <div className="flex items-center">
-            <Nodo paso={p} hayDiff={hayDiff} />
-            {(p.si?.length || p.no?.length) && <Bifurcacion paso={p} hayDiff={hayDiff} />}
+    <div className="z-10 w-full max-w-[320px] sm:w-80">
+      <div className="rounded-lg border border-border border-l-4 border-l-emerald-500 bg-card shadow-lg">
+        <div className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
+            <Image src="/channels/shopify.svg" alt="" width={22} height={22} />
           </div>
-        </Fragment>
-      ))}
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] tracking-wide text-emerald-700 uppercase dark:text-emerald-300">
+              {t('automations.triggerEyebrow')}
+            </div>
+            <div className="truncate text-sm font-medium text-foreground">{cuando}</div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
-/** Las dos ramas de una pregunta, colgadas a la derecha con su etiqueta. */
-function Bifurcacion({ paso, hayDiff }: { paso: PasoArtefacto; hayDiff?: boolean }) {
+/** Una cadena de pasos que corren uno tras otro, de izquierda a derecha. */
+function Tramo({ pasos }: { pasos: PasoArtefacto[] }) {
+  const t = useT()
+  if (pasos.length === 0) {
+    return (
+      <div className={cn('flex items-center', HEAD_H)}>
+        <span className={cn('w-6', LINE)} style={{ height: 2 }} aria-hidden />
+        <span className="rounded-lg border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
+          {t('operation.lienzoNadaAqui')}
+        </span>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col gap-6 pl-0">
-      <Salida etiqueta="Sí" tono="si">
-        <Tramo pasos={paso.si ?? []} hayDiff={hayDiff} />
-      </Salida>
-      <Salida etiqueta="No" tono="no">
-        <Tramo pasos={paso.no ?? []} hayDiff={hayDiff} />
-      </Salida>
+    <div className="flex items-start">
+      {pasos.map((p, i) => {
+        const esCondicion = p.tipo === 'condition' && Boolean(p.si?.length || p.no?.length)
+        return (
+          <Fragment key={`${p.tipo}-${i}`}>
+            <Cable />
+            {esCondicion ? (
+              <div className="z-10 flex items-start gap-2">
+                <Tarjeta paso={p} />
+                <BranchFan
+                  lanes={[
+                    {
+                      key: 'yes',
+                      label: t('automations.branchYes'),
+                      color: 'border-emerald-500/40 bg-emerald-500/10 text-accent-ink',
+                      content: <Tramo pasos={p.si ?? []} />,
+                    },
+                    {
+                      key: 'no',
+                      label: t('automations.branchNo'),
+                      color: 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+                      content: <Tramo pasos={p.no ?? []} />,
+                    },
+                  ]}
+                />
+              </div>
+            ) : (
+              <div className="z-10">
+                <Tarjeta paso={p} />
+              </div>
+            )}
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
 
-function Salida({
-  etiqueta,
-  tono,
-  children,
-}: {
-  etiqueta: string
-  tono: 'si' | 'no'
-  children: React.ReactNode
-}) {
+/**
+ * Una tarjeta de paso, en modo lectura.
+ *
+ * Misma caja, mismo borde de color, misma pastilla de icono y la misma
+ * cabecera de 78 px que en el editor. Lo que cambia: el título sale del mapa
+ * compartido y el renglón de abajo es el resumen que ya trae el artefacto —
+ * «Espera 15 días», «¿Tiene la etiqueta «comprador»?»— en vez de recalcularlo.
+ */
+function Tarjeta({ paso }: { paso: PasoArtefacto }) {
+  const t = useT()
+  const meta = STEP_META[paso.tipo as BuilderStepType] ?? STEP_META.send_message
+  const Icono = meta.icon
+  const quitado = paso.cambio === 'quitado'
+
   return (
-    <div className="flex items-center">
-      <span
+    <div className={cn('flex w-full max-w-[320px] flex-col sm:w-80', quitado && 'opacity-40')}>
+      <div
         className={cn(
-          'ml-3 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-[0.14em] uppercase',
-          tono === 'si'
-            ? 'bg-primary/15 text-accent-ink'
-            : 'bg-muted text-muted-foreground',
+          'rounded-lg border border-border border-l-4 bg-card shadow-lg',
+          meta.border,
+          // El diff, con el lenguaje del artefacto: lo nuevo se destaca, lo que
+          // se va queda tachado y a media luz.
+          (paso.cambio === 'nuevo' || paso.cambio === 'editado') && 'ring-1 ring-accent-ink/40',
         )}
       >
-        {etiqueta}
-      </span>
-      {children}
+        <div className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left">
+          <div
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-lg',
+              meta.iconBg,
+              meta.iconText,
+            )}
+          >
+            {meta.brand === 'whatsapp' ? (
+              <Image src="/channels/whatsapp.svg" alt="" width={20} height={20} />
+            ) : meta.brand === 'shopify' ? (
+              <Image src="/channels/shopify.svg" alt="" width={20} height={20} />
+            ) : (
+              <Icono className="h-4 w-4" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
+              {paso.tipo === 'condition'
+                ? t('automations.kindCondition')
+                : paso.tipo === 'wait'
+                  ? t('automations.kindWait')
+                  : t('automations.kindAction')}
+            </div>
+            <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
+            {paso.antes && (
+              <div className="truncate text-[11px] text-muted-foreground line-through">
+                {paso.antes}
+              </div>
+            )}
+            <div className={cn('truncate text-[11px] text-muted-foreground', quitado && 'line-through')}>
+              {paso.resumen}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
-function Nodo({ paso, hayDiff }: { paso: PasoArtefacto; hayDiff?: boolean }) {
-  const Icono = ICONO[paso.tipo] ?? MessageSquare
-  const sale = SALE_AL_MUNDO.has(paso.tipo)
-  const cambio = paso.cambio ?? 'igual'
-  const esPregunta = paso.tipo === 'condition'
-
+/**
+ * El tramo entre dos tarjetas.
+ *
+ * En el editor este espacio lo ocupa el «+ Añadir», que además de botón es el
+ * cable. Sin él las tarjetas quedaban sueltas y había que adivinar qué seguía a
+ * qué, así que acá va el cable solo, del mismo grosor y del mismo color.
+ */
+function Cable() {
   return (
-    <div
-      className={cn(
-        'w-80 shrink-0 rounded-xl p-4 transition-colors',
-        // Lo que sale al mundo va relleno; lo demás, en trazo. Es la única cosa
-        // que el lima dice en esta pantalla.
-        sale
-          ? 'bg-primary text-primary-foreground ring-1 ring-primary/60'
-          : esPregunta
-            ? 'app-glass'
-            : 'rounded-xl border border-dashed border-border bg-transparent',
-        hayDiff && TONO[cambio],
-      )}
-    >
-      {paso.antes && (
-        <p className="mb-1 text-[11px] leading-snug text-muted-foreground line-through">
-          {paso.antes}
-        </p>
-      )}
-      <p className="flex items-start gap-2 text-sm leading-snug">
-        <Icono
-          className={cn(
-            'mt-0.5 size-4 shrink-0',
-            sale ? 'text-primary-foreground/70' : 'text-muted-foreground',
-          )}
-        />
-        <span className="min-w-0 flex-1">{paso.resumen}</span>
-      </p>
-      {sale && (
-        <p className="mt-2 text-[10px] font-semibold tracking-[0.14em] uppercase opacity-70">
-          Le llega a una persona
-        </p>
-      )}
-    </div>
-  )
-}
-
-/** Una rama sin pasos: el motor sigue de largo y conviene que se vea. */
-function Vacio() {
-  return (
-    <div className="ml-3 shrink-0 rounded-lg border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
-      No hace nada
-    </div>
-  )
-}
-
-/** El tramo entre dos nodos. */
-function Flecha() {
-  return (
-    <div className="flex h-px w-10 shrink-0 items-center" aria-hidden>
-      <div className="h-px flex-1 bg-border" />
-      <div className="size-1.5 shrink-0 rotate-45 border-t border-r border-border" />
+    <div className={cn('flex items-center', HEAD_H)} aria-hidden>
+      <span className={cn('w-6', LINE)} style={{ height: 2 }} />
     </div>
   )
 }

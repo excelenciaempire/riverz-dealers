@@ -230,3 +230,40 @@ describe('las etiquetas de una pregunta', () => {
     })
   })
 })
+
+describe('la misma plantilla en varios caminos', () => {
+  /** El mismo pedido, pero con una sola plantilla para las tres ramas. */
+  const conUnaSola = {
+    ...PEDIDO,
+    pasos: JSON.parse(JSON.stringify(PEDIDO.pasos).replace(/recompra_\w+/g, 'recompra_1')),
+  }
+
+  it('se rechaza, y el mensaje dice qué hacer', () => {
+    // Pasó de verdad: se pidieron tres mensajes distintos por volumen y las tres
+    // ramas terminaron mandando la única plantilla aprobada que había. La
+    // automatización se ve bien, se puede prender, y hace lo contrario de lo
+    // que se pidió.
+    const { plan, problemas } = planDesdeIA(conUnaSola)
+    expect(plan).toBeNull()
+    expect(problemas[0].message).toContain('recompra_1')
+    expect(problemas[0].message).toContain('plantillas')
+  })
+
+  it('pasa si la persona confirmó que quiere el mismo mensaje', () => {
+    const { plan, problemas } = planDesdeIA({ ...conUnaSola, mismo_mensaje: true })
+    expect(problemas).toEqual([])
+    expect(plan).not.toBeNull()
+  })
+
+  it('una plantilla sola, fuera de toda rama, no molesta a nadie', () => {
+    const { problemas } = planDesdeIA({
+      nombre: 'Aviso',
+      disparador: 'shopify_order_paid',
+      pasos: [
+        { tipo: 'wait', cantidad: 1, unidad: 'days' },
+        { tipo: 'send_template', plantilla: 'gracias' },
+      ],
+    })
+    expect(problemas).toEqual([])
+  })
+})

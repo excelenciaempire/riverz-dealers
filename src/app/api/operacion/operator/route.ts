@@ -76,18 +76,22 @@ async function contexto() {
  * click en los dos modos, y el interruptor sigue estando para quien prefiera
  * aprobar todo.
  */
-async function autoBuildDe(
-  admin: ReturnType<typeof supabaseAdmin>,
-  workspaceId: string,
-): Promise<boolean> {
-  const { data } = await admin
-    .from('operacion_setup')
-    .select('auto_build')
-    .eq('workspace_id', workspaceId)
-    .maybeSingle()
-  const fila = data as { auto_build?: boolean } | null
-  return fila?.auto_build !== false
-}
+/**
+ * Nada se construye sin que una persona lo apruebe.
+ *
+ * Hubo un interruptor —«construye solo» vs «pide permiso»— y el argumento para
+ * el primero era que lo inerte no le hace daño a nadie: nace pausado. Es cierto
+ * que no hace daño, y aun así fue el peor momento del producto: se creó una
+ * automatización, el paso decía «Crearía» y había un botón de aprobar debajo
+ * (el de prenderla), así que quien miraba concluyó que no había aprobado nada.
+ * Y tenía razón en lo único que importa: no lo había aprobado.
+ *
+ * Un interruptor que decide si te van a preguntar es una decisión que se toma
+ * una vez, en frío, y se cobra siempre. Ahora no hay decisión: el equipo
+ * propone y una persona aprueba. Los pasos de un plan YA aprobado sí se
+ * construyen — ahí la aprobación fue el click sobre el plan.
+ */
+const PIDE_PERMISO = false
 
 export async function GET(request: Request) {
   const ctx = await contexto()
@@ -96,14 +100,11 @@ export async function GET(request: Request) {
   const threadId = new URL(request.url).searchParams.get('thread')
   // La lista de hilos viaja siempre: la pantalla la necesita tanto al abrir una
   // conversación como al arrancar en blanco, y son dos consultas baratas.
-  const [autoBuild, hilos] = await Promise.all([
-    autoBuildDe(ctx.admin, ctx.workspaceId),
-    listarHilos(ctx.admin, ctx.workspaceId),
-  ])
+  const hilos = await listarHilos(ctx.admin, ctx.workspaceId)
 
   if (!threadId) {
     return NextResponse.json(
-      { mensajes: [], acciones: [], autoBuild, hilos },
+      { mensajes: [], acciones: [], hilos },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   }
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
     loadActions(ctx.admin, threadId, ctx.workspaceId),
   ])
   return NextResponse.json(
-    { mensajes, acciones, autoBuild, hilos },
+    { mensajes, acciones, hilos },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
@@ -212,7 +213,7 @@ export async function POST(request: Request) {
           history: [...toAnthropic(previos), { role: 'user', content: texto }],
           locale,
           onEvent: push,
-          autoBuild: await autoBuildDe(ctx.admin, ctx.workspaceId),
+          autoBuild: PIDE_PERMISO,
           flota: ctx.flota,
           // Lo último que escribió la persona, para la pista de intención. El
           // historial ya lo trae, pero buscarlo ahí adentro sería adivinar
