@@ -68,6 +68,7 @@ import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import { briefDeVideoPorConversacion } from '@/lib/channels/tiktok_comment/videos';
 import {
   summarizeConversationIfNeeded,
   summarizeContactIfNeeded,
@@ -1656,7 +1657,15 @@ async function generateReply(
   const igContext =
     contact.channel === 'instagram' || contact.channel === 'ig_comment'
       ? await loadInstagramContext(db, primaryContact.id).catch(() => null)
-      : null;
+      : origen.channel === 'tiktok_comment'
+        ? // Un comentario de TikTok le habla al VIDEO, no a una conversación:
+          // sin saber qué dice el video, el agente contestaba a ciegas.
+          await briefDeVideoPorConversacion(
+            db,
+            agent.workspace_id,
+            origen.conversationId,
+          ).catch(() => null)
+        : null;
   const system = buildSystemPrompt(
     agent,
     contact,
@@ -1828,7 +1837,11 @@ async function generateReply(
     // Descuento. El tope lo pone el comercio y con 0 —el default— la
     // herramienta ni se ofrece: un descuento es margen, y ningún default puede
     // decidir cuánto está dispuesto a regalar un negocio que no lo pidió.
-    ...(topeDescuento > 0 && primaryContact.id && puede('ofrecer_descuento')
+    //
+    // Y con Shopify: el cupón lo emite Shopify. En una tienda Tiendanube o
+    // WooCommerce se ofrecía igual y fallaba al ejecutarse, justo después de
+    // que el agente le prometiera la rebaja a la clienta.
+    ...(shopify && topeDescuento > 0 && primaryContact.id && puede('ofrecer_descuento')
       ? [buildDescuentoTool(topeDescuento)]
       : []),
     // Lo que hace una persona en la bandeja mientras atiende. Ninguna recibe un

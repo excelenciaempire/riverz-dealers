@@ -86,7 +86,12 @@ export const AGENT_TOOLBOX: readonly ToolSpec[] = [
     modes: ['off', 'aprobacion', 'auto'],
     fallback: 'auto',
     legacy: 'crear_checkout',
-    requires: 'descuento',
+    // Shopify, y no "tiene tope": el tope es una decisión del comercio que se
+    // edita en la misma fila, pero el cupón lo emite Shopify. En una tienda
+    // Tiendanube o WooCommerce la herramienta se ofrecía igual y fallaba al
+    // ejecutarse — después de que el agente le prometiera la rebaja a la
+    // clienta, que es el peor momento para no poder cumplir.
+    requires: 'shopify',
     sensible: true,
   },
   {

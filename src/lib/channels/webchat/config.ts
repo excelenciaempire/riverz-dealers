@@ -49,6 +49,22 @@ export interface WebchatSettings {
   offline_message: string;
 }
 
+/**
+ * A los cuántos segundos se abre solo, dentro de lo razonable.
+ *
+ * El recorte estaba SÓLO al guardar desde el panel. Cualquier otro camino que
+ * escriba la configuración —el Operator, el MCP, una importación, un arreglo a
+ * mano— dejaba pasar un 1 (un pop-up encima de quien recién entró) o un 999
+ * (que no ve nadie). Se recorta también al leer: así el número que llega al
+ * navegador es siempre uno que tiene sentido, lo haya escrito quien lo haya
+ * escrito. 0 sigue significando "no se abre solo".
+ */
+export function segundosDeApertura(valor: number | null | undefined): number {
+  const n = Math.floor(Number(valor));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(120, Math.max(3, n));
+}
+
 export function widgetSettings(
   config: WebchatConfig,
   fallbackName: string,
@@ -61,7 +77,7 @@ export function widgetSettings(
     brand_name: config.brand_name || fallbackName,
     avatar_url: config.avatar_url || null,
     require_email: config.require_email ?? WEBCHAT_DEFAULTS.require_email,
-    auto_open_seconds: config.auto_open_seconds ?? WEBCHAT_DEFAULTS.auto_open_seconds,
+    auto_open_seconds: segundosDeApertura(config.auto_open_seconds),
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,
     locale: (extra?.locale ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es',

@@ -77,7 +77,10 @@ export async function GET(request: Request) {
     shopify: plataformas.includes('shopify'),
     tienda: plataformas.length > 0,
     cobro: Boolean(mp.data),
-    descuento: Number.isFinite(maxDto) && maxDto > 0,
+    // Las dos condiciones: el comercio autorizó descontar Y hay Shopify, que es
+    // quien emite el cupón. Con una sola, el interruptor quedaba prendido y la
+    // herramienta fallaba al ejecutarse.
+    descuento: Number.isFinite(maxDto) && maxDto > 0 && plataformas.includes('shopify'),
     voz: Boolean(voz.data),
   });
 }
