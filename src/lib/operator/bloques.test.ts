@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { aplicarEvento, aplicarEventoDePlan, grabador, type Bloque } from './bloques'
+import {
+  agrupar,
+  aplicarEvento,
+  aplicarEventoDePlan,
+  grabador,
+  sinCondicional,
+  type Bloque,
+} from './bloques'
 import type { OperatorEvent } from './events'
 
 /**
@@ -123,5 +130,79 @@ describe('el grabador del servidor', () => {
       g.ver(e)
     }
     expect(g.bloques.map((b) => b.k)).toEqual(['texto', 'paso'])
+  })
+})
+
+describe('cómo se cuenta lo que ya pasó', () => {
+  it('un paso hecho pierde el condicional', () => {
+    // El bug de confianza: el paso decía «Crearía» sobre una automatización que
+    // ya estaba creada, y quien lo leyó pensó que no había aprobado nada.
+    expect(
+      sinCondicional('Crearía «Recompra por unidades»: cuando se pagó un pedido, 9 paso(s).'),
+    ).toBe('«Recompra por unidades»: cuando se pagó un pedido, 9 paso(s).')
+    expect(sinCondicional('Prendería «Recompra». Empieza a dispararse.')).toBe(
+      '«Recompra». Empieza a dispararse.',
+    )
+  })
+
+  it('no le toca nada a un texto que no empieza en condicional', () => {
+    expect(sinCondicional('Ya no hay nada que hacer.')).toBe('Ya no hay nada que hacer.')
+    expect(sinCondicional('María quería otra cosa')).toBe('María quería otra cosa')
+  })
+})
+
+describe('los pasos repetidos', () => {
+  const lectura = (id: string, key: string, estado: 'ok' | 'corriendo' = 'ok'): Bloque => ({
+    k: 'paso',
+    id,
+    key,
+    label: key,
+    estado,
+  })
+
+  it('tres iguales seguidos se cuentan como uno', () => {
+    // «Mirando las automatizaciones» tres veces en fila no cuenta tres cosas.
+    const g = agrupar([
+      lectura('a', 'automatizaciones.listar'),
+      lectura('b', 'automatizaciones.listar'),
+      lectura('c', 'automatizaciones.listar'),
+    ])
+    expect(g).toHaveLength(1)
+    expect(g[0].veces).toBe(3)
+  })
+
+  it('si una sigue corriendo, la fila sigue girando', () => {
+    const g = agrupar([
+      lectura('a', 'plantillas.estado'),
+      lectura('b', 'plantillas.estado', 'corriendo'),
+    ])
+    expect(g[0].veces).toBe(2)
+    expect(g[0].b.k === 'paso' && g[0].b.estado).toBe('corriendo')
+  })
+
+  it('lo que dejó algo en la cuenta nunca se junta', () => {
+    // Ahí el detalle importa: dos cosas creadas son dos cosas.
+    const construido = (id: string): Bloque => ({
+      k: 'paso',
+      id,
+      key: 'segmentos.crear',
+      label: 'x',
+      estado: 'hecho',
+      actionId: `acc-${id}`,
+    })
+    expect(agrupar([construido('a'), construido('b')])).toHaveLength(2)
+  })
+
+  it('no junta dos lecturas distintas', () => {
+    expect(agrupar([lectura('a', 'plantillas.estado'), lectura('b', 'contactos.listar')])).toHaveLength(2)
+  })
+
+  it('no junta a través de un texto en el medio', () => {
+    const g = agrupar([
+      lectura('a', 'plantillas.estado'),
+      { k: 'texto', id: 't0', texto: 'Hay tres.' },
+      lectura('b', 'plantillas.estado'),
+    ])
+    expect(g).toHaveLength(3)
   })
 })

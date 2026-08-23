@@ -130,3 +130,76 @@ export function aplicarEventoDePlan(bloques: Bloque[], e: OperatorEvent): Bloque
   }
   return aplicarEvento(bloques, e)
 }
+
+/**
+ * Le saca el verbo en condicional a una vista previa.
+ *
+ * «Crearía «X»: …» → ««X»: …». La vista previa está escrita como *lo que
+ * haría*, porque su trabajo es la tarjeta de aprobación; mostrada tal cual
+ * sobre algo YA hecho, dice que no pasó lo que sí pasó. Se vio en una cuenta
+ * real: el paso decía «Crearía» sobre una automatización que ya estaba creada,
+ * y quien lo leyó pensó que no había aprobado nada.
+ */
+const CONDICIONALES = [
+  'Aprobaría',
+  'Apagaría',
+  'Armaría',
+  'Crearía',
+  'Daría',
+  'Dejaría',
+  'Desconectaría',
+  'Guardaría',
+  'Llamaría',
+  'Mandaría',
+  'Pausaría',
+  'Prendería',
+  'Reabriría',
+  'Rechazaría',
+]
+
+export function sinCondicional(texto: string): string {
+  // Lista cerrada y no `/\w+ría/`: con la expresión suelta, un nombre propio
+  // que termina en «ría» —María, Rosalía— se comía la primera palabra de un
+  // texto que no tenía nada de condicional.
+  for (const v of CONDICIONALES) {
+    if (texto.startsWith(`${v} `)) return texto.slice(v.length + 1)
+  }
+  return texto
+}
+
+/**
+ * Junta los pasos seguidos que dicen lo mismo.
+ *
+ * Tres «Mirando las automatizaciones» en fila no cuentan tres cosas: cuentan
+ * una, tres veces. Sólo se juntan las lecturas que salieron bien y no dejaron
+ * nada: cualquier paso con acción, con dibujo o con error se queda solo, porque
+ * ahí el detalle importa.
+ */
+export function agrupar(bloques: Bloque[]): Array<{ b: Bloque; veces: number }> {
+  const juntable = (b: Bloque) =>
+    b.k === 'paso' &&
+    (b.estado === 'ok' || b.estado === 'corriendo') &&
+    !b.actionId &&
+    !b.artefacto
+
+  const out: Array<{ b: Bloque; veces: number }> = []
+  for (const b of bloques) {
+    const ultimo = out[out.length - 1]
+    if (
+      juntable(b) &&
+      ultimo &&
+      juntable(ultimo.b) &&
+      ultimo.b.k === 'paso' &&
+      b.k === 'paso' &&
+      ultimo.b.key === b.key
+    ) {
+      ultimo.veces += 1
+      // Gana el estado más avanzado: si una de las tres sigue corriendo, la
+      // fila sigue girando.
+      if (b.estado === 'corriendo') ultimo.b = b
+      continue
+    }
+    out.push({ b, veces: 1 })
+  }
+  return out
+}

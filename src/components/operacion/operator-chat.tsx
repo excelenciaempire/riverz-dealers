@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUp,
-  Brain,
   Check,
   Eye,
+  Hand,
   History,
   Loader2,
   MessageSquarePlus,
@@ -14,12 +14,15 @@ import {
   Sparkles,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
 import { TextoRico } from '@/components/ui/texto-rico'
 import {
+  agrupar,
   aplicarEvento,
   aplicarEventoDePlan,
+  sinCondicional,
   type Bloque,
 } from '@/lib/operator/bloques'
 import { useFormat } from '@/hooks/use-format'
@@ -596,8 +599,10 @@ export function OperatorChat({
             // colgar del techo con media pantalla vacía debajo. Con el hilo
             // largo el scroll se comporta igual; con el hilo corto deja de
             // parecer una pantalla a medio cargar.
+            // Sin `max-w-3xl` centrado: el pedido YA es una columna angosta,
+            // y centrarlo adentro dejaba dos márgenes muertos a los costados.
             fullscreen &&
-              'mx-auto min-h-full w-full max-w-3xl px-4 py-8 ' +
+              'min-h-full w-full px-5 py-6 ' +
                 (mensajes.length === 0 ? 'justify-center' : 'justify-end'),
           )}
         >
@@ -635,21 +640,7 @@ export function OperatorChat({
               onVer={verComoQuedo}
             />
           ) : (
-            <div
-              key={m.id}
-              className={cn(
-                // `w-fit`: la burbuja mide lo que dice. Sin eso, "hola" ocupaba
-                // el ancho de la columna y parecía un cartel.
-                'w-fit max-w-[75%] rounded-2xl px-3.5 py-2 text-sm break-words',
-                m.role === 'user'
-                  ? 'ml-auto bg-primary text-primary-foreground'
-                  : 'bg-muted text-foreground',
-              )}
-            >
-              {/* Lo que escribe una persona no lleva formato; lo que contesta
-                  el asistente sí, y sin esto se leía «**recompra_1_unidad**». */}
-              {m.role === 'user' ? m.text : <TextoRico text={m.text} />}
-            </div>
+            <Dicho key={m.id} role={m.role} text={m.text} />
           ),
         )}
 
@@ -707,9 +698,7 @@ export function OperatorChat({
         }}
         className={cn(
           'shrink-0',
-          fullscreen
-            ? 'mx-auto w-full max-w-3xl px-4 pb-6'
-            : 'flex items-center gap-2 border-t border-border p-3',
+          fullscreen ? 'w-full px-5 pb-5' : 'flex items-center gap-2 border-t border-border p-3',
         )}
       >
         <div
@@ -718,8 +707,7 @@ export function OperatorChat({
             // A pantalla completa el compositor es una pieza flotante y no una
             // franja pegada al borde: es lo que hace que el chat se sienta la
             // pantalla y no el pie de otra cosa.
-            fullscreen &&
-              'rounded-2xl border border-border bg-card px-4 py-3 shadow-sm',
+            fullscreen && 'app-glass rounded-2xl px-4 py-3',
           )}
         >
           <input
@@ -741,18 +729,22 @@ export function OperatorChat({
         {/* Debajo del compositor y no en una pantalla de ajustes: es una
             decisión sobre lo que va a pasar en el próximo mensaje, así que se
             toma mirando el mensaje. */}
+        {/* El modo, como ficha y no como pie de página de 11px. Que construya
+            solo cambia lo que va a pasar con el próximo mensaje, y leerlo
+            después —cuando algo ya se creó— es tarde. Mismo lenguaje que el
+            banco: relleno si actúa, trazo si espera. */}
         {auto !== null && (
           <button
             type="button"
             onClick={() => void cambiarModo(!auto)}
-            className="mt-2 flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            className={cn(
+              'mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.12em] uppercase transition-colors',
+              auto
+                ? 'bg-primary text-primary-foreground'
+                : 'border border-dashed border-border text-muted-foreground hover:text-foreground',
+            )}
           >
-            <span
-              className={cn(
-                'inline-block size-1.5 rounded-full',
-                auto ? 'bg-accent-ink' : 'bg-muted-foreground/50',
-              )}
-            />
+            {auto ? <Zap className="size-3" /> : <Hand className="size-3" />}
             {t(auto ? 'operation.modeAuto' : 'operation.modeAsk')}
           </button>
         )}
@@ -989,6 +981,46 @@ function TarjetaPlan({
  * ve que está trabajando y en qué. El texto aparece abajo, en la misma burbuja
  * en la que va a quedar cuando termine, para que no salte de lugar al cerrar.
  */
+/**
+ * Lo que se dijo, sin burbujas.
+ *
+ * Lo que pediste va con el resaltador de la marca —un marcador sobre el texto,
+ * no una cápsula— y lo que contesta el equipo va como prosa. Las burbujas
+ * enfrentadas son de una app de mensajería; esto es una transcripción, y leerla
+ * como tal es lo que la separa de cualquier chat de IA.
+ */
+function Dicho({ role, text }: { role: 'user' | 'assistant'; text: string }) {
+  if (!text.trim()) return null
+  if (role === 'user') {
+    return (
+      <p className="text-[15px] leading-relaxed font-medium">
+        <span className="app-resaltado">{text}</span>
+      </p>
+    )
+  }
+  return (
+    <div className="text-sm leading-relaxed text-foreground">
+      <TextoRico text={text} />
+    </div>
+  )
+}
+
+/**
+ * Cómo se lee un paso YA HECHO.
+ *
+ * El gerundio cuenta lo que está pasando; sobre algo terminado hay que usar el
+ * pasado, o la pantalla dice una cosa y la base dice otra.
+ */
+const PASO_HECHO: Record<string, string> = {
+  'automatizaciones.crear': 'operation.hechoAutoCrear',
+  'automatizaciones.crear_desde_receta': 'operation.hechoAutoCrear',
+  'automatizaciones.editar': 'operation.hechoAutoEditar',
+  'automatizaciones.activar': 'operation.hechoAutoActivar',
+  'plantillas.crear_borrador': 'operation.hechoPlantilla',
+  'segmentos.crear': 'operation.hechoSegmento',
+  'agentes.crear_borrador': 'operation.hechoAgente',
+}
+
 function Turno({
   bloques,
   thinking,
@@ -1005,107 +1037,101 @@ function Turno({
 }) {
   const t = useT()
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {thinking ? (
-        <div className="rounded-lg border border-dashed border-border px-3 py-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-            <Brain className="size-3" />
-            {t('operation.operatorReasoning')}
-          </div>
-          <p className="mt-1 line-clamp-3 text-xs leading-snug text-muted-foreground">
-            {thinking}
-          </p>
-        </div>
+        <p className="line-clamp-3 border-l border-dashed border-border pl-3 text-[11px] leading-snug text-muted-foreground">
+          {thinking}
+        </p>
       ) : null}
 
-      {bloques.map((b) => {
+      {agrupar(bloques).map(({ b, veces }) => {
         if (b.k === 'texto') {
-          return (
-            <div
-              key={b.id}
-              className="w-fit max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm break-words text-foreground"
-            >
-              <TextoRico text={b.texto} />
-            </div>
-          )
+          return <Dicho key={b.id} role="assistant" text={b.texto} />
         }
-        // La acción de este paso, para decidirla acá mismo. Estaba al final del
-        // hilo, agrupada bajo "Esperando tu aprobación", lejos del momento en
-        // que ocurrió — y a tres turnos de distancia ya no se sabía a cuál de
-        // todas correspondía.
+
         const accion = b.actionId ? acciones?.get(b.actionId) : undefined
-        return (
-          <div key={b.id} className="space-y-2">
-          <div
-            className={cn(
-              'flex items-start gap-2 text-xs',
-              // Lo construido se destaca: es lo único de la lista que dejó algo
-              // nuevo en la cuenta.
-              b.estado === 'hecho'
-                ? 'rounded-lg border border-accent-ink/25 bg-primary/5 px-3 py-2'
-                : 'pl-1',
-            )}
-          >
-            <span className="mt-0.5 shrink-0">
-              {b.estado === 'corriendo' ? (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-              ) : b.estado === 'error' ? (
-                <X className="size-3.5 text-red-600 dark:text-red-400" />
-              ) : b.estado === 'propuesto' ? (
-                <Sparkles className="size-3.5 text-accent-ink" />
-              ) : b.estado === 'hecho' ? (
-                <PlusCircle className="size-3.5 text-accent-ink" />
-              ) : (
-                <Check className="size-3.5 text-accent-ink" />
-              )}
-            </span>
-            <span
-              className={cn(
-                'min-w-0 flex-1',
-                b.estado === 'hecho' ? 'text-foreground' : 'text-muted-foreground',
-              )}
+        const hecho = b.estado === 'hecho'
+        const claveHecho = hecho ? PASO_HECHO[b.key] : undefined
+        const etiqueta = claveHecho
+          ? t(claveHecho)
+          : PASO_LABEL[b.key]
+            ? t(PASO_LABEL[b.key])
+            : b.label
+
+        // Una lectura es una anotación al margen: línea fina, letra chica. Lo
+        // que dejó algo en la cuenta sube de rango y se dibuja como una ficha.
+        if (!hecho && b.estado !== 'propuesto') {
+          return (
+            <p
+              key={b.id}
+              className="flex items-center gap-2 border-l border-border pl-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase"
             >
-              {PASO_LABEL[b.key] ? t(PASO_LABEL[b.key]) : b.label}
-              {/* Un paso que espera decisión NO repite su descripción acá: la
-                  tarjeta con los botones está justo abajo y dice lo mismo, más
-                  completo. Leer dos veces la misma frase, una de ellas cortada,
-                  es lo que hacía parecer que el texto aparecía y desaparecía. */}
-              {b.detalle && b.estado !== 'propuesto' && (
-                <span className={b.estado === 'hecho' ? '' : 'text-foreground'}>
-                  {' · '}
+              {b.estado === 'corriendo' ? (
+                <Loader2 className="size-3 shrink-0 animate-spin" />
+              ) : b.estado === 'error' ? (
+                <X className="size-3 shrink-0 text-red-600 dark:text-red-400" />
+              ) : (
+                <Check className="size-3 shrink-0 text-accent-ink" />
+              )}
+              <span className="min-w-0 flex-1 truncate">{etiqueta}</span>
+              {veces > 1 && <span className="shrink-0 tabular-nums opacity-60">×{veces}</span>}
+              {b.estado === 'error' && b.detalle && (
+                <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-red-600 dark:text-red-400">
                   {b.detalle}
                 </span>
               )}
-              {/* El lienzo NO se dibuja acá: va en el panel de la derecha, que
-                  es donde pediste verlo, y donde el equipo ya lo va dibujando
-                  mientras trabaja. Estaba en los dos lados y quedaba el mismo
-                  árbol dos veces en la misma pantalla. Acá queda el botón, que
-                  además lo trae LEÍDO DE LA BASE y no como se propuso. */}
+            </p>
+          )
+        }
+
+        return (
+          <div key={b.id} className="space-y-2">
+            <div
+              className={cn(
+                'rounded-xl p-3',
+                // Lo hecho ya está en la cuenta; lo propuesto todavía no. Se
+                // ven distinto sin leer una palabra.
+                hecho
+                  ? 'app-glass'
+                  : 'border border-dashed border-accent-ink/40 bg-primary/5',
+              )}
+            >
+              <p className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.14em] uppercase">
+                {hecho ? (
+                  <PlusCircle className="size-3 shrink-0 text-accent-ink" />
+                ) : (
+                  <Sparkles className="size-3 shrink-0 text-accent-ink" />
+                )}
+                <span className="text-accent-ink">{etiqueta}</span>
+              </p>
+              {b.detalle && (
+                <p className="mt-1.5 text-xs leading-snug text-foreground">
+                  {hecho ? sinCondicional(b.detalle) : b.detalle}
+                </p>
+              )}
               {b.artefacto && b.actionId && onVer && (
                 <button
                   type="button"
                   onClick={() => onVer(b.actionId!, b.key)}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent-ink transition-colors hover:bg-primary/10"
+                  className="app-card-cta mt-2 text-[10px] text-accent-ink transition-opacity hover:opacity-70"
                 >
                   <Eye className="size-3" />
-                  {b.estado === 'hecho'
+                  {hecho
                     ? t('operation.mesaVerComoQuedo')
                     : t('operation.mesaVerElDetalle')}
                 </button>
               )}
               {/* Sin acción a la que pedirle el dibujo, el de acá es lo único
-                  que hay. Pasa con lo que se propone dentro de un plan que
-                  todavía no se aprobó. */}
+                  que hay. Pasa dentro de un plan que todavía no se aprobó. */}
               {b.artefacto && !b.actionId && (
                 <div className="mt-2">
                   <VistaArtefacto artefacto={b.artefacto} />
                 </div>
               )}
-            </span>
-          </div>
-          {accion?.status === 'propuesto' && onDecidir && (
-            <TarjetaAccion accion={accion} onDecidir={onDecidir} />
-          )}
+            </div>
+            {accion?.status === 'propuesto' && onDecidir && (
+              <TarjetaAccion accion={accion} onDecidir={onDecidir} />
+            )}
           </div>
         )
       })}

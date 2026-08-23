@@ -63,6 +63,21 @@ export const operation = {
   mesaVerComoQuedo: { es: "Ver cómo quedó", en: "See how it turned out" },
   mesaVerElDetalle: { es: "Ver el detalle", en: "See the detail" },
   mapaOperador: { es: "Operador", en: "Operator" },
+  // El banco: la pieza que se está armando, a tamaño real.
+  bancoLaPieza: { es: "La pieza", en: "The piece" },
+  bancoVacio: {
+    es: "Acá aparece lo que el equipo va armando, a tamaño real.",
+    en: "Whatever the team is building shows up here, at full size.",
+  },
+  bancoVer: { es: "Ver la pieza", en: "See the piece" },
+  // Cómo se lee un paso YA hecho. El gerundio cuenta lo que pasa; sobre algo
+  // terminado hay que usar el pasado o la pantalla dice lo contrario que la base.
+  hechoAutoCrear: { es: "Automatización creada", en: "Automation created" },
+  hechoAutoEditar: { es: "Automatización cambiada", en: "Automation changed" },
+  hechoAutoActivar: { es: "Automatización activada", en: "Automation turned on" },
+  hechoPlantilla: { es: "Plantilla escrita", en: "Template written" },
+  hechoSegmento: { es: "Segmento creado", en: "Segment created" },
+  hechoAgente: { es: "Agente creado", en: "Agent created" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
   mesaEsLoPropuesto: {
     es: "Esto es lo que se propuso; lo guardado ya no está.",
