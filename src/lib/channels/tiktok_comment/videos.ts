@@ -32,9 +32,14 @@ const UA =
 /** Techo del archivo. Whisper de Groq corta en 25 MB y un TikTok de un minuto
  *  pesa ~4 MB: lo que pase de acá es otra cosa y no vale la pena bajarlo. */
 const MAX_BYTES = 24 * 1024 * 1024;
-/** TikTok a veces devuelve una página sin la dirección de reproducción. No es
- *  un error permanente: al segundo o tercer pedido aparece. */
-const INTENTOS_DESCARGA = 3;
+/** TikTok contesta primero con una página señuelo de ~13 KB —su defensa
+ *  anti-bots— y recién al tercer o cuarto pedido entrega la de verdad, de
+ *  ~395 KB. Medido sobre los dos videos que fallaban: intento 0 y 1 señuelo,
+ *  intento 2 la buena, siempre. */
+const INTENTOS_DESCARGA = 5;
+/** Y hay que darle aire entre pedido y pedido: tres intentos en el mismo
+ *  instante recibían tres veces el señuelo. */
+const ESPERA_ENTRE_PEDIDOS_MS = 1500;
 /** Cuántas veces se reintenta un video que falla. Después se abandona: la
  *  cuota no se quema en el mismo archivo roto cada quince minutos. */
 const MAX_INTENTOS = 6;
@@ -133,12 +138,27 @@ export async function transcribirPendientes(
   for (const v of pendientes) {
     const intento = (v.transcript_attempts ?? 0) + 1;
     try {
-      const archivo = await bajarVideo(v.share_url);
-      if (!archivo) {
+      const descarga = await bajarVideo(v.share_url);
+      if (descarga.tipo === "sin_video") {
+        // Publicación de FOTOS: un carrusel con música, sin video. No hay nada
+        // que transcribir y no tiene sentido reintentarlo cada quince minutos.
+        await db
+          .from("tiktok_videos")
+          .update({
+            transcript_status: "sin_audio",
+            transcript_error: "publicación de fotos, sin video",
+            transcript_attempts: intento,
+            transcribed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", v.id);
+        continue;
+      }
+      if (descarga.tipo !== "ok") {
         await marcarError(db, v.id, intento, "no se pudo bajar el video");
         continue;
       }
-      const r = await transcribeBuffer(archivo, {
+      const r = await transcribeBuffer(descarga.archivo, {
         mime: "video/mp4",
         filename: `${v.video_id}.mp4`,
         timeoutMs: TIMEOUT_TRANSCRIPCION_MS,
@@ -201,8 +221,17 @@ async function marcarError(
  * sin ella —defensa anti-bots—, así que se reintenta; si igual no aparece,
  * devuelve null y el llamador lo anota como error reintentable.
  */
-async function bajarVideo(shareUrl: string): Promise<Buffer | null> {
+type Descarga =
+  | { tipo: "ok"; archivo: Buffer }
+  /** La publicación no tiene video: es un carrusel de fotos. */
+  | { tipo: "sin_video" }
+  | { tipo: "fallo" };
+
+async function bajarVideo(shareUrl: string): Promise<Descarga> {
   for (let intento = 0; intento < INTENTOS_DESCARGA; intento++) {
+    if (intento > 0) {
+      await new Promise((r) => setTimeout(r, ESPERA_ENTRE_PEDIDOS_MS * intento));
+    }
     try {
       const pagina = await fetch(shareUrl, {
         headers: { "user-agent": UA, "accept-language": "es-ES,es;q=0.9" },
@@ -212,6 +241,11 @@ async function bajarVideo(shareUrl: string): Promise<Buffer | null> {
       const html = await pagina.text();
       const m = /"playAddr":"(.*?)"/.exec(html);
       if (!m) continue;
+      // La página buena existe y la dirección viene VACÍA: es una publicación
+      // de fotos. Distinto de "TikTok no me dio la página", que sí conviene
+      // reintentar. Sin esta distinción los carruseles se reintentaban seis
+      // veces y quedaban marcados como error para siempre.
+      if (!m[1]) return { tipo: "sin_video" };
       let directa: string;
       try {
         // Viene con los "/" escapados como /: JSON.parse lo deshace sin
@@ -220,7 +254,7 @@ async function bajarVideo(shareUrl: string): Promise<Buffer | null> {
       } catch {
         continue;
       }
-      if (!directa.startsWith("https://")) continue;
+      if (!directa.startsWith("https://")) return { tipo: "sin_video" };
       const cookies = (pagina.headers.getSetCookie?.() ?? [])
         .map((c) => c.split(";")[0])
         .join("; ");
@@ -235,15 +269,15 @@ async function bajarVideo(shareUrl: string): Promise<Buffer | null> {
       });
       if (!archivo.ok) continue;
       const largo = Number(archivo.headers.get("content-length") ?? 0);
-      if (largo > MAX_BYTES) return null;
+      if (largo > MAX_BYTES) return { tipo: "fallo" };
       const buf = Buffer.from(await archivo.arrayBuffer());
-      if (buf.length === 0 || buf.length > MAX_BYTES) return null;
-      return buf;
+      if (buf.length === 0 || buf.length > MAX_BYTES) return { tipo: "fallo" };
+      return { tipo: "ok", archivo: buf };
     } catch {
       /* siguiente intento */
     }
   }
-  return null;
+  return { tipo: "fallo" };
 }
 
 /**
