@@ -68,7 +68,7 @@ import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { briefDeVideoPorConversacion } from '@/lib/channels/tiktok_comment/videos';
+import { briefDePublicacionPorId } from '@/lib/channels/publicacion';
 import {
   summarizeConversationIfNeeded,
   summarizeContactIfNeeded,
@@ -1654,18 +1654,23 @@ async function generateReply(
   // "One brain": on Instagram, feed the reactive agent the same per-person
   // context the proactive engine uses (segment, persona, follow relationship,
   // live campaign + offer) so it never answers an enriched person blind.
-  const igContext =
-    contact.channel === 'instagram' || contact.channel === 'ig_comment'
-      ? await loadInstagramContext(db, primaryContact.id).catch(() => null)
-      : origen.channel === 'tiktok_comment'
-        ? // Un comentario de TikTok le habla al VIDEO, no a una conversación:
-          // sin saber qué dice el video, el agente contestaba a ciegas.
-          await briefDeVideoPorConversacion(
-            db,
-            agent.workspace_id,
-            origen.conversationId,
-          ).catch(() => null)
-        : null;
+  const extras: string[] = [];
+  if (contact.channel === 'instagram' || contact.channel === 'ig_comment') {
+    const ig = await loadInstagramContext(db, primaryContact.id).catch(() => null);
+    if (ig) extras.push(ig);
+  }
+  // Un comentario le habla a la PUBLICACIÓN, no a una conversación previa: sin
+  // el post —y en TikTok, sin lo que se dice en el video— el agente contesta a
+  // ciegas y termina pidiendo "más contexto" a un cliente que ya lo dio todo.
+  if (
+    origen.channel === 'ig_comment' ||
+    origen.channel === 'fb_comment' ||
+    origen.channel === 'tiktok_comment'
+  ) {
+    const post = await briefDePublicacionPorId(db, origen.conversationId).catch(() => null);
+    if (post) extras.push(post);
+  }
+  const igContext = extras.length ? extras.join('\n\n') : null;
   const system = buildSystemPrompt(
     agent,
     contact,

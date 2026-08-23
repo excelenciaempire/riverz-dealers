@@ -61,6 +61,23 @@ export async function briefDePublicacion(
   }
 }
 
+/**
+ * Igual, partiendo del id del hilo: el runner conoce la conversación por id,
+ * no el objeto. Una consulta más, y sólo en los canales de comentarios.
+ */
+export async function briefDePublicacionPorId(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from("conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const conv = data as Conversation | null;
+  return conv ? briefDePublicacion(db, conv) : null;
+}
+
 function bloque(texto: string, canal: "ig_comment" | "fb_comment"): string {
   const red = canal === "ig_comment" ? "Instagram" : "Facebook";
   return [
