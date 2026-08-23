@@ -215,6 +215,20 @@ async function leerSegmento(ctx: CapabilityContext, id: unknown): Promise<FilaSe
   return fila
 }
 
+/** El segmento como quedó guardado, con sus etiquetas ya nombradas. */
+export async function artefactoGuardadoDeSegmento(
+  ctx: CapabilityContext,
+  segmentoId: string,
+): Promise<Artefacto | null> {
+  const fila = await leerSegmento(ctx, segmentoId).catch(() => null)
+  if (!fila) return null
+  return artefactoDeSegmento(
+    fila.id,
+    fila.name,
+    await nombrarIdsDeEtiqueta(ctx, fila.rules ?? []),
+  )
+}
+
 // ---------------------------------------------------------------------------
 
 /** Cómo se lee cada operador cuando lo mira una persona. */

@@ -417,7 +417,7 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
   return {
     ...automation,
     pasos: plan.total,
-    nota: 'Queda pausada. Revísala y préndela cuando quieras.',
+    nota: 'Queda pausada. Al cerrar se le pregunta a la persona si la prende.',
   }
 }
 
@@ -524,7 +524,12 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       'Prende o pausa una automatización. Se deshace llamando de nuevo. Al prender valida la configuración: si le falta la plantilla o la etiqueta, no la deja activa.',
     descriptionEn:
       'Turns an automation on or off. Undone by calling it again. Turning it on validates the configuration: if the template or the tag is missing, it will not activate.',
-    risk: 'reversible',
+    // Prender es el momento en que empieza a hablarle a gente real, y eso no se
+    // deshace para quien ya recibió el mensaje. `risk` es una sola etiqueta para
+    // toda la capacidad, así que pausar también pide confirmación: de los dos
+    // lados posibles, ése es el seguro. Los cuatro interruptores de la cuenta
+    // —menús, reglas de comentario, automatizaciones y agentes— dicen lo mismo.
+    risk: 'irreversible',
     schema: {
       type: 'object',
       properties: {
@@ -574,9 +579,12 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       },
       required: ['step_id', 'amount', 'unit'],
     },
-    // Cambia cuánto espera un paso. Si la automatización está pausada no pasa
-    // nada, y si está activa cambia un tiempo — no manda nada nuevo.
-    inerte: true,
+    // Sin `inerte`, como la capacidad general de editar. Estaba marcada inerte
+    // con el argumento de que «cambia un tiempo, no manda nada nuevo»: es cierto
+    // que no agrega un mensaje, y también que bajar una espera de 21 días a una
+    // hora manda HOY los que iban a salir en tres semanas. La capacidad ancha
+    // —`automatizaciones.editar`, que puede hacer exactamente esto— siempre
+    // pidió un click; la angosta no puede ser la permisiva.
     async preview(ctx, args) {
       const { data } = await ctx.db
         .from('automation_steps')

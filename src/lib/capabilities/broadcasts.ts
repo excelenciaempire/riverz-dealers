@@ -32,6 +32,7 @@ import type { SegmentMatchMode, SegmentRule } from '@/lib/segments/types'
 import { idColumn } from '@/lib/short-id'
 import { isValidE164, sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Capability, CapabilityContext } from './types'
 
 /** Filas por INSERT: una lista larga de destinatarios no entra en un solo pedido. */
@@ -567,6 +568,44 @@ const ESQUEMA_CREAR = {
     },
   },
   required: ['nombre', 'plantilla', 'segmento_id'],
+}
+
+/** La campaña como quedó guardada, con los destinatarios que de verdad tiene. */
+export async function artefactoGuardadoDeCampana(
+  ctx: CapabilityContext,
+  broadcastId: string,
+): Promise<Artefacto | null> {
+  const { data } = await ctx.db
+    .from('broadcasts')
+    .select('id, name, template_name, scheduled_at, status')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', broadcastId)
+    .maybeSingle()
+  const fila = data as {
+    id: string
+    name: string
+    template_name: string | null
+    scheduled_at: string | null
+    status: string | null
+  } | null
+  if (!fila) return null
+  const { count } = await ctx.db
+    .from('broadcast_recipients')
+    .select('id', { count: 'exact', head: true })
+    .eq('broadcast_id', fila.id)
+  return {
+    kind: 'campana',
+    nombre: fila.name,
+    plantilla: fila.template_name ?? '',
+    destinatarios: count ?? 0,
+    cuando: fila.scheduled_at
+      ? `programada para el ${new Date(fila.scheduled_at).toLocaleString('es', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        })}`
+      : `${fila.status ?? 'borrador'}: sale cuando la lances`,
+    base: { id: fila.id, nombre: fila.name },
+  }
 }
 
 export const BROADCAST_CAPABILITIES: Capability[] = [

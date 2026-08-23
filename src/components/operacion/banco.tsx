@@ -105,9 +105,9 @@ export function Banco({ className }: { className?: string }) {
               </h2>
             )}
             <div className="flex shrink-0 items-center gap-3">
-              {fijado?.real && fijado.entidadId && esAutomatizacion(fijado) && (
+              {fijado?.real && fijado.entidadId && pantallaDe(fijado) && (
                 <Link
-                  href={`/automatizaciones/${toShortId(fijado.entidadId)}/editar`}
+                  href={pantallaDe(fijado)!}
                   className="app-card-cta text-[11px] text-accent-ink hover:underline"
                 >
                   {t('operation.mesaAbrirEnPantalla')}
@@ -176,8 +176,25 @@ function cap(id: string): string {
   return `${id[0].toUpperCase()}${id.slice(1)}`
 }
 
-function esAutomatizacion(f: FijadoEnMesa): boolean {
-  return f.capabilityKey.startsWith('automatizaciones.')
+/**
+ * A qué pantalla lleva esta pieza, si tiene una.
+ *
+ * Sólo las automatizaciones tenían salida: el resto se veía en el banco y se
+ * quedaba ahí. Un agente y un segmento no la tienen porque no hay una pantalla
+ * por id a la que ir, y un enlace que lleva a una lista no es abrir la pieza.
+ */
+const PANTALLA: Record<string, (id: string) => string> = {
+  'automatizaciones.': (id) => `/automatizaciones/${toShortId(id)}/editar`,
+  'plantillas.': (id) => `/plantillas/${toShortId(id)}`,
+  'campanas.': (id) => `/campanas/${toShortId(id)}`,
+  // El menú se pide por su id entero: su pantalla lo busca por la API y no
+  // por columna, así que el id corto no resolvería.
+  'flujos.': (id) => `/menus/${id}`,
+}
+
+function pantallaDe(f: FijadoEnMesa): string | null {
+  const armar = Object.entries(PANTALLA).find(([p]) => f.capabilityKey.startsWith(p))?.[1]
+  return armar && f.entidadId ? armar(f.entidadId) : null
 }
 
 /**

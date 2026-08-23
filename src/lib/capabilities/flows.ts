@@ -340,6 +340,40 @@ async function activar(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+/**
+ * El menú como quedó guardado, entero.
+ *
+ * A diferencia del dibujo de una edición —que muestra SÓLO los nodos tocados,
+ * para que el diff se lea— acá van todos: la pregunta es cómo quedó.
+ */
+export async function artefactoGuardadoDeFlujo(
+  ctx: CapabilityContext,
+  flujoId: string,
+): Promise<Artefacto | null> {
+  const actual = await leerFlujo(ctx.db, flujoId, ctx.workspaceId)
+  if (!actual) return null
+  return {
+    kind: 'flujo',
+    nombre: actual.flow.name,
+    nodos: [
+      {
+        clave: CLAVE_DISPARADOR,
+        tipo: 'disparador',
+        resumen: describirDisparador(
+          actual.flow.trigger_type,
+          actual.flow.trigger_config ?? {},
+        ),
+      },
+      ...actual.nodos.map((n) => ({
+        clave: n.node_key,
+        tipo: n.node_type,
+        resumen: resumirNodo(n.node_type, n.config),
+      })),
+    ],
+    base: { id: actual.flow.id, nombre: actual.flow.name },
+  }
+}
+
 export const FLOW_CAPABILITIES: Capability[] = [
   {
     key: 'flujos.listar',

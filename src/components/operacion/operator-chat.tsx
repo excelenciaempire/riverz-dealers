@@ -1227,8 +1227,19 @@ function TarjetaDecision({
   onCambiar?: (a: Accion) => void
 }) {
   const t = useT()
-  const [fuera, setFuera] = useState<Set<string>>(
-    () => new Set(acciones.filter((a) => a.risk === 'irreversible').map((a) => a.id)),
+  /**
+   * Lo irreversible entra apagado — cuando hay más de una cosa que mirar.
+   *
+   * La regla existe para que algo que quema un nombre para siempre no se
+   * apruebe de arrastre, escondido en una lista de ocho. Con UNA sola línea no
+   * hay dónde esconderse: la tarjeta ES la pregunta, con su aviso al lado, y
+   * hacerla destildar primero sería pedir dos clicks para una sola decisión que
+   * la persona está mirando de frente. Es el caso de «¿la prendo?».
+   */
+  const [fuera, setFuera] = useState<Set<string>>(() =>
+    acciones.length > 1
+      ? new Set(acciones.filter((a) => a.risk === 'irreversible').map((a) => a.id))
+      : new Set<string>(),
   )
   const elegidas = acciones.filter((a) => !fuera.has(a.id))
 

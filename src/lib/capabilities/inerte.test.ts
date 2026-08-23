@@ -19,7 +19,6 @@ import { ALL_CAPABILITIES, esInerte, getCapability } from './registry'
 const INERTES: Record<string, string> = {
   'automatizaciones.crear': 'nace pausada',
   'automatizaciones.crear_desde_receta': 'nace pausada y sin plantilla',
-  'automatizaciones.editar_espera': 'cambia un tiempo, no manda nada',
   'agentes.crear_borrador': 'nace pausado, no le contesta a nadie',
   'segmentos.crear': 'guarda un criterio; no prende ni manda nada',
   'segmentos.editar': 'cambia un criterio guardado; sigue sin mandar nada',
@@ -43,6 +42,12 @@ const INERTES: Record<string, string> = {
  */
 const NO_INERTES_A_PROPOSITO: Record<string, string> = {
   'automatizaciones.editar': 'si está prendida, cambia lo que se manda ahora mismo',
+  // Estuvo del otro lado, con el argumento de que «cambia un tiempo, no manda
+  // nada nuevo». Es cierto que no agrega un mensaje, y también que bajar una
+  // espera de 21 días a una hora manda HOY los que iban a salir en tres
+  // semanas. Cae exactamente bajo el criterio de este bloque, y la capacidad
+  // ancha que puede hacer lo mismo nunca fue inerte.
+  'automatizaciones.editar_espera': 'si está prendida, adelanta lo que ya está en cola',
   'flujos.editar': 'si está publicado, cambia lo que ve el cliente en la próxima conversación',
   'agentes.editar': 'si está activo, cambia cómo contesta en el próximo mensaje',
   'productos.editar': 'los agentes repiten esto ante un cliente en cuanto se guarda',

@@ -29,6 +29,7 @@ import {
   type AgentRole,
 } from '@/lib/ai/roles'
 import type { AiTone, BusinessHours } from '@/lib/ai/types'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext) {
@@ -568,6 +569,42 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+/**
+ * El agente como quedó guardado, para el panel.
+ *
+ * Lo mismo que hace la capacidad de editar con su resultado, pero leyendo la
+ * fila: es lo que separa «esto es lo que pedí» de «esto es lo que hay».
+ */
+export async function artefactoGuardadoDeAgente(
+  ctx: CapabilityContext,
+  agentId: string,
+): Promise<Artefacto | null> {
+  const { data } = await ctx.db
+    .from('ai_agents')
+    .select('id, name, role, permissions, escalate_keywords')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', agentId)
+    .maybeSingle()
+  const fila = data as {
+    id: string
+    name: string
+    role: string | null
+    permissions: Record<string, boolean> | null
+    escalate_keywords: string[] | null
+  } | null
+  if (!fila) return null
+  return {
+    kind: 'agente',
+    nombre: fila.name,
+    rol: fila.role ?? 'general',
+    puede: Object.entries(fila.permissions ?? {})
+      .filter(([, v]) => v)
+      .map(([k]) => k.replace(/_/g, ' ')),
+    escala: fila.escalate_keywords ?? [],
+    base: { id: fila.id, nombre: fila.name },
+  }
+}
+
 export const AGENT_CAPABILITIES: Capability[] = [
   {
     key: 'agentes.listar',
@@ -644,7 +681,12 @@ export const AGENT_CAPABILITIES: Capability[] = [
       'Prende o pausa un agente. Al prenderlo valida que no le dispute el canal a otro agente del mismo rol.',
     descriptionEn:
       'Turns an agent on or off. Turning it on checks that it does not compete for the channel with another agent of the same role.',
-    risk: 'reversible',
+    // Prender es el momento en que empieza a hablarle a gente real, y eso no se
+    // deshace para quien ya recibió el mensaje. `risk` es una sola etiqueta para
+    // toda la capacidad, así que pausar también pide confirmación: de los dos
+    // lados posibles, ése es el seguro. Los cuatro interruptores de la cuenta
+    // —menús, reglas de comentario, automatizaciones y agentes— dicen lo mismo.
+    risk: 'irreversible',
     schema: {
       type: 'object',
       properties: {

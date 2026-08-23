@@ -370,9 +370,28 @@ export async function POST(request: Request) {
       // Lo irreversible se muestra antes de hacerse.
       if (tool.risk === 'irreversible') {
         if (!token || !confirmacionValida(String(token), tool.name, args)) {
-          const detalle = tool.preview
-            ? await tool.preview(args, { label: actor.label })
-            : comoTexto(args)
+          let detalle: string
+          try {
+            detalle = tool.preview
+              ? await tool.preview(args, { label: actor.label })
+              : comoTexto(args)
+          } catch (err) {
+            // Una vista previa que no puede describir lo que haría es la forma
+            // que tiene una capacidad de decir «esto no se puede»: le falta la
+            // plantilla, el contacto no existe, la campaña ya salió. Sin esto,
+            // el motivo salía como una excepción sin atrapar y del otro lado se
+            // veía un error de servidor en vez de la explicación.
+            const motivo = err instanceof Error ? err.message : String(err)
+            await anotar({
+              actor,
+              tool: tool.name,
+              toolArgs: args,
+              risk: tool.risk,
+              ok: false,
+              summary: motivo,
+            })
+            return rpcError(body.id, -32000, motivo)
+          }
           await anotar({
             actor,
             tool: tool.name,

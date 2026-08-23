@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { getFeatureFlags, isRiverz2 } from '@/lib/admin/feature-flags'
+import { artefactoGuardadoDeAgente } from '@/lib/capabilities/agents'
 import { artefactoGuardadoDeAutomatizacion } from '@/lib/capabilities/automations'
+import { artefactoGuardadoDeCampana } from '@/lib/capabilities/broadcasts'
+import { artefactoGuardadoDeSegmento } from '@/lib/capabilities/contacts'
+import { artefactoGuardadoDeFlujo } from '@/lib/capabilities/flows'
 import { artefactoGuardadoDePlantilla } from '@/lib/capabilities/outbound'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { getLocale } from '@/lib/i18n/server'
@@ -70,13 +74,27 @@ export async function GET(
   let artefacto: Artefacto | null = null
   let real = false
 
+  /**
+   * Quién sabe releer cada pieza de la base.
+   *
+   * Las seis, no dos. Con sólo automatizaciones y plantillas acá, mirar «cómo
+   * quedó» un agente, un segmento, una campaña o un menú devolvía el dibujo
+   * PROPUESTO marcado como si fuera el guardado — que es la misma confusión que
+   * escondió una automatización rota, sólo que en cuatro dominios más.
+   */
+  const RELEER: Record<string, (id: string) => Promise<Artefacto | null>> = {
+    'automatizaciones.': (id) => artefactoGuardadoDeAutomatizacion(ctx, id),
+    'plantillas.': (id) => artefactoGuardadoDePlantilla(ctx, id),
+    'agentes.': (id) => artefactoGuardadoDeAgente(ctx, id),
+    'segmentos.': (id) => artefactoGuardadoDeSegmento(ctx, id),
+    'campanas.': (id) => artefactoGuardadoDeCampana(ctx, id),
+    'flujos.': (id) => artefactoGuardadoDeFlujo(ctx, id),
+  }
+
   if (entidadId) {
+    const releer = Object.entries(RELEER).find(([p]) => fila.capability_key.startsWith(p))?.[1]
     try {
-      if (fila.capability_key.startsWith('automatizaciones.')) {
-        artefacto = await artefactoGuardadoDeAutomatizacion(ctx, entidadId)
-      } else if (fila.capability_key.startsWith('plantillas.')) {
-        artefacto = await artefactoGuardadoDePlantilla(ctx, entidadId)
-      }
+      if (releer) artefacto = await releer(entidadId)
       real = artefacto !== null
     } catch {
       // Se borró, o cambió de cuenta. Abajo está el respaldo.
