@@ -18,6 +18,13 @@ import {
   type CreateOrderInput,
   type CreateOrderResult,
 } from '@/lib/shopify/create-order'
+import {
+  crearPedidoEnLaTienda,
+  type DatosDelCliente,
+  type LineaDePedido,
+  type PedidoCreado,
+  type PedidoError,
+} from '@/lib/commerce/create-order'
 import type { CommercePlatform } from '@/lib/commerce/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -100,4 +107,61 @@ export async function crearPedidoConEspejo(
   }
 
   return result
+}
+
+/**
+ * Lo mismo, para una tienda que no es Shopify.
+ *
+ * `crearPedidoEnLaTienda` creaba el pedido en Tiendanube o WooCommerce y ahí
+ * terminaba: no había fila en `orders`. La venta existía en la tienda y para
+ * Riverz no había pasado nada — sin atribución a la conversación, sin aparecer
+ * en las Compras del contacto, sin contar en las métricas. Justo lo que el
+ * comentario de arriba dice que no puede volver a pasar.
+ *
+ * `shop_domain` guarda el dominio de la tienda y `shopify_order_id` el id de la
+ * plataforma que sea: son las columnas que ya existen y las que después usa
+ * `lookup_order` para encontrar el pedido de esta persona.
+ */
+export async function crearPedidoLocalConEspejo(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string
+    lineas: LineaDePedido[]
+    cliente: DatosDelCliente
+    nota?: string | null
+  },
+  espejo: Omit<EspejoDePedido, 'workspaceId' | 'platform' | 'db'>,
+): Promise<PedidoCreado | PedidoError> {
+  const res = await crearPedidoEnLaTienda(db, args)
+  if ('error' in res) return res
+
+  // Fail-soft por la misma razón: el pedido ya está hecho en la tienda.
+  try {
+    await db.from('orders').insert({
+      workspace_id: args.workspaceId,
+      platform: res.platform,
+      contact_id: espejo.contactId ?? null,
+      agent_id: espejo.agentId ?? null,
+      conversation_id: espejo.conversationId ?? null,
+      channel: espejo.channel ?? null,
+      shopify_order_id: res.external_id,
+      order_number: res.order_number,
+      order_status_url: res.pay_url,
+      currency: res.currency,
+      total_price: res.total,
+      line_items: args.lineas,
+      customer_name: args.cliente.name ?? null,
+      customer_phone: args.cliente.phone ?? null,
+      customer_email: args.cliente.email ?? null,
+      shipping_address: args.cliente.address ?? null,
+      financial_status: 'pending',
+      status: 'created',
+      created_by: espejo.createdBy,
+      note: args.nota ?? null,
+    })
+  } catch (err) {
+    console.error('[pedidos] creado en la tienda pero el espejo en Riverz falló:', err)
+  }
+
+  return res
 }

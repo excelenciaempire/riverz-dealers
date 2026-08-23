@@ -352,6 +352,7 @@ export async function runAiAgent(
         otherStore,
         businessCurrency,
         db,
+        { conversationId: args.conversation.id, channel: args.channel },
       );
     } catch (genErr) {
       // El modelo falló (p. ej. Anthropic 401/402 sin crédito, 429, o 5xx).
@@ -1625,6 +1626,9 @@ async function generateReply(
   otherStore: OtherStoreContext | null,
   businessCurrency: string,
   db: SupabaseClient,
+  /** De dónde viene este turno. Lo necesitan las herramientas que dejan algo
+   *  anotado —un pedido, una devolución— para poder atribuirlo. */
+  origen: { conversationId: string; channel: Channel },
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -1827,9 +1831,14 @@ async function generateReply(
           db,
           workspaceId: agent.workspace_id,
           contactId: primaryContact.id,
-          conversationId: shopify?.conversationId ?? null,
+          // De la conversación que se está atendiendo, no del contexto de
+          // Shopify: `localOrders` existe justamente para las tiendas que NO
+          // son Shopify, y ahí `shopify` es null. Leyéndolo de ahí, el pedido
+          // que el agente creaba en Tiendanube o Woo quedaba sin canal y sin
+          // conversación — o sea, una venta que no se puede atribuir a nada.
+          conversationId: origen.conversationId,
           agentId: agent.id,
-          channel: shopify?.channel ?? null,
+          channel: origen.channel,
           // Las que el comercio puso "con aprobación". Cancelar y reembolsar
           // quedan afuera porque ya preguntan por su cuenta: ponerles el freno
           // encima pediría dos confirmaciones por lo mismo.

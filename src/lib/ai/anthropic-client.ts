@@ -12,9 +12,20 @@ import Anthropic from "@anthropic-ai/sdk";
  * whole service. We fail fast instead: a tight timeout and a single retry.
  *
  * Use this everywhere instead of `new Anthropic({ apiKey })`.
+ *
+ * El techo se puede mover con `ANTHROPIC_TIMEOUT_MS`, y en producción no está
+ * puesto: los 45 segundos siguen siendo el valor. Existe porque `ANTHROPIC_BASE_URL`
+ * permite poner otra cosa del otro lado —una pasarela propia, un modelo local, un
+ * banco de pruebas— y ahí el presupuesto correcto no es el de la API pública.
+ * Fijarlo en el código convertía ese apuntador en algo inutilizable.
  */
+function techoMs(): number {
+  const crudo = Number(process.env.ANTHROPIC_TIMEOUT_MS);
+  return Number.isFinite(crudo) && crudo > 0 ? crudo : 45_000;
+}
+
 export function getAnthropic(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
+  return new Anthropic({ apiKey, timeout: techoMs(), maxRetries: 1 });
 }
 
 /**

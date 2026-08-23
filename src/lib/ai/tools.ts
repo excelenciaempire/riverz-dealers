@@ -38,7 +38,7 @@ import { searchProducts } from '@/lib/products/search'
 import { proponerCancelacion, proponerReembolso } from './postventa'
 import { crearLinkDePago } from '@/lib/mercadopago/preference'
 import { emitirCupon } from '@/lib/shopify/discounts'
-import { crearPedidoEnLaTienda } from '@/lib/commerce/create-order'
+import { crearPedidoLocalConEspejo } from '@/lib/orders/crear'
 import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
 import { registrarHueco } from './answer-gaps'
 import {
@@ -464,7 +464,7 @@ export function buildDescuentoTool(tope: number): Anthropic.Tool {
 export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
   name: 'lookup_order',
   description:
-    'Busca un pedido del cliente en Shopify. Usalo cuando la clienta pregunte por el estado de su pedido, dónde está, cuándo llega, su tracking, o si quiere ver qué compró. Podés buscar por número de pedido (si lo da) o por su teléfono. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
+    'Busca un pedido del cliente en la tienda del negocio. Usalo cuando la clienta pregunte por el estado de su pedido, dónde está, cuándo llega, su tracking, o si quiere ver qué compró. Podés buscar por número de pedido (si lo da) o por su teléfono. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -688,7 +688,10 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
         city: { type: 'string', description: 'Ciudad/localidad.' },
         province: { type: 'string', description: 'Provincia/estado.' },
         zip: { type: 'string', description: 'Código postal.' },
-        country: { type: 'string', description: 'País.' },
+        country: {
+          type: 'string',
+          description: 'País. El nombre está bien ("Colombia"); se traduce solo.',
+        },
       },
     },
     payment_hint: {
@@ -734,7 +737,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
   return {
     name: 'create_order',
     description:
-      'Crea el PEDIDO REAL en Shopify cuando la clienta YA confirmó qué quiere comprar. Antes de llamarla: reuní el producto/cantidad, el nombre, los datos de envío si es producto físico y el método de pago; mostrale el resumen y el total, y esperá su confirmación explícita. Llamala una sola vez, con confirmed=true. Devuelve el número de pedido para que se lo pases a la clienta. Si todavía falta info o no confirmó, NO la llames: seguí preguntando.',
+      'Crea el PEDIDO REAL en la tienda del negocio cuando la clienta YA confirmó qué quiere comprar. Antes de llamarla: reuní el producto/cantidad, el nombre, los datos de envío si es producto físico y el método de pago; mostrale el resumen y el total, y esperá su confirmación explícita. Llamala una sola vez, con confirmed=true. Devuelve el número de pedido para que se lo pases a la clienta. Si todavía falta info o no confirmó, NO la llames: seguí preguntando.',
     input_schema: {
       type: 'object' as const,
       properties: properties as Anthropic.Tool.InputSchema['properties'],
@@ -1454,26 +1457,44 @@ export async function runTool(
         variant_id: String(i.variant_id ?? ''),
         quantity: Number(i.quantity ?? 1),
       }))
-      const res = await crearPedidoEnLaTienda(localOrders.db, {
-        workspaceId: localOrders.workspaceId,
-        lineas,
-        cliente: {
-          name: input.customer_name ?? null,
-          email: input.customer_email ?? null,
-          phone: input.customer_phone ?? null,
-          address: input.shipping_address
-            ? {
-                address1: input.shipping_address.address1 ?? null,
-                city: input.shipping_address.city ?? null,
-                province: input.shipping_address.province ?? null,
-                zip: input.shipping_address.zip ?? null,
-                country: input.shipping_address.country ?? null,
-              }
-            : null,
+      const res = await crearPedidoLocalConEspejo(
+        localOrders.db,
+        {
+          workspaceId: localOrders.workspaceId,
+          lineas,
+          cliente: {
+            name: input.customer_name ?? null,
+            email: input.customer_email ?? null,
+            phone: input.customer_phone ?? null,
+            address: input.shipping_address
+              ? {
+                  address1: input.shipping_address.address1 ?? null,
+                  city: input.shipping_address.city ?? null,
+                  province: input.shipping_address.province ?? null,
+                  zip: input.shipping_address.zip ?? null,
+                  country: input.shipping_address.country ?? null,
+                }
+              : null,
+          },
+          nota: input.note ?? null,
         },
-        nota: input.note ?? null,
-      })
+        {
+          contactId: localOrders.contactId,
+          agentId: localOrders.agentId ?? null,
+          conversationId: localOrders.conversationId ?? null,
+          channel: localOrders.channel ?? null,
+          createdBy: 'ai',
+        },
+      )
       if ('error' in res) {
+        // Al modelo se le dice poco a propósito: el detalle de por qué la
+        // tienda rechazó el pedido no es algo que la clienta tenga que leer.
+        // Pero en algún lado tiene que quedar. Sin esto, un comercio cuya
+        // tienda rechaza todos los pedidos ve "no pude crear el pedido" y no
+        // hay forma de averiguar el motivo: ni consola, ni fila, ni nada.
+        console.error(
+          `[create_order] ${localOrders.workspaceId}: ${res.error} — ${res.message}`,
+        )
         return JSON.stringify({
           ok: false,
           message:

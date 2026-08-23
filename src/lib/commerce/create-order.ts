@@ -57,6 +57,60 @@ export interface PedidoError {
 const UA = 'Riverz (soporte@riverz.co)'
 
 /**
+ * El país, como lo quiere la plataforma.
+ *
+ * Tiendanube y WooCommerce esperan el código ISO de dos letras y rechazan el
+ * nombre: mandar "Colombia" devuelve `422 No country with code Colombia` y el
+ * pedido no se crea. El agente escribe el nombre —es lo que le dijo la
+ * clienta— así que traducirlo acá es la única forma de que la venta no se caiga
+ * por cómo se escribió una palabra.
+ *
+ * La lista cubre los países donde operan estas plataformas y las formas en que
+ * la gente los escribe. Lo que no reconoce se pasa tal cual: es preferible que
+ * la tienda conteste su propio error a que inventemos un código equivocado.
+ */
+const PAISES: Record<string, string> = {
+  argentina: 'AR',
+  bolivia: 'BO',
+  brasil: 'BR',
+  brazil: 'BR',
+  chile: 'CL',
+  colombia: 'CO',
+  'costa rica': 'CR',
+  ecuador: 'EC',
+  'el salvador': 'SV',
+  espana: 'ES',
+  guatemala: 'GT',
+  honduras: 'HN',
+  mexico: 'MX',
+  nicaragua: 'NI',
+  panama: 'PA',
+  paraguay: 'PY',
+  peru: 'PE',
+  portugal: 'PT',
+  'puerto rico': 'PR',
+  'republica dominicana': 'DO',
+  'estados unidos': 'US',
+  'united states': 'US',
+  usa: 'US',
+  uruguay: 'UY',
+  venezuela: 'VE',
+}
+
+export function codigoDePais(valor: string | null | undefined): string {
+  const crudo = (valor ?? '').trim()
+  if (!crudo) return ''
+  // Ya viene como código.
+  if (/^[A-Za-z]{2}$/.test(crudo)) return crudo.toUpperCase()
+  const llave = crudo
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+  return PAISES[llave] ?? crudo
+}
+
+/**
  * Crea el pedido en la tienda del comercio, sea cual sea.
  *
  * Devuelve el error tipado en vez de lanzar: esto corre dentro del bucle de
@@ -143,7 +197,7 @@ async function crearEnTiendanube(
             city: dir.city ?? '',
             province: dir.province ?? '',
             zipcode: dir.zip ?? '',
-            country: dir.country ?? '',
+            country: codigoDePais(dir.country),
             name: args.cliente.name ?? '',
             phone: args.cliente.phone ?? '',
           },
@@ -222,7 +276,7 @@ async function crearEnWoo(
           city: dir.city ?? '',
           state: dir.province ?? '',
           postcode: dir.zip ?? '',
-          country: dir.country ?? '',
+          country: codigoDePais(dir.country),
         }
       : {}),
   }
