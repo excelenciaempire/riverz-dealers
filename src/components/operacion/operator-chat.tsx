@@ -1348,11 +1348,26 @@ function TarjetaDecision({
    * hacerla destildar primero sería pedir dos clicks para una sola decisión que
    * la persona está mirando de frente. Es el caso de «¿la prendo?».
    */
-  const [fuera, setFuera] = useState<Set<string>>(() =>
-    acciones.length > 1
-      ? new Set(acciones.filter((a) => a.risk === 'irreversible').map((a) => a.id))
-      : new Set<string>(),
-  )
+  /**
+   * Lo irreversible entra apagado sólo cuando se puede colar.
+   *
+   * La regla existe para que algo que quema un nombre para siempre no se
+   * apruebe de arrastre, escondido entre cosas que sí se deshacen. Dos casos en
+   * los que no aplica, y los dos son el camino normal:
+   *
+   *  - Una sola línea: la tarjeta ES la pregunta, con su aviso al lado. Hacerla
+   *    destildar primero son dos clicks para un sí o un no.
+   *  - Todo irreversible: pedir tres mensajes y que los tres nazcan apagados no
+   *    protege de nada — no hay de qué distinguirlos— y convierte el camino
+   *    normal en cuatro clicks.
+   */
+  const [fuera, setFuera] = useState<Set<string>>(() => {
+    const arriesgadas = acciones.filter((a) => a.risk === 'irreversible')
+    const mezcla = arriesgadas.length > 0 && arriesgadas.length < acciones.length
+    return mezcla && acciones.length > 1
+      ? new Set(arriesgadas.map((a) => a.id))
+      : new Set<string>()
+  })
   const elegidas = acciones.filter((a) => !fuera.has(a.id))
 
   /**
