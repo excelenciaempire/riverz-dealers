@@ -5,6 +5,7 @@ import {
   parecido,
   skuDe,
   tokensSignificativos,
+  unidadesDelTitulo,
   UMBRAL,
   type FilaProducto,
 } from './unify';
@@ -118,5 +119,31 @@ describe('elegirPrincipal', () => {
       p({ id: 'tn', platform: 'tiendanube' }),
     ]);
     expect(elegida.id).toBe('tn');
+  });
+});
+
+describe('unidadesDelTitulo', () => {
+  it('lee la cantidad de las publicaciones reales', () => {
+    // En un marketplace la cantidad es una publicación aparte. Sin esto el
+    // agente ve 45.000, 75.000 y 105.000 del mismo producto y contesta que
+    // "cuesta entre 45.000 y 105.000", que no es el precio de nada.
+    expect(unidadesDelTitulo(ML1)).toBe(1);
+    expect(unidadesDelTitulo(ML2)).toBe(2);
+    expect(unidadesDelTitulo(ML3)).toBe(3);
+    expect(unidadesDelTitulo(SHOPIFY)).toBe(1);
+  });
+
+  it('entiende las otras formas de escribirlo', () => {
+    expect(unidadesDelTitulo('Serum Pilar x 2')).toBe(2);
+    expect(unidadesDelTitulo('Serum Pilar 3 unidades')).toBe(3);
+    expect(unidadesDelTitulo('Pack 6 Serum Pilar')).toBe(6);
+  });
+
+  it('no confunde un número que no es cantidad', () => {
+    expect(unidadesDelTitulo('Serum Pilar 30 Ml')).toBe(1);
+    expect(unidadesDelTitulo('Bicicleta Fm18si29am211 2021')).toBe(1);
+    // "max 20" y "box 6" no son cantidades: sin límite de palabra lo eran.
+    expect(unidadesDelTitulo('Crema Max 20 Horas')).toBe(1);
+    expect(unidadesDelTitulo('Box 6 Cuotas')).toBe(1);
   });
 });

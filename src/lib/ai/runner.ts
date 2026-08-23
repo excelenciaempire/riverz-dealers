@@ -38,6 +38,7 @@ import {
   type ProductMatch,
 } from './product-routing';
 import { AGENT_TOOLBOX, toolEnabled, toolMode } from './toolbox';
+import { unidadesDelTitulo } from '@/lib/products/unify';
 import {
   buildCheckoutTool,
   buildOrderTool,
@@ -1322,7 +1323,7 @@ export async function loadProductCatalog(
     const { data: pinned } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform',
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency',
       )
       .eq('id', productMatch.product_id)
       .eq('workspace_id', workspaceId)
@@ -1345,7 +1346,7 @@ export async function loadProductCatalog(
     const { data: products } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform',
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency',
       )
       .in('id', Array.from(ownedIds));
     const rest = ((products ?? []) as ProductRow[]).filter(
@@ -1358,7 +1359,7 @@ export async function loadProductCatalog(
   const { data: products } = await db
     .from('shopify_products')
     .select(
-      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform',
+      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform, currency',
     )
     .eq('workspace_id', workspaceId)
     .order('synced_at', { ascending: false })
@@ -1408,6 +1409,8 @@ export function unificarFilas(filas: ProductRow[]): ProductRow[] {
       listings: grupo.map((p) => ({
         platform: p.platform ?? 'shopify',
         price: p.price_min ?? null,
+        currency: p.currency ?? null,
+        units: unidadesDelTitulo(p.title ?? ''),
         url: p.url ?? null,
       })),
     });
@@ -1424,7 +1427,18 @@ export interface ProductRow {
   /** Dónde más se vende lo mismo, con el precio de cada lado. Lo arma
    *  `unificarFilas`; el agente lo necesita para cotizar el precio del canal
    *  por el que le están escribiendo. */
-  listings?: Array<{ platform: string; price: number | null; url: string | null }>;
+  listings?: Array<{
+    platform: string;
+    price: number | null;
+    /** Sin la moneda, 75.000 ARS al lado de 69.900 COP se lee como el mismo
+     *  orden de precio y el agente cotiza cualquier cosa. */
+    currency: string | null;
+    /** Cuántos frascos entran en ese precio. En un marketplace la cantidad es
+     *  una publicación aparte. */
+    units: number;
+    url: string | null;
+  }>;
+  currency?: string | null;
   title: string;
   description: string | null;
   price_min: number | null;
@@ -2444,11 +2458,32 @@ export function formatProductLine(p: ProductRow): string {
   // las dos porque las dos son ciertas en su canal, y el modelo tiene que
   // cotizar la del canal por el que le están escribiendo — no un promedio, que
   // no es el precio de nadie.
+  // El mismo producto en varias plataformas cuesta distinto en cada una: las
+  // comisiones del marketplace están adentro del precio publicado, y en un
+  // marketplace la cantidad es una publicación aparte. Se listan todas porque
+  // todas son ciertas en su canal, y el modelo tiene que cotizar la del canal
+  // por el que le están escribiendo — no un promedio, que no es el precio de
+  // nadie.
+  //
+  // Con los PRECIOS sólo si todas declaran su moneda. Un "$39990" al lado de
+  // un "$45000 ARS" se lee como el mismo orden de magnitud, y ahí el modelo
+  // cotiza pesos argentinos a un cliente colombiano. Sin monedas completas se
+  // dice dónde más se vende y nada más: que le falte un precio es recuperable,
+  // que diga el equivocado no.
+  const canales = p.listings ?? [];
+  const monedasCompletas = canales.length > 0 && canales.every((l) => l.currency);
   const otros =
-    (p.listings ?? []).length > 1
-      ? ` [precio por canal: ${(p.listings ?? [])
-          .map((l) => `${l.platform} $${l.price ?? '?'}`)
-          .join(' · ')}]`
+    canales.length > 1
+      ? monedasCompletas
+        ? ` [precio por canal: ${canales
+            .map(
+              (l) =>
+                `${l.platform} ${l.units > 1 ? `${l.units}u ` : ''}${l.price ?? '?'} ${l.currency}`,
+            )
+            .join(' · ')}]`
+        : ` [también se vende en: ${[...new Set(canales.map((l) => l.platform))].join(
+            ', ',
+          )} — ahí el precio es otro, consultalo antes de cotizar]`
       : '';
   return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${otros}${
     p.url ? ` <${p.url}>` : ''

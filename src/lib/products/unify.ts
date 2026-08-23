@@ -115,6 +115,32 @@ export function parecido(a: string, b: string): number {
   return comunes / corto.size
 }
 
+/**
+ * Cuántas unidades vende esta publicación.
+ *
+ * En un marketplace la cantidad es una publicación aparte: el serum x2 y el x3
+ * son dos avisos distintos del mismo producto. El número está en el título
+ * ("… 30 Ml X2 …") porque no hay otro lado donde ponerlo.
+ *
+ * Importa para cotizar: sin esto el agente ve tres precios del mismo producto
+ * —45.000, 75.000 y 105.000— y no tiene forma de saber que el segundo son dos
+ * frascos. Diría que "cuesta entre 45.000 y 105.000", que no es un precio.
+ */
+export function unidadesDelTitulo(titulo: string): number {
+  const t = normalizarTitulo(titulo)
+  // "x2", "x 2", "2 unidades", "pack 3". Se toma el primero que aparezca.
+  //
+  // Con límite de palabra: sin él, "Crema Max 20 Horas" y "Box 6 Cuotas" se
+  // leían como cantidad, y una publicación de UNA unidad quedaba cotizada
+  // como si fueran veinte.
+  const m =
+    /\bx\s?(\d{1,2})\b/.exec(t) ??
+    /\b(\d{1,2})\s+unidades?\b/.exec(t) ??
+    /\bpack\s+(\d{1,2})\b/.exec(t)
+  const n = m ? Number(m[1]) : 1
+  return Number.isFinite(n) && n >= 1 && n <= 24 ? n : 1
+}
+
 /** Desde acá se propone. Debajo, ni se menciona. */
 export const UMBRAL = 0.8
 
