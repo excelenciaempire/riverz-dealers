@@ -15,6 +15,7 @@ import {
   Package,
   Briefcase,
   Radio,
+  SlidersHorizontal,
   PhoneCall,
   Settings as SettingsIcon,
   ChevronDown,
@@ -472,10 +473,11 @@ export function AgentEditor({
   // Voice AI config — one state object, edited by <VoiceSettings>.
   const [voice, setVoice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
 
-  type TabKey = 'business' | 'reach' | 'voice' | 'advanced' | 'stats';
+  type TabKey = 'business' | 'tools' | 'reach' | 'voice' | 'advanced' | 'stats';
   const [tab, setTab] = useState<TabKey>('business');
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
     { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
+    { key: 'tools', label: t('operation.toolsTitle'), icon: SlidersHorizontal },
     { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
     { key: 'voice', label: t('voice.tab'), icon: PhoneCall },
     { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
@@ -1485,43 +1487,13 @@ export function AgentEditor({
 
             {tab === 'stats' && agent?.id && <AgentStats agentId={agent.id} />}
 
-            {tab === 'advanced' && (
+            {tab === 'tools' && (
               <>
-                {/* Rol y permisos (migración 164). El rol reparte el trabajo
-                    cuando hay varios agentes en un canal; los permisos dicen
-                    qué puede tocar este. */}
-                <SectionCard
-                  title={t('operation.permissionsTitle')}
-                  hint={t('operation.permissionsHint')}
-                >
-                  <Field label={t('operation.roleLabel')}>
-                    <Select
-                      value={role}
-                      onValueChange={(v) => aplicarRol((v as AgentRole) ?? 'general')}
-                    >
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue labels={ROLE_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AGENT_ROLES.map((r) => (
-                          <SelectItem key={r} value={r}>
-                            <div className="flex flex-col">
-                              <span className="text-sm text-foreground">
-                                {t(`operation.role${ROLE_KEY[r]}Name`)}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {t(`operation.role${ROLE_KEY[r]}What`)}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-muted-foreground">
-                      {t('operation.roleHint')}
-                    </p>
-                  </Field>
-
+                {/* Qué hace el agente y cuándo entrás vos. Tiene pestaña propia
+                    porque es LA decisión del producto: estaba dentro de
+                    "Avanzado", junto a la temperatura del modelo y los tiempos
+                    de espera, y el comercio no la encontraba. */}
+                <SectionCard title={t('operation.toolsTitle')} hint={t('operation.toolsHint')}>
                   <ToolSwitchboard
                     agent={{ permissions, puede_crear_pedidos: puedeCrearPedidos }}
                     tools={tools}
@@ -1530,6 +1502,40 @@ export function AgentEditor({
                   />
                 </SectionCard>
 
+                {/* El rol va acá al lado: no habilita nada, decide a quién le
+                    toca el mensaje cuando hay varios agentes en un canal. */}
+                <SectionCard title={t('operation.roleLabel')} hint={t('operation.roleHint')}>
+                  <Select
+                    value={role}
+                    onValueChange={(v) => aplicarRol((v as AgentRole) ?? 'general')}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue labels={ROLE_LABELS} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AGENT_ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          <div className="flex flex-col">
+                            <span className="text-sm text-foreground">
+                              {t(`operation.role${ROLE_KEY[r]}Name`)}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {t(`operation.role${ROLE_KEY[r]}What`)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </SectionCard>
+              </>
+            )}
+
+            {tab === 'advanced' && (
+              <>
+                {/* Rol y permisos (migración 164). El rol reparte el trabajo
+                    cuando hay varios agentes en un canal; los permisos dicen
+                    qué puede tocar este. */}
                 <SectionCard
                   title={t('assistant.responseBehaviorTitle')}
                   hint={t('assistant.responseBehaviorHint')}

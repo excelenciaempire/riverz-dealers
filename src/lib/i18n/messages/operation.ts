@@ -33,21 +33,9 @@ export const operation = {
   },
   // Los dos modos. El texto dice qué VA A PASAR, no cómo se llama el modo:
   // "automático" no le explica a nadie qué cambia.
-  modeAuto: {
-    es: "Construye solo · pide permiso para publicar",
-    en: "Builds on its own · asks before publishing",
-  },
-  modeAsk: {
-    es: "Pide permiso antes de construir",
-    en: "Asks before building",
-  },
   operatorNoKey: {
     es: "El Operador todavía no está habilitado en esta cuenta. Escríbele a Riverz para activarlo.",
     en: "The Operator isn't enabled on this account yet. Contact Riverz to turn it on.",
-  },
-  operatorOverBudget: {
-    es: "Llegaste al límite de uso del Operador por hoy. Vuelve a intentar mañana.",
-    en: "You've hit today's Operator usage limit. Try again tomorrow.",
   },
   // El reparto que se aprueba de una vez.
   planTitulo: { es: "Así lo repartiría", en: "Here is how I would split it" },
@@ -58,35 +46,15 @@ export const operation = {
     en: "Anything that reaches a customer is asked separately.",
   },
 
-  // La mesa de trabajo: qué está armando el equipo, ahora.
-  mesaTitulo: { es: "El equipo", en: "The team" },
-  mesaVerComoQuedo: { es: "Ver cómo quedó", en: "See how it turned out" },
-  mesaVerElDetalle: { es: "Ver el detalle", en: "See the detail" },
-  mapaOperador: { es: "Operador", en: "Operator" },
   // El banco: la pieza que se está armando, a tamaño real.
-  bancoLaPieza: { es: "La pieza", en: "The piece" },
   bancoVacio: {
     es: "Acá aparece lo que el equipo va armando, a tamaño real.",
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
   lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
-  // Cómo se lee un paso YA hecho. El gerundio cuenta lo que pasa; sobre algo
-  // terminado hay que usar el pasado o la pantalla dice lo contrario que la base.
-  hechoAutoCrear: { es: "Automatización creada", en: "Automation created" },
-  hechoAutoEditar: { es: "Automatización cambiada", en: "Automation changed" },
-  hechoAutoActivar: { es: "Automatización activada", en: "Automation turned on" },
-  hechoPlantilla: { es: "Plantilla escrita", en: "Template written" },
-  hechoSegmento: { es: "Segmento creado", en: "Segment created" },
-  hechoAgente: { es: "Agente creado", en: "Agent created" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
-  mesaEsLoPropuesto: {
-    es: "Esto es lo que se propuso; lo guardado ya no está.",
-    en: "This is what was proposed; the saved version is gone.",
-  },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
-  mesaVer: { es: "Ver el equipo", en: "See the team" },
-  mesaPlan: { es: "El reparto", en: "The plan" },
   mesaEspera: { es: "espera al {n}", en: "waits for {n}" },
   // Los catorce del equipo, como se ven en la mesa.
   subAutomatizaciones: { es: "Automatizaciones", en: "Automations" },
@@ -127,18 +95,12 @@ export const operation = {
     es: "Conecta tu tienda y tus canales. Riverz arma el equipo y tú apruebas antes de que atienda a nadie.",
     en: "Connect your store and channels. Riverz builds the team and you approve before it talks to anyone.",
   },
-  activateCta: { es: "Activar mi operación", en: "Activate my operation" },
-  stepConnect: { es: "Conectar", en: "Connect" },
-  stepBrand: { es: "Tu marca", en: "Your brand" },
-  stepGoal: { es: "Objetivo", en: "Goal" },
-  stepPlan: { es: "Plan", en: "Plan" },
   next: { es: "Continuar", en: "Continue" },
   back: { es: "Volver", en: "Back" },
 
   connectStore: { es: "Tienda", en: "Store" },
   connectChannels: { es: "Canales", en: "Channels" },
   connected: { es: "Conectado", en: "Connected" },
-  notConnected: { es: "Sin conectar", en: "Not connected" },
   goConnect: { es: "Conectar", en: "Connect" },
   connectHint: {
     es: "Con la tienda conectada, la IA puede consultar pedidos y armar links de pago.",
@@ -221,24 +183,7 @@ export const operation = {
     en: "Handles everything without splitting work.",
   },
 
-  // Permisos por acción
-  permissionsTitle: { es: "Qué puede hacer", en: "What it can do" },
-  permissionsHint: {
-    es: "Lo que quede apagado, el agente lo deriva a tu equipo.",
-    en: "Whatever stays off, the agent hands to your team.",
-  },
-  permCrearPedidos: { es: "Crear pedidos", en: "Create orders" },
-  permCrearCheckout: { es: "Enviar link de pago", en: "Send payment link" },
-  permRegistrarPago: { es: "Registrar un pago informado", en: "Record a reported payment" },
-  permEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
-  permEscalarLlamada: { es: "Llamar por teléfono", en: "Place a phone call" },
-  permEnviarProactivo: { es: "Escribir primero", en: "Message first" },
   // La pizarra: qué hace el agente y cuándo entra una persona
-  toolsTitle: { es: "Qué puede hacer", en: "What it can do" },
-  toolsHint: {
-    es: "Elegí qué hace solo y qué te pasa a vos antes de hacerlo. Lo que apagues, lo deriva a tu equipo.",
-    en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",
-  },
   toolModeOff: { es: "No lo hace", en: "Doesn't" },
   toolModeAprobacion: { es: "Me pregunta", en: "Asks me" },
   toolModeAuto: { es: "Lo hace solo", en: "On its own" },
@@ -356,66 +301,54 @@ export const operation = {
     en: "Decides which conversations it takes when more than one agent shares a channel.",
   },
 
-  // Métricas que suma la operación al panel
-  mResolved: { es: "Resueltas", en: "Resolved" },
-  mAiAnswered: { es: "Respondió la IA", en: "AI answered" },
-  mAiBreakdown: {
-    es: "{skipped} se abstuvo · {failed} falló",
-    en: "{skipped} skipped · {failed} failed",
-  },
-  mOrders: { es: "Pedidos", en: "Orders" },
-  mRevenue: { es: "Facturado", en: "Revenue" },
 
-  templatesTitle: { es: "Plantillas de WhatsApp", en: "WhatsApp templates" },
-  templatesTotal: { es: "Total", en: "Total" },
-  templatesRejected: { es: "Rechazadas", en: "Rejected" },
-  templatesPending: { es: "En revisión", en: "In review" },
 
-  campaignsTitle: { es: "Campañas del período", en: "Campaigns in the period" },
-  cSent: { es: "Enviados", en: "Sent" },
-  cDelivered: { es: "Entregados", en: "Delivered" },
-  cRead: { es: "Leídos", en: "Read" },
-  cReplied: { es: "Respondieron", en: "Replied" },
-  cFailed: { es: "Fallaron", en: "Failed" },
-  cStalled: { es: "Trabadas", en: "Stalled" },
 
-  // Lo que se ve mientras trabaja
-  operatorReasoning: { es: "Pensando", en: "Thinking" },
-  stepEstado: { es: "Mirando el estado de la cuenta", en: "Checking the account status" },
-  stepMetricas: { es: "Mirando las métricas", en: "Checking the metrics" },
-  stepPendientes: { es: "Mirando las conversaciones sin responder", en: "Checking unanswered conversations" },
-  stepContacto: { es: "Buscando el contacto", en: "Looking up the contact" },
-  stepDiagnostico: { es: "Revisando por qué no salió", en: "Checking why it didn't go out" },
-  stepPedidos: { es: "Mirando los pedidos", en: "Checking the orders" },
-  stepPlantillas: { es: "Revisando las plantillas", en: "Checking the templates" },
-  stepIntegraciones: { es: "Viendo qué hay conectado", en: "Checking what is connected" },
-  stepCampanas: { es: "Revisando las campañas", en: "Checking the campaigns" },
-  stepAgentes: { es: "Mirando los agentes", en: "Checking the agents" },
-  stepAgenteCrear: { es: "Preparando un agente", en: "Preparing an agent" },
-  stepAgenteActivar: { es: "Prendiendo un agente", en: "Turning on an agent" },
-  stepAutoVer: { es: "Miro una automatización por dentro", en: "Looking inside an automation" },
-  stepAutoEditar: { es: "Cambio la automatización", en: "Changing the automation" },
-  stepPlantillaDetalle: { es: "Leo la plantilla", en: "Reading the template" },
-  stepPlantillaBorrador: { es: "Escribo la plantilla", en: "Writing the template" },
-  stepPlantillaAMeta: { es: "La mando a aprobación de Meta", en: "Sending it to Meta for approval" },
-  stepAutosListar: { es: "Mirando las automatizaciones", en: "Checking the automations" },
-  stepRecetas: { es: "Viendo qué se puede armar", en: "Checking what can be set up" },
-  stepAutoActivar: { es: "Prendiendo una automatización", en: "Turning on an automation" },
-  stepAutoEspera: { es: "Ajustando una espera", en: "Adjusting a wait" },
-  stepAutoCrear: { es: "Armando la automatización", en: "Building the automation" },
-  stepAutoCrearCero: { es: "Armando una automatización", en: "Building an automation" },
-  stepAprobPend: { es: "Mirando qué espera aprobación", en: "Checking what awaits approval" },
-  stepAprobDecidir: { es: "Resolviendo una aprobación", en: "Resolving an approval" },
-  // A quién le hablamos
-  stepContactosListar: { es: "Mirando los contactos", en: "Checking the contacts" },
-  stepEtiquetas: { es: "Viendo qué etiquetas hay", en: "Checking available tags" },
-  stepSegmentosListar: { es: "Mirando los segmentos", en: "Checking the segments" },
-  stepSegmentoCalcular: { es: "Contando a cuánta gente alcanza", en: "Counting how many it reaches" },
-  stepSegmentoCrear: { es: "Guardando el segmento", en: "Saving the segment" },
-  stepEtiquetar: { es: "Etiquetando contactos", en: "Tagging contacts" },
+
+  /**
+   * Cómo se nombra un paso en el margen: por lo que TOCÓ, sin verbo.
+   *
+   * Antes había 31 etiquetas escritas a mano y convivían tres personas
+   * gramaticales en la misma lista —«Revisando las plantillas», «Leo la
+   * plantilla», «Escribe una plantilla de WhatsApp»— porque la tercera era el
+   * respaldo, y el respaldo alcanzaba a 41 de las 72 capacidades.
+   *
+   * Un sustantivo no tiene persona, así que no puede quedar mal. Y el estado ya
+   * lo dice el icono —girando, tilde, cruz—, con lo cual el verbo era la parte
+   * que sobraba. Son veinte, uno por dominio, y cubren el catálogo entero.
+   */
+  domAgentes: { es: "Los agentes", en: "The agents" },
+  domAjustes: { es: "Los ajustes", en: "The settings" },
+  domAprobaciones: { es: "Las aprobaciones", en: "The approvals" },
+  domAutomatizaciones: { es: "Las automatizaciones", en: "The automations" },
+  domCampanas: { es: "Las campañas", en: "The campaigns" },
+  domComentarios: { es: "Los comentarios", en: "The comments" },
+  domContactos: { es: "Los contactos", en: "The contacts" },
+  domConversaciones: { es: "Las conversaciones", en: "The conversations" },
+  domEtiquetas: { es: "Las etiquetas", en: "The tags" },
+  domFlujos: { es: "Los flujos", en: "The flows" },
+  domIntegraciones: { es: "Lo conectado", en: "What is connected" },
+  domMensajes: { es: "Los mensajes", en: "The messages" },
+  domMetricas: { es: "Las métricas", en: "The metrics" },
+  domOperacion: { es: "La cuenta", en: "The account" },
+  domPedidos: { es: "Los pedidos", en: "The orders" },
+  domPlantillas: { es: "Las plantillas", en: "The templates" },
+  domProductos: { es: "Los productos", en: "The products" },
+  domProspeccion: { es: "La prospección", en: "Prospecting" },
+  domSegmentos: { es: "Los segmentos", en: "The segments" },
+  domVoz: { es: "Las llamadas", en: "The calls" },
+
+  /** Un especialista le pide algo a otro. */
+  pideA: { es: "Le pide a {quien}", en: "Asks {quien}" },
+
+  // Una sola decisión por pedido, al final del turno.
+  decisionTitulo: { es: "Esto dejaría hecho", en: "This is what it would leave done" },
+  decisionDescartar: { es: "Descartar", en: "Discard" },
+  decisionCambiar: { es: "Cambiar", en: "Change" },
+  decisionPedirCambio: { es: "Cambia esto: ", en: "Change this: " },
+  decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
 
   // Acciones propuestas
-  proposedTitle: { es: "Esperando tu aprobación", en: "Waiting for your approval" },
   approve: { es: "Aprobar", en: "Approve" },
   reject: { es: "Rechazar", en: "Reject" },
   statusExecuted: { es: "Hecho", en: "Done" },
