@@ -52,7 +52,7 @@ export const ROSTER: SubagentSpec[] = [
     maxIters: 7,
     instrucciones: [
       'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
-      'Una automatización nace pausada, siempre. Prenderla es otra decisión y la toma una persona.',
+      'Una automatización nace pausada, siempre. NO la prendas vos después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llamá a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
       'Para `send_template` hace falta el nombre exacto de una plantilla YA aprobada. El mapa de la cuenta te dice cuáles hay. Si la que necesitas no está, PÍDESELA al de plantillas con `equipo__pedir` y espera su respuesta: inventar un nombre deja la automatización muerta.',
       'Si el pedido es un mensaje DISTINTO por cada camino, hacen falta tantas plantillas como caminos. Reusar la misma en las tres ramas no es lo que pidieron: pide las que falten antes de armar.',
     ].join('\n'),
