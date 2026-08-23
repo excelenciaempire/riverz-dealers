@@ -46,11 +46,27 @@ export async function POST(request: Request) {
   if (!guard.ok) return guard.response;
   const { session, ctx } = guard;
 
+  // El tope se mira ANTES de parsear. Con un archivo grande el runtime corta el
+  // cuerpo y `formData()` tira, así que la comprobación de más abajo no llegaba
+  // a correr nunca: quien mandaba una foto de 12 MB recibía `bad_request`, que
+  // no dice qué hacer, en vez de "es muy pesada". El margen cubre las cabeceras
+  // del multipart, que no son el archivo.
+  const declarado = Number(request.headers.get('content-length') ?? 0);
+  const declaradoValido = Number.isFinite(declarado) && declarado > 0;
+  if (declaradoValido && declarado > MAX_BYTES + 8 * 1024) {
+    return NextResponse.json({ error: 'too_large' }, { status: 413 });
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+    // Justo en el borde el corte lo hace el runtime y no llegamos a medir el
+    // archivo. Si lo declarado ya rozaba el tope, la causa es el tamaño: decir
+    // "petición inválida" mandaría a buscar el problema donde no está.
+    return declaradoValido && declarado >= MAX_BYTES
+      ? NextResponse.json({ error: 'too_large' }, { status: 413 })
+      : NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
 
   const file = form.get('file');
