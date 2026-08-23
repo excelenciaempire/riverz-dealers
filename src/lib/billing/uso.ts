@@ -111,13 +111,21 @@ export async function acumularDia(
   const desde = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate()))
   const hasta = new Date(desde.getTime() + 24 * 60 * 60 * 1000)
 
-  const { data } = await db
+  // El `error` NO se ignora.
+  //
+  // Este select pedía además `model`, que `ai_replies` no tiene. PostgREST
+  // devolvía un error, `data` venía en null, no se acumulaba nada y el cron
+  // contestaba 200: cuatro corridas seguidas marcadas «ok» sin haber escrito
+  // una fila. Un contador de facturación que falla en silencio es peor que uno
+  // que no existe — el que no existe se nota.
+  const { data, error } = await db
     .from('ai_replies')
-    .select('workspace_id, conversation_id, model, prompt_tokens, completion_tokens')
+    .select('workspace_id, conversation_id, prompt_tokens, completion_tokens')
     .eq('status', 'sent')
     .gte('created_at', desde.toISOString())
     .lt('created_at', hasta.toISOString())
     .limit(100_000)
+  if (error) throw new Error(`[billing/uso] ${error.message}`)
 
   const porCuenta = new Map<
     string,
@@ -126,7 +134,6 @@ export async function acumularDia(
   for (const r of (data ?? []) as {
     workspace_id: string
     conversation_id: string | null
-    model: string | null
     prompt_tokens: number | null
     completion_tokens: number | null
   }[]) {
@@ -137,7 +144,9 @@ export async function acumularDia(
     acc.respuestas += 1
     acc.prompt += r.prompt_tokens ?? 0
     acc.completion += r.completion_tokens ?? 0
-    acc.usd += costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0)
+    // `ai_replies` no guarda el modelo, así que se estima con la tarifa del que
+    // usan los agentes por defecto. Es la misma cuenta que hizo el backfill.
+    acc.usd += costForModel(null, r.prompt_tokens ?? 0, r.completion_tokens ?? 0)
     porCuenta.set(r.workspace_id, acc)
   }
 
