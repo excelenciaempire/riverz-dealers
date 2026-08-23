@@ -187,6 +187,10 @@
     });
     setUnread(0);
     renderLauncher();
+    // Puede caer en el vacío: la primera vez el iframe todavía está en
+    // `about:blank` —que hereda el origen de la TIENDA— y el navegador descarta
+    // el mensaje porque el destino no coincide con el nuestro. Por eso el
+    // estado se vuelve a mandar cuando el chat avisa que está listo.
     post({ type: 'riverz:opened' });
   }
 
@@ -200,6 +204,9 @@
       if (!state.open) frame.style.display = 'none';
     }, 180);
     renderLauncher();
+    // El chat necesita saberlo para poder contar lo que llega mientras nadie
+    // mira, que es de lo que se trata la burbuja del lanzador.
+    post({ type: 'riverz:closed' });
   }
 
   function post(message) {
@@ -409,6 +416,11 @@
     else if (data.type === 'riverz:unread') setUnread(data.count);
     else if (data.type === 'riverz:ready') {
       post({ type: 'riverz:context', url: location.href });
+      // El estado real de la ventana, ahora que el iframe ya está en nuestro
+      // origen y puede recibirlo. El `riverz:opened` de la primera apertura se
+      // pierde siempre; sin esto, el chat nunca se entera de que está abierto y
+      // le cuenta como no leído al visitante lo que está mirando.
+      post({ type: state.open ? 'riverz:opened' : 'riverz:closed' });
       // Se estampa al abrir el chat y no en cada visita: quien sólo pasa por
       // la tienda no necesita que le toquemos el carrito.
       stampCart();

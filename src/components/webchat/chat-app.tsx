@@ -143,6 +143,11 @@ export function ChatApp() {
 
   const cursor = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  // ¿El visitante está mirando el chat? Arranca en true porque este componente
+  // sólo se monta cuando el contenedor abre el iframe por primera vez; el
+  // cargador confirma el estado real al recibir `riverz:ready`.
+  const abierto = useRef(true);
+  const noLeidos = useRef(0);
 
   // ── Arranque ─────────────────────────────────────────────────
   useEffect(() => {
@@ -179,6 +184,15 @@ export function ChatApp() {
         }
         setReanudando(false);
       }
+      // Abierto o cerrado. El iframe sigue montado con el chat cerrado —así el
+      // hilo no se pierde al minimizar— así que sin esto no hay forma de saber
+      // si el visitante está mirando lo que llega.
+      if (event.data.type === 'riverz:opened') {
+        abierto.current = true;
+        noLeidos.current = 0;
+        window.parent?.postMessage({ type: 'riverz:unread', count: 0 }, '*');
+      }
+      if (event.data.type === 'riverz:closed') abierto.current = false;
     };
     window.addEventListener('message', onMessage);
     window.parent?.postMessage({ type: 'riverz:ready' }, '*');
@@ -235,7 +249,20 @@ export function ChatApp() {
         return quedan.length === prev.length ? prev : quedan;
       });
     }
-    if (data.messages.some((m) => m.sender !== 'visitor')) setWaiting(false);
+    const deOtros = data.messages.filter((m) => m.sender !== 'visitor');
+    if (deOtros.length) setWaiting(false);
+
+    // La burbuja del lanzador. El contenedor sabe dibujarla desde el principio
+    // —tiene el nodo y el manejador— pero nadie le mandaba nunca el número, así
+    // que era imposible que apareciera: quien cerraba el chat y seguía
+    // navegando no se enteraba de que le habían contestado.
+    if (deOtros.length && !abierto.current) {
+      noLeidos.current += deOtros.length;
+      window.parent?.postMessage(
+        { type: 'riverz:unread', count: noLeidos.current },
+        '*',
+      );
+    }
   }, [session]);
 
   // Los puntitos no pueden quedarse para siempre: hay caminos legítimos en los
