@@ -20,7 +20,11 @@ import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { briefDeVideo, videoDelHilo } from '@/lib/channels/tiktok_comment/videos';
+import { briefDePublicacion } from '@/lib/channels/publicacion';
+
+/** Salto de línea, con nombre: estas listas se leen mejor así. */
+const SALTO = `
+`;
 
 /**
  * BORRADOR — el mismo cerebro del asistente escribe la respuesta, pero para
@@ -113,7 +117,9 @@ export async function componerBorrador(
         loadContext(db, conversation, agent.context_messages || 30),
         loadProductCatalog(db, agent, input.workspaceId, productMatch),
         resolveWorkspaceCurrency(db, input.workspaceId),
-        contextoDeLaPublicacion(db, input.workspaceId, conversation).catch(() => null),
+        contextoDeLaPublicacion(db, input.workspaceId, conversation, contact.id).catch(
+          () => null,
+        ),
       ]);
 
     // El contexto de Shopify entra para que el prompt tenga la ficha del
@@ -148,6 +154,7 @@ export async function componerBorrador(
       businessCurrency,
     );
     system += `\n\n## Esto es un BORRADOR\n${REGLAS_BORRADOR}`;
+    system += `\n${reglasDeSuperficie(conversation.channel)}`;
 
     // La API exige que el primer turno sea del usuario.
     let messages = context.messages.filter((m) => m.role === 'user' || m.content);
@@ -205,14 +212,57 @@ async function contextoDeLaPublicacion(
   db: SupabaseClient,
   workspaceId: string,
   conversation: Conversation,
+  contactId: string,
 ): Promise<string | null> {
-  if (conversation.channel === 'tiktok_comment') {
-    const videoId = videoDelHilo(
-      (conversation as { thread_external_id?: string | null }).thread_external_id,
-    );
-    return videoId ? briefDeVideo(db, workspaceId, videoId) : null;
+  void workspaceId;
+  const partes: string[] = [];
+
+  // De qué post/video cuelga el comentario (TikTok trae además lo que se
+  // dice en el video).
+  const publicacion = await briefDePublicacion(db, conversation).catch(() => null);
+  if (publicacion) partes.push(publicacion);
+
+  // Quién es esta persona en Instagram ("un solo cerebro"): sirve tanto en el
+  // DM como debajo del post.
+  if (conversation.channel === 'instagram' || conversation.channel === 'ig_comment') {
+    const ig = await loadInstagramContext(db, contactId).catch(() => null);
+    if (ig) partes.push(ig);
   }
-  return loadInstagramContext(db, conversation.contact_id);
+  return partes.length ? partes.join(SALTO + SALTO) : null;
+}
+
+/**
+ * Cada canal tiene su forma. Un comentario público no es un DM, un correo no
+ * es un chat, y Mercado Libre tiene reglas propias que si se rompen le cuestan
+ * la publicación al vendedor. Antes el borrador salía siempre con forma de
+ * mensaje de WhatsApp, en los once canales.
+ */
+function reglasDeSuperficie(channel: Conversation['channel']): string {
+  switch (channel) {
+    case 'ig_comment':
+    case 'fb_comment':
+    case 'tiktok_comment':
+      return [
+        'Esto es una respuesta PÚBLICA debajo de una publicación: la lee cualquiera, no sólo esta persona.',
+        'Nunca menciones datos personales suyos: ni su pedido, ni su dirección, ni su teléfono, ni su correo. Si hace falta un dato para avanzar, invítala a escribir por privado.',
+        'Corto: una o dos frases. Contesta su comentario y, si viene al caso, facilita el siguiente paso en una línea.',
+      ].join(SALTO);
+    case 'gmail':
+    case 'outlook':
+      return [
+        'Esto es un correo: puede ser más largo que un chat, con párrafos cortos y separados.',
+        'No inventes asunto ni firma; escribe sólo el cuerpo, como lo escribiría una persona del equipo.',
+      ].join(SALTO);
+    case 'mercadolibre':
+      return [
+        'Esto va por Mercado Libre: está prohibido incluir teléfonos, correos, enlaces externos o formas de pago fuera de la plataforma antes de la venta.',
+        'Responde la pregunta sobre la publicación de forma directa y corta.',
+      ].join(SALTO);
+    case 'webchat':
+      return 'Esto es el chat de la web: la persona está mirando la pantalla ahora mismo. Respuesta corta y directa.';
+    default:
+      return 'Esto es un mensaje privado de chat: tono cercano, frases cortas, una idea por mensaje.';
+  }
 }
 
 /**

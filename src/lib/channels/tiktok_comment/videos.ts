@@ -35,9 +35,13 @@ const MAX_BYTES = 24 * 1024 * 1024;
 /** TikTok a veces devuelve una página sin la dirección de reproducción. No es
  *  un error permanente: al segundo o tercer pedido aparece. */
 const INTENTOS_DESCARGA = 3;
-/** Cuántas veces se reintenta un video que falla, entre corridas del cron.
- *  Después se abandona: la cuota no se quema en el mismo archivo roto. */
-const MAX_INTENTOS = 4;
+/** Cuántas veces se reintenta un video que falla. Después se abandona: la
+ *  cuota no se quema en el mismo archivo roto cada quince minutos. */
+const MAX_INTENTOS = 6;
+/** Y entre intento e intento se espera: cuando TikTok niega la descarga suele
+ *  ser por un rato, no para siempre. Sin esta espera los seis intentos se
+ *  gastaban en el mismo minuto malo. */
+const ESPERA_ENTRE_INTENTOS_MS = 30 * 60 * 1000;
 /** Un video de un minuto tarda ~12 s en transcribirse. */
 const TIMEOUT_TRANSCRIPCION_MS = 120_000;
 
@@ -107,10 +111,13 @@ export async function transcribirPendientes(
   if (!transcripcionDisponible()) return { intentados: 0, transcriptos: 0 };
 
   const limite = Math.max(1, opts.limite ?? 2);
+  // Los que nunca se intentaron entran siempre; los que fallaron, sólo si ya
+  // pasó la espera.
+  const listo = new Date(Date.now() - ESPERA_ENTRE_INTENTOS_MS).toISOString();
   const { data } = await db
     .from("tiktok_videos")
     .select("id, video_id, share_url, transcript_attempts, workspace_id")
-    .in("transcript_status", ["pending", "error"])
+    .or(`transcript_status.eq.pending,and(transcript_status.eq.error,updated_at.lt.${listo})`)
     .lt("transcript_attempts", MAX_INTENTOS)
     .not("share_url", "is", null)
     .order("posted_at", { ascending: false, nullsFirst: false })

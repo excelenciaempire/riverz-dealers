@@ -93,7 +93,7 @@ export const admin = {
   },
   featureComments: { es: "Comentarios", en: "Comments" },
   featureCommentsDesc: {
-    es: "Moderación y respuesta automática de comentarios de Instagram y Facebook.",
+    es: "Moderación y respuesta automatica de comentarios de Instagram y Facebook.",
     en: "Moderation and auto-reply for Instagram and Facebook comments.",
   },
   featureInstagramAgent: { es: "Ventas por Instagram", en: "Instagram sales" },
@@ -353,6 +353,10 @@ export const admin = {
   cronTiktokDeep: {
     es: "Repasa todos los videos de TikTok, no solo los nuevos",
     en: "Sweeps every TikTok video, not just the newest",
+  },
+  cronTiktokTranscripciones: {
+    es: "Transcribe los videos de TikTok para contestar sus comentarios",
+    en: "Transcribes TikTok videos so their comments can be answered",
   },
   cronInstagramEnrich: {
     es: "Enriquece perfiles públicos de Instagram",
@@ -760,7 +764,7 @@ export const admin = {
   resumeDone: { es: "Cuenta reactivada", en: "Account reactivated" },
   suspendError: { es: "No se pudo cambiar", en: "Couldn't change it" },
   suspendHint: {
-    es: "Suspender saca al comercio del panel y frena sus envíos automáticos. No borra nada: lo que llegue se sigue guardando.",
+    es: "Suspender saca al comercio del panel y frena sus envíos automaticos. No borra nada: lo que llegue se sigue guardando.",
     en: "Suspending locks the merchant out of the dashboard and stops their automated sends. Nothing is deleted: incoming data is still stored.",
   },
 } satisfies Namespace;

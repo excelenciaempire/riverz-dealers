@@ -34,16 +34,16 @@ async function cronHandler(request: Request) {
     const deep = new URL(request.url).searchParams.get("deep") === "1";
     const result = await pollAllTikTokConnections({ deep });
 
-    // Lo que DICE el video, para que contestar un comentario no sea adivinar.
-    // Pocos por corrida: cada uno es una descarga más unos segundos de
-    // Whisper, y lo que importa es que el video de hoy —el que está juntando
-    // comentarios— esté transcripto pronto, no vaciar la cola de una vez.
-    const transcripcion = await transcribirPendientes(supabaseAdmin(), {
-      limite: deep ? 8 : 2,
-    }).catch((err) => {
-      console.error("[tiktok/cron] transcripción falló:", err);
-      return { intentados: 0, transcriptos: 0 };
-    });
+    // La transcripción de los videos tiene cron propio
+    // (/api/cron/tiktok-transcripciones): acá sólo se remata la cola en el
+    // barrido profundo, que es cuando aparecen videos viejos que nunca se
+    // habían registrado.
+    const transcripcion = deep
+      ? await transcribirPendientes(supabaseAdmin(), { limite: 8 }).catch((err) => {
+          console.error("[tiktok/cron] transcripción falló:", err);
+          return { intentados: 0, transcriptos: 0 };
+        })
+      : { intentados: 0, transcriptos: 0 };
 
     return NextResponse.json(
       { ...result, deep, webhook, transcripcion },
