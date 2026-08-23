@@ -1063,6 +1063,13 @@ function Paso({
 }) {
   const hecho = b.estado === 'hecho'
   const clicable = Boolean(b.artefacto && b.actionId && onVer)
+  // Cuando la pieza tiene nombre, ése ES lo que tocó, y es más preciso que el
+  // dominio. Sin esto, un turno que escribe tres plantillas deja tres filas que
+  // dicen «Las plantillas» y no hay forma de saber cuál trae cuál.
+  const nombre =
+    b.artefacto && 'nombre' in b.artefacto && typeof b.artefacto.nombre === 'string'
+      ? b.artefacto.nombre
+      : ''
 
   const cuerpo = (
     <>
@@ -1075,7 +1082,9 @@ function Paso({
           className={cn('size-3 shrink-0', hecho ? 'text-accent-ink' : 'opacity-60')}
         />
       )}
-      <span className={cn('min-w-0 truncate', hecho && 'text-accent-ink')}>{b.label}</span>
+      <span className={cn('min-w-0 truncate', hecho && 'text-accent-ink')}>
+        {nombre || b.label}
+      </span>
       {veces > 1 && <span className="shrink-0 tabular-nums opacity-60">×{veces}</span>}
       {b.estado === 'error' && b.detalle && (
         <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-red-600 dark:text-red-400">
