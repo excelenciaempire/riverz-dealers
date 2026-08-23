@@ -28,6 +28,13 @@ type Provider = {
   apiKey: string;
 };
 
+/** ¿Hay con qué transcribir? Sin esto, quien encola trabajo no puede
+ *  distinguir "no se entendió nada" de "no hay clave configurada" — y marcaría
+ *  como mudo un video que nadie llegó a escuchar. */
+export function transcripcionDisponible(): boolean {
+  return pickProvider() !== null;
+}
+
 export interface TranscriptionResult {
   text: string;
   language?: string;
@@ -89,15 +96,43 @@ export async function transcribeAudio(
     // Whisper acepta ogg directamente.
     const mime =
       audioRes.headers.get("content-type") || "audio/ogg";
-    const ext = mimeToWhisperExt(mime);
-    const filename = `voice.${ext}`;
+    return await transcribeBuffer(buffer, {
+      mime,
+      filename: `voice.${mimeToWhisperExt(mime)}`,
+    });
+  } catch (err) {
+    console.warn("[transcribe] excepción:", err);
+    return null;
+  }
+}
 
-    const form = new FormData();
-    form.append(
-      "file",
-      new Blob([new Uint8Array(buffer)], { type: mime }),
-      filename,
+/**
+ * Lo mismo, pero con los bytes ya en la mano.
+ *
+ * Existe porque no todo lo que hay que transcribir se puede bajar con un
+ * `fetch` pelado: el video de TikTok necesita cabeceras de navegador y la
+ * cookie que devuelve su propia página, así que quien lo baja es el módulo
+ * que sabe hacerlo y acá sólo llega el archivo.
+ *
+ * Whisper acepta contenedores de video (mp4/webm): se queda con la pista de
+ * audio. No hace falta desmuxar nada.
+ */
+export async function transcribeBuffer(
+  buffer: Buffer,
+  opts: { mime?: string; filename?: string; timeoutMs?: number } = {},
+): Promise<TranscriptionResult | null> {
+  const provider = pickProvider();
+  if (!provider) {
+    console.warn(
+      "[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.",
     );
+    return null;
+  }
+  const mime = opts.mime || "audio/ogg";
+  const filename = opts.filename || `audio.${mimeToWhisperExt(mime)}`;
+  try {
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(buffer)], { type: mime }), filename);
     form.append("model", provider.model);
     // Forzamos español: el voice note típico en este producto es
     // cliente colombiano / hispanohablante. Whisper igual tolera mezcla,
@@ -109,7 +144,8 @@ export async function transcribeAudio(
       method: "POST",
       headers: { Authorization: `Bearer ${provider.apiKey}` },
       body: form,
-      signal: AbortSignal.timeout(15000),
+      // Un voice note son segundos; un video de un minuto tarda más de 10.
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 15000),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

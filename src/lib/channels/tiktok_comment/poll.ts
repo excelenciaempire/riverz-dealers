@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { applyCommentLifecycle, patchFor, type CommentRow } from "../comment-sync";
+import { guardarVideos } from "./videos";
 import { getFreshTikTokToken } from "./adapter";
 import type { ChannelConnection } from "@/types";
 
@@ -68,6 +69,11 @@ export async function pollAllTikTokConnections(
       const token = await getFreshTikTokToken(conn);
 
       const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
+      // Los videos, guardados: de ahí sale el contexto que necesita quien
+      // contesta un comentario (el texto del video y, después, lo que se dice
+      // en él). Best-effort: si falla, el poll sigue igual que siempre.
+      await guardarVideos(db, conn, nuevos).catch(() => 0);
+
       // Los 10 más nuevos NO son los que reciben comentarios: en la primera
       // cuenta conectada el video con más tráfico estaba en la posición 18
       // (43 mensajes) y el poll de 5 minutos no lo miraba nunca — sus
@@ -146,7 +152,9 @@ async function listVideos(
   deep: boolean,
 ): Promise<Array<Record<string, unknown>>> {
   const headers = { "Access-Token": token };
-  const fields = encodeURIComponent(JSON.stringify(["item_id", "caption", "create_time"]));
+  const fields = encodeURIComponent(
+    JSON.stringify(["item_id", "caption", "create_time", "share_url"]),
+  );
   const out: Array<Record<string, unknown>> = [];
   let cursor: string | number | undefined;
 

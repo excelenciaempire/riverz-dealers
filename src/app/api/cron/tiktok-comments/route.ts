@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { pollAllTikTokConnections } from "@/lib/channels/tiktok_comment/poll";
+import { transcribirPendientes } from "@/lib/channels/tiktok_comment/videos";
+import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { ensureTikTokCommentWebhook } from "@/lib/channels/tiktok_comment/webhook-subscribe";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun } from "@/lib/cron/heartbeat";
@@ -31,7 +33,22 @@ async function cronHandler(request: Request) {
     // entrada en el catálogo de crons, no cada minuto.
     const deep = new URL(request.url).searchParams.get("deep") === "1";
     const result = await pollAllTikTokConnections({ deep });
-    return NextResponse.json({ ...result, deep, webhook }, { status: 200 });
+
+    // Lo que DICE el video, para que contestar un comentario no sea adivinar.
+    // Pocos por corrida: cada uno es una descarga más unos segundos de
+    // Whisper, y lo que importa es que el video de hoy —el que está juntando
+    // comentarios— esté transcripto pronto, no vaciar la cola de una vez.
+    const transcripcion = await transcribirPendientes(supabaseAdmin(), {
+      limite: deep ? 8 : 2,
+    }).catch((err) => {
+      console.error("[tiktok/cron] transcripción falló:", err);
+      return { intentados: 0, transcriptos: 0 };
+    });
+
+    return NextResponse.json(
+      { ...result, deep, webhook, transcripcion },
+      { status: 200 },
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

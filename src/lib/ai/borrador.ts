@@ -20,6 +20,7 @@ import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import { briefDeVideo, videoDelHilo } from '@/lib/channels/tiktok_comment/videos';
 
 /**
  * BORRADOR — el mismo cerebro del asistente escribe la respuesta, pero para
@@ -112,7 +113,7 @@ export async function componerBorrador(
         loadContext(db, conversation, agent.context_messages || 30),
         loadProductCatalog(db, agent, input.workspaceId, productMatch),
         resolveWorkspaceCurrency(db, input.workspaceId),
-        loadInstagramContext(db, primaryContact.id).catch(() => null),
+        contextoDeLaPublicacion(db, input.workspaceId, conversation).catch(() => null),
       ]);
 
     // El contexto de Shopify entra para que el prompt tenga la ficha del
@@ -157,6 +158,18 @@ export async function componerBorrador(
       content: m.content || (m.role === 'user' ? 'Hola.' : ' '),
     }));
 
+    // El hilo termina con algo NUESTRO: el cliente no volvió a escribir.
+    // Pedirle al modelo que "conteste" ahí devolvía vacío —no hay nada que
+    // contestar— y el botón parecía roto justo donde más se usa: retomar una
+    // conversación que se quedó sin respuesta.
+    if (claudeMessages[claudeMessages.length - 1]?.role === 'assistant') {
+      claudeMessages.push({
+        role: 'user',
+        content:
+          '[La persona no volvió a escribir. Escribe un mensaje breve para retomar: engancha con lo último que se dijo y facilita el siguiente paso. No saludes de nuevo ni repitas lo ya enviado.]',
+      });
+    }
+
     const maxChars = agent.max_response_chars || 500;
     const result = await runWithTools(getAnthropic(resolvedKey.key), {
       model: agent.model || 'claude-haiku-4-5-20251001',
@@ -178,6 +191,28 @@ export async function componerBorrador(
     console.error('[borrador] fallo:', err);
     return { text: null, error: 'fallo' };
   }
+}
+
+/**
+ * De qué está colgado este hilo.
+ *
+ * En Instagram es la ficha de la persona ("un solo cerebro"); en TikTok es el
+ * video, que es a quien le habla el comentario. Los dos terminan en el mismo
+ * lugar del prompt porque los dos responden a lo mismo: qué más hay que saber
+ * antes de contestar acá.
+ */
+async function contextoDeLaPublicacion(
+  db: SupabaseClient,
+  workspaceId: string,
+  conversation: Conversation,
+): Promise<string | null> {
+  if (conversation.channel === 'tiktok_comment') {
+    const videoId = videoDelHilo(
+      (conversation as { thread_external_id?: string | null }).thread_external_id,
+    );
+    return videoId ? briefDeVideo(db, workspaceId, videoId) : null;
+  }
+  return loadInstagramContext(db, conversation.contact_id);
 }
 
 /**
@@ -224,23 +259,32 @@ async function agenteParaBorrador(
   const apagado = data as AiAgent | null;
   if (apagado) return apagado;
 
-  return redactorGenerico(workspaceId);
+  // Sin ningún agente: el redactor genérico se presenta con el nombre del
+  // comercio. Si se queda con un nombre inventado, el modelo lo dice en voz
+  // alta ("soy Borrador, el asistente de la tienda") y el cliente lee algo
+  // que no existe.
+  const { data: ws } = await db
+    .from('workspaces')
+    .select('name')
+    .eq('id', workspaceId)
+    .maybeSingle();
+  return redactorGenerico(workspaceId, (ws as { name?: string } | null)?.name ?? null);
 }
 
 /** El agente que no existe: sólo lo suficiente para armar el prompt. Nunca se
  *  guarda ni se muestra en ningún lado. */
-function redactorGenerico(workspaceId: string): AiAgent {
+function redactorGenerico(workspaceId: string, nombreDelComercio: string | null): AiAgent {
   const ahora = new Date().toISOString();
   return {
     id: '00000000-0000-0000-0000-000000000000',
     workspace_id: workspaceId,
-    name: 'Borrador',
+    name: nombreDelComercio?.trim() || 'la tienda',
     is_active: false,
     role: 'general',
     permissions: null,
     tools: null,
     persona:
-      'Atiendes a los clientes de esta tienda por chat. Respondes con lo que sabes del catálogo y de la conversación, y no inventas nada.',
+      'Atiendes a los clientes de esta tienda por chat. Conoces los productos del catálogo que aparece más abajo y contestas con eso, con la conversación y con lo que diga la publicación que están comentando; lo que no sabes, no lo inventas.',
     knowledge: null,
     knowledge_url: null,
     knowledge_synced_at: null,
@@ -292,6 +336,9 @@ function redactorGenerico(workspaceId: string): AiAgent {
  */
 const REGLAS_BORRADOR = [
   'Escribe la respuesta que le mandarías a esta persona ahora mismo, lista para enviar.',
+  'Contesta LO QUE DIJO. Si comenta algo del video o del producto —un ingrediente, la edad, el sol, la piel, el precio, el envío— eso ES del negocio: respóndelo con lo que sabes del video y del catálogo, no lo trates como fuera de tema.',
+  'Nunca escribas que te falta contexto, que no entiendes la conversación previa, que eres una IA, ni que sólo puedes ayudar con productos y pedidos. Si de verdad no se entiende qué quiso decir, haz UNA pregunta corta y natural.',
+  'No uses el nombre de usuario de la red social como si fuera su nombre.',
   'Nada de encabezados, opciones numeradas, alternativas ni notas para quien atiende: sólo el mensaje.',
   'Sin espacios para completar ni corchetes. Si un dato no lo sabes, no lo menciones.',
   'Una sola respuesta, del largo de un mensaje de chat.',
