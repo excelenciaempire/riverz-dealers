@@ -74,3 +74,16 @@ export const unify = {
   done: { es: "Listo. El agente ya contesta igual por todos los canales.", en: "Done. The agent now answers the same on every channel." },
   failed: { es: "No se pudo unificar.", en: "Could not merge." },
 } satisfies Namespace;
+
+export const approvals = {
+  title: { es: "Esperando tu sí", en: "Waiting on you" },
+  subtitle: {
+    es: "Lo que el agente preparó y no hace hasta que decidas.",
+    en: "What the agent prepared and will not do until you decide.",
+  },
+  empty: { es: "No hay nada esperando.", en: "Nothing waiting." },
+  approve: { es: "Aprobar", en: "Approve" },
+  reject: { es: "Rechazar", en: "Decline" },
+  done: { es: "Listo.", en: "Done." },
+  failed: { es: "No se pudo.", en: "Could not do it." },
+} satisfies Namespace;

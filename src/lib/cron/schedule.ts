@@ -126,6 +126,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     path: "/api/cron/commerce-webhooks",
     schedule: "30 */6 * * *",
   },
+  // De madrugada: leer la página de un producto tarda segundos y el research
+  // cuesta tokens, así que se hace cuando nadie está mirando y por tandas.
+  { name: "catalog-enrich", whatKey: "admin.cronCatalogEnrich", path: "/api/cron/catalog-enrich", schedule: "0 4 * * *" },
   { name: "gmail-watch", whatKey: "admin.cronGmailWatch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
   { name: "outlook-watch", whatKey: "admin.cronOutlookWatch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
 

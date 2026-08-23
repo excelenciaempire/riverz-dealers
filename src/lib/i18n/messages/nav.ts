@@ -32,6 +32,7 @@ export const nav = {
   products: { es: "Productos", en: "Products" },
   orders: { es: "Pedidos", en: "Orders" },
   returns: { es: "Devoluciones", en: "Returns" },
+  approvals: { es: "Aprobaciones", en: "Approvals" },
   metrics: { es: "Rendimiento", en: "Performance" },
   team: { es: "Equipo", en: "Team" },
   integrations: { es: "Integraciones", en: "Integrations" },

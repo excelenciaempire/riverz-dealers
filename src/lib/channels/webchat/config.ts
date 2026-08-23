@@ -35,9 +35,25 @@ export interface WebchatSettings {
   auto_open_seconds: number;
   allow_uploads: boolean;
   ask_rating: boolean;
+  /**
+   * El idioma en que el CHAT se dibuja: los botones, "¿te sirvió?", el aviso
+   * de sesión vencida.
+   *
+   * Sigue al agente y no al panel: quien lee esto es el cliente del comercio,
+   * y el comercio ya eligió en qué idioma le habla. Sin esto el marco del chat
+   * estaba cableado en español y una tienda inglesa le mostraba "Reanudar" a
+   * sus clientes.
+   */
+  locale: 'es' | 'en';
+  /** Qué se muestra cuando el agente está fuera de horario. Vacío = nada. */
+  offline_message: string;
 }
 
-export function widgetSettings(config: WebchatConfig, fallbackName: string): WebchatSettings {
+export function widgetSettings(
+  config: WebchatConfig,
+  fallbackName: string,
+  extra?: { locale?: string | null; offline?: boolean },
+): WebchatSettings {
   return {
     primary_color: config.primary_color || WEBCHAT_DEFAULTS.primary_color,
     position: config.position || WEBCHAT_DEFAULTS.position,
@@ -48,6 +64,10 @@ export function widgetSettings(config: WebchatConfig, fallbackName: string): Web
     auto_open_seconds: config.auto_open_seconds ?? WEBCHAT_DEFAULTS.auto_open_seconds,
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,
+    locale: (extra?.locale ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es',
+    // Sólo cuando de verdad está fuera de horario: mandarlo siempre y que el
+    // chat decida sería contarle al visitante el horario del comercio.
+    offline_message: extra?.offline ? (config.offline_message ?? '') : '',
   };
 }
 

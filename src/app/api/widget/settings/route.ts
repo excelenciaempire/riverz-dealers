@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { widgetSettings } from '@/lib/channels/webchat/config';
+import { agenteDelChat } from '@/lib/channels/webchat/connection-store';
 import { requireSession } from '@/lib/channels/webchat/guard';
 
 /**
@@ -25,6 +26,9 @@ export async function GET(request: Request) {
     settings: widgetSettings(
       guard.ctx.config,
       (workspace as { name?: string } | null)?.name ?? 'Riverz',
+      // El horario se recalcula en CADA consulta: el chat queda abierto y la
+      // hora de cierre pasa mientras la persona escribe.
+      await agenteDelChat(guard.session.workspaceId, guard.ctx.config.agent_id ?? null),
     ),
   });
 }

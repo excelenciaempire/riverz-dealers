@@ -138,7 +138,7 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
  * 001). Buscar por `id` con ids de auth no encuentra jamás a nadie, que es lo
  * que dejó mudas todas las aprobaciones hasta acá.
  */
-async function quienDecide(
+export async function quienDecide(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string | null> {

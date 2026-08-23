@@ -34,6 +34,7 @@ export const GATEABLE_SECTIONS: GateableSection[] = [
   { key: "/productos", labelKey: "nav.products" },
   { key: "/pedidos", labelKey: "nav.orders" },
   { key: "/devoluciones", labelKey: "nav.returns" },
+  { key: "/aprobaciones", labelKey: "nav.approvals" },
   { key: "/integraciones", labelKey: "nav.integrations" },
 ];
 

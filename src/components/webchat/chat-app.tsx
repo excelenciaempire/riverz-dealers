@@ -37,7 +37,65 @@ interface Settings {
   auto_open_seconds: number;
   allow_uploads: boolean;
   ask_rating: boolean;
+  locale: 'es' | 'en';
+  offline_message: string;
 }
+
+/**
+ * El marco del chat, en los dos idiomas.
+ *
+ * No usa los catálogos del panel a propósito: esto lo lee el CLIENTE del
+ * comercio, no el comercio. El panel sigue la cookie de quien administra; acá
+ * el idioma lo decide el agente que atiende, que es el mismo que gobierna los
+ * mensajes. Un diccionario de doce líneas mantiene el widget aislado, que es
+ * la razón por la que vive en un iframe.
+ */
+const TEXTOS = {
+  es: {
+    adjuntar: 'Adjuntar',
+    escribi: 'Escribí tu mensaje',
+    enviar: 'Enviar',
+    caduco: 'La conversación caducó.',
+    reanudar: 'Reanudar',
+    reanudando: 'Reanudando…',
+    sirvio: '¿Te sirvió?',
+    gracias: 'Gracias por avisar.',
+    graciasNo: 'Gracias, se lo paso al equipo.',
+    empezar: 'Empezar',
+    correo: 'tu@correo.com',
+    agregar: 'Agregar',
+    agregado: 'Agregado',
+    agregando: 'Agregando…',
+    pagar: 'Ir a pagar',
+    yMas: (n: number) => `y ${n} más`,
+  },
+  en: {
+    adjuntar: 'Attach',
+    escribi: 'Type your message',
+    enviar: 'Send',
+    caduco: 'This conversation expired.',
+    reanudar: 'Resume',
+    reanudando: 'Resuming…',
+    sirvio: 'Did this help?',
+    gracias: 'Thanks for letting us know.',
+    graciasNo: 'Thanks — passing it to the team.',
+    empezar: 'Start',
+    correo: 'you@email.com',
+    agregar: 'Add',
+    agregado: 'Added',
+    agregando: 'Adding…',
+    pagar: 'Checkout',
+    yMas: (n: number) => `and ${n} more`,
+  },
+} as const;
+
+/** La forma, no los literales: con `as const` el tipo del español exigía que
+ *  el inglés dijera "Adjuntar". */
+export type TextosChat = { [K in keyof (typeof TEXTOS)['es']]: (typeof TEXTOS)['es'][K] extends (
+  n: number,
+) => string
+  ? (n: number) => string
+  : string };
 
 /** Sondeo con la pestaña a la vista, y con la pestaña de fondo. Alguien que
  *  dejó la tienda abierta en otra solapa no necesita 24 consultas por minuto,
@@ -81,6 +139,7 @@ export function ChatApp() {
   // nada y molesta.
   const [califico, setCalifico] = useState<null | boolean>(null);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
+  const T = TEXTOS[settings?.locale === 'en' ? 'en' : 'es'];
 
   const cursor = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -420,9 +479,18 @@ export function ChatApp() {
         !waiting &&
         !expired &&
         messages.filter((m) => m.sender !== 'visitor').length >= 2 ? (
-          <Rating valor={califico} onVotar={calificar} />
+          <Rating valor={califico} onVotar={calificar} T={T} />
         ) : null}
       </div>
+
+      {/* Fuera de horario. Va arriba del cuadro de texto y NO lo bloquea: la
+          persona igual puede escribir y el mensaje queda esperando. Cerrarle el
+          chat sería perder la consulta que ya venía a hacer. */}
+      {!expired && settings?.offline_message ? (
+        <p className="border-t border-neutral-200 bg-neutral-50 px-4 py-2 text-center text-[11px] text-neutral-600">
+          {settings.offline_message}
+        </p>
+      ) : null}
 
       {expired ? (
         // Recargar NO servía: el token viaja en el fragmento y se borra apenas
@@ -430,6 +498,7 @@ export function ChatApp() {
         // aspecto normal donde escribir no hacía absolutamente nada. La sesión
         // la emite el cargador, que es quien corre en el dominio de la tienda.
         <Notice
+          T={T}
           esperando={reanudando}
           onRetry={() => {
             setReanudando(true);
@@ -449,7 +518,7 @@ export function ChatApp() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@correo.com"
+            placeholder={T.correo}
             className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
           />
           <button
@@ -457,7 +526,7 @@ export function ChatApp() {
             className="mt-2 w-full rounded-lg px-3 py-2 text-sm font-semibold"
             style={{ background: color, color: ink }}
           >
-            Empezar
+            {T.empezar}
           </button>
         </form>
       ) : (
@@ -474,7 +543,7 @@ export function ChatApp() {
           {settings?.allow_uploads !== false ? (
           <label
             className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
-            title="Adjuntar"
+            title={T.adjuntar}
           >
             <input
               type="file"
@@ -579,20 +648,22 @@ function Typing() {
 function Rating({
   valor,
   onVotar,
+  T,
 }: {
   valor: boolean | null;
   onVotar: (util: boolean) => void;
+  T: TextosChat;
 }) {
   if (valor !== null) {
     return (
       <p className="mt-3 text-center text-[11px] text-neutral-500">
-        {valor ? 'Gracias por avisar.' : 'Gracias, se lo paso al equipo.'}
+        {valor ? T.gracias : T.graciasNo}
       </p>
     );
   }
   return (
     <div className="mt-3 flex items-center justify-center gap-2">
-      <span className="text-[11px] text-neutral-500">¿Te sirvió?</span>
+      <span className="text-[11px] text-neutral-500">{T.sirvio}</span>
       {[true, false].map((util) => (
         <button
           key={String(util)}
@@ -608,17 +679,25 @@ function Rating({
   );
 }
 
-function Notice({ onRetry, esperando }: { onRetry: () => void; esperando?: boolean }) {
+function Notice({
+  onRetry,
+  esperando,
+  T,
+}: {
+  onRetry: () => void;
+  esperando?: boolean;
+  T: TextosChat;
+}) {
   return (
     <div className="border-t border-neutral-200 p-3 text-center">
-      <p className="text-sm text-neutral-600">La conversación caducó.</p>
+      <p className="text-sm text-neutral-600">{T.caduco}</p>
       <button
         type="button"
         onClick={onRetry}
         disabled={esperando}
         className="mt-1 text-sm font-semibold text-neutral-900 underline disabled:opacity-60"
       >
-        {esperando ? 'Reanudando…' : 'Reanudar'}
+        {esperando ? T.reanudando : T.reanudar}
       </button>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   VISITOR_ID_RE,
 } from '@/lib/channels/webchat/token';
 import { originAllowed, normalizeOrigin, widgetSettings } from '@/lib/channels/webchat/config';
+import { agenteDelChat } from '@/lib/channels/webchat/connection-store';
 import { checkIpLimit, loadWebchat } from '@/lib/channels/webchat/guard';
 
 /**
@@ -145,7 +146,11 @@ export async function POST(request: Request) {
       sessionToken,
       visitorId,
       visitorProof: visitorProof(workspaceId, visitorId),
-      settings: widgetSettings(config, (workspace as { name?: string } | null)?.name ?? 'Riverz'),
+      settings: widgetSettings(
+        config,
+        (workspace as { name?: string } | null)?.name ?? 'Riverz',
+        await agenteDelChat(workspaceId, config.agent_id ?? null),
+      ),
     },
     { headers: cors },
   );

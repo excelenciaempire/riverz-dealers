@@ -445,6 +445,17 @@ export function WebchatPanel() {
         </div>
 
         <div className="mt-3">
+          <Field label={t('webchat.offlineMessage')}>
+            <Input
+              value={cfg.offline_message ?? ''}
+              placeholder={t('webchat.offlinePlaceholder')}
+              onChange={(e) => setCfg({ ...cfg, offline_message: e.target.value })}
+              onBlur={(e) => save({ offline_message: e.target.value })}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-3">
           <Field label={t('webchat.autoOpen')}>
             <div className="flex flex-wrap gap-2">
               {AUTO_OPEN.map((s) => (

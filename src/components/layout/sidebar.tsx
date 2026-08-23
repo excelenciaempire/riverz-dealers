@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   PackageOpen,
   Receipt,
+  ShieldQuestion,
   Workflow,
   LogOut,
   User,
@@ -121,6 +122,7 @@ const navGroups: NavGroup[] = [
       { href: "/productos", label: "nav.products", icon: ShoppingBag },
       { href: "/pedidos", label: "nav.orders", icon: Receipt },
       { href: "/devoluciones", label: "nav.returns", icon: PackageOpen },
+      { href: "/aprobaciones", label: "nav.approvals", icon: ShieldQuestion },
     ],
   },
 ];

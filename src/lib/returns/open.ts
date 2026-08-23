@@ -149,6 +149,19 @@ export async function abrirDevolucion(
   }
 
   const fila = data as { id: string; order_number: string | null }
+
+  // Y se avisa. Sin esto el caso quedaba esperando a que alguien entrara a la
+  // pantalla de devoluciones — el mismo defecto que las aprobaciones tenían: el
+  // dato entra, nadie se entera, y la clienta espera una respuesta que nadie
+  // sabe que le debe. No se espera el envío: la devolución ya está registrada y
+  // que el WhatsApp tarde no puede trabar la conversación.
+  void avisarDeLaDevolucion(ctx, {
+    kind,
+    orderNumber: fila.order_number ?? numero,
+    motivo: (input.reason ?? '').trim(),
+    fotos: fotos.length,
+  }).catch(() => {})
+
   return JSON.stringify({
     ok: true,
     estado: 'abierta',
@@ -162,5 +175,27 @@ export async function abrirDevolucion(
         : 'Si todavía no mandó fotos del producto, pediselas: aceleran la revisión. ') +
       'Decile que el equipo la revisa y le confirma. ' +
       'NO le digas que está aprobada ni le prometas un reembolso ni una fecha.',
+  })
+}
+
+/** El aviso por WhatsApp al comercio, por el mismo canal que las aprobaciones. */
+async function avisarDeLaDevolucion(
+  ctx: DevolucionCtx,
+  d: { kind: string; orderNumber: string | null; motivo: string; fotos: number },
+): Promise<void> {
+  const { quienDecide } = await import('@/lib/approvals/ask')
+  const { sendPlatformAlert } = await import('@/lib/admin/platform-whatsapp')
+
+  const destino = await quienDecide(ctx.db, ctx.workspaceId)
+  if (!destino) return
+
+  const que = d.kind === 'cambio' ? 'un cambio' : 'una devolución'
+  await sendPlatformAlert({
+    to: destino,
+    title: `Pidieron ${que}${d.orderNumber ? ` del pedido #${d.orderNumber}` : ''}`,
+    body:
+      `${d.motivo || 'Sin motivo escrito'}. ` +
+      `${d.fotos > 0 ? `Mandó ${d.fotos} foto(s). ` : 'Sin fotos. '}` +
+      `Miralo en Devoluciones.`,
   })
 }

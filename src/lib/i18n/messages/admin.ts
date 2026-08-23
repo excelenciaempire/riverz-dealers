@@ -396,6 +396,10 @@ export const admin = {
     en: "Repoints store webhooks at the current domain",
   },
   cronGmailWatch: { es: "Renueva la suscripción push de Gmail", en: "Renews the Gmail push subscription" },
+  cronCatalogEnrich: {
+    es: "Le lee la página a los productos nuevos y une los repetidos entre plataformas",
+    en: "Reads new products' pages and merges the ones duplicated across platforms",
+  },
   cronOutlookWatch: {
     es: "Renueva la suscripción push de Outlook",
     en: "Renews the Outlook push subscription",
