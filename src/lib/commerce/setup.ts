@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import { enrichProducts } from '@/lib/products/enrich'
+import { unificarLoObvio } from '@/lib/products/unify'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { persistStoreConnection } from './connection'
 import { upsertCatalog } from './catalog'
@@ -274,6 +275,11 @@ export async function resyncCatalog(
     max: 25,
     locale: 'es',
   }).catch(() => {})
+  // Y se unifica lo que no admite duda: el mismo producto en dos plataformas
+  // con el mismo SKU es el mismo producto. Sin esto, quien vende en Shopify y
+  // en Mercado Libre carga el conocimiento dos veces —o, lo que pasa siempre,
+  // lo carga una y el agente contesta vacío por el otro canal.
+  void unificarLoObvio(db, store.workspaceId).catch(() => {})
   return resultado
 }
 

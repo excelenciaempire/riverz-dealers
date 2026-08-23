@@ -51,3 +51,20 @@ export const gaps = {
   },
   saveFailed: { es: "No se pudo guardar.", en: "Could not save." },
 } satisfies Namespace;
+
+export const unify = {
+  title: { es: "Productos repetidos entre plataformas", en: "Products duplicated across platforms" },
+  hint: {
+    es: "El mismo producto vive una vez por canal. Unificalos y el conocimiento se carga una sola vez.",
+    en: "The same product lives once per channel. Merge them and the knowledge is written once.",
+  },
+  bySku: { es: "Tienen el mismo SKU", en: "Same SKU" },
+  byTitle: { es: "El nombre coincide", en: "Matching name" },
+  pricesKept: {
+    es: "Cada canal conserva su precio y su enlace. Sólo se unifica lo que el agente sabe.",
+    en: "Each channel keeps its own price and link. Only what the agent knows is merged.",
+  },
+  merge: { es: "Es el mismo producto", en: "Same product" },
+  done: { es: "Listo. El agente ya contesta igual por todos los canales.", en: "Done. The agent now answers the same on every channel." },
+  failed: { es: "No se pudo unificar.", en: "Could not merge." },
+} satisfies Namespace;

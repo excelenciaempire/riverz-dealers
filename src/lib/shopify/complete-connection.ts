@@ -4,6 +4,7 @@ import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
 import { syncShopifyProducts } from '@/lib/shopify/product-sync'
 import { learnOffersOnConnect } from '@/lib/shopify/offer-learning'
 import { enrichProducts } from '@/lib/products/enrich'
+import { unificarLoObvio } from '@/lib/products/unify'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('shopify.complete')
@@ -97,6 +98,9 @@ export async function completeShopifyConnection(
         ? enrichProducts(admin, { shopDomain, max: enrichMax, locale: 'es' })
         : undefined,
     )
+    // Si esta tienda es el segundo canal del mismo catálogo, se pliega contra
+    // el que ya estaba: el conocimiento se carga una vez y vale para los dos.
+    .then(() => (workspaceId ? unificarLoObvio(admin, workspaceId) : undefined))
     .catch((err) =>
       log.error('initial_sync_offer_or_enrich_failed', {
         shop: shopDomain,

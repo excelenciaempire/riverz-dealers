@@ -1322,7 +1322,7 @@ export async function loadProductCatalog(
     const { data: pinned } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive',
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform',
       )
       .eq('id', productMatch.product_id)
       .eq('workspace_id', workspaceId)
@@ -1338,27 +1338,27 @@ export async function loadProductCatalog(
   }
 
   if (agent.product_scope === 'specific') {
-    if (!ownedIds || ownedIds.size === 0) return pinnedRows;
+    if (!ownedIds || ownedIds.size === 0) return unificarFilas(pinnedRows);
     // Specific scope: los productos asignados se inyectan SIEMPRE en
     // contexto (no sólo el detectado), así que cargamos los campos ricos
     // —research/guardrails— para todos, no sólo el pinned.
     const { data: products } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive',
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform',
       )
       .in('id', Array.from(ownedIds));
     const rest = ((products ?? []) as ProductRow[]).filter(
       (p) => !pinnedRows.some((x) => x.id === p.id),
     );
-    return [...pinnedRows, ...rest];
+    return unificarFilas([...pinnedRows, ...rest]);
   }
 
   // Scope = 'all' — top-80 más recientes, pinned arriba.
   const { data: products } = await db
     .from('shopify_products')
     .select(
-      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material',
+      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform',
     )
     .eq('workspace_id', workspaceId)
     .order('synced_at', { ascending: false })
@@ -1366,11 +1366,65 @@ export async function loadProductCatalog(
   const rest = ((products ?? []) as ProductRow[]).filter(
     (p) => !pinnedRows.some((x) => x.id === p.id),
   );
-  return [...pinnedRows, ...rest].slice(0, 80);
+  return unificarFilas([...pinnedRows, ...rest]).slice(0, 80);
+}
+
+/**
+ * Un producto vendido en varios lados es UN producto.
+ *
+ * Quien vende en Shopify y en Mercado Libre tiene el mismo producto dos veces
+ * en la tabla: cada plataforma sincroniza su fila. Sin esto el agente recibía
+ * las dos como si fueran productos distintos — una con el conocimiento cargado
+ * y la otra vacía, porque nadie escribe la misma información dos veces — y
+ * contestaba distinto según por dónde le escribieran.
+ *
+ * Acá las publicaciones que cuelgan de una principal (migración 183) se
+ * plegan sobre ella: el conocimiento sale de la principal y los precios de
+ * cada plataforma quedan en `listings`. Los precios NO se promedian ni se
+ * eligen: el mismo serum sale 39.990 en Shopify y 45.000 en Mercado Libre por
+ * las comisiones, y las dos cifras son ciertas en su canal. Inventar una sola
+ * es cotizarle mal a alguien.
+ */
+export function unificarFilas(filas: ProductRow[]): ProductRow[] {
+  const porId = new Map(filas.filter((p) => p.id).map((p) => [p.id as string, p]));
+  const grupos = new Map<string, ProductRow[]>();
+  for (const p of filas) {
+    // Una publicación cuya principal NO vino en esta tanda se queda como está:
+    // plegarla contra algo que no está cargado la dejaría sin conocimiento y
+    // sin fila propia, o sea invisible.
+    const clave = p.master_id && porId.has(p.master_id) ? p.master_id : (p.id ?? p.title);
+    grupos.set(clave, [...(grupos.get(clave) ?? []), p]);
+  }
+
+  const salida: ProductRow[] = [];
+  for (const [clave, grupo] of grupos) {
+    const principal = grupo.find((p) => p.id === clave) ?? grupo[0];
+    if (grupo.length === 1) {
+      salida.push(principal);
+      continue;
+    }
+    salida.push({
+      ...principal,
+      listings: grupo.map((p) => ({
+        platform: p.platform ?? 'shopify',
+        price: p.price_min ?? null,
+        url: p.url ?? null,
+      })),
+    });
+  }
+  return salida;
 }
 
 export interface ProductRow {
   id?: string;
+  /** La fila que manda el conocimiento cuando el producto se vende en varias
+   *  plataformas. NULL = esta fila es la principal. Migración 183. */
+  master_id?: string | null;
+  platform?: string | null;
+  /** Dónde más se vende lo mismo, con el precio de cada lado. Lo arma
+   *  `unificarFilas`; el agente lo necesita para cotizar el precio del canal
+   *  por el que le están escribiendo. */
+  listings?: Array<{ platform: string; price: number | null; url: string | null }>;
   title: string;
   description: string | null;
   price_min: number | null;
@@ -2385,7 +2439,18 @@ export function formatProductLine(p: ProductRow): string {
       : null;
   const meta = [p.product_type, p.vendor, price].filter(Boolean).join(' · ');
   const desc = (p.description ?? '').slice(0, 180);
-  return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${
+  // El mismo producto en varias plataformas cuesta distinto en cada una: las
+  // comisiones del marketplace están adentro del precio publicado. Se listan
+  // las dos porque las dos son ciertas en su canal, y el modelo tiene que
+  // cotizar la del canal por el que le están escribiendo — no un promedio, que
+  // no es el precio de nadie.
+  const otros =
+    (p.listings ?? []).length > 1
+      ? ` [precio por canal: ${(p.listings ?? [])
+          .map((l) => `${l.platform} $${l.price ?? '?'}`)
+          .join(' · ')}]`
+      : '';
+  return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${otros}${
     p.url ? ` <${p.url}>` : ''
   }`;
 }
