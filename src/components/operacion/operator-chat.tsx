@@ -179,6 +179,18 @@ export function OperatorChat({
    * cuanto `enviar` existe.
    */
   const enviarRef = useRef<((texto: string) => Promise<void>) | null>(null)
+  /**
+   * El hilo abierto AHORA, no el que estaba abierto al empezar.
+   *
+   * Una corrida puede tardar minutos y en el medio se puede cambiar de
+   * conversación o abrir una nueva. Leer `thread` de la clausura hacía que al
+   * terminar se releyera el hilo viejo, pisando el que la persona acababa de
+   * abrir.
+   */
+  const threadRef = useRef<string | null>(null)
+  threadRef.current = thread
+  /** Que la apertura automática pase UNA vez, al entrar. */
+  const yaArranco = useRef(false)
 
   /**
    * Abre una conversación anterior.
@@ -265,11 +277,16 @@ export function OperatorChat({
         setVivo(null)
         // El turno terminado ya está guardado con el mensaje: se relee el hilo
         // en vez de armarlo acá con la foto, que es la versión de al lado.
-        if (thread) await abrirHilo(thread)
+        //
+        // Y se relee el que está abierto AHORA: entre que la corrida empezó y
+        // terminó puede haber pasado un «Chat nuevo».
+        const actual = threadRef.current
+        if (actual) await abrirHilo(actual)
       }
     },
-    // `abrirHilo` se declara arriba; `thread` cambia al abrir uno.
-    [abrirHilo, thread],
+    // Sin `thread`: viaja por la caja. Tenerlo acá recreaba esta función en
+    // cada cambio de hilo, y con ella el efecto que abre la última.
+    [abrirHilo],
   )
 
   /**
@@ -281,6 +298,14 @@ export function OperatorChat({
    * de cero.
    */
   useEffect(() => {
+    // Una vez y nada más. Esto tenía a `retomar` en las dependencias, que
+    // depende del hilo: tocar «Chat nuevo» ponía el hilo en null, `retomar`
+    // cambiaba de identidad, el efecto se volvía a montar y abría la
+    // conversación anterior. Abrir la última al ENTRAR es lo que se quería;
+    // volver a abrirla cada vez que cambia el hilo es lo contrario.
+    if (yaArranco.current) return
+    yaArranco.current = true
+
     let cancelado = false
     void (async () => {
       try {
@@ -324,6 +349,9 @@ export function OperatorChat({
     setError(null)
     setTexto('')
     setNotas([])
+    // Y se suelta la corrida: el boton de detener apuntaria al turno de la
+    // conversacion anterior, que no es la que se esta mirando.
+    setCorrida(null)
   }, [aLaMesa])
 
   const borrarChat = useCallback(
