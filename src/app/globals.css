@@ -444,31 +444,58 @@ html[data-theme="dark"] {
 }
 
 @layer components {
-  /* «Construyendo»: tres segmentos que se encienden en fila.
+  /* Lo que está pasando ahora, con una luz que recorre el texto.
    *
-   * Un `Loader2` girando es el mismo spinner que usa todo lo que carga en esta
-   * app, así que no distingue "estoy trayendo datos" de "estoy armando algo".
-   * Esto no gira: se arma, que es lo que está pasando. */
-  .app-armando > span {
-    animation: app-armar 1.5s ease-in-out infinite;
-    transform-origin: left center;
+   * Tres barras saltando se veían como un cargador de los noventa, y encima
+   * sólo aparecían antes del primer paso. Esto es la línea de actividad: dice
+   * QUÉ se está haciendo y la luz que la recorre dice que sigue pasando. Se
+   * queda todo el turno, no sólo al principio. */
+  .app-latiendo {
+    background-image: linear-gradient(
+      100deg,
+      var(--muted-foreground) 0%,
+      var(--muted-foreground) 38%,
+      var(--accent-ink) 50%,
+      var(--muted-foreground) 62%,
+      var(--muted-foreground) 100%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: app-latir 2.6s linear infinite;
   }
-  .app-armando > span:nth-child(2) {
-    animation-delay: 0.18s;
+  @keyframes app-latir {
+    from {
+      background-position: 125% 0;
+    }
+    to {
+      background-position: -125% 0;
+    }
   }
-  .app-armando > span:nth-child(3) {
-    animation-delay: 0.36s;
+
+  /* El punto que acompaña a la línea: late con un halo, no gira. */
+  .app-punto {
+    position: relative;
+    display: inline-flex;
   }
-  @keyframes app-armar {
-    0%,
+  .app-punto::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--primary) 45%, transparent);
+    animation: app-halo-punto 2s ease-out infinite;
+  }
+  @keyframes app-halo-punto {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.7;
+    }
     70%,
     100% {
-      transform: scaleX(0.25);
-      opacity: 0.35;
-    }
-    35% {
-      transform: scaleX(1);
-      opacity: 1;
+      transform: scale(1.6);
+      opacity: 0;
     }
   }
 
@@ -498,13 +525,14 @@ html[data-theme="dark"] {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .app-armando > span,
+    .app-latiendo,
+    .app-punto::before,
     .app-brillo::after {
       animation: none;
     }
-    .app-armando > span {
-      transform: none;
-      opacity: 0.7;
+    .app-latiendo {
+      background: none;
+      color: var(--muted-foreground);
     }
   }
 }

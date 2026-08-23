@@ -29,7 +29,7 @@ import { drainEvents } from '@/lib/operator/events'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
 import { VistaArtefacto } from './artefacto'
-import { useMesaDispatch } from './mesa-contexto'
+import { useMesa, useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
 
 /**
@@ -146,6 +146,7 @@ export function OperatorChat({
   // por contexto en vez de levantar el estado, para no tener que reescribir el
   // lector del stream.
   const aLaMesa = useMesaDispatch()
+  const mesa = useMesa()
   const [thread, setThread] = useState<string | null>(null)
   const [mensajes, setMensajes] = useState<Mensaje[]>([])
   const [acciones, setAcciones] = useState<Accion[]>([])
@@ -532,6 +533,25 @@ export function OperatorChat({
       bs.flatMap((b) => (b.k === 'paso' && b.actionId ? [b.actionId] : [])),
     ),
   )
+  /**
+   * Qué se está haciendo ahora mismo.
+   *
+   * El paso que está corriendo gana; si no hay ninguno, el especialista que
+   * está trabajando; y si tampoco, que está pensando. Es lo que hace que la
+   * espera se lea como trabajo en curso y no como una pantalla trabada.
+   */
+  const corriendo = [...(vivo?.bloques ?? [])]
+    .reverse()
+    .find((b): b is Extract<Bloque, { k: 'paso' }> => b.k === 'paso' && b.estado === 'corriendo')
+  const trabajando = mesa.agentes.find((a) => a.estado === 'trabajando')
+  const actividad = corriendo
+    ? PASO_LABEL[corriendo.key]
+      ? t(PASO_LABEL[corriendo.key])
+      : corriendo.label
+    : trabajando
+      ? trabajando.ultima || trabajando.id
+      : t('operation.operatorThinking')
+
   // Las de una conversación vieja sin bloques, que no tienen dónde ir arriba.
   const sueltas = acciones.filter((a) => !enElHilo.has(a.id))
   const pendientes = sueltas.filter((a) => a.status === 'propuesto')
@@ -555,15 +575,20 @@ export function OperatorChat({
         </div>
       )}
 
+      {/* Una fila propia, no algo flotando sobre la conversación: pegado con
+          `absolute` se montaba encima del primer mensaje en cuanto la columna
+          se angostó. Acá tiene su alto y su lugar, contra el borde derecho. */}
       {fullscreen && (
-        <BotonHilos
-          hilos={hilos}
-          activo={thread}
-          cargando={cargandoHilo}
-          onAbrir={abrirHilo}
-          onNuevo={nuevoChat}
-          onBorrar={borrarChat}
-        />
+        <div className="flex h-14 shrink-0 items-center justify-end px-5">
+          <BotonHilos
+            hilos={hilos}
+            activo={thread}
+            cargando={cargandoHilo}
+            onAbrir={abrirHilo}
+            onNuevo={nuevoChat}
+            onBorrar={borrarChat}
+          />
+        </div>
       )}
 
       <div className={cn('flex-1 overflow-y-auto', !fullscreen && 'p-4')}>
@@ -629,7 +654,7 @@ export function OperatorChat({
           />
         )}
 
-        {pensando && !vivo?.bloques.length && !vivo?.thinking && <Armando />}
+        {pensando && <EnVivo actividad={actividad} />}
 
         {plan && plan.estado !== 'rechazado' && (
           <TarjetaPlan
@@ -736,7 +761,7 @@ function BotonHilos({
   const pendientes = hilos.reduce((n, h) => n + (h.pendientes > 0 ? 1 : 0), 0)
 
   return (
-    <div className="absolute top-3 right-4 z-20">
+    <div className="relative">
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
@@ -933,25 +958,20 @@ function TarjetaPlan({
  * en la que va a quedar cuando termine, para que no salte de lugar al cerrar.
  */
 /**
- * Mientras piensa qué hacer.
+ * Lo que está pasando ahora mismo.
  *
- * Un spinner girando es el mismo que usa cualquier cosa que carga en esta app,
- * así que no distingue "estoy trayendo datos" de "estoy armando algo". Estos
- * tres segmentos se encienden en fila, como algo que se ensambla, y el brillo
- * recorre la superficie: dice que hay trabajo en curso, no que hay una espera.
+ * Vive todo el turno y no sólo antes del primer paso: la parte larga de una
+ * corrida es justo la del medio, y ahí la pantalla se quedaba sin decir nada.
+ *
+ * La luz que recorre el texto reemplaza a tres barras que saltaban. Un cargador
+ * de barras dice "esperá"; una línea que se ilumina mientras nombra lo que se
+ * está haciendo dice "esto está pasando", que es otra cosa.
  */
-function Armando() {
-  const t = useT()
+function EnVivo({ actividad }: { actividad: string }) {
   return (
-    <div className="app-glass app-brillo rounded-xl px-3 py-2.5">
-      <p className="app-eyebrow flex items-center gap-2 text-accent-ink">
-        {t('operation.operatorThinking')}
-      </p>
-      <div className="app-armando mt-2 flex items-center gap-1" aria-hidden>
-        <span className="h-1 w-10 rounded-full bg-accent-ink" />
-        <span className="h-1 w-6 rounded-full bg-accent-ink" />
-        <span className="h-1 w-14 rounded-full bg-accent-ink" />
-      </div>
+    <div className="flex items-center gap-2.5 py-0.5">
+      <span className="app-punto size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
+      <span className="app-latiendo app-eyebrow min-w-0 flex-1 truncate">{actividad}</span>
     </div>
   )
 }

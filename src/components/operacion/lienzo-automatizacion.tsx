@@ -66,6 +66,48 @@ function Disparador({ cuando }: { cuando: string }) {
   )
 }
 
+/**
+ * Una cadena de preguntas sobre lo mismo es UNA pregunta de varios caminos.
+ *
+ * El editor lo hace al cargar (`collapseSwitch`): tres «¿tiene la etiqueta X?»
+ * encadenadas por el NO se dibujan como una sola tarjeta «Condición» con tres
+ * carriles y un «en otro caso». El chat las dibujaba encadenadas, así que la
+ * misma automatización se veía distinta en los dos lados — y la del chat se
+ * leía peor, con cada pregunta escondida dentro del NO de la anterior.
+ *
+ * La regla es la misma de allá: se pliega mientras cada camino sea una lista
+ * plana. Si un camino vuelve a ramificar, se queda como está y no se esconde
+ * ningún paso.
+ */
+export interface Plegado {
+  caminos: { pregunta: string; pasos: PasoArtefacto[] }[]
+  otroCaso: PasoArtefacto[]
+}
+
+const esHoja = (p: PasoArtefacto) => !p.si?.length && !p.no?.length
+const todoHoja = (l: PasoArtefacto[]) => l.every(esHoja)
+
+export function plegar(p: PasoArtefacto): Plegado | null {
+  if (p.tipo !== 'condition') return null
+  const caminos: Plegado['caminos'] = []
+  let actual: PasoArtefacto | undefined = p
+
+  while (actual && actual.tipo === 'condition') {
+    const si: PasoArtefacto[] = actual.si ?? []
+    if (!todoHoja(si)) return null
+    caminos.push({ pregunta: actual.resumen, pasos: si })
+    const no: PasoArtefacto[] = actual.no ?? []
+    // El NO lleva a otra pregunta y a nada más: sigue la cadena.
+    if (no.length === 1 && no[0].tipo === 'condition') {
+      actual = no[0]
+      continue
+    }
+    if (!todoHoja(no)) return null
+    return caminos.length > 1 ? { caminos, otroCaso: no } : null
+  }
+  return null
+}
+
 /** Una cadena de pasos que corren uno tras otro, de izquierda a derecha. */
 function Tramo({ pasos }: { pasos: PasoArtefacto[] }) {
   const t = useT()
@@ -83,11 +125,38 @@ function Tramo({ pasos }: { pasos: PasoArtefacto[] }) {
   return (
     <div className="flex items-start">
       {pasos.map((p, i) => {
+        const plegado = plegar(p)
         const esCondicion = p.tipo === 'condition' && Boolean(p.si?.length || p.no?.length)
         return (
           <Fragment key={`${p.tipo}-${i}`}>
             <Cable />
-            {esCondicion ? (
+            {plegado ? (
+              <div className="z-10 flex items-start gap-2">
+                <Tarjeta
+                  paso={p}
+                  titulo={t('automations.stepCondition')}
+                  resumen={t('automations.switchCaseOther', {
+                    n: plegado.caminos.length,
+                  })}
+                />
+                <BranchFan
+                  lanes={[
+                    ...plegado.caminos.map((c, n) => ({
+                      key: `c${n}`,
+                      label: c.pregunta,
+                      color: 'border-emerald-500/40 bg-emerald-500/10 text-accent-ink',
+                      content: <Tramo pasos={c.pasos} />,
+                    })),
+                    {
+                      key: 'otro',
+                      label: t('automations.switchElse'),
+                      color: 'border-slate-400/40 bg-slate-400/10 text-muted-foreground',
+                      content: <Tramo pasos={plegado.otroCaso} />,
+                    },
+                  ]}
+                />
+              </div>
+            ) : esCondicion ? (
               <div className="z-10 flex items-start gap-2">
                 <Tarjeta paso={p} />
                 <BranchFan
@@ -127,7 +196,16 @@ function Tramo({ pasos }: { pasos: PasoArtefacto[] }) {
  * compartido y el renglón de abajo es el resumen que ya trae el artefacto —
  * «Espera 15 días», «¿Tiene la etiqueta «comprador»?»— en vez de recalcularlo.
  */
-function Tarjeta({ paso }: { paso: PasoArtefacto }) {
+function Tarjeta({
+  paso,
+  titulo,
+  resumen,
+}: {
+  paso: PasoArtefacto
+  /** Para el nodo plegado, que no dice una pregunta sino cuántos caminos hay. */
+  titulo?: string
+  resumen?: string
+}) {
   const t = useT()
   const meta = STEP_META[paso.tipo as BuilderStepType] ?? STEP_META.send_message
   const Icono = meta.icon
@@ -168,14 +246,16 @@ function Tarjeta({ paso }: { paso: PasoArtefacto }) {
                   ? t('automations.kindWait')
                   : t('automations.kindAction')}
             </div>
-            <div className="truncate text-sm font-medium text-foreground">{t(meta.label)}</div>
+            <div className="truncate text-sm font-medium text-foreground">
+              {titulo ?? t(meta.label)}
+            </div>
             {paso.antes && (
               <div className="truncate text-[11px] text-muted-foreground line-through">
                 {paso.antes}
               </div>
             )}
             <div className={cn('truncate text-[11px] text-muted-foreground', quitado && 'line-through')}>
-              {paso.resumen}
+              {resumen ?? paso.resumen}
             </div>
           </div>
         </div>

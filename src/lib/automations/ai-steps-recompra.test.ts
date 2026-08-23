@@ -249,10 +249,13 @@ describe('la misma plantilla en varios caminos', () => {
     expect(problemas[0].message).toContain('plantillas')
   })
 
-  it('pasa si la persona confirmó que quiere el mismo mensaje', () => {
-    const { plan, problemas } = planDesdeIA({ ...conUnaSola, mismo_mensaje: true })
-    expect(problemas).toEqual([])
-    expect(plan).not.toBeNull()
+  it('no hay forma de saltárselo', () => {
+    // Hubo un `mismo_mensaje: true` para confirmarlo, y el modelo lo usó a la
+    // primera: cuando el camino corto es declarar que está bien, se declara que
+    // está bien. La salida real es sacar la pregunta, que es lo que dice el
+    // mensaje.
+    const { plan } = planDesdeIA({ ...conUnaSola, mismo_mensaje: true } as never)
+    expect(plan).toBeNull()
   })
 
   it('una plantilla sola, fuera de toda rama, no molesta a nadie', () => {

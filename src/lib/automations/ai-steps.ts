@@ -251,11 +251,6 @@ export const AI_STEPS_SCHEMA = {
         'Para customer_inactive (días sin comprar) y post_delivery_feedback (días desde la entrega).',
     },
     palabras: { type: 'array', items: { type: 'string' }, description: 'Para keyword_match.' },
-    mismo_mensaje: {
-      type: 'boolean',
-      description:
-        'Ponlo en true SÓLO si la persona te confirmó que quiere EL MISMO mensaje en todos los caminos. Sin esto, repetir una plantilla en dos ramas se rechaza.',
-    },
     coincidencia: { type: 'string', enum: ['exact', 'contains'] },
     pasos: { type: 'array', items: AI_PASO_SCHEMA },
   },
@@ -833,8 +828,6 @@ export interface AiEntradaPlan {
   dias?: number
   palabras?: string[]
   coincidencia?: string
-  /** La persona confirmó que quiere el mismo mensaje en todos los caminos. */
-  mismo_mensaje?: boolean
   pasos?: AiPaso[]
 }
 
@@ -850,8 +843,12 @@ export interface AiEntradaPlan {
  *
  * Ramificar para mandar lo mismo no tiene sentido, así que se corta y se dice
  * qué hacer: pedirle las que faltan al de plantillas, o preguntarle a la
- * persona. Si de verdad quiere el mismo mensaje, lo confirma y viene con
- * `mismo_mensaje`.
+ * persona.
+ *
+ * **Sin escape.** Hubo uno —un `mismo_mensaje: true` que el modelo podía
+ * mandar— y lo usó a la primera: cuando el camino corto es declarar que está
+ * bien, se declara que está bien. Si de verdad va el mismo mensaje para todos,
+ * la salida no es confirmarlo: es sacar la pregunta, porque no hace nada.
  */
 function plantillaRepetida(pasos: BuilderStepInput[]): string | null {
   const porRama = new Map<string, number>()
@@ -1009,14 +1006,14 @@ export function planDesdeIA(entrada: AiEntradaPlan): {
 
   if (problemas.length > 0) return { plan: null, problemas }
 
-  const repetida = entrada.mismo_mensaje ? null : plantillaRepetida(pasos)
+  const repetida = plantillaRepetida(pasos)
   if (repetida) {
     return {
       plan: null,
       problemas: [
         {
           path: 'pasos',
-          message: `la plantilla «${repetida}» se manda en más de un camino, así que ramificar no cambia nada. Si cada camino tiene que decir algo distinto, pídele al de plantillas las que faltan; si no sabes, pregúntale a la persona. Y si de verdad quiere el mismo mensaje en todos, mándalo otra vez con mismo_mensaje en true.`,
+          message: `la plantilla «${repetida}» se manda en más de un camino. Preguntar para después decir lo mismo no cambia nada: o cada camino dice algo distinto, o la pregunta sobra. Si cada uno tiene que decir lo suyo, PÍDELE al de plantillas las que faltan; si no sabes qué tiene que decir cada una, PREGÚNTALE A LA PERSONA antes de armar nada. Y si de verdad va el mismo mensaje para todos, entonces saca la pregunta y deja un solo camino.`,
         },
       ],
     }
