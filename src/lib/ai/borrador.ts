@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
 import type { AiAgent } from './types';
 import { getAnthropic } from './anthropic-client';
+import { MIN_DEBOUNCE_SECONDS } from './types';
 import { resolveAnthropicKey } from './platform-key';
 import {
   buildSystemPrompt,
@@ -43,7 +44,6 @@ import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
  */
 
 export type BorradorError =
-  | 'sin_agente'
   | 'sin_clave'
   | 'sin_contacto'
   | 'vacio'
@@ -92,15 +92,11 @@ export async function componerBorrador(
     // Mismo arbitraje que cuando contesta solo: el agente que ya venía
     // atendiendo este hilo, y si no el que corresponde al canal y al producto.
     const stickyAgentId = await getStickyAgentId(db, conversation.id);
-    const agent: AiAgent | null = await pickAgent(
-      db,
-      input.workspaceId,
-      conversation.channel,
-      { productMatch, stickyAgentId, inboundText: ultimoCliente },
-    );
-    if (!agent || agent.provider !== 'anthropic') {
-      return { text: null, error: 'sin_agente' };
-    }
+    const agent = await agenteParaBorrador(db, input.workspaceId, conversation.channel, {
+      productMatch,
+      stickyAgentId,
+      inboundText: ultimoCliente,
+    });
 
     const resolvedKey = await resolveAnthropicKey(db, {
       workspaceId: input.workspaceId,
@@ -182,6 +178,110 @@ export async function componerBorrador(
     console.error('[borrador] fallo:', err);
     return { text: null, error: 'fallo' };
   }
+}
+
+/**
+ * Quién redacta el borrador.
+ *
+ * NO es el mismo requisito que contestar solo. El runner exige un agente
+ * ACTIVO y con el canal habilitado, y con razón: nadie quiere que un agente
+ * apagado le hable a un cliente. Pero acá no habla nadie —el texto cae en el
+ * cuadro de escritura y lo manda una persona—, así que exigir lo mismo dejaba
+ * el botón muerto justo para quien más lo necesita: el comercio que apagó el
+ * asistente para contestar a mano.
+ *
+ * Tres escalones:
+ *   1. El agente que atendería este canal, si está activo.
+ *   2. Cualquier agente del comercio aunque esté apagado — su persona, su
+ *      conocimiento y sus productos siguen siendo los de la marca.
+ *   3. Ninguno: un redactor genérico. Igual escribe con la conversación
+ *      entera, el catálogo real, la ficha del cliente y sus notas, que es de
+ *      donde sale casi todo el valor.
+ */
+async function agenteParaBorrador(
+  db: SupabaseClient,
+  workspaceId: string,
+  channel: Conversation['channel'],
+  routing: {
+    productMatch: Awaited<ReturnType<typeof detectInboundProduct>>;
+    stickyAgentId: string | null;
+    inboundText: string;
+  },
+): Promise<AiAgent> {
+  const activo = await pickAgent(db, workspaceId, channel, routing);
+  if (activo && activo.provider === 'anthropic') return activo;
+
+  const { data } = await db
+    .from('ai_agents')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('provider', 'anthropic')
+    .is('deleted_at', null)
+    .order('is_active', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const apagado = data as AiAgent | null;
+  if (apagado) return apagado;
+
+  return redactorGenerico(workspaceId);
+}
+
+/** El agente que no existe: sólo lo suficiente para armar el prompt. Nunca se
+ *  guarda ni se muestra en ningún lado. */
+function redactorGenerico(workspaceId: string): AiAgent {
+  const ahora = new Date().toISOString();
+  return {
+    id: '00000000-0000-0000-0000-000000000000',
+    workspace_id: workspaceId,
+    name: 'Borrador',
+    is_active: false,
+    role: 'general',
+    permissions: null,
+    tools: null,
+    persona:
+      'Atiendes a los clientes de esta tienda por chat. Respondes con lo que sabes del catálogo y de la conversación, y no inventas nada.',
+    knowledge: null,
+    knowledge_url: null,
+    knowledge_synced_at: null,
+    language: 'es',
+    tone: 'friendly',
+    max_response_chars: 500,
+    reply_delay_seconds: 0,
+    context_messages: 30,
+    response_mode: 'single',
+    inbound_debounce_seconds: MIN_DEBOUNCE_SECONDS,
+    requires_approval: false,
+    reply_when_assigned: false,
+    reply_outside_hours: true,
+    business_hours: null,
+    escalate_keywords: [],
+    escalate_after_messages: null,
+    followup_enabled: false,
+    followup_delay_hours: 24,
+    followup_max_count: 0,
+    puede_crear_pedidos: false,
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5-20251001',
+    api_key_encrypted: null,
+    scope: 'workspace',
+    product_scope: 'all',
+    priority: 0,
+    voice_enabled: false,
+    voice_provider: 'elevenlabs',
+    voice_id: null,
+    voice_greeting: null,
+    voice_system_prompt: null,
+    voice_objectives: {},
+    voice_max_call_seconds: 0,
+    voice_calling_hours: null,
+    voice_max_retries: 0,
+    voice_retry_delay_minutes: 0,
+    voice_ai_decides: false,
+    created_at: ahora,
+    updated_at: ahora,
+    created_by: null,
+  } as AiAgent;
 }
 
 /**

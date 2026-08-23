@@ -42,10 +42,6 @@ export const errAi = {
   },
 
   // Generar la respuesta con el agente
-  draftNoAgent: {
-    es: "No hay un agente activo para este canal",
-    en: "No active agent for this channel",
-  },
   draftNoKey: {
     es: "Falta la clave de IA para generar respuestas",
     en: "Missing the AI key to generate replies",

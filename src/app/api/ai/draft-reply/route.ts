@@ -84,16 +84,11 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (text) return NextResponse.json({ text });
 
-  // Los dos motivos que el comercio PUEDE arreglar se dicen con nombre y
-  // apellido; el resto es un fallo nuestro y va como tal.
-  const key =
-    error === 'sin_agente'
-      ? 'errAi.draftNoAgent'
-      : error === 'sin_clave'
-        ? 'errAi.draftNoKey'
-        : 'errAi.draftFailed';
+  // Falta de clave es lo unico que el comercio puede arreglar solo; el resto
+  // es un fallo nuestro y va como tal.
+  const key = error === 'sin_clave' ? 'errAi.draftNoKey' : 'errAi.draftFailed';
   return NextResponse.json(
     { error: translate(locale, key) },
-    { status: error === 'sin_agente' || error === 'sin_clave' ? 409 : 502 },
+    { status: error === 'sin_clave' ? 409 : 502 },
   );
 }
