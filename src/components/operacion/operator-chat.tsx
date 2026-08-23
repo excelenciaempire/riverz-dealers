@@ -98,6 +98,18 @@ const CREAN_AUTOMATIZACION = [
   'automatizaciones.crear_desde_receta',
 ]
 
+/**
+ * Una espera que no se adivina leyendo la lista.
+ *
+ * Los pasos van numerados y en orden, asi que «espera al 1» debajo del 2 es
+ * decir dos veces lo mismo. Lo que si hace falta decir es cuando la espera
+ * salta: que el 4 dependa del 1 y no del 3 cambia lo que va a pasar.
+ */
+function esperaQueNoSeAdivina(p: { i: number; dependeDe: number[] }): boolean {
+  if (p.dependeDe.length === 0) return false
+  return !(p.dependeDe.length === 1 && p.dependeDe[0] === p.i - 1)
+}
+
 /** La primera frase de un texto. Lo que se muestra de un encargo. */
 function primeraFrase(texto: string): string {
   const m = texto.match(/^[^.!?]*[.!?]/)
@@ -1195,7 +1207,11 @@ function TarjetaPlan({
                   que necesita para no adivinar— y no algo para leer entero acá:
                   dos párrafos por paso convertían la tarjeta en un muro. */}
               <span className="line-clamp-2 text-muted-foreground">{p.que || primeraFrase(p.encargo)}</span>
-              {p.dependeDe.length > 0 && (
+              {/* «espera al 1» debajo del paso 2 no dice nada: una lista
+                  numerada ya se lee de arriba abajo. Sólo vale la pena cuando
+                  la espera NO es la del renglón de arriba — que el paso 4
+                  dependa del 1 es lo único que no se adivina. */}
+              {esperaQueNoSeAdivina(p) && (
                 <span className="text-muted-foreground/70">
                   {" "}
                   ({t('operation.mesaEspera', { n: p.dependeDe.map((d) => d + 1).join(', ') })})
