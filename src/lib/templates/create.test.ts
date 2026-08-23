@@ -316,14 +316,17 @@ describe('capacidades de plantillas', () => {
     expect(art).toMatchObject({ nombre: 'bienvenida_vip' })
   })
 
-  it('es irreversible, y lo dice antes', async () => {
-    // El nombre queda tomado en ese WhatsApp aunque Meta la rechace. Quien
-    // aprueba tiene que leerlo, y la tarjeta lo marca por el riesgo.
+  it('es irreversible, y la linea dice cual es sin condicional', async () => {
+    // El nombre queda tomado en ese WhatsApp aunque Meta la rechace, y quien
+    // aprueba tiene que saberlo. Lo dice la TARJETA una vez al pie, no cada
+    // renglon: el aviso repetido tres veces se lee como decoracion. Acá se
+    // afirman las dos mitades de esa division — el riesgo, que es lo que hace
+    // que la tarjeta avise, y la linea, que solo tiene que decir cual es.
     const cap = capacidad('plantillas.crear')
     expect(cap.risk).toBe('irreversible')
     const texto = await cap.preview!(ctx(), { nombre: 'Bienvenida VIP', cuerpo: 'Hola' })
-    expect(texto).toMatch(/Meta/)
-    expect(texto).toMatch(/queda tomado/i)
+    expect(texto).toContain('bienvenida_vip')
+    expect(texto).not.toMatch(/ría/)
   })
 
   it('crear no pisa una plantilla que ya fue a Meta', async () => {

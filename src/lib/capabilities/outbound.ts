@@ -461,7 +461,13 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
     // esto todavía es una propuesta. Aprobar es aprobar lo que se leyó.
     async preview(_ctx, args) {
       const nombre = normalizeTemplateName(String(args.nombre ?? ''))
-      return `Crearía «${nombre}» y la mandaría a aprobación de Meta. El nombre queda tomado aunque la rechacen.`
+      // En infinitivo y sin el aviso.
+      //
+      // «Crearía X y la mandaría a aprobación de Meta» habla en condicional
+      // sobre algo que la persona está a punto de autorizar, y repite en cada
+      // renglón un aviso que la tarjeta da una vez al pie. Lo que la línea tiene
+      // que decir es cuál plantilla es.
+      return `Crear «${nombre}»`
     },
     artifact: (_ctx, args) =>
       artefactoPlantilla({

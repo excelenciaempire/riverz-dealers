@@ -89,13 +89,16 @@ describe('el andamio de un subagente', () => {
   })
 
   it('sólo recibe las herramientas de su dominio', async () => {
-    const { promesa, fake } = correr('plantillas', {
-      plantillas: [{ texto: 'listo' }],
+    // Con  y no con : el de plantillas ahora puede pedirle
+    // la ficha del producto al de productos, así que además de las suyas lleva
+    //  — y eso es correcto, no una fuga de dominio.
+    const { promesa, fake } = correr('flujos', {
+      flujos: [{ texto: 'listo' }],
     })
     await promesa
 
     const tools = fake.llamadas[0].tools
-    expect(tools.every((t) => t.startsWith('plantillas__'))).toBe(true)
+    expect(tools.every((t) => t.startsWith('flujos__'))).toBe(true)
     expect(tools).not.toContain('automatizaciones__crear')
   })
 
@@ -328,8 +331,8 @@ describe('pedirle algo a otro del equipo', () => {
 
   it('quien recibe un pedido no puede encadenar otro', async () => {
     // Sin el tope, dos que se apuntan mutuamente se llaman para siempre.
-    const { promesa, fake } = correr('plantillas', {
-      plantillas: [{ texto: 'listo' }],
+    const { promesa, fake } = correr('flujos', {
+      flujos: [{ texto: 'listo' }],
     })
     await promesa
     expect(fake.llamadas[0].tools).not.toContain('equipo__pedir')

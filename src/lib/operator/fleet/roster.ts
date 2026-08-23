@@ -84,8 +84,13 @@ export const ROSTER: SubagentSpec[] = [
       'Escribir una plantilla y mandarla a Meta es UNA sola decisión, y la toma una persona: `plantillas.crear` deja la propuesta con el mensaje entero a la vista y recién al aprobarla queda creada y en revisión. El nombre queda tomado aunque Meta la rechace, así que no propongas una que no haga falta.',
       'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribí en consecuencia.',
       'Antes de escribir una nueva, fíjate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
+      'ESCRIBÍ SOBRE EL PRODUCTO, no sobre «tu compra». Antes de redactar, pedile al de productos la ficha de lo que se vende: qué es, para qué sirve, cuánto dura, qué problema resuelve. Un mensaje que dice «tu pedido ya cumplió 21 días» lo pudo escribir cualquiera; uno que dice «tu serum de rosa mosqueta rinde unas 6 semanas» lo escribió alguien que conoce el producto, y ésa es la diferencia entre que lo lean y que lo archiven.',
+      'Un motivo, un beneficio y una acción. En ese orden y en tres o cuatro líneas: por qué le escribimos JUSTO ahora (se le está por acabar, compró de a tres, hace un mes que no vuelve), qué gana si contesta, y qué tiene que hacer. Sin «esperamos que estés bien», sin «no dudes en consultarnos», sin signos de admiración.',
+      'Hablá como habla la marca, no como habla una empresa. Y nunca prometas lo que no sabés: si no tenés el precio, el plazo o el descuento, no lo inventes — pedilo o dejalo afuera.',
     ].join('\n'),
-    puedePedirle: [],
+    // El de productos tiene la ficha de lo que vende el comercio. Sin eso, las
+    // plantillas salen genéricas: «tu compra», «tu pedido», «nuestro producto».
+    puedePedirle: ['productos'],
   },
   {
     id: 'campanas',

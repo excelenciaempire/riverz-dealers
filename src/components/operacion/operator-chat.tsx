@@ -203,6 +203,8 @@ export function OperatorChat({
   threadRef.current = thread
   /** Que la apertura automática pase UNA vez, al entrar. */
   const yaArranco = useRef(false)
+  /** Lo último concreto que se estaba haciendo, para no caer en genérico. */
+  const ultimaActividad = useRef('')
 
   /**
    * Abre una conversación anterior.
@@ -247,7 +249,10 @@ export function OperatorChat({
               ? [{ agente: 'automatizaciones' as const, artefacto: b.artefacto }]
               : [],
           )
-          .slice(-1),
+          // TODAS, no la última. Con `slice(-1)` volver a la conversación
+          // dejaba una sola plantilla de tres en el panel: las otras dos se
+          // habían armado, se veían mientras corría, y desaparecían al recargar.
+          ,
       })
     } catch {
       setError(t('operation.operatorError'))
@@ -794,7 +799,6 @@ export function OperatorChat({
    * mensaje, así que esto sigue valiendo después de recargar; antes se vaciaba
    * y TODAS las acciones del historial caían amontonadas al final.
    */
-  const porAccion = new Map(acciones.map((a) => [a.id, a]))
   const enElHilo = new Set(
     [...mensajes.map((m) => m.bloques ?? []), vivo?.bloques ?? []].flatMap((bs) =>
       bs.flatMap((b) => (b.k === 'paso' && b.actionId ? [b.actionId] : [])),
@@ -829,11 +833,27 @@ export function OperatorChat({
         : t('operation.vivoArmando', {
             que: enMinuscula(t(nombreDeSubagente(trabajando.id))),
           })
-      : t('operation.operatorThinking')
+      : // Nunca «Pensando…» a secas si ya se sabía qué estaba haciendo.
+        //
+        // Entre que un especialista termina y arranca el siguiente no hay paso
+        // corriendo ni nadie trabajando, y la línea caía a una palabra genérica
+        // —o parecía apagarse— justo en el hueco más largo. Se queda lo último
+        // concreto que se dijo; al principio del turno, cuando todavía no hubo
+        // nada, se dice que está leyendo la cuenta, que es lo que pasa.
+        ultimaActividad.current || t('operation.vivoEmpezando')
 
-  // Las de una conversación vieja sin bloques, que no tienen dónde ir arriba.
+  if (corriendo || trabajando) ultimaActividad.current = actividad
+
+  /**
+   * TODO lo que espera una decisión, junto y al final.
+   *
+   * Antes se partía en dos: lo que ocurrió en el turno de arriba se dibujaba
+   * dentro de ese turno y el resto abajo, así que una conversación con dos
+   * turnos mostraba dos tarjetas de decisión en lugares distintos. Es una sola
+   * pregunta: qué de todo esto se hace.
+   */
+  const esperandoDecision = acciones.filter((a) => a.status === 'propuesto')
   const sueltas = acciones.filter((a) => !enElHilo.has(a.id))
-  const pendientes = sueltas.filter((a) => a.status === 'propuesto')
   const resueltas = sueltas.filter((a) => a.status !== 'propuesto')
 
   return (
@@ -913,28 +933,14 @@ export function OperatorChat({
 
         {mensajes.map((m) =>
           m.bloques?.length ? (
-            <Turno
-              key={m.id}
-              bloques={m.bloques}
-              acciones={porAccion}
-              onResolver={resolver}
-              onVer={verComoQuedo}
-              onCambiar={pedirCambio}
-            />
+            <Turno key={m.id} bloques={m.bloques} onVer={verComoQuedo} />
           ) : (
             <Dicho key={m.id} role={m.role} text={m.text} />
           ),
         )}
 
         {vivo && (
-          <Turno
-            bloques={vivo.bloques}
-            thinking={vivo.thinking}
-            acciones={porAccion}
-            onResolver={resolver}
-            onVer={verComoQuedo}
-            onCambiar={pedirCambio}
-          />
+          <Turno bloques={vivo.bloques} thinking={vivo.thinking} onVer={verComoQuedo} />
         )}
 
         {pensando && (
@@ -962,8 +968,13 @@ export function OperatorChat({
           />
         )}
 
-        {pendientes.length > 0 && (
-          <TarjetaDecision acciones={pendientes} onResolver={resolver} onCambiar={pedirCambio} />
+        {/* Lo último de todo: se decide cuando ya se leyó el resto. */}
+        {esperandoDecision.length > 0 && (
+          <TarjetaDecision
+            acciones={esperandoDecision}
+            onResolver={resolver}
+            onEditar={() => pedirCambio(esperandoDecision[0])}
+          />
         )}
 
         {resueltas.map((a) => (
@@ -1321,28 +1332,12 @@ function Dicho({ role, text }: { role: 'user' | 'assistant'; text: string }) {
 function Turno({
   bloques,
   thinking,
-  acciones,
-  onResolver,
   onVer,
-  onCambiar,
 }: {
   bloques: Bloque[]
   thinking?: string
-  /** Las acciones por id, para juntar al final las que esperan decisión. */
-  acciones?: Map<string, Accion>
-  onResolver?: (decisiones: { id: string; aprobar: boolean }[]) => void
   onVer?: (actionId: string, key: string) => void
-  onCambiar?: (a: Accion) => void
 }) {
-  // Las que esperan decisión, en el orden en que ocurrieron.
-  const esperando = onResolver
-    ? bloques.flatMap((b) => {
-        if (b.k !== 'paso' || !b.actionId) return []
-        const a = acciones?.get(b.actionId)
-        return a?.status === 'propuesto' ? [a] : []
-      })
-    : []
-
   return (
     <div className="space-y-3">
       {thinking ? (
@@ -1371,9 +1366,11 @@ function Turno({
           terminó en OCHO tarjetas seguidas —tres borradores, tres envíos a
           Meta, la automatización, las ediciones— y una de ellas vaciaba las
           ramas de la automatización. Se veía igual que las otras siete. */}
-      {esperando.length > 0 && (
-        <TarjetaDecision acciones={esperando} onResolver={onResolver!} onCambiar={onCambiar} />
-      )}
+      {/* La tarjeta NO se dibuja acá.
+          Estaba al final del turno, que en una conversación con más de un turno
+          queda en el medio — y encima el plan de trabajo aparecía debajo, así
+          que había que decidir algo con texto todavía por leer. Lo que se
+          decide va último de todo, y en un solo lugar. */}
     </div>
   )
 }
@@ -1490,11 +1487,11 @@ function tituloDe(acciones: Accion[], t: ReturnType<typeof useT>): string {
 function TarjetaDecision({
   acciones,
   onResolver,
-  onCambiar,
+  onEditar,
 }: {
   acciones: Accion[]
   onResolver: (decisiones: { id: string; aprobar: boolean }[]) => void
-  onCambiar?: (a: Accion) => void
+  onEditar?: () => void
 }) {
   const t = useT()
   /**
@@ -1580,7 +1577,6 @@ function TarjetaDecision({
       <ul className="mt-3 space-y-2.5">
         {acciones.map((a) => {
           const dentro = !fuera.has(a.id)
-          const irreversible = a.risk === 'irreversible'
           return (
             <li key={a.id} className="flex items-start gap-2.5">
               <input
@@ -1605,27 +1601,20 @@ function TarjetaDecision({
                 >
                   {alGrano(a.preview ?? describir(a))}
                 </p>
-                {irreversible && (
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
-                    <AlertTriangle className="size-3 shrink-0" />
-                    {t('operation.riskIrreversible')}
-                  </p>
-                )}
               </div>
-              {onCambiar && (
-                <button
-                  type="button"
-                  onClick={() => onCambiar(a)}
-                  className="app-card-cta shrink-0 text-[10px] text-muted-foreground transition-colors hover:text-accent-ink"
-                >
-                  <Pencil className="size-3" />
-                  {t('operation.decisionCambiar')}
-                </button>
-              )}
             </li>
           )
         })}
       </ul>
+
+      {/* El aviso, UNA vez. Repetido en cada renglón es el mismo cartel tres
+          veces, y tres carteles iguales se leen como decoración. */}
+      {acciones.some((a) => a.risk === 'irreversible') && (
+        <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+          {t('operation.decisionAvisoMeta')}
+        </p>
+      )}
 
       <div className="mt-3.5 flex items-center gap-2">
         <button
@@ -1639,6 +1628,18 @@ function TarjetaDecision({
           {t('operation.approve')}
           {acciones.length > 1 && elegidas.length > 0 && ` (${elegidas.length})`}
         </button>
+        {/* Uno solo, y no uno por renglón: pedir un ajuste es UNA cosa, y se
+            escribe en el chat con lo que haya que cambiar. */}
+        {onEditar && (
+          <button
+            type="button"
+            onClick={onEditar}
+            className="app-card-cta rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-ink"
+          >
+            <Pencil className="size-3" />
+            {t('operation.decisionEditar')}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onResolver(acciones.map((a) => ({ id: a.id, aprobar: false })))}
