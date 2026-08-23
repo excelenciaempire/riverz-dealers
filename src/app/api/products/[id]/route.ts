@@ -66,8 +66,28 @@ export async function GET(
     ? await resolveWorkspaceCurrency(supabaseAdmin(), workspaceId)
     : 'COP';
 
+  // Dónde más se vende lo mismo (migración 183). Se resuelve desde la fila
+  // PRINCIPAL —si esta cuelga de otra, las hermanas cuelgan de esa— para que
+  // abrir cualquiera de las publicaciones muestre el grupo completo.
+  const fila = product as { id: string; master_id?: string | null };
+  const principalId = fila.master_id ?? fila.id;
+  const { data: hermanas } = await supabase
+    .from('shopify_products')
+    .select('id, platform, title, price_min, currency, url, master_id')
+    .or(`id.eq.${principalId},master_id.eq.${principalId}`);
+
+  const listings = ((hermanas ?? []) as Array<Record<string, unknown>>).map((x) => ({
+    id: x.id,
+    platform: x.platform ?? 'shopify',
+    title: x.title,
+    price_min: x.price_min,
+    currency: x.currency,
+    url: x.url,
+    is_master: x.id === principalId,
+  }));
+
   return NextResponse.json({
-    product,
+    product: { ...product, listings: listings.length > 1 ? listings : [] },
     workspace_currency,
     agents: (assignments ?? [])
       .map((a: Record<string, unknown>) => a.ai_agents)

@@ -51,6 +51,16 @@ interface Product {
   images: string[] | null;
   url: string | null;
   websites: string[] | null;
+  /** Dónde más se vende lo mismo. Presente sólo si está unificado (mig. 183). */
+  listings?: Array<{
+    id: string;
+    platform: string;
+    title: string;
+    price_min: number | null;
+    currency: string | null;
+    url: string | null;
+    is_master: boolean;
+  }>;
   is_bundle: boolean;
   bundle_app: string | null;
   shop_domain: string | null;
@@ -145,6 +155,30 @@ export default function ProductDetailPage() {
   const [currency, setCurrency] = useState('COP');
   const [benefits, setBenefits] = useState('');
   const [websites, setWebsites] = useState<string[]>([]);
+  // Las publicaciones del mismo producto en otras plataformas.
+  const [canales, setCanales] = useState<NonNullable<Product['listings']>>([]);
+  const [separando, setSeparando] = useState<string | null>(null);
+
+  /** Vuelve a ser un producto por su cuenta. */
+  const separar = async (id: string) => {
+    setSeparando(id);
+    try {
+      const res = await fetchWithCsrf(
+        `/api/products/unificar?id=${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) throw new Error();
+      // Se saca de la lista en vez de recargar: la pantalla tiene un formulario
+      // a medio editar y recargarla perderia lo que el comercio venia
+      // escribiendo.
+      setCanales((prev) => prev.filter((c) => c.id !== id));
+      toast.success(t('unify.separated'));
+    } catch {
+      toast.error(t('unify.failed'));
+    } finally {
+      setSeparando(null);
+    }
+  };
 
   // --- Contexto avanzado (colapsado) ---
   const [notes, setNotes] = useState('');
@@ -190,6 +224,7 @@ export default function ProductDetailPage() {
       );
       setOffersAutoDetected(pr.offers_auto_detected === true);
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
+      setCanales(Array.isArray(pr.listings) ? pr.listings : []);
       setWebsites(
         Array.isArray(pr.websites) && pr.websites.length
           ? pr.websites
@@ -611,6 +646,44 @@ export default function ProductDetailPage() {
             className="min-h-[96px] bg-card"
           />
         </Field>
+
+        {/* Dónde más se vende.
+            Sólo aparece si el producto está unificado. Es la contracara de
+            unir: quien lo hizo mal necesita poder deshacerlo, y sin salida el
+            comercio deja de animarse a usar el botón de unir. */}
+        {canales.length > 1 ? (
+          <Field label={t('unify.channels')}>
+            <div className="space-y-1.5">
+              {canales.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-foreground">
+                      <span className="font-medium">{c.platform}</span>
+                      {c.price_min != null ? ` · ${c.price_min} ${c.currency ?? ''}` : ''}
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">{c.title}</p>
+                  </div>
+                  {/* La principal no se separa de sí misma: es la que manda el
+                      conocimiento y las otras cuelgan de ella. */}
+                  {c.is_master ? null : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={separando === c.id}
+                      onClick={() => separar(c.id)}
+                    >
+                      {t('unify.separate')}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Field>
+        ) : null}
 
         {/* Sitios web */}
         <Field
