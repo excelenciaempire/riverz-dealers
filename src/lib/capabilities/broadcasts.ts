@@ -597,7 +597,31 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
           enviables.length === 1 ? 'persona' : 'personas'
         } del segmento "${segmento}"${sin}. Queda en borrador: no manda nada.`
       } catch (e) {
-        return `Todavía no se puede armar «${nombre}»: ${(e as Error).message}`
+        throw new Error(`No se puede armar «${nombre}»: ${(e as Error).message}`)
+      }
+    },
+    // El tipo `campana` existía en la unión, viajaba y se podía dibujar, y no
+    // lo producía NADIE: armar una campaña dejaba el banco vacío.
+    //
+    // Desde el resultado porque los argumentos traen el id del segmento y no
+    // su nombre, ni a cuánta gente alcanza.
+    artifact(_ctx, args, result) {
+      const r = result as
+        | { id?: string; nombre?: string; plantilla?: string; destinatarios?: number; programada_para?: string | null }
+        | undefined
+      if (!r?.nombre) return null
+      return {
+        kind: 'campana',
+        nombre: r.nombre,
+        plantilla: r.plantilla ?? String(args.plantilla ?? ''),
+        destinatarios: r.destinatarios ?? 0,
+        cuando: r.programada_para
+          ? `programada para el ${new Date(r.programada_para).toLocaleString('es', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })}`
+          : 'sin fecha: sale cuando la lances',
+        ...(r.id ? { base: { id: r.id, nombre: r.nombre } } : {}),
       }
     },
     run: crear,
@@ -622,15 +646,9 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
       required: ['campana_id'],
     },
     async preview(ctx, args) {
-      let campana: Campana
-      try {
-        campana = await buscarCampana(ctx, args.campana_id)
-      } catch (e) {
-        return (e as Error).message
-      }
-
+      const campana = await buscarCampana(ctx, args.campana_id)
       const motivo = porQueNoSePuedeLanzar(campana.status)
-      if (motivo) return `«${campana.name}» no se puede lanzar: ${motivo}.`
+      if (motivo) throw new Error(`«${campana.name}» no se puede lanzar: ${motivo}.`)
 
       const pendientes = await pendientesDe(ctx, campana.id)
       const cuando = cuandoSale(campana, args)

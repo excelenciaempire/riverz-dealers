@@ -391,7 +391,7 @@ ${PUERTOS_Y_CABLEADO}`,
     },
     async preview(ctx, args) {
       const actual = await leerFlujo(ctx.db, String(args.flujo_id), ctx.workspaceId)
-      if (!actual) return 'Ese menú no existe en esta cuenta.'
+      if (!actual) throw new Error('Ese menú no existe en esta cuenta.')
       let patches: AiPatch[]
       try {
         patches = leerPatches(args.patches)
@@ -520,7 +520,7 @@ ${PUERTOS_Y_CABLEADO}`,
     },
     async preview(ctx, args) {
       const actual = await leerFlujo(ctx.db, String(args.flujo_id), ctx.workspaceId)
-      if (!actual) return 'Ese menú no existe en esta cuenta.'
+      if (!actual) throw new Error('Ese menú no existe en esta cuenta.')
       const { flow, nodos } = actual
       if (args.activo === false) {
         return `Pausaría «${flow.name}». Deja de atender: los mensajes que hoy toma vuelven al agente.`
@@ -541,7 +541,9 @@ ${PUERTOS_Y_CABLEADO}`,
         })),
       ).filter((i) => i.severity === 'error')
       if (errores.length > 0) {
-        return `«${flow.name}» todavía no se puede prender: ${errores.map((i) => i.message).join(' ')}`
+        throw new Error(
+          `«${flow.name}» todavía no se puede prender: ${errores.map((i) => i.message).join(' ')}`,
+        )
       }
       return `Prendería «${flow.name}» (${nodos.length} pasos). ${describirDisparador(
         flow.trigger_type,

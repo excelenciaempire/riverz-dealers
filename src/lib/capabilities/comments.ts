@@ -300,7 +300,7 @@ async function previewActivar(ctx: CapabilityContext, args: Record<string, unkno
     id: String(args.regla_id),
     workspaceId: ctx.workspaceId,
   })
-  if (!regla) return 'Esa regla no existe en esta cuenta.'
+  if (!regla) throw new Error('Esa regla no existe en esta cuenta.')
   const red = RED[regla.channel]
 
   if (args.activa === false) {

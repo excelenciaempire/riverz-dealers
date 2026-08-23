@@ -378,7 +378,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       const link = await cotizar(contexto, args)
       const nombre = quien(contexto.contacto)
       if ('error' in link) {
-        return `Todavía no se puede armar el link para ${nombre}: ${link.message}`
+        throw new Error(`No se puede armar el link para ${nombre}: ${link.message}`)
       }
       const total = link.total_label ? ` por ${link.total_label}` : ''
       return `Armaría el link de pago de ${link.offer_label}${total} para ${nombre}. El link no se envía solo.`
@@ -426,7 +426,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       // pedido para saber cuánto sale ya sería haberlo creado.
       const cotizacion = await cotizar(contexto, args)
       if ('error' in cotizacion) {
-        return `Todavía no se puede crear el pedido de ${nombre}: ${cotizacion.message}`
+        throw new Error(`No se puede crear el pedido de ${nombre}: ${cotizacion.message}`)
       }
       const dir = args.direccion as ShippingAddressInput | undefined
       const envio = dir?.address1
@@ -468,7 +468,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       const contactId = String(args.contacto_id ?? '').trim()
       const pedido = await pendingOrderFor(ctx.db, ctx.workspaceId, contactId)
       if (!pedido) {
-        return 'Ese contacto no tiene ningún pedido pendiente de pago en esta cuenta.'
+        throw new Error('Ese contacto no tiene ningún pedido pendiente de pago en esta cuenta.')
       }
       const suyo = `el pedido ${pedido.orderNumber ?? 's/n'} de ${fmtMoney(
         Number(pedido.total ?? 0),

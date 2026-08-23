@@ -57,8 +57,8 @@ export const APPROVAL_CAPABILITIES: Capability[] = [
         .eq('workspace_id', ctx.workspaceId)
         .maybeSingle()
       const a = data as { title?: string; kind?: string; status?: string } | null
-      if (!a) return 'Esa decisión no existe en esta cuenta.'
-      if (a.status !== 'pendiente') return `Esa decisión ya está ${a.status}.`
+      if (!a) throw new Error('Esa decisión no existe en esta cuenta.')
+      if (a.status !== 'pendiente') throw new Error(`Esa decisión ya está ${a.status}.`)
       return args.aprobar
         ? `Aprobaría "${a.title}" (${a.kind}) y se ejecutaría ahora.`
         : `Rechazaría "${a.title}" (${a.kind}) y no se haría nada.`

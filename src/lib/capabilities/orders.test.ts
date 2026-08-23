@@ -218,11 +218,9 @@ describe('link de pago', () => {
       error: 'out_of_stock',
       message: 'No hay stock suficiente para 3 unidades (quedan 1).',
     })
-    const texto = await cap('pedidos.checkout').preview!(ctx(), {
-      contacto_id: ANA,
-      cantidad: 3,
-    })
-    expect(texto).toMatch(/No hay stock/)
+    await expect(
+      cap('pedidos.checkout').preview!(ctx(), { contacto_id: ANA, cantidad: 3 }),
+    ).rejects.toThrow(/No hay stock/)
   })
 })
 
@@ -302,12 +300,11 @@ describe('pago informado', () => {
     expect(texto).toContain('$1.000')
   })
 
-  it('sin pedido pendiente lo dice en vez de fallar', async () => {
+  it('sin pedido pendiente lo dice, y no deja nada que aprobar', async () => {
     pendingOrderFor.mockResolvedValue(null)
-    const texto = await cap('pedidos.registrar_pago').preview!(ctx(), {
-      contacto_id: ANA,
-    })
-    expect(texto).toMatch(/no tiene ningún pedido pendiente/)
+    await expect(
+      cap('pedidos.registrar_pago').preview!(ctx(), { contacto_id: ANA }),
+    ).rejects.toThrow(/no tiene ningún pedido pendiente/)
   })
 
   it('cuando queda a confirmar devuelve el estado sin decir que está pago', async () => {

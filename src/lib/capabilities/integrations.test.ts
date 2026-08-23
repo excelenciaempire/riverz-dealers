@@ -199,11 +199,13 @@ describe('integraciones.desconectar', () => {
   })
 
   it('el preview avisa cuando no hay nada que cortar', async () => {
-    const texto = await cap('integraciones.desconectar').preview!(
-      ctxCon(fakeDb({ channel_connections: [] })),
-      { canal: 'whatsapp' },
-    )
-    expect(texto).toMatch(/no habría nada que desconectar/)
+    // Desconectar lo que no está conectado es un click que no hace nada.
+    await expect(
+      cap('integraciones.desconectar').preview!(
+        ctxCon(fakeDb({ channel_connections: [] })),
+        { canal: 'whatsapp' },
+      ),
+    ).rejects.toThrow(/No hay ninguna conexión activa/)
   })
 
   it('el UPDATE va filtrado por cuenta y por el grupo de canales', async () => {

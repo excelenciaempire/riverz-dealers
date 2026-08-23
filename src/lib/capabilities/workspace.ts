@@ -175,7 +175,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
     },
     async preview(ctx, args) {
       const nuevo = typeof args.nombre === 'string' ? args.nombre.trim() : ''
-      if (!nuevo) return 'Falta el nombre nuevo.'
+      if (!nuevo) throw new Error('Falta el nombre nuevo.')
       const actual = await nombreDeCuenta(ctx.db, ctx.workspaceId)
       return `La cuenta pasaría de llamarse «${actual}» a «${nuevo}».`
     },

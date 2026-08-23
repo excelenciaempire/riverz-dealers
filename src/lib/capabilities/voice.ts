@@ -371,26 +371,21 @@ export const VOICE_CAPABILITIES: Capability[] = [
         phone: string | null
         voice_opt_out: boolean | null
       } | null
-      if (!contacto) return 'Ese contacto no existe en esta cuenta.'
+      if (!contacto) throw new Error('Ese contacto no existe en esta cuenta.')
 
       const quien = contacto.name?.trim() || 'ese contacto'
       if (contacto.voice_opt_out) {
-        return `${quien} pidió no recibir llamadas: no se le va a llamar.`
+        throw new Error(`${quien} pidió no recibir llamadas.`)
       }
       const telefono =
         (typeof args.telefono === 'string' ? args.telefono.trim() : '') ||
         contacto.phone?.trim() ||
         ''
-      if (!telefono) return `${quien} no tiene teléfono cargado: no hay a dónde llamar.`
+      if (!telefono) throw new Error(`${quien} no tiene teléfono cargado.`)
 
       // Si falta el agente o no tiene voz, decirlo ACÁ evita que alguien
       // apruebe una llamada que después no se va a encolar.
-      let agente: AgenteVoz
-      try {
-        agente = await resolverAgente(ctx, args)
-      } catch (e) {
-        return (e as Error).message
-      }
+      const agente: AgenteVoz = await resolverAgente(ctx, args)
 
       const tz = await workspaceTimezone(ctx.db, ctx.workspaceId)
       const cuando = nextAllowedTime(tz, agente.horas)

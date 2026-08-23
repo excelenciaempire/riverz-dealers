@@ -226,7 +226,7 @@ export const INTEGRATION_CAPABILITIES: Capability[] = [
       const nombres = nombresDelGrupo(canal)
       const vivas = await listarConexionesDeCanal(ctx.db, ctx.workspaceId, canal)
       if (vivas.length === 0) {
-        return `No hay ninguna conexión activa de ${nombres} en esta cuenta: no habría nada que desconectar.`
+        throw new Error(`No hay ninguna conexión activa de ${nombres} en esta cuenta.`)
       }
       // Las cuentas concretas, no el nombre del canal: el comercio puede tener
       // dos números o dos páginas, y "desconectaría WhatsApp" no le dice cuál.

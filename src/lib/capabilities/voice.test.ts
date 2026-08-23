@@ -213,24 +213,27 @@ describe('preview de voz.llamar', () => {
   })
 
   it('con el contacto dado de baja dice que no se le va a llamar', async () => {
-    const texto = await preview(
-      { contacts: [{ ...CONTACTO, voice_opt_out: true }], ai_agents: [AGENTE] },
-      { contacto_id: 'ct-1' },
-    )
-    expect(texto).toMatch(/no recibir llamadas/i)
+    await expect(
+      preview(
+        { contacts: [{ ...CONTACTO, voice_opt_out: true }], ai_agents: [AGENTE] },
+        { contacto_id: 'ct-1' },
+      ),
+    ).rejects.toThrow(/no recibir llamadas/i)
   })
 
   it('sin teléfono lo dice antes de que alguien apruebe', async () => {
-    const texto = await preview(
-      { contacts: [{ ...CONTACTO, phone: null }], ai_agents: [AGENTE] },
-      { contacto_id: 'ct-1' },
-    )
-    expect(texto).toMatch(/no hay a dónde llamar/i)
+    await expect(
+      preview(
+        { contacts: [{ ...CONTACTO, phone: null }], ai_agents: [AGENTE] },
+        { contacto_id: 'ct-1' },
+      ),
+    ).rejects.toThrow(/no tiene teléfono/i)
   })
 
   it('un contacto de otra cuenta no existe', async () => {
-    const texto = await preview({ contacts: [], ai_agents: [AGENTE] }, { contacto_id: 'ct-1' })
-    expect(texto).toMatch(/no existe en esta cuenta/i)
+    await expect(
+      preview({ contacts: [], ai_agents: [AGENTE] }, { contacto_id: 'ct-1' }),
+    ).rejects.toThrow(/no existe en esta cuenta/i)
   })
 })
 

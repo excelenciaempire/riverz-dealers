@@ -257,7 +257,7 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
         .eq('workspace_id', ctx.workspaceId)
         .maybeSingle()
       const c = data as { name?: string; phone?: string; opted_out?: boolean } | null
-      if (!c) return 'Ese contacto no existe en esta cuenta.'
+      if (!c) throw new Error('Ese contacto no existe en esta cuenta.')
       const baja = c.opted_out ? ' — OJO: pidió la baja, el envío se va a frenar' : ''
       return `Le mandaría a ${c.name ?? 'sin nombre'} (${c.phone}): "${args.texto}"${baja}`
     },

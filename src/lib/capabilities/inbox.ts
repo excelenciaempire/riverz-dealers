@@ -263,7 +263,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
         }
         return `Le pasaría a ${miembro.nombre} la conversación con ${comoSeLlama(conv)}. Mientras la tenga asignada, la IA no contesta ese hilo.`
       } catch (e) {
-        return (e as Error).message
+        throw e
       }
     },
     run: asignar,
@@ -292,7 +292,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
         }
         return `Daría por resuelta la conversación con ${comoSeLlama(conv)}. Sale de la bandeja abierta y cuenta en «Resueltas hoy».`
       } catch (e) {
-        return (e as Error).message
+        throw e
       }
     },
     run: cerrar,
@@ -324,7 +324,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
         }
         return `Apagaría la IA en la conversación con ${comoSeLlama(conv)}. A partir de ahí contesta una persona o no contesta nadie.`
       } catch (e) {
-        return (e as Error).message
+        throw e
       }
     },
     run: ia,

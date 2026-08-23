@@ -949,9 +949,26 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     },
     async preview(_ctx, args) {
       const n = Array.isArray(args.reglas) ? args.reglas.length : 0
-      return `Guardar el segmento "${args.nombre}" con ${n} ${
+      // En condicional como todas las demás: la tarjeta las lista juntas y una
+      // en infinitivo entre nueve en condicional se lee como otra cosa.
+      return `Guardaría el segmento «${args.nombre}» con ${n} ${
         n === 1 ? 'criterio' : 'criterios'
-      }`
+      }.`
+    },
+    artifact(_ctx, args, result) {
+      let reglas: ReglaEntrante[]
+      try {
+        reglas = leerReglas(args.reglas)
+      } catch {
+        return null
+      }
+      const hecho = result as { id?: string; alcance?: number } | undefined
+      return artefactoDeSegmento(
+        hecho?.id ?? '',
+        String(args.nombre ?? 'Segmento'),
+        reglas,
+        hecho?.alcance,
+      )
     },
     run: crearSegmento,
   },
@@ -981,7 +998,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     },
     async preview(ctx, args) {
       const fila = await leerSegmento(ctx, args.segmento_id).catch(() => null)
-      if (!fila) return 'Ese segmento no existe en esta cuenta.'
+      if (!fila) throw new Error('Ese segmento no existe en esta cuenta.')
       try {
         const reglas = await resolverIdsDeEtiqueta(ctx, leerReglas(args.reglas))
         const modo: SegmentMatchMode =

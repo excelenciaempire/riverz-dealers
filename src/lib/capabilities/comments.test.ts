@@ -328,11 +328,12 @@ describe('comentarios.activar_regla', () => {
 
   it('una regla de otra cuenta no existe', async () => {
     const { db } = fakeDb({ comment_to_dm_rules: { data: null } })
-    const texto = await cap('comentarios.activar_regla').preview!(ctxCon(db), {
-      regla_id: 'ajena',
-      activa: true,
-    })
-    expect(texto).toBe('Esa regla no existe en esta cuenta.')
+    await expect(
+      cap('comentarios.activar_regla').preview!(ctxCon(db), {
+        regla_id: 'ajena',
+        activa: true,
+      }),
+    ).rejects.toThrow('Esa regla no existe en esta cuenta.')
     await expect(
       cap('comentarios.activar_regla').run(ctxCon(db), { regla_id: 'ajena', activa: true }),
     ).rejects.toThrow(/no existe en esta cuenta/)

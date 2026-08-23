@@ -351,7 +351,7 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
           'id, title, description, custom_notes, custom_faqs',
         )
       } catch (e) {
-        return (e as Error).message
+        throw e
       }
 
       // El diff se cuenta en lo que se ve, no en nombres de columna: quien

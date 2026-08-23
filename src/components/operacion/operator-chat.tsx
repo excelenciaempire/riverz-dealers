@@ -60,6 +60,12 @@ interface Accion {
   preview: string | null
 }
 
+/** Las que dejan una automatización nueva y dormida: se ofrece prenderla. */
+const CREAN_AUTOMATIZACION = [
+  'automatizaciones.crear',
+  'automatizaciones.crear_desde_receta',
+]
+
 /** La primera frase de un texto. Lo que se muestra de un encargo. */
 function primeraFrase(texto: string): string {
   const m = texto.match(/^[^.!?]*[.!?]/)
@@ -117,6 +123,13 @@ export function OperatorChat({
    */
   const [plan, setPlan] = useState<PlanPendiente | null>(null)
   const [cargandoHilo, setCargandoHilo] = useState(false)
+  /**
+   * Lo que quedó dicho y no es una decisión.
+   *
+   * Hoy sólo una cosa: «quedó pausada porque le falta X». Es información, y va
+   * escrita, no como un botón que no puede funcionar.
+   */
+  const [notas, setNotas] = useState<string[]>([])
   const finalRef = useRef<HTMLDivElement | null>(null)
 
   /**
@@ -206,6 +219,7 @@ export function OperatorChat({
     setVivo(null)
     setError(null)
     setTexto('')
+    setNotas([])
   }, [aLaMesa])
 
   const borrarChat = useCallback(
@@ -407,6 +421,41 @@ export function OperatorChat({
     [mensajes, t, verComoQuedo],
   )
 
+  /**
+   * Ofrecer prenderla, cuando lo aprobado dejó una automatización nueva.
+   *
+   * No la prende: pide la propuesta al servidor, que la deja con su vista
+   * previa y sus dos botones como cualquier otra. Y si todavía no se puede
+   * prender —le falta la plantilla, le falta la etiqueta— lo que vuelve es el
+   * motivo escrito, que se muestra como una línea y no como un botón inerte.
+   */
+  const ofrecerPrender = useCallback(
+    async (ids: string[]) => {
+      for (const id of ids) {
+        try {
+          const res = await fetchWithCsrf(
+            `/api/operacion/operator/acciones/${id}/prender`,
+            { method: 'POST' },
+          )
+          if (!res.ok) continue
+          const json = (await res.json()) as {
+            puede: boolean
+            accion?: Accion
+            motivo?: string | null
+          }
+          if (json.puede && json.accion) {
+            setAcciones((a) => [...a, json.accion!])
+          } else if (json.motivo) {
+            setNotas((n) => [...n, json.motivo!])
+          }
+        } catch {
+          /* si no se puede ofrecer, queda pausada y se prende desde su pantalla */
+        }
+      }
+    },
+    [fetchWithCsrf],
+  )
+
   const decidir = useCallback(
     async (id: string, aprobar: boolean) => {
       setAcciones((a) =>
@@ -439,6 +488,27 @@ export function OperatorChat({
       }
     },
     [fetchWithCsrf, marcarPasoDecidido, onChanged],
+  )
+
+  /**
+   * La tarjeta entera, de una vez.
+   *
+   * Se resuelve completa —lo tildado se hace, lo destildado se descarta— y
+   * recién cuando terminó todo se pregunta por lo que quedó dormido. Hacerlo
+   * por acción suelta ofrecía prender antes de saber si la automatización
+   * había llegado a crearse.
+   */
+  const resolver = useCallback(
+    async (decisiones: { id: string; aprobar: boolean }[]) => {
+      await Promise.all(decisiones.map((d) => decidir(d.id, d.aprobar)))
+      const creadas = decisiones
+        .filter((d) => d.aprobar)
+        .map((d) => acciones.find((a) => a.id === d.id))
+        .filter((a): a is Accion => Boolean(a) && CREAN_AUTOMATIZACION.includes(a!.capability_key))
+        .map((a) => a.id)
+      if (creadas.length > 0) await ofrecerPrender(creadas)
+    },
+    [acciones, decidir, ofrecerPrender],
   )
 
   /**
@@ -492,6 +562,19 @@ export function OperatorChat({
         }
         setPlan((p) => (p ? { ...p, estado: 'listo' } : p))
 
+        // Un plan aprobado CONSTRUYE lo inerte sin volver a preguntar, así que
+        // acá no hay tarjeta de decisión que resolver — y es justo el camino
+        // por el que se arman casi todas las automatizaciones. Sin esto, la
+        // pregunta de si prenderla no aparecía nunca.
+        await ofrecerPrender(
+          bloques.flatMap((b) =>
+            b.k === 'paso' && b.estado === 'hecho' && b.actionId &&
+            CREAN_AUTOMATIZACION.includes(b.key)
+              ? [b.actionId]
+              : [],
+          ),
+        )
+
         // Las acciones que quedaron esperando salen del servidor: el stream
         // avisa que hay algo propuesto, no con qué argumentos exactos.
         const hilo = thread
@@ -509,7 +592,7 @@ export function OperatorChat({
         setPensando(false)
       }
     },
-    [aLaMesa, fetchWithCsrf, t, thread],
+    [aLaMesa, fetchWithCsrf, ofrecerPrender, t, thread],
   )
 
   /**
@@ -632,7 +715,7 @@ export function OperatorChat({
               key={m.id}
               bloques={m.bloques}
               acciones={porAccion}
-              onDecidir={decidir}
+              onResolver={resolver}
               onVer={verComoQuedo}
               onCambiar={pedirCambio}
             />
@@ -646,7 +729,7 @@ export function OperatorChat({
             bloques={vivo.bloques}
             thinking={vivo.thinking}
             acciones={porAccion}
-            onDecidir={decidir}
+            onResolver={resolver}
             onVer={verComoQuedo}
             onCambiar={pedirCambio}
           />
@@ -663,11 +746,20 @@ export function OperatorChat({
         )}
 
         {pendientes.length > 0 && (
-          <TarjetaDecision acciones={pendientes} onDecidir={decidir} onCambiar={pedirCambio} />
+          <TarjetaDecision acciones={pendientes} onResolver={resolver} onCambiar={pedirCambio} />
         )}
 
         {resueltas.map((a) => (
           <TarjetaResuelta key={a.id} accion={a} />
+        ))}
+
+        {notas.map((n, i) => (
+          <p
+            key={`${i}-${n.slice(0, 12)}`}
+            className="border-l-2 border-amber-500/50 pl-3 text-xs leading-snug text-muted-foreground"
+          >
+            {n}
+          </p>
         ))}
 
         {error && (
@@ -995,7 +1087,7 @@ function Turno({
   bloques,
   thinking,
   acciones,
-  onDecidir,
+  onResolver,
   onVer,
   onCambiar,
 }: {
@@ -1003,12 +1095,12 @@ function Turno({
   thinking?: string
   /** Las acciones por id, para juntar al final las que esperan decisión. */
   acciones?: Map<string, Accion>
-  onDecidir?: (id: string, aprobar: boolean) => void
+  onResolver?: (decisiones: { id: string; aprobar: boolean }[]) => void
   onVer?: (actionId: string, key: string) => void
   onCambiar?: (a: Accion) => void
 }) {
   // Las que esperan decisión, en el orden en que ocurrieron.
-  const esperando = onDecidir
+  const esperando = onResolver
     ? bloques.flatMap((b) => {
         if (b.k !== 'paso' || !b.actionId) return []
         const a = acciones?.get(b.actionId)
@@ -1038,7 +1130,7 @@ function Turno({
           Meta, la automatización, las ediciones— y una de ellas vaciaba las
           ramas de la automatización. Se veía igual que las otras siete. */}
       {esperando.length > 0 && (
-        <TarjetaDecision acciones={esperando} onDecidir={onDecidir!} onCambiar={onCambiar} />
+        <TarjetaDecision acciones={esperando} onResolver={onResolver!} onCambiar={onCambiar} />
       )}
     </div>
   )
@@ -1127,11 +1219,11 @@ function Paso({
  */
 function TarjetaDecision({
   acciones,
-  onDecidir,
+  onResolver,
   onCambiar,
 }: {
   acciones: Accion[]
-  onDecidir: (id: string, aprobar: boolean) => void
+  onResolver: (decisiones: { id: string; aprobar: boolean }[]) => void
   onCambiar?: (a: Accion) => void
 }) {
   const t = useT()
@@ -1201,7 +1293,9 @@ function TarjetaDecision({
         <button
           type="button"
           disabled={elegidas.length === 0}
-          onClick={() => acciones.forEach((a) => onDecidir(a.id, !fuera.has(a.id)))}
+          onClick={() =>
+            onResolver(acciones.map((a) => ({ id: a.id, aprobar: !fuera.has(a.id) })))
+          }
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
         >
           {t('operation.approve')}
@@ -1209,7 +1303,7 @@ function TarjetaDecision({
         </button>
         <button
           type="button"
-          onClick={() => acciones.forEach((a) => onDecidir(a.id, false))}
+          onClick={() => onResolver(acciones.map((a) => ({ id: a.id, aprobar: false })))}
           className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
         >
           {t('operation.decisionDescartar')}

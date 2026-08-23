@@ -618,6 +618,23 @@ export const AGENT_CAPABILITIES: Capability[] = [
         : 'lo que permita la tienda conectada'
       return `Crearía el agente «${args.nombre}» con rol ${rol}, pausado. Podría: ${puede}.`
     },
+    // `editar` dibujaba y `crear` no, que es al revés de lo que sirve: cuando
+    // más falta hace ver qué te van a dejar es al crearlo.
+    artifact(_ctx, args) {
+      const rol = isAgentRole(args.rol) ? args.rol : 'general'
+      const preset = roleTemplate(rol)
+      const nombre = String(args.nombre ?? '').trim()
+      if (!nombre) return null
+      return {
+        kind: 'agente',
+        nombre,
+        rol,
+        puede: Object.entries(preset?.permissions ?? {})
+          .filter(([, v]) => v)
+          .map(([k]) => k.replace(/_/g, ' ')),
+        escala: preset?.escalateKeywords ?? [],
+      }
+    },
     run: crearBorrador,
   },
 
@@ -739,7 +756,10 @@ Para prenderlo o pausarlo está agentes.activar; el resto de la configuración s
         const { dichos } = armarCambio(fila, args)
         return `En «${fila.name}»: ${dichos.join('; ')}.`
       } catch (e) {
-        return `No se puede editar — ${(e as Error).message}`
+        // Lanzar y no devolver: si no se puede describir el cambio, no hay
+        // nada que aprobar. Devolviéndolo quedaba una tarjeta con el motivo
+        // escrito donde va la descripción, y su botón intacto.
+        throw e
       }
     },
     // Sólo con el resultado: cómo queda el agente depende de lo que ya tenía

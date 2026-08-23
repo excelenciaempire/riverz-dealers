@@ -339,18 +339,18 @@ describe('prospeccion.lanzar', () => {
 
   it('sin nadie alcanzable el preview no promete un envío', async () => {
     const db = escenario({ campana: CAMPANA, comentaristas: 0 })
-    const texto = await cap('prospeccion.lanzar').preview!(ctxDe(db), {
-      campaign_id: 'camp-1',
-    })
-    expect(texto).toMatch(/no alcanza hoy a nadie/)
+    // Lanzar algo que no le llega a nadie es un click que no hace nada, así
+    // que no se propone: se dice y se corrige el público.
+    await expect(
+      cap('prospeccion.lanzar').preview!(ctxDe(db), { campaign_id: 'camp-1' }),
+    ).rejects.toThrow(/no alcanza hoy a nadie/)
   })
 
   it('una campaña de otra cuenta no existe', async () => {
     const db = escenario({ campana: null })
-    const texto = await cap('prospeccion.lanzar').preview!(ctxDe(db), {
-      campaign_id: 'camp-ajena',
-    })
-    expect(texto).toMatch(/no existe en esta cuenta/)
+    await expect(
+      cap('prospeccion.lanzar').preview!(ctxDe(db), { campaign_id: 'camp-ajena' }),
+    ).rejects.toThrow(/no existe en esta cuenta/)
     await expect(
       cap('prospeccion.lanzar').run(ctxDe(db), { campaign_id: 'camp-ajena' }),
     ).rejects.toThrow(/no existe en esta cuenta/)

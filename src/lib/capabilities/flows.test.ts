@@ -315,8 +315,11 @@ describe('capacidades de flujos', () => {
 
   it('el preview de prender se niega antes de gastarle el click a nadie', async () => {
     store = nuevoStore({ entry_node_id: null })
-    const texto = await cap('flujos.activar').preview!(ctx, { flujo_id: FLUJO, activo: true })
-    expect(texto).toMatch(/todavía no se puede prender/)
+    // Lanza y no devuelve: si devolviera el motivo, quedaría una tarjeta con
+    // ese texto donde va la descripción y su botón de aprobar intacto.
+    await expect(
+      cap('flujos.activar').preview!(ctx, { flujo_id: FLUJO, activo: true }),
+    ).rejects.toThrow(/todavía no se puede prender/)
   })
 
   it('el artefacto dibuja sólo lo que se toca, antes y después', async () => {

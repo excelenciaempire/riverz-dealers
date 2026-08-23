@@ -38,7 +38,9 @@ import {
   TEMPLATE_GALLERY_ORDER,
   automationTemplateNameKey,
   type TemplateSlug,
+  type TemplateStepSeed,
 } from '@/lib/automations/templates'
+import type { BuilderStepInput } from '@/lib/automations/steps-tree'
 import { translate } from '@/lib/i18n/translate'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Capability, CapabilityContext } from './types'
@@ -419,6 +421,32 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+/**
+ * Las semillas de una receta, como árbol.
+ *
+ * Se guardan planas —cada una apuntando a su condición padre por índice— porque
+ * así se insertan en la base. El dibujo necesita el árbol, que es el mismo que
+ * arma el editor al cargar. Son quince líneas y evitan importar el constructor
+ * entero, que son cuatro mil y vive en el navegador.
+ */
+function arbolDeSemillas(semillas: TemplateStepSeed[]): BuilderStepInput[] {
+  const nodos: BuilderStepInput[] = semillas.map((s) => ({
+    step_type: s.step_type,
+    step_config: (s.step_config ?? {}) as Record<string, unknown>,
+    branches: { yes: [], no: [] },
+  }))
+  const raiz: BuilderStepInput[] = []
+  semillas.forEach((s, i) => {
+    const padre = s.parent_index != null ? nodos[s.parent_index] : undefined
+    if (!padre) {
+      raiz.push(nodos[i])
+      return
+    }
+    ;(s.branch === 'no' ? padre.branches!.no! : padre.branches!.yes!).push(nodos[i])
+  })
+  return raiz
+}
+
 async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unknown>) {
   const automation = await installTemplate(ctx.db, {
     templateId: String(args.receta),
@@ -683,6 +711,19 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
       if (!t) throw new Error(`No hay ninguna lista para armar que se llame "${slug}".`)
       const nombre = translate(ctx.locale ?? 'es', automationTemplateNameKey(slug))
       return `Crearía «${nombre}» con sus ${t.steps.length} pasos ya armados, en pausa. Después hay que completar la plantilla de WhatsApp y la etiqueta antes de prenderla.`
+    },
+    // Se dibuja igual que la que se arma desde cero. Sin esto, elegir una lista
+    // para usar dejaba el banco vacío: la única de las dos formas de crear una
+    // automatización que no mostraba lo que iba a quedar.
+    artifact: (ctx, args) => {
+      const t = AUTOMATION_TEMPLATES[String(args.receta) as TemplateSlug]
+      if (!t) return null
+      return artefactoDeSnapshot({
+        nombre: translate(ctx.locale ?? 'es', automationTemplateNameKey(String(args.receta))),
+        disparador: t.trigger_type,
+        triggerConfig: (t.trigger_config ?? {}) as Record<string, unknown>,
+        pasos: arbolDeSemillas(t.steps),
+      })
     },
     run: crearDesdeReceta,
   },

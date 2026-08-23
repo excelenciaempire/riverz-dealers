@@ -324,14 +324,16 @@ async function previewLanzar(
   args: Record<string, unknown>,
 ): Promise<string> {
   const campana = await cargarCampana(ctx, String(args.campaign_id))
-  if (!campana) return 'Esa campaña no existe en esta cuenta.'
+  if (!campana) throw new Error('Esa campaña no existe en esta cuenta.')
   if (campana.status === 'done') {
-    return `«${campana.name}» ya está terminada: no se puede volver a lanzar.`
+    throw new Error(`«${campana.name}» ya está terminada: no se puede volver a lanzar.`)
   }
 
   const plan = coercePlan(campana.plan)
   if (!plan) {
-    return `«${campana.name}» todavía no se puede lanzar: su plan está incompleto (falta el mensaje o a quién se le escribe).`
+    throw new Error(
+      `«${campana.name}» todavía no se puede lanzar: su plan está incompleto (falta el mensaje o a quién se le escribe).`,
+    )
   }
 
   // Quien ya tiene gente en cola sabe exactamente a cuántos; el resto todavía
@@ -355,7 +357,10 @@ async function previewLanzar(
     personas = b.merged.length
   }
   if (personas === 0) {
-    return `«${campana.name}» no alcanza hoy a nadie: no hay comentarios de los últimos 7 días, DMs de las últimas 24 h ni suscriptores con permiso.`
+    // Lanzar algo que no le llega a nadie es un click que no hace nada.
+    throw new Error(
+      `«${campana.name}» no alcanza hoy a nadie: no hay comentarios de los últimos 7 días, DMs de las últimas 24 h ni suscriptores con permiso.`,
+    )
   }
 
   const controlPct = campana.holdout_pct ?? 0
