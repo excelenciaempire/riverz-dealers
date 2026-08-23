@@ -672,6 +672,17 @@ export const AGENT_CAPABILITIES: Capability[] = [
         escala: preset?.escalateKeywords ?? [],
       }
     },
+    // Nació pausado y no le contestó a nadie: se borra y no pasó nada.
+    async deshacer(ctx, _args, result) {
+      const r = result as { id?: string; nombre?: string } | undefined
+      if (!r?.id) throw new Error('No quedó registrado qué agente se creó.')
+      await ctx.db
+        .from('ai_agents')
+        .update({ deleted_at: new Date().toISOString(), is_active: false })
+        .eq('id', r.id)
+        .eq('workspace_id', ctx.workspaceId)
+      return `Se borró el agente «${r.nombre ?? 'sin nombre'}».`
+    },
     run: crearBorrador,
   },
 

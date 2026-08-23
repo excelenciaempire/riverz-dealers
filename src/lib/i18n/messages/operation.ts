@@ -353,6 +353,36 @@ export const operation = {
   decisionPedirCambio: { es: "Cambia esto: ", en: "Change this: " },
   decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
 
+  // Lo que hizo el Operador, y lo que costó
+  actividadTitulo: { es: "Lo que hice", en: "What I did" },
+  actividadBajada: {
+    es: "Todo lo que se aprobó en el chat, y lo que costó.",
+    en: "Everything approved in the chat, and what it cost.",
+  },
+  actividadDias: { es: "{n} días", en: "{n} days" },
+  actividadHechas: { es: "Hechas", en: "Done" },
+  actividadEsperando: { es: "Esperan tu sí", en: "Awaiting you" },
+  actividadDescartadas: { es: "Descartadas", en: "Discarded" },
+  actividadCosto: { es: "Costo estimado", en: "Estimated cost" },
+  actividadPorEspecialista: { es: "En qué se fue", en: "Where it went" },
+  actividadOrquestador: { es: "Reparto", en: "Dispatch" },
+  actividadCache: {
+    es: "{n}% de la lectura salió del caché.",
+    en: "{n}% of the input came from cache.",
+  },
+  actividadVacio: {
+    es: "Todavía no aprobaste nada en este período.",
+    en: "Nothing approved in this period yet.",
+  },
+  estado_ejecutado: { es: "hecho", en: "done" },
+  estado_propuesto: { es: "espera tu decisión", en: "awaiting your call" },
+  estado_rechazado: { es: "descartado", en: "discarded" },
+  estado_fallido: { es: "falló", en: "failed" },
+  actividadVer: { es: "Lo que hice", en: "What I did" },
+  actividadDeshacer: { es: "Deshacer", en: "Undo" },
+  actividadDeshecho: { es: "Listo, se volvió atrás.", en: "Done, it was rolled back." },
+  estado_deshecho: { es: "deshecho", en: "undone" },
+
   // Acciones propuestas
   approve: { es: "Aprobar", en: "Approve" },
   reject: { es: "Rechazar", en: "Reject" },

@@ -447,6 +447,29 @@ function arbolDeSemillas(semillas: TemplateStepSeed[]): BuilderStepInput[] {
   return raiz
 }
 
+/**
+ * Borrar una automatización que el Operador acaba de crear.
+ *
+ * Borrado blando: la fila queda con `deleted_at` y sale de todas las listas. Es
+ * lo mismo que hace la pantalla, así que deshacer desde el chat y borrar desde
+ * el editor dejan la cuenta igual.
+ */
+async function borrarAutomatizacion(
+  ctx: CapabilityContext,
+  result: unknown,
+): Promise<string> {
+  const id = (result as { id?: string } | undefined)?.id
+  if (!id) throw new Error('No quedó registrado qué automatización se creó.')
+  const nombre = await nombreDe(ctx, id)
+  const { error } = await ctx.db
+    .from('automations')
+    .update({ deleted_at: new Date().toISOString(), is_active: false })
+    .eq('id', id)
+    .eq('workspace_id', ctx.workspaceId)
+  if (error) throw new Error(error.message)
+  return `Se borró «${nombre}».`
+}
+
 async function crearDesdeReceta(ctx: CapabilityContext, args: Record<string, unknown>) {
   const automation = await installTemplate(ctx.db, {
     templateId: String(args.receta),
@@ -559,6 +582,20 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
         )
       }
       return `Prendería «${nombre}». Empieza a dispararse con cada evento que la active.`
+    },
+    // Vuelve al estado anterior. Lo que ya se disparó mientras estuvo prendida
+    // no se deshace —eso ya le llegó a alguien— y por eso lo dice el texto.
+    async deshacer(ctx, args) {
+      const id = String(args.automation_id)
+      const nombre = await nombreDe(ctx, id)
+      await ctx.db
+        .from('automations')
+        .update({ is_active: args.activa === false })
+        .eq('id', id)
+        .eq('workspace_id', ctx.workspaceId)
+      return args.activa
+        ? `«${nombre}» quedó pausada otra vez. Lo que se disparó mientras estuvo prendida ya salió.`
+        : `«${nombre}» quedó prendida otra vez.`
     },
     run: activar,
   },
@@ -690,6 +727,9 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
       return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.total} pasos. Nace pausada.`
     },
     artifact: (_ctx, args) => artefactoDePlan(entradaDePlan(args)),
+    // Se borra entera. Nació pausada y no se disparó nunca, así que no hay
+    // nada que reponer: ni una corrida a medias ni un mensaje ya enviado.
+    deshacer: (ctx, _args, result) => borrarAutomatizacion(ctx, result),
     run: crear,
   },
 
@@ -733,6 +773,7 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
         pasos: arbolDeSemillas(t.steps),
       })
     },
+    deshacer: (ctx, _args, result) => borrarAutomatizacion(ctx, result),
     run: crearDesdeReceta,
   },
 ]

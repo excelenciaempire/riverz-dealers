@@ -123,6 +123,23 @@ export interface Capability<A = Record<string, unknown>, R = unknown> {
    * algo que ya existía.
    */
   artifactBefore?(ctx: CapabilityContext, args: A): Promise<Artefacto | null>
+  /**
+   * Cómo se vuelve atrás, para lo que se puede volver atrás.
+   *
+   * Aprobar era definitivo: el único recurso frente a algo que salió mal era
+   * pedirle al chat que armara lo contrario y confiar en que lo armara bien.
+   * Sobre una automatización recién creada eso significa dictar un borrado; y
+   * si el modelo se equivoca de id, borra otra.
+   *
+   * Recibe el `result` que quedó guardado en `operator_actions`, que es donde
+   * está el id de lo que se creó. Devuelve, en castellano, qué deshizo.
+   *
+   * **Sólo lo que de verdad se deshace.** Nada irreversible lo declara: un
+   * mensaje enviado, una plantilla en Meta o una llamada hecha no vuelven,
+   * y ofrecer un botón que diga lo contrario sería mentir. Ausente = no se
+   * puede deshacer, que es el caso por defecto.
+   */
+  deshacer?(ctx: CapabilityContext, args: A, result: R): Promise<string>
 }
 
 /** Capacidad con argumentos sueltos, que es como llegan desde un modelo. */
