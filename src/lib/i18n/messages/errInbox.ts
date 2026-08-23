@@ -33,6 +33,7 @@ export const errInbox = {
   broadcastFallback: { es: "Campaña", en: "Campaign" },
   flowFallback: { es: "Flujo", en: "Flow" },
   automationFallback: { es: "Automatización", en: "Automation" },
+  agentFallback: { es: "Asistente", en: "Assistant" },
   igCampaignFallback: { es: "Campaña IG", en: "IG campaign" },
 
   // Shared auth / membership guards (returned across inbox + channel routes)

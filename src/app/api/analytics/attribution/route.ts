@@ -22,6 +22,7 @@ import {
  *   - by_broadcast        — última campaña enviada al contacto 24h antes de la orden
  *   - by_flow             — último flow_run del contacto 24h antes de la orden
  *   - by_automation       — último automation_log (success/partial) 24h antes
+ *   - by_agent            — última respuesta del asistente al contacto 24h antes
  *   - by_instagram_agent  — revenue ya atribuido por el Agente de IG a sus
  *                           destinatarios (determinista + incrementalidad),
  *                           dentro de la ventana de `days`.
@@ -84,6 +85,7 @@ function emptyResponse(days: number) {
     by_broadcast: [] as AttrRow[],
     by_flow: [] as AttrRow[],
     by_automation: [] as AttrRow[],
+    by_agent: [] as AttrRow[],
     by_instagram_agent: [] as AttrRow[],
     totals: EMPTY_TOTALS,
     attributed: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
@@ -255,7 +257,30 @@ export async function GET(request: Request) {
   const byBroadcast = new Map<string, AttrRow>();
   const byFlow = new Map<string, AttrRow>();
   const byAutomation = new Map<string, AttrRow>();
+  const byAgent = new Map<string, AttrRow>();
   const attributed: Attributed = { revenue: 0, orders: 0, currency: totals.currency };
+
+  /**
+   * Las conversaciones de cada contacto, para la lente del asistente.
+   *
+   * `ai_replies` guarda `conversation_id` y no `contact_id`, así que sin este
+   * mapa habría que hacer un join por pedido dentro del bucle — y el bucle ya
+   * hace tres consultas por pedido. Se trae una vez y se cruza en memoria.
+   */
+  const convDeContacto = new Map<string, string[]>();
+  {
+    const { data: convs } = await admin
+      .from('conversations')
+      .select('id, contact_id')
+      .eq('workspace_id', workspaceId)
+      .not('contact_id', 'is', null)
+      .limit(5000);
+    for (const c of (convs ?? []) as { id: string; contact_id: string }[]) {
+      const lista = convDeContacto.get(c.contact_id) ?? [];
+      lista.push(c.id);
+      convDeContacto.set(c.contact_id, lista);
+    }
+  }
 
   for (const order of orders) {
     const cId =
@@ -344,6 +369,42 @@ export async function GET(request: Request) {
       tocado = true;
     }
 
+    // La última respuesta del asistente a este contacto, en la ventana.
+    //
+    // Es la lente que faltaba y la que más se usa: un comercio podía tener a la
+    // IA cerrando ventas todo el día y ver «ventas por Riverz: 0», porque la
+    // venta que empieza con una respuesta del asistente no pasaba por ninguna
+    // de las otras tres.
+    const convs = convDeContacto.get(cId) ?? [];
+    if (convs.length > 0) {
+      const { data: aiRow } = await admin
+        .from('ai_replies')
+        .select('agent_id, ai_agents(name)')
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'sent')
+        .in('conversation_id', convs.slice(0, 50))
+        .gte('created_at', lookback)
+        .lte('created_at', order.created_at)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (aiRow) {
+        const row = aiRow as {
+          agent_id: string | null;
+          ai_agents: { name?: string } | { name?: string }[] | null;
+        };
+        const join = Array.isArray(row.ai_agents) ? row.ai_agents[0] : row.ai_agents;
+        accumulate(
+          byAgent,
+          row.agent_id ?? 'sin-agente',
+          join?.name ?? translate(locale, 'errInbox.agentFallback'),
+          total,
+          currency,
+        );
+        tocado = true;
+      }
+    }
+
     if (tocado) {
       attributed.orders += 1;
       attributed.revenue += total;
@@ -358,6 +419,7 @@ export async function GET(request: Request) {
     by_broadcast: sortByRevenue(byBroadcast),
     by_flow: sortByRevenue(byFlow),
     by_automation: sortByRevenue(byAutomation),
+    by_agent: sortByRevenue(byAgent),
     by_instagram_agent,
     totals,
     attributed,

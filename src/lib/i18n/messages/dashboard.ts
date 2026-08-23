@@ -191,4 +191,15 @@ export const dashboard = {
   hideChecklist: { es: "Ocultar", en: "Hide" },
   done: { es: "Listo", en: "Done" },
   later: { es: "Más adelante", en: "Later" },
+
+  // Quien atendio: por canal y por agente.
+  whoTitle: { es: "Quién atendió", en: "Who handled it" },
+  whoOfWithAi: {
+    es: "{n} de {total} con IA",
+    en: "{n} of {total} with AI",
+  },
+  whoAnswered: { es: "{n} respondidas", en: "{n} answered" },
+  whoSkipped: { es: "{n} se abstuvo", en: "{n} skipped" },
+  whoFailed: { es: "{n} falló", en: "{n} failed" },
+  whoPaused: { es: "pausado", en: "paused" },
 } satisfies Namespace;

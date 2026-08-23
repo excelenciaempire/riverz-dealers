@@ -17,6 +17,7 @@ import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
+import { QuienAtendio } from '@/components/dashboard/quien-atendio'
 import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
 import { useAtribucion } from '@/lib/dashboard/use-attribution'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
@@ -319,6 +320,10 @@ export function PanelDashboard({
       {/* De donde salio esa plata: cual automatizacion, cual campana, cual
           flujo. El total ya esta arriba; esto es la pregunta que sigue. */}
       <AttributedRevenue data={atribucion} />
+
+      {/* Donde esta trabajando la IA y donde no. El volumen por canal ya estaba;
+          lo que faltaba era el corte por resultado y por agente. */}
+      <QuienAtendio start={rangeIso?.start ?? null} end={rangeIso?.end ?? null} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

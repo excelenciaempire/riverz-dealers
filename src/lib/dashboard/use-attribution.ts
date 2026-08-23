@@ -23,6 +23,8 @@ export interface Atribucion {
   by_broadcast: AttrRow[]
   by_flow: AttrRow[]
   by_automation: AttrRow[]
+  /** El asistente que contesta: la lente que faltaba. */
+  by_agent: AttrRow[]
   by_instagram_agent: AttrRow[]
   /** Todas las ventas del rango, atribuidas o no. */
   totals?: {

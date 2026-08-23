@@ -450,6 +450,13 @@ export const admin = {
   billingOwnPrice: { es: "Precio propio", en: "Custom price" },
   billingOwnIncluded: { es: "Incluidas propias", en: "Custom included" },
   billingNote: { es: "Por qué", en: "Why" },
+  billingNew: { es: "Dar de alta", en: "Add account" },
+  billingNewHint: {
+    es: "Se invita por correo y la cuenta nace con el trato que elijas.",
+    en: "Invited by email; the account starts on the deal you pick.",
+  },
+  billingEmail: { es: "Correo", en: "Email" },
+  billingInvite: { es: "Invitar", en: "Invite" },
 
   cronBillingUsage: {
     es: "Acumula el consumo de cada cuenta para facturar",

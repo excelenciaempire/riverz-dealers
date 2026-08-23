@@ -65,6 +65,7 @@ export const health: Namespace = {
   kindAutomation: { es: "Automatización", en: "Automation" },
   kindBroadcast: { es: "Campaña", en: "Campaign" },
   kindFlow: { es: "Flujo", en: "Flow" },
+  kindAgent: { es: "Asistente", en: "Assistant" },
   kindIgAgent: { es: "Agente IG", en: "IG agent" },
   revenueNothingAttributed: {
     es: "Todavía no hay pedidos que se puedan atribuir a un envío de Riverz en este rango.",

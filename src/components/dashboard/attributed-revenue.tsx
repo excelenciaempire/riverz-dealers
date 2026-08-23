@@ -33,6 +33,7 @@ export function AttributedRevenue({ data }: { data: Atribucion | null }) {
     ...(data.by_automation ?? []).map((r) => ({ ...r, tipo: t('health.kindAutomation') })),
     ...(data.by_broadcast ?? []).map((r) => ({ ...r, tipo: t('health.kindBroadcast') })),
     ...(data.by_flow ?? []).map((r) => ({ ...r, tipo: t('health.kindFlow') })),
+    ...(data.by_agent ?? []).map((r) => ({ ...r, tipo: t('health.kindAgent') })),
     ...(data.by_instagram_agent ?? []).map((r) => ({ ...r, tipo: t('health.kindIgAgent') })),
   ].sort((a, b) => b.revenue - a.revenue);
 

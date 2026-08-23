@@ -62,6 +62,8 @@ export default function AdminNegocioPage() {
   const [dias, setDias] = useState(30);
   const [editando, setEditando] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [alta, setAlta] = useState(false);
+  const [errorAlta, setErrorAlta] = useState<string | null>(null);
 
   const url = `/api/admin/billing?from=${fromDays(dias)}`;
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
@@ -76,6 +78,34 @@ export default function AdminNegocioPage() {
       });
       setEditando(null);
       reload();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  /**
+   * Dar de alta un comercio, con su trato ya definido.
+   *
+   * En esta etapa las cuentas no se crean solas: se le instala Riverz a un
+   * comercio concreto, casi siempre sin cargo. Hacerlo en dos pasos —que se
+   * registre, y despues buscarlo para configurarlo— deja una ventana en la que
+   * la cuenta existe con un trato que nadie eligio.
+   */
+  const crearCuenta = async (cuenta: Record<string, unknown>) => {
+    setGuardando(true);
+    try {
+      const res = await fetchWithCsrf("/api/admin/billing/cuenta-nueva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cuenta),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (json.ok) {
+        setAlta(false);
+        reload();
+      } else {
+        setErrorAlta(json.error ?? "no se pudo");
+      }
     } finally {
       setGuardando(false);
     }
@@ -225,6 +255,29 @@ export default function AdminNegocioPage() {
       </Panel>
 
       <Panel title={t("admin.billingAccounts")}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <Muted>{t("admin.billingNewHint")}</Muted>
+          <button
+            type="button"
+            onClick={() => {
+              setAlta((v) => !v);
+              setErrorAlta(null);
+            }}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          >
+            {t("admin.billingNew")}
+          </button>
+        </div>
+        {alta && (
+          <div className="border-b border-border p-4">
+            <FormularioAlta
+              guardando={guardando}
+              error={errorAlta}
+              onCrear={crearCuenta}
+              onCerrar={() => setAlta(false)}
+            />
+          </div>
+        )}
         <DataTable rows={negocio.cuentas} columns={columns} rowKey={(c) => c.workspaceId} />
         {editando && (
           <div className="border-t border-border p-4">
@@ -437,6 +490,111 @@ function FormularioCuenta({
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
           {t("admin.billingSave")}
+        </button>
+        <button
+          type="button"
+          onClick={onCerrar}
+          className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {t("admin.billingCancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Alta de un comercio.
+ *
+ * Nace en cortesia por defecto porque es lo que pasa de verdad hoy: se le
+ * instala sin cargo. El estado se puede cambiar en el mismo formulario, pero el
+ * defecto tiene que ser el caso real, no el que suena mas prolijo.
+ */
+function FormularioAlta({
+  guardando,
+  error,
+  onCrear,
+  onCerrar,
+}: {
+  guardando: boolean;
+  error: string | null;
+  onCrear: (c: Record<string, unknown>) => void;
+  onCerrar: () => void;
+}) {
+  const t = useT();
+  const [f, setF] = useState({
+    email: "",
+    nombre: "",
+    estado: "cortesia" as "cortesia" | "prueba" | "activa",
+    precio: "",
+    nota: "",
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <Campo label={t("admin.billingEmail")}>
+          <input
+            className={INPUT}
+            type="email"
+            value={f.email}
+            onChange={(e) => setF({ ...f, email: e.target.value })}
+          />
+        </Campo>
+        <Campo label={t("admin.billingName")}>
+          <input
+            className={INPUT}
+            value={f.nombre}
+            onChange={(e) => setF({ ...f, nombre: e.target.value })}
+          />
+        </Campo>
+        <Campo label={t("admin.billingState")}>
+          <select
+            className={INPUT}
+            value={f.estado}
+            onChange={(e) => setF({ ...f, estado: e.target.value as typeof f.estado })}
+          >
+            <option value="cortesia">{t("admin.billingState_cortesia")}</option>
+            <option value="prueba">{t("admin.billingState_prueba")}</option>
+            <option value="activa">{t("admin.billingState_activa")}</option>
+          </select>
+        </Campo>
+        <Campo label={t("admin.billingOwnPrice")}>
+          <input
+            className={INPUT}
+            inputMode="decimal"
+            placeholder={t("admin.billingKeep")}
+            value={f.precio}
+            onChange={(e) => setF({ ...f, precio: e.target.value })}
+          />
+        </Campo>
+        <Campo label={t("admin.billingNote")}>
+          <input
+            className={INPUT}
+            value={f.nota}
+            onChange={(e) => setF({ ...f, nota: e.target.value })}
+          />
+        </Campo>
+      </div>
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={guardando || !f.email.trim()}
+          onClick={() =>
+            onCrear({
+              email: f.email,
+              nombre: f.nombre,
+              estado: f.estado,
+              nota: f.nota,
+              ...(f.precio !== ""
+                ? { precio_centavos: Math.round(Number(f.precio) * 100) }
+                : {}),
+            })
+          }
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {t("admin.billingInvite")}
         </button>
         <button
           type="button"
