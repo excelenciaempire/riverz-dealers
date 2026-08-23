@@ -227,6 +227,32 @@ export function MessageComposer({
     adjustHeight();
   }, [text, adjustHeight]);
 
+  /**
+   * Cada chat con su borrador.
+   *
+   * El compositor es UNO solo para toda la bandeja: al cambiar de
+   * conversación cambia la prop, no el componente, así que el texto se
+   * quedaba pegado en pantalla. Con la respuesta generada eso pasa de
+   * molesto a peligroso: el borrador escrito para una persona quedaba
+   * cargado y listo para enviar en el chat de otra.
+   *
+   * Se guarda lo que había en el chat que se deja y se restaura lo que
+   * tenía el que se abre — el adjunto no viaja, que pertenece al mensaje
+   * que se estaba armando.
+   */
+  const borradores = useRef<Map<string, string>>(new Map());
+  const chatAnterior = useRef(conversationId);
+  useEffect(() => {
+    if (chatAnterior.current === conversationId) return;
+    const saliente = chatAnterior.current;
+    if (text.trim()) borradores.current.set(saliente, text);
+    else borradores.current.delete(saliente);
+    chatAnterior.current = conversationId;
+    setText(borradores.current.get(conversationId) ?? "");
+    setPendingFile(null);
+    setSnippetMenu(null);
+  }, [conversationId, text]);
+
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
     // A message is sendable if it has text OR a pending attachment.
