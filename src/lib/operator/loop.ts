@@ -188,6 +188,8 @@ export async function runOperator(args: {
   runner?: ModelRunner
   /** Lo último que escribió la persona, para la pista de intención. */
   pedido?: string
+  /** ¿Alguien pidió detener? Se pregunta entre vueltas. */
+  detener?: () => Promise<boolean>
 }): Promise<OperatorTurn> {
   const { db, workspaceId, threadId } = args
   const emit: EmitFn = args.onEvent ?? (() => {})
@@ -236,6 +238,7 @@ export async function runOperator(args: {
       emit,
       presupuesto,
       autoBuild: args.autoBuild === true,
+      detener: args.detener,
     })
     emit({
       t: 'gasto',
@@ -321,6 +324,7 @@ export async function runOperator(args: {
   }
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
+    if (await args.detener?.()) break
     emit({ t: 'step', n: iter + 1, de: MAX_ITERS })
     const res = await transmitir(client, { messages, tools, system }, emit)
     promptTokens += res.usage?.input_tokens ?? 0

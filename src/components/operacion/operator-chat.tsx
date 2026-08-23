@@ -162,6 +162,14 @@ export function OperatorChat({
    * escrita, no como un botón que no puede funcionar.
    */
   const [notas, setNotas] = useState<string[]>([])
+  /**
+   * La corrida que está pasando ahora, si hay una.
+   *
+   * Un turno vive en el servidor y sigue aunque nadie mire. Esto es el hilo
+   * suelto que lo ata a la pantalla: mientras haya id, se está mirando algo
+   * que corre, y se puede detener.
+   */
+  const [corrida, setCorrida] = useState<string | null>(null)
   const finalRef = useRef<HTMLDivElement | null>(null)
   /**
    * `enviar` en una caja, porque se declara DESPUÉS de quien la llama.
@@ -220,6 +228,51 @@ export function OperatorChat({
   }, [aLaMesa, t])
 
   /**
+   * Vuelve a mirar un turno que sigue corriendo.
+   *
+   * No lo reinicia: pregunta cómo va y va pintando la foto hasta que termina.
+   * La foto es el mismo par texto+bloques que se guarda con el mensaje
+   * terminado, así que lo que se ve mientras corre y lo que queda después no
+   * pueden diferir.
+   */
+  const retomar = useCallback(
+    async (runId: string) => {
+      setCorrida(runId)
+      setPensando(true)
+      try {
+        for (;;) {
+          const res = await fetch(`/api/operacion/operator/corridas?id=${runId}`, {
+            cache: 'no-store',
+          })
+          if (!res.ok) break
+          const { corrida: c } = (await res.json()) as {
+            corrida: {
+              estado: string
+              texto: string
+              bloques: Bloque[]
+            } | null
+          }
+          if (!c) break
+          setVivo({ thinking: '', bloques: c.bloques ?? [] })
+          if (c.estado !== 'corriendo') break
+          await new Promise((r) => setTimeout(r, 1200))
+        }
+      } catch {
+        /* si se corta, queda lo último que se vio */
+      } finally {
+        setCorrida(null)
+        setPensando(false)
+        setVivo(null)
+        // El turno terminado ya está guardado con el mensaje: se relee el hilo
+        // en vez de armarlo acá con la foto, que es la versión de al lado.
+        if (thread) await abrirHilo(thread)
+      }
+    },
+    // `abrirHilo` se declara arriba; `thread` cambia al abrir uno.
+    [abrirHilo, thread],
+  )
+
+  /**
    * Al entrar, la conversación donde la dejaste.
    *
    * Esto sólo pedía la lista y no abría ninguna, así que entrar al Operador
@@ -238,6 +291,17 @@ export function OperatorChat({
         const hs = json.hilos ?? []
         setHilos(hs)
         if (hs[0]) await abrirHilo(hs[0].id)
+        // ¿Quedó algo corriendo? Salir de la pantalla no cancela nada, así
+        // que al volver se sigue mirando desde donde iba.
+        if (hs[0]) {
+          const r = await fetch(`/api/operacion/operator/corridas?thread=${hs[0].id}`, {
+            cache: 'no-store',
+          })
+          if (r.ok && !cancelado) {
+            const { corrida: c } = (await r.json()) as { corrida: { id: string } | null }
+            if (c) void retomar(c.id)
+          }
+        }
       } catch {
         /* sin historial se empieza en blanco, que es lo que ya pasaba */
       }
@@ -245,7 +309,7 @@ export function OperatorChat({
     return () => {
       cancelado = true
     }
-  }, [abrirHilo])
+  }, [abrirHilo, retomar])
 
   /** Empezar de cero. El hilo anterior queda guardado y accesible. */
   const nuevoChat = useCallback(() => {
@@ -296,6 +360,15 @@ export function OperatorChat({
           setError(t('operation.operatorRateLimited'))
           return
         }
+        // Ya había un turno corriendo sobre este hilo: en vez de abrir otro
+        // —dos se pisan el contexto— se mira el que está.
+        if (res.status === 409) {
+          const { run } = (await res.json()) as { run?: string }
+          if (run) void retomar(run)
+          return
+        }
+        const idCorrida = res.headers.get('x-riverz-run')
+        if (idCorrida) setCorrida(idCorrida)
         if (!res.ok || !res.body) throw new Error('failed')
 
         // Se lee a medida que llega. `getReader()` y no `EventSource` porque
@@ -382,9 +455,10 @@ export function OperatorChat({
       } finally {
         setVivo(null)
         setPensando(false)
+        setCorrida(null)
       }
     },
-    [aLaMesa, fetchWithCsrf, pensando, t, thread],
+    [aLaMesa, fetchWithCsrf, pensando, retomar, t, thread],
   )
 
   enviarRef.current = enviar
@@ -818,7 +892,22 @@ export function OperatorChat({
           />
         )}
 
-        {pensando && <EnVivo actividad={actividad} />}
+        {pensando && (
+          <EnVivo
+            actividad={actividad}
+            onDetener={
+              corrida
+                ? () => {
+                    void fetchWithCsrf('/api/operacion/operator/corridas', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id: corrida }),
+                    })
+                  }
+                : undefined
+            }
+          />
+        )}
 
         {plan && plan.estado !== 'rechazado' && (
           <TarjetaPlan
@@ -1127,11 +1216,31 @@ function TarjetaPlan({
  * de barras dice "esperá"; una línea que se ilumina mientras nombra lo que se
  * está haciendo dice "esto está pasando", que es otra cosa.
  */
-function EnVivo({ actividad }: { actividad: string }) {
+function EnVivo({
+  actividad,
+  onDetener,
+}: {
+  actividad: string
+  onDetener?: () => void
+}) {
+  const t = useT()
   return (
     <div className="flex items-center gap-2.5 py-0.5">
       <span className="app-punto size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
       <span className="app-latiendo app-eyebrow min-w-0 flex-1 truncate">{actividad}</span>
+      {/* El turno sigue aunque cierres la pestaña, así que detenerlo tiene que
+          ser algo que se pide a propósito. Vive acá, al lado de lo que está
+          pasando, y no en una esquina: es la única cosa que se puede hacer
+          mientras se espera. */}
+      {onDetener && (
+        <button
+          type="button"
+          onClick={onDetener}
+          className="app-eyebrow shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {t('operation.detener')}
+        </button>
+      )}
     </div>
   )
 }

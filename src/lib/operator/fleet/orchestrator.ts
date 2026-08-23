@@ -64,6 +64,14 @@ export async function runOrquestador(args: {
   emit: EmitFn
   presupuesto: Presupuesto
   autoBuild: boolean
+  /**
+   * ¿Alguien pidió detener?
+   *
+   * Se pregunta entre vueltas y no a mitad de una: cortar durante una llamada
+   * al modelo deja a medio hacer justo lo que se estaba haciendo, y la vuelta
+   * ya está pagada.
+   */
+  detener?: () => Promise<boolean>
 }): Promise<TurnoOrquestador> {
   const { ctx, emit, presupuesto } = args
 
@@ -98,6 +106,7 @@ export async function runOrquestador(args: {
 
   while (vueltas < MAX_VUELTAS && iter < MAX_ITERS_TOTAL) {
     iter++
+    if (await args.detener?.()) break
     emit({ t: 'step', n: vueltas + 1, de: MAX_VUELTAS })
 
     if (!presupuesto.puedeLlamar()) break

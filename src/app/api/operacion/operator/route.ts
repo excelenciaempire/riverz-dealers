@@ -9,6 +9,12 @@ import { runOperator } from '@/lib/operator/loop'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import { grabador } from '@/lib/operator/bloques'
 import {
+  abrirCorrida,
+  cerrarCorrida,
+  latido,
+  pidieronDetener,
+} from '@/lib/operator/corridas'
+import {
   appendMessage,
   borrarHilo,
   ensureThread,
@@ -169,96 +175,157 @@ export async function POST(request: Request) {
    * razonamiento, cada consulta y cada cosa que queda propuesta, en el momento
    * en que pasa.
    */
+  /**
+   * El turno corre SOLO, y el stream mira.
+   *
+   * Antes el trabajo vivía adentro del `ReadableStream`: cuando el navegador se
+   * iba —cambiar de pantalla, cerrar la pestaña, perder señal— el stream se
+   * cortaba y el turno moría con él. Al volver, la conversación mostraba el
+   * pedido y ninguna respuesta. Y un turno con reparto tarda minutos: irse a
+   * mirar otra cosa mientras tanto es lo normal, no el caso raro.
+   *
+   * Ahora son dos cosas separadas. El trabajo es una promesa suelta que empuja
+   * eventos a una cola y va guardando cómo va; el stream se limita a vaciar esa
+   * cola hacia quien esté mirando. Si no hay nadie, la cola se descarta y el
+   * trabajo sigue igual — y quien vuelve lo retoma leyendo la corrida.
+   */
+  const threadId = await ensureThread(ctx.admin, {
+    threadId: body?.thread,
+    workspaceId: ctx.workspaceId,
+    userId: ctx.userId,
+    firstText: texto,
+  })
+
+  const { id: runId, yaHabia } = await abrirCorrida(ctx.admin, threadId, ctx.workspaceId)
+  // Dos turnos a la vez sobre el mismo hilo se pisan el contexto. Quien pide
+  // uno mientras hay otro corriendo recibe el que ya está.
+  if (yaHabia) {
+    return NextResponse.json(
+      { error: 'ya_corriendo', run: runId, thread: threadId },
+      { status: 409 },
+    )
+  }
+
+  const turnoVisto = grabador()
+  const cola: OperatorEvent[] = []
+  // En una caja y no en un `let`: el compilador no ve la asignacion que pasa
+  // dentro del stream y estrecha la variable a `null`, asi que llamarla desde
+  // el trabajo no compila. La caja lo deja mutar desde los dos lados.
+  const espera: { avisar: (() => void) | null } = { avisar: null }
+  let terminado = false
+  let textoAcumulado = ''
+  const foto = latido(ctx.admin, runId)
+
+  const push = (e: OperatorEvent) => {
+    turnoVisto.ver(e)
+    if (e.t === 'text') textoAcumulado += e.delta
+    cola.push(e)
+    espera.avisar?.()
+    // La foto, para quien vuelva. Como mucho una por segundo.
+    void foto.ver(textoAcumulado, turnoVisto.bloques)
+  }
+
+  /** El trabajo. NO se espera acá: por eso sobrevive al navegador. */
+  const trabajo = (async () => {
+    try {
+      // El historial se lee ANTES de anotar el mensaje nuevo: el turno actual
+      // va aparte, así no se duplica al armar el contexto.
+      const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId)
+      await appendMessage(ctx.admin, {
+        threadId,
+        workspaceId: ctx.workspaceId,
+        role: 'user',
+        text: texto,
+      })
+
+      const turno = await runOperator({
+        db: ctx.admin,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        threadId,
+        history: [...toAnthropic(previos), { role: 'user', content: texto }],
+        locale,
+        onEvent: push,
+        autoBuild: PIDE_PERMISO,
+        flota: ctx.flota,
+        pedido: texto,
+        detener: () => pidieronDetener(ctx.admin, runId),
+      })
+
+      await appendMessage(ctx.admin, {
+        threadId,
+        workspaceId: ctx.workspaceId,
+        role: 'assistant',
+        text: turno.text,
+        bloques: turnoVisto.bloques,
+        promptTokens: turno.promptTokens,
+        completionTokens: turno.completionTokens,
+      })
+
+      if (turno.porAgente) {
+        await guardarGasto(ctx.admin, {
+          workspaceId: ctx.workspaceId,
+          threadId,
+          porAgente: turno.porAgente,
+        })
+      }
+
+      // Se manda al final por si el cupo diario cortó el turno antes de llamar
+      // al modelo: ahí no hubo deltas y esto es todo lo que hay.
+      if (turno.overBudget) push({ t: 'text', delta: turno.text })
+      push({ t: 'done', thread: threadId })
+
+      const detenido = await pidieronDetener(ctx.admin, runId)
+      await cerrarCorrida(ctx.admin, runId, detenido ? 'detenido' : 'listo', {
+        texto: turno.text || textoAcumulado,
+        bloques: turnoVisto.bloques,
+      })
+    } catch (err) {
+      // Lo que salía era el JSON crudo de Anthropic, en inglés y en rojo. Nadie
+      // que venda cremas tiene por qué leer eso: el único caso que le sirve
+      // saber es que la plataforma se quedó sin saldo, y eso se dice con
+      // palabras. El detalle técnico queda en el log.
+      if (err) console.error('[operator] turno caído', err)
+      const message = translate(
+        locale,
+        claveRechazada(err) ? 'operation.operatorSinSaldo' : 'operation.operatorError',
+      )
+      push({ t: 'error', message })
+      await cerrarCorrida(ctx.admin, runId, 'fallido', {
+        texto: textoAcumulado,
+        bloques: turnoVisto.bloques,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      terminado = true
+      espera.avisar?.()
+    }
+  })()
+  // Que no se pierda un rechazo sin manejar si nadie llega a leerla.
+  void trabajo.catch(() => undefined)
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const enc = new TextEncoder()
-      let cerrado = false
-      // Todos los eventos pasan por acá, así que el turno se arma de paso y
-      // queda listo para guardarse. Sin eso, al recargar la conversación el
-      // hilo volvía sin pasos y las acciones caían todas juntas al final.
-      const turnoVisto = grabador()
-      const push = (e: OperatorEvent) => {
-        turnoVisto.ver(e)
-        if (cerrado) return
-        try {
-          controller.enqueue(enc.encode(encodeEvent(e)))
-        } catch {
-          cerrado = true
-        }
-      }
-
       try {
-        const threadId = await ensureThread(ctx.admin, {
-          threadId: body?.thread,
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
-          firstText: texto,
-        })
-
-        // El historial se lee ANTES de anotar el mensaje nuevo: el turno actual
-        // va aparte, así no se duplica al armar el contexto.
-        const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId)
-        await appendMessage(ctx.admin, {
-          threadId,
-          workspaceId: ctx.workspaceId,
-          role: 'user',
-          text: texto,
-        })
-
-        const turno = await runOperator({
-          db: ctx.admin,
-          workspaceId: ctx.workspaceId,
-          userId: ctx.userId,
-          threadId,
-          history: [...toAnthropic(previos), { role: 'user', content: texto }],
-          locale,
-          onEvent: push,
-          autoBuild: PIDE_PERMISO,
-          flota: ctx.flota,
-          // Lo último que escribió la persona, para la pista de intención. El
-          // historial ya lo trae, pero buscarlo ahí adentro sería adivinar
-          // cuál de los mensajes es el de ahora.
-          pedido: texto,
-        })
-
-        await appendMessage(ctx.admin, {
-          threadId,
-          workspaceId: ctx.workspaceId,
-          role: 'assistant',
-          text: turno.text,
-          bloques: turnoVisto.bloques,
-          promptTokens: turno.promptTokens,
-          completionTokens: turno.completionTokens,
-        })
-
-        if (turno.porAgente) {
-          await guardarGasto(ctx.admin, {
-            workspaceId: ctx.workspaceId,
-            threadId,
-            porAgente: turno.porAgente,
+        // Se vacía la cola hasta que el trabajo diga que terminó. Si el cliente
+        // se va, `enqueue` tira y se sale del bucle — el trabajo ni se entera.
+        for (;;) {
+          while (cola.length > 0) {
+            controller.enqueue(enc.encode(encodeEvent(cola.shift()!)))
+          }
+          if (terminado) break
+          await new Promise<void>((resolve) => {
+            espera.avisar = () => {
+              espera.avisar = null
+              resolve()
+            }
           })
         }
-
-        // Se manda al final por si el cupo diario cortó el turno antes de
-        // llamar al modelo: ahí no hubo deltas y esto es todo lo que hay.
-        if (turno.overBudget) push({ t: 'text', delta: turno.text })
-        push({ t: 'done', thread: threadId })
-      } catch (err) {
-        // Lo que salía era el JSON crudo de Anthropic, en inglés y en rojo:
-        // «400 {"type":"error",...,"Your credit balance is too low..."}». Nadie
-        // que venda cremas tiene por qué leer eso. El único caso que le sirve
-        // saber es que la plataforma se quedó sin saldo, y eso se lo decimos
-        // con palabras; el detalle técnico queda en el log.
-        if (err) console.error('[operator] turno caído', err)
-        push({
-          t: 'error',
-          message: translate(
-            locale,
-            claveRechazada(err) ? 'operation.operatorSinSaldo' : 'operation.operatorError',
-          ),
-        })
+      } catch {
+        // El navegador se fue. El turno sigue.
       } finally {
-        cerrado = true
+        espera.avisar = null
         try {
           controller.close()
         } catch {
@@ -277,6 +344,9 @@ export async function POST(request: Request) {
       'Cache-Control': 'no-store, no-transform',
       'Content-Encoding': 'identity',
       'X-Accel-Buffering': 'no',
+      // Con qué corrida se está mirando. Es lo que le permite a la pantalla
+      // ofrecer el botón de detener, y volver a engancharse si se va y regresa.
+      'x-riverz-run': runId,
     },
   })
 }

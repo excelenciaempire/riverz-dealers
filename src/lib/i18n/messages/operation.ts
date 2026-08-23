@@ -371,6 +371,7 @@ export const operation = {
   crearRegla: { es: "Crear la regla", en: "Create the rule" },
   mandarAMeta: { es: "Mandar a aprobación de Meta", en: "Submit to Meta" },
   mandarMensaje: { es: "Mandar el mensaje", en: "Send the message" },
+  detener: { es: "Detener", en: "Stop" },
   prenderPregunta: { es: "¿La prendo?", en: "Turn it on?" },
   prenderSi: { es: "Sí, prender", en: "Yes, turn it on" },
   prenderNo: { es: "Dejarla pausada", en: "Leave it paused" },
