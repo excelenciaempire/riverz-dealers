@@ -57,7 +57,13 @@ export default function AiAgentsPage() {
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
 
   const load = useCallback(async () => {
-    if (!workspace) return;
+    // Sin cuenta resuelta no hay a quién preguntarle, y `loading` arranca en
+    // true: cortar acá sin bajarlo dejaba la pantalla girando para siempre, que
+    // se lee como "está cargando" cuando en realidad no va a pasar nada.
+    if (!workspace) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/ai/agents?workspace_id=${workspace.id}`, {

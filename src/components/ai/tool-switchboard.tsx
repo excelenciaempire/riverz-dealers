@@ -32,7 +32,14 @@ import {
  * sola. Quien no quiera la confirmación las apaga.
  */
 
-const SUFIJO: Record<string, string> = {
+/**
+ * De la clave de la herramienta al sufijo de su clave de traducción.
+ *
+ * Se exporta sólo para que un test lo cruce contra `AGENT_TOOLBOX` y contra los
+ * dos idiomas: una herramienta nueva sin entrada acá no rompía nada, imprimía
+ * `operation.toolloquesea` en la pantalla del comercio y ahí se quedaba.
+ */
+export const SUFIJO: Record<string, string> = {
   buscar_producto: 'BuscarProducto',
   ver_producto: 'VerProducto',
   crear_checkout: 'CrearCheckout',
@@ -47,6 +54,7 @@ const SUFIJO: Record<string, string> = {
   abrir_devolucion: 'AbrirDevolucion',
   escalar_llamada: 'EscalarLlamada',
   enviar_proactivo: 'EnviarProactivo',
+  no_se_la_respuesta: 'NoSeLaRespuesta',
   ver_contacto: 'VerContacto',
   etiquetar_contacto: 'EtiquetarContacto',
   cerrar_conversacion: 'CerrarConversacion',

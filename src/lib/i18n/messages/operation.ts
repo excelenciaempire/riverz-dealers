@@ -38,7 +38,7 @@ export const operation = {
     en: "The Operator isn't enabled on this account yet. Contact Riverz to turn it on.",
   },
   // El reparto que se aprueba de una vez.
-  planTitulo: { es: "Así lo repartiría", en: "Here is how I would split it" },
+  planTitulo: { es: "Plan de trabajo", en: "Work plan" },
   planAprobar: { es: "Aprobar", en: "Approve" },
   planCorriendo: { es: "Trabajando…", en: "Working…" },
   planAviso: {
@@ -52,7 +52,7 @@ export const operation = {
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
-  bancoTodo: { es: "Lo que se armó ({n})", en: "What was built ({n})" },
+  bancoTodo: { es: "Así queda", en: "How it looks" },
   bancoVacioTitulo: { es: "La pieza", en: "The piece" },
   lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
@@ -186,7 +186,7 @@ export const operation = {
   },
 
   // La pizarra: qué hace el agente y cuándo entra una persona
-  toolsTitle: { es: "Qué puede hacer", en: "What it can do" },
+  toolsTitle: { es: "Herramientas", en: "Tools" },
   toolsHint: {
     es: "Elige qué hace solo y qué te consulta antes. Lo que apagues, lo deriva a tu equipo.",
     en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",
@@ -286,6 +286,11 @@ export const operation = {
     es: "Retomar una conversación que quedó a medias.",
     en: "Pick up a conversation that stalled.",
   },
+  toolNoSeLaRespuesta: { es: "Admitir que no sabe", en: "Admit it doesn't know" },
+  toolNoSeLaRespuestaHint: {
+    es: "Antes que inventar, lo anota y te lo deja para responder.",
+    en: "Rather than make something up, it files the question for you to answer.",
+  },
   toolVerContacto: { es: "Ver la ficha de quien escribe", en: "See who is writing" },
   toolVerContactoHint: {
     es: "Qué compró antes y con qué etiquetas está, para no hacerle repetir todo.",
@@ -354,6 +359,18 @@ export const operation = {
   decisionCambiar: { es: "Cambiar", en: "Change" },
   decisionPedirCambio: { es: "Cambia esto: ", en: "Change this: " },
   decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
+  vivoMirando: { es: "Mirando {que}", en: "Checking {que}" },
+  vivoArmando: { es: "Armando {que}", en: "Working on {que}" },
+  seguir: { es: "Listo, aprobado. Continúa.", en: "Done, approved. Carry on." },
+  crearPlantillas: { es: "Crear los mensajes", en: "Create the messages" },
+  crearAutomatizacion: { es: "Crear la automatización", en: "Create the automation" },
+  cambiarAutomatizacion: { es: "Cambiar la automatización", en: "Change the automation" },
+  crearCampana: { es: "Crear la campaña", en: "Create the campaign" },
+  crearSegmento: { es: "Crear el segmento", en: "Create the segment" },
+  crearAgente: { es: "Crear el agente", en: "Create the agent" },
+  crearRegla: { es: "Crear la regla", en: "Create the rule" },
+  mandarAMeta: { es: "Mandar a aprobación de Meta", en: "Submit to Meta" },
+  mandarMensaje: { es: "Mandar el mensaje", en: "Send the message" },
   prenderPregunta: { es: "¿La prendo?", en: "Turn it on?" },
   prenderSi: { es: "Sí, prender", en: "Yes, turn it on" },
   prenderNo: { es: "Dejarla pausada", en: "Leave it paused" },
