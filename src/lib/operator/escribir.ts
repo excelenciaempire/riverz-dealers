@@ -84,12 +84,14 @@ export async function proponer(
   args: Record<string, unknown>,
 ): Promise<Escritura> {
   const cap = findCapability(key)!
-  let preview: string | null = null
-  try {
-    preview = cap.preview ? await cap.preview(ctx, args) : null
-  } catch (e) {
-    preview = e instanceof Error ? e.message : null
-  }
+  // Si la capacidad no puede describir lo que haría, no hay nada que aprobar.
+  //
+  // Esto se tragaba el error y guardaba el motivo COMO vista previa, así que
+  // aparecía una tarjeta que decía «No se puede: …» con un botón de aprobar
+  // debajo. Quien la miraba no tenía forma de saber que ese botón no iba a
+  // hacer nada. Dejándolo pasar, el error vuelve al modelo —los dos llamadores
+  // lo convierten en `tool_result` con `is_error`— y corrige los argumentos.
+  const preview: string | null = cap.preview ? await cap.preview(ctx, args) : null
 
   // Se dibuja desde los argumentos: la persona ve el árbol ANTES de aprobar,
   // que es cuando le sirve.

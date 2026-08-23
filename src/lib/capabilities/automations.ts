@@ -519,9 +519,11 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
         ctx.workspaceId,
       ).catch(() => null)
       if (issues && issues.length > 0) {
-        return `«${nombre}» todavía no se puede prender: falta ${issues
-          .map((i) => i.message)
-          .join('; ')}.`
+        throw new Error(
+          `«${nombre}» todavía no se puede prender: falta ${issues
+            .map((i) => i.message)
+            .join('; ')}`,
+        )
       }
       return `Prendería «${nombre}». Empieza a dispararse con cada evento que la active.`
     },
@@ -560,7 +562,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
           }
         | null
       if (!fila || fila.automations?.workspace_id !== ctx.workspaceId) {
-        return 'Ese paso no existe en esta cuenta.'
+        throw new Error('Ese paso no existe en esta cuenta.')
       }
       const antes = fila.step_config
         ? `${fila.step_config.amount} ${fila.step_config.unit}`
@@ -589,12 +591,19 @@ Se aplican en orden, cada uno sobre cómo quedó el anterior. Antes de escribir 
     async preview(ctx, args) {
       const { descartados } = leerPatches(args.patches)
       if (descartados > 0) {
-        return `No entiendo ${descartados} de los cambios pedidos, así que no aplicaría ninguno.`
+        throw new Error(`No entiendo ${descartados} de los cambios pedidos.`)
       }
       const { activa, snapshot, ensayo } = await ensayoDeEdicion(ctx, args)
+      // Lanzar y no devolver: una vista previa que explica por qué no se puede
+      // igual terminaba en una tarjeta con botón de aprobar. Y decía «No se
+      // puede: no se puede editar así», dos veces lo mismo.
       const no = porQueNo(ensayo, snapshot.nombre)
-      if (no) return `No se puede: ${no}.`
-      if (ensayo.resumen.length === 0) return `«${snapshot.nombre}» quedaría igual.`
+      if (no) throw new Error(no)
+      // Un cambio que no cambia nada tampoco es una decisión: es un click que
+      // no hace nada.
+      if (ensayo.resumen.length === 0) {
+        throw new Error(`Esos cambios dejarían «${snapshot.nombre}» igual que ahora.`)
+      }
       return `En «${snapshot.nombre}»: ${ensayo.resumen.join('; ')}. ${
         activa
           ? 'Está activa: el cambio rige desde el próximo disparo.'
@@ -635,14 +644,14 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
     async preview(ctx, args) {
       const { plan, problemas } = planDesdeIA(entradaDePlan(args))
       if (!plan) {
-        return `Todavía no se puede: ${problemas.map((p) => p.message).join('; ')}.`
+        throw new Error(problemas.map((p) => p.message).join('; '))
       }
       const cuando =
         AI_TRIGGERS.find((x) => x.value === plan.disparador)?.que ?? plan.disparador
       // `total` y no `pasos.length`: la raíz de una automatización con ramas
       // son dos o tres pasos y el árbol entero dieciséis. La vista previa decía
       // "1 paso(s)" sobre algo que tenía dieciséis.
-      return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.total} paso(s). Nace pausada.`
+      return `Crearía «${plan.nombre}»: cuando ${cuando}, ${plan.total} pasos. Nace pausada.`
     },
     artifact: (_ctx, args) => artefactoDePlan(entradaDePlan(args)),
     run: crear,
@@ -671,7 +680,7 @@ Las preguntas (condition) NO se escriben a mano: se elige un "dato" de la lista 
     async preview(ctx, args) {
       const slug = String(args.receta)
       const t = AUTOMATION_TEMPLATES[slug as TemplateSlug]
-      if (!t) return `No existe la receta "${slug}".`
+      if (!t) throw new Error(`No hay ninguna lista para armar que se llame "${slug}".`)
       const nombre = translate(ctx.locale ?? 'es', automationTemplateNameKey(slug))
       return `Crearía «${nombre}» con sus ${t.steps.length} pasos ya armados, en pausa. Después hay que completar la plantilla de WhatsApp y la etiqueta antes de prenderla.`
     },

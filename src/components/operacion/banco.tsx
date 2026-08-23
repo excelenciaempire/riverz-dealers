@@ -39,13 +39,31 @@ export function Banco({ className }: { className?: string }) {
   const m = useMesa()
   const aLaMesa = useMesaDispatch()
   const t = useT()
+  /**
+   * Cuál de las piezas del turno se está mirando.
+   *
+   * El banco mostraba SIEMPRE la última, y un pedido de recompra deja cuatro:
+   * tres plantillas y una automatización. Las tres primeras no existían en
+   * pantalla — se armaron, se aprobaron y nadie las vio nunca.
+   */
+  const [cual, setCual] = useState(-1)
+  // Al llegar una pieza nueva se salta a ella: mirar la anterior mientras el
+  // equipo termina otra sería quedarse atrás sin enterarse. Se ajusta durante
+  // el render y no en un efecto: un efecto acá provoca un segundo render con
+  // el índice viejo ya pintado, que es un parpadeo visible.
+  const [vistas, setVistas] = useState(m.lienzos.length)
+  if (vistas !== m.lienzos.length) {
+    setVistas(m.lienzos.length)
+    setCual(-1)
+  }
 
-  // Qué se mira: lo que alguien fijó con «Ver cómo quedó» gana; si no, lo
-  // último que el equipo dejó armado.
-  const ultimoLienzo = m.lienzos[m.lienzos.length - 1]
-  const pieza: Artefacto | null = m.fijado?.artefacto ?? ultimoLienzo?.artefacto ?? null
+  const i = cual < 0 || cual >= m.lienzos.length ? m.lienzos.length - 1 : cual
+  const pieza: Artefacto | null = m.fijado?.artefacto ?? m.lienzos[i]?.artefacto ?? null
   const fijado = m.fijado
   const enLienzo = pieza?.kind === 'automatizacion'
+  // Las fichas sólo cuando hay más de una que elegir, y no mientras se mira
+  // algo traído desde un paso: ahí la pieza es ésa y no otra.
+  const fichas = !fijado && m.lienzos.length > 1 ? m.lienzos : []
 
   return (
     <section
@@ -63,7 +81,29 @@ export function Banco({ className }: { className?: string }) {
           {/* Una sola fila, con su alto propio: el nombre a la izquierda y lo
               que se puede hacer a la derecha. Nada flotando sobre el lienzo. */}
           <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
-            <h2 className="app-page-title min-w-0 truncate text-[22px]">{nombreDe(pieza)}</h2>
+            {fichas.length > 0 ? (
+              <div className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+                {fichas.map((l, n) => (
+                  <button
+                    key={`${l.agente}-${l.paso ?? 'x'}-${n}`}
+                    type="button"
+                    onClick={() => setCual(n)}
+                    className={cn(
+                      'shrink-0 rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                      n === i
+                        ? 'border-primary/60 bg-primary/15 text-accent-ink'
+                        : 'border-border text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {nombreDe(l.artefacto) || t(`operation.sub${cap(l.agente)}`)}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <h2 className="app-page-title min-w-0 truncate text-[22px]">
+                {nombreDe(pieza) || t(`operation.sub${cap(m.lienzos[i]?.agente ?? 'automatizaciones')}`)}
+              </h2>
+            )}
             <div className="flex shrink-0 items-center gap-3">
               {fijado?.real && fijado.entidadId && esAutomatizacion(fijado) && (
                 <Link
@@ -124,6 +164,16 @@ function BancoVacio() {
 
 function nombreDe(a: Artefacto): string {
   return 'nombre' in a && typeof a.nombre === 'string' ? a.nombre : ''
+}
+
+/**
+ * El nombre del especialista, para cuando la pieza no trae uno.
+ *
+ * El encabezado imprimía cadena vacía y quedaba una franja en blanco de 56px
+ * sin decir qué se estaba mirando.
+ */
+function cap(id: string): string {
+  return `${id[0].toUpperCase()}${id.slice(1)}`
 }
 
 function esAutomatizacion(f: FijadoEnMesa): boolean {

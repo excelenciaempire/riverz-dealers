@@ -5,11 +5,10 @@ import {
   AlertTriangle,
   ArrowUp,
   Check,
-  Eye,
   History,
   Loader2,
   MessageSquarePlus,
-  PlusCircle,
+  Pencil,
   Sparkles,
   Trash2,
   X,
@@ -20,7 +19,6 @@ import {
   agrupar,
   aplicarEvento,
   aplicarEventoDePlan,
-  sinCondicional,
   type Bloque,
 } from '@/lib/operator/bloques'
 import { useFormat } from '@/hooks/use-format'
@@ -28,7 +26,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
-import { VistaArtefacto } from './artefacto'
+import { nombreDeSubagente } from '@/lib/operator/fleet/types'
 import { useMesa, useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
 
@@ -60,51 +58,6 @@ interface Accion {
   risk: 'lectura' | 'reversible' | 'irreversible'
   status: 'propuesto' | 'ejecutado' | 'rechazado' | 'fallido'
   preview: string | null
-}
-
-/**
- * Cómo se lee cada paso en la pantalla.
- *
- * La descripción de una capacidad está escrita para el modelo y son dos
- * renglones; acá hace falta un verbo y poco más. Lo que no esté en este mapa
- * cae a lo que mandó el servidor, así que sumar una capacidad nunca deja un
- * hueco — sólo una línea más larga.
- */
-const PASO_LABEL: Record<string, string> = {
-  'operacion.estado': 'operation.stepEstado',
-  'metricas.resumen': 'operation.stepMetricas',
-  'conversaciones.pendientes': 'operation.stepPendientes',
-  'contactos.buscar': 'operation.stepContacto',
-  'mensajes.diagnostico': 'operation.stepDiagnostico',
-  'pedidos.listar': 'operation.stepPedidos',
-  'plantillas.estado': 'operation.stepPlantillas',
-  'integraciones.estado': 'operation.stepIntegraciones',
-  'campanas.estado': 'operation.stepCampanas',
-  'agentes.listar': 'operation.stepAgentes',
-  'agentes.crear_borrador': 'operation.stepAgenteCrear',
-  'agentes.activar': 'operation.stepAgenteActivar',
-  'automatizaciones.listar': 'operation.stepAutosListar',
-  'automatizaciones.ver': 'operation.stepAutoVer',
-  'automatizaciones.editar': 'operation.stepAutoEditar',
-  'plantillas.detalle': 'operation.stepPlantillaDetalle',
-  'plantillas.crear_borrador': 'operation.stepPlantillaBorrador',
-  'plantillas.enviar_a_meta': 'operation.stepPlantillaAMeta',
-  'automatizaciones.recetas': 'operation.stepRecetas',
-  'automatizaciones.activar': 'operation.stepAutoActivar',
-  'automatizaciones.editar_espera': 'operation.stepAutoEspera',
-  'automatizaciones.crear_desde_receta': 'operation.stepAutoCrear',
-  // Faltaba justo la que arma desde cero: sin entrada acá caía al respaldo del
-  // servidor, que es la primera cláusula de la descripción escrita para el
-  // modelo — dos renglones donde tenía que haber un verbo.
-  'automatizaciones.crear': 'operation.stepAutoCrearCero',
-  'aprobaciones.pendientes': 'operation.stepAprobPend',
-  'aprobaciones.decidir': 'operation.stepAprobDecidir',
-  'contactos.listar': 'operation.stepContactosListar',
-  'etiquetas.listar': 'operation.stepEtiquetas',
-  'segmentos.listar': 'operation.stepSegmentosListar',
-  'segmentos.calcular': 'operation.stepSegmentoCalcular',
-  'segmentos.crear': 'operation.stepSegmentoCrear',
-  'contactos.etiquetar': 'operation.stepEtiquetar',
 }
 
 /** La primera frase de un texto. Lo que se muestra de un encargo. */
@@ -166,28 +119,6 @@ export function OperatorChat({
   const [cargandoHilo, setCargandoHilo] = useState(false)
   const finalRef = useRef<HTMLDivElement | null>(null)
 
-  // El modo es de la cuenta, no del navegador: se lee del servidor al abrir.
-  // De paso vienen las conversaciones anteriores, que es la misma consulta.
-  useEffect(() => {
-    let cancelado = false
-    void (async () => {
-      try {
-        const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
-        if (!res.ok || cancelado) return
-        const json = (await res.json()) as {
-          hilos?: ResumenHilo[]
-        }
-        if (cancelado) return
-        setHilos(json.hilos ?? [])
-      } catch {
-        /* si no se puede leer, el interruptor no se muestra */
-      }
-    })()
-    return () => {
-      cancelado = true
-    }
-  }, [])
-
   /**
    * Abre una conversación anterior.
    *
@@ -208,16 +139,60 @@ export function OperatorChat({
         mensajes?: { id: string; role: 'user' | 'assistant'; text: string }[]
         acciones?: Accion[]
       }
+      const ms = (json.mensajes ?? []) as Mensaje[]
       setThread(id)
-      setMensajes((json.mensajes ?? []) as Mensaje[])
+      setMensajes(ms)
       setAcciones(json.acciones ?? [])
       setVivo(null)
+      // El banco vuelve a lo que había. Los dibujos ya se guardan con el
+      // mensaje; lo que faltaba era volver a ponerlos, así que hasta ahora la
+      // pieza vivía sólo en la memoria del turno que la armó y volver a la
+      // conversación dejaba media pantalla vacía.
+      aLaMesa({
+        tipo: 'restaurar',
+        lienzos: ms
+          .flatMap((m) => m.bloques ?? [])
+          .flatMap((b) =>
+            b.k === 'paso' && b.artefacto
+              ? [{ agente: 'automatizaciones' as const, artefacto: b.artefacto }]
+              : [],
+          )
+          .slice(-1),
+      })
     } catch {
       setError(t('operation.operatorError'))
     } finally {
       setCargandoHilo(false)
     }
-  }, [t])
+  }, [aLaMesa, t])
+
+  /**
+   * Al entrar, la conversación donde la dejaste.
+   *
+   * Esto sólo pedía la lista y no abría ninguna, así que entrar al Operador
+   * era siempre empezar de cero: el historial guardaba todo y la pantalla no
+   * leía nada. «Chat nuevo» sigue a un click para cuando sí se quiere empezar
+   * de cero.
+   */
+  useEffect(() => {
+    let cancelado = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
+        if (!res.ok || cancelado) return
+        const json = (await res.json()) as { hilos?: ResumenHilo[] }
+        if (cancelado) return
+        const hs = json.hilos ?? []
+        setHilos(hs)
+        if (hs[0]) await abrirHilo(hs[0].id)
+      } catch {
+        /* sin historial se empieza en blanco, que es lo que ya pasaba */
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [abrirHilo])
 
   /** Empezar de cero. El hilo anterior queda guardado y accesible. */
   const nuevoChat = useCallback(() => {
@@ -413,6 +388,25 @@ export function OperatorChat({
     [aLaMesa],
   )
 
+  /**
+   * Pedir un cambio antes de que se aplique nada.
+   *
+   * Trae la pieza al banco y deja el compositor listo. Es la salida que faltaba:
+   * hasta ahora, frente a una propuesta que no era exactamente lo pedido, las
+   * dos opciones eran aprobarla igual o descartarla y volver a explicar todo.
+   */
+  const pedirCambio = useCallback(
+    (a: Accion) => {
+      const nombre = a.preview?.match(/«([^»]+)»/)?.[1]
+      setTexto(nombre ? `Cambia «${nombre}»: ` : t('operation.decisionPedirCambio'))
+      const paso = mensajes
+        .flatMap((m) => m.bloques ?? [])
+        .find((b) => b.k === 'paso' && b.actionId === a.id)
+      if (paso?.k === 'paso' && paso.artefacto) void verComoQuedo(a.id, a.capability_key)
+    },
+    [mensajes, t, verComoQuedo],
+  )
+
   const decidir = useCallback(
     async (id: string, aprobar: boolean) => {
       setAcciones((a) =>
@@ -545,11 +539,13 @@ export function OperatorChat({
     .find((b): b is Extract<Bloque, { k: 'paso' }> => b.k === 'paso' && b.estado === 'corriendo')
   const trabajando = mesa.agentes.find((a) => a.estado === 'trabajando')
   const actividad = corriendo
-    ? PASO_LABEL[corriendo.key]
-      ? t(PASO_LABEL[corriendo.key])
-      : corriendo.label
+    ? corriendo.label
     : trabajando
-      ? trabajando.ultima || trabajando.id
+      ? trabajando.pidiendoA
+        ? t('operation.pideA', { quien: t(nombreDeSubagente(trabajando.pidiendoA)) })
+        : // El nombre del especialista y nunca su id: `plantillas` en medio de
+          // una frase en español es la clave cruda otra vez.
+          trabajando.ultima || t(nombreDeSubagente(trabajando.id))
       : t('operation.operatorThinking')
 
   // Las de una conversación vieja sin bloques, que no tienen dónde ir arriba.
@@ -638,6 +634,7 @@ export function OperatorChat({
               acciones={porAccion}
               onDecidir={decidir}
               onVer={verComoQuedo}
+              onCambiar={pedirCambio}
             />
           ) : (
             <Dicho key={m.id} role={m.role} text={m.text} />
@@ -651,6 +648,7 @@ export function OperatorChat({
             acciones={porAccion}
             onDecidir={decidir}
             onVer={verComoQuedo}
+            onCambiar={pedirCambio}
           />
         )}
 
@@ -665,14 +663,7 @@ export function OperatorChat({
         )}
 
         {pendientes.length > 0 && (
-          <div className="space-y-2 pt-1">
-            <p className="text-xs font-medium text-muted-foreground">
-              {t('operation.proposedTitle')}
-            </p>
-            {pendientes.map((a) => (
-              <TarjetaAccion key={a.id} accion={a} onDecidir={decidir} />
-            ))}
-          </div>
+          <TarjetaDecision acciones={pendientes} onDecidir={decidir} onCambiar={pedirCambio} />
         )}
 
         {resueltas.map((a) => (
@@ -1000,37 +991,22 @@ function Dicho({ role, text }: { role: 'user' | 'assistant'; text: string }) {
   )
 }
 
-/**
- * Cómo se lee un paso YA HECHO.
- *
- * El gerundio cuenta lo que está pasando; sobre algo terminado hay que usar el
- * pasado, o la pantalla dice una cosa y la base dice otra.
- */
-const PASO_HECHO: Record<string, string> = {
-  'automatizaciones.crear': 'operation.hechoAutoCrear',
-  'automatizaciones.crear_desde_receta': 'operation.hechoAutoCrear',
-  'automatizaciones.editar': 'operation.hechoAutoEditar',
-  'automatizaciones.activar': 'operation.hechoAutoActivar',
-  'plantillas.crear_borrador': 'operation.hechoPlantilla',
-  'segmentos.crear': 'operation.hechoSegmento',
-  'agentes.crear_borrador': 'operation.hechoAgente',
-}
-
 function Turno({
   bloques,
   thinking,
   acciones,
   onDecidir,
   onVer,
+  onCambiar,
 }: {
   bloques: Bloque[]
   thinking?: string
-  /** Las acciones por id, para dibujar la que espera donde ocurrió. */
+  /** Las acciones por id, para juntar al final las que esperan decisión. */
   acciones?: Map<string, Accion>
   onDecidir?: (id: string, aprobar: boolean) => void
   onVer?: (actionId: string, key: string) => void
+  onCambiar?: (a: Accion) => void
 }) {
-  const t = useT()
   // Las que esperan decisión, en el orden en que ocurrieron.
   const esperando = onDecidir
     ? bloques.flatMap((b) => {
@@ -1048,142 +1024,192 @@ function Turno({
         </p>
       ) : null}
 
-      {agrupar(bloques).map(({ b, veces }) => {
-        if (b.k === 'texto') {
-          return <Dicho key={b.id} role="assistant" text={b.texto} />
-        }
+      {agrupar(bloques).map(({ b, veces }) =>
+        b.k === 'texto' ? (
+          <Dicho key={b.id} role="assistant" text={b.texto} />
+        ) : (
+          <Paso key={b.id} b={b} veces={veces} onVer={onVer} />
+        ),
+      )}
 
-        const hecho = b.estado === 'hecho'
-        const claveHecho = hecho ? PASO_HECHO[b.key] : undefined
-        const etiqueta = claveHecho
-          ? t(claveHecho)
-          : PASO_LABEL[b.key]
-            ? t(PASO_LABEL[b.key])
-            : b.label
-
-        // Una lectura es una anotación al margen: línea fina, letra chica. Lo
-        // que dejó algo en la cuenta sube de rango y se dibuja como una ficha.
-        if (!hecho && b.estado !== 'propuesto') {
-          return (
-            <p
-              key={b.id}
-              className="flex items-center gap-2 border-l border-border pl-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase"
-            >
-              {b.estado === 'corriendo' ? (
-                <Loader2 className="size-3 shrink-0 animate-spin" />
-              ) : b.estado === 'error' ? (
-                <X className="size-3 shrink-0 text-red-600 dark:text-red-400" />
-              ) : (
-                <Check className="size-3 shrink-0 text-accent-ink" />
-              )}
-              <span className="min-w-0 flex-1 truncate">{etiqueta}</span>
-              {veces > 1 && <span className="shrink-0 tabular-nums opacity-60">×{veces}</span>}
-              {b.estado === 'error' && b.detalle && (
-                <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-red-600 dark:text-red-400">
-                  {b.detalle}
-                </span>
-              )}
-            </p>
-          )
-        }
-
-        return (
-          <div
-            key={b.id}
-            className={cn(
-              'rounded-xl p-3',
-                // Lo hecho ya está en la cuenta; lo propuesto todavía no. Se
-                // ven distinto sin leer una palabra.
-              hecho
-                ? 'app-glass'
-                : 'border border-dashed border-accent-ink/40 bg-primary/5',
-            )}
-          >
-            <p className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.14em] uppercase">
-              {hecho ? (
-                <PlusCircle className="size-3 shrink-0 text-accent-ink" />
-              ) : (
-                <Sparkles className="size-3 shrink-0 text-accent-ink" />
-              )}
-              <span className="text-accent-ink">{etiqueta}</span>
-            </p>
-            {b.detalle && (
-              <p className="mt-1.5 text-xs leading-snug text-foreground">
-                {hecho ? sinCondicional(b.detalle) : b.detalle}
-              </p>
-            )}
-            {b.artefacto && b.actionId && onVer && (
-              <button
-                type="button"
-                onClick={() => onVer(b.actionId!, b.key)}
-                className="app-card-cta mt-2 text-[10px] text-accent-ink transition-opacity hover:opacity-70"
-              >
-                <Eye className="size-3" />
-                {hecho ? t('operation.mesaVerComoQuedo') : t('operation.mesaVerElDetalle')}
-              </button>
-            )}
-            {/* Sin acción a la que pedirle el dibujo, el de acá es lo único
-                que hay. Pasa dentro de un plan que todavía no se aprobó. */}
-            {b.artefacto && !b.actionId && (
-              <div className="mt-2">
-                <VistaArtefacto artefacto={b.artefacto} />
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {/* Lo que espera tu decisión va SIEMPRE al final del turno, después de
-          todo lo que el equipo dijo. Antes se dibujaba pegado al paso que la
-          originó, y con dos o tres frases debajo el botón quedaba en el medio
-          de la conversación: había que buscar dónde decidir. */}
-      {esperando.map((a) => (
-        <TarjetaAccion key={a.id} accion={a} onDecidir={onDecidir!} />
-      ))}
+      {/* Una sola decisión, al final, después de todo lo que el equipo dijo.
+          Antes cada acción traía su propia tarjeta: un pedido de recompra
+          terminó en OCHO tarjetas seguidas —tres borradores, tres envíos a
+          Meta, la automatización, las ediciones— y una de ellas vaciaba las
+          ramas de la automatización. Se veía igual que las otras siete. */}
+      {esperando.length > 0 && (
+        <TarjetaDecision acciones={esperando} onDecidir={onDecidir!} onCambiar={onCambiar} />
+      )}
     </div>
   )
 }
 
-function TarjetaAccion({
-  accion,
-  onDecidir,
+/**
+ * Un paso, como anotación al margen.
+ *
+ * Sin botón y sin verbo: dice QUÉ tocó —«Las plantillas»— y el icono dice cómo
+ * salió. Cuando dejó un dibujo, la fila entera lo trae al banco; un botón
+ * «Ver el detalle» debajo de cada paso era una tercera cosa que decidir en una
+ * pantalla que ya tenía demasiadas.
+ */
+function Paso({
+  b,
+  veces,
+  onVer,
 }: {
-  accion: Accion
+  b: Extract<Bloque, { k: 'paso' }>
+  veces: number
+  onVer?: (actionId: string, key: string) => void
+}) {
+  const hecho = b.estado === 'hecho'
+  const clicable = Boolean(b.artefacto && b.actionId && onVer)
+
+  const cuerpo = (
+    <>
+      {b.estado === 'corriendo' ? (
+        <Loader2 className="size-3 shrink-0 animate-spin" />
+      ) : b.estado === 'error' ? (
+        <X className="size-3 shrink-0 text-red-600 dark:text-red-400" />
+      ) : (
+        <Check
+          className={cn('size-3 shrink-0', hecho ? 'text-accent-ink' : 'opacity-60')}
+        />
+      )}
+      <span className={cn('min-w-0 truncate', hecho && 'text-accent-ink')}>{b.label}</span>
+      {veces > 1 && <span className="shrink-0 tabular-nums opacity-60">×{veces}</span>}
+      {b.estado === 'error' && b.detalle && (
+        <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-red-600 dark:text-red-400">
+          {b.detalle}
+        </span>
+      )}
+    </>
+  )
+
+  const clase =
+    'flex w-full items-center gap-2 border-l border-border pl-3 text-left text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase'
+
+  if (!clicable) return <p className={clase}>{cuerpo}</p>
+  return (
+    <button
+      type="button"
+      onClick={() => onVer!(b.actionId!, b.key)}
+      className={cn(clase, 'transition-colors hover:border-accent-ink hover:text-foreground')}
+    >
+      {cuerpo}
+    </button>
+  )
+}
+
+/**
+ * Todo lo que espera tu decisión, junto y de una vez.
+ *
+ * Una acción por tarjeta era honesto y salía carísimo: ocho clicks seguidos
+ * para un solo pedido, y en el octavo ya nadie lee. Acá se ve el conjunto
+ * antes de decidir, que es lo que faltaba.
+ *
+ * Cada línea se destilda por separado, así que aprobar en bloque no es aprobar
+ * a ciegas. **Lo irreversible entra apagado**: mandar una plantilla a Meta
+ * quema el nombre para siempre aunque la rechacen, y se mandaron tres que la
+ * automatización final no usa. Ahora hay que pedirlo a propósito.
+ *
+ * Aprobar resuelve la tarjeta entera: lo tildado se hace y lo destildado se
+ * descarta. Dejar algo colgando sería que la misma tarjeta reapareciera al
+ * recargar, que es de dónde venimos.
+ */
+function TarjetaDecision({
+  acciones,
+  onDecidir,
+  onCambiar,
+}: {
+  acciones: Accion[]
   onDecidir: (id: string, aprobar: boolean) => void
+  onCambiar?: (a: Accion) => void
 }) {
   const t = useT()
-  const irreversible = accion.risk === 'irreversible'
+  const [fuera, setFuera] = useState<Set<string>>(
+    () => new Set(acciones.filter((a) => a.risk === 'irreversible').map((a) => a.id)),
+  )
+  const elegidas = acciones.filter((a) => !fuera.has(a.id))
+
   return (
-    <div
-      className={cn(
-        'rounded-xl border p-3',
-        irreversible ? 'border-amber-500/40 bg-amber-500/5' : 'border-border',
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        {irreversible && (
-          <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
-        )}
-        <span className="text-xs font-medium text-muted-foreground">
-          {t(irreversible ? 'operation.riskIrreversible' : 'operation.riskReversible')}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-foreground">
-        {accion.preview ?? describir(accion)}
+    <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
+      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Sparkles className="size-4 shrink-0 text-accent-ink" />
+        {t('operation.decisionTitulo')}
       </p>
-      <div className="mt-3 flex gap-2">
+
+      <ul className="mt-3 space-y-2.5">
+        {acciones.map((a) => {
+          const dentro = !fuera.has(a.id)
+          const irreversible = a.risk === 'irreversible'
+          return (
+            <li key={a.id} className="flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={dentro}
+                onChange={() =>
+                  setFuera((f) => {
+                    const n = new Set(f)
+                    if (dentro) n.add(a.id)
+                    else n.delete(a.id)
+                    return n
+                  })
+                }
+                className="mt-0.5 size-3.5 shrink-0 accent-[var(--primary)]"
+              />
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    'text-xs leading-snug',
+                    dentro ? 'text-foreground' : 'text-muted-foreground line-through',
+                  )}
+                >
+                  {a.preview ?? describir(a)}
+                </p>
+                {irreversible && (
+                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="size-3 shrink-0" />
+                    {t('operation.riskIrreversible')}
+                  </p>
+                )}
+              </div>
+              {onCambiar && (
+                <button
+                  type="button"
+                  onClick={() => onCambiar(a)}
+                  className="app-card-cta shrink-0 text-[10px] text-muted-foreground transition-colors hover:text-accent-ink"
+                >
+                  <Pencil className="size-3" />
+                  {t('operation.decisionCambiar')}
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      <div className="mt-3.5 flex items-center gap-2">
         <button
-          onClick={() => onDecidir(accion.id, true)}
-          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          type="button"
+          disabled={elegidas.length === 0}
+          onClick={() => acciones.forEach((a) => onDecidir(a.id, !fuera.has(a.id)))}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
         >
           {t('operation.approve')}
+          {acciones.length > 1 && elegidas.length > 0 && ` (${elegidas.length})`}
         </button>
         <button
-          onClick={() => onDecidir(accion.id, false)}
+          type="button"
+          onClick={() => acciones.forEach((a) => onDecidir(a.id, false))}
           className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
         >
-          {t('operation.reject')}
+          {t('operation.decisionDescartar')}
         </button>
+        {elegidas.length === 0 && (
+          <span className="text-[11px] text-muted-foreground">
+            {t('operation.decisionNadaElegido')}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -1209,10 +1235,16 @@ function TarjetaResuelta({ accion }: { accion: Accion }) {
   )
 }
 
-/** Cuando la capacidad no trajo vista previa: la clave y sus argumentos. */
+/**
+ * Cuando la capacidad no trajo vista previa.
+ *
+ * Esto imprimía `plantillas.enviar_a_meta — nombre: recompra_1`: la clave de la
+ * capacidad y sus argumentos crudos, en medio de una conversación en español.
+ * El nombre del dominio dice lo mismo que puede decirse con honestidad.
+ */
 function describir(a: Accion): string {
-  const args = Object.entries(a.args)
-    .map(([k, v]) => `${k}: ${String(v)}`)
-    .join(', ')
-  return args ? `${a.capability_key} — ${args}` : a.capability_key
+  const valores = Object.values(a.args)
+    .filter((v) => typeof v === 'string' && v.length < 60)
+    .join(' · ')
+  return valores || a.capability_key.split('.')[0]
 }

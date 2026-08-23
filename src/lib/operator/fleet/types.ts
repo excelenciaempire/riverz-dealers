@@ -41,6 +41,18 @@ export function esSubagentId(v: unknown): v is SubagentId {
   return typeof v === 'string' && (SUBAGENT_IDS as readonly string[]).includes(v)
 }
 
+/**
+ * La clave i18n con el nombre de un especialista.
+ *
+ * Está acá y no en el roster porque la pantalla lo necesita y el roster importa
+ * el catálogo entero: por un nombre de catorce letras se arrastraban las setenta
+ * y dos capacidades al bundle del navegador. El roster declara la misma clave en
+ * su `nombreKey`, y una prueba verifica que no se separen.
+ */
+export function nombreDeSubagente(id: SubagentId): string {
+  return `operation.sub${id[0].toUpperCase()}${id.slice(1)}`
+}
+
 /** Quién hizo cada llamada al modelo. El orquestador también cuenta. */
 export type Quien = SubagentId | 'orquestador'
 

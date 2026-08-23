@@ -184,6 +184,11 @@ export const operation = {
   },
 
   // La pizarra: qué hace el agente y cuándo entra una persona
+  toolsTitle: { es: "Qué puede hacer", en: "What it can do" },
+  toolsHint: {
+    es: "Elige qué hace solo y qué te consulta antes. Lo que apagues, lo deriva a tu equipo.",
+    en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",
+  },
   toolModeOff: { es: "No lo hace", en: "Doesn't" },
   toolModeAprobacion: { es: "Me pregunta", en: "Asks me" },
   toolModeAuto: { es: "Lo hace solo", en: "On its own" },

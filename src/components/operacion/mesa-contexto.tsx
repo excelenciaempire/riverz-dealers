@@ -23,6 +23,14 @@ export interface AgenteEnMesa {
   estado: 'trabajando' | 'listo' | 'fallido'
   /** Lo último que dijo. Una línea, no un párrafo. */
   ultima: string
+  /**
+   * A quién le está pidiendo algo, mientras espera.
+   *
+   * Se guarda el id y no la frase: armarla acá obligaba a escribirla a mano
+   * —«Le pide algo a plantillas», en tercera persona y con el id crudo— porque
+   * un reductor no puede llamar a `useT`. Con el id, la pantalla la traduce.
+   */
+  pidiendoA?: SubagentId
   paso?: number
   propuestas: number
   construidas: number
@@ -78,11 +86,18 @@ const VACIA: EstadoMesa = {
 type Accion =
   | { tipo: 'evento'; e: OperatorEvent }
   | { tipo: 'fijar'; fijado: FijadoEnMesa | null }
+  | { tipo: 'restaurar'; lienzos: LienzoEnMesa[] }
   | { tipo: 'limpiar' }
 
 function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
   if (a.tipo === 'limpiar') return VACIA
   if (a.tipo === 'fijar') return { ...s, fijado: a.fijado }
+  // Al abrir una conversación guardada, las piezas vuelven de los bloques del
+  // hilo. Sin esto el panel arrancaba vacío aunque el dibujo estuviera
+  // guardado: la pieza vivía sólo en la memoria del turno que la armó.
+  if (a.tipo === 'restaurar') {
+    return { ...VACIA, lienzos: a.lienzos }
+  }
   const e = a.e
 
   const conAgente = (id: SubagentId, patch: Partial<AgenteEnMesa>): EstadoMesa => {
@@ -138,12 +153,13 @@ function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
       }
 
     case 'agente_dice':
-      return conAgente(e.agente, { ultima: e.texto })
+      return conAgente(e.agente, { ultima: e.texto, pidiendoA: undefined })
 
     case 'agente_fin': {
       const next = conAgente(e.agente, {
         estado: e.ok ? 'listo' : 'fallido',
         ultima: e.resumen,
+        pidiendoA: undefined,
         propuestas: e.propuestas,
         construidas: e.construidas,
       })
@@ -154,7 +170,7 @@ function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
     }
 
     case 'agente_pide':
-      return conAgente(e.agente, { ultima: `Le pide algo a ${e.a}` })
+      return conAgente(e.agente, { pidiendoA: e.a })
 
     case 'lienzo': {
       // Un lienzo por paso: cuando un subagente redibuja lo que está armando,

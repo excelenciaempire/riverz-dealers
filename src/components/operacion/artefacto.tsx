@@ -14,6 +14,7 @@ import {
   Workflow,
   XCircle,
 } from 'lucide-react'
+import { useT } from '@/hooks/use-locale'
 import type { Artefacto, Cambio, PasoArtefacto } from '@/lib/operator/artifacts'
 import { cn } from '@/lib/utils'
 
@@ -208,6 +209,9 @@ function Fichas({ items }: { items: string[] }) {
 }
 
 function Rama({ pasos, nivel = 0 }: { pasos: PasoArtefacto[]; nivel?: number }) {
+  // El otro dibujo del mismo árbol ya los traduce (`lienzo-automatizacion`).
+  // Acá estaban escritos a mano, así que en inglés el árbol decía Sí y No.
+  const t = useT()
   return (
     <ol className={cn('flex flex-col gap-1', nivel > 0 && 'mt-1')}>
       {pasos.map((p, i) => {
@@ -242,7 +246,7 @@ function Rama({ pasos, nivel = 0 }: { pasos: PasoArtefacto[]; nivel?: number }) 
                 {p.si && p.si.length > 0 && (
                   <>
                     <p className="text-[10px] font-medium tracking-wide text-accent-ink uppercase">
-                      Sí
+                      {t('automations.branchYes')}
                     </p>
                     <Rama pasos={p.si} nivel={nivel + 1} />
                   </>
@@ -250,7 +254,7 @@ function Rama({ pasos, nivel = 0 }: { pasos: PasoArtefacto[]; nivel?: number }) 
                 {p.no && p.no.length > 0 && (
                   <>
                     <p className="mt-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                      No
+                      {t('automations.branchNo')}
                     </p>
                     <Rama pasos={p.no} nivel={nivel + 1} />
                   </>

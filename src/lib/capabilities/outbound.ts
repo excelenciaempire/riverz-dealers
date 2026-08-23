@@ -498,7 +498,7 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
     },
     async preview(ctx, args) {
       const fila = await buscarPorNombre(ctx, args.nombre, args.idioma)
-      if (!fila) return 'No hay ninguna plantilla con ese nombre en esta cuenta.'
+      if (!fila) throw new Error('No hay ninguna plantilla con ese nombre en esta cuenta.')
       const cuerpo = fila.body_text.trim()
       return `Mandaría «${fila.name}» (${fila.category ?? 'Marketing'}, ${fila.language}) a aprobación de Meta: "${
         cuerpo.length > 200 ? `${cuerpo.slice(0, 200)}…` : cuerpo
