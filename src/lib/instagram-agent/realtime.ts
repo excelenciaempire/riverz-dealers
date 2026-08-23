@@ -19,6 +19,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
+import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import {
   proactiveGate,
   logProactiveSend,
@@ -870,6 +871,25 @@ async function autonomousCommentReply(
         contactId: opts.contact.id,
         kind: 'comment',
         text,
+      });
+
+      // Pedirle el permiso de Marketing Messages, igual que hace el runner tras
+      // contestar un DM.
+      //
+      // Faltaba, y era el agujero que dejaba la prospección sin nadie a quien
+      // escribir: la lista de suscriptores es la ÚNICA fuente de audiencia que
+      // no se vence, y sólo se puede pedir el permiso con la ventana abierta.
+      // Comentarios es la superficie que más ventanas abre —cada comentario es
+      // una— y era justo la que nunca preguntaba, así que la lista arrancaba
+      // vacía y se quedaba vacía. Sus propias guardas están adentro
+      // (interruptor `marketing_optin_enabled`, freno de emergencia y tope
+      // diario); acá sólo se agrega el opt-out del contacto.
+      await maybeRequestOptIn(db, {
+        workspaceId: opts.workspaceId,
+        channel: dmChannel,
+        connection,
+        externalContactId: opts.contact.external_id,
+        contactOptedOut: await isOptedOut(db, opts.contact.id),
       });
     }
   } catch (err) {
