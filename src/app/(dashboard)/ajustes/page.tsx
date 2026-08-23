@@ -8,6 +8,7 @@ import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
+import { SupportAccessPanel } from '@/components/settings/support-access';
 import { McpPanel } from '@/components/settings/mcp-panel';
 import { BillingPanel } from '@/components/settings/billing-panel';
 
@@ -88,8 +89,12 @@ export default function SettingsPage() {
           <ProfileForm />
         </TabsContent>
 
-        <TabsContent value="workspace">
+        <TabsContent value="workspace" className="space-y-6">
           <WorkspacePanel />
+          {/* El permiso para que soporte lea las conversaciones vive con lo de
+              la cuenta: es una decision sobre esta cuenta, no sobre el perfil
+              de quien la mira. */}
+          <SupportAccessPanel />
         </TabsContent>
 
         <TabsContent value="billing">

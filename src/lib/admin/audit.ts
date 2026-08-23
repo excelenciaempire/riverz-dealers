@@ -51,6 +51,10 @@ export type AdminAction =
   // comercio se lo dejamos gratis" es una decision que en seis meses nadie
   // recuerda haber tomado.
   | 'view.conversations'
+  // Leer una conversacion de un comercio. Es la lectura mas sensible del panel
+  // —son mensajes de compradores reales— y solo se puede con una ventana que
+  // abrio el propio comercio. Queda escrito quien miro que, y cuando.
+  | 'view.conversation_content'
   | 'view.billing'
   | 'update.billing_plan'
   | 'update.billing_subscription'

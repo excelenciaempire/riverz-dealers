@@ -920,6 +920,21 @@ export const settings = {
 
   tabBilling: { es: "Plan", en: "Plan" },
 
+  // El permiso para que soporte lea las conversaciones. Lo abre el comercio.
+  supportTitle: { es: "Ayuda de soporte", en: "Support access" },
+  supportClosed: {
+    es: "Riverz no puede leer tus conversaciones. Si necesitas que revisemos una, abre el acceso por un rato.",
+    en: "Riverz cannot read your conversations. If you need us to look at one, open access for a while.",
+  },
+  supportOpenUntil: {
+    es: "Soporte puede leer tus conversaciones hasta el {fecha}.",
+    en: "Support can read your conversations until {fecha}.",
+  },
+  supportHours: { es: "{n} horas", en: "{n} hours" },
+  supportDays: { es: "{n} días", en: "{n} days" },
+  supportRevoke: { es: "Cerrar el acceso", en: "Close access" },
+  supportError: { es: "No se pudo cambiar.", en: "Could not change it." },
+
   // Facturación, en Ajustes.
   billingTitle: { es: "Plan y facturación", en: "Plan and billing" },
   billingTrial: {

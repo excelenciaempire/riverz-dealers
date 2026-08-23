@@ -431,6 +431,12 @@ export const admin = {
   convLast: { es: "Último", en: "Last" },
   convAllChannels: { es: "Todos los canales", en: "All channels" },
   convWorkspaceId: { es: "Id del comercio", en: "Account id" },
+  convOpen: { es: "Ver", en: "Open" },
+  convNoPermission: {
+    es: "Este comercio no autorizó que soporte lea sus conversaciones. Puede abrirlo desde Ajustes.",
+    en: "This account has not authorized support to read its conversations. They can open it in Settings.",
+  },
+  convGrantedUntil: { es: "Permiso hasta el {fecha}", en: "Access until {fecha}" },
   convPrivacy: {
     es: "Metadatos, no contenido: el cuerpo de los mensajes y los datos del comprador no salen de la cuenta del comercio.",
     en: "Metadata, not content: message bodies and buyer details never leave the account.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import type { AdminConversationRow } from "@/lib/admin/conversations";
@@ -10,6 +10,7 @@ import {
   Loading,
   LoadError,
   DataTable,
+  Panel,
   StatusPill,
   Muted,
   type Column,
@@ -51,11 +52,43 @@ export default function AdminConversationsPage() {
   const format = useFormat();
   const [workspace, setWorkspace] = useState("");
   const [channel, setChannel] = useState("");
+  const [abierta, setAbierta] = useState<{
+    id: string;
+    cargando: boolean;
+    mensajes: Mensaje[];
+    motivo: string | null;
+  } | null>(null);
 
   const url = `/api/admin/conversations?limit=200&workspace=${encodeURIComponent(
     workspace,
   )}&channel=${encodeURIComponent(channel)}`;
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
+
+  /**
+   * Abrir un hilo.
+   *
+   * Sin permiso del comercio esto devuelve 403 con el motivo, y el motivo se
+   * muestra. Devolver una lista vacía se leería como «no hay mensajes», que es
+   * peor que decir que no se puede.
+   */
+  const abrir = useCallback(async (id: string) => {
+    setAbierta({ id, cargando: true, mensajes: [], motivo: null });
+    try {
+      const res = await fetch(`/api/admin/conversations/${id}`, { cache: "no-store" });
+      const json = (await res.json()) as {
+        mensajes?: Mensaje[];
+        error?: string;
+      };
+      setAbierta({
+        id,
+        cargando: false,
+        mensajes: json.mensajes ?? [],
+        motivo: res.ok ? null : t("admin.convNoPermission"),
+      });
+    } catch {
+      setAbierta({ id, cargando: false, mensajes: [], motivo: t("admin.convNoPermission") });
+    }
+  }, [t]);
 
   const columns = useMemo<Column<AdminConversationRow>[]>(
     () => [
@@ -108,8 +141,21 @@ export default function AdminConversationsPage() {
           </Muted>
         ),
       },
+      {
+        key: "abrir",
+        header: "",
+        cell: (r) => (
+          <button
+            type="button"
+            onClick={() => void abrir(r.id)}
+            className="text-xs text-accent-ink hover:underline"
+          >
+            {t("admin.convOpen")}
+          </button>
+        ),
+      },
     ],
-    [format, t],
+    [abrir, format, t],
   );
 
   if (loading && !data) return <Loading />;
@@ -149,6 +195,55 @@ export default function AdminConversationsPage() {
       </p>
 
       <DataTable rows={data.rows} columns={columns} rowKey={(r) => r.id} />
+
+      {abierta && (
+        <Panel title={t("admin.sectionConversations")}>
+          <div className="max-h-[28rem] space-y-2 overflow-y-auto p-4">
+            {abierta.cargando ? (
+              <Muted>…</Muted>
+            ) : abierta.motivo ? (
+              <p className="text-sm text-amber-600 dark:text-amber-400">{abierta.motivo}</p>
+            ) : abierta.mensajes.length === 0 ? (
+              <Muted>—</Muted>
+            ) : (
+              abierta.mensajes.map((m) => (
+                <div
+                  key={m.id}
+                  className={
+                    m.direction === "outbound"
+                      ? "ml-auto max-w-[75%] rounded-lg bg-primary/15 px-3 py-2"
+                      : "mr-auto max-w-[75%] rounded-lg bg-muted px-3 py-2"
+                  }
+                >
+                  <p className="text-sm whitespace-pre-wrap text-foreground">
+                    {m.content_text ?? "—"}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {m.sender_type ?? m.direction} · {format.date(m.created_at)}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-t border-border px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setAbierta(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              {t("admin.billingCancel")}
+            </button>
+          </div>
+        </Panel>
+      )}
     </div>
   );
+}
+
+interface Mensaje {
+  id: string;
+  direction: string | null;
+  sender_type: string | null;
+  content_text: string | null;
+  created_at: string;
 }
