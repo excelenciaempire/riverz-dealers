@@ -322,7 +322,7 @@ export async function runAiAgent(
       // Por `agentCan` y no por la columna directa: con `permissions` cargado
       // (migración 164) manda ese; sin él cae a `puede_crear_pedidos`, que es
       // como se comportan los agentes anteriores a la migración.
-      shopify.canCreateOrders = agentCan(agent, 'crear_pedidos');
+      shopify.canCreateOrders = toolEnabled(agent, 'crear_pedido');
       shopify.workspaceId = args.workspaceId;
       shopify.agentId = agent.id;
       shopify.contactId = primaryContact.id;
@@ -1733,7 +1733,7 @@ async function generateReply(
   const voiceCtx: VoiceEscalationContext | null =
     agent.voice_enabled &&
     agent.voice_ai_decides &&
-    agentCan(agent, 'escalar_llamada') &&
+    toolEnabled(agent, 'escalar_llamada') &&
     (contact.phone || primaryContact.phone)
       ? {
           workspaceId: agent.workspace_id,

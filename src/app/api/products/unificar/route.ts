@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
 import {
+  descartarGrupo,
   proponerUnificaciones,
   separarProducto,
   unificarProductos,
@@ -33,7 +34,7 @@ async function contexto() {
   const admin = supabaseAdmin();
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
   if (!workspaceId) return null;
-  return { admin, workspaceId };
+  return { admin, workspaceId, userId: user.id };
 }
 
 export async function GET() {
@@ -51,7 +52,20 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     master_id?: unknown;
     hijos?: unknown;
+    dismiss?: unknown;
   } | null;
+
+  // "No son el mismo producto." Se guarda el grupo para que la detección deje
+  // de proponerlo: sin esto la misma propuesta equivocada vuelve para siempre y
+  // el comercio aprende a ignorar el panel entero.
+  if (typeof body?.dismiss === 'string' && body.dismiss) {
+    const r = await descartarGrupo(ctx.admin, {
+      workspaceId: ctx.workspaceId,
+      key: body.dismiss,
+      userId: ctx.userId,
+    });
+    return NextResponse.json(r, { status: r.ok ? 200 : 502 });
+  }
   const masterId = typeof body?.master_id === 'string' ? body.master_id : '';
   const hijos = Array.isArray(body?.hijos)
     ? (body.hijos as unknown[]).filter((x): x is string => typeof x === 'string')

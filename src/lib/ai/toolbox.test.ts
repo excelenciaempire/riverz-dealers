@@ -144,3 +144,35 @@ describe('el catálogo es coherente', () => {
     }
   });
 });
+
+describe('ningún interruptor queda muerto', () => {
+  it('lo que la pizarra apaga, se apaga de verdad', async () => {
+    // El repo ya tuvo interruptores declarados que nadie leía: estaban en la
+    // pantalla, se guardaban, y no hacían nada. Acá se lee el código fuente a
+    // propósito — lo que se quiere fijar no es el resultado de una función sino
+    // que NADIE decida una capacidad mirando el permiso viejo, que devuelve
+    // "permitido" aunque la pizarra diga que no.
+    const { readFileSync } = await import('fs');
+    const { join } = await import('path');
+    for (const archivo of [
+      'src/lib/ai/runner.ts',
+      'src/lib/ai/followup.ts',
+      'src/lib/ai/super-agent.ts',
+    ]) {
+      const src = readFileSync(join(process.cwd(), archivo), 'utf8');
+      // `agentCan` puede seguir importado —`toolMode` hereda de él— pero no
+      // puede ser quien decide.
+      const llamadas = src.match(/agentCan\(agent[^)]*\)/g) ?? [];
+      expect(llamadas, archivo).toEqual([]);
+    }
+  });
+
+  it('cada herramienta del catálogo se puede apagar', () => {
+    // Un modo `off` que la herramienta no admita sería un interruptor que la
+    // pantalla ofrece y el servidor ignora.
+    for (const t of AGENT_TOOLBOX) {
+      expect(t.modes, t.key).toContain('off');
+      expect(toolMode({ tools: { [t.key]: 'off' } }, t.key), t.key).toBe('off');
+    }
+  });
+});

@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   Sparkles,
   AlertCircle,
+  Check,
   CheckCircle2,
   Boxes,
   ExternalLink,
@@ -76,6 +77,15 @@ const CANAL: Record<string, string> = {
 };
 
 export default function ProductosPage() {
+  // Elegir varios y unirlos a mano.
+  //
+  // La detección automática cubre lo que se parece; esto cubre lo que no —el
+  // mismo producto con nombres que no se parecen en nada, que es de lo más
+  // común entre una tienda propia y un marketplace—. Sin esto, lo que el
+  // detector no ve queda repetido para siempre.
+  const [elegidos, setElegidos] = useState<Set<string>>(new Set());
+  const [uniendo, setUniendo] = useState(false);
+
   const t = useT();
   const { locale } = useLocale();
   const router = useLocalizedRouter();
@@ -209,6 +219,39 @@ export default function ProductosPage() {
       setDeleting(false);
     }
   }
+
+  const alternar = (id: string) =>
+    setElegidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const unirElegidos = async () => {
+    const ids = [...elegidos];
+    if (ids.length < 2) return;
+    setUniendo(true);
+    try {
+      // La principal es la primera de la lista visible: es la que el comercio
+      // ve arriba y la que va a esperar que mande. Elegirla por él con una
+      // regla invisible sería adivinarle.
+      const [master, ...hijos] = ids;
+      const res = await fetchWithCsrf('/api/products/unificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ master_id: master, hijos }),
+      });
+      if (!res.ok) throw new Error();
+      setElegidos(new Set());
+      await fetchProducts();
+      toast.success(t('unify.done'));
+    } catch {
+      toast.error(t('unify.failed'));
+    } finally {
+      setUniendo(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -348,6 +391,8 @@ export default function ProductosPage() {
               product={p}
               fallbackCurrency={workspaceCurrency}
               onDelete={() => setPendingDelete(p)}
+              elegido={elegidos.has(p.id)}
+              onElegir={() => alternar(p.id)}
             />
           ))}
           {/* Tile "Nuevo producto" — al estilo de la referencia */}
@@ -366,6 +411,30 @@ export default function ProductosPage() {
           </button>
         </div>
       )}
+      {/* Lo elegido y qué hacer con eso. Fija abajo: la grilla es larga y la
+          acción tiene que seguir a mano sin volver arriba. */}
+      {elegidos.size > 0 ? (
+        <div className="sticky bottom-4 z-20 mx-auto flex w-fit items-center gap-3 rounded-full border border-border bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
+          <span className="text-sm text-foreground">
+            {t('unify.selected', { n: String(elegidos.size) })}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            disabled={elegidos.size < 2 || uniendo}
+            onClick={unirElegidos}
+          >
+            {uniendo ? <Loader2 className="size-3.5 animate-spin" /> : t('unify.merge')}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setElegidos(new Set())}
+            className="text-xs text-muted-foreground transition hover:text-foreground"
+          >
+            {t('unify.cancel')}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -374,10 +443,14 @@ function ProductCard({
   product,
   fallbackCurrency,
   onDelete,
+  elegido,
+  onElegir,
 }: {
   product: ProductRow;
   fallbackCurrency: string | null;
   onDelete: () => void;
+  elegido: boolean;
+  onElegir: () => void;
 }) {
   const t = useT();
   const completeness = productCompleteness(product);
@@ -401,6 +474,26 @@ function ProductCard({
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30"
     >
       <div className="relative aspect-square w-full bg-white">
+        {/* La casilla sólo aparece al pasar por encima o cuando ya está
+            elegida: mostrarla siempre convierte una grilla de productos en un
+            formulario, y elegir varios es lo excepcional. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onElegir();
+          }}
+          aria-pressed={elegido}
+          className={cn(
+            'absolute left-2 top-2 z-10 grid h-5 w-5 place-items-center rounded border transition',
+            elegido
+              ? 'border-foreground bg-foreground text-background opacity-100'
+              : 'border-border bg-card/95 opacity-0 backdrop-blur group-hover:opacity-100',
+          )}
+        >
+          {elegido ? <Check className="size-3" /> : null}
+        </button>
         {product.image_url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img

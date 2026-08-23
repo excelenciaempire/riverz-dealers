@@ -175,7 +175,20 @@ export function skuDe(p: FilaProducto): string | null {
   return null
 }
 
+/**
+ * La huella de un grupo, para poder recordar que ya se dijo que no.
+ *
+ * Los ids ordenados: el mismo grupo propuesto de nuevo —en otro orden, tras
+ * otra sincronización— se reconoce igual. Se guarda el GRUPO y no los
+ * productos sueltos porque que A y B no sean el mismo no dice nada sobre A y C.
+ */
+export function claveDeGrupo(ids: string[]): string {
+  return [...new Set(ids)].sort().join(',')
+}
+
 export interface Grupo {
+  /** Su huella, para descartarlo o reconocerlo descartado. */
+  key: string
   /** La fila que debería mandar. */
   masterId: string
   masterTitle: string
@@ -223,6 +236,14 @@ export async function proponerUnificaciones(
     .select('id, title, platform, shop_domain, price_min, url, master_id, training_material, raw')
     .eq('workspace_id', workspaceId)
     .limit(500)
+
+  const { data: descartados } = await db
+    .from('product_unify_dismissed')
+    .select('group_key')
+    .eq('workspace_id', workspaceId)
+  const yaNo = new Set(
+    ((descartados ?? []) as Array<{ group_key: string }>).map((d) => d.group_key),
+  )
 
   const filas = ((data ?? []) as FilaProducto[]).filter((p) => (p.title ?? '').trim())
   // Las que ya cuelgan de otra están resueltas.
@@ -273,12 +294,33 @@ export async function proponerUnificaciones(
     grupos.push(armarGrupo(grupo, 'titulo', confianza))
   }
 
-  return grupos
+  // Lo que el comercio ya dijo que no es el mismo producto no vuelve a
+  // proponerse. Sin esto la misma propuesta equivocada reaparece para siempre,
+  // el comercio aprende a ignorar el panel, y el día que la propuesta es buena
+  // tampoco la mira.
+  return grupos.filter((g) => !yaNo.has(g.key))
+}
+
+/** "Estos no son el mismo producto." */
+export async function descartarGrupo(
+  db: SupabaseClient,
+  args: { workspaceId: string; key: string; userId?: string | null },
+): Promise<{ ok: boolean }> {
+  const { error } = await db.from('product_unify_dismissed').upsert(
+    {
+      workspace_id: args.workspaceId,
+      group_key: args.key,
+      dismissed_by: args.userId ?? null,
+    },
+    { onConflict: 'workspace_id,group_key' },
+  )
+  return { ok: !error }
 }
 
 function armarGrupo(filas: FilaProducto[], motivo: 'sku' | 'titulo', confianza: number): Grupo {
   const principal = elegirPrincipal(filas)
   return {
+    key: claveDeGrupo(filas.map((p) => p.id)),
     masterId: principal.id,
     masterTitle: principal.title ?? '',
     motivo,

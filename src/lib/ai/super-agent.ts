@@ -19,7 +19,7 @@ import {
   runWithTools,
   type ShopifyToolContext,
 } from './tools';
-import { agentCan } from './roles';
+import { toolEnabled } from './toolbox';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -155,7 +155,7 @@ export async function composeSuperAgentReply(
       // `permissions.crear_pedidos = true` cerraba pedidos por DM pero no al
       // contestar un comentario — la misma persona, dos respuestas distintas
       // según por dónde escribiera.
-      shopify.canCreateOrders = agentCan(agent, 'crear_pedidos');
+      shopify.canCreateOrders = toolEnabled(agent, 'crear_pedido');
       shopify.workspaceId = input.workspaceId;
       shopify.agentId = agent.id;
       shopify.contactId = primaryContact.id;

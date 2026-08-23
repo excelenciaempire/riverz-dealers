@@ -65,6 +65,12 @@ export const unify = {
     en: "Each channel keeps its own price and link. Only what the agent knows is merged.",
   },
   merge: { es: "Es el mismo producto", en: "Same product" },
+  notSame: { es: "No son el mismo", en: "Not the same" },
+  selected: { es: "{n} elegidos", en: "{n} selected" },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  separate: { es: "Separar", en: "Unlink" },
+  channels: { es: "También se vende en", en: "Also sold on" },
+  separated: { es: "Listo, vuelve a ser un producto aparte.", en: "Done, it is a separate product again." },
   done: { es: "Listo. El agente ya contesta igual por todos los canales.", en: "Done. The agent now answers the same on every channel." },
   failed: { es: "No se pudo unificar.", en: "Could not merge." },
 } satisfies Namespace;

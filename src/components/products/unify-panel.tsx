@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
  */
 
 interface Grupo {
+  key: string;
   masterId: string;
   masterTitle: string;
   motivo: 'sku' | 'titulo';
@@ -71,6 +72,23 @@ export function UnifyPanel() {
     }
   };
 
+  const descartar = async (g: Grupo) => {
+    setUniendo(g.masterId);
+    try {
+      const res = await fetchWithCsrf('/api/products/unificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dismiss: g.key }),
+      });
+      if (!res.ok) throw new Error();
+      setGrupos((prev) => (prev ?? []).filter((x) => x.key !== g.key));
+    } catch {
+      toast.error(t('unify.failed'));
+    } finally {
+      setUniendo(null);
+    }
+  };
+
   // Nada que unir: el panel no existe. No hay estado vacío que mostrar.
   if (grupos === null || grupos.length === 0) return null;
 
@@ -103,7 +121,20 @@ export function UnifyPanel() {
                 cualquiera tiene, y descubrirla después sería un motivo para
                 deshacerlo todo. */}
             <p className="mt-1.5 text-[11px] text-muted-foreground">{t('unify.pricesKept')}</p>
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex justify-end gap-2">
+              {/* Poder decir que no es lo que hace que el panel se pueda leer.
+                  Sin esta salida, la misma propuesta equivocada vuelve para
+                  siempre, el comercio aprende a ignorarlo, y el día que la
+                  propuesta es buena tampoco la mira. */}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={uniendo === g.masterId}
+                onClick={() => descartar(g)}
+              >
+                {t('unify.notSame')}
+              </Button>
               <Button
                 type="button"
                 size="sm"

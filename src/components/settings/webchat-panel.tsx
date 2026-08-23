@@ -165,6 +165,8 @@ export function WebchatPanel() {
     }
   };
 
+  // ¿Se puede instalar con un botón? Sólo con una tienda Shopify conectada.
+  const hayBoton = instalado !== null || motivoInstalar === 'sin_permiso';
   const domains = cfg.allowed_domains ?? [];
   const enabled = Boolean(cfg.enabled);
   const nuevos = suggested.filter((d) => !domains.includes(d));
@@ -213,7 +215,7 @@ export function WebchatPanel() {
           {/* El camino bueno primero. Con la tienda conectada es un botón; el
               código a mano queda plegado para quien no usa Shopify o prefiere
               pegarlo él. */}
-          {instalado !== null || motivoInstalar === 'sin_permiso' ? (
+          {hayBoton ? (
             <Row>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">{t('webchat.installAuto')}</p>
@@ -240,10 +242,20 @@ export function WebchatPanel() {
             </Row>
           ) : null}
 
-          <details className={instalado !== null ? 'mt-3' : ''}>
-            <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
-              <ChevronDown className="h-3 w-3" />
-              {t('webchat.installManual')}
+          {/* El código a mano se pliega SÓLO cuando hay un botón que hace el
+              trabajo. Sin tienda conectada es el único camino, y esconder el
+              único camino detrás de un desplegable deja la pantalla diciendo
+              nada — que es exactamente como se veía. */}
+          <details className={hayBoton ? 'mt-3' : ''} open={!hayBoton}>
+            <summary
+              className={
+                hayBoton
+                  ? 'flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground'
+                  : 'list-none text-sm font-medium text-foreground'
+              }
+            >
+              {hayBoton ? <ChevronDown className="h-3 w-3" /> : null}
+              {t(hayBoton ? 'webchat.installManual' : 'webchat.install')}
             </summary>
             <div className="mt-2 flex items-start gap-2">
               <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-muted px-3 py-2 text-[11px] leading-relaxed text-foreground">
