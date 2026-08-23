@@ -1091,7 +1091,7 @@ export async function runTool(
         : // Sin pedido al que atarlo, el pago entra a la cuenta pero nadie lo
           // concilia solo. Prometerlo igual dejaba a la clienta esperando una
           // confirmación que no iba a llegar.
-          'Pásale el link para que pague con tarjeta. NO le digas que ya está pagado ni que se confirma solo: avísale que le confirmas vos cuando entre.',
+          'Pásale el link para que pague con tarjeta. NO le digas que ya está pagado ni que se confirma solo: avísale que se lo confirmas tú cuando entre.',
     })
   }
 
