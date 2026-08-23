@@ -94,15 +94,15 @@ async function resolverPedido(
     return {
       error: 'sin_pedido',
       message: num
-        ? `No encontré el pedido ${num} a nombre de esta persona. Pedile que verifique el número.`
-        : 'No encontré ningún pedido activo de esta persona. Pedile el número de pedido.',
+        ? `No encontré el pedido ${num} a nombre de esta persona. Pídele que verifique el número.`
+        : 'No encontré ningún pedido activo de esta persona. Pídele el número de pedido.',
     }
   }
   if (!num && filas.length > 1) {
     const lista = filas.map((f) => `#${f.order_number ?? '?'}`).join(', ')
     return {
       error: 'varios_pedidos',
-      message: `Tiene más de un pedido activo (${lista}). Preguntale cuál antes de seguir.`,
+      message: `Tiene más de un pedido activo (${lista}). Pregúntale cuál antes de seguir.`,
     }
   }
   return { pedido: filas[0] }
@@ -160,7 +160,7 @@ export async function proponerCancelacion(
       // hay a qué API pedirle la cancelación.
       error: 'pedido_no_cancelable',
       message:
-        'Ese pedido no se puede cancelar automáticamente. Decile que lo pasás al equipo y va a tener respuesta a la brevedad.',
+        'Ese pedido no se puede cancelar automáticamente. Dile que lo pasas al equipo y va a tener respuesta a la brevedad.',
     })
   }
 
@@ -169,7 +169,7 @@ export async function proponerCancelacion(
       ok: true,
       estado: 'pendiente_de_aprobacion',
       message:
-        'Ya habías pedido la cancelación de ese pedido y sigue esperando la confirmación del equipo. Deciselo así, sin volver a prometer nada nuevo.',
+        'Ya habías pedido la cancelación de ese pedido y sigue esperando la confirmación del equipo. Díselo así, sin volver a prometer nada nuevo.',
     })
   }
 
@@ -183,7 +183,7 @@ export async function proponerCancelacion(
       `Lo pidió la clienta por chat.\n` +
       `Importe: ${plata(p)}.\n` +
       (motivo ? `Motivo: ${motivo}\n` : '') +
-      `Si aceptás, se cancela en la tienda, vuelve el stock y se devuelve lo cobrado.`,
+      `Si aceptas, se cancela en la tienda, vuelve el stock y se devuelve lo cobrado.`,
     payload: {
       order_id: p.id,
       shopify_order_id: p.shopify_order_id,
@@ -196,7 +196,7 @@ export async function proponerCancelacion(
     return JSON.stringify({
       ok: false,
       message:
-        'No pude dejar pedida la cancelación. Decile que lo pasás al equipo y que le confirman en breve.',
+        'No pude dejar pedida la cancelación. Dile que lo pasas al equipo y que le confirman en breve.',
     })
   }
 
@@ -211,7 +211,7 @@ export async function proponerCancelacion(
     estado: 'pendiente_de_aprobacion',
     message:
       `Quedó pedida la cancelación del pedido #${p.order_number ?? ''}. ` +
-      'Decile que ya lo pasaste y que le confirmás apenas esté. ' +
+      'Dile que ya lo pasaste y que le confirmas apenas esté. ' +
       'NO le digas que el pedido ya está cancelado ni que le devolvieron el dinero.',
   })
 }
@@ -230,7 +230,7 @@ export async function proponerReembolso(
       ok: false,
       error: 'pedido_no_reembolsable',
       message:
-        'Ese pedido no se puede reembolsar automáticamente. Decile que lo pasás al equipo.',
+        'Ese pedido no se puede reembolsar automáticamente. Dile que lo pasas al equipo.',
     })
   }
 
@@ -239,7 +239,7 @@ export async function proponerReembolso(
       ok: true,
       estado: 'pendiente_de_aprobacion',
       message:
-        'Ya habías pedido un reembolso de ese pedido y sigue esperando la confirmación del equipo. Deciselo así, sin volver a prometer nada nuevo.',
+        'Ya habías pedido un reembolso de ese pedido y sigue esperando la confirmación del equipo. Díselo así, sin volver a prometer nada nuevo.',
     })
   }
 
@@ -252,7 +252,7 @@ export async function proponerReembolso(
     return JSON.stringify({
       ok: false,
       error: 'monto_mayor_al_pedido',
-      message: `Ese pedido costó ${plata(p)}: no se puede devolver más que eso. Pedí un importe menor o el total.`,
+      message: `Ese pedido costó ${plata(p)}: no se puede devolver más que eso. Pide un importe menor o el total.`,
     })
   }
   const monto = pedido
@@ -280,7 +280,7 @@ export async function proponerReembolso(
   if (!res.ok) {
     return JSON.stringify({
       ok: false,
-      message: 'No pude dejar pedido el reembolso. Decile que lo pasás al equipo.',
+      message: 'No pude dejar pedido el reembolso. Dile que lo pasas al equipo.',
     })
   }
 
@@ -290,7 +290,7 @@ export async function proponerReembolso(
     ok: true,
     estado: 'pendiente_de_aprobacion',
     message:
-      'Quedó pedido el reembolso. Decile que ya lo pasaste y que le confirmás apenas esté. ' +
+      'Quedó pedido el reembolso. Dile que ya lo pasaste y que le confirmas apenas esté. ' +
       'NO le digas que el dinero ya fue devuelto ni prometas una fecha.',
   })
 }

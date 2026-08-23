@@ -203,7 +203,7 @@ async function ejecutar(
       const shopifyOrderId = String(fila.payload.shopify_order_id ?? '')
       const orderId = String(fila.payload.order_id ?? '')
       if (!shopifyOrderId) {
-        return { ok: false, message: 'El pedido no está en Shopify: resolvelo a mano.' }
+        return { ok: false, message: 'El pedido no está en Shopify: resuélvelo a mano.' }
       }
       const cancelando = fila.kind === 'cancelar_pedido'
       const admin = await resolveShopifyAdmin(db, fila.workspace_id)
@@ -219,7 +219,7 @@ async function ejecutar(
         if (!cancelando) {
           return {
             ok: false,
-            message: 'El cobro de ese pedido no se hizo por la tienda: devolvé el dinero por donde entró.',
+            message: 'El cobro de ese pedido no se hizo por la tienda: devuelve el dinero por donde entró.',
           }
         }
         const local = await cancelarPedidoEnLaTienda(db, {
@@ -254,13 +254,13 @@ async function ejecutar(
         if (res.error === 'missing_write_scope') {
           return {
             ok: false,
-            message: 'Falta permiso de escritura en Shopify. Reconectá la tienda y volvé a intentar.',
+            message: 'Falta permiso de escritura en Shopify. Reconecta la tienda y vuelve a intentar.',
           }
         }
         if (res.error === 'sin_cobro_registrado') {
           return {
             ok: false,
-            message: 'Ese pedido no tiene un cobro registrado en Shopify: devolvé el dinero por donde entró.',
+            message: 'Ese pedido no tiene un cobro registrado en Shopify: devuelve el dinero por donde entró.',
           }
         }
         if (res.error === 'monto_mayor_al_cobrado') {
@@ -327,7 +327,7 @@ async function ejecutar(
         message: cancelando
           ? devuelto
             ? 'Pedido cancelado y dinero devuelto en Shopify.'
-            : `Pedido cancelado en Shopify. El pago quedó como "${res.financialStatus ?? 'sin cambios'}": revisá si hay que devolver el dinero a mano.`
+            : `Pedido cancelado en Shopify. El pago quedó como "${res.financialStatus ?? 'sin cambios'}": revisa si hay que devolver el dinero a mano.`
           : 'Reembolso hecho en Shopify.',
       }
     }

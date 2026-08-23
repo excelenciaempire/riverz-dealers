@@ -1548,7 +1548,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
             type: 'text',
             text:
               (text ? text + '\n\n' : '') +
-              `[el cliente envió un PDF muy grande (${mb} MB) que no puedo procesar entero — pedile que mande solo las páginas relevantes o un resumen]`,
+              `[el cliente envió un PDF muy grande (${mb} MB) que no puedo procesar entero — pídele que mande solo las páginas relevantes o un resumen]`,
           });
         } else {
           blocks.push({
@@ -1590,7 +1590,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
           type: 'text',
           text:
             (text ? text + '\n\n' : '') +
-            '[el cliente envió un audio que no pude transcribir — pedile amablemente que escriba lo que quería decir]',
+            '[el cliente envió un audio que no pude transcribir — pídele amablemente que escriba lo que quería decir]',
         });
       }
       break;
@@ -1600,7 +1600,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
         type: 'text',
         text:
           (text ? text + '\n\n' : '') +
-          '[el cliente envió un video — todavía no podés ver videos; pedile que escriba o mande una foto si necesita mostrarte algo]',
+          '[el cliente envió un video — todavía no puedes ver videos; pídele que escriba o mande una foto si necesita mostrarte algo]',
       });
       break;
     }
@@ -2156,11 +2156,11 @@ export function buildSystemPrompt(
         ? ` El único descuento adicional permitido es ${fmtMoney(transferAmount, currency)} por pago con ${transferLabel}.`
         : '';
     lines.push(
-      `Política de ofertas (estricta): las únicas ofertas válidas son ${enumeration}.${transferClause} Si la clienta pide otro descuento, promoción, porcentaje, código, cupón, regalo o precio fuera de esa lista, contestá que no podés hacer descuentos fuera de esas ofertas y ofrecé escalar a un humano. Nunca prometas un precio que no figure arriba.`,
+      `Política de ofertas (estricta): las únicas ofertas válidas son ${enumeration}.${transferClause} Si la clienta pide otro descuento, promoción, porcentaje, código, cupón, regalo o precio fuera de esa lista, contesta que no puedes hacer descuentos fuera de esas ofertas y ofrece escalar a un humano. Nunca prometas un precio que no figure arriba.`,
     );
   } else if (shopify) {
     lines.push(
-      'Política de precios (estricta): cotizá únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasá la cantidad al generar el checkout. Si pide un descuento que no existe, decile con cortesía que no podés aplicarlo y ofrecé escalar a un humano.',
+      'Política de precios (estricta): cotiza únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasa la cantidad al generar el checkout. Si pide un descuento que no existe, dile con cortesía que no puedes aplicarlo y ofrece escalar a un humano.',
     );
   }
 
@@ -2171,11 +2171,11 @@ export function buildSystemPrompt(
   // confirmación final a una persona (el link de compra sigue disponible).
   if (shopify?.canCreateOrders) {
     lines.push(
-      'Cierre de pedidos: podés crear el pedido vos cuando la clienta quiera comprar. Flujo: (1) confirmá qué quiere (producto y cantidad u oferta); (2) reuní los datos necesarios — nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) mostrale un resumen con el total y pedile que confirme; (5) SÓLO cuando confirme explícitamente, llamá create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explicá con cortesía y ofrecé ayuda de una persona del equipo. Tené 100% de certeza de lo que quiere antes de crear el pedido.',
+      'Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios — nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía y ofrece ayuda de una persona del equipo. Ten 100% de certeza de lo que quiere antes de crear el pedido.',
     );
   } else if (shopify) {
     lines.push(
-      'Cierre de pedidos: no tenés habilitado crear pedidos por tu cuenta. Podés ayudar con la info y, si la clienta quiere avanzar con la compra, avisale que una persona del equipo confirma el pedido. No afirmes que el pedido quedó registrado.',
+      'Cierre de pedidos: no tienes habilitado crear pedidos por tu cuenta. Puedes ayudar con la info y, si la clienta quiere avanzar con la compra, avísale que una persona del equipo confirma el pedido. No afirmes que el pedido quedó registrado.',
     );
   }
 
@@ -2217,7 +2217,7 @@ export function buildSystemPrompt(
         offerLine += ` (${ageLabel})`;
       }
     }
-    lines.push(`${offerLine}. Si corresponde, usá esto para ofrecer la recompra adecuada.`);
+    lines.push(`${offerLine}. Si corresponde, usa esto para ofrecer la recompra adecuada.`);
   }
   if (recentNotes.length > 0) {
     lines.push('Notas previas del equipo:');
@@ -2336,7 +2336,7 @@ export function buildSystemPrompt(
   // diagnose, claim efficacy for medical conditions, or recommend use
   // for pregnancy / lactation / dermatitis. Escalate every time.
   lines.push(
-    'Temas de salud (embarazo, lactancia, alergias, dermatitis u otra condición dermatológica, medicación, consejos médicos): NO afirmes que un producto es seguro/eficaz para esa condición, NO recomiendes uso, NO inventes ingredientes ni contraindicaciones. Respondé que por seguridad esa consulta la atiende una persona del equipo y pedile que espere a un agente humano.',
+    'Temas de salud (embarazo, lactancia, alergias, dermatitis u otra condición dermatológica, medicación, consejos médicos): NO afirmes que un producto es seguro/eficaz para esa condición, NO recomiendes uso, NO inventes ingredientes ni contraindicaciones. Responde que por seguridad esa consulta la atiende una persona del equipo y pídele que espere a un agente humano.',
   );
   lines.push(
     'Si la consulta requiere intervención humana (precios complejos, reembolsos, queja seria), pídele amablemente al cliente que espere a que un agente humano se conecte.',
@@ -2576,7 +2576,7 @@ function formatShopifySnapshot(snap: ShopifyCustomerSnapshot): string | null {
   if (lines.length === 1) return null;
   lines.push(
     orders > 0
-      ? 'Reconocé la calidez de que vuelve — saludala como cliente recurrente, sin sobreactuar.'
+      ? 'Reconoce la calidez de que vuelve — saludala como cliente recurrente, sin sobreactuar.'
       : 'Es la primera vez que te contacta — dale la bienvenida sin asumir compras previas.',
   );
   return lines.join('\n');

@@ -76,7 +76,7 @@ export interface VoiceEscalationContext {
 export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
   name: 'escalate_to_call',
   description:
-    'Programá una LLAMADA telefónica de vos (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Usala con criterio — la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasá un motivo corto.',
+    'Programa una LLAMADA telefónica de ti (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Úsala con criterio — la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasa un motivo corto.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -97,7 +97,7 @@ export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
 export const UPDATE_ORDER_TOOL: Anthropic.Tool = {
   name: 'update_order',
   description:
-    'Agregá unidades al pedido que la clienta ya hizo, durante la llamada de confirmación, cuando acepta llevar más (upsell). Pasá cuántas unidades sumar. Actualiza el pedido real en Shopify. Llamala una sola vez, sólo cuando la clienta confirmó que quiere las unidades extra.',
+    'Agrega unidades al pedido que la clienta ya hizo, durante la llamada de confirmación, cuando acepta llevar más (upsell). Pasa cuántas unidades sumar. Actualiza el pedido real en Shopify. Llámala una sola vez, sólo cuando la clienta confirmó que quiere las unidades extra.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -184,7 +184,7 @@ export interface ShopifyToolContext {
 export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
   name: 'buscar_producto',
   description:
-    'Buscá productos en el catálogo del negocio. Usala SIEMPRE que la clienta pregunte por algo que no ves en el catálogo de tu contexto, o cuando describa lo que necesita sin nombrar un producto ("algo para piel sensible", "un regalo para mi mamá", "el más barato"). Podés buscar por nombre, por lo que hace el producto o por categoría. Devuelve nombre, precio, foto y link. No inventes productos: si la búsqueda no trae nada, decí que no lo tenés.',
+    'Busca productos en el catálogo del negocio. Úsala SIEMPRE que la clienta pregunte por algo que no ves en el catálogo de tu contexto, o cuando describa lo que necesita sin nombrar un producto ("algo para piel sensible", "un regalo para mi mamá", "el más barato"). Puedes buscar por nombre, por lo que hace el producto o por categoría. Devuelve nombre, precio, foto y link. No inventes productos: si la búsqueda no trae nada, di que no lo tienes.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -197,7 +197,7 @@ export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
         type: 'integer',
         minimum: 1,
         maximum: 10,
-        description: 'Cuántos traer (por defecto 6). Pedí pocos: es un chat, no un listado.',
+        description: 'Cuántos traer (por defecto 6). Pide pocos: es un chat, no un listado.',
       },
     },
     required: ['query'],
@@ -214,7 +214,7 @@ export const BUSCAR_PRODUCTO_TOOL: Anthropic.Tool = {
 export const CANCELAR_PEDIDO_TOOL: Anthropic.Tool = {
   name: 'cancelar_pedido',
   description:
-    'Pedí la cancelación de un pedido cuando la clienta la solicita. NO cancela al instante: deja la solicitud armada y una persona del negocio la aprueba en minutos. Contale que ya la pasaste y que le confirmás; NUNCA le digas que el pedido ya está cancelado ni que le devolvieron el dinero. Si no sabés de qué pedido habla, preguntale el número antes de llamar esta tool.',
+    'Pide la cancelación de un pedido cuando la clienta la solicita. NO cancela al instante: deja la solicitud armada y una persona del negocio la aprueba en minutos. Cuéntale que ya la pasaste y que le confirmas; NUNCA le digas que el pedido ya está cancelado ni que le devolvieron el dinero. Si no sabes de qué pedido habla, pregúntale el número antes de llamar esta tool.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -234,7 +234,7 @@ export const CANCELAR_PEDIDO_TOOL: Anthropic.Tool = {
 export const REEMBOLSAR_TOOL: Anthropic.Tool = {
   name: 'reembolsar',
   description:
-    'Pedí la devolución del dinero de un pedido SIN cancelarlo: llegó incompleto, llegó dañado, o se acordó una bonificación. NO reembolsa al instante: una persona del negocio lo aprueba. Contale que ya lo pasaste; NUNCA le digas que el dinero ya fue devuelto ni prometas una fecha. Si la clienta quiere cancelar la compra entera, usá cancelar_pedido en vez de esta.',
+    'Pide la devolución del dinero de un pedido SIN cancelarlo: llegó incompleto, llegó dañado, o se acordó una bonificación. NO reembolsa al instante: una persona del negocio lo aprueba. Cuéntale que ya lo pasaste; NUNCA le digas que el dinero ya fue devuelto ni prometas una fecha. Si la clienta quiere cancelar la compra entera, usa cancelar_pedido en vez de esta.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -252,7 +252,7 @@ export const REEMBOLSAR_TOOL: Anthropic.Tool = {
 export const ABRIR_DEVOLUCION_TOOL: Anthropic.Tool = {
   name: 'abrir_devolucion',
   description:
-    'Registrá una devolución o un cambio cuando la clienta dice que el producto llegó mal, no era lo que esperaba o quiere otro. NO devuelve dinero ni cancela: deja el caso anotado con el pedido, el motivo y las fotos que ella ya mandó, y el equipo lo revisa. Si además pide que le devuelvan la plata, usá reembolsar. Contale que quedó registrada; NUNCA le digas que está aprobada ni le prometas una fecha.',
+    'Registra una devolución o un cambio cuando la clienta dice que el producto llegó mal, no era lo que esperaba o quiere otro. NO devuelve dinero ni cancela: deja el caso anotado con el pedido, el motivo y las fotos que ella ya mandó, y el equipo lo revisa. Si además pide que le devuelvan la plata, usa reembolsar. Cuéntale que quedó registrada; NUNCA le digas que está aprobada ni le prometas una fecha.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -275,14 +275,14 @@ export const ABRIR_DEVOLUCION_TOOL: Anthropic.Tool = {
 export const VER_CONTACTO_TOOL: Anthropic.Tool = {
   name: 'ver_contacto',
   description:
-    'La ficha de la persona con la que estás hablando: qué compró antes, cuánto gastó, de dónde es y con qué etiquetas está. Usala para personalizar la respuesta. No recites los datos: nadie quiere que le lean su propia ficha.',
+    'La ficha de la persona con la que estás hablando: qué compró antes, cuánto gastó, de dónde es y con qué etiquetas está. Úsala para personalizar la respuesta. No recites los datos: nadie quiere que le lean su propia ficha.',
   input_schema: { type: 'object' as const, properties: {}, required: [] },
 }
 
 export const ETIQUETAR_CONTACTO_TOOL: Anthropic.Tool = {
   name: 'etiquetar_contacto',
   description:
-    'Ponele (o sacale) una etiqueta a la persona con la que estás hablando, para que el equipo la encuentre después: "quiere-talle-M", "espera-reposición", "mayorista". Es una nota interna: no se la menciones en la conversación.',
+    'Ponle (o sácale) una etiqueta a la persona con la que estás hablando, para que el equipo la encuentre después: "quiere-talle-M", "espera-reposición", "mayorista". Es una nota interna: no se la menciones en la conversación.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -296,7 +296,7 @@ export const ETIQUETAR_CONTACTO_TOOL: Anthropic.Tool = {
 export const CERRAR_CONVERSACION_TOOL: Anthropic.Tool = {
   name: 'cerrar_conversacion',
   description:
-    'Cerrá el caso cuando la consulta quedó resuelta y no hay nada pendiente. Despedite normalmente; no anuncies que "cerraste la conversación", que para la clienta no significa nada. Si quedó algo esperando a una persona del equipo, NO la cierres.',
+    'Cierra el caso cuando la consulta quedó resuelta y no hay nada pendiente. Despídete normalmente; no anuncies que "cerraste la conversación", que para la clienta no significa nada. Si quedó algo esperando a una persona del equipo, NO la cierres.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -309,7 +309,7 @@ export const CERRAR_CONVERSACION_TOOL: Anthropic.Tool = {
 export const NO_SE_TOOL: Anthropic.Tool = {
   name: 'no_se_la_respuesta',
   description:
-    'Llamala cuando te preguntan algo que NO podés contestar con lo que sabés del negocio: un dato que no está en tu conocimiento ni en el catálogo, una política que nadie te cargó. Anota la pregunta para que el equipo la responda y le pasa la conversación a una persona. Usala ANTES de improvisar: una respuesta aproximada sobre envíos, garantías o plazos es peor que decir que lo consultás.',
+    'Llámala cuando te preguntan algo que NO puedes contestar con lo que sabes del negocio: un dato que no está en tu conocimiento ni en el catálogo, una política que nadie te cargó. Anota la pregunta para que el equipo la responda y le pasa la conversación a una persona. Úsala ANTES de improvisar: una respuesta aproximada sobre envíos, garantías o plazos es peor que decir que lo consultas.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -329,7 +329,7 @@ export const NO_SE_TOOL: Anthropic.Tool = {
 export const VER_PRODUCTO_TOOL: Anthropic.Tool = {
   name: 'ver_producto',
   description:
-    'La ficha completa de UN producto del catálogo por su nombre: precio real, variantes, foto y enlace. Usala cuando ya sabés cuál es y necesitás el dato exacto. Para explorar o recomendar, usá buscar_producto.',
+    'La ficha completa de UN producto del catálogo por su nombre: precio real, variantes, foto y enlace. Úsala cuando ya sabes cuál es y necesitas el dato exacto. Para explorar o recomendar, usa buscar_producto.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -360,7 +360,7 @@ async function verificarPrecios(
   | { error: true; message: string }
 > {
   if (!items.length) {
-    return { error: true, message: 'Decí qué le estás cobrando.' }
+    return { error: true, message: 'Di qué le estás cobrando.' }
   }
   const salida: Array<{ title: string; quantity: number; unit_price: number }> = []
   for (const i of items) {
@@ -375,7 +375,7 @@ async function verificarPrecios(
     if (real == null) {
       return {
         error: true,
-        message: `No encontré "${title}" en el catálogo. Buscá el producto con buscar_producto y cobrá el precio que figura ahí.`,
+        message: `No encontré "${title}" en el catálogo. Busca el producto con buscar_producto y cobra el precio que figura ahí.`,
       }
     }
     // Se acepta cobrar de MÁS (un envío sumado, un armado especial) pero nunca
@@ -384,7 +384,7 @@ async function verificarPrecios(
     if (propuesto < real) {
       return {
         error: true,
-        message: `El precio de "${hit.title}" es ${real}, no ${propuesto}. Cotizá el del catálogo.`,
+        message: `El precio de "${hit.title}" es ${real}, no ${propuesto}. Cotiza el del catálogo.`,
       }
     }
     salida.push({ title: hit.title || title, quantity, unit_price: propuesto })
@@ -403,7 +403,7 @@ async function verificarPrecios(
 export const CREAR_LINK_DE_PAGO_TOOL: Anthropic.Tool = {
   name: 'crear_link_de_pago',
   description:
-    'Generá un link de pago de Mercado Pago cuando la clienta ya quiere pagar y la tienda no tiene un checkout propio. Pasá qué le estás cobrando, con precio unitario y cantidad. El dinero va a la cuenta del negocio. Cotizá SÓLO precios reales del catálogo: no inventes montos ni descuentos. Si ya generaste un link en esta conversación y no cambió nada, reusá ese en vez de crear otro.',
+    'Genera un link de pago de Mercado Pago cuando la clienta ya quiere pagar y la tienda no tiene un checkout propio. Pasa qué le estás cobrando, con precio unitario y cantidad. El dinero va a la cuenta del negocio. Cotiza SÓLO precios reales del catálogo: no inventes montos ni descuentos. Si ya generaste un link en esta conversación y no cambió nada, reutiliza ese en vez de crear otro.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -440,7 +440,7 @@ export function buildDescuentoTool(tope: number): Anthropic.Tool {
   return {
     name: 'ofrecer_descuento',
     description:
-      `Generá un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Podés ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Usalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repetile ESE código en vez de pedir otro.`,
+      `Genera un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Puedes ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Úsalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repítele ESE código en vez de pedir otro.`,
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -464,19 +464,19 @@ export function buildDescuentoTool(tope: number): Anthropic.Tool {
 export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
   name: 'lookup_order',
   description:
-    'Busca un pedido del cliente en la tienda del negocio. Usalo cuando la clienta pregunte por el estado de su pedido, dónde está, cuándo llega, su tracking, o si quiere ver qué compró. Podés buscar por número de pedido (si lo da) o por su teléfono. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
+    'Busca un pedido del cliente en la tienda del negocio. Úsalo cuando la clienta pregunte por el estado de su pedido, dónde está, cuándo llega, su tracking, o si quiere ver qué compró. Puedes buscar por número de pedido (si lo da) o por su teléfono. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
   input_schema: {
     type: 'object' as const,
     properties: {
       order_number: {
         type: 'string',
         description:
-          'Número de pedido (ej. "1042" o "#1042"). Opcional — si no lo tenés, igual buscá por el teléfono del cliente.',
+          'Número de pedido (ej. "1042" o "#1042"). Opcional — si no lo tienes, igual busca por el teléfono del cliente.',
       },
       reason: {
         type: 'string',
         description:
-          'Por qué llamás esta tool (tracking, estado, devolución, etc.). Una frase corta.',
+          'Por qué llamas esta tool (tracking, estado, devolución, etc.). Una frase corta.',
       },
     },
     required: ['reason'],
@@ -524,8 +524,8 @@ export function buildCheckoutTool(
     type: 'string' as const,
     enum: ['card_or_mp', 'transfer'],
     description: hasTransferDiscount
-      ? `Si la clienta dijo que va a pagar por ${transferLabel}, pasá "transfer" para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Para todo lo demás (tarjeta, Mercado Pago) usá "card_or_mp".`
-      : 'Método de pago. Para tarjeta o Mercado Pago usá "card_or_mp".',
+      ? `Si la clienta dijo que va a pagar por ${transferLabel}, pasa "transfer" para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Para todo lo demás (tarjeta, Mercado Pago) usa "card_or_mp".`
+      : 'Método de pago. Para tarjeta o Mercado Pago usa "card_or_mp".',
   }
 
   if (bundleMode) {
@@ -535,8 +535,8 @@ export function buildCheckoutTool(
     return {
       name: 'create_checkout',
       description: hasTransferDiscount
-        ? `Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta y opcionalmente que va a pagar por ${transferLabel} para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify (que ya maneja tarjeta + Mercado Pago).`
-        : 'Generá el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasás la oferta. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify.',
+        ? `Genera el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasas la oferta y opcionalmente que va a pagar por ${transferLabel} para aplicarle el descuento de ${fmtMoney(transferAmount!, currency)}. Devuelves el link listo para que la clienta haga click y termine el pago en Shopify (que ya maneja tarjeta + Mercado Pago).`
+        : 'Genera el link de checkout de Shopify para la clienta cuando ya eligió una oferta. Le pasas la oferta. Devuelves el link listo para que la clienta haga click y termine el pago en Shopify.',
       input_schema: {
         type: 'object' as const,
         properties: {
@@ -548,7 +548,7 @@ export function buildCheckoutTool(
           items: {
             type: 'array',
             description:
-              'Varios productos en el MISMO carrito. Usalo cuando la clienta quiere llevar más de un producto distinto: pasá acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+              'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
             items: {
               type: 'object',
               properties: {
@@ -580,14 +580,14 @@ export function buildCheckoutTool(
   return {
     name: 'create_checkout',
     description:
-      'Generá el link de checkout de Shopify para la clienta cuando ya quiere comprar. Pasá la cantidad de unidades que quiere. Devolvés el link listo para que la clienta haga click y termine el pago en Shopify. Cotizá sólo el precio real del producto; no inventes descuentos ni cupones.',
+      'Genera el link de checkout de Shopify para la clienta cuando ya quiere comprar. Pasa la cantidad de unidades que quiere. Devuelves el link listo para que la clienta haga click y termine el pago en Shopify. Cotiza sólo el precio real del producto; no inventes descuentos ni cupones.',
     input_schema: {
       type: 'object' as const,
       properties: {
         items: {
           type: 'array',
           description:
-            'Varios productos en el MISMO carrito. Usalo cuando la clienta quiere llevar más de un producto distinto: pasá acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+            'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
           items: {
             type: 'object',
             properties: {
@@ -602,7 +602,7 @@ export function buildCheckoutTool(
           minimum: 1,
           default: 1,
           description:
-            'Cantidad de unidades del producto del que están hablando. Por defecto 1. Si la clienta quiere VARIOS productos distintos, usá items en vez de esto.',
+            'Cantidad de unidades del producto del que están hablando. Por defecto 1. Si la clienta quiere VARIOS productos distintos, usa items en vez de esto.',
         },
         ...(permiteDescuentos
           ? {
@@ -654,7 +654,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     items: {
       type: 'array',
       description:
-        'Qué lleva. Pasá cada producto con el variant_id que te devolvió buscar_producto y su cantidad. En una tienda que no es Shopify es OBLIGATORIO: no hay un producto por defecto que adivinar.',
+        'Qué lleva. Pasa cada producto con el variant_id que te devolvió buscar_producto y su cantidad. En una tienda que no es Shopify es OBLIGATORIO: no hay un producto por defecto que adivinar.',
       items: {
         type: 'object',
         properties: {
@@ -667,16 +667,16 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     customer_name: {
       type: 'string',
       description:
-        'Nombre y apellido del cliente para el pedido. Pedilo si no lo sabés.',
+        'Nombre y apellido del cliente para el pedido. Pídelo si no lo sabes.',
     },
     customer_phone: {
       type: 'string',
       description:
-        'Teléfono del cliente. Opcional — si no lo pasás se usa el del chat.',
+        'Teléfono del cliente. Opcional — si no lo pasas se usa el del chat.',
     },
     customer_email: {
       type: 'string',
-      description: 'Correo del cliente (opcional, recomendado si lo tenés).',
+      description: 'Correo del cliente (opcional, recomendado si lo tienes).',
     },
     shipping_address: {
       type: 'object',
@@ -737,7 +737,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
   return {
     name: 'create_order',
     description:
-      'Crea el PEDIDO REAL en la tienda del negocio cuando la clienta YA confirmó qué quiere comprar. Antes de llamarla: reuní el producto/cantidad, el nombre, los datos de envío si es producto físico y el método de pago; mostrale el resumen y el total, y esperá su confirmación explícita. Llamala una sola vez, con confirmed=true. Devuelve el número de pedido para que se lo pases a la clienta. Si todavía falta info o no confirmó, NO la llames: seguí preguntando.',
+      'Crea el PEDIDO REAL en la tienda del negocio cuando la clienta YA confirmó qué quiere comprar. Antes de llamarla: reúne el producto/cantidad, el nombre, los datos de envío si es producto físico y el método de pago; muéstrale el resumen y el total, y espera su confirmación explícita. Llámala una sola vez, con confirmed=true. Devuelve el número de pedido para que se lo pases a la clienta. Si todavía falta info o no confirmó, NO la llames: sigue preguntando.',
     input_schema: {
       type: 'object' as const,
       properties: properties as Anthropic.Tool.InputSchema['properties'],
@@ -830,7 +830,7 @@ async function pedirPermiso(
   if (!res.ok) {
     return JSON.stringify({
       ok: false,
-      message: 'No pude dejarlo pedido. Decile que lo pasás al equipo y que le confirman en breve.',
+      message: 'No pude dejarlo pedido. Dile que lo pasas al equipo y que le confirman en breve.',
     })
   }
   return JSON.stringify({
@@ -926,7 +926,7 @@ export async function runTool(
     if (!localOrders) {
       return JSON.stringify({
         ok: false,
-        message: 'No lo pude anotar. Decile con honestidad que eso no lo sabés.',
+        message: 'No lo pude anotar. Dile con honestidad que eso no lo sabes.',
       })
     }
     return registrarHueco(
@@ -983,7 +983,7 @@ export async function runTool(
         // Sin esto el modelo tiende a rellenar el silencio inventando un
         // producto parecido, que es la peor respuesta posible en una tienda.
         instruction:
-          'No hay productos que coincidan. Decile con honestidad que no lo tenés y ofrecé buscar otra cosa. NO inventes un producto ni un precio.',
+          'No hay productos que coincidan. Dile con honestidad que no lo tienes y ofrece buscar otra cosa. NO inventes un producto ni un precio.',
       })
     }
     return JSON.stringify({ found: true, products: hits })
@@ -1009,7 +1009,7 @@ export async function runTool(
       return JSON.stringify({
         ok: false,
         message:
-          'No pude generar el descuento. No le prometas ninguna rebaja; seguí con el precio de lista.',
+          'No pude generar el descuento. No le prometas ninguna rebaja; sigue con el precio de lista.',
       })
     }
     return JSON.stringify({
@@ -1018,7 +1018,7 @@ export async function runTool(
       percent: res.percent,
       // El porcentaje que sale puede ser MENOR al que pidió el modelo: el tope
       // manda. Decírselo evita que anuncie uno y entregue otro.
-      message: `Decile que tiene ${res.percent}% con el código ${res.code}, que es suyo y de un solo uso. Si el porcentaje es menor al que pensabas, ofrecé ESE, no el otro.`,
+      message: `Dile que tiene ${res.percent}% con el código ${res.code}, que es suyo y de un solo uso. Si el porcentaje es menor al que pensabas, ofrece ESE, no el otro.`,
     })
   }
 
@@ -1087,11 +1087,11 @@ export async function runTool(
       ok: true,
       payment_url: res.url,
       message: orderId
-        ? 'Pasale el link para que pague con tarjeta. Cuando pague, el pedido se marca solo. NO le digas que ya está pagado.'
+        ? 'Pásale el link para que pague con tarjeta. Cuando pague, el pedido se marca solo. NO le digas que ya está pagado.'
         : // Sin pedido al que atarlo, el pago entra a la cuenta pero nadie lo
           // concilia solo. Prometerlo igual dejaba a la clienta esperando una
           // confirmación que no iba a llegar.
-          'Pasale el link para que pague con tarjeta. NO le digas que ya está pagado ni que se confirma solo: avisale que le confirmás vos cuando entre.',
+          'Pásale el link para que pague con tarjeta. NO le digas que ya está pagado ni que se confirma solo: avísale que le confirmas vos cuando entre.',
     })
   }
 
@@ -1138,7 +1138,7 @@ export async function runTool(
       return JSON.stringify({
         ok: false,
         message:
-          'No encontré un pedido pendiente de pago a nombre de esta persona. Preguntale el número de pedido.',
+          'No encontré un pedido pendiente de pago a nombre de esta persona. Pregúntale el número de pedido.',
       })
     }
     if (res.kind === 'error') {
@@ -1148,7 +1148,7 @@ export async function runTool(
       return JSON.stringify({
         ok: true,
         estado: 'pagado',
-        message: `El pedido quedó marcado como pagado por ${res.amount}. Confirmaselo y decile que ya se prepara el envío.`,
+        message: `El pedido quedó marcado como pagado por ${res.amount}. Confírmaselo y dile que ya se prepara el envío.`,
       })
     }
 
@@ -1158,7 +1158,7 @@ export async function runTool(
       ok: true,
       estado: 'en_verificacion',
       message:
-        'Quedó registrado y dejamos de mandarle recordatorios. Decile que lo estamos verificando y que le confirmamos en breve. NO le digas que ya está pagado.',
+        'Quedó registrado y dejamos de mandarle recordatorios. Dile que lo estamos verificando y que le confirmamos en breve. NO le digas que ya está pagado.',
     })
   }
 
@@ -1166,7 +1166,7 @@ export async function runTool(
     if (!voice) {
       return JSON.stringify({
         error: 'voice_not_available',
-        message: 'No podés programar llamadas en este agente. Seguí ayudando por texto.',
+        message: 'No puedes programar llamadas en este agente. Sigue ayudando por texto.',
       })
     }
     const input = (toolInput ?? {}) as { reason?: string }
@@ -1183,7 +1183,7 @@ export async function runTool(
     if ((count ?? 0) > 0) {
       return JSON.stringify({
         scheduled: false,
-        message: 'Ya hay una llamada programada hace poco. Seguí ayudando por texto.',
+        message: 'Ya hay una llamada programada hace poco. Sigue ayudando por texto.',
       })
     }
     const res = await enqueueCall({
@@ -1198,13 +1198,13 @@ export async function runTool(
         scheduled: false,
         reason: res.reason,
         message:
-          'No se pudo programar la llamada ahora (horario, opt-out o límite). Seguí ayudando por texto.',
+          'No se pudo programar la llamada ahora (horario, opt-out o límite). Sigue ayudando por texto.',
       })
     }
     return JSON.stringify({
       scheduled: true,
       message:
-        'Llamada programada. Avisale al cliente con naturalidad que lo vas a llamar en breve.',
+        'Llamada programada. Avísale al cliente con naturalidad que lo vas a llamar en breve.',
     })
   }
   if (toolName === 'update_order') {
@@ -1233,7 +1233,7 @@ export async function runTool(
         return JSON.stringify({
           error: 'no_order',
           message:
-            'Falta saber a qué pedido sumarle las unidades. Preguntale el número de pedido a la clienta y volvé a intentar.',
+            'Falta saber a qué pedido sumarle las unidades. Pregúntale el número de pedido a la clienta y vuelve a intentar.',
         })
       }
       const { data: fila } = await localOrders.db
@@ -1248,7 +1248,7 @@ export async function runTool(
       if (!pedido) {
         return JSON.stringify({
           error: 'no_order',
-          message: `No encontré el pedido ${numero} a nombre de esta persona. Pedile que verifique el número.`,
+          message: `No encontré el pedido ${numero} a nombre de esta persona. Pídele que verifique el número.`,
         })
       }
     }
@@ -1256,7 +1256,7 @@ export async function runTool(
     if (!Number.isFinite(addUnits) || addUnits <= 0) {
       return JSON.stringify({
         error: 'invalid_units',
-        message: 'Pasá cuántas unidades extra sumar (número entero ≥ 1).',
+        message: 'Pasa cuántas unidades extra sumar (número entero ≥ 1).',
       })
     }
     const result = await addUnitsToFirstLineItem(
@@ -1268,7 +1268,7 @@ export async function runTool(
       return JSON.stringify({
         error: 'update_failed',
         message:
-          'No pude actualizar el pedido. No le prometas al cliente las unidades extra; ofrecé que lo revise el equipo.',
+          'No pude actualizar el pedido. No le prometas al cliente las unidades extra; ofrece que lo revise el equipo.',
       })
     }
     return JSON.stringify({
@@ -1308,7 +1308,7 @@ export async function runTool(
           found: false,
           orders: [],
           instruction:
-            'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Decile al cliente que no lo encontraste y pedile el número de pedido o que confirme el teléfono/correo con el que compró.',
+            'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Dile al cliente que no lo encontraste y pídele el número de pedido o que confirme el teléfono/correo con el que compró.',
         })
       }
       return JSON.stringify({ found: true, orders: [r.vars] })
@@ -1347,7 +1347,7 @@ export async function runTool(
         found: false,
         orders: [],
         instruction:
-          'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Decile al cliente que no lo encontraste y pedile el número de pedido (ej. #1042) o que confirme el teléfono/correo con el que compró.',
+          'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Dile al cliente que no lo encontraste y pídele el número de pedido (ej. #1042) o que confirme el teléfono/correo con el que compró.',
       })
     }
     return JSON.stringify(result)
@@ -1379,7 +1379,7 @@ export async function runTool(
       const valid = (config?.offers ?? []).map((o) => o.key).join(' | ')
       return JSON.stringify({
         error: 'missing_offer',
-        message: `Pasá la oferta (${valid}).`,
+        message: `Pasa la oferta (${valid}).`,
       })
     }
     const result = await createCheckoutLink(
@@ -1450,7 +1450,7 @@ export async function runTool(
       if (input.confirmed !== true) {
         return JSON.stringify({
           error: 'not_confirmed',
-          message: 'Confirmá con la clienta antes de crear el pedido.',
+          message: 'Confirma con la clienta antes de crear el pedido.',
         })
       }
       const lineas = (input.items ?? []).map((i) => ({
@@ -1499,8 +1499,8 @@ export async function runTool(
           ok: false,
           message:
             res.error === 'sin_lineas'
-              ? 'Falta decir qué producto lleva. Usá buscar_producto para obtener su variant_id.'
-              : 'No pude crear el pedido. No le digas a la clienta que quedó hecho; ofrecé que lo confirme el equipo.',
+              ? 'Falta decir qué producto lleva. Usa buscar_producto para obtener su variant_id.'
+              : 'No pude crear el pedido. No le digas a la clienta que quedó hecho; ofrece que lo confirme el equipo.',
         })
       }
       return JSON.stringify({
@@ -1510,8 +1510,8 @@ export async function runTool(
         currency: res.currency,
         payment_url: res.pay_url,
         message: res.pay_url
-          ? 'El pedido quedó creado y pendiente de pago. Pasale el link para que lo abone.'
-          : 'El pedido quedó creado y pendiente de pago. Contale cómo seguir con el pago.',
+          ? 'El pedido quedó creado y pendiente de pago. Pásale el link para que lo abone.'
+          : 'El pedido quedó creado y pendiente de pago. Cuéntale cómo seguir con el pago.',
       })
     }
     if (!shopify) {
@@ -1524,7 +1524,7 @@ export async function runTool(
       return JSON.stringify({
         error: 'orders_disabled',
         message:
-          'Este asistente no tiene habilitado crear pedidos. No prometas el pedido; ofrecé pasar la conversación a una persona del equipo.',
+          'Este asistente no tiene habilitado crear pedidos. No prometas el pedido; ofrece pasar la conversación a una persona del equipo.',
       })
     }
     const input = (toolInput ?? {}) as {
@@ -1545,7 +1545,7 @@ export async function runTool(
       return JSON.stringify({
         error: 'not_confirmed',
         message:
-          'No crees el pedido hasta que la clienta confirme explícitamente. Mostrale el resumen (producto, cantidad, total y dirección si aplica) y pedile que confirme; recién ahí llamá create_order con confirmed=true.',
+          'No crees el pedido hasta que la clienta confirme explícitamente. Muéstrale el resumen (producto, cantidad, total y dirección si aplica) y pídele que confirme; recién ahí llama create_order con confirmed=true.',
       })
     }
     const config = shopify.config ?? null
@@ -1631,7 +1631,7 @@ async function lookupLocalOrders(ctx: LocalOrdersContext): Promise<string> {
       found: false,
       orders: [],
       instruction:
-        'No se encontró ningún pedido de este cliente. NO inventes información del pedido (estado, tracking, fecha de envío). Decile que no lo encontraste y pedile el número de pedido.',
+        'No se encontró ningún pedido de este cliente. NO inventes información del pedido (estado, tracking, fecha de envío). Dile que no lo encontraste y pídele el número de pedido.',
     })
   }
   return JSON.stringify({ found: true, orders })
@@ -1819,7 +1819,7 @@ function rewriteLastUserDocumentToText(
         touched = true
         return {
           type: 'text',
-          text: '[el cliente envió un PDF que no pude procesar — pedile amablemente que mande solo las páginas relevantes o un resumen]',
+          text: '[el cliente envió un PDF que no pude procesar — pídele amablemente que mande solo las páginas relevantes o un resumen]',
         }
       }
       return b
