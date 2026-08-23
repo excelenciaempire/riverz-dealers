@@ -33,6 +33,12 @@ import { supabaseAdmin } from "../admin-client";
  */
 
 const TT = "https://business-api.tiktok.com/open_api/v1.3";
+/** Techo generoso para el texto de una respuesta: en la cuenta conectada hay
+ *  comentarios publicados de 913 caracteres, así que 150 no era el límite. */
+const TEXT_MAX = 900;
+/** Reintento cuando TikTok rechaza el texto largo: el mínimo que la app
+ *  garantiza para un comentario. */
+const TEXT_SAFE = 150;
 
 export const tikTokCommentAdapter: ChannelAdapter = {
   channel: "tiktok_comment",
@@ -60,25 +66,37 @@ export const tikTokCommentAdapter: ChannelAdapter = {
       throw new Error("[tiktok] reply target missing (business_id/comment_id)");
     }
 
-    const res = await fetch(`${TT}/business/comment/reply/create/`, {
-      method: "POST",
-      headers: { "Access-Token": token, "content-type": "application/json" },
-      body: JSON.stringify({
-        business_id: businessId,
-        video_id: videoId || undefined,
-        comment_id: commentId,
-        text: input.text.slice(0, 150), // TikTok comments cap at 150 chars
-      }),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      code?: number;
-      message?: string;
-      data?: { comment_id?: string };
+    const publicar = async (text: string) => {
+      const res = await fetch(`${TT}/business/comment/reply/create/`, {
+        method: "POST",
+        headers: { "Access-Token": token, "content-type": "application/json" },
+        body: JSON.stringify({
+          business_id: businessId,
+          video_id: videoId || undefined,
+          comment_id: commentId,
+          text,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        code?: number;
+        message?: string;
+        data?: { comment_id?: string };
+      };
+      const ok = res.ok && (json.code ?? 0) === 0;
+      return { ok, status: res.status, message: json.message ?? "", id: json.data?.comment_id };
     };
-    if (!res.ok || (json.code ?? 0) !== 0) {
-      throw new Error(`[tiktok] reply failed (${res.status}): ${json.message ?? ""}`);
-    }
-    return { externalMessageId: json.data?.comment_id, status: "sent" };
+
+    // El corte a 150 caracteres era una suposición, y cortaba justo donde
+    // dolía: la respuesta de la tienda termina en el link, así que el cliente
+    // recibía una URL partida al medio. En la cuenta conectada conviven
+    // comentarios de hasta 913 caracteres, así que el tope real es mucho más
+    // alto. Se manda entero y, sólo si TikTok lo rechaza, se reintenta corto:
+    // nunca se recorta en silencio algo que la plataforma habría aceptado.
+    const texto = input.text.trim();
+    let r = await publicar(texto.slice(0, TEXT_MAX));
+    if (!r.ok && texto.length > TEXT_SAFE) r = await publicar(texto.slice(0, TEXT_SAFE));
+    if (!r.ok) throw new Error(`[tiktok] reply failed (${r.status}): ${r.message}`);
+    return { externalMessageId: r.id, status: "sent" };
   },
 
   async parseWebhook(

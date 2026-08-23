@@ -6,6 +6,15 @@ import type { ChannelConnection } from "@/types";
 
 const TT = "https://business-api.tiktok.com/open_api/v1.3";
 const VIDEOS_PER_RUN = 10; // rate-limit friendly: newest videos carry ~all fresh comments
+/** Videos viejos pero con comentarios recientes que se agregan a cada corrida
+ *  liviana. Tope bajo a propósito: cada uno es una llamada más a TikTok. */
+const ACTIVE_VIDEOS_PER_RUN = 8;
+/** Qué tan atrás cuenta como "sigue vivo" para incluir un video viejo. */
+const ACTIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Un comentario tiene que faltar en DOS lecturas separadas para darlo por
+ *  borrado. El barrido profundo corre cada 6 h, así que con una hora alcanza
+ *  para exigir corridas distintas y no dos vueltas del mismo bucle. */
+const MISSING_GRACE_MS = 60 * 60 * 1000;
 const VIDEOS_PER_PAGE = 20; // barrido profundo: máximo que acepta video/list
 const MAX_VIDEO_PAGES = 15; // techo de seguridad (~300 videos por cuenta)
 const COMMENTS_PER_VIDEO = 30; // TikTok cap: comment/list max_count must be <= 30
@@ -58,7 +67,14 @@ export async function pollAllTikTokConnections(
       if (!businessId) continue;
       const token = await getFreshTikTokToken(conn);
 
-      const list = await listVideos(businessId, token, Boolean(opts.deep));
+      const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
+      // Los 10 más nuevos NO son los que reciben comentarios: en la primera
+      // cuenta conectada el video con más tráfico estaba en la posición 18
+      // (43 mensajes) y el poll de 5 minutos no lo miraba nunca — sus
+      // comentarios esperaban al barrido de 6 h. Se suman los videos que YA
+      // tienen actividad reciente en la bandeja, que salen de la base y no
+      // cuestan una llamada extra a TikTok para descubrirlos.
+      const list = opts.deep ? nuevos : await conVideosActivos(db, conn, nuevos);
       videos += list.length;
       for (const video of list) {
         const videoId = String(video.item_id ?? video.video_id ?? "");
@@ -75,6 +91,48 @@ export async function pollAllTikTokConnections(
     }
   }
   return { total: conns.length, ingested, videos };
+}
+
+/**
+ * Suma a los videos más nuevos los que tienen conversaciones vivas en la
+ * bandeja: un anuncio de hace un mes puede seguir juntando comentarios todos
+ * los días, y por antigüedad nunca entraba a la corrida de 5 minutos.
+ *
+ * Los ids salen de `conversations.thread_external_id` ("video:<id>|comment:…"),
+ * así que no hace falta pedirle a TikTok el catálogo entero para encontrarlos.
+ * El tope existe para que una cuenta con muchos videos activos no convierta el
+ * poll liviano en el barrido profundo.
+ */
+async function conVideosActivos(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  nuevos: Array<Record<string, unknown>>,
+): Promise<Array<Record<string, unknown>>> {
+  const yaEstan = new Set(
+    nuevos.map((v) => String(v.item_id ?? v.video_id ?? "")).filter(Boolean),
+  );
+  const desde = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
+  const { data } = await db
+    .from("conversations")
+    .select("thread_external_id, last_message_at")
+    .eq("channel", "tiktok_comment")
+    .eq("connection_id", conn.id)
+    .gte("last_message_at", desde)
+    .order("last_message_at", { ascending: false })
+    .limit(200);
+
+  const extra: Array<Record<string, unknown>> = [];
+  const vistos = new Set<string>();
+  for (const row of (data ?? []) as Array<{ thread_external_id: string | null }>) {
+    const thread = String(row.thread_external_id ?? "");
+    if (!thread.startsWith("video:")) continue;
+    const id = thread.slice(6).split("|")[0];
+    if (!id || yaEstan.has(id) || vistos.has(id)) continue;
+    vistos.add(id);
+    extra.push({ item_id: id });
+    if (extra.length >= ACTIVE_VIDEOS_PER_RUN) break;
+  }
+  return [...nuevos, ...extra];
 }
 
 /**
@@ -390,16 +448,48 @@ async function marcarBorrados(
 ): Promise<void> {
   const { data } = await db
     .from("messages")
-    .select("message_id, conversations!inner(workspace_id, thread_external_id)")
+    .select("id, message_id, meta_status_raw, conversations!inner(workspace_id, thread_external_id)")
     .eq("channel", "tiktok_comment")
     .eq("conversations.workspace_id", conn.workspace_id)
     .like("conversations.thread_external_id", `video:${videoId}|%`)
     .not("message_id", "is", null)
     .neq("status", "failed");
-  const locales = (data ?? []) as Array<{ message_id: string | null }>;
+  const locales = (data ?? []) as Array<{
+    id: string;
+    message_id: string | null;
+    meta_status_raw: Record<string, unknown> | null;
+  }>;
+  const ahora = Date.now();
   for (const row of locales) {
     const id = row.message_id;
-    if (!id || vistos.has(id)) continue;
+    if (!id) continue;
+    const marca = row.meta_status_raw ?? {};
+    const faltaDesde = typeof marca.tiktok_falta_desde === "string" ? marca.tiktok_falta_desde : null;
+
+    if (vistos.has(id)) {
+      // Reapareció: se limpia la falta para que dos ausencias sueltas y
+      // lejanas en el tiempo no se sumen como si fueran seguidas.
+      if (faltaDesde) {
+        const resto = { ...marca };
+        delete resto.tiktok_falta_desde;
+        await db.from("messages").update({ meta_status_raw: resto }).eq("id", row.id);
+      }
+      continue;
+    }
+
+    // Dos ausencias, no una. Marcar borrado es irreversible en la bandeja
+    // (el texto se reemplaza por el centinela) y TikTok a veces se saltea un
+    // comentario oculto al paginar: una sola lectura floja bastaba para
+    // enterrar una respuesta que en TikTok sigue viva.
+    if (!faltaDesde) {
+      await db
+        .from("messages")
+        .update({ meta_status_raw: { ...marca, tiktok_falta_desde: new Date(ahora).toISOString() } })
+        .eq("id", row.id);
+      continue;
+    }
+    if (ahora - Date.parse(faltaDesde) < MISSING_GRACE_MS) continue;
+
     await applyCommentLifecycle(db, {
       channel: "tiktok_comment",
       workspaceId: conn.workspace_id,
