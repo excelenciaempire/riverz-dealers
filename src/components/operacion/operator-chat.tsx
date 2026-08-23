@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from '@/components/i18n/locale-link'
 import {
   AlertTriangle,
   ArrowUp,
   Check,
-  ClipboardList,
   History,
   Loader2,
   MessageSquarePlus,
@@ -60,6 +58,21 @@ interface Accion {
   risk: 'lectura' | 'reversible' | 'irreversible'
   status: 'propuesto' | 'ejecutado' | 'rechazado' | 'fallido'
   preview: string | null
+}
+
+/**
+ * La primera frase de una vista previa: lo que la decisión necesita.
+ *
+ * Las vistas previas traen el detalle completo —el cuerpo de la plantilla, los
+ * pasos, el aviso— porque también son lo que se lee al revisar. En la tarjeta,
+ * tres cuerpos de doscientos caracteres tachados no son una decisión: son un
+ * muro. Se corta en el primer dos puntos o punto y el resto se mira en el banco,
+ * donde el mensaje se ve como le va a llegar a alguien.
+ */
+function alGrano(texto: string): string {
+  const corte = texto.search(/[:.]\s/)
+  const corto = corte > 20 ? texto.slice(0, corte) : texto
+  return corto.length > 96 ? `${corto.slice(0, 95)}…` : corto
 }
 
 /** Las que dejan una automatización nueva y dormida: se ofrece prenderla. */
@@ -318,6 +331,13 @@ export function OperatorChat({
             { id: `a-${m.length}`, role: 'assistant', text: final, bloques },
           ])
         }
+        // En el MISMO lote que el mensaje, no en el `finally`.
+        //
+        // Estaba después de volver a pedir las acciones, así que durante ese
+        // medio segundo el turno se dibujaba dos veces —una como mensaje
+        // guardado y otra como turno en vivo— y al llegar la respuesta la copia
+        // desaparecía sola. Eso era el texto que aparecía y se iba.
+        setVivo(null)
         // La lista autoritativa de acciones sale del servidor: el stream sólo
         // avisa que quedó algo propuesto, no con qué argumentos exactos.
         if (hilo) {
@@ -562,6 +582,7 @@ export function OperatorChat({
             { id: `a-${m.length}`, role: 'assistant', text: final, bloques },
           ])
         }
+        setVivo(null)
         setPlan((p) => (p ? { ...p, estado: 'listo' } : p))
 
         // Un plan aprobado CONSTRUYE lo inerte sin volver a preguntar, así que
@@ -641,10 +662,10 @@ export function OperatorChat({
   return (
     <div
       className={cn(
-        // `relative` para que el botón del historial se cuelgue de la esquina
-        // sin salirse de la columna del chat.
-        'relative flex h-full flex-col',
-        !fullscreen && 'min-h-[26rem] rounded-xl border border-border bg-card',
+        'flex h-full flex-col',
+        // A pantalla completa el ancla es el taller, para que el historial se
+        // cuelgue de la esquina de la PANTALLA y no de la de esta columna.
+        !fullscreen && 'relative min-h-[26rem] rounded-xl border border-border bg-card',
       )}
     >
       {!fullscreen && (
@@ -656,21 +677,13 @@ export function OperatorChat({
         </div>
       )}
 
-      {/* Una fila propia, no algo flotando sobre la conversación: pegado con
-          `absolute` se montaba encima del primer mensaje en cuanto la columna
-          se angostó. Acá tiene su alto y su lugar, contra el borde derecho. */}
+      {/* En la esquina de la PANTALLA, no en la de la columna.
+          Con el banco abierto la columna del chat son 430px, así que su borde
+          derecho cae a la izquierda de todo y ahí nadie lo busca. El contenedor
+          del taller es el que tiene `relative`, así que esto se cuelga de la
+          esquina de arriba a la derecha de la pantalla entera. */}
       {fullscreen && (
-        <div className="flex h-14 shrink-0 items-center justify-end gap-3 px-5">
-          {/* Lo que ya se aprobó vive en su propia pantalla: acá se decide, allá
-              se revisa. Un historial de decisiones adentro del chat obligaría a
-              desplazarse por conversaciones para reconstruir una semana. */}
-          <Link
-            href="/operacion/actividad"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm transition-colors hover:text-foreground"
-          >
-            <ClipboardList className="size-3.5" />
-            {t('operation.actividadVer')}
-          </Link>
+        <div className="absolute top-3 right-4 z-30 flex items-center gap-3">
           <BotonHilos
             hilos={hilos}
             activo={thread}
@@ -693,7 +706,7 @@ export function OperatorChat({
             // Sin `max-w-3xl` centrado: el pedido YA es una columna angosta,
             // y centrarlo adentro dejaba dos márgenes muertos a los costados.
             fullscreen &&
-              'min-h-full w-full px-5 py-6 ' +
+              'min-h-full w-full px-5 pt-16 pb-6 ' +
                 (mensajes.length === 0 ? 'justify-center' : 'justify-end'),
           )}
         >
@@ -1128,12 +1141,18 @@ function Turno({
         </p>
       ) : null}
 
+      {/* Una lectura NO deja fila.
+          «Las plantillas ✓», «Las automatizaciones ✓» contaban que el equipo
+          había mirado algo, y mirar no es un resultado: llenaban la conversación
+          de renglones que no cambian nada y empujaban hacia abajo lo único que
+          hay que leer. Mientras pasan se ven en la línea viva, que dice qué está
+          haciendo AHORA; cuando terminan, se van. Queda lo que dejó algo. */}
       {agrupar(bloques).map(({ b, veces }) =>
         b.k === 'texto' ? (
           <Dicho key={b.id} role="assistant" text={b.texto} />
-        ) : (
+        ) : b.estado === 'hecho' || b.estado === 'propuesto' || b.estado === 'error' ? (
           <Paso key={b.id} b={b} veces={veces} onVer={onVer} />
-        ),
+        ) : null,
       )}
 
       {/* Una sola decisión, al final, después de todo lo que el equipo dijo.
@@ -1255,6 +1274,48 @@ function TarjetaDecision({
   )
   const elegidas = acciones.filter((a) => !fuera.has(a.id))
 
+  /**
+   * Cuando la tarjeta ES la pregunta, se pregunta.
+   *
+   * Al terminar de armar una automatización queda una sola cosa por decidir:
+   * si se prende. Envolver eso en «Esto dejaría hecho» con su casilla y su
+   * lista de un renglón es ceremonia sobre un sí o un no.
+   */
+  const soloPrender =
+    acciones.length === 1 && acciones[0].capability_key === 'automatizaciones.activar'
+      ? acciones[0]
+      : null
+
+  if (soloPrender) {
+    return (
+      <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Sparkles className="size-4 shrink-0 text-accent-ink" />
+          {t('operation.prenderPregunta')}
+        </p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          {soloPrender.preview ?? describir(soloPrender)}
+        </p>
+        <div className="mt-3.5 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onResolver([{ id: soloPrender.id, aprobar: true }])}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          >
+            {t('operation.prenderSi')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onResolver([{ id: soloPrender.id, aprobar: false }])}
+            className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
+          >
+            {t('operation.prenderNo')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
       <p className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1288,7 +1349,7 @@ function TarjetaDecision({
                     dentro ? 'text-foreground' : 'text-muted-foreground line-through',
                   )}
                 >
-                  {a.preview ?? describir(a)}
+                  {alGrano(a.preview ?? describir(a))}
                 </p>
                 {irreversible && (
                   <p className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">

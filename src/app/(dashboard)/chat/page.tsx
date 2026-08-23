@@ -31,7 +31,9 @@ function Taller() {
   const hayPieza = bancoTieneAlgo(m)
 
   return (
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:-m-8 lg:h-dvh">
+    // `relative`: es el ancla del botón de conversaciones, que va en la esquina
+    // de la pantalla y no en la de la columna del chat.
+    <div className="relative -m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:-m-8 lg:h-dvh">
       <div
         className={cn(
           'flex min-w-0 flex-1 flex-col transition-[flex-basis] duration-200',

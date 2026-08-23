@@ -50,6 +50,7 @@ export type AdminAction =
   // audita quien cambio un precio y a quien le cambio el trato, porque "a este
   // comercio se lo dejamos gratis" es una decision que en seis meses nadie
   // recuerda haber tomado.
+  | 'view.conversations'
   | 'view.billing'
   | 'update.billing_plan'
   | 'update.billing_subscription'

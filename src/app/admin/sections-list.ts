@@ -49,6 +49,12 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     group: "comercios",
   },
   {
+    href: "/admin/conversaciones",
+    label: "admin.sectionConversations",
+    description: "admin.sectionConversationsDesc",
+    group: "comercios",
+  },
+  {
     href: "/admin/negocio",
     label: "admin.sectionBusiness",
     description: "admin.sectionBusinessDesc",

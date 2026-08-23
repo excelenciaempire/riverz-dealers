@@ -8,6 +8,8 @@ import { useT } from '@/hooks/use-locale'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { toShortId } from '@/lib/short-id'
 import { cn } from '@/lib/utils'
+import { WhatsappPreview } from '@/components/templates/whatsapp-preview'
+import type { TemplateButtonInput } from '@/lib/whatsapp/template-components'
 import { VistaArtefacto } from './artefacto'
 import { LienzoAutomatizacion } from './lienzo-automatizacion'
 import {
@@ -15,20 +17,24 @@ import {
   useMesaDispatch,
   type EstadoMesa,
   type FijadoEnMesa,
+  type LienzoEnMesa,
 } from './mesa-contexto'
 
 /**
- * El banco de trabajo: la pieza terminada, a tamaño real.
+ * El banco de trabajo: TODO lo que se armó, a la vez.
  *
- * Antes esto era una barra lateral con la lista del equipo y una miniatura de
- * 300px — una automatización de nueve pasos, que en su propia pantalla ocupa un
- * lienzo con zoom, dibujada del tamaño de un sello.
+ * Antes mostraba una pieza y las demás detrás de una ficha, así que de un pedido
+ * de recompra —tres plantillas y una automatización— se veía una y había que
+ * acordarse de que las otras existían. Lo que se está decidiendo es el conjunto:
+ * si los tres mensajes dicen lo que tienen que decir Y si el árbol los usa donde
+ * corresponde. Eso no se puede mirar de a una.
  *
- * **Se abre cuando la pieza está lista, no antes.** Mientras el equipo trabaja
- * lo que se mira es la conversación, que va contando lo que hace; media
- * pantalla ocupada por un lienzo a medio dibujar no ayuda a decidir nada. Y lo
- * que se ve acá es la pieza y nada más: sin rótulos que digan lo que el dibujo
- * ya dice.
+ * Ahora se divide según lo que haya. La automatización es ancha y se lleva una
+ * franja entera con su lienzo; los mensajes son angostos y van uno al lado del
+ * otro, cada uno en su teléfono. Un solo scroll, ningún click para ver el resto.
+ *
+ * **Se abre cuando las piezas están listas, no antes.** Mientras el equipo
+ * trabaja lo que se mira es la conversación, que va contando lo que hace.
  */
 export function bancoTieneAlgo(m: EstadoMesa): boolean {
   if (m.fijado) return true
@@ -39,114 +45,151 @@ export function Banco({ className }: { className?: string }) {
   const m = useMesa()
   const aLaMesa = useMesaDispatch()
   const t = useT()
-  /**
-   * Cuál de las piezas del turno se está mirando.
-   *
-   * El banco mostraba SIEMPRE la última, y un pedido de recompra deja cuatro:
-   * tres plantillas y una automatización. Las tres primeras no existían en
-   * pantalla — se armaron, se aprobaron y nadie las vio nunca.
-   */
-  const [cual, setCual] = useState(-1)
-  // Al llegar una pieza nueva se salta a ella: mirar la anterior mientras el
-  // equipo termina otra sería quedarse atrás sin enterarse. Se ajusta durante
-  // el render y no en un efecto: un efecto acá provoca un segundo render con
-  // el índice viejo ya pintado, que es un parpadeo visible.
-  const [vistas, setVistas] = useState(m.lienzos.length)
-  if (vistas !== m.lienzos.length) {
-    setVistas(m.lienzos.length)
-    setCual(-1)
+
+  const fijado = m.fijado
+  // Traer una pieza desde un paso es pedir ESA: mientras esté fijada, el banco
+  // muestra sólo ella y con su salida a la pantalla de siempre.
+  const piezas: Artefacto[] = fijado
+    ? [fijado.artefacto]
+    : m.lienzos.map((l) => l.artefacto)
+
+  if (piezas.length === 0) {
+    return (
+      <section className={cn('relative flex min-w-0 flex-col bg-background', className)}>
+        <div className="app-trama pointer-events-none absolute inset-0 opacity-70" aria-hidden />
+        <BancoVacio />
+      </section>
+    )
   }
 
-  const i = cual < 0 || cual >= m.lienzos.length ? m.lienzos.length - 1 : cual
-  const pieza: Artefacto | null = m.fijado?.artefacto ?? m.lienzos[i]?.artefacto ?? null
-  const fijado = m.fijado
-  const enLienzo = pieza?.kind === 'automatizacion'
-  // Las fichas sólo cuando hay más de una que elegir, y no mientras se mira
-  // algo traído desde un paso: ahí la pieza es ésa y no otra.
-  const fichas = !fijado && m.lienzos.length > 1 ? m.lienzos : []
+  // Un lienzo solo se queda con la pantalla entera: es lo que más se gana con
+  // alto, y dibujar un árbol de nueve pasos dentro de una franja de 380px es
+  // volver a la miniatura de la que veníamos.
+  const soloLienzo = piezas.length === 1 && piezas[0].kind === 'automatizacion'
 
   return (
     <section
       className={cn('relative flex min-w-0 flex-col overflow-hidden bg-background', className)}
     >
-      {/* La trama sólo cuando NO hay lienzo: `CanvasViewport` dibuja la suya, y
-          dos retículas de distinto paso una encima de otra se ven mal. */}
-      {!enLienzo && (
+      {/* La trama sólo cuando NO hay un lienzo a pantalla completa:
+          `CanvasViewport` dibuja la suya, y dos retículas de distinto paso una
+          encima de otra se ven mal. */}
+      {!soloLienzo && (
         <div className="app-trama pointer-events-none absolute inset-0 opacity-70" aria-hidden />
       )}
       <div className="app-halo pointer-events-none absolute inset-0 opacity-40" aria-hidden />
 
-      {pieza ? (
-        <>
-          {/* Una sola fila, con su alto propio: el nombre a la izquierda y lo
-              que se puede hacer a la derecha. Nada flotando sobre el lienzo. */}
-          <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
-            {fichas.length > 0 ? (
-              <div className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
-                {fichas.map((l, n) => (
-                  <button
-                    key={`${l.agente}-${l.paso ?? 'x'}-${n}`}
-                    type="button"
-                    onClick={() => setCual(n)}
-                    className={cn(
-                      'shrink-0 rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-                      n === i
-                        ? 'border-primary/60 bg-primary/15 text-accent-ink'
-                        : 'border-border text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    {nombreDe(l.artefacto) || t(`operation.sub${cap(l.agente)}`)}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <h2 className="app-page-title min-w-0 truncate text-[22px]">
-                {nombreDe(pieza) || t(`operation.sub${cap(m.lienzos[i]?.agente ?? 'automatizaciones')}`)}
-              </h2>
-            )}
-            <div className="flex shrink-0 items-center gap-3">
-              {fijado?.real && fijado.entidadId && pantallaDe(fijado) && (
-                <Link
-                  href={pantallaDe(fijado)!}
-                  className="app-card-cta text-[11px] text-accent-ink hover:underline"
-                >
-                  {t('operation.mesaAbrirEnPantalla')}
-                  <ExternalLink className="size-3" />
-                </Link>
-              )}
-              {fijado && (
-                <button
-                  type="button"
-                  onClick={() => aLaMesa({ tipo: 'fijar', fijado: null })}
-                  className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={t('operation.mesaCerrar')}
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-          </header>
+      <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
+        <h2 className="app-page-title min-w-0 truncate text-[22px]">
+          {fijado
+            ? nombreDe(fijado.artefacto) || t('operation.bancoVacioTitulo')
+            : t('operation.bancoTodo', { n: piezas.length })}
+        </h2>
+        <div className="flex shrink-0 items-center gap-3">
+          {fijado?.real && fijado.entidadId && pantallaDe(fijado) && (
+            <Link
+              href={pantallaDe(fijado)!}
+              className="app-card-cta text-[11px] text-accent-ink hover:underline"
+            >
+              {t('operation.mesaAbrirEnPantalla')}
+              <ExternalLink className="size-3" />
+            </Link>
+          )}
+          {fijado && (
+            <button
+              type="button"
+              onClick={() => aLaMesa({ tipo: 'fijar', fijado: null })}
+              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={t('operation.mesaCerrar')}
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+      </header>
 
-          <div className="relative z-10 min-h-0 flex-1">
-            {pieza.kind === 'automatizacion' ? (
-              <CanvasViewport className="h-full" initialFit="fit">
-                <LienzoAutomatizacion cuando={pieza.cuando} pasos={pieza.pasos} />
-              </CanvasViewport>
-            ) : (
-              // Una plantilla o un segmento no son un árbol: se leen enteros de
-              // un vistazo y meterlos en un lienzo con zoom sería disfrazarlos.
-              <div className="flex h-full items-start justify-center overflow-y-auto p-8">
-                <div className="w-full max-w-md">
-                  <VistaArtefacto artefacto={pieza} />
-                </div>
-              </div>
-            )}
-          </div>
-        </>
+      {soloLienzo ? (
+        <div className="relative z-10 min-h-0 flex-1">
+          <Lienzo pieza={piezas[0]} />
+        </div>
       ) : (
-        <BancoVacio />
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">
+          <Reparto piezas={piezas} lienzos={fijado ? [] : m.lienzos} />
+        </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Las piezas repartidas: los árboles a lo ancho, los mensajes en fila.
+ *
+ * Un árbol y un mensaje no piden el mismo espacio. Meterlos en la misma grilla
+ * deja a la automatización apretada y a los teléfonos estirados; separarlos por
+ * forma es lo único que hace que las cuatro se lean.
+ */
+function Reparto({ piezas, lienzos }: { piezas: Artefacto[]; lienzos: LienzoEnMesa[] }) {
+  const t = useT()
+  const anchas = piezas.filter((p) => p.kind === 'automatizacion' || p.kind === 'flujo')
+  const angostas = piezas.filter((p) => p.kind !== 'automatizacion' && p.kind !== 'flujo')
+
+  return (
+    <div className="flex flex-col gap-6 p-5">
+      {anchas.map((p, i) => (
+        <section key={`ancha-${i}`} className="min-w-0">
+          <h3 className="app-eyebrow mb-2 text-muted-foreground">
+            {nombreDe(p) || t(`operation.sub${cap(lienzos[i]?.agente ?? 'automatizaciones')}`)}
+          </h3>
+          {p.kind === 'automatizacion' ? (
+            // Alto acotado y con su propio zoom: dentro de una columna que ya
+            // hace scroll, un lienzo que crece sin techo empuja todo lo demás
+            // fuera de la pantalla.
+            <div className="h-[360px] overflow-hidden rounded-xl border border-border">
+              <Lienzo pieza={p} />
+            </div>
+          ) : (
+            <VistaArtefacto artefacto={p} />
+          )}
+        </section>
+      ))}
+
+      {angostas.length > 0 && (
+        <div className="flex flex-wrap items-start justify-center gap-6">
+          {angostas.map((p, i) => (
+            <div key={`angosta-${i}`} className="w-full max-w-[320px] shrink-0">
+              {p.kind === 'plantilla' ? (
+                <>
+                  {/* Aprobar un mensaje es mirar el mensaje. Es el mismo
+                      teléfono que usa el editor de plantillas, así que los dos
+                      no se pueden separar. */}
+                  <p className="app-eyebrow mb-2 truncate text-center text-muted-foreground">
+                    {p.nombre}
+                  </p>
+                  <WhatsappPreview
+                    headerType={p.encabezado ? 'text' : 'none'}
+                    headerText={p.encabezado ?? undefined}
+                    bodyText={p.cuerpo}
+                    footerText={p.pie ?? undefined}
+                    buttons={(p.botones ?? []).map(aBoton)}
+                  />
+                </>
+              ) : (
+                <VistaArtefacto artefacto={p} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Lienzo({ pieza }: { pieza: Artefacto }) {
+  if (pieza.kind !== 'automatizacion') return null
+  return (
+    <CanvasViewport className="h-full" initialFit="fit">
+      <LienzoAutomatizacion cuando={pieza.cuando} pasos={pieza.pasos} />
+    </CanvasViewport>
   )
 }
 
@@ -162,16 +205,28 @@ function BancoVacio() {
   )
 }
 
+/**
+ * Un botón del artefacto, como lo entiende el teléfono.
+ *
+ * El artefacto habla en castellano —«respuesta_rapida», «url»— porque es lo que
+ * escribe el modelo; el preview habla el idioma de Meta. La traducción va acá y
+ * no en el modelo: pedirle que escriba QUICK_REPLY es pedirle que acierte una
+ * constante.
+ */
+function aBoton(b: { texto: string; tipo: string }): TemplateButtonInput {
+  const tipo = b.tipo.toLowerCase()
+  if (tipo === 'url') return { type: 'URL', text: b.texto }
+  if (tipo === 'telefono' || tipo === 'phone_number') {
+    return { type: 'PHONE_NUMBER', text: b.texto }
+  }
+  return { type: 'QUICK_REPLY', text: b.texto }
+}
+
 function nombreDe(a: Artefacto): string {
   return 'nombre' in a && typeof a.nombre === 'string' ? a.nombre : ''
 }
 
-/**
- * El nombre del especialista, para cuando la pieza no trae uno.
- *
- * El encabezado imprimía cadena vacía y quedaba una franja en blanco de 56px
- * sin decir qué se estaba mirando.
- */
+/** El nombre del especialista, para cuando la pieza no trae uno. */
 function cap(id: string): string {
   return `${id[0].toUpperCase()}${id.slice(1)}`
 }

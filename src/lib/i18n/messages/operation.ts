@@ -39,7 +39,7 @@ export const operation = {
   },
   // El reparto que se aprueba de una vez.
   planTitulo: { es: "Así lo repartiría", en: "Here is how I would split it" },
-  planAprobar: { es: "Aprobar y que trabajen", en: "Approve and let them work" },
+  planAprobar: { es: "Aprobar", en: "Approve" },
   planCorriendo: { es: "Trabajando…", en: "Working…" },
   planAviso: {
     es: "Lo que le llegue a un cliente te lo pregunta aparte.",
@@ -52,6 +52,8 @@ export const operation = {
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
+  bancoTodo: { es: "Lo que se armó ({n})", en: "What was built ({n})" },
+  bancoVacioTitulo: { es: "La pieza", en: "The piece" },
   lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
@@ -352,6 +354,9 @@ export const operation = {
   decisionCambiar: { es: "Cambiar", en: "Change" },
   decisionPedirCambio: { es: "Cambia esto: ", en: "Change this: " },
   decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
+  prenderPregunta: { es: "¿La prendo?", en: "Turn it on?" },
+  prenderSi: { es: "Sí, prender", en: "Yes, turn it on" },
+  prenderNo: { es: "Dejarla pausada", en: "Leave it paused" },
 
   // Lo que hizo el Operador, y lo que costó
   actividadTitulo: { es: "Lo que hice", en: "What I did" },

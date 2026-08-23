@@ -204,16 +204,14 @@ function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>): string {
   const saltados = r.pasos.filter((p) => p.estado === 'saltado').length
 
   const partes: string[] = []
-  if (ok > 0) partes.push(`**${ok}** ${ok === 1 ? 'paso listo' : 'pasos listos'}`)
-  if (r.construidas > 0) {
-    partes.push(
-      `**${r.construidas}** ${r.construidas === 1 ? 'cosa creada' : 'cosas creadas'}`,
-    )
-  }
-  if (r.propuestas > 0) {
-    partes.push(
-      `**${r.propuestas}** ${r.propuestas === 1 ? 'espera tu aprobación' : 'esperan tu aprobación'}`,
-    )
+  // Ni los pasos, ni lo creado, ni lo que espera: de eso ya habla la tarjeta de
+  // decisión que aparece justo abajo, y el banco muestra lo que quedó armado.
+  // Repetirlo en una línea de cifras era decir dos veces lo mismo, y la segunda
+  // en un idioma —«2 pasos listos»— que no es el de nadie.
+  //
+  // Queda sólo lo que no tiene otro lugar donde verse.
+  if (r.propuestas === 0 && ok > 0) {
+    partes.push(`**${ok}** ${ok === 1 ? 'paso listo' : 'pasos listos'}`)
   }
   if (fallidos.length > 0) {
     partes.push(`**${fallidos.length}** ${fallidos.length === 1 ? 'falló' : 'fallaron'}`)
@@ -222,7 +220,9 @@ function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>): string {
     partes.push(`**${saltados}** no se ${saltados === 1 ? 'intentó' : 'intentaron'}`)
   }
 
-  const linea = partes.length > 0 ? partes.join(' · ') : 'No quedó nada por hacer.'
+  // Sin nada que agregar, no se agrega nada: una línea de relleno abajo de una
+  // decisión sólo la corre hacia arriba.
+  const linea = partes.length > 0 ? partes.join(' · ') : ''
   if (fallidos.length === 0) return linea
   return `${linea}\n\n${fallidos.map((f) => `${f.agente}: ${f.resumen}`).join('\n')}`
 }

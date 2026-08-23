@@ -13,6 +13,7 @@ import {
   KeyRound,
   MessageCircle,
   DollarSign,
+  MessagesSquare,
 } from "lucide-react";
 
 import {
@@ -43,6 +44,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/whatsapp": MessageCircle,
   "/admin/comercios": Store,
   "/admin/negocio": DollarSign,
+  "/admin/conversaciones": MessagesSquare,
   "/admin/usuarios": Users,
   "/admin/uso": Gauge,
   "/admin/lista-espera": Mailbox,

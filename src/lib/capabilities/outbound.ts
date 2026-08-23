@@ -419,7 +419,6 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
     risk: 'reversible',
     // Queda guardada y sin mandar a Meta: no la ve nadie fuera de la cuenta,
     // y no se puede usar en un envío hasta que Meta la apruebe.
-    inerte: true,
     schema: {
       type: 'object',
       properties: {
@@ -454,6 +453,15 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
       },
       required: ['nombre', 'cuerpo'],
     },
+    // NO es inerte, aunque no salga a Meta.
+    //
+    // Estaba marcada inerte con el argumento de que un borrador no le llega a
+    // nadie, y es cierto. Lo que sí hace es aparecer en la lista de plantillas
+    // del comercio: tres borradores que nadie pidió son basura en su cuenta, y
+    // el trabajo de escribirlos ya se hizo. Ahora el texto se ve ANTES —el
+    // artefacto se dibuja desde los argumentos, así que el mensaje se lee como
+    // le va a llegar a alguien— y la fila recién existe cuando alguien dice que
+    // sí.
     async preview(_ctx, args) {
       const nombre = normalizeTemplateName(String(args.nombre ?? ''))
       const cuerpo = String(args.cuerpo ?? '').trim()

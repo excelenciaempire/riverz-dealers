@@ -412,6 +412,30 @@ export const admin = {
     es: "Borra datos personales de comercios eliminados",
     en: "Deletes personal data from removed accounts",
   },
+  // Las conversaciones de toda la plataforma, sin una palabra de lo que dicen.
+  sectionConversations: { es: "Conversaciones", en: "Conversations" },
+  sectionConversationsDesc: {
+    es: "Todas las conversaciones de cada comercio, sin leer lo que dicen.",
+    en: "Every account's conversations, without reading what they say.",
+  },
+  convState: { es: "Estado", en: "Status" },
+  convStatus_open: { es: "abierta", en: "open" },
+  convStatus_resolved: { es: "resuelta", en: "resolved" },
+  convStatus_closed: { es: "cerrada", en: "closed" },
+  convStatus_pending: { es: "pendiente", en: "pending" },
+  convNeedsHuman: { es: "pide una persona", en: "needs a human" },
+  convAi: { es: "IA", en: "AI" },
+  convAiOn: { es: "prendida", en: "on" },
+  convAiOff: { es: "apagada", en: "off" },
+  convMessages: { es: "Mensajes", en: "Messages" },
+  convLast: { es: "Último", en: "Last" },
+  convAllChannels: { es: "Todos los canales", en: "All channels" },
+  convWorkspaceId: { es: "Id del comercio", en: "Account id" },
+  convPrivacy: {
+    es: "Metadatos, no contenido: el cuerpo de los mensajes y los datos del comprador no salen de la cuenta del comercio.",
+    en: "Metadata, not content: message bodies and buyer details never leave the account.",
+  },
+
   // El negocio: MRR, costo y qué paga cada comercio.
   sectionBusiness: { es: "Negocio", en: "Business" },
   sectionBusinessDesc: {
