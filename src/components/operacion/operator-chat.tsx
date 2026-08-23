@@ -211,11 +211,16 @@ export function OperatorChat({
       const json = (await res.json()) as {
         mensajes?: { id: string; role: 'user' | 'assistant'; text: string }[]
         acciones?: Accion[]
+        plan?: Omit<PlanPendiente, 'estado'> | null
       }
       const ms = (json.mensajes ?? []) as Mensaje[]
       setThread(id)
       setMensajes(ms)
       setAcciones(json.acciones ?? [])
+      // El plan que quedó esperando. Vivía sólo en la memoria de la pestaña
+      // que lo vio nacer: al volver, la tarjeta no estaba y el plan se quedaba
+      // en la base sin forma de aprobarlo.
+      setPlan(json.plan ? { ...json.plan, estado: 'esperando' } : null)
       setVivo(null)
       // El banco vuelve a lo que había. Los dibujos ya se guardan con el
       // mensaje; lo que faltaba era volver a ponerlos, así que hasta ahora la

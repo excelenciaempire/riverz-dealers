@@ -8,6 +8,7 @@ import { limitByKey } from '@/lib/rate-limit'
 import { runOperator } from '@/lib/operator/loop'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import { grabador } from '@/lib/operator/bloques'
+import { planQueEspera } from '@/lib/operator/fleet/plan'
 import {
   abrirCorrida,
   cerrarCorrida,
@@ -115,12 +116,33 @@ export async function GET(request: Request) {
     )
   }
 
-  const [mensajes, acciones] = await Promise.all([
+  const [mensajes, acciones, plan] = await Promise.all([
     loadMessages(ctx.admin, threadId, ctx.workspaceId),
     loadActions(ctx.admin, threadId, ctx.workspaceId),
+    // El plan que quedó esperando un sí. Se dibujaba sólo desde el stream, así
+    // que cerrar la pantalla lo borraba de la vista y quedaba en la base sin
+    // forma de aprobarlo.
+    planQueEspera(ctx.admin, threadId, ctx.workspaceId),
   ])
   return NextResponse.json(
-    { mensajes, acciones, hilos },
+    {
+      mensajes,
+      acciones,
+      hilos,
+      plan: plan
+        ? {
+            planId: plan.id,
+            porque: plan.porque ?? '',
+            pasos: plan.pasos.map((p) => ({
+              i: p.i,
+              agente: p.agente,
+              que: p.que,
+              encargo: p.encargo,
+              dependeDe: p.dependeDe,
+            })),
+          }
+        : null,
+    },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
@@ -316,10 +338,28 @@ export async function POST(request: Request) {
           }
           if (terminado) break
           await new Promise<void>((resolve) => {
-            espera.avisar = () => {
+            const seguir = () => {
               espera.avisar = null
+              clearTimeout(reloj)
               resolve()
             }
+            /**
+             * El aviso perdido.
+             *
+             * Entre vaciar la cola y llegar a esta línea pasa un tick, y en ese
+             * hueco `push` puede haber corrido: encolaba el evento y llamaba a
+             * un `avisar` que todavía era null. Nadie despertaba al lector, así
+             * que la conversación se congelaba después de la primera frase
+             * mientras el turno seguía trabajando sin que nadie lo viera.
+             *
+             * Se cierra mirando la cola DESPUÉS de instalar el aviso. Y el reloj
+             * es el cinturón: si alguna vez se pierde otro, el lector se
+             * despierta igual en un cuarto de segundo en vez de dormir para
+             * siempre.
+             */
+            const reloj = setTimeout(seguir, 250)
+            espera.avisar = seguir
+            if (cola.length > 0 || terminado) seguir()
           })
         }
       } catch {

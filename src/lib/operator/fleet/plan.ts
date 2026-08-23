@@ -188,6 +188,31 @@ export async function guardarPlan(
   return planId
 }
 
+/**
+ * El plan de este hilo que todavía espera un sí.
+ *
+ * Existe porque la tarjeta se dibujaba desde un evento del stream y nada más:
+ * cerrar la pantalla la borraba, y el plan se quedaba en la base sin forma de
+ * aprobarlo. Se busca por hilo y no por id porque quien vuelve no sabe cuál era.
+ */
+export async function planQueEspera(
+  db: SupabaseClient,
+  threadId: string,
+  workspaceId: string,
+): Promise<PlanGuardado | null> {
+  const { data } = await db
+    .from('operator_plans')
+    .select('id')
+    .eq('thread_id', threadId)
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'propuesto')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const fila = data as { id: string } | null
+  return fila ? cargarPlan(db, fila.id, workspaceId) : null
+}
+
 export async function cargarPlan(
   db: SupabaseClient,
   planId: string,
