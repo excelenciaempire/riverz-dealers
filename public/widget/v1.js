@@ -256,11 +256,29 @@
       });
   }
 
+  /**
+   * Abrir el chat solo, si el comercio lo pidió.
+   *
+   * Una vez por visita y sólo si la persona no lo cerró antes: un chat que se
+   * abre de nuevo cada vez que uno lo cierra no es una invitación, es un
+   * pop-up. Lo cerrado se recuerda en el dominio de la tienda, igual que el
+   * hilo.
+   */
+  function autoAbrir() {
+    var seg = Number((state.settings && state.settings.auto_open_seconds) || 0);
+    if (!seg || seg < 1) return;
+    if (storage(STORAGE_OPEN) === '0') return;
+    setTimeout(function () {
+      if (!state.open) open();
+    }, seg * 1000);
+  }
+
   function start() {
     mintSession()
       .then(function () {
         applyPosition(state.settings.position);
         renderLauncher();
+        autoAbrir();
         root.appendChild(launcher);
         root.appendChild(frame);
         document.body.appendChild(root);

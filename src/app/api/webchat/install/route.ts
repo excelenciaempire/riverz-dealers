@@ -37,7 +37,7 @@ async function contexto() {
 export async function GET() {
   const ctx = await contexto();
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  return NextResponse.json({ installed: await widgetInstalado(ctx.admin, ctx.workspaceId) });
+  return NextResponse.json(await widgetInstalado(ctx.admin, ctx.workspaceId));
 }
 
 export async function POST(request: Request) {

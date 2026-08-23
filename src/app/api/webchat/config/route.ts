@@ -58,11 +58,22 @@ export async function GET() {
   // era el que dejaba el chat instalado pero invisible.
   const suggested = await detectStoreDomains(admin, resolved.workspaceId).catch(() => []);
 
+  // Los agentes de la cuenta, para poder elegir cuál atiende sin salir de acá.
+  // Antes `agent_id` se podía guardar por API y no había forma de tocarlo: la
+  // opción existía y era invisible.
+  const { data: agentes } = await admin
+    .from('ai_agents')
+    .select('id, name, is_active')
+    .eq('workspace_id', resolved.workspaceId)
+    .is('deleted_at', null)
+    .order('name');
+
   return NextResponse.json({
     config,
     key,
     snippet: snippet(key),
     suggested_domains: suggested,
+    agents: agentes ?? [],
   });
 }
 
@@ -94,6 +105,18 @@ export async function PUT(request: Request) {
   if (typeof body.brand_name === 'string') patch.brand_name = body.brand_name.slice(0, 60);
   if (typeof body.avatar_url === 'string') patch.avatar_url = body.avatar_url.slice(0, 500);
   if (typeof body.require_email === 'boolean') patch.require_email = body.require_email;
+  if (typeof body.allow_uploads === 'boolean') patch.allow_uploads = body.allow_uploads;
+  if (typeof body.ask_rating === 'boolean') patch.ask_rating = body.ask_rating;
+  if (typeof body.offline_message === 'string') {
+    patch.offline_message = body.offline_message.slice(0, 300);
+  }
+  if (body.auto_open_seconds !== undefined) {
+    // Acotado: menos de tres segundos es un pop-up encima de quien recién
+    // entró, y más de dos minutos no lo ve nadie.
+    const n = Math.floor(Number(body.auto_open_seconds));
+    patch.auto_open_seconds =
+      Number.isFinite(n) && n > 0 ? Math.min(120, Math.max(3, n)) : 0;
+  }
   if (Array.isArray(body.allowed_domains)) {
     // Se normaliza al guardar y no al comparar: así el comercio ve en la lista
     // exactamente lo que el navegador va a mandar, y un dominio escrito de dos

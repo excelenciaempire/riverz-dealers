@@ -34,6 +34,9 @@ interface Settings {
   brand_name: string;
   avatar_url: string | null;
   require_email: boolean;
+  auto_open_seconds: number;
+  allow_uploads: boolean;
+  ask_rating: boolean;
 }
 
 /** Sondeo con la pestaña a la vista, y con la pestaña de fondo. Alguien que
@@ -413,7 +416,10 @@ export function ChatApp() {
         {/* La calificación va acá abajo y no en un modal: interrumpir para
             preguntar "¿te sirvió?" es la forma más rápida de que la respuesta
             sea que no. Aparece cuando hubo ida y vuelta de verdad. */}
-        {!waiting && !expired && messages.filter((m) => m.sender !== 'visitor').length >= 2 ? (
+        {settings?.ask_rating !== false &&
+        !waiting &&
+        !expired &&
+        messages.filter((m) => m.sender !== 'visitor').length >= 2 ? (
           <Rating valor={califico} onVotar={calificar} />
         ) : null}
       </div>
@@ -462,6 +468,10 @@ export function ChatApp() {
             send();
           }}
         >
+          {/* El clip se esconde entero cuando el comercio no quiere archivos.
+              Dejarlo y rechazar el archivo después sería ofrecer algo que no
+              funciona, que es peor que no ofrecerlo. */}
+          {settings?.allow_uploads !== false ? (
           <label
             className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
             title="Adjuntar"
@@ -483,6 +493,7 @@ export function ChatApp() {
               <path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3.33 3.33 0 0 1 4.71 4.71l-9.19 9.19a1.67 1.67 0 0 1-2.36-2.36l8.49-8.48" />
             </svg>
           </label>
+          ) : null}
           <textarea
             value={draft}
             rows={1}

@@ -1,12 +1,26 @@
 import type { WebchatConfig } from '@/types';
 
 export const WEBCHAT_DEFAULTS: Required<
-  Pick<WebchatConfig, 'primary_color' | 'position' | 'require_email' | 'enabled'>
+  Pick<
+    WebchatConfig,
+    | 'primary_color'
+    | 'position'
+    | 'require_email'
+    | 'enabled'
+    | 'auto_open_seconds'
+    | 'allow_uploads'
+    | 'ask_rating'
+  >
 > = {
   enabled: false,
   primary_color: '#A3E635',
   position: 'right',
   require_email: false,
+  // Sin abrirse solo: un chat que salta encima de quien está leyendo la ficha
+  // del producto interrumpe justo la parte que estaba funcionando.
+  auto_open_seconds: 0,
+  allow_uploads: true,
+  ask_rating: true,
 };
 
 /** Lo que el widget necesita saber para dibujarse. Nunca incluye los dominios
@@ -18,6 +32,9 @@ export interface WebchatSettings {
   brand_name: string;
   avatar_url: string | null;
   require_email: boolean;
+  auto_open_seconds: number;
+  allow_uploads: boolean;
+  ask_rating: boolean;
 }
 
 export function widgetSettings(config: WebchatConfig, fallbackName: string): WebchatSettings {
@@ -28,6 +45,9 @@ export function widgetSettings(config: WebchatConfig, fallbackName: string): Web
     brand_name: config.brand_name || fallbackName,
     avatar_url: config.avatar_url || null,
     require_email: config.require_email ?? WEBCHAT_DEFAULTS.require_email,
+    auto_open_seconds: config.auto_open_seconds ?? WEBCHAT_DEFAULTS.auto_open_seconds,
+    allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
+    ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,
   };
 }
 

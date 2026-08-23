@@ -142,19 +142,30 @@ export async function desinstalarWidget(
   }
 }
 
-/** ¿Está puesto? Para que la pantalla no ofrezca instalar lo ya instalado. */
+/**
+ * ¿Está puesto?
+ *
+ * Devuelve el MOTIVO cuando no se sabe, no un null mudo. La tienda que se
+ * conectó antes de que existiera este permiso responde 403, y esconder el
+ * bloque ahí dejaba al comercio sin enterarse de que la instalación
+ * automática existe — justo el que más la necesita.
+ */
 export async function widgetInstalado(
   db: SupabaseClient,
   workspaceId: string,
-): Promise<boolean | null> {
+): Promise<{ installed: boolean | null; reason?: 'sin_tienda' | 'sin_permiso' }> {
   const tienda = await clienteDeLaTienda(db, workspaceId)
-  if (!tienda) return null
+  if (!tienda) return { installed: null, reason: 'sin_tienda' }
   try {
     const existentes = await tienda.client.rest<{ script_tags?: ScriptTag[] }>(
       '/script_tags.json?limit=250',
     )
-    return (existentes.script_tags ?? []).some((t) => (t.src ?? '').includes(MARCA))
-  } catch {
-    return null
+    return {
+      installed: (existentes.script_tags ?? []).some((t) => (t.src ?? '').includes(MARCA)),
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/(401|403)/.test(msg)) return { installed: null, reason: 'sin_permiso' }
+    return { installed: null }
   }
 }

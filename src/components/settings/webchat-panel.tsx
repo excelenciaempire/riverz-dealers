@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, Copy, Loader2, Plus, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Copy, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -14,11 +14,26 @@ import type { WebchatConfig } from '@/types';
 /**
  * Instalar y configurar el chat de la tienda.
  *
- * El orden de la pantalla es el orden en que le importa al comercio: primero
- * si está encendido y cómo instalarlo —que es lo único obligatorio—, después
- * cómo se ve, y al final qué está produciendo. La apariencia no sirve de nada
- * antes de que el chat cargue.
+ * El orden es el de las preguntas que el comercio se hace, no el del modelo de
+ * datos: ¿está puesto?, ¿quién atiende?, ¿cómo se ve?, ¿qué produjo?
+ *
+ * **Sin texto que repita la etiqueta.** Un rótulo que dice "Chat web activo"
+ * con un renglón debajo que dice "apágalo para dejar el chat fuera de la
+ * tienda" no explica nada: gasta una línea y hace que se lea menos lo que sí
+ * importa. Sólo quedan las ayudas que dicen algo que no se deduce del nombre —
+ * que pedir el correo suma fricción, que el correo igual se captura al
+ * comprar—, y las que avisan de una consecuencia.
+ *
+ * El código para pegar a mano está plegado. Es el camino de excepción desde que
+ * la instalación en Shopify es un botón, y mostrarlo abierto arriba de todo
+ * hacía que la primera impresión de la pantalla fuera un bloque de HTML.
  */
+
+interface Agente {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
 
 interface Stats {
   period_days: number;
@@ -49,6 +64,10 @@ function espera(segundos: number | null): string {
   return `${Math.round(segundos / 3600)} h`;
 }
 
+/** Cuándo se abre solo. Se ofrecen tiempos, no un campo de número: "¿cuántos
+ *  segundos?" es una pregunta que nadie sabe contestar. */
+const AUTO_OPEN = [0, 5, 15, 30] as const;
+
 export function WebchatPanel() {
   const t = useT();
   const format = useFormat();
@@ -59,9 +78,9 @@ export function WebchatPanel() {
   const [copied, setCopied] = useState(false);
   const [cfg, setCfg] = useState<WebchatConfig>({});
   const [snippet, setSnippet] = useState('');
-  // Instalación automática en Shopify. `null` = todavía no se sabe (o no hay
-  // tienda conectada, que es el caso en el que este bloque no aplica).
+  const [agents, setAgents] = useState<Agente[]>([]);
   const [instalado, setInstalado] = useState<boolean | null>(null);
+  const [motivoInstalar, setMotivoInstalar] = useState<string | null>(null);
   const [instalando, setInstalando] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
@@ -79,12 +98,28 @@ export function WebchatPanel() {
           setCfg(json.config ?? {});
           setSnippet(json.snippet ?? '');
           setSuggested(json.suggested_domains ?? []);
+          setAgents(json.agents ?? []);
         }
         if (statsRes.ok) setStats(await statsRes.json());
       } finally {
         setLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetch('/api/webchat/install')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelado || !j) return;
+        setInstalado(j.installed);
+        setMotivoInstalar(j.reason ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
   const save = useCallback(
@@ -111,8 +146,28 @@ export function WebchatPanel() {
     [fetchWithCsrf, t],
   );
 
+  const instalar = async (poner: boolean) => {
+    setInstalando(true);
+    try {
+      const res = await fetchWithCsrf('/api/webchat/install', {
+        method: poner ? 'POST' : 'DELETE',
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        setInstalado(poner);
+        setMotivoInstalar(null);
+        toast.success(t(poner ? 'webchat.installedOk' : 'webchat.uninstalledOk'));
+      } else {
+        toast.error(json?.message ?? t('webchat.installFailed'));
+      }
+    } finally {
+      setInstalando(false);
+    }
+  };
+
   const domains = cfg.allowed_domains ?? [];
   const enabled = Boolean(cfg.enabled);
+  const nuevos = suggested.filter((d) => !domains.includes(d));
 
   const addDomain = () => {
     const value = domainDraft.trim();
@@ -120,19 +175,6 @@ export function WebchatPanel() {
     setDomainDraft('');
     save({ allowed_domains: [...domains, value] });
   };
-
-  useEffect(() => {
-    let cancelado = false;
-    fetch('/api/webchat/install')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelado && j) setInstalado(j.installed);
-      })
-      .catch(() => {});
-    return () => {
-      cancelado = true;
-    };
-  }, []);
 
   if (loading) {
     return (
@@ -151,24 +193,6 @@ export function WebchatPanel() {
       ? t('webchat.whyNoDomains')
       : null;
 
-  const instalar = async (poner: boolean) => {
-    setInstalando(true);
-    try {
-      const res = await fetchWithCsrf('/api/webchat/install', {
-        method: poner ? 'POST' : 'DELETE',
-      });
-      const json = await res.json().catch(() => null);
-      if (res.ok) {
-        setInstalado(poner);
-        toast.success(t(poner ? 'webchat.installedOk' : 'webchat.uninstalledOk'));
-      } else {
-        toast.error(json?.message ?? t('webchat.installFailed'));
-      }
-    } finally {
-      setInstalando(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {motivoInvisible ? (
@@ -178,109 +202,116 @@ export function WebchatPanel() {
         </div>
       ) : null}
 
-      {/* ── Estado + instalación ── */}
+      {/* ── 1. ¿Está puesto? ── */}
       <Card>
         <Row>
-          <div>
-            <p className="text-sm font-medium text-foreground">{t('webchat.enable')}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('webchat.enableHint')}</p>
-          </div>
+          <p className="text-sm font-medium text-foreground">{t('webchat.enable')}</p>
           <Switch checked={enabled} onCheckedChange={(c) => save({ enabled: c })} />
         </Row>
 
-        {/* Instalación automática. Aparece sólo con Shopify conectado — donde
-            no hay tienda, ofrecer un botón que no puede funcionar es peor que
-            no ofrecerlo. El snippet de abajo sigue estando para todos los
-            demás y para quien prefiera pegarlo a mano. */}
-        {instalado !== null ? (
-          <div className="mt-4 border-t border-border pt-4">
-            <Row>
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {t('webchat.installAuto')}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {t(instalado ? 'webchat.installAutoOn' : 'webchat.installAutoHint')}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant={instalado ? 'outline' : 'default'}
-              disabled={instalando}
-              onClick={() => instalar(!instalado)}
-            >
-              {t(instalado ? 'webchat.uninstall' : 'webchat.installNow')}
-            </Button>
-            </Row>
-          </div>
-        ) : null}
-
         <div className="mt-4 border-t border-border pt-4">
-          <p className="text-sm font-medium text-foreground">{t('webchat.install')}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('webchat.installHint')}</p>
-          <div className="mt-2 flex items-start gap-2">
-            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-muted px-3 py-2 text-[11px] leading-relaxed text-foreground">
-              {snippet}
-            </code>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(snippet);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1800);
-              }}
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              <span className="ml-1.5">{copied ? t('webchat.copied') : t('webchat.copy')}</span>
-            </Button>
-          </div>
+          {/* El camino bueno primero. Con la tienda conectada es un botón; el
+              código a mano queda plegado para quien no usa Shopify o prefiere
+              pegarlo él. */}
+          {instalado !== null || motivoInstalar === 'sin_permiso' ? (
+            <Row>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{t('webchat.installAuto')}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {motivoInstalar === 'sin_permiso'
+                    ? t('webchat.installNeedsReconnect')
+                    : instalado
+                      ? t('webchat.installAutoOn')
+                      : t('webchat.installAutoHint')}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={instalado ? 'outline' : 'default'}
+                disabled={instalando || motivoInstalar === 'sin_permiso'}
+                onClick={() => instalar(!instalado)}
+              >
+                {instalando ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  t(instalado ? 'webchat.uninstall' : 'webchat.installNow')
+                )}
+              </Button>
+            </Row>
+          ) : null}
+
+          <details className={instalado !== null ? 'mt-3' : ''}>
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
+              <ChevronDown className="h-3 w-3" />
+              {t('webchat.installManual')}
+            </summary>
+            <div className="mt-2 flex items-start gap-2">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-muted px-3 py-2 text-[11px] leading-relaxed text-foreground">
+                {snippet}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(snippet);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1800);
+                }}
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                <span className="ml-1.5">{copied ? t('webchat.copied') : t('webchat.copy')}</span>
+              </Button>
+            </div>
+          </details>
         </div>
 
         <div className="mt-4 border-t border-border pt-4">
           <p className="text-sm font-medium text-foreground">{t('webchat.domains')}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('webchat.domainsHint')}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {domains.map((d) => (
-              <span
-                key={d}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-foreground"
-              >
-                {d}
-                <button
-                  type="button"
-                  aria-label={d}
-                  onClick={() =>
-                    save({ allowed_domains: domains.filter((x) => x !== d) })
-                  }
-                  className="text-muted-foreground transition hover:text-foreground"
+          {/* La ayuda sólo cuando la lista está vacía: ahí es una instrucción.
+              Con dominios cargados repite lo que ya se ve. */}
+          {domains.length === 0 ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{t('webchat.domainsEmpty')}</p>
+          ) : null}
+          {domains.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {domains.map((d) => (
+                <span
+                  key={d}
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-foreground"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          {/* Los dominios de su propia tienda, para no hacerle escribir nada.
-              Sólo los que todavía no cargó. */}
-          {suggested.filter((d) => !domains.includes(d)).length > 0 ? (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">{t('webchat.domainsDetected')}</span>
-              {suggested
-                .filter((d) => !domains.includes(d))
-                .map((d) => (
+                  {d}
                   <button
-                    key={d}
                     type="button"
-                    onClick={() => save({ allowed_domains: [...domains, d] })}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-foreground transition hover:border-primary/60 hover:bg-primary/5"
+                    aria-label={d}
+                    onClick={() => save({ allowed_domains: domains.filter((x) => x !== d) })}
+                    className="text-muted-foreground transition hover:text-foreground"
                   >
-                    <Plus className="h-3 w-3" />
-                    {d}
+                    <X className="h-3 w-3" />
                   </button>
-                ))}
+                </span>
+              ))}
             </div>
           ) : null}
+
+          {/* Los dominios de su propia tienda, para no hacerle escribir nada. */}
+          {nuevos.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{t('webchat.domainsDetected')}</span>
+              {nuevos.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => save({ allowed_domains: [...domains, d] })}
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-foreground transition hover:border-primary/60 hover:bg-primary/5"
+                >
+                  <Plus className="h-3 w-3" />
+                  {d}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="mt-2 flex gap-2">
             <Input
               value={domainDraft}
@@ -300,7 +331,47 @@ export function WebchatPanel() {
         </div>
       </Card>
 
-      {/* ── Apariencia ── */}
+      {/* ── 2. ¿Quién atiende y cómo? ── */}
+      <Card title={t('webchat.behavior')}>
+        <Field label={t('webchat.agent')}>
+          <select
+            value={cfg.agent_id ?? ''}
+            onChange={(e) => save({ agent_id: e.target.value || null })}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">{t('webchat.agentAuto')}</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.is_active ? '' : ` — ${t('webchat.agentPaused')}`}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="mt-4 space-y-4 border-t border-border pt-4">
+          <Toggle
+            label={t('webchat.requireEmail')}
+            hint={t('webchat.requireEmailHint')}
+            checked={Boolean(cfg.require_email)}
+            onChange={(c) => save({ require_email: c })}
+          />
+          <Toggle
+            label={t('webchat.uploads')}
+            hint={t('webchat.uploadsHint')}
+            checked={cfg.allow_uploads !== false}
+            onChange={(c) => save({ allow_uploads: c })}
+          />
+          <Toggle
+            label={t('webchat.askRating')}
+            hint={t('webchat.askRatingHint')}
+            checked={cfg.ask_rating !== false}
+            onChange={(c) => save({ ask_rating: c })}
+          />
+        </div>
+      </Card>
+
+      {/* ── 3. ¿Cómo se ve? ── */}
       <Card title={t('webchat.appearance')}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label={t('webchat.color')}>
@@ -360,23 +431,27 @@ export function WebchatPanel() {
             />
           </Field>
         </div>
+
+        <div className="mt-3">
+          <Field label={t('webchat.autoOpen')}>
+            <div className="flex flex-wrap gap-2">
+              {AUTO_OPEN.map((s) => (
+                <Button
+                  key={s}
+                  type="button"
+                  size="sm"
+                  variant={(cfg.auto_open_seconds ?? 0) === s ? 'default' : 'outline'}
+                  onClick={() => save({ auto_open_seconds: s })}
+                >
+                  {s === 0 ? t('webchat.autoOpenNever') : `${s}s`}
+                </Button>
+              ))}
+            </div>
+          </Field>
+        </div>
       </Card>
 
-      {/* ── Comportamiento ── */}
-      <Card title={t('webchat.behavior')}>
-        <Row>
-          <div>
-            <p className="text-sm font-medium text-foreground">{t('webchat.requireEmail')}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('webchat.requireEmailHint')}</p>
-          </div>
-          <Switch
-            checked={Boolean(cfg.require_email)}
-            onCheckedChange={(c) => save({ require_email: c })}
-          />
-        </Row>
-      </Card>
-
-      {/* ── Resultados ── */}
+      {/* ── 4. ¿Qué produjo? ── */}
       <Card title={t('webchat.results')} subtitle={t('webchat.period')}>
         {stats && stats.conversations > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -415,16 +490,15 @@ export function WebchatPanel() {
                   ? format.currency(stats.revenue, stats.currency)
                   : String(Math.round(stats.revenue))
               }
-              // Las otras monedas debajo, sin inventar un total.
-              //
-              // Antes se sumaban todas y el resultado se etiquetaba con la
-              // moneda del primer pedido: una tienda que vende en pesos y en
-              // dólares veía "1.250.000 USD". Es el número con el que el
-              // comercio decide si el canal vale la pena.
+              // Las otras monedas debajo, sin inventar un total: sumarlas y
+              // etiquetarlas con la del primer pedido daba un número que no
+              // existe, y es el número con el que se decide si el canal sirve.
               extra={(stats.revenue_by_currency ?? [])
                 .slice(1)
                 .map((r) =>
-                  r.currency ? format.currency(r.revenue, r.currency) : String(Math.round(r.revenue)),
+                  r.currency
+                    ? format.currency(r.revenue, r.currency)
+                    : String(Math.round(r.revenue)),
                 )}
             />
           </div>
@@ -468,6 +542,29 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
       {children}
     </div>
+  );
+}
+
+/** Un interruptor con su nombre y, sólo si aporta algo, una línea de ayuda. */
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <Row>
+      <div className="min-w-0">
+        <p className="text-sm text-foreground">{label}</p>
+        {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </Row>
   );
 }
 

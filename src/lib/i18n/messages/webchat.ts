@@ -16,18 +16,15 @@ export const webchat = {
 
   // ── Estado ──
   enable: { es: "Chat web activo", en: "Web chat live" },
-  enableHint: {
-    es: "Apágalo para dejar el chat fuera de la tienda sin quitar el código.",
-    en: "Turn it off to take the chat down without removing the code.",
-  },
   live: { es: "Activo", en: "Live" },
   off: { es: "Apagado", en: "Off" },
 
   // ── Instalación ──
   install: { es: "Instalación", en: "Install" },
-  installHint: {
-    es: "Pega este código antes de </body> en tu tienda.",
-    en: "Paste this code before </body> in your store.",
+  installManual: { es: "Pegar el código a mano", en: "Paste the code manually" },
+  installNeedsReconnect: {
+    es: "Reconectá Shopify para poder instalarlo desde acá.",
+    en: "Reconnect Shopify to install it from here.",
   },
   installAuto: { es: "Instalar en la tienda", en: "Install on the store" },
   installAutoHint: {
@@ -46,13 +43,9 @@ export const webchat = {
   copy: { es: "Copiar", en: "Copy" },
   copied: { es: "Copiado", en: "Copied" },
   domains: { es: "Dominios permitidos", en: "Allowed domains" },
-  domainsHint: {
-    es: "El chat solo abre en estos dominios. Los subdominios se incluyen.",
-    en: "The chat only opens on these domains. Subdomains are included.",
-  },
   domainsEmpty: {
-    es: "Agrega tu dominio para que el chat pueda abrir.",
-    en: "Add your domain so the chat can open.",
+    es: "Sin al menos uno, el chat no abre en ninguna página.",
+    en: "Without at least one, the chat won't open anywhere.",
   },
   domainsDetected: { es: "De tu tienda:", en: "From your store:" },
   // Las dos razones por las que el codigo esta pegado y el chat no aparece.
@@ -86,15 +79,24 @@ export const webchat = {
   behavior: { es: "Comportamiento", en: "Behavior" },
   agent: { es: "Agente que atiende", en: "Agent on duty" },
   agentAuto: { es: "El que corresponda", en: "Whichever applies" },
-  agentHint: {
-    es: "Sin elegir uno, atiende el agente asignado a este canal.",
-    en: "Left unset, the agent assigned to this channel takes over.",
-  },
+  agentPaused: { es: "en pausa", en: "paused" },
   requireEmail: { es: "Pedir correo antes de escribir", en: "Ask for email first" },
   requireEmailHint: {
     es: "Suma fricción. Si compra, el correo se captura igual.",
     en: "Adds friction. On purchase, the email is captured anyway.",
   },
+  uploads: { es: "Recibir fotos y archivos", en: "Accept photos and files" },
+  uploadsHint: {
+    es: "El comprobante de una transferencia y la foto de un producto roto son la mitad del soporte.",
+    en: "Transfer receipts and photos of a damaged item are half of all support.",
+  },
+  askRating: { es: "Preguntar si sirvió", en: "Ask if it helped" },
+  askRatingHint: {
+    es: "Dos pulgares al final. Es de donde sale el porcentaje de abajo.",
+    en: "Two thumbs at the end. It is where the percentage below comes from.",
+  },
+  autoOpen: { es: "Abrirse solo", en: "Open by itself" },
+  autoOpenNever: { es: "Nunca", en: "Never" },
 
   // ── Resultados ──
   results: { es: "Resultados", en: "Results" },

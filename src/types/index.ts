@@ -1169,4 +1169,22 @@ export interface WebchatConfig {
   /** Pedir email antes de escribir. Off por defecto: la fricción mata la
    *  conversación, y el email igual se captura solo si la persona compra. */
   require_email?: boolean;
+  /**
+   * Segundos hasta que el chat se abre solo. 0 = nunca.
+   *
+   * Abre UNA vez por visita y sólo si la persona no lo cerró antes: un chat
+   * que se abre de nuevo cada vez que uno lo cierra no es una invitación, es
+   * un pop-up.
+   */
+  auto_open_seconds?: number;
+  /** Dejar que el visitante mande fotos y archivos. On por defecto: el
+   *  comprobante de una transferencia y la foto del producto roto son la mitad
+   *  de las conversaciones de soporte. */
+  allow_uploads?: boolean;
+  /** Preguntar "¿te sirvió?" al final. On por defecto: es el único número que
+   *  distingue un agente que resuelve de uno que sólo contesta. */
+  ask_rating?: boolean;
+  /** Qué dice cuando el agente está fuera de horario. Vacío = el texto
+   *  genérico del canal. */
+  offline_message?: string;
 }
