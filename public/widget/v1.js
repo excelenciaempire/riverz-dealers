@@ -59,7 +59,8 @@
     }
   }
 
-  var state = { open: false, session: null, settings: null, unread: 0 };
+  // `ready` = el iframe ya cargó nuestro origen y puede recibir mensajes.
+  var state = { open: false, session: null, settings: null, unread: 0, ready: false };
 
   // ── Marco ──────────────────────────────────────────────────────
 
@@ -210,7 +211,11 @@
   }
 
   function post(message) {
-    if (frame.contentWindow) frame.contentWindow.postMessage(message, BASE);
+    // Sólo cuando el chat ya avisó que está en NUESTRO origen. Antes de eso el
+    // iframe sigue en `about:blank`, que hereda el origen de la tienda: el
+    // navegador descarta el mensaje y deja un aviso en la consola del comercio.
+    // Lo que haya que decirle se le vuelve a decir al recibir `riverz:ready`.
+    if (state.ready && frame.contentWindow) frame.contentWindow.postMessage(message, BASE);
   }
 
   function frameUrl() {
@@ -415,6 +420,7 @@
     if (data.type === 'riverz:close') close();
     else if (data.type === 'riverz:unread') setUnread(data.count);
     else if (data.type === 'riverz:ready') {
+      state.ready = true;
       post({ type: 'riverz:context', url: location.href });
       // El estado real de la ventana, ahora que el iframe ya está en nuestro
       // origen y puede recibirlo. El `riverz:opened` de la primera apertura se
