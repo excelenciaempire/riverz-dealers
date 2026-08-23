@@ -125,6 +125,10 @@ export const errInbox = {
     en: "message_id and action are required",
   },
   messageNotFound: { es: "Mensaje no encontrado", en: "Message not found" },
+  tiktokRepeatedReply: {
+    es: "Esta misma respuesta ya salió {veces} veces esta semana. TikTok suele ocultar las repetidas: usa el botón de generar respuesta para que cada una sea distinta.",
+    en: "This same reply already went out {veces} times this week. TikTok tends to hide repeats — use the draft button so each one is different.",
+  },
   moderateOnlyComments: {
     es: "La moderación solo aplica a comentarios de Facebook o Instagram",
     en: "Moderation only applies to Facebook or Instagram comments",

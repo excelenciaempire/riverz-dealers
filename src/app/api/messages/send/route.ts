@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
-import type { ChannelConnection, Contact, Conversation, Message } from "@/types";
+import type { Channel, ChannelConnection, Contact, Conversation, Message } from "@/types";
 import { isButtonUrlVariable } from "@/lib/whatsapp/dynamic-links";
 
 /**
@@ -385,5 +385,59 @@ export async function POST(req: Request): Promise<Response> {
     })
     .eq("id", (conversation as Conversation).id);
 
-  return NextResponse.json({ ok: true, message: message as Message });
+  return NextResponse.json({
+    ok: true,
+    message: message as Message,
+    ...(await avisoRepeticionTikTok(admin, {
+      channel,
+      workspaceId: (conversation as Conversation).workspace_id,
+      text: contentText ?? null,
+    })),
+  });
+}
+
+/**
+ * Aviso de respuesta repetida en TikTok.
+ *
+ * TikTok oculta las respuestas del comercio sin decirlo: quedan visibles para
+ * quien las escribió y para nadie más. En la primera cuenta conectada eso pasó
+ * con 89 de 138 respuestas, y lo que tenían en común era ser el mismo bloque
+ * pegado una y otra vez — la misma promoción con el mismo enlace, 98 veces.
+ * Las respuestas cortas y distintas entre sí sobrevivieron.
+ *
+ * No se toca el texto: lo que la persona escribió se manda tal cual. Sólo se
+ * le dice, la tercera vez que manda exactamente lo mismo, que ese es el camino
+ * a que TikTok la esconda. El botón de generar respuesta escribe una distinta
+ * cada vez, que es la salida.
+ */
+async function avisoRepeticionTikTok(
+  db: ReturnType<typeof supabaseAdmin>,
+  args: { channel: Channel; workspaceId: string; text: string | null },
+): Promise<{ warning?: string }> {
+  if (args.channel !== "tiktok_comment") return {};
+  const normalizado = normalizarComentario(args.text ?? "");
+  if (normalizado.length < 25) return {}; // "gracias ❤️" se repite y no molesta a nadie
+  try {
+    const desde = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await db
+      .from("messages")
+      .select("content_text, conversations!inner(workspace_id)")
+      .eq("channel", "tiktok_comment")
+      .in("sender_type", ["agent", "bot"])
+      .eq("conversations.workspace_id", args.workspaceId)
+      .gte("created_at", desde)
+      .limit(300);
+    const iguales = ((data ?? []) as Array<{ content_text: string | null }>).filter(
+      (m) => normalizarComentario(m.content_text ?? "") === normalizado,
+    ).length;
+    if (iguales < 3) return {};
+    const locale = await getLocale();
+    return { warning: translate(locale, "errInbox.tiktokRepeatedReply", { veces: String(iguales) }) };
+  } catch {
+    return {}; // un aviso nunca puede romper un envío
+  }
+}
+
+function normalizarComentario(texto: string): string {
+  return texto.trim().toLowerCase().replace(/\s+/g, " ");
 }

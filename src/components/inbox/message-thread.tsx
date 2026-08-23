@@ -745,6 +745,9 @@ export function MessageThread({
         }
 
         onUpdateMessage(tempId, { status: "sent" });
+        // El envío salió bien, pero puede venir con una advertencia: hoy la
+        // única es la de TikTok ocultando respuestas repetidas.
+        if (typeof payload?.warning === "string") toast.warning(payload.warning);
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = t("inbox.networkErrorReason");
