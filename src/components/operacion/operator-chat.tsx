@@ -60,6 +60,23 @@ interface Accion {
   preview: string | null
 }
 
+/** Las que cambian algo: la línea viva dice «Armando», no «Mirando». */
+const VERBOS_QUE_ESCRIBEN =
+  /\.(crear|editar|activar|enviar|lanzar|borrar|etiquetar|decidir|desconectar|invitar|llamar|checkout|registrar)/
+
+function escribe(key: string): boolean {
+  return VERBOS_QUE_ESCRIBEN.test(key)
+}
+
+function cap(s: string): string {
+  return `${s[0]?.toUpperCase() ?? ''}${s.slice(1)}`
+}
+
+/** «Las plantillas» → «las plantillas», para que entre en una frase. */
+function enMinuscula(s: string): string {
+  return `${s[0]?.toLowerCase() ?? ''}${s.slice(1)}`
+}
+
 /**
  * La primera frase de una vista previa: lo que la decisión necesita.
  *
@@ -91,7 +108,7 @@ function primeraFrase(texto: string): string {
 interface PlanPendiente {
   planId: string
   porque: string
-  pasos: { i: number; agente: string; encargo: string; dependeDe: number[] }[]
+  pasos: { i: number; agente: string; que: string; encargo: string; dependeDe: number[] }[]
   estado: 'esperando' | 'corriendo' | 'listo' | 'rechazado'
 }
 
@@ -146,6 +163,14 @@ export function OperatorChat({
    */
   const [notas, setNotas] = useState<string[]>([])
   const finalRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * `enviar` en una caja, porque se declara DESPUÉS de quien la llama.
+   *
+   * `resolver` necesita seguir la conversación al aprobar, y mover `enviar`
+   * arriba significaría mover con ella medio componente. La caja se llena en
+   * cuanto `enviar` existe.
+   */
+  const enviarRef = useRef<((texto: string) => Promise<void>) | null>(null)
 
   /**
    * Abre una conversación anterior.
@@ -362,6 +387,8 @@ export function OperatorChat({
     [aLaMesa, fetchWithCsrf, pensando, t, thread],
   )
 
+  enviarRef.current = enviar
+
   /**
    * Cambia el paso del hilo cuando su acción se decide.
    *
@@ -523,14 +550,35 @@ export function OperatorChat({
   const resolver = useCallback(
     async (decisiones: { id: string; aprobar: boolean }[]) => {
       await Promise.all(decisiones.map((d) => decidir(d.id, d.aprobar)))
-      const creadas = decisiones
+      const aprobadas = decisiones
         .filter((d) => d.aprobar)
         .map((d) => acciones.find((a) => a.id === d.id))
-        .filter((a): a is Accion => Boolean(a) && CREAN_AUTOMATIZACION.includes(a!.capability_key))
+        .filter((a): a is Accion => Boolean(a))
+
+      const creadas = aprobadas
+        .filter((a) => CREAN_AUTOMATIZACION.includes(a.capability_key))
         .map((a) => a.id)
       if (creadas.length > 0) await ofrecerPrender(creadas)
+
+      /**
+       * Y el chat sigue.
+       *
+       * Al aprobar, el turno se terminaba ahí. Pero aprobar es justo lo que
+       * desbloquea el resto: los tres mensajes existen, y ahora sí se puede
+       * armar la automatización que los usa. Quedarse callado obliga a
+       * escribir «seguí» a mano, y a que la persona se dé cuenta sola de que
+       * hacía falta.
+       *
+       * No se sigue después de prender: ahí el trabajo terminó de verdad.
+       */
+      const soloPrender = aprobadas.every(
+        (a) => a.capability_key === 'automatizaciones.activar',
+      )
+      if (aprobadas.length > 0 && !soloPrender) {
+        await enviarRef.current?.(t('operation.seguir'))
+      }
     },
-    [acciones, decidir, ofrecerPrender],
+    [acciones, decidir, ofrecerPrender, t],
   )
 
   /**
@@ -644,14 +692,24 @@ export function OperatorChat({
     .reverse()
     .find((b): b is Extract<Bloque, { k: 'paso' }> => b.k === 'paso' && b.estado === 'corriendo')
   const trabajando = mesa.agentes.find((a) => a.estado === 'trabajando')
+  /**
+   * Qué está pasando, en tres palabras.
+   *
+   * Mostraba `trabajando.ultima`, que es el encargo entero escrito para el
+   * especialista: «CREA LA AUTOMATIZACIÓN DE RECOMPRA DEL SERUM PILAR: AL
+   * PAGARSE UN PEDIDO EN SHOPIFY…», cortado a la mitad. Nadie lee eso mientras
+   * espera. Lo que hace falta saber es qué está tocando y si mira o construye.
+   */
   const actividad = corriendo
-    ? corriendo.label
+    ? t(escribe(corriendo.key) ? 'operation.vivoArmando' : 'operation.vivoMirando', {
+        que: enMinuscula(t(`operation.dom${cap(corriendo.key.split('.')[0])}`)),
+      })
     : trabajando
       ? trabajando.pidiendoA
         ? t('operation.pideA', { quien: t(nombreDeSubagente(trabajando.pidiendoA)) })
-        : // El nombre del especialista y nunca su id: `plantillas` en medio de
-          // una frase en español es la clave cruda otra vez.
-          trabajando.ultima || t(nombreDeSubagente(trabajando.id))
+        : t('operation.vivoArmando', {
+            que: enMinuscula(t(nombreDeSubagente(trabajando.id))),
+          })
       : t('operation.operatorThinking')
 
   // Las de una conversación vieja sin bloques, que no tienen dónde ir arriba.
@@ -1014,7 +1072,7 @@ function TarjetaPlan({
                   es la instrucción que recibe el especialista —lleva el detalle
                   que necesita para no adivinar— y no algo para leer entero acá:
                   dos párrafos por paso convertían la tarjeta en un muro. */}
-              <span className="line-clamp-2 text-muted-foreground">{primeraFrase(p.encargo)}</span>
+              <span className="line-clamp-2 text-muted-foreground">{p.que || primeraFrase(p.encargo)}</span>
               {p.dependeDe.length > 0 && (
                 <span className="text-muted-foreground/70">
                   {" "}
@@ -1025,12 +1083,6 @@ function TarjetaPlan({
           </li>
         ))}
       </ol>
-
-      {/* Decirlo acá y no en un pie de página: es lo que hace que aprobar de
-          una sola vez no sea aprobar a ciegas. */}
-      <p className="mt-3 text-[11px] leading-snug text-muted-foreground">
-        {t('operation.planAviso')}
-      </p>
 
       {!listo && (
         <div className="mt-3 flex gap-2">
@@ -1141,16 +1193,17 @@ function Turno({
         </p>
       ) : null}
 
-      {/* Una lectura NO deja fila.
-          «Las plantillas ✓», «Las automatizaciones ✓» contaban que el equipo
-          había mirado algo, y mirar no es un resultado: llenaban la conversación
-          de renglones que no cambian nada y empujaban hacia abajo lo único que
-          hay que leer. Mientras pasan se ven en la línea viva, que dice qué está
-          haciendo AHORA; cuando terminan, se van. Queda lo que dejó algo. */}
+      {/* Un paso NO deja fila. Sólo los que fallaron.
+          Contaban que el equipo había mirado o escrito algo —«Las plantillas ✓»,
+          «RECOMPRA_SERUM_1U ✓»— y ninguna de las dos cosas es una decisión ni un
+          resultado que haga falta leer: lo que se armó está en el panel de la
+          derecha y lo que hay que decidir, en la tarjeta de abajo. Mientras
+          pasan, la línea viva dice qué está haciendo. Un error sí se queda: es
+          lo único que nadie más va a contar. */}
       {agrupar(bloques).map(({ b, veces }) =>
         b.k === 'texto' ? (
           <Dicho key={b.id} role="assistant" text={b.texto} />
-        ) : b.estado === 'hecho' || b.estado === 'propuesto' || b.estado === 'error' ? (
+        ) : b.estado === 'error' ? (
           <Paso key={b.id} b={b} veces={veces} onVer={onVer} />
         ) : null,
       )}
@@ -1248,6 +1301,34 @@ function Paso({
  * descarta. Dejar algo colgando sería que la misma tarjeta reapareciera al
  * recargar, que es de dónde venimos.
  */
+/**
+ * Cómo se llama esta decisión: por lo que va a dejar.
+ *
+ * «Esto dejaría hecho» es una frase de relleno sobre una lista que ya se lee.
+ * Un título que dice «Crear las plantillas» contesta la pregunta antes de que
+ * nadie baje la vista.
+ */
+const CREA: Record<string, string> = {
+  'plantillas.crear': 'operation.crearPlantillas',
+  'automatizaciones.crear': 'operation.crearAutomatizacion',
+  'automatizaciones.crear_desde_receta': 'operation.crearAutomatizacion',
+  'automatizaciones.editar': 'operation.cambiarAutomatizacion',
+  'automatizaciones.editar_espera': 'operation.cambiarAutomatizacion',
+  'campanas.crear': 'operation.crearCampana',
+  'segmentos.crear': 'operation.crearSegmento',
+  'agentes.crear_borrador': 'operation.crearAgente',
+  'comentarios.crear_regla': 'operation.crearRegla',
+  'plantillas.enviar_a_meta': 'operation.mandarAMeta',
+  'mensajes.enviar': 'operation.mandarMensaje',
+}
+
+function tituloDe(acciones: Accion[], t: ReturnType<typeof useT>): string {
+  const claves = [...new Set(acciones.map((a) => CREA[a.capability_key]).filter(Boolean))]
+  // Con una sola cosa el título la nombra; con varias distintas, ninguno de los
+  // dos títulos sería cierto y el genérico dice la verdad.
+  return claves.length === 1 ? t(claves[0]) : t('operation.decisionTitulo')
+}
+
 function TarjetaDecision({
   acciones,
   onResolver,
@@ -1320,7 +1401,7 @@ function TarjetaDecision({
     <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
       <p className="flex items-center gap-2 text-sm font-medium text-foreground">
         <Sparkles className="size-4 shrink-0 text-accent-ink" />
-        {t('operation.decisionTitulo')}
+        {tituloDe(acciones, t)}
       </p>
 
       <ul className="mt-3 space-y-2.5">

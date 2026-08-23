@@ -55,7 +55,15 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
             type: 'object',
             properties: {
               subagente: { type: 'string', enum: [...SUBAGENT_IDS] },
-              encargo: { type: 'string', description: 'Qué tiene que hacer, en una o dos frases. Esto se muestra en pantalla, así que va sin nombres internos ni de código y sin comillas sueltas. No mandes el pedido original tal cual: tradúcelo a una instrucción concreta de su dominio. Lo que no entre en dos frases, sobra: el especialista sabe su oficio.' },
+              que: {
+                type: 'string',
+                description:
+                  'Qué va a pasar, en UNA frase corta y en castellano llano, para la persona que aprueba. '
+                  + 'Sin nombres de plantilla, sin ids, sin jerga: «Escribe los tres mensajes de recompra», '
+                  + '«Arma la automatización que espera 21 días y ramifica por unidades». '
+                  + 'Es lo único que se muestra en pantalla.',
+              },
+              encargo: { type: 'string', description: 'La instrucción para el especialista, que NO se muestra en pantalla: acá sí van los nombres exactos y el detalle. En una o dos frases. Esto se muestra en pantalla, así que va sin nombres internos ni de código y sin comillas sueltas. No mandes el pedido original tal cual: tradúcelo a una instrucción concreta de su dominio. Lo que no entre en dos frases, sobra: el especialista sabe su oficio.' },
               depende_de: {
                 type: 'array',
                 items: { type: 'number' },
@@ -66,7 +74,7 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
                   + 'Déjalo vacío sólo cuando de verdad no necesita nada de los otros.',
               },
             },
-            required: ['subagente', 'encargo'],
+            required: ['subagente', 'que', 'encargo'],
           },
         },
       },

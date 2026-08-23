@@ -163,19 +163,30 @@ function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
         propuestas: e.propuestas,
         construidas: e.construidas,
       })
-      // Sigue activo mientras quede alguien trabajando: con tres en paralelo,
-      // que termine uno no significa que terminó el equipo.
-      const activo = next.agentes.some((x) => x.estado === 'trabajando')
-      return { ...next, activo }
+      // El turno NO termina porque un especialista terminó.
+      //
+      // Esto miraba si quedaba alguien trabajando, y entre una ola y la
+      // siguiente no queda nadie por unos milisegundos: el banco se abría y se
+      // cerraba solo. Quien cierra el turno es `done`, que llega una vez.
+      return next
     }
 
     case 'agente_pide':
       return conAgente(e.agente, { pidiendoA: e.a })
 
     case 'lienzo': {
-      // Un lienzo por paso: cuando un subagente redibuja lo que está armando,
-      // reemplaza al suyo en vez de acumular tres versiones del mismo árbol.
-      const clave = (l: LienzoEnMesa) => `${l.agente}-${l.paso ?? 'x'}`
+      // Una pieza por NOMBRE, no por paso.
+      //
+      // La clave era agente+paso, y el de plantillas escribe las tres en el
+      // mismo paso: la segunda pisaba a la primera y la tercera a la segunda,
+      // así que de tres mensajes se veía uno. Con el nombre adentro, redibujar
+      // la misma pieza la reemplaza y dos piezas distintas conviven.
+      const nombreDe = (l: LienzoEnMesa) =>
+        'nombre' in l.artefacto && typeof l.artefacto.nombre === 'string'
+          ? l.artefacto.nombre
+          : ''
+      const clave = (l: LienzoEnMesa) =>
+        `${l.agente}-${l.paso ?? 'x'}-${l.artefacto.kind}-${nombreDe(l)}`
       const nuevo: LienzoEnMesa = { agente: e.agente, paso: e.paso, artefacto: e.artefacto }
       const i = s.lienzos.findIndex((l) => clave(l) === clave(nuevo))
       return {

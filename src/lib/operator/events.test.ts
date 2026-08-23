@@ -87,8 +87,8 @@ describe('la regla que impide que se mezcle el texto de dos agentes', () => {
       planId: 'p1',
       porque: 'la automatización necesita la plantilla',
       pasos: [
-        { i: 0, agente: 'plantillas', encargo: 'Escribí la de carrito', dependeDe: [] },
-        { i: 1, agente: 'automatizaciones', encargo: 'Armá el rescate', dependeDe: [0] },
+        { i: 0, agente: 'plantillas', que: 'Escribe el mensaje', encargo: 'Escribí la de carrito', dependeDe: [] },
+        { i: 1, agente: 'automatizaciones', que: 'Arma el rescate', encargo: 'Armá el rescate', dependeDe: [0] },
       ],
     })
     const { events } = drainEvents(buf)

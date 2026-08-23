@@ -291,8 +291,11 @@ describe('crearPlantilla', () => {
 })
 
 describe('capacidades de plantillas', () => {
-  it('crear_borrador guarda el borrador y dibuja la plantilla', async () => {
-    const cap = capacidad('plantillas.crear_borrador')
+  it('crear la escribe, la manda a Meta y la dibuja', async () => {
+    // Eran dos aprobaciones para una sola cosa, y entre las dos quedaba una
+    // plantilla a medias en la lista del comercio: no sirve para enviar, no
+    // está en revisión, y hay que acordarse de volver.
+    const cap = capacidad('plantillas.crear')
     const args = {
       nombre: 'Bienvenida VIP',
       cuerpo: 'Hola {{1}}, gracias por tu compra.',
@@ -302,17 +305,28 @@ describe('capacidades de plantillas', () => {
     }
     const c = ctx()
     const r = (await cap.run(c, args)) as Record<string, unknown>
-    expect(r.estado).toBe('borrador')
-    expect(enviadasAMeta).toHaveLength(0)
+    expect(r.estado).toBe('en_revision')
+    expect(enviadasAMeta).toHaveLength(1)
     expect(estado.insertadas[0].name).toBe('bienvenida_vip')
-    expect(estado.insertadas[0].status).toBe('Draft')
 
+    // El dibujo sale de los ARGUMENTOS: es lo que hace que el mensaje se lea
+    // en su teléfono mientras esto todavía es una propuesta.
     const art = cap.artifact?.(c, args, r)
     expect(art?.kind).toBe('plantilla')
-    expect(art).toMatchObject({ nombre: 'bienvenida_vip', estado: 'borrador' })
+    expect(art).toMatchObject({ nombre: 'bienvenida_vip' })
   })
 
-  it('crear_borrador no pisa una plantilla que ya fue a Meta', async () => {
+  it('es irreversible, y lo dice antes', async () => {
+    // El nombre queda tomado en ese WhatsApp aunque Meta la rechace. Quien
+    // aprueba tiene que leerlo, y la tarjeta lo marca por el riesgo.
+    const cap = capacidad('plantillas.crear')
+    expect(cap.risk).toBe('irreversible')
+    const texto = await cap.preview!(ctx(), { nombre: 'Bienvenida VIP', cuerpo: 'Hola' })
+    expect(texto).toMatch(/Meta/)
+    expect(texto).toMatch(/queda tomado/i)
+  })
+
+  it('crear no pisa una plantilla que ya fue a Meta', async () => {
     estado.plantillas.push({
       id: 'pl-1',
       workspace_id: WS,
@@ -321,7 +335,7 @@ describe('capacidades de plantillas', () => {
       status: 'Approved',
       body_text: 'vieja',
     })
-    const cap = capacidad('plantillas.crear_borrador')
+    const cap = capacidad('plantillas.crear')
     await expect(
       cap.run(ctx(), { nombre: 'Bienvenida VIP', cuerpo: 'nueva' }),
     ).rejects.toThrow(/no se puede reusar/i)

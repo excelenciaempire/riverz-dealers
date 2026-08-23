@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2, Sparkles, Wand2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -94,6 +94,8 @@ export function MessageComposer({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   // Mejorar redaccion: un clic reescribe el borrador antes de enviarlo.
   const [improving, setImproving] = useState(false);
+  // Generar respuesta: el agente propone qué contestar; nadie envía nada.
+  const [drafting, setDrafting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Ref-guard adicional: setState es async, así que si el agente
   // pulsa Enter rapidísimo el segundo handler todavía lee
@@ -300,6 +302,54 @@ export function MessageComposer({
       setImproving(false);
     }
   }, [text, improving, sessionExpired, fetchWithCsrf, conversationId, t, adjustHeight]);
+
+  /**
+   * El botón hermano: en vez de reescribir lo que ya está escrito, el agente
+   * lee la conversación entera y lo que sabe del producto y propone la
+   * respuesta. Cae en el cuadro de escritura — no se envía nada — y si pisó
+   * un borrador a medio escribir, el toast lo devuelve.
+   */
+  const handleDraft = useCallback(async () => {
+    if (drafting || sessionExpired || !conversationId) return;
+    const previo = text;
+    setDrafting(true);
+    try {
+      const res = await fetchWithCsrf("/api/ai/draft-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { text?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.text) {
+        toast.error(data?.error || t("inbox.draftReplyFailed"));
+        return;
+      }
+      const propuesta = data.text;
+      setText(propuesta);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(propuesta.length, propuesta.length);
+        adjustHeight();
+      });
+      toast(t("inbox.draftReplyReady"), {
+        action: {
+          label: t("inbox.improveTextUndo"),
+          onClick: () => {
+            setText(previo);
+            requestAnimationFrame(adjustHeight);
+          },
+        },
+      });
+    } catch {
+      toast.error(t("inbox.draftReplyFailed"));
+    } finally {
+      setDrafting(false);
+    }
+  }, [text, drafting, sessionExpired, fetchWithCsrf, conversationId, t, adjustHeight]);
 
   const handleFilePick = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -580,6 +630,25 @@ export function MessageComposer({
             sessionExpired && "cursor-not-allowed opacity-50"
           )}
         />
+
+        {/* Generar respuesta: el agente propone qué contestar. */}
+        {conversationId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+            onClick={handleDraft}
+            disabled={sessionExpired || sending || drafting || improving}
+            title={t("inbox.draftReply")}
+            aria-label={t("inbox.draftReply")}
+          >
+            {drafting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+          </Button>
+        )}
 
         {/* Mejorar redacción: reescribe el borrador antes de enviarlo. */}
         <Button

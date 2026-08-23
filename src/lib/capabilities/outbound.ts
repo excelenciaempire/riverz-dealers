@@ -275,7 +275,11 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       footerText: typeof args.pie === 'string' ? args.pie : undefined,
       buttons: leerBotones(args.botones),
       bodySamples: Array.isArray(args.ejemplos) ? args.ejemplos.map((x) => String(x)) : undefined,
-      enviarAMeta: false,
+      // Sale a Meta en el mismo movimiento. Eran dos aprobaciones para una sola
+      // cosa, y entre las dos quedaba una plantilla a medias en la lista del
+      // comercio: no sirve para enviar, no está en revisión, y hay que
+      // acordarse de volver.
+      enviarAMeta: true,
       plantillaExistenteId: previa?.id ?? null,
     }),
   )
@@ -285,8 +289,8 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
     nombre: r.name,
     idioma: r.language,
     categoria: r.category,
-    estado: 'borrador',
-    nota: 'Queda guardada como borrador. No salió a Meta y todavía no se puede usar para enviar: mandala a aprobación cuando esté como la querés.',
+    estado: 'en_revision',
+    nota: 'Quedó en revisión de Meta. Tarda horas; hasta que la aprueben no se le puede enviar a nadie.',
   }
 }
 
@@ -410,13 +414,12 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
   },
 
   {
-    key: 'plantillas.crear_borrador',
-    description: `Escribe una plantilla de WhatsApp y la guarda como BORRADOR. No sale a Meta y todavía no se puede enviar: para eso está plantillas.enviar_a_meta.
-El cuerpo admite variables {{1}}, {{2}}… correlativas desde 1, y cada una necesita un valor de ejemplo en "ejemplos".
-Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usado por una plantilla que fue a Meta, falla: allá el nombre no se reusa.`,
+    key: 'plantillas.crear',
+    description:
+      'Escribe una plantilla de WhatsApp y la manda a aprobación de Meta. Es un camino de ida: no se cancela y el nombre queda tomado en ese WhatsApp aunque la rechacen. La revisión tarda horas; hasta que quede aprobada no se le puede enviar a nadie. La persona ve el mensaje entero antes de decidir.',
     descriptionEn:
-      'Writes a WhatsApp template and saves it as a DRAFT. It does not go to Meta and cannot be sent yet. Overwrites an existing draft with the same name.',
-    risk: 'reversible',
+      'Writes a WhatsApp template and submits it to Meta for approval. One way: it cannot be cancelled and the name stays taken on that WhatsApp account even if rejected. The person sees the whole message before deciding.',
+    risk: 'irreversible',
     // Queda guardada y sin mandar a Meta: no la ve nadie fuera de la cuenta,
     // y no se puede usar en un envío hasta que Meta la apruebe.
     schema: {
@@ -453,21 +456,12 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
       },
       required: ['nombre', 'cuerpo'],
     },
-    // NO es inerte, aunque no salga a Meta.
-    //
-    // Estaba marcada inerte con el argumento de que un borrador no le llega a
-    // nadie, y es cierto. Lo que sí hace es aparecer en la lista de plantillas
-    // del comercio: tres borradores que nadie pidió son basura en su cuenta, y
-    // el trabajo de escribirlos ya se hizo. Ahora el texto se ve ANTES —el
-    // artefacto se dibuja desde los argumentos, así que el mensaje se lee como
-    // le va a llegar a alguien— y la fila recién existe cuando alguien dice que
-    // sí.
+    // El texto se ve ANTES de que exista: el artefacto se dibuja desde los
+    // argumentos, así que el banco muestra el mensaje en su teléfono mientras
+    // esto todavía es una propuesta. Aprobar es aprobar lo que se leyó.
     async preview(_ctx, args) {
       const nombre = normalizeTemplateName(String(args.nombre ?? ''))
-      const cuerpo = String(args.cuerpo ?? '').trim()
-      return `Guardaría el borrador «${nombre}» (${String(args.categoria ?? 'MARKETING')}): "${
-        cuerpo.length > 160 ? `${cuerpo.slice(0, 160)}…` : cuerpo
-      }". No sale a Meta.`
+      return `Crearía «${nombre}» y la mandaría a aprobación de Meta. El nombre queda tomado aunque la rechacen.`
     },
     artifact: (_ctx, args) =>
       artefactoPlantilla({
@@ -484,7 +478,7 @@ Si ya existe un borrador con ese nombre, lo reescribe. Si el nombre ya está usa
             tipo: String(boton.tipo ?? boton.type ?? 'respuesta_rapida'),
           }
         }),
-        estado: 'borrador',
+        estado: 'en_revision',
       }),
     run: crearBorrador,
   },

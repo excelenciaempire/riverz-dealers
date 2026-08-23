@@ -315,6 +315,12 @@ export const inbox = {
     es: "No se pudo mejorar el texto",
     en: "Couldn't improve the text",
   },
+  draftReply: { es: "Generar respuesta", en: "Draft a reply" },
+  draftReplyReady: { es: "Respuesta generada", en: "Reply drafted" },
+  draftReplyFailed: {
+    es: "No se pudo generar la respuesta",
+    en: "Couldn't draft the reply",
+  },
 
   // Respuesta propuesta por un agente en modo "aprobar cada mensaje"
   pendingReplyTitle: { es: "Respuesta lista", en: "Reply ready" },

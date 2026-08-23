@@ -27,6 +27,9 @@ const MAX_ENCARGO = 600
 export interface PasoValidado {
   i: number
   agente: SubagentId
+  /** Qué va a pasar, en castellano. Es lo ÚNICO que se muestra al aprobar. */
+  que: string
+  /** La instrucción para el especialista, con los nombres exactos. No se muestra. */
   encargo: string
   dependeDe: number[]
 }
@@ -84,7 +87,12 @@ export function validarPlan(entrada: unknown): Validacion {
 
   const pasos: PasoValidado[] = []
   for (let i = 0; i < e.pasos.length; i++) {
-    const p = e.pasos[i] as { subagente?: unknown; encargo?: unknown; depende_de?: unknown }
+    const p = e.pasos[i] as {
+      subagente?: unknown
+      que?: unknown
+      encargo?: unknown
+      depende_de?: unknown
+    }
     if (!esSubagentId(p?.subagente)) {
       return { ok: false, error: `El paso ${i} le habla a "${String(p?.subagente)}", que no está en el equipo.` }
     }
@@ -104,7 +112,11 @@ export function validarPlan(entrada: unknown): Validacion {
       if (n === i) return { ok: false, error: `El paso ${i} se depende de sí mismo.` }
       dependeDe.push(n)
     }
-    pasos.push({ i, agente: p.subagente, encargo, dependeDe })
+    // Sin `que` se cae al encargo: un plan sin su línea en castellano se lee
+    // peor, pero no se pierde. Rechazarlo tiraría el trabajo entero por un
+    // campo de presentación.
+    const que = typeof p?.que === 'string' ? sinComillaSuelta(p.que).trim() : ''
+    pasos.push({ i, agente: p.subagente, que: que || encargo, encargo, dependeDe })
   }
 
   const r = calcularOlas(pasos.map((p) => ({ i: p.i, dependeDe: p.dependeDe })))
@@ -166,6 +178,7 @@ export async function guardarPlan(
       workspace_id: input.workspaceId,
       idx: p.i,
       agente: p.agente,
+      que: p.que,
       encargo: p.encargo,
       depende_de: p.dependeDe,
       status: 'pendiente',
@@ -190,7 +203,7 @@ export async function cargarPlan(
 
   const { data: pasos } = await db
     .from('operator_plan_steps')
-    .select('id, idx, agente, encargo, depende_de, status, resumen, refs, error')
+    .select('id, idx, agente, que, encargo, depende_de, status, resumen, refs, error')
     .eq('plan_id', planId)
     .eq('workspace_id', workspaceId)
     .order('idx', { ascending: true })
@@ -212,6 +225,7 @@ export async function cargarPlan(
       id: p.id as string,
       i: p.idx as number,
       agente: p.agente as SubagentId,
+      que: ((p.que as string | null) ?? (p.encargo as string)),
       encargo: p.encargo as string,
       dependeDe: (p.depende_de as number[]) ?? [],
       status: p.status as PlanGuardado['pasos'][number]['status'],

@@ -335,6 +335,7 @@ async function manejarPlan(
     pasos: v.plan.pasos.map((p) => ({
       i: p.i,
       agente: p.agente,
+      que: p.que,
       encargo: p.encargo,
       dependeDe: p.dependeDe,
     })),

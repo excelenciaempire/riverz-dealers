@@ -128,7 +128,7 @@ describe('las piezas que el banco sabe dibujar', () => {
     'agentes.editar',
     'segmentos.crear',
     'segmentos.editar',
-    'plantillas.crear_borrador',
+    'plantillas.crear',
     'plantillas.enviar_a_meta',
     'campanas.crear',
     'flujos.editar',

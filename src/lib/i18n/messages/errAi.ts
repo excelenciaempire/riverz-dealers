@@ -40,6 +40,20 @@ export const errAi = {
     es: "No se pudo mejorar el texto",
     en: "Couldn't improve the text",
   },
+
+  // Generar la respuesta con el agente
+  draftNoAgent: {
+    es: "No hay un agente activo para este canal",
+    en: "No active agent for this channel",
+  },
+  draftNoKey: {
+    es: "Falta la clave de IA para generar respuestas",
+    en: "Missing the AI key to generate replies",
+  },
+  draftFailed: {
+    es: "No se pudo generar la respuesta",
+    en: "Couldn't generate the reply",
+  },
   urlInvalidHttps: {
     es: "URL inválida. Debe empezar con https://",
     en: "Invalid URL. It must start with https://",

@@ -672,7 +672,7 @@ export async function runAiAgent(
   }
 }
 
-async function pickAgent(
+export async function pickAgent(
   db: SupabaseClient,
   workspaceId: string,
   channel: Channel,
@@ -846,7 +846,7 @@ export async function detectInboundProduct(
  * el log ai_replies. Usado para stickiness — evita que el cliente vea
  * dos asistentes alternándose en el mismo hilo.
  */
-async function getStickyAgentId(
+export async function getStickyAgentId(
   db: SupabaseClient,
   conversationId: string,
 ): Promise<string | null> {

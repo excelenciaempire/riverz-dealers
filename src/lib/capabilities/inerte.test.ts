@@ -41,10 +41,8 @@ const INERTES: Record<string, string> = {
  */
 const NO_INERTES_A_PROPOSITO: Record<string, string> = {
   'automatizaciones.editar': 'si está prendida, cambia lo que se manda ahora mismo',
-  // Un borrador no le llega a nadie, y aun así aparece en la lista de
-  // plantillas del comercio. Tres que nadie pidió son basura en su cuenta, con
-  // el trabajo de escribirlas ya hecho. El texto se ve antes de que exista.
-  'plantillas.crear_borrador': 'ensucia la lista de plantillas del comercio',
+  // Sale a Meta al aprobarse: el nombre queda tomado para siempre.
+  'plantillas.crear': 'sale a Meta y quema el nombre',
   // Estuvo del otro lado, con el argumento de que «cambia un tiempo, no manda
   // nada nuevo». Es cierto que no agrega un mensaje, y también que bajar una
   // espera de 21 días a una hora manda HOY los que iban a salir en tres

@@ -97,6 +97,8 @@ export type OperatorEvent =
       pasos: {
         i: number
         agente: SubagentId
+        /** Qué va a pasar, en castellano. Es lo que se muestra al aprobar. */
+        que: string
         encargo: string
         dependeDe: number[]
       }[]

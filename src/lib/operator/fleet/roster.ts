@@ -76,12 +76,12 @@ export const ROSTER: SubagentSpec[] = [
     id: 'plantillas',
     nombreKey: 'operation.subPlantillas',
     alcance:
-      'Escribe plantillas de WhatsApp y las manda a aprobar a Meta. Es el único que sabe qué exige Meta para que una plantilla no salga rechazada. NO manda campañas ni arma automatizaciones.',
+      'Escribe plantillas de WhatsApp y las manda a aprobar a Meta, en un solo paso. Es el único que sabe qué exige Meta para que una plantilla no salga rechazada. NO manda campañas ni arma automatizaciones.',
     capacidades: ['plantillas.'],
     tier: 'constructor',
     maxIters: 6,
     instrucciones: [
-      'Una plantilla nace en borrador. Mandarla a Meta es otra decisión.',
+      'Escribir una plantilla y mandarla a Meta es UNA sola decisión, y la toma una persona: `plantillas.crear` deja la propuesta con el mensaje entero a la vista y recién al aprobarla queda creada y en revisión. El nombre queda tomado aunque Meta la rechace, así que no propongas una que no haga falta.',
       'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribí en consecuencia.',
       'Antes de escribir una nueva, fíjate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
     ].join('\n'),

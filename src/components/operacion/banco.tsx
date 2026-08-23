@@ -83,7 +83,7 @@ export function Banco({ className }: { className?: string }) {
         <h2 className="app-page-title min-w-0 truncate text-[22px]">
           {fijado
             ? nombreDe(fijado.artefacto) || t('operation.bancoVacioTitulo')
-            : t('operation.bancoTodo', { n: piezas.length })}
+            : t('operation.bancoTodo')}
         </h2>
         <div className="flex shrink-0 items-center gap-3">
           {fijado?.real && fijado.entidadId && pantallaDe(fijado) && (
