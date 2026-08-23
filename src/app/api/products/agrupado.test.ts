@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Un producto vendido en varios lados se lista UNA vez.
@@ -96,5 +98,26 @@ describe('la lista de productos', () => {
     const out = agrupar([ML2]);
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe('ml2');
+  });
+});
+
+describe('el catálogo es de UNA cuenta', () => {
+  const ruta = readFileSync(join(process.cwd(), 'src/app/api/products/route.ts'), 'utf8');
+
+  it('la lista se acota a la cuenta activa, no a "todo lo que este usuario ve"', () => {
+    // La consulta se apoyaba sólo en RLS, y RLS deja ver los productos de TODOS
+    // los workspaces de los que uno es miembro: quien trabaja en dos cuentas
+    // veía un catálogo mezclado, sin ninguna señal de cuál era cuál.
+    expect(ruta).toContain('resolveWorkspaceIdForUser');
+    expect(ruta).toContain("eq('workspace_id', activo)");
+  });
+
+  it('la divisa sale de esa misma cuenta y no de la primera que aparezca', () => {
+    // Con `workspaceIds[0]` los precios de una cuenta se etiquetaban con la
+    // moneda de la otra: una tienda argentina mostrando pesos colombianos.
+    // Se mira el USO, no la palabra: el comentario que explica el arreglo la
+    // menciona, y una prueba que se rompe con su propia explicación no sirve.
+    expect(ruta).not.toMatch(/resolveWorkspaceCurrency\w*\(\s*admin,\s*workspaceIds/);
+    expect(ruta).toContain('resolveWorkspaceCurrencyOrNull(admin, activo)');
   });
 });

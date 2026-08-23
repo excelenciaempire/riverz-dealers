@@ -7,8 +7,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * usen exactamente la misma fuente de verdad.
  */
 
-/** Último recurso cuando no hay ninguna señal (misma que el viejo default de
- *  creación manual, para no cambiar comportamiento donde no hay datos). */
+/**
+ * Último recurso cuando no hay NINGUNA señal.
+ *
+ * Es un default y no una respuesta: una tienda argentina cuyo catálogo todavía
+ * no se sincronizó mostraba "39.990 COP" en cada producto, que es un precio que
+ * no existe. Quien llama y puede mostrar el número sin moneda debería preferir
+ * eso —ver `resolveWorkspaceCurrencyOrNull`— antes que etiquetar mal.
+ */
 export const DEFAULT_CURRENCY = 'COP'
 
 /** Divisas ofrecidas en el editor. Compartida para que el <select> y la
@@ -94,4 +100,36 @@ export async function resolveWorkspaceCurrency(
     /* fail-open al default */
   }
   return DEFAULT_CURRENCY
+}
+
+/**
+ * La misma resolución, pero sin inventar.
+ *
+ * Devuelve null cuando no hay ninguna señal, para que la pantalla muestre el
+ * número pelado en vez de una moneda equivocada. Un precio sin moneda se puede
+ * leer; un precio con la moneda de otro país es directamente falso, y es lo que
+ * pasaba con toda tienda que no había sincronizado todavía.
+ */
+export async function resolveWorkspaceCurrencyOrNull(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const c = await resolveWorkspaceCurrency(db, workspaceId)
+  if (c !== DEFAULT_CURRENCY) return c
+  // Coincide con el default: puede ser de verdad COP o puede ser que no haya
+  // ninguna señal. Se comprueba si alguna fuente lo dijo explícitamente.
+  const { data: cfg } = await db
+    .from('workspace_checkout_config')
+    .select('currency')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if ((cfg as { currency?: string | null } | null)?.currency) return c
+  const { data: conn } = await db
+    .from('shopify_connections')
+    .select('currency')
+    .eq('workspace_id', workspaceId)
+    .not('currency', 'is', null)
+    .limit(1)
+    .maybeSingle()
+  return conn ? c : null
 }

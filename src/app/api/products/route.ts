@@ -5,7 +5,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { resolveWorkspaceCurrencyOrNull } from '@/lib/products/currency';
 import { crearProducto, tituloDeProducto } from '@/lib/products/write';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -30,6 +30,24 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const search = url.searchParams.get('q')?.trim() ?? '';
   const status = url.searchParams.get('status'); // scrape_status filter
+
+  // La cuenta activa, no "todas las que este usuario puede ver".
+  //
+  // La consulta se apoyaba sólo en RLS, y RLS deja ver los productos de TODOS
+  // los workspaces de los que uno es miembro: quien trabaja en dos cuentas veía
+  // un catálogo mezclado —los productos de un comercio al lado de los de otro—
+  // sin ninguna señal de cuál era cuál. Y la divisa se resolvía con
+  // `workspaceIds[0]`, así que los precios de una cuenta se etiquetaban con la
+  // moneda de la otra: una tienda argentina mostrando pesos colombianos.
+  const activo = await resolveWorkspaceIdForUser(supabaseAdmin(), user.id);
+  if (!activo) {
+    return NextResponse.json({
+      products: [],
+      shopify_connected: false,
+      store_platform: null,
+      workspace_currency: null,
+    });
+  }
 
   let query = supabase
     .from('shopify_products')
@@ -60,6 +78,7 @@ export async function GET(request: Request) {
       ai_agent_products(agent_id)
     `,
     )
+    .eq('workspace_id', activo)
     .order('title', { ascending: true })
     .limit(500);
 
@@ -137,26 +156,17 @@ export async function GET(request: Request) {
   // .eq('user_id', user.id) fallaba para miembros que no son quien
   // instaló.
   const admin = supabaseAdmin();
-  const { data: memberships } = await admin
-    .from('workspace_members')
-    .select('workspace_id')
-    .eq('user_id', user.id);
-  const workspaceIds = ((memberships ?? []) as { workspace_id: string }[]).map(
-    (m) => m.workspace_id,
-  );
   // Cualquier plataforma de tienda, no sólo Shopify: desde la migración 126
   // un workspace puede tener Tiendanube o WooCommerce, y filtrar por
   // 'shopify' le decía a un comercio de Tiendanube que reconectara Shopify —
   // una tienda que nunca tuvo.
-  const { data: shop } = workspaceIds.length
-    ? await admin
-        .from('shopify_connections')
-        .select('id, shop_domain, status, platform')
-        .in('workspace_id', workspaceIds)
-        .eq('status', 'active')
-        .limit(1)
-        .maybeSingle()
-    : { data: null };
+  const { data: shop } = await admin
+    .from('shopify_connections')
+    .select('id, shop_domain, status, platform')
+    .eq('workspace_id', activo)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
 
   const shopify_connected = !!shop;
   const store_platform = (shop as { platform?: string } | null)?.platform ?? null;
@@ -164,9 +174,9 @@ export async function GET(request: Request) {
   // Divisa del workspace — para que el UI muestre precios de productos con
   // currency=null y prellene la divisa al crear/editar. Misma resolución que
   // usan los agentes.
-  const workspace_currency = workspaceIds.length
-    ? await resolveWorkspaceCurrency(admin, workspaceIds[0])
-    : 'COP';
+  // Sin señal NO se inventa: una tienda argentina sin sincronizar mostraba
+  // "39.990 COP" en cada producto, un precio que no existe en ningún lado.
+  const workspace_currency = await resolveWorkspaceCurrencyOrNull(admin, activo);
 
   return NextResponse.json({
     products,

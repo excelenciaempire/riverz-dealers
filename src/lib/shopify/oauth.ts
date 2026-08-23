@@ -49,6 +49,11 @@ const DEFAULT_SCOPES =
     // snippet a `theme.liquid` es el paso donde se cae la adopción — el
     // comercio que conectó la tienda en dos clics tiene que abrir el editor de
     // código, y la mitad no lo hace.
+    // Los dos: Shopify pide `read_script_tags` para LISTAR los que ya hay,
+    // que es como se sabe si el chat está puesto. Con sólo el de escritura
+    // contesta 403 "requires merchant approval for read_script_tags scope" y
+    // el botón de instalar no puede ni preguntar.
+    'read_script_tags',
     'write_script_tags',
   ].join(',')
 
