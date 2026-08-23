@@ -286,6 +286,7 @@ export const operation = {
     es: "Retomar una conversación que quedó a medias.",
     en: "Pick up a conversation that stalled.",
   },
+  toolTopeDescuento: { es: "Hasta", en: "Up to" },
   toolNoSeLaRespuesta: { es: "Admitir que no sabe", en: "Admit it doesn't know" },
   toolNoSeLaRespuestaHint: {
     es: "Antes que inventar, lo anota y te lo deja para responder.",

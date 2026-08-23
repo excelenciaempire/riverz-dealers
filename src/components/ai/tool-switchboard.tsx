@@ -89,12 +89,17 @@ export function ToolSwitchboard({
   tools,
   onChange,
   disponible,
+  tope,
+  onTope,
 }: {
   /** El agente que se está editando, para poder heredar de los permisos viejos. */
   agent: { permissions?: unknown; puede_crear_pedidos?: boolean | null };
   tools: AgentTools | null;
   onChange: (next: AgentTools) => void;
   disponible: Disponibilidad;
+  /** Cuánto puede descontar, en porcentaje. Es de la cuenta, no del agente. */
+  tope?: number;
+  onTope?: (n: number) => void;
 }) {
   const t = useT();
 
@@ -118,6 +123,8 @@ export function ToolSwitchboard({
                   modo={toolMode({ ...agent, tools }, spec.key)}
                   onSet={(m) => set(spec.key, m)}
                   disponible={disponible}
+                  tope={tope}
+                  onTope={onTope}
                 />
               ))}
             </div>
@@ -133,14 +140,22 @@ function Fila({
   modo,
   onSet,
   disponible,
+  tope,
+  onTope,
 }: {
   spec: ToolSpec;
   modo: ToolMode;
   onSet: (m: ToolMode) => void;
   disponible: Disponibilidad;
+  tope?: number;
+  onTope?: (n: number) => void;
 }) {
   const t = useT();
   const sufijo = SUFIJO[spec.key] ?? spec.key;
+  // El descuento es la única que necesita un número además del modo, y ese
+  // número no vivía en ninguna pantalla: se leía en tres lugares y no se podía
+  // escribir en ninguno, así que la herramienta no se podía encender nunca.
+  const conTope = spec.key === 'ofrecer_descuento' && typeof onTope === 'function';
   // Falta algo en la cuenta: la fila se puede tocar igual, porque apagarla o
   // dejarla lista de antemano es legítimo. Lo que cambia es que se dice por qué
   // hoy no va a pasar nada — un interruptor prendido que no hace nada y no
@@ -175,9 +190,27 @@ function Fila({
           ))}
         </div>
       </div>
-      {(falta || (modo === 'aprobacion' && !spec.proponeSolo) || !spec.modes.includes('auto')) && (
+      {conTope && modo !== 'off' && (
+        <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+          {t('operation.toolTopeDescuento')}
+          <input
+            type="number"
+            min={0}
+            max={50}
+            value={tope ?? 0}
+            onChange={(e) => onTope!(Math.max(0, Math.min(50, Math.floor(Number(e.target.value) || 0))))}
+            className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground"
+          />
+          %
+        </label>
+      )}
+      {/* Con tope 0 la herramienta ni se le ofrece al agente, así que decirlo
+          acá —donde está el número— es lo único que cierra el círculo. */}
+      {((falta && !conTope) ||
+        (modo === 'aprobacion' && !spec.proponeSolo) ||
+        !spec.modes.includes('auto')) && (
         <p className="mt-1.5 text-[11px] text-muted-foreground">
-          {falta
+          {falta && !conTope
             ? t(`operation.${falta}`)
             : !spec.modes.includes('auto')
               ? t('operation.toolNoAutoHint')

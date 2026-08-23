@@ -192,12 +192,18 @@ export async function runAiAgent(
     // habría vuelto a arrancar de cero cada vez. Y se cuenta `sender_type =
     // bot` (no sólo la IA) porque lo que hay que frenar es el volumen que sale
     // hacia esa persona, venga del agente, de un flujo o de una automatización.
+    //
+    // El número lo pone el comercio (`reply_burst_max`, migración 192) y por
+    // defecto vale lo de siempre. Estaba escrito en el código: quien tiene
+    // conversaciones largas de verdad se topaba con el freno sin saber que
+    // existía, y quien quisiera ser más prudente tampoco podía bajarlo. Cero
+    // significa sin tope, que es una decisión legítima y explícita.
+    const topeRafaga =
+      typeof agent.reply_burst_max === 'number' ? agent.reply_burst_max : BURST_MAX_REPLIES;
     const burstSince = new Date(Date.now() - BURST_WINDOW_MS).toISOString();
-    const { data: burstConvs } = await db
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', args.contact.id)
-      .limit(50);
+    const { data: burstConvs } = topeRafaga > 0
+      ? await db.from('conversations').select('id').eq('contact_id', args.contact.id).limit(50)
+      : { data: null };
     const burstConvIds = (burstConvs ?? []).map((c: { id: string }) => c.id);
     if (burstConvIds.length > 0) {
       const { count: burstCount } = await db
@@ -206,7 +212,7 @@ export async function runAiAgent(
         .in('conversation_id', burstConvIds)
         .eq('sender_type', 'bot')
         .gte('created_at', burstSince);
-      if ((burstCount ?? 0) >= BURST_MAX_REPLIES) {
+      if ((burstCount ?? 0) >= topeRafaga) {
         console.error(
           `[ai] cortacircuitos: ${burstCount} respuestas al contacto ${args.contact.id} ` +
             `en ${BURST_WINDOW_MS / 60000} min — se apaga la IA en este hilo`,

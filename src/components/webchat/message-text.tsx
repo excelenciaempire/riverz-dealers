@@ -1,6 +1,7 @@
 'use client';
 
 import { ProductCard } from './product-card';
+import type { TextosChat } from './chat-app';
 import { TextoRico } from '@/components/ui/texto-rico';
 
 /**
@@ -51,6 +52,7 @@ export function MessageText({
   color,
   ink,
   session,
+  T,
 }: {
   text: string;
   storeOrigin: string | null;
@@ -58,6 +60,8 @@ export function MessageText({
   ink: string;
   /** Token del chat: la tarjeta lo necesita para resolver el producto. */
   session?: string | null;
+  /** El marco en el idioma del agente, para los botones de la tarjeta. */
+  T: TextosChat;
 }) {
   return (
     <TextoRico
@@ -76,6 +80,7 @@ export function MessageText({
               session={session}
               color={color}
               ink={ink}
+              T={T}
             />
           );
         }

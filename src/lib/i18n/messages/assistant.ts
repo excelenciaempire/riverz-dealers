@@ -292,6 +292,18 @@ export const assistant = {
     es: "Por si la clienta sigue escribiendo. Recomendado: 15s.",
     en: "In case the customer is still typing. Recommended: 15s.",
   },
+  burstLabel: {
+    es: "Tope de respuestas por hora a la misma persona",
+    en: "Cap on replies per hour to the same person",
+  },
+  burstHelp: {
+    es: "El freno por si algo entra en bucle. Al llegar al tope, ese chat pasa a una persona.",
+    en: "The brake in case something loops. On reaching the cap, that chat goes to a person.",
+  },
+  burstOff: {
+    es: "Sin tope. Si algo entra en bucle, nada lo va a frenar.",
+    en: "No cap. If something loops, nothing will stop it.",
+  },
   escalationTitle: { es: "Escalamiento", en: "Escalation" },
   escalationHint: {
     es: "Cuándo pasar la conversación a un agente humano.",

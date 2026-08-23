@@ -38,6 +38,8 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   // Autonomia: responde solo o propone y espera (migracion 170)
   'requires_approval',
   'inbound_debounce_seconds',
+  // El fusible contra un bucle, ahora con número propio (migración 192)
+  'reply_burst_max',
   'reply_when_assigned',
   'reply_outside_hours',
   'business_hours',
@@ -107,6 +109,13 @@ export function pickAgentPatch(
   // cliente que no controlamos, y un modo inventado —o una clave que ya no
   // existe— no puede terminar mandando sobre plata que sale.
   if ('tools' in patch) patch.tools = sanitizeTools(patch.tools)
+  // El tope de ráfaga se acota acá además de en la base: la restricción de la
+  // tabla rechazaría un 5000 con un error de Postgres feo, y lo que hay que
+  // hacer con un número fuera de rango es recortarlo, no romper el guardado.
+  if ('reply_burst_max' in patch) {
+    const n = Math.floor(Number(patch.reply_burst_max))
+    patch.reply_burst_max = Number.isFinite(n) ? Math.min(200, Math.max(0, n)) : 20
+  }
   return patch
 }
 

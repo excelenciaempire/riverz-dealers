@@ -8,9 +8,31 @@ import { MessageText } from './message-text';
  * que el formato se lea (el precio en negrita se veía `**$69.000**`) y que
  * nada de lo que llegue se convierta en HTML ejecutable.
  */
+/** El marco del chat. La tarjeta de producto lo necesita para sus botones: era
+ *  lo último que quedaba cableado en español dentro del widget. */
+const T = {
+  adjuntar: 'Adjuntar',
+  escribi: 'Escribe tu mensaje',
+  enviar: 'Enviar',
+  cerrar: 'Cerrar',
+  caduco: 'La conversación caducó.',
+  reanudar: 'Reanudar',
+  reanudando: 'Reanudando…',
+  sirvio: '¿Te sirvió?',
+  gracias: 'Gracias por avisar.',
+  graciasNo: 'Gracias, se lo paso al equipo.',
+  empezar: 'Empezar',
+  correo: 'tu@correo.com',
+  agregar: 'Agregar',
+  agregado: 'Agregado',
+  agregando: 'Agregando…',
+  pagar: 'Ir a pagar',
+  yMas: (n: number) => `y ${n} más`,
+};
+
 const render = (text: string, storeOrigin: string | null = null) =>
   renderToStaticMarkup(
-    <MessageText text={text} storeOrigin={storeOrigin} color="#A3E635" ink="#111827" />,
+    <MessageText text={text} storeOrigin={storeOrigin} color="#A3E635" ink="#111827" T={T} />,
   );
 
 describe('formato', () => {

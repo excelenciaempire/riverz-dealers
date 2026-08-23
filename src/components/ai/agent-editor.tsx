@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -352,6 +352,7 @@ export function AgentEditor({
   const [inboundDebounce, setInboundDebounce] = useState<number>(
     agent?.inbound_debounce_seconds ?? 15,
   );
+  const [burstMax, setBurstMax] = useState<number>(agent?.reply_burst_max ?? 20);
   const [escalateAfterMessages, setEscalateAfterMessages] = useState<number>(
     agent?.escalate_after_messages ?? 0,
   );
@@ -397,6 +398,8 @@ export function AgentEditor({
     descuento: false,
     voz: false,
   });
+  /** Cuánto puede descontar el agente. Vive en la cuenta, no en el agente. */
+  const [topeDescuento, setTopeDescuento] = useState(0);
 
   /**
    * Cambiar de rol trae su preset de permisos.
@@ -634,6 +637,53 @@ export function AgentEditor({
     };
   }, [workspaceId]);
 
+  // El tope de descuento. Es de la CUENTA y no del agente —el mismo margen
+  // gobierna todos los canales— así que se guarda apenas se toca, sin esperar
+  // al Guardar del agente: mezclarlo con el resto haría que "cancelar" en el
+  // editor revirtiera algo que no es del agente.
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/ai/tope-descuento?workspace_id=${encodeURIComponent(workspaceId)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { tope?: number };
+        if (!cancelled) setTopeDescuento(Number(json.tope ?? 0));
+      } catch {
+        /* sin esto el campo arranca en 0, que es el valor real por defecto */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const guardarTope = useCallback(
+    (n: number) => {
+      setTopeDescuento(n);
+      if (!workspaceId) return;
+      void (async () => {
+        try {
+          const res = await fetchWithCsrf('/api/ai/tope-descuento', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspace_id: workspaceId, tope: n }),
+          });
+          if (!res.ok) throw new Error();
+          // Cambiar el tope cambia si la herramienta se le ofrece o no al
+          // agente, así que la disponibilidad se vuelve a mirar.
+          setDisponible((d) => ({ ...d, descuento: n > 0 }));
+        } catch {
+          toast.error(t('assistant.updateError'));
+        }
+      })();
+    },
+    [workspaceId, fetchWithCsrf, t],
+  );
+
   // Estado de la conexión Shopify (gatea "Cierre de ventas").
   useEffect(() => {
     let cancelled = false;
@@ -793,6 +843,7 @@ export function AgentEditor({
       response_mode: responseMode,
       requires_approval: requiresApproval,
       inbound_debounce_seconds: inboundDebounce,
+      reply_burst_max: burstMax,
       reply_when_assigned: replyWhenAssigned,
       // El horario es un único control: si está activado, sólo responde
       // dentro de la ventana (reply_outside_hours = false). Si no, 24/7.
@@ -1499,6 +1550,8 @@ export function AgentEditor({
                     tools={tools}
                     onChange={setTools}
                     disponible={disponible}
+                    tope={topeDescuento}
+                    onTope={guardarTope}
                   />
                 </SectionCard>
 
@@ -1607,6 +1660,26 @@ export function AgentEditor({
                     />
                     <p className="text-[11px] text-muted-foreground">
                       {t('assistant.debounceHelp')}
+                    </p>
+                  </Field>
+
+                  {/* El fusible contra un bucle. Estaba escrito en el código y
+                      nadie podía moverlo: quien tiene conversaciones largas se
+                      topaba con el freno sin saber que existía. */}
+                  <Field label={t('assistant.burstLabel')}>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={200}
+                      value={burstMax}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        setBurstMax(Number.isFinite(n) ? Math.max(0, Math.min(200, n)) : 20);
+                      }}
+                      className="bg-background"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      {burstMax === 0 ? t('assistant.burstOff') : t('assistant.burstHelp')}
                     </p>
                   </Field>
                 </SectionCard>

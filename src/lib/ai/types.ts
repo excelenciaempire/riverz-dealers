@@ -115,6 +115,11 @@ export interface AiAgent {
    *  se cancela. 0 = desactivado. Migration 034. */
   inbound_debounce_seconds: number;
 
+  /** Cuántas respuestas seguidas puede mandarle a un mismo contacto en una hora
+   *  antes de apagarse en ese hilo. Es el fusible contra un bucle, no una
+   *  política de atención. 0 = sin tope. Migración 192. */
+  reply_burst_max: number;
+
   /** TRUE = el asistente escribe la respuesta pero no la manda: queda como
    *  propuesta en la bandeja y una persona la envía con un clic.
    *  FALSE (default) = responde solo. Migración 170. */

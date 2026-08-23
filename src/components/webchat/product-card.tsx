@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { TextosChat } from './chat-app';
 
 /**
  * La tarjeta de compra.
@@ -37,6 +38,7 @@ export function ProductCard({
   session,
   color,
   ink,
+  T,
 }: {
   path: string;
   href: string;
@@ -48,6 +50,10 @@ export function ProductCard({
   session?: string | null;
   color: string;
   ink: string;
+  /** El marco del chat, en el idioma del agente. La tarjeta era lo único que
+   *  quedaba cableado en español: una tienda inglesa le mostraba "Agregar" y
+   *  "Ir a pagar" a sus clientes. */
+  T: TextosChat;
 }) {
   const [prod, setProd] = useState<Producto | null>(null);
   const [estado, setEstado] = useState<'idle' | 'adding' | 'added'>('idle');
@@ -133,10 +139,7 @@ export function ProductCard({
             {/* Con varios productos la tarjeta muestra el primero, y decirlo
                 evita que la persona crea que el botón agrega sólo ése. */}
             {lineas > 1 ? (
-              <span className="font-normal text-neutral-500">
-                {' '}
-                y {lineas - 1} más
-              </span>
+              <span className="font-normal text-neutral-500"> {T.yMas(lineas - 1)}</span>
             ) : null}
           </p>
         ) : null}
@@ -152,7 +155,7 @@ export function ProductCard({
             disabled={estado !== 'idle'}
             className="flex-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-xs font-semibold text-neutral-900 transition hover:bg-neutral-50 disabled:opacity-60"
           >
-            {estado === 'added' ? 'Agregado' : estado === 'adding' ? 'Agregando…' : 'Agregar'}
+            {estado === 'added' ? T.agregado : estado === 'adding' ? T.agregando : T.agregar}
           </button>
           <button
             type="button"
@@ -161,7 +164,7 @@ export function ProductCard({
             className="flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition disabled:opacity-60"
             style={{ background: ink, color }}
           >
-            Ir a pagar
+            {T.pagar}
           </button>
         </div>
       </div>

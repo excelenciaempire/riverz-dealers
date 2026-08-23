@@ -53,8 +53,9 @@ interface Settings {
 const TEXTOS = {
   es: {
     adjuntar: 'Adjuntar',
-    escribi: 'Escribí tu mensaje',
+    escribi: 'Escribe tu mensaje',
     enviar: 'Enviar',
+    cerrar: 'Cerrar',
     caduco: 'La conversación caducó.',
     reanudar: 'Reanudar',
     reanudando: 'Reanudando…',
@@ -73,6 +74,7 @@ const TEXTOS = {
     adjuntar: 'Attach',
     escribi: 'Type your message',
     enviar: 'Send',
+    cerrar: 'Close',
     caduco: 'This conversation expired.',
     reanudar: 'Resume',
     reanudando: 'Resuming…',
@@ -148,6 +150,9 @@ export function ChatApp() {
   // cargador confirma el estado real al recibir `riverz:ready`.
   const abierto = useRef(true);
   const noLeidos = useRef(0);
+  /** Correo que el visitante dio ANTES de escribir, cuando todavía no existía
+   *  el contacto donde guardarlo. Se reintenta con el primer mensaje. */
+  const correoPendiente = useRef<string | null>(null);
 
   // ── Arranque ─────────────────────────────────────────────────
   useEffect(() => {
@@ -338,6 +343,17 @@ export function ChatApp() {
       if (serverId) {
         setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, serverId } : p)));
       }
+      // Ahora sí existe el contacto: acá se guarda el correo que el visitante
+      // dio antes de escribir. Sin bloquear el envío — el mensaje ya salió.
+      if (correoPendiente.current) {
+        const correo = correoPendiente.current;
+        correoPendiente.current = null;
+        void fetch('/api/widget/identify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+          body: JSON.stringify({ email: correo }),
+        }).catch(() => {});
+      }
       poll().catch(() => {});
     } catch {
       setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, failed: true } : p)));
@@ -412,11 +428,19 @@ export function ChatApp() {
   const identify = useCallback(async () => {
     const value = email.trim();
     if (!value || !session) return;
-    await fetch('/api/widget/identify', {
+    const res = await fetch('/api/widget/identify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
       body: JSON.stringify({ email: value }),
-    }).catch(() => {});
+    }).catch(() => null);
+    // Con "pedir el correo antes de escribir", este es SIEMPRE el primer paso:
+    // todavía no hay contacto —nadie escribió— así que el servidor no tiene
+    // dónde guardarlo y contesta `linked:false`. El comercio configuró que se
+    // lo pidan y el correo se perdía igual. Se recuerda y se vuelve a mandar
+    // apenas el primer mensaje cree el contacto: no se crea una fila para quien
+    // sólo abrió el widget, y el ajuste hace lo que promete.
+    const json = (await res?.json().catch(() => null)) as { linked?: boolean } | null;
+    correoPendiente.current = json?.linked === false ? value : null;
     setIdentified(true);
   }, [email, session]);
 
@@ -460,7 +484,7 @@ export function ChatApp() {
         </div>
         <button
           type="button"
-          aria-label="Cerrar"
+          aria-label={T.cerrar}
           onClick={() => window.parent?.postMessage({ type: 'riverz:close' }, '*')}
           className="rounded-full p-1 opacity-70 transition hover:opacity-100"
           style={{ color: ink }}
@@ -491,6 +515,7 @@ export function ChatApp() {
                 color={color}
                 ink={ink}
                 session={session}
+                T={T}
               />
             ) : null}
             {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}
@@ -602,7 +627,7 @@ export function ChatApp() {
                 send();
               }
             }}
-            placeholder="Escribe tu mensaje"
+            placeholder={T.escribi}
             // Colores explícitos: el chat vive en un iframe que hereda el
             // layout raíz del panel, cuyo `text-foreground` cambia con el tema
             // del comercio. Sin fijarlos, el texto que escribe el cliente salía
@@ -612,7 +637,7 @@ export function ChatApp() {
           <button
             type="submit"
             disabled={!draft.trim()}
-            aria-label="Enviar"
+            aria-label={T.enviar}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full transition disabled:opacity-40"
             style={{ background: color, color: ink }}
           >

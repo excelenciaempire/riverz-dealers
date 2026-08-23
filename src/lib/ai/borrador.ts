@@ -251,6 +251,7 @@ function redactorGenerico(workspaceId: string): AiAgent {
     context_messages: 30,
     response_mode: 'single',
     inbound_debounce_seconds: MIN_DEBOUNCE_SECONDS,
+    reply_burst_max: 20,
     requires_approval: false,
     reply_when_assigned: false,
     reply_outside_hours: true,
