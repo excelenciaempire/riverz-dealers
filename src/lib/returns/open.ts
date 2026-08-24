@@ -1,3 +1,4 @@
+import { filtroDeNumero } from '@/lib/orders/numero'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -72,7 +73,8 @@ async function resolverPedido(
     .not('status', 'in', '("cancelled","failed")')
     .order('created_at', { ascending: false })
     .limit(5)
-  if (num) q = q.eq('order_number', num)
+  const filtro = filtroDeNumero(num)
+  if (filtro) q = q.or(filtro)
 
   const { data } = await q
   const filas = (data ?? []) as PedidoFila[]
@@ -105,7 +107,7 @@ export async function abrirDevolucion(
     return JSON.stringify({
       ok: false,
       error: 'sin_pedido',
-      message: 'Necesito el número de pedido para abrir la devolución. Pediselo.',
+      message: 'Necesito el número de pedido para abrir la devolución. Pídeselo.',
     })
   }
 

@@ -12,6 +12,7 @@
  * bugs de modelo / herramienta.
  */
 
+import { filtroDeNumero } from '@/lib/orders/numero'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
@@ -1236,12 +1237,27 @@ export async function runTool(
             'Falta saber a qué pedido sumarle las unidades. Pregúntale el número de pedido a la clienta y vuelve a intentar.',
         })
       }
+      // Con o sin almohadilla: Shopify guarda `#1001` y Tiendanube `111`.
+      // Sacarla antes de comparar hacía que en Shopify no coincidiera nunca, y
+      // el agente contestaba "no encontré el pedido" sobre uno que había creado
+      // él dos minutos antes.
+      // Un número que se queda en nada (una almohadilla suelta) no puede
+      // ablandarse a "cualquier pedido de esta persona": sin el recorte por
+      // número, la edición caería sobre el pedido que saliera primero.
+      const filtroNumero = filtroDeNumero(numero)
+      if (!filtroNumero) {
+        return JSON.stringify({
+          error: 'no_order',
+          message:
+            'Falta saber a qué pedido sumarle las unidades. Pregúntale el número de pedido a la clienta y vuelve a intentar.',
+        })
+      }
       const { data: fila } = await localOrders.db
         .from('orders')
         .select('shopify_order_id')
         .eq('workspace_id', localOrders.workspaceId)
         .eq('contact_id', localOrders.contactId)
-        .eq('order_number', numero.replace(/^#/, ''))
+        .or(filtroNumero)
         .limit(1)
         .maybeSingle()
       pedido = (fila as { shopify_order_id?: string } | null)?.shopify_order_id ?? ''
@@ -1264,6 +1280,17 @@ export async function runTool(
       pedido,
       addUnits,
     )
+    // Un permiso que la tienda no otorgó no se arregla reintentando ni lo
+    // resuelve el equipo mirando el pedido: hay que reconectar la tienda. Si el
+    // agente no lo distingue, promete un arreglo que nunca llega.
+    if (!result.ok && result.error === 'missing_scope') {
+      return JSON.stringify({
+        error: 'missing_scope',
+        scope: result.scope,
+        message:
+          'La tienda no dio permiso para editar pedidos. No le prometas las unidades extra: dile que el equipo lo resuelve y avisa que hay que reconectar Shopify desde Ajustes.',
+      })
+    }
     if (!result.ok) {
       return JSON.stringify({
         error: 'update_failed',

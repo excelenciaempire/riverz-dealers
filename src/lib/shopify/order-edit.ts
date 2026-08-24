@@ -12,13 +12,35 @@ interface AddUnitsResult {
   added_units?: number;
   added_amount?: number;
   error?: string;
+  /** El permiso que Shopify pidió, cuando `error` es `missing_scope`. */
+  scope?: string;
+}
+
+/**
+ * Un permiso que falta no es un fallo transitorio.
+ *
+ * Shopify contesta 200 con `errors[].extensions.code = ACCESS_DENIED` cuando la
+ * tienda no otorgó el scope. Este archivo descartaba `errors` entero y devolvía
+ * `null`, así que la capa de arriba lo leía como "la edición falló" y le pedía
+ * al agente que ofreciera revisarlo — sobre un permiso que ninguna tienda iba a
+ * conceder sola. Separarlo es lo que permite decir "reconecta la tienda".
+ */
+export function faltaPermiso(errores: unknown): string | null {
+  if (!Array.isArray(errores)) return null;
+  for (const e of errores) {
+    const ext = (e as { extensions?: { code?: string; requiredAccess?: string } })?.extensions;
+    if (ext?.code === 'ACCESS_DENIED') {
+      return ext.requiredAccess || (e as { message?: string })?.message || 'ACCESS_DENIED';
+    }
+  }
+  return null;
 }
 
 async function gql(
   admin: ShopifyAdmin,
   query: string,
   variables: Record<string, unknown>,
-): Promise<Record<string, unknown> | null> {
+): Promise<{ data: Record<string, unknown> | null; permiso: string | null }> {
   try {
     const res = await fetch(
       `https://${admin.shopDomain}/admin/api/${admin.apiVersion}/graphql.json`,
@@ -31,11 +53,11 @@ async function gql(
         body: JSON.stringify({ query, variables }),
       },
     );
-    if (!res.ok) return null;
-    const json = (await res.json()) as { data?: Record<string, unknown> };
-    return json.data ?? null;
+    if (!res.ok) return { data: null, permiso: null };
+    const json = (await res.json()) as { data?: Record<string, unknown>; errors?: unknown };
+    return { data: json.data ?? null, permiso: faltaPermiso(json.errors) };
   } catch {
-    return null;
+    return { data: null, permiso: null };
   }
 }
 
@@ -59,7 +81,9 @@ export async function addUnitsToFirstLineItem(
       userErrors{ message }
     }
   }`;
-  const begin = (await gql(admin, beginQuery, { id: orderGid })) as
+  const beginRes = await gql(admin, beginQuery, { id: orderGid });
+  if (beginRes.permiso) return { ok: false, error: 'missing_scope', scope: beginRes.permiso };
+  const begin = beginRes.data as
     | {
         orderEditBegin?: {
           calculatedOrder?: {
@@ -80,11 +104,13 @@ export async function addUnitsToFirstLineItem(
   // 2) Set the new absolute quantity (current + added). restock=false: we're
   //    selling more, not returning.
   const newQty = (first.quantity ?? 0) + units;
-  const setQ = (await gql(
+  const setRes = await gql(
     admin,
     `mutation($id:ID!,$lineItemId:ID!,$qty:Int!){ orderEditSetQuantity(id:$id, lineItemId:$lineItemId, quantity:$qty, restock:false){ calculatedOrder{ id subtotalPriceSet{ shopMoney{ amount } } } userErrors{ message } } }`,
     { id: calc.id, lineItemId: first.id, qty: newQty },
-  )) as
+  );
+  if (setRes.permiso) return { ok: false, error: 'missing_scope', scope: setRes.permiso };
+  const setQ = setRes.data as
     | {
         orderEditSetQuantity?: {
           calculatedOrder?: { subtotalPriceSet?: { shopMoney?: { amount?: string } } };
@@ -97,11 +123,13 @@ export async function addUnitsToFirstLineItem(
   }
 
   // 3) Commit.
-  const commit = (await gql(
+  const commitRes = await gql(
     admin,
-    `mutation($id:ID!){ orderEditCommit(id:$id, notifyCustomer:false, staffNote:"Upsell por llamada IA"){ order{ id } userErrors{ message } } }`,
+    `mutation($id:ID!){ orderEditCommit(id:$id, notifyCustomer:false, staffNote:"Unidades agregadas por el agente de Riverz"){ order{ id } userErrors{ message } } }`,
     { id: calc.id },
-  )) as
+  );
+  if (commitRes.permiso) return { ok: false, error: 'missing_scope', scope: commitRes.permiso };
+  const commit = commitRes.data as
     | { orderEditCommit?: { order?: { id: string }; userErrors?: { message: string }[] } }
     | null;
   if (!commit?.orderEditCommit?.order?.id) {

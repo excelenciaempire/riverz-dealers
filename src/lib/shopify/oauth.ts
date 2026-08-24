@@ -65,6 +65,14 @@ const DEFAULT_SCOPES =
     // el botón de instalar no puede ni preguntar.
     'read_script_tags',
     'write_script_tags',
+    // Editar un pedido ya creado (sumarle unidades) NO entra en `write_orders`:
+    // Shopify separó `orderEditBegin` en su propio permiso. Con sólo aquél
+    // contesta 200 con `errors: ACCESS_DENIED, requires write_order_edits`, que
+    // la capa de arriba devolvía como un "no pude actualizar" genérico — la
+    // herramienta update_order no funcionó nunca en ninguna tienda conectada
+    // por OAuth. Medido el 2026-08-24 sobre la tienda demo, pedido #1002.
+    'read_order_edits',
+    'write_order_edits',
   ].join(',')
 
 export function shopifyApiVersion(): string {

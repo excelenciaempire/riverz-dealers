@@ -1,3 +1,4 @@
+import { filtroDeNumero, conAlmohadilla } from '@/lib/orders/numero'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { askForApproval, APROBACION_PENDIENTE } from '@/lib/approvals/ask'
 
@@ -84,8 +85,11 @@ async function resolverPedido(
     .order('created_at', { ascending: false })
     .limit(5)
 
+  // Con o sin almohadilla: Shopify guarda `#1001` y Tiendanube `111`. Sacarla
+  // antes de comparar hacía que en Shopify no coincidiera nunca.
   const num = (orderNumber ?? '').trim().replace(/^#/, '')
-  if (num) q = q.eq('order_number', num)
+  const filtro = filtroDeNumero(orderNumber ?? '')
+  if (filtro) q = q.or(filtro)
 
   const { data } = await q
   const filas = (data ?? []) as PedidoDelCliente[]
@@ -99,7 +103,7 @@ async function resolverPedido(
     }
   }
   if (!num && filas.length > 1) {
-    const lista = filas.map((f) => `#${f.order_number ?? '?'}`).join(', ')
+    const lista = filas.map((f) => conAlmohadilla(f.order_number) || '#?').join(', ')
     return {
       error: 'varios_pedidos',
       message: `Tiene más de un pedido activo (${lista}). Pregúntale cuál antes de seguir.`,
@@ -178,7 +182,7 @@ export async function proponerCancelacion(
     db: ctx.db,
     workspaceId: ctx.workspaceId,
     kind: 'cancelar_pedido',
-    title: `¿Cancelar el pedido #${p.order_number ?? p.shopify_order_id}?`,
+    title: `¿Cancelar el pedido ${conAlmohadilla(p.order_number ?? p.shopify_order_id)}?`,
     body:
       `Lo pidió la clienta por chat.\n` +
       `Importe: ${plata(p)}.\n` +
@@ -210,7 +214,7 @@ export async function proponerCancelacion(
     ok: true,
     estado: 'pendiente_de_aprobacion',
     message:
-      `Quedó pedida la cancelación del pedido #${p.order_number ?? ''}. ` +
+      `Quedó pedida la cancelación del pedido ${conAlmohadilla(p.order_number)}. ` +
       'Dile que ya lo pasaste y que le confirmas apenas esté. ' +
       'NO le digas que el pedido ya está cancelado ni que le devolvieron el dinero.',
   })
@@ -261,7 +265,7 @@ export async function proponerReembolso(
     db: ctx.db,
     workspaceId: ctx.workspaceId,
     kind: 'reembolsar_pedido',
-    title: `¿Reembolsar ${monto ? `${monto} del` : 'el'} pedido #${p.order_number ?? p.shopify_order_id}?`,
+    title: `¿Reembolsar ${monto ? `${monto} del` : 'el'} pedido ${conAlmohadilla(p.order_number ?? p.shopify_order_id)}?`,
     body:
       `Lo pidió la clienta por chat.\n` +
       `Importe del pedido: ${plata(p)}.\n` +
