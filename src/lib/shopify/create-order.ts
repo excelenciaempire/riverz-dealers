@@ -46,6 +46,16 @@ export interface CreateOrderInput {
   offer?: string
   /** Unidades pedidas (AUTO MODE). */
   quantity?: number
+  /**
+   * Qué lleva, cuando el modelo lo dice explícitamente.
+   *
+   * La ficha de la herramienta se lo pide desde siempre, y acá se ignoraba: el
+   * variant salía del producto detectado en la conversación o del único
+   * configurado en la cuenta. En un catálogo con veinte productos, pedir
+   * cualquier otro terminaba en "no pude resolver el producto de esta tienda"
+   * —un mensaje que encima culpa a la tienda—. Medido el 2026-08-24.
+   */
+  items?: Array<{ variant_id?: string; quantity?: number }>
   payment_hint?: PaymentHint
   customer_name?: string
   customer_phone?: string
@@ -141,7 +151,17 @@ export async function createShopifyOrder(
   }
 
   // ── Variant ───────────────────────────────────────────────────────
+  // Lo que el modelo dijo manda sobre lo detectado y sobre el default: si la
+  // clienta pidió ESE producto, el pedido es de ese producto.
+  const pedidos = (input.items ?? [])
+    .map((i) => ({
+      variant_id: String(i.variant_id ?? '').trim(),
+      quantity: Math.max(1, Math.floor(Number(i.quantity ?? 1)) || 1),
+    }))
+    .filter((i) => /^\d+$/.test(i.variant_id))
+
   const variantId =
+    pedidos[0]?.variant_id ||
     (ctx.pinnedVariantId && ctx.pinnedVariantId.trim()) ||
     (config?.default_variant_id && config.default_variant_id.trim()) ||
     null
@@ -265,8 +285,16 @@ export async function createShopifyOrder(
   // Sólo forzamos precio en BUNDLE MODE; en AUTO lo decide Shopify.
   if (linePriceOverride != null) lineItem.price = String(linePriceOverride)
 
+  // Con varios productos van todos. La oferta y el precio forzado son de la
+  // pieza única que configura el comercio, así que ahí no aplican: el precio lo
+  // pone Shopify, que es el que está vivo.
+  const lineas =
+    pedidos.length > 1
+      ? pedidos.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity }))
+      : [lineItem]
+
   const orderPayload: Record<string, unknown> = {
-    line_items: [lineItem],
+    line_items: lineas,
     financial_status: 'pending',
     // Descuenta inventario respetando la política de la tienda.
     inventory_behaviour: 'decrement_obeying_policy',

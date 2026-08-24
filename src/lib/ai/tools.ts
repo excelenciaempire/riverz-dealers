@@ -1528,6 +1528,7 @@ export async function runTool(
       })
     }
     const input = (toolInput ?? {}) as {
+      items?: Array<{ variant_id?: string; quantity?: number }>
       offer?: string
       quantity?: number
       payment_hint?: PaymentHint
@@ -1550,6 +1551,9 @@ export async function runTool(
     }
     const config = shopify.config ?? null
     const orderInput: CreateOrderInput = {
+      // Lo que el modelo eligió, que hasta acá se perdía en el camino de
+      // Shopify aunque la ficha de la herramienta se lo pidiera.
+      items: input.items,
       offer: input.offer,
       quantity: input.quantity,
       payment_hint: input.payment_hint,
