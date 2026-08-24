@@ -1365,6 +1365,16 @@ export async function runTool(
       customerEmail: shopify.customerEmail,
       orderNumber: input.order_number,
     })
+    // Shopify sólo devuelve los pedidos que se le pueden ATRIBUIR a esta
+    // persona por teléfono o correo, y quien escribe por el chat web no tiene
+    // ninguno de los dos hasta que se identifica. Resultado: el pedido que el
+    // agente acababa de crear en esa misma conversación le contestaba
+    // "no se encontró ningún pedido". La fila espejo sí sabe de quién es —
+    // está atada al contacto — así que se contesta con ella.
+    if (!result.found && localOrders) {
+      const local = await lookupLocalOrders(localOrders, input.order_number)
+      if ((JSON.parse(local) as { found?: boolean }).found) return local
+    }
     if (!result.found) {
       // Travel the explicit "don't invent" instruction with the empty
       // result so the model never paraphrases "found:false" into
@@ -1645,8 +1655,11 @@ export async function runTool(
  * que es lo que hacemos cuando no hay Shopify conectado.
  */
 /** Pedidos espejados del contacto, en el mismo formato que la búsqueda viva. */
-async function lookupLocalOrders(ctx: LocalOrdersContext): Promise<string> {
-  const { data } = await ctx.db
+async function lookupLocalOrders(
+  ctx: LocalOrdersContext,
+  numero?: string,
+): Promise<string> {
+  let q = ctx.db
     .from('orders')
     .select(
       'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, shipping_status, order_status_url, created_at',
@@ -1655,6 +1668,12 @@ async function lookupLocalOrders(ctx: LocalOrdersContext): Promise<string> {
     .eq('contact_id', ctx.contactId)
     .order('created_at', { ascending: false })
     .limit(5)
+  // Con número, ése; sin número, los últimos. El recorte por `contact_id` es lo
+  // que hace segura esta consulta: la fila existe porque esta conversación
+  // generó el pedido, así que no hace falta que además coincida el correo.
+  const filtro = numero ? filtroDeNumero(numero) : null
+  if (filtro) q = q.or(filtro)
+  const { data } = await q
 
   const orders = (data ?? []) as Array<Record<string, unknown>>
   if (orders.length === 0) {

@@ -1,4 +1,4 @@
-import { filtroDeNumero } from '@/lib/orders/numero'
+import { filtroDeNumero, conAlmohadilla } from '@/lib/orders/numero'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -86,7 +86,7 @@ async function resolverPedido(
     return { pedido: null }
   }
   if (!num && filas.length > 1) {
-    const lista = filas.map((f) => `#${f.order_number ?? '?'}`).join(', ')
+    const lista = filas.map((f) => conAlmohadilla(f.order_number) || '#?').join(', ')
     return {
       error: 'varios_pedidos',
       message: `Tiene más de un pedido (${lista}). Pregúntale por cuál es antes de abrirla.`,
@@ -171,10 +171,10 @@ export async function abrirDevolucion(
     fotos: fotos.length,
     message:
       `Quedó registrada la ${kind === 'cambio' ? 'solicitud de cambio' : 'devolución'} del pedido ` +
-      `#${fila.order_number ?? numero}. ` +
+      `${conAlmohadilla(fila.order_number ?? numero)}. ` +
       (fotos.length > 0
         ? 'Las fotos que mandó ya quedaron adjuntas. '
-        : 'Si todavía no mandó fotos del producto, pediselas: aceleran la revisión. ') +
+        : 'Si todavía no mandó fotos del producto, pídeselas: aceleran la revisión. ') +
       'Dile que el equipo la revisa y le confirma. ' +
       'NO le digas que está aprobada ni le prometas un reembolso ni una fecha.',
   })
@@ -194,10 +194,10 @@ async function avisarDeLaDevolucion(
   const que = d.kind === 'cambio' ? 'un cambio' : 'una devolución'
   await sendPlatformAlert({
     to: destino,
-    title: `Pidieron ${que}${d.orderNumber ? ` del pedido #${d.orderNumber}` : ''}`,
+    title: `Pidieron ${que}${d.orderNumber ? ` del pedido ${conAlmohadilla(d.orderNumber)}` : ''}`,
     body:
       `${d.motivo || 'Sin motivo escrito'}. ` +
       `${d.fotos > 0 ? `Mandó ${d.fotos} foto(s). ` : 'Sin fotos. '}` +
-      `Miralo en Devoluciones.`,
+      `Míralo en Devoluciones.`,
   })
 }
