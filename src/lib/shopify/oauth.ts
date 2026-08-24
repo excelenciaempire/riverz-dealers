@@ -148,18 +148,51 @@ export function verifyWebhookHmac(
   return safeEqualBase64(digest, headerHmac)
 }
 
+export interface TokenDeShopify {
+  access_token: string
+  scope: string
+  /** Segundos de vida. 3600 para los que expiran; null para los viejos. */
+  expires_in: number | null
+  /** Con esto se renueva sin tocar al comercio. Null en los viejos. */
+  refresh_token: string | null
+  /** Segundos de vida del refresh (90 días). */
+  refresh_token_expires_in: number | null
+}
+
+function leerToken(data: Record<string, unknown>): TokenDeShopify {
+  if (!data.access_token) throw new Error('No access_token in Shopify response')
+  const num = (v: unknown) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null
+  return {
+    access_token: String(data.access_token),
+    scope: typeof data.scope === 'string' ? data.scope : '',
+    expires_in: num(data.expires_in),
+    refresh_token:
+      typeof data.refresh_token === 'string' && data.refresh_token
+        ? data.refresh_token
+        : null,
+    refresh_token_expires_in: num(data.refresh_token_expires_in),
+  }
+}
+
 /**
- * Exchange the OAuth `code` for a permanent Admin API access token.
- * Returns the offline-access token + granted scope. `expires_in` is
- * intentionally null for offline tokens — Shopify omits it from the
- * response, so callers must NOT treat its absence as an error.
+ * Canjear el `code` del OAuth por el token de la Admin API.
+ *
+ * `expiring: 1` es todo el cambio, y no es opcional: Shopify dio de baja los
+ * tokens que no expiran, y sin ese parámetro emite uno de los viejos que su
+ * propia API después rechaza. Medido el 2026-08-24 sobre dos tiendas conectadas
+ * ese día —una recién reconectada por OAuth completo— que fallaban un simple
+ * `/shop.json` con "Non-expiring access tokens are no longer accepted".
+ *
+ * A cambio, el token dura una hora y viene con un `refresh_token` de 90 días.
+ * Renovarlo es cosa del servidor: el comercio no vuelve a ver una pantalla.
  */
 export async function exchangeCodeForToken(args: {
   shop: string
   code: string
   apiKey: string
   apiSecret: string
-}): Promise<{ access_token: string; scope: string; expires_in: number | null }> {
+}): Promise<TokenDeShopify> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -167,20 +200,41 @@ export async function exchangeCodeForToken(args: {
       client_id: args.apiKey,
       client_secret: args.apiSecret,
       code: args.code,
+      expiring: 1,
     }),
   })
   if (!res.ok) {
     throw new Error(`Shopify token exchange failed: ${res.status}`)
   }
-  const data = await res.json()
-  if (!data.access_token) throw new Error('No access_token in Shopify response')
-  const expiresIn =
-    typeof data.expires_in === 'number' && Number.isFinite(data.expires_in)
-      ? data.expires_in
-      : null
-  return {
-    access_token: data.access_token,
-    scope: data.scope ?? '',
-    expires_in: expiresIn,
+  return leerToken(await res.json())
+}
+
+/**
+ * Renovar un token vencido con su refresh token.
+ *
+ * Shopify devuelve un refresh NUEVO en cada renovación, así que hay que
+ * guardarlo: quedarse con el viejo funciona una vez y a la siguiente deja la
+ * tienda afuera, noventa días después, sin que nadie haya tocado nada.
+ */
+export async function refreshShopifyToken(args: {
+  shop: string
+  refreshToken: string
+  apiKey: string
+  apiSecret: string
+}): Promise<TokenDeShopify> {
+  const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: args.apiKey,
+      client_secret: args.apiSecret,
+      grant_type: 'refresh_token',
+      refresh_token: args.refreshToken,
+    }),
+  })
+  if (!res.ok) {
+    const texto = await res.text().catch(() => '')
+    throw new Error(`Shopify token refresh failed: ${res.status} ${texto.slice(0, 200)}`)
   }
+  return leerToken(await res.json())
 }

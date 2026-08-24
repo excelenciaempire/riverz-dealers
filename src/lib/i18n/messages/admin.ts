@@ -501,6 +501,10 @@ export const admin = {
     en: "Emails each account what broke silently",
   },
   cronMetaTokenRefresh: { es: "Renueva el token de Facebook Login", en: "Renews the Facebook Login token" },
+  cronShopifyTokenRefresh: {
+    es: "Renueva el acceso a Shopify antes de que venza",
+    en: "Renews Shopify access before it expires",
+  },
   cronReengagement: { es: "Reengancha compradores inactivos", en: "Re-engages dormant buyers" },
   cronMlOrders: {
     es: "Pedidos, envíos y reclamos de Mercado Libre",

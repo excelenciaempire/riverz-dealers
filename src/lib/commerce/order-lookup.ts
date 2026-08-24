@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { tokenVivo, COLUMNAS_TOKEN } from '@/lib/shopify/token-vivo'
 import { TiendanubeClient } from '@/lib/commerce/providers/tiendanube'
 import {
   WooCommerceClient,
@@ -61,17 +62,21 @@ export async function resolveStoreForLookup(
   apiSecret: string | null
 } | null> {
   interface Fila {
+    id?: string
     platform?: string
     shop_domain?: string
     external_store_id?: string | null
     store_url?: string | null
     access_token?: string
     api_secret?: string | null
+    token_expires_at?: string | null
+    refresh_token_encrypted?: string | null
+    refresh_token_expires_at?: string | null
   }
 
   let q = db
     .from('shopify_connections')
-    .select('platform, shop_domain, external_store_id, store_url, access_token, api_secret')
+    .select(`platform, external_store_id, store_url, api_secret, ${COLUMNAS_TOKEN}`)
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
   if (platform) q = q.eq('platform', platform)
@@ -91,7 +96,9 @@ export async function resolveStoreForLookup(
       shopDomain: row.shop_domain,
       externalStoreId: row.external_store_id ?? null,
       storeUrl: row.store_url ?? null,
-      accessToken: decrypt(row.access_token),
+      // Shopify: renovado si estaba por vencer (migración 194). Las otras
+      // plataformas no expiran, y `tokenVivo` las deja pasar tal cual.
+      accessToken: (await tokenVivo(db, row as Parameters<typeof tokenVivo>[1])).accessToken,
       apiSecret: row.api_secret ? decrypt(row.api_secret) : null,
     }
   } catch {

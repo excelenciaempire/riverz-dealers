@@ -40,6 +40,12 @@ export async function persistShopifyConnection(
      */
     webhookSecret?: string | null
     connectionMethod?: 'oauth' | 'admin_token'
+    /** Segundos de vida del token. Presente desde que Shopify dio de baja los
+     *  que no expiran (migración 194). */
+    expiresIn?: number | null
+    /** Con qué renovarlo, sin volver a molestar al comercio. */
+    refreshToken?: string | null
+    refreshTokenExpiresIn?: number | null
   },
 ): Promise<{ id: string }> {
   // Only set webhook_secret / connection_method when provided, so an OAuth
@@ -61,6 +67,23 @@ export async function persistShopifyConnection(
   if (args.connectionMethod) row.connection_method = args.connectionMethod
   if (args.webhookSecret != null) {
     row.webhook_secret = encrypt(args.webhookSecret)
+  }
+  // El vencimiento y el refresh se escriben SIEMPRE que vengan, incluso en
+  // null: una reconexión que emitiera un token viejo tiene que borrar el
+  // vencimiento anterior, o quedaría una fecha de otro token gobernando cuándo
+  // se renueva éste.
+  if (args.expiresIn !== undefined) {
+    row.token_expires_at = args.expiresIn
+      ? new Date(Date.now() + args.expiresIn * 1000).toISOString()
+      : null
+  }
+  if (args.refreshToken !== undefined) {
+    row.refresh_token_encrypted = args.refreshToken ? encrypt(args.refreshToken) : null
+  }
+  if (args.refreshTokenExpiresIn !== undefined) {
+    row.refresh_token_expires_at = args.refreshTokenExpiresIn
+      ? new Date(Date.now() + args.refreshTokenExpiresIn * 1000).toISOString()
+      : null
   }
 
   const { data, error } = await db

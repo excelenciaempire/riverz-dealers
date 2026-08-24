@@ -165,6 +165,10 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
   { name: "issues-alert", whatKey: "admin.cronIssuesAlert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },
   { name: "meta-token-refresh", whatKey: "admin.cronMetaTokenRefresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *" },
+  // Cada quince minutos, y no una vez al dia como el de Meta: el token de
+  // Shopify dura UNA HORA. Con una corrida diaria la tienda estaria vencida el
+  // 96% del tiempo.
+  { name: "shopify-token-refresh", whatKey: "admin.cronShopifyTokenRefresh", path: "/api/cron/shopify-token-refresh", schedule: "*/15 * * * *" },
   { name: "reengagement", whatKey: "admin.cronReengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },
 
   // --- sub-trabajos ---

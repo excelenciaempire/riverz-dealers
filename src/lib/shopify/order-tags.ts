@@ -6,6 +6,7 @@
  * like Dropi) can act on it. REST Admin API: GET current tags → merge → PUT.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { tokenVivo, COLUMNAS_TOKEN } from './token-vivo';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 
@@ -22,19 +23,23 @@ export async function resolveShopifyAdmin(
 ): Promise<ShopifyAdmin | null> {
   const { data } = await db
     .from('shopify_connections')
-    .select('shop_domain, access_token, status')
+    .select(`${COLUMNAS_TOKEN}, status`)
     .eq('platform', 'shopify')
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const row = data as { shop_domain: string; access_token: string } | null;
+  const row = data as Parameters<typeof tokenVivo>[1] | null;
   if (!row) return null;
   try {
+    // Renovado si estaba por vencer. El token de Shopify dura una hora desde
+    // que dejaron de aceptar los que no expiran (migración 194); leerlo tal
+    // cual devolvía uno muerto y el pedido de la clienta fallaba sin motivo.
+    const { accessToken } = await tokenVivo(db, row);
     return {
       shopDomain: row.shop_domain,
-      accessToken: decrypt(row.access_token),
+      accessToken,
       apiVersion: shopifyApiVersion(),
     };
   } catch {

@@ -198,6 +198,11 @@ export async function GET(request: Request) {
   //    on every path (binding or pending) or the install dead-ends.
   let accessToken: string
   let grantedScope: string
+  // El token ahora vence y trae con qué renovarlo. Sin guardar las dos cosas,
+  // la tienda deja de contestar en una hora.
+  let expiresIn: number | null = null
+  let refreshToken: string | null = null
+  let refreshExpiresIn: number | null = null
   try {
     const exchanged = await exchangeCodeForToken({
       shop,
@@ -207,6 +212,9 @@ export async function GET(request: Request) {
     })
     accessToken = exchanged.access_token
     grantedScope = exchanged.scope
+    expiresIn = exchanged.expires_in
+    refreshToken = exchanged.refresh_token
+    refreshExpiresIn = exchanged.refresh_token_expires_in
   } catch (err) {
     log.error('exchange_failed', {
       shop,
@@ -278,6 +286,9 @@ export async function GET(request: Request) {
       accessToken,
       scope: grantedScope,
       callbackBase,
+      expiresIn,
+      refreshToken,
+      refreshTokenExpiresIn: refreshExpiresIn,
     })
 
     log.info('install_success', {

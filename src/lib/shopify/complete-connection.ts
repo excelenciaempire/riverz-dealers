@@ -32,6 +32,11 @@ export async function completeShopifyConnection(
     callbackBase: string
     /** Shop name if already known (claim flow); resolved best-effort otherwise. */
     shopName?: string | null
+    /** Vida del token y con qué renovarlo (migración 194). Shopify dio de baja
+     *  los que no expiran, así que esto viaja desde el canje hasta la fila. */
+    expiresIn?: number | null
+    refreshToken?: string | null
+    refreshTokenExpiresIn?: number | null
   },
 ): Promise<void> {
   const { userId, workspaceId, shopDomain, accessToken, scope } = args
@@ -50,6 +55,9 @@ export async function completeShopifyConnection(
   }
 
   await persistShopifyConnection(admin, {
+    expiresIn: args.expiresIn,
+    refreshToken: args.refreshToken,
+    refreshTokenExpiresIn: args.refreshTokenExpiresIn,
     userId,
     workspaceId,
     shopDomain,
