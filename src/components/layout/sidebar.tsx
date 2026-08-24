@@ -193,6 +193,17 @@ export function Sidebar({
     .filter((group) => group.items.length > 0);
   const canSeeIntegrations = canAccessSection(allowedSections, "/integraciones");
 
+  // Integraciones y Ajustes: fijos abajo en el escritorio, donde sobra alto y
+  // conviene tenerlos siempre a mano. En el teléfono NO: cada bloque fijo le
+  // come lugar a la lista y el menú termina siendo una ventanita que se
+  // desplaza. Ahí van al final de la lista, como dos entradas más.
+  const itemsDePie = [
+    ...(canSeeIntegrations
+      ? [{ href: "/integraciones", label: "nav.integrations", icon: Blocks }]
+      : []),
+    { href: "/ajustes", label: "nav.settings", icon: Settings },
+  ];
+
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
   useEffect(() => {
@@ -326,38 +337,45 @@ export function Sidebar({
               </ul>
             </div>
           ))}
+
+          {/* En el teléfono, el pie deja de ser pie: estas dos entran a la
+              lista y se desplazan con el resto. */}
+          <ul className="mt-1 flex flex-col gap-0.5 border-t border-sidebar-border pt-2 lg:hidden">
+            {itemsDePie.map((item) => (
+              <NavLink
+                key={`movil-${item.href}`}
+                item={item}
+                pathname={pathname} fullPath={fullPath}
+                collapsed={collapsed}
+                totalUnread={0}
+              />
+            ))}
+          </ul>
         </nav>
 
-        {/* Pie del sidebar: Integraciones (con badge pendiente hasta que
-            WhatsApp y Shopify estén conectados) y Ajustes (perfil, equipo,
-            apariencia). El equipo vive dentro de Ajustes → Equipo. */}
+        {/* Pie del sidebar, sólo en escritorio: Integraciones (con badge
+            pendiente hasta que WhatsApp y Shopify estén conectados) y Ajustes
+            (perfil, equipo, apariencia). El equipo vive dentro de Ajustes →
+            Equipo. En móvil estas dos viajan dentro de la lista de arriba.
+
+            Admin de plataforma: SIN entrada en el menú (a pedido). Se accede
+            sólo por URL directa /admin/voz. El layout de /admin y cada ruta
+            /api/admin siguen siendo la puerta real (platform-admin). */}
         <div
           className={cn(
-            "flex flex-col gap-0.5 border-t border-sidebar-border py-2",
+            "hidden flex-col gap-0.5 border-t border-sidebar-border py-2 lg:flex",
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
-          {canSeeIntegrations && (
+          {itemsDePie.map((item) => (
             <NavLink
-              item={{
-                href: "/integraciones",
-                label: "nav.integrations",
-                icon: Blocks,
-              }}
+              key={item.href}
+              item={item}
               pathname={pathname} fullPath={fullPath}
               collapsed={collapsed}
               totalUnread={0}
             />
-          )}
-          <NavLink
-            item={{ href: "/ajustes", label: "nav.settings", icon: Settings }}
-            pathname={pathname} fullPath={fullPath}
-            collapsed={collapsed}
-            totalUnread={0}
-          />
-          {/* Admin de plataforma: SIN entrada en el menú (a pedido). Se accede
-              solo por URL directa /admin/voz. El layout de /admin y cada ruta
-              /api/admin siguen siendo la puerta real (platform-admin). */}
+          ))}
         </div>
 
         {/* User row + theme toggle */}
