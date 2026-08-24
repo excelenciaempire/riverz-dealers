@@ -53,7 +53,7 @@ export default function EditAutomationPage({
 
   if (error) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3">
+      <div className="flex h-dvh flex-col items-center justify-center gap-3">
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         <button
           onClick={() => router.push("/automatizaciones")}
@@ -67,7 +67,7 @@ export default function EditAutomationPage({
 
   if (!initial) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-accent-ink" />
       </div>
     )
