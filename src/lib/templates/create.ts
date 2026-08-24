@@ -117,7 +117,7 @@ export type ResultadoCrearPlantilla = PlantillaCreada | PlantillaFallida
  * `channel_connections` se lee con la llave de servicio: los secretos no son
  * legibles con el cliente del usuario.
  */
-async function resolverWabaYToken(
+export async function resolverWabaYToken(
   db: SupabaseClient,
   workspaceId: string,
   userId: string | null,

@@ -116,6 +116,8 @@ export default function TemplatesPage() {
   const supabase = createClient();
   const router = useLocalizedRouter();
   const fetchWithCsrf = useFetchWithCsrf();
+  /** Cuál se está borrando: llamar a Meta tarda, y el botón lo dice. */
+  const [borrando, setBorrando] = useState<string | null>(null);
   const { user, loading: authLoading } = useAuth();
   const t = useT();
   const fmt = useFormat();
@@ -207,17 +209,34 @@ export default function TemplatesPage() {
     }
   }
 
-  async function handleDelete(id: string) {
+  /**
+   * Borrar la plantilla — acá y en Meta.
+   *
+   * Antes era un `delete` contra Supabase y nada más: en Meta seguía viva, así
+   * que el siguiente «Sincronizar» la traía de vuelta. El botón parecía
+   * funcionar y la fila reaparecía sola.
+   *
+   * Se pregunta primero porque ahora sí se lleva algo que no vuelve.
+   */
+  async function handleDelete(id: string, name: string) {
+    if (!window.confirm(t('templates.deleteConfirm', { name }))) return;
+    setBorrando(id);
     try {
-      const { error } = await supabase
-        .from('message_templates')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
+      const res = await fetchWithCsrf(`/api/whatsapp/templates/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(error);
+      }
       toast.success(t('templates.templateDeleted'));
       setTemplates((prev) => prev.filter((tpl) => tpl.id !== id));
     } catch (err) {
-      toast.error(t('templates.deleteFailed'));
+      // El motivo de Meta y no «no se pudo»: «la plantilla está en uso en un
+      // flujo» y «se cayó la conexión» se arreglan de maneras distintas.
+      toast.error(err instanceof Error && err.message ? err.message : t('templates.deleteFailed'));
+    } finally {
+      setBorrando(null);
     }
   }
 
@@ -364,11 +383,16 @@ export default function TemplatesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(template.id)}
+                          onClick={() => handleDelete(template.id, template.name)}
+                          disabled={borrando === template.id}
                           className="min-h-10 min-w-10 sm:h-8 sm:w-8 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                           aria-label={t('templates.deleteTemplateAria')}
                         >
-                          <Trash2 className="size-3.5" />
+                          {borrando === template.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
                         </Button>
                         </div>
                       </TableCell>

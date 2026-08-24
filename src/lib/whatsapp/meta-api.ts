@@ -368,20 +368,28 @@ export async function createMessageTemplate(
 export interface DeleteMessageTemplateArgs {
   wabaId: string
   accessToken: string
-  /** Deletes every language version registered under this name. */
+  /** Without `hsmId`, deletes every language version registered under this name. */
   name: string
+  /**
+   * Meta's template id, to delete ONE language version.
+   *
+   * A local row is one language; deleting the name would take the Spanish and
+   * the English copy with it when only one was asked for.
+   */
+  hsmId?: string
 }
 
 /**
- * Delete a template by name from Meta. Removes all language variants.
- * DELETE /{waba-id}/message_templates?name=...
+ * Delete a template from Meta.
+ * DELETE /{waba-id}/message_templates?name=...[&hsm_id=...]
  */
 export async function deleteMessageTemplate(
   args: DeleteMessageTemplateArgs
 ): Promise<void> {
-  const { wabaId, accessToken, name } = args
+  const { wabaId, accessToken, name, hsmId } = args
   const url = withAppsecretProof(
-    `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(name)}`,
+    `${META_API_BASE}/${wabaId}/message_templates?name=${encodeURIComponent(name)}` +
+      (hsmId ? `&hsm_id=${encodeURIComponent(hsmId)}` : ''),
     accessToken,
   )
   const response = await fetch(url, {

@@ -179,6 +179,10 @@ export const templates = {
     en: "No templates match “{query}”.",
   },
   deleteTemplateAria: { es: "Eliminar plantilla", en: "Delete template" },
+  deleteConfirm: {
+    es: "Se elimina «{name}» de esta cuenta y de WhatsApp. No se puede deshacer.",
+    en: "«{name}» will be deleted from this account and from WhatsApp. This cannot be undone.",
+  },
 
   // ── Detail page ──
   templateNotFound: { es: "Plantilla no encontrada", en: "Template not found" },

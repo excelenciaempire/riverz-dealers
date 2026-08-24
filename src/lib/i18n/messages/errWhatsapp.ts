@@ -31,6 +31,16 @@ export const errWhatsapp = {
     es: "Falta el ID de la Cuenta de WhatsApp Business (WABA). Vuelve a conectar tu cuenta en Ajustes.",
     en: "The WhatsApp Business Account (WABA) ID is missing. Reconnect your account in Settings.",
   },
+  // ── Templates: delete ──
+  templateNotFound: {
+    es: "Esa plantilla ya no está en esta cuenta.",
+    en: "That template is no longer in this account.",
+  },
+  templateDeleteFailed: {
+    es: "No se pudo eliminar la plantilla.",
+    en: "The template could not be deleted.",
+  },
+
   workspaceResolveFailed: {
     es: "No se pudo resolver el workspace de tu cuenta.",
     en: "Could not resolve your account's workspace.",
