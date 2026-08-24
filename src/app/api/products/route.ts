@@ -6,7 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceCurrencyOrNull } from '@/lib/products/currency';
-import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
+import { agruparPorPrincipal, idsDelGrupo, type FilaAgrupable } from '@/lib/products/agrupar';
 import { crearProducto, tituloDeProducto } from '@/lib/products/write';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -101,19 +101,31 @@ export async function GET(request: Request) {
     return serverError(error);
   }
 
+  // Qué agentes tiene cada FILA. El conteo que ve el comercio se arma después,
+  // por producto: ver abajo.
+  const agentesDe = new Map<string, string[]>();
   const filas: Record<string, unknown>[] = (data ?? []).map((p: Record<string, unknown>) => {
-    const apps = p.ai_agent_products as unknown[] | null;
-    return {
-      ...p,
-      assigned_agent_count: Array.isArray(apps) ? apps.length : 0,
-      ai_agent_products: undefined,
-    };
+    const apps = (p.ai_agent_products ?? []) as Array<{ agent_id: string }>;
+    agentesDe.set(String(p.id), Array.isArray(apps) ? apps.map((a) => a.agent_id) : []);
+    return { ...p, ai_agent_products: undefined };
   });
 
   // Un producto vendido en varios lados se lista UNA vez. El plegado vive en
   // `@/lib/products/agrupar` porque el selector de productos del agente tiene
   // que mostrar exactamente lo mismo, y dos copias se separan.
-  const products = agruparPorPrincipal(filas as unknown as FilaAgrupable[]);
+  const agrupados = agruparPorPrincipal(filas as unknown as FilaAgrupable[]);
+
+  // "Asignado a N agentes" cuenta el PRODUCTO, no la fila.
+  //
+  // Quien asignó el producto antes de unificarlo tiene apuntada una sola
+  // publicación, y el agente ya lo trata como el producto entero: contar sólo
+  // los de la principal mostraba "sin asignar" sobre algo que el agente sí usa.
+  // Los agentes se cuentan sin repetir — el mismo agente asignado a dos
+  // publicaciones del mismo producto es uno.
+  const products = agrupados.map((p) => ({
+    ...p,
+    assigned_agent_count: new Set(idsDelGrupo(p).flatMap((id) => agentesDe.get(id) ?? [])).size,
+  }));
 
   // El UI necesita saber si Shopify está conectado para mostrar el
   // empty state correcto / deshabilitar Sincronizar. Post-055 leemos
