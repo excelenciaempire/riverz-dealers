@@ -3,13 +3,35 @@
  *
  * Son dos y no una porque hacen cosas distintas y confundirlas se paga caro:
  *
- *  - `equipo__delegar` es UN encargo a UN dominio, y corre en el acto. Es para
- *    "cambiale el texto a la plantilla de bienvenida".
+ *  - `equipo__delegar` es un encargo a un dominio, y corre en el acto. Es el
+ *    camino normal, incluso para varios encargos seguidos: lo que devuelve cada
+ *    uno vuelve al orquestador, que escribe el siguiente sabiendo lo que dejó
+ *    el anterior.
  *  - `equipo__plan` es el reparto completo, y NO ejecuta: se guarda, se muestra
- *    entero y espera un click. Es para "armá recuperación de carritos".
+ *    entero y espera un click.
  *
  * Si hubiera una sola, el modelo elegiría entre ejecutar y proponer según cómo
  * le suene la frase, y la persona a veces vería el plan antes y a veces no.
+ *
+ * ## Y el criterio es el ANCHO, no lo hondo
+ *
+ * Decía «más de un dominio, o algo que tiene que pasar antes que otra cosa».
+ * Eso describe casi todo lo que se pide acá: escribir una plantilla y armar la
+ * automatización que la usa es EL trabajo de Riverz, no un caso grande. Así que
+ * el plan salía siempre, y con él un click antes de que empezara nada.
+ *
+ * Una cadena de dos o tres encargos la hace MEJOR una sola cabeza: el
+ * orquestador tiene en la mano lo que devolvió el primero cuando escribe el
+ * encargo del segundo, y le pasa el nombre exacto en vez de un mapa de
+ * referencias que viaja por tres contextos. Ahí se rompió el 2026-08-24:
+ * productos murió con un 400, plantillas parafraseó el error, el plan reportó
+ * éxito y la pantalla dijo «2 pasos listos».
+ *
+ * El plan se gana su click cuando el trabajo es ANCHO —muchas cosas del mismo
+ * tipo, que no entran en una cabeza— y cuando conviene ver la forma entera
+ * antes de que corra nada. Cuesta unas vueltas más del orquestador que el plan
+ * ahorra; se pagan con gusto por no tener el error a dos paráfrasis de
+ * distancia.
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import { COMO_ESCRIBIR } from './prompts'
@@ -19,7 +41,7 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
   {
     name: 'equipo__delegar',
     description:
-      'Le encarga UNA cosa a UN especialista y espera a que la haga. Usala cuando el pedido es de un solo dominio y de un solo paso. Si hace falta más de un dominio, o algo tiene que pasar antes que otra cosa, usá equipo__plan.',
+      'Le encarga UNA cosa a UN especialista y espera a que la haga. Es tu camino normal. Úsala también cuando hacen falta VARIOS encargos seguidos: lo que devuelve cada uno vuelve a ti, así que encadénalos tú, pasándole al siguiente el nombre exacto de lo que dejó el anterior. Puedes pedir varias en el mismo mensaje cuando no dependen entre sí: corren a la vez.',
     input_schema: {
       type: 'object',
       properties: {
@@ -40,7 +62,7 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
   {
     name: 'equipo__plan',
     description:
-      'Reparte un pedido grande entre varios especialistas y lo deja esperando una sola aprobación. Úsala cuando toca más de un dominio o cuando algo tiene que pasar antes que otra cosa. No escribas nada ANTES de llamarla: escribe una sola vez, después, y sólo lo que la tarjeta del plan no muestre.',
+      'Reparte un pedido ANCHO entre varios especialistas y lo deja esperando una sola aprobación. Ancho es muchas cosas del mismo tipo —revisar las cuarenta automatizaciones, auditar los seis canales—: cinco encargos o más. Una cadena de dos o tres NO es ancha, por más que toque varios dominios: ésa se hace con equipo__delegar, uno tras otro, que sale antes y sin pedir un click de más. No escribas nada ANTES de llamarla: escribe una sola vez, después, y sólo lo que la tarjeta del plan no muestre.',
     input_schema: {
       type: 'object',
       properties: {
@@ -114,9 +136,9 @@ CÓMO TRABAJAS
 - Cuando eliges entre dos caminos, di por qué ése y no el otro. Ese es el trabajo: elegir con los datos de la cuenta a la vista.
 
 CUÁNDO USAR CADA HERRAMIENTA DE EQUIPO
-- Un solo dominio y un solo paso: \`equipo__delegar\`.
-- Más de un dominio, o algo que tiene que pasar antes que otra cosa: \`equipo__plan\`. El plan NO se ejecuta: queda esperando un click. **Después de armarlo, no lo cuentes**: la tarjeta con los pasos ya está en pantalla. Una línea con lo que la tarjeta no dice (lo que falta conectar, lo que elegiste y por qué) y nada más.
-- En el plan, encadena con \`depende_de\` cuando un paso necesita el nombre o el id exacto de algo que crea otro. La plantilla antes que la automatización que la manda, siempre. Lo que de verdad no se debe nada corre al mismo tiempo.
+- **Casi siempre \`equipo__delegar\`**, incluso para varios encargos seguidos. Delegas uno, te vuelve el resultado, y escribes el siguiente con el nombre exacto que te dio el anterior. La plantilla antes que la automatización que la manda, siempre. Los que no se deben nada van en el mismo mensaje: corren a la vez.
+- **\`equipo__plan\` sólo si el trabajo es ANCHO**: muchas cosas del mismo tipo, cinco encargos o más — revisar las cuarenta automatizaciones, auditar los seis canales. Una cadena de dos o tres NO es ancha, por más que toque tres dominios. El plan cobra una aprobación antes de que empiece nada, y para dos pasos eso es un click por una lista de dos renglones.
+- El plan NO se ejecuta: queda esperando un click. **Después de armarlo, no lo cuentes**: la tarjeta con los pasos ya está en pantalla. Una línea con lo que la tarjeta no dice (lo que falta conectar, lo que elegiste y por qué) y nada más. Encadena sus pasos con \`depende_de\` cuando uno necesita el nombre o el id exacto de algo que crea otro.
 
 ${COMO_ESCRIBIR}
 

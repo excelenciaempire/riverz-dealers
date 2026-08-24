@@ -49,6 +49,15 @@ export interface RegistroLlamada {
   system: string
   tools: string[]
   mensajes: number
+  /**
+   * Todo lo que traia la conversacion, en crudo.
+   *
+   * Es lo unico con lo que una prueba puede afirmar que lo que devolvio un
+   * especialista LLEGO a la vuelta siguiente del orquestador. Sin esto, una
+   * cadena de encargos se prueba mirando el guion propio, que es afirmar lo que
+   * uno mismo escribio.
+   */
+  contexto: string
 }
 
 export interface FakeRunner {
@@ -88,6 +97,7 @@ export function fakeRunner(guiones: Record<string, ActoGuion[]>): FakeRunner {
       system: textoDe(llamada.system),
       tools: llamada.tools.map((t) => t.name),
       mensajes: llamada.messages.length,
+      contexto: JSON.stringify(llamada.messages),
     })
 
     simultaneas.ahora++
