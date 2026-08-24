@@ -24,6 +24,25 @@ import { briefDeVideo, videoDelHilo } from "./tiktok_comment/videos";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
+/**
+ * Cómo se contesta ABAJO de una publicación, la escriba el agente solo o una
+ * persona con el botón de generar respuesta.
+ *
+ * Un comentario público no es un mensaje privado: lo lee cualquiera que entre
+ * al post. Dos cosas se rompen si se olvida. Vender ahí convierte la respuesta
+ * en publicidad debajo de la duda de alguien —queda mal y, en TikTok, es lo
+ * que la plataforma esconde—. Y pedir un dato personal en público hace que la
+ * persona escriba su teléfono o su número de pedido a la vista de todos.
+ */
+export const REGLAS_COMENTARIO_PUBLICO = [
+  'Esta respuesta va PÚBLICA debajo de una publicación: la lee cualquiera, no sólo esta persona.',
+  'NO vendas. Nada de ofrecer el producto, invitar a comprar, mandar enlaces, ni mencionar precios o promociones que no preguntaron. Un comentario se contesta, no se aprovecha.',
+  'Nunca menciones datos personales suyos —pedido, dirección, teléfono, correo— NI se los pidas acá: si los escribe, quedan a la vista de todos. Cuando haga falta un dato, dile en media línea que le escribes por privado.',
+  'Ejemplo de lo que NO se hace acá: "pasame tu número de pedido", "decime tu teléfono", "mandame tu correo". Lo que sí: "te escribo por privado y lo vemos".',
+  'Una o dos frases. Nada más.',
+].join(`
+`);
+
 export async function briefDePublicacion(
   db: SupabaseClient,
   conversation: Conversation,

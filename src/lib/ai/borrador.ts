@@ -20,7 +20,11 @@ import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { briefDePublicacion } from '@/lib/channels/publicacion';
+import { briefDePublicacion, REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
+
+/** El borrador lo escribe Sonnet aunque el agente use otro modelo: ver la
+ *  nota en la llamada. */
+const MODELO_BORRADOR = 'claude-sonnet-5';
 
 /** Salto de línea, con nombre: estas listas se leen mejor así. */
 const SALTO = `
@@ -179,7 +183,17 @@ export async function componerBorrador(
 
     const maxChars = agent.max_response_chars || 500;
     const result = await runWithTools(getAnthropic(resolvedKey.key), {
-      model: agent.model || 'claude-haiku-4-5-20251001',
+      // Sonnet, no el modelo del agente.
+      //
+      // El agente contesta miles de mensajes solo y por eso corre en Haiku,
+      // que es la decisión correcta ahí. Acá es una llamada suelta, a pedido y
+      // que alguien va a leer antes de mandar: lo que importa es que suene a
+      // persona y que respete lo que NO hay que hacer —no vender en un
+      // comentario, no pedir datos en público, no explicar de más—. Medido
+      // sobre las conversaciones reales de un comercio, Haiku se saltaba esas
+      // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
+      // de ingredientes.
+      model: MODELO_BORRADOR,
       max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
       system,
       messages: claudeMessages,
@@ -242,11 +256,7 @@ function reglasDeSuperficie(channel: Conversation['channel']): string {
     case 'ig_comment':
     case 'fb_comment':
     case 'tiktok_comment':
-      return [
-        'Esto es una respuesta PÚBLICA debajo de una publicación: la lee cualquiera, no sólo esta persona.',
-        'Nunca menciones datos personales suyos: ni su pedido, ni su dirección, ni su teléfono, ni su correo. Si hace falta un dato para avanzar, invítala a escribir por privado.',
-        'Corto: una o dos frases. Contesta su comentario y, si viene al caso, facilita el siguiente paso en una línea.',
-      ].join(SALTO);
+      return REGLAS_COMENTARIO_PUBLICO;
     case 'gmail':
     case 'outlook':
       return [
@@ -386,10 +396,16 @@ function redactorGenerico(workspaceId: string, nombreDelComercio: string | null)
  */
 const REGLAS_BORRADOR = [
   'Escribe la respuesta que le mandarías a esta persona ahora mismo, lista para enviar.',
-  'Contesta LO QUE DIJO. Si comenta algo del video o del producto —un ingrediente, la edad, el sol, la piel, el precio, el envío— eso ES del negocio: respóndelo con lo que sabes del video y del catálogo, no lo trates como fuera de tema.',
+  'Contesta SÓLO lo que dijo. No agregues beneficios, ingredientes, precios, promociones ni explicaciones que nadie pidió: si preguntó una cosa, se contesta esa cosa.',
+  'Escribe como una persona del equipo, no como atención al cliente. Prohibido: "estoy aquí para ayudarte", "un agente del equipo", "no dudes en", "quedamos atentos", y preguntar "en qué puedo ayudarte" cuando ya se sabe de qué se está hablando.',
+  'No cites ni repitas lo que escribió la persona ("veo que escribiste…", "entiendo que decís…"): contesta directo.',
+  'Si su mensaje no es una pregunta —una opinión, una queja, un elogio, un emoji— no preguntes de qué habla: responde como respondería una persona, en una línea, y listo.',
+  'Corto. Si alcanza con una frase, una frase. No hace falta cerrar siempre con una pregunta.',
+  'Mantén el mismo trato que viene usando la conversación —de tú o de vos— y no lo mezcles dentro del mismo mensaje.',
+  'No repitas su nombre ni uses su usuario de la red social como nombre.',
+  'Como mucho un emoji, y sólo si la conversación ya venía así.',
+  'Si comenta algo del video o del producto —un ingrediente, la edad, el sol, la piel— eso ES del negocio: respóndelo con lo que sabes, no lo trates como fuera de tema.',
   'Nunca escribas que te falta contexto, que no entiendes la conversación previa, que eres una IA, ni que sólo puedes ayudar con productos y pedidos. Si de verdad no se entiende qué quiso decir, haz UNA pregunta corta y natural.',
-  'No uses el nombre de usuario de la red social como si fuera su nombre.',
-  'Nada de encabezados, opciones numeradas, alternativas ni notas para quien atiende: sólo el mensaje.',
+  'Nada de encabezados, opciones numeradas ni notas para quien atiende: sólo el mensaje.',
   'Sin espacios para completar ni corchetes. Si un dato no lo sabes, no lo menciones.',
-  'Una sola respuesta, del largo de un mensaje de chat.',
 ].join('\n');

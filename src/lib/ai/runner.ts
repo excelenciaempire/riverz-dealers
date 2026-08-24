@@ -68,7 +68,10 @@ import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { briefDePublicacionPorId } from '@/lib/channels/publicacion';
+import {
+  briefDePublicacionPorId,
+  REGLAS_COMENTARIO_PUBLICO,
+} from '@/lib/channels/publicacion';
 import {
   summarizeConversationIfNeeded,
   summarizeContactIfNeeded,
@@ -1669,6 +1672,9 @@ async function generateReply(
   ) {
     const post = await briefDePublicacionPorId(db, origen.conversationId).catch(() => null);
     if (post) extras.push(post);
+    // Contestar en público tiene sus propias reglas, y son las mismas que sigue
+    // una persona con el botón de generar respuesta.
+    extras.push(REGLAS_COMENTARIO_PUBLICO);
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
   const system = buildSystemPrompt(
