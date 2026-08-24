@@ -28,6 +28,7 @@ import {
   VOICE_STATUS_KEY,
   VOICE_TYPE_KEY,
   fmtCallDuration,
+  voiceStatusLabel,
 } from '@/lib/voice/labels';
 import { ALL_CALL_TYPES } from '@/lib/voice/constants';
 import { downloadCsv } from '@/lib/export/csv';
@@ -198,7 +199,7 @@ export function CallLog({
           c.phone ?? '',
           t(VOICE_DIRECTION_KEY[c.direction]),
           t(VOICE_TYPE_KEY[c.call_type]),
-          t(VOICE_STATUS_KEY[c.status]),
+          t(voiceStatusLabel(c).statusKey),
           c.outcome ? t(VOICE_OUTCOME_KEY[c.outcome]) : '',
           c.duration_seconds ?? 0,
           c.agent?.name ?? '',
@@ -371,12 +372,28 @@ export function CallLog({
                       {t(VOICE_TYPE_KEY[c.call_type])}
                     </td>
                     <td className="py-2 pr-4 text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
-                        {(c.status === 'dialing' || c.status === 'in_progress') && (
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                        )}
-                        {t(VOICE_STATUS_KEY[c.status])}
-                      </span>
+                      {(() => {
+                        // Una llamada que una barrera frenó se lee «No se
+                        // llamó» con el motivo debajo: antes decía «Cancelada»
+                        // a secas —o directamente no existía— y el comercio no
+                        // tenía cómo saber que su freno estaba prendido.
+                        const { statusKey, reasonKey } = voiceStatusLabel(c);
+                        return (
+                          <>
+                            <span className="inline-flex items-center gap-1.5">
+                              {(c.status === 'dialing' || c.status === 'in_progress') && (
+                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                              )}
+                              {t(statusKey)}
+                            </span>
+                            {reasonKey && (
+                              <span className="mt-0.5 block text-[11px] text-amber-600 dark:text-amber-400">
+                                {t(reasonKey)}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="py-2 pr-4 text-muted-foreground">
                       {c.outcome ? t(VOICE_OUTCOME_KEY[c.outcome]) : '—'}

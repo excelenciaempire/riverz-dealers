@@ -50,66 +50,95 @@ export const VOICE_DIRECTION_KEY: Record<VoiceCallDirection, string> = {
 };
 
 /**
- * Por qué esta cuenta todavía no puede llamar.
+ * Por qué no se pudo llamar.
  *
- * Los mismos criterios que cobra `enqueueCall`, pero nombrados: ahí las
- * barreras se cobran tarde y en silencio —`{ enqueued: false, reason }` que
- * termina en un log que nadie mira— y el comercio configura un nodo, lo activa
- * y no pasa nada, sin un solo cartel que diga qué falta.
+ * Vive acá, junto al resto de los mapas, y no en `readiness.ts`: ese módulo
+ * habla con LiveKit y con la base, así que importarlo desde una pantalla
+ * arrastraría el SDK del servidor al navegador. Esto es texto y nada más.
  *
- * `fixHref` es lo que separa un aviso de una instrucción: dice DÓNDE se
- * arregla. Vacío cuando no lo arregla el comercio, que es el caso de
- * `platform_unavailable`.
+ * Los códigos son los MISMOS que devuelve `enqueueCall.reason`, más los que
+ * sólo se ven de antemano (`no_number`, `no_voice_agent`, plataforma caída).
  */
 export type VoiceBlockerCode =
   | 'platform_unavailable'
   | 'no_voice_connection'
-  | 'voice_disconnected'
   | 'no_number'
+  | 'voice_disconnected'
   | 'kill_switch'
   | 'monthly_limit_reached'
   | 'no_voice_agent'
   | 'agent_not_found'
   | 'agent_deleted'
-  | 'voice_disabled'
   | 'agent_paused'
+  | 'voice_disabled'
   | 'contact_not_found'
   | 'opt_out'
   | 'invalid_phone'
-  | 'unknown'
+  | 'insert_failed';
 
+export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
+  platform_unavailable: 'voice.blockedPlatform',
+  no_voice_connection: 'voice.blockedNoConnection',
+  no_number: 'voice.blockedNoNumber',
+  voice_disconnected: 'voice.blockedDisconnected',
+  kill_switch: 'voice.blockedKillSwitch',
+  monthly_limit_reached: 'voice.blockedMonthlyLimit',
+  no_voice_agent: 'voice.blockedNoVoiceAgent',
+  agent_not_found: 'voice.blockedAgentNotFound',
+  agent_deleted: 'voice.blockedAgentDeleted',
+  agent_paused: 'voice.blockedAgentPaused',
+  voice_disabled: 'voice.blockedVoiceDisabled',
+  contact_not_found: 'voice.blockedContactNotFound',
+  opt_out: 'voice.blockedOptOut',
+  invalid_phone: 'voice.blockedInvalidPhone',
+  insert_failed: 'voice.blockedInsertFailed',
+};
+
+/** Dónde se destraba cada motivo. `null` = no lo arregla el comercio. */
 export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
-  // Falta configuración de plataforma (LiveKit): no lo arregla el comercio.
   platform_unavailable: null,
   no_voice_connection: '/voz',
-  voice_disconnected: '/voz',
   no_number: '/voz',
+  voice_disconnected: '/voz',
   kill_switch: '/voz',
   monthly_limit_reached: '/voz',
   no_voice_agent: '/asistente',
   agent_not_found: '/asistente',
   agent_deleted: '/asistente',
-  voice_disabled: '/asistente',
   agent_paused: '/asistente',
-  contact_not_found: '/contactos',
-  opt_out: '/contactos',
-  invalid_phone: '/contactos',
-  unknown: null,
+  voice_disabled: '/asistente',
+  contact_not_found: null,
+  opt_out: null,
+  invalid_phone: null,
+  insert_failed: null,
+};
+
+/** Convierte un `reason` de `enqueueCall` en un código conocido. */
+export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
+  const code = reason.startsWith('insert_failed')
+    ? 'insert_failed'
+    : (reason as VoiceBlockerCode);
+  return code in VOICE_BLOCKED_KEY ? code : 'insert_failed';
 }
 
-const CODIGOS = new Set<string>(Object.keys(VOICE_BLOCKED_FIX_HREF))
-
 /**
- * El `reason` que devuelve `enqueueCall`, como código.
+ * Cómo se lee el estado de una llamada en el registro.
  *
- * Casi todos coinciden con el nombre del código. Los que no —`insert_failed:…`
- * trae el mensaje de Postgres pegado— caen en `unknown` en vez de inventar una
- * clave: un cartel que dice "no se pudo" es honesto; uno que dice cualquier
- * otra cosa manda a arreglar donde no está el problema.
+ * Una fila `canceled` con motivo es una llamada que NUNCA se marcó: la frenó
+ * una barrera. Mostrarla como «Cancelada» a secas dejaba al comercio sin la
+ * única información que importa, que es por qué.
  */
-export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
-  const limpio = (reason ?? '').split(':')[0].trim()
-  return CODIGOS.has(limpio) ? (limpio as VoiceBlockerCode) : 'unknown'
+export function voiceStatusLabel(call: {
+  status: VoiceCallStatus;
+  error?: string | null;
+}): { statusKey: string; reasonKey: string | null } {
+  if (call.status === 'canceled' && call.error) {
+    return {
+      statusKey: 'voice.statusNotPlaced',
+      reasonKey: VOICE_BLOCKED_KEY[blockerCodeFromReason(call.error)],
+    };
+  }
+  return { statusKey: VOICE_STATUS_KEY[call.status], reasonKey: null };
 }
 
 /** Duración hablada como m:ss ("2:07"); guion cuando la llamada no conectó. */

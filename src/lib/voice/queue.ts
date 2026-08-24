@@ -47,6 +47,20 @@ export interface EnqueueInput {
   /** Wait at least this long before the call becomes due. The calling window
    *  still applies on top. Ignored when `immediate`. */
   delayMinutes?: number;
+  /**
+   * Dejar rastro visible cuando una barrera frena la llamada.
+   *
+   * Sin esto, un freno de emergencia prendido o un tope de minutos alcanzado
+   * hacen que la llamada NO exista en ningún lado: la automatización sigue de
+   * largo y el registro de `/voz` está vacío, así que el comercio ve "no pasó
+   * nada" y no tiene forma de saber por qué. Con esto queda una fila
+   * `canceled` con el motivo, que el registro muestra como «No se llamó · …».
+   *
+   * Lo prenden las puertas donde hay una persona o una automatización
+   * esperando un resultado (el nodo del lienzo, el botón de la bandeja); NO
+   * los reintentos ni las campañas, que repetirían la misma fila en bucle.
+   */
+  recordSkip?: boolean;
 }
 
 export type EnqueueResult =
@@ -183,64 +197,101 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     .maybeSingle();
   const tz = (ws as { timezone?: string } | null)?.timezone || DEFAULT_TZ;
 
-  // Voice connection config (kill switch / limit / caller number).
-  const { data: connRow } = await db
-    .from('channel_connections')
-    .select('config, status')
-    .eq('workspace_id', input.workspaceId)
-    .eq('channel', 'voice')
-    .maybeSingle();
-  if (!connRow) return { enqueued: false, reason: 'no_voice_connection' };
-  const conn = connRow as { config: VoiceConnectionConfig | null; status: string };
-  const cfg = conn.config ?? {};
-  if (conn.status === 'disconnected') {
-    return { enqueued: false, reason: 'voice_disconnected' };
-  }
-  if (cfg.kill_switch) return { enqueued: false, reason: 'kill_switch' };
+  // Se carga TODO primero —conexión, agente, contacto— y recién después se
+  // cobran las barreras. Antes cada guard salía al toque, así que cuando el
+  // freno de emergencia estaba prendido ni siquiera sabíamos a qué agente ni a
+  // qué contacto iba la llamada, y no había con qué dejar la fila que le
+  // explica al comercio por qué no sonó el teléfono (`recordSkip`).
+  const [{ data: connRow }, { data: agentRow }, { data: contactRow }] = await Promise.all([
+    db
+      .from('channel_connections')
+      .select('config, status')
+      .eq('workspace_id', input.workspaceId)
+      .eq('channel', 'voice')
+      .maybeSingle(),
+    db
+      .from('ai_agents')
+      .select('*')
+      .eq('id', input.agentId)
+      .eq('workspace_id', input.workspaceId)
+      .maybeSingle(),
+    // Scope by workspace so a caller can't enqueue a call against a contact
+    // from another tenant (the dashboard route validates workspace membership
+    // + agent ownership, but not the contact).
+    db
+      .from('contacts')
+      .select('*')
+      .eq('id', input.contactId)
+      .eq('workspace_id', input.workspaceId)
+      .maybeSingle(),
+  ]);
 
-  // Agent must exist + have voice enabled.
-  const { data: agentRow } = await db
-    .from('ai_agents')
-    .select('*')
-    .eq('id', input.agentId)
-    .eq('workspace_id', input.workspaceId)
-    .maybeSingle();
-  if (!agentRow) return { enqueued: false, reason: 'agent_not_found' };
-  const agent = agentRow as AiAgent;
-  if (!agent.voice_enabled) return { enqueued: false, reason: 'voice_disabled' };
-  // Pausar o borrar un agente frenaba las llamadas ENTRANTES y el
-  // auto-encolado, pero no las salientes disparadas a mano, por una
-  // automatización o por una campaña: seguía marcando. Mismo criterio que
-  // `pickVoiceAgent` y `pickAgentForObjective`.
+  const conn = connRow as { config: VoiceConnectionConfig | null; status: string } | null;
+  const cfg = conn?.config ?? {};
+  const agent = agentRow as AiAgent | null;
+  const contact = contactRow as Contact | null;
+
+  const rawPhone = (input.phone || contact?.phone || '').trim();
+  const phoneOk = /^\+?[0-9]{7,15}$/.test(rawPhone.replace(/[^\d+]/g, ''));
+  const e164 = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/[^\d]/g, '')}`;
+
+  /**
+   * Frenar dejando rastro. La fila `canceled` sólo se puede escribir si hay
+   * agente y contacto de verdad (ambos son FK NOT NULL); cuando el bloqueo es
+   * justamente que no existen, no hay dónde anotarlo y se devuelve el motivo
+   * a secas, como antes.
+   */
+  const blocked = async (reason: string): Promise<EnqueueResult> => {
+    if (input.recordSkip && agent && contact) {
+      const { error: skipErr } = await db.from('voice_calls').insert({
+        workspace_id: input.workspaceId,
+        agent_id: agent.id,
+        contact_id: contact.id,
+        automation_id: input.automationId ?? null,
+        direction: 'outbound',
+        call_type: input.callType,
+        // El teléfono es NOT NULL; cuando el motivo ES el teléfono, guardar
+        // el valor crudo dice más que un guion.
+        phone: phoneOk ? e164 : rawPhone || '—',
+        language: input.language || agent.language || 'es',
+        status: 'canceled',
+        error: reason,
+        context: input.context ?? {},
+        attempt: input.attempt ?? 1,
+        max_attempts: 1,
+        ended_at: new Date().toISOString(),
+      });
+      if (skipErr) {
+        console.error('[voice] no se pudo registrar la llamada frenada:', skipErr);
+      }
+    }
+    return { enqueued: false, reason };
+  };
+
+  // ── Barreras, en orden de qué apaga qué ──
+  if (!conn) return blocked('no_voice_connection');
+  if (conn.status === 'disconnected') return blocked('voice_disconnected');
+  if (cfg.kill_switch) return blocked('kill_switch');
+
+  if (!agent) return blocked('agent_not_found');
+  if (!agent.voice_enabled) return blocked('voice_disabled');
+  // Pausar o borrar un agente frenaba las llamadas ENTRANTES, pero no las
+  // salientes disparadas a mano, por una automatización o por una campaña:
+  // seguía marcando. Mismo criterio que `pickVoiceAgent`.
   if ((agent as { deleted_at?: string | null }).deleted_at) {
-    return { enqueued: false, reason: 'agent_deleted' };
+    return blocked('agent_deleted');
   }
-  if (!agent.is_active) return { enqueued: false, reason: 'agent_paused' };
+  if (!agent.is_active) return blocked('agent_paused');
 
-  // Contact + opt-out + phone. Scope by workspace so a caller can't enqueue a
-  // call against a contact from another tenant (the dashboard route validates
-  // workspace membership + agent ownership, but not the contact).
-  const { data: contactRow } = await db
-    .from('contacts')
-    .select('*')
-    .eq('id', input.contactId)
-    .eq('workspace_id', input.workspaceId)
-    .maybeSingle();
-  if (!contactRow) return { enqueued: false, reason: 'contact_not_found' };
-  const contact = contactRow as Contact;
-  if (contact.voice_opt_out) return { enqueued: false, reason: 'opt_out' };
-
-  const phone = (input.phone || contact.phone || '').trim();
-  if (!/^\+?[0-9]{7,15}$/.test(phone.replace(/[^\d+]/g, ''))) {
-    return { enqueued: false, reason: 'invalid_phone' };
-  }
-  const e164 = phone.startsWith('+') ? phone : `+${phone.replace(/[^\d]/g, '')}`;
+  if (!contact) return blocked('contact_not_found');
+  if (contact.voice_opt_out) return blocked('opt_out');
+  if (!phoneOk) return blocked('invalid_phone');
 
   // Monthly minutes cap.
   const limit = cfg.monthly_minutes_limit ?? null;
   if (limit && limit > 0) {
     const used = await minutesUsedThisMonth(db, input.workspaceId, tz);
-    if (used >= limit) return { enqueued: false, reason: 'monthly_limit_reached' };
+    if (used >= limit) return blocked('monthly_limit_reached');
   }
 
   // Schedule. `delayMinutes` pushes the earliest moment forward before the

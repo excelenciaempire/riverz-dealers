@@ -3,7 +3,6 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import {
   extractShopifyLegacyPhone,
   extractShopifyName,
@@ -404,18 +403,11 @@ export async function POST(request: Request) {
       }).catch((err) => console.error('[shopify] dispatch failed:', err))
     }
 
-    // Voice AI: si un agente activó "llamar al confirmar pedido" (objetivo
-    // order_confirmation), encolamos la llamada sin que el merchant arme una
-    // automatización. Solo en el alta del pedido; respeta horario/opt-out/limites.
-    if (triggerTypes.includes('shopify_order_created')) {
-      void maybeAutoVoiceCall(admin, {
-        workspaceId,
-        contactId,
-        callType: 'order_confirmation',
-        context: vars,
-      })
-    }
-
+    // Acá había un segundo disparador de llamadas, invisible: si un agente
+    // tenía prendido el objetivo "order_confirmation", el pedido hacía sonar
+    // un teléfono sin que existiera ninguna automatización que lo dijera. Una
+    // llamada saliente ahora nace SIEMPRE de un nodo «Llamar con IA» en el
+    // lienzo — que es donde el comercio puede verla, editarla y apagarla.
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[shopify] orders webhook error:', err)

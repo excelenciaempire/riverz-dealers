@@ -109,6 +109,73 @@ export const voice = {
   statusBusy: { es: "Ocupado", en: "Busy" },
   statusVoicemail: { es: "Buzón de voz", en: "Voicemail" },
   statusCanceled: { es: "Cancelada", en: "Canceled" },
+  // Se intento y una barrera la freno: nunca sono un telefono. Es distinto de
+  // "sin respuesta" — ahi si se marco y no atendieron.
+  statusNotPlaced: { es: "No se llamó", en: "Not placed" },
+
+  // Por que no se puede llamar. Un solo juego de frases para el lienzo, la
+  // pantalla de Voz, el registro y lo que el agente de chat le contesta al
+  // comercio. Cada una dice DONDE se arregla, no solo que pasa.
+  blockedPlatform: {
+    es: "El servicio de llamadas no está disponible en este momento.",
+    en: "The calling service is unavailable right now.",
+  },
+  blockedNoConnection: {
+    es: "Esta cuenta todavía no tiene el canal de voz conectado.",
+    en: "This account has no voice channel connected yet.",
+  },
+  blockedNoNumber: {
+    es: "Falta un número de teléfono para llamar desde él.",
+    en: "A phone number to call from is missing.",
+  },
+  blockedDisconnected: {
+    es: "El canal de voz está desconectado.",
+    en: "The voice channel is disconnected.",
+  },
+  blockedKillSwitch: {
+    es: "El freno de emergencia está activado: no sale ninguna llamada.",
+    en: "The emergency stop is on: no calls go out.",
+  },
+  blockedMonthlyLimit: {
+    es: "Se llegó al tope de minutos del mes.",
+    en: "The monthly minutes cap has been reached.",
+  },
+  blockedNoVoiceAgent: {
+    es: "Ningún agente tiene la voz activada.",
+    en: "No agent has voice enabled.",
+  },
+  blockedAgentNotFound: {
+    es: "Ese agente no existe en esta cuenta.",
+    en: "That agent does not exist in this account.",
+  },
+  blockedAgentDeleted: {
+    es: "Ese agente está borrado.",
+    en: "That agent is deleted.",
+  },
+  blockedAgentPaused: {
+    es: "Ese agente está pausado.",
+    en: "That agent is paused.",
+  },
+  blockedVoiceDisabled: {
+    es: "Este agente no tiene la voz activada.",
+    en: "This agent does not have voice enabled.",
+  },
+  blockedContactNotFound: {
+    es: "Ese contacto no existe en esta cuenta.",
+    en: "That contact does not exist in this account.",
+  },
+  blockedOptOut: {
+    es: "El contacto pidió no recibir llamadas.",
+    en: "The contact asked not to receive calls.",
+  },
+  blockedInvalidPhone: {
+    es: "El teléfono del contacto no es un número válido.",
+    en: "The contact's phone is not a valid number.",
+  },
+  blockedInsertFailed: {
+    es: "No se pudo guardar la llamada.",
+    en: "The call could not be saved.",
+  },
 
   // Outcomes
   outcomeConfirmed: { es: "Confirmado", en: "Confirmed" },

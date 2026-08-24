@@ -83,7 +83,6 @@ vi.mock('@/lib/shopify/contact-upsert', () => ({
   upsertWhatsappContact: async () => null,
 }))
 vi.mock('@/lib/automations/engine', () => ({ runAutomationsForTrigger: async () => {} }))
-vi.mock('@/lib/voice/auto-enqueue', () => ({ maybeAutoVoiceCall: async () => {} }))
 vi.mock('@/lib/contacts/tags', () => ({ applyCategoryTags: async () => {} }))
 vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => 'ws1' }))
 vi.mock('@/lib/webhooks/capture', () => ({ captureWebhookFailure: async () => {} }))

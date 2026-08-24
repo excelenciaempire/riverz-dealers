@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
 import { linkOrphanPurchases, recordPurchases } from '@/lib/contacts/purchases'
@@ -318,15 +317,9 @@ export async function ingestOrder(
     context: { vars },
   }).catch((err) => console.error(`[${platform}] disparo de automatización falló:`, err))
 
-  if (trigger === 'shopify_order_created') {
-    void maybeAutoVoiceCall(admin, {
-      workspaceId,
-      contactId,
-      callType: 'order_confirmation',
-      context: vars,
-    })
-  }
-
+  // Las llamadas salientes nacen de un nodo «Llamar con IA» en el lienzo, no
+  // de un objetivo prendido en el agente: el disparo implícito que vivía acá
+  // hacía sonar teléfonos sin dejar rastro en ninguna automatización.
   return { status: 'dispatched', trigger, contactId }
 }
 

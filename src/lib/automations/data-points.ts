@@ -547,6 +547,11 @@ export const DATA_POINTS: DataPoint[] = [
       { value: 'voicemail', labelKey: 'voice.statusVoicemail' },
       { value: 'failed', labelKey: 'voice.statusFailed' },
       { value: 'canceled', labelKey: 'voice.statusCanceled' },
+      // Nunca se marcó: una barrera frenó la llamada (freno de emergencia,
+      // agente sin voz, contacto dado de baja). No es lo mismo que "sin
+      // respuesta", y confundirlos hacía que el comercio le mandara un
+      // «te llamamos y no contestaste» a alguien a quien nadie llamó.
+      { value: 'not_placed', labelKey: 'voice.statusNotPlaced' },
     ],
     condition: { kind: 'var', varKey: 'call_status' },
   },

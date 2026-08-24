@@ -6,7 +6,6 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { runFollowUp } from '@/lib/ai/followup';
 import { campaignFollowUpHint } from '@/lib/instagram-agent/campaign-followup';
-import { runVoiceFollowups } from '@/lib/voice/followup';
 import type { AiAgent, BusinessHours } from '@/lib/ai/types';
 import { withinBusinessHours as sharedWithinBusinessHours } from '@/lib/ai/business-hours';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
@@ -77,16 +76,14 @@ async function cronHandler(request: Request) {
     }
   }
 
-  // Voice follow-ups: silent chat customers whose agent has voice follow-ups
-  // on get ONE call per silence streak. Independent of the text path above
-  // (a call isn't bound by Meta's 24h window). Fail-soft.
-  const voice = await runVoiceFollowups(admin);
-
+  // Acá también se llamaba por teléfono a los clientes callados, si el agente
+  // tenía prendido el objetivo "followup". Era el cuarto disparador invisible
+  // de llamadas. Hoy eso se arma con el activador «cliente inactivo» + un nodo
+  // «Llamar con IA», que el comercio ve y puede apagar.
   return NextResponse.json({
     workspaces: byWorkspace.size,
     processed,
     sent,
-    voice_calls_enqueued: voice.enqueued,
   });
 }
 

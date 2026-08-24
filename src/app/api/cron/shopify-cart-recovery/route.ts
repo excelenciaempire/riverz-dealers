@@ -3,7 +3,6 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { maybeAutoVoiceCall } from '@/lib/voice/auto-enqueue'
 import { upsertWhatsappContact } from '@/lib/shopify/contact-upsert'
 import { applyCategoryTags } from '@/lib/contacts/tags'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
@@ -336,16 +335,10 @@ async function cronHandler(request: Request) {
         continue
       }
 
-      // La llamada de recuperación es parte del mismo rescate: apagar la
-      // automatización tiene que apagar también el teléfono. Antes dependía
-      // sólo del objetivo de voz, así que el comercio desactivaba el carrito
-      // y le seguía sonando el teléfono al cliente.
-      void maybeAutoVoiceCall(admin, {
-        workspaceId: r.workspace_id,
-        contactId,
-        callType: 'cart_recovery',
-        context: cartVars,
-      })
+      // La llamada de recuperación ya no sale de acá. Dependía del objetivo
+      // de voz del agente, así que el teléfono sonaba sin que hubiera ningún
+      // paso visible que lo ordenara: ahora se agrega un nodo «Llamar con IA»
+      // a la automatización de carrito y el rescate entero se ve en un lienzo.
       dispatched++
     } catch (err) {
       // Track attempts so a transient failure (Meta blip, template

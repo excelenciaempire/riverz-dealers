@@ -18,6 +18,8 @@ import type {
 import { supabaseAdmin } from './admin-client'
 import { isWorkspaceSuspended } from '@/lib/workspaces/suspension'
 import { enqueueCall } from '@/lib/voice/queue'
+import { blockerCodeFromReason, VOICE_BLOCKED_KEY } from '@/lib/voice/labels'
+import { translate } from '@/lib/i18n/translate'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import type { SendReason } from '@/lib/outreach/send-gate'
 import { createShortLink } from '@/lib/links/short-link'
@@ -550,11 +552,11 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
       }
 
       // Nothing to wait for (kill switch, opt-out, no phone, agent paused).
-      // Carry on INLINE rather than parking forever: the run continues with
-      // the seeded "no contestó" values, which is what the merchant's
-      // branch already handles.
+      // Se sigue INLINE en vez de quedarse esperando para siempre, con
+      // `not_placed`: nadie marcó, así que la rama «no contestó» no es la que
+      // corresponde.
       if (!enqueued.callId) {
-        args.context.vars = { ...(args.context.vars ?? {}), ...VOICE_CALL_PENDING_VARS }
+        args.context.vars = { ...(args.context.vars ?? {}), ...VOICE_CALL_NOT_PLACED_VARS }
         results.push({
           step_id: step.id,
           step_type: step.step_type,
@@ -1111,9 +1113,15 @@ async function enqueueVoiceCallStep(
     automationId: args.automation.id,
     context,
     maxAttempts: cfg.max_attempts,
+    // Una automatización que llama y no llama es lo más caro de diagnosticar:
+    // deja la fila con el motivo para que se vea en el registro de llamadas.
+    recordSkip: true,
   })
   if (!result.enqueued) {
-    return { callId: null, detail: `voice_call not enqueued: ${result.reason}` }
+    // El detalle lo lee una persona en el historial de la corrida, no un log:
+    // «kill_switch» no le dice a nadie que hay un interruptor esperando.
+    const porQue = translate('es', VOICE_BLOCKED_KEY[blockerCodeFromReason(result.reason)])
+    return { callId: null, detail: `No se llamó. ${porQue}` }
   }
   return { callId: result.callId, detail: `voice_call queued (${result.callId})` }
 }
@@ -1121,12 +1129,14 @@ async function enqueueVoiceCallStep(
 /**
  * Does this step park the run until the call ends?
  *
- * `undefined` = the old fire-and-forget shape. Nodes already saved in
- * production were built against it, so they keep it; the builder writes
- * `true` on everything it creates from now on.
+ * Siempre, salvo que el nodo diga `false` explícito. Era un interruptor en la
+ * tarjeta, y su posición de apagado significaba "seguí con los pasos
+ * siguientes mientras el teléfono todavía suena": nadie quiere eso, y era la
+ * única forma de que la rama «si no contesta» no funcionara. Los nodos viejos
+ * que lo tengan guardado en `false` conservan su forma; todo lo demás espera.
  */
 function waitsForVoiceResult(step: AutomationStep): boolean {
-  return (step.step_config as VoiceCallStepConfig)?.wait_for_result === true
+  return (step.step_config as VoiceCallStepConfig)?.wait_for_result !== false
 }
 
 /**
@@ -1149,6 +1159,20 @@ const VOICE_CALL_PENDING_VARS: Record<string, unknown> = {
   call_outcome: 'no_outcome',
   call_duration: 0,
   call_summary: '',
+}
+
+/**
+ * Variables cuando la llamada NUNCA se hizo: una barrera la frenó (freno de
+ * emergencia, agente sin voz, contacto dado de baja) y no sonó ningún
+ * teléfono.
+ *
+ * Antes esto seguía con `call_status: 'no_answer'`, así que la rama del
+ * comercio decía «no contestó» sobre un cliente al que nadie llamó. Son dos
+ * cosas distintas y ahora se pueden separar en el lienzo.
+ */
+const VOICE_CALL_NOT_PLACED_VARS: Record<string, unknown> = {
+  ...VOICE_CALL_PENDING_VARS,
+  call_status: 'not_placed',
 }
 
 /** Map a trigger to the sensible voice call script when the step omits it. */

@@ -18,6 +18,8 @@ import { DEFAULT_CALLING_HOURS, OUTBOUND_CALL_TYPES } from '@/lib/voice/constant
 import { enqueueCall, nextAllowedTime } from '@/lib/voice/queue'
 import { pickVoiceAgent } from '@/lib/voice/inbound'
 import { summarizeVoiceCalls, VOICE_STATS_COLUMNS } from '@/lib/voice/analytics'
+import { blockerCodeFromReason, VOICE_BLOCKED_KEY } from '@/lib/voice/labels'
+import { translate } from '@/lib/i18n/translate'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
 import type { VoiceCall, VoiceCallType, VoiceCallingHours } from '@/types'
 import { since, windowDays } from './predicates'
@@ -34,23 +36,13 @@ const TOPE_LISTADO = 200
  * comercio, y "kill_switch" no le dice a nadie que hay un interruptor prendido
  * en la configuración de voz esperando que lo apaguen.
  */
-const MOTIVOS: Record<string, string> = {
-  no_voice_connection: 'esta cuenta todavía no tiene el canal de voz conectado',
-  voice_disconnected: 'el canal de voz está desconectado',
-  kill_switch: 'el freno de emergencia de voz está activado: no sale ninguna llamada',
-  agent_not_found: 'ese agente no existe en esta cuenta',
-  agent_deleted: 'ese agente está borrado',
-  agent_paused: 'ese agente está pausado',
-  voice_disabled: 'ese agente no tiene la voz activada',
-  contact_not_found: 'ese contacto no existe en esta cuenta',
-  opt_out: 'el contacto pidió no recibir llamadas',
-  invalid_phone: 'el teléfono no es un número válido',
-  monthly_limit_reached: 'se llegó al tope de minutos del mes',
-}
-
+ *
+ * Las frases salen del MISMO catálogo que ve el comercio en el lienzo y en la
+ * pantalla de Voz: antes había una copia acá, sólo en castellano, y el motivo
+ * que leía el modelo podía no coincidir con el cartel de la pantalla.
+ */
 function motivo(reason: string): string {
-  if (reason.startsWith('insert_failed:')) return 'no se pudo guardar la llamada'
-  return MOTIVOS[reason] ?? reason
+  return translate('es', VOICE_BLOCKED_KEY[blockerCodeFromReason(reason)])
 }
 
 // ---------------------------------------------------------------------------
@@ -284,7 +276,7 @@ async function llamar(ctx: CapabilityContext, args: Record<string, unknown>) {
     // llamada pedida por el chat no la puede saltar.
     context: objetivo ? { objective_override: objetivo } : {},
   })
-  if (!res.enqueued) throw new Error(`No se encoló la llamada: ${motivo(res.reason)}.`)
+  if (!res.enqueued) throw new Error(`No se encoló la llamada. ${motivo(res.reason)}`)
 
   return {
     llamada_id: res.callId,
