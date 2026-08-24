@@ -35,7 +35,6 @@ const TOPE_LISTADO = 200
  * `kill_switch`). Quien lee esto es un modelo que después se lo explica al
  * comercio, y "kill_switch" no le dice a nadie que hay un interruptor prendido
  * en la configuración de voz esperando que lo apaguen.
- */
  *
  * Las frases salen del MISMO catálogo que ve el comercio en el lienzo y en la
  * pantalla de Voz: antes había una copia acá, sólo en castellano, y el motivo

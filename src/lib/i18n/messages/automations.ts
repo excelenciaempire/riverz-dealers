@@ -336,33 +336,44 @@ export const automations = {
   stepVoiceCall: { es: "Llamar con IA", en: "Call with AI" },
 
   // Builder — voice_call step config
-  voiceCallAgent: { es: "Agente de voz", en: "Voice agent" },
+  voiceCallAgent: { es: "¿Quién llama?", en: "Who calls?" },
   voiceCallPickAgent: { es: "Elige un agente…", en: "Pick an agent…" },
+  // Elegir un agente sin voz dejaba de ser un callejón sin salida: la fila
+  // ámbar dice qué falta y lleva a la pestaña donde se activa.
+  voiceCallEnableVoice: {
+    es: "Activar la voz de este agente",
+    en: "Turn on this agent's voice",
+  },
   voiceCallNoAgents: {
-    es: "No hay agentes con voz activada. Actívala en Asistente → Voz.",
-    en: "No voice-enabled agents. Turn it on in Assistant → Voice.",
+    es: "Todavía no hay ningún agente en esta cuenta.",
+    en: "This account has no agents yet.",
   },
-  voiceCallNoAgentsShort: {
-    es: "Ningún agente tiene voz activada.",
-    en: "No agent has voice enabled.",
+  voiceCallCreateAgent: { es: "Crear uno", en: "Create one" },
+  voiceCallObjective: { es: "Personalizar el objetivo", en: "Customize the objective" },
+  voiceCallObjectiveHint: {
+    es: "Vacío, usa el objetivo del agente.",
+    en: "Left empty, the agent's own objective is used.",
   },
-  voiceCallObjective: { es: "Objetivo (opcional)", en: "Objective (optional)" },
   voiceCallObjectivePlaceholder: {
     es: "Ej: confirmar la dirección de envío y el método de pago.",
     en: "E.g. confirm the shipping address and payment method.",
   },
-  voiceCallWait: {
-    es: "Esperar el resultado",
-    en: "Wait for the result",
+  // La rama que hace útil a la llamada. Armarla a mano pedía saber que
+  // existía un nodo «Condición» y cuál de los datos era el resultado.
+  voiceCallIfNoAnswer: { es: "¿Y si no contesta?", en: "And if nobody answers?" },
+  voiceCallBuildBranch: {
+    es: "Escribirle por WhatsApp",
+    en: "Message them on WhatsApp",
   },
-  voiceCallWaitHint: {
-    es: "Los pasos siguientes corren cuando la llamada termina, y pueden decidir según cómo salió.",
-    en: "The next steps run once the call ends, and can branch on how it went.",
+  voiceCallBranchDone: {
+    es: "Si no contesta, sigue por el camino de abajo.",
+    en: "If nobody answers, it continues on the path below.",
   },
+  voiceCallAnswered: { es: "Contestó", en: "Answered" },
   voiceCallPreview: { es: "Llamada con IA", en: "AI call" },
-  voiceCallPreviewWaiting: {
-    es: "Llamada con IA · espera el resultado",
-    en: "AI call · waits for the result",
+  voiceCallPreviewPickAgent: {
+    es: "Elige quién llama",
+    en: "Pick who calls",
   },
 
   // Builder — unified multi-path "Condición" node (N filtered paths + "en otro caso")

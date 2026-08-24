@@ -150,6 +150,113 @@ function treeHasVoiceCall(steps: BuilderStep[]): boolean {
   })
 }
 
+/**
+ * La rama «si no contesta», armada desde la propia tarjeta de la llamada.
+ *
+ * Esperar el resultado sólo sirve para decidir después, y decidir pedía saber
+ * que existía un nodo «Condición» y adivinar cuál de los datos era el
+ * resultado de la llamada. Nadie iba a hacerlo, así que la llamada quedaba
+ * siendo un tiro al aire.
+ */
+interface RamaLlamada {
+  /** ¿El paso siguiente ya es la bifurcación por el resultado? */
+  yaTiene: (cid: string) => boolean
+  /** Arma la bifurcación justo después de esa tarjeta. */
+  armar: (cid: string) => void
+}
+
+const RamaLlamadaContext = createContext<RamaLlamada | null>(null)
+
+/**
+ * Recorre TODAS las listas del árbol —tronco, ramas sí/no y cada camino de
+ * una condición— aplicando `fn`. Es la forma de tocar el vecino de una
+ * tarjeta sin conocer su ruta: el editor sólo sabe su propio `cid`.
+ */
+function mapListas(
+  steps: BuilderStep[],
+  fn: (lista: BuilderStep[]) => BuilderStep[],
+): BuilderStep[] {
+  return fn(steps).map((s) => ({
+    ...s,
+    branches: s.branches
+      ? { yes: mapListas(s.branches.yes, fn), no: mapListas(s.branches.no, fn) }
+      : s.branches,
+    switchData: s.switchData
+      ? {
+          ...s.switchData,
+          cases: s.switchData.cases.map((c) => ({
+            ...c,
+            steps: mapListas(c.steps ?? [], fn),
+          })),
+          elseSteps: mapListas(s.switchData.elseSteps ?? [], fn),
+        }
+      : s.switchData,
+  }))
+}
+
+/** El paso que viene justo después de `cid`, esté donde esté en el árbol. */
+function vecinoSiguiente(steps: BuilderStep[], cid: string): BuilderStep | null {
+  const i = steps.findIndex((s) => s.cid === cid)
+  if (i >= 0) return steps[i + 1] ?? null
+  for (const s of steps) {
+    const listas = [
+      s.branches?.yes,
+      s.branches?.no,
+      ...(s.switchData?.cases ?? []).map((c) => c.steps),
+      s.switchData?.elseSteps,
+    ]
+    for (const l of listas) {
+      if (!l) continue
+      const hit = vecinoSiguiente(l, cid)
+      if (hit) return hit
+      if (l.some((x) => x.cid === cid)) return null
+    }
+  }
+  return null
+}
+
+/** ¿Es ése el nodo que bifurca por cómo salió la llamada? */
+function esRamaDeLlamada(step: BuilderStep | null): boolean {
+  return Boolean(step && step.step_type === "switch" && step.switchData?.dpId === "call_status")
+}
+
+/**
+ * La bifurcación por el resultado: un camino para «contestó» y el resto —sin
+ * respuesta, ocupado, buzón, o directamente no se llamó— cayendo en «en otro
+ * caso», que es donde queda el mensaje. La plantilla la elige el comercio en
+ * la tarjeta que se inserta: armamos la forma, no el texto.
+ */
+function ramaSiNoContesta(nuevoId: () => string): BuilderStep {
+  return {
+    cid: nuevoId(),
+    step_type: "switch",
+    step_config: {},
+    switchData: {
+      dpId: "call_status",
+      cases: [
+        {
+          ckey: nuevoId(),
+          cfg: {
+            subject: "context_var",
+            operand: "call_status",
+            op: "eq",
+            value: "completed",
+            value2: undefined,
+          },
+          steps: [],
+        },
+      ],
+      elseSteps: [
+        {
+          cid: nuevoId(),
+          step_type: "send_template",
+          step_config: blankConfig("send_template"),
+        },
+      ],
+    },
+  }
+}
+
 /** Live count of contacts currently parked at each wait step, keyed by the
  *  persisted step id. Only populated when editing a saved automation; empty
  *  during template previews / new drafts (nothing is waiting yet). */
@@ -1055,9 +1162,9 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
     case "close_conversation":
       return {}
     case "voice_call":
-      // Nuevos nodos esperan el resultado: sin eso, "llamar; si no contesta,
-      // mandar WhatsApp" mandaba el WhatsApp mientras el teléfono sonaba.
-      return { agent_id: "", objective_override: "", wait_for_result: true }
+      // Ya no se escribe `wait_for_result`: esperar el resultado dejó de ser
+      // una opción. Sólo un nodo viejo con `false` guardado sigue sin esperar.
+      return { agent_id: "", objective_override: "" }
     default:
       return {}
   }
@@ -1407,6 +1514,30 @@ export function AutomationBuilder({
     setExpandedId(node.cid)
   }
 
+  /**
+   * Arma la bifurcación por el resultado justo después de la llamada.
+   *
+   * No se usa `addStepAt` porque ese crea un nodo en blanco y acá hace falta
+   * uno ya apuntado al dato del resultado: elegirlo a mano es exactamente el
+   * paso que nadie iba a dar. Se busca por `cid` y no por ruta porque la
+   * tarjeta de la llamada sólo se conoce a sí misma — sirve igual en el
+   * tronco que dentro de un camino.
+   */
+  function armarRamaLlamada(cidLlamada: string) {
+    const nodo = ramaSiNoContesta(cid)
+    setState((s) => ({
+      ...s,
+      steps: mapListas(s.steps, (lista) => {
+        const i = lista.findIndex((x) => x.cid === cidLlamada)
+        if (i < 0) return lista
+        // Ya la tiene: no se duplica.
+        if (esRamaDeLlamada(lista[i + 1] ?? null)) return lista
+        return [...lista.slice(0, i + 1), nodo, ...lista.slice(i + 1)]
+      }),
+    }))
+    setExpandedId(nodo.cid)
+  }
+
   function deleteStepAt(path: StepPath) {
     setState((s) => ({ ...s, steps: removeAt(s.steps, path) }))
   }
@@ -1513,6 +1644,12 @@ export function AutomationBuilder({
   return (
     <TriggerContext.Provider value={state.trigger_type}>
     <HasVoiceCallContext.Provider value={treeHasVoiceCall(state.steps)}>
+    <RamaLlamadaContext.Provider
+      value={{
+        yaTiene: (c) => esRamaDeLlamada(vecinoSiguiente(state.steps, c)),
+        armar: armarRamaLlamada,
+      }}
+    >
     <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
@@ -1757,6 +1894,7 @@ export function AutomationBuilder({
     </TagsContext.Provider>
     </SegmentsContext.Provider>
     </TemplatesContext.Provider>
+    </RamaLlamadaContext.Provider>
     </HasVoiceCallContext.Provider>
     </TriggerContext.Provider>
   )
@@ -3301,7 +3439,7 @@ function StepEditor({
         </>
       )
     case "voice_call":
-      return <VoiceCallStepEditor cfg={cfg} set={set} />
+      return <VoiceCallStepEditor cid={step.cid} cfg={cfg} set={set} />
     case "close_conversation":
       return null
     default:
@@ -3310,43 +3448,84 @@ function StepEditor({
 }
 
 /**
- * Voice AI call step — who calls and what the call has to achieve.
+ * La tarjeta de la llamada: quién llama, y qué pasa si no contestan.
  *
- * The old "Tipo de llamada" select is gone: the engine already derives the
- * script from the trigger (`defaultVoiceCallType`), so the field only asked
- * the merchant to restate something the automation knows, and picking the
- * "wrong" one silently swapped the agent's script.
+ * Antes tenía tres controles y un callejón sin salida. El selector sólo
+ * listaba agentes con la voz ya activada, así que una cuenta recién armada
+ * leía «Ningún agente tiene voz activada» y ahí se terminaba: sin link, sin
+ * botón y sin decir que además hacía falta un número. Y el interruptor
+ * «Esperar el resultado» ofrecía, en su posición de apagado, seguir con los
+ * pasos siguientes mientras el teléfono todavía sonaba.
+ *
+ * Quedan: el agente (todos, con lo que le falte al elegido dicho ahí mismo),
+ * la rama «si no contesta» en un clic, y el objetivo plegado — por defecto
+ * manda el del agente, que es donde se configura la voz.
  */
 function VoiceCallStepEditor({
+  cid: stepCid,
   cfg,
   set,
 }: {
+  cid: string
   cfg: Record<string, unknown>
   set: (patch: Record<string, unknown>) => void
 }) {
   const t = useT()
   const { workspace } = useWorkspace()
-  const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
+  const rama = useContext(RamaLlamadaContext)
+  const [agents, setAgents] = useState<
+    { id: string; name: string; voice_enabled: boolean }[]
+  >([])
   const [loading, setLoading] = useState(true)
+  /** Lo que le falta a la cuenta para que suene un teléfono (número, freno
+   *  de emergencia, tope del mes). El agente lo resuelve la lista de arriba. */
+  const [faltaEnLaCuenta, setFaltaEnLaCuenta] = useState<
+    { code: string; fixHref: string | null }[]
+  >([])
 
   useEffect(() => {
     if (!workspace?.id) return
     let cancelled = false
     ;(async () => {
       const supabase = createClient()
-      // Same test as `pickVoiceAgent`: a paused or soft-deleted agent never
-      // dials, so offering it here only builds an automation that goes quiet.
+      // TODOS los agentes activos, no sólo los que ya tienen voz: elegir uno
+      // sin voz tiene que poder decirse y arreglarse, no esconderse.
       const { data } = await supabase
         .from("ai_agents")
-        .select("id, name")
+        .select("id, name, voice_enabled")
         .eq("workspace_id", workspace.id)
-        .eq("voice_enabled", true)
         .eq("is_active", true)
         .is("deleted_at", null)
         .order("priority", { ascending: false })
+      if (cancelled) return
+      setAgents((data ?? []) as { id: string; name: string; voice_enabled: boolean }[])
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [workspace?.id])
+
+  // Lo que falta a nivel cuenta se pregunta UNA vez, al mismo sitio que lo
+  // decide la cola: así la tarjeta no puede decir "listo" sobre una cuenta
+  // que no tiene número.
+  useEffect(() => {
+    if (!workspace?.id) return
+    let cancelled = false
+    ;(async () => {
+      const res = await fetch(`/api/voice/readiness?workspace_id=${workspace.id}`, {
+        cache: "no-store",
+      })
+      if (!res.ok || cancelled) return
+      const json = (await res.json()) as {
+        blockers?: { code: string; fixHref: string | null }[]
+      }
       if (!cancelled) {
-        setAgents((data ?? []) as { id: string; name: string }[])
-        setLoading(false)
+        setFaltaEnLaCuenta(
+          (json.blockers ?? []).filter(
+            (b) => b.code !== "no_voice_agent" && b.code !== "voice_disabled",
+          ),
+        )
       }
     })()
     return () => {
@@ -3354,20 +3533,34 @@ function VoiceCallStepEditor({
     }
   }, [workspace?.id])
 
-  // Undefined = a node saved before the wait existed. Those keep running
-  // as they always did; the toggle shows their real state rather than a
-  // default that would lie about what the automation does today.
-  const waits = cfg.wait_for_result === true
+  const agentId = (cfg.agent_id as string) ?? ""
+  const elegido = agents.find((a) => a.id === agentId)
+  const [verObjetivo, setVerObjetivo] = useState(
+    Boolean((cfg.objective_override as string) ?? ""),
+  )
+  const yaRamifica = rama?.yaTiene(stepCid) ?? false
 
   return (
     <>
       <FieldBlock label={t("automations.voiceCallAgent")}>
         {loading ? (
           <p className="text-xs text-muted-foreground">{t("common.loading")}</p>
-        ) : agents.length > 0 ? (
+        ) : agents.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {t("automations.voiceCallNoAgents")}{" "}
+            <Link href="/asistente" className="text-primary underline">
+              {t("automations.voiceCallCreateAgent")}
+            </Link>
+          </p>
+        ) : (
           <select
-            value={(cfg.agent_id as string) ?? ""}
-            onChange={(e) => set({ agent_id: e.target.value })}
+            value={agentId}
+            onChange={(e) => {
+              // El nombre viaja con el paso para que la tarjeta cerrada diga
+              // quién llama sin volver a consultar la base.
+              const a = agents.find((x) => x.id === e.target.value)
+              set({ agent_id: e.target.value, agent_name: a?.name ?? "" })
+            }}
             className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
           >
             <option value="">{t("automations.voiceCallPickAgent")}</option>
@@ -3377,35 +3570,103 @@ function VoiceCallStepEditor({
               </option>
             ))}
           </select>
-        ) : (
-          // Sin agentes de voz no hay nada que elegir, y el paso no va a
-          // sonar. Es lo único que hace falta decir: dónde se activa la voz
-          // ya lo dice la pantalla del asistente.
-          <p className="text-xs text-muted-foreground">
-            {t("automations.voiceCallNoAgentsShort")}
-          </p>
         )}
       </FieldBlock>
-      <FieldBlock label={t("automations.voiceCallObjective")}>
-        <Textarea
-          value={(cfg.objective_override as string) ?? ""}
-          onChange={(e) => set({ objective_override: e.target.value })}
-          placeholder={t("automations.voiceCallObjectivePlaceholder")}
-          className="min-h-16 bg-muted text-foreground"
+
+      {/* Lo que falta, con el link que lo arregla. Es el reemplazo del
+          callejón sin salida: un paso que no va a sonar lo dice acá, no tres
+          días después cuando entre un pedido. */}
+      {elegido && !elegido.voice_enabled && (
+        <Aviso
+          texto={t("voice.blockedVoiceDisabled")}
+          accion={t("automations.voiceCallEnableVoice")}
+          href="/asistente"
         />
-      </FieldBlock>
-      {/* Sin explicación al lado: lo que hace el interruptor está en su
-          nombre, y la frase de abajo repetía en dos renglones lo que el
-          lienzo ya muestra — que los pasos siguientes cuelgan de esta
-          tarjeta. */}
-      <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-        <span className="text-sm text-foreground">{t("automations.voiceCallWait")}</span>
-        <Switch
-          checked={waits}
-          onCheckedChange={(v) => set({ wait_for_result: v })}
+      )}
+      {faltaEnLaCuenta.map((b) => (
+        <Aviso
+          key={b.code}
+          texto={t(`voice.${claveDeBloqueo(b.code)}`)}
+          accion={b.fixHref ? t("voice.blockedFix") : undefined}
+          href={b.fixHref ?? undefined}
         />
-      </label>
+      ))}
+
+      {/* La rama que hace útil a la llamada. */}
+      {rama && (
+        <FieldBlock label={t("automations.voiceCallIfNoAnswer")}>
+          {yaRamifica ? (
+            <p className="text-xs text-muted-foreground">
+              {t("automations.voiceCallBranchDone")}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => rama.armar(stepCid)}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-accent-ink"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("automations.voiceCallBuildBranch")}
+            </button>
+          )}
+        </FieldBlock>
+      )}
+
+      {/* El objetivo del agente ya vive en su pestaña de Voz; acá sólo se
+          pisa para ESTA llamada, que es la excepción y no el camino. */}
+      {verObjetivo ? (
+        <FieldBlock label={t("automations.voiceCallObjective")}>
+          <Textarea
+            value={(cfg.objective_override as string) ?? ""}
+            onChange={(e) => set({ objective_override: e.target.value })}
+            placeholder={t("automations.voiceCallObjectivePlaceholder")}
+            className="min-h-16 bg-muted text-foreground"
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("automations.voiceCallObjectiveHint")}
+          </p>
+        </FieldBlock>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setVerObjetivo(true)}
+          className="text-[11px] text-muted-foreground underline hover:text-foreground"
+        >
+          {t("automations.voiceCallObjective")}
+        </button>
+      )}
     </>
+  )
+}
+
+/** El código de bloqueo, como clave del catálogo (`kill_switch` → `blockedKillSwitch`). */
+function claveDeBloqueo(code: string): string {
+  return `blocked${code
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("")}`
+}
+
+/** Fila ámbar: qué falta y dónde se arregla. */
+function Aviso({
+  texto,
+  accion,
+  href,
+}: {
+  texto: string
+  accion?: string
+  href?: string
+}) {
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+      {texto}
+      {accion && href && (
+        <Link href={href} className="underline">
+          {accion}
+        </Link>
+      )}
+    </p>
   )
 }
 
@@ -3513,13 +3774,16 @@ function previewFor(step: BuilderStep, t: TFn, etiquetas: ContactTag[] = []): st
     }
     case "send_webhook":
       return (step.step_config.url as string) || t("automations.previewNoUrl")
-    case "voice_call":
-      if (!(step.step_config.agent_id as string)) return t("automations.voiceCallPickAgent")
-      // Que la tarjeta diga si el flujo se detiene acá: es la diferencia
-      // entre que el paso siguiente salga ahora o cuando la llamada termine.
-      return step.step_config.wait_for_result === true
-        ? t("automations.voiceCallPreviewWaiting")
-        : t("automations.voiceCallPreview")
+    case "voice_call": {
+      // El nombre del agente, que es la única decisión de la tarjeta. Antes
+      // decía «Llamada con IA» tanto si estaba lista como si no, así que un
+      // paso sin configurar se veía igual que uno sano.
+      const nombre = (step.step_config.agent_name as string) ?? ""
+      if (!(step.step_config.agent_id as string)) {
+        return t("automations.voiceCallPreviewPickAgent")
+      }
+      return nombre || t("automations.voiceCallPreview")
+    }
     default:
       return ""
   }
