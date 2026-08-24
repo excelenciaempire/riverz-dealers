@@ -12,7 +12,7 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiTone } from '@/lib/ai/types';
 import { formatProductLine, type ProductRow } from '@/lib/ai/runner';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import { splitReplyForMode } from '@/lib/ai/runner';
+import { splitReplyForMode, unificarFilas, productosPermitidos } from '@/lib/ai/runner';
 import { appendBusinessScopeGuardrails } from '@/lib/ai/guardrails';
 import {
   buildCheckoutTool,
@@ -319,31 +319,31 @@ async function cargarCatalogo(
   db: ReturnType<typeof supabaseAdmin>,
   agent: AiAgent,
 ): Promise<ProductRow[]> {
+  // `master_id` y `platform` no son decoración: sin ellos el plegado corre y
+  // devuelve todo suelto. Este panel mostraba las cuatro publicaciones del
+  // mismo producto mientras producción ya mostraba una — o sea, el panel que
+  // existe para previsualizar producción no previsualizaba producción.
   const COLUMNAS =
-    'id, title, description, price_min, price_max, url, product_type, vendor, tags';
+    'id, title, description, price_min, price_max, url, product_type, vendor, tags, master_id, platform, currency';
   try {
     if (agent.product_scope === 'specific') {
-      const { data: links } = await db
-        .from('ai_agent_products')
-        .select('product_id')
-        .eq('agent_id', agent.id);
-      const ids = ((links ?? []) as { product_id: string }[]).map(
-        (l) => l.product_id,
-      );
-      if (ids.length === 0) return [];
+      // Expandido al grupo, igual que el runner: autorizar un producto
+      // autoriza sus publicaciones en las otras plataformas.
+      const ids = await productosPermitidos(db, agent, agent.workspace_id);
+      if (!ids || ids.size === 0) return [];
       const { data } = await db
         .from('shopify_products')
         .select(COLUMNAS)
-        .in('id', ids)
+        .in('id', Array.from(ids))
         .eq('workspace_id', agent.workspace_id);
-      return (data ?? []) as ProductRow[];
+      return unificarFilas((data ?? []) as ProductRow[]);
     }
     const { data } = await db
       .from('shopify_products')
       .select(COLUMNAS)
       .eq('workspace_id', agent.workspace_id)
       .limit(60);
-    return (data ?? []) as ProductRow[];
+    return unificarFilas((data ?? []) as ProductRow[]);
   } catch {
     return [];
   }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
 
 /**
  * EL CEREBRO DEL PRODUCTO en los mensajes proactivos.
@@ -42,10 +43,12 @@ interface ProductRow {
   escalation_triggers: unknown[] | null;
   allowed_offers: unknown[] | null;
   health_sensitive: boolean | null;
+  master_id?: string | null;
+  platform?: string | null;
 }
 
 const FIELDS =
-  'id, title, description, url, price_min, price_max, currency, training_material, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive';
+  'id, title, description, url, price_min, price_max, currency, training_material, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform';
 
 function asStrings(v: unknown[] | null | undefined): string[] {
   if (!Array.isArray(v)) return [];
@@ -55,17 +58,33 @@ function asStrings(v: unknown[] | null | undefined): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Todos los nombres con los que se conoce a este producto.
+ *
+ * El del marketplace es el que se parece a lo que escribe la gente —"serum
+ * reafirmante antiedad"— y el de la tienda es el que manda. Al plegar quedaba
+ * sólo el segundo, así que un producto podía no reconocerse por el nombre con
+ * el que se lo nombra.
+ */
+function titulosDe(p: ProductRow): string[] {
+  const otros = (p as { listings?: Array<{ title: string | null }> }).listings ?? [];
+  return [p.title, ...otros.map((l) => l.title ?? '')].filter(Boolean);
+}
+
 /** ¿De qué producto habla? Match por título/palabras contra lo que escribió. */
 function pickProduct(rows: ProductRow[], text: string): ProductRow | null {
   const hay = text.toLowerCase();
   if (!hay.trim()) return null;
   // Título completo primero; luego cualquier palabra distintiva del título
   // (>4 letras) para que "el serum" encuentre "Serum Pilar".
-  const exact = rows.find((p) => hay.includes(p.title.toLowerCase()));
+  const exact = rows.find((p) =>
+    titulosDe(p).some((t) => hay.includes(t.toLowerCase())),
+  );
   if (exact) return exact;
   return (
     rows.find((p) =>
-      p.title
+      titulosDe(p)
+        .join(' ')
         .toLowerCase()
         .split(/\s+/)
         .filter((w) => w.length > 4)
@@ -90,7 +109,15 @@ export async function loadProductBrain(
       .select(FIELDS)
       .eq('workspace_id', workspaceId)
       .limit(100);
-    const rows = (data ?? []) as unknown as ProductRow[];
+    // Un producto vendido en varios lados es UNO, y el conocimiento vive en la
+    // principal. Sin plegar, "el serum" podía caer en la publicación de Mercado
+    // Libre —que tiene el título más parecido a lo que escribe la gente y el
+    // `training_material` vacío, porque nadie carga la misma ficha cuatro
+    // veces— y el mensaje salía sin nada del cerebro que este archivo existe
+    // para conectar.
+    const rows = agruparPorPrincipal(
+      (data ?? []) as unknown as FilaAgrupable[],
+    ) as unknown as ProductRow[];
     if (rows.length === 0) return null;
 
     const preferred = (opts.preferTitles ?? [])

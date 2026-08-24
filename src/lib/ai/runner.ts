@@ -300,6 +300,10 @@ export async function runAiAgent(
     // valga igual para agentes viejos con context_messages bajo.
     const context = await loadContext(db, args.conversation, 100);
     const products = await loadProductCatalog(db, agent, args.workspaceId, productMatch);
+    // Lo mismo que acota su contexto acota lo que puede BUSCAR: sin esto, un
+    // agente de un solo producto encontraba con `buscar_producto` cualquier
+    // cosa del catálogo y la ofrecía.
+    const permitidos = await productosPermitidos(db, agent, args.workspaceId);
     // Divisa canónica del workspace — la misma que ve la feature de productos.
     // Se la damos a TODOS los agentes (con o sin Shopify) para que coticen
     // siempre en la moneda correcta en vez de un 'ARS' por defecto.
@@ -358,6 +362,7 @@ export async function runAiAgent(
         recentNotes,
         context,
         products,
+        permitidos,
         productMatch,
         shopify,
         otherStore,
@@ -1301,6 +1306,36 @@ interface ReplyResult {
   truncated?: boolean;
 }
 
+/**
+ * De qué productos puede hablar este agente. `null` = de todos.
+ *
+ * Una sola respuesta para las dos preguntas que antes se contestaban por
+ * separado: qué entra en su contexto, y en qué puede buscar. `buscar_producto`
+ * no lo consultaba, así que un agente con "Productos asignados" buscaba en el
+ * catálogo entero — el comercio le decía de qué puede hablar y la herramienta
+ * que más usa se lo saltaba.
+ *
+ * Se devuelve expandido al grupo: autorizar un producto autoriza sus
+ * publicaciones en las otras plataformas, o el agente quedaba habilitado para
+ * la fila de la tienda y no para la del marketplace.
+ */
+export async function productosPermitidos(
+  db: SupabaseClient,
+  agent: AiAgent,
+  workspaceId: string | null,
+): Promise<Set<string> | null> {
+  if (!workspaceId || agent.product_scope !== 'specific') return null;
+  const { data: links } = await db
+    .from('ai_agent_products')
+    .select('product_id')
+    .eq('agent_id', agent.id);
+  return expandirGrupos(
+    db,
+    workspaceId,
+    ((links ?? []) as { product_id: string }[]).map((l) => l.product_id),
+  );
+}
+
 export async function loadProductCatalog(
   db: SupabaseClient,
   agent: AiAgent,
@@ -1314,23 +1349,7 @@ export async function loadProductCatalog(
   // Necesario también para gatear el pin: un agente specialist que no
   // es dueño del producto detectado NO debe recibir su training_material
   // (filtrado de exposición correcto a su contrato).
-  let ownedIds: Set<string> | null = null; // null = "todos"
-  if (agent.product_scope === 'specific') {
-    const { data: links } = await db
-      .from('ai_agent_products')
-      .select('product_id')
-      .eq('agent_id', agent.id);
-    // Asignado uno, autorizado el producto entero: las publicaciones del mismo
-    // producto en otras plataformas cuelgan de una principal, y dejar afuera a
-    // las hermanas partía el producto según por dónde le escribieran. Se
-    // resuelve al leer para que agrupar y desagrupar se refleje sin reescribir
-    // las asignaciones.
-    ownedIds = await expandirGrupos(
-      db,
-      workspaceId,
-      ((links ?? []) as { product_id: string }[]).map((l) => l.product_id),
-    );
-  }
+  const ownedIds = await productosPermitidos(db, agent, workspaceId);
 
   // Pinned: cargamos el producto detectado SI el agente está
   // autorizado a verlo. Para scope='all' siempre está autorizado.
@@ -1637,6 +1656,9 @@ async function generateReply(
   recentNotes: string[],
   context: LoadedContext,
   products: ProductRow[],
+  /** De que productos puede hablar. null = de todos. Sale del mismo lugar
+   *  que `products`, para que buscar y contextualizar no se contradigan. */
+  permitidos: Set<string> | null,
   productMatch: ProductMatch | null,
   shopify: ShopifyToolContext | null,
   /** Tienda del comercio cuando NO es Shopify (Tiendanube, WooCommerce):
@@ -1889,6 +1911,8 @@ async function generateReply(
           conversationId: origen.conversationId,
           agentId: agent.id,
           channel: origen.channel,
+          // De qué productos puede hablar: lo usa `buscar_producto`.
+          permitidos,
           // Las que el comercio puso "con aprobación". Cancelar y reembolsar
           // quedan afuera porque ya preguntan por su cuenta: ponerles el freno
           // encima pediría dos confirmaciones por lo mismo.

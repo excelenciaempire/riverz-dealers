@@ -808,6 +808,14 @@ export interface LocalOrdersContext {
   /** Por dónde llegó, para poder decir después dónde falló el agente. */
   channel?: string | null
   /**
+   * De qué productos puede hablar. `null`/ausente = de todos.
+   *
+   * `buscar_producto` no lo miraba: un agente con "Productos asignados" buscaba
+   * en el catálogo entero, así que el comercio le decía de qué puede hablar y
+   * la herramienta que más usa se lo saltaba. Viene expandido al grupo.
+   */
+  permitidos?: Set<string> | null
+  /**
    * Herramientas que el comercio puso "con aprobación": el agente las prepara
    * y una persona confirma. No se ejecutan acá.
    */
@@ -935,6 +943,7 @@ export async function runTool(
       workspaceId: localOrders.workspaceId,
       contactId: localOrders.contactId,
       conversationId: localOrders.conversationId ?? null,
+      permitidos: localOrders.permitidos ?? null,
     }
     const input = (toolInput ?? {}) as Record<string, unknown>
     if (toolName === 'ver_contacto') return verContacto(ctx)
@@ -998,6 +1007,8 @@ export async function runTool(
       workspaceId: localOrders.workspaceId,
       query: String(input.query ?? ''),
       limit: input.limit,
+      permitidos: localOrders.permitidos ?? null,
+      agrupar: true,
     })
     if (hits.length === 0) {
       return JSON.stringify({

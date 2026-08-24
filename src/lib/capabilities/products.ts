@@ -21,6 +21,7 @@
  */
 import { escapeLike } from '@/lib/security/like'
 import { isUuid } from '@/lib/products/slug'
+import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar'
 import { actualizarProducto, type CambiosDeProducto } from '@/lib/products/write'
 import type { Capability, CapabilityContext } from './types'
 
@@ -133,7 +134,7 @@ async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
   let q = ctx.db
     .from('shopify_products')
     .select(
-      'id, title, handle, product_type, price_min, price_max, currency, shop_domain, ai_research_status, custom_faqs, ai_generated_faqs, training_material, ai_agent_products(agent_id)',
+      'id, title, handle, product_type, price_min, price_max, currency, shop_domain, ai_research_status, custom_faqs, ai_generated_faqs, training_material, master_id, platform, url, ai_agent_products(agent_id)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .order('title', { ascending: true })
@@ -143,7 +144,13 @@ async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { data, error } = await q
   if (error) throw new Error(error.message)
 
-  const filas = (data ?? []) as unknown as Array<{
+  // El mismo producto vendido en varios lados se lista UNA vez, como en la
+  // pantalla de Productos. Sin esto el Operador leía cuatro serums —tres de
+  // ellos sin conocimiento cargado— y le contaba al comercio que tiene cuatro
+  // productos a medio llenar cuando tiene uno completo.
+  const filas = agruparPorPrincipal(
+    (data ?? []) as unknown as FilaAgrupable[],
+  ) as unknown as Array<{
     id: string
     title: string | null
     handle: string | null
@@ -157,6 +164,7 @@ async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
     ai_generated_faqs: unknown
     training_material: string | null
     ai_agent_products: { agent_id: string }[] | null
+    listings?: Array<{ platform: string; price_min: number | string | null; currency: string | null }>
   }>
 
   return {
@@ -179,6 +187,16 @@ async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
       preguntas_frecuentes: cuantasFaqs(p.custom_faqs) + cuantasFaqs(p.ai_generated_faqs),
       investigacion: p.ai_research_status,
       agentes_asignados: (p.ai_agent_products ?? []).length,
+      // Dónde más se vende y a cuánto. Sólo si está unificado: para un producto
+      // de un solo canal repetiría el precio de arriba.
+      canales:
+        (p.listings?.length ?? 0) > 1
+          ? p.listings!.map((l) => ({
+              plataforma: l.platform,
+              precio: l.price_min,
+              divisa: l.currency,
+            }))
+          : undefined,
     })),
   }
 }

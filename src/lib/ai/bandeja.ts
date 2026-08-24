@@ -22,6 +22,8 @@ export interface BandejaCtx {
   workspaceId: string
   contactId: string
   conversationId?: string | null
+  /** De qué productos puede hablar este agente. `null` = de todos. */
+  permitidos?: Set<string> | null
 }
 
 /** La ficha de quien está escribiendo. */
@@ -169,6 +171,10 @@ export async function verProducto(
     workspaceId: ctx.workspaceId,
     query: q,
     limit: 1,
+    // Las mismas dos reglas que `buscar_producto`: sólo lo que este agente
+    // tiene asignado, y el producto entero en vez de una de sus publicaciones.
+    permitidos: ctx.permitidos ?? null,
+    agrupar: true,
   })
   if (!hit) {
     return JSON.stringify({
