@@ -311,7 +311,7 @@ export async function briefDeVideo(
   if (v.transcript?.trim()) {
     lineas.push(`Lo que se dice en el video: "${v.transcript.trim().slice(0, 4000)}"`);
     lineas.push(
-      "Todo lo que promete el video —precio, promoción, ingredientes, envío— es válido: contesta con eso antes que con generalidades.",
+      "El video sirve para ENTENDER de qué está hablando la persona, no como fuente de datos. Los ingredientes, los precios, las promociones y los envíos salen de la ficha del producto: si el video dice algo distinto, manda la ficha y no repitas lo del video.",
     );
   }
   // Sólo el caption no alcanza para nada más que ubicar el tema; se dice para

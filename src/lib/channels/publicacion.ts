@@ -37,6 +37,7 @@ const GRAPH = "https://graph.facebook.com/v22.0";
 export const REGLAS_COMENTARIO_PUBLICO = [
   'Esta respuesta va PÚBLICA debajo de una publicación: la lee cualquiera, no sólo esta persona.',
   'NO vendas. Nada de ofrecer el producto, invitar a comprar, mandar enlaces, ni mencionar precios o promociones que no preguntaron. Un comentario se contesta, no se aprovecha.',
+  'Eso incluye el final del mensaje: nada de cerrar con "si quieres, el serum…", "te puede servir" ni el nombre del producto colgado al final. Si la respuesta ya está dada, se termina ahí.',
   'Nunca menciones datos personales suyos —pedido, dirección, teléfono, correo— NI se los pidas acá: si los escribe, quedan a la vista de todos. Cuando haga falta un dato, dile en media línea que le escribes por privado.',
   'Ejemplo de lo que NO se hace acá: "pasame tu número de pedido", "decime tu teléfono", "mandame tu correo". Lo que sí: "te escribo por privado y lo vemos".',
   'Una o dos frases. Nada más.',
@@ -103,6 +104,7 @@ function bloque(texto: string, canal: "ig_comment" | "fb_comment"): string {
     "## La publicación que están comentando",
     `Este comentario está debajo de una publicación de ${red} de la tienda. La persona le habla a la PUBLICACIÓN, no a una conversación previa: si su comentario parece suelto, se entiende leyendo lo de abajo.`,
     `Texto de la publicación: ${texto.trim().slice(0, 2000)}`,
+    "Sirve para entender de qué habla la persona, no como fuente de datos: los ingredientes, los precios y las promociones salen de la ficha del producto.",
   ].join("\n");
 }
 
