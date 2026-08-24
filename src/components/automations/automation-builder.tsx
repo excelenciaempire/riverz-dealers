@@ -3731,12 +3731,18 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   if (kind === "message") return `${label}: "${(cfg.value as string) ?? ""}"`
   const opKey = NUMBER_OPS.find((o) => o.op === (cfg.op ?? "eq"))?.key
   const opLabel = opKey ? t(opKey) : ""
+  // Un dato de lista muestra su etiqueta, no el valor interno. La tarjeta
+  // decía "Estado de la llamada igual a completed": el comercio no tiene por
+  // qué leer en inglés el nombre que le pusimos a una columna.
+  const opcion = dp.options?.find((o) => o.value === cfg.value)
   const val =
     dp.valueKind === "bool"
       ? cfg.value === "false"
         ? t("automations.repeatCustomerNo")
         : t("automations.repeatCustomerYes")
-      : ((cfg.value as string) ?? "")
+      : opcion
+        ? t(opcion.labelKey)
+        : ((cfg.value as string) ?? "")
   const v2 =
     cfg.op === "between" && cfg.value2 ? ` ${t("automations.condAnd")} ${cfg.value2}` : ""
   return `${label} ${dp.valueKind === "bool" ? "" : opLabel} ${val}${v2}`.replace(/\s+/g, " ").trim()
