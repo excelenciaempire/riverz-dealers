@@ -46,6 +46,14 @@ export const errAi = {
     es: "Falta la clave de IA para generar respuestas",
     en: "Missing the AI key to generate replies",
   },
+  draftNoCredit: {
+    es: "La clave de IA se quedó sin saldo. Recárgala en Anthropic y vuelve a intentar.",
+    en: "The AI key ran out of credit. Top it up in Anthropic and try again.",
+  },
+  draftNothingToAnswer: {
+    es: "Todavía no hay nada que contestar en este chat",
+    en: "There's nothing to answer in this chat yet",
+  },
   draftFailed: {
     es: "No se pudo generar la respuesta",
     en: "Couldn't generate the reply",

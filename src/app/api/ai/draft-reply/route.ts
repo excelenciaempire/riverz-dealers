@@ -84,11 +84,20 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (text) return NextResponse.json({ text });
 
-  // Falta de clave es lo unico que el comercio puede arreglar solo; el resto
-  // es un fallo nuestro y va como tal.
-  const key = error === 'sin_clave' ? 'errAi.draftNoKey' : 'errAi.draftFailed';
+  // Lo que el comercio PUEDE arreglar se dice con nombre y apellido: sin clave,
+  // sin saldo, o un chat donde todavía no hay nada que contestar. Un
+  // "no se pudo generar la respuesta" para las tres cosas obligaba a leer los
+  // registros del servidor para saber cuál era —pasó, y era el saldo—.
+  const porError: Record<string, { key: string; status: number }> = {
+    sin_clave: { key: 'errAi.draftNoKey', status: 409 },
+    sin_saldo: { key: 'errAi.draftNoCredit', status: 409 },
+    vacio: { key: 'errAi.draftNothingToAnswer', status: 409 },
+    sin_contacto: { key: 'errAi.draftNothingToAnswer', status: 409 },
+  };
+  const salida = porError[error ?? ''] ?? { key: 'errAi.draftFailed', status: 502 };
+  console.warn('[draft-reply] sin borrador:', error);
   return NextResponse.json(
-    { error: translate(locale, key) },
-    { status: error === 'sin_clave' ? 409 : 502 },
+    { error: translate(locale, salida.key) },
+    { status: salida.status },
   );
 }

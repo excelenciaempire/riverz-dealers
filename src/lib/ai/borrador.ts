@@ -4,7 +4,7 @@ import type { Contact, Conversation } from '@/types';
 import type { AiAgent } from './types';
 import { getAnthropic } from './anthropic-client';
 import { MIN_DEBOUNCE_SECONDS } from './types';
-import { resolveAnthropicKey } from './platform-key';
+import { claveRechazada, resolveAnthropicKey } from './platform-key';
 import {
   buildSystemPrompt,
   loadContext,
@@ -54,6 +54,7 @@ const SALTO = `
 
 export type BorradorError =
   | 'sin_clave'
+  | 'sin_saldo'
   | 'sin_contacto'
   | 'vacio'
   | 'fallo';
@@ -107,11 +108,26 @@ export async function componerBorrador(
       inboundText: ultimoCliente,
     });
 
+    // Con qué se paga esto, y con qué se reintenta.
+    //
+    // Un botón que alguien aprieta no puede morir porque el pagador de turno
+    // se quedó sin saldo: pasó en producción —la cuenta de Anthropic llegó a
+    // cero y el borrador contestaba "no se pudo generar" sin decir por qué—.
+    // Se prueban en orden y sólo se pasa a la siguiente cuando el problema ES
+    // la clave; un 429 o un error del modelo no mejora cambiando de pagador.
+    const claves: string[] = [];
     const resolvedKey = await resolveAnthropicKey(db, {
       workspaceId: input.workspaceId,
       agentKeyEncrypted: agent.api_key_encrypted,
     });
-    if (!resolvedKey) return { text: null, error: 'sin_clave' };
+    if (resolvedKey?.key) claves.push(resolvedKey.key);
+    if (resolvedKey?.source !== 'platform') {
+      const plataforma = await resolveAnthropicKey(db, { workspaceId: input.workspaceId });
+      if (plataforma?.key && !claves.includes(plataforma.key)) claves.push(plataforma.key);
+    }
+    const delServidor = process.env.ANTHROPIC_API_KEY;
+    if (delServidor && !claves.includes(delServidor)) claves.push(delServidor);
+    if (claves.length === 0) return { text: null, error: 'sin_clave' };
 
     const primaryContact = await loadPrimaryContact(db, contact);
     const [shopifySnapshot, recentNotes, context, products, businessCurrency, igContext] =
@@ -182,25 +198,40 @@ export async function componerBorrador(
     }
 
     const maxChars = agent.max_response_chars || 500;
-    const result = await runWithTools(getAnthropic(resolvedKey.key), {
-      // Sonnet, no el modelo del agente.
-      //
-      // El agente contesta miles de mensajes solo y por eso corre en Haiku,
-      // que es la decisión correcta ahí. Acá es una llamada suelta, a pedido y
-      // que alguien va a leer antes de mandar: lo que importa es que suene a
-      // persona y que respete lo que NO hay que hacer —no vender en un
-      // comentario, no pedir datos en público, no explicar de más—. Medido
-      // sobre las conversaciones reales de un comercio, Haiku se saltaba esas
-      // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
-      // de ingredientes.
-      model: MODELO_BORRADOR,
-      max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
-      system,
-      messages: claudeMessages,
-      tools: shopify ? [LOOKUP_ORDER_TOOL] : [],
-      shopify,
-      voice: null,
-    });
+    let result: Awaited<ReturnType<typeof runWithTools>> | null = null;
+    let ultimoFallo: unknown = null;
+    for (const clave of claves) {
+      try {
+        result = await runWithTools(getAnthropic(clave), {
+          // Sonnet, no el modelo del agente.
+          //
+          // El agente contesta miles de mensajes solo y por eso corre en Haiku,
+          // que es la decisión correcta ahí. Acá es una llamada suelta, a pedido y
+          // que alguien va a leer antes de mandar: lo que importa es que suene a
+          // persona y que respete lo que NO hay que hacer —no vender en un
+          // comentario, no pedir datos en público, no explicar de más—. Medido
+          // sobre las conversaciones reales de un comercio, Haiku se saltaba esas
+          // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
+          // de ingredientes.
+          model: MODELO_BORRADOR,
+          max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
+          system,
+          messages: claudeMessages,
+          tools: shopify ? [LOOKUP_ORDER_TOOL] : [],
+          shopify,
+          voice: null,
+        });
+        break;
+      } catch (err) {
+        ultimoFallo = err;
+        if (claveRechazada(err)) continue;
+        throw err;
+      }
+    }
+    if (!result) {
+      if (claveRechazada(ultimoFallo)) return { text: null, error: 'sin_saldo' };
+      throw ultimoFallo ?? new Error('ninguna clave sirvió');
+    }
 
     const text = (result.text ?? '').trim();
     if (!text) return { text: null, error: 'vacio' };
