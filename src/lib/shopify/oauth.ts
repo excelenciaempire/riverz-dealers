@@ -45,13 +45,15 @@ const DEFAULT_SCOPES =
     // contesta 403 y el `catch` lo devuelve como null — o sea que la función
     // estaba fallando en silencio en todas las tiendas conectadas.
     //
-    // Los dos, como con las etiquetas de script: escribir NO implica leer.
-    // `emitirCupon` recorre las reglas que ya existen antes de crear una
-    // (discounts.ts:123) para no dejar una regla nueva por cada cupón, y con
-    // sólo el de escritura eso contesta "requires merchant approval for
-    // read_price_rules scope". Medido el 2026-08-24 sobre la tienda demo, ya
-    // reconectada con `write_discounts`.
+    // `write_discounts` NO alcanza, y no es un detalle de nombre: gobierna la
+    // API de Discounts (GraphQL), y este código usa la de PriceRules (REST).
+    // Con sólo aquél, crear la regla contesta "requires merchant approval for
+    // write_price_rules scope" y listar las existentes pide la de lectura
+    // aparte — escribir no implica leer, igual que con las etiquetas de script.
+    // Los tres, entonces. Medido el 2026-08-24 sobre la tienda demo ya
+    // reconectada, donde `write_discounts` solo daba 403 en las dos.
     'read_price_rules',
+    'write_price_rules',
     'write_discounts',
     // Chat web: instalarlo sin que nadie toque el código del tema. Copiar un
     // snippet a `theme.liquid` es el paso donde se cae la adopción — el
