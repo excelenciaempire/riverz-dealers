@@ -205,5 +205,20 @@ export interface ShopifyProductSummary {
   vendor: string | null;
   price_min: number | null;
   price_max: number | null;
+  currency?: string | null;
   image_url: string | null;
+  /**
+   * Dónde más se vende lo mismo. Presente sólo cuando el producto está
+   * unificado (migración 183): el selector muestra UNA fila con sus canales,
+   * igual que la pantalla de Productos, y asignar mueve el grupo entero.
+   */
+  listings?: Array<{
+    id: string;
+    platform: string;
+    title: string | null;
+    price_min: number | string | null;
+    currency: string | null;
+    url: string | null;
+    is_master: boolean;
+  }>;
 }

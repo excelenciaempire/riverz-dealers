@@ -6,6 +6,7 @@ import { serverError } from '@/lib/api/errors';
 import { escapeLike } from '@/lib/security/like';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceCurrencyOrNull } from '@/lib/products/currency';
+import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
 import { crearProducto, tituloDeProducto } from '@/lib/products/write';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -109,46 +110,10 @@ export async function GET(request: Request) {
     };
   });
 
-  // Un producto vendido en varios lados se lista UNA vez.
-  //
-  // El mismo producto tiene una fila por plataforma —cada una la sincroniza su
-  // canal— y hasta acá la pantalla las mostraba todas: el comercio veía cuatro
-  // tarjetas del mismo serum y no tenía forma de saber cuál editar. Ahora se
-  // muestra la principal, que es la que manda el conocimiento, con sus
-  // publicaciones colgando.
-  //
-  // Se pliega SÓLO si la principal está en la misma respuesta. Con un filtro
-  // aplicado —buscar, o el estado del scrape— puede no estarlo, y esconder una
-  // publicación detrás de una tarjeta que no se ve la haría desaparecer.
-  const porId = new Map(filas.map((p) => [String(p.id), p]));
-  const hijosDe = new Map<string, Record<string, unknown>[]>();
-  for (const p of filas) {
-    const master = p.master_id ? String(p.master_id) : '';
-    if (!master || !porId.has(master)) continue;
-    hijosDe.set(master, [...(hijosDe.get(master) ?? []), p]);
-  }
-
-  const products = filas
-    .filter((p) => !(p.master_id && porId.has(String(p.master_id))))
-    .map((p) => {
-      const hijos = hijosDe.get(String(p.id)) ?? [];
-      if (hijos.length === 0) return p;
-      return {
-        ...p,
-        // Dónde más se vende, con el precio de cada lado. La tarjeta lo muestra
-        // como una línea; el precio de cada canal es distinto y los dos son
-        // ciertos, así que no se elige uno.
-        listings: [p, ...hijos].map((x) => ({
-          id: x.id,
-          platform: x.platform ?? 'shopify',
-          title: x.title,
-          price_min: x.price_min,
-          currency: x.currency,
-          url: x.url,
-          is_master: x.id === p.id,
-        })),
-      };
-    });
+  // Un producto vendido en varios lados se lista UNA vez. El plegado vive en
+  // `@/lib/products/agrupar` porque el selector de productos del agente tiene
+  // que mostrar exactamente lo mismo, y dos copias se separan.
+  const products = agruparPorPrincipal(filas as unknown as FilaAgrupable[]);
 
   // El UI necesita saber si Shopify está conectado para mostrar el
   // empty state correcto / deshabilitar Sincronizar. Post-055 leemos

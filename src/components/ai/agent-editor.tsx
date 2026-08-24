@@ -64,6 +64,7 @@ import type {
   ShopifyProductSummary,
 } from '@/lib/ai/types';
 import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
+import { idsDelGrupo } from '@/lib/products/agrupar';
 import {
   AGENT_ROLES,
   type AgentPermissions,
@@ -72,6 +73,16 @@ import {
 import { roleTemplate } from '@/lib/ai/role-templates';
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
+
+/** "shopify" → "Shopify". Los nombres propios se escriben como se escriben.
+ *  Mismo mapa que la pantalla de Productos: un canal nombrado distinto en cada
+ *  pantalla deja de parecer el mismo producto. */
+const CANAL: Record<string, string> = {
+  shopify: 'Shopify',
+  mercadolibre: 'Mercado Libre',
+  tiendanube: 'Tiendanube',
+  woocommerce: 'WooCommerce',
+};
 
 // label/hint son claves i18n resueltas con t() en el render.
 const TONES: { value: AiTone; label: string; hint: string }[] = [
@@ -530,13 +541,23 @@ export function AgentEditor({
     );
   }
 
-  function toggleProduct(id: string) {
+  /**
+   * Asignar un producto es asignarlo entero.
+   *
+   * Un producto vendido en varios lados tiene una fila por plataforma. Guardar
+   * sólo la principal dejaba al agente autorizado a hablar de la de Shopify y
+   * no de la de Mercado Libre: el mismo producto, partido según por dónde le
+   * escribieran — justo lo que unificar vino a arreglar. Se guardan todas.
+   */
+  function toggleProduct(p: ShopifyProductSummary) {
+    const ids = idsDelGrupo(p);
     setSelectedProducts((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      const next = [...prev, id];
+      if (ids.some((id) => prev.includes(id))) return prev.filter((x) => !ids.includes(x));
+      const next = Array.from(new Set([...prev, ...ids]));
       // Primer producto de un asistente nuevo → preparar la plantilla y
-      // disparar la investigación del producto (lo que antes era manual).
-      if (prev.length === 0) void prefillFromProduct(id);
+      // disparar la investigación del producto (lo que antes era manual). Se
+      // usa la principal: es la que tiene el conocimiento.
+      if (prev.length === 0) void prefillFromProduct(p.id);
       return next;
     });
   }
@@ -752,6 +773,26 @@ export function AgentEditor({
       if (linkTimerRef.current) window.clearInterval(linkTimerRef.current);
     };
   }, []);
+
+  /**
+   * Cuántos PRODUCTOS, no cuántas filas.
+   *
+   * Asignar el serum guarda cuatro ids —su fila y sus tres publicaciones—, así
+   * que contar lo guardado decía "4 productos asignados" sobre uno solo. Se
+   * cuenta contra el catálogo agrupado; lo que no esté en él (el catálogo
+   * todavía no cargó, o el producto se borró) se cuenta como uno.
+   */
+  const productosAsignados = useMemo(() => {
+    if (catalog.length === 0) return selectedProducts.length;
+    const vistos = new Set<string>();
+    let n = 0;
+    for (const p of catalog) {
+      const ids = idsDelGrupo(p);
+      ids.forEach((id) => vistos.add(id));
+      if (ids.some((id) => selectedProducts.includes(id))) n += 1;
+    }
+    return n + selectedProducts.filter((id) => !vistos.has(id)).length;
+  }, [catalog, selectedProducts]);
 
   const filteredCatalog = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
@@ -1136,7 +1177,14 @@ export function AgentEditor({
                         ) : (
                           <ul className="divide-y divide-border">
                             {filteredCatalog.map((p) => {
-                              const on = selectedProducts.includes(p.id);
+                              // Cuenta como asignado si lo está CUALQUIERA de
+                              // sus publicaciones: quien asignó el producto
+                              // antes de unificarlo tiene apuntada una sola
+                              // fila, y el agente ya lo trata como el producto
+                              // entero. Mostrarlo sin asignar sería mentirle.
+                              const on = idsDelGrupo(p).some((id) =>
+                                selectedProducts.includes(id),
+                              );
                               return (
                                 <li
                                   key={p.id}
@@ -1174,6 +1222,26 @@ export function AgentEditor({
                                         .filter(Boolean)
                                         .join(' · ')}
                                     </p>
+                                    {/* En qué canales está y a cuánto en cada
+                                        uno, igual que la tarjeta de Productos.
+                                        Sólo cuando está unificado: para uno de
+                                        un solo canal repetiría el precio. */}
+                                    {(p.listings?.length ?? 0) > 1 ? (
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {p.listings!.map((l) => (
+                                          <span
+                                            key={l.id}
+                                            title={l.title ?? undefined}
+                                            className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                          >
+                                            <span className="font-medium text-foreground">
+                                              {CANAL[l.platform] ?? l.platform}
+                                            </span>
+                                            {l.price_min != null ? `$${l.price_min}` : ''}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
                                   </div>
                                   {/* Botón explícito de asignación: la fila ya no
                                       togglea entera, así la selección es precisa. */}
@@ -1181,7 +1249,7 @@ export function AgentEditor({
                                     type="button"
                                     size="sm"
                                     variant={on ? 'default' : 'outline'}
-                                    onClick={() => toggleProduct(p.id)}
+                                    onClick={() => toggleProduct(p)}
                                     className={cn(
                                       'h-7 shrink-0 gap-1 px-2.5 text-xs',
                                       on
@@ -1206,12 +1274,12 @@ export function AgentEditor({
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[11px] text-muted-foreground">
-                          {selectedProducts.length === 1
+                          {productosAsignados === 1
                             ? t('assistant.productsAssignedOne', {
-                                count: selectedProducts.length,
+                                count: productosAsignados,
                               })
                             : t('assistant.productsAssignedOther', {
-                                count: selectedProducts.length,
+                                count: productosAsignados,
                               })}
                         </p>
                         <button

@@ -39,6 +39,7 @@ import {
 } from './product-routing';
 import { AGENT_TOOLBOX, toolEnabled, toolMode } from './toolbox';
 import { unidadesDelTitulo } from '@/lib/products/unify';
+import { expandirGrupos } from '@/lib/products/agrupar';
 import {
   buildCheckoutTool,
   buildOrderTool,
@@ -1319,7 +1320,14 @@ export async function loadProductCatalog(
       .from('ai_agent_products')
       .select('product_id')
       .eq('agent_id', agent.id);
-    ownedIds = new Set(
+    // Asignado uno, autorizado el producto entero: las publicaciones del mismo
+    // producto en otras plataformas cuelgan de una principal, y dejar afuera a
+    // las hermanas partía el producto según por dónde le escribieran. Se
+    // resuelve al leer para que agrupar y desagrupar se refleje sin reescribir
+    // las asignaciones.
+    ownedIds = await expandirGrupos(
+      db,
+      workspaceId,
       ((links ?? []) as { product_id: string }[]).map((l) => l.product_id),
     );
   }
