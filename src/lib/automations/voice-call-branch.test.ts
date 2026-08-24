@@ -12,23 +12,39 @@ import type { VoiceCallStepConfig } from '@/types';
 
 /** Espejo de `waitsForVoiceResult` del motor (no exportado). */
 function waits(cfg: VoiceCallStepConfig): boolean {
-  return cfg.wait_for_result === true;
+  return cfg.wait_for_result !== false;
 }
 
 describe('cuándo el paso de llamada suspende la corrida', () => {
-  it('un nodo viejo (sin el campo) sigue siendo fire-and-forget', () => {
-    // Las automatizaciones que ya corren en producción se armaron contra ese
-    // comportamiento. Cambiárselo al desplegar sería modificar en silencio lo
-    // que hacen los flujos de un comercio.
-    expect(waits({ agent_id: 'a' })).toBe(false);
-  });
-
-  it('un nodo nuevo espera', () => {
+  it('espera, que es lo único que quiere alguien que llama', () => {
+    // Era un interruptor en la tarjeta y su posición de apagado significaba
+    // "seguí con los pasos siguientes mientras el teléfono todavía suena".
+    // Nadie quiere eso, y era la única forma de que la rama «si no contesta»
+    // no funcionara.
+    expect(waits({ agent_id: 'a' })).toBe(true);
     expect(waits({ agent_id: 'a', wait_for_result: true })).toBe(true);
   });
 
-  it('se puede apagar explícitamente', () => {
+  it('salvo un nodo viejo que lo tenga apagado a propósito', () => {
+    // Ya no se puede elegir desde la pantalla, pero un flujo guardado con el
+    // campo en `false` conserva su forma: cambiárselo al desplegar sería
+    // modificar en silencio lo que hace la automatización de un comercio.
     expect(waits({ agent_id: 'a', wait_for_result: false })).toBe(false);
+  });
+});
+
+describe('nunca se marcó no es lo mismo que no contestaron', () => {
+  it('se puede ramificar por "no se llamó"', () => {
+    // Cuando una barrera frena la llamada, la corrida sigue con
+    // `call_status: not_placed`. Sin este valor en la lista, el comercio no
+    // tenía forma de distinguirlo y le mandaba un «te llamamos y no
+    // contestaste» a alguien a quien nadie llamó.
+    const dp = conditionDataPoints('voice_call_completed').find(
+      (d) => d.id === 'call_status',
+    );
+    const values = dp?.options?.map((o) => o.value) ?? [];
+    expect(values).toContain('not_placed');
+    expect(values).toContain('no_answer');
   });
 });
 
