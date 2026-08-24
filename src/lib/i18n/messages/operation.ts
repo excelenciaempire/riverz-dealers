@@ -405,10 +405,18 @@ export const operation = {
     en: "Done. Starting with step 1: {que}.",
   },
   planArrancoUno: { es: "Listo, arranco: {que}.", en: "Done, starting: {que}." },
-  seguir: { es: "Listo, aprobado. Continúa.", en: "Done, approved. Carry on." },
+  /**
+   * Lo que el click de «Aprobar» dice en la conversación.
+   *
+   * Aparece como un mensaje de la persona —porque es su decisión— así que
+   * tiene que leerse como algo que alguien escribiría. «Continúa con lo que
+   * falta, sin volver a proponer eso» es una instrucción para el modelo puesta
+   * en boca del comercio; «eso ya está hecho» dice lo mismo y es una frase.
+   */
+  seguir: { es: "Aprobado. Sigue con lo que falta.", en: "Approved. Carry on with what is left." },
   seguirCon: {
-    es: "Listo: aprobé {que}. Continúa con lo que falta, sin volver a proponer eso.",
-    en: "Done: I approved {que}. Carry on with what's left; do not propose those again.",
+    es: "Aprobé: {que}. Eso ya está hecho, sigue con lo que falta.",
+    en: "Approved: {que}. That is done — carry on with what is left.",
   },
   /**
    * El título de la decisión: que la cosa YA está, y qué se puede hacer.
