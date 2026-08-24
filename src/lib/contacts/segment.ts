@@ -72,10 +72,10 @@ export async function generateContactSegment(
   try {
     const client = getAnthropic(apiKey);
     const res = await client.messages.create({
+      // Sin los parámetros de esfuerzo: Haiku los rechaza con 400 y esto
+      // llevaba meses contestando siempre que no se pudo.
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
-      thinking: { type: 'disabled' },
-      output_config: { effort: 'low' },
       system: [{ type: 'text', text: SEG_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }],
     });

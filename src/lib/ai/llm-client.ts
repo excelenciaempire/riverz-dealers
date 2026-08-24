@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { esfuerzo } from './esfuerzo';
 import { getAnthropic } from './anthropic-client';
 
 /**
@@ -95,11 +96,12 @@ async function completeAnthropic(
   o: CompleteTextOptions,
 ): Promise<string> {
   const client = getAnthropic(key);
+  const model = ANTHROPIC_MODELS[o.tier];
   const res = await client.messages.create({
-    model: ANTHROPIC_MODELS[o.tier],
+    model,
     max_tokens: o.maxTokens,
-    thinking: { type: 'disabled' },
-    output_config: { effort: o.effort ?? 'low' },
+    // El escalón `triage` es Haiku, que los rechaza con 400.
+    ...esfuerzo(model, { effort: o.effort ?? 'low' }),
     system: [
       { type: 'text', text: o.system, cache_control: { type: 'ephemeral' } },
     ],
@@ -175,8 +177,7 @@ export async function describeImage(o: {
   const res = await client.messages.create({
     model: ANTHROPIC_MODELS.triage,
     max_tokens: o.maxTokens,
-    thinking: { type: 'disabled' },
-    output_config: { effort: 'low' },
+    ...esfuerzo(ANTHROPIC_MODELS.triage),
     system: [{ type: 'text', text: o.system }],
     messages: [
       {

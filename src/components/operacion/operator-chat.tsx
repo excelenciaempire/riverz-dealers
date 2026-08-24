@@ -209,6 +209,8 @@ export function OperatorChat({
   const yaArranco = useRef(false)
   /** Lo último concreto que se estaba haciendo, para no caer en genérico. */
   const ultimaActividad = useRef('')
+  /** Cuándo arrancó lo que está corriendo, para contar los segundos. */
+  const [arrancoEn, setArrancoEn] = useState<number | null>(null)
 
   /**
    * Abre una conversación anterior.
@@ -277,6 +279,7 @@ export function OperatorChat({
     async (runId: string) => {
       setCorrida(runId)
       setPensando(true)
+      setArrancoEn(Date.now())
       try {
         for (;;) {
           const res = await fetch(`/api/operacion/operator/corridas?id=${runId}`, {
@@ -402,6 +405,7 @@ export function OperatorChat({
       setTexto('')
       setMensajes((m) => [...m, { id: `local-${m.length}`, role: 'user', text: limpio }])
       setPensando(true)
+      setArrancoEn(Date.now())
       setVivo({ thinking: '', bloques: [] })
 
       try {
@@ -738,6 +742,7 @@ export function OperatorChat({
     async (planId: string) => {
       setPlan((p) => (p ? { ...p, estado: 'corriendo' } : p))
       setPensando(true)
+      setArrancoEn(Date.now())
       setVivo({ thinking: '', bloques: [] })
       try {
         const res = await fetchWithCsrf(
@@ -862,14 +867,19 @@ export function OperatorChat({
             que: enMinuscula(t(`operation.dom${cap(dominioDe(trabajando.pidiendoA))}`)),
           })
         : t(`operation.haciendo${cap(dominioDe(trabajando.id))}`)
-      : // Nunca «Pensando…» a secas si ya se sabía qué estaba haciendo.
+      : // Pensando, cuando de verdad está pensando.
         //
-        // Entre que un especialista termina y arranca el siguiente no hay paso
-        // corriendo ni nadie trabajando, y la línea caía a una palabra genérica
-        // —o parecía apagarse— justo en el hueco más largo. Se queda lo último
-        // concreto que se dijo; al principio del turno, cuando todavía no hubo
-        // nada, se dice que está leyendo la cuenta, que es lo que pasa.
-        ultimaActividad.current || t('operation.vivoEmpezando')
+        // Mientras llega el razonamiento y todavía no se llamó a nadie, eso es
+        // exactamente lo que pasa y no se decía nunca: la línea arrancaba en
+        // «Leyendo tu cuenta» y saltaba directo al primer dominio.
+        (vivo?.thinking ?? '').trim()
+        ? t('operation.vivoPensando')
+        : // Entre que un especialista termina y arranca el siguiente no hay
+          // paso corriendo ni nadie trabajando, y la línea caía a una palabra
+          // genérica —o parecía apagarse— justo en el hueco más largo. Se
+          // queda lo último concreto que se dijo; al principio, cuando todavía
+          // no hubo nada, se dice que está leyendo la cuenta.
+          ultimaActividad.current || t('operation.vivoEmpezando')
 
   if (corriendo || trabajando) ultimaActividad.current = actividad
 
@@ -1008,7 +1018,7 @@ export function OperatorChat({
             plantillas» encima de una tarjeta que pide un sí es contar algo que
             no está ocurriendo. */}
         {pensando && plan?.estado !== 'esperando' && (
-          <EnVivo actividad={actividad} />
+          <EnVivo actividad={actividad} desde={arrancoEn} />
         )}
 
         {error && (
@@ -1313,18 +1323,47 @@ function TarjetaPlan({
  * de barras dice "esperá"; una línea que se ilumina mientras nombra lo que se
  * está haciendo dice "esto está pasando", que es otra cosa.
  */
-function EnVivo({ actividad }: { actividad: string }) {
+function EnVivo({ actividad, desde }: { actividad: string; desde: number | null }) {
+  const segundos = useSegundos(desde)
   return (
     <div className="flex items-center gap-2.5 py-0.5">
       <span className="app-punto size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
       {/* En minúscula y sin el espaciado de etiqueta: es una frase que cambia
           sola cada pocos segundos, y en mayúsculas se lee como un registro de
-          sistema en vez de como alguien contando qué está haciendo. */}
-      <span className="app-latiendo min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          sistema en vez de como alguien contando qué está haciendo.
+
+          `key` para que CADA frase entre: sin él React reusa el nodo, cambia el
+          texto de golpe y la animación no vuelve a correr. */}
+      <span
+        key={actividad}
+        className="app-latiendo app-entra min-w-0 truncate text-xs text-muted-foreground"
+      >
         {actividad}
       </span>
+      {/* El reloj: un turno del equipo tarda minutos y la frase puede quedarse
+          igual un rato largo. Sin nada que se mueva, «Armando la automatización»
+          quieto por dos minutos se lee como colgado. Aparece a los tres
+          segundos para no titilar en los turnos cortos. */}
+      {segundos >= 3 && (
+        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/60">
+          {segundos < 60 ? `${segundos}s` : `${Math.floor(segundos / 60)} min`}
+        </span>
+      )}
     </div>
   )
+}
+
+/** Los segundos que van desde que arrancó, contados de a uno. */
+function useSegundos(desde: number | null): number {
+  const [ahora, setAhora] = useState(() => Date.now())
+  useEffect(() => {
+    if (desde === null) return
+    const reloj = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(reloj)
+  }, [desde])
+  // El piso en cero es por el primer render de cada turno: `ahora` todavía es
+  // el del turno anterior y la resta da negativa. Cero es lo correcto ahí.
+  return desde === null ? 0 : Math.max(0, Math.floor((ahora - desde) / 1000))
 }
 
 /**

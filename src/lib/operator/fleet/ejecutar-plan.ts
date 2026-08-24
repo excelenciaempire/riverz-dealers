@@ -114,6 +114,21 @@ export async function ejecutarPlan(args: {
       propuestas += r.propuestas
       construidas += r.construidas
 
+      /**
+       * Un paso que no dejó nada a la vista, cuenta por qué.
+       *
+       * Un especialista puede terminar su turno perfectamente y no haber hecho
+       * nada: le faltó un dato, se trabó pidiéndole a otro, o su encargo era
+       * mirar. En los tres casos su resumen es lo único que explica la pantalla
+       * vacía, y no se mostraba en ningún lado — ni ahí, ni en el cierre.
+       *
+       * Con algo construido o propuesto no hace falta: la tarjeta y el panel de
+       * la derecha ya lo dicen, y repetirlo sería contar dos veces lo mismo.
+       */
+      if (r.propuestas === 0 && r.construidas === 0 && r.resumen.trim()) {
+        emit({ t: 'text', delta: `\n\n${r.resumen.trim()}` })
+      }
+
       if (r.ok) {
         estadoDe.set(i, 'ok')
         resumenDe.set(i, r.resumen)

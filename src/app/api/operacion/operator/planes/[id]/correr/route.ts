@@ -276,7 +276,11 @@ function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>): string {
   // en un idioma —«2 pasos listos»— que no es el de nadie.
   //
   // Queda sólo lo que no tiene otro lugar donde verse.
-  if (r.propuestas === 0 && ok > 0) {
+  // «Listos» sólo si algo quedó hecho. Un plan donde los dos pasos terminaron
+  // sin construir nada se cerraba con «2 pasos listos» sobre una pantalla en la
+  // que no había pasado nada: el recuento contaba turnos del modelo, no
+  // trabajo. Lo que sí pasó lo cuenta cada paso con su resumen.
+  if (r.propuestas === 0 && r.construidas > 0 && ok > 0) {
     partes.push(`**${ok}** ${ok === 1 ? 'paso listo' : 'pasos listos'}`)
   }
   if (fallidos.length > 0) {

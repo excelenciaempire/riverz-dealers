@@ -16,6 +16,7 @@
  *     desactualice sin que nadie lo note.
  */
 import type Anthropic from '@anthropic-ai/sdk'
+import { esfuerzo } from '@/lib/ai/esfuerzo'
 import type { Quien } from './types'
 
 export interface LlamadaModelo {
@@ -61,8 +62,9 @@ export function anthropicRunner(client: Anthropic): ModelRunner {
       system: llamada.system,
       messages: llamada.messages,
       ...(llamada.tools.length > 0 ? { tools: llamada.tools } : {}),
-      thinking: { type: 'adaptive' },
-      output_config: { effort: llamada.effort },
+      // Haiku no los acepta y contesta 400: ocho de los catorce especialistas
+      // corren ahí. Ver `@/lib/ai/esfuerzo`.
+      ...esfuerzo(llamada.model, { effort: llamada.effort, pensar: 'adaptive' }),
     } as Parameters<typeof client.messages.stream>[0])
 
     for await (const ev of stream) {

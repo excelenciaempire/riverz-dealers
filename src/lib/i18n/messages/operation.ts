@@ -399,6 +399,8 @@ export const operation = {
   vivoMirando: { es: "Revisando {que}", en: "Going through {que}" },
   vivoArmando: { es: "Armando {que}", en: "Working on {que}" },
   vivoEmpezando: { es: "Leyendo tu cuenta", en: "Reading your account" },
+  /** Mientras razona y todavía no llamó a nadie. Es lo que de verdad pasa. */
+  vivoPensando: { es: "Pensando", en: "Thinking" },
   /** Al aprobar el plan: por dónde se empieza, para no dejar la pantalla muda. */
   planArranco: {
     es: "Listo. Empiezo por el paso 1: {que}.",

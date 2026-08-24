@@ -1,0 +1,49 @@
+/**
+ * Regular el esfuerzo del modelo — donde el modelo lo acepta.
+ *
+ * `output_config.effort` y `thinking: { type: 'adaptive' }` son de la familia
+ * Claude 5 (y de Opus 4.8). **Haiku 4.5 los rechaza**, y no los ignora: la API
+ * contesta 400 y la llamada entera se pierde. Verificado contra la API el
+ * 2026-08-24:
+ *
+ *   claude-haiku-4-5 + output_config → «This model does not support the effort parameter.»
+ *   claude-haiku-4-5 + adaptive      → «adaptive thinking is not supported on this model»
+ *   claude-haiku-4-5 pelado          → OK
+ *   claude-sonnet-5 / opus-4-8 / opus-5 con los dos → OK
+ *
+ * Costó caro. El Operador le pasaba esos dos parámetros a los ocho
+ * especialistas del escalón `mecanico`, que corren en Haiku: los ocho morían
+ * con 400 en su PRIMERA llamada, antes de gastar un token. Como no llegaban a
+ * gastar nada, no dejaban rastro en ningún lado — ni en el gasto por agente, ni
+ * en un paso en rojo. El especialista de al lado recibía «no responde por un
+ * error técnico», el plan se cerraba con «2 pasos listos», y en pantalla no
+ * había pasado nada. Lo mismo mataba al armador de segmentos con IA.
+ *
+ * Por eso vive en un solo lugar: la lista de modelos cambia, y el precio de
+ * equivocarse es una función que no funciona sin que nadie se entere.
+ */
+
+/** ¿A este modelo se le puede pedir más o menos esfuerzo? */
+export function reguladoPorEsfuerzo(model: string): boolean {
+  return !/haiku-4-5/.test(model)
+}
+
+/**
+ * Los parámetros de esfuerzo listos para desparramar en la llamada, o nada.
+ *
+ * `pensar` es el modo de razonamiento: `adaptive` deja que el modelo decida
+ * cuánto piensa, `disabled` lo apaga para una tarea mecánica.
+ */
+export function esfuerzo(
+  model: string,
+  opciones: {
+    effort?: 'low' | 'medium' | 'high'
+    pensar?: 'adaptive' | 'disabled'
+  } = {},
+): Record<string, unknown> {
+  if (!reguladoPorEsfuerzo(model)) return {}
+  return {
+    thinking: { type: opciones.pensar ?? 'disabled' },
+    output_config: { effort: opciones.effort ?? 'low' },
+  }
+}
