@@ -70,39 +70,34 @@ describe('asignar un producto es asignarlo entero', () => {
   })
 })
 
-/** Una base que contesta con las filas que se le den. */
+/** Una base que contesta con las filas que se le den, y cuenta las consultas. */
 function baseCon(filas: Array<{ id: string; master_id: string | null }>) {
-  return {
+  const consultas: Array<{ columna: string; cuantos: number }> = []
+  const db = {
     from: () => {
-      let seleccion: 'propias' | 'hermanas' = 'propias'
-      let pedidos: string[] = []
-      let raices: string[] = []
+      let columna = 'id'
+      let valores: string[] = []
       const q: Record<string, unknown> = {
-        select: (cols: string) => {
-          seleccion = cols.includes('master_id') ? 'propias' : 'hermanas'
-          return q
-        },
+        select: () => q,
         eq: () => q,
-        in: (_c: string, ids: string[]) => {
-          pedidos = ids
-          return q
-        },
-        or: (f: string) => {
-          raices = (f.match(/\(([^)]*)\)/)?.[1] ?? '').split(',').filter(Boolean)
+        in: (c: string, ids: string[]) => {
+          columna = c
+          valores = ids
+          consultas.push({ columna: c, cuantos: ids.length })
           return q
         },
         then: (resolve: (v: unknown) => unknown) =>
           resolve({
-            data:
-              seleccion === 'propias'
-                ? filas.filter((f) => pedidos.includes(f.id))
-                : filas.filter((f) => raices.includes(f.id) || raices.includes(f.master_id ?? '')),
+            data: filas.filter((f) =>
+              columna === 'id' ? valores.includes(f.id) : valores.includes(f.master_id ?? ''),
+            ),
             error: null,
           }),
       }
       return q
     },
-  } as never
+  }
+  return { db: db as never, consultas }
 }
 
 describe('las asignaciones viejas también siguen al grupo', () => {
@@ -114,23 +109,36 @@ describe('las asignaciones viejas también siguen al grupo', () => {
   ]
 
   it('asignada la principal, autoriza sus publicaciones', async () => {
-    const r = await expandirGrupos(baseCon(FILAS), 'w1', ['shop'])
+    const r = await expandirGrupos(baseCon(FILAS).db, 'w1', ['shop'])
     expect([...r].sort()).toEqual(['ml1', 'ml2', 'shop'])
   })
 
   it('asignada una publicación suelta, autoriza el producto entero', async () => {
     // Es el caso de quien asignó el producto ANTES de unificarlo: la fila que
     // eligió sigue apuntada, y unir después no cambiaba nada para el agente.
-    const r = await expandirGrupos(baseCon(FILAS), 'w1', ['ml2'])
+    const r = await expandirGrupos(baseCon(FILAS).db, 'w1', ['ml2'])
     expect([...r].sort()).toEqual(['ml1', 'ml2', 'shop'])
   })
 
   it('un producto sin unificar queda como estaba', async () => {
-    const r = await expandirGrupos(baseCon(FILAS), 'w1', ['bici'])
+    const r = await expandirGrupos(baseCon(FILAS).db, 'w1', ['bici'])
     expect([...r]).toEqual(['bici'])
   })
 
   it('sin asignaciones no consulta nada', async () => {
-    expect([...(await expandirGrupos(baseCon(FILAS), 'w1', []))]).toEqual([])
+    const { db, consultas } = baseCon(FILAS)
+    expect([...(await expandirGrupos(db, 'w1', []))]).toEqual([])
+    expect(consultas).toHaveLength(0)
+  })
+
+  it('con muchos productos pregunta de a cien, no todo junto', async () => {
+    // Doscientos UUIDs en una sola URL pasan de lo que aguanta un GET, y la
+    // consulta vuelve 414: el agente se quedaría sin catálogo justo cuando
+    // tiene el más grande.
+    const muchos = Array.from({ length: 250 }, (_, i) => ({ id: `p${i}`, master_id: null }))
+    const { db, consultas } = baseCon(muchos)
+    const r = await expandirGrupos(db, 'w1', muchos.map((p) => p.id))
+    expect(r.size).toBe(250)
+    expect(Math.max(...consultas.map((c) => c.cuantos))).toBeLessThanOrEqual(100)
   })
 })

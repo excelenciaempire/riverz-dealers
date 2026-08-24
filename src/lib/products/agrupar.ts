@@ -115,28 +115,33 @@ export async function expandirGrupos(
   const base = Array.from(new Set(ids.filter(Boolean)))
   if (base.length === 0) return new Set()
 
-  // 1. La raíz de cada asignada: la principal si cuelga de una, o ella misma.
-  const { data: propias } = await db
-    .from('shopify_products')
-    .select('id, master_id')
-    .eq('workspace_id', workspaceId)
-    .in('id', base)
-  const raices = new Set(
-    ((propias ?? []) as Array<{ id: string; master_id: string | null }>).map(
-      (p) => p.master_id ?? p.id,
-    ),
-  )
-  if (raices.size === 0) return new Set(base)
+  // De a cien. Un agente con doscientos productos asignados mandaría una lista
+  // de UUIDs más larga que lo que aguanta una URL, y la consulta volvería 414
+  // — o sea, el agente se quedaría sin catálogo justo cuando tiene el más
+  // grande.
+  const enTandas = async (columna: 'id' | 'master_id', valores: string[]) => {
+    const filas: Array<{ id: string; master_id: string | null }> = []
+    for (let i = 0; i < valores.length; i += 100) {
+      const { data } = await db
+        .from('shopify_products')
+        .select('id, master_id')
+        .eq('workspace_id', workspaceId)
+        .in(columna, valores.slice(i, i + 100))
+      filas.push(...((data ?? []) as Array<{ id: string; master_id: string | null }>))
+    }
+    return filas
+  }
 
-  // 2. Esas raíces y todo lo que cuelga de ellas.
-  const lista = Array.from(raices)
-  const { data: hermanas } = await db
-    .from('shopify_products')
-    .select('id')
-    .eq('workspace_id', workspaceId)
-    .or(`id.in.(${lista.join(',')}),master_id.in.(${lista.join(',')})`)
+  // 1. La raíz de cada asignada: su principal si cuelga de una, o ella misma.
+  const propias = await enTandas('id', base)
+  const raices = Array.from(new Set(propias.map((p) => p.master_id ?? p.id)))
+  if (raices.length === 0) return new Set(base)
 
-  const salida = new Set(base)
-  for (const p of (hermanas ?? []) as Array<{ id: string }>) salida.add(p.id)
+  // 2. Todo lo que cuelga de esas raíces. Las raíces ya están: o venían
+  //    asignadas, o son la principal de algo que sí lo venía.
+  const hermanas = await enTandas('master_id', raices)
+
+  const salida = new Set([...base, ...raices])
+  for (const p of hermanas) salida.add(p.id)
   return salida
 }
