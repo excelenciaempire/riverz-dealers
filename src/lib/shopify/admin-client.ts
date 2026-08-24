@@ -25,8 +25,20 @@ export class ShopifyUnauthorizedError extends Error {
  * rotation, store transfer) — without this, every order lookup
  * silently returns empty and the AI tells customers we have no record.
  */
+/**
+ * Shopify dejó de aceptar los tokens que no expiran.
+ *
+ * El mensaje llega con **403**, no con 401, así que caía en el `throw` genérico:
+ * la conexión seguía figurando activa mientras TODAS sus llamadas fallaban.
+ * Medido el 2026-08-24 sobre dos tiendas, una de ellas reconectada por OAuth
+ * ese mismo minuto — o sea que reconectar tampoco lo arregla, porque el token
+ * que emite este flujo es del tipo que Shopify ya no acepta.
+ */
+const TOKEN_DADO_DE_BAJA = /non-expiring access tokens are no longer accepted/i
+
 export async function markShopifyConnectionExpired(
   shopDomain: string,
+  motivo = 'Token revocado en Shopify — reconectar desde Ajustes',
 ): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -37,7 +49,7 @@ export async function markShopifyConnectionExpired(
       .from('shopify_connections')
       .update({
         status: 'expired',
-        last_error: 'Token revocado en Shopify — reconectar desde Ajustes',
+        last_error: motivo,
       })
       .eq('platform', 'shopify')
       .eq('shop_domain', shopDomain)
@@ -108,6 +120,18 @@ export class ShopifyAdminClient {
           `Shopify Admin API 401: ${text.slice(0, 300)}`,
         )
       }
+      // El 403 de los tokens dados de baja se trata como token muerto: la
+      // conexión tiene que decir que no sirve en vez de seguir figurando activa
+      // mientras cada llamada falla en silencio.
+      if (res.status === 403 && TOKEN_DADO_DE_BAJA.test(text)) {
+        void markShopifyConnectionExpired(
+          this.shop,
+          'Shopify dejó de aceptar el tipo de token de esta conexión. Reconectar no alcanza: hay que migrar la app a tokens que expiran.',
+        )
+        throw new ShopifyUnauthorizedError(
+          `Shopify Admin API 403 (token dado de baja): ${text.slice(0, 300)}`,
+        )
+      }
       throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 300)}`)
     }
     return res.json() as Promise<T>
@@ -133,6 +157,18 @@ export class ShopifyAdminClient {
         void markShopifyConnectionExpired(this.shop)
         throw new ShopifyUnauthorizedError(
           `Shopify Admin API 401: ${text.slice(0, 300)}`,
+        )
+      }
+      // El 403 de los tokens dados de baja se trata como token muerto: la
+      // conexión tiene que decir que no sirve en vez de seguir figurando activa
+      // mientras cada llamada falla en silencio.
+      if (res.status === 403 && TOKEN_DADO_DE_BAJA.test(text)) {
+        void markShopifyConnectionExpired(
+          this.shop,
+          'Shopify dejó de aceptar el tipo de token de esta conexión. Reconectar no alcanza: hay que migrar la app a tokens que expiran.',
+        )
+        throw new ShopifyUnauthorizedError(
+          `Shopify Admin API 403 (token dado de baja): ${text.slice(0, 300)}`,
         )
       }
       throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 300)}`)
