@@ -776,6 +776,28 @@ const DEJA_HUELLA = new Set([
   'ofrecer_descuento',
 ])
 
+/**
+ * Con qué se puede probar que un pedido es de quien pregunta.
+ *
+ * En WhatsApp, Instagram o Messenger el canal ya autenticó a la persona: el
+ * número o el id de la cuenta son suyos, y el agente no los eligió. En el chat
+ * web no. Ahí el correo lo escribe el visitante, y la ruta que lo guarda ya lo
+ * dice con todas las letras: «acá el dato es una AFIRMACIÓN de alguien
+ * anónimo». Aceptarlo como prueba dejaba la fuga por número de pedido viva en
+ * dos pasos — escribir el correo de otra clienta y después pedir su pedido.
+ *
+ * En el chat web el pedido propio se contesta con la fila espejo, que está
+ * atada a la conversación y no a lo que alguien escriba.
+ */
+function pruebaDeIdentidad(
+  canal: string | null | undefined,
+  email: string | null | undefined,
+  telefono: string | null | undefined,
+): { email?: string; phone?: string } {
+  if ((canal ?? '') === 'webchat') return {}
+  return { email: email ?? undefined, phone: telefono ?? undefined }
+}
+
 export interface LocalOrdersContext {
   db: SupabaseClient
   workspaceId: string
@@ -1316,12 +1338,18 @@ export async function runTool(
       }
       const numero = entrada.order_number?.trim()
       const r = numero
-        ? await lookupOrderNonShopify(otherStore, 'order_by_number', numero, {
-            // Con quién pregunta: en Tiendanube y Woo el número es correlativo
-            // y no prueba de quién es el pedido. Ver esSuyo().
-            email: otherStore.customerEmail,
-            phone: otherStore.customerPhone,
-          })
+        ? await lookupOrderNonShopify(
+            otherStore,
+            'order_by_number',
+            numero,
+            // En Tiendanube y Woo el número es correlativo y no prueba de quién
+            // es el pedido. Ver esDeQuienPregunta() y pruebaDeIdentidad().
+            pruebaDeIdentidad(
+              localOrders?.channel,
+              otherStore.customerEmail,
+              otherStore.customerPhone,
+            ),
+          )
         : otherStore.customerEmail
           ? await lookupOrderNonShopify(
               otherStore,
@@ -1369,12 +1397,20 @@ export async function runTool(
       order_number?: string
       reason?: string
     }
+    // La identidad que se le pasa a Shopify es la que el canal PROBÓ. En el
+    // chat web el correo lo escribió el visitante, así que no sirve de prueba;
+    // su pedido sale de la fila espejo, más abajo.
+    const quien = pruebaDeIdentidad(
+      shopify.channel ?? localOrders?.channel,
+      shopify.customerEmail,
+      shopify.customerPhone,
+    )
     const result = await lookupCustomerOrders({
       shopDomain: shopify.shopDomain,
       accessToken: shopify.accessToken,
       apiVersion: shopify.apiVersion,
-      customerPhone: shopify.customerPhone,
-      customerEmail: shopify.customerEmail,
+      customerPhone: quien.phone,
+      customerEmail: quien.email,
       orderNumber: input.order_number,
     })
     // Shopify sólo devuelve los pedidos que se le pueden ATRIBUIR a esta
