@@ -179,6 +179,16 @@ describe('las otras superficies que leen el catálogo', () => {
     expect(cap).toContain('agruparPorPrincipal')
   })
 
+  it('los enlaces que ofrece el DM de Instagram: uno por producto', () => {
+    // Son cuatro lugares. Sin plegar, el serum se los llevaba los cuatro con
+    // sus publicaciones de Mercado Libre y el resto del catálogo se quedaba sin
+    // ninguno — y el enlace podía ser el del marketplace en vez del de la
+    // tienda del comercio.
+    const links = leer('src/lib/instagram-agent/store-links.ts')
+    expect(links).toContain('agruparPorPrincipal')
+    expect(links).toContain('master_id')
+  })
+
   it('el cerebro de producto de Instagram también', () => {
     // Sin plegar, "el serum" caía en la publicación del marketplace —la que
     // tiene el título parecido y el material vacío— y el mensaje proactivo

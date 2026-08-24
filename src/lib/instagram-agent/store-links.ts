@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
 
 /**
  * Enlaces REALES de la tienda para que el DM pueda cerrar la venta.
@@ -32,14 +33,20 @@ export async function loadStoreLinks(
       .maybeSingle(),
     db
       .from('shopify_products')
-      .select('title, url')
+      .select('id, title, url, master_id, platform')
       .eq('workspace_id', workspaceId)
       .not('url', 'is', null)
       .limit(60),
   ]);
 
   const domain = (conn as { shop_domain?: string } | null)?.shop_domain ?? null;
-  const rows = (products ?? []) as Array<{ title: string; url: string }>;
+  // Un producto, un enlace. Sin plegar, el serum de Pilar se llevaba los cuatro
+  // lugares con sus tres publicaciones de Mercado Libre y el resto del catálogo
+  // se quedaba sin ninguno — y el enlace que salía podía ser el del marketplace
+  // en vez del de la tienda del comercio.
+  const rows = agruparPorPrincipal(
+    (products ?? []) as unknown as FilaAgrupable[],
+  ) as unknown as Array<{ title: string; url: string }>;
 
   // Los productos del plan primero; si el plan no nombra ninguno, los primeros
   // del catálogo sirven de respaldo para no quedarnos sin enlace que ofrecer.
