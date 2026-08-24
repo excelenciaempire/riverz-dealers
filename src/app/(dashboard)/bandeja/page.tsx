@@ -858,7 +858,13 @@ export default function InboxPage() {
             (shows its own empty-state if no thread is picked yet). */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex",
+            // `min-w-0` no es decorativo: sin él este panel es un elemento
+            // flex con `min-width:auto`, o sea que no puede achicarse por
+            // debajo de su contenido. En un teléfono, un mensaje con un
+            // enlace largo estiraba el panel más allá de la pantalla y la
+            // burbuja quedaba cortada por la derecha, con el encabezado
+            // también fuera de vista.
+            "flex h-full min-w-0 flex-1 lg:flex",
             hasActiveConv ? "flex" : "hidden lg:flex",
           )}
         >
