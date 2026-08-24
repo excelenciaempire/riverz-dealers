@@ -108,28 +108,89 @@ export async function resolveStoreForLookup(
   }
 }
 
+/** Quién está preguntando, para poder decidir si el pedido es suyo. */
+export interface QuienPregunta {
+  email?: string | null
+  phone?: string | null
+}
+
+function claveDeTelefono(valor: string | null | undefined): string | null {
+  const digitos = (valor ?? '').replace(/\D/g, '')
+  return digitos.length >= 8 ? digitos.slice(-8) : null
+}
+
+/**
+ * ¿El pedido es de quien está hablando?
+ *
+ * El número de pedido no prueba nada: en Tiendanube y en WooCommerce son
+ * correlativos y chicos (1, 2, 3…), así que cualquiera podía escribirle al chat
+ * de la tienda "¿dónde está el pedido 118?" y recibir el correo de la
+ * compradora, lo que compró, el total y el número de seguimiento — y después
+ * 119, y 120. El camino de Shopify ya comparaba contra el contacto; estos dos
+ * devolvían el pedido sin mirar de quién era.
+ *
+ * Sin correo ni teléfono del contacto no hay con qué comparar, y se rechaza.
+ * El caso legítimo que eso deja afuera —quien acaba de comprar por el chat web
+ * y todavía no se identificó— lo cubre la fila espejo, que está atada a la
+ * conversación.
+ */
+export function esDeQuienPregunta(
+  pedido: { correos?: Array<string | null | undefined>; telefonos?: Array<string | null | undefined> },
+  quien: QuienPregunta | undefined,
+): boolean {
+  const correo = quien?.email?.trim().toLowerCase()
+  if (correo) {
+    for (const c of pedido.correos ?? []) {
+      if ((c ?? '').trim().toLowerCase() === correo) return true
+    }
+  }
+  const tel = claveDeTelefono(quien?.phone)
+  if (tel) {
+    for (const t of pedido.telefonos ?? []) {
+      if (claveDeTelefono(t) === tel) return true
+    }
+  }
+  return false
+}
+
+function esSuyo(vars: Record<string, string>, quien: QuienPregunta | undefined): boolean {
+  return esDeQuienPregunta(
+    { correos: [vars.email], telefonos: [vars.phone, vars.customer_phone, vars.shipping_phone] },
+    quien,
+  )
+}
+
 /**
  * Busca un pedido en Tiendanube o WooCommerce. Shopify NO pasa por acá: su
  * camino ya existe y está probado, y moverlo no aporta nada.
+ *
+ * `quien` es obligatorio en la práctica para buscar POR NÚMERO: sin él la
+ * búsqueda se rechaza. Es a propósito que el parámetro sea opcional en el tipo
+ * y estricto en la ejecución — quien agregue un llamador nuevo y se olvide de
+ * pasarlo obtiene "no encontrado", no el pedido de un tercero.
  */
 export async function lookupOrderNonShopify(
   store: NonNullable<Awaited<ReturnType<typeof resolveStoreForLookup>>>,
   kind: LookupKind,
   input: string,
+  quien?: QuienPregunta,
 ): Promise<LookupResult> {
   const termino = input.trim()
   if (!termino) return VACIO
   try {
+    let r: LookupResult = VACIO
     if (store.platform === 'tiendanube') {
-      return await buscarEnTiendanube(store, kind, termino)
+      r = await buscarEnTiendanube(store, kind, termino)
+    } else if (store.platform === 'woocommerce') {
+      r = await buscarEnWoo(store, kind, termino)
     }
-    if (store.platform === 'woocommerce') {
-      return await buscarEnWoo(store, kind, termino)
-    }
+    // Buscar por correo o por teléfono ya usa un dato que sólo el dueño del
+    // pedido tiene; el número, no.
+    if (r.found && kind === 'order_by_number' && !esSuyo(r.vars ?? {}, quien)) return VACIO
+    return r
   } catch {
     return VACIO
   }
-  return VACIO
 }
 
 // ── Tiendanube ───────────────────────────────────────────────────────────
@@ -203,6 +264,9 @@ function pedidoTnAVars(p: PedidoTn, storeUrl: string | null): Record<string, str
     order_number: p.number != null ? String(p.number) : '',
     order_name: p.number != null ? `#${p.number}` : '',
     email: p.contact_email ?? '',
+    // El teléfono viaja porque es con lo que se comprueba que el pedido sea de
+    // quien pregunta: en WhatsApp el contacto no tiene correo, sólo número.
+    phone: p.contact_phone ?? '',
     financial_status: p.payment_status ?? '',
     fulfillment_status: p.shipping_status ?? '',
     total_price: p.total ?? '',
@@ -281,6 +345,8 @@ function pedidoWooAVars(p: PedidoWoo): Record<string, string> {
     order_number: String(p.number ?? p.id ?? ''),
     order_name: p.number ? `#${p.number}` : '',
     email: p.billing?.email ?? '',
+    // Igual que en Tiendanube: con esto se comprueba de quién es el pedido.
+    phone: p.billing?.phone ?? '',
     financial_status: p.status ?? '',
     fulfillment_status: p.status === 'completed' ? 'fulfilled' : '',
     total_price: p.total ?? '',

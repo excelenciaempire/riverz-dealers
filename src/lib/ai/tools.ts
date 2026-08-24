@@ -1316,7 +1316,12 @@ export async function runTool(
       }
       const numero = entrada.order_number?.trim()
       const r = numero
-        ? await lookupOrderNonShopify(otherStore, 'order_by_number', numero)
+        ? await lookupOrderNonShopify(otherStore, 'order_by_number', numero, {
+            // Con quién pregunta: en Tiendanube y Woo el número es correlativo
+            // y no prueba de quién es el pedido. Ver esSuyo().
+            email: otherStore.customerEmail,
+            phone: otherStore.customerPhone,
+          })
         : otherStore.customerEmail
           ? await lookupOrderNonShopify(
               otherStore,
@@ -1331,6 +1336,13 @@ export async function runTool(
               )
             : { found: false as const }
       if (!r.found) {
+        // Igual que en Shopify: quien compró por el chat web todavía no tiene
+        // correo ni teléfono con qué probar que el pedido es suyo, pero la fila
+        // espejo sí sabe de quién es.
+        if (localOrders) {
+          const local = await lookupLocalOrders(localOrders, numero)
+          if ((JSON.parse(local) as { found?: boolean }).found) return local
+        }
         return JSON.stringify({
           found: false,
           orders: [],

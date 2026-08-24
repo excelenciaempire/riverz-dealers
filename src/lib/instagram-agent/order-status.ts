@@ -87,7 +87,10 @@ export async function loadOrderStatus(
       const tienda = await resolveStoreForLookup(db, workspaceId);
       if (!tienda || tienda.platform === 'shopify') return null;
       const r = orderNumber
-        ? await lookupOrderNonShopify(tienda, 'order_by_number', orderNumber)
+        ? await lookupOrderNonShopify(tienda, 'order_by_number', orderNumber, {
+            email: contact?.email,
+            phone: contact?.phone,
+          })
         : contact?.email
           ? await lookupOrderNonShopify(tienda, 'order_by_email', contact.email)
           : contact?.phone

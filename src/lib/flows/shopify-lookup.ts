@@ -5,7 +5,9 @@ import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
 import {
   resolveStoreForLookup,
   lookupOrderNonShopify,
+  esDeQuienPregunta,
 } from '@/lib/commerce/order-lookup'
+import type { QuienPregunta } from '@/lib/commerce/order-lookup'
 import type { ShopifyLookupKind } from './types'
 
 /**
@@ -75,7 +77,12 @@ export async function runShopifyLookup(args: {
     if (!tienda || tienda.platform === 'shopify') return { found: false }
     switch (args.kind) {
       case 'order_by_number':
-        return lookupOrderNonShopify(tienda, 'order_by_number', args.input)
+        // Con quién pregunta: el número de pedido es correlativo y no prueba
+        // de quién es. Ver esSuyo() en commerce/order-lookup.
+        return lookupOrderNonShopify(tienda, 'order_by_number', args.input, {
+          email: contactRow?.email,
+          phone: contactRow?.phone,
+        })
       case 'order_by_email':
         return lookupOrderNonShopify(tienda, 'order_by_email', args.input)
       case 'last_order': {
@@ -104,7 +111,10 @@ export async function runShopifyLookup(args: {
 
   switch (args.kind) {
     case 'order_by_number':
-      return lookupOrderByNumber(client, args.input)
+      return lookupOrderByNumber(client, args.input, {
+        email: contactRow?.email,
+        phone: contactRow?.phone,
+      })
     case 'order_by_email':
       return lookupOrderByEmail(client, args.input)
     case 'last_order': {
@@ -128,6 +138,9 @@ interface ShopifyOrder {
   name?: string
   order_number?: number
   email?: string
+  phone?: string
+  customer?: { email?: string; phone?: string }
+  shipping_address?: { phone?: string }
   financial_status?: string
   fulfillment_status?: string | null
   total_price?: string
@@ -151,6 +164,7 @@ interface ShopifyProduct {
 async function lookupOrderByNumber(
   client: ShopifyAdminClient,
   raw: string,
+  quien?: QuienPregunta,
 ): Promise<{ found: boolean; vars?: Record<string, string> }> {
   const num = raw.replace(/[^0-9]/g, '')
   if (!num) return { found: false }
@@ -160,7 +174,20 @@ async function lookupOrderByNumber(
       `/orders.json?name=${encodeURIComponent('#' + num)}&status=any&limit=1`,
     )
     .catch(() => ({ orders: [] as ShopifyOrder[] }))
-  return body.orders.length ? { found: true, vars: orderToVars(body.orders[0]) } : { found: false }
+  // El numero de pedido es adivinable y no prueba nada: sin comprobar de quien
+  // es, cualquiera que le escriba al bot podia pedir 'el pedido #1042' y
+  // recibir el correo, el total y el seguimiento de otra compradora. La tool de
+  // chat ya lo comprobaba; este camino, el del nodo de flujo, no.
+  const pedido = body.orders[0]
+  const suyo = esDeQuienPregunta(
+    {
+      correos: [pedido?.email, pedido?.customer?.email],
+      telefonos: [pedido?.phone, pedido?.customer?.phone, pedido?.shipping_address?.phone],
+    },
+    quien,
+  )
+  if (!pedido || !suyo) return { found: false }
+  return { found: true, vars: orderToVars(pedido) }
 }
 
 async function lookupOrderByEmail(
