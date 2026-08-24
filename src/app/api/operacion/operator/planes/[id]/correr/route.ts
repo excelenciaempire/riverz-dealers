@@ -10,12 +10,18 @@ import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
 import { crearPresupuesto } from '@/lib/operator/fleet/budget'
 import { ejecutarPlan } from '@/lib/operator/fleet/ejecutar-plan'
-import { cargarPlan, reclamarPlan } from '@/lib/operator/fleet/plan'
+import {
+  cargarPlan,
+  marcarPlan,
+  reclamarPlan,
+  type PlanGuardado,
+} from '@/lib/operator/fleet/plan'
 import { anthropicRunner } from '@/lib/operator/fleet/runner'
 import { guardarGasto } from '@/lib/operator/gasto'
 import { appendMessage } from '@/lib/operator/threads'
 import { grabador } from '@/lib/operator/bloques'
 import { getLocale } from '@/lib/i18n/server'
+import type { Locale } from '@/lib/i18n/config'
 import { translate } from '@/lib/i18n/translate'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 
@@ -120,8 +126,22 @@ export async function POST(
       const presupuesto = crearPresupuesto()
       let cierre: string | null = null
 
+      /**
+       * Lo primero que se lee al aprobar: qué empieza ahora.
+       *
+       * La conversación se quedaba muda. La tarjeta pasaba a «corriendo» y el
+       * primer especialista podía tardar minutos en devolver algo, así que
+       * entre el click y la primera señal había un hueco en el que no se sabía
+       * si había pasado algo. Aprobar es una acción de la persona: la respuesta
+       * es decir por dónde se empieza.
+       *
+       * Sale antes de cargar nada, así que llega con el primer byte.
+       */
+      const apertura = comoArranca(plan, locale)
+
       try {
         push({ t: 'plan_estado', planId, estado: 'corriendo' })
+        if (apertura) push({ t: 'text', delta: apertura })
         const r = await ejecutarPlan({
           plan,
           ctx,
@@ -137,8 +157,27 @@ export async function POST(
         // cómo salió.
         cierre = resumirCierre(r)
         push({ t: 'text', delta: cierre })
+
+        /**
+         * Y deja de estar propuesto.
+         *
+         * Nadie lo marcaba: el plan corría entero y su fila se quedaba en
+         * `propuesto` para siempre. Mientras la tarjeta vivía sólo en la
+         * memoria de la pestaña eso no se notaba; desde que el plan se lee del
+         * hilo al abrirlo, un plan ya aprobado y ya ejecutado volvía a aparecer
+         * pidiendo aprobación cada vez que entrabas.
+         */
+        const fallidos = r.pasos.filter((paso) => paso.estado === 'fallido').length
+        await marcarPlan(
+          admin,
+          planId,
+          workspaceId,
+          fallidos === 0 ? 'terminado' : fallidos === r.pasos.length ? 'fallido' : 'parcial',
+        )
       } catch (err) {
         push({ t: 'error', message: err instanceof Error ? err.message : 'failed' })
+        // Un plan que se cayó tampoco sigue esperando aprobación.
+        await marcarPlan(admin, planId, workspaceId, 'fallido').catch(() => undefined)
       } finally {
         clearInterval(latido)
 
@@ -161,7 +200,10 @@ export async function POST(
             threadId,
             workspaceId,
             role: 'assistant',
-            text: cierre ?? translate(locale, 'operation.operatorError'),
+            text:
+              cierre === null
+                ? translate(locale, 'operation.operatorError')
+                : [apertura, cierre].filter(Boolean).join('\n\n'),
             bloques: turnoVisto.bloques,
             promptTokens: total.promptTokens,
             completionTokens: total.completionTokens,
@@ -189,6 +231,30 @@ export async function POST(
       'X-Accel-Buffering': 'no',
     },
   })
+}
+
+/**
+ * Por dónde se empieza, dicho al aprobar.
+ *
+ * Lo escribe el servidor porque es un hecho —el paso 1 del plan que se acaba de
+ * aprobar— y no algo que haya que redactar: gastar una llamada al modelo en
+ * anunciar lo que ya está escrito en la tarjeta sería pagar por repetir.
+ */
+function comoArranca(plan: PlanGuardado, locale: Locale): string {
+  const primero = plan.pasos.find((p) => p.i === 0) ?? plan.pasos[0]
+  if (!primero) return ''
+  const que = (primero.que || primero.encargo).trim()
+  if (!que) return ''
+  return translate(
+    locale,
+    plan.pasos.length === 1 ? 'operation.planArrancoUno' : 'operation.planArranco',
+    { que: enMinuscula(que) },
+  )
+}
+
+/** «Escribir la plantilla» detrás de dos puntos no lleva mayúscula. */
+function enMinuscula(s: string): string {
+  return s.charAt(0).toLocaleLowerCase('es') + s.slice(1)
 }
 
 /**

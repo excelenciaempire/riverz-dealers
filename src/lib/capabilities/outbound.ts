@@ -11,7 +11,11 @@
  * la rechacen, y equivocarse quema el nombre para siempre.
  */
 import { translate } from '@/lib/i18n/translate'
-import { crearPlantilla, type ResultadoCrearPlantilla } from '@/lib/templates/create'
+import {
+  crearPlantilla,
+  type EntradaCrearPlantilla,
+  type ResultadoCrearPlantilla,
+} from '@/lib/templates/create'
 import {
   normalizeTemplateName,
   type TemplateButtonInput,
@@ -261,9 +265,19 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
     )
   }
 
-  const r = exigirOk(
-    ctx,
-    await crearPlantilla(ctx.db, {
+  // La regla de Meta que podemos ver antes de preguntarle.
+  //
+  // Rechaza el cuerpo si empieza o termina con una variable, y contesta con un
+  // viaje de ida y vuelta en el que se pierde el texto. Mirarlo acá lo
+  // convierte en un error que el modelo corrige en la misma vuelta.
+  const cuerpoLimpio = String(args.cuerpo ?? '').trim()
+  if (/^\{\{\s*\d+\s*\}\}/.test(cuerpoLimpio) || /\{\{\s*\d+\s*\}\}$/.test(cuerpoLimpio)) {
+    throw new Error(
+      'Meta no acepta un mensaje que empiece o termine con una variable. Poné texto antes y después.',
+    )
+  }
+
+  const datos: EntradaCrearPlantilla = {
       workspaceId: ctx.workspaceId,
       userId: previa?.user_id ?? (await usuarioDe(ctx)),
       nombre: String(args.nombre ?? ''),
@@ -281,8 +295,30 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       // acordarse de volver.
       enviarAMeta: true,
       plantillaExistenteId: previa?.id ?? null,
-    }),
-  )
+  }
+
+  /**
+   * Si Meta la rechaza, se guarda igual como borrador.
+   *
+   * Pasó en producción: Meta contestó que el cuerpo no podía empezar con una
+   * variable y el texto escrito desapareció, sin dejar ni el borrador. Redactar
+   * el mensaje es el trabajo de verdad; la revisión es un trámite. Perder lo
+   * primero por un tropiezo de lo segundo obliga a escribirlo de nuevo.
+   *
+   * Queda guardada y se dice qué contestó Meta, para corregir y reintentar con
+   * `plantillas.enviar_a_meta`.
+   */
+  const salida = await crearPlantilla(ctx.db, datos)
+  if ('error' in salida && salida.error) {
+    const guardado = await crearPlantilla(ctx.db, { ...datos, enviarAMeta: false })
+    const motivo = String(salida.error)
+    throw new Error(
+      'error' in guardado && guardado.error
+        ? `Meta la rechazó: ${motivo}`
+        : `Meta la rechazó: ${motivo} El texto quedó guardado como borrador para que lo corrijas y lo mandes de nuevo.`,
+    )
+  }
+  const r = exigirOk(ctx, salida)
 
   return {
     id: r.id,

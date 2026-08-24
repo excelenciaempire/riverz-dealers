@@ -57,7 +57,6 @@ export const operation = {
   lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
-  mesaEspera: { es: "espera al {n}", en: "waits for {n}" },
   // Los catorce del equipo, como se ven en la mesa.
   subAutomatizaciones: { es: "Automatizaciones", en: "Automations" },
   subFlujos: { es: "Flujos", en: "Flows" },
@@ -365,17 +364,78 @@ export const operation = {
     es: "Hay algo acá que no se puede deshacer. Revísalo antes de aprobar.",
     en: "Something here cannot be undone. Check it before approving.",
   },
-  vivoMirando: { es: "Mirando {que}", en: "Checking {que}" },
+  /**
+   * Qué está haciendo, por dominio y en una frase.
+   *
+   * Antes se armaba pegándole un gerundio al nombre del dominio —«Armando las
+   * automatizaciones», «Armando bandeja»— y la mitad de las combinaciones no
+   * eran castellano. Escritas enteras, cada una dice lo que de verdad pasa.
+   */
+  haciendoAutomatizaciones: {
+    es: "Armando la automatización",
+    en: "Building the automation",
+  },
+  haciendoFlujos: { es: "Armando el menú", en: "Building the menu" },
+  haciendoPlantillas: { es: "Escribiendo el mensaje", en: "Writing the message" },
+  haciendoCampanas: { es: "Preparando la campaña", en: "Preparing the campaign" },
+  haciendoConversaciones: { es: "Ordenando la bandeja", en: "Sorting the inbox" },
+  haciendoMensajes: { es: "Preparando el mensaje", en: "Preparing the message" },
+  haciendoContactos: { es: "Armando el público", en: "Building the audience" },
+  haciendoEtiquetas: { es: "Poniendo las etiquetas", en: "Applying the tags" },
+  haciendoSegmentos: { es: "Armando el segmento", en: "Building the segment" },
+  haciendoProductos: { es: "Leyendo la ficha del producto", en: "Reading the product" },
+  haciendoComentarios: { es: "Armando la regla", en: "Building the rule" },
+  haciendoVoz: { es: "Preparando la llamada", en: "Preparing the call" },
+  haciendoAgentes: { es: "Ajustando el agente", en: "Adjusting the agent" },
+  haciendoProspeccion: { es: "Preparando la prospección", en: "Preparing outreach" },
+  haciendoPedidos: { es: "Armando el pedido", en: "Building the order" },
+  haciendoIntegraciones: { es: "Cambiando lo conectado", en: "Changing connections" },
+  haciendoAjustes: { es: "Cambiando los ajustes", en: "Changing settings" },
+  haciendoAprobaciones: { es: "Resolviendo la aprobación", en: "Resolving the approval" },
+  haciendoMetricas: { es: "Sacando las cuentas", en: "Running the numbers" },
+  haciendoOperacion: { es: "Mirando cómo va la cuenta", en: "Checking the account" },
+  /** Un especialista le pide algo a otro. */
+  consultando: { es: "Consultando {que}", en: "Checking {que}" },
+  vivoMirando: { es: "Revisando {que}", en: "Going through {que}" },
   vivoArmando: { es: "Armando {que}", en: "Working on {que}" },
   vivoEmpezando: { es: "Leyendo tu cuenta", en: "Reading your account" },
+  /** Al aprobar el plan: por dónde se empieza, para no dejar la pantalla muda. */
+  planArranco: {
+    es: "Listo. Empiezo por el paso 1: {que}.",
+    en: "Done. Starting with step 1: {que}.",
+  },
+  planArrancoUno: { es: "Listo, arranco: {que}.", en: "Done, starting: {que}." },
   seguir: { es: "Listo, aprobado. Continúa.", en: "Done, approved. Carry on." },
-  crearPlantillas: { es: "Crear las plantillas", en: "Create the templates" },
-  crearAutomatizacion: { es: "Crear la automatización", en: "Create the automation" },
-  cambiarAutomatizacion: { es: "Cambiar la automatización", en: "Change the automation" },
-  crearCampana: { es: "Crear la campaña", en: "Create the campaign" },
-  crearSegmento: { es: "Crear el segmento", en: "Create the segment" },
-  crearAgente: { es: "Crear el agente", en: "Create the agent" },
-  crearRegla: { es: "Crear la regla", en: "Create the rule" },
+  seguirCon: {
+    es: "Listo: aprobé {que}. Continúa con lo que falta, sin volver a proponer eso.",
+    en: "Done: I approved {que}. Carry on with what's left; do not propose those again.",
+  },
+  /**
+   * El título de la decisión: que la cosa YA está, y qué se puede hacer.
+   *
+   * Sin «lo/la»: el género cambia con cada cosa, y la frase se puede escribir
+   * sin el pronombre.
+   */
+  decisionAsi: {
+    es: "Así queda {que}. ¿Apruebas o cambiamos algo?",
+    en: "This is how {que} looks. Approve, or change something?",
+  },
+  decisionAsiVarias: {
+    es: "Así quedan {que}. ¿Apruebas o cambiamos algo?",
+    en: "This is how {que} look. Approve, or change something?",
+  },
+  nomPlantilla: { es: "el mensaje", en: "the message" },
+  nomPlantillas: { es: "los {n} mensajes", en: "the {n} messages" },
+  nomAuto: { es: "la automatización", en: "the automation" },
+  nomAutos: { es: "las {n} automatizaciones", en: "the {n} automations" },
+  nomCampana: { es: "la campaña", en: "the campaign" },
+  nomCampanas: { es: "las {n} campañas", en: "the {n} campaigns" },
+  nomSegmento: { es: "el segmento", en: "the segment" },
+  nomSegmentos: { es: "los {n} segmentos", en: "the {n} segments" },
+  nomAgente: { es: "el agente", en: "the agent" },
+  nomAgentes: { es: "los {n} agentes", en: "the {n} agents" },
+  nomRegla: { es: "la regla", en: "the rule" },
+  nomReglas: { es: "las {n} reglas", en: "the {n} rules" },
   mandarAMeta: { es: "Mandar a aprobación de Meta", en: "Submit to Meta" },
   mandarMensaje: { es: "Mandar el mensaje", en: "Send the message" },
   detener: { es: "Detener", en: "Stop" },

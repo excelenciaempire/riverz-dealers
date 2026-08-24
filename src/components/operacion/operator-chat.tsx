@@ -10,6 +10,7 @@ import {
   MessageSquarePlus,
   Pencil,
   Sparkles,
+  Square,
   Trash2,
   X,
 } from 'lucide-react'
@@ -26,7 +27,6 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
-import { nombreDeSubagente } from '@/lib/operator/fleet/types'
 import { useMesa, useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
 
@@ -68,6 +68,22 @@ function escribe(key: string): boolean {
   return VERBOS_QUE_ESCRIBEN.test(key)
 }
 
+/**
+ * El dominio del que habla algo: una clave de capacidad o un especialista.
+ *
+ * `bandeja` y `contactos` cubren más de un dominio; se los nombra por el suyo
+ * principal, que es de lo que hablan el 90% del tiempo.
+ */
+const DOMINIO_DEL_ESPECIALISTA: Record<string, string> = {
+  bandeja: 'conversaciones',
+  contactos: 'contactos',
+}
+
+function dominioDe(clave: string): string {
+  const base = clave.includes('.') ? clave.split('.')[0] : clave
+  return DOMINIO_DEL_ESPECIALISTA[base] ?? base
+}
+
 function cap(s: string): string {
   return `${s[0]?.toUpperCase() ?? ''}${s.slice(1)}`
 }
@@ -97,18 +113,6 @@ const CREAN_AUTOMATIZACION = [
   'automatizaciones.crear',
   'automatizaciones.crear_desde_receta',
 ]
-
-/**
- * Una espera que no se adivina leyendo la lista.
- *
- * Los pasos van numerados y en orden, asi que «espera al 1» debajo del 2 es
- * decir dos veces lo mismo. Lo que si hace falta decir es cuando la espera
- * salta: que el 4 dependa del 1 y no del 3 cambia lo que va a pasar.
- */
-function esperaQueNoSeAdivina(p: { i: number; dependeDe: number[] }): boolean {
-  if (p.dependeDe.length === 0) return false
-  return !(p.dependeDe.length === 1 && p.dependeDe[0] === p.i - 1)
-}
 
 /** La primera frase de un texto. Lo que se muestra de un encargo. */
 function primeraFrase(texto: string): string {
@@ -699,7 +703,25 @@ export function OperatorChat({
         (a) => a.capability_key === 'automatizaciones.activar',
       )
       if (aprobadas.length > 0 && !soloPrender) {
-        await enviarRef.current?.(t('operation.seguir'))
+        /**
+         * Y se dice QUÉ se aprobó.
+         *
+         * Decía «Listo, aprobado. Continúa.» y con eso el modelo no sabía qué
+         * había quedado hecho: releía el pedido original y volvía a proponer el
+         * mismo plan desde cero, así que aprobar tres plantillas terminaba con
+         * las mismas tres plantillas propuestas otra vez.
+         *
+         * Con los nombres adentro, la vuelta siguiente arranca sabiendo de qué
+         * ya no tiene que ocuparse.
+         */
+        const nombres = aprobadas
+          .map((a) => String(a.args?.nombre ?? '').trim())
+          .filter(Boolean)
+        await enviarRef.current?.(
+          nombres.length > 0
+            ? t('operation.seguirCon', { que: nombres.join(', ') })
+            : t('operation.seguir'),
+        )
       }
     },
     [acciones, decidir, ofrecerPrender, t],
@@ -824,15 +846,22 @@ export function OperatorChat({
    * espera. Lo que hace falta saber es qué está tocando y si mira o construye.
    */
   const actividad = corriendo
-    ? t(escribe(corriendo.key) ? 'operation.vivoArmando' : 'operation.vivoMirando', {
-        que: enMinuscula(t(`operation.dom${cap(corriendo.key.split('.')[0])}`)),
-      })
+    ? // Leer es «revisando las plantillas»; escribir tiene su propia frase por
+      // dominio, porque «Armando las automatizaciones» y «Armando bandeja» no
+      // son castellano.
+      escribe(corriendo.key)
+      ? t(`operation.haciendo${cap(dominioDe(corriendo.key))}`)
+      : t('operation.vivoMirando', {
+          que: enMinuscula(t(`operation.dom${cap(dominioDe(corriendo.key))}`)),
+        })
     : trabajando
       ? trabajando.pidiendoA
-        ? t('operation.pideA', { quien: t(nombreDeSubagente(trabajando.pidiendoA)) })
-        : t('operation.vivoArmando', {
-            que: enMinuscula(t(nombreDeSubagente(trabajando.id))),
+        ? // «Le pide a Productos» hablaba en tercera persona de alguien que el
+          // comercio no conoce. Lo que le importa es qué se está mirando.
+          t('operation.consultando', {
+            que: enMinuscula(t(`operation.dom${cap(dominioDe(trabajando.pidiendoA))}`)),
           })
+        : t(`operation.haciendo${cap(dominioDe(trabajando.id))}`)
       : // Nunca «Pensando…» a secas si ya se sabía qué estaba haciendo.
         //
         // Entre que un especialista termina y arranca el siguiente no hay paso
@@ -943,23 +972,6 @@ export function OperatorChat({
           <Turno bloques={vivo.bloques} thinking={vivo.thinking} onVer={verComoQuedo} />
         )}
 
-        {pensando && (
-          <EnVivo
-            actividad={actividad}
-            onDetener={
-              corrida
-                ? () => {
-                    void fetchWithCsrf('/api/operacion/operator/corridas', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ id: corrida }),
-                    })
-                  }
-                : undefined
-            }
-          />
-        )}
-
         {plan && plan.estado !== 'rechazado' && (
           <TarjetaPlan
             plan={plan}
@@ -989,6 +1001,15 @@ export function OperatorChat({
             {n}
           </p>
         ))}
+
+        {/* Abajo de todo, que es donde se mira mientras se espera. Y CALLADA
+            mientras un plan espera aprobación: ahí no está pasando nada — el
+            turno terminó y la pelota es de la persona. Decir «Armando las
+            plantillas» encima de una tarjeta que pide un sí es contar algo que
+            no está ocurriendo. */}
+        {pensando && plan?.estado !== 'esperando' && (
+          <EnVivo actividad={actividad} />
+        )}
 
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -1022,14 +1043,37 @@ export function OperatorChat({
             placeholder={t('operation.operatorPlaceholder')}
             className="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <button
-            type="submit"
-            disabled={pensando || !texto.trim()}
-            aria-label={t('operation.operatorSend')}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
-          >
-            <ArrowUp className="size-4" />
-          </button>
+          {/* Mientras algo corre, el mismo botón detiene.
+              Un turno tarda minutos y sigue aunque cierres la pestaña, así que
+              detenerlo tiene que estar donde la mano ya está — y no escondido
+              al lado de la línea que late. Es el mismo lugar donde uno espera
+              encontrarlo. */}
+          {pensando && corrida ? (
+            <button
+              type="button"
+              onClick={() => {
+                void fetchWithCsrf('/api/operacion/operator/corridas', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id: corrida }),
+                })
+              }}
+              aria-label={t('operation.detener')}
+              title={t('operation.detener')}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/10 text-foreground transition-colors hover:bg-foreground/20"
+            >
+              <Square className="size-3 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={pensando || !texto.trim()}
+              aria-label={t('operation.operatorSend')}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          )}
         </div>
 
         {/* Debajo del compositor y no en una pantalla de ajustes: es una
@@ -1218,16 +1262,9 @@ function TarjetaPlan({
                   que necesita para no adivinar— y no algo para leer entero acá:
                   dos párrafos por paso convertían la tarjeta en un muro. */}
               <span className="line-clamp-2 text-muted-foreground">{p.que || primeraFrase(p.encargo)}</span>
-              {/* «espera al 1» debajo del paso 2 no dice nada: una lista
-                  numerada ya se lee de arriba abajo. Sólo vale la pena cuando
-                  la espera NO es la del renglón de arriba — que el paso 4
-                  dependa del 1 es lo único que no se adivina. */}
-              {esperaQueNoSeAdivina(p) && (
-                <span className="text-muted-foreground/70">
-                  {" "}
-                  ({t('operation.mesaEspera', { n: p.dependeDe.map((d) => d + 1).join(', ') })})
-                </span>
-              )}
+              {/* Ninguna anotación de espera: «(espera al 1, 2, 3)» debajo del
+                  paso 4 de una lista numerada dice lo que la numeración ya
+                  dice. */}
             </span>
           </li>
         ))}
@@ -1276,31 +1313,16 @@ function TarjetaPlan({
  * de barras dice "esperá"; una línea que se ilumina mientras nombra lo que se
  * está haciendo dice "esto está pasando", que es otra cosa.
  */
-function EnVivo({
-  actividad,
-  onDetener,
-}: {
-  actividad: string
-  onDetener?: () => void
-}) {
-  const t = useT()
+function EnVivo({ actividad }: { actividad: string }) {
   return (
     <div className="flex items-center gap-2.5 py-0.5">
       <span className="app-punto size-1.5 shrink-0 rounded-full bg-accent-ink" aria-hidden />
-      <span className="app-latiendo app-eyebrow min-w-0 flex-1 truncate">{actividad}</span>
-      {/* El turno sigue aunque cierres la pestaña, así que detenerlo tiene que
-          ser algo que se pide a propósito. Vive acá, al lado de lo que está
-          pasando, y no en una esquina: es la única cosa que se puede hacer
-          mientras se espera. */}
-      {onDetener && (
-        <button
-          type="button"
-          onClick={onDetener}
-          className="app-eyebrow shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {t('operation.detener')}
-        </button>
-      )}
+      {/* En minúscula y sin el espaciado de etiqueta: es una frase que cambia
+          sola cada pocos segundos, y en mayúsculas se lee como un registro de
+          sistema en vez de como alguien contando qué está haciendo. */}
+      <span className="app-latiendo min-w-0 flex-1 truncate text-xs text-muted-foreground">
+        {actividad}
+      </span>
     </div>
   )
 }
@@ -1463,25 +1485,57 @@ function Paso({
  * Un título que dice «Crear las plantillas» contesta la pregunta antes de que
  * nadie baje la vista.
  */
-const CREA: Record<string, string> = {
-  'plantillas.crear': 'operation.crearPlantillas',
-  'automatizaciones.crear': 'operation.crearAutomatizacion',
-  'automatizaciones.crear_desde_receta': 'operation.crearAutomatizacion',
-  'automatizaciones.editar': 'operation.cambiarAutomatizacion',
-  'automatizaciones.editar_espera': 'operation.cambiarAutomatizacion',
-  'campanas.crear': 'operation.crearCampana',
-  'segmentos.crear': 'operation.crearSegmento',
-  'agentes.crear_borrador': 'operation.crearAgente',
-  'comentarios.crear_regla': 'operation.crearRegla',
+/**
+ * Lo que ya está escrito y se puede mirar antes de decir que sí.
+ *
+ * En singular y en plural, porque el título los cuenta: «así queda el mensaje»
+ * y «así quedan los 3 mensajes» son la misma frase con el número adentro.
+ */
+const MUESTRA: Record<string, [uno: string, varios: string]> = {
+  'plantillas.crear': ['operation.nomPlantilla', 'operation.nomPlantillas'],
+  'automatizaciones.crear': ['operation.nomAuto', 'operation.nomAutos'],
+  'automatizaciones.crear_desde_receta': ['operation.nomAuto', 'operation.nomAutos'],
+  'automatizaciones.editar': ['operation.nomAuto', 'operation.nomAutos'],
+  'automatizaciones.editar_espera': ['operation.nomAuto', 'operation.nomAutos'],
+  'campanas.crear': ['operation.nomCampana', 'operation.nomCampanas'],
+  'segmentos.crear': ['operation.nomSegmento', 'operation.nomSegmentos'],
+  'agentes.crear_borrador': ['operation.nomAgente', 'operation.nomAgentes'],
+  'comentarios.crear_regla': ['operation.nomRegla', 'operation.nomReglas'],
+}
+
+/** Lo que SALE de la cuenta. No hay nada que mirar: hay que decidir si va. */
+const MANDA: Record<string, string> = {
   'plantillas.enviar_a_meta': 'operation.mandarAMeta',
   'mensajes.enviar': 'operation.mandarMensaje',
 }
 
+/**
+ * El título es la pregunta, y dice que la cosa YA está.
+ *
+ * «Crear las plantillas» nombra el botón: quien lo lee no sabe que el mensaje
+ * ya está escrito, que se puede leer entero a la derecha, ni que puede pedir un
+ * cambio en vez de aprobar. «Así queda el mensaje. ¿Apruebas o cambiamos algo?»
+ * dice las tres cosas en un renglón.
+ *
+ * Sin «lo/la»: el género cambia con cada cosa y la frase se puede escribir sin
+ * el pronombre.
+ */
 function tituloDe(acciones: Accion[], t: ReturnType<typeof useT>): string {
-  const claves = [...new Set(acciones.map((a) => CREA[a.capability_key]).filter(Boolean))]
-  // Con una sola cosa el título la nombra; con varias distintas, ninguno de los
-  // dos títulos sería cierto y el genérico dice la verdad.
-  return claves.length === 1 ? t(claves[0]) : t('operation.decisionTitulo')
+  const uno = acciones.length === 1
+  if (acciones.every((a) => MUESTRA[a.capability_key])) {
+    const nombres = [...new Set(acciones.map((a) => MUESTRA[a.capability_key][uno ? 0 : 1]))]
+    if (nombres.length === 1) {
+      return t(uno ? 'operation.decisionAsi' : 'operation.decisionAsiVarias', {
+        que: t(nombres[0], { n: acciones.length }),
+      })
+    }
+  }
+  // Lo que sale de la cuenta se nombra por lo que hace; y con cosas de distinta
+  // clase ningún título sería cierto, así que el genérico dice la verdad.
+  const manda = [...new Set(acciones.map((a) => MANDA[a.capability_key]).filter(Boolean))]
+  return manda.length === 1 && acciones.every((a) => MANDA[a.capability_key])
+    ? t(manda[0])
+    : t('operation.decisionTitulo')
 }
 
 function TarjetaDecision({
