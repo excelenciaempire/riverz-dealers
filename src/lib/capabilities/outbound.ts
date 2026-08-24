@@ -273,7 +273,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
   const cuerpoLimpio = String(args.cuerpo ?? '').trim()
   if (/^\{\{\s*\d+\s*\}\}/.test(cuerpoLimpio) || /\{\{\s*\d+\s*\}\}$/.test(cuerpoLimpio)) {
     throw new Error(
-      'Meta no acepta un mensaje que empiece o termine con una variable. Poné texto antes y después.',
+      'Meta no acepta un mensaje que empiece o termine con una variable. Pon texto antes y después.',
     )
   }
 
@@ -315,7 +315,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
     throw new Error(
       'error' in guardado && guardado.error
         ? `Meta la rechazó: ${motivo}`
-        : `Meta la rechazó: ${motivo} El texto quedó guardado como borrador para que lo corrijas y lo mandes de nuevo.`,
+        : `Meta la rechazó: ${motivo} El texto quedó guardado como borrador para corregirlo y mandarlo de nuevo.`,
     )
   }
   const r = exigirOk(ctx, salida)
