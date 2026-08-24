@@ -12,6 +12,7 @@ import { planQueEspera } from '@/lib/operator/fleet/plan'
 import {
   abrirCorrida,
   cerrarCorrida,
+  corridaViva,
   latido,
   pidieronDetener,
 } from '@/lib/operator/corridas'
@@ -109,26 +110,42 @@ export async function GET(request: Request) {
   // conversación como al arrancar en blanco, y son dos consultas baratas.
   const hilos = await listarHilos(ctx.admin, ctx.workspaceId)
 
-  if (!threadId) {
+  /**
+   * Sin `thread`, se abre la última.
+   *
+   * Es lo que la pantalla hace SIEMPRE al entrar, y pedirlo aparte costaba un
+   * segundo viaje encadenado: primero la lista, después —ya sabiendo el id— la
+   * conversación. Dos esperas en fila con el chat en blanco, por algo que el
+   * servidor ya tiene en la mano.
+   */
+  const abrir = threadId ?? hilos[0]?.id ?? null
+
+  if (!abrir) {
     return NextResponse.json(
-      { mensajes: [], acciones: [], hilos },
+      { thread: null, mensajes: [], acciones: [], hilos, plan: null, corrida: null },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   }
 
-  const [mensajes, acciones, plan] = await Promise.all([
-    loadMessages(ctx.admin, threadId, ctx.workspaceId),
-    loadActions(ctx.admin, threadId, ctx.workspaceId),
+  const [mensajes, acciones, plan, corrida] = await Promise.all([
+    loadMessages(ctx.admin, abrir, ctx.workspaceId),
+    loadActions(ctx.admin, abrir, ctx.workspaceId),
     // El plan que quedó esperando un sí. Se dibujaba sólo desde el stream, así
     // que cerrar la pantalla lo borraba de la vista y quedaba en la base sin
     // forma de aprobarlo.
-    planQueEspera(ctx.admin, threadId, ctx.workspaceId),
+    planQueEspera(ctx.admin, abrir, ctx.workspaceId),
+    // Y si quedó algo corriendo. Era el TERCER viaje: salir de la pantalla no
+    // cancela el turno, así que al volver hay que engancharse de nuevo — y
+    // preguntarlo aparte era otra espera por un booleano.
+    corridaViva(ctx.admin, abrir, ctx.workspaceId),
   ])
   return NextResponse.json(
     {
+      thread: abrir,
       mensajes,
       acciones,
       hilos,
+      corrida,
       plan: plan
         ? {
             planId: plan.id,

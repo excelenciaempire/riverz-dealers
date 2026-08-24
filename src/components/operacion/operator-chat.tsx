@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
+import { useRecordado } from '@/hooks/use-recordado'
 import { TextoRico } from '@/components/ui/texto-rico'
 import {
   agrupar,
@@ -154,14 +155,26 @@ export function OperatorChat({
   // lector del stream.
   const aLaMesa = useMesaDispatch()
   const mesa = useMesa()
-  const [thread, setThread] = useState<string | null>(null)
-  const [mensajes, setMensajes] = useState<Mensaje[]>([])
-  const [acciones, setAcciones] = useState<Accion[]>([])
+  /**
+   * Lo que ya se mostró, para que volver sea instantáneo.
+   *
+   * La navegación del panel es de cliente, pero esta pantalla se montaba vacía
+   * y pedía todo de nuevo: salir a Contactos y volver eran unos segundos con la
+   * conversación en blanco por lo mismo que ya se había traído. Ahora aparece
+   * en el acto y la consulta sale igual, en silencio, para reemplazarlo.
+   *
+   * En memoria del navegador, no en `sessionStorage`: al recargar de verdad
+   * conviene empezar limpio, y cerrar sesión lo borra sin que haya que
+   * acordarse.
+   */
+  const [thread, setThread, veniamos] = useRecordado<string | null>('operador:hilo', null)
+  const [mensajes, setMensajes] = useRecordado<Mensaje[]>('operador:mensajes', [])
+  const [acciones, setAcciones] = useRecordado<Accion[]>('operador:acciones', [])
   const [texto, setTexto] = useState('')
   const [pensando, setPensando] = useState(false)
   const [vivo, setVivo] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [hilos, setHilos] = useState<ResumenHilo[]>([])
+  const [hilos, setHilos] = useRecordado<ResumenHilo[]>('operador:hilos', [])
   /**
    * El reparto que quedó esperando un click.
    *
@@ -169,7 +182,7 @@ export function OperatorChat({
    * están donde están las otras: junto a las tarjetas de aprobación, al final
    * del hilo. La mesa lo muestra también, pero de sólo lectura.
    */
-  const [plan, setPlan] = useState<PlanPendiente | null>(null)
+  const [plan, setPlan] = useRecordado<PlanPendiente | null>('operador:plan', null)
   const [cargandoHilo, setCargandoHilo] = useState(false)
   /**
    * Lo que quedó dicho y no es una decisión.
@@ -220,6 +233,43 @@ export function OperatorChat({
    * pantalla abría un hilo nuevo en cada carga y no había forma de volver a
    * ninguno. Se guardaba todo y no se leía nada.
    */
+  /**
+   * El banco, rearmado desde los bloques de la conversación.
+   *
+   * Los dibujos ya se guardan con cada mensaje, así que no hace falta guardar
+   * nada aparte: alcanza con volver a ponerlos. TODOS, no el último — con uno
+   * solo, volver a una conversación con tres plantillas dejaba dos afuera.
+   */
+  const rearmarBanco = useCallback(
+    (ms: Mensaje[]) => {
+      aLaMesa({
+        tipo: 'restaurar',
+        lienzos: ms
+          .flatMap((m) => m.bloques ?? [])
+          .flatMap((b) =>
+            b.k === 'paso' && b.artefacto
+              ? [{ agente: 'automatizaciones' as const, artefacto: b.artefacto }]
+              : [],
+          ),
+      })
+    },
+    [aLaMesa],
+  )
+
+  /**
+   * Lo recordado vuelve al banco apenas se monta.
+   *
+   * El estado del chat sobrevive a la navegación; la mesa no —su proveedor vive
+   * en la página y se vuelve a montar— así que sin esto la conversación
+   * aparecía instantánea y el panel de la derecha, vacío.
+   */
+  useEffect(() => {
+    if (mensajes.length > 0) rearmarBanco(mensajes)
+    // Sólo al montar: después lo mantiene el stream, y volver a dispararlo con
+    // cada mensaje nuevo pisaría lo que el turno está dibujando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const abrirHilo = useCallback(async (id: string) => {
     setCargandoHilo(true)
     setError(null)
@@ -242,30 +292,13 @@ export function OperatorChat({
       // en la base sin forma de aprobarlo.
       setPlan(json.plan ? { ...json.plan, estado: 'esperando' } : null)
       setVivo(null)
-      // El banco vuelve a lo que había. Los dibujos ya se guardan con el
-      // mensaje; lo que faltaba era volver a ponerlos, así que hasta ahora la
-      // pieza vivía sólo en la memoria del turno que la armó y volver a la
-      // conversación dejaba media pantalla vacía.
-      aLaMesa({
-        tipo: 'restaurar',
-        lienzos: ms
-          .flatMap((m) => m.bloques ?? [])
-          .flatMap((b) =>
-            b.k === 'paso' && b.artefacto
-              ? [{ agente: 'automatizaciones' as const, artefacto: b.artefacto }]
-              : [],
-          )
-          // TODAS, no la última. Con `slice(-1)` volver a la conversación
-          // dejaba una sola plantilla de tres en el panel: las otras dos se
-          // habían armado, se veían mientras corría, y desaparecían al recargar.
-          ,
-      })
+      rearmarBanco(ms)
     } catch {
       setError(t('operation.operatorError'))
     } finally {
       setCargandoHilo(false)
     }
-  }, [aLaMesa, t])
+  }, [rearmarBanco, setAcciones, setMensajes, setPlan, setThread, t])
 
   /**
    * Vuelve a mirar un turno que sigue corriendo.
@@ -338,24 +371,60 @@ export function OperatorChat({
     let cancelado = false
     void (async () => {
       try {
-        const res = await fetch('/api/operacion/operator', { cache: 'no-store' })
-        if (!res.ok || cancelado) return
-        const json = (await res.json()) as { hilos?: ResumenHilo[] }
-        if (cancelado) return
-        const hs = json.hilos ?? []
-        setHilos(hs)
-        if (hs[0]) await abrirHilo(hs[0].id)
-        // ¿Quedó algo corriendo? Salir de la pantalla no cancela nada, así
-        // que al volver se sigue mirando desde donde iba.
-        if (hs[0]) {
-          const r = await fetch(`/api/operacion/operator/corridas?thread=${hs[0].id}`, {
-            cache: 'no-store',
-          })
-          if (r.ok && !cancelado) {
-            const { corrida: c } = (await r.json()) as { corrida: { id: string } | null }
-            if (c) void retomar(c.id)
+        /**
+         * Uno solo, y trae todo.
+         *
+         * Eran TRES encadenados —la lista, después la última conversación,
+         * después si había algo corriendo—, cada uno esperando al anterior con
+         * la pantalla en blanco. El servidor abre la última cuando no le piden
+         * ninguna, así que lo que antes eran tres esperas en fila ahora es una.
+         */
+        /**
+         * La conversación donde estabas, no «la última».
+         *
+         * Sin el `thread`, el servidor abre la última — que es lo correcto la
+         * primera vez y lo contrario de lo que se quiere al volver: quien había
+         * abierto una vieja, o había tocado «Chat nuevo», encontraba otra cosa.
+         *
+         * `veniamos` es el que sabe la diferencia: dice si esta pestaña ya
+         * estuvo acá. Con `thread` en null y habiendo estado, la persona está en
+         * un chat nuevo a propósito y no hay nada que abrir.
+         */
+        const donde = veniamos ? threadRef.current : null
+        if (veniamos && !donde) {
+          const soloHilos = await fetch('/api/operacion/operator', { cache: 'no-store' })
+          if (soloHilos.ok && !cancelado) {
+            const { hilos: hs } = (await soloHilos.json()) as { hilos?: ResumenHilo[] }
+            setHilos(hs ?? [])
           }
+          return
         }
+        const res = await fetch(
+          donde ? `/api/operacion/operator?thread=${donde}` : '/api/operacion/operator',
+          { cache: 'no-store' },
+        )
+        if (!res.ok || cancelado) return
+        const json = (await res.json()) as {
+          thread?: string | null
+          mensajes?: Mensaje[]
+          acciones?: Accion[]
+          hilos?: ResumenHilo[]
+          plan?: Omit<PlanPendiente, 'estado'> | null
+          corrida?: { id: string } | null
+        }
+        if (cancelado) return
+        setHilos(json.hilos ?? [])
+        if (json.thread) {
+          const ms = (json.mensajes ?? []) as Mensaje[]
+          setThread(json.thread)
+          setMensajes(ms)
+          setAcciones(json.acciones ?? [])
+          setPlan(json.plan ? { ...json.plan, estado: 'esperando' } : null)
+          rearmarBanco(ms)
+        }
+        // Salir de la pantalla no cancela el turno: si quedó algo corriendo, se
+        // sigue mirando desde donde iba.
+        if (json.corrida) void retomar(json.corrida.id)
       } catch {
         /* sin historial se empieza en blanco, que es lo que ya pasaba */
       }
@@ -363,7 +432,7 @@ export function OperatorChat({
     return () => {
       cancelado = true
     }
-  }, [abrirHilo, retomar])
+  }, [rearmarBanco, retomar, setAcciones, setHilos, setMensajes, setPlan, setThread, veniamos])
 
   /** Empezar de cero. El hilo anterior queda guardado y accesible. */
   const nuevoChat = useCallback(() => {
