@@ -6,12 +6,12 @@ import {
 
 describe("validateStepsForActivation", () => {
   it("rejects empty or missing step lists", () => {
-    expect(validateStepsForActivation([])).toEqual([
+    expect(validateStepsForActivation([])).toMatchObject([
       { path: "steps", message: "active automations need at least one step" },
     ]);
     expect(
       validateStepsForActivation(undefined as unknown as never[]),
-    ).toEqual([
+    ).toMatchObject([
       { path: "steps", message: "active automations need at least one step" },
     ]);
   });
@@ -167,7 +167,7 @@ describe("validateStepsForActivation", () => {
         branches: { yes: [{ step_type: "close_conversation", step_config: {} }] },
       },
     ]);
-    expect(issues).toEqual([
+    expect(issues).toMatchObject([
       { path: "steps[0].subject", message: "unknown condition subject: tag" },
     ]);
   });
@@ -182,7 +182,7 @@ describe("validateStepsForActivation", () => {
         branches: { yes: [{ step_type: "close_conversation", step_config: {} }] },
       },
     ]);
-    expect(issues).toEqual([
+    expect(issues).toMatchObject([
       {
         path: "steps[0].operand",
         message: "condition operand must be an existing tag or segment",
@@ -194,7 +194,7 @@ describe("validateStepsForActivation", () => {
     const issues = validateStepsForActivation([
       { step_type: "do_a_barrel_roll", step_config: {} },
     ]);
-    expect(issues).toEqual([
+    expect(issues).toMatchObject([
       { path: "steps[0]", message: "unknown step type: do_a_barrel_roll" },
     ]);
   });
@@ -226,7 +226,7 @@ describe("validateStepsForActivation", () => {
   it("pide el agente en un paso de llamada", () => {
     expect(
       validateStepsForActivation([{ step_type: "voice_call", step_config: {} }]),
-    ).toEqual([
+    ).toMatchObject([
       { path: "steps[0].agent_id", message: "voice agent is required" },
     ]);
   });
@@ -283,7 +283,7 @@ describe("validateTriggerForActivation", () => {
   });
 
   it("requires schedule on time_based triggers", () => {
-    expect(validateTriggerForActivation("time_based", {})).toEqual([
+    expect(validateTriggerForActivation("time_based", {})).toMatchObject([
       { path: "trigger.schedule", message: "schedule is required" },
     ]);
     expect(
@@ -292,7 +292,7 @@ describe("validateTriggerForActivation", () => {
   });
 
   it("requires tag_id on tag_added triggers", () => {
-    expect(validateTriggerForActivation("tag_added", {})).toEqual([
+    expect(validateTriggerForActivation("tag_added", {})).toMatchObject([
       { path: "trigger.tag_id", message: "tag is required" },
     ]);
     expect(

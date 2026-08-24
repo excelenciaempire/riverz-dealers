@@ -74,6 +74,52 @@ interface Ctx {
   catalogo: { etiquetas?: Map<string, string>; grupos?: Map<string, string> }
 }
 
+/**
+ * Que la plantilla exista de verdad.
+ *
+ * El motor la busca por NOMBRE en cada disparo. Si no está, no manda nada y no
+ * avisa: la automatización se ve bien, se puede prender, y no le escribe a
+ * nadie. Pasó en una cuenta real y costó una recompra entera.
+ *
+ * No se crea sola, a diferencia de una etiqueta: una plantilla tarda horas de
+ * revisión de Meta y su nombre queda tomado para siempre. Lo que se hace es
+ * decir cuáles hay, que es lo que necesita quien la escribió mal.
+ *
+ * Que esté en borrador o en revisión NO es un problema acá: se puede armar la
+ * automatización mientras Meta revisa. Prenderla con la plantilla sin aprobar
+ * es otra decisión, y la corta la validación de activación.
+ */
+async function exigirPlantilla(
+  ctx: Ctx,
+  cfg: Record<string, unknown>,
+  paso: BuilderStepInput,
+): Promise<void> {
+  const nombre = typeof cfg.template_name === 'string' ? cfg.template_name.trim() : ''
+  if (!nombre) {
+    ctx.problemas.push({
+      path: `${paso.step_type}.template_name`,
+      message: 'Falta el nombre de la plantilla que hay que mandar.',
+    })
+    return
+  }
+
+  const { data } = await ctx.admin
+    .from('message_templates')
+    .select('name')
+    .eq('workspace_id', ctx.workspaceId)
+    .limit(200)
+  const nombres = ((data ?? []) as { name: string }[]).map((t) => t.name)
+  if (nombres.some((n) => n.toLowerCase() === nombre.toLowerCase())) return
+
+  const hay = nombres.slice(0, 8).join(', ')
+  ctx.problemas.push({
+    path: `${paso.step_type}.template_name`,
+    message: hay
+      ? `No hay ninguna plantilla que se llame "${nombre}". Las que hay: ${hay}.`
+      : `No hay ninguna plantilla que se llame "${nombre}", y esta cuenta todavía no tiene ninguna.`,
+  })
+}
+
 async function recorrer(steps: BuilderStepInput[], ctx: Ctx): Promise<BuilderStepInput[]> {
   const out: BuilderStepInput[] = []
   for (const s of steps) {
@@ -101,6 +147,10 @@ async function recorrer(steps: BuilderStepInput[], ctx: Ctx): Promise<BuilderSte
         const id = await buscarGrupo(ctx, grupo)
         if (id) cfg.operand = id
       }
+    }
+
+    if (s.step_type === 'send_template') {
+      await exigirPlantilla(ctx, cfg, s)
     }
 
     if (s.step_type === 'voice_call') {

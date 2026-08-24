@@ -10,6 +10,7 @@ import {
   assertActivable,
   activationIssues,
   activationIssuesById,
+  comoSeLee,
 } from '@/lib/automations/activation'
 import { installTemplate } from '@/lib/automations/install-template'
 import {
@@ -196,7 +197,9 @@ async function ver(ctx: CapabilityContext, args: Record<string, unknown>) {
     // Con la ruta ya calculada: es lo que después se escribe en `paso` para
     // editar. Contando pasos de un dibujo se edita el equivocado.
     pasos: listarRutas(snapshot.pasos, nombresEtiqueta),
-    falta_para_prenderla: falta.map((i) => `${i.path}: ${i.message}`),
+    // En castellano y sin la ruta: quien lee esto es un comercio, no quien
+    // programó el validador.
+    falta_para_prenderla: falta.map((i) => comoSeLee(i, ctx.locale ?? 'es')),
   }
 }
 
@@ -271,7 +274,7 @@ function ensayoGuardado(
 }
 
 /** Por qué no se puede aplicar esta edición, en una línea. Null = se puede. */
-function porQueNo(ensayo: Ensayo, nombre: string): string | null {
+function porQueNo(ensayo: Ensayo, nombre: string, locale: string): string | null {
   if (ensayo.problemas.length > 0) {
     return `no se puede editar así — ${ensayo.problemas
       .map((p) => p.message)
@@ -281,7 +284,7 @@ function porQueNo(ensayo: Ensayo, nombre: string): string | null {
     // El ensayo en una frase: esto es lo que separa "editar" de "romper sin
     // enterarse". Una automatización que no se puede prender no avisa nada.
     return `ese cambio dejaría «${nombre}» sin poder prenderse — ${ensayo.erroresNuevos
-      .map((i) => i.message)
+      .map((i) => comoSeLee(i, locale))
       .join('; ')}`
   }
   return null
@@ -302,7 +305,7 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
   // Fresco: entre la propuesta y el click alguien pudo haber editado desde la
   // pantalla, y el ensayo viejo estaría hablando de otro árbol.
   const { id, activa, snapshot, ensayo } = await ensayoDeEdicion(ctx, args, { fresco: true })
-  const no = porQueNo(ensayo, snapshot.nombre)
+  const no = porQueNo(ensayo, snapshot.nombre, ctx.locale ?? 'es')
   if (no) throw new Error(no)
 
   const { despues } = ensayo
@@ -386,7 +389,9 @@ async function crear(ctx: CapabilityContext, args: Record<string, unknown>) {
     // Se devuelve legible para que el modelo pueda corregir en la misma vuelta
     // en vez de fallar y quedarse ahí.
     throw new Error(
-      `no se puede crear así — ${problemas.map((p) => `${p.path}: ${p.message}`).join('; ')}`,
+      // Sin la ruta: «pasos:» delante de una frase en castellano es el nombre
+      // de un campo del validador, y no le dice nada a quien lo lee.
+      `no se puede crear así — ${problemas.map((p) => p.message).join('; ')}`,
     )
   }
 
@@ -619,8 +624,9 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       ).catch(() => null)
       if (issues && issues.length > 0) {
         throw new Error(
-          `«${nombre}» todavía no se puede prender: falta ${issues
-            .map((i) => i.message)
+          // Sin «falta»: lo que sigue son oraciones enteras, no fragmentos.
+          `«${nombre}» todavía no se puede prender. ${issues
+            .map((i) => comoSeLee(i, ctx.locale ?? 'es'))
             .join('; ')}`,
         )
       }
@@ -753,7 +759,7 @@ Se aplican en orden, cada uno sobre cómo quedó el anterior. Antes de escribir 
       // Lanzar y no devolver: una vista previa que explica por qué no se puede
       // igual terminaba en una tarjeta con botón de aprobar. Y decía «No se
       // puede: no se puede editar así», dos veces lo mismo.
-      const no = porQueNo(ensayo, snapshot.nombre)
+      const no = porQueNo(ensayo, snapshot.nombre, ctx.locale ?? 'es')
       if (no) throw new Error(no)
       // Un cambio que no cambia nada tampoco es una decisión: es un click que
       // no hace nada.

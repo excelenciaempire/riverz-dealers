@@ -186,14 +186,21 @@ describe('la recompra por volumen, armada desde el chat', () => {
 // La otra mitad del bug: el nombre que nunca se convirtió en id.
 // ---------------------------------------------------------------------------
 
-/** Una base de mentira que sólo sabe listar etiquetas. */
-function baseCon(etiquetas: { id: string; name: string }[]) {
-  const from = () => ({
-    select: () => from(),
-    eq: () => from(),
-    is: () => from(),
-    limit: async () => ({ data: etiquetas, error: null }),
-  })
+/** Una base de mentira que sabe listar etiquetas y plantillas. */
+function baseCon(
+  etiquetas: { id: string; name: string }[],
+  plantillas: { name: string }[] = [],
+) {
+  const from = (tabla?: string) => {
+    const filas = tabla === 'message_templates' ? plantillas : etiquetas
+    const cadena = {
+      select: () => cadena,
+      eq: () => cadena,
+      is: () => cadena,
+      limit: async () => ({ data: filas, error: null }),
+    }
+    return cadena
+  }
   return { from } as never
 }
 
@@ -268,5 +275,57 @@ describe('la misma plantilla en varios caminos', () => {
       ],
     })
     expect(problemas).toEqual([])
+  })
+})
+
+describe('la plantilla que se manda', () => {
+  const conEnvio = [
+    {
+      step_type: 'send_template',
+      step_config: { template_name: 'recompra_1_unidad' },
+    },
+  ] as BuilderStepInput[]
+
+  it('tiene que existir de verdad', async () => {
+    // Lo encontró un ensayo contra la base de verdad, no esta suite: se armó
+    // una recompra apuntando a «no_existe» y se creó sin una queja. El motor la
+    // busca por NOMBRE en cada disparo: si no está, no manda nada y no avisa.
+    // La automatización se ve bien, se puede prender, y no le escribe a nadie —
+    // que es exactamente lo que dejó muerta la recompra de una cuenta real.
+    const r = await resolverReferencias(baseCon([], [{ name: 'otra_cosa' }]), 'ws-1', {
+      pasos: conEnvio,
+    })
+    expect(r.problemas).toHaveLength(1)
+    expect(r.problemas[0].message).toContain('recompra_1_unidad')
+    // Y dice cuáles hay, que es lo que necesita quien la escribió mal.
+    expect(r.problemas[0].message).toContain('otra_cosa')
+  })
+
+  it('si existe, no molesta', async () => {
+    const r = await resolverReferencias(
+      baseCon([], [{ name: 'recompra_1_unidad' }]),
+      'ws-1',
+      { pasos: conEnvio },
+    )
+    expect(r.problemas).toEqual([])
+  })
+
+  it('en borrador también vale: se arma mientras Meta revisa', async () => {
+    // Que no esté aprobada NO es un problema acá. Se puede armar la
+    // automatización mientras Meta revisa la plantilla; prenderla con la
+    // plantilla sin aprobar es otra decisión, y la corta la activación.
+    const r = await resolverReferencias(
+      baseCon([], [{ name: 'recompra_1_unidad' }]),
+      'ws-1',
+      { pasos: conEnvio },
+    )
+    expect(r.problemas).toEqual([])
+  })
+
+  it('sin nombre lo dice', async () => {
+    const r = await resolverReferencias(baseCon([], []), 'ws-1', {
+      pasos: [{ step_type: 'send_template', step_config: {} }] as BuilderStepInput[],
+    })
+    expect(r.problemas[0]?.message).toMatch(/falta el nombre/i)
   })
 })

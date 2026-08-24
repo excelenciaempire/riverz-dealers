@@ -1013,7 +1013,12 @@ export function planDesdeIA(entrada: AiEntradaPlan): {
       problemas: [
         {
           path: 'pasos',
-          message: `la plantilla «${repetida}» se manda en más de un camino. Preguntar para después decir lo mismo no cambia nada: o cada camino dice algo distinto, o la pregunta sobra. Si cada uno tiene que decir lo suyo, PÍDELE al de plantillas las que faltan; si no sabes qué tiene que decir cada una, PREGÚNTALE A LA PERSONA antes de armar nada. Y si de verdad va el mismo mensaje para todos, entonces saca la pregunta y deja un solo camino.`,
+          // Este texto lo leen los dos: vuelve al modelo como error de
+          // herramienta y aparece en el chat como la fila que explica por qué
+          // no se armó. Estaba escrito sólo para el modelo —con PÍDELE y
+          // PREGÚNTALE en mayúsculas— y quien vende cremas se encontraba con un
+          // instructivo ajeno. El hecho y las dos salidas alcanzan para los dos.
+          message: `La plantilla «${repetida}» se manda en más de un camino. Si cada camino tiene que decir algo distinto, hacen falta tantas plantillas como caminos; si dicen lo mismo, sobra la pregunta.`,
         },
       ],
     }

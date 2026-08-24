@@ -59,9 +59,12 @@ export const TOOLS_EQUIPO: Anthropic.Tool[] = [
                 type: 'string',
                 description:
                   'Qué va a pasar, en UNA frase corta y en castellano llano, para la persona que aprueba. '
-                  + 'Sin nombres de plantilla, sin ids, sin jerga: «Escribe los tres mensajes de recompra», '
-                  + '«Arma la automatización que espera 21 días y ramifica por unidades». '
-                  + 'Es lo único que se muestra en pantalla.',
+                  + 'EMPIEZA CON UN VERBO EN INFINITIVO: «Escribir las tres plantillas de recompra», '
+                  + '«Armar la automatización que espera 21 días y ramifica por unidades». '
+                  + 'En infinitivo y no en imperativo («Escribe», «Arma»): quien lee esto no es quien '
+                  + 'lo va a hacer — está aprobando que lo haga el equipo, y una orden dirigida a ella '
+                  + 'se lee como una tarea que le tocó. '
+                  + 'Sin nombres de plantilla, sin ids, sin jerga. Es lo único que se muestra en pantalla.',
               },
               encargo: { type: 'string', description: 'La instrucción para el especialista, que NO se muestra en pantalla: acá sí van los nombres exactos y el detalle. En una o dos frases. Esto se muestra en pantalla, así que va sin nombres internos ni de código y sin comillas sueltas. No mandes el pedido original tal cual: tradúcelo a una instrucción concreta de su dominio. Lo que no entre en dos frases, sobra: el especialista sabe su oficio.' },
               depende_de: {

@@ -647,4 +647,28 @@ export const automations = {
 
   // Edit page
   loadFailedStatus: { es: "No se pudo cargar ({status})", en: "Couldn't load ({status})" },
+
+  // Por qué una automatización todavía no se puede prender.
+  // Salen por dos puertas —el editor y el chat del Operador— y las lee
+  // un comercio: en inglés y en jerga no le dicen nada.
+  issueSinPasos: { es: "Una automatización activa necesita al menos un paso.", en: "An active automation needs at least one step." },
+  issueSinTexto: { es: "Falta el texto del mensaje.", en: "The message text is missing." },
+  issueSinPlantilla: { es: "Falta decir qué plantilla se manda.", en: "It does not say which template to send." },
+  issueSinEtiqueta: { es: "Falta elegir la etiqueta.", en: "Pick a tag." },
+  issueEtiquetaRara: { es: "Esa etiqueta no existe en tu cuenta.", en: "That tag does not exist in your account." },
+  issueSinAgente: { es: "Falta elegir a quién se le asigna.", en: "Pick who it gets assigned to." },
+  issueSinCampo: { es: "Falta decir qué dato se guarda.", en: "It does not say which field to store." },
+  issueSinValor: { es: "Falta el valor que se guarda.", en: "The value to store is missing." },
+  issueEsperaCero: { es: "La espera tiene que ser de más de cero.", en: "The wait has to be longer than zero." },
+  issueEsperaUnidad: { es: "La espera se mide en minutos, horas o días.", en: "Waits are measured in minutes, hours or days." },
+  issueSinDato: { es: "Falta decir por qué dato pregunta.", en: "It does not say what the question is about." },
+  issueOperandoRaro: { es: "Esa etiqueta o segmento no existe en tu cuenta.", en: "That tag or segment does not exist in your account." },
+  issueSinOperando: { es: "Falta con qué se compara.", en: "It does not say what to compare against." },
+  issueSinUrl: { es: "Falta la dirección a la que avisar.", en: "The address to notify is missing." },
+  issueUrlProtocolo: { es: "La dirección tiene que empezar con http o https.", en: "The address has to start with http or https." },
+  issueUrlInvalida: { es: "Esa dirección no es válida.", en: "That address is not valid." },
+  issueSinAgenteVoz: { es: "Falta elegir qué agente llama.", en: "Pick which agent places the call." },
+  issueSinPalabras: { es: "Hace falta al menos una palabra clave.", en: "At least one keyword is required." },
+  issuePalabrasVacias: { es: "Hay palabras clave vacías.", en: "Some keywords are empty." },
+  issueCoincidencia: { es: "La coincidencia es exacta o contiene.", en: "Matching is either exact or contains." },
 } satisfies Namespace;

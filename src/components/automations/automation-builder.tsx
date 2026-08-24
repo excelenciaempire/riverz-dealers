@@ -1611,10 +1611,12 @@ export function AutomationBuilder({
         // If the server blocked activation with validation issues,
         // surface the first concrete problem so the user can fix it
         // without opening DevTools for the full array.
-        const firstIssue: { path?: string; message?: string } | undefined =
+        const firstIssue: { path?: string; message?: string; key?: string } | undefined =
           body?.issues?.[0]
         if (firstIssue?.message) {
-          toast.error(firstIssue.message, {
+          // En su idioma. El `message` está en inglés y escrito para quien
+          // programó el validador: «active automations need at least one step».
+          toast.error(firstIssue.key ? t(firstIssue.key) : firstIssue.message, {
             description: firstIssue.path ? `en ${firstIssue.path}` : undefined,
           })
         } else {

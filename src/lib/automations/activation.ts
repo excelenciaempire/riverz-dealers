@@ -1,3 +1,5 @@
+import { translate } from '@/lib/i18n/translate'
+import type { Locale } from '@/lib/i18n/config'
 /**
  * La puerta de la activación, para todo el que la abra.
  *
@@ -26,6 +28,23 @@ interface StepLike {
 }
 
 /** Todo lo que impide activar esta configuración. Vacío = se puede prender. */
+/**
+ * Un problema de validación, dicho en el idioma de quien lo lee.
+ *
+ * Los mensajes se escribieron en inglés y en jerga —«active automations need at
+ * least one step»— y salen por dos puertas que las dos las lee un comercio: el
+ * aviso del editor y la vista previa del Operador. Traducir en el borde y no en
+ * el validador lo deja puro, que es lo que permite probarlo sin locale.
+ */
+export function comoSeLee(issue: ValidationIssue, locale: string): string {
+  return issue.key ? translate(locale as Locale, issue.key) : issue.message
+}
+
+/** Varios, ya en castellano y separados con punto y coma. */
+export function comoSeLeen(issues: ValidationIssue[], locale: string): string {
+  return issues.map((i) => comoSeLee(i, locale)).join('; ')
+}
+
 export function activationIssues(input: {
   triggerType: AutomationTriggerType | string
   triggerConfig: unknown
