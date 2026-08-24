@@ -9,6 +9,7 @@ import {
   mercadoLibreAuthHost,
   type ProviderName,
 } from "@/lib/channels/oauth";
+import { publicBaseUrl } from "@/lib/base-url";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
@@ -39,7 +40,10 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL("/ingresar", req.url));
+  // Sobre el dominio público: detrás del proxy de Render `req.url` es la
+  // dirección interna (`https://localhost:10000/…`), y esto mandaba a quien no
+  // había iniciado sesión a un `localhost` que su navegador no puede abrir.
+  if (!user) return NextResponse.redirect(new URL("/ingresar", publicBaseUrl()));
 
   const url = new URL(req.url);
   const workspaceId = url.searchParams.get("workspace_id");

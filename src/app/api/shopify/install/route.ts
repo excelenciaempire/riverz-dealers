@@ -7,6 +7,7 @@ import {
   shopifyScopes,
 } from '@/lib/shopify/oauth'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { publicBaseUrl } from '@/lib/base-url'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 
@@ -25,7 +26,16 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return NextResponse.redirect(new URL('/ingresar', request.url))
+    // Sobre el dominio público y no sobre `request.url`.
+    //
+    // Detrás del proxy de Render, `request.url` es la dirección INTERNA
+    // (`https://localhost:10000/...`), así que esto mandaba a quien no había
+    // iniciado sesión a `https://localhost:10000/ingresar` — un
+    // ERR_CONNECTION_REFUSED en su navegador. Y es justo el camino de instalar
+    // desde la tienda de aplicaciones de Shopify, donde nadie llega con la
+    // sesión abierta: el comercio aprieta "instalar" y ve una página muerta.
+    // Medido contra producción el 2026-08-24.
+    return NextResponse.redirect(new URL('/ingresar', publicBaseUrl()))
   }
 
   const locale = await getLocale()
