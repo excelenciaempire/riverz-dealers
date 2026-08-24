@@ -44,6 +44,14 @@ const DEFAULT_SCOPES =
     // price rules y códigos únicos desde que existe, pero sin este scope Shopify
     // contesta 403 y el `catch` lo devuelve como null — o sea que la función
     // estaba fallando en silencio en todas las tiendas conectadas.
+    //
+    // Los dos, como con las etiquetas de script: escribir NO implica leer.
+    // `emitirCupon` recorre las reglas que ya existen antes de crear una
+    // (discounts.ts:123) para no dejar una regla nueva por cada cupón, y con
+    // sólo el de escritura eso contesta "requires merchant approval for
+    // read_price_rules scope". Medido el 2026-08-24 sobre la tienda demo, ya
+    // reconectada con `write_discounts`.
+    'read_price_rules',
     'write_discounts',
     // Chat web: instalarlo sin que nadie toque el código del tema. Copiar un
     // snippet a `theme.liquid` es el paso donde se cae la adopción — el
