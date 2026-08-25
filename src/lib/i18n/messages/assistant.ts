@@ -107,6 +107,12 @@ export const assistant = {
     en: "{count} products assigned.",
   },
   notListedCreate: { es: "¿No está? Crear producto nuevo", en: "Not here? Create a new product" },
+  // Sin ningún producto asignado el agente no puede nombrar, cotizar ni buscar
+  // nada del catálogo. Sin este aviso pasa callado.
+  scopeSpecificEmpty: {
+    es: "Sin productos asignados no va a poder hablar de ninguno. Asigna al menos uno o cambia a todo el catálogo.",
+    en: "With no products assigned it won't be able to talk about any. Assign at least one or switch to the whole catalog.",
+  },
 
   // Editor: business tab — identity
   identityTitle: { es: "Identidad del asistente", en: "Assistant identity" },

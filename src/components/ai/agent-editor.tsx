@@ -1272,6 +1272,16 @@ export function AgentEditor({
                           </ul>
                         )}
                       </div>
+                      {/* Elegir "sólo algunos" y no elegir ninguno deja al
+                          agente sin catálogo: no puede nombrar, cotizar ni
+                          buscar un producto. Es coherente con lo que dice la
+                          opción, pero pasa callado — y el agente contesta que
+                          no tiene nada a la venta. */}
+                      {!isNew && selectedProducts.length === 0 && (
+                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-foreground">
+                          {t('assistant.scopeSpecificEmpty')}
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-[11px] text-muted-foreground">
                           {productosAsignados === 1
