@@ -2374,10 +2374,15 @@ export function buildSystemPrompt(
     const tmRaw = (p.training_material ?? '').trim();
     // Fallback a la línea de catálogo (título/desc/precio) si el producto
     // aún no tiene training_material compilado (manual recién creado).
+    // El precio de cada canal va SIEMPRE, tenga o no ficha compilada. La línea
+    // de catálogo lo llevaba, pero sólo se usa cuando NO hay conocimiento — así
+    // que justo los productos que el comercio se tomó el trabajo de llenar
+    // llegaban sin el precio del marketplace, y el agente le cotizaba el de la
+    // tienda a quien escribía desde ahí.
+    const canales = lineaDeCanales(p);
     const body = tmRaw
-      ? tmRaw.length > perCap
-        ? tmRaw.slice(0, perCap) + '\n…[truncado]'
-        : tmRaw
+      ? (tmRaw.length > perCap ? tmRaw.slice(0, perCap) + '\n…[truncado]' : tmRaw) +
+        (canales ? `\n${canales.trim()}` : '')
       : formatProductLine(p);
     lines.push(
       isMatch
@@ -2588,24 +2593,40 @@ export function formatProductLine(p: ProductRow): string {
   // cotiza pesos argentinos a un cliente colombiano. Sin monedas completas se
   // dice dónde más se vende y nada más: que le falte un precio es recuperable,
   // que diga el equivocado no.
-  const canales = p.listings ?? [];
-  const monedasCompletas = canales.length > 0 && canales.every((l) => l.currency);
-  const otros =
-    canales.length > 1
-      ? monedasCompletas
-        ? ` [precio por canal: ${canales
-            .map(
-              (l) =>
-                `${l.platform} ${l.units > 1 ? `${l.units}u ` : ''}${l.price ?? '?'} ${l.currency}`,
-            )
-            .join(' · ')}]`
-        : ` [también se vende en: ${[...new Set(canales.map((l) => l.platform))].join(
-            ', ',
-          )} — ahí el precio es otro, consultalo antes de cotizar]`
-      : '';
+  const otros = lineaDeCanales(p);
   return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${otros}${
     p.url ? ` <${p.url}>` : ''
   }`;
+}
+
+/**
+ * Dónde más se vende y a cuánto, en una línea.
+ *
+ * Vive aparte porque tiene que viajar con el producto SIEMPRE, y la línea de
+ * catálogo sólo se arma para los productos sin conocimiento cargado. Un
+ * producto con `training_material` —o sea, justamente los que al comercio le
+ * importan— llegaba al prompt con su ficha entera y sin el precio del
+ * marketplace: el agente cotizaba el de la tienda a quien escribía desde
+ * Mercado Libre. La unificación calculaba los precios y nadie se los mostraba.
+ */
+export function lineaDeCanales(p: ProductRow): string {
+  const canales = p.listings ?? [];
+  if (canales.length < 2) return '';
+  // Con los PRECIOS sólo si todas declaran su moneda. Un "$39990" al lado de
+  // un "$45000 ARS" se lee como el mismo orden de magnitud, y ahí el modelo
+  // cotiza pesos argentinos a un cliente colombiano. Sin monedas completas se
+  // dice dónde más se vende y nada más: que le falte un precio es recuperable,
+  // que diga el equivocado no.
+  if (!canales.every((l) => l.currency)) {
+    return ` [también se vende en: ${[...new Set(canales.map((l) => l.platform))].join(
+      ', ',
+    )} — ahí el precio es otro, consultalo antes de cotizar]`;
+  }
+  return ` [precio por canal: ${canales
+    .map(
+      (l) => `${l.platform} ${l.units > 1 ? `${l.units}u ` : ''}${l.price ?? '?'} ${l.currency}`,
+    )
+    .join(' · ')}]`;
 }
 
 

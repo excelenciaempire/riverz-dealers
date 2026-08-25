@@ -47,6 +47,7 @@ function baseCon(filas: typeof CATALOGO) {
   const db = {
     from: () => {
       let texto = ''
+      let palabras: string[] = []
       let soloEstos: string[] | null = null
       let porTags = false
       const q: Record<string, unknown> = {
@@ -55,7 +56,11 @@ function baseCon(filas: typeof CATALOGO) {
         order: () => q,
         limit: () => q,
         or: (f: string) => {
-          texto = (f.match(/title\.ilike\.%([^%]*)%/)?.[1] ?? '').toLowerCase()
+          const ramas = [...f.matchAll(/title\.ilike\.%([^%]*)%/g)].map((m) => m[1].toLowerCase())
+          // La consulta por palabra suelta manda VARIAS ramas de título; la de
+          // la frase manda una sola (más la de descripción).
+          if (ramas.length > 1) palabras = ramas
+          else texto = ramas[0] ?? ''
           return q
         },
         overlaps: () => {
@@ -70,7 +75,12 @@ function baseCon(filas: typeof CATALOGO) {
         then: (resolve: (v: unknown) => unknown) => {
           let out = filas
           if (soloEstos) out = out.filter((f) => soloEstos!.includes(f.id))
-          if (!porTags && texto) out = out.filter((f) => f.title.toLowerCase().includes(texto))
+          // `palabras` sólo está cuando la consulta pidió por palabra suelta;
+          // si no, manda la frase entera, que es lo que exige el mismo orden.
+          if (!porTags && palabras.length)
+            out = out.filter((f) => palabras.some((w) => f.title.toLowerCase().includes(w)))
+          else if (!porTags && texto)
+            out = out.filter((f) => f.title.toLowerCase().includes(texto))
           if (porTags) out = []
           return resolve({ data: out, error: null })
         },
@@ -114,6 +124,30 @@ describe('buscar_producto', () => {
       agrupar: true,
     })
     expect(hits[0]?.id).toBe('shop')
+  })
+
+  it('lo encuentra con las palabras en otro orden', async () => {
+    // La clienta escribe "serum antiedad x2" y el marketplace lo tituló
+    // "Serum 30 Ml X2 Antiedad": la frase entera exige el mismo orden, así que
+    // a una pregunta legítima le contestaba "no lo tenemos".
+    const hits = await searchProducts(baseCon(CATALOGO).db, {
+      workspaceId: 'w1',
+      query: 'serum antiedad x2',
+      agrupar: true,
+    })
+    expect(hits[0]?.id).toBe('shop')
+  })
+
+  it('no ofrece cualquier cosa por una palabra suelta', async () => {
+    // Ampliar la red por palabra traía cualquier título con "para" adentro.
+    // Ofrecerle a alguien un producto que no tiene nada que ver es peor que
+    // decirle que no hay.
+    const hits = await searchProducts(baseCon(CATALOGO).db, {
+      workspaceId: 'w1',
+      query: 'algo para gatos',
+      agrupar: true,
+    })
+    expect(hits).toHaveLength(0)
   })
 
   it('un agente con productos asignados no busca fuera de ellos', async () => {

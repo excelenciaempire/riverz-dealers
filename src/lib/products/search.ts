@@ -166,6 +166,10 @@ export async function searchProducts(
   if (error) return [];
 
   const filas = (data ?? []) as Row[];
+  // Las que coincidieron con la frase entera entran sí o sí: pueden haber
+  // coincidido por la descripción, que no puntúa, y descartarlas por eso sería
+  // perder justo la búsqueda por "para qué sirve".
+  const deFrase = new Set(filas.map((f) => f.id));
 
   // Las etiquetas van en una segunda consulta porque son un array y no entran
   // en el mismo `or` de texto. Sólo si la primera trajo poco: la mayoría de las
@@ -177,6 +181,27 @@ export async function searchProducts(
     // etiqueta— no acertaba nunca, ni siquiera cuando la persona escribía el
     // nombre de una etiqueta y algo más.
     const palabras = seguro.split(/\s+/).filter((t) => t.length > 2).slice(0, 4);
+    if (palabras.length > 1) {
+      // Y por cada palabra en el TÍTULO, en cualquier orden.
+      //
+      // La frase entera exige que estén como las escribió: "serum antiedad x2"
+      // no encontraba "Serum 30 Ml X2 Antiedad", el mismo producto tal como lo
+      // titula un marketplace. La clienta escribe en el orden que se le ocurre
+      // y recibía "no lo tenemos". Va después de la frase, no en su lugar: la
+      // coincidencia exacta sigue ganando por puntaje.
+      let porPalabra = db
+        .from('shopify_products')
+        .select(COLUMNAS)
+        .eq('workspace_id', args.workspaceId)
+        .or(palabras.map((w) => `title.ilike.%${w}%`).join(','))
+        .order('synced_at', { ascending: false })
+        .limit(traer);
+      if (acotar) porPalabra = porPalabra.in('id', acotar);
+      const { data: sueltas } = await porPalabra;
+      for (const f of (sueltas ?? []) as Row[]) {
+        if (!filas.some((x) => x.id === f.id)) filas.push(f);
+      }
+    }
     if (palabras.length > 0) {
       let porTags = db
         .from('shopify_products')
@@ -250,7 +275,12 @@ export async function searchProducts(
     return Math.max(...titulos.map((t) => puntajeDe(t, tags)));
   };
 
+  // Las que entraron por una palabra suelta tienen que ganárselo: buscar
+  // "algo para piel sensible" traía cualquier título con "para" adentro, y
+  // ofrecerle a alguien un producto que no tiene nada que ver es peor que
+  // decirle que no hay.
   return agrupadas
+    .filter((f) => deFrase.has(String(f.id)) || puntaje(f) > 0)
     .sort((a, b) => puntaje(b) - puntaje(a))
     .slice(0, limite)
     .map((g) => {
