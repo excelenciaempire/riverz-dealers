@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -24,9 +24,12 @@ import { join } from 'node:path'
  *   - `operator/fleet/intencion.ts` y `channels/email/automated-sender.ts` no
  *     ESCRIBEN texto: LEEN el que escribió otro. Sacarles el voseo de las
  *     listas es dejar de entender a quien lo usa.
- *   - Los catálogos de i18n y las capacidades del Operator todavía tienen
- *     voseo. Está anotado; no entra acá hasta que se limpie, porque un test que
- *     falla desde el día uno se termina borrando.
+ *   - Las capacidades del Operator todavía tienen voseo. Está anotado; no entra
+ *     acá hasta que se limpie, porque un test que falla desde el día uno se
+ *     termina borrando.
+ *
+ * Los catálogos de i18n SÍ entran, desde el 2026-08-26: estaban en esa misma
+ * lista de deuda y resultaron ser cinco cadenas. Ver el bloque de abajo.
  */
 
 const RAIZ = join(process.cwd(), 'src', 'lib')
@@ -117,6 +120,37 @@ describe('el prompt no se contradice a sí mismo', () => {
         }
       }
 
+      expect(encontrado, encontrado.join('\n')).toEqual([])
+    })
+  }
+
+  /**
+   * Los catálogos de i18n, que es TODO lo que lee el comercio en pantalla.
+   *
+   * Estaban anotados como deuda: "todavía tienen voseo, no entra acá hasta que
+   * se limpie, porque un test que falla desde el día uno se termina borrando".
+   * Se limpió el 2026-08-26 —eran cinco cadenas— así que ya puede entrar.
+   *
+   * Se listan por barrido y no a mano: un catálogo nuevo tiene que quedar
+   * cubierto sin que nadie se acuerde de agregarlo.
+   */
+  const MENSAJES = join(process.cwd(), 'src', 'lib', 'i18n', 'messages')
+  // Las dos landings traen un chat de mentira donde una clienta dice "¡Te
+  // escribí por DM!". Eso es pretérito de primera persona, no voseo — pero la
+  // lista no puede distinguirlos, y cambiarlo rompería el diálogo.
+  const SIN_REVISAR = new Set(['landing.ts', 'landingV2.ts'])
+
+  for (const nombre of readdirSync(MENSAJES).filter((f) => f.endsWith('.ts'))) {
+    if (SIN_REVISAR.has(nombre)) continue
+    it(`i18n/messages/${nombre} no tiene voseo`, () => {
+      const contenido = readFileSync(join(MENSAJES, nombre), 'utf8')
+      const encontrado: string[] = []
+      for (const { n, texto } of lineasVivas(contenido)) {
+        const bajo = texto.toLowerCase()
+        for (const { forma, re } of REGLAS) {
+          if (re.test(bajo)) encontrado.push(`${nombre}:${n} — "${forma}"`)
+        }
+      }
       expect(encontrado, encontrado.join('\n')).toEqual([])
     })
   }

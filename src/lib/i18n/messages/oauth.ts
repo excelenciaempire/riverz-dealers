@@ -24,7 +24,7 @@ export const oauth: Namespace = {
     en: "It can't change anything or message anyone.",
   },
   revokeHint: {
-    es: "Podés cortarle el acceso cuando quieras desde Ajustes → Agentes (MCP).",
+    es: "Puedes cortarle el acceso cuando quieras desde Ajustes → Agentes (MCP).",
     en: "You can cut off access any time from Settings → Agents (MCP).",
   },
   allow: { es: "Autorizar", en: "Authorize" },

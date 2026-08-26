@@ -32,7 +32,7 @@ export const returns = {
 export const gaps = {
   title: { es: "Lo que no supo contestar", en: "What it could not answer" },
   hint: {
-    es: "Las preguntas donde el agente reconoció que le faltaba el dato. Cargá la respuesta en su conocimiento y dejan de aparecer.",
+    es: "Las preguntas donde el agente reconoció que le faltaba el dato. Carga la respuesta en su conocimiento y dejan de aparecer.",
     en: "Questions where the agent admitted it was missing the fact. Add the answer to its knowledge and they stop showing up.",
   },
   empty: { es: "No quedó ninguna sin contestar.", en: "Nothing went unanswered." },

@@ -23,7 +23,7 @@ export const webchat = {
   install: { es: "Instalación", en: "Install" },
   installManual: { es: "Pegar el código a mano", en: "Paste the code manually" },
   installNeedsReconnect: {
-    es: "Reconectá Shopify para poder instalarlo desde acá.",
+    es: "Reconecta Shopify para poder instalarlo desde aquí.",
     en: "Reconnect Shopify to install it from here.",
   },
   installAuto: { es: "Instalar en la tienda", en: "Install on the store" },

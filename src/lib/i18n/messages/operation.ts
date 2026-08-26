@@ -193,7 +193,7 @@ export const operation = {
   toolModeAprobacion: { es: "Me pregunta", en: "Asks me" },
   toolModeAuto: { es: "Lo hace solo", en: "On its own" },
   toolModeAprobacionHint: {
-    es: "Lo prepara, te llega por WhatsApp y se hace cuando decís que sí.",
+    es: "Lo prepara, te llega por WhatsApp y se hace cuando dices que sí.",
     en: "It prepares it, you get a WhatsApp, and it happens once you say yes.",
   },
   toolGroupCatalogo: { es: "Catálogo", en: "Catalog" },

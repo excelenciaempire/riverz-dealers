@@ -547,7 +547,7 @@ export const contacts = {
     en: "Detail from {date}",
   },
   buyNoStore: {
-    es: "Conectá tu tienda para ver las compras acá",
+    es: "Conecta tu tienda para ver las compras aquí",
     en: "Connect your store to see purchases here",
   },
 } satisfies Namespace;
