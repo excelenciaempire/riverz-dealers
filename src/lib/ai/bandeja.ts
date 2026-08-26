@@ -186,6 +186,6 @@ export async function verProducto(
     ok: true,
     ...hit,
     message:
-      'Es la ficha completa del producto. El precio que figura acá es el que se cobra: no lo redondees ni lo cotices de memoria.',
+      'Es la ficha completa del producto. El precio que figura aquí es el que se cobra: no lo redondees ni lo cotices de memoria.',
   })
 }

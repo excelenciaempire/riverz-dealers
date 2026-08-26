@@ -35,7 +35,7 @@ export const settings = {
 
   // Klaviyo card
   klaviyoDescription: {
-    es: "Tus contactos y lo que compran, en tu lista. Sus segmentos, acá como etiquetas.",
+    es: "Tus contactos y lo que compran, en tu lista. Sus segmentos, aquí como etiquetas.",
     en: "Your contacts and what they buy, in your list. Their segments, here as tags.",
   },
   klaviyoHookHint: {

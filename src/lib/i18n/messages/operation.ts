@@ -48,12 +48,12 @@ export const operation = {
 
   // El banco: la pieza que se está armando, a tamaño real.
   bancoVacio: {
-    es: "Acá aparece lo que el equipo va armando, a tamaño real.",
+    es: "Aquí aparece lo que el equipo va armando, a tamaño real.",
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
   bancoVacioTitulo: { es: "La pieza", en: "The piece" },
-  lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
+  lienzoNadaAqui: { es: "Aquí no hace nada", en: "Nothing happens here" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },
   mesaCerrar: { es: "Cerrar el panel", en: "Close the panel" },
   // Los catorce del equipo, como se ven en la mesa.

@@ -171,7 +171,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'mecanico',
     maxIters: 6,
     instrucciones: [
-      'Lo que escribas acá lo van a repetir los agentes ante un cliente. Nada de promesas que el negocio no pueda cumplir.',
+      'Lo que escribas aquí lo van a repetir los agentes ante un cliente. Nada de promesas que el negocio no pueda cumplir.',
     ].join('\n'),
     puedePedirle: [],
   },
@@ -239,7 +239,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'mecanico',
     maxIters: 6,
     instrucciones: [
-      'Acá se mueve dinero de verdad. Nunca des por hecho un pago que no viste confirmado, y nunca marques pagado algo que no te consta.',
+      'Aquí se mueve dinero de verdad. Nunca des por hecho un pago que no viste confirmado, y nunca marques pagado algo que no te consta.',
     ].join('\n'),
     puedePedirle: [],
   },

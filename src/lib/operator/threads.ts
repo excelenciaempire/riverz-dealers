@@ -223,7 +223,7 @@ function loQueDejo(m: ThreadMessage, conCuerpo: boolean): string {
   // turno, no algo que el modelo haya dicho. Y con la regla al lado, porque el
   // dato sin la regla se lee y no se usa.
   return partes.length > 0
-    ? `[En ese turno ${partes.join('; ')}. Para corregir algo de eso NO lo busques en la cuenta y NO lo escribas de cero: parte del texto de acá arriba, REUSA el mismo nombre, cambia sólo lo que te pidieron y vuelve a proponer TODAS las piezas que seguían haciendo falta. Lo que ya está hecho no se vuelve a proponer.]`
+    ? `[En ese turno ${partes.join('; ')}. Para corregir algo de eso NO lo busques en la cuenta y NO lo escribas de cero: parte del texto de aquí arriba, REUSA el mismo nombre, cambia sólo lo que te pidieron y vuelve a proponer TODAS las piezas que seguían haciendo falta. Lo que ya está hecho no se vuelve a proponer.]`
     : ''
 }
 

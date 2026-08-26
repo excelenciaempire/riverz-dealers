@@ -348,7 +348,7 @@ export const voice = {
   adminTesting: { es: "Probando…", en: "Testing…" },
   adminProbeOk: { es: "Responde", en: "Responding" },
   adminProbeNoKey: {
-    es: "Sin llave: ni acá ni en el servidor",
+    es: "Sin llave: ni aquí ni en el servidor",
     en: "No key: neither here nor on the server",
   },
   adminProbeBadKey: { es: "La llave no sirve", en: "The key is not valid" },

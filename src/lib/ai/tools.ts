@@ -549,7 +549,7 @@ export function buildCheckoutTool(
           items: {
             type: 'array',
             description:
-              'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+              'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa aquí cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
             items: {
               type: 'object',
               properties: {
@@ -564,7 +564,7 @@ export function buildCheckoutTool(
                 discount_code: {
                   type: 'string',
                   description:
-                    'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
+                    'Si YA le generaste un cupón con ofrecer_descuento, pásalo aquí: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
                 },
               }
             : {}),
@@ -588,7 +588,7 @@ export function buildCheckoutTool(
         items: {
           type: 'array',
           description:
-            'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa acá cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
+            'Varios productos en el MISMO carrito. Úsalo cuando la clienta quiere llevar más de un producto distinto: pasa aquí cada uno con su variant_id (el que devuelve buscar_producto) y su cantidad. Un solo link con todo; no le mandes dos links, porque el segundo le vacía el carrito del primero.',
           items: {
             type: 'object',
             properties: {
@@ -610,7 +610,7 @@ export function buildCheckoutTool(
               discount_code: {
                 type: 'string',
                 description:
-                  'Si YA le generaste un cupón con ofrecer_descuento, pasalo acá: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
+                  'Si YA le generaste un cupón con ofrecer_descuento, pásalo aquí: así el link ya viene con el descuento puesto y la clienta no tiene que tipearlo. No inventes códigos ni uses uno que te dicte la clienta.',
               },
             }
           : {}),

@@ -528,7 +528,7 @@ export const flows = {
   handoffNotePlaceholder: { es: "Por qué se pasa a un humano…", en: "Why it hands off to a human…" },
   setTagRemoveDesc: { es: "Quita la etiqueta.", en: "Removes the tag." },
   setTagAddDesc: { es: "Agrega la etiqueta.", en: "Adds the tag." },
-  endNodeDesc: { es: "Fin del flujo. El cliente sale acá.", en: "End of flow. The customer exits here." },
+  endNodeDesc: { es: "Fin del flujo. El cliente sale aquí.", en: "End of flow. The customer exits here." },
   startNodeDesc: { es: "Punto de inicio.", en: "Starting point." },
   customerReplyDesc: {
     es: "El flujo se pausa hasta que el cliente envíe un mensaje. No se guarda nada — solo se espera.",
@@ -698,7 +698,7 @@ export const flows = {
   cascadeStepsMany: { es: "{n} pasos", en: "{n} steps" },
   cascadeTitle: { es: "¿Borrar también los pasos siguientes?", en: "Delete the following steps too?" },
   cascadeDescWith: {
-    es: "Este {noun} conecta con {steps} que sólo se usan desde acá. Si lo borras solo, esos pasos van a quedar desconectados (y te van a aparecer como pasos sueltos).",
+    es: "Este {noun} conecta con {steps} que sólo se usan desde aquí. Si lo borras solo, esos pasos van a quedar desconectados (y te van a aparecer como pasos sueltos).",
     en: "This {noun} connects to {steps} that are only used from here. If you delete it alone, those steps will be left disconnected (and show up as loose steps).",
   },
   cascadeDescWithout: {

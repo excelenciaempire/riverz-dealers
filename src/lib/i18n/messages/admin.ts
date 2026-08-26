@@ -278,7 +278,7 @@ export const admin = {
   logKindIgProactive: { es: "IG proactivo", en: "Proactive IG" },
   logKindVoice: { es: "Voz", en: "Voice" },
   logsAiHint: {
-    es: "Cuando la IA no contesta, el motivo queda acá.",
+    es: "Cuando la IA no contesta, el motivo queda aquí.",
     en: "When the AI doesn't reply, the reason lands here.",
   },
   colWhen: { es: "Cuándo", en: "When" },
@@ -578,7 +578,7 @@ export const admin = {
   svcGpt: { es: "GPT", en: "GPT" },
   svcEmail: { es: "lista de espera y avisos", en: "waitlist and alerts" },
   svcPlatformWa: {
-    es: "por acá salen las preguntas al comercio",
+    es: "por aquí salen las preguntas al comercio",
     en: "this is how we ask the merchant",
   },
 
@@ -662,7 +662,7 @@ export const admin = {
   // Excepciones de funcionalidad por comercio.
   wsFeaturesTitle: { es: "Funcionalidades de este comercio", en: "Features for this merchant" },
   wsFeaturesDesc: {
-    es: "Cada una sigue el valor global salvo que acá se diga otra cosa.",
+    es: "Cada una sigue el valor global salvo que aquí se diga otra cosa.",
     en: "Each one follows the global value unless overridden here.",
   },
   wsFeatureFollow: { es: "Global", en: "Global" },

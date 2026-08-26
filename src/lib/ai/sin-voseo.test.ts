@@ -101,6 +101,10 @@ const FORMAS = [
   // "respetá el horario" y al de flujos "corregí y volvé a intentar".
   'respetá', 'corregí', 'encolá', 'delegá', 'aprobá', 'cerrale', 'preguntá',
   'anunciá', 'entregá', 'guardá', 'calculá', 'ajustá', 'nombrá', 'confirmalo',
+  // No es un verbo, pero delata el registro igual que cualquiera de los de
+  // arriba: la propia regla lo nombra («ni "revisá", ni "mirá", ni "acá"») y
+  // aparecía en tres prompts del Operador.
+  'acá',
   // enclíticos
   'decile', 'pedile', 'contale', 'pasale', 'avisale', 'ponele', 'sacale',
   'usala', 'usalo', 'llamala', 'llamalo', 'mostrale', 'preguntale', 'pedilo',

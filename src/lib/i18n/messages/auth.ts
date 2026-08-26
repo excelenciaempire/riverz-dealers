@@ -51,7 +51,7 @@ export const auth = {
   phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
   phonePlaceholder: { es: "+57 300 000 0000", en: "+1 555 000 0000" },
   phoneHint: {
-    es: "Te escribimos acá cuando el asistente necesite tu decisión.",
+    es: "Te escribimos aquí cuando el asistente necesite tu decisión.",
     en: "We message you here when the assistant needs your decision.",
   },
   phoneInvalid: {
