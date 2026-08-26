@@ -13,7 +13,7 @@ import { lineaDeCanales, formatProductLine, type ProductRow } from './runner'
  * quien le escribía desde ahí. Medido el 2026-08-25.
  */
 
-const SERUM: ProductRow = {
+const SERUM = {
   id: 'shop',
   title: 'Serum',
   price_min: 29,
@@ -23,7 +23,7 @@ const SERUM: ProductRow = {
     { platform: 'shopify', price: 29, currency: 'USD', units: 1, url: null },
     { platform: 'mercadolibre', price: 52, currency: 'USD', units: 2, url: null },
   ],
-}
+} as unknown as ProductRow
 
 describe('el precio de cada canal', () => {
   it('nombra el canal, el precio y cuántas unidades entran', () => {
@@ -47,7 +47,7 @@ describe('el precio de cada canal', () => {
   })
 
   it('un producto de un solo canal no lleva la línea', () => {
-    expect(lineaDeCanales({ id: 'x', title: 'Solo' })).toBe('')
+    expect(lineaDeCanales({ id: 'x', title: 'Solo' } as unknown as ProductRow)).toBe('')
     expect(lineaDeCanales({ ...SERUM, listings: [SERUM.listings![0]] })).toBe('')
   })
 

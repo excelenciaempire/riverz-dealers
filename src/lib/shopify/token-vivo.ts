@@ -122,6 +122,16 @@ export async function tokenVivo(
       status: 'active',
       last_error: null,
     }
+    // Los permisos del token NUEVO, que no tienen por qué ser los del viejo.
+    //
+    // Shopify emite cada renovación contra la configuración ACTUAL de la app,
+    // así que un permiso que estaba en el otorgamiento original puede no venir
+    // en el siguiente token — y la columna se quedaba diciendo que sí. Medido
+    // el 2026-08-25 sobre la tienda demo: la columna afirmaba
+    // `write_order_edits` y `/admin/oauth/access_scopes.json` decía que no.
+    // Una columna que miente sobre permisos es peor que una vacía: es con la
+    // que se decide si hay que pedirle al comercio que reconecte.
+    if (nuevo.scope) parche.scope = nuevo.scope
     if (nuevo.refresh_token) {
       parche.refresh_token_encrypted = encrypt(nuevo.refresh_token)
       parche.refresh_token_expires_at = nuevo.refresh_token_expires_in
