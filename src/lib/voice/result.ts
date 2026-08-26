@@ -383,16 +383,53 @@ export async function persistCallResult(
   const cost = estimateCost(payload.usage, durationSeconds);
   const connected = call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 
+  /**
+   * ¿El agente llegó a hablar?
+   *
+   * El saludo lo dice el TTS con un texto de la configuración: sale aunque el
+   * modelo esté caído. Si el modelo no puede pensar —la clave sin saldo, el
+   * proveedor caído— la llamada conecta, se oye el saludo, nadie responde, y a
+   * los ~20 s el guardia de silencio cuelga. El worker reporta `completed`.
+   *
+   * Medido en producción el 2026-08-25: Cerebras devolvía 402 y salieron cuatro
+   * llamadas «completadas» de 19 segundos donde el cliente escuchó un saludo y
+   * silencio. El comercio las paga, y la automatización toma la rama
+   * «contestó», que es la peor de las dos.
+   *
+   * Un turno del agente EN LA TRANSCRIPCIÓN es la única prueba de que el modelo
+   * respondió: el saludo no aparece ahí porque no lo generó el modelo.
+   */
+  const agenteHablo = (payload.transcript ?? []).some(
+    (t) => t.role === 'agent' && (t.text ?? '').trim() !== '',
+  );
+
   // Materialize the transcript into a conversation when the call connected.
   let conversationId: string | null = call.conversation_id;
   if (connected) {
     conversationId = await materializeTranscript(db, call, payload);
   }
 
+  // Una llamada que conectó pero en la que el agente nunca dijo una palabra no
+  // es una llamada contestada: es una llamada fallida que suena a contestada.
+  // Se guarda como `failed` con el motivo, para que el registro lo muestre y
+  // para que la rama «si no contesta» de la automatización sea la que corra.
+  const mudo =
+    payload.status === 'completed' && connected && !agenteHablo && !payload.summary;
+  const statusFinal = mudo ? 'failed' : payload.status;
+  const errorFinal = mudo
+    ? payload.error || 'agent_silent: el modelo no respondió durante la llamada'
+    : payload.error ?? null;
+  if (mudo) {
+    console.error(
+      '[voice] llamada sin una sola respuesta del agente — revisar el LLM:',
+      call.id,
+    );
+  }
+
   await db
     .from('voice_calls')
     .update({
-      status: payload.status,
+      status: statusFinal,
       outcome: payload.outcome ?? null,
       outcome_details: payload.outcome_details ?? null,
       summary: payload.summary ?? null,
@@ -406,7 +443,7 @@ export async function persistCallResult(
       // NOT set here: the /tool route stamps it live during the call, so writing
       // null here would clobber it.)
       city: (call.context?.shipping_city as string) || null,
-      error: payload.error ?? null,
+      error: errorFinal,
       updated_at: new Date().toISOString(),
     })
     .eq('id', call.id);
@@ -421,7 +458,7 @@ export async function persistCallResult(
 
   // COD write-back (opt-in): tag the Shopify order with the outcome + push a
   // confirmed order to Dropi. No-op unless the workspace enabled it.
-  if (payload.status === 'completed' && payload.outcome) {
+  if (statusFinal === 'completed' && payload.outcome) {
     void maybeCodWriteback(db, call, payload.outcome).catch((err) =>
       console.error('[voice] COD write-back failed:', err),
     );
@@ -430,7 +467,7 @@ export async function persistCallResult(
   // Retry chain for unanswered outbound calls.
   const unanswered =
     call.direction === 'outbound' &&
-    VOICE_UNANSWERED_STATUSES.includes(payload.status);
+    VOICE_UNANSWERED_STATUSES.includes(statusFinal);
   let retried = false;
   if (unanswered && agent && payload.outcome !== 'opt_out') {
     retried = await scheduleRetry(db, call, agent);
@@ -443,7 +480,7 @@ export async function persistCallResult(
   if (isFinal) {
     const resultVars: Record<string, unknown> = {
       call_type: call.call_type,
-      call_status: payload.status,
+      call_status: statusFinal,
       call_outcome: payload.outcome ?? 'no_outcome',
       call_duration: durationSeconds ?? 0,
       call_summary: payload.summary ?? '',

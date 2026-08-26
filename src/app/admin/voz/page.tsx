@@ -38,6 +38,36 @@ export default function AdminVoiceModelPage() {
   const [forbidden, setForbidden] = useState(false);
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Resultado de la ultima prueba por capa, y cual se esta probando. */
+  const [probes, setProbes] = useState<Record<string, ProbeResult>>({});
+  const [probing, setProbing] = useState<string | null>(null);
+
+  /**
+   * Preguntarle al proveedor si la llave sirve.
+   *
+   * Guardar primero, a proposito: probar lo que hay en pantalla y no lo que
+   * esta guardado daria un "anda" sobre una llave que las llamadas no usan.
+   */
+  async function probar(layer?: string) {
+    setProbing(layer ?? 'all');
+    try {
+      const res = await fetchWithCsrf('/api/admin/voice-model/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layer ? { layer } : {}),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? t('voice.adminProbeError'));
+        return;
+      }
+      setProbes((p) => ({ ...p, ...(json.results as Record<string, ProbeResult>) }));
+    } catch {
+      toast.error(t('voice.adminProbeError'));
+    } finally {
+      setProbing(null);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,6 +234,9 @@ export default function AdminVoiceModelPage() {
               hasKey={config.has_stt_key}
               keyVal={keys.stt_api_key}
               onKey={(v) => setKeys((k) => ({ ...k, stt_api_key: v }))}
+              probe={probes.stt}
+              probing={probing === 'stt' || probing === 'all'}
+              onProbe={() => probar('stt')}
             />
           </LayerSection>
 
@@ -224,6 +257,9 @@ export default function AdminVoiceModelPage() {
               hasKey={config.has_llm_key}
               keyVal={keys.llm_api_key}
               onKey={(v) => setKeys((k) => ({ ...k, llm_api_key: v }))}
+              probe={probes.llm}
+              probing={probing === 'llm' || probing === 'all'}
+              onProbe={() => probar('llm')}
             />
           </LayerSection>
 
@@ -251,6 +287,9 @@ export default function AdminVoiceModelPage() {
               hasKey={config.has_tts_key}
               keyVal={keys.tts_api_key}
               onKey={(v) => setKeys((k) => ({ ...k, tts_api_key: v }))}
+              probe={probes.tts}
+              probing={probing === 'tts' || probing === 'all'}
+              onProbe={() => probar('tts')}
             />
           </LayerSection>
         </>
@@ -279,6 +318,9 @@ export default function AdminVoiceModelPage() {
             hasKey={config.has_realtime_key}
             keyVal={keys.realtime_api_key}
             onKey={(v) => setKeys((k) => ({ ...k, realtime_api_key: v }))}
+            probe={probes.realtime}
+            probing={probing === 'realtime' || probing === 'all'}
+            onProbe={() => probar('realtime')}
           />
         </LayerSection>
       )}
@@ -434,6 +476,22 @@ function VoiceField({
   );
 }
 
+/** Lo que devuelve /api/admin/voice-model/test por capa. */
+interface ProbeResult {
+  code: string;
+  detail?: string;
+  provider?: string;
+  model?: string;
+}
+
+/** El codigo del probe, como clave del catalogo (`no_credit` -> `adminProbeNoCredit`). */
+function probeKey(code: string): string {
+  return `voice.adminProbe${code
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join('')}`;
+}
+
 function EndpointKey({
   t,
   baseUrl,
@@ -441,6 +499,9 @@ function EndpointKey({
   hasKey,
   keyVal,
   onKey,
+  probe,
+  probing,
+  onProbe,
 }: {
   t: (k: string) => string;
   baseUrl: string | null;
@@ -448,6 +509,9 @@ function EndpointKey({
   hasKey: boolean;
   keyVal: string;
   onKey: (v: string) => void;
+  probe?: ProbeResult;
+  probing?: boolean;
+  onProbe?: () => void;
 }) {
   return (
     <>
@@ -470,6 +534,39 @@ function EndpointKey({
         <p className="text-xs text-muted-foreground sm:pl-[160px]">
           {t('voice.adminKeyEnvNote')}
         </p>
+      ) : null}
+      {/* Configurada y funcionando no son lo mismo: el dia que el telefono
+          salio mudo, la llave estaba puesta y el proveedor sin saldo. */}
+      {onProbe ? (
+        <div className="flex flex-wrap items-center gap-2 sm:pl-[160px]">
+          <Button type="button" variant="outline" size="sm" onClick={onProbe} disabled={probing}>
+            {probing ? (
+              <>
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                {t('voice.adminTesting')}
+              </>
+            ) : (
+              t('voice.adminTest')
+            )}
+          </Button>
+          {probe ? (
+            <span
+              className={
+                probe.code === 'ok'
+                  ? 'text-xs text-emerald-600 dark:text-emerald-400'
+                  : 'text-xs text-amber-600 dark:text-amber-400'
+              }
+              title={probe.detail ?? undefined}
+            >
+              {t(probeKey(probe.code))}
+              {probe.model ? ` \u00b7 ${probe.model}` : ''}
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              {t('voice.adminProbeHint')}
+            </span>
+          )}
+        </div>
       ) : null}
     </>
   );

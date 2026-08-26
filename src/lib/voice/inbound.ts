@@ -14,11 +14,31 @@ import type {
   VoiceConnectionConfig,
 } from '@/types';
 import type { AiAgent } from '@/lib/ai/types';
-import { phonesMatch } from '@/lib/whatsapp/phone-utils';
+import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
 
 function toE164(raw: string): string {
   const t = raw.trim();
   return t.startsWith('+') ? t : `+${t.replace(/[^\d]/g, '')}`;
+}
+
+/**
+ * El número de quien llama, en E.164 de verdad.
+ *
+ * Telnyx entrega el ANI SIN código de país en las llamadas nacionales: una
+ * llamada de un móvil de Florida a un número de EE.UU. llega como
+ * `9544945872`. `toE164` sólo le antepone un `+`, así que quedaba guardado
+ * `+9544945872` — un número al que no se puede devolver la llamada ni mandar
+ * un WhatsApp. Visto en producción el 2026-08-25, en la primera llamada
+ * entrante de la historia.
+ *
+ * El país del DID es la pista correcta para completarlo: quien marca un número
+ * local casi siempre está en el mismo país.
+ */
+function callerToE164(raw: string, didCountry?: string | null): string {
+  const normalizado = normalizeToWhatsApp(raw, didCountry ?? null);
+  // `normalizeToWhatsApp` devuelve vacío si no logra validarlo; ahí se guarda
+  // lo que llegó, que es mejor que perder de dónde vino la llamada.
+  return normalizado ? `+${normalizado}` : toE164(raw);
 }
 
 /** Best voice-enabled agent for a workspace (highest priority). */
@@ -50,9 +70,9 @@ export async function pickVoiceAgent(
 async function resolveContact(
   db: SupabaseClient,
   workspaceId: string,
-  caller: string,
+  /** Ya normalizado por `callerToE164`. */
+  e164: string,
 ): Promise<Contact | null> {
-  const e164 = toE164(caller);
   const last8 = e164.slice(-8);
   // Match any existing contact by phone (cross-channel), preferring the oldest.
   const { data: candidates } = await db
@@ -125,11 +145,11 @@ export async function resolveInboundCall(
   const agent = await pickVoiceAgent(db, conn.workspace_id);
   if (!agent) return { ok: false, reason: 'no_voice_agent' };
 
-  const contact = await resolveContact(db, conn.workspace_id, input.caller);
+  const caller = callerToE164(input.caller, cfg.country);
+
+  const contact = await resolveContact(db, conn.workspace_id, caller);
   if (!contact) return { ok: false, reason: 'contact_failed' };
   if (contact.voice_opt_out) return { ok: false, reason: 'opt_out' };
-
-  const caller = toE164(input.caller);
 
   // Idempotency: the worker may re-fetch /context for the SAME physical call
   // (timeout/reconnect). Reuse a recent, still-open inbound call for this

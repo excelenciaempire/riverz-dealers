@@ -340,6 +340,33 @@ export const voice = {
     es: "Vacío = usa la variable de entorno del servidor para este proveedor.",
     en: "Empty = uses the server environment variable for this provider.",
   },
+  // Probar la llave. Nació de un día entero de teléfono roto con la clave
+  // puesta y el proveedor sin saldo: el panel decía "configurada" y las
+  // llamadas salían mudas. Configurada y funcionando no son lo mismo.
+  adminTest: { es: "Probar", en: "Test" },
+  adminTestAll: { es: "Probar todo", en: "Test all" },
+  adminTesting: { es: "Probando…", en: "Testing…" },
+  adminProbeOk: { es: "Responde", en: "Responding" },
+  adminProbeNoKey: {
+    es: "Sin llave: ni acá ni en el servidor",
+    en: "No key: neither here nor on the server",
+  },
+  adminProbeBadKey: { es: "La llave no sirve", en: "The key is not valid" },
+  adminProbeNoCredit: {
+    es: "Sin saldo en el proveedor",
+    en: "No credit left with the provider",
+  },
+  adminProbeModelNotFound: {
+    es: "Ese modelo no existe en este proveedor",
+    en: "That model does not exist for this provider",
+  },
+  adminProbeRateLimited: { es: "Frenado por cuota", en: "Rate limited" },
+  adminProbeUnreachable: { es: "No se pudo llegar", en: "Could not reach it" },
+  adminProbeError: { es: "Falló", en: "Failed" },
+  adminProbeHint: {
+    es: "Le pregunta al proveedor con la misma llave que usarían las llamadas.",
+    en: "Asks the provider with the same key the calls would use.",
+  },
   adminSave: { es: "Guardar", en: "Save" },
   adminSaved: { es: "Modelo actualizado", en: "Model updated" },
   adminAutoFixed: {

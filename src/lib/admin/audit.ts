@@ -29,6 +29,9 @@ export type AdminAction =
   | 'update.feature_flag'
   | 'update.workspace_feature_flag'
   | 'update.voice_model'
+  // Probar las llaves del stack de voz: no cambia nada, pero sale a la red
+  // hacia terceros con la llave de la plataforma, asi que deja rastro.
+  | 'test.voice_model'
   | 'view.ai_key'
   | 'view.feature_flags'
   | 'view.voice_model'
