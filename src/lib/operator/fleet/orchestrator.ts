@@ -35,6 +35,7 @@ import { ejecutarPlan } from './ejecutar-plan'
 import { leerIntencion, pistaComoTexto } from './intencion'
 import { cargarPlan, guardarPlan, validarPlan } from './plan'
 import { PROMPT_ORQUESTADOR, TOOLS_EQUIPO, esToolDeEquipo } from './orchestrator-tools'
+import { PREGUNTAR_ORQUESTADOR } from './preguntas'
 import { rosterComoTexto } from './roster'
 import { runSubagent } from './run'
 import { MODELOS, type ModelRunner } from './runner'
@@ -443,7 +444,9 @@ export async function mapaDelTurno(ctx: CapabilityContext): Promise<string> {
 }
 
 function armarSystem(mapa: string, pedido: string): Anthropic.TextBlockParam[] {
-  const estable = `${PROMPT_ORQUESTADOR}\n\nEL EQUIPO\n${rosterComoTexto()}`
+  // Las preguntas entran en el bloque estable: son las mismas para todos los
+  // comercios, así que viajan gratis dentro del prefijo cacheado.
+  const estable = `${PROMPT_ORQUESTADOR}\n\n${PREGUNTAR_ORQUESTADOR}\n\nEL EQUIPO\n${rosterComoTexto()}`
 
   const pista = pistaComoTexto(leerIntencion(pedido))
   const variable = [mapa, pista].filter(Boolean).join('\n\n')

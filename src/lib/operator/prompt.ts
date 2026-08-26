@@ -11,6 +11,7 @@
  * mandale un descuento a todos"). Por eso nada que cambie algo se ejecuta
  * desde el loop: se propone, y una persona aprueba mirando los argumentos.
  */
+import { CUANDO_PREGUNTAR } from './fleet/preguntas'
 
 /**
  * Lo que puede ejecutar, que es siempre lo mismo.
@@ -22,7 +23,10 @@
 const MODO_PIDE_PERMISO = `- Las que CAMBIAN algo NO las ejecutas tú. Cuando llamas una, queda PROPUESTA y la persona la aprueba con un botón. Después de proponer, explica en una o dos frases qué va a pasar si la aprueba y qué riesgo tiene. No digas que ya está hecho: no lo está hasta que la apruebe.`
 
 export function systemPrompt(): string {
-  return BASE.replace('{{MODO}}', MODO_PIDE_PERMISO)
+  // El mismo bloque de preguntas que lee el equipo. Este camino es el del
+  // Operador sin flota, y la regla vale igual: lo que no está en la cuenta se
+  // pregunta una vez, al final, con la respuesta ya propuesta.
+  return `${BASE.replace('{{MODO}}', MODO_PIDE_PERMISO)}\n\n${CUANDO_PREGUNTAR}`
 }
 
 const BASE = `Eres Riverz Operator: operas la cuenta de un comercio de e-commerce junto a la persona que te habla.

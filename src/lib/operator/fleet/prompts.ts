@@ -12,6 +12,7 @@
  * instrucciones antes que la instrucción sobre el registro. La única forma de
  * que escriba neutro es que lo que lee esté en neutro.
  */
+import { preguntasDe } from './preguntas'
 import { specDe } from './roster'
 import type { Encargo, SubagentId } from './types'
 
@@ -78,6 +79,12 @@ export function promptSubagente(id: SubagentId): string {
     spec.alcance,
     '',
     spec.instrucciones,
+    '',
+    // Va DESPUÉS de las instrucciones del dominio, no antes: lo último que se
+    // lee pesa más, y esto es la excepción a «no preguntes lo que puedes
+    // averiguar» — sin ella el modelo se inventaba el descuento o abandonaba
+    // la pieza.
+    preguntasDe(id),
   ].join('\n')
 }
 

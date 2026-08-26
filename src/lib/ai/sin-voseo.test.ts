@@ -69,6 +69,8 @@ const ARCHIVOS = [
   'operator/fleet/prompts.ts',
   'operator/fleet/roster.ts',
   'operator/fleet/orchestrator-tools.ts',
+  'operator/fleet/preguntas.ts',
+  'operator/escribir.ts',
   'templates/oficio.ts',
 ]
 
@@ -95,6 +97,10 @@ const FORMAS = [
   'programá', 'agregá', 'explicá', 'reconocé', 'cobrá', 'reusá', 'rechazá',
   'invitá', 'contestá', 'tratá', 'respondé', 'aclará', 'acordá', 'reconectá',
   'sugerí', 'conectá', 'recomendá',
+  // Salieron de barrer los prompts del Operador: el roster le decía al de voz
+  // "respetá el horario" y al de flujos "corregí y volvé a intentar".
+  'respetá', 'corregí', 'encolá', 'delegá', 'aprobá', 'cerrale', 'preguntá',
+  'anunciá', 'entregá', 'guardá', 'calculá', 'ajustá', 'nombrá', 'confirmalo',
   // enclíticos
   'decile', 'pedile', 'contale', 'pasale', 'avisale', 'ponele', 'sacale',
   'usala', 'usalo', 'llamala', 'llamalo', 'mostrale', 'preguntale', 'pedilo',

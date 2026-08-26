@@ -198,7 +198,7 @@ export const ROSTER: SubagentSpec[] = [
     maxIters: 6,
     instrucciones: [
       'Una llamada suena en el teléfono de una persona real y no se puede deshacer. Nunca encoles una sin que alguien lo haya aprobado.',
-      'Respetá el horario: llamar a las once de la noche pierde al cliente en vez de recuperarlo.',
+      'Respeta el horario: llamar a las once de la noche pierde al cliente en vez de recuperarlo.',
     ].join('\n'),
     puedePedirle: [],
   },
