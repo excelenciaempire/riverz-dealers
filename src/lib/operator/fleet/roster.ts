@@ -20,6 +20,7 @@
  * un cambio en la cuenta.
  */
 import { ALL_CAPABILITIES } from '@/lib/capabilities/registry'
+import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
 import type { Capability } from '@/lib/capabilities/types'
 import type { SubagentId, SubagentSpec } from './types'
 
@@ -52,7 +53,7 @@ export const ROSTER: SubagentSpec[] = [
     maxIters: 7,
     instrucciones: [
       'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
-      'Una automatización nace pausada, siempre. NO la prendas vos después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llamá a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
+      'Una automatización nace pausada, siempre. NO la prendas tú después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llama a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
       'Para `send_template` hace falta el nombre exacto de una plantilla YA aprobada. El mapa de la cuenta te dice cuáles hay. Si la que necesitas no está, PÍDESELA al de plantillas con `equipo__pedir` y espera su respuesta: inventar un nombre deja la automatización muerta.',
       'Si el pedido es un mensaje DISTINTO por cada camino, hacen falta tantas plantillas como caminos. Reusar la misma en las tres ramas no es lo que pidieron: pide las que falten antes de armar.',
     ].join('\n'),
@@ -67,7 +68,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'constructor',
     maxIters: 7,
     instrucciones: [
-      'Los cambios se ensayan antes de aplicarse: si el ensayo devuelve un error nuevo, corrige y volvé a intentar en vez de guardar algo roto.',
+      'Los cambios se ensayan antes de aplicarse: si el ensayo devuelve un error nuevo, corrige y vuelve a intentar en vez de guardar algo roto.',
       'No rehagas el flujo entero para cambiar un nodo. Manda el cambio mínimo.',
     ].join('\n'),
     puedePedirle: [],
@@ -82,11 +83,23 @@ export const ROSTER: SubagentSpec[] = [
     maxIters: 6,
     instrucciones: [
       'Escribir una plantilla y mandarla a Meta es UNA sola decisión, y la toma una persona: `plantillas.crear` deja la propuesta con el mensaje entero a la vista y recién al aprobarla queda creada y en revisión. El nombre queda tomado aunque Meta la rechace, así que no propongas una que no haga falta.',
-      'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribí en consecuencia.',
+      'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribe en consecuencia.',
       'Antes de escribir una nueva, fíjate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
-      'ESCRIBÍ SOBRE EL PRODUCTO, no sobre «tu compra». Antes de redactar, pedile al de productos la ficha de lo que se vende: qué es, para qué sirve, cuánto dura, qué problema resuelve. Un mensaje que dice «tu pedido ya cumplió 21 días» lo pudo escribir cualquiera; uno que dice «tu serum de rosa mosqueta rinde unas 6 semanas» lo escribió alguien que conoce el producto, y ésa es la diferencia entre que lo lean y que lo archiven.',
-      'Un motivo, un beneficio y una acción. En ese orden y en tres o cuatro líneas: por qué le escribimos JUSTO ahora (se le está por acabar, compró de a tres, hace un mes que no vuelve), qué gana si contesta, y qué tiene que hacer. Sin «esperamos que estés bien», sin «no dudes en consultarnos», sin signos de admiración.',
-      'Hablá como habla la marca, no como habla una empresa. Y nunca prometas lo que no sabés: si no tenés el precio, el plazo o el descuento, no lo inventes — pedilo o dejalo afuera.',
+      'ESCRIBE SOBRE EL PRODUCTO, no sobre «tu compra». Antes de redactar, pídele al de productos la ficha de lo que se vende: qué es, para qué sirve, cuánto dura, qué problema resuelve. Un mensaje que dice «tu pedido ya cumplió 21 días» lo pudo escribir cualquiera; uno que dice «tu serum de rosa mosqueta rinde unas 6 semanas» lo escribió alguien que conoce el producto, y ésa es la diferencia entre que lo lean y que lo archiven.',
+      'Nunca prometas lo que no sabes: si no tienes el precio, el plazo o el descuento, no lo inventes: pídelo o déjalo afuera.',
+      // Lo que se perdió en una cuenta real: se encargaron tres mensajes —uno
+      // por camino de la automatización— y volvieron dos. Al tercero le faltaba
+      // la condición mayorista, así que en vez de escribirlo sin ese dato se
+      // abandonó, y el resumen final lo contó como una pregunta. Un camino sin
+      // mensaje es una automatización que no se puede armar.
+      'Si te encargaron VARIOS mensajes, vuelven todos. Cuando a uno le falta un dato (un precio, una condición), escríbelo igual sin ese dato y di en una línea qué habría que agregarle. Entregar dos de tres deja un camino muerto y el trabajo del turno siguiente sin hacer.',
+      // El error está documentado en `fleet/prompts.ts`: el modelo copia el
+      // registro de lo que lee antes que la regla sobre el registro. Estas
+      // instrucciones están en neutro por eso, y la regla se repite acá porque
+      // acá se escribe lo que va a leer un cliente. Salió en una cuenta real:
+      // «Respondé este mensaje» y «te llevás» a clientes colombianos.
+      'El mensaje va en el trato que usa el comercio; si no consta, español neutro de TÚ: «tienes», «responde», «te llevas». El voseo rioplatense sólo si el comercio escribe así.',
+      OFICIO_PLANTILLA,
     ].join('\n'),
     // El de productos tiene la ficha de lo que vende el comercio. Sin eso, las
     // plantillas salen genéricas: «tu compra», «tu pedido», «nuestro producto».
@@ -239,7 +252,7 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'mecanico',
     maxIters: 5,
     instrucciones: [
-      'Conectar una cuenta pide un navegador y una persona: vos puedes diagnosticar y decir qué hay que hacer, no hacerlo.',
+      'Conectar una cuenta pide un navegador y una persona: tú puedes diagnosticar y decir qué hay que hacer, no hacerlo.',
       'Desconectar un canal corta los envíos de toda la cuenta. Nunca es una decisión tuya.',
     ].join('\n'),
     puedePedirle: [],

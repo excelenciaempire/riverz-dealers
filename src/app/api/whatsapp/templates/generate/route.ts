@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { createClient } from '@/lib/supabase/server'
@@ -25,12 +26,13 @@ Escribes el CUERPO de una plantilla de mensaje que Meta debe aprobar.
 
 Reglas estrictas:
 - Devuelve SOLO el texto del cuerpo, sin comillas, sin encabezado, sin pie, sin explicaciones.
-- Máximo 1024 caracteres. Conciso, cálido y claro.
-- Si necesitas personalización, usa variables correlativas {{1}}, {{2}}… empezando en {{1}}, sin saltos.
+- Máximo 1024 caracteres. Si necesitas personalización, usa variables correlativas {{1}}, {{2}}… empezando en {{1}}, sin saltos.
 - No incluyas URLs ni teléfonos en el cuerpo (van en botones).
 - Cumple las políticas de Meta: nada engañoso, sin contenido prohibido.
 - Responde en el idioma que se indique.
-- No incluyas razonamiento ni notas: solo el cuerpo final.`
+- No incluyas razonamiento ni notas: solo el cuerpo final.
+
+${OFICIO_PLANTILLA}`
 
 export async function POST(request: Request) {
   const block = await csrfGuard(request)
