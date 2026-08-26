@@ -14,6 +14,17 @@ livekit-api==1.2.0
 # (bundled Opus) + livekit-agents[codecs]. See voice-worker/personaplex.py.
 livekit-plugins-nvidia[personaplex]==1.6.7
 
+# El SDK de anthropic 1.0.0 se mudo a `httpx2` (mayo 2026), pero
+# livekit-plugins-anthropic 1.6.7 sigue armando un `httpx.AsyncClient` y se lo
+# pasa al cliente. Sin este techo, pip trae la 1.x y el LLM de las llamadas
+# muere al arrancar con:
+#   Invalid `http_client` argument; Expected an instance of `httpx2.AsyncClient`
+#   but got <class 'httpx.AsyncClient'>
+# Resultado en produccion: el agente saluda por TTS, no puede pensar, y a los
+# ~19 s cuelga por silencio — reportando la llamada como `completed`.
+# 0.125.0 es la ultima que declara `httpx<1,>=0.25.0`. El plugin pide
+# `anthropic>=0.41` sin techo, asi que el techo lo ponemos aca.
+anthropic<1.0.0
 httpx==0.28.1
 python-dotenv==1.2.2
 
