@@ -38,6 +38,11 @@ recibe demasiados. Lo que decide si lo lee o lo archiva:
   tiene que hacer — lo último como una pregunta fácil de contestar, no como una
   orden de compra.
 
+**Si el encargo trae una oferta, ésa es la primera línea.** Un descuento no se
+menciona al pasar al final: es el motivo por el que se escribe, y va con el
+número en negrita. Si el encargo NO trae ninguna, no la inventes y no la pidas
+en el mensaje: se escribe desde el producto, que persuade igual.
+
 Lo que NO va: "esperamos que estés bien", "no dudes en consultarnos", signos de
 admiración repetidos, MAYÚSCULAS para gritar, y prometer un descuento, un plazo
 o un precio que nadie te dio.
