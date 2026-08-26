@@ -74,9 +74,24 @@ export async function ejecutarPlan(args: {
     const pendientes = ola.filter((i) => !estadoDe.has(i))
     if (pendientes.length === 0) continue
 
-    const corridas = await Promise.allSettled(
+    /**
+     * Un paso que explota vuelve como fallido, nunca como rechazo.
+     *
+     * `runSubagent` devuelve `ok:false` para los errores del modelo, pero
+     * cualquier otra cosa —la base, el semáforo, un `emit` que tira— lanzaba, y
+     * el `allSettled` lo descartaba con un `continue`. Consecuencia: el paso
+     * quedaba escrito como «corriendo» en la base para siempre, girando en la
+     * tarjeta del plan, y el cierre lo contaba como «saltado» sin decir por
+     * qué. Ahora el error se atrapa donde se conoce el paso, que es el único
+     * lugar desde donde se puede marcar.
+     */
+    const corridas = await Promise.all(
       pendientes.map((i) =>
-        conCupo(async () => {
+        conCupo(async (): Promise<{
+          i: number
+          paso: PlanGuardado['pasos'][number]
+          r: ResultadoSubagente
+        }> => {
           const paso = plan.pasos.find((p) => p.i === i)!
           await marcarPaso(ctx.db, paso.id, { status: 'corriendo' })
 
@@ -84,33 +99,43 @@ export async function ejecutarPlan(args: {
             .map((d) => hechoDe.get(d))
             .filter((h): h is Hecho => !!h)
 
-          const r = await runSubagent({
-            agente: paso.agente,
-            encargo: { texto: paso.encargo, hechos },
-            ctx,
-            threadId: args.threadId,
-            runner: args.runner,
-            emit,
-            presupuesto: args.presupuesto,
-            // Un plan aprobado construye lo inerte sin más clicks. Lo que no es
-            // inerte sigue proponiendo, adentro del plan y fuera de él.
-            autoBuild: true,
-            paso: i,
-            mapa,
-          })
-          return { i, paso, r }
+          try {
+            const r = await runSubagent({
+              agente: paso.agente,
+              encargo: { texto: paso.encargo, hechos },
+              ctx,
+              threadId: args.threadId,
+              runner: args.runner,
+              emit,
+              presupuesto: args.presupuesto,
+              // Un plan aprobado construye lo inerte sin más clicks. Lo que no
+              // es inerte sigue proponiendo, adentro del plan y fuera de él.
+              autoBuild: true,
+              paso: i,
+              mapa,
+            })
+            return { i, paso, r }
+          } catch (err) {
+            const motivo = err instanceof Error ? err.message : 'falló'
+            return {
+              i,
+              paso,
+              r: {
+                agente: paso.agente,
+                ok: false,
+                resumen: motivo,
+                propuestas: 0,
+                construidas: 0,
+                artefactos: [],
+                error: motivo,
+              },
+            }
+          }
         }),
       ),
     )
 
-    for (const c of corridas) {
-      if (c.status === 'rejected') {
-        // El semáforo o el propio `runSubagent` no deberían rechazar nunca
-        // —los errores del modelo se devuelven como `ok:false`— pero si pasa,
-        // el plan no se cae: ese paso queda fallido y sigue el resto.
-        continue
-      }
-      const { i, paso, r } = c.value as { i: number; paso: PlanGuardado['pasos'][number]; r: ResultadoSubagente }
+    for (const { i, paso, r } of corridas) {
       propuestas += r.propuestas
       construidas += r.construidas
 

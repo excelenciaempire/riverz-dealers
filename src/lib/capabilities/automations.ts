@@ -566,7 +566,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.ver',
     description:
-      'Una automatización por dentro: su disparador, sus pasos en orden y qué le falta para poder prenderse. Cada paso viene con su ruta ("2", "2.si.1"), que es la que hay que pasarle a automatizaciones.editar. Miralo antes de editar: adivinar la posición de un paso es editar el equivocado.',
+      'Una automatización por dentro: su disparador, sus pasos en orden y qué le falta para poder prenderse. Cada paso viene con su ruta ("2", "2.si.1"), que es la que hay que pasarle a automatizaciones.editar. Míralo antes de editar: adivinar la posición de un paso es editar el equivocado.',
     descriptionEn:
       'An automation from the inside: its trigger, its steps in order, and what it still needs to be turned on. Each step comes with the route to address it in automatizaciones.editar.',
     risk: 'lectura',

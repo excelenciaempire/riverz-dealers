@@ -131,7 +131,20 @@ export async function abrirCorrida(
     .insert({ thread_id: threadId, workspace_id: workspaceId, estado: 'corriendo' })
     .select('id')
     .single()
-  if (error) throw new Error(error.message)
+
+  /**
+   * Dos envíos a la vez: gana el índice único, no una excepción.
+   *
+   * Entre mirar si hay una viva e insertar la nueva hay un hueco, y dos clicks
+   * seguidos caen los dos adentro. El índice parcial rechaza al segundo, y eso
+   * salía como un 500 con el mensaje de Postgres en pantalla. Es exactamente el
+   * caso que el 409 ya sabe atender: hay una corriendo, mírala.
+   */
+  if (error) {
+    const otra = await corridaViva(db, threadId, workspaceId)
+    if (otra) return { id: otra.id, yaHabia: true }
+    throw new Error(error.message)
+  }
   return { id: (data as { id: string }).id, yaHabia: false }
 }
 

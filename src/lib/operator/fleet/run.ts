@@ -151,7 +151,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
           resultados.push({
             type: 'tool_result',
             tool_use_id: uso.id,
-            content: `Eso no es de tu dominio (${e.agente}). Decilo y no lo intentes.`,
+            content: `Eso no es de tu dominio (${e.agente}). Dilo y no lo intentes.`,
             is_error: true,
           })
           continue

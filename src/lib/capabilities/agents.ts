@@ -96,7 +96,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       .insert(canales.map((channel) => ({ agent_id: agent.id, channel })))
   }
 
-  return { ...agent, nota: 'Queda pausado. Revisalo y activalo cuando estés listo.' }
+  return { ...agent, nota: 'Queda pausado. Revísalo y actívalo cuando estés listo.' }
 }
 
 async function activarAgente(ctx: CapabilityContext, args: Record<string, unknown>) {

@@ -291,11 +291,20 @@ export async function POST(request: Request) {
         detener: () => pidieronDetener(ctx.admin, runId),
       })
 
+      /**
+       * Se guarda lo que se VIO, no la última frase.
+       *
+       * `turno.text` es el texto de la última llamada al modelo, y un turno son
+       * varias: lo que dijo en la primera —«esas tres plantillas no llegaron a
+       * crearse»— se emitía en pantalla y no quedaba en la fila. El hilo se
+       * dibuja desde los bloques, así que a la vista no se notaba; lo que se
+       * perdía era el contexto del turno siguiente, que sí lee este campo.
+       */
       await appendMessage(ctx.admin, {
         threadId,
         workspaceId: ctx.workspaceId,
         role: 'assistant',
-        text: turno.text,
+        text: textoAcumulado.trim() || turno.text,
         bloques: turnoVisto.bloques,
         promptTokens: turno.promptTokens,
         completionTokens: turno.completionTokens,
@@ -330,6 +339,30 @@ export async function POST(request: Request) {
         claveRechazada(err) ? 'operation.operatorSinSaldo' : 'operation.operatorError',
       )
       push({ t: 'error', message })
+
+      /**
+       * Un turno que se cae igual deja rastro en el hilo.
+       *
+       * No se guardaba nada: quedaba el pedido de la persona y ninguna
+       * respuesta, aunque el equipo hubiera dejado tres propuestas en la base
+       * antes de romperse. Al recargar, la conversación se veía como si nunca
+       * hubiera pasado nada, y el turno siguiente arrancaba sin saber qué había
+       * propuesto — que es exactamente cómo se terminan proponiendo las mismas
+       * tres cosas dos veces.
+       *
+       * Sólo si hubo algo que contar: un turno que muere en la primera llamada
+       * no tiene por qué dejar un mensaje vacío en el historial.
+       */
+      if (textoAcumulado.trim() || turnoVisto.bloques.length > 0) {
+        await appendMessage(ctx.admin, {
+          threadId,
+          workspaceId: ctx.workspaceId,
+          role: 'assistant',
+          text: textoAcumulado.trim() || message,
+          bloques: turnoVisto.bloques,
+        }).catch(() => undefined)
+      }
+
       await cerrarCorrida(ctx.admin, runId, 'fallido', {
         texto: textoAcumulado,
         bloques: turnoVisto.bloques,

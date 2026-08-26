@@ -218,8 +218,18 @@ export async function runOrquestador(args: {
     // ── Pasada 2: los encargos, juntos ─────────────────────────────────
     if (aDelegar.length > 0) {
       const conCupo = crearSemaforo()
-      const corridas = await Promise.allSettled(
-        aDelegar.map((uso) =>
+      /**
+       * Nada de esto puede lanzar.
+       *
+       * La API exige un `tool_result` por cada `tool_use` de la respuesta
+       * anterior. Un encargo que rechazaba se saltaba con `continue` y dejaba
+       * su id sin contestar, así que la llamada siguiente moría con un 400 y el
+       * turno entero se perdía con un «algo salió mal» — justo cuando algo ya
+       * había fallado y hacía falta contarlo. Ahora el error viaja como
+       * resultado, que es lo que el modelo puede leer y explicar.
+       */
+      const corridas = await Promise.all(
+        aDelegar.map((uso, n) =>
           conCupo(async () => {
             const input = (uso.input ?? {}) as { subagente?: unknown; encargo?: unknown }
             if (!esSubagentId(input.subagente)) {
@@ -228,30 +238,38 @@ export async function runOrquestador(args: {
                 error: `"${String(input.subagente)}" no está en el equipo.`,
               }
             }
-            const r = await runSubagent({
-              agente: input.subagente,
-              encargo: { texto: String(input.encargo ?? ''), hechos: [] },
-              ctx,
-              threadId: args.threadId,
-              runner: args.runner,
-              emit,
-              presupuesto,
-              autoBuild: args.autoBuild,
-              mapa,
-            })
-            proposedIds.push(...Array(r.propuestas).fill(''))
-            return { uso, r }
+            // El techo es real y no un consejo: contaba las delegaciones para
+            // avisar, pero nada impedía seguir delegando hasta el techo de
+            // vueltas. Un encargo por encima del tope vuelve como error suyo,
+            // con su propio id contestado.
+            if (delegaciones + n >= MAX_DELEGACIONES) {
+              return {
+                uso,
+                error: `Ya delegaste ${MAX_DELEGACIONES} veces en este turno. Cierra contando qué quedó y qué falta.`,
+              }
+            }
+            try {
+              const r = await runSubagent({
+                agente: input.subagente,
+                encargo: { texto: String(input.encargo ?? ''), hechos: [] },
+                ctx,
+                threadId: args.threadId,
+                runner: args.runner,
+                emit,
+                presupuesto,
+                autoBuild: args.autoBuild,
+                mapa,
+              })
+              proposedIds.push(...Array(r.propuestas).fill(''))
+              return { uso, r }
+            } catch (err) {
+              return { uso, error: err instanceof Error ? err.message : 'falló' }
+            }
           }),
         ),
       )
 
-      for (const c of corridas) {
-        if (c.status === 'rejected') continue
-        const v = c.value as {
-          uso: Anthropic.ToolUseBlock
-          r?: Awaited<ReturnType<typeof runSubagent>>
-          error?: string
-        }
+      for (const v of corridas) {
         if (v.error || !v.r) {
           results.push({
             type: 'tool_result',
@@ -272,18 +290,23 @@ export async function runOrquestador(args: {
             propuestas: v.r.propuestas,
             construidas: v.r.construidas,
             /**
-             * El aviso va ACA, no solo en el prompt.
+             * El aviso va ACÁ, no sólo en el prompt.
              *
-             * Es el momento exacto en que el orquestador decide que hace
-             * despues, y una regla en un system prompt largo se pierde. Sin
-             * esto seguia de largo: el de plantillas dejaba el mensaje
-             * propuesto, el orquestador pedia la automatizacion que lo manda, y
-             * la plantilla no existia todavia.
+             * Es el momento exacto en que el orquestador decide qué hace
+             * después, y una regla en un system prompt largo se pierde. Sin
+             * esto seguía de largo: el de plantillas dejaba el mensaje
+             * propuesto, el orquestador pedía la automatización que lo manda, y
+             * la plantilla no existía todavía.
+             *
+             * Y decía «cierra el turno diciendo qué queda por decidir», que es
+             * justo lo que no hay que decir: la tarjeta con los botones ya está
+             * en pantalla. De ahí salían todos los cierres que terminaban en
+             * «esperando aprobación».
              */
             ...(v.r.propuestas > 0
               ? {
                   aviso:
-                    'Lo que quedo propuesto TODAVIA NO EXISTE: espera a que lo aprueben antes de construir nada que lo use. Cierra el turno diciendo que queda por decidir.',
+                    'Lo que quedó propuesto TODAVÍA NO EXISTE: espera a que lo aprueben antes de construir nada que lo use. Cierra el turno acá, sin describir lo que propusiste ni anunciar lo que harás después: la tarjeta con los botones ya está a la vista.',
                 }
               : {}),
           }),
@@ -292,13 +315,26 @@ export async function runOrquestador(args: {
       }
 
       delegaciones += aDelegar.length
-      if (delegaciones >= MAX_DELEGACIONES) {
-        results.push({
-          type: 'tool_result',
-          tool_use_id: aDelegar[0].id,
-          content: 'Ya delegaste bastante en este turno. Cerrá contando qué quedó.',
-        })
-      }
+    }
+
+    /**
+     * Ni una herramienta sin respuesta.
+     *
+     * La API exige un `tool_result` por cada `tool_use` de la respuesta
+     * anterior, y si falta uno la llamada siguiente muere con un 400 que en
+     * pantalla se lee «algo salió mal». Cada rama de arriba deja la suya, así
+     * que esto no debería encontrar nada: es el cinturón, porque el precio de
+     * un descuido acá es el turno entero.
+     */
+    const contestadas = new Set(results.map((r) => r.tool_use_id))
+    for (const uso of usos) {
+      if (contestadas.has(uso.id)) continue
+      results.push({
+        type: 'tool_result',
+        tool_use_id: uso.id,
+        content: 'No se pudo ejecutar.',
+        is_error: true,
+      })
     }
 
     messages.push({ role: 'user', content: results })

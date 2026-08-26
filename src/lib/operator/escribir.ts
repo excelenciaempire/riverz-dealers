@@ -182,7 +182,11 @@ export async function proponer(
     texto: JSON.stringify({
       propuesto: true,
       action_id: id,
-      nota: 'Quedó esperando aprobación. NO está hecho. Explicá qué haría y qué riesgo tiene.',
+      // Decía «Explicá qué haría y qué riesgo tiene»: voseo, y encima pedía
+      // justo lo que la tarjeta ya muestra. Es la nota que el modelo lee en
+      // CADA propuesta, así que de acá salía la mitad de los cierres que
+      // enumeraban lo propuesto y terminaban en «esperando aprobación».
+      nota: 'Quedó propuesto. NO está hecho. La tarjeta ya muestra qué es y tiene los botones: no la describas. Si algo de esto tiene un riesgo que la tarjeta no dice, ésa es tu única línea.',
       preview,
     }),
   }
