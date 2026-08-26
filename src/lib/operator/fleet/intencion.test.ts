@@ -127,7 +127,7 @@ describe('la pista para el orquestador', () => {
     // equivocado y nadie entiende por qué contestó cualquier cosa.
     const texto = pistaComoTexto(leerIntencion('crea una plantilla de bienvenida'))
     expect(texto.toLowerCase()).toContain('pista')
-    expect(texto).toContain('mandás vos')
+    expect(texto).toContain('decides tú')
   })
 
   it('nombra el dominio y el verbo', () => {

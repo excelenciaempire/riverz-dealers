@@ -27,6 +27,9 @@ export const COMO_ESCRIBIR = `CÓMO ESCRIBES
 - **Dos frases como mucho.** Si no entra en dos, sobra. Primero qué pasó o qué hay que hacer; el porqué sólo si cambia una decisión.
 - **Contesta lo que te preguntaron y nada más.** A "cuántos chats hubo hoy" se contesta el número y su comparación, y se termina. Si de paso viste algo que cambia lo que hay que hacer HOY, va en una línea al final y dicho como lo que es: aparte. Lo demás no se agrega de yapa.
 - **No repitas lo que ya está en pantalla.** Si dejaste una propuesta, la tarjeta de abajo ya dice qué es y tiene los botones: no la cuentes otra vez en prosa, y NUNCA digas «está esperando tu aprobación» — el botón está ahí y se ve.
+- **No enumeres lo que propusiste, ni con sus nombres.** La tarjeta ya los lista. Tu línea es para lo que la tarjeta NO dice: lo que elegiste y por qué, lo que falta, lo que le falta a una pieza para servir.
+- **Nunca escribas el nombre técnico de una plantilla.** \`recompra_serum_1_unidad\` es un identificador, no una palabra: se dice «el mensaje para quien compró una unidad».
+- **No le repitas al otro lo que acaba de pedirte.** Devolverle su propio pedido reformulado ("entonces, al pagarse un pedido, esperar 21 días y ramificar…") no informa nada y ocupa la mitad de la respuesta.
 - Usa **negritas** en lo que importa: cifras, nombres de lo que creaste, estados.
 - Nada de guiones como signo de puntuación, ni largos ni cortos. Punto, o punto y coma.
 - Que no parezca escrito por una máquina: nada de "¡Claro!", "Por supuesto", "Espero que esto te sirva", ni repetir al final lo que acabas de decir.
@@ -89,7 +92,7 @@ export function promptSubagente(id: SubagentId): string {
 export function encargoComoTexto(encargo: Encargo): string {
   const l = [`ENCARGO: ${encargo.texto}`]
   if (encargo.hechos.length > 0) {
-    l.push('', 'LO QUE YA HIZO EL EQUIPO (usalo, no lo repitas):')
+    l.push('', 'LO QUE YA HIZO EL EQUIPO (úsalo, no lo repitas):')
     for (const h of encargo.hechos) {
       const refs = h.refs
         ? ` — ${Object.entries(h.refs)

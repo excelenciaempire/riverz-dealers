@@ -51,12 +51,31 @@ const ARCHIVOS = [
   // Lo que lee el COMERCIO cuando le piden aprobar algo
   'approvals/ask.ts',
   'approvals/resolve.ts',
+  /**
+   * El Operador y su equipo, desde el 2026-08-26.
+   *
+   * Entra por el mismo motivo que el resto y con una prueba encima: las
+   * instrucciones del especialista de plantillas estaban escritas en voseo
+   * («ESCRIBÍ SOBRE EL PRODUCTO», «pedile al de productos», «nunca prometas lo
+   * que no sabés») y los mensajes que salieron de ahí para una cuenta
+   * colombiana decían «Respondé este mensaje» y «te llevás». Es exactamente el
+   * mecanismo que documenta `fleet/prompts.ts`: el modelo copia el registro de
+   * lo que lee antes que la instrucción sobre el registro.
+   *
+   * `fleet/intencion.ts` NO entra: ese archivo LEE voseo escrito por la
+   * persona, y sacarle las formas de sus listas es dejar de entenderla.
+   */
+  'operator/prompt.ts',
+  'operator/fleet/prompts.ts',
+  'operator/fleet/roster.ts',
+  'operator/fleet/orchestrator-tools.ts',
+  'templates/oficio.ts',
 ]
 
 /** La línea que enseña qué NO escribir. Ahí el voseo es el ejemplo, y
  *  corregirlo convertiría la instrucción en un sinsentido que se prohíbe a sí
  *  misma — cosa que pasó en la primera barrida. */
-const EXCEPCION = 'Nunca uses voseo rioplatense'
+const EXCEPCION = 'voseo rioplatense'
 
 /**
  * Se listan a mano en vez de usar una regla morfológica: `está`, `además` y
@@ -157,7 +176,10 @@ describe('el prompt no se contradice a sí mismo', () => {
 
   it('la instrucción que enseña la forma prohibida sigue mostrándola', () => {
     const runner = readFileSync(join(RAIZ, 'ai/runner.ts'), 'utf8')
-    const linea = runner.split('\n').find((l) => l.includes(EXCEPCION)) ?? ''
+    // La instrucción, no el comentario que la explica: los dos nombran el
+    // voseo y sólo uno tiene que traer los ejemplos.
+    const linea =
+      runner.split('\n').find((l) => l.includes('Nunca uses voseo rioplatense')) ?? ''
     // Sin los ejemplos, la regla no le dice al modelo qué está prohibido.
     expect(linea).toContain('tenés')
     expect(linea).toContain('recibís')

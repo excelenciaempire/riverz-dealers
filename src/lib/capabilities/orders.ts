@@ -213,7 +213,7 @@ async function checkout(ctx: CapabilityContext, args: Record<string, unknown>) {
     pago: link.payment_label,
     // El link no sale solo: alguien tiene que mandárselo. Decirlo evita que el
     // comercio crea que el cliente ya lo recibió.
-    nota: 'El link queda armado. Mandáselo por el canal donde estén hablando.',
+    nota: 'El link queda armado. Envíaselo por el canal donde estén hablando.',
   }
 }
 
@@ -389,7 +389,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
   {
     key: 'pedidos.crear',
     description:
-      'Crea el pedido REAL en la tienda a nombre de un cliente. Descuenta stock y queda con el pago pendiente, para cobrar por transferencia o contra entrega. Usalo cuando el cliente ya confirmó qué lleva y a dónde va; si sólo quiere pagar online, usá pedidos.checkout.',
+      'Crea el pedido REAL en la tienda a nombre de un cliente. Descuenta stock y queda con el pago pendiente, para cobrar por transferencia o contra entrega. Úsalo cuando el cliente ya confirmó qué lleva y a dónde va; si sólo quiere pagar online, usa pedidos.checkout.',
     descriptionEn:
       'Creates the REAL order in the store under a customer name. It decrements stock and stays unpaid, to be collected by transfer or cash on delivery. Use it when the customer already confirmed what they take and where it ships; if they just want to pay online, use pedidos.checkout.',
     risk: 'irreversible',

@@ -508,7 +508,11 @@ export function OperatorChat({
           : []),
         { id: `local-${m.length + (congelar.length > 0 ? 1 : 0)}`, role: 'user' as const, text: limpio },
       ])
-      for (const a of congelar) void decidirRef.current?.(a.id, false)
+      // Se espera a que queden descartadas ANTES de mandar el pedido: el
+      // servidor arma el contexto leyendo el estado real de cada acción, y si
+      // el pedido llega primero el modelo las lee todavía como propuestas y
+      // sale a buscar en la cuenta algo que está por dejar de existir.
+      await Promise.all(congelar.map((a) => decidirRef.current?.(a.id, false)))
       setPensando(true)
       setArrancoEn(Date.now())
       setVivo({ thinking: '', bloques: [] })
@@ -633,23 +637,32 @@ export function OperatorChat({
    * esto, el paso se queda diciendo "esto haría" para siempre mientras abajo
    * aparece la misma cosa marcada como hecha: dos versiones del mismo hecho, y
    * la de arriba es la vieja.
+   *
+   * Tres desenlaces, no dos. «Descartar» y «falló» se marcaban igual, y por eso
+   * tocar «Editar» sobre tres mensajes dejaba tres cruces rojas en el hilo
+   * —RECOMPRA_SERUM_1_UNIDAD, Crear «recompra_serum_1_unidad»— como si Meta los
+   * hubiera rechazado. Descartar es una decisión tuya y ya se ve en la tarjeta
+   * congelada; sólo un fallo real merece quedarse escrito.
    */
-  const marcarPasoDecidido = useCallback((actionId: string, aprobado: boolean) => {
-    setMensajes((ms) =>
-      ms.map((m) =>
-        m.bloques?.some((b) => b.k === 'paso' && b.actionId === actionId)
-          ? {
-              ...m,
-              bloques: m.bloques.map((b) =>
-                b.k === 'paso' && b.actionId === actionId
-                  ? { ...b, estado: aprobado ? ('hecho' as const) : ('error' as const) }
-                  : b,
-              ),
-            }
-          : m,
-      ),
-    )
-  }, [])
+  const marcarPasoDecidido = useCallback(
+    (actionId: string, resultado: 'hecho' | 'descartado' | 'error') => {
+      setMensajes((ms) =>
+        ms.map((m) =>
+          m.bloques?.some((b) => b.k === 'paso' && b.actionId === actionId)
+            ? {
+                ...m,
+                bloques: m.bloques.map((b) =>
+                  b.k === 'paso' && b.actionId === actionId
+                    ? { ...b, estado: resultado }
+                    : b,
+                ),
+              }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
 
   /**
    * Traer al panel cómo quedó lo que se construyó.
@@ -768,7 +781,7 @@ export function OperatorChat({
           x.id === id ? { ...x, status: aprobar ? 'ejecutado' : 'rechazado' } : x,
         ),
       )
-      marcarPasoDecidido(id, aprobar)
+      marcarPasoDecidido(id, aprobar ? 'hecho' : 'descartado')
       try {
         const res = await fetchWithCsrf(`/api/operacion/operator/acciones/${id}`, {
           method: 'POST',
@@ -783,13 +796,14 @@ export function OperatorChat({
               : x,
           ),
         )
-        if (!json.ok) marcarPasoDecidido(id, false)
+        // Acá sí falló: la acción se intentó y el servidor dijo que no.
+        if (!json.ok) marcarPasoDecidido(id, 'error')
         if (json.ok && aprobar) onChanged?.()
       } catch {
         setAcciones((a) =>
           a.map((x) => (x.id === id ? { ...x, status: 'fallido' } : x)),
         )
-        marcarPasoDecidido(id, false)
+        marcarPasoDecidido(id, 'error')
       }
     },
     [fetchWithCsrf, marcarPasoDecidido, onChanged],
@@ -1597,6 +1611,17 @@ function Paso({
       ? b.artefacto.nombre
       : ''
 
+  /**
+   * El detalle, sólo si dice algo que el nombre no diga.
+   *
+   * En una propuesta el detalle ES el nombre con un verbo delante, así que la
+   * fila salía diciendo dos veces lo mismo: «RECOMPRA_SERUM_1_UNIDAD» y al lado
+   * «Crear «recompra_serum_1_unidad»». Lo que hay que leer de un error es el
+   * motivo, y si no hay motivo no hay nada que agregar.
+   */
+  const motivo =
+    b.detalle && !(nombre && b.detalle.includes(`«${nombre}»`)) ? b.detalle : ''
+
   const cuerpo = (
     <>
       {b.estado === 'corriendo' ? (
@@ -1612,9 +1637,9 @@ function Paso({
         {nombre || b.label}
       </span>
       {veces > 1 && <span className="shrink-0 tabular-nums opacity-60">×{veces}</span>}
-      {b.estado === 'error' && b.detalle && (
+      {b.estado === 'error' && motivo && (
         <span className="min-w-0 flex-1 truncate normal-case tracking-normal text-red-600 dark:text-red-400">
-          {b.detalle}
+          {motivo}
         </span>
       )}
     </>

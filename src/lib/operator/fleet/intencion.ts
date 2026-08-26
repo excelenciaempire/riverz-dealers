@@ -585,7 +585,7 @@ export function pistaComoTexto(i: Intencion): string {
   if (i.dominios.length > 0) partes.push(`parece de: ${i.dominios.join(', ')}`)
   partes.push(`parece que pide: ${i.verbo}`)
   if (i.complejo) partes.push('probablemente necesite reparto')
-  return `PISTA (es una lectura de palabras, no una orden; si ves otra cosa, mandás vos): ${partes.join(' · ')}.`
+  return `PISTA (es una lectura de palabras, no una orden; si ves otra cosa, decides tú): ${partes.join(' · ')}.`
 }
 
 /** Para las pruebas: que ningún dominio del roster quede sin señales. */

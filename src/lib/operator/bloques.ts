@@ -25,7 +25,13 @@ export type Bloque =
       // `ok` es una lectura que salió bien; `hecho` es algo que se construyó de
       // verdad. Se ven distinto a propósito: una cosa es que haya mirado y otra
       // que haya creado.
-      estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho'
+      //
+      // `descartado` NO es `error`. Una propuesta que se cierra porque pediste
+      // un cambio salía pintada de rojo y con una cruz, al lado del nombre de
+      // la plantilla en mayúsculas: se leía como que el mensaje había fallado,
+      // cuando lo único que pasó fue que ibas a corregirlo. Nada falló, así que
+      // no deja fila.
+      estado: 'corriendo' | 'ok' | 'error' | 'propuesto' | 'hecho' | 'descartado'
       detalle?: string
       /**
        * La fila de `operator_actions`, cuando el paso dejó una.

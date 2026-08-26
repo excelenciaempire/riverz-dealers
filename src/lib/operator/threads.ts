@@ -66,6 +66,8 @@ export async function loadMessages(
     .order('created_at', { ascending: true })
     .limit(200)
 
+  const desenlaces = await desenlaceDeCadaAccion(db, threadId, workspaceId)
+
   return ((data ?? []) as Array<{
     id: string
     role: 'user' | 'assistant'
@@ -77,18 +79,84 @@ export async function loadMessages(
     text: r.content?.text ?? '',
     // Los mensajes viejos no los tienen: ahí el hilo se ve como antes y las
     // acciones caen a la lista de abajo, que sigue existiendo justo para eso.
-    bloques: Array.isArray(r.content?.bloques) ? r.content.bloques : undefined,
+    bloques: Array.isArray(r.content?.bloques)
+      ? conElDesenlace(r.content.bloques, desenlaces)
+      : undefined,
     created_at: r.created_at,
   }))
 }
 
-/** Los últimos turnos, en el formato que espera el modelo. */
+/**
+ * Cómo terminó cada propuesta, según la tabla y no según lo que se guardó.
+ *
+ * El bloque se congela en el momento en que ocurre —«propuesto»— y lo que pasó
+ * después vive en `operator_actions`. Al recargar, el hilo volvía contando el
+ * turno como si nadie hubiera decidido nada: tres mensajes esperando un click
+ * que ya se había dado. Y el modelo leía lo mismo, así que en la vuelta
+ * siguiente salía a buscar plantillas que él mismo había visto descartar.
+ */
+type Desenlace = 'hecho' | 'descartado' | 'error' | 'propuesto'
+
+const POR_STATUS: Record<string, Desenlace> = {
+  ejecutado: 'hecho',
+  rechazado: 'descartado',
+  fallido: 'error',
+  propuesto: 'propuesto',
+}
+
+async function desenlaceDeCadaAccion(
+  db: SupabaseClient,
+  threadId: string,
+  workspaceId: string,
+): Promise<Map<string, Desenlace>> {
+  const { data } = await db
+    .from('operator_actions')
+    .select('id, status')
+    .eq('thread_id', threadId)
+    .eq('workspace_id', workspaceId)
+
+  const m = new Map<string, Desenlace>()
+  for (const a of (data ?? []) as Array<{ id: string; status: string }>) {
+    const d = POR_STATUS[a.status]
+    if (d) m.set(a.id, d)
+  }
+  return m
+}
+
+function conElDesenlace(bloques: Bloque[], desenlaces: Map<string, Desenlace>): Bloque[] {
+  return bloques.map((b) => {
+    if (b.k !== 'paso' || !b.actionId) return b
+    const d = desenlaces.get(b.actionId)
+    return d && d !== b.estado ? { ...b, estado: d } : b
+  })
+}
+
+/**
+ * Los últimos turnos, en el formato que espera el modelo.
+ *
+ * El TEXTO de lo que se propuso viaja sólo en el último turno del asistente, y
+ * ahí está la diferencia entre corregir y volver a escribir: sin él, «agrégale
+ * un emoji al segundo» obliga al modelo a salir a buscar una plantilla que
+ * todavía no existe, no encontrarla, y redactar los tres mensajes de cero con
+ * otras palabras. Con él, cambia lo que le pidieron y no toca el resto.
+ *
+ * Sólo el último para no arrastrar cuerpos enteros veinte turnos.
+ */
 export function toAnthropic(messages: ThreadMessage[]): Anthropic.MessageParam[] {
-  return messages
-    .slice(-CONTEXT_TURNS)
-    .map((m) => ({ role: m.role, content: [m.text.trim(), loQueDejo(m)].filter(Boolean).join('\n\n') }))
+  const ventana = messages.slice(-CONTEXT_TURNS)
+  const ultimoDelAsistente = ventana.map((m) => m.role).lastIndexOf('assistant')
+  return ventana
+    .map((m, i) => ({
+      role: m.role,
+      content: [m.text.trim(), loQueDejo(m, i === ultimoDelAsistente)]
+        .filter(Boolean)
+        .join('\n\n'),
+    }))
     .filter((m) => m.content.length > 0)
 }
+
+/** Cuánto del cuerpo de una propuesta viaja. Alcanza para editarlo. */
+const TOPE_CUERPO = 600
 
 /**
  * Qué quedó de aquel turno, para que el modelo lo sepa en el siguiente.
@@ -101,24 +169,52 @@ export function toAnthropic(messages: ThreadMessage[]): Anthropic.MessageParam[]
  * especialista volvió a escribir los tres con NOMBRES NUEVOS, y quedaron seis
  * esperando aprobación. También explica por qué, después de aprobar, volvía a
  * proponer el mismo plan: no le constaba que ya estuviera hecho.
+ *
+ * Lo DESCARTADO es la tercera cosa que hay que contar, y la que faltaba. Tocar
+ * «Editar» cierra las propuestas viejas antes de mandar el pedido de cambio, así
+ * que en la vuelta siguiente ya no existen en ningún lado. El modelo las
+ * buscaba, no las encontraba, y concluía que nunca se habían creado: quince
+ * consultas de más, los tres mensajes reescritos de cero y uno perdido en el
+ * camino. Ahora se le dice que se descartaron a propósito, con el texto que
+ * tenían, para que vuelva a proponerlos con el cambio pedido y nada más.
  */
-function loQueDejo(m: ThreadMessage): string {
+function loQueDejo(m: ThreadMessage, conCuerpo: boolean): string {
   if (m.role !== 'assistant' || !m.bloques?.length) return ''
 
   const nombre = (b: Extract<Bloque, { k: 'paso' }>): string =>
     b.detalle?.match(/«([^»]+)»/)?.[1] ?? b.label
 
-  const propuesto = new Set<string>()
+  /** El texto de lo que se propuso, si la pieza tiene uno. */
+  const cuerpo = (b: Extract<Bloque, { k: 'paso' }>): string => {
+    const a = b.artefacto as { cuerpo?: unknown } | undefined
+    if (!conCuerpo || typeof a?.cuerpo !== 'string') return ''
+    const t = a.cuerpo.trim()
+    return t.length > TOPE_CUERPO ? `${t.slice(0, TOPE_CUERPO)}…` : t
+  }
+
+  const propuesto = new Map<string, string>()
+  const descartado = new Map<string, string>()
   const hecho = new Set<string>()
   for (const b of m.bloques) {
     if (b.k !== 'paso') continue
-    if (b.estado === 'propuesto') propuesto.add(nombre(b))
+    if (b.estado === 'propuesto') propuesto.set(nombre(b), cuerpo(b))
+    else if (b.estado === 'descartado') descartado.set(nombre(b), cuerpo(b))
     else if (b.estado === 'hecho') hecho.add(nombre(b))
   }
 
+  const conTexto = (m2: Map<string, string>): string =>
+    [...m2]
+      .map(([n, c]) => (c ? `«${n}» (decía: ${JSON.stringify(c)})` : `«${n}»`))
+      .join(', ')
+
   const partes: string[] = []
   if (propuesto.size > 0) {
-    partes.push(`dejaste esperando aprobación: ${[...propuesto].map((n) => `«${n}»`).join(', ')}`)
+    partes.push(`dejaste propuesto y sin decidir: ${conTexto(propuesto)}`)
+  }
+  if (descartado.size > 0) {
+    partes.push(
+      `se descartó porque pidieron un cambio, NO existe en la cuenta y hay que volver a proponerlo: ${conTexto(descartado)}`,
+    )
   }
   if (hecho.size > 0) {
     partes.push(`quedó hecho: ${[...hecho].map((n) => `«${n}»`).join(', ')}`)
@@ -127,7 +223,7 @@ function loQueDejo(m: ThreadMessage): string {
   // turno, no algo que el modelo haya dicho. Y con la regla al lado, porque el
   // dato sin la regla se lee y no se usa.
   return partes.length > 0
-    ? `[En ese turno ${partes.join('; ')}. Si hay que corregir algo de eso, REUSA el mismo nombre en vez de inventar uno nuevo, y no vuelvas a proponer lo que ya está hecho.]`
+    ? `[En ese turno ${partes.join('; ')}. Para corregir algo de eso NO lo busques en la cuenta y NO lo escribas de cero: parte del texto de acá arriba, REUSA el mismo nombre, cambia sólo lo que te pidieron y vuelve a proponer TODAS las piezas que seguían haciendo falta. Lo que ya está hecho no se vuelve a proponer.]`
     : ''
 }
 
