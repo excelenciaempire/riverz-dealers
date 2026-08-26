@@ -44,13 +44,19 @@ o un precio que nadie te dio.
 
 EJEMPLO — recompra de un serum, a las tres semanas
 
-  Hola {{1}}, tu *Serum de Rosa Mosqueta* rinde unas 6 semanas y ya vas por la
+  Hola {{1}}, tu *Serum de Rosa Mosqueta* rinde unas *6 semanas* y ya vas por la
   mitad del frasco. 🌿
 
-  Si quieres, te lo dejamos separado con el *15% de reposición* hasta el viernes.
+  Si pides ahora te llega antes de que se te acabe, y no cortas el tratamiento
+  a mitad de camino.
 
-  [ Quiero reponerlo ]  [ Ver el producto ]
+  [ Pedir otro ]  [ Ver el producto ]
 
-Tres bloques, un dato del producto que sólo sabe quien lo vende, un emoji, dos
-negritas y una sola acción. Sin eso es "hace 21 días que compraste", que lo pudo
-escribir cualquiera.`
+Tres bloques, un emoji, dos negritas y una sola acción. Y fíjate en lo que NO
+tiene: ningún descuento, ningún plazo, ninguna promoción. Nadie se los dio. Lo
+que persuade es saber cómo funciona el producto —cuánto rinde, qué pasa si se
+corta— y eso está siempre disponible: se lo pides al de productos.
+
+Palabras del comercio que el cliente no usa y no van en el mensaje: reposición,
+recompra, retención, carrito abandonado, ticket. Se dicen como las diría quien
+compra: "pedir otro", "volver a pedir", "lo que dejaste sin comprar".`
