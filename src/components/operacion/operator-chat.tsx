@@ -21,6 +21,7 @@ import {
   agrupar,
   aplicarEvento,
   aplicarEventoDePlan,
+  sinCondicional,
   type Bloque,
 } from '@/lib/operator/bloques'
 import { useFormat } from '@/hooks/use-format'
@@ -1831,8 +1832,13 @@ function TarjetaResuelta({ accion }: { accion: Accion }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
       <Icon className="size-3.5 shrink-0" />
+      {/* Sin el condicional cuando ya se hizo: la vista previa se escribió
+          para la tarjeta de aprobación —«Crearía «X»»— y sobre algo ejecutado
+          dice que no pasó lo que sí pasó. */}
       <span className="min-w-0 flex-1 truncate">
-        {accion.preview ?? describir(accion)}
+        {accion.status === 'ejecutado'
+          ? sinCondicional(accion.preview ?? describir(accion))
+          : (accion.preview ?? describir(accion))}
       </span>
       <span className="shrink-0">{label}</span>
     </div>

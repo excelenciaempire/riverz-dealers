@@ -271,6 +271,21 @@ export async function runOrquestador(args: {
             datos: v.r.refs,
             propuestas: v.r.propuestas,
             construidas: v.r.construidas,
+            /**
+             * El aviso va ACA, no solo en el prompt.
+             *
+             * Es el momento exacto en que el orquestador decide que hace
+             * despues, y una regla en un system prompt largo se pierde. Sin
+             * esto seguia de largo: el de plantillas dejaba el mensaje
+             * propuesto, el orquestador pedia la automatizacion que lo manda, y
+             * la plantilla no existia todavia.
+             */
+            ...(v.r.propuestas > 0
+              ? {
+                  aviso:
+                    'Lo que quedo propuesto TODAVIA NO EXISTE: espera a que lo aprueben antes de construir nada que lo use. Cierra el turno diciendo que queda por decidir.',
+                }
+              : {}),
           }),
           is_error: !v.r.ok,
         })

@@ -149,6 +149,45 @@ describe('cómo se cuenta lo que ya pasó', () => {
     expect(sinCondicional('Ya no hay nada que hacer.')).toBe('Ya no hay nada que hacer.')
     expect(sinCondicional('María quería otra cosa')).toBe('María quería otra cosa')
   })
+
+  /**
+   * Y esta es la que faltaba.
+   *
+   * `sinCondicional` estaba escrita, probada y exportada — y no la llamaba
+   * nadie. Una prueba de la funcion sola no dice si el texto llega limpio a la
+   * pantalla; esta recorre el reductor, que es por donde pasa de verdad.
+   */
+  it('el reductor se lo saca al paso que quedó hecho', () => {
+    const bs = aplicarEvento(
+      [{ k: 'paso', id: 'x', key: 'automatizaciones.crear', label: 'Las automatizaciones', estado: 'corriendo' }],
+      {
+        t: 'built',
+        id: 'x',
+        actionId: 'a1',
+        key: 'automatizaciones.crear',
+        preview: 'Crearía «Recompra»: cuando se pagó un pedido, 9 pasos.',
+      },
+    )
+    const paso = bs.find((b) => b.k === 'paso')
+    expect(paso?.k === 'paso' && paso.detalle).toBe(
+      '«Recompra»: cuando se pagó un pedido, 9 pasos.',
+    )
+  })
+
+  it('pero se lo deja al que todavía espera aprobación', () => {
+    const bs = aplicarEvento(
+      [{ k: 'paso', id: 'y', key: 'plantillas.crear', label: 'Las plantillas', estado: 'corriendo' }],
+      {
+        t: 'proposed',
+        id: 'y',
+        actionId: 'a2',
+        key: 'plantillas.crear',
+        preview: 'Crearía «recompra_1»',
+      },
+    )
+    const paso = bs.find((b) => b.k === 'paso')
+    expect(paso?.k === 'paso' && paso.detalle).toBe('Crearía «recompra_1»')
+  })
 })
 
 describe('los pasos repetidos', () => {

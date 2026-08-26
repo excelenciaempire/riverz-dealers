@@ -84,7 +84,9 @@ export function aplicarEvento(bloques: Bloque[], e: OperatorEvent): Bloque[] {
     case 'built':
       return conPaso(bloques, e.id, {
         estado: 'hecho',
-        detalle: e.preview,
+        // Ya pasó: la vista previa dice «Crearía» porque se escribió para la
+        // tarjeta de aprobación, y sobre algo hecho eso miente.
+        detalle: e.preview ? sinCondicional(e.preview) : e.preview,
         artefacto: e.artefacto,
         actionId: e.actionId,
       })

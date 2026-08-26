@@ -252,6 +252,38 @@ export async function artefactoGuardadoDePlantilla(
   })
 }
 
+/**
+ * Lo que Meta va a rechazar, visto antes de escribirlo.
+ *
+ * La mira la VISTA PREVIA además del `run`, y ese es el punto: la vista previa
+ * es la que decide si aparece una tarjeta. Cuando esto vivía sólo en el `run`,
+ * un mensaje que empezaba con «{{1}}» llegaba igual a la pantalla pidiendo
+ * aprobación, y recién al aprobarlo se sabía que no podía funcionar. Se gastaba
+ * la decisión de la persona en algo imposible.
+ *
+ * Como `proponer` no propone lo que no puede describir, el error vuelve al
+ * especialista como resultado de herramienta y lo corrige en la misma vuelta,
+ * sin que nadie se entere.
+ */
+function revisarCuerpo(args: Record<string, unknown>): void {
+  const cuerpo = String(args.cuerpo ?? '').trim()
+  if (!cuerpo) throw new Error('El mensaje está vacío.')
+  if (/^\{\{\s*\d+\s*\}\}/.test(cuerpo) || /\{\{\s*\d+\s*\}\}$/.test(cuerpo)) {
+    throw new Error(
+      'Meta no acepta un mensaje que empiece o termine con una variable. Pon texto antes y después.',
+    )
+  }
+  // Meta pide un valor de muestra por variable: sin ellos la rechaza, y el
+  // viaje de ida y vuelta se come el texto igual que con la variable al borde.
+  const variables = new Set([...cuerpo.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => m[1]))
+  const ejemplos = Array.isArray(args.ejemplos) ? args.ejemplos.filter(Boolean) : []
+  if (variables.size > ejemplos.length) {
+    throw new Error(
+      `El mensaje tiene ${variables.size} ${variables.size === 1 ? 'variable' : 'variables'} y ${ejemplos.length} ${ejemplos.length === 1 ? 'ejemplo' : 'ejemplos'}. Meta pide un valor de muestra por cada una.`,
+    )
+  }
+}
+
 async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknown>) {
   const idioma = typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es'
   const previa = await buscarPorNombre(ctx, args.nombre, idioma)
@@ -265,17 +297,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
     )
   }
 
-  // La regla de Meta que podemos ver antes de preguntarle.
-  //
-  // Rechaza el cuerpo si empieza o termina con una variable, y contesta con un
-  // viaje de ida y vuelta en el que se pierde el texto. Mirarlo acá lo
-  // convierte en un error que el modelo corrige en la misma vuelta.
-  const cuerpoLimpio = String(args.cuerpo ?? '').trim()
-  if (/^\{\{\s*\d+\s*\}\}/.test(cuerpoLimpio) || /\{\{\s*\d+\s*\}\}$/.test(cuerpoLimpio)) {
-    throw new Error(
-      'Meta no acepta un mensaje que empiece o termine con una variable. Pon texto antes y después.',
-    )
-  }
+  revisarCuerpo(args)
 
   const datos: EntradaCrearPlantilla = {
       workspaceId: ctx.workspaceId,
@@ -309,13 +331,22 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
    * `plantillas.enviar_a_meta`.
    */
   const salida = await crearPlantilla(ctx.db, datos)
-  if ('error' in salida && salida.error) {
+  if (!salida.ok) {
+    const motivo =
+      salida.mensaje ??
+      translate(ctx.locale ?? 'es', `errWhatsapp.${salida.claveI18n}`, salida.params)
+
+    // `metaTemplateId` quiere decir que SÍ llegó a Meta y falló el espejo
+    // local: el nombre ya está tomado allá, así que un borrador con ese nombre
+    // no llevaría a ningún lado. En cualquier otro caso —Meta la rechazó, o ni
+    // siquiera hay WhatsApp conectado— el texto se guarda.
+    if (salida.metaTemplateId) throw new Error(motivo)
+
     const guardado = await crearPlantilla(ctx.db, { ...datos, enviarAMeta: false })
-    const motivo = String(salida.error)
     throw new Error(
-      'error' in guardado && guardado.error
-        ? `Meta la rechazó: ${motivo}`
-        : `Meta la rechazó: ${motivo} El texto quedó guardado como borrador para corregirlo y mandarlo de nuevo.`,
+      guardado.ok
+        ? `${motivo} El texto quedó guardado como borrador: se corrige y se manda de nuevo sin volver a escribirlo.`
+        : motivo,
     )
   }
   const r = exigirOk(ctx, salida)
@@ -496,6 +527,8 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
     // argumentos, así que el banco muestra el mensaje en su teléfono mientras
     // esto todavía es una propuesta. Aprobar es aprobar lo que se leyó.
     async preview(_ctx, args) {
+      // Antes que nada: si Meta la va a rechazar, que no haya tarjeta.
+      revisarCuerpo(args)
       const nombre = normalizeTemplateName(String(args.nombre ?? ''))
       // En infinitivo y sin el aviso.
       //
