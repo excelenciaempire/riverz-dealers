@@ -48,6 +48,17 @@ export type OperatorEvent =
       key: string
       ok: boolean
       resumen: string
+      /**
+       * Era una lectura.
+       *
+       * Sirve para no dejar en el hilo el error de una consulta que el modelo
+       * corrigió en el acto. Uno real: «"serum" coincide con varios: «Pilar
+       * Serum…» (e10d2ede-f38d…), … Elige uno por su id» — un mensaje escrito
+       * PARA EL MODELO, con cuatro uuids adentro, que él usó para volver a
+       * preguntar bien dos segundos después. En pantalla quedaba una cruz roja
+       * permanente sobre algo que no falló.
+       */
+      lectura?: boolean
       agente?: SubagentId
     }
   /** Dejó algo propuesto: espera un click. */

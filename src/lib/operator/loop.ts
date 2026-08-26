@@ -318,7 +318,7 @@ export async function runOperator(args: {
       return { type: 'tool_result', tool_use_id: block.id, content: p.texto }
     } catch (e) {
       const motivo = e instanceof Error ? e.message : 'falló'
-      emit({ t: 'tool_done', id: block.id, key, ok: false, resumen: motivo })
+      emit({ t: 'tool_done', id: block.id, key, ok: false, resumen: motivo, lectura: cap.risk === 'lectura' })
       return { type: 'tool_result', tool_use_id: block.id, content: motivo, is_error: true }
     }
   }

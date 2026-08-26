@@ -203,7 +203,7 @@ export async function runOrquestador(args: {
             }
           } catch (e) {
             const motivo = e instanceof Error ? e.message : 'falló'
-            emit({ t: 'tool_done', id: uso.id, key, ok: false, resumen: motivo })
+            emit({ t: 'tool_done', id: uso.id, key, ok: false, resumen: motivo, lectura: true })
             return {
               type: 'tool_result' as const,
               tool_use_id: uso.id,

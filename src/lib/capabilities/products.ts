@@ -73,7 +73,7 @@ async function resolverProducto(
   if (filas.length === 0) throw new Error(`No hay ningún producto que se llame "${ref}".`)
   if (filas.length > 1) {
     const nombres = filas.map((f) => `«${f.title}» (${f.id})`).join(', ')
-    throw new Error(`"${ref}" coincide con varios: ${nombres}. Elegí uno por su id.`)
+    throw new Error(`"${ref}" coincide con varios: ${nombres}. Elige uno por su id.`)
   }
   return filas[0]
 }

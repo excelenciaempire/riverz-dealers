@@ -41,6 +41,14 @@ export type Bloque =
        * misma cosa otra vez diciendo "Hecho".
        */
       actionId?: string
+      /**
+       * Era una consulta, no un cambio.
+       *
+       * Lo usa el hilo para no dejar escrito el error de una lectura que el
+       * modelo corrigió solo: ese mensaje está escrito para él, con ids
+       * adentro, y en pantalla se lee como una falla que nunca ocurrió.
+       */
+      lectura?: boolean
       /** Lo que se armó, dibujable. */
       artefacto?: Artefacto
     }
@@ -79,6 +87,7 @@ export function aplicarEvento(bloques: Bloque[], e: OperatorEvent): Bloque[] {
       return conPaso(bloques, e.id, {
         estado: e.ok ? 'ok' : 'error',
         detalle: e.ok ? undefined : e.resumen,
+        lectura: e.lectura,
       })
     case 'proposed':
       return conPaso(bloques, e.id, {

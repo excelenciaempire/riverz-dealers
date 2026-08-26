@@ -201,6 +201,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
                 key,
                 ok: false,
                 resumen: motivo,
+                lectura: true,
                 agente: e.agente,
               })
               return {

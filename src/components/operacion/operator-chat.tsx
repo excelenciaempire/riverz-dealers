@@ -1567,10 +1567,16 @@ function Turno({
           derecha y lo que hay que decidir, en la tarjeta de abajo. Mientras
           pasan, la línea viva dice qué está haciendo. Un error sí se queda: es
           lo único que nadie más va a contar. */}
+      {/* Y ni siquiera todos los errores: los de una CONSULTA tampoco.
+          Ese texto está escrito para el modelo y él lo usa —«"serum" coincide
+          con varios: «Pilar Serum…» (e10d2ede-f38d…)» y dos segundos después
+          vuelve a preguntar bien— pero en pantalla quedaba una cruz roja
+          permanente, con cuatro uuids adentro, sobre algo que no falló. Se
+          queda escrito lo que cambia algo y no pudo. */}
       {agrupar(bloques).map(({ b, veces }) =>
         b.k === 'texto' ? (
           <Dicho key={b.id} role="assistant" text={b.texto} />
-        ) : b.estado === 'error' ? (
+        ) : b.estado === 'error' && !b.lectura ? (
           <Paso key={b.id} b={b} veces={veces} onVer={onVer} />
         ) : null,
       )}
