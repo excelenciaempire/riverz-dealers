@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  AlertTriangle,
   ArrowUp,
   Check,
   History,
@@ -223,6 +222,8 @@ export function OperatorChat({
   const yaArranco = useRef(false)
   /** Lo último concreto que se estaba haciendo, para no caer en genérico. */
   const ultimaActividad = useRef('')
+  /** Donde se escribe: «Editar» deja el cursor acá. */
+  const compositorRef = useRef<HTMLInputElement | null>(null)
   /** Cuándo arrancó lo que está corriendo, para contar los segundos. */
   const [arrancoEn, setArrancoEn] = useState<number | null>(null)
 
@@ -661,7 +662,23 @@ export function OperatorChat({
    * dos opciones eran aprobarla igual o descartarla y volver a explicar todo.
    */
   const pedirCambio = useCallback(
-    (a: Accion) => {
+    (acciones: Accion[]) => {
+      compositorRef.current?.focus()
+
+      /**
+       * Con varias, no se fija ninguna.
+       *
+       * Fijar una pieza REEMPLAZA a las demás en el banco. Con tres mensajes en
+       * la tarjeta, tocar «Editar» dejaba uno solo en pantalla y se leía como si
+       * los otros dos se hubieran borrado. Lo que hay que decidir son los tres,
+       * así que los tres se quedan.
+       */
+      if (acciones.length !== 1) {
+        setTexto(t('operation.decisionPedirCambio'))
+        return
+      }
+
+      const a = acciones[0]
       const nombre = a.preview?.match(/«([^»]+)»/)?.[1]
       setTexto(nombre ? `Cambia «${nombre}»: ` : t('operation.decisionPedirCambio'))
       const paso = mensajes
@@ -1065,7 +1082,7 @@ export function OperatorChat({
           <TarjetaDecision
             acciones={esperandoDecision}
             onResolver={resolver}
-            onEditar={() => pedirCambio(esperandoDecision[0])}
+            onEditar={() => pedirCambio(esperandoDecision)}
           />
         )}
 
@@ -1118,6 +1135,7 @@ export function OperatorChat({
           )}
         >
           <input
+            ref={compositorRef}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder={t('operation.operatorPlaceholder')}
@@ -1769,15 +1787,6 @@ function TarjetaDecision({
           )
         })}
       </ul>
-
-      {/* El aviso, UNA vez. Repetido en cada renglón es el mismo cartel tres
-          veces, y tres carteles iguales se leen como decoración. */}
-      {acciones.some((a) => a.risk === 'irreversible') && (
-        <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-          {t('operation.decisionAvisoMeta')}
-        </p>
-      )}
 
       <div className="mt-3.5 flex items-center gap-2">
         <button

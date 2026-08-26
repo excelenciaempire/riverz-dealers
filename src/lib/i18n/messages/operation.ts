@@ -360,10 +360,6 @@ export const operation = {
   decisionPedirCambio: { es: "Cambia esto: ", en: "Change this: " },
   decisionNadaElegido: { es: "Elige al menos una", en: "Pick at least one" },
   decisionEditar: { es: "Editar", en: "Edit" },
-  decisionAvisoMeta: {
-    es: "Hay algo acá que no se puede deshacer. Revísalo antes de aprobar.",
-    en: "Something here cannot be undone. Check it before approving.",
-  },
   /**
    * Qué está haciendo, por dominio y en una frase.
    *
