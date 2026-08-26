@@ -79,23 +79,27 @@ export function Banco({ className }: { className?: string }) {
       )}
       <div className="app-halo pointer-events-none absolute inset-0 opacity-40" aria-hidden />
 
-      <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
-        <h2 className="app-page-title min-w-0 truncate text-[22px]">
-          {fijado
-            ? nombreDe(fijado.artefacto) || t('operation.bancoVacioTitulo')
-            : t('operation.bancoTodo')}
-        </h2>
-        <div className="flex shrink-0 items-center gap-3">
-          {fijado?.real && fijado.entidadId && pantallaDe(fijado) && (
-            <Link
-              href={pantallaDe(fijado)!}
-              className="app-card-cta text-[11px] text-accent-ink hover:underline"
-            >
-              {t('operation.mesaAbrirEnPantalla')}
-              <ExternalLink className="size-3" />
-            </Link>
-          )}
-          {fijado && (
+      {/* Encabezado sólo cuando hay una pieza fijada.
+          Sin fijar decía «Así queda» sobre un panel que muestra cómo queda:
+          cincuenta y seis píxeles de alto para no agregar nada, encima de unas
+          piezas que ya llevan su nombre. Fijada sí hace falta — dice CUÁL es, y
+          al lado viven la salida a su pantalla y la cruz para volver a verlas
+          todas. */}
+      {fijado && (
+        <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-5">
+          <h2 className="app-page-title min-w-0 truncate text-[22px]">
+            {nombreDe(fijado.artefacto) || t('operation.bancoVacioTitulo')}
+          </h2>
+          <div className="flex shrink-0 items-center gap-3">
+            {fijado.real && fijado.entidadId && pantallaDe(fijado) && (
+              <Link
+                href={pantallaDe(fijado)!}
+                className="app-card-cta text-[11px] text-accent-ink hover:underline"
+              >
+                {t('operation.mesaAbrirEnPantalla')}
+                <ExternalLink className="size-3" />
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => aLaMesa({ tipo: 'fijar', fijado: null })}
@@ -104,9 +108,9 @@ export function Banco({ className }: { className?: string }) {
             >
               <X className="size-4" />
             </button>
-          )}
-        </div>
-      </header>
+          </div>
+        </header>
+      )}
 
       {soloLienzo ? (
         <div className="relative z-10 min-h-0 flex-1">

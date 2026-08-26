@@ -52,7 +52,6 @@ export const operation = {
     en: "Whatever the team is building shows up here, at full size.",
   },
   bancoVer: { es: "Ver la pieza", en: "See the piece" },
-  bancoTodo: { es: "Así queda", en: "How it looks" },
   bancoVacioTitulo: { es: "La pieza", en: "The piece" },
   lienzoNadaAqui: { es: "Acá no hace nada", en: "Nothing happens here" },
   mesaAbrirEnPantalla: { es: "Abrir para editar", en: "Open to edit" },

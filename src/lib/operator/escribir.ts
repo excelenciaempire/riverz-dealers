@@ -77,6 +77,21 @@ export async function artefactoDe(
  * la persona va a leer antes de aprobar, así que tiene que describir lo que
  * realmente se va a ejecutar.
  */
+/**
+ * Sobre qué objeto trabaja una llamada: su nombre, su id, lo que la identifica.
+ *
+ * Es lo que decide si dos propuestas son la misma cosa. Sin ninguno de estos
+ * campos no se puede saber, y ahí no se deduplica: mejor dos filas que comerse
+ * una propuesta distinta.
+ */
+function objetoDe(args: Record<string, unknown>): string | null {
+  for (const campo of ['nombre', 'id', 'automatizacion', 'plantilla', 'agente']) {
+    const v = args[campo]
+    if (typeof v === 'string' && v.trim()) return `${campo}:${v.trim().toLowerCase()}`
+  }
+  return null
+}
+
 export async function proponer(
   ctx: CapabilityContext,
   threadId: string,
@@ -96,6 +111,52 @@ export async function proponer(
   // Se dibuja desde los argumentos: la persona ve el árbol ANTES de aprobar,
   // que es cuando le sirve.
   const artefacto = await artefactoDe(cap, ctx, args)
+
+  /**
+   * Si ya hay una igual esperando, es ésa.
+   *
+   * Se vio en una cuenta real: se pidió corregir dos de tres mensajes, el
+   * especialista volvió a escribir los tres, y la tarjeta pasó a pedir SEIS
+   * aprobaciones para tres mensajes. Que el modelo recuerde lo que propuso
+   * ataca la causa; esto sostiene la consecuencia pase lo que pase, que es lo
+   * que hace falta cuando del otro lado hay un modelo.
+   *
+   * La comparación es por objeto y no por argumentos enteros a propósito:
+   * proponer «recompra_1» con el cuerpo corregido ES la misma propuesta, con
+   * el texto nuevo, y hacer dos filas de eso es justo lo que se quiere evitar.
+   */
+  const cual = objetoDe(args)
+  if (cual) {
+    const { data: yaHay } = await ctx.db
+      .from('operator_actions')
+      .select('id, args')
+      .eq('workspace_id', ctx.workspaceId)
+      .eq('thread_id', threadId)
+      .eq('capability_key', key)
+      .eq('status', 'propuesto')
+    const previa = ((yaHay ?? []) as Array<{ id: string; args: Record<string, unknown> }>).find(
+      (f) => objetoDe(f.args) === cual,
+    )
+    if (previa) {
+      // Se actualiza con lo último: el cuerpo corregido es lo que hay que
+      // mirar, y la fila vieja tendría el texto de antes.
+      await ctx.db
+        .from('operator_actions')
+        .update({ args, preview, artifact: artefacto })
+        .eq('id', previa.id)
+      return {
+        id: previa.id,
+        preview,
+        artefacto,
+        texto: JSON.stringify({
+          propuesto: true,
+          action_id: previa.id,
+          nota: 'Ya había una propuesta igual esperando: se actualizó con esto en vez de agregar otra. NO está hecho.',
+          preview,
+        }),
+      }
+    }
+  }
 
   const { data, error } = await ctx.db
     .from('operator_actions')

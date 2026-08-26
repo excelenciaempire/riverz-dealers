@@ -50,6 +50,14 @@ interface Mensaje {
    * que explica de dónde salió cada cosa.
    */
   bloques?: Bloque[]
+  /**
+   * La tarjeta que quedó atrás, congelada en su lugar.
+   *
+   * Vive en el hilo y no flotando al final porque ya pasó: cuando se pide un
+   * cambio, la propuesta anterior es historia y tiene que leerse ANTES del
+   * pedido que la reemplaza, no debajo.
+   */
+  decidido?: Accion[]
 }
 
 interface Accion {
@@ -208,6 +216,8 @@ export function OperatorChat({
    * cuanto `enviar` existe.
    */
   const enviarRef = useRef<((texto: string) => Promise<void>) | null>(null)
+  /** Lo mismo para `decidir`, que también se declara más abajo. */
+  const decidirRef = useRef<((id: string, aprobar: boolean) => Promise<void>) | null>(null)
   /**
    * El hilo abierto AHORA, no el que estaba abierto al empezar.
    *
@@ -224,6 +234,8 @@ export function OperatorChat({
   const ultimaActividad = useRef('')
   /** Donde se escribe: «Editar» deja el cursor acá. */
   const compositorRef = useRef<HTMLInputElement | null>(null)
+  /** Lo que se está por cambiar, desde que se tocó «Editar» hasta que se manda. */
+  const cambiando = useRef<string[] | null>(null)
   /** Cuándo arrancó lo que está corriendo, para contar los segundos. */
   const [arrancoEn, setArrancoEn] = useState<number | null>(null)
 
@@ -474,7 +486,29 @@ export function OperatorChat({
       if (!limpio || pensando) return
       setError(null)
       setTexto('')
-      setMensajes((m) => [...m, { id: `local-${m.length}`, role: 'user', text: limpio }])
+
+      /**
+       * Un pedido de cambio cierra la propuesta anterior.
+       *
+       * La tarjeta baja al hilo congelada —en su lugar, arriba del pedido— y
+       * las acciones se descartan: el especialista está por escribir las
+       * nuevas, y sin esto quedarían las tres viejas más las tres nuevas
+       * esperando el mismo click.
+       */
+      const cambiar = cambiando.current
+      cambiando.current = null
+      const congelar = cambiar
+        ? acciones.filter((a) => cambiar.includes(a.id) && a.status === 'propuesto')
+        : []
+
+      setMensajes((m) => [
+        ...m,
+        ...(congelar.length > 0
+          ? [{ id: `c-${m.length}`, role: 'assistant' as const, text: '', decidido: congelar }]
+          : []),
+        { id: `local-${m.length + (congelar.length > 0 ? 1 : 0)}`, role: 'user' as const, text: limpio },
+      ])
+      for (const a of congelar) void decidirRef.current?.(a.id, false)
       setPensando(true)
       setArrancoEn(Date.now())
       setVivo({ thinking: '', bloques: [] })
@@ -664,6 +698,9 @@ export function OperatorChat({
   const pedirCambio = useCallback(
     (acciones: Accion[]) => {
       compositorRef.current?.focus()
+      // Lo que se manda después de tocar «Editar» es un pedido de cambio, y eso
+      // deja sin efecto lo que estaba propuesto.
+      cambiando.current = acciones.map((a) => a.id)
 
       /**
        * Con varias, no se fija ninguna.
@@ -725,7 +762,7 @@ export function OperatorChat({
   )
 
   const decidir = useCallback(
-    async (id: string, aprobar: boolean) => {
+    async (id: string, aprobar: boolean): Promise<void> => {
       setAcciones((a) =>
         a.map((x) =>
           x.id === id ? { ...x, status: aprobar ? 'ejecutado' : 'rechazado' } : x,
@@ -757,6 +794,7 @@ export function OperatorChat({
     },
     [fetchWithCsrf, marcarPasoDecidido, onChanged],
   )
+  decidirRef.current = decidir
 
   /**
    * La tarjeta entera, de una vez.
@@ -1058,7 +1096,10 @@ export function OperatorChat({
         )}
 
         {mensajes.map((m) =>
-          m.bloques?.length ? (
+          m.decidido ? (
+            // Congelada: se lee lo que se había propuesto, sin nada que decidir.
+            <TarjetaDecision key={m.id} acciones={m.decidido} congelada />
+          ) : m.bloques?.length ? (
             <Turno key={m.id} bloques={m.bloques} onVer={verComoQuedo} />
           ) : (
             <Dicho key={m.id} role={m.role} text={m.text} />
@@ -1434,7 +1475,12 @@ function EnVivo({ actividad, desde }: { actividad: string; desde: number | null 
           segundos para no titilar en los turnos cortos. */}
       {segundos >= 3 && (
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/60">
-          {segundos < 60 ? `${segundos}s` : `${Math.floor(segundos / 60)} min`}
+          {/* Los segundos SIEMPRE: «1 min» quieto durante sesenta segundos no
+              se distingue de una pantalla trabada, que es justo lo que el reloj
+              venia a desmentir. Pasado el minuto, en mm:ss. */}
+          {segundos < 60
+            ? `${segundos}s`
+            : `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, '0')}`}
         </span>
       )}
     </div>
@@ -1669,10 +1715,13 @@ function TarjetaDecision({
   acciones,
   onResolver,
   onEditar,
+  congelada = false,
 }: {
   acciones: Accion[]
-  onResolver: (decisiones: { id: string; aprobar: boolean }[]) => void
+  onResolver?: (decisiones: { id: string; aprobar: boolean }[]) => void
   onEditar?: () => void
+  /** Ya pasó: se lee lo que se propuso, y no hay nada que decidir. */
+  congelada?: boolean
 }) {
   const t = useT()
   /**
@@ -1718,7 +1767,7 @@ function TarjetaDecision({
       ? acciones[0]
       : null
 
-  if (soloPrender) {
+  if (soloPrender && !congelada) {
     return (
       <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1731,14 +1780,14 @@ function TarjetaDecision({
         <div className="mt-3.5 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onResolver([{ id: soloPrender.id, aprobar: true }])}
+            onClick={() => onResolver?.([{ id: soloPrender.id, aprobar: true }])}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
           >
             {t('operation.prenderSi')}
           </button>
           <button
             type="button"
-            onClick={() => onResolver([{ id: soloPrender.id, aprobar: false }])}
+            onClick={() => onResolver?.([{ id: soloPrender.id, aprobar: false }])}
             className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
           >
             {t('operation.prenderNo')}
@@ -1763,6 +1812,7 @@ function TarjetaDecision({
               <input
                 type="checkbox"
                 checked={dentro}
+                disabled={congelada}
                 onChange={() =>
                   setFuera((f) => {
                     const n = new Set(f)
@@ -1771,7 +1821,7 @@ function TarjetaDecision({
                     return n
                   })
                 }
-                className="mt-0.5 size-3.5 shrink-0 accent-[var(--primary)]"
+                className="mt-0.5 size-3.5 shrink-0 accent-[var(--primary)] disabled:opacity-40"
               />
               <div className="min-w-0 flex-1">
                 <p
@@ -1788,12 +1838,17 @@ function TarjetaDecision({
         })}
       </ul>
 
+      {/* Congelada: nada que decidir.
+          Se pidió un cambio, así que aprobar esto sería aprobar exactamente lo
+          que se acaba de pedir que cambie. Queda como registro de lo que se
+          había propuesto, arriba del pedido que lo reemplazó. */}
+      {congelada ? null : (
       <div className="mt-3.5 flex items-center gap-2">
         <button
           type="button"
           disabled={elegidas.length === 0}
           onClick={() =>
-            onResolver(acciones.map((a) => ({ id: a.id, aprobar: !fuera.has(a.id) })))
+            onResolver?.(acciones.map((a) => ({ id: a.id, aprobar: !fuera.has(a.id) })))
           }
           className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
         >
@@ -1806,7 +1861,11 @@ function TarjetaDecision({
           <button
             type="button"
             onClick={onEditar}
-            className="app-card-cta rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-ink"
+            // Sin `app-card-cta`: ese estilo grita en mayúsculas y con
+            // interletrado, y quedaba un «EDITAR» entre «Aprobar (3)» y
+            // «Descartar», que no. Tres botones de la misma fila se escriben
+            // igual.
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-ink"
           >
             <Pencil className="size-3" />
             {t('operation.decisionEditar')}
@@ -1814,7 +1873,7 @@ function TarjetaDecision({
         )}
         <button
           type="button"
-          onClick={() => onResolver(acciones.map((a) => ({ id: a.id, aprobar: false })))}
+          onClick={() => onResolver?.(acciones.map((a) => ({ id: a.id, aprobar: false })))}
           className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted"
         >
           {t('operation.decisionDescartar')}
@@ -1825,6 +1884,7 @@ function TarjetaDecision({
           </span>
         )}
       </div>
+      )}
     </div>
   )
 }

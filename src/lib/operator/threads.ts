@@ -86,8 +86,49 @@ export async function loadMessages(
 export function toAnthropic(messages: ThreadMessage[]): Anthropic.MessageParam[] {
   return messages
     .slice(-CONTEXT_TURNS)
-    .filter((m) => m.text.trim().length > 0)
-    .map((m) => ({ role: m.role, content: m.text }))
+    .map((m) => ({ role: m.role, content: [m.text.trim(), loQueDejo(m)].filter(Boolean).join('\n\n') }))
+    .filter((m) => m.content.length > 0)
+}
+
+/**
+ * Qué quedó de aquel turno, para que el modelo lo sepa en el siguiente.
+ *
+ * Se mandaba sólo el texto. Los nombres exactos de lo que se propuso o se
+ * construyó viven en los bloques —se guardan desde hace rato— y no viajaban, así
+ * que en la vuelta siguiente el modelo no tenía forma de saber qué había hecho.
+ *
+ * Se vio en una cuenta real: se pidió cambiar dos de tres mensajes, el
+ * especialista volvió a escribir los tres con NOMBRES NUEVOS, y quedaron seis
+ * esperando aprobación. También explica por qué, después de aprobar, volvía a
+ * proponer el mismo plan: no le constaba que ya estuviera hecho.
+ */
+function loQueDejo(m: ThreadMessage): string {
+  if (m.role !== 'assistant' || !m.bloques?.length) return ''
+
+  const nombre = (b: Extract<Bloque, { k: 'paso' }>): string =>
+    b.detalle?.match(/«([^»]+)»/)?.[1] ?? b.label
+
+  const propuesto = new Set<string>()
+  const hecho = new Set<string>()
+  for (const b of m.bloques) {
+    if (b.k !== 'paso') continue
+    if (b.estado === 'propuesto') propuesto.add(nombre(b))
+    else if (b.estado === 'hecho') hecho.add(nombre(b))
+  }
+
+  const partes: string[] = []
+  if (propuesto.size > 0) {
+    partes.push(`dejaste esperando aprobación: ${[...propuesto].map((n) => `«${n}»`).join(', ')}`)
+  }
+  if (hecho.size > 0) {
+    partes.push(`quedó hecho: ${[...hecho].map((n) => `«${n}»`).join(', ')}`)
+  }
+  // Entre corchetes y en tercera persona: es una nota del sistema sobre el
+  // turno, no algo que el modelo haya dicho. Y con la regla al lado, porque el
+  // dato sin la regla se lee y no se usa.
+  return partes.length > 0
+    ? `[En ese turno ${partes.join('; ')}. Si hay que corregir algo de eso, REUSA el mismo nombre en vez de inventar uno nuevo, y no vuelvas a proponer lo que ya está hecho.]`
+    : ''
 }
 
 export async function appendMessage(
