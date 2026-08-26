@@ -411,10 +411,6 @@ export const operation = {
    * en boca del comercio; «eso ya está hecho» dice lo mismo y es una frase.
    */
   seguir: { es: "Aprobado. Sigue con lo que falta.", en: "Approved. Carry on with what is left." },
-  seguirCon: {
-    es: "Aprobé: {que}. Eso ya está hecho, sigue con lo que falta.",
-    en: "Approved: {que}. That is done — carry on with what is left.",
-  },
   /**
    * El título de la decisión: que la cosa YA está, y qué se puede hacer.
    *

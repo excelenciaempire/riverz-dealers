@@ -643,9 +643,14 @@ export function OperatorChat({
    * —RECOMPRA_SERUM_1_UNIDAD, Crear «recompra_serum_1_unidad»— como si Meta los
    * hubiera rechazado. Descartar es una decisión tuya y ya se ve en la tarjeta
    * congelada; sólo un fallo real merece quedarse escrito.
+   *
+   * Y cuando falla, con el motivo. La fila se quedaba con el detalle de la
+   * propuesta —«Crear «recompra_1»»—, así que aprobar algo que Meta rechazaba
+   * dejaba una cruz roja que repetía el nombre y no decía nada. El servidor
+   * manda el porqué en la misma respuesta; era cuestión de escribirlo.
    */
   const marcarPasoDecidido = useCallback(
-    (actionId: string, resultado: 'hecho' | 'descartado' | 'error') => {
+    (actionId: string, resultado: 'hecho' | 'descartado' | 'error', motivo?: string) => {
       setMensajes((ms) =>
         ms.map((m) =>
           m.bloques?.some((b) => b.k === 'paso' && b.actionId === actionId)
@@ -653,7 +658,11 @@ export function OperatorChat({
                 ...m,
                 bloques: m.bloques.map((b) =>
                   b.k === 'paso' && b.actionId === actionId
-                    ? { ...b, estado: resultado }
+                    ? {
+                        ...b,
+                        estado: resultado,
+                        ...(resultado === 'error' && motivo ? { detalle: motivo } : {}),
+                      }
                     : b,
                 ),
               }
@@ -797,7 +806,7 @@ export function OperatorChat({
           ),
         )
         // Acá sí falló: la acción se intentó y el servidor dijo que no.
-        if (!json.ok) marcarPasoDecidido(id, 'error')
+        if (!json.ok) marcarPasoDecidido(id, 'error', json.message)
         if (json.ok && aprobar) onChanged?.()
       } catch {
         setAcciones((a) =>
@@ -847,24 +856,20 @@ export function OperatorChat({
       )
       if (aprobadas.length > 0 && !soloPrender) {
         /**
-         * Y se dice QUÉ se aprobó.
+         * Y se dice sólo «aprobado».
          *
-         * Decía «Listo, aprobado. Continúa.» y con eso el modelo no sabía qué
-         * había quedado hecho: releía el pedido original y volvía a proponer el
-         * mismo plan desde cero, así que aprobar tres plantillas terminaba con
-         * las mismas tres plantillas propuestas otra vez.
+         * Llevó un tiempo los NOMBRES adentro —«Aprobé: recompra_serum_1_unidad,
+         * recompra_serum_pack_2_3_unidades»— porque sin ellos el modelo releía
+         * el pedido original y volvía a proponer el mismo plan desde cero. El
+         * dato hacía falta; el lugar estaba mal. Quedaba en el hilo como una
+         * frase tuya llena de nombres técnicos que nunca escribiste.
          *
-         * Con los nombres adentro, la vuelta siguiente arranca sabiendo de qué
-         * ya no tiene que ocuparse.
+         * Ya no hace falta: al aprobar, esas acciones pasan a `ejecutado`, y el
+         * hilo se arma reconciliando cada paso contra su acción, así que el
+         * turno siguiente lee «quedó hecho: …» con los mismos nombres y sin
+         * ensuciar la conversación.
          */
-        const nombres = aprobadas
-          .map((a) => String(a.args?.nombre ?? '').trim())
-          .filter(Boolean)
-        await enviarRef.current?.(
-          nombres.length > 0
-            ? t('operation.seguirCon', { que: nombres.join(', ') })
-            : t('operation.seguir'),
-        )
+        await enviarRef.current?.(t('operation.seguir'))
       }
     },
     [acciones, decidir, ofrecerPrender, t],
