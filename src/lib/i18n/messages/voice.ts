@@ -8,15 +8,7 @@ export const voice = {
   // ── Agent editor · Voz tab ──
   tab: { es: "Llamadas", en: "Calls" },
   enable: { es: "Agente de voz", en: "Voice agent" },
-  enableHint: {
-    es: "Permite que este agente haga y conteste llamadas por teléfono.",
-    en: "Let this agent place and answer phone calls.",
-  },
   voiceLabel: { es: "Voz del agente", en: "Agent voice" },
-  voicePickHint: {
-    es: "La voz con la que hablará el agente. Escúchala antes de elegir.",
-    en: "The voice the agent speaks with. Listen before choosing.",
-  },
   greeting: { es: "Saludo inicial", en: "Opening line" },
   greetingHint: {
     es: "Lo primero que dice al conectar. Usa {{contact_name}} para el nombre.",
@@ -24,8 +16,8 @@ export const voice = {
   },
   objectives: { es: "Objetivos por tipo de llamada", en: "Objectives by call type" },
   objectivesHint: {
-    es: "Qué debe lograr el agente en cada tipo de llamada. Si lo dejas vacío, usa un objetivo por defecto.",
-    en: "What the agent should accomplish per call type. Left empty, a default is used.",
+    es: "Vacío, usa un objetivo por defecto.",
+    en: "Left empty, a default is used.",
   },
   // Los nombres de los cuatro tipos viven en `type*` (abajo) — son los mismos
   // que muestra el registro de llamadas, y tenerlos dos veces hacía que la
@@ -53,8 +45,8 @@ export const voice = {
   },
   retries: { es: "Si no contesta", en: "If nobody answers" },
   retriesHint: {
-    es: "Cuántas veces vuelve a marcar, con un par de horas entre intento e intento.",
-    en: "How many times it dials again, a couple of hours apart.",
+    es: "Con un par de horas entre intento e intento.",
+    en: "A couple of hours between attempts.",
   },
   retriesNone: { es: "No insistir", en: "Don't retry" },
   retriesOnce: { es: "Insistir 1 vez", en: "Retry once" },
@@ -194,17 +186,9 @@ export const voice = {
   phoneNumber: { es: "Número asignado", en: "Assigned number" },
   phoneNumberPlaceholder: { es: "+57 …", en: "+1 …" },
   inboundEnabled: { es: "Contestar llamadas entrantes", en: "Answer incoming calls" },
-  inboundEnabledHint: {
-    es: "El agente atiende a quien llame a tu número.",
-    en: "The agent picks up when someone calls your number.",
-  },
   monthlyLimit: { es: "Límite de minutos al mes", en: "Monthly minutes limit" },
   monthlyLimitHint: { es: "0 = sin límite", en: "0 = unlimited" },
   testCall: { es: "Probar llamada", en: "Test call" },
-  testCallHint: {
-    es: "Te llamamos ahora con este agente para escucharlo.",
-    en: "We call you now with this agent so you can hear it.",
-  },
   testCallPlaceholder: { es: "+54 9 11 1234 5678", en: "+1 555 123 4567" },
   testCallQueued: { es: "Llamando ahora", en: "Calling now" },
   testCallSaveFirst: {
@@ -222,10 +206,6 @@ export const voice = {
     en: "Saves the audio; you can play it from the call log.",
   },
   transferNumber: { es: "Transferir a un humano (número)", en: "Transfer to a human (number)" },
-  transferNumberHint: {
-    es: "+57 … — el agente puede pasar la llamada a este número si hace falta.",
-    en: "+1 … — the agent can hand the call to this number when needed.",
-  },
   connected: { es: "Conectado", en: "Connected" },
   notConnected: { es: "Sin configurar", en: "Not set up" },
   save: { es: "Guardar", en: "Save" },
@@ -253,6 +233,10 @@ export const voice = {
   usageOf: { es: "de {limit}", en: "of {limit}" },
 
   numberChange: { es: "Cambiar", en: "Change" },
+  // Los dos grupos de la pantalla: lo que se arma una vez y lo que se mira
+  // todas las semanas. Sin ellos eran siete tarjetas iguales apiladas.
+  setupGroup: { es: "Configuración", en: "Setup" },
+  activityGroup: { es: "Actividad", en: "Activity" },
   whoAnswers: { es: "Quién atiende", en: "Who answers" },
   whoAnswersNone: {
     es: "Ningún agente tiene la voz activada.",
@@ -523,10 +507,6 @@ export const voice = {
   numberMonthly: { es: "{amount} al mes", en: "{amount}/month" },
   numberFree: { es: "Sin costo mensual", en: "No monthly cost" },
   numberBuying: { es: "Comprando…", en: "Buying…" },
-  numberIsCallerId: {
-    es: "Es el número desde el que llama tu agente y al que pueden llamarte.",
-    en: "This is the number your agent calls from, and the one people can call.",
-  },
   // El papeleo: antes aparecia de golpe a mitad de la busqueda, como un muro
   // de campos sin explicacion.
   numberDocsCountry: {

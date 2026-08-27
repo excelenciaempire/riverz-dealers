@@ -25,13 +25,24 @@ type Usage = { minutes_used: number; minutes_limit: number; spend_usd: number; c
  * podía llamar. No podía: le faltaba un agente con la voz activada, y eso no
  * estaba escrito en ningún lado. Un comercio armaba todo y no pasaba nada.
  *
- * Ahora cada cosa que falta se dice DONDE se arregla: si no hay agente con
- * voz, lo dice «Quién atiende»; si no hay número, la tarjeta del número. Hubo
- * un cartel de estado arriba que repetía esas mismas frases palabra por
- * palabra — dos veces lo mismo en una pantalla es una forma de confundir.
+ * Se ordena por CUÁNDO se entra a cada cosa, no por tema. Armar el teléfono
+ * —número, quién atiende, cómo se comporta— se hace una vez; mirar cómo vienen
+ * saliendo las llamadas se hace todas las semanas. Eran siete tarjetas iguales
+ * apiladas, así que el que entraba a ver el registro pasaba por tres de
+ * configuración para llegar.
  *
- * El freno de emergencia sale de la lista de interruptores: es un botón de
- * pánico, no una preferencia, y estaba dibujado igual que «grabar llamadas».
+ * Cada cosa que falta se dice DONDE se arregla: si no hay agente con voz, lo
+ * dice «Quién atiende»; si no hay número, la tarjeta del número. Hubo un cartel
+ * de estado arriba que repetía esas mismas frases palabra por palabra — dos
+ * veces lo mismo en una pantalla es una forma de confundir.
+ *
+ * El freno de emergencia vive en el encabezado. Estaba al fondo, después del
+ * registro: un botón de pánico al que hay que llegar scrolleando no es un botón
+ * de pánico. Y entre los interruptores se veía igual que «grabar llamadas».
+ *
+ * La columna va angosta como en `/voz/campanas` y en Comentarios: a lo ancho de
+ * una pantalla grande, una fila de interruptores se lee como un formulario de
+ * impuestos.
  */
 export default function VoicePage() {
   const t = useT();
@@ -133,103 +144,109 @@ export default function VoicePage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('nav.voice')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('voice.pageDesc')}
-          {/* Lo único del cartel viejo que no se repetía en ningún lado. */}
-          {usage && usage.calls > 0 && (
+    <div className="mx-auto max-w-3xl space-y-8">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="app-page-title">{t('nav.voice')}</h1>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            {t('voice.pageDesc')}
+            {/* El consumo, en gris y sólo cuando ya hubo llamadas: en una
+                cuenta nueva un «0 min» no le dice nada a nadie. */}
+            {usage && usage.calls > 0 && (
+              <>
+                {' · '}
+                {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
+                {usage.minutes_limit > 0
+                  ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
+                  : ''}
+                {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
+              </>
+            )}
+          </p>
+        </div>
+        {/* Arriba y a mano. Al fondo de la página, después del registro, era un
+            freno de emergencia al que había que llegar scrolleando. */}
+        <Button
+          variant={parado ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => frenar(!parado)}
+          disabled={parando}
+        >
+          {parando ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : parado ? (
+            t('voice.stoppedResume')
+          ) : (
             <>
-              {' · '}
-              {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
-              {usage.minutes_limit > 0
-                ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
-                : ''}
-              {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
+              <Ban className="mr-1 h-3.5 w-3.5" />
+              {t('voice.stopAction')}
             </>
           )}
+        </Button>
+      </header>
+
+      {parado && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+          <Ban className="h-4 w-4 shrink-0" />
+          {t('voice.stopped')}
+          <span className="text-xs text-muted-foreground">{t('voice.stopHint')}</span>
         </p>
-      </div>
+      )}
 
-      {/* El número propio del espacio de trabajo (compra + papeleo regulatorio). */}
-      <VoiceNumberCard />
+      {/* ── Armarlo. Se hace una vez. ── */}
+      <section className="space-y-4">
+        <div className="app-section-head">
+          <h2 className="text-sm font-semibold text-foreground">{t('voice.setupGroup')}</h2>
+        </div>
 
-      {/* Quién atiende. Es la mitad de la respuesta a «¿por qué no llama?», y
-          antes estaba al final de la pantalla como un listado más. */}
-      <section className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h2>
-        {agents.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t('voice.whoAnswersNone')}{' '}
-            <Link href="/asistente" className="text-primary underline">
-              {t('voice.whoAnswersTurnOn')}
-            </Link>
-          </p>
-        ) : (
-          <ul className="mt-2 divide-y divide-border">
-            {agents.map((a) => (
-              <li key={a.id} className="flex items-center justify-between py-2">
-                <span className="text-sm text-foreground">{a.name}</span>
-                <Link href="/asistente" className="text-xs text-primary underline">
-                  {t('voice.configure')}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <VoiceNumberCard />
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h3>
+          {agents.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('voice.whoAnswersNone')}{' '}
+              <Link href="/asistente" className="text-primary underline">
+                {t('voice.whoAnswersTurnOn')}
+              </Link>
+            </p>
+          ) : (
+            <ul className="mt-2 divide-y divide-border">
+              {agents.map((a) => (
+                <li key={a.id} className="flex items-center justify-between py-2">
+                  <span className="text-sm text-foreground">{a.name}</span>
+                  <Link href="/asistente" className="text-xs text-primary underline">
+                    {t('voice.configure')}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <VoiceCard onSaved={recargar} />
       </section>
 
-      <VoiceCard onSaved={recargar} />
-
-      <Link
-        href="/voz/campanas"
-        className="flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/40"
-      >
-        <span className="flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-yellow-500" />
-          <span className="text-sm font-semibold text-foreground">{t('voice.campaignsTitle')}</span>
-        </span>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </Link>
-
-      <VoiceAnalytics />
-
-      <CallLog workspaceId={workspaceId} agents={voiceAgents} />
-
-      {/* El freno de emergencia, al final y con su propia forma. Entre los
-          interruptores se veía igual que «grabar llamadas», y no es lo mismo
-          elegir si se guarda el audio que cortarle el teléfono a la cuenta. */}
-      <section
-        className={`rounded-xl border p-4 ${
-          parado ? 'border-destructive/50 bg-destructive/5' : 'border-border bg-card'
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Ban
-                className={`h-4 w-4 ${parado ? 'text-destructive' : 'text-muted-foreground'}`}
-              />
-              {parado ? t('voice.stopped') : t('voice.stopTitle')}
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('voice.stopHint')}</p>
-          </div>
-          <Button
-            variant={parado ? 'outline' : 'destructive'}
-            size="sm"
-            onClick={() => frenar(!parado)}
-            disabled={parando}
+      {/* ── Mirarlo. Se hace todas las semanas. ── */}
+      <section className="space-y-4">
+        <div className="app-section-head">
+          <h2 className="text-sm font-semibold text-foreground">{t('voice.activityGroup')}</h2>
+          {/* Campañas era una tarjeta entera para un link. */}
+          <Link
+            href="/voz/campanas"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
           >
-            {parando ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : parado ? (
-              t('voice.stoppedResume')
-            ) : (
-              t('voice.stopAction')
-            )}
-          </Button>
+            <Megaphone className="h-3.5 w-3.5" />
+            {t('voice.campaignsTitle')}
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
+
+        {/* No dibuja nada mientras no haya llamadas: una grilla de ceros en una
+            cuenta recién armada es ruido con forma de tablero. */}
+        <VoiceAnalytics />
+
+        <CallLog workspaceId={workspaceId} agents={voiceAgents} />
       </section>
     </div>
   );
