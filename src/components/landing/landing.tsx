@@ -105,9 +105,10 @@ const INTEGRATIONS: { src: string; label: string }[] = [
   { src: "/channels/shopify.svg", label: "Shopify" },
   { src: "/channels/woocommerce.svg", label: "WooCommerce" },
   { src: "/channels/tiendanube.svg", label: "Tiendanube" },
-  // Isotipo oficial de Dropi (dropi.co). PNG con transparencia: no publican
-  // el mark en SVG suelto, solo el lockup horizontal con la palabra.
-  { src: "/channels/dropi.png", label: "Dropi" },
+  // Dropi sale de la fila hasta que un comercio pueda conectarlo: la tarjeta
+  // de ajustes existe pero no está montada en ninguna página, así que el
+  // logo prometía una integración que nadie podía activar. El isotipo sigue
+  // en /channels/dropi.png para cuando vuelva.
 ];
 
 // Unified inbox preview rows — the four channels plus a public comment that
