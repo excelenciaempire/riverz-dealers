@@ -292,9 +292,6 @@ export default function ProductosPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               placeholder={t('products.productNamePlaceholder')}
             />
-            <p className="text-xs text-muted-foreground">
-              {t('products.createHint')}
-            </p>
           </div>
           <DialogFooter>
             <Button

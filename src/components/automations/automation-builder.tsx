@@ -649,9 +649,6 @@ function ConditionFields({
             placeholder="09:00-18:00"
             className="bg-muted text-foreground"
           />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {t("automations.timeRangeHint")}
-          </p>
         </FieldBlock>
       )}
 
@@ -3282,13 +3279,9 @@ function StepEditor({
                   </div>
                 ))}
               </div>
-              {varIndices.some((n) => !variables[String(n)]) ? (
+              {varIndices.some((n) => !variables[String(n)]) && (
                 <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
                   {t("automations.templateVarsUnmapped")}
-                </p>
-              ) : (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {t("automations.templateVariablesHint")}
                 </p>
               )}
             </FieldBlock>

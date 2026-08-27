@@ -1503,9 +1503,6 @@ export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) 
         <span className="block text-[15px] font-medium text-foreground">
           {t('igAgent.autoReplyComments')}
         </span>
-        <span className="mt-1 block max-w-md text-[13px] leading-relaxed text-muted-foreground">
-          {t('igAgent.autoReplyCommentsHint')}
-        </span>
       </span>
       <Switch
         className="mt-1 shrink-0"

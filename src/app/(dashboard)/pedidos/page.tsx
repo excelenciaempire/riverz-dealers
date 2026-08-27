@@ -81,12 +81,7 @@ export default function PedidosPage() {
           <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
             <Receipt className="size-5" />
           </span>
-          <div>
-            <p className="text-sm font-medium text-foreground">{t('products.ordersEmptyTitle')}</p>
-            <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-              {t('products.ordersEmptyBody')}
-            </p>
-          </div>
+          <p className="text-sm font-medium text-foreground">{t('products.ordersEmptyTitle')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">

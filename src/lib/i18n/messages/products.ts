@@ -26,10 +26,6 @@ export const products = {
     es: "Ej: Sérum facial 30ml",
     en: "E.g. 30ml face serum",
   },
-  createHint: {
-    es: "Lo demás (fotos, precios, beneficios, sitios) lo completas en el editor.",
-    en: "Everything else (photos, prices, benefits, sites) is filled in the editor.",
-  },
   cancel: { es: "Cancelar", en: "Cancel" },
   createAndEdit: { es: "Crear y editar", en: "Create and edit" },
   nameRequired: { es: "Ponle un nombre al producto.", en: "Give the product a name." },
@@ -109,7 +105,7 @@ export const products = {
   // Websites
   websites: { es: "Sitios web", en: "Websites" },
   websitesHint: {
-    es: "Hasta 5. El agente aprende de su contenido.",
+    es: "Hasta 5. El agente aprende de lo que digan.",
     en: "Up to 5. The agent learns from their content.",
   },
   open: { es: "Abrir", en: "Open" },
@@ -151,8 +147,8 @@ export const products = {
   // Advanced selling context (collapsible)
   sellingContext: { es: "Contexto para vender", en: "Selling context" },
   sellingContextSubtitle: {
-    es: "Reglas y matices que afinan el copy del agente. Opcional.",
-    en: "Rules and nuances that sharpen the agent's copy. Optional.",
+    es: "Opcional. Afina cómo habla el agente de este producto.",
+    en: "Optional. Fine-tunes how the agent talks about this product.",
   },
   objections: { es: "Objeciones y respuesta", en: "Objections and rebuttal" },
   objectionsHint: {
@@ -224,10 +220,6 @@ export const products = {
   },
   ordersLoadError: { es: "No se pudieron cargar los pedidos.", en: "Couldn't load orders." },
   ordersEmptyTitle: { es: "Aún no hay pedidos", en: "No orders yet" },
-  ordersEmptyBody: {
-    es: "Cuando tu asistente cierre una venta en el chat, el pedido aparecerá aquí.",
-    en: "When your assistant closes a sale in the chat, the order will show up here.",
-  },
 
   // Orders table columns
   colOrder: { es: "Pedido", en: "Order" },

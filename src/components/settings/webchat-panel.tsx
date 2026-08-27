@@ -391,7 +391,6 @@ export function WebchatPanel() {
           />
           <Toggle
             label={t('webchat.uploads')}
-            hint={t('webchat.uploadsHint')}
             checked={cfg.allow_uploads !== false}
             onChange={(c) => save({ allow_uploads: c })}
           />

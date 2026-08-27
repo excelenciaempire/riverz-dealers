@@ -76,8 +76,8 @@ export const webchat = {
   avatarPlaceholder: { es: "https://…", en: "https://…" },
   quickReplies: { es: "Preguntas sugeridas", en: "Suggested questions" },
   quickRepliesHint: {
-    es: "Hasta 4. Aparecen bajo el saludo y desaparecen cuando arranca la conversación.",
-    en: "Up to 4. They show under the greeting and disappear once the conversation starts.",
+    es: "Hasta 4. Desaparecen cuando arranca la conversación.",
+    en: "Up to 4. They disappear once the conversation starts.",
   },
   quickReplyPlaceholder: {
     es: "¿Dónde está mi pedido?",
@@ -120,14 +120,10 @@ export const webchat = {
     en: "Adds friction. On purchase, the email is captured anyway.",
   },
   uploads: { es: "Recibir fotos y archivos", en: "Accept photos and files" },
-  uploadsHint: {
-    es: "El comprobante de una transferencia y la foto de un producto roto son la mitad del soporte.",
-    en: "Transfer receipts and photos of a damaged item are half of all support.",
-  },
   askRating: { es: "Preguntar si sirvió", en: "Ask if it helped" },
   askRatingHint: {
-    es: "Dos pulgares al final. Es de donde sale el porcentaje de abajo.",
-    en: "Two thumbs at the end. It is where the percentage below comes from.",
+    es: "De aquí sale el porcentaje de abajo.",
+    en: "This is where the percentage below comes from.",
   },
   offlineMessage: { es: "Fuera de horario", en: "Outside business hours" },
   offlinePlaceholder: {

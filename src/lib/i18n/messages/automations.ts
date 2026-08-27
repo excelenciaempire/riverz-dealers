@@ -151,10 +151,6 @@ export const automations = {
     es: "Selecciona una plantilla…",
     en: "Select a template…",
   },
-  addMessageStepHint: {
-    es: "Añade un paso de mensaje para ver la vista previa.",
-    en: "Add a message step to see the preview.",
-  },
 
   // Builder — trigger card
   triggerEyebrow: { es: "Activador", en: "Trigger" },
@@ -498,7 +494,6 @@ export const automations = {
     en: "e.g. invoice, exchange, refund",
   },
   betweenTheseHours: { es: "Entre estas horas", en: "Between these hours" },
-  timeRangeHint: { es: "Desde-hasta, en formato 24 h.", en: "From-to, in 24h format." },
   orderData: { es: "Dato del pedido", en: "Order field" },
   chooseData: { es: "Elige un dato…", en: "Choose a field…" },
   whenItIs: { es: "Cuando sea", en: "When it is" },
@@ -536,10 +531,6 @@ export const automations = {
   // Builder — send_template variables editor
   templateVariables: { es: "Variables de la plantilla", en: "Template variables" },
   chooseVariable: { es: "Elige un dato…", en: "Choose a field…" },
-  templateVariablesHint: {
-    es: "El contenido de la plantilla se edita en Plantillas. Aquí solo eliges qué dato va en cada espacio ({{n}}).",
-    en: "Template content is edited in Templates. Here you only choose which data fills each slot ({{n}}).",
-  },
   templateVarsUnmapped: {
     es: "Falta elegir el dato de algún espacio {{n}} — si lo dejas vacío, sale en blanco.",
     en: "Some {{n}} slots have no data chosen — left empty they render blank.",

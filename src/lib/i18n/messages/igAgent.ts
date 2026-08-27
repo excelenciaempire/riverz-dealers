@@ -155,13 +155,13 @@ export const igAgent = {
   controlsPause: { es: "Pausar todo", en: "Pause all" },
   controlsPausedOn: { es: "Proactivo en pausa", en: "Proactive paused" },
   controlsPauseHint: {
-    es: "Detiene al instante TODOS los DMs proactivos de Instagram (interruptor de emergencia).",
-    en: "Instantly stops ALL proactive Instagram DMs (emergency switch).",
+    es: "Detiene al instante todos los DMs proactivos de Instagram.",
+    en: "Instantly stops every proactive Instagram DM.",
   },
   controlsDailyCap: { es: "Tope diario", en: "Daily cap" },
   controlsDailyCapHint: {
-    es: "Máximo de DMs proactivos por día (protege tu reputación de envío).",
-    en: "Max proactive DMs per day (protects your sending reputation).",
+    es: "Máximo de DMs proactivos por día.",
+    en: "Max proactive DMs per day.",
   },
 
   // Estadísticas propias de Comentarios: las dos cosas que pasaron, sin
@@ -235,10 +235,6 @@ export const igAgent = {
   facebookHint: {
     es: "Igual que Instagram, pero por Messenger.",
     en: "Same as Instagram, but through Messenger.",
-  },
-  autoReplyCommentsHint: {
-    es: "Contesta a quien comenta en tus posts.",
-    en: "Replies to whoever comments on your posts.",
   },
 
   // Order attribution ledger

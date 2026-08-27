@@ -32,8 +32,8 @@ export const returns = {
 export const gaps = {
   title: { es: "Lo que no supo contestar", en: "What it could not answer" },
   hint: {
-    es: "Las preguntas donde el agente reconoció que le faltaba el dato. Carga la respuesta en su conocimiento y dejan de aparecer.",
-    en: "Questions where the agent admitted it was missing the fact. Add the answer to its knowledge and they stop showing up.",
+    es: "Carga la respuesta en su conocimiento y dejan de aparecer.",
+    en: "Add the answer to its knowledge and they stop showing up.",
   },
   empty: { es: "No quedó ninguna sin contestar.", en: "Nothing went unanswered." },
   times: { es: "Preguntada {n} veces", en: "Asked {n} times" },
@@ -96,8 +96,8 @@ export const approvals = {
 export const reglas = {
   title: { es: "Reglas del negocio", en: "Business rules" },
   hint: {
-    es: "Lo que el agente tiene que hacer o no hacer, pase lo que pase. Mandan sobre su personalidad.",
-    en: "What the agent must or must not do, no matter what. They override its personality.",
+    es: "Mandan sobre su personalidad, pase lo que pase.",
+    en: "They override its personality, no matter what.",
   },
   empty: {
     es: "Todavía no hay reglas. El agente sigue su personalidad y nada más.",

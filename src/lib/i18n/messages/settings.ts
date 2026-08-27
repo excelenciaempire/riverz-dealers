@@ -38,8 +38,8 @@ export const settings = {
   // ventas no aparecen en el administrador de anuncios.
   metaPixelTitle: { es: "Píxel de Meta", en: "Meta Pixel" },
   metaPixelDescription: {
-    es: "Las ventas que cierra el agente no pasan por el checkout, así que Meta no las ve. Con esto se las contamos y tus campañas optimizan con datos reales.",
-    en: "Sales the agent closes never reach the checkout, so Meta can't see them. This reports them, and your campaigns optimize on real data.",
+    es: "Las ventas del chat no pasan por el checkout. Con esto Meta las ve y tus campañas optimizan con datos reales.",
+    en: "Chat sales never reach the checkout. This reports them so your campaigns optimize on real data.",
   },
   metaPixelIdPlaceholder: { es: "ID del píxel", en: "Pixel ID" },
   metaPixelTokenPlaceholder: {
@@ -205,8 +205,8 @@ export const settings = {
   tabMcp: { es: "Agentes (MCP)", en: "Agents (MCP)" },
   mcpTitle: { es: "Agentes (MCP)", en: "Agents (MCP)" },
   mcpDesc: {
-    es: "Conecta tu asistente de IA a esta cuenta para que consulte tu operación y, si lo permites, actúe sobre ella.",
-    en: "Connect your AI assistant to this account so it can query your operation and, if you allow it, act on it.",
+    es: "Conecta tu asistente de IA a esta cuenta.",
+    en: "Connect your AI assistant to this account.",
   },
   mcpStep1: { es: "Crea una llave", en: "Create a key" },
   mcpStep2: { es: "Pégala en tu asistente", en: "Paste it into your assistant" },
@@ -766,8 +766,8 @@ export const settings = {
   manualLabelFbComment: { es: "Comentarios FB", en: "FB comments" },
   manualLabelIgComment: { es: "Comentarios IG", en: "IG comments" },
   manualTipWhatsapp: {
-    es: "Pega un System User Token (whatsapp_business_messaging + whatsapp_business_management) + el phone_number_id y waba_id. Importante: el número debe estar registrado en Cloud API y NO estar en uso en la app de WhatsApp Business del celular (coexistencia), o no recibirá mensajes.",
-    en: "Paste a System User Token (whatsapp_business_messaging + whatsapp_business_management) plus the phone_number_id and waba_id. Important: the number must be registered in Cloud API and NOT in use in the WhatsApp Business phone app (coexistence), or it won't receive messages.",
+    es: "Pega un System User Token (whatsapp_business_messaging + whatsapp_business_management), el phone_number_id y el waba_id. El número debe estar registrado en Cloud API y no en uso en la app de WhatsApp Business del celular.",
+    en: "Paste a System User Token (whatsapp_business_messaging + whatsapp_business_management), the phone_number_id and the waba_id. The number must be registered in Cloud API and not in use in the WhatsApp Business phone app.",
   },
   manualTipMessenger: {
     es: "Pega un Page Access Token de la página (Business Settings → System Users → Generar identificador con permiso pages_messaging + pages_show_list).",
@@ -844,16 +844,8 @@ export const settings = {
 
   // Assignment rules — headings + descriptions
   assignmentRules: { es: "Reglas de asignación", en: "Assignment rules" },
-  assignmentRulesDescription: {
-    es: "Cuando entra una conversación nueva sin asignar, se evalúan estas reglas en orden de prioridad. La primera que coincide gana.",
-    en: "When a new unassigned conversation arrives, these rules are evaluated in priority order. The first match wins.",
-  },
   newRule: { es: "Nueva regla", en: "New rule" },
   noRulesYet: { es: "Sin reglas todavía", en: "No rules yet" },
-  noRulesYetDescription: {
-    es: "Crea una para que tu bandeja reparta las conversaciones entre el equipo automáticamente.",
-    en: "Create one so your inbox distributes conversations across the team automatically.",
-  },
   createFirstRule: { es: "Crear primera regla", en: "Create first rule" },
 
   // Assignment rules — row card

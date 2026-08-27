@@ -44,8 +44,8 @@ export const inbox = {
   newChat: { es: "Nuevo chat", en: "New chat" },
   newChatTitle: { es: "Nuevo chat de WhatsApp", en: "New WhatsApp chat" },
   newChatDesc: {
-    es: "Escribe el número con código de país. Si el cliente no te escribió en las últimas 24 horas, WhatsApp solo permite enviar una plantilla aprobada.",
-    en: "Type the number with country code. If the customer hasn't written in the last 24 hours, WhatsApp only allows sending an approved template.",
+    es: "Escribe el número con código de país.",
+    en: "Type the number with country code.",
   },
   recipientPhone: { es: "Número de WhatsApp", en: "WhatsApp number" },
   recipientName: { es: "Nombre (opcional)", en: "Name (optional)" },
