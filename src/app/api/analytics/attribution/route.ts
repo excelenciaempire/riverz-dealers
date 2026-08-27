@@ -13,6 +13,7 @@ import {
   normPhone,
 } from '@/lib/attribution/shopify';
 import { provenBy, type Proof } from '@/lib/attribution/prueba';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 
 /**
  * GET /api/analytics/attribution?days=30
@@ -81,6 +82,15 @@ interface Attributed {
 /** Qué clase de cosa tocó el pedido. La UI la traduce; acá viaja el código. */
 type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent';
 
+/** Un mensaje de Riverz que le llegó a alguien antes de que comprara. */
+interface Toque {
+  kind: SourceKind;
+  /** La campaña, el flujo, la automatización o el agente concreto. */
+  entityId: string;
+  name: string;
+  at: string;
+}
+
 /**
  * Un pedido atribuido, con lo que lo tocó y cuándo.
  *
@@ -99,7 +109,7 @@ interface AttributedOrder {
   /** Quién compró: nombre del contacto, o su correo/teléfono. */
   contact: string | null;
   contact_id: string | null;
-  sources: Array<{ kind: SourceKind; name: string; at: string }>;
+  sources: Toque[];
   /**
    * `proven` = el pedido trae una marca de Riverz. `assisted` = sólo hubo
    * conversación antes. Lo que separa una cifra defendible de una inflada.
@@ -269,10 +279,18 @@ export async function GET(request: Request) {
   // con su periodo previo para el delta. AOV se calcula en el cliente.
   const sumRevenue = (arr: typeof orders) =>
     Math.round(arr.reduce((s, o) => s + Number(o.total_price ?? '0'), 0) * 100) / 100;
+  // La moneda sale de la tienda, no del primer pedido que aparezca.
+  //
+  // Con `orders[0]?.currency` un rango sin ventas —un lunes a la mañana, o el
+  // día que Shopify tarda— caía en el default 'USD' y el panel de un comercio
+  // argentino mostraba "0 US$". Un cero en la moneda equivocada se lee como un
+  // dato, y es peor que no mostrar nada. `monedaDeLaTienda` la lee de la
+  // conexión y sólo cae al pedido si ahí no hay nada.
+  const moneda = await resolveWorkspaceCurrency(admin, workspaceId);
   const totals: CommerceTotals = {
     revenue: { current: sumRevenue(orders), previous: sumRevenue(prevOrders) },
     orders: { current: orders.length, previous: prevOrders.length },
-    currency: orders[0]?.currency || prevOrders[0]?.currency || 'USD',
+    currency: orders[0]?.currency || prevOrders[0]?.currency || moneda,
   };
 
   // Agente de IG: revenue ya persistido por su motor (no depende del fetch de
@@ -479,6 +497,42 @@ export async function GET(request: Request) {
     }
   }
 
+  /**
+   * Las cuatro lentes, en cuatro consultas y no en cuatro POR PEDIDO.
+   *
+   * Antes el bucle preguntaba a la base cuatro veces por cada pedido del
+   * rango: con doscientos pedidos eran ochocientas idas y vueltas en fila, y
+   * la tarjeta se quedaba minutos en blanco —o el fetch moría y el panel
+   * mostraba un cero con la moneda equivocada, que es peor que no mostrar
+   * nada—. Se trae todo de una y el cruce se hace en memoria.
+   */
+  const contactosConPedido = new Set<string>();
+  for (const o of orders) {
+    const id =
+      (o.email && emailToContact.get(o.email.toLowerCase())) ||
+      (o.phone && phoneToContact.get(normPhone(o.phone) ?? '')) ||
+      null;
+    if (id) contactosConPedido.add(id);
+  }
+  const toquesPorContacto = await prefetchToques(admin, {
+    workspaceId,
+    locale,
+    contactIds: Array.from(contactosConPedido),
+    convDeContacto,
+    // La ventana arranca antes del rango: un pedido del primer día pudo
+    // haberse originado en un mensaje del día anterior.
+    desde: new Date(sinceMs - lookbackMs).toISOString(),
+    hasta: untilIso,
+  });
+  const bucketDe = (kind: SourceKind): Map<string, AttrRow> =>
+    kind === 'broadcast'
+      ? byBroadcast
+      : kind === 'flow'
+        ? byFlow
+        : kind === 'automation'
+          ? byAutomation
+          : byAgent;
+
   for (const order of orders) {
     // La prueba se calcula ANTES de buscar el contacto y no depende de él: un
     // pedido que salió de un link del asistente está probado aunque la persona
@@ -498,29 +552,18 @@ export async function GET(request: Request) {
       null;
 
     const orderTime = new Date(order.created_at).getTime();
-    const lookback = new Date(orderTime - lookbackMs).toISOString();
     const total = Number(order.total_price ?? '0');
-    const currency = order.currency || 'USD';
+    const currency = order.currency || moneda;
     // Con qué habló esta persona antes de comprar. NO prueba la venta: es
     // contexto, y es lo que separa "influida" de "no la tocamos". Sin contacto
     // emparejado no hay nada que mirar, pero el pedido puede seguir estando
     // probado por su marca.
     const fuentes: AttributedOrder['sources'] = cId
-      ? await lentesQueTocaron(admin, {
-          workspaceId,
-          locale,
-          contactId: cId,
-          convs: convDeContacto.get(cId) ?? [],
-          lookback,
-          orderCreatedAt: order.created_at,
-          total,
-          currency,
-          byBroadcast,
-          byFlow,
-          byAutomation,
-          byAgent,
-        })
+      ? ultimoToquePorLente(toquesPorContacto.get(cId) ?? [], orderTime, lookbackMs)
       : [];
+    for (const f of fuentes) {
+      accumulate(bucketDe(f.kind), f.entityId, f.name, total, currency);
+    }
 
     // La regla entera, en una línea: con marca cuenta como venta de Riverz;
     // sin marca, sólo se registra que hubo conversación antes.
@@ -578,145 +621,190 @@ export async function GET(request: Request) {
 }
 
 /**
- * Qué mensajes de Riverz tocaron a esta persona antes de que comprara.
+ * Qué mensajes de Riverz tocaron a cada comprador, traído de una sola vez.
  *
- * Cuatro lentes —campaña, flujo, automatización, asistente—, cada una con su
- * último toque dentro de la ventana. Acumula en las cubetas del desglose y
- * devuelve lo que encontró para el detalle del pedido.
+ * Cuatro lentes —campaña, flujo, automatización, asistente— y cuatro consultas
+ * en total, no cuatro por pedido. Devuelve, por contacto, la lista de toques
+ * ordenada del más nuevo al más viejo; después cada pedido se queda con el
+ * último de cada lente que caiga dentro de su ventana.
  *
  * Esto NO prueba la venta y por eso vive lejos de `provenBy`: contesta "hubo
  * conversación antes", que es la mitad floja de la atribución.
  */
-async function lentesQueTocaron(
+async function prefetchToques(
   admin: SupabaseClient,
   args: {
     workspaceId: string;
     locale: Locale;
-    contactId: string;
-    convs: string[];
-    lookback: string;
-    orderCreatedAt: string;
-    total: number;
-    currency: string;
-    byBroadcast: Map<string, AttrRow>;
-    byFlow: Map<string, AttrRow>;
-    byAutomation: Map<string, AttrRow>;
-    byAgent: Map<string, AttrRow>;
+    contactIds: string[];
+    convDeContacto: Map<string, string[]>;
+    desde: string;
+    hasta: string;
   },
-): Promise<AttributedOrder['sources']> {
-  const {
-    workspaceId,
-    locale,
-    contactId,
-    convs,
-    lookback,
-    orderCreatedAt,
-    total,
-    currency,
-  } = args;
-  const fuentes: AttributedOrder['sources'] = [];
+): Promise<Map<string, Toque[]>> {
+  const { workspaceId, locale, contactIds, convDeContacto, desde, hasta } = args;
+  const porContacto = new Map<string, Toque[]>();
+  if (contactIds.length === 0) return porContacto;
 
-  // Last broadcast send to this contact in the lookback window.
-  const { data: bcRow } = await admin
-    .from('broadcast_recipients')
-    .select('broadcast_id, sent_at, broadcasts(name)')
-    .eq('contact_id', contactId)
-    .gte('sent_at', lookback)
-    .lte('sent_at', orderCreatedAt)
-    .order('sent_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (bcRow) {
-    const row = bcRow as {
-      broadcast_id: string;
-      sent_at: string;
-      broadcasts: { name?: string } | { name?: string }[];
-    };
-    const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
-    const nombre = join?.name ?? translate(locale, 'errInbox.broadcastFallback');
-    accumulate(args.byBroadcast, row.broadcast_id, nombre, total, currency);
-    fuentes.push({ kind: 'broadcast', name: nombre, at: row.sent_at });
-  }
+  const push = (contactId: string, toque: Toque) => {
+    const lista = porContacto.get(contactId) ?? [];
+    lista.push(toque);
+    porContacto.set(contactId, lista);
+  };
+  const nombreJoin = (
+    join: { name?: string } | { name?: string }[] | null | undefined,
+    fallback: string,
+  ): string => {
+    const row = Array.isArray(join) ? join[0] : join;
+    return row?.name ?? translate(locale, fallback);
+  };
 
-  // Last flow run for this contact in the lookback window.
-  const { data: frRow } = await admin
-    .from('flow_runs')
-    .select('flow_id, started_at, flows(name)')
-    .eq('contact_id', contactId)
-    .eq('workspace_id', workspaceId)
-    .gte('started_at', lookback)
-    .lte('started_at', orderCreatedAt)
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (frRow) {
-    const row = frRow as {
-      flow_id: string;
-      started_at: string;
-      flows: { name?: string } | { name?: string }[];
-    };
-    const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
-    const nombre = join?.name ?? translate(locale, 'errInbox.flowFallback');
-    accumulate(args.byFlow, row.flow_id, nombre, total, currency);
-    fuentes.push({ kind: 'flow', name: nombre, at: row.started_at });
-  }
-
-  // Last successful/partial automation run for this contact in the window.
-  const { data: autoRow } = await admin
-    .from('automation_logs')
-    .select('automation_id, created_at, automations(name)')
-    .eq('contact_id', contactId)
-    .eq('workspace_id', workspaceId)
-    .in('status', ['success', 'partial'])
-    .gte('created_at', lookback)
-    .lte('created_at', orderCreatedAt)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (autoRow) {
-    const row = autoRow as {
-      automation_id: string;
-      created_at: string;
-      automations: { name?: string } | { name?: string }[];
-    };
-    const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
-    const nombre = join?.name ?? translate(locale, 'errInbox.automationFallback');
-    accumulate(args.byAutomation, row.automation_id, nombre, total, currency);
-    fuentes.push({ kind: 'automation', name: nombre, at: row.created_at });
-  }
-
-  // La última respuesta del asistente a este contacto, en la ventana.
-  //
-  // Es la lente que faltaba y la que más se usa: un comercio podía tener a la
-  // IA cerrando ventas todo el día y ver «ventas por Riverz: 0», porque la
-  // venta que empieza con una respuesta del asistente no pasaba por ninguna
-  // de las otras tres.
-  if (convs.length > 0) {
-    const { data: aiRow } = await admin
-      .from('ai_replies')
-      .select('agent_id, created_at, ai_agents(name)')
+  // Las cuatro en paralelo: son independientes y esperar una por una era la
+  // otra mitad de la demora.
+  const [bcs, flows, autos, convs] = await Promise.all([
+    admin
+      .from('broadcast_recipients')
+      .select('contact_id, broadcast_id, sent_at, broadcasts(name)')
+      .in('contact_id', contactIds)
+      .gte('sent_at', desde)
+      .lte('sent_at', hasta)
+      .limit(20000),
+    admin
+      .from('flow_runs')
+      .select('contact_id, flow_id, started_at, flows(name)')
       .eq('workspace_id', workspaceId)
-      .eq('status', 'sent')
-      .in('conversation_id', convs.slice(0, 50))
-      .gte('created_at', lookback)
-      .lte('created_at', orderCreatedAt)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (aiRow) {
-      const row = aiRow as {
-        agent_id: string | null;
-        created_at: string;
-        ai_agents: { name?: string } | { name?: string }[] | null;
-      };
-      const join = Array.isArray(row.ai_agents) ? row.ai_agents[0] : row.ai_agents;
-      const nombre = join?.name ?? translate(locale, 'errInbox.agentFallback');
-      accumulate(args.byAgent, row.agent_id ?? 'sin-agente', nombre, total, currency);
-      fuentes.push({ kind: 'agent', name: nombre, at: row.created_at });
-    }
+      .in('contact_id', contactIds)
+      .gte('started_at', desde)
+      .lte('started_at', hasta)
+      .limit(20000),
+    admin
+      .from('automation_logs')
+      .select('contact_id, automation_id, created_at, automations(name)')
+      .eq('workspace_id', workspaceId)
+      .in('contact_id', contactIds)
+      .in('status', ['success', 'partial'])
+      .gte('created_at', desde)
+      .lte('created_at', hasta)
+      .limit(20000),
+    (async () => {
+      // `ai_replies` guarda conversación, no contacto: hace falta el mapa
+      // inverso para saber de quién es cada respuesta.
+      const deConv = new Map<string, string>();
+      const ids: string[] = [];
+      for (const cId of contactIds) {
+        for (const convId of convDeContacto.get(cId) ?? []) {
+          deConv.set(convId, cId);
+          ids.push(convId);
+        }
+      }
+      if (ids.length === 0) return { data: [], deConv };
+      const { data } = await admin
+        .from('ai_replies')
+        .select('conversation_id, agent_id, created_at, ai_agents(name)')
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'sent')
+        // Tope duro: `in` viaja en la URL y con miles de uuids PostgREST
+        // devuelve 414 y la lente entera se pierde en silencio.
+        .in('conversation_id', ids.slice(0, 2000))
+        .gte('created_at', desde)
+        .lte('created_at', hasta)
+        .limit(20000);
+      return { data: data ?? [], deConv };
+    })(),
+  ]);
+
+  for (const r of (bcs.data ?? []) as {
+    contact_id: string;
+    broadcast_id: string;
+    sent_at: string;
+    broadcasts: { name?: string } | { name?: string }[];
+  }[]) {
+    push(r.contact_id, {
+      kind: 'broadcast',
+      entityId: r.broadcast_id,
+      name: nombreJoin(r.broadcasts, 'errInbox.broadcastFallback'),
+      at: r.sent_at,
+    });
   }
 
-  return fuentes;
+  for (const r of (flows.data ?? []) as {
+    contact_id: string;
+    flow_id: string;
+    started_at: string;
+    flows: { name?: string } | { name?: string }[];
+  }[]) {
+    push(r.contact_id, {
+      kind: 'flow',
+      entityId: r.flow_id,
+      name: nombreJoin(r.flows, 'errInbox.flowFallback'),
+      at: r.started_at,
+    });
+  }
+
+  for (const r of (autos.data ?? []) as {
+    contact_id: string;
+    automation_id: string;
+    created_at: string;
+    automations: { name?: string } | { name?: string }[];
+  }[]) {
+    push(r.contact_id, {
+      kind: 'automation',
+      entityId: r.automation_id,
+      name: nombreJoin(r.automations, 'errInbox.automationFallback'),
+      at: r.created_at,
+    });
+  }
+
+  // La lente que más se usa: un comercio puede tener a la IA cerrando ventas
+  // todo el día y ver «ventas por Riverz: 0» si sólo se miran las otras tres.
+  for (const r of convs.data as {
+    conversation_id: string;
+    agent_id: string | null;
+    created_at: string;
+    ai_agents: { name?: string } | { name?: string }[] | null;
+  }[]) {
+    const cId = convs.deConv.get(r.conversation_id);
+    if (!cId) continue;
+    push(cId, {
+      kind: 'agent',
+      entityId: r.agent_id ?? 'sin-agente',
+      name: nombreJoin(r.ai_agents, 'errInbox.agentFallback'),
+      at: r.created_at,
+    });
+  }
+
+  // Del más nuevo al más viejo: el matcher de abajo se queda con el primero
+  // que entre en la ventana, que es el último toque.
+  for (const lista of porContacto.values()) {
+    lista.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  }
+  return porContacto;
+}
+
+/**
+ * El último toque de CADA lente dentro de la ventana del pedido.
+ *
+ * Una lente aporta como mucho un toque: si a la persona le llegaron tres
+ * campañas, la que explica la compra es la última. Que dos lentes distintas
+ * aporten cada una la suya es lo esperado y no duplica el pedido —eso lo
+ * resuelve `evidence`, que cuenta el pedido y no las lentes.
+ */
+function ultimoToquePorLente(
+  toques: Toque[],
+  orderTime: number,
+  lookbackMs: number,
+): Toque[] {
+  const desde = orderTime - lookbackMs;
+  const salida: Toque[] = [];
+  const vistas = new Set<SourceKind>();
+  for (const t of toques) {
+    const at = Date.parse(t.at);
+    if (at > orderTime || at < desde) continue;
+    if (vistas.has(t.kind)) continue;
+    vistas.add(t.kind);
+    salida.push(t);
+  }
+  return salida;
 }
 
 /** Add one order's revenue to the bucket keyed by entity id (last-touch). */

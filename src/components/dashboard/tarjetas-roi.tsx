@@ -42,8 +42,10 @@ export function TarjetasRoi({
   const fmt = useFormat()
   const [detalle, setDetalle] = useState(false)
 
-  const cargando = atribucion === null
-  const sinTienda = !cargando && atribucion.not_connected === true
+  // "Todavía no sé" incluye el caso en que la tienda no contestó: un cero con
+  // la moneda por defecto se lee como un dato y es peor que un guion.
+  const cargando = atribucion === null || Boolean(atribucion.error)
+  const sinTienda = atribucion?.not_connected === true
   const ventasTienda = atribucion?.totals?.revenue.current ?? 0
   // Sólo lo PROBADO: el pedido trae una marca que puso Riverz. Lo que apenas
   // pasó cerca de una conversación vive en `assisted` y no entra acá — una

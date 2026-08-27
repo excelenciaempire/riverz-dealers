@@ -44,7 +44,7 @@ export interface AttributedOrder {
   currency: string
   contact: string | null
   contact_id: string | null
-  sources: Array<{ kind: SourceKind; name: string; at: string }>
+  sources: Array<{ kind: SourceKind; entityId: string; name: string; at: string }>
   /** `proven` = trae marca de Riverz. `assisted` = sólo hubo charla antes. */
   evidence: 'proven' | 'assisted'
   proofs: Array<{ kind: ProofKind; detail?: string }>
@@ -74,6 +74,11 @@ export interface Atribucion {
   /** Hubo más pedidos que los que viajaron en la lista. */
   attributed_orders_truncated?: boolean
   not_connected?: boolean
+  /**
+   * La tienda no contestó. Distinto de "no hubo ventas": mostrar cero acá
+   * sería inventar un dato, y encima en la moneda por defecto.
+   */
+  error?: string
 }
 
 /**
