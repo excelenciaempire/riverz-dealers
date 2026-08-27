@@ -33,6 +33,16 @@ export const DEFAULT_MAX_RETRIES = 2;
 export const DEFAULT_RETRY_DELAY_MINUTES = 120;
 
 /**
+ * Lo que sale un minuto de llamada, en dolares, para mostrarle un orden de
+ * magnitud al comercio ANTES de que prenda el telefono.
+ *
+ * No es una factura: es el promedio medido el 2026-08-25 sobre llamadas reales
+ * (STT + LLM + TTS + telefonia). Una de 19 segundos costo 0,0139 USD. El costo
+ * exacto de cada llamada se calcula al terminarla y queda en `voice_calls.cost`.
+ */
+export const ESTIMATED_USD_PER_MINUTE = 0.05;
+
+/**
  * Fallback objective per call type, per language. Used when the agent has
  * no `voice_objectives[call_type].objective` configured. Kept short and
  * transactional — the persona/knowledge come from the shared system prompt.

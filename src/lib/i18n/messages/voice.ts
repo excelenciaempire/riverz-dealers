@@ -191,11 +191,6 @@ export const voice = {
   optOut: { es: "No llamar", en: "Do not call" },
 
   // ── Integrations · voice card ──
-  cardTitle: { es: "Voz / Teléfono", en: "Voice / Phone" },
-  cardDesc: {
-    es: "Agentes de voz que llaman y contestan por teléfono.",
-    en: "Voice agents that call and answer by phone.",
-  },
   phoneNumber: { es: "Número asignado", en: "Assigned number" },
   phoneNumberPlaceholder: { es: "+57 …", en: "+1 …" },
   inboundEnabled: { es: "Contestar llamadas entrantes", en: "Answer incoming calls" },
@@ -205,11 +200,6 @@ export const voice = {
   },
   monthlyLimit: { es: "Límite de minutos al mes", en: "Monthly minutes limit" },
   monthlyLimitHint: { es: "0 = sin límite", en: "0 = unlimited" },
-  killSwitch: { es: "Pausar todas las llamadas", en: "Pause all calls" },
-  killSwitchHint: {
-    es: "Detiene de inmediato las llamadas salientes y entrantes.",
-    en: "Immediately stops outbound and inbound calls.",
-  },
   testCall: { es: "Probar llamada", en: "Test call" },
   testCallHint: {
     es: "Te llamamos ahora con este agente para escucharlo.",
@@ -249,12 +239,55 @@ export const voice = {
   metricCost: { es: "Costo estimado", en: "Estimated cost" },
 
   // ── Merchant "Voz" page ──
-  agentsTitle: { es: "Agentes con voz", en: "Voice agents" },
-  noAgents: {
+  // ── Pantalla de Llamadas, rehecha ──
+  // Lo primero es el estado: si la cuenta puede llamar o qué le falta. Antes
+  // la pantalla eran dos tarjetas de configuración y había que deducirlo.
+  pageDesc: {
+    es: "Tu agente llama y contesta por teléfono.",
+    en: "Your agent calls and answers the phone.",
+  },
+  readyTitle: { es: "Listo para llamar", en: "Ready to call" },
+  readyFrom: { es: "desde {number}", en: "from {number}" },
+  notReadyTitle: { es: "Todavía no puede llamar", en: "Can't call yet" },
+  readyFix: { es: "Resolver", en: "Fix" },
+  usageThisMonth: {
+    es: "{minutes} min este mes",
+    en: "{minutes} min this month",
+  },
+  usageOf: { es: "de {limit}", en: "of {limit}" },
+
+  numberChange: { es: "Cambiar", en: "Change" },
+  whoAnswers: { es: "Quién atiende", en: "Who answers" },
+  whoAnswersNone: {
     es: "Ningún agente tiene la voz activada.",
     en: "No agent has voice enabled.",
   },
-  goToAssistant: { es: "Ir al Asistente", en: "Go to Assistant" },
+  whoAnswersTurnOn: { es: "Activar la voz de un agente", en: "Turn on an agent's voice" },
+  behaviourTitle: { es: "Comportamiento", en: "Behaviour" },
+  advancedToggle: { es: "Opciones avanzadas", en: "Advanced options" },
+
+  // El freno de emergencia sale de la lista de interruptores: no es una
+  // preferencia como grabar, es un botón de pánico y tiene que verse así.
+  stopTitle: { es: "Parar todas las llamadas", en: "Stop all calls" },
+  stopHint: {
+    es: "Corta al instante lo que salga y lo que entre. Se vuelve a encender aquí mismo.",
+    en: "Instantly cuts everything, outgoing and incoming. Turned back on right here.",
+  },
+  stopAction: { es: "Parar todo", en: "Stop everything" },
+  stopped: { es: "Llamadas paradas", en: "Calls stopped" },
+  stoppedResume: { es: "Reanudar", en: "Resume" },
+
+  // Debajo del interruptor de voz del agente: los otros interruptores del
+  // editor cambian cómo escribe; éste hace sonar teléfonos y cuesta plata.
+  agentVoiceFacts: {
+    es: "Llama desde {number}, de {from} a {to}. Cerca de {cost} por llamada.",
+    en: "Calls from {number}, {from} to {to}. About {cost} per call.",
+  },
+  agentVoiceNoNumber: {
+    es: "Falta comprar un número en Llamadas para que pueda marcar.",
+    en: "A phone number is still missing — buy one under Calls.",
+  },
+
   configure: { es: "Configurar", en: "Configure" },
   callLogTitle: { es: "Registro de llamadas", en: "Call log" },
   noCalls: { es: "Todavía no hay llamadas.", en: "No calls yet." },
@@ -461,10 +494,6 @@ export const voice = {
   openInInbox: { es: "Ver en bandeja", en: "View in inbox" },
 
   // ── Usage this month (voice card) ──
-  usageTitle: { es: "Uso este mes", en: "This month" },
-  usageMinutes: { es: "Minutos", en: "Minutes" },
-  usageSpend: { es: "Gasto estimado", en: "Estimated spend" },
-  usageUnlimited: { es: "Sin límite", en: "Unlimited" },
 
   // ── Per-objective extra instructions ──
   extraInstructions: { es: "Instrucciones extra (opcional)", en: "Extra instructions (optional)" },

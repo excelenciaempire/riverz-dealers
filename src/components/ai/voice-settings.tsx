@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Play, Square, Sparkles, Loader2, PhoneCall } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
   DEFAULT_MAX_CALL_SECONDS,
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_DELAY_MINUTES,
+  ESTIMATED_USD_PER_MINUTE,
 } from '@/lib/voice/constants';
 import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
 
@@ -118,6 +119,24 @@ export function VoiceSettings({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
+  /** El numero desde el que saldrian estas llamadas, para la linea de arriba. */
+  const [numero, setNumero] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!workspaceId || !value.voice_enabled) return;
+    let cancelado = false;
+    (async () => {
+      const res = await fetch(`/api/voice/readiness?workspace_id=${workspaceId}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok || cancelado) return;
+      const json = (await res.json()) as { phone_number?: string | null };
+      if (!cancelado) setNumero(json.phone_number ?? null);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [workspaceId, value.voice_enabled]);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
@@ -262,6 +281,23 @@ export function VoiceSettings({
           acá era decir dos veces lo mismo, una debajo de la otra. */}
       {value.voice_enabled && (
         <>
+          {/* Los demas interruptores del editor cambian COMO escribe el
+              agente. Este hace sonar el telefono de gente real y cuesta plata
+              por minuto — merece decir desde que numero, en que horario y mas
+              o menos cuanto, antes de que alguien lo prenda sin saberlo. */}
+          <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+            {numero
+              ? t('voice.agentVoiceFacts', {
+                  number: numero,
+                  from: value.voice_calling_hours.start,
+                  to: value.voice_calling_hours.end,
+                  cost: `$${(
+                    (ESTIMATED_USD_PER_MINUTE * value.voice_max_call_seconds) /
+                    60
+                  ).toFixed(2)}`,
+                })
+              : t('voice.agentVoiceNoNumber')}
+          </p>
           {/* AI-assisted setup — describe it in words, we fill the form. */}
           {workspaceId && (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
