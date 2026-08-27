@@ -167,8 +167,9 @@
 }
 
 @media (min-width: 1024px) {
+  /* Cinco actos, una pantalla por acto. */
   .sn-scene {
-    height: 300vh;
+    height: 500vh;
   }
   .sn-scene-in {
     position: sticky;

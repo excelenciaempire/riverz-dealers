@@ -25,17 +25,40 @@ import { useT } from "@/hooks/use-locale";
 
 // ── Piezas compartidas ────────────────────────────────────────────────────
 
-/** Caja de la composición: proporción fija y aire alrededor. */
+/**
+ * Caja de la composición.
+ *
+ * Con , la imagen va de fondo a sangre y las piezas se apoyan encima.
+ * Es la receta de verdad de la cuadrícula de Siena: ni una foto sola —que es
+ * linda y no dice qué hace el producto— ni una ventanita más, sino las dos
+ * cosas en la misma ficha. Un velo de crema por arriba baja el contraste de la
+ * foto lo justo para que las placas blancas se despeguen.
+ */
 function Lienzo({
   children,
   ratio = "4/3",
+  foto,
 }: {
   children: React.ReactNode;
   ratio?: string;
+  foto?: string;
 }) {
   return (
-    <div className="relative w-full" style={{ aspectRatio: ratio }} aria-hidden>
-      {children}
+    <div
+      className="relative w-full overflow-hidden rounded-2xl"
+      style={{ aspectRatio: ratio }}
+      aria-hidden
+    >
+      {foto && (
+        <>
+          <Image src={foto} alt="" fill sizes="(max-width: 1024px) 100vw, 40vw" className="object-cover" />
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(180deg, rgba(243,240,235,0.30), rgba(243,240,235,0.62))" }}
+          />
+        </>
+      )}
+      <div className={foto ? "absolute inset-0 p-4 sm:p-5" : "absolute inset-0"}>{children}</div>
     </div>
   );
 }
@@ -126,10 +149,10 @@ const TIENDAS = [
   { src: "/channels/dropi.png", label: "Dropi" },
 ];
 
-export function CompTienda() {
+export function CompTienda({ foto }: { foto?: string }) {
   const t = useT();
   return (
-    <Lienzo>
+    <Lienzo foto={foto}>
       <svg
         viewBox="0 0 100 75"
         preserveAspectRatio="none"
@@ -177,10 +200,10 @@ export function CompTienda() {
 // La ficha del producto que quedó a medias, la burbuja que lo va a buscar, y
 // el chip de que volvió. Tres piezas, una historia.
 
-export function CompCarrito() {
+export function CompCarrito({ foto }: { foto?: string }) {
   const t = useT();
   return (
-    <Lienzo>
+    <Lienzo foto={foto}>
       <Placa className="absolute left-0 top-[6%] w-[62%] p-3">
         <div className="flex items-center gap-3">
           <span
@@ -221,10 +244,10 @@ export function CompCarrito() {
 // Tres pedidos del mismo cliente, escalonados, y la flecha que vuelve al
 // principio. La repetición se ve antes de leerse.
 
-export function CompRecompras() {
+export function CompRecompras({ foto }: { foto?: string }) {
   const t = useT();
   return (
-    <Lienzo>
+    <Lienzo foto={foto}>
       {[
         { d: "landingV4.compMes1", top: "4%", left: "0%", op: 0.45 },
         { d: "landingV4.compMes2", top: "30%", left: "12%", op: 0.7 },
@@ -271,10 +294,10 @@ export function CompRecompras() {
 // ── 4 · Campañas ──────────────────────────────────────────────────────────
 // Dos canales arriba, el abanico de burbujas abajo y el contador. Escala.
 
-export function CompCampanas() {
+export function CompCampanas({ foto }: { foto?: string }) {
   const t = useT();
   return (
-    <Lienzo ratio="21/9">
+    <Lienzo ratio="16/9" foto={foto}>
       <div className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center gap-2">
         <Placa className="flex size-11 items-center justify-center">
           <ChannelLogo channel="whatsapp" size={22} />
@@ -322,10 +345,10 @@ export function CompCampanas() {
 // La onda, dos líneas de la transcripción y el resultado. Lo que deja una
 // llamada cuando termina.
 
-export function CompLlamadas() {
+export function CompLlamadas({ foto }: { foto?: string }) {
   const t = useT();
   return (
-    <Lienzo ratio="3/4">
+    <Lienzo ratio="3/4" foto={foto}>
       <Placa className="absolute inset-x-0 top-[4%] p-4">
         <div className="flex items-center gap-2.5">
           <span

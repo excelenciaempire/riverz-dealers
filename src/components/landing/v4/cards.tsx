@@ -59,13 +59,15 @@ type Tile = {
   lg: 2 | 3 | 4 | 6;
 } & (
   | { kind: "window"; Panel: () => React.ReactElement }
-  | { kind: "comp"; Comp: () => React.ReactElement }
+  | { kind: "comp"; Comp: (p: { foto?: string }) => React.ReactElement; foto?: string }
   | { kind: "figure"; value: string; unit: string }
   | { kind: "plain" }
 );
 
-// El orden importa dos veces: cuenta la historia, y hace que las fichas anchas
-// caigan siempre al principio de una fila (si no, la cuadrícula deja huecos).
+// El orden cuenta la historia. Los huecos que dejarían las fichas de distinto
+// ancho los rellena la cuadrícula sola: `grid-auto-flow: dense` mete la
+// siguiente ficha que entre, así que se pueden elegir los anchos por diseño y
+// no por aritmética.
 const TILES: Tile[] = [
   {
     key: "sec01",
@@ -81,6 +83,7 @@ const TILES: Tile[] = [
     key: "secVoice",
     kind: "comp",
     Comp: CompLlamadas,
+    foto: "/portada-b/llamadas.jpg",
     title: "landing.secVoiceTitle",
     muted: "landing.secVoiceTitleMuted",
     body: "landing.secVoiceBody",
@@ -91,6 +94,7 @@ const TILES: Tile[] = [
     key: "sec02",
     kind: "comp",
     Comp: CompCarrito,
+    foto: "/portada-b/carritos.jpg",
     title: "landing.sec02Title",
     muted: "landing.sec02TitleMuted",
     body: "landing.sec02Body",
@@ -111,6 +115,7 @@ const TILES: Tile[] = [
     key: "sec03",
     kind: "comp",
     Comp: CompRecompras,
+    foto: "/portada-b/recompras.jpg",
     title: "landing.sec03Title",
     muted: "landing.sec03TitleMuted",
     body: "landing.sec03Body",
@@ -131,11 +136,12 @@ const TILES: Tile[] = [
     key: "sec06",
     kind: "comp",
     Comp: CompCampanas,
+    foto: "/portada-b/campanas.jpg",
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
     sm: 1,
-    lg: 6,
+    lg: 4,
   },
   {
     key: "sec07",
@@ -161,6 +167,7 @@ const TILES: Tile[] = [
     key: "sec08",
     kind: "comp",
     Comp: CompTienda,
+    foto: "/portada-b/tienda.jpg",
     title: "landing.sec08Title",
     muted: "landing.sec08TitleMuted",
     body: "landing.sec08Body",
@@ -214,7 +221,7 @@ export function Cards() {
   const t = useT();
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6 lg:gap-6">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6 lg:gap-6 lg:[grid-auto-flow:dense]">
       {TILES.map((tile, i) => (
         <Rise
           key={tile.key}
@@ -245,7 +252,7 @@ export function Cards() {
                 // La composición va al pie de la ficha y crece con ella: son
                 // fragmentos de la interfaz apoyados en el papel, sin marco.
                 <div className="mt-auto min-w-0 pt-8">
-                  <tile.Comp />
+                  <tile.Comp foto={tile.foto} />
                 </div>
               )}
 

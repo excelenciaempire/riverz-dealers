@@ -12,6 +12,7 @@ import { WaitlistForm } from "@/components/landing/landing";
 import { Label, LocaleSwitch, Rise } from "./bits";
 import { Scene } from "./scene";
 import { Cards } from "./cards";
+import { Launch } from "./launch";
 import { Operator } from "./operator";
 import "./editorial.css";
 
@@ -56,14 +57,6 @@ const STORES: { src: string; label: string }[] = [
   { src: "/channels/dropi.png", label: "Dropi" },
 ];
 
-// Las tres cifras del bloque de dato. Son capacidades verificables, no
-// resultados: en prelanzamiento, una cifra de facturación inventada se nota.
-const FIGURES = [
-  { v: "7", label: "landingV4.figureM1" },
-  { v: "9", label: "landingV4.figureM2" },
-  { v: "0", label: "landingV4.figureM3" },
-];
-
 export function LandingV4() {
   const t = useT();
   const { locale } = useLocale();
@@ -84,16 +77,19 @@ export function LandingV4() {
       <main id="contenido">
         <Hero />
         <Wall />
-        {/* El Operator va SEGUNDO, apenas pasado el muro de plataformas.
-            Estuvo abajo de las trece fichas y ahí se perdía: es lo único de
-            todo esto que no tiene nadie más en la categoría, y enterrarlo al
-            final hacía que la página se leyera como «otra plataforma de
-            atención con IA» hasta el minuto tres. Arriba, ordena todo lo que
-            viene después. */}
-        <Operator />
+        {/* El orden lo manda la investigación: primero se mata la objeción más
+            grande —«esto va a ser otro proyecto de meses»— con la oferta;
+            después el mecanismo con nombre; después el ángulo del chat ya
+            pagado; y recién ahí la lista de funciones. */}
+        <Launch />
         <Scene />
-        <Figure />
+        <Pillars />
+        {/* El Operator va después de los pilares y antes de la lista: primero
+            se entiende que se puede delegar sin quedarse ciego, y entonces
+            «se lo pides y lo hace» se lee como la prueba de eso. */}
+        <Operator />
         <Capabilities />
+        <Banda />
         <Channels />
         <Cta />
       </main>
@@ -148,19 +144,18 @@ function Nav() {
         </span>
 
         <div className="hidden items-center gap-8 text-[15px] md:flex">
-          {/* El menú sigue el orden de la página, y la página empieza por lo
-              que nos separa del resto. */}
+          {/* El menú sigue el orden real de la página. */}
+          <a href="#launch" className="transition-opacity hover:opacity-60">
+            {t("landingV4.navLaunch")}
+          </a>
+          <a href="#loop" className="transition-opacity hover:opacity-60">
+            {t("landingV4.navLoop")}
+          </a>
           <a href="#operator" className="transition-opacity hover:opacity-60">
             {t("landingV4.navOperator")}
           </a>
-          <a href="#como" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navHow")}
-          </a>
           <a href="#capacidades" className="transition-opacity hover:opacity-60">
             {t("landingV4.navCapabilities")}
-          </a>
-          <a href="#canales" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navChannels")}
           </a>
         </div>
 
@@ -209,12 +204,12 @@ function Hero() {
       <div className="relative mx-auto max-w-6xl px-5 pb-14 pt-14 text-center sm:pt-20 lg:pb-24 lg:pt-28">
         <Rise>
           <h1 className="sn-display mx-auto max-w-[16ch]">
-            {t("landing.heroTitleLead")}{" "}
-            <span style={{ color: "var(--sn-muted)" }}>{t("landing.heroTitleMuted")}</span>
+            {t("landingV4.heroTitleLead")}{" "}
+            <span style={{ color: "var(--sn-muted)" }}>{t("landingV4.heroTitleMuted")}</span>
           </h1>
         </Rise>
         <Rise delay={90}>
-          <p className="sn-body mx-auto mt-7 max-w-[58ch]">{t("landing.heroSubtitle")}</p>
+          <p className="sn-body mx-auto mt-7 max-w-[58ch]">{t("landingV4.heroSubtitle")}</p>
         </Rise>
         <Rise delay={180}>
           <a href="#acceso" className="sn-pill group mt-9">
@@ -280,30 +275,65 @@ function Wall() {
 
 // ── Bloque de dato ────────────────────────────────────────────────────────
 
-function Figure() {
+/**
+ * Los pilares — el ángulo del chat ya pagado.
+ *
+ * Reemplaza al bloque «24/7» que había acá. La investigación es explícita en
+ * no liderar con eso: Meta Business Agent y media docena de competidores ya lo
+ * dicen, así que no diferencia nada. El ángulo que sí es nuestro es el
+ * primero de la lista de adquisición: *tu anuncio sí trajo al cliente, la
+ * venta se perdió después*. Debajo, los tres pilares de comunicación —
+ * recupera, ejecuta, delega— cada uno con su verbo adelante.
+ */
+function Pillars() {
   const t = useT();
+  const PILARES = [
+    { l: "landingV4.pillar1Label", b: "landingV4.pillar1" },
+    { l: "landingV4.pillar2Label", b: "landingV4.pillar2" },
+    { l: "landingV4.pillar3Label", b: "landingV4.pillar3" },
+  ];
+
   return (
     <section className="mx-auto max-w-6xl px-5 py-16 lg:py-24">
-      <div className="sn-card-sand px-6 py-12 sm:px-12 sm:py-16">
-        <Label>{t("landingV4.figureLabel")}</Label>
-
-        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[auto_1fr] lg:gap-16">
-          <p className="sn-figure">24/7</p>
-          <p className="sn-lead max-w-[34ch] lg:pt-4">{t("landingV4.figureLead")}</p>
+      <div className="sn-card-sand relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
+        {/* La foto entra por el borde derecho y se disuelve: el texto siempre
+            cae sobre arena limpia, a cualquier ancho. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[38%] lg:block"
+          style={{
+            maskImage: "linear-gradient(to left, #000 45%, transparent)",
+            WebkitMaskImage: "linear-gradient(to left, #000 45%, transparent)",
+          }}
+        >
+          <Image
+            src="/portada-b/intencion.jpg"
+            alt=""
+            fill
+            sizes="38vw"
+            className="object-cover object-center"
+            style={{ opacity: 0.85 }}
+          />
         </div>
 
-        <div className="mt-14 grid gap-8 sm:grid-cols-3 sm:gap-6">
-          {FIGURES.map((f) => (
-            <div key={f.label} className="border-t pt-4" style={{ borderColor: "var(--sn-line)" }}>
-              <p
-                className="sn-h2 !text-[clamp(38px,4.4vw,58px)]"
-                style={{ color: "var(--sn-ink)" }}
-              >
-                {f.v}
-              </p>
-              <p className="sn-label mt-2">{t(f.label)}</p>
-            </div>
-          ))}
+        <div className="relative">
+          <Label>{t("landingV4.pillarsLabel")}</Label>
+          <h2 className="sn-h2 mt-5 max-w-[13ch]">{t("landingV4.pillarsTitle")}</h2>
+          <p className="sn-lead mt-6 max-w-[30ch]">{t("landingV4.pillarsLead")}</p>
+
+          <div className="mt-14 grid gap-8 sm:grid-cols-3 sm:gap-8">
+            {PILARES.map((pil) => (
+              <div key={pil.l} className="border-t pt-5" style={{ borderColor: "var(--sn-line)" }}>
+                <p
+                  className="sn-h3 !text-[clamp(21px,2vw,27px)]"
+                  style={{ color: "var(--sn-ink)" }}
+                >
+                  {t(pil.l)}
+                </p>
+                <p className="sn-body mt-3 !text-[15px]">{t(pil.b)}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -324,6 +354,46 @@ function Capabilities() {
 
       <div className="mt-12">
         <Cards />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * La banda: una foto a todo el ancho con una sola línea encima.
+ *
+ * Después de trece fichas seguidas el ojo necesita un respiro, y el respiro
+ * tiene que decir algo. La frase sale de los territorios creativos del
+ * documento: es la versión más corta del mecanismo entero.
+ */
+function Banda() {
+  const t = useT();
+  return (
+    <section className="relative mx-auto mt-4 max-w-[1600px] px-3 lg:px-5">
+      <div className="relative overflow-hidden rounded-[26px]">
+        <div className="relative aspect-[21/9] max-h-[46vh] w-full sm:max-h-none">
+          <Image
+            src="/portada-b/banda-mostrador.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover"
+          />
+          {/* Velo desde abajo: la línea siempre cae sobre zona oscura, sin
+              importar cómo recorte la foto a cada ancho. */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(0deg, rgba(18,32,31,0.72) 0%, rgba(18,32,31,0.28) 45%, rgba(18,32,31,0.05) 100%)",
+            }}
+          />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10 lg:p-14">
+          <p className="sn-h2 max-w-[16ch]" style={{ color: "var(--sn-card)" }}>
+            {t("landingV4.bandaLine")}
+          </p>
+        </div>
       </div>
     </section>
   );
