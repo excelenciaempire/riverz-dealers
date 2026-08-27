@@ -1,5 +1,19 @@
 # voice-pipecat — Voz sin LiveKit (Telnyx Media Streaming + Pipecat + PersonaPlex)
 
+> **PARADO desde el 2026-07-28. No es el motor de producción.**
+>
+> Las llamadas de Riverz salen por `voice-worker/` (LiveKit), que es el único
+> declarado en `render.yaml` y el único que `src/` conoce: no hay una sola
+> referencia a este directorio en el código de la app. El servicio de Render
+> `voice-pipecat-riverz` está **suspendido**, y su host cambió, así que la app
+> TeXML de Telnyx todavía apunta al viejo (`voice-pipecat.onrender.com`) — hay
+> que reapuntarla a `voice-pipecat-riverz.onrender.com` antes de revivir esto.
+>
+> Se conserva a propósito: es la única implementación del camino full-duplex
+> sin LiveKit y el trabajo de depuración que tiene encima no es reproducible
+> barato. Si lo retomás, empezá por `requirements.txt`, que está escrito contra
+> un `pipecat` de main sin pin exacto.
+
 Track **paralelo y experimental** al worker de LiveKit (`voice-worker/`). **No lo
 reemplaza ni lo borra**: existe para probar la integración **definitiva de
 modelos realtime full-duplex (PersonaPlex/Moshi) sin depender de LiveKit**.

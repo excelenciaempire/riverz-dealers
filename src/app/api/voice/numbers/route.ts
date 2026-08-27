@@ -66,6 +66,14 @@ export async function POST(request: Request) {
   if (!(await isVoiceAdmin(user.id, body.workspace_id)))
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+  // Sin conexión de voz configurada, `orderNumber` OMITE `connection_id` del
+  // pedido: Telnyx cobra el número, lo entrega, y las llamadas entrantes no
+  // rutean a ninguna parte. La ruta respondía 200 y el comercio se enteraba
+  // cuando nadie lo podía llamar. Es plata: mejor no vender el número.
+  if (!process.env.TELNYX_VOICE_CONNECTION_ID) {
+    return NextResponse.json({ error: 'voice_routing_unconfigured' }, { status: 503 });
+  }
+
   const { id, config } = await readVoiceConfig(body.workspace_id);
   // One number per workspace: refuse if one is already provisioned (release
   // first). Guard on either field so a missing id can't reopen the door.

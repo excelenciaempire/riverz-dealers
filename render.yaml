@@ -169,6 +169,16 @@ services:
         sync: false
       - key: LIVEKIT_SIP_OUTBOUND_TRUNK_ID
         sync: false
+      # Telnyx — compra de números self-serve por comercio (búsqueda, requisitos
+      # regulatorios, documentos, orden). Sin esta key toda la ruta tira 500.
+      - key: TELNYX_API_KEY
+        sync: false
+      # Conexión SIP a la que se ADJUNTA cada número comprado. Sin ella el
+      # pedido a Telnyx sale sin `connection_id`: el número se cobra y se
+      # entrega, pero las llamadas entrantes no rutean a ninguna parte y la
+      # ruta respondía 200. Hoy /api/voice/numbers se niega a comprar sin esto.
+      - key: TELNYX_VOICE_CONNECTION_ID
+        sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
       # Fish Audio (S2.1) — TTS alternative, selectable in /admin/voz. Shared
