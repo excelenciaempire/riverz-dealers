@@ -105,6 +105,38 @@ export const voice = {
   // "sin respuesta" — ahi si se marco y no atendieron.
   statusNotPlaced: { es: "No se llamó", en: "Not placed" },
 
+  // Cuando llama. La pregunta que ninguna pantalla contestaba.
+  whenTitle: { es: "Cuándo llama", en: "When it calls" },
+  whenHint: {
+    es: "Las reglas que hoy pueden hacer sonar el teléfono.",
+    en: "The rules that can make the phone ring today.",
+  },
+  whenNewRule: { es: "Crear una regla", en: "Create a rule" },
+  whenNothing: {
+    es: "Nada hace que llame solo. Creá una regla o llamá a mano desde la bandeja.",
+    en: "Nothing makes it call on its own. Create a rule or call by hand from the inbox.",
+  },
+  whenAutomation: { es: "Automatización", en: "Automation" },
+  whenAssistant: { es: "Asistente", en: "Assistant" },
+  whenCampaign: { es: "Campaña", en: "Campaign" },
+  whenPaused: { es: "Pausada", en: "Paused" },
+  whenAgentDecides: {
+    es: "{name} puede llamar cuando el chat se traba",
+    en: "{name} can call when the chat gets stuck",
+  },
+  whenManual: {
+    es: "También podés llamar a mano desde la ficha de un contacto en la bandeja.",
+    en: "You can also call by hand from a contact in the inbox.",
+  },
+
+  // La linea de estado: si el telefono puede sonar, en un renglon.
+  canCallFrom: { es: "Puede llamar desde {number}", en: "Can call from {number}" },
+  canCall: { es: "Puede llamar", en: "Can call" },
+  answeredBy: { es: "· atiende {name}", en: "· answered by {name}" },
+  answeredByMany: { es: "· atienden {count} asistentes", en: "· {count} assistants answer" },
+  cannotCall: { es: "No puede llamar.", en: "Cannot call." },
+  callsWarning: { es: "Atención:", en: "Heads up:" },
+
   // Por que no se puede llamar. Un solo juego de frases para el lienzo, la
   // pantalla de Voz, el registro y lo que el agente de chat le contesta al
   // comercio. Cada una dice DONDE se arregla, no solo que pasa.

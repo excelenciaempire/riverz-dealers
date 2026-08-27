@@ -10,11 +10,13 @@ import { VoiceCard } from '@/components/settings/voice-card';
 import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
+import { VoiceStatusLine } from '@/components/voice/voice-status-line';
+import { WhenItCalls } from '@/components/voice/when-it-calls';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 
-type AgentRow = { id: string; name: string };
 type Usage = { minutes_used: number; minutes_limit: number; spend_usd: number; calls: number };
 
 /**
@@ -49,16 +51,21 @@ export default function VoicePage() {
   const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
 
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  /** Todos los que alguna vez pudieron llamar — el filtro del registro los
-   *  necesita para no esconder llamadas de un agente pausado después. */
-  const [voiceAgents, setVoiceAgents] = useState<AgentRow[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   /** Sólo para el bloque de parada del final. */
   const [parado, setParado] = useState(false);
   const [parando, setParando] = useState(false);
+  /**
+   * Todos los que alguna vez pudieron llamar, incluidos los pausados. Es una
+   * pregunta DISTINTA de «quién puede atender» (que la contesta readiness):
+   * el filtro del registro los necesita para no esconder las llamadas de un
+   * agente que se pausó después de hacerlas.
+   */
+  const [enElRegistro, setEnElRegistro] = useState<{ id: string; name: string }[]>([]);
 
   const workspaceId = workspace?.id;
+  const { readiness, loading: cargandoEstado, reload: releerEstado } =
+    useVoiceReadiness(workspaceId);
 
   /** El freno y el consumo. Se relee tras guardar, o quedan mintiendo hasta el F5. */
   const recargar = useCallback(async () => {
@@ -78,40 +85,25 @@ export default function VoicePage() {
     recargar();
   }, [recargar]);
 
+  // Quién puede ATENDER ya no se calcula acá: lo dice `readiness`. Esta copia
+  // del criterio se olvidaba de nada, pero eran cuatro copias sueltas y la
+  // canónica estaba mal — la de acá sólo servía para que las dos pantallas
+  // discreparan. Queda la lista del filtro del registro, que es otra pregunta.
   useEffect(() => {
     if (!workspaceId) return;
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const { data: agentRows } = await supabase
+      const { data } = await supabase
         .from('ai_agents')
-        .select('id, name, scope, is_active, ai_agent_channels(channel)')
+        .select('id, name')
         .eq('workspace_id', workspaceId)
         .eq('voice_enabled', true)
         .is('deleted_at', null)
         .order('priority', { ascending: false });
-      if (cancelled) return;
-      const rows = (agentRows ?? []) as Array<{
-        id: string;
-        name: string;
-        scope: string;
-        is_active: boolean;
-        ai_agent_channels?: Array<{ channel: string }> | null;
-      }>;
-      setVoiceAgents(rows.map((a) => ({ id: a.id, name: a.name })));
-      // Mismo criterio que `pickVoiceAgent`: sólo un agente ACTIVO cuyo alcance
-      // cubra las llamadas puede atender. Listar los demás prometía un teléfono
-      // que nunca iba a sonar.
-      setAgents(
-        rows
-          .filter(
-            (a) =>
-              a.is_active &&
-              (a.scope === 'workspace' ||
-                (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice')),
-          )
-          .map((a) => ({ id: a.id, name: a.name })),
-      );
+      if (!cancelled) {
+        setEnElRegistro((data ?? []) as { id: string; name: string }[]);
+      }
     })();
     return () => {
       cancelled = true;
@@ -185,12 +177,20 @@ export default function VoicePage() {
         </Button>
       </header>
 
-      {parado && (
+      {parado ? (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
           <Ban className="h-4 w-4 shrink-0" />
           {t('voice.stopped')}
           <span className="text-xs text-muted-foreground">{t('voice.stopHint')}</span>
         </p>
+      ) : (
+        // Si el teléfono puede sonar, arriba de todo y en una frase. Antes había
+        // que leer tres tarjetas y deducirlo — y se deducía mal: el agente de
+        // Pilar estuvo borrado seis días sin que ninguna pantalla lo dijera.
+        // Con el freno puesto no se dibuja: el cartel rojo de arriba ya lo dice,
+        // y dos avisos en fila diciendo lo mismo es la forma más fácil de que no
+        // se lea ninguno.
+        <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
       )}
 
       {/* ── Armarlo. Se hace una vez. ── */}
@@ -203,7 +203,7 @@ export default function VoicePage() {
 
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h3>
-          {agents.length === 0 ? (
+          {(readiness?.agents.length ?? 0) === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
               {t('voice.whoAnswersNone')}{' '}
               <Link href="/asistente" className="text-primary underline">
@@ -212,10 +212,16 @@ export default function VoicePage() {
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-border">
-              {agents.map((a) => (
+              {(readiness?.agents ?? []).map((a) => (
                 <li key={a.id} className="flex items-center justify-between py-2">
                   <span className="text-sm text-foreground">{a.name}</span>
-                  <Link href="/asistente" className="text-xs text-primary underline">
+                  {/* Directo a la pestaña de llamadas del agente: «Configurar»
+                      dejaba al comercio en la lista de asistentes, adivinando
+                      cuál abrir y en qué solapa estaba la voz. */}
+                  <Link
+                    href={`/asistente?agent=${a.id}&tab=voice`}
+                    className="text-xs text-primary underline"
+                  >
                     {t('voice.configure')}
                   </Link>
                 </li>
@@ -224,7 +230,19 @@ export default function VoicePage() {
           )}
         </div>
 
-        <VoiceCard onSaved={recargar} />
+        {/* Cuándo llama va DESPUÉS de quién atiende y antes del comportamiento:
+            es el orden en que se piensa —tengo número, tengo quien atienda,
+            ahora cuándo suena— y era justo el eslabón que no estaba. */}
+        <WhenItCalls />
+
+        <VoiceCard
+          onSaved={() => {
+            recargar();
+            // Guardar acá puede cambiar el estado (prender los entrantes, mover
+            // el tope): releerlo, o la línea de arriba queda mintiendo hasta F5.
+            releerEstado();
+          }}
+        />
       </section>
 
       {/* ── Mirarlo. Se hace todas las semanas. ── */}
@@ -246,7 +264,7 @@ export default function VoicePage() {
             cuenta recién armada es ruido con forma de tablero. */}
         <VoiceAnalytics />
 
-        <CallLog workspaceId={workspaceId} agents={voiceAgents} />
+        <CallLog workspaceId={workspaceId} agents={enElRegistro} />
       </section>
     </div>
   );

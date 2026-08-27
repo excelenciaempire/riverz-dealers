@@ -298,6 +298,12 @@ interface AgentEditorProps {
   /** Insert/refresh sin cerrar el editor — lo usa la generación con IA
    *  porque el usuario sigue editando después de la creación. */
   onAgentUpserted?: (saved: AgentSummary) => void | Promise<void>;
+  /**
+   * Pestaña con la que abre. La pantalla de Llamadas manda `voice`: mandar al
+   * comercio a la lista de asistentes para que adivine cuál abrir y en qué
+   * solapa está la voz era pedirle que rehiciera el camino a mano.
+   */
+  initialTab?: 'business' | 'tools' | 'reach' | 'voice' | 'advanced' | 'stats';
 }
 
 export function AgentEditor({
@@ -305,6 +311,7 @@ export function AgentEditor({
   agent,
   onClose,
   onSaved,
+  initialTab,
 }: AgentEditorProps) {
   const t = useT();
   const { locale } = useLocale();
@@ -495,7 +502,11 @@ export function AgentEditor({
   const [voice, setVoice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
 
   type TabKey = 'business' | 'tools' | 'reach' | 'voice' | 'advanced' | 'stats';
-  const [tab, setTab] = useState<TabKey>('business');
+  // `stats` sólo existe con el agente ya creado: entrar por un enlace viejo a
+  // una pestaña que no está dibujada dejaba el modal en blanco.
+  const [tab, setTab] = useState<TabKey>(
+    initialTab && (initialTab !== 'stats' || agent?.id) ? initialTab : 'business',
+  );
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
     { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
     { key: 'tools', label: t('operation.toolsTitle'), icon: SlidersHorizontal },

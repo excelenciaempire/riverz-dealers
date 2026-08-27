@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -57,6 +58,16 @@ export default function AiAgentsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentSummary | 'new' | null>(null);
 
+  // Entrada por enlace: `/asistente?agent=<id>&tab=voice`. La manda la pantalla
+  // de Llamadas, que hasta ahora dejaba al comercio en la lista adivinando qué
+  // asistente abrir y en qué solapa estaba la voz.
+  const params = useSearchParams();
+  const agenteEnLaUrl = params.get('agent');
+  const solapaEnLaUrl = params.get('tab');
+  // Una sola vez: si no, cerrar el editor con el parámetro todavía en la URL
+  // lo volvía a abrir en el acto y no había forma de salir.
+  const yaAbierto = useRef(false);
+
   const load = useCallback(async () => {
     // Sin cuenta resuelta no hay a quién preguntarle, y `loading` arranca en
     // true: cortar acá sin bajarlo dejaba la pantalla girando para siempre, que
@@ -83,6 +94,22 @@ export default function AiAgentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (yaAbierto.current || loading || !agenteEnLaUrl) return;
+    if (agenteEnLaUrl === 'nuevo') {
+      yaAbierto.current = true;
+      setEditing('new');
+      return;
+    }
+    const encontrado = agents.find((a) => a.id === agenteEnLaUrl);
+    // Sin coincidencia no se hace nada: un id viejo o de otra cuenta deja la
+    // lista como está, que es más honesto que abrir el editor de otro agente.
+    if (encontrado) {
+      yaAbierto.current = true;
+      setEditing(encontrado);
+    }
+  }, [agenteEnLaUrl, agents, loading]);
 
   async function toggleActive(agent: AgentSummary) {
     // Optimistic — flip the UI immediately so the active/paused chip
@@ -189,6 +216,15 @@ export default function AiAgentsPage() {
         <AgentEditor
           workspaceId={workspace.id}
           agent={editing === 'new' ? null : editing}
+          initialTab={
+            solapaEnLaUrl === 'voice' ||
+            solapaEnLaUrl === 'tools' ||
+            solapaEnLaUrl === 'reach' ||
+            solapaEnLaUrl === 'advanced' ||
+            solapaEnLaUrl === 'stats'
+              ? solapaEnLaUrl
+              : undefined
+          }
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             applySavedAgent(saved);

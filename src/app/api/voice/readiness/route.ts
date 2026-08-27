@@ -7,10 +7,14 @@ import { isVoiceMember } from '@/lib/voice/voice-connection-store';
 /**
  * ¿Puede llamar esta cuenta (o este agente)?
  *
- * GET ?workspace_id=&agent_id= → { ready, blockers[], phone_number }
+ * GET ?workspace_id=&agent_id=
+ *   → { ready, blockers[], warnings[], phone_number, agents[], first_call_done }
  *
- * Lo consume la tarjeta «Llamar con IA» del lienzo, la pantalla de Voz y el
- * botón de llamar de la bandeja, para que los tres digan lo mismo.
+ * Lo consume la tarjeta «Llamar con IA» del lienzo, la pantalla de Llamadas,
+ * la de campañas, la pestaña de voz del agente y el botón de la bandeja, para
+ * que los cinco digan lo mismo. `agents` viaja para que ninguna de ellas
+ * vuelva a consultar por su cuenta quién puede atender — de esas copias
+ * sueltas salió que la pantalla dijera «listo» con el agente borrado.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -33,6 +37,9 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ready: readiness.ready,
     blockers: readiness.blockers,
+    warnings: readiness.warnings,
     phone_number: readiness.phoneNumber,
+    agents: readiness.agents,
+    first_call_done: readiness.firstCallDone,
   });
 }
