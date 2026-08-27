@@ -13,6 +13,12 @@ import {
   normPhone,
 } from '@/lib/attribution/shopify';
 import { provenBy, type Proof } from '@/lib/attribution/prueba';
+import {
+  esVentaReal,
+  ultimoToquePorLente,
+  type SourceKind,
+  type Toque,
+} from '@/lib/attribution/lentes';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 
 /**
@@ -77,18 +83,6 @@ interface Attributed {
   revenue: number;
   orders: number;
   currency: string;
-}
-
-/** Qué clase de cosa tocó el pedido. La UI la traduce; acá viaja el código. */
-type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent';
-
-/** Un mensaje de Riverz que le llegó a alguien antes de que comprara. */
-interface Toque {
-  kind: SourceKind;
-  /** La campaña, el flujo, la automatización o el agente concreto. */
-  entityId: string;
-  name: string;
-  at: string;
 }
 
 /**
@@ -251,15 +245,8 @@ export async function GET(request: Request) {
       : ((
           await fetchRecentOrdersOtherPlatform(admin, workspaceId, prevSinceIso)
         )?.orders ?? []);
-    // Un pedido cancelado o devuelto existe, pero no es plata. Contarlo
-    // inflaba las dos puntas: las ventas de la tienda y las de Riverz. El
-    // reembolso PARCIAL sí cuenta —devolver el envío no deshace la compra—,
-    // por eso se miran sólo `refunded` y `voided`.
-    const anulada = (o: (typeof crudas)[number]) =>
-      Boolean(o.cancelled_at) ||
-      o.financial_status === 'refunded' ||
-      o.financial_status === 'voided';
-    const all = crudas.filter((o) => !anulada(o));
+    // Un pedido cancelado o devuelto existe, pero no es plata.
+    const all = crudas.filter(esVentaReal);
     orders = all.filter((o) => {
       const t = Date.parse(o.created_at);
       return t >= sinceMs && t < untilMs;
@@ -813,32 +800,6 @@ async function prefetchToques(
     lista.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   }
   return porContacto;
-}
-
-/**
- * El último toque de CADA lente dentro de la ventana del pedido.
- *
- * Una lente aporta como mucho un toque: si a la persona le llegaron tres
- * campañas, la que explica la compra es la última. Que dos lentes distintas
- * aporten cada una la suya es lo esperado y no duplica el pedido —eso lo
- * resuelve `evidence`, que cuenta el pedido y no las lentes.
- */
-function ultimoToquePorLente(
-  toques: Toque[],
-  orderTime: number,
-  lookbackMs: number,
-): Toque[] {
-  const desde = orderTime - lookbackMs;
-  const salida: Toque[] = [];
-  const vistas = new Set<SourceKind>();
-  for (const t of toques) {
-    const at = Date.parse(t.at);
-    if (at > orderTime || at < desde) continue;
-    if (vistas.has(t.kind)) continue;
-    vistas.add(t.kind);
-    salida.push(t);
-  }
-  return salida;
 }
 
 /** Add one order's revenue to the bucket keyed by entity id (last-touch). */
