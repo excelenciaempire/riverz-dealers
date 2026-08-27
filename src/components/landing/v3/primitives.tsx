@@ -49,9 +49,19 @@ export function useLit<T extends HTMLElement>(margin = "-12% 0px -12% 0px") {
     io.observe(el);
     return () => io.disconnect();
   }, [margin]);
+  // Terminada la entrada, el atributo se retira: la transición desaparece con
+  // él y con ella la capa que el compositor mantiene aparte. Un titular que ya
+  // llegó no tiene por qué seguir siendo una capa viva.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!lit) return;
+    const id = setTimeout(() => setSettled(true), 1400);
+    return () => clearTimeout(id);
+  }, [lit]);
+
   // `undefined` deja el atributo fuera del HTML, que es lo que el CSS lee como
   // «esto no se anima»: sin atributo, el texto está puesto.
-  const veil = armed ? String(lit) : undefined;
+  const veil = !armed || settled ? undefined : String(lit);
   return { ref, lit, veil };
 }
 

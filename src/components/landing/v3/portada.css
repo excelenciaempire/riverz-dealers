@@ -125,6 +125,9 @@
   height: 0.44em;
   background: var(--pl-acid);
   transform-origin: left center;
+}
+
+.pl-mark[data-lit]::before {
   transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 
@@ -285,6 +288,12 @@
 .pl-veil i {
   display: block;
   font-style: inherit;
+}
+
+/* La transicion existe SOLO mientras dura la entrada, que es lo que marca el
+   atributo. Terminada, se va con el: sin transicion no hay capa aparte, y sin
+   capa aparte no queda nada que pueda quedarse sin repintar. */
+.pl-veil[data-lit] i {
   transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -321,13 +330,13 @@
   .pl-mark[data-lit="false"]::before {
     transform: scaleX(1);
   }
-  .pl-mark::before {
+  .pl-mark[data-lit]::before {
     transition: none;
   }
   .pl-veil[data-lit="false"] i {
     transform: none;
   }
-  .pl-veil i {
+  .pl-veil[data-lit] i {
     transition: none;
   }
   .pl-plank,
