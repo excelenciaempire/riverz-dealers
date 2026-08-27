@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { useAuth } from "@/hooks/use-auth";
 import type { Channel, Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
@@ -11,6 +12,8 @@ import { MlClaimsPanel } from "@/components/inbox/ml-claims-panel";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
+import { InboxSearchBox } from "@/components/inbox/search-box";
+import { InboxViews, type VistaBandeja } from "@/components/inbox/inbox-views";
 import { MlSubFilter, type MlKindFilter } from "@/components/inbox/ml-subfilter";
 import { mediaPreviewToken, mlThreadKind } from "@/lib/channels/display";
 import {
@@ -34,6 +37,7 @@ const INBOX_TAB_KEY = "riverz_inbox_tab";
 export default function InboxPage() {
   const t = useT();
   const { workspace } = useWorkspace();
+  const { user } = useAuth();
   const { locale } = useLocale();
   const searchParams = useSearchParams();
   /**
@@ -52,6 +56,10 @@ export default function InboxPage() {
   // Filtro "Necesita humano": hilos donde la IA escaló (palabra clave, cupo
   // agotado o traspaso de un flujo) y que esperan a una persona.
   const [needsHumanOnly, setNeedsHumanOnly] = useState(false);
+  // Vista de la lista: todas, sin asignar, mías, sin leer. Las tres últimas
+  // eran imposibles de pedir y son la primera pregunta de cualquiera que
+  // comparte la bandeja con otra persona.
+  const [vista, setVista] = useState<VistaBandeja>("all");
   // Secondary filter within the MercadoLibre chip: all / questions / messages.
   const [mlKindFilter, setMlKindFilter] = useState<MlKindFilter>("all");
   const [inboxTab, setInboxTab] = useState<InboxTab>("messages");
@@ -679,8 +687,17 @@ export default function InboxPage() {
     if (needsHumanOnly) {
       list = list.filter((c) => Boolean(c.needs_human_reason));
     }
+    // La vista. "Mías" necesita saber quién soy: sin sesión resuelta no se
+    // filtra nada, que es mejor que mostrar una lista vacía sin explicación.
+    if (vista === "unassigned") {
+      list = list.filter((c) => !c.assigned_agent_id);
+    } else if (vista === "mine" && user?.id) {
+      list = list.filter((c) => c.assigned_agent_id === user.id);
+    } else if (vista === "unread") {
+      list = list.filter((c) => (c.unread_count ?? 0) > 0);
+    }
     return list;
-  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, vista, user?.id]);
 
   // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
   // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
@@ -793,10 +810,27 @@ export default function InboxPage() {
           )}
         >
           <div className="flex h-full flex-col">
+            {/* Búsqueda del servidor. El componente y su endpoint existían
+                desde la migración 029 y no los importaba nadie: la bandeja
+                filtraba en memoria y sólo sobre el texto de la vista previa,
+                así que buscar una palabra dicha adentro de una conversación
+                no encontraba nada. */}
+            <InboxSearchBox
+              onSelect={(conversationId) => {
+                const match = conversations.find((c) => c.id === conversationId);
+                if (match) handleSelectConversation(match);
+              }}
+            />
             <InboxTabs
               value={inboxTab}
               onChange={handleTabChange}
               counts={tabCounts}
+            />
+            <InboxViews
+              vista={vista}
+              onVista={setVista}
+              canal={channelFilter}
+              onCanal={(c) => setChannelFilter((c as Channel | null) ?? null)}
             />
             <ChannelFilter
               value={channelFilter}

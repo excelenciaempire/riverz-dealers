@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import type { Profile, WorkspaceInvite, WorkspaceMember } from "@/types";
 import { invitesOpen } from "@/lib/auth/signups";
+import { AssignmentRulesPanel } from "@/components/settings/assignment-rules-panel";
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -618,6 +619,28 @@ export function WorkspacePanel() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Quién atiende qué. El motor de asignación (migración 032) corre en
+          cada mensaje que entra y nunca tuvo pantalla: se podían crear reglas
+          por API y no había forma de verlas, así que el reparto seguía siendo
+          a mano. Va debajo del equipo porque es la misma pregunta. */}
+      {workspace && (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("settings.rulesTitle")}
+          </h2>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
+            {t("settings.rulesHint")}
+          </p>
+          <AssignmentRulesPanel
+            workspaceId={workspace.id}
+            miembros={members.map((m) => ({
+              user_id: m.user_id,
+              nombre: m.user?.full_name || m.user?.email || m.user_id,
+            }))}
+          />
         </section>
       )}
     </div>

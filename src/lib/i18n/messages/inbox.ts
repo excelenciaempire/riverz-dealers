@@ -450,6 +450,15 @@ export const inbox = {
   searching: { es: "Buscando…", en: "Searching…" },
   noResultsDot: { es: "Sin resultados.", en: "No results." },
 
+  // Vistas de la bandeja. Las cuatro fijas son las mismas en todos lados; las
+  // guardadas son la combinación que este comercio repite todos los días.
+  viewAll: { es: "Todas", en: "All" },
+  viewUnassigned: { es: "Sin asignar", en: "Unassigned" },
+  viewMine: { es: "Mías", en: "Mine" },
+  viewUnread: { es: "Sin leer", en: "Unread" },
+  viewSave: { es: "Guardar esta vista", en: "Save this view" },
+  viewNamePlaceholder: { es: "Nombre", en: "Name" },
+
   // Template picker
   variables: { es: "Variables", en: "Variables" },
   noApprovedTemplates: {
