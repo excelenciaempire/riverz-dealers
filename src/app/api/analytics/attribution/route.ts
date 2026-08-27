@@ -495,17 +495,36 @@ export async function GET(request: Request) {
    */
   const cuponesPropios = new Map<string, string>();
   {
-    const { data: recs } = await admin
-      .from('instagram_campaign_recipients')
-      .select('contact_id, discount_code, instagram_campaigns!inner(workspace_id)')
-      .eq('instagram_campaigns.workspace_id', workspaceId)
-      .not('discount_code', 'is', null)
-      .limit(5000);
-    for (const r of (recs ?? []) as {
+    // Dos emisores, mismo peso como prueba: el Agente de IG (uno por
+    // destinatario de campaña) y el asistente cuando le concede un descuento a
+    // alguien en la conversación. Ese segundo faltaba, y es el más común: el
+    // agente negocia el descuento, la persona compra con ÉSE código, y la
+    // venta caía en «influidas» como si nadie hubiera hecho nada.
+    const [igs, agente] = await Promise.all([
+      admin
+        .from('instagram_campaign_recipients')
+        .select('contact_id, discount_code, instagram_campaigns!inner(workspace_id)')
+        .eq('instagram_campaigns.workspace_id', workspaceId)
+        .not('discount_code', 'is', null)
+        .limit(5000),
+      admin
+        .from('agent_discounts')
+        .select('contact_id, code')
+        .eq('workspace_id', workspaceId)
+        .limit(5000),
+    ]);
+    for (const r of (igs.data ?? []) as {
       contact_id: string | null;
       discount_code: string | null;
     }[]) {
       const code = (r.discount_code ?? '').trim().toLowerCase();
+      if (code) cuponesPropios.set(code, r.contact_id ?? '');
+    }
+    for (const r of (agente.data ?? []) as {
+      contact_id: string | null;
+      code: string | null;
+    }[]) {
+      const code = (r.code ?? '').trim().toLowerCase();
       if (code) cuponesPropios.set(code, r.contact_id ?? '');
     }
   }

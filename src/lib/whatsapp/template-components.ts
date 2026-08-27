@@ -8,6 +8,8 @@
  * WhatsApp preview in the builder UI.
  */
 
+import { marcarEnlace, marcarEnlaces } from '@/lib/marketing/enlaces'
+
 import type {
   MetaTemplateCategory,
   MetaTemplateComponentInput,
@@ -145,7 +147,12 @@ export function buildTemplateComponents(
   }
 
   // ---- BODY (required) ----
-  const bodyText = (form.bodyText ?? '').trim()
+  // Un link escrito a mano en el cuerpo también se marca, y por la misma
+  // razón que el botón: el texto queda aprobado tal cual en Meta y después no
+  // hay dónde tocarlo.
+  const bodyText = marcarEnlaces((form.bodyText ?? '').trim(), {
+    medio: 'plantilla',
+  })
   if (!bodyText) {
     return { components, error: 'El cuerpo del mensaje es obligatorio.' }
   }
@@ -204,7 +211,16 @@ export function buildTemplateComponents(
           if (!b.url?.trim()) {
             return { components, error: `El botón "${b.text}" necesita una URL.` }
           }
-          metaButtons.push({ type: 'URL', text: b.text, url: b.url.trim() })
+          // Botón fijo: la URL queda congelada en la plantilla aprobada, así
+          // que ésta es la ÚNICA oportunidad de marcarla. Sin esto, una
+          // campaña que vende no tenía con qué probarlo y su plata caía en
+          // «influidas» para siempre — el peor lugar donde perder crédito,
+          // porque la campaña es justamente lo que el comercio nos paga.
+          metaButtons.push({
+            type: 'URL',
+            text: b.text,
+            url: marcarEnlace(b.url.trim(), { medio: 'plantilla' }),
+          })
         }
       } else if (b.type === 'PHONE_NUMBER') {
         if (!b.phone_number?.trim()) {
