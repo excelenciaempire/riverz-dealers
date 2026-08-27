@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Inter_Tight, Fraunces, Martian_Mono } from "next/font/google";
+import {
+  Inter_Tight,
+  Fraunces,
+  Martian_Mono,
+  Instrument_Serif,
+  Instrument_Sans,
+  Geist_Mono,
+} from "next/font/google";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -47,6 +54,30 @@ const martianMono = Martian_Mono({
   variable: "--font-mono-ui",
   subsets: ["latin"],
   weight: ["400", "500"],
+  display: "swap",
+});
+
+// Tipografía de la portada editorial (/portada-b). Instrument Serif e
+// Instrument Sans son de la misma fundición y están dibujadas para ir juntas:
+// una serif de contraste alto con ascendentes largas para los titulares
+// grandes, y una grotesca neutra para navegación y texto corrido. Geist Mono
+// carga solo etiquetas en mayúsculas y cifras.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-editorial",
+  subsets: ["latin"],
+  weight: "400",
+  display: "swap",
+});
+
+const instrumentSans = Instrument_Sans({
+  variable: "--font-grotesk",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-mono-label",
+  subsets: ["latin"],
   display: "swap",
 });
 
@@ -193,7 +224,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       data-theme={DEFAULT_THEME}
-      className={`${interTight.variable} ${fraunces.variable} ${martianMono.variable} h-full antialiased`}
+      className={`${interTight.variable} ${fraunces.variable} ${martianMono.variable} ${instrumentSerif.variable} ${instrumentSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

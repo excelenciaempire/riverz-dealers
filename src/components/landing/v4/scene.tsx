@@ -1,0 +1,125 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
+import { AgentPanel, HeroInbox, CartRecoveryPanel } from "@/components/landing/landing";
+import { Label } from "./bits";
+
+/**
+ * «Cómo funciona» — la escena de tres actos.
+ *
+ * En pantalla grande la sección se clava y los tres actos se cruzan en el
+ * mismo lugar a medida que se scrollea: aprende, atiende, cierra. En el
+ * teléfono no se clava nada —la escena entera no entra— y los tres actos se
+ * leen uno debajo del otro.
+ */
+
+const ACTS = [
+  {
+    n: "01",
+    title: "landingV4.how1Title",
+    body: "landingV4.how1Body",
+    points: ["landingV4.how1P1", "landingV4.how1P2", "landingV4.how1P3"],
+    Panel: AgentPanel,
+  },
+  {
+    n: "02",
+    title: "landingV4.how2Title",
+    body: "landingV4.how2Body",
+    points: ["landingV4.how2P1", "landingV4.how2P2", "landingV4.how2P3"],
+    Panel: HeroInbox,
+  },
+  {
+    n: "03",
+    title: "landingV4.how3Title",
+    body: "landingV4.how3Body",
+    points: ["landingV4.how3P1", "landingV4.how3P2", "landingV4.how3P3"],
+    Panel: CartRecoveryPanel,
+  },
+] as const;
+
+export function Scene() {
+  const t = useT();
+  const outer = useRef<HTMLElement>(null);
+  const [act, setAct] = useState(0);
+
+  useEffect(() => {
+    const el = outer.current;
+    if (!el) return;
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const span = r.height - window.innerHeight;
+      if (span <= 0) return;
+      const p = Math.min(1, Math.max(0, -r.top / span));
+      setAct(Math.min(ACTS.length - 1, Math.floor(p * ACTS.length)));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
+  return (
+    <section ref={outer} id="como" className="sn-scene relative scroll-mt-24">
+      <div className="sn-scene-in">
+        <div className="mx-auto w-full max-w-6xl px-5 py-16 lg:py-0">
+          <div className="mb-8 flex items-center justify-between gap-6 lg:mb-12">
+            <Label>{t("landingV4.howLabel")}</Label>
+            {/* Tres tramos: el que va lleno dice en qué acto estamos. */}
+            <div className="hidden w-40 gap-1.5 lg:flex" aria-hidden>
+              {ACTS.map((a, i) => (
+                <span key={a.n} className="sn-tick flex-1" data-on={i <= act}>
+                  <i />
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-12 lg:grid lg:gap-0">
+            {ACTS.map((a, i) => (
+              <div
+                key={a.n}
+                className="sn-act grid items-center gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16"
+                data-on={i === act}
+                aria-hidden={undefined}
+              >
+                <div>
+                  <p className="sn-label mb-4">{a.n}</p>
+                  <h3 className="sn-h2 max-w-[13ch]">{t(a.title)}</h3>
+                  <p className="sn-body mt-5 max-w-[42ch]">{t(a.body)}</p>
+                  <ul className="mt-7 space-y-3">
+                    {a.points.map((p) => (
+                      <li key={p} className="flex items-start gap-3">
+                        <span
+                          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full"
+                          style={{ background: "var(--sn-accent)" }}
+                        >
+                          <Check className="size-3" style={{ color: "var(--sn-ink)" }} />
+                        </span>
+                        <span className="sn-body !text-[15px]">{t(p)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="sn-card sn-panel overflow-hidden p-3 sm:p-5">
+                  <a.Panel />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

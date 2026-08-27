@@ -1,0 +1,273 @@
+/* ============================================================
+   Portada editorial — sistema visual propio de /portada-b
+   ============================================================
+   Todo vive bajo `.sn`. La portada NO usa la paleta de la app:
+   el conmutador claro/oscuro no la toca y se ve igual siempre,
+   que es justo lo que hace falta para poder compararla.
+
+   El registro es el de una revista: un solo suelo de papel
+   cálido de punta a punta, titulares grandes en serif de
+   contraste alto con interlínea de 1.0, etiquetas mono en
+   mayúsculas, y UNA sola llamada a la acción repetida.
+   ============================================================ */
+
+.sn {
+  /* Papel: cuatro tonos del mismo crema, para que las fichas se
+     despeguen del fondo sin usar bordes duros ni sombras. */
+  --sn-paper: #f3f0eb;
+  --sn-card: #faf7f1;
+  --sn-sand: #f4eddf;
+  --sn-sand-2: #efe5d0;
+  --sn-tan: #cdbca0;
+
+  /* Tinta: un negro con sesgo verde-petróleo. Sobre crema se lee
+     más cálido que un gris neutro y no ensucia la foto. */
+  --sn-ink: #12201f;
+  --sn-ink-2: #2a3639;
+  --sn-muted: #6f7a78;
+
+  /* Acento: el amarillo de riverz. Sobre crema no funciona como
+     texto, así que se usa SIEMPRE como relleno con tinta encima;
+     para texto de color va `--sn-ink-accent`. */
+  --sn-accent: #f7ff9e;
+  --sn-ink-accent: #5e6a00;
+
+  --sn-line: rgba(18, 32, 31, 0.12);
+  --sn-radius: 26px;
+
+  background: var(--sn-paper);
+  color: var(--sn-ink);
+  font-family: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* ── Tipografía ─────────────────────────────────────────── */
+
+/* Titulares. La clave del registro editorial es la interlínea:
+   1.0 exacto. A 96 px, cada renglón se apoya en el siguiente y
+   el bloque se lee como una sola pieza, no como tres líneas. */
+.sn-display {
+  font-family: var(--font-editorial), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(42px, 6.4vw, 92px);
+  line-height: 1;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+.sn-h2 {
+  font-family: var(--font-editorial), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(30px, 3.6vw, 52px);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.sn-h3 {
+  font-family: var(--font-editorial), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(23px, 2.1vw, 30px);
+  line-height: 1.16;
+  letter-spacing: -0.012em;
+}
+
+/* El dato grande va en arena, no en tinta: es un número para
+   mirar, no para leer. Así el párrafo de al lado sigue mandando. */
+.sn-figure {
+  font-family: var(--font-editorial), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(96px, 15vw, 230px);
+  line-height: 0.82;
+  letter-spacing: -0.03em;
+  color: var(--sn-tan);
+}
+
+.sn-label {
+  font-family: var(--font-mono-label), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--sn-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sn-body {
+  font-size: clamp(16px, 1.25vw, 18px);
+  line-height: 1.55;
+  color: var(--sn-ink-2);
+}
+
+.sn-lead {
+  font-family: var(--font-editorial), ui-serif, Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(22px, 2.4vw, 34px);
+  line-height: 1.24;
+  letter-spacing: -0.014em;
+  color: var(--sn-ink);
+}
+
+/* ── La píldora: la única llamada a la acción de la página ── */
+
+.sn-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: var(--sn-ink);
+  color: var(--sn-card);
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  padding: 0.9rem 1.6rem;
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.25s ease;
+}
+
+.sn-pill:hover {
+  transform: translateY(-1px);
+  background: var(--sn-ink-2);
+}
+
+.sn-pill-sm {
+  padding: 0.62rem 1.15rem;
+  font-size: 14px;
+}
+
+/* ── Fichas: crema sobre crema, esquina generosa, sin borde ── */
+
+.sn-card {
+  background: var(--sn-card);
+  border-radius: var(--sn-radius);
+}
+
+.sn-card-sand {
+  background: var(--sn-sand);
+  border-radius: var(--sn-radius);
+}
+
+/* ── La escena: tres actos que pasan con el scroll ───────── */
+
+.sn-scene {
+  height: auto;
+}
+
+.sn-scene-in {
+  position: static;
+  height: auto;
+}
+
+.sn-act {
+  transition:
+    opacity 0.5s ease,
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 1024px) {
+  .sn-scene {
+    height: 300vh;
+  }
+  .sn-scene-in {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    height: 100svh;
+  }
+  /* Los tres actos se apilan en el mismo lugar; solo uno está a la
+     vista y los otros esperan un poco más abajo. */
+  .sn-act {
+    grid-area: 1 / 1;
+  }
+  .sn-act[data-on="false"] {
+    opacity: 0;
+    transform: translateY(24px);
+    pointer-events: none;
+  }
+}
+
+/* Barra de progreso de la escena: tres tramos, el activo lleno. */
+.sn-tick {
+  height: 2px;
+  border-radius: 999px;
+  background: var(--sn-line);
+  overflow: hidden;
+}
+
+.sn-tick > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--sn-ink);
+  transition: width 0.5s ease;
+}
+
+.sn-tick[data-on="true"] > i {
+  width: 100%;
+}
+
+/* ── Entrada al scrollear: sube y aparece, una sola vez ──── */
+
+.sn-rise[data-in="false"] {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.sn-rise[data-in] {
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Superficie estable para las vistas previas reutilizadas ──
+   Las vistas previas se pintan con los tokens de la app, que
+   cambian con el tema. Aquí se les vuelve a declarar el juego
+   claro para que se vean igual siempre, y se les templa el
+   blanco hacia el crema de la página. */
+.sn-panel {
+  --background: #faf7f1;
+  --foreground: #12201f;
+  --card: #ffffff;
+  --card-foreground: #12201f;
+  --popover: #ffffff;
+  --popover-foreground: #12201f;
+  --primary: #f7ff9e;
+  --primary-foreground: #12201f;
+  --primary-hover: #f1fa84;
+  --primary-soft: rgba(247, 255, 158, 0.45);
+  --primary-soft-2: rgba(247, 255, 158, 0.6);
+  --accent-ink: #5e6a00;
+  --secondary: #f4eddf;
+  --secondary-foreground: #12201f;
+  --muted: #f1eadd;
+  --muted-foreground: #6f7a78;
+  --accent: #efe5d0;
+  --accent-foreground: #12201f;
+  --border: #e5ddcb;
+  --input: #e5ddcb;
+  --ring: #cdbca0;
+  color: var(--foreground);
+}
+
+/* ── Movimiento reducido: todo quieto y a la vista ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .sn-rise[data-in="false"] {
+    opacity: 1;
+    transform: none;
+  }
+  .sn-act,
+  .sn-rise,
+  .sn-pill,
+  .sn-tick > i {
+    transition: none;
+  }
+  @media (min-width: 1024px) {
+    .sn-act[data-on="false"] {
+      transform: none;
+    }
+  }
+}
