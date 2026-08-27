@@ -504,6 +504,45 @@ export const voice = {
     es: "Compra el número propio de este espacio de trabajo.",
     en: "Buy this workspace's own number.",
   },
+  // La frase que mas plata ahorra de todo el panel: medido en esta cuenta, un
+  // +1 llamando a moviles colombianos casi no se contesta.
+  numberPickCountry: {
+    es: "¿En qué país están tus clientes?",
+    en: "Where are your customers?",
+  },
+  numberLocalWins: {
+    es: "Un número del país de tus clientes se contesta mucho más que uno extranjero.",
+    en: "A number from your customers' country gets answered far more than a foreign one.",
+  },
+  numberOtherCountry: { es: "Otro país…", en: "Another country…" },
+  numberOtherCountryHint: {
+    es: "Código de 2 letras (ej: PT, IT).",
+    en: "Two-letter code (e.g. PT, IT).",
+  },
+  numberSearching: { es: "Buscando…", en: "Searching…" },
+  numberFoundType: {
+    es: "No hay números locales; estos son {type}.",
+    en: "No local numbers; these are {type}.",
+  },
+  numberMonthly: { es: "{amount} al mes", en: "{amount}/month" },
+  numberFree: { es: "Sin costo mensual", en: "No monthly cost" },
+  numberBuying: { es: "Comprando…", en: "Buying…" },
+  numberIsCallerId: {
+    es: "Es el número desde el que llama tu agente y al que pueden llamarte.",
+    en: "This is the number your agent calls from, and the one people can call.",
+  },
+  // El papeleo: antes aparecia de golpe a mitad de la busqueda, como un muro
+  // de campos sin explicacion.
+  numberDocsCountry: {
+    es: "{country} pide documentación para tener un número.",
+    en: "{country} requires documentation to hold a number.",
+  },
+  numberDocsProgress: { es: "{done} de {total} listos", en: "{done} of {total} ready" },
+  numberRegStatusDeclinedHint: {
+    es: "Revisa los datos y vuelve a enviarlos.",
+    en: "Check the details and submit again.",
+  },
+
   numberCountry: { es: "País", en: "Country" },
   numberType: { es: "Tipo", en: "Type" },
   numberTypeLocal: { es: "Local", en: "Local" },

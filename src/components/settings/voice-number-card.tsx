@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Phone, Loader2, Search, Trash2, Check, AlertCircle, Upload } from 'lucide-react';
+import { Phone, Loader2, Trash2, Check, AlertCircle, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import {
+  VOICE_COUNTRIES,
+  TIPOS_EN_ORDEN,
+  banderaDe,
+  paisDeTimezone,
+} from '@/lib/voice/countries';
 
 interface Current {
   phone_number: string | null;
@@ -17,6 +23,7 @@ interface Current {
 interface Available {
   phone_number: string;
   locality?: string | null;
+  region?: string | null;
   monthly_cost?: string | null;
   currency?: string | null;
 }
@@ -29,18 +36,25 @@ interface Requirement {
 }
 interface Regulatory {
   requirement_group_id: string | null;
-  status: string | null; // approved | pending-approval | declined | ...
+  status: string | null; // approved | pending-approval | declined | …
 }
 
-const TYPES = [
-  { value: 'local', key: 'voice.numberTypeLocal' },
-  { value: 'toll_free', key: 'voice.numberTypeTollFree' },
-  { value: 'mobile', key: 'voice.numberTypeMobile' },
-  { value: 'national', key: 'voice.numberTypeNational' },
-];
-
-/** Self-serve phone number per workspace: search by country/type, upload the
- *  country's regulatory documentation when required, buy, release. */
+/**
+ * Comprar el número del espacio de trabajo.
+ *
+ * Antes pedía dos cosas que un comercio no sabe: el código ISO del país en una
+ * caja de texto de dos letras («CO»), y el «tipo» de número entre local,
+ * gratuito, móvil y nacional. Escribir «COL» devolvía una lista vacía sin
+ * decir por qué, y elegir el tipo equivocado también.
+ *
+ * Ahora el país se elige de una lista con bandera y prefijo —preseleccionado
+ * con el del comercio, deducido de su zona horaria— y el tipo desaparece: se
+ * pide «local», que es el que la gente contesta, y si el país no tiene, se
+ * siguen probando los demás solo y se avisa cuál se encontró.
+ *
+ * Arriba de todo va la frase que más plata ahorra: llamar desde un número
+ * extranjero es tirar las llamadas a la basura.
+ */
 export function VoiceNumberCard() {
   const t = useT();
   const { workspace } = useWorkspace();
@@ -49,15 +63,16 @@ export function VoiceNumberCard() {
   const [current, setCurrent] = useState<Current | null>(null);
   const [regulatory, setRegulatory] = useState<Regulatory | null>(null);
   const [loading, setLoading] = useState(true);
-  const [country, setCountry] = useState('CO');
-  const [type, setType] = useState('local');
+  const [country, setCountry] = useState('');
+  const [otroPais, setOtroPais] = useState('');
+  /** El tipo que finalmente devolvió resultados, para poder nombrarlo. */
+  const [tipo, setTipo] = useState<string>('local');
   const [results, setResults] = useState<Available[]>([]);
   const [reqs, setReqs] = useState<Requirement[]>([]);
   const [requiresDocs, setRequiresDocs] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  // Regulatory form state
   const [reqValues, setReqValues] = useState<Record<string, string>>({});
   const [addr, setAddr] = useState<Record<string, Record<string, string>>>({});
   const [uploading, setUploading] = useState<string | null>(null);
@@ -82,28 +97,57 @@ export function VoiceNumberCard() {
     load();
   }, [load]);
 
-  const approved = regulatory?.status === 'approved';
-  const pending =
-    !!regulatory?.requirement_group_id && !approved && regulatory?.status !== 'declined';
+  // El país del comercio, para que no tenga que elegirlo si acertamos.
+  useEffect(() => {
+    if (country) return;
+    const suyo = paisDeTimezone(workspace?.timezone);
+    if (suyo) setCountry(suyo);
+  }, [workspace?.timezone, country]);
 
+  const paisElegido = country === 'otro' ? otroPais.trim().toUpperCase() : country;
+  const nombrePais =
+    VOICE_COUNTRIES.find((c) => c.code === paisElegido)?.name ?? paisElegido;
+
+  const approved = regulatory?.status === 'approved';
+  const declined = regulatory?.status === 'declined';
+  const pending = !!regulatory?.requirement_group_id && !approved && !declined;
+
+  /**
+   * Busca números. Empieza por «local» y, si no hay, sigue con los otros tipos
+   * hasta encontrar alguno — el comercio no tiene que saber qué es cada uno.
+   */
   async function search() {
-    if (!workspace?.id || !country.trim()) return;
+    if (!workspace?.id || !paisElegido) return;
     setSearching(true);
     setSearched(true);
     setResults([]);
     try {
-      const res = await fetch(
-        `/api/voice/numbers/search?workspace_id=${workspace.id}&country=${country.trim().toUpperCase()}&type=${type}`,
-        { cache: 'no-store' },
-      );
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error ?? t('voice.numberBuyError'));
-        return;
+      for (const candidato of TIPOS_EN_ORDEN) {
+        const res = await fetch(
+          `/api/voice/numbers/search?workspace_id=${workspace.id}&country=${paisElegido}&type=${candidato}`,
+          { cache: 'no-store' },
+        );
+        const json = await res.json();
+        if (!res.ok) {
+          toast.error(json.error ?? t('voice.numberBuyError'));
+          return;
+        }
+        const encontrados = (json.numbers ?? []) as Available[];
+        // Los requisitos son del país + tipo, así que se guardan los del tipo
+        // que efectivamente vamos a comprar.
+        if (encontrados.length > 0) {
+          setResults(encontrados);
+          setTipo(candidato);
+          setReqs(json.requirements ?? []);
+          setRequiresDocs(!!json.requires_documents);
+          return;
+        }
+        // Sin resultados: si este tipo pedía papeles, igual sirve saberlo.
+        if (candidato === 'local') {
+          setReqs(json.requirements ?? []);
+          setRequiresDocs(!!json.requires_documents);
+        }
       }
-      setResults(json.numbers ?? []);
-      setReqs(json.requirements ?? []);
-      setRequiresDocs(!!json.requires_documents);
     } catch {
       toast.error(t('settings.networkError'));
     } finally {
@@ -145,7 +189,7 @@ export function VoiceNumberCard() {
           locality: a.city,
           administrative_area: a.state,
           postal_code: a.postal,
-          country_code: country.trim().toUpperCase(),
+          country_code: paisElegido,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -160,7 +204,8 @@ export function VoiceNumberCard() {
     }
   }
 
-  const allFilled = reqs.length > 0 && reqs.every((r) => !!reqValues[r.id]);
+  const listos = reqs.filter((r) => !!reqValues[r.id]).length;
+  const allFilled = reqs.length > 0 && listos === reqs.length;
 
   async function submitReg() {
     if (!workspace?.id || !allFilled) return;
@@ -171,8 +216,8 @@ export function VoiceNumberCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspace_id: workspace.id,
-          country: country.trim().toUpperCase(),
-          type,
+          country: paisElegido,
+          type: tipo,
           requirements: reqs.map((r) => ({ requirement_id: r.id, field_value: reqValues[r.id] })),
         }),
       });
@@ -180,7 +225,9 @@ export function VoiceNumberCard() {
       if (res.ok) {
         setRegulatory({ requirement_group_id: json.requirement_group_id, status: json.status });
       } else {
-        toast.error(json.error ? `${t('voice.numberRegError')} (${json.error})` : t('voice.numberRegError'));
+        toast.error(
+          json.error ? `${t('voice.numberRegError')} (${json.error})` : t('voice.numberRegError'),
+        );
       }
     } finally {
       setSubmitting(false);
@@ -197,18 +244,21 @@ export function VoiceNumberCard() {
         body: JSON.stringify({
           workspace_id: workspace.id,
           phone_number: phone,
-          country: country.trim().toUpperCase(),
-          type,
+          country: paisElegido,
+          type: tipo,
           requirement_group_id: requiresDocs ? regulatory?.requirement_group_id : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(json.error ? `${t('voice.numberBuyError')} (${json.error})` : t('voice.numberBuyError'));
+        toast.error(
+          json.error ? `${t('voice.numberBuyError')} (${json.error})` : t('voice.numberBuyError'),
+        );
         return;
       }
       toast.success(t('voice.numberBought'));
       setResults([]);
+      setSearched(false);
       await load();
     } finally {
       setBusy(null);
@@ -233,102 +283,136 @@ export function VoiceNumberCard() {
     }
   }
 
-  const buyDisabled = (phone: string) =>
-    !!busy || (requiresDocs && !approved) || busy === phone;
+  const compraBloqueada = requiresDocs && !approved;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Phone className="h-5 w-5 text-yellow-500" />
-        <p className="text-sm font-medium text-foreground">{t('voice.numberTitle')}</p>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{t('voice.numberDesc')}</p>
+    <section className="rounded-xl border border-border bg-card p-4">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Phone className="h-4 w-4 text-yellow-500" />
+        {t('voice.numberTitle')}
+      </h2>
 
       {loading ? (
-        <div className="mt-3 flex items-center text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="mt-3">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : current?.phone_number ? (
-        <div className="mt-4 flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-3 py-2">
-          <span className="flex items-center gap-2 text-sm text-foreground">
-            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            {current.phone_number}
-            {current.country && (
-              <span className="text-xs text-muted-foreground">· {current.country}</span>
-            )}
-          </span>
-          <Button variant="ghost" size="sm" onClick={release} disabled={busy === 'release'}>
-            {busy === 'release' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4 text-muted-foreground" />
-            )}
-          </Button>
-        </div>
-      ) : (
-        <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">
-                {t('voice.numberCountry')}
-              </span>
-              <Input
-                value={country}
-                onChange={(e) => setCountry(e.target.value.toUpperCase())}
-                placeholder="CO"
-                maxLength={2}
-                className="w-20"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">
-                {t('voice.numberType')}
-              </span>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground"
-              >
-                {TYPES.map((ty) => (
-                  <option key={ty.value} value={ty.value}>
-                    {t(ty.key)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button onClick={search} disabled={searching || !country.trim()}>
-              {searching ? (
+        /* Ya tiene número: una línea y nada más que decidir. */
+        <div className="mt-3">
+          <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-3 py-2.5">
+            <span className="flex items-center gap-2 text-sm text-foreground">
+              <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="font-medium">{current.phone_number}</span>
+              {current.country && (
+                <span className="text-xs text-muted-foreground">
+                  {banderaDe(current.country)} {current.country}
+                </span>
+              )}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={release}
+              disabled={busy === 'release'}
+              aria-label={t('voice.numberRelease')}
+            >
+              {busy === 'release' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <Search className="mr-1 h-4 w-4" />
-                  {t('voice.numberSearch')}
-                </>
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
               )}
             </Button>
           </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            {t('voice.numberIsCallerId')}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {/* La decisión, y por qué importa. */}
+          <div>
+            <p className="text-sm text-foreground">{t('voice.numberPickCountry')}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {t('voice.numberLocalWins')}
+            </p>
+          </div>
 
-          {/* Regulatory: approved / pending banners */}
+          <div className="flex flex-wrap items-end gap-2">
+            <select
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="h-9 min-w-[190px] rounded-md border border-border bg-background px-2 text-sm text-foreground"
+            >
+              <option value="">{t('voice.numberCountry')}…</option>
+              {VOICE_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {banderaDe(c.code)} {c.name} ({c.dial})
+                </option>
+              ))}
+              <option value="otro">{t('voice.numberOtherCountry')}</option>
+            </select>
+
+            {country === 'otro' && (
+              <Input
+                value={otroPais}
+                onChange={(e) => setOtroPais(e.target.value.toUpperCase())}
+                placeholder="PT"
+                maxLength={2}
+                className="w-20"
+              />
+            )}
+
+            <Button onClick={search} disabled={searching || !paisElegido}>
+              {searching ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  {t('voice.numberSearching')}
+                </>
+              ) : (
+                t('voice.numberSearch')
+              )}
+            </Button>
+          </div>
+          {country === 'otro' && (
+            <p className="text-[11px] text-muted-foreground">
+              {t('voice.numberOtherCountryHint')}
+            </p>
+          )}
+
+          {/* El papeleo del país, con cuánto falta. */}
           {requiresDocs && approved && (
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs text-emerald-700 dark:text-emerald-300">
-              <Check className="h-3.5 w-3.5" />
-              {t('voice.numberRegStatusApproved')} · {t('voice.numberRegApprovedHint')}
-            </div>
+            <p className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <Check className="h-3.5 w-3.5 shrink-0" />
+              {t('voice.numberRegApprovedHint')}
+            </p>
           )}
           {requiresDocs && pending && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <p className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
               {t('voice.numberRegStatusPending')} · {t('voice.numberRegPendingHint')}
-            </div>
+            </p>
+          )}
+          {requiresDocs && declined && (
+            <p className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-destructive">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {t('voice.numberRegStatusDeclined')} · {t('voice.numberRegStatusDeclinedHint')}
+            </p>
           )}
 
-          {/* Regulatory: the requirements form (until submitted/approved) */}
           {requiresDocs && !approved && !pending && reqs.length > 0 && (
             <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-              <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {t('voice.numberDocsRequired')}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {t('voice.numberDocsCountry', { country: nombrePais })}
+                </p>
+                <span className="text-[11px] text-muted-foreground">
+                  {t('voice.numberDocsProgress', {
+                    done: String(listos),
+                    total: String(reqs.length),
+                  })}
+                </span>
+              </div>
               {reqs.map((r) => (
                 <div key={r.id} className="rounded-md border border-border/60 bg-background p-2.5">
                   <p className="text-xs font-medium text-foreground">{r.label}</p>
@@ -365,35 +449,50 @@ export function VoiceNumberCard() {
                           placeholder={t('voice.numberAddrBusiness')}
                           value={addr[r.id]?.business ?? ''}
                           onChange={(e) =>
-                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], business: e.target.value } }))
+                            setAddr((a) => ({
+                              ...a,
+                              [r.id]: { ...a[r.id], business: e.target.value },
+                            }))
                           }
                         />
                         <Input
                           placeholder={t('voice.numberAddrStreet')}
                           value={addr[r.id]?.street ?? ''}
                           onChange={(e) =>
-                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], street: e.target.value } }))
+                            setAddr((a) => ({
+                              ...a,
+                              [r.id]: { ...a[r.id], street: e.target.value },
+                            }))
                           }
                         />
                         <Input
                           placeholder={t('voice.numberAddrCity')}
                           value={addr[r.id]?.city ?? ''}
                           onChange={(e) =>
-                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], city: e.target.value } }))
+                            setAddr((a) => ({
+                              ...a,
+                              [r.id]: { ...a[r.id], city: e.target.value },
+                            }))
                           }
                         />
                         <Input
                           placeholder={t('voice.numberAddrState')}
                           value={addr[r.id]?.state ?? ''}
                           onChange={(e) =>
-                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], state: e.target.value } }))
+                            setAddr((a) => ({
+                              ...a,
+                              [r.id]: { ...a[r.id], state: e.target.value },
+                            }))
                           }
                         />
                         <Input
                           placeholder={t('voice.numberAddrPostal')}
                           value={addr[r.id]?.postal ?? ''}
                           onChange={(e) =>
-                            setAddr((a) => ({ ...a, [r.id]: { ...a[r.id], postal: e.target.value } }))
+                            setAddr((a) => ({
+                              ...a,
+                              [r.id]: { ...a[r.id], postal: e.target.value },
+                            }))
                           }
                         />
                       </div>
@@ -419,58 +518,81 @@ export function VoiceNumberCard() {
                     <Input
                       placeholder={r.example || r.label}
                       value={reqValues[r.id] ?? ''}
-                      onChange={(e) =>
-                        setReqValues((v) => ({ ...v, [r.id]: e.target.value }))
-                      }
+                      onChange={(e) => setReqValues((v) => ({ ...v, [r.id]: e.target.value }))}
                     />
                   )}
                 </div>
               ))}
               <p className="text-[11px] text-muted-foreground">{t('voice.numberDocsHint')}</p>
               <Button onClick={submitReg} disabled={!allFilled || submitting} className="w-full">
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  t('voice.numberRegSubmit')
-                )}
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('voice.numberRegSubmit')}
               </Button>
             </div>
           )}
 
-          {/* Results */}
+          {/* Los números. Uno por fila, con el precio dicho como precio. */}
           {results.length > 0 && (
-            <ul className="divide-y divide-border/60 rounded-lg border border-border">
-              {results.map((n) => (
-                <li key={n.phone_number} className="flex items-center justify-between px-3 py-2">
-                  <span className="text-sm text-foreground">
-                    {n.phone_number}
-                    {n.locality && (
-                      <span className="ml-2 text-xs text-muted-foreground">{n.locality}</span>
-                    )}
-                    {n.monthly_cost && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {n.currency ? `${n.currency} ` : '$'}
-                        {n.monthly_cost}
-                        {t('voice.numberPerMonth')}
+            <div className="space-y-2">
+              {tipo !== 'local' && (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('voice.numberFoundType', { type: t(`voice.numberType${TIPO_KEY[tipo]}`) })}
+                </p>
+              )}
+              <ul className="divide-y divide-border/60 rounded-lg border border-border">
+                {results.map((n) => (
+                  <li
+                    key={n.phone_number}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-foreground">
+                        {n.phone_number}
                       </span>
-                    )}
-                  </span>
-                  <Button size="sm" onClick={() => buy(n.phone_number)} disabled={buyDisabled(n.phone_number)}>
-                    {busy === n.phone_number ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      t('voice.numberBuy')
-                    )}
-                  </Button>
-                </li>
-              ))}
-            </ul>
+                      <span className="text-[11px] text-muted-foreground">
+                        {[n.locality || n.region, precio(n, t)].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => buy(n.phone_number)}
+                      disabled={!!busy || compraBloqueada}
+                    >
+                      {busy === n.phone_number ? (
+                        <>
+                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                          {t('voice.numberBuying')}
+                        </>
+                      ) : (
+                        t('voice.numberBuy')
+                      )}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
+
           {searched && !searching && results.length === 0 && (
             <p className="text-xs text-muted-foreground">{t('voice.numberNoResults')}</p>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
+}
+
+/** El tipo, como sufijo de la clave del catálogo. */
+const TIPO_KEY: Record<string, string> = {
+  local: 'Local',
+  toll_free: 'TollFree',
+  mobile: 'Mobile',
+  national: 'National',
+};
+
+/** El costo mensual, dicho como precio y no como dato suelto. */
+function precio(n: Available, t: (k: string, v?: Record<string, string>) => string): string {
+  const monto = Number(n.monthly_cost);
+  if (!Number.isFinite(monto) || monto <= 0) return t('voice.numberFree');
+  const moneda = n.currency ? `${n.currency} ` : '$';
+  return t('voice.numberMonthly', { amount: `${moneda}${n.monthly_cost}` });
 }
