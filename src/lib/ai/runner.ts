@@ -22,6 +22,7 @@ import type {
   ShopifyCustomerSnapshot,
 } from '@/types';
 import { getAdapter } from '@/lib/channels/registry';
+import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
 import {
@@ -579,7 +580,13 @@ export async function runAiAgent(
     // multi = partir por \n\n y enviar c/u como un mensaje aparte con
     // un pequeño delay entre chunks. dynamic = decide según el largo
     // (corto va en 1, largo se parte).
-    const chunks = splitReplyForMode(replyText, agent.response_mode);
+    // Los links del asistente salen marcados, y se guardan marcados: el hilo
+    // de la bandeja tiene que decir exactamente lo que recibió el cliente. Va
+    // antes de partir en chunks para no marcar dos versiones distintas.
+    const chunks = splitReplyForMode(
+      marcarParaCanal(replyText, args.channel),
+      agent.response_mode,
+    );
 
     const adapter = getAdapter(args.channel);
     const insertedIds: string[] = [];

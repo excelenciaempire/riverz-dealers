@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { marcaDelLanding, marcarEnlace, marcarEnlaces } from './enlaces';
+import {
+  marcaDelLanding,
+  marcarEnlace,
+  marcarEnlaces,
+  marcarParaCanal,
+} from './enlaces';
+
+describe('marcarParaCanal', () => {
+  it('marca los canales que venden por link', () => {
+    expect(marcarParaCanal('vení a https://tienda.com/p', 'whatsapp')).toContain(
+      'riverz=whatsapp',
+    );
+    expect(marcarParaCanal('https://tienda.com/p', 'webchat')).toContain(
+      'riverz=webchat',
+    );
+    expect(marcarParaCanal('https://tienda.com/p', 'gmail')).toContain('riverz=email');
+  });
+
+  it('no toca un comentario público ni una llamada', () => {
+    const t = 'mirá https://tienda.com/p';
+    expect(marcarParaCanal(t, 'ig_comment')).toBe(t);
+    expect(marcarParaCanal(t, 'voice')).toBe(t);
+  });
+
+  it('marcar dos veces da lo mismo — es lo que sostiene el doble marcado', () => {
+    // Se marca donde se compone el texto Y en el adaptador. Si no fuera
+    // idempotente, el cliente recibiría el link con los parámetros repetidos.
+    const una = marcarParaCanal('https://tienda.com/p', 'whatsapp');
+    expect(marcarParaCanal(una, 'whatsapp')).toBe(una);
+  });
+});
 
 describe('marcarEnlace', () => {
   it('marca un link de la tienda', () => {

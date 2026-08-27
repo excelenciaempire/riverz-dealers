@@ -5,6 +5,7 @@ import { cargarReglas, reglasATexto } from './guidance';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { toolEnabled } from './toolbox'
 import { getAdapter } from '@/lib/channels/registry';
+import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import type { AiAgent } from './types';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 
@@ -149,9 +150,11 @@ export async function runFollowUp(
         if (openCheckout) return { sent: false, reason: 'cart_recovery_owns' };
       }
       const first = (contact.name || '').trim().split(/\s+/)[0];
-      const text =
+      const text = marcarParaCanal(
         `Hola${first ? ' ' + first : ''} 🙂 ¿Pudiste completar tu compra? ` +
-        `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`;
+          `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`,
+        conversation.channel,
+      );
       const adapter = getAdapter(conversation.channel);
       const sendResult = await adapter.sendText({
         channel: conversation.channel,
@@ -250,7 +253,12 @@ export async function runFollowUp(
       resp as unknown as { content?: Array<{ type?: string; text?: string }> },
     );
     if (!text || /^skip\.?$/i.test(text)) return { sent: false, reason: 'model_skip' };
-    const finalText = text.slice(0, agent.max_response_chars || 500).trim();
+    // Marcado antes de recortar y de guardar: lo que se envía y lo que queda
+    // en el hilo tienen que ser el mismo texto.
+    const finalText = marcarParaCanal(
+      text.slice(0, agent.max_response_chars || 500).trim(),
+      conversation.channel,
+    );
     if (!finalText) return { sent: false, reason: 'empty' };
 
     // Un agente que necesita aprobación tampoco manda seguimientos solo: el

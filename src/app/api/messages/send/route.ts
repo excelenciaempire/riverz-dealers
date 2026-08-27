@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
+import { marcarParaCanal } from "@/lib/marketing/enlaces";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
@@ -219,6 +220,13 @@ export async function POST(req: Request): Promise<Response> {
   // return the error detail so the composer can surface it instead of a
   // bare 500.
   const adapter = getAdapter(channel);
+  // Los links salen marcados y se GUARDAN marcados, en ese orden y con el
+  // mismo texto: el hilo tiene que mostrar exactamente lo que le llegó al
+  // cliente. Va antes de todo lo que lee `body.text` para que no haya dos
+  // versiones dando vueltas.
+  if (typeof body.text === "string") {
+    body.text = marcarParaCanal(body.text, channel);
+  }
   const caption = body.text?.trim() || undefined;
   // Media fields shared by the failed + success inserts.
   const mediaFields = media

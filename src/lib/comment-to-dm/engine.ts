@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
+import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
 import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
@@ -212,9 +213,14 @@ export async function processCommentForDmRules(
       }
     }
 
-    const dmText = attachmentFallbackUrl
-      ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
-      : composeDmText(rule);
+    // Marcado antes de enviar y de persistir: el hilo tiene que mostrar el
+    // mismo texto que recibió la persona.
+    const dmText = marcarParaCanal(
+      attachmentFallbackUrl
+        ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
+        : composeDmText(rule),
+      DM_CHANNEL[ev.channel],
+    );
     try {
       const res = await getAdapter(DM_CHANNEL[ev.channel]).sendText({
         channel: DM_CHANNEL[ev.channel],

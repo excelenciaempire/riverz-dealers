@@ -84,6 +84,38 @@ export function marcarEnlace(url: string, marca: Marca): string {
 const RE_URL = /https?:\/\/[^\s<>"']+/g;
 const COLA = /[.,;:!?)\]}»"']+$/;
 
+/**
+ * De qué canal viene cada medio.
+ *
+ * Los canales que no venden por link (comentarios públicos, voz) no están: un
+ * `?riverz=` a la vista de todos es ruido, y por teléfono no hay link.
+ */
+const MEDIO_DEL_CANAL: Record<string, Medio> = {
+  whatsapp: 'whatsapp',
+  instagram: 'instagram',
+  messenger: 'messenger',
+  webchat: 'webchat',
+  gmail: 'email',
+  outlook: 'email',
+  mercadolibre: 'mercadolibre',
+};
+
+/**
+ * Marca los links de un mensaje que sale por un canal.
+ *
+ * Es el punto de entrada de todos los que envían. Devuelve el texto igual
+ * cuando el canal no se marca, así quien llama no tiene que preguntarlo.
+ *
+ * Se aplica DOS veces por mensaje a propósito: una donde se compone el texto
+ * —para que lo que se guarda en la bandeja sea exactamente lo que recibió el
+ * cliente— y otra en el adaptador, de red de seguridad por si alguien agrega
+ * un camino de envío nuevo. Marcar dos veces no cambia nada: es idempotente.
+ */
+export function marcarParaCanal(texto: string, canal: string): string {
+  const medio = MEDIO_DEL_CANAL[canal];
+  return medio ? marcarEnlaces(texto, { medio }) : texto;
+}
+
 /** Marca todos los links de un mensaje. El resto del texto queda intacto. */
 export function marcarEnlaces(texto: string, marca: Marca): string {
   if (!texto || !texto.includes('http')) return texto;
