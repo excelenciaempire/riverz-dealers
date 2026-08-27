@@ -69,6 +69,10 @@ const TEXTOS = {
     agregando: 'Agregando…',
     pagar: 'Ir a pagar',
     yMas: (n: number) => `y ${n} más`,
+    ia: 'IA',
+    equipo: 'Equipo',
+    unaPersona: 'Ahora te atiende una persona',
+    cerrada: 'Conversación cerrada',
   },
   en: {
     adjuntar: 'Attach',
@@ -88,6 +92,10 @@ const TEXTOS = {
     agregando: 'Adding…',
     pagar: 'Checkout',
     yMas: (n: number) => `and ${n} more`,
+    ia: 'AI',
+    equipo: 'Team',
+    unaPersona: 'A person has joined the chat',
+    cerrada: 'Conversation closed',
   },
 } as const;
 
@@ -140,6 +148,7 @@ export function ChatApp() {
   // verdad: pedirle una calificación a quien acaba de escribir "hola" no mide
   // nada y molesta.
   const [califico, setCalifico] = useState<null | boolean>(null);
+  const [cerrada, setCerrada] = useState(false);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
   const T = TEXTOS[settings?.locale === 'en' ? 'en' : 'es'];
 
@@ -226,8 +235,16 @@ export function ChatApp() {
       return;
     }
     if (!res.ok) return;
-    const data = (await res.json()) as { messages: WireMessage[]; cursor: string | null };
+    const data = (await res.json()) as {
+      messages: WireMessage[];
+      cursor: string | null;
+      status?: string;
+    };
     if (data.cursor) cursor.current = data.cursor;
+    // El servidor manda el estado de la conversación en cada sondeo y el chat
+    // lo descartaba: quien volvía a un hilo que el comercio ya había cerrado
+    // veía una caja de texto idéntica a la de una conversación viva.
+    setCerrada(data.status === 'closed');
     if (!data.messages.length) return;
 
     setMessages((prev) => {
@@ -448,6 +465,23 @@ export function ChatApp() {
   const ink = useMemo(() => contrast(color), [color]);
   const needsEmail = Boolean(settings?.require_email) && !identified && messages.length === 0;
 
+  /**
+   * Quién firma un mensaje entrante.
+   *
+   * El cable ya traía `sender: 'bot'|'agent'` y `agent_name`, y el chat los
+   * plegaba en una sola burbuja gris: del lado del visitante era imposible
+   * saber si le contestaba un programa o una persona. Decirlo es lo que hace
+   * que la respuesta de la IA se lea como una respuesta y no como un engaño.
+   */
+  const autorDe = useCallback(
+    (m: { sender: string; agent_name?: string }): string | null => {
+      if (m.sender === 'visitor') return null;
+      if (m.sender === 'bot') return settings?.brand_name || T.equipo;
+      return m.agent_name || T.equipo;
+    },
+    [settings?.brand_name, T],
+  );
+
   const timeline = useMemo(
     () => [
       ...messages,
@@ -497,32 +531,57 @@ export function ChatApp() {
 
       <div ref={scroller} className="flex-1 overflow-y-auto px-4 py-4">
         {settings?.greeting && timeline.length === 0 ? (
-          <Bubble side="in">{settings.greeting}</Bubble>
+          <>
+            <Autor nombre={settings.brand_name || T.equipo} ia T={T} />
+            <Bubble side="in">{settings.greeting}</Bubble>
+          </>
         ) : null}
 
-        {timeline.map((m) => (
-          <Bubble
-            key={m.id}
-            side={m.sender === 'visitor' ? 'out' : 'in'}
-            color={color}
-            ink={ink}
-            failed={'failed' in m ? Boolean(m.failed) : false}
-          >
-            {m.text ? (
-              <MessageText
-                text={m.text}
-                storeOrigin={storeOrigin}
+        {timeline.map((m, i) => {
+          const previo = i > 0 ? timeline[i - 1] : null;
+          const autor = autorDe(m);
+          const autorPrevio = previo ? autorDe(previo) : null;
+          // La firma se repite sólo cuando cambia quien escribe: ponerla en
+          // cada burbuja convierte una respuesta partida en tres en una lista
+          // de nombres.
+          const firma = autor !== null && autor !== autorPrevio;
+          // El momento en que el hilo deja de ser un bot. Es la única
+          // transición que el visitante necesita ver escrita.
+          const traspaso =
+            m.sender === 'agent' && previo?.sender === 'bot';
+          return (
+            <div key={m.id}>
+              {traspaso ? (
+                <p className="my-3 text-center text-[11px] text-neutral-500">{T.unaPersona}</p>
+              ) : null}
+              {firma ? <Autor nombre={autor} ia={m.sender === 'bot'} T={T} /> : null}
+              <Bubble
+                side={m.sender === 'visitor' ? 'out' : 'in'}
                 color={color}
                 ink={ink}
-                session={session}
-                T={T}
-              />
-            ) : null}
-            {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}
-          </Bubble>
-        ))}
+                failed={'failed' in m ? Boolean(m.failed) : false}
+              >
+                {m.text ? (
+                  <MessageText
+                    text={m.text}
+                    storeOrigin={storeOrigin}
+                    color={color}
+                    ink={ink}
+                    session={session}
+                    T={T}
+                  />
+                ) : null}
+                {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}
+              </Bubble>
+            </div>
+          );
+        })}
 
         {waiting ? <Typing /> : null}
+
+        {cerrada && !waiting ? (
+          <p className="my-3 text-center text-[11px] text-neutral-400">{T.cerrada}</p>
+        ) : null}
 
         {/* La calificación va acá abajo y no en un modal: interrumpir para
             preguntar "¿te sirvió?" es la forma más rápida de que la respuesta
@@ -676,6 +735,20 @@ function Bubble({
         {children}
       </div>
     </div>
+  );
+}
+
+/** La firma de quien contesta, arriba de su primera burbuja. */
+function Autor({ nombre, ia, T }: { nombre: string; ia?: boolean; T: TextosChat }) {
+  return (
+    <p className="mb-1 ml-1 flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
+      <span className="truncate">{nombre}</span>
+      {ia ? (
+        <span className="rounded bg-neutral-200 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-600">
+          {T.ia}
+        </span>
+      ) : null}
+    </p>
   );
 }
 

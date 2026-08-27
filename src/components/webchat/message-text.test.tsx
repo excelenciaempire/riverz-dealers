@@ -28,6 +28,10 @@ const T = {
   agregando: 'Agregando…',
   pagar: 'Ir a pagar',
   yMas: (n: number) => `y ${n} más`,
+  ia: 'IA',
+  equipo: 'Equipo',
+  unaPersona: 'Ahora te atiende una persona',
+  cerrada: 'Conversación cerrada',
 };
 
 const render = (text: string, storeOrigin: string | null = null) =>
