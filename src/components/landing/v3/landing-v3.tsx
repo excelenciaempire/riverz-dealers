@@ -128,7 +128,7 @@ export function LandingV3() {
 
 function Hero() {
   const t = useT();
-  const { ref, veil } = useLit<HTMLDivElement>("0px");
+  const { ref, veil } = useLit<HTMLDivElement>(0);
 
   return (
     <section className="relative overflow-hidden">

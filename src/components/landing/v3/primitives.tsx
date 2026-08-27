@@ -23,43 +23,58 @@ import { useLocale } from "@/hooks/use-locale";
  * vería nunca. Con `armed`, el servidor manda el texto puesto y la animación
  * solo existe si hay navegador que la corra.
  */
-export function useLit<T extends HTMLElement>(margin = "-12% 0px -12% 0px") {
+export function useLit<T extends HTMLElement>(margin = 0.12) {
   const ref = useRef<T>(null);
   const [lit, setLit] = useState(false);
   const [armed, setArmed] = useState(false);
   useEffect(() => {
-    setArmed(true);
     const el = ref.current;
     if (!el) return;
-    // Sin IntersectionObserver (o en un navegador viejo) el contenido tiene
-    // que verse igual: se enciende y listo.
-    if (typeof IntersectionObserver === "undefined") {
-      setLit(true);
-      return;
-    }
-    // Lo que ya está en pantalla se enciende ahora, sin esperar al
-    // observador. No es un atajo: en una pestaña de fondo el observador no
-    // reporta nada, y el titular de arriba —que está a la vista desde el
-    // primer instante— se quedaba escondido hasta que alguien mirara la
-    // pestaña. La medición del rectángulo sí funciona siempre.
-    const r = el.getBoundingClientRect();
-    if (r.top < window.innerHeight && r.bottom > 0) {
-      setLit(true);
-      return;
-    }
 
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
-          setLit(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: margin },
-    );
-    io.observe(el);
-    return () => io.disconnect();
+    let arm = 0;
+    let raf = 0;
+    let done = false;
+
+    // Se mide el rectángulo y punto, en vez de usar `IntersectionObserver`:
+    // el observador no reporta nada mientras la pestaña no se mira, y ahí un
+    // titular apagado —que está escondido— no se encendía nunca. Medir
+    // funciona igual en segundo plano, y es lo mismo que ya hace la escena.
+    const check = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      if (r.top < vh * (1 - margin) && r.bottom > vh * margin) {
+        done = true;
+        setLit(true);
+        stop();
+      }
+    };
+    const onScroll = () => {
+      if (!raf && !done) raf = requestAnimationFrame(check);
+    };
+    const stop = () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+
+    // Dos cuadros a propósito: en el primero se arma —el texto pasa a su
+    // estado apagado— y en el segundo se mide. Si se hiciera todo junto, lo
+    // que ya está a la vista pasaría de puesto a puesto sin animarse.
+    arm = requestAnimationFrame(() => {
+      arm = 0;
+      setArmed(true);
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+      raf = requestAnimationFrame(check);
+    });
+
+    return () => {
+      if (arm) cancelAnimationFrame(arm);
+      if (raf) cancelAnimationFrame(raf);
+      stop();
+    };
   }, [margin]);
+
   // Terminada la entrada, el atributo se retira: la transición desaparece con
   // él y con ella la capa que el compositor mantiene aparte. Un titular que ya
   // llegó no tiene por qué seguir siendo una capa viva.
