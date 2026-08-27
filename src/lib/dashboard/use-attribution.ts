@@ -22,6 +22,9 @@ export interface AttrRow {
 /** Qué clase de cosa tocó el pedido. Viaja como código; la UI lo traduce. */
 export type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent'
 
+/** Qué marca de Riverz trae el pedido. Ver `lib/attribution/prueba.ts`. */
+export type ProofKind = 'order_created' | 'checkout_link' | 'webchat_cart' | 'coupon'
+
 /**
  * Un pedido atribuido, con lo que lo tocó. Es el renglón que sostiene la cifra
  * de arriba: pedido, comprador, monto y qué mensaje de Riverz llegó antes.
@@ -34,8 +37,13 @@ export interface AttributedOrder {
   revenue: number
   currency: string
   contact: string | null
-  contact_id: string
+  contact_id: string | null
   sources: Array<{ kind: SourceKind; name: string; at: string }>
+  /** `proven` = trae marca de Riverz. `assisted` = sólo hubo charla antes. */
+  evidence: 'proven' | 'assisted'
+  proofs: Array<{ kind: ProofKind; detail?: string }>
+  /** A esta persona la trajo un anuncio. Se dice, no se esconde. */
+  from_ad: boolean
 }
 
 export interface Atribucion {
@@ -51,8 +59,10 @@ export interface Atribucion {
     orders: { current: number; previous: number }
     currency: string
   }
-  /** Las que pasaron por Riverz, contando cada pedido una vez. */
+  /** Las PROBADAS: el pedido trae una marca de Riverz. Es la cifra grande. */
   attributed?: { revenue: number; orders: number; currency: string }
+  /** Las influidas: hubo charla antes de la compra, pero nada lo prueba. */
+  assisted?: { revenue: number; orders: number; currency: string }
   /** Los pedidos de esa cifra, uno por uno. Los más caros primero. */
   attributed_orders?: AttributedOrder[]
   /** Hubo más pedidos que los que viajaron en la lista. */

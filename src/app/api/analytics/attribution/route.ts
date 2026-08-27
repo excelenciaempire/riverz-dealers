@@ -12,6 +12,7 @@ import {
   getActiveShopifyConnection,
   normPhone,
 } from '@/lib/attribution/shopify';
+import { provenBy, type Proof } from '@/lib/attribution/prueba';
 
 /**
  * GET /api/analytics/attribution?days=30
@@ -55,17 +56,21 @@ interface CommerceTotals {
 }
 
 /**
- * Lo que pasó por Riverz, contado UNA vez.
+ * Lo que pasó por Riverz, contado UNA vez y sólo si se puede probar.
  *
- * Las cuatro lentes de abajo se pisan: un pedido cuya persona recibió la
- * campaña Y pasó por la automatización aparece en las dos. Para responder "¿qué
- * me devolvió Riverz?" hace falta un número solo, así que acá se cuenta el
- * PEDIDO —no la lente— y un pedido tocado por tres cosas suma una vez.
+ * `attributed` cuenta los pedidos que traen una marca que puso Riverz —el link
+ * de pago, el pedido creado por el asistente, el carrito del chat web, el
+ * cupón personal—. Es la cifra que se muestra grande, y aguanta que la
+ * discutan: no depende de creerle a una ventana de tiempo.
  *
- * Deja afuera al Agente de IG: ese lente no viene de estos pedidos sino del
- * revenue que su propio motor ya atribuyó por destinatario, sin id de pedido
- * con qué deduplicar. Sumarlo daría un número más alto y posiblemente repetido;
- * se sigue viendo aparte en el detalle.
+ * `assisted` cuenta aparte los pedidos donde sólo hubo conversación antes de
+ * la compra. Puede que Riverz haya ayudado; también puede que la venta la
+ * trajera un anuncio de Meta y nosotros hayamos pasado por al lado. Se muestra
+ * etiquetado como lo que es, nunca sumado a lo de arriba.
+ *
+ * Los dos dejan afuera al Agente de IG: ese lente no viene de estos pedidos
+ * sino del revenue que su propio motor ya atribuyó por destinatario —con
+ * cupón por persona y grupo de control—, sin id de pedido con qué deduplicar.
  */
 interface Attributed {
   revenue: number;
@@ -93,8 +98,21 @@ interface AttributedOrder {
   currency: string;
   /** Quién compró: nombre del contacto, o su correo/teléfono. */
   contact: string | null;
-  contact_id: string;
+  contact_id: string | null;
   sources: Array<{ kind: SourceKind; name: string; at: string }>;
+  /**
+   * `proven` = el pedido trae una marca de Riverz. `assisted` = sólo hubo
+   * conversación antes. Lo que separa una cifra defendible de una inflada.
+   */
+  evidence: 'proven' | 'assisted';
+  /** Qué lo prueba, cuando está probado. */
+  proofs: Proof[];
+  /**
+   * La conversación de esta persona nació de un anuncio (Click-to-WhatsApp,
+   * Instagram, Messenger). Se dice en la cara: el anuncio la trajo. Riverz a
+   * lo sumo la atendió, y si además la cerró, eso ya lo dice `proofs`.
+   */
+  from_ad: boolean;
 }
 
 /**
@@ -122,6 +140,7 @@ function emptyResponse(days: number) {
     by_instagram_agent: [] as AttrRow[],
     totals: EMPTY_TOTALS,
     attributed: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
+    assisted: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
     attributed_orders: [] as AttributedOrder[],
     attributed_orders_truncated: false,
   };
@@ -301,170 +320,177 @@ export async function GET(request: Request) {
   const byAutomation = new Map<string, AttrRow>();
   const byAgent = new Map<string, AttrRow>();
   const attributed: Attributed = { revenue: 0, orders: 0, currency: totals.currency };
+  const assisted: Attributed = { revenue: 0, orders: 0, currency: totals.currency };
   const detalle: AttributedOrder[] = [];
 
   /**
-   * Las conversaciones de cada contacto, para la lente del asistente.
+   * Las conversaciones de cada contacto, para la lente del asistente, y de
+   * cuáles nació de un anuncio.
    *
    * `ai_replies` guarda `conversation_id` y no `contact_id`, así que sin este
    * mapa habría que hacer un join por pedido dentro del bucle — y el bucle ya
    * hace tres consultas por pedido. Se trae una vez y se cruza en memoria.
+   *
+   * `ad_referral` lo sella el webhook cuando alguien escribe desde un anuncio
+   * (Click-to-WhatsApp, Instagram, Messenger). Con eso el detalle puede decir
+   * "a esta persona la trajo el anuncio" en vez de dejar que la cifra sugiera
+   * que la trajimos nosotros.
    */
   const convDeContacto = new Map<string, string[]>();
+  const contactosDeAnuncio = new Set<string>();
   {
     const { data: convs } = await admin
       .from('conversations')
-      .select('id, contact_id')
+      .select('id, contact_id, ad_referral')
       .eq('workspace_id', workspaceId)
       .not('contact_id', 'is', null)
       .limit(5000);
-    for (const c of (convs ?? []) as { id: string; contact_id: string }[]) {
+    for (const c of (convs ?? []) as {
+      id: string;
+      contact_id: string;
+      ad_referral: unknown;
+    }[]) {
       const lista = convDeContacto.get(c.contact_id) ?? [];
       lista.push(c.id);
       convDeContacto.set(c.contact_id, lista);
+      if (c.ad_referral) contactosDeAnuncio.add(c.contact_id);
+    }
+  }
+
+  /**
+   * La fila espejo de cada pedido, para las tiendas que no son Shopify.
+   *
+   * En Shopify la marca viaja en el propio pedido (`note_attributes`, `tags`).
+   * En Tiendanube, WooCommerce o Mercado Libre no hay dónde ponerla, así que
+   * la prueba es que la fila de `orders` diga que la creó el asistente.
+   */
+  const espejoDePedido = new Map<
+    string,
+    { created_by?: string | null; channel?: string | null }
+  >();
+  {
+    const ids = orders.map((o) => String(o.id));
+    if (ids.length > 0) {
+      const { data: espejos } = await admin
+        .from('orders')
+        .select('shopify_order_id, created_by, channel')
+        .eq('workspace_id', workspaceId)
+        .in('shopify_order_id', ids);
+      for (const e of (espejos ?? []) as {
+        shopify_order_id: string;
+        created_by?: string | null;
+        channel?: string | null;
+      }[]) {
+        espejoDePedido.set(e.shopify_order_id, {
+          created_by: e.created_by,
+          channel: e.channel,
+        });
+      }
+    }
+  }
+
+  /**
+   * Los cupones que Riverz emitió para UNA persona. Que un pedido entre con
+   * uno es prueba dura: ese código no existía antes y no lo tuvo nadie más.
+   * Hoy los emite el Agente de IG; cualquier otro emisor entra por acá.
+   */
+  const cuponesPropios = new Map<string, string>();
+  {
+    const { data: recs } = await admin
+      .from('instagram_campaign_recipients')
+      .select('contact_id, discount_code, instagram_campaigns!inner(workspace_id)')
+      .eq('instagram_campaigns.workspace_id', workspaceId)
+      .not('discount_code', 'is', null)
+      .limit(5000);
+    for (const r of (recs ?? []) as {
+      contact_id: string | null;
+      discount_code: string | null;
+    }[]) {
+      const code = (r.discount_code ?? '').trim().toLowerCase();
+      if (code) cuponesPropios.set(code, r.contact_id ?? '');
     }
   }
 
   for (const order of orders) {
+    // La prueba se calcula ANTES de buscar el contacto y no depende de él: un
+    // pedido que salió de un link del asistente está probado aunque la persona
+    // haya pagado con otro correo y no matchee ningún contacto. Buscarlo
+    // primero, como se hacía, tiraba esas ventas a la basura.
+    const proofs = provenBy(
+      order,
+      espejoDePedido.get(String(order.id)) ?? null,
+      cuponesPropios,
+    );
+
     const cId =
       (order.email && emailToContact.get(order.email.toLowerCase())) ||
       (order.phone && phoneToContact.get(normPhone(order.phone) ?? '')) ||
       null;
-    if (!cId) continue;
 
     const orderTime = new Date(order.created_at).getTime();
     const lookback = new Date(orderTime - lookbackMs).toISOString();
     const total = Number(order.total_price ?? '0');
     const currency = order.currency || 'USD';
-    // Este pedido, ¿lo tocó algo de Riverz? Basta con una lente para contarlo,
-    // y tres no lo cuentan tres veces. `fuentes` guarda TODAS las que lo
-    // tocaron: es lo que se muestra al abrir la cifra.
-    const fuentes: AttributedOrder['sources'] = [];
+    // Con qué habló esta persona antes de comprar. NO prueba la venta: es
+    // contexto, y es lo que separa "influida" de "no la tocamos". Sin contacto
+    // emparejado no hay nada que mirar, pero el pedido puede seguir estando
+    // probado por su marca.
+    const fuentes: AttributedOrder['sources'] = cId
+      ? await lentesQueTocaron(admin, {
+          workspaceId,
+          locale,
+          contactId: cId,
+          convs: convDeContacto.get(cId) ?? [],
+          lookback,
+          orderCreatedAt: order.created_at,
+          total,
+          currency,
+          byBroadcast,
+          byFlow,
+          byAutomation,
+          byAgent,
+        })
+      : [];
 
-    // Last broadcast send to this contact in the lookback window.
-    const { data: bcRow } = await admin
-      .from('broadcast_recipients')
-      .select('broadcast_id, sent_at, broadcasts(name)')
-      .eq('contact_id', cId)
-      .gte('sent_at', lookback)
-      .lte('sent_at', order.created_at)
-      .order('sent_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (bcRow) {
-      const row = bcRow as {
-        broadcast_id: string;
-        sent_at: string;
-        broadcasts: { name?: string } | { name?: string }[];
-      };
-      const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
-      const nombre = join?.name ?? translate(locale, 'errInbox.broadcastFallback');
-      accumulate(byBroadcast, row.broadcast_id, nombre, total, currency);
-      fuentes.push({ kind: 'broadcast', name: nombre, at: row.sent_at });
-    }
+    // La regla entera, en una línea: con marca cuenta como venta de Riverz;
+    // sin marca, sólo se registra que hubo conversación antes.
+    const evidence: 'proven' | 'assisted' | null =
+      proofs.length > 0 ? 'proven' : fuentes.length > 0 ? 'assisted' : null;
+    if (!evidence) continue;
 
-    // Last flow run for this contact in the lookback window.
-    const { data: frRow } = await admin
-      .from('flow_runs')
-      .select('flow_id, started_at, flows(name)')
-      .eq('contact_id', cId)
-      .eq('workspace_id', workspaceId)
-      .gte('started_at', lookback)
-      .lte('started_at', order.created_at)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (frRow) {
-      const row = frRow as {
-        flow_id: string;
-        started_at: string;
-        flows: { name?: string } | { name?: string }[];
-      };
-      const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
-      const nombre = join?.name ?? translate(locale, 'errInbox.flowFallback');
-      accumulate(byFlow, row.flow_id, nombre, total, currency);
-      fuentes.push({ kind: 'flow', name: nombre, at: row.started_at });
-    }
+    const cubeta = evidence === 'proven' ? attributed : assisted;
+    cubeta.orders += 1;
+    cubeta.revenue += total;
+    cubeta.currency = currency;
 
-    // Last successful/partial automation run for this contact in the window.
-    const { data: autoRow } = await admin
-      .from('automation_logs')
-      .select('automation_id, created_at, automations(name)')
-      .eq('contact_id', cId)
-      .eq('workspace_id', workspaceId)
-      .in('status', ['success', 'partial'])
-      .gte('created_at', lookback)
-      .lte('created_at', order.created_at)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (autoRow) {
-      const row = autoRow as {
-        automation_id: string;
-        created_at: string;
-        automations: { name?: string } | { name?: string }[];
-      };
-      const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
-      const nombre = join?.name ?? translate(locale, 'errInbox.automationFallback');
-      accumulate(byAutomation, row.automation_id, nombre, total, currency);
-      fuentes.push({ kind: 'automation', name: nombre, at: row.created_at });
-    }
-
-    // La última respuesta del asistente a este contacto, en la ventana.
-    //
-    // Es la lente que faltaba y la que más se usa: un comercio podía tener a la
-    // IA cerrando ventas todo el día y ver «ventas por Riverz: 0», porque la
-    // venta que empieza con una respuesta del asistente no pasaba por ninguna
-    // de las otras tres.
-    const convs = convDeContacto.get(cId) ?? [];
-    if (convs.length > 0) {
-      const { data: aiRow } = await admin
-        .from('ai_replies')
-        .select('agent_id, created_at, ai_agents(name)')
-        .eq('workspace_id', workspaceId)
-        .eq('status', 'sent')
-        .in('conversation_id', convs.slice(0, 50))
-        .gte('created_at', lookback)
-        .lte('created_at', order.created_at)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (aiRow) {
-        const row = aiRow as {
-          agent_id: string | null;
-          created_at: string;
-          ai_agents: { name?: string } | { name?: string }[] | null;
-        };
-        const join = Array.isArray(row.ai_agents) ? row.ai_agents[0] : row.ai_agents;
-        const nombre = join?.name ?? translate(locale, 'errInbox.agentFallback');
-        accumulate(byAgent, row.agent_id ?? 'sin-agente', nombre, total, currency);
-        fuentes.push({ kind: 'agent', name: nombre, at: row.created_at });
-      }
-    }
-
-    if (fuentes.length > 0) {
-      attributed.orders += 1;
-      attributed.revenue += total;
-      attributed.currency = currency;
-      detalle.push({
-        id: String(order.id),
-        reference:
-          order.name?.trim() ||
-          (order.order_number != null ? `#${order.order_number}` : `#${order.id}`),
-        created_at: order.created_at,
-        revenue: total,
-        currency,
-        contact: nombreDeContacto.get(cId) ?? null,
-        contact_id: cId,
-        // Lo más reciente primero: el mensaje que llegó último es el que
-        // mejor explica la compra.
-        sources: fuentes.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
-      });
-    }
+    detalle.push({
+      id: String(order.id),
+      reference:
+        order.name?.trim() ||
+        (order.order_number != null ? `#${order.order_number}` : `#${order.id}`),
+      created_at: order.created_at,
+      revenue: total,
+      currency,
+      contact: cId ? (nombreDeContacto.get(cId) ?? null) : null,
+      contact_id: cId,
+      // Lo más reciente primero: el mensaje que llegó último es el que
+      // mejor explica la compra.
+      sources: fuentes.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+      evidence,
+      proofs,
+      from_ad: cId ? contactosDeAnuncio.has(cId) : false,
+    });
   }
 
   attributed.revenue = Math.round(attributed.revenue * 100) / 100;
-  detalle.sort((a, b) => b.revenue - a.revenue);
+  assisted.revenue = Math.round(assisted.revenue * 100) / 100;
+  // Probadas primero y, dentro de cada grupo, por plata: lo que se puede
+  // defender va arriba.
+  detalle.sort(
+    (a, b) =>
+      Number(b.evidence === 'proven') - Number(a.evidence === 'proven') ||
+      b.revenue - a.revenue,
+  );
 
   return NextResponse.json({
     days,
@@ -475,9 +501,152 @@ export async function GET(request: Request) {
     by_instagram_agent,
     totals,
     attributed,
+    assisted,
     attributed_orders: detalle.slice(0, MAX_DETALLE),
     attributed_orders_truncated: detalle.length > MAX_DETALLE,
   });
+}
+
+/**
+ * Qué mensajes de Riverz tocaron a esta persona antes de que comprara.
+ *
+ * Cuatro lentes —campaña, flujo, automatización, asistente—, cada una con su
+ * último toque dentro de la ventana. Acumula en las cubetas del desglose y
+ * devuelve lo que encontró para el detalle del pedido.
+ *
+ * Esto NO prueba la venta y por eso vive lejos de `provenBy`: contesta "hubo
+ * conversación antes", que es la mitad floja de la atribución.
+ */
+async function lentesQueTocaron(
+  admin: SupabaseClient,
+  args: {
+    workspaceId: string;
+    locale: Locale;
+    contactId: string;
+    convs: string[];
+    lookback: string;
+    orderCreatedAt: string;
+    total: number;
+    currency: string;
+    byBroadcast: Map<string, AttrRow>;
+    byFlow: Map<string, AttrRow>;
+    byAutomation: Map<string, AttrRow>;
+    byAgent: Map<string, AttrRow>;
+  },
+): Promise<AttributedOrder['sources']> {
+  const {
+    workspaceId,
+    locale,
+    contactId,
+    convs,
+    lookback,
+    orderCreatedAt,
+    total,
+    currency,
+  } = args;
+  const fuentes: AttributedOrder['sources'] = [];
+
+  // Last broadcast send to this contact in the lookback window.
+  const { data: bcRow } = await admin
+    .from('broadcast_recipients')
+    .select('broadcast_id, sent_at, broadcasts(name)')
+    .eq('contact_id', contactId)
+    .gte('sent_at', lookback)
+    .lte('sent_at', orderCreatedAt)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (bcRow) {
+    const row = bcRow as {
+      broadcast_id: string;
+      sent_at: string;
+      broadcasts: { name?: string } | { name?: string }[];
+    };
+    const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
+    const nombre = join?.name ?? translate(locale, 'errInbox.broadcastFallback');
+    accumulate(args.byBroadcast, row.broadcast_id, nombre, total, currency);
+    fuentes.push({ kind: 'broadcast', name: nombre, at: row.sent_at });
+  }
+
+  // Last flow run for this contact in the lookback window.
+  const { data: frRow } = await admin
+    .from('flow_runs')
+    .select('flow_id, started_at, flows(name)')
+    .eq('contact_id', contactId)
+    .eq('workspace_id', workspaceId)
+    .gte('started_at', lookback)
+    .lte('started_at', orderCreatedAt)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (frRow) {
+    const row = frRow as {
+      flow_id: string;
+      started_at: string;
+      flows: { name?: string } | { name?: string }[];
+    };
+    const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
+    const nombre = join?.name ?? translate(locale, 'errInbox.flowFallback');
+    accumulate(args.byFlow, row.flow_id, nombre, total, currency);
+    fuentes.push({ kind: 'flow', name: nombre, at: row.started_at });
+  }
+
+  // Last successful/partial automation run for this contact in the window.
+  const { data: autoRow } = await admin
+    .from('automation_logs')
+    .select('automation_id, created_at, automations(name)')
+    .eq('contact_id', contactId)
+    .eq('workspace_id', workspaceId)
+    .in('status', ['success', 'partial'])
+    .gte('created_at', lookback)
+    .lte('created_at', orderCreatedAt)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (autoRow) {
+    const row = autoRow as {
+      automation_id: string;
+      created_at: string;
+      automations: { name?: string } | { name?: string }[];
+    };
+    const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
+    const nombre = join?.name ?? translate(locale, 'errInbox.automationFallback');
+    accumulate(args.byAutomation, row.automation_id, nombre, total, currency);
+    fuentes.push({ kind: 'automation', name: nombre, at: row.created_at });
+  }
+
+  // La última respuesta del asistente a este contacto, en la ventana.
+  //
+  // Es la lente que faltaba y la que más se usa: un comercio podía tener a la
+  // IA cerrando ventas todo el día y ver «ventas por Riverz: 0», porque la
+  // venta que empieza con una respuesta del asistente no pasaba por ninguna
+  // de las otras tres.
+  if (convs.length > 0) {
+    const { data: aiRow } = await admin
+      .from('ai_replies')
+      .select('agent_id, created_at, ai_agents(name)')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'sent')
+      .in('conversation_id', convs.slice(0, 50))
+      .gte('created_at', lookback)
+      .lte('created_at', orderCreatedAt)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (aiRow) {
+      const row = aiRow as {
+        agent_id: string | null;
+        created_at: string;
+        ai_agents: { name?: string } | { name?: string }[] | null;
+      };
+      const join = Array.isArray(row.ai_agents) ? row.ai_agents[0] : row.ai_agents;
+      const nombre = join?.name ?? translate(locale, 'errInbox.agentFallback');
+      accumulate(args.byAgent, row.agent_id ?? 'sin-agente', nombre, total, currency);
+      fuentes.push({ kind: 'agent', name: nombre, at: row.created_at });
+    }
+  }
+
+  return fuentes;
 }
 
 /** Add one order's revenue to the bucket keyed by entity id (last-touch). */

@@ -31,27 +31,43 @@ export const dashboard = {
     en: "{orders} orders · {share}% of sales",
   },
   roiRevenueNone: { es: "Todavía sin ventas atribuidas", en: "No attributed sales yet" },
+  roiRevenueOnlyAssisted: {
+    es: "Sin ventas probadas · {orders} influidas",
+    en: "No proven sales · {orders} assisted",
+  },
 
-  // La cifra, abierta: de dónde sale cada peso.
+  // La cifra, abierta: qué está probado y qué no.
   attrDetailTitle: { es: "De dónde sale esta cifra", en: "Where this number comes from" },
   attrModel: {
-    es: "Cuenta el pedido completo de quien recibió un mensaje de Riverz en las 72 h previas a comprar. Cada pedido se cuenta una sola vez.",
-    en: "Counts the full order of anyone who got a Riverz message in the 72h before buying. Each order is counted once.",
+    es: "La cifra cuenta sólo los pedidos que traen una marca de Riverz. Lo que apenas pasó cerca va abajo, aparte.",
+    en: "The number counts only orders carrying a Riverz stamp. Anything that merely came close is listed separately below.",
   },
-  attrByRiverz: { es: "Por Riverz", en: "From Riverz" },
-  attrOrders: { es: "Pedidos", en: "Orders" },
-  attrStoreTotal: { es: "Ventas de la tienda", en: "Store sales" },
-  attrEmpty: {
-    es: "Ningún pedido de este rango se puede rastrear hasta un mensaje de Riverz.",
-    en: "No order in this range traces back to a Riverz message.",
+  attrTotalLine: { es: "{total} en {orders} pedidos", en: "{total} across {orders} orders" },
+
+  attrProvenTitle: { es: "Probadas", en: "Proven" },
+  attrProvenHelp: {
+    es: "El pedido salió de un link, un pedido, un carrito o un cupón que generó Riverz. No puede ser de otro.",
+    en: "The order came from a link, order, cart or coupon Riverz generated. It can't belong to anyone else.",
   },
+  attrProvenEmpty: {
+    es: "Ningún pedido de este rango lleva marca de Riverz.",
+    en: "No order in this range carries a Riverz stamp.",
+  },
+  attrAssistedTitle: { es: "Influidas", en: "Assisted" },
+  attrAssistedHelp: {
+    es: "Hablaron con Riverz en las 72 h previas y después compraron. No prueba nada: la venta pudo traerla un anuncio. No suma a la cifra de arriba.",
+    en: "They talked to Riverz within 72h and then bought. Proves nothing — an ad may have driven the sale. Not added to the number above.",
+  },
+  attrFromAd: { es: "vino de un anuncio", en: "came from an ad" },
+
+  proofOrderCreated: { es: "Pedido creado por Riverz", en: "Order created by Riverz" },
+  proofCheckoutLink: { es: "Pagó por un link de Riverz", en: "Paid via a Riverz link" },
+  proofWebchatCart: { es: "Carrito del chat", en: "Cart from the chat" },
+  proofCoupon: { es: "Cupón de Riverz", en: "Riverz coupon" },
+
   attrTruncated: {
-    es: "Se muestran los {n} pedidos más grandes. El total los cuenta todos.",
-    en: "Showing the {n} largest orders. The total counts them all.",
-  },
-  attrCaveat: {
-    es: "Es último toque, no causalidad: quien compró había hablado con Riverz antes. No incluye el Agente de IG, que mide aparte con grupo de control.",
-    en: "Last touch, not causation: the buyer had talked to Riverz first. Excludes the IG agent, which measures separately with a control group.",
+    es: "Se muestran los {n} pedidos más grandes. Los totales los cuentan todos.",
+    en: "Showing the {n} largest orders. Totals count them all.",
   },
   roiStoreRevenue: { es: "Ventas de la tienda", en: "Store sales" },
   roiAov: { es: "Ticket promedio", en: "Average order value" },

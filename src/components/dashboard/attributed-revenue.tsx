@@ -41,7 +41,12 @@ export function AttributedRevenue({ data }: { data: Atribucion | null }) {
   // nada y no se muestra.
   if (filas.length === 0) return null;
 
-  const total = data.attributed;
+  // Las filas de abajo cuentan TODO pedido tocado, probado o no — por eso el
+  // encabezado no puede mostrar sólo lo probado: los renglones sumarían más
+  // que su propio total y la tarjeta se leería como un error.
+  const probado = data.attributed;
+  const influido = data.assisted;
+  const tocados = (probado?.orders ?? 0) + (influido?.orders ?? 0);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -49,11 +54,14 @@ export function AttributedRevenue({ data }: { data: Atribucion | null }) {
         <h2 className="text-sm font-semibold text-foreground">
           {t('health.revenueTitle')}
         </h2>
-        {total && total.orders > 0 && (
+        {tocados > 0 && (
           <p className="text-xs text-muted-foreground">
-            {t('health.revenueAttributedTotal', {
-              total: fmt.money(total.revenue, total.currency),
-              orders: total.orders,
+            {t('health.revenueTouchedTotal', {
+              total: fmt.money(
+                (probado?.revenue ?? 0) + (influido?.revenue ?? 0),
+                probado?.currency ?? influido?.currency,
+              ),
+              orders: tocados,
             })}
           </p>
         )}

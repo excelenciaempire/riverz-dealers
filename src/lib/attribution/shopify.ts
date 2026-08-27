@@ -47,6 +47,15 @@ export interface ShopifyOrder {
   customer?: { email?: string | null; phone?: string | null } | null;
   shipping_address?: { phone?: string | null } | null;
   billing_address?: { phone?: string | null } | null;
+  /**
+   * Las marcas que Riverz deja pegadas al carrito y que Shopify arrastra
+   * hasta el pedido: `riverz_origin=ai` (el link lo armó el asistente) y
+   * `riverz_wvid` (el carrito lo estampó el chat web). Son la única forma de
+   * decir "esta venta la hizo Riverz" sin adivinar.
+   */
+  note_attributes?: Array<{ name?: string; value?: string }> | null;
+  /** `riverz-ia` cuando el pedido lo creó la herramienta del asistente. */
+  tags?: string | null;
   /** Cancelado: existe pero no es una venta. */
   cancelled_at?: string | null;
   /** `paid`, `pending`, `refunded`, `voided`… */

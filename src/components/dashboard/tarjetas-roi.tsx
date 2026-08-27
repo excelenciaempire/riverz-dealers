@@ -45,7 +45,11 @@ export function TarjetasRoi({
   const cargando = atribucion === null
   const sinTienda = !cargando && atribucion.not_connected === true
   const ventasTienda = atribucion?.totals?.revenue.current ?? 0
+  // Sólo lo PROBADO: el pedido trae una marca que puso Riverz. Lo que apenas
+  // pasó cerca de una conversación vive en `assisted` y no entra acá — una
+  // cifra que se cae cuando el comercio la discute no sirve de nada.
   const porRiverz = atribucion?.attributed
+  const influidas = atribucion?.assisted
 
   const salientes = metrics.messagesSent.current
 
@@ -72,7 +76,9 @@ export function TarjetasRoi({
           // Se abre para ver pedido por pedido de dónde sale. Una cifra que no
           // se puede verificar no se termina de creer.
           onClick={
-            porRiverz && porRiverz.orders > 0 ? () => setDetalle(true) : undefined
+            (porRiverz?.orders ?? 0) + (influidas?.orders ?? 0) > 0
+              ? () => setDetalle(true)
+              : undefined
           }
           subtitle={
             cargando
@@ -85,7 +91,11 @@ export function TarjetasRoi({
                         ? Math.round((porRiverz.revenue / ventasTienda) * 100)
                         : 0,
                   })
-                : t('dashboard.roiRevenueNone')
+                : // Nada probado, pero hubo charla antes de comprar. Se dice
+                  // dónde quedó esa plata en vez de dejar un cero mudo.
+                  influidas && influidas.orders > 0
+                  ? t('dashboard.roiRevenueOnlyAssisted', { orders: influidas.orders })
+                  : t('dashboard.roiRevenueNone')
           }
         />
       )}

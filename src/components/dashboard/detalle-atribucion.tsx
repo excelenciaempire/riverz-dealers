@@ -9,20 +9,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { Atribucion, SourceKind } from '@/lib/dashboard/use-attribution'
+import type {
+  AttributedOrder,
+  Atribucion,
+  ProofKind,
+  SourceKind,
+} from '@/lib/dashboard/use-attribution'
 
 /**
- * La cifra, abierta.
+ * La cifra, abierta — y sobre todo, separada.
  *
- * «Ventas por Riverz: 1.499.730» es una suma, y una suma no se verifica. Acá
- * está el renglón por renglón que la sostiene: qué pedido, de quién, por
- * cuánto, y qué mensaje de Riverz llegó antes de la compra. Con el número de
- * pedido el comercio abre su tienda y comprueba que la plata existe.
+ * Arriba las PROBADAS: pedidos que traen una marca que puso Riverz. Abajo, en
+ * su propio grupo y con su propio total, las INFLUIDAS: la persona habló con
+ * Riverz y después compró, sin nada que lo pruebe. Esa venta puede haberla
+ * traído un anuncio de Meta, y decir lo contrario es cobrar por trabajo ajeno.
  *
- * Arriba va el modelo en una línea, porque sin él el detalle no se entiende:
- * no decimos que Riverz causó la venta, decimos que Riverz habló con esa
- * persona antes de que comprara. Es último toque con ventana, igual que
- * cualquier panel de anuncios — y hay que decirlo, no esconderlo.
+ * Cuando la conversación nació de un anuncio se marca en el renglón. No hay
+ * ninguna razón para esconderlo: si el anuncio trajo a la persona y Riverz le
+ * armó el pago, las dos cosas son ciertas y el comercio decide qué hacer con
+ * eso mejor que nosotros.
  */
 export function DetalleAtribucion({
   data,
@@ -37,8 +42,10 @@ export function DetalleAtribucion({
   const fmt = useFormat()
 
   const pedidos = data?.attributed_orders ?? []
-  const total = data?.attributed
-  const ventasTienda = data?.totals?.revenue.current ?? 0
+  const probadas = pedidos.filter((p) => p.evidence === 'proven')
+  const influidas = pedidos.filter((p) => p.evidence === 'assisted')
+  const totalProbado = data?.attributed
+  const totalInfluido = data?.assisted
 
   return (
     <Dialog open={abierto} onOpenChange={onAbierto}>
@@ -48,56 +55,48 @@ export function DetalleAtribucion({
           <DialogDescription>{t('dashboard.attrModel')}</DialogDescription>
         </DialogHeader>
 
-        {total && total.orders > 0 && (
-          <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg bg-muted/50 p-3 text-sm">
-            <Cifra
-              etiqueta={t('dashboard.attrByRiverz')}
-              valor={fmt.money(total.revenue, total.currency)}
-            />
-            <Cifra
-              etiqueta={t('dashboard.attrOrders')}
-              valor={fmt.number(total.orders)}
-            />
-            <Cifra
-              etiqueta={t('dashboard.attrStoreTotal')}
-              valor={fmt.money(ventasTienda, data?.totals?.currency)}
-            />
-          </div>
-        )}
-
-        {pedidos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t('dashboard.attrEmpty')}
+        <section>
+          <Encabezado
+            titulo={t('dashboard.attrProvenTitle')}
+            total={
+              totalProbado && totalProbado.orders > 0
+                ? t('dashboard.attrTotalLine', {
+                    total: fmt.money(totalProbado.revenue, totalProbado.currency),
+                    orders: totalProbado.orders,
+                  })
+                : null
+            }
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('dashboard.attrProvenHelp')}
           </p>
-        ) : (
-          <ul className="divide-y divide-border/60">
-            {pedidos.map((p) => (
-              <li key={p.id} className="py-2.5 first:pt-0">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
-                    {p.reference}
-                    {p.contact && (
-                      <span className="ml-2 font-normal text-muted-foreground">
-                        {p.contact}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
-                    {fmt.money(p.revenue, p.currency)}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {fmt.dateTime(p.created_at)}
-                  {p.sources.map((s) => (
-                    <span key={`${s.kind}-${s.at}`}>
-                      {' · '}
-                      {t(kindKey(s.kind))}: {s.name}
-                    </span>
-                  ))}
-                </p>
-              </li>
-            ))}
-          </ul>
+          {probadas.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('dashboard.attrProvenEmpty')}
+            </p>
+          ) : (
+            <Lista pedidos={probadas} />
+          )}
+        </section>
+
+        {influidas.length > 0 && (
+          <section>
+            <Encabezado
+              titulo={t('dashboard.attrAssistedTitle')}
+              total={
+                totalInfluido && totalInfluido.orders > 0
+                  ? t('dashboard.attrTotalLine', {
+                      total: fmt.money(totalInfluido.revenue, totalInfluido.currency),
+                      orders: totalInfluido.orders,
+                    })
+                  : null
+              }
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('dashboard.attrAssistedHelp')}
+            </p>
+            <Lista pedidos={influidas} />
+          </section>
         )}
 
         {data?.attributed_orders_truncated && (
@@ -105,21 +104,61 @@ export function DetalleAtribucion({
             {t('dashboard.attrTruncated', { n: pedidos.length })}
           </p>
         )}
-
-        <p className="text-xs leading-snug text-muted-foreground">
-          {t('dashboard.attrCaveat')}
-        </p>
       </DialogContent>
     </Dialog>
   )
 }
 
-function Cifra({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+function Encabezado({ titulo, total }: { titulo: string; total: string | null }) {
   return (
-    <span className="flex flex-col">
-      <span className="text-xs text-muted-foreground">{etiqueta}</span>
-      <span className="font-medium tabular-nums text-foreground">{valor}</span>
-    </span>
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 className="text-sm font-semibold text-foreground">{titulo}</h3>
+      {total && <span className="text-xs tabular-nums text-muted-foreground">{total}</span>}
+    </div>
+  )
+}
+
+function Lista({ pedidos }: { pedidos: AttributedOrder[] }) {
+  const t = useT()
+  const fmt = useFormat()
+
+  return (
+    <ul className="mt-2 divide-y divide-border/60">
+      {pedidos.map((p) => (
+        <li key={p.id} className="py-2.5 first:pt-0">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 truncate text-sm font-medium text-foreground">
+              {p.reference}
+              {p.contact && (
+                <span className="ml-2 font-normal text-muted-foreground">
+                  {p.contact}
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
+              {fmt.money(p.revenue, p.currency)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {fmt.dateTime(p.created_at)}
+            {p.proofs.map((pr) => (
+              <span key={pr.kind} className="text-foreground">
+                {' · '}
+                {t(proofKey(pr.kind))}
+                {pr.detail && pr.kind === 'coupon' ? ` ${pr.detail}` : ''}
+              </span>
+            ))}
+            {p.sources.map((s) => (
+              <span key={`${s.kind}-${s.at}`}>
+                {' · '}
+                {t(kindKey(s.kind))}: {s.name}
+              </span>
+            ))}
+            {p.from_ad && <span>{' · '}{t('dashboard.attrFromAd')}</span>}
+          </p>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -131,4 +170,14 @@ function kindKey(kind: SourceKind): string {
       : kind === 'flow'
         ? 'health.kindFlow'
         : 'health.kindAgent'
+}
+
+function proofKey(kind: ProofKind): string {
+  return kind === 'order_created'
+    ? 'dashboard.proofOrderCreated'
+    : kind === 'checkout_link'
+      ? 'dashboard.proofCheckoutLink'
+      : kind === 'webchat_cart'
+        ? 'dashboard.proofWebchatCart'
+        : 'dashboard.proofCoupon'
 }
