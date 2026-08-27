@@ -1149,13 +1149,11 @@ export function AgentEditor({
                         active={productScope === 'all'}
                         onClick={() => setProductScope('all')}
                         title={t('assistant.wholeCatalog')}
-                        hint={t('assistant.wholeCatalogHint')}
                       />
                       <ScopeCard
                         active={productScope === 'specific'}
                         onClick={() => setProductScope('specific')}
                         title={t('assistant.someProducts')}
-                        hint={t('assistant.someProductsHint')}
                       />
                     </div>
                   )}
@@ -1435,13 +1433,11 @@ export function AgentEditor({
                   active={scope === 'workspace'}
                   onClick={() => setScope('workspace')}
                   title={t('assistant.allChannels')}
-                  hint={t('assistant.allChannelsHint')}
                 />
                 <ScopeCard
                   active={scope === 'channels'}
                   onClick={() => setScope('channels')}
                   title={t('assistant.someChannels')}
-                  hint={t('assistant.someChannelsHint')}
                 />
               </div>
               {scope === 'channels' && (
@@ -1617,7 +1613,6 @@ export function AgentEditor({
               // interruptor.
               <SectionCard
                 title={t('voice.enable')}
-                hint={t('voice.enableHint')}
                 right={
                   <Switch
                     checked={voice.voice_enabled}
@@ -1945,13 +1940,7 @@ export function AgentEditor({
                         </p>
                       )}
                     </div>
-                  ) : (
-                    puedeCrearPedidos && (
-                      <p className="text-[11px] text-muted-foreground">
-                        {t('assistant.salesCloseActiveHint')}
-                      </p>
-                    )
-                  )}
+                  ) : null}
                 </SectionCard>
               </>
             )}
@@ -2331,13 +2320,13 @@ function ToggleRow({
   checked: boolean;
   onChange: (v: boolean) => void;
   title: string;
-  hint: string;
+  hint?: string;
 }) {
   return (
     <label className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
       <div>
         <p className="text-sm text-foreground">{title}</p>
-        <p className="text-[11px] text-muted-foreground">{hint}</p>
+        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
@@ -2353,7 +2342,7 @@ function ScopeCard({
   active: boolean;
   onClick: () => void;
   title: string;
-  hint: string;
+  hint?: string;
 }) {
   return (
     <button
@@ -2367,7 +2356,7 @@ function ScopeCard({
       )}
     >
       <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </button>
   );
 }

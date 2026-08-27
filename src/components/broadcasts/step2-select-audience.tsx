@@ -48,35 +48,30 @@ interface Step2Props {
   onEstimatedCountChange?: (n: number | null) => void;
 }
 
-// Labels/descriptions are i18n keys resolved with t() at render time.
+// Labels are i18n keys resolved with t() at render time.
 const audienceOptions: {
   type: AudienceType;
   label: string;
-  description: string;
   icon: typeof Users;
 }[] = [
   {
     type: 'all',
     label: 'broadcasts.audienceAllLabel',
-    description: 'broadcasts.audienceAllDesc',
     icon: Users,
   },
   {
     type: 'tags',
     label: 'broadcasts.audienceTagsLabel',
-    description: 'broadcasts.audienceTagsDesc',
     icon: Tags,
   },
   {
     type: 'custom_field',
     label: 'broadcasts.audienceCustomFieldLabel',
-    description: 'broadcasts.audienceCustomFieldDesc',
     icon: Filter,
   },
   {
     type: 'csv',
     label: 'broadcasts.audienceCsvLabel',
-    description: 'broadcasts.audienceCsvDesc',
     icon: Upload,
   },
 ];
@@ -329,7 +324,7 @@ export function Step2SelectAudience({
                     option.type === 'csv' ? audience.csvContacts : undefined,
                 })
               }
-              className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+              className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
                 isSelected
                   ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                   : 'border-border bg-card/50 hover:border-foreground/30'
@@ -344,12 +339,7 @@ export function Step2SelectAudience({
               >
                 <Icon className="h-4 w-4" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">{t(option.label)}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {t(option.description)}
-                </p>
-              </div>
+              <p className="text-sm font-medium text-foreground">{t(option.label)}</p>
             </button>
           );
         })}

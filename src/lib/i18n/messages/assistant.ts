@@ -8,8 +8,8 @@ export const assistant = {
   createAgent: { es: "Crear asistente", en: "Create assistant" },
   emptyTitle: { es: "Tu asistente 24/7", en: "Your 24/7 assistant" },
   emptyDescription: {
-    es: "Configura un agente que responde en WhatsApp, Instagram, Messenger, Gmail u Outlook con el contexto completo de cada conversación.",
-    en: "Set up an agent that replies on WhatsApp, Instagram, Messenger, Gmail, or Outlook with the full context of every conversation.",
+    es: "Responde en todos tus canales con el contexto de cada conversación.",
+    en: "Replies across every channel with the context of each conversation.",
   },
 
   // Card status + actions
@@ -86,12 +86,7 @@ export const assistant = {
     en: "Pick it and we'll build the rest (name, tone, persona, and knowledge). You can assign more than one.",
   },
   wholeCatalog: { es: "Todo el catálogo", en: "Whole catalog" },
-  wholeCatalogHint: {
-    es: "Todos los productos sincronizados de Shopify.",
-    en: "All products synced from Shopify.",
-  },
   someProducts: { es: "Solo algunos", en: "Only some" },
-  someProductsHint: { es: "Elige los productos abajo.", en: "Choose the products below." },
   searchProduct: { es: "Buscar producto…", en: "Search product…" },
   noProductsYet: {
     es: "Todavía no tienes productos. Crea uno y el asistente aprenderá de él.",
@@ -146,8 +141,8 @@ export const assistant = {
   // Editor: business tab — persona + knowledge
   personaTitle: { es: "Cómo se presenta y actúa", en: "How it introduces itself and acts" },
   personaHint: {
-    es: "System prompt del asistente. Edítalo solo para afinar reglas o tono.",
-    en: "The assistant's system prompt. Edit it only to fine-tune rules or tone.",
+    es: "Edítalo solo para afinar reglas o tono.",
+    en: "Edit it only to fine-tune rules or tone.",
   },
   editAdvanced: { es: "Editar avanzado", en: "Advanced edit" },
   personaEmpty: {
@@ -184,12 +179,7 @@ export const assistant = {
 
   // ── Editor: reach tab ──────────────────────────────────────
   channelsFieldLabel: { es: "¿En qué canales responde?", en: "Which channels does it reply on?" },
-  allChannelsHint: {
-    es: "Vale para todos los canales conectados.",
-    en: "Applies to every connected channel.",
-  },
   someChannels: { es: "Solo algunos", en: "Only some" },
-  someChannelsHint: { es: "Elige los canales abajo.", en: "Choose the channels below." },
   channelsRequired: {
     es: "Elige al menos un canal.",
     en: "Choose at least one channel.",
@@ -262,10 +252,6 @@ export const assistant = {
 
   // ── Editor: advanced tab ───────────────────────────────────
   responseBehaviorTitle: { es: "Comportamiento de respuesta", en: "Response behavior" },
-  responseBehaviorHint: {
-    es: "Cómo entrega la respuesta el asistente y cuánto espera antes de hablar.",
-    en: "How the assistant delivers its reply and how long it waits before speaking.",
-  },
   autonomyLabel: { es: "Autonomía", en: "Autonomy" },
   autonomyAuto: { es: "Responde solo", en: "Replies on its own" },
   autonomyAutoHint: {
@@ -329,8 +315,8 @@ export const assistant = {
   },
   followupDelayLabel: { es: "Horas de espera", en: "Hours to wait" },
   followupDelayHelp: {
-    es: "Silencio del cliente antes del seguimiento. Máx. 23 h: Meta solo permite escribir dentro de las 24 h posteriores al último mensaje del cliente.",
-    en: "Customer silence before the follow-up. Max 23h: Meta only allows free messages within 24h of the customer's last message.",
+    es: "Máx. 23 h: Meta solo deja escribir dentro de las 24 h del último mensaje del cliente.",
+    en: "Max 23h: Meta only allows messages within 24h of the customer's last one.",
   },
   followupMaxLabel: { es: "Máximo de seguimientos", en: "Maximum follow-ups" },
   followupMaxHelp: {
@@ -371,16 +357,16 @@ export const assistant = {
   // Advanced: sales close
   salesCloseTitle: { es: "Cierre de ventas", en: "Sales closing" },
   salesCloseHint: {
-    es: "Si está activo, el asistente arma el pedido con el cliente, confirma los datos y lo crea en Shopify. Si no, deja el cierre a una persona del equipo.",
-    en: "When on, the assistant builds the order with the customer, confirms the details, and creates it in Shopify. Otherwise, it leaves the close to a team member.",
+    es: "Arma el pedido con el cliente y lo crea en Shopify. Apagado, el cierre queda para tu equipo.",
+    en: "Builds the order with the customer and creates it in Shopify. Off, the close is left to your team.",
   },
   connectShopifyFirst: {
     es: "Primero conecta Shopify para activar el cierre de ventas.",
     en: "Connect Shopify first to enable sales closing.",
   },
   salesCloseConnectPrompt: {
-    es: "Para que el asistente cree pedidos necesitas conectar Shopify. Hazlo aquí mismo sin salir de esta pantalla.",
-    en: "To let the assistant create orders, you need to connect Shopify. Do it right here without leaving this screen.",
+    es: "Para crear pedidos necesita Shopify conectado.",
+    en: "Creating orders needs Shopify connected.",
   },
   connect: { es: "Conectar", en: "Connect" },
   cancel: { es: "Cancelar", en: "Cancel" },
@@ -388,10 +374,6 @@ export const assistant = {
   linkingHint: {
     es: "Completa la conexión en la ventana emergente… se activa solo al terminar.",
     en: "Finish the connection in the pop-up… it turns on automatically when done.",
-  },
-  salesCloseActiveHint: {
-    es: "El asistente pregunta lo que falte (datos de envío, método de pago) y solo crea el pedido cuando el cliente confirma.",
-    en: "The assistant asks for whatever's missing (shipping details, payment method) and only creates the order once the customer confirms.",
   },
 
   // Advanced: API key

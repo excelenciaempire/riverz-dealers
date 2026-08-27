@@ -323,9 +323,6 @@ export function VoiceNumberCard() {
               )}
             </Button>
           </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            {t('voice.numberIsCallerId')}
-          </p>
         </div>
       ) : (
         <div className="mt-3 space-y-3">

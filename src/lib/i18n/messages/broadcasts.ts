@@ -54,10 +54,6 @@ export const broadcasts = {
 
   // ── Step 1: choose template ──
   step1Title: { es: "Elige una plantilla", en: "Choose a template" },
-  step1Subtitle: {
-    es: "Selecciona una plantilla de mensaje aprobada para tu difusión.",
-    en: "Select an approved message template for your broadcast.",
-  },
   noTemplates: { es: "No hay plantillas disponibles.", en: "No templates available." },
   noTemplatesHint: {
     es: "Primero crea una plantilla en Ajustes.",
@@ -71,25 +67,9 @@ export const broadcasts = {
   // ── Step 2: select audience ──
   step2Title: { es: "Selecciona la audiencia", en: "Select audience" },
   audienceAllLabel: { es: "Todos los contactos", en: "All contacts" },
-  audienceAllDesc: {
-    es: "Envía a todos los contactos de tu base de datos",
-    en: "Send to every contact in your database",
-  },
   audienceTagsLabel: { es: "Filtrar por etiquetas", en: "Filter by tags" },
-  audienceTagsDesc: {
-    es: "Apunta a contactos con etiquetas específicas",
-    en: "Target contacts with specific tags",
-  },
   audienceCustomFieldLabel: { es: "Campo personalizado", en: "Custom field" },
-  audienceCustomFieldDesc: {
-    es: "Filtra por el valor de un campo personalizado",
-    en: "Filter by a custom field value",
-  },
   audienceCsvLabel: { es: "Subir CSV", en: "Upload CSV" },
-  audienceCsvDesc: {
-    es: "Sube una lista de números de teléfono",
-    en: "Upload a list of phone numbers",
-  },
   operatorIs: { es: "es", en: "is" },
   operatorIsNot: { es: "no es", en: "is not" },
   operatorContains: { es: "contiene", en: "contains" },
@@ -114,8 +94,8 @@ export const broadcasts = {
   calculating: { es: "Calculando…", en: "Calculating…" },
   estimatedRecipients: { es: "destinatarios estimados", en: "estimated recipients" },
   selectAudienceTypeHint: {
-    es: "Selecciona un tipo de audiencia para ver la estimación.",
-    en: "Select an audience type to see the estimate.",
+    es: "Elige una audiencia.",
+    en: "Choose an audience.",
   },
   loadingSample: { es: "Cargando muestra…", en: "Loading sample…" },
   sampleRecipients: { es: "Muestra de quienes van a recibir", en: "Sample of who will receive it" },
@@ -353,19 +333,11 @@ export const broadcasts = {
   modeSchedule: { es: "Programar", en: "Schedule" },
   templateField: { es: "Plantilla", en: "Template" },
   noApprovedTemplates: { es: "Sin plantillas aprobadas.", en: "No approved templates." },
-  variableMappingHint: {
-    es: "Por cada variable, elige un campo del contacto o escribe un valor fijo.",
-    en: "For each variable, choose a contact field or enter a fixed value.",
-  },
   customFieldsGroup: { es: "Campos personalizados", en: "Custom fields" },
   calculatingRecipients: { es: "Calculando destinatarios…", en: "Calculating recipients…" },
   recipientsCount: { es: "{count} destinatarios", en: "{count} recipients" },
   estimatedCost: { es: "Costo estimado", en: "Estimated cost" },
   testSend: { es: "Envío de prueba", en: "Test send" },
-  testSendHint: {
-    es: "Envía la plantilla a un número antes de lanzar la campaña.",
-    en: "Send the template to a number before launching the campaign.",
-  },
   sendTest: { es: "Enviar prueba", en: "Send test" },
   openConversationPerRecipient: {
     es: "Abrir una conversación en la bandeja por cada destinatario",

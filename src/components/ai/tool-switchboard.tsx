@@ -105,6 +105,14 @@ export function ToolSwitchboard({
 
   const set = (key: string, mode: ToolMode) => onChange({ ...(tools ?? {}), [key]: mode });
 
+  // Qué significa "Aprobación" se decía en cada fila que estuviera en ese modo:
+  // la misma oración hasta diez veces en una pantalla. Va una sola vez, al pie,
+  // y sólo cuando hay al menos una herramienta que de verdad va a avisar.
+  const hayAprobacion = AGENT_TOOLBOX.some(
+    (spec) =>
+      !spec.proponeSolo && toolMode({ ...agent, tools }, spec.key) === 'aprobacion',
+  );
+
   return (
     <div className="space-y-5">
       {TOOL_GROUPS.map((g) => {
@@ -131,6 +139,11 @@ export function ToolSwitchboard({
           </div>
         );
       })}
+      {hayAprobacion && (
+        <p className="text-[11px] text-muted-foreground">
+          {t('operation.toolModeAprobacionHint')}
+        </p>
+      )}
     </div>
   );
 }
@@ -206,15 +219,11 @@ function Fila({
       )}
       {/* Con tope 0 la herramienta ni se le ofrece al agente, así que decirlo
           acá —donde está el número— es lo único que cierra el círculo. */}
-      {((falta && !conTope) ||
-        (modo === 'aprobacion' && !spec.proponeSolo) ||
-        !spec.modes.includes('auto')) && (
+      {((falta && !conTope) || !spec.modes.includes('auto')) && (
         <p className="mt-1.5 text-[11px] text-muted-foreground">
           {falta && !conTope
             ? t(`operation.${falta}`)
-            : !spec.modes.includes('auto')
-              ? t('operation.toolNoAutoHint')
-              : t('operation.toolModeAprobacionHint')}
+            : t('operation.toolNoAutoHint')}
         </p>
       )}
     </div>

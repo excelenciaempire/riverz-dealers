@@ -158,9 +158,6 @@ export function SetupChecklist() {
               ? t('dashboard.stepsToLive', { total: steps.length })
               : t('dashboard.stepsReady', { completed, total: steps.length })}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t('dashboard.followOrder')}
-          </p>
           {/* La única entrada al asistente de activación en toda la aplicación.
               Vive acá y no en el menú porque es de una sola vez: quien todavía
               tiene pasos pendientes es exactamente quien lo necesita, y el

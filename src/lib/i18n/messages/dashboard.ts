@@ -55,8 +55,8 @@ export const dashboard = {
   },
   attrAssistedTitle: { es: "Influidas", en: "Assisted" },
   attrAssistedHelp: {
-    es: "Hablaron con Riverz en las 72 h previas y después compraron. No prueba nada: la venta pudo traerla un anuncio. No suma a la cifra de arriba.",
-    en: "They talked to Riverz within 72h and then bought. Proves nothing — an ad may have driven the sale. Not added to the number above.",
+    es: "Hablaron con Riverz en las 72 h previas y después compraron. No suma a la cifra de arriba.",
+    en: "They talked to Riverz within 72h and then bought. Not added to the number above.",
   },
   attrFromAd: { es: "vino de un anuncio", en: "came from an ad" },
 
@@ -206,8 +206,8 @@ export const dashboard = {
   stepConnectChannelCta: { es: "Conectar canal", en: "Connect channel" },
   stepCreateProduct: { es: "Crea tu producto", en: "Create your product" },
   stepCreateProductDesc: {
-    es: "Funciona sin Shopify. Conectar Shopify es opcional y mejora al asistente.",
-    en: "Works without Shopify. Connecting Shopify is optional and makes the assistant better.",
+    es: "Funciona sin Shopify. Conectarlo es opcional.",
+    en: "Works without Shopify. Connecting it is optional.",
   },
   stepCreateProductCta: { es: "Crear producto", en: "Create product" },
   stepActivateAssistant: { es: "Activa tu asistente de IA", en: "Activate your AI assistant" },
@@ -218,8 +218,8 @@ export const dashboard = {
   stepActivateAssistantCta: { es: "Activar asistente", en: "Activate assistant" },
   stepFirstReply: { es: "Comprueba que contesta", en: "Check that it replies" },
   stepFirstReplyDesc: {
-    es: "Escríbele desde «Probar» o desde tu propio WhatsApp. Hasta que conteste una vez, no sabes si funciona.",
-    en: "Message it from «Test» or from your own WhatsApp. Until it answers once, you don't know it works.",
+    es: "Escríbele desde «Probar» o desde tu propio WhatsApp.",
+    en: "Message it from «Test» or from your own WhatsApp.",
   },
   stepFirstReplyCta: { es: "Probar el asistente", en: "Test the assistant" },
 
@@ -236,7 +236,6 @@ export const dashboard = {
   // se agregue mañana lo vuelve a desincronizar.
   stepsToLive: { es: "{total} pasos para salir en vivo", en: "{total} steps to go live" },
   stepsReady: { es: "{completed} de {total} pasos listos", en: "{completed} of {total} steps done" },
-  followOrder: { es: "Sigue el orden.", en: "Follow the order." },
   refreshStatus: { es: "Actualizar estado", en: "Refresh status" },
   hideChecklist: { es: "Ocultar", en: "Hide" },
   done: { es: "Listo", en: "Done" },

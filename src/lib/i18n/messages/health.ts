@@ -81,7 +81,7 @@ export const health: Namespace = {
     en: "No orders in this range can be traced back to a Riverz message yet.",
   },
   revenueDisclaimer: {
-    es: "Con qué habló cada comprador en las 72 h previas. No prueba que la venta sea de Riverz: eso se cuenta aparte, en «Ventas por Riverz». Un pedido puede aparecer en varias filas; el total lo cuenta una vez.",
-    en: "What each buyer engaged with in the previous 72h. It doesn't prove the sale was Riverz's — that's counted separately under \"Sales from Riverz\". One order can appear in several rows; the total counts it once.",
+    es: "Con qué habló cada comprador en las 72 h previas. Un pedido puede aparecer en varias filas; el total lo cuenta una vez.",
+    en: "What each buyer engaged with in the previous 72h. One order can appear in several rows; the total counts it once.",
   },
 };

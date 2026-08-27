@@ -330,10 +330,12 @@ export function VoiceSettings({
           {/* Probar la llamada de verdad, sin salir del editor. */}
           {workspaceId && (
             <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-sm font-medium text-foreground">{t('voice.testCall')}</p>
-              <p className="mb-2 text-xs text-muted-foreground">
-                {agentId ? t('voice.testCallHint') : t('voice.testCallSaveFirst')}
-              </p>
+              <p className="mb-2 text-sm font-medium text-foreground">{t('voice.testCall')}</p>
+              {!agentId && (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {t('voice.testCallSaveFirst')}
+                </p>
+              )}
               <div className="flex gap-2">
                 <Input
                   type="tel"
@@ -364,7 +366,6 @@ export function VoiceSettings({
           {/* Voice picker */}
           <div>
             <p className="mb-1 text-sm font-medium text-foreground">{t('voice.voiceLabel')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.voicePickHint')}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {CURATED_VOICES.map((v) => {
                 const selected = value.voice_id === v.voice_id;

@@ -127,7 +127,6 @@ export function VoiceCard({ onSaved }: { onSaved?: () => void }) {
       <div className="mt-3 space-y-1">
         <Toggle
           label={t('voice.inboundEnabled')}
-          hint={t('voice.inboundEnabledHint')}
           checked={!!cfg.inbound_enabled}
           onChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
         />
@@ -169,7 +168,7 @@ export function VoiceCard({ onSaved }: { onSaved?: () => void }) {
             }}
           />
         </Field>
-        <Field label={t('voice.transferNumber')} hint={t('voice.transferNumberHint')}>
+        <Field label={t('voice.transferNumber')}>
           <Input
             value={cfg.transfer_number ?? ''}
             onChange={(e) => setCfg({ ...cfg, transfer_number: e.target.value })}

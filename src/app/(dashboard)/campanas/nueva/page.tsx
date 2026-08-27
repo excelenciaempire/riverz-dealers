@@ -602,9 +602,6 @@ export default function NewBroadcastPage() {
 
             {templateVars.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
-                <p className="mb-2 text-xs text-muted-foreground">
-                  {t('broadcasts.variableMappingHint')}
-                </p>
                 <div className="space-y-2">
                   {templateVars.map((v) => {
                     const mapped = variableMapping[v] ?? '';
@@ -682,9 +679,6 @@ export default function NewBroadcastPage() {
 
             <div className="rounded-xl border border-border bg-muted/20 p-4">
               <p className="text-sm font-medium text-foreground">{t('broadcasts.testSend')}</p>
-              <p className="mb-2 text-xs text-muted-foreground">
-                {t('broadcasts.testSendHint')}
-              </p>
               <div className="flex flex-wrap gap-2">
                 <Input
                   placeholder="+57 300 1234567"

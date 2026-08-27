@@ -101,12 +101,7 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step1Title')}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('broadcasts.step1Subtitle')}
-        </p>
-      </div>
+      <h2 className="text-lg font-semibold text-foreground">{t('broadcasts.step1Title')}</h2>
 
       {templates.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-border bg-card/50">

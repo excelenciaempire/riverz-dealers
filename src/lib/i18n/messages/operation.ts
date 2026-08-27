@@ -210,7 +210,7 @@ export const operation = {
   },
   toolNeedsVoz: { es: "Necesita llamadas activadas", en: "Needs calling enabled" },
   toolNoAutoHint: {
-    es: "No se puede deshacer, así que siempre pasa por vos.",
+    es: "No se puede deshacer, así que siempre pasa por ti.",
     en: "It cannot be undone, so it always goes through you.",
   },
 
@@ -241,18 +241,18 @@ export const operation = {
   },
   toolCrearPedido: { es: "Crear el pedido", en: "Create the order" },
   toolCrearPedidoHint: {
-    es: "Lo arma y lo crea en tu tienda. En Tiendanube y WooCommerce es además la forma de mandarla a pagar: devuelve el enlace de pago.",
-    en: "Builds it and creates it in your store. On Tiendanube and WooCommerce it is also how you send them to pay: it returns the payment link.",
+    es: "Lo arma y lo crea en tu tienda. En Tiendanube y WooCommerce devuelve además el enlace de pago.",
+    en: "Builds it and creates it in your store. On Tiendanube and WooCommerce it also returns the payment link.",
   },
   toolLookupOrder: { es: "Consultar un pedido", en: "Look up an order" },
   toolLookupOrderHint: {
-    es: "¿Dónde está mi pedido? es la pregunta más frecuente que recibe un comercio.",
-    en: "Where is my order? is the most common question any store gets.",
+    es: "Responde «¿dónde está mi pedido?» con el estado y la guía.",
+    en: "Answers “where is my order?” with the status and tracking.",
   },
   toolRegistrarPago: { es: "Dar por pagado", en: "Mark as paid" },
   toolRegistrarPagoHint: {
-    es: "Cuando manda el comprobante de una transferencia y le cortan los recordatorios.",
-    en: "When they send a transfer receipt and the reminders stop.",
+    es: "Registra el comprobante de una transferencia y corta los recordatorios.",
+    en: "Logs a transfer receipt and stops the reminders.",
   },
   toolEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
   toolEditarPedidoHint: {
