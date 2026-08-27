@@ -168,10 +168,10 @@ function Hero() {
           limpio a cualquier ancho. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[48%] lg:block"
+        className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] lg:block"
         style={{
-          maskImage: "linear-gradient(to left, #000 55%, transparent)",
-          WebkitMaskImage: "linear-gradient(to left, #000 55%, transparent)",
+          maskImage: "linear-gradient(to left, #000 58%, transparent)",
+          WebkitMaskImage: "linear-gradient(to left, #000 58%, transparent)",
         }}
       >
         <Image
@@ -179,8 +179,8 @@ function Hero() {
           alt=""
           fill
           priority
-          sizes="48vw"
-          className="object-cover object-left"
+          sizes="44vw"
+          className="object-cover object-right"
         />
       </div>
 
@@ -202,7 +202,13 @@ function Hero() {
       {/* En pantalla chica la ilustración no le roba el titular: va debajo,
           de borde a borde. */}
       <div aria-hidden className="relative h-52 w-full overflow-hidden sm:h-64 lg:hidden">
-        <Image src="/portada-b/hero.jpg" alt="" fill sizes="100vw" className="object-cover" />
+        <Image
+          src="/portada-b/hero.jpg"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover object-right"
+        />
       </div>
     </section>
   );
