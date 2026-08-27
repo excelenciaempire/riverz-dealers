@@ -74,6 +74,15 @@ export const webchat = {
   },
   avatar: { es: "Imagen", en: "Image" },
   avatarPlaceholder: { es: "https://…", en: "https://…" },
+  quickReplies: { es: "Preguntas sugeridas", en: "Suggested questions" },
+  quickRepliesHint: {
+    es: "Hasta 4. Aparecen bajo el saludo y desaparecen cuando arranca la conversación.",
+    en: "Up to 4. They show under the greeting and disappear once the conversation starts.",
+  },
+  quickReplyPlaceholder: {
+    es: "¿Dónde está mi pedido?",
+    en: "Where is my order?",
+  },
 
   // ── Comportamiento ──
   behavior: { es: "Comportamiento", en: "Behavior" },

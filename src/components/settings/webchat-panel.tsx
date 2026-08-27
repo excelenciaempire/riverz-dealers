@@ -84,6 +84,7 @@ export function WebchatPanel() {
   const [instalando, setInstalando] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
+  const [quickDraft, setQuickDraft] = useState('');
   const [suggested, setSuggested] = useState<string[]>([]);
 
   useEffect(() => {
@@ -176,6 +177,14 @@ export function WebchatPanel() {
     if (!value) return;
     setDomainDraft('');
     save({ allowed_domains: [...domains, value] });
+  };
+
+  const sugeridas = cfg.quick_replies ?? [];
+  const addSugerida = () => {
+    const value = quickDraft.trim();
+    if (!value || sugeridas.length >= 4) return;
+    setQuickDraft('');
+    save({ quick_replies: [...sugeridas, value] });
   };
 
   if (loading) {
@@ -441,6 +450,55 @@ export function WebchatPanel() {
               onChange={(e) => setCfg({ ...cfg, greeting: e.target.value })}
               onBlur={(e) => save({ greeting: e.target.value })}
             />
+          </Field>
+        </div>
+
+        <div className="mt-3">
+          <Field label={t('webchat.quickReplies')}>
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              {t('webchat.quickRepliesHint')}
+            </p>
+            {sugeridas.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {sugeridas.map((q) => (
+                  <span
+                    key={q}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-foreground"
+                  >
+                    {q}
+                    <button
+                      type="button"
+                      aria-label={q}
+                      onClick={() => save({ quick_replies: sugeridas.filter((x) => x !== q) })}
+                      className="text-muted-foreground transition hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {/* El campo desaparece en el tope en vez de dejar escribir y
+                rechazar después: un botón que no hace nada se lee como roto. */}
+            {sugeridas.length < 4 ? (
+              <div className="flex gap-2">
+                <Input
+                  value={quickDraft}
+                  maxLength={60}
+                  placeholder={t('webchat.quickReplyPlaceholder')}
+                  onChange={(e) => setQuickDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addSugerida();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addSugerida} disabled={saving}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : null}
           </Field>
         </div>
 

@@ -10,7 +10,7 @@ import {
   webchatConfig,
 } from '@/lib/channels/webchat/connection-store';
 import { widgetKey } from '@/lib/channels/webchat/token';
-import { normalizeOrigin, WEBCHAT_DEFAULTS } from '@/lib/channels/webchat/config';
+import { normalizeOrigin, preguntasSugeridas, WEBCHAT_DEFAULTS } from '@/lib/channels/webchat/config';
 import { detectStoreDomains } from '@/lib/channels/webchat/domains';
 import { publicBaseUrl } from '@/lib/base-url';
 
@@ -109,6 +109,9 @@ export async function PUT(request: Request) {
   if (typeof body.ask_rating === 'boolean') patch.ask_rating = body.ask_rating;
   if (typeof body.offline_message === 'string') {
     patch.offline_message = body.offline_message.slice(0, 300);
+  }
+  if (body.quick_replies !== undefined) {
+    patch.quick_replies = preguntasSugeridas(body.quick_replies);
   }
   if (body.auto_open_seconds !== undefined) {
     // Acotado: menos de tres segundos es un pop-up encima de quien recién

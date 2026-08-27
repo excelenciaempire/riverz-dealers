@@ -1196,4 +1196,14 @@ export interface WebchatConfig {
   /** Qué dice cuando el agente está fuera de horario. Vacío = el texto
    *  genérico del canal. */
   offline_message?: string;
+  /**
+   * Preguntas sugeridas: hasta cuatro botones bajo el saludo.
+   *
+   * No son un adorno. Un chat vacío con un cursor parpadeando le pide al
+   * visitante que invente la pregunta, y la mayoría no la inventa: se va. Tres
+   * frases del propio comercio ("¿dónde está mi pedido?", "¿hacen envíos?")
+   * convierten el silencio en un clic, y de paso encauzan la conversación
+   * hacia lo que el agente sabe contestar.
+   */
+  quick_replies?: string[];
 }

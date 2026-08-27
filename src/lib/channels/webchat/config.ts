@@ -47,6 +47,25 @@ export interface WebchatSettings {
   locale: 'es' | 'en';
   /** Qué se muestra cuando el agente está fuera de horario. Vacío = nada. */
   offline_message: string;
+  /** Preguntas sugeridas bajo el saludo. Vacío = ninguna. */
+  quick_replies: string[];
+}
+
+/**
+ * Las preguntas sugeridas, acotadas.
+ *
+ * Se recorta al LEER además de al guardar, por lo mismo que
+ * `segundosDeApertura`: la configuración la escriben también el Operador, el
+ * MCP y las correcciones a mano, y ninguno de esos caminos pasa por el
+ * validador del panel. Cuatro es el tope porque a partir de ahí dejan de ser
+ * sugerencias y pasan a ser un menú, que es justo lo que un chat no es.
+ */
+export function preguntasSugeridas(valor: unknown): string[] {
+  if (!Array.isArray(valor)) return [];
+  const limpias = valor
+    .map((v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, 60) : ''))
+    .filter(Boolean);
+  return Array.from(new Set(limpias)).slice(0, 4);
 }
 
 /**
@@ -91,6 +110,7 @@ export function widgetSettings(
     // Sólo cuando de verdad está fuera de horario: mandarlo siempre y que el
     // chat decida sería contarle al visitante el horario del comercio.
     offline_message: extra?.offline ? (config.offline_message ?? '') : '',
+    quick_replies: preguntasSugeridas(config.quick_replies),
   };
 }
 

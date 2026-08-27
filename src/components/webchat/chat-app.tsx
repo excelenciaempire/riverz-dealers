@@ -39,6 +39,7 @@ interface Settings {
   ask_rating: boolean;
   locale: 'es' | 'en';
   offline_message: string;
+  quick_replies?: string[];
 }
 
 /**
@@ -375,11 +376,12 @@ export function ChatApp() {
   }, [messages, pending, waiting]);
 
   // ── Enviar ───────────────────────────────────────────────────
-  const send = useCallback(async () => {
-    const text = draft.trim();
+  /** Manda un texto. Lo usa el cuadro de escritura y también las preguntas
+   *  sugeridas, que son un mensaje del visitante como cualquier otro. */
+  const enviarTexto = useCallback(async (crudo: string) => {
+    const text = crudo.trim();
     if (!text || !session || expired) return;
     const clientMessageId = crypto.randomUUID();
-    setDraft('');
     // El mensaje aparece al instante: esperar el ida y vuelta hace sentir el
     // chat lento aunque el servidor conteste en 200 ms.
     setPending((prev) => [...prev, { id: clientMessageId, text }]);
@@ -423,7 +425,14 @@ export function ChatApp() {
       setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, failed: true } : p)));
       setWaiting(false);
     }
-  }, [draft, session, expired, poll]);
+  }, [session, expired, poll]);
+
+  const send = useCallback(() => {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft('');
+    void enviarTexto(text);
+  }, [draft, enviarTexto]);
 
   /** El visitante adjunta una foto o un comprobante. */
   const adjuntar = useCallback(
@@ -612,6 +621,26 @@ export function ChatApp() {
             <Autor nombre={settings.brand_name || T.equipo} ia T={T} />
             <Bubble side="in">{settings.greeting}</Bubble>
           </>
+        ) : null}
+
+        {/* Preguntas sugeridas. Un chat vacío con un cursor parpadeando le
+            pide a la persona que invente la pregunta, y la mayoría no la
+            inventa: se va. Desaparecen apenas hay conversación —son un
+            arranque, no un menú— y lo que mandan es un mensaje normal. */}
+        {timeline.length === 0 && !needsEmail && (settings?.quick_replies?.length ?? 0) > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {settings!.quick_replies!.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => void enviarTexto(q)}
+                className="rounded-full border px-3 py-1.5 text-xs transition hover:bg-neutral-50"
+                style={{ borderColor: color, color: '#374151' }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {timeline.map((m, i) => {
