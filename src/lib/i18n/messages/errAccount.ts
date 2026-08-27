@@ -135,6 +135,13 @@ export const errAccount = {
     es: "API key inválida",
     en: "Invalid API key",
   },
+  // El ID del píxel es sólo números. Sin esta comprobación, quien pega el
+  // NOMBRE del píxel guarda algo que nunca va a recibir una venta, y el fallo
+  // no se ve hasta que alguien pregunta por qué no llegan las conversiones.
+  metaPixelIdInvalid: {
+    es: "El ID del píxel son sólo números. Cópialo del Administrador de eventos de Meta.",
+    en: "The pixel ID is digits only. Copy it from Meta Events Manager.",
+  },
   mpTokenInvalid: {
     es: "Mercado Pago rechazó ese token. Usa el Access Token de producción (empieza con APP_USR-).",
     en: "Mercado Pago rejected that token. Use the production Access Token (it starts with APP_USR-).",

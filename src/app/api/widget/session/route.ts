@@ -85,12 +85,35 @@ export async function POST(request: Request) {
     return limited;
   }
 
+  /**
+   * Las señales de atribución, acotadas.
+   *
+   * Llegan desde el navegador, así que son texto de afuera: se recortan a lo
+   * que Meta emite de verdad (`fb.1.<ms>.<valor>`) y se descarta cualquier otra
+   * cosa. Sin esto, cualquiera podría inflar el token —que viaja en cada
+   * pedido— con kilobytes de basura firmada por nosotros.
+   */
+  const recorte = (m: { fbp?: unknown; fbc?: unknown; url?: unknown } | undefined) => {
+    if (!m) return undefined;
+    const corto = (v: unknown, max: number) =>
+      typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined;
+    const out: { fbp?: string; fbc?: string; url?: string } = {};
+    const fbp = corto(m.fbp, 100);
+    const fbc = corto(m.fbc, 200);
+    const url = corto(m.url, 300);
+    if (fbp) out.fbp = fbp;
+    if (fbc) out.fbc = fbc;
+    if (url) out.url = url;
+    return Object.keys(out).length ? out : undefined;
+  };
+
   const body = (await request.json().catch(() => null)) as {
     k?: string;
     visitorId?: string;
     visitorProof?: string;
     page?: { url?: string; title?: string };
     locale?: string;
+    marketing?: { fbp?: unknown; fbc?: unknown; url?: unknown };
   } | null;
   if (!body?.k) return deny(400, 'bad_request');
 
@@ -133,6 +156,10 @@ export async function POST(request: Request) {
     workspaceId,
     visitorId,
     origin: normalizeOrigin(origin),
+    // Las señales de atribución que el cargador leyó en la tienda. Se acotan
+    // acá: son cookies de un tercero y no hay motivo para guardar más largo de
+    // lo que Meta emite.
+    mk: recorte(body.marketing),
   });
 
   const { data: workspace } = await supabaseAdmin()

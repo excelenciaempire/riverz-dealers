@@ -33,6 +33,23 @@ export const settings = {
   backToSettings: { es: "Volver a Ajustes", en: "Back to Settings" },
   configuration: { es: "Configuración", en: "Configuration" },
 
+  // Píxel de Meta. La descripción dice el PROBLEMA y no la tecnología: quien
+  // vende contra-entrega no busca "API de Conversiones", busca por qué sus
+  // ventas no aparecen en el administrador de anuncios.
+  metaPixelTitle: { es: "Píxel de Meta", en: "Meta Pixel" },
+  metaPixelDescription: {
+    es: "Las ventas que cierra el agente no pasan por el checkout, así que Meta no las ve. Con esto se las contamos y tus campañas optimizan con datos reales.",
+    en: "Sales the agent closes never reach the checkout, so Meta can't see them. This reports them, and your campaigns optimize on real data.",
+  },
+  metaPixelIdPlaceholder: { es: "ID del píxel", en: "Pixel ID" },
+  metaPixelTokenPlaceholder: {
+    es: "Token de la API de Conversiones",
+    en: "Conversions API access token",
+  },
+  metaPixelConnected: { es: "Píxel conectado", en: "Pixel connected" },
+  metaPixelDisconnect: { es: "Desconectar el píxel", en: "Disconnect pixel" },
+  metaPixelDisconnected: { es: "Píxel desconectado", en: "Pixel disconnected" },
+
   // Klaviyo card
   klaviyoDescription: {
     es: "Tus contactos y lo que compran, en tu lista. Sus segmentos, aquí como etiquetas.",

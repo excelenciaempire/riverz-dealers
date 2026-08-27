@@ -107,6 +107,20 @@ export interface WebchatSession {
   origin: string;
   /** Vencimiento, epoch ms. */
   exp: number;
+  /**
+   * Las señales que Meta necesita para atribuir la venta a un anuncio.
+   *
+   * Viajan en el token y no en una tabla porque se leen ANTES de que exista la
+   * conversación —el widget las captura al abrir la sesión, en la página de la
+   * tienda— y se necesitan cuando llega el primer mensaje, que es cuando la
+   * conversación se crea. Guardarlas aparte obligaba a una tabla de paso y a
+   * una carrera entre las dos escrituras.
+   *
+   * No son un secreto: identifican al navegador de quien las trae. Van dentro
+   * de la firma igual, para que nadie pueda atribuirle su compra a la campaña
+   * de otro.
+   */
+  mk?: { fbp?: string; fbc?: string; url?: string };
 }
 
 /**
@@ -122,6 +136,9 @@ export function mintSession(
     visitorId: input.visitorId,
     origin: input.origin,
     exp: input.exp ?? Date.now() + SESSION_TTL_MS,
+    // Sólo si vinieron: un token con `mk: {}` en cada visita engorda todas las
+    // peticiones a cambio de nada.
+    ...(input.mk && Object.keys(input.mk).length > 0 ? { mk: input.mk } : {}),
   };
   const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
   return `${payload}.${sign(SESSION_DOMAIN, payload)}`;

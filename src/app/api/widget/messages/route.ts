@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { ingestInboundEvent } from '@/lib/channels/inbox-writer';
 import { requireSession } from '@/lib/channels/webchat/guard';
+import { clientIp } from '@/lib/i18n/detect';
 import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('widget.messages');
@@ -172,6 +173,26 @@ export async function POST(request: Request) {
       // reintentó y llegó igual.
       const conversation = await findConversation(session.workspaceId, session.visitorId);
       return NextResponse.json({ ok: true, conversation_id: conversation?.id ?? null });
+    }
+    // Las señales de atribución, en la conversación recién creada.
+    //
+    // Se sellan UNA vez (`is('marketing', null)`): la misma persona que vuelve
+    // en un mes por otro anuncio trae otro `_fbc`, y pisar el anterior le
+    // atribuiría la venta a la campaña equivocada. Va sin esperar: que Meta
+    // sepa de dónde vino no puede trabar un mensaje que ya está guardado.
+    if (session.mk) {
+      void supabaseAdmin()
+        .from('conversations')
+        .update({
+          marketing: {
+            ...session.mk,
+            ua: request.headers.get('user-agent')?.slice(0, 300) ?? null,
+            ip: clientIp(request.headers),
+          },
+        })
+        .eq('id', result.conversation.id)
+        .is('marketing', null)
+        .then(undefined, () => {});
     }
     return NextResponse.json({
       ok: true,

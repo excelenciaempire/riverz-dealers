@@ -238,6 +238,39 @@
    * página del comercio. Desde el iframe, que vive en nuestro dominio, esa
    * comprobación ya no dice nada.
    */
+  /** Una cookie de la tienda, o vacío. */
+  function cookie(nombre) {
+    var m = new RegExp('(?:^|;\\s*)' + nombre + '=([^;]*)').exec(document.cookie || '');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  /**
+   * Lo que Meta necesita para saber que esta venta salió de su anuncio.
+   *
+   * `_fbp` identifica al navegador y `_fbc` al clic en el anuncio. Sin ellos el
+   * evento de compra llega y no matchea con nadie: la venta se cuenta como
+   * orgánica y la campaña que la trajo se ve peor de lo que fue.
+   *
+   * Si la persona acaba de llegar de un anuncio, el `fbclid` está en la URL
+   * pero el píxel todavía puede no haber escrito `_fbc`. En ese caso se arma
+   * con el formato que Meta documenta. Lo que NO se hace nunca es inventar uno
+   * cuando no hubo clic: un `fbc` falso le atribuye la venta a un anuncio que
+   * nadie vio.
+   */
+  function senalesDeMarketing() {
+    var fbc = cookie('_fbc');
+    if (!fbc) {
+      var m = /[?&]fbclid=([^&#]+)/.exec(location.search || '');
+      if (m) fbc = 'fb.1.' + Date.now() + '.' + decodeURIComponent(m[1]);
+    }
+    var out = {};
+    var fbp = cookie('_fbp');
+    if (fbp) out.fbp = fbp;
+    if (fbc) out.fbc = fbc;
+    out.url = location.href;
+    return out;
+  }
+
   function mintSession() {
     var visitorId = storage(STORAGE_VISITOR);
     return fetch(BASE + '/api/widget/session', {
@@ -253,6 +286,10 @@
         visitorProof: storage(STORAGE_PROOF) || undefined,
         page: { url: location.href, title: document.title },
         locale: (navigator.language || 'es').slice(0, 2),
+        // Las señales que le permiten a Meta atribuir la venta a un anuncio.
+        // Se leen ACÁ y en ningún otro lado: son cookies de la tienda, y el
+        // iframe del chat vive en otro dominio, así que desde adentro no se ven.
+        marketing: senalesDeMarketing(),
       }),
     })
       .then(function (r) {

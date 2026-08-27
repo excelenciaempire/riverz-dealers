@@ -27,6 +27,7 @@ import { ShopifyCard } from "@/components/settings/shopify-card";
 import { StoreCard } from "@/components/settings/store-card";
 import { MercadoPagoCard } from "@/components/settings/mercadopago-card";
 import { KlaviyoCard } from "@/components/settings/klaviyo-card";
+import { MetaPixelCard } from "@/components/settings/meta-pixel-card";
 import { MercadoLibreConnect } from "@/components/settings/mercadolibre-connect";
 import { cn } from "@/lib/utils";
 
@@ -643,6 +644,7 @@ export function ChannelsPanel() {
         <StoreCard platform="tiendanube" />
         <StoreCard platform="woocommerce" />
         <MercadoPagoCard />
+        <MetaPixelCard />
         <KlaviyoCard />
       </ul>
     </div>

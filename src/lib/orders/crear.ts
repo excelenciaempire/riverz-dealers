@@ -11,6 +11,7 @@
  */
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
+import { contarLaVenta } from '@/lib/orders/contar-conversion'
 import {
   createShopifyOrder,
   type CreateOrderContext,
@@ -91,6 +92,26 @@ export async function crearPedidoConEspejo(
       console.error('[pedidos] creado en Shopify pero el espejo en Riverz falló:', err)
     }
 
+    // Un pedido creado por el agente no pasa por el checkout, así que el píxel
+    // del navegador no dispara: si no se cuenta acá, no se cuenta en ningún
+    // lado. Con el id de Shopify, que es el mismo que usaría el píxel — así
+    // Meta descarta el duplicado si además hubo checkout.
+    void contarLaVenta(db, {
+      workspaceId: espejo.workspaceId,
+      orderId: result.shopify_order_id,
+      conversationId: espejo.conversationId ?? null,
+      total: result.total_price,
+      currency: result.currency,
+      cliente: {
+        email: result.customer_email,
+        phone: result.customer_phone,
+        nombre: result.customer_name,
+        ciudad: (result.shipping_address as { city?: string } | null)?.city ?? null,
+        provincia: (result.shipping_address as { province?: string } | null)?.province ?? null,
+        pais: (result.shipping_address as { country?: string } | null)?.country ?? null,
+      },
+    })
+
     // El motor de Instagram lleva su propio libro de ventas atribuidas.
     if (espejo.channel === 'instagram' || espejo.channel === 'ig_comment') {
       await recordOrderAttribution(espejo.db ?? supabaseAdmin(), {
@@ -162,6 +183,25 @@ export async function crearPedidoLocalConEspejo(
   } catch (err) {
     console.error('[pedidos] creado en la tienda pero el espejo en Riverz falló:', err)
   }
+
+  // Y que Meta se entere. Sin esto, una venta de contra-entrega cerrada en el
+  // chat no existe para el algoritmo: no hay página de gracias donde dispare
+  // el píxel, así que la campaña que la trajo se ve peor de lo que fue.
+  void contarLaVenta(db, {
+    workspaceId: args.workspaceId,
+    orderId: res.external_id,
+    conversationId: espejo.conversationId ?? null,
+    total: res.total,
+    currency: res.currency,
+    cliente: {
+      email: args.cliente.email ?? null,
+      phone: args.cliente.phone ?? null,
+      nombre: args.cliente.name ?? null,
+      ciudad: args.cliente.address?.city ?? null,
+      provincia: args.cliente.address?.province ?? null,
+      pais: args.cliente.address?.country ?? null,
+    },
+  })
 
   return res
 }
