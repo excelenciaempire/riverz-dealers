@@ -83,13 +83,15 @@ export function Stage() {
   };
 
   return (
+    // Sin `overflow-hidden` en la sección: un ancestro que recorta convierte
+    // al `sticky` de adentro en un pegado a esa caja y la escena deja de
+    // clavarse a la pantalla. El recorte va en `.pl-scene-in`.
     <section
       ref={outer}
-      className="pl-stage pl-grain relative"
-      style={{ height: "300vh" }}
+      className="pl-stage pl-grain pl-scene relative"
       aria-label={t("landingV3.stageRuleLeft")}
     >
-      <div className="sticky top-0 flex h-[100svh] flex-col overflow-hidden">
+      <div className="pl-scene-in flex flex-col overflow-hidden">
         <div aria-hidden className="pl-floor" />
 
         <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-5 pt-6 pb-8 sm:pt-10">
@@ -112,11 +114,9 @@ export function Stage() {
                 {ACTS.map((a, i) => (
                   <li
                     key={a.title}
-                    className="border-t py-4 transition-opacity duration-500"
-                    style={{
-                      borderColor: "var(--pl-line-stage)",
-                      opacity: i === act ? 1 : 0.35,
-                    }}
+                    className="pl-act border-t py-4"
+                    data-on={i === act}
+                    style={{ borderColor: "var(--pl-line-stage)" }}
                   >
                     <button
                       type="button"
@@ -158,8 +158,8 @@ export function Stage() {
                   <div
                     key={a.title}
                     data-active={i === act}
+                    data-on={i === act}
                     className="pl-plank pl-panel w-[78vw] max-w-[440px] shrink-0 snap-center rounded-2xl"
-                    style={{ opacity: i === act ? 1 : 0.5 }}
                   >
                     <a.Panel />
                   </div>

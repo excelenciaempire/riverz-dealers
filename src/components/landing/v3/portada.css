@@ -182,12 +182,21 @@
   opacity: 0.5;
 }
 
-/* La mesa: los paneles de producto apoyados en un plano que se aleja. */
-.pl-table {
-  perspective: 1400px;
-  perspective-origin: 50% 30%;
+/* ── La escena ───────────────────────────────────────────
+   En pantalla grande la seccion se clava y los tres actos pasan al
+   scrollear. En el telefono NO: la escena entera no entra en 844 px, y
+   clavarla dejaba el contenido centrado en una caja mas chica que el —
+   recortado arriba y abajo, o sea invisible. Ahi la seccion fluye. */
+.pl-scene {
+  height: auto;
 }
 
+.pl-scene-in {
+  position: static;
+  height: auto;
+}
+
+/* La mesa: los paneles de producto apoyados en un plano que se aleja. */
 .pl-plank {
   transform: perspective(1400px) rotateX(14deg) rotateZ(-1.2deg);
   transition:
@@ -198,8 +207,32 @@
     0 0 90px -20px rgba(247, 255, 158, 0.22);
 }
 
-.pl-plank[data-active="true"] {
-  transform: perspective(1400px) rotateX(4deg) rotateZ(0deg) translateZ(60px);
+/* Apagar lo que no es el acto activo solo tiene sentido si hay un acto
+   activo, y eso lo elige el scroll de la escena clavada. Sin clavar, los
+   tres actos se leen enteros. */
+@media (min-width: 1024px) {
+  .pl-scene {
+    height: 300vh;
+  }
+  .pl-scene-in {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+  }
+  .pl-act[data-on="false"] {
+    opacity: 0.35;
+  }
+  .pl-plank[data-on="false"] {
+    opacity: 0.5;
+  }
+  .pl-plank[data-active="true"] {
+    transform: perspective(1400px) rotateX(4deg) rotateZ(0deg) translateZ(60px);
+  }
+}
+
+.pl-act,
+.pl-plank {
+  transition: opacity 0.6s ease;
 }
 
 /* ── Superficie estable para las vistas previas reutilizadas ──
@@ -282,6 +315,13 @@
 
 .pl-veil > span {
   display: block;
+}
+
+/* El recorte es la ventana por la que sube el renglon, asi que solo tiene
+   sentido mientras sube. Dejandolo puesto, con interlinea 0,88 le cortaba los
+   ascendentes y descendentes al titular para siempre — en el telefono, donde
+   el cuerpo cae a 46 px, quedaba ilegible. */
+.pl-veil[data-lit] > span {
   overflow: hidden;
 }
 
