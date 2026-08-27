@@ -490,6 +490,17 @@ function Plan({
         {t('operation.planPaused')}
       </p>
 
+      {/* Las reglas del comercio, antes de montar. Sin ellas se monta con los
+          mínimos seguros —que es correcto, pero le deja el agente sin poder
+          hacer casi nada— y el comercio no se entera de que había algo que
+          decir. */}
+      <Link
+        href="/operacion/pliego"
+        className="mt-3 block text-sm text-primary transition-colors hover:underline"
+      >
+        {t('operation.motorRevisarReglas')}
+      </Link>
+
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="mt-5 flex items-center justify-between">

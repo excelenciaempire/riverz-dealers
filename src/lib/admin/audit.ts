@@ -46,6 +46,9 @@ export type AdminAction =
   // comercio afuera del producto— así que se audita como todo lo demás.
   | 'update.workspace_suspend'
   | 'update.workspace_resume'
+  // El otro interruptor: deja al comercio mudo hacia afuera, pero con panel.
+  | 'update.workspace_motor_on'
+  | 'update.workspace_motor_off'
   // Descarga de recursos que el equipo entrega a un comercio. No lleva
   // datos de nadie, pero queda registrada igual: es una salida de archivo
   // desde el panel y conviene poder decir quién la pidió.

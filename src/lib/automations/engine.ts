@@ -16,7 +16,7 @@ import type {
   VoiceCallType,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
-import { isWorkspaceSuspended } from '@/lib/workspaces/suspension'
+import { motorApagado } from '@/lib/workspaces/motor'
 import { enqueueCall } from '@/lib/voice/queue'
 import { blockerCodeFromReason, VOICE_BLOCKED_KEY } from '@/lib/voice/labels'
 import { translate } from '@/lib/i18n/translate'
@@ -87,10 +87,10 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
   try {
     const db = supabaseAdmin()
 
-    // Cuenta suspendida (cobro manual, ver lib/workspaces/suspension): no
+    // Motor apagado —suspendida por cobro, o esperando aprobación—: no
     // sale ni un mensaje más. Se corta acá arriba, antes de leer nada, para
     // que ningún camino nuevo se olvide de preguntarlo.
-    if (await isWorkspaceSuspended(db, input.workspaceId)) return
+    if (await motorApagado(db, input.workspaceId)) return
 
     const { data: automations, error } = await db
       .from('automations')

@@ -33,6 +33,7 @@ import { metrics } from "./metrics";
 import { nav } from "./nav";
 import { oauth } from "./oauth";
 import { operation } from "./operation";
+import { pliego } from "./pliego";
 import { products } from "./products";
 import { settings } from "./settings";
 import { system } from "./system";
@@ -71,6 +72,7 @@ const NAMESPACES: Record<string, Namespace> = {
   nav,
   oauth,
   operation,
+  pliego,
   products,
   settings,
   system,

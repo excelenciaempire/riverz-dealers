@@ -157,6 +157,8 @@ export interface WorkspaceDetail {
     suspended_at: string | null;
     /** Nota interna del equipo. No se le muestra al comercio. */
     suspended_reason: string | null;
+    /** Motor: NULL = anda. Muda hacia afuera pero con panel. Ver lib/workspaces/motor. */
+    motor_apagado_at: string | null;
   };
   owner: { email: string | null; full_name: string | null } | null;
   members: Array<{
@@ -235,13 +237,30 @@ export async function getWorkspaceDetail(
   // vez al UUID y el resto de las subconsultas (por workspace_id) usan ese.
   const id = await resolveShortId(client, 'workspaces', rawId);
 
-  const { data: ws } = await client
-    .from('workspaces')
-    .select(
-      'id, name, slug, timezone, created_at, deleted_at, owner_id, suspended_at, suspended_reason',
-    )
-    .eq('id', id)
-    .maybeSingle();
+  // `motor_apagado_at` llega con la 196. Render despliega el código al
+  // empujar y las migraciones se aplican a mano después, así que hay una
+  // ventana en la que la columna no existe todavía — y pedirla sin más deja
+  // esta pantalla en 404 justo cuando el equipo la necesita para mirar qué
+  // pasó. Se pide, y si no está se vuelve a pedir sin ella.
+  const COLUMNAS =
+    'id, name, slug, timezone, created_at, deleted_at, owner_id, suspended_at, suspended_reason';
+  let ws: unknown = null;
+  {
+    const conMotor = await client
+      .from('workspaces')
+      .select(`${COLUMNAS}, motor_apagado_at`)
+      .eq('id', id)
+      .maybeSingle();
+    ws = conMotor.error
+      ? (
+          await client
+            .from('workspaces')
+            .select(COLUMNAS)
+            .eq('id', id)
+            .maybeSingle()
+        ).data
+      : conMotor.data;
+  }
   if (!ws) return null;
   const workspace = ws as WorkspaceDetail['workspace'];
 

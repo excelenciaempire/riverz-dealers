@@ -23,6 +23,7 @@ import {
   type Tone,
 } from "../../_components/admin-ui";
 import { SuspensionSwitch } from "../../_components/suspension-switch";
+import { MotorSwitch } from "../../_components/motor-switch";
 
 /** Ficha de un comercio: quién es, qué tiene conectado y qué le está fallando. */
 export default function AdminWorkspaceDetailPage({
@@ -69,8 +70,17 @@ export default function AdminWorkspaceDetailPage({
           .join(" · ")}
       />
 
-      {/* El interruptor del cobro manual. Arriba de todo porque es lo único
-          de esta pantalla que cambia lo que el comercio puede hacer. */}
+      {/* Los dos interruptores, arriba de todo: son lo único de esta pantalla
+          que cambia lo que el comercio puede hacer. El motor lo deja mudo pero
+          adentro; suspender además lo saca. */}
+      <Panel title={t("admin.motorTitle")}>
+        <MotorSwitch
+          workspaceId={workspace.id}
+          motorApagadoAt={workspace.motor_apagado_at ?? null}
+          onDone={reload}
+        />
+      </Panel>
+
       <Panel title={t("admin.suspendTitle")}>
         <SuspensionSwitch
           workspaceId={workspace.id}

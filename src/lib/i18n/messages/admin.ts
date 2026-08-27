@@ -771,4 +771,21 @@ export const admin = {
     es: "Suspender saca al comercio del panel y frena sus envíos automaticos. No borra nada: lo que llegue se sigue guardando.",
     en: "Suspending locks the merchant out of the dashboard and stops their automated sends. Nothing is deleted: incoming data is still stored.",
   },
+
+  // El motor: muda hacia afuera, pero con panel. El otro interruptor.
+  motorTitle: { es: "Motor de la cuenta", en: "Account engine" },
+  motorOn: { es: "Encendido: la cuenta opera.", en: "On: the account is operating." },
+  motorOffSince: {
+    es: "Apagado desde el {date}. No sale ningún mensaje.",
+    en: "Off since {date}. No messages are going out.",
+  },
+  motorOnCta: { es: "Encender", en: "Turn on" },
+  motorOffCta: { es: "Apagar", en: "Turn off" },
+  motorOnDone: { es: "Motor encendido", en: "Engine on" },
+  motorOffDone: { es: "Motor apagado", en: "Engine off" },
+  motorError: { es: "No se pudo cambiar", en: "Couldn't change it" },
+  motorHint: {
+    es: "Apagar frena todo lo que sale —respuestas, automatizaciones, difusión y llamadas— pero el comercio sigue entrando al panel. Se usa mientras revisa lo que le montamos.",
+    en: "Turning it off stops everything outbound — replies, automations, broadcasts and calls — while the merchant still gets into the dashboard. Used while they review what we set up.",
+  },
 } satisfies Namespace;

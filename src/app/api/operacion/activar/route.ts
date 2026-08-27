@@ -10,6 +10,7 @@ import { PLAYBOOKS, planFor, playbook } from '@/lib/operator/playbooks'
 import { roleTemplate } from '@/lib/ai/role-templates'
 import { getLocale } from '@/lib/i18n/server'
 import type { Locale } from '@/lib/i18n/config'
+import { ponerMotor } from '@/lib/workspaces/motor'
 
 /**
  * La activación guiada: dónde quedó y qué se va a crear.
@@ -225,5 +226,17 @@ export async function POST(request: Request) {
       { onConflict: 'workspace_id' },
     )
 
-  return NextResponse.json({ ok: true, hechos })
+  // Recién montada, la cuenta queda muda hacia afuera hasta que alguien la
+  // mire. Los agentes y las automatizaciones ya nacen pausados uno por uno,
+  // pero eso obliga a encenderlos de a uno; el motor es el mismo permiso a
+  // nivel cuenta, y es lo que después se enciende con un solo botón.
+  //
+  // Sólo en la PRIMERA instalación (`completed_at` estaba vacío). Volver a
+  // pasar por el asistente en una cuenta que ya opera no puede dejarla muda:
+  // ahí adentro hay clientes esperando respuesta ahora mismo.
+  if (!s.completed_at) {
+    await ponerMotor(ctx.admin, ctx.workspaceId, false, ctx.userId).catch(() => {})
+  }
+
+  return NextResponse.json({ ok: true, hechos, motorApagado: !s.completed_at })
 }

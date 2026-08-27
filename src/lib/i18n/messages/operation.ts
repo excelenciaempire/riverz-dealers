@@ -482,4 +482,30 @@ export const operation = {
   statusFailed: { es: "Falló", en: "Failed" },
   riskReversible: { es: "Se puede deshacer", en: "Can be undone" },
   riskIrreversible: { es: "No se puede deshacer", en: "Cannot be undone" },
+
+  // El paso 4: la operación está montada y apagada, esperando que la aprueben.
+  motorTitulo: {
+    es: "Esto es lo que preparamos",
+    en: "This is what we set up",
+  },
+  motorBajada: {
+    es: "Todavía no le escribe a nadie. Revísalo y enciéndelo.",
+    en: "It isn't writing to anyone yet. Review it and turn it on.",
+  },
+  motorEncender: { es: "Aprobar y encender", en: "Approve and turn on" },
+  motorEncendiendo: { es: "Encendiendo…", en: "Turning on…" },
+  motorError: {
+    es: "No se pudo encender. Prueba de nuevo.",
+    en: "Couldn't turn it on. Try again.",
+  },
+  motorRevisarReglas: { es: "Revisar las reglas", en: "Review the rules" },
+  motorApagadoTitulo: { es: "Riverz está apagado", en: "Riverz is off" },
+  motorApagadoBajada: {
+    es: "No sale ningún mensaje. Puedes encenderlo cuando quieras.",
+    en: "No messages are going out. You can turn it on whenever you want.",
+  },
+  motorSuspendida: {
+    es: "La cuenta está suspendida. Escríbenos para reactivarla.",
+    en: "The account is suspended. Contact us to reactivate it.",
+  },
 } satisfies Namespace;

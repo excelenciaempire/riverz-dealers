@@ -27,6 +27,8 @@ import {
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { etiquetaDe } from '../etiquetas'
 import { cargarMapa, mapaComoTexto } from '../account-map'
+import { pliegoDeLaCuenta } from '@/lib/operacion/contexto'
+import { DEFAULT_LOCALE } from '@/lib/i18n/config'
 import type { EmitFn } from '../events'
 import { recortarResultado } from '../escribir'
 import { OPERATOR_CAPABILITIES } from '../capabilities'
@@ -432,15 +434,29 @@ async function manejarPlan(
  * la cuenta, que cambia por comercio: si fuera antes del corte, el caché no
  * acertaría nunca y nadie se enteraría, porque funcionar funciona igual.
  */
-/** Lo que hay en la cuenta, en texto. Vacío si no se pudo leer. */
+/**
+ * Lo que hay en la cuenta y lo que el comercio dejó dicho, en texto.
+ *
+ * Son dos cosas distintas y las dos hacen falta. El mapa dice QUÉ EXISTE
+ * —agentes, plantillas, automatizaciones, canales—; el pliego dice QUÉ SE
+ * PUEDE: hasta cuánto descuento, si se puede reembolsar, a qué hora se
+ * escribe. Con el mapa solo, el equipo sabe dónde está parado pero elige por su
+ * cuenta las decisiones que no le corresponden.
+ *
+ * Cualquiera de las dos puede fallar sin arrastrar a la otra: sin mapa el turno
+ * sigue y el equipo consulta lo que necesite; sin pliego, sigue con los mínimos
+ * seguros. Sin turno, no hay nada.
+ */
 export async function mapaDelTurno(ctx: CapabilityContext): Promise<string> {
-  try {
-    return mapaComoTexto(await cargarMapa(ctx.db, ctx.workspaceId))
-  } catch {
-    // Sin mapa el turno sigue: el equipo va a consultar lo que necesite. Sin
-    // turno, no hay nada.
-    return ''
-  }
+  const [mapa, pliego] = await Promise.all([
+    cargarMapa(ctx.db, ctx.workspaceId)
+      .then(mapaComoTexto)
+      .catch(() => ''),
+    pliegoDeLaCuenta(ctx.db, ctx.workspaceId, ctx.locale ?? DEFAULT_LOCALE).catch(
+      () => '',
+    ),
+  ])
+  return [mapa, pliego].filter(Boolean).join('\n\n')
 }
 
 function armarSystem(mapa: string, pedido: string): Anthropic.TextBlockParam[] {

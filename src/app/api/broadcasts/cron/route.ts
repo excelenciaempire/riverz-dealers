@@ -25,6 +25,7 @@ import { assertCronAuthAny } from '@/lib/auth/cron'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
+import { motorApagado } from '@/lib/workspaces/motor'
 import {
   assertWithinTierCap,
   resolveWhatsAppConnectionId,
@@ -220,6 +221,15 @@ async function sendOneBroadcast(
       console.warn(`[broadcast-cron] ${broadcastId}: ${msg}`)
       return
     }
+  }
+
+  // El motor de la cuenta manda sobre cualquier envío programado: suspendida
+  // por cobro, o esperando que el comercio apruebe la instalación, la difusión
+  // no sale. Queda pendiente a propósito —ni enviada ni fallida—: cuando la
+  // cuenta se enciende, la siguiente corrida la toma donde estaba.
+  if (await motorApagado(admin, workspaceScope)) {
+    console.warn(`[broadcast-cron] ${broadcastId}: motor apagado, queda pendiente`)
+    return
   }
 
   const recipients = allRecipients.filter((r) => {

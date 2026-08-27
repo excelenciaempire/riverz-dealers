@@ -18,6 +18,7 @@ import type {
   VoiceConnectionConfig,
 } from '@/types';
 import type { AiAgent } from '@/lib/ai/types';
+import { motorApagado } from '@/lib/workspaces/motor';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import {
   DEFAULT_CALLING_HOURS,
@@ -267,6 +268,10 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     }
     return { enqueued: false, reason };
   };
+
+  // La cuenta, antes que nada suyo: suspendida por cobro o con el motor
+  // apagado esperando aprobación, el teléfono no suena.
+  if (await motorApagado(db, input.workspaceId)) return blocked('motor_apagado');
 
   // ── Barreras, en orden de qué apaga qué ──
   if (!conn) return blocked('no_voice_connection');

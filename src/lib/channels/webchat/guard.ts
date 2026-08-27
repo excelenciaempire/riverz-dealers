@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { ChannelConnection, WebchatConfig } from '@/types';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { limitByKey, clientIp, rateLimitResponse } from '@/lib/rate-limit';
-import { isWorkspaceSuspended } from '@/lib/workspaces/suspension';
+import { motorApagado } from '@/lib/workspaces/motor';
 import { getFeatureFlags, isFeatureEnabled } from '@/lib/admin/feature-flags';
 import { originAllowed } from './config';
 import { getWebchatConnection, webchatConfig } from './connection-store';
@@ -97,7 +97,7 @@ export async function loadWebchat(
   if (!config.enabled) return notFound;
 
   const admin = supabaseAdmin();
-  if (await isWorkspaceSuspended(admin, workspaceId)) return notFound;
+  if (await motorApagado(admin, workspaceId)) return notFound;
 
   const flags = await getFeatureFlags(admin, workspaceId);
   if (!isFeatureEnabled(flags, 'webchat')) return notFound;
