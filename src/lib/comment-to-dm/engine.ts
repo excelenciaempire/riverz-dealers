@@ -5,7 +5,10 @@ import { getAdapter } from '@/lib/channels/registry';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
-import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
+import {
+  recordProactiveDm,
+  recordPublicCommentReply,
+} from '@/lib/instagram-agent/record-dm';
 import { composeDmText } from './rules';
 
 /**
@@ -158,6 +161,18 @@ export async function processCommentForDmRules(
       } satisfies OutboundText);
       publicReplyStatus = 'sent';
       publicReplyExternalId = res.externalMessageId ?? null;
+      // Que se vea YA en la bandeja. Meta no manda webhook por los comentarios
+      // de la propia cuenta, así que hasta ahora esta respuesta sólo aparecía
+      // cuando pasaba la conciliación, diez minutos más tarde.
+      await recordPublicCommentReply(db, {
+        workspaceId: ev.workspaceId,
+        commentContactId: ev.contact.id,
+        commentChannel: ev.channel,
+        text,
+        externalId: publicReplyExternalId,
+        origin: 'comment_rule',
+        originName: rule.name ?? null,
+      });
     } catch (err) {
       publicReplyStatus = 'failed';
       errMsg =
@@ -248,7 +263,9 @@ export async function processCommentForDmRules(
         commentChannel: ev.channel,
         connection: ev.connection,
         text: dmText,
-        commentContactId: ev.contact.id,
+        // Con respuesta pública publicada, el hilo del comentario ya la
+        // muestra: espejar encima el DM dejaba dos mensajes casi iguales.
+        commentContactId: publicReplyStatus === 'sent' ? null : ev.contact.id,
         origin: 'comment_rule',
         originName: rule.name ?? null,
       });

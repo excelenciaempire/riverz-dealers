@@ -887,46 +887,16 @@ export const settings = {
 
   // ── Comentario a DM (auto-DM on comments, migration 086) ──
   tabCommentToDm: { es: "Comentario a DM", en: "Comment to DM" },
-  c2dmTitle: { es: "Comentario a DM", en: "Comment to DM" },
-  c2dmDescription: {
-    es: "Responde en público a quien use una palabra clave y mándale un DM.",
-    en: "Publicly reply to anyone using a keyword and send them a DM.",
-  },
   c2dmNew: { es: "Nueva regla", en: "New rule" },
-  c2dmNoneYet: { es: "Aún no hay reglas", en: "No rules yet" },
-  c2dmNoneYetDesc: {
-    es: "Crea una regla para convertir comentarios en conversaciones por DM.",
-    en: "Create a rule to turn comments into DM conversations.",
-  },
-  c2dmCreateFirst: { es: "Crear primera regla", en: "Create first rule" },
-  c2dmChannelLabel: { es: "Canal", en: "Channel" },
   c2dmIgComment: { es: "Comentarios de Instagram", en: "Instagram comments" },
   c2dmFbComment: { es: "Comentarios de Facebook", en: "Facebook comments" },
-  c2dmPostIdLabel: { es: "ID del post (opcional)", en: "Post ID (optional)" },
-  c2dmPostIdHint: {
-    es: "Déjalo vacío para aplicar a cualquier post o anuncio del canal.",
-    en: "Leave empty to apply to any post or ad on this channel.",
-  },
   c2dmKeywordsLabel: { es: "Palabras clave", en: "Keywords" },
   c2dmKeywordsHint: {
-    es: "Separadas por coma. Vacío = cualquier comentario dispara la regla.",
-    en: "Comma-separated. Empty = any comment triggers the rule.",
+    es: "Separadas por coma. Vacío: cualquier comentario.",
+    en: "Comma-separated. Empty: any comment.",
   },
   c2dmKeywordsPlaceholder: { es: "precio, info, quiero", en: "price, info, want" },
   c2dmKeywordsAny: { es: "cualquier comentario", en: "any comment" },
-  c2dmMatchTypeLabel: { es: "Coincidencia", en: "Match" },
-  c2dmMatchContains: { es: "Contiene", en: "Contains" },
-  c2dmMatchExact: { es: "Exacta", en: "Exact" },
-  c2dmCaseSensitive: { es: "Distinguir mayúsculas", en: "Case sensitive" },
-  c2dmPublicReplyEnabled: { es: "Responder en público", en: "Reply publicly" },
-  c2dmPublicReplyTemplatesLabel: {
-    es: "Respuestas públicas (una por línea)",
-    en: "Public replies (one per line)",
-  },
-  c2dmPublicReplyHint: {
-    es: "Rotamos al azar entre estas respuestas para que se vea natural.",
-    en: "We rotate randomly between these so it looks natural.",
-  },
   c2dmDmMessageLabel: { es: "Mensaje del DM", en: "DM message" },
   c2dmDmMessagePlaceholder: {
     es: "¡Hola! Gracias por comentar 🙌 Te paso la info por aquí…",
@@ -938,13 +908,15 @@ export const settings = {
   },
   c2dmAttachmentLabel: { es: "Recurso (opcional)", en: "Resource (optional)" },
   c2dmAttachmentHint: {
-    es: "Enlace a una imagen, video o PDF: llega adjunto en el mismo DM.",
-    en: "Link to an image, video or PDF: it arrives attached in the same DM.",
+    es: "Imagen, video o PDF: llega adjunto en el DM.",
+    en: "Image, video or PDF: it arrives attached in the DM.",
   },
   c2dmButtonLabelLabel: { es: "Texto del enlace (opcional)", en: "Link text (optional)" },
   c2dmButtonUrlLabel: { es: "Enlace (opcional)", en: "Link URL (optional)" },
-  c2dmActiveLabel: { es: "Activa", en: "Active" },
   c2dmDmSentCount: { es: "{count} DM enviados", en: "{count} DMs sent" },
+  // Sólo aparece si los hay: una regla que dispara y nunca entrega se leía
+  // igual que una que nadie activó.
+  c2dmDmFailedCount: { es: "{count} sin entregar", en: "{count} undelivered" },
   c2dmCreated: { es: "Regla creada", en: "Rule created" },
   c2dmUpdated: { es: "Regla actualizada", en: "Rule updated" },
 
@@ -962,10 +934,13 @@ export const settings = {
   c2dmPostPlaceholder: { es: "Todos los posts", en: "All posts" },
   c2dmSectionWhen: { es: "Cuándo", en: "When" },
   c2dmSectionWhat: { es: "Qué mandas", en: "What you send" },
-  c2dmPublicRepliesLabel: { es: "Respuestas públicas", en: "Public replies" },
+  c2dmPublicRepliesLabel: {
+    es: "Respuesta pública (opcional)",
+    en: "Public reply (optional)",
+  },
   c2dmPublicRepliesHint: {
-    es: "Una por línea. Rotamos al azar.",
-    en: "One per line. We rotate at random.",
+    es: "Una por línea; rotamos al azar.",
+    en: "One per line; we rotate at random.",
   },
   c2dmRuleOptions: { es: "Opciones de la regla", en: "Rule options" },
   c2dmPreview: { es: "Así se ve", en: "How it looks" },

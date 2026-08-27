@@ -70,8 +70,15 @@ export function attachmentTypeFor(
   return 'file';
 }
 
-/** Una regla con cuántos DMs mandó, que es lo único que se deriva del log. */
-export type CommentRuleWithCount = CommentRule & { dm_sent_count: number };
+/**
+ * Una regla con lo que hizo: DMs entregados y DMs que Meta rechazó. Los fallos
+ * se cuentan aparte a propósito — una regla que dispara y nunca entrega se veía
+ * exactamente igual que una regla que nadie activó nunca.
+ */
+export type CommentRuleWithCount = CommentRule & {
+  dm_sent_count: number;
+  dm_failed_count: number;
+};
 
 /** Lo que llega de afuera: del formulario, del chat o del MCP. */
 export interface CommentRuleInput {
@@ -129,6 +136,11 @@ function nullIfBlank(value: unknown): string | null {
 }
 
 export function ruleFields(input: CommentRuleInput): CommentRuleFields {
+  // Sin ninguna respuesta escrita no hay nada que publicar: la regla se guarda
+  // como "solo DM" en vez de quedar encendida y no publicar nunca. El estado
+  // "publica en el comentario" con la caja vacía era una promesa vacía — la
+  // lista lo anunciaba y el motor lo saltaba en silencio.
+  const publicReplies = cleanStrings(input.public_reply_templates);
   return {
     name: (input.name ?? '').trim(),
     channel: input.channel as CommentRuleChannel,
@@ -136,8 +148,8 @@ export function ruleFields(input: CommentRuleInput): CommentRuleFields {
     keywords: cleanStrings(input.keywords),
     match_type: input.match_type === 'exact' ? 'exact' : 'contains',
     case_sensitive: Boolean(input.case_sensitive),
-    public_reply_enabled: input.public_reply_enabled ?? true,
-    public_reply_templates: cleanStrings(input.public_reply_templates),
+    public_reply_enabled: (input.public_reply_enabled ?? true) && publicReplies.length > 0,
+    public_reply_templates: publicReplies,
     dm_message: (input.dm_message ?? '').trim(),
     dm_button_label: nullIfBlank(input.dm_button_label),
     dm_button_url: nullIfBlank(input.dm_button_url),
@@ -198,19 +210,28 @@ export async function listRulesWithCounts(
   // era una consulta por fila de la tabla.
   const list = (data ?? []) as unknown as CommentRule[];
   const ruleIds = list.map((r) => r.id);
-  const counts: Record<string, number> = {};
+  const sent: Record<string, number> = {};
+  const failed: Record<string, number> = {};
   if (ruleIds.length > 0) {
     const { data: logs } = await db
       .from('comment_to_dm_log')
       .select('rule_id, dm_status')
       .in('rule_id', ruleIds)
-      .eq('dm_status', 'sent');
-    for (const row of (logs ?? []) as { rule_id: string }[]) {
-      counts[row.rule_id] = (counts[row.rule_id] ?? 0) + 1;
+      .in('dm_status', ['sent', 'failed']);
+    for (const row of (logs ?? []) as {
+      rule_id: string;
+      dm_status: string;
+    }[]) {
+      const bucket = row.dm_status === 'failed' ? failed : sent;
+      bucket[row.rule_id] = (bucket[row.rule_id] ?? 0) + 1;
     }
   }
   return {
-    rules: list.map((r) => ({ ...r, dm_sent_count: counts[r.id] ?? 0 })),
+    rules: list.map((r) => ({
+      ...r,
+      dm_sent_count: sent[r.id] ?? 0,
+      dm_failed_count: failed[r.id] ?? 0,
+    })),
     error: null,
   };
 }

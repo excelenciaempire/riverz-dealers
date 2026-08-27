@@ -166,11 +166,14 @@ export const igAgent = {
 
   // Estadísticas propias de Comentarios: las dos cosas que pasaron, sin
   // repartirlas por quién las hizo.
+  // Las dos cifras usan las MISMAS palabras que la pregunta "Dónde contesta":
+  // "Comentarios respondidos" daba 0 en el modo por defecto (solo privado),
+  // aunque cada DM fuera un comentario respondido.
   statCommentsAnswered: {
-    es: "Comentarios respondidos",
-    en: "Comments answered",
+    es: "En el comentario",
+    en: "On the comment",
   },
-  statDmsSent: { es: "DMs enviados", en: "DMs sent" },
+  statDmsSent: { es: "Por privado", en: "By DM" },
   statLastDays: { es: "Últimos {n} días", en: "Last {n} days" },
   researchedSub: { es: "{n} con perfil investigado", en: "{n} profiles researched" },
 
@@ -189,31 +192,20 @@ export const igAgent = {
     en: "Only people who want to buy",
   },
   audienceIntentHint: {
-    es: "Apágalo y contesta a todo el que pregunte algo.",
-    en: "Turn it off and it replies to anyone who asks something.",
-  },
-  publicReplyLabel: {
-    es: "Responder también en el comentario",
-    en: "Also reply on the comment",
-  },
-  publicReplyHint: {
-    es: "Una línea corta en el post; el precio y el código van en el DM.",
-    en: "A short line on the post; price and code go in the DM.",
+    es: "Apagado: contesta a todos.",
+    en: "Off: it replies to everyone.",
   },
   // Dónde contesta la IA un comentario (migración 177)
   replyModeLabel: { es: "Dónde contesta", en: "Where it replies" },
   replyMode_dm: { es: "Solo por privado", en: "Private message only" },
-  replyModeHint_dm: {
-    es: "Un DM a quien comentó; el post queda igual.",
-    en: "A DM to whoever commented; the post stays as is.",
-  },
+  replyModeHint_dm: { es: "", en: "" },
   replyMode_public_dm: {
     es: "En el comentario y por privado",
     en: "On the comment and by DM",
   },
   replyModeHint_public_dm: {
-    es: "Una línea en el post y la respuesta completa en el DM.",
-    en: "A line on the post and the full answer in the DM.",
+    es: "Una línea en el post; la respuesta completa en el DM.",
+    en: "A line on the post; the full answer in the DM.",
   },
   replyMode_public_smart: {
     es: "En el comentario, y por privado si hay oportunidad",
@@ -221,21 +213,15 @@ export const igAgent = {
   },
   replyModeHint_public_smart: {
     es: "Abre el privado si quiere comprar, pregunta por su pedido o reclama.",
-    en: "Opens the DM when they want to buy, ask about an order or complain.",
+    en: "Opens the DM if they want to buy, ask about an order or complain.",
   },
   replyMode_public: { es: "Solo en el comentario", en: "On the comment only" },
-  replyModeHint_public: {
-    es: "Nunca escribe al privado.",
-    en: "Never sends a DM.",
-  },
+  replyModeHint_public: { es: "", en: "" },
   facebookLabel: {
     es: "Contestar también Facebook",
     en: "Also reply on Facebook",
   },
-  facebookHint: {
-    es: "Igual que Instagram, pero por Messenger.",
-    en: "Same as Instagram, but through Messenger.",
-  },
+  facebookHint: { es: "", en: "" },
 
   // Order attribution ledger
   attributedOrdersTitle: {

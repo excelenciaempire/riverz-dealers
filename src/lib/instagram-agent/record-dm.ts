@@ -172,10 +172,57 @@ export async function recordProactiveDm(
 }
 
 /**
+ * Deja constancia en la bandeja de una respuesta PÚBLICA que acabamos de
+ * publicar bajo el comentario.
+ *
+ * Hasta ahora nadie la escribía: se confiaba en el eco de Meta, y Meta no
+ * manda webhook por los comentarios de la propia cuenta. La única red que la
+ * traía era la conciliación de `comment-sync`, cada diez minutos — así que el
+ * comercio entraba a la bandeja, veía la pregunta del cliente y ninguna
+ * respuesta, justo en los modos en los que la respuesta ES la pública ("Solo
+ * en el comentario") y no hay DM que espejar.
+ *
+ * Se guarda con el id externo del comentario que devolvió Meta, así que cuando
+ * la conciliación pase por ahí reconoce que ya está y no duplica nada.
+ */
+export async function recordPublicCommentReply(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string;
+    /** El contacto del hilo de comentarios (quien comentó). */
+    commentContactId: string;
+    commentChannel: 'ig_comment' | 'fb_comment';
+    text: string;
+    /** Id que devolvió Meta para NUESTRA respuesta. Es lo que corta duplicados. */
+    externalId?: string | null;
+    origin?: string | null;
+    originName?: string | null;
+  },
+): Promise<void> {
+  if (!args.text.trim()) return;
+  try {
+    const now = new Date().toISOString();
+    await mirrorReplyToCommentThread(db, {
+      workspaceId: args.workspaceId,
+      commentContactId: args.commentContactId,
+      commentChannel: args.commentChannel,
+      text: args.text,
+      preview: args.text.slice(0, 200),
+      now,
+      externalId: args.externalId ?? null,
+      origin: args.origin ?? null,
+      originName: args.originName ?? null,
+    });
+  } catch (err) {
+    console.error('[ig-agent] respuesta pública no registrada en la bandeja:', err);
+  }
+}
+
+/**
  * Refleja la respuesta del agente dentro de la conversación del COMENTARIO
- * (`ig_comment`) para que se vea en la pestaña Comentarios. La respuesta real
- * salió por DM privado; esto es solo una copia legible para el comercio.
- * Best-effort + dedup por texto reciente.
+ * (`ig_comment`) para que se vea en la pestaña Comentarios. Con `externalId`
+ * es la respuesta pública de verdad; sin él, una copia legible del DM privado.
+ * Best-effort + dedup por id externo y por texto reciente.
  */
 async function mirrorReplyToCommentThread(
   db: SupabaseClient,
@@ -186,6 +233,7 @@ async function mirrorReplyToCommentThread(
     text: string;
     preview: string;
     now: string;
+    externalId?: string | null;
     origin?: string | null;
     originName?: string | null;
   },
@@ -202,6 +250,20 @@ async function mirrorReplyToCommentThread(
     .maybeSingle();
   const convId = (conv as { id?: string } | null)?.id;
   if (!convId) return;
+
+  // El id externo manda: es exacto y no caduca. La conciliación de
+  // `comment-sync` puede habernos ganado la carrera.
+  const externalId = (args.externalId ?? '').trim();
+  if (externalId) {
+    const { data: already } = await db
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', convId)
+      .eq('message_id', externalId)
+      .limit(1)
+      .maybeSingle();
+    if (already) return;
+  }
 
   const since = new Date(Date.now() - 10 * 60_000).toISOString();
   const { data: dupe } = await db
@@ -220,6 +282,7 @@ async function mirrorReplyToCommentThread(
     sender_type: 'agent',
     content_type: 'text',
     content_text: args.text,
+    message_id: externalId || null,
     status: 'sent',
     origin: args.origin ?? null,
     origin_name: args.originName ?? null,

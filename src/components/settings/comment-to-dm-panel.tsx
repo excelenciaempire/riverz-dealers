@@ -71,6 +71,7 @@ interface RuleRow {
   is_active: boolean;
   priority: number;
   dm_sent_count: number;
+  dm_failed_count: number;
 }
 
 export function CommentToDmPanel() {
@@ -257,6 +258,13 @@ function RuleLine({
               {t("settings.c2dmDmSentCount", { count: rule.dm_sent_count })}
             </span>
           )}
+          {/* Los rechazos de Meta, sólo si los hay. Una regla que dispara y
+              nunca entrega se leía igual que una que nadie activó. */}
+          {rule.dm_failed_count > 0 && (
+            <span className="shrink-0 text-[11px] tabular-nums text-destructive">
+              {t("settings.c2dmDmFailedCount", { count: rule.dm_failed_count })}
+            </span>
+          )}
         </span>
         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
           {summary}
@@ -320,7 +328,6 @@ interface RuleDraft {
   channel: CommentChannel;
   post_id: string;
   keywords: string;
-  public_reply_enabled: boolean;
   public_reply_templates: string;
   dm_message: string;
   dm_button_label: string;
@@ -353,7 +360,6 @@ function RuleEditor({
     channel: rule?.channel ?? "ig_comment",
     post_id: rule?.post_id ?? "",
     keywords: (rule?.keywords ?? []).join(", "),
-    public_reply_enabled: rule?.public_reply_enabled ?? true,
     public_reply_templates: (rule?.public_reply_templates ?? []).join("\n"),
     dm_message: rule?.dm_message ?? "",
     dm_button_label: rule?.dm_button_label ?? "",
@@ -395,7 +401,10 @@ function RuleEditor({
         match_type: rule?.match_type ?? "contains",
         case_sensitive: rule?.case_sensitive ?? false,
         priority: rule?.priority ?? 100,
-        public_reply_enabled: draft.public_reply_enabled,
+        // Un solo control en vez de dos: escribir una respuesta ES pedir que
+        // se publique. El interruptor aparte se podía dejar encendido con la
+        // caja vacía, y entonces la regla no publicaba nada.
+        public_reply_enabled: true,
         public_reply_templates: draft.public_reply_templates
           .split("\n")
           .map((s) => s.trim())
@@ -524,30 +533,19 @@ function RuleEditor({
                 />
               </Field>
 
-              <label className="flex items-center justify-between gap-3 pt-1">
-                <span className="text-[13px] text-foreground">
-                  {t("settings.c2dmPublicReplyEnabled")}
-                </span>
-                <Switch
-                  checked={draft.public_reply_enabled}
-                  onCheckedChange={(v) => set("public_reply_enabled", !!v)}
+              {/* Un solo control: lo que escribas acá se publica bajo el
+                  comentario; vacío, la regla sólo manda el DM. El interruptor
+                  aparte se podía dejar encendido sin nada que publicar. */}
+              <Field
+                label={t("settings.c2dmPublicRepliesLabel")}
+                hint={t("settings.c2dmPublicRepliesHint")}
+              >
+                <Textarea
+                  value={draft.public_reply_templates}
+                  onChange={(e) => set("public_reply_templates", e.target.value)}
+                  rows={2}
                 />
-              </label>
-
-              {draft.public_reply_enabled && (
-                <Field
-                  label={t("settings.c2dmPublicRepliesLabel")}
-                  hint={t("settings.c2dmPublicRepliesHint")}
-                >
-                  <Textarea
-                    value={draft.public_reply_templates}
-                    onChange={(e) =>
-                      set("public_reply_templates", e.target.value)
-                    }
-                    rows={2}
-                  />
-                </Field>
-              )}
+              </Field>
             </div>
           </div>
 
@@ -615,13 +613,13 @@ function RulePreview({ draft }: { draft: RuleDraft }) {
       <p className="app-eyebrow">{t("settings.c2dmPreview")}</p>
 
       <div className="mt-3 space-y-3">
-        {draft.public_reply_enabled && (
+        {publicText && (
           <div>
             <p className="text-[10px] text-muted-foreground">
               {t("settings.c2dmPreviewPublic")}
             </p>
             <p className="mt-1 rounded-lg rounded-tl-sm border border-border bg-card px-3 py-2 text-xs break-words text-foreground">
-              {publicText || <span className="text-muted-foreground">—</span>}
+              {publicText}
             </p>
           </div>
         )}

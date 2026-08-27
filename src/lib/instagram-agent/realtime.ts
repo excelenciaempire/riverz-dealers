@@ -28,7 +28,7 @@ import {
   loadCommentSettings,
 } from './controls';
 import { decideCommentDm } from './dm-opportunity';
-import { recordProactiveDm } from './record-dm';
+import { recordProactiveDm, recordPublicCommentReply } from './record-dm';
 import { loadCustomerContext } from './customer-context';
 import { loadOrderStatus } from './order-status';
 import { loadCommentThread } from './comment-thread';
@@ -675,13 +675,11 @@ async function autonomousCommentReply(
   const trust = await proactiveGate(db, opts.workspaceId);
   if (!trust.ok) return;
 
-  const won = await claimCommentPrivateReply(
-    db,
-    opts.workspaceId,
-    opts.commentId,
-    'campaign',
-  );
-  if (!won) return;
+  // El candado de "una sola respuesta privada por comentario" se pide MÁS
+  // ABAJO, justo antes de mandar el DM: en los modos que sólo publican en el
+  // comentario no se manda ninguno, y pedirlo aquí gastaba la única respuesta
+  // privada que Meta permite sin haber escrito a nadie — dejando mudo al
+  // camino que sí quería usarla.
 
   const connection = await dmConnectionFor(
     db,
@@ -689,7 +687,9 @@ async function autonomousCommentReply(
     opts.connection,
     dmChannel,
   );
-  if (!connection) return;
+  // Sin conexión de DM sólo se cae el camino privado: el modo "Solo en el
+  // comentario" publica igual, que es justo lo que el comercio pidió.
+  if (!connection && commentCfg.replyMode !== 'public') return;
 
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
@@ -789,9 +789,29 @@ async function autonomousCommentReply(
     hasOrderQuestion: Boolean(orderStatus),
   });
 
+  // Publicar bajo el comentario no consume nada de Meta; abrir el privado sí.
+  // Por eso el candado se pide sólo aquí, cuando ya se sabe que va a salir un
+  // DM. `external_id` es lo que hace falta para escribirle: sin él (un caso
+  // raro de Graph) queda la respuesta pública, que sigue siendo una respuesta.
+  const wantsDm =
+    decision.dm && Boolean(opts.contact.external_id) && Boolean(connection);
+  const wonPrivateReply = wantsDm
+    ? await claimCommentPrivateReply(
+        db,
+        opts.workspaceId,
+        opts.commentId,
+        'campaign',
+      )
+    : false;
+
+  // Si además se publica en el comentario, la bandeja recibe la respuesta
+  // PÚBLICA de verdad (abajo) y no hace falta espejar encima el DM: serían dos
+  // mensajes casi iguales en el mismo hilo.
+  const willPublish = commentCfg.publicReply;
+
   let dmSent = false;
   try {
-    if (decision.dm) {
+    if (wonPrivateReply && connection) {
       await adapter.sendText({
         channel: dmChannel,
         connection,
@@ -812,7 +832,7 @@ async function autonomousCommentReply(
         commentChannel,
         connection,
         text,
-        commentContactId: opts.commentId ? opts.contact.id : null,
+        commentContactId: willPublish ? null : opts.contact.id,
         // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
         // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
         origin: 'comment_ai',
@@ -827,10 +847,12 @@ async function autonomousCommentReply(
       // Sin DM, lo público NO puede decir "te escribí por privado": es la
       // respuesta entera, ahí mismo.
       const publicText = publicReplyFrom(text, dmSent);
+      const publicConnection = opts.connection ?? connection;
       try {
-        await getAdapter(commentChannel).sendText({
+        if (!publicConnection) throw new Error('sin conexión de comentarios');
+        const res = await getAdapter(commentChannel).sendText({
           channel: commentChannel,
-          connection: opts.connection ?? connection,
+          connection: publicConnection,
           conversation: {
             id: '',
             thread_external_id: opts.commentId,
@@ -839,6 +861,18 @@ async function autonomousCommentReply(
           text: publicText,
           replyToExternalId: opts.commentId,
         } satisfies OutboundText);
+        // A la bandeja, ahora. Meta no manda webhook por los comentarios de la
+        // propia cuenta: sin esto la respuesta sólo aparecía cuando pasaba la
+        // conciliación, diez minutos después — y en el modo "Solo en el
+        // comentario" el hilo se veía sin contestar todo ese rato.
+        await recordPublicCommentReply(db, {
+          workspaceId: opts.workspaceId,
+          commentContactId: opts.contact.id,
+          commentChannel,
+          text: publicText,
+          externalId: res.externalMessageId ?? null,
+          origin: 'comment_ai',
+        });
         // Se registra aparte del DM: son dos acciones distintas y la pantalla
         // las cuenta por separado (lo que se ve en el post vs lo que llega al
         // privado).
@@ -846,9 +880,8 @@ async function autonomousCommentReply(
           workspaceId: opts.workspaceId,
           contactId: opts.contact.id,
           kind: 'comment_public',
-          // Con el texto: la respuesta pública entra a la bandeja por el eco de
-          // Meta (no la escribimos nosotros), y este libro es lo único que
-          // permite reconocerla como automática al ingresarla.
+          // Con el texto: así la conciliación reconoce la respuesta como
+          // automática si acaba re-ingresándola por su lado.
           text: publicText,
         });
       } catch (pubErr) {
@@ -856,6 +889,17 @@ async function autonomousCommentReply(
           '[ig-agent] respuesta pública falló (¿permisos de Meta?):',
           pubErr,
         );
+        // No se publicó, así que el hilo del comentario quedaría vacío: se
+        // espeja el DM, que es lo que se hacía antes de intentar publicar.
+        if (dmSent) {
+          await recordPublicCommentReply(db, {
+            workspaceId: opts.workspaceId,
+            commentContactId: opts.contact.id,
+            commentChannel,
+            text,
+            origin: 'comment_ai',
+          });
+        }
       }
     }
     // 'comment', no 'outreach': esto es Comentarios contestando, no una

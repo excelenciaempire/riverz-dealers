@@ -1690,9 +1690,11 @@ function ModeRow({
         <span className="block text-[13px] font-medium text-foreground">
           {title}
         </span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-          {hint}
-        </span>
+        {hint && (
+          <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+            {hint}
+          </span>
+        )}
       </span>
     </button>
   );
@@ -1715,9 +1717,11 @@ function OptionRow({
         <span className="block text-[13px] font-medium text-foreground">
           {title}
         </span>
-        <span className="mt-0.5 block max-w-md text-[11px] leading-snug text-muted-foreground">
-          {hint}
-        </span>
+        {hint && (
+          <span className="mt-0.5 block max-w-md text-[11px] leading-snug text-muted-foreground">
+            {hint}
+          </span>
+        )}
       </span>
       <Switch
         className="mt-0.5 shrink-0"
