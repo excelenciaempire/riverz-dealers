@@ -38,7 +38,7 @@ export function VistaPrevia({
 
       {/* El marco imita una página de tienda: sin un fondo detrás, el chat
           flotando en el vacío no dice de qué lado va a quedar. */}
-      <div className="relative h-[420px] overflow-hidden rounded-lg border border-border bg-gradient-to-b from-muted/60 to-muted/20 p-3">
+      <div className="relative h-[340px] overflow-hidden rounded-lg border border-border bg-gradient-to-b from-muted/60 to-muted/20 p-3">
         <div
           className={cn(
             'absolute bottom-3 flex w-[248px] flex-col gap-2',

@@ -349,6 +349,7 @@ export function WebchatPanel() {
             {SECCIONES.map(({ id, key }) => (
               <button
                 key={id}
+                id={`webchat-tab-${id}`}
                 type="button"
                 role="tab"
                 aria-selected={seccion === id}
@@ -365,6 +366,7 @@ export function WebchatPanel() {
             ))}
           </div>
 
+          <div role="tabpanel" aria-labelledby={`webchat-tab-${seccion}`}>
           {/* ── ¿Está puesto? ── */}
           {seccion === 'instalacion' && (
             <Card>
@@ -662,6 +664,7 @@ export function WebchatPanel() {
               </div>
             </Card>
           )}
+          </div>
         </div>
 
         <div className="lg:sticky lg:top-4 lg:h-fit">
