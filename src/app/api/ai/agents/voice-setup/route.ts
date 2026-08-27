@@ -50,11 +50,18 @@ export async function POST(request: Request) {
   if (!apiKey) return NextResponse.json({ error: 'ai_not_configured' }, { status: 503 });
 
   const lang = (body.language ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
-  const system = `Eres un asistente que configura un AGENTE DE VOZ telefónico para una tienda. A partir de la descripción del comerciante, decides QUÉ tipos de llamada activar y con qué objetivo, un saludo inicial breve y natural, y si conviene dejar que la IA decida llamar sola.
-Tipos de llamada válidos: order_confirmation (confirmar pedido), cart_recovery (recuperar carrito), followup (seguimiento si el cliente dejó de responder), inbound (contestar llamadas entrantes).
+  // Ojo: NO se le pide que "active" tipos de llamada. `objectives[tipo].enabled`
+  // no lo lee nadie desde que el nodo del lienzo quedó como única vía
+  // automática — quién llama y cuándo lo deciden las reglas, no el agente. Lo
+  // que sí hace falta de acá es el GUION de cada tipo, que es lo que
+  // `buildVoiceContext` lee cuando la llamada ya existe. Pedirle que
+  // "active" producía un JSON que el comercio veía aplicado y que no cambiaba
+  // ningún comportamiento.
+  const system = `Eres un asistente que configura un AGENTE DE VOZ telefónico para una tienda. A partir de la descripción del comerciante escribes el OBJETIVO de cada tipo de llamada —qué tiene que lograr el agente cuando esa llamada ocurre—, un saludo inicial breve y natural, y decides si conviene dejar que la IA decida llamar sola.
+Tipos de llamada: order_confirmation (confirmar pedido), cart_recovery (recuperar carrito), followup (seguimiento si el cliente dejó de responder), inbound (contestar llamadas entrantes).
 Devuelve SOLO un JSON válido con esta forma exacta, sin texto extra:
-{"voice_enabled":true,"voice_ai_decides":false,"voice_greeting":"...","objectives":{"order_confirmation":{"enabled":false,"objective":""},"cart_recovery":{"enabled":false,"objective":""},"followup":{"enabled":false,"objective":""},"inbound":{"enabled":false,"objective":""}}}
-Reglas: activa SOLO los tipos que el comerciante pidió; objetivos cortos y accionables; el saludo usa {{contact_name}} para el nombre; escribe todo en '${lang}'. Si el comerciante menciona que la IA decida u opere sola, pon voice_ai_decides=true.`;
+{"voice_enabled":true,"voice_ai_decides":false,"voice_greeting":"...","objectives":{"order_confirmation":{"objective":""},"cart_recovery":{"objective":""},"followup":{"objective":""},"inbound":{"objective":""}}}
+Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio que describe el comerciante; el saludo usa {{contact_name}} para el nombre; escribe todo en '${lang}'. Si el comerciante menciona que la IA decida u opere sola, pon voice_ai_decides=true.`;
 
   try {
     const client = getAnthropic(apiKey);
@@ -78,12 +85,14 @@ Reglas: activa SOLO los tipos que el comerciante pidió; objetivos cortos y acci
     }
 
     // Normalize into our shape with safe fallbacks.
-    const objIn = (parsed.objectives ?? {}) as Record<string, { enabled?: boolean; objective?: string }>;
+    const objIn = (parsed.objectives ?? {}) as Record<string, { objective?: string }>;
     const objectives: Record<string, { enabled: boolean; objective: string }> = {};
     for (const key of ['order_confirmation', 'cart_recovery', 'followup', 'inbound'] as const) {
       const o = objIn[key] ?? {};
       objectives[key] = {
-        enabled: Boolean(o.enabled),
+        // Se sigue escribiendo en true por compatibilidad con las filas que ya
+        // están en la base; nadie lo lee. El guion es lo único que decide.
+        enabled: true,
         objective: (o.objective && String(o.objective).trim()) || DEFAULT_OBJECTIVES[key][lang],
       };
     }
