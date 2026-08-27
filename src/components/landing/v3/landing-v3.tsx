@@ -297,7 +297,19 @@ function Channels() {
           <LedgerRow label={t("landing.stripIntegrations")}>
             {INTEGRATIONS.map((s) => (
               <span key={s.label} className="inline-flex items-center gap-2 text-sm">
-                <Image src={s.src} alt="" width={20} height={20} className="size-5 object-contain" />
+                {/* `unoptimized`: el optimizador de imágenes de Next rechaza
+                    SVG mientras `dangerouslyAllowSVG` esté apagado, y devuelve
+                    400 — los logos de Shopify, WooCommerce y Tiendanube salían
+                    como huecos. Sin optimizar se sirve el archivo tal cual, que
+                    para un SVG de 1,7 kB es lo que corresponde igual. */}
+                <Image
+                  src={s.src}
+                  alt=""
+                  width={20}
+                  height={20}
+                  unoptimized
+                  className="size-5 object-contain"
+                />
                 {s.label}
               </span>
             ))}
