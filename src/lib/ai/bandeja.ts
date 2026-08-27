@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ensureTag } from '@/lib/contacts/tags'
+import { pedirOpinion } from '@/lib/inbox/opinion'
 
 /**
  * Lo que hace una persona en la bandeja mientras atiende: mirar la ficha de
@@ -150,6 +151,13 @@ export async function cerrarConversacion(ctx: BandejaCtx): Promise<string> {
   if (error) {
     return JSON.stringify({ ok: false, message: 'No se pudo cerrar.' })
   }
+  // Igual que cuando cierra una persona desde la bandeja: si el comercio pidió
+  // medir satisfacción, la pregunta sale acá (migración 202). Sin esperar —
+  // cerrar el caso no depende de que la encuesta salga.
+  void pedirOpinion(ctx.db, {
+    workspaceId: ctx.workspaceId,
+    conversationId: ctx.conversationId,
+  })
   return JSON.stringify({
     ok: true,
     message:

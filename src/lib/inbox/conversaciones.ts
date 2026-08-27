@@ -16,6 +16,7 @@
  * un id de otro comercio.
  */
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
+import { pedirOpinion } from './opinion'
 
 export type EstadoConversacion = 'open' | 'pending' | 'closed'
 
@@ -130,6 +131,18 @@ export async function cambiarEstadoConversacion(
     })
     .eq('id', args.conversationId)
     .eq('workspace_id', args.workspaceId)
+
+  // Al cerrar, preguntar si sirvió (migración 202). Va acá, en el único lugar
+  // que mueve el estado, para que dé igual quién cierre: una persona desde la
+  // bandeja, el agente con su herramienta o el Operator. Sin esperar y sin
+  // poder fallar hacia afuera: cerrar una conversación no puede romperse
+  // porque una encuesta no salió, y quien cerró ya se fue a la siguiente.
+  if (!error && args.estado === 'closed') {
+    void pedirOpinion(db, {
+      workspaceId: args.workspaceId,
+      conversationId: args.conversationId,
+    })
+  }
   return { error }
 }
 
@@ -161,6 +174,7 @@ export async function pedirHumano(
     })
     .eq('id', args.conversationId)
     .eq('workspace_id', args.workspaceId)
+
   return { error }
 }
 

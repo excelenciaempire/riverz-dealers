@@ -36,6 +36,7 @@ import {
 import type { Profile, WorkspaceInvite, WorkspaceMember } from "@/types";
 import { invitesOpen } from "@/lib/auth/signups";
 import { AssignmentRulesPanel } from "@/components/settings/assignment-rules-panel";
+import { Switch } from "@/components/ui/switch";
 
 export function WorkspacePanel() {
   const { workspace, isAdmin, loading, reload } = useWorkspace();
@@ -46,6 +47,7 @@ export function WorkspacePanel() {
   const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [savingTz, setSavingTz] = useState(false);
+  const [csat, setCsat] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
@@ -77,6 +79,7 @@ export function WorkspacePanel() {
     if (workspace) {
       setName(workspace.name);
       setTimezone(workspace.timezone ?? DEFAULT_TIMEZONE);
+      setCsat(workspace.csat_enabled === true);
     }
   }, [workspace]);
 
@@ -132,6 +135,30 @@ export function WorkspacePanel() {
     toast.success(t("settings.workspaceRenamed"));
     reload();
   }, [workspace, name, reload, t]);
+
+  /**
+   * Preguntar "¿te sirvió?" al cerrar, fuera del chat web (migración 202).
+   *
+   * Apagado por defecto a propósito: es un mensaje extra a cada cliente y en
+   * WhatsApp se paga. Se pinta antes de que conteste el servidor porque es un
+   * interruptor, y esperar el viaje lo hace sentir roto.
+   */
+  const handleCsat = useCallback(
+    async (activo: boolean) => {
+      if (!workspace) return;
+      setCsat(activo);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("workspaces")
+        .update({ csat_enabled: activo, updated_at: new Date().toISOString() })
+        .eq("id", workspace.id);
+      if (error) {
+        setCsat(!activo);
+        toast.error(t("settings.genericError"));
+      }
+    },
+    [workspace, t],
+  );
 
   const handleSaveTimezone = useCallback(async () => {
     if (!workspace) return;
@@ -619,6 +646,26 @@ export function WorkspacePanel() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Medir si sirvió, fuera del chat web. Las columnas existen desde la
+          migración 181 y las escribía sólo el widget: en WhatsApp, Instagram,
+          Messenger y el correo nunca se preguntó nada, así que el número que
+          el panel llama "satisfacción" medía un canal. */}
+      {workspace && (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t("settings.csatTitle")}
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("settings.csatHint")}
+              </p>
+            </div>
+            <Switch checked={csat} onCheckedChange={handleCsat} />
+          </div>
         </section>
       )}
 

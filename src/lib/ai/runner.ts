@@ -7,6 +7,7 @@ import {
   type KeySource,
 } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
+import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
@@ -113,6 +114,22 @@ export async function runAiAgent(
     // apruebe la instalación—: el asistente no contesta. Antes de elegir
     // agente y antes de gastar la clave de IA, que casi siempre paga Riverz.
     if (await motorApagado(db, args.workspaceId)) return;
+
+    // ¿Es la respuesta a un "¿te sirvió?" (migración 202)?
+    //
+    // Va antes de todo lo demás y no dentro de `shouldSkip` por una razón que
+    // sólo se ve mirando el ingreso: cerrar la conversación impide reusarla,
+    // así que quien contesta "1" abre un hilo NUEVO. Ese hilo no sabe nada de
+    // la encuesta —la marca vive en el que se cerró—, y por eso la nota se
+    // busca por contacto. Si engancha, se guarda y el agente NO contesta: "1"
+    // no es una consulta y responderla como tal es lo que hace que la próxima
+    // encuesta la ignoren.
+    const calificada = await registrarCalificacion(db, {
+      workspaceId: args.workspaceId,
+      contactId: args.contact.id,
+      texto: args.inboundMessage.content_text ?? '',
+    });
+    if (calificada) return;
 
     // ── Product routing ──
     // 1. Detect which product the customer is talking about. The

@@ -42,6 +42,10 @@ export interface Workspace {
    *  drives every metric day-boundary and every inbox timestamp. Migration
    *  072. Admins set it in Ajustes → Espacio de trabajo. */
   timezone?: string;
+  /** Preguntar "¿te sirvió?" al cerrar una conversación, fuera del chat web
+   * (migración 202). Apagado por defecto: es un mensaje más a cada cliente y en
+   * WhatsApp se paga. */
+  csat_enabled?: boolean;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -298,6 +302,16 @@ export interface Conversation {
    * otra cosa: sirve para ponerse al día, no para saber dónde se traba
    * (migración 201). */
   needs_human_summary?: string | null;
+  /** Satisfacción: 1 (sirvió) / -1 (no sirvió), y cuándo (migración 181). La
+   * escribía sólo el widget del chat web; desde la 202 también se pregunta en
+   * los canales 1 a 1 al cerrar. */
+  csat?: number | null;
+  csat_at?: string | null;
+  csat_comment?: string | null;
+  /** Cuándo se preguntó. Evita preguntar dos veces y permite leer la respuesta
+   * corta que llega después como calificación y no como consulta nueva
+   * (migración 202). */
+  csat_asked_at?: string | null;
   /** Connection that produced this conversation (Meta page, mailbox, …). */
   connection_id?: string;
   /** Email-style subject, or the post/ad title for comment threads. */

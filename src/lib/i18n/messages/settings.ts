@@ -562,6 +562,14 @@ export const settings = {
 
   // Reglas de asignación (migración 032). El motor corría desde siempre y no
   // tenía pantalla: se podían crear por API y nadie podía verlas.
+  csatTitle: {
+    es: "Preguntar si sirvió al cerrar",
+    en: "Ask if it helped when closing",
+  },
+  csatHint: {
+    es: "Un mensaje corto al cerrar la conversación en WhatsApp, Instagram, Messenger y correo. El chat web ya pregunta solo.",
+    en: "A short message when the conversation closes on WhatsApp, Instagram, Messenger and email. The web chat already asks on its own.",
+  },
   rulesTitle: { es: "Quién atiende qué", en: "Who handles what" },
   rulesHint: {
     es: "Se evalúan en orden al llegar un mensaje a una conversación sin dueño. La primera que coincide, asigna.",
