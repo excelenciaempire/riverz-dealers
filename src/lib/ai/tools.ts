@@ -13,6 +13,7 @@
  */
 
 import { filtroDeNumero } from '@/lib/orders/numero'
+import { armarLinkDeCompra } from '@/lib/commerce/create-checkout'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
@@ -1449,10 +1450,64 @@ export async function runTool(
     return JSON.stringify(result)
   }
   if (toolName === 'create_checkout') {
+    // Sin Shopify, el link se arma para la tienda que SÍ tenga el comercio.
+    // Antes esto contestaba "no tenés Shopify conectado" a un comercio de
+    // Tiendanube que nunca tuvo Shopify: su agente conversaba, recomendaba y
+    // no podía cerrar una sola venta.
+    if (!shopify && otherStore && localOrders) {
+      const input = (toolInput ?? {}) as {
+        quantity?: number
+        items?: Array<{ variant_id: string; quantity?: number }>
+      }
+      const primero = input.items?.[0]
+      const id = String(primero?.variant_id ?? '').trim()
+      if (!id) {
+        return JSON.stringify({
+          error: 'sin_producto',
+          message:
+            'Falta cuál producto. Usa buscar_producto para encontrarlo y vuelve a intentar con su id.',
+        })
+      }
+      const cantidad = Number(primero?.quantity ?? input.quantity ?? 1)
+      // La ficha pública, que es lo único que se puede mandar en Tiendanube.
+      // El modelo nombra el producto con el id que le dio `buscar_producto`:
+      // el de la tienda si es numérico, el de Riverz si es un uuid.
+      const porNumero = /^\d+$/.test(id)
+      const { data: fila } = await localOrders.db
+        .from('shopify_products')
+        .select('url, title')
+        .eq('workspace_id', localOrders.workspaceId)
+        .eq(porNumero ? 'external_id' : 'id', id)
+        .limit(1)
+        .maybeSingle()
+      const link = armarLinkDeCompra({
+        tienda: otherStore,
+        id,
+        cantidad,
+        productUrl: (fila as { url?: string } | null)?.url ?? null,
+      })
+      if (!link) {
+        return JSON.stringify({
+          error: 'sin_link',
+          message:
+            'No pude armar el link de compra. Dile que lo busque en la tienda y ofrécele pasarle el enlace del producto.',
+        })
+      }
+      return JSON.stringify({
+        checkout_url: link.url,
+        // Lo que el chat web necesita para cargar el carrito sin sacar a nadie
+        // de la conversación.
+        cart: link.carrito,
+        offer_label: `${cantidad} unidad(es)`,
+        message: link.cargaSola
+          ? 'Pásale el link: lo lleva a pagar con el producto ya cargado.'
+          : 'Pásale el link del producto. NO le digas que ya se lo dejaste en el carrito: desde ahí tiene que agregarlo.',
+      })
+    }
     if (!shopify) {
       return JSON.stringify({
         error: 'no_shopify_connection',
-        message: 'El workspace no tiene Shopify conectado.',
+        message: 'El workspace no tiene ninguna tienda conectada.',
       })
     }
     const input = (toolInput ?? {}) as {

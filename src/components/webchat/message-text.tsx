@@ -27,6 +27,31 @@ function parseCartLink(
   try {
     const url = new URL(href);
     if (url.origin !== storeOrigin) return null;
+
+    // Tiendanube y WooCommerce. El link que manda el agente es el de la ficha
+    // del producto —el único que sobrevive a un copiar y pegar por WhatsApp—
+    // con una marca que dice qué agregar. Sin esto, en esas dos tiendas el
+    // enlace se veía como texto azul y sacaba a la persona del chat.
+    const marca = /^(tn|wc):(\d+):(\d+)$/.exec(url.searchParams.get('riverz_cart') ?? '');
+    if (marca) {
+      return {
+        path: url.pathname + url.search,
+        variantId: marca[2],
+        lineas: 1,
+        unidades: Number(marca[3]) || 1,
+      };
+    }
+    // El propio link de WooCommerce ya dice qué agregar.
+    const woo = url.searchParams.get('add-to-cart');
+    if (woo && /^\d+$/.test(woo)) {
+      return {
+        path: url.pathname + url.search,
+        variantId: woo,
+        lineas: 1,
+        unidades: Number(url.searchParams.get('quantity')) || 1,
+      };
+    }
+
     // Un carrito puede traer VARIAS líneas: `/cart/111:2,222:1`.
     const m = /^\/cart\/((?:\d+:\d+)(?:,\d+:\d+)*)\/?$/.exec(url.pathname);
     if (!m) return null;

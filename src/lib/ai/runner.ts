@@ -1823,6 +1823,12 @@ async function generateReply(
     // (`lookupOrderNonShopify`), pero la tool se ofrecía sólo con `shopify`, y
     // `otherStore` se resuelve justamente cuando NO hay Shopify.
     ...((shopify || otherStore) && puede('lookup_order') ? [LOOKUP_ORDER_TOOL] : []),
+    // El link de compra tampoco necesita Shopify. Tiendanube y WooCommerce
+    // tenían un agente que recomendaba y no podía cerrar: llegaba a "te paso el
+    // link" y ahí se terminaba. Ver `commerce/create-checkout`.
+    ...(!shopify && otherStore && puede('crear_checkout')
+      ? [buildCheckoutTool(null, false)]
+      : []),
     ...(shopify
       ? [
           ...(puede('crear_checkout')

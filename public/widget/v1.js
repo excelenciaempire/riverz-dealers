@@ -348,6 +348,34 @@
    */
   function parseCart(path) {
     var partes = (path || '').split('?');
+
+    // Tiendanube y WooCommerce, que no tienen el formato `/cart/id:qty`.
+    //
+    // Van marcados con `riverz_cart=tn|wc:id:cantidad` porque el link que se
+    // manda es el de la ficha del producto —el único que funciona pegado en
+    // WhatsApp— y hace falta algo que le diga al chat "esto además es un
+    // carrito". La tienda ignora un parámetro que no conoce.
+    var marca = /[?&]riverz_cart=(tn|wc):(\d+):(\d+)/.exec(path || '');
+    if (marca) {
+      return {
+        plataforma: marca[1] === 'tn' ? 'tiendanube' : 'woocommerce',
+        items: [{ id: Number(marca[2]), quantity: Number(marca[3]) || 1 }],
+        attrs: {},
+        discount: null,
+      };
+    }
+    // WooCommerce sin marca: su propio link ya dice qué agregar.
+    var woo = /[?&]add-to-cart=(\d+)/.exec(path || '');
+    if (woo) {
+      var cant = /[?&]quantity=(\d+)/.exec(path || '');
+      return {
+        plataforma: 'woocommerce',
+        items: [{ id: Number(woo[1]), quantity: cant ? Number(cant[1]) : 1 }],
+        attrs: {},
+        discount: null,
+      };
+    }
+
     var m = /^\/cart\/([\d:,]+)/.exec(partes[0]);
     if (!m) return null;
 
@@ -369,22 +397,54 @@
         else if (clave === 'discount') discount = valor;
       });
     }
-    return { items: items, attrs: attrs, discount: discount };
+    return { plataforma: 'shopify', items: items, attrs: attrs, discount: discount };
   }
 
   /** Agrega al carrito todo lo que el enlace describe. */
-  function addToCart(path) {
-    var carrito = parseCart(path);
-    if (!carrito) return Promise.reject(new Error('bad_path'));
+  /**
+   * Cada plataforma carga el carrito a su manera. Las tres se hacen desde la
+   * página de la tienda —este archivo corre ahí— así que la sesión y las
+   * cookies del carrito son las de la persona, sin nada que sincronizar.
+   */
+  function pedirAlta(carrito) {
+    if (carrito.plataforma === 'tiendanube') {
+      // Su formulario hace POST con `add_to_cart` y `quantity`. Por GET
+      // contesta el carrito vacío, medido: no alcanza con armar un link.
+      var cuerpo = new URLSearchParams();
+      cuerpo.set('add_to_cart', String(carrito.items[0].id));
+      cuerpo.set('quantity', String(carrito.items[0].quantity || 1));
+      return fetch('/comprar/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'same-origin',
+        body: cuerpo.toString(),
+      });
+    }
+    if (carrito.plataforma === 'woocommerce') {
+      // El mismo parámetro que usa su link, pero contra la raíz: así no se
+      // navega a ningún lado y la persona se queda en la conversación.
+      var q = new URLSearchParams();
+      q.set('add-to-cart', String(carrito.items[0].id));
+      q.set('quantity', String(carrito.items[0].quantity || 1));
+      return fetch('/?' + q.toString(), { credentials: 'same-origin' });
+    }
     return fetch('/cart/add.js', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       body: JSON.stringify({ items: carrito.items }),
-    })
+    });
+  }
+
+  function addToCart(path) {
+    var carrito = parseCart(path);
+    if (!carrito) return Promise.reject(new Error('bad_path'));
+    return pedirAlta(carrito)
       .then(function (r) {
         if (!r.ok) throw new Error('add ' + r.status);
-        return stampCart(carrito.attrs);
+        // Los atributos de atribución sólo existen en Shopify; en las otras
+        // dos la venta se ata por el pedido, no por el carrito.
+        return carrito.plataforma === 'shopify' ? stampCart(carrito.attrs) : null;
       })
       .then(function () {
         // El contador del carrito del tema no se entera de un alta por API.
@@ -407,6 +467,17 @@
    * descuento.
    */
   function goCheckout(carrito) {
+    var plataforma = (carrito && carrito.plataforma) || 'shopify';
+    // Cada tienda llama distinto a su propia caja. Mandar a `/checkout` en
+    // Tiendanube es un 404: ahí el paso siguiente al carrito es `/comprar/`.
+    if (plataforma === 'tiendanube') {
+      location.href = '/comprar/';
+      return;
+    }
+    if (plataforma === 'woocommerce') {
+      location.href = '/checkout/';
+      return;
+    }
     location.href =
       carrito && carrito.discount
         ? '/discount/' + encodeURIComponent(carrito.discount) + '?redirect=/checkout'
