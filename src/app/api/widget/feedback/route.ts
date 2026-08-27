@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { requireSession } from '@/lib/channels/webchat/guard';
+import { conversacionDelVisitante } from '@/lib/channels/webchat/conversacion';
 
 /**
  * POST /api/widget/feedback — ¿sirvió?
@@ -29,25 +30,7 @@ export async function POST(request: Request) {
   const admin = supabaseAdmin();
   // La conversación sale del token, nunca del cuerpo: el visitante no elige
   // cuál califica.
-  const { data: contact } = await admin
-    .from('contacts')
-    .select('id')
-    .eq('workspace_id', session.workspaceId)
-    .eq('channel', 'webchat')
-    .eq('external_id', session.visitorId)
-    .maybeSingle();
-  if (!contact) return NextResponse.json({ ok: true, saved: false });
-
-  const { data: conv } = await admin
-    .from('conversations')
-    .select('id')
-    .eq('workspace_id', session.workspaceId)
-    .eq('contact_id', (contact as { id: string }).id)
-    .eq('channel', 'webchat')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const conv = await conversacionDelVisitante(session.workspaceId, session.visitorId);
   if (!conv) return NextResponse.json({ ok: true, saved: false });
 
   const comentario =
@@ -60,7 +43,7 @@ export async function POST(request: Request) {
       csat_at: new Date().toISOString(),
       ...(comentario ? { csat_comment: comentario } : {}),
     })
-    .eq('id', (conv as { id: string }).id)
+    .eq('id', conv.id)
     .eq('workspace_id', session.workspaceId);
   if (error) return NextResponse.json({ error: 'update_failed' }, { status: 502 });
 

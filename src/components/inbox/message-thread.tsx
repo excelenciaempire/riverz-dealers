@@ -171,6 +171,7 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   reply_burst_guard: "inbox.needsHumanBurst",
   approval_unnotified: "inbox.needsHumanApproval",
   answer_gap: "inbox.needsHumanUnknown",
+  visitor_request: "inbox.needsHumanAsked",
 };
 
 const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [

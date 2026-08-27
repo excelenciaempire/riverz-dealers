@@ -69,10 +69,18 @@ const TEXTOS = {
     agregando: 'Agregando…',
     pagar: 'Ir a pagar',
     yMas: (n: number) => `y ${n} más`,
+    cantidad: 'Cantidad',
+    menos: 'Quitar uno',
+    mas: 'Sumar uno',
+    opcion: 'Opción',
+    sinStock: 'sin stock',
     ia: 'IA',
     equipo: 'Equipo',
     unaPersona: 'Ahora te atiende una persona',
     cerrada: 'Conversación cerrada',
+    hablarPersona: 'Hablar con una persona',
+    avisamos: 'Listo, avisamos al equipo.',
+    queFalto: '¿Qué faltó?',
   },
   en: {
     adjuntar: 'Attach',
@@ -92,10 +100,18 @@ const TEXTOS = {
     agregando: 'Adding…',
     pagar: 'Checkout',
     yMas: (n: number) => `and ${n} more`,
+    cantidad: 'Quantity',
+    menos: 'Remove one',
+    mas: 'Add one',
+    opcion: 'Option',
+    sinStock: 'out of stock',
     ia: 'AI',
     equipo: 'Team',
     unaPersona: 'A person has joined the chat',
     cerrada: 'Conversation closed',
+    hablarPersona: 'Talk to a person',
+    avisamos: 'Done — the team has been notified.',
+    queFalto: 'What was missing?',
   },
 } as const;
 
@@ -148,7 +164,12 @@ export function ChatApp() {
   // verdad: pedirle una calificación a quien acaba de escribir "hola" no mide
   // nada y molesta.
   const [califico, setCalifico] = useState<null | boolean>(null);
-  const [cerrada, setCerrada] = useState(false);
+  const [comentario, setComentario] = useState('');
+  const [comentarioEnviado, setComentarioEnviado] = useState(false);
+  /** Estado de la conversación tal como lo ve la bandeja. 'pending' significa
+   *  que ya hay alguien en camino, venga de donde venga el escalamiento. */
+  const [estado, setEstado] = useState<'open' | 'pending' | 'closed'>('open');
+  const [pidiendoPersona, setPidiendoPersona] = useState(false);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
   const T = TEXTOS[settings?.locale === 'en' ? 'en' : 'es'];
 
@@ -243,8 +264,12 @@ export function ChatApp() {
     if (data.cursor) cursor.current = data.cursor;
     // El servidor manda el estado de la conversación en cada sondeo y el chat
     // lo descartaba: quien volvía a un hilo que el comercio ya había cerrado
-    // veía una caja de texto idéntica a la de una conversación viva.
-    setCerrada(data.status === 'closed');
+    // veía una caja de texto idéntica a la de una conversación viva. Y sin
+    // esto, el botón de pedir una persona reaparecía en cada recarga aunque el
+    // pedido ya estuviera hecho.
+    if (data.status === 'closed' || data.status === 'pending' || data.status === 'open') {
+      setEstado(data.status);
+    }
     if (!data.messages.length) return;
 
     setMessages((prev) => {
@@ -442,6 +467,36 @@ export function ChatApp() {
     [session, califico],
   );
 
+  /** El motivo del pulgar abajo, cuando la persona quiere darlo. */
+  const enviarComentario = useCallback(async () => {
+    const texto = comentario.trim();
+    if (!texto || !session || comentarioEnviado) return;
+    setComentarioEnviado(true);
+    await fetch('/api/widget/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+      body: JSON.stringify({ util: false, comentario: texto }),
+    }).catch(() => {});
+  }, [comentario, session, comentarioEnviado]);
+
+  /**
+   * "Quiero hablar con una persona".
+   *
+   * Se pinta como hecho antes de que conteste el servidor: quien aprieta esto
+   * ya está incómodo, y un botón que no reacciona durante medio segundo es
+   * exactamente lo que no hay que hacerle. El estado real llega en el próximo
+   * sondeo ('pending') y manda sobre esta suposición.
+   */
+  const pedirPersona = useCallback(async () => {
+    if (!session || pidiendoPersona || estado === 'pending') return;
+    setPidiendoPersona(true);
+    const res = await fetch('/api/widget/handoff', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session}` },
+    }).catch(() => null);
+    if (!res?.ok) setPidiendoPersona(false);
+  }, [session, pidiendoPersona, estado]);
+
   const identify = useCallback(async () => {
     const value = email.trim();
     if (!value || !session) return;
@@ -579,7 +634,7 @@ export function ChatApp() {
 
         {waiting ? <Typing /> : null}
 
-        {cerrada && !waiting ? (
+        {estado === 'closed' && !waiting ? (
           <p className="my-3 text-center text-[11px] text-neutral-400">{T.cerrada}</p>
         ) : null}
 
@@ -590,7 +645,35 @@ export function ChatApp() {
         !waiting &&
         !expired &&
         messages.filter((m) => m.sender !== 'visitor').length >= 2 ? (
-          <Rating valor={califico} onVotar={calificar} T={T} />
+          <Rating
+            valor={califico}
+            onVotar={calificar}
+            comentario={comentario}
+            onComentario={setComentario}
+            onEnviarComentario={enviarComentario}
+            comentarioEnviado={comentarioEnviado}
+            T={T}
+          />
+        ) : null}
+
+        {/* Pedir una persona. Va al final del hilo y sólo después de que el
+            visitante escribió: ofrecerlo antes de la primera palabra es
+            anunciar que el chat no sirve. Cuando el hilo ya está esperando a
+            alguien —lo pidió él, o escaló solo— el botón deja lugar al aviso. */}
+        {!expired && estado !== 'closed' && messages.some((m) => m.sender === 'visitor') ? (
+          estado === 'pending' || pidiendoPersona ? (
+            <p className="mt-3 text-center text-[11px] text-neutral-500">{T.avisamos}</p>
+          ) : (
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={pedirPersona}
+                className="rounded-md border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:bg-neutral-50"
+              >
+                {T.hablarPersona}
+              </button>
+            </div>
+          )
         ) : null}
       </div>
 
@@ -768,22 +851,63 @@ function Typing() {
   );
 }
 
-/** ¿Sirvió? Dos pulgares y nada más: cualquier cosa que pida escribir baja la
- *  respuesta a la décima parte, y lo que se necesita es el número. */
+/**
+ * ¿Sirvió? Dos pulgares, y el motivo sólo a quien dijo que no.
+ *
+ * Pedir el texto ANTES del voto baja la respuesta a la décima parte, así que
+ * el número se toma primero y la caja aparece después. Y sólo tras el pulgar
+ * abajo: al que quedó conforme no hay nada que preguntarle, y el comentario
+ * que sirve para arreglar algo es el otro. El servidor ya guardaba
+ * `csat_comment` y nadie se lo pedía a nadie.
+ */
 function Rating({
   valor,
   onVotar,
+  comentario,
+  onComentario,
+  onEnviarComentario,
+  comentarioEnviado,
   T,
 }: {
   valor: boolean | null;
   onVotar: (util: boolean) => void;
+  comentario: string;
+  onComentario: (v: string) => void;
+  onEnviarComentario: () => void;
+  comentarioEnviado: boolean;
   T: TextosChat;
 }) {
   if (valor !== null) {
     return (
-      <p className="mt-3 text-center text-[11px] text-neutral-500">
-        {valor ? T.gracias : T.graciasNo}
-      </p>
+      <div className="mt-3">
+        <p className="text-center text-[11px] text-neutral-500">
+          {valor ? T.gracias : T.graciasNo}
+        </p>
+        {valor === false && !comentarioEnviado ? (
+          <form
+            className="mt-2 flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onEnviarComentario();
+            }}
+          >
+            <input
+              value={comentario}
+              onChange={(e) => onComentario(e.target.value)}
+              maxLength={500}
+              placeholder={T.queFalto}
+              className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
+            />
+            <button
+              type="submit"
+              disabled={!comentario.trim()}
+              className="shrink-0 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-[11px] text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-40"
+            >
+              {T.enviar}
+            </button>
+          </form>
+        ) : null}
+      </div>
     );
   }
   return (

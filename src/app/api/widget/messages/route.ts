@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { ingestInboundEvent } from '@/lib/channels/inbox-writer';
 import { requireSession } from '@/lib/channels/webchat/guard';
+import { conversacionDelVisitante } from '@/lib/channels/webchat/conversacion';
 import { clientIp } from '@/lib/i18n/detect';
 import { getLogger } from '@/lib/log/logger';
 
@@ -88,34 +89,6 @@ function decodeCursor(cursor: string | null): { at: string; id: string } | null 
   }
 }
 
-/** La conversación de chat web de este visitante, si ya escribió alguna vez. */
-async function findConversation(
-  workspaceId: string,
-  visitorId: string,
-): Promise<{ id: string; status: string } | null> {
-  const admin = supabaseAdmin();
-  const { data: contact } = await admin
-    .from('contacts')
-    .select('id')
-    .eq('workspace_id', workspaceId)
-    .eq('channel', 'webchat')
-    .eq('external_id', visitorId)
-    .maybeSingle();
-  if (!contact) return null;
-
-  const { data } = await admin
-    .from('conversations')
-    .select('id, status')
-    .eq('workspace_id', workspaceId)
-    .eq('contact_id', (contact as { id: string }).id)
-    .eq('channel', 'webchat')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as { id: string; status: string } | null) ?? null;
-}
-
 /**
  * POST /api/widget/messages — el visitante escribió.
  *
@@ -171,7 +144,7 @@ export async function POST(request: Request) {
     if (!result) {
       // Repetido: el mensaje ya está guardado. Para el widget es un éxito —
       // reintentó y llegó igual.
-      const conversation = await findConversation(session.workspaceId, session.visitorId);
+      const conversation = await conversacionDelVisitante(session.workspaceId, session.visitorId);
       return NextResponse.json({ ok: true, conversation_id: conversation?.id ?? null });
     }
     // Las señales de atribución, en la conversación recién creada.
@@ -230,7 +203,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const cursor = decodeCursor(url.searchParams.get('after'));
 
-  const conversation = await findConversation(session.workspaceId, session.visitorId);
+  const conversation = await conversacionDelVisitante(session.workspaceId, session.visitorId);
   if (!conversation) {
     return NextResponse.json({ messages: [], cursor: null, status: 'open' });
   }

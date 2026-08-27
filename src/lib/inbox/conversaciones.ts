@@ -134,6 +134,37 @@ export async function cambiarEstadoConversacion(
 }
 
 /**
+ * Deja el hilo esperando a una persona.
+ *
+ * Las tres columnas se mueven juntas y por eso viven acá: apagar la IA sin
+ * marcar el motivo deja una conversación muda que no aparece en el filtro
+ * "necesita humano", y marcar el motivo sin apagar la IA deja al agente
+ * contestando encima de la persona que viene a hacerse cargo.
+ *
+ * `status` va a 'pending' y no a 'open' porque es el estado que la bandeja lee
+ * como "esto espera a alguien"; `cambiarEstadoConversacion` limpia el
+ * escalamiento al sacarlo de ahí, así que el círculo se cierra solo.
+ */
+export async function pedirHumano(
+  db: SupabaseClient,
+  args: { workspaceId: string; conversationId: string; motivo: string },
+): Escritura {
+  const ahora = new Date().toISOString()
+  const { error } = await db
+    .from('conversations')
+    .update({
+      ai_enabled: false,
+      status: 'pending',
+      needs_human_reason: args.motivo,
+      needs_human_at: ahora,
+      updated_at: ahora,
+    })
+    .eq('id', args.conversationId)
+    .eq('workspace_id', args.workspaceId)
+  return { error }
+}
+
+/**
  * Pone (o saca) el dueño de una conversación.
  *
  * `assigned_agent_id` guarda un `user_id` de `auth.users` —el de un miembro del

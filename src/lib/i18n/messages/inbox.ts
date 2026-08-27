@@ -29,6 +29,10 @@ export const inbox = {
     es: "El agente no supo contestar y anotó la pregunta.",
     en: "The agent did not know the answer and logged the question.",
   },
+  needsHumanAsked: {
+    es: "El visitante pidió hablar con una persona desde el chat web.",
+    en: "The visitor asked to talk to a person from the web chat.",
+  },
 
   // Status filter (conversation list)
   filterAll: { es: "Todas", en: "All" },
