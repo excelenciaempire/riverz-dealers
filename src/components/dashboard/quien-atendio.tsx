@@ -65,6 +65,40 @@ export function QuienAtendio({ start, end }: { start: string | null; end: string
     <div className="rounded-xl border border-border bg-card p-4">
       <h2 className="text-sm font-semibold text-foreground">{t('dashboard.whoTitle')}</h2>
 
+      {/* Cuánto cerró sola, en toda la cuenta. Es el número con el que se
+          compara esta categoría —y hasta ahora existía sólo para el chat web,
+          escondido en Ajustes. El denominador son las conversaciones que la IA
+          atendió: un canal donde no la dejaron entrar no es un agente que
+          resuelve poco. */}
+      {d.ia.atendidas > 0 && (
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-semibold tabular-nums text-foreground">
+              {d.ia.tasa == null ? '—' : `${d.ia.tasa}%`}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('dashboard.iaResolved', { n: d.ia.resueltas, total: d.ia.atendidas })}
+            </span>
+            {d.ia.tasa != null && d.ia.tasaPrevia != null && (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {d.ia.tasa >= d.ia.tasaPrevia ? '+' : ''}
+                {d.ia.tasa - d.ia.tasaPrevia} pts
+              </span>
+            )}
+          </span>
+          {d.ia.calificaron > 0 && (
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-semibold tabular-nums text-foreground">
+                {d.ia.satisfaccion == null ? '—' : `${d.ia.satisfaccion}%`}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t('dashboard.iaSatisfaction', { n: d.ia.calificaron })}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
       {d.canales.length > 0 && (
         <ul className="mt-3 space-y-2">
           {d.canales.map((c) => (

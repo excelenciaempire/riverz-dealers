@@ -1859,6 +1859,24 @@ export async function runWithTools(
   let completionTokens = 0
   let iter = 0
 
+  // El system prompt se manda como bloque cacheable.
+  //
+  // Es el mismo texto en cada vuelta del bucle de herramientas —hasta seis
+  // llamadas por turno— y en cada turno siguiente de la misma conversación:
+  // la persona, el rol, el material de los productos fijados y hasta ochenta
+  // líneas de catálogo no cambian entre "hola" y "¿y en negro?". Sin esto se
+  // pagaba entero todas las veces.
+  //
+  // El corte por largo no es una optimización nuestra: por debajo del mínimo
+  // que exige el proveedor la marca se ignora, así que ponerla ahí sólo
+  // ensucia el pedido. Arriba, la primera llamada cuesta un poco más y las
+  // siguientes una décima parte.
+  const CACHE_MIN_CHARS = 8000
+  const system: Anthropic.TextBlockParam[] | string =
+    args.system.length >= CACHE_MIN_CHARS
+      ? [{ type: 'text', text: args.system, cache_control: { type: 'ephemeral' } }]
+      : args.system
+
   while (iter < AGENTIC_LOOP_MAX_ITERS) {
     iter += 1
     let response: Anthropic.Message
@@ -1866,7 +1884,7 @@ export async function runWithTools(
       response = await client.messages.create({
         model: args.model,
         max_tokens: args.max_tokens,
-        system: args.system,
+        system,
         messages,
         ...(args.tools.length > 0 ? { tools: args.tools } : {}),
       })
@@ -1886,7 +1904,7 @@ export async function runWithTools(
         response = await client.messages.create({
           model: args.model,
           max_tokens: args.max_tokens,
-          system: args.system,
+          system,
           messages,
           ...(args.tools.length > 0 ? { tools: args.tools } : {}),
         })
@@ -1953,7 +1971,7 @@ export async function runWithTools(
     final = await client.messages.create({
       model: args.model,
       max_tokens: args.max_tokens,
-      system: args.system,
+      system,
       messages,
     })
   } catch {
