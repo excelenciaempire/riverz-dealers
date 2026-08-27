@@ -89,7 +89,7 @@ export function Scene() {
             {ACTS.map((a, i) => (
               <div
                 key={a.n}
-                className="sn-act grid items-center gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16"
+                className="sn-act grid min-w-0 items-center gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16"
                 data-on={i === act}
                 aria-hidden={undefined}
               >
@@ -112,7 +112,10 @@ export function Scene() {
                   </ul>
                 </div>
 
-                <div className="sn-card sn-panel overflow-hidden p-3 sm:p-5">
+                {/* min-w-0: la vista previa tiene un ancho mínimo propio y sin
+                    esto estira la celda de la cuadrícula por encima del ancho
+                    de la pantalla. */}
+                <div className="sn-card sn-panel min-w-0 overflow-x-auto p-3 sm:p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <a.Panel />
                 </div>
               </div>

@@ -38,13 +38,18 @@ export function Cards() {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:gap-6">
       {CARDS.map((c, i) => (
-        <Rise key={c.title} delay={(i % 2) * 90}>
-          <article className="sn-card flex h-full flex-col overflow-hidden p-6 sm:p-8">
+        <Rise key={c.title} delay={(i % 2) * 90} className="min-w-0">
+          <article className="sn-card flex h-full min-w-0 flex-col overflow-hidden p-6 sm:p-8">
             <h3 className="sn-h3 max-w-[20ch]">
               {t(c.title)} <span style={{ color: "var(--sn-muted)" }}>{t(c.muted)}</span>
             </h3>
             <p className="sn-body mt-3 max-w-[46ch] !text-[15px]">{t(c.body)}</p>
-            <div className="sn-panel mt-7">
+            {/* min-w-0 en la celda, en la ficha y acá: sin eso, el ancho
+                mínimo del contenido de la vista previa estira la celda de la
+                cuadrícula por encima del ancho de la pantalla, y el párrafo de
+                arriba sale cortado. Si aun así no entra, la vista previa se
+                desliza sola en vez de empujar la ficha. */}
+            <div className="sn-panel mt-7 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <c.Panel />
             </div>
           </article>
