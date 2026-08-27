@@ -73,7 +73,15 @@ export function MetaPixelCard() {
       setConnected(true);
       setGuardado(json.pixel_id ?? pixelId.trim());
       setToken('');
-      toast.success(t('settings.metaPixelConnected'));
+      const recuperadas = Number(json.recuperadas ?? 0);
+      toast.success(t('settings.metaPixelConnected'), {
+        description:
+          recuperadas > 0
+            ? t('settings.metaPixelRecovered', { n: String(recuperadas) })
+            : undefined,
+      });
+      // Para que los contadores muestren lo que se acaba de encolar.
+      load();
     } catch {
       toast.error(t('settings.networkError'));
     } finally {

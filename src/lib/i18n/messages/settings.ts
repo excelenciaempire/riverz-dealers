@@ -60,6 +60,11 @@ export const settings = {
     en: "No sales to report yet",
   },
   metaPixelPending: { es: "{n} sin enviar", en: "{n} not sent" },
+  // Al conectar se recupera lo de la semana anterior, que es el limite de Meta.
+  metaPixelRecovered: {
+    es: "Recuperamos {n} ventas de los últimos 7 días",
+    en: "Recovered {n} sales from the last 7 days",
+  },
 
   // Klaviyo card
   klaviyoDescription: {

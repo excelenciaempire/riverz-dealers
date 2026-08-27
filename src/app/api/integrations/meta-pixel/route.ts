@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import { encolarVentasRecientes } from '@/lib/marketing/encolar-ventas-recientes';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -137,7 +138,26 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ success: true, connected: true, pixel_id: pixelId });
+
+  // Las ventas del chat de los últimos 7 días, encoladas.
+  //
+  // Nadie conecta el píxel el primer día: para cuando lo hace, ya tiene una
+  // semana de ventas que Meta nunca vio — y son justo las que le probarían que
+  // la campaña funciona. Meta acepta hasta 7 días atrás, así que se recuperan.
+  //
+  // No se mandan acá: se dejan encoladas y las despacha el barrido de
+  // `conversion-retry` en su próxima vuelta. Conectar no puede tardar lo que
+  // tarden cien llamadas a Meta.
+  const recuperadas = await encolarVentasRecientes(supabaseAdmin(), workspaceId).catch(
+    () => ({ encoladas: 0, miradas: 0 }),
+  );
+
+  return NextResponse.json({
+    success: true,
+    connected: true,
+    pixel_id: pixelId,
+    recuperadas: recuperadas.encoladas,
+  });
 }
 
 export async function DELETE(request: Request) {
