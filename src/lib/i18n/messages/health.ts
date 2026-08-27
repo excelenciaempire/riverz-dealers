@@ -40,6 +40,53 @@ export const health: Namespace = {
     en: "{n} campaign(s) got stuck sending and never finished",
   },
 
+  // El detalle del aviso. El crudo que devuelve la base viene en inglés y con
+  // el código pelado de Meta; estas claves lo dicen en el idioma del comercio.
+  // Lo que no reconocemos se muestra tal cual: perder el detalle es peor.
+  detailNoReason: {
+    es: "el canal no informó el motivo",
+    en: "the channel gave no reason",
+  },
+  detailTemplateNamed: {
+    es: "la plantilla «{name}» ya no existe",
+    en: "template “{name}” no longer exists",
+  },
+  detailTemplateMissing: {
+    es: "la plantilla que usaba ya no existe",
+    en: "the template it used no longer exists",
+  },
+  detailNoRecipients: {
+    es: "no había a quién enviarlo",
+    en: "there was nobody to send it to",
+  },
+  detailInvalidPhone: {
+    es: "el número de teléfono no es válido",
+    en: "the phone number isn't valid",
+  },
+  detailUnsubscribed: {
+    es: "el contacto se dio de baja",
+    en: "the contact unsubscribed",
+  },
+  detailNoConnection: {
+    es: "el canal no está conectado",
+    en: "the channel isn't connected",
+  },
+  detailRateLimited: {
+    es: "se alcanzó el límite de envíos del canal",
+    en: "the channel's sending limit was reached",
+  },
+  detailTimeout: {
+    es: "el canal tardó demasiado en responder",
+    en: "the channel took too long to respond",
+  },
+  detailAuth: {
+    es: "la conexión perdió el permiso: hay que volver a conectarla",
+    en: "the connection lost access: reconnect it",
+  },
+
+  // Ocultar el aviso ya leído. Vuelve solo si aparece algo distinto.
+  dismiss: { es: "Ocultar", en: "Dismiss" },
+
   // Decisiones que esperan a una persona
   approvalsTitle: { es: "Esperando tu decisión", en: "Waiting on you" },
   approvalApprove: { es: "Aprobar", en: "Approve" },

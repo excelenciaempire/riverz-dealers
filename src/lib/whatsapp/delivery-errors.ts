@@ -54,6 +54,20 @@ const CODES: Record<number, CodeMeta> = {
   131000: { key: 'code131000' }, // error desconocido de Meta
   131016: { key: 'code131016' }, // servicio de WhatsApp temporalmente no disponible
   141010: { key: 'code141010' }, // negocio sin verificar (aparece en health_status)
+  // Errores de PLANTILLA. No son de entrega: Meta rechaza el envío entero
+  // antes de intentarlo, así que el cliente no recibe nada. Aparecen sobre todo
+  // en corridas de automatizaciones y campañas, y hasta ahora llegaban a la
+  // pantalla en inglés y con el número pelado ("(#131008) Required parameter
+  // is missing"), que no le dice a nadie qué arreglar.
+  131008: { key: 'code131008' }, // falta un parámetro obligatorio (variable vacía)
+  131009: { key: 'code131009' }, // el valor de un parámetro no es válido
+  132001: { key: 'code132001' }, // la plantilla no existe en ese idioma
+  132005: { key: 'code132005' }, // el texto traducido excede el largo permitido
+  132007: { key: 'code132007' }, // el contenido viola el formato permitido
+  132012: { key: 'code132012' }, // el formato del parámetro no coincide
+  131051: { key: 'code131051' }, // tipo de mensaje no soportado
+  133010: { key: 'code133010' }, // el número no está registrado en la Cloud API
+  100: { key: 'code100' }, // parámetro inválido (genérico de Graph)
   // Código PRIVADO de Riverz (fuera del rango de Meta): marketing a EE.UU.
   // bloqueado del lado del cliente (Meta no lo entrega y quedaría en 'sent'
   // para siempre). Ver isUsPhone / US_MARKETING_BLOCKED_CODE.

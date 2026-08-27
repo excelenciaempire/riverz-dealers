@@ -9,6 +9,7 @@ import { useFormat } from "@/hooks/use-format";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { cn } from "@/lib/utils";
 import { FEATURES, OPT_IN_FEATURES } from "@/lib/admin/feature-flags";
+import { issueDetailText } from "@/lib/health/detail";
 import type { WorkspaceDetail } from "@/lib/admin/queries";
 import {
   useAdminData,
@@ -110,8 +111,11 @@ export default function AdminWorkspaceDetailPage({
                 />
                 <span className="min-w-0 flex-1 text-foreground">
                   {t(`health.${issue.kind}`, { n: issue.count })}
-                  {issue.detail && (
-                    <span className="text-muted-foreground"> · {issue.detail}</span>
+                  {issueDetailText(issue.kind, issue.detail, t) && (
+                    <span className="text-muted-foreground">
+                      {" · "}
+                      {issueDetailText(issue.kind, issue.detail, t)}
+                    </span>
                   )}
                 </span>
               </li>

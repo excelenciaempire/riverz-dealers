@@ -4,6 +4,8 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectWorkspaceIssues, type Issue } from '@/lib/health/issues'
+import { issueDetailText } from '@/lib/health/detail'
+import { translate } from '@/lib/i18n/translate'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.issues-alert')
@@ -132,7 +134,10 @@ async function sendAlert(to: string, workspace: string, issues: Issue[]): Promis
 
 /** Texto del correo. Español fijo: es un aviso operativo del dueño, no UI. */
 function describe(issue: Issue): string {
-  const detail = issue.detail ? ` (${issue.detail})` : ''
+  // El detalle sí pasa por el traductor: el crudo de Meta llega en inglés y
+  // con el código pelado, y eso adentro de un correo en español no se lee.
+  const legible = issueDetailText(issue.kind, issue.detail, (k, v) => translate('es', k, v))
+  const detail = legible ? ` (${legible})` : ''
   switch (issue.kind) {
     case 'automation_stuck':
       return `${issue.count} envío(s) de una automatización quedaron a medias${detail}`

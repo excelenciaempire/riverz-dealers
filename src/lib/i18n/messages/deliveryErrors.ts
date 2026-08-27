@@ -91,6 +91,42 @@ export const deliveryErrors = {
     es: "El negocio no está verificado. No bloquea el envío, pero limita el cupo.",
     en: "The business isn't verified. It doesn't block sending, but it caps your volume.",
   },
+  code131008: {
+    es: "Una variable de la plantilla quedó vacía y WhatsApp rechazó el envío completo.",
+    en: "A template variable came through empty and WhatsApp rejected the whole send.",
+  },
+  code131009: {
+    es: "Uno de los valores de la plantilla no es válido para WhatsApp.",
+    en: "One of the template values isn't valid for WhatsApp.",
+  },
+  code132001: {
+    es: "La plantilla no existe en el idioma con el que se intentó enviar.",
+    en: "The template doesn't exist in the language it was sent with.",
+  },
+  code132005: {
+    es: "El texto de la plantilla supera el largo permitido.",
+    en: "The template text is longer than allowed.",
+  },
+  code132007: {
+    es: "El contenido de la plantilla no cumple el formato que exige WhatsApp.",
+    en: "The template content doesn't meet WhatsApp's formatting rules.",
+  },
+  code132012: {
+    es: "El formato de una variable no coincide con el de la plantilla aprobada.",
+    en: "A variable's format doesn't match the approved template.",
+  },
+  code131051: {
+    es: "WhatsApp no admite ese tipo de mensaje.",
+    en: "WhatsApp doesn't support that message type.",
+  },
+  code133010: {
+    es: "El número no está registrado para enviar por la API de WhatsApp.",
+    en: "The number isn't registered to send through the WhatsApp API.",
+  },
+  code100: {
+    es: "WhatsApp rechazó el envío por un dato inválido.",
+    en: "WhatsApp rejected the send because of an invalid value.",
+  },
   usMarketingBlocked: {
     es: "WhatsApp no entrega marketing a números de EE.UU. Usa una plantilla de utilidad o espera a que el cliente escriba primero.",
     en: "WhatsApp doesn't deliver marketing to US numbers. Use a utility template or wait for the customer to message first.",
