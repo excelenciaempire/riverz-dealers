@@ -105,7 +105,7 @@ export const landingV4 = {
     en: "And if you want something changed, you just ask",
   },
   operatorBody: {
-    es: "Escribes lo que necesitas como se lo dirías a un empleado. Riverz lo reparte entre catorce especialistas —uno de automatizaciones, otro de campañas, otro de productos— te muestra el reparto completo, y recién cuando lo apruebas se pone a trabajar.",
+    es: "Escribes lo que necesitas como se lo dirías a un empleado. Riverz lo reparte entre catorce especialistas —uno de automatizaciones, otro de campañas, otro de productos— te muestra el reparto completo, y solo cuando lo apruebas se pone a trabajar.",
     en: "You write what you need the way you'd tell an employee. Riverz splits it across fourteen specialists — one for automations, one for campaigns, one for products — shows you the whole split, and only starts working once you approve it.",
   },
   operatorP1: {
