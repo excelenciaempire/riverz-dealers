@@ -82,13 +82,14 @@ export function LandingV4() {
             pagado; y recién ahí la lista de funciones. */}
         <Launch />
         <Scene />
+        <Banda src="/portada-b/intencion.jpg" line="landingV4.bandaLine2" />
         <Pillars />
         {/* El Operator va después de los pilares y antes de la lista: primero
             se entiende que se puede delegar sin quedarse ciego, y entonces
             «se lo pides y lo hace» se lee como la prueba de eso. */}
         <Operator />
         <Capabilities />
-        <Banda />
+        <Banda src="/portada-b/banda-mostrador.jpg" line="landingV4.bandaLine" />
         <Channels />
         <Cta />
       </main>
@@ -355,36 +356,30 @@ function Capabilities() {
 /**
  * La banda: una foto a todo el ancho con una sola línea encima.
  *
- * Después de trece fichas seguidas el ojo necesita un respiro, y el respiro
- * tiene que decir algo. La frase sale de los territorios creativos del
- * documento: es la versión más corta del mecanismo entero.
+ * Es el respiro entre bloques largos, y el respiro tiene que decir algo. Las
+ * dos frases salen de los territorios creativos del documento: son las
+ * versiones más cortas del mecanismo.
  */
-function Banda() {
+function Banda({ src, line }: { src: string; line: string }) {
   const t = useT();
   return (
     <section className="relative mx-auto mt-4 max-w-[1600px] px-3 lg:px-5">
       <div className="relative overflow-hidden rounded-[26px]">
         <div className="relative aspect-[21/9] max-h-[46vh] w-full sm:max-h-none">
-          <Image
-            src="/portada-b/banda-mostrador.jpg"
-            alt=""
-            fill
-            sizes="100vw"
-            className="object-cover"
-          />
+          <Image src={src} alt="" fill sizes="100vw" className="object-cover" />
           {/* Velo desde abajo: la línea siempre cae sobre zona oscura, sin
               importar cómo recorte la foto a cada ancho. */}
           <div
             className="absolute inset-0"
             style={{
               background:
-                "linear-gradient(0deg, rgba(18,32,31,0.72) 0%, rgba(18,32,31,0.28) 45%, rgba(18,32,31,0.05) 100%)",
+                "linear-gradient(0deg, rgba(18,32,31,0.74) 0%, rgba(18,32,31,0.3) 45%, rgba(18,32,31,0.05) 100%)",
             }}
           />
         </div>
         <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10 lg:p-14">
           <p className="sn-h2 max-w-[16ch]" style={{ color: "var(--sn-card)" }}>
-            {t("landingV4.bandaLine")}
+            {t(line)}
           </p>
         </div>
       </div>

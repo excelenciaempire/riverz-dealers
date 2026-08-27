@@ -244,6 +244,10 @@ export const landingV4 = {
     es: "De chat a pedido, sin perder el hilo.",
     en: "From chat to order, without losing the thread.",
   },
+  bandaLine2: {
+    es: "Cada señal activa el siguiente paso.",
+    en: "Every signal triggers the next step.",
+  },
 
   // ── Canales ──
   channelsLabel: { es: "Canales", en: "Channels" },
