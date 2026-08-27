@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { TextosChat } from './chat-app';
+import { rearmar } from './rearmar-carrito';
 
 /**
  * La tarjeta de compra.
@@ -21,12 +22,20 @@ import type { TextosChat } from './chat-app';
  * al enlace de siempre. Nunca se queda sin salida.
  */
 
+interface Variante {
+  id: string;
+  label: string;
+  price: number | null;
+  available: boolean;
+}
+
 interface Producto {
   title: string;
   image: string | null;
   url: string | null;
   price: number | null;
   currency: string | null;
+  variants?: Variante[];
 }
 
 export function ProductCard({
@@ -56,12 +65,15 @@ export function ProductCard({
   T: TextosChat;
 }) {
   const [prod, setProd] = useState<Producto | null>(null);
+  // Lo que la persona elige ACA, sin volver a escribirle al agente.
+  const [variante, setVariante] = useState(variantId);
+  const [cuantos, setCuantos] = useState(Math.max(1, unidades));
   const [estado, setEstado] = useState<'idle' | 'adding' | 'added'>('idle');
 
   useEffect(() => {
     if (!session) return;
     let vivo = true;
-    fetch(`/api/widget/product?variant=${encodeURIComponent(variantId)}`, {
+    fetch(`/api/widget/product?variant=${encodeURIComponent(variante)}`, {
       headers: { Authorization: `Bearer ${session}` },
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -72,7 +84,16 @@ export function ProductCard({
     return () => {
       vivo = false;
     };
-  }, [variantId, session]);
+  }, [variante, session]);
+
+  // El enlace que se va a usar: el que armó el agente, con la variante y la
+  // cantidad que la persona eligió en la tarjeta. Si el enlace trae varios
+  // productos no se toca —ahí "la cantidad" no significa nada— y se usa el
+  // original.
+  const elegido = rearmar(href, { variantId: variante, cantidad: cuantos });
+  const rutaViva = elegido?.path ?? path;
+  const hrefVivo = elegido?.href ?? href;
+  const ajustable = !!elegido && lineas === 1;
 
   /** Le pide al cargador —que corre en el dominio de la tienda— que agregue.
    *  `after` decide si además lo lleva al checkout. */
@@ -84,7 +105,7 @@ export function ProductCard({
     // Antes esto no llegaba a pasar por otro motivo peor — el botón quedaba
     // vivo a la vista y no hacía nada, que es el último clic del embudo.
     if (estado === 'added') {
-      if (after === 'checkout') window.parent?.postMessage({ type: 'riverz:go_checkout', path }, '*');
+      if (after === 'checkout') window.parent?.postMessage({ type: 'riverz:go_checkout', path: rutaViva }, '*');
       return;
     }
 
@@ -92,7 +113,7 @@ export function ProductCard({
     const timer = setTimeout(() => {
       window.removeEventListener('message', onReply);
       setEstado('idle');
-      window.open(href, '_blank', 'noopener');
+      window.open(hrefVivo, '_blank', 'noopener');
     }, 3000);
 
     function onReply(event: MessageEvent) {
@@ -105,26 +126,35 @@ export function ProductCard({
       if (event.data.ok) setEstado(after === 'checkout' ? 'idle' : 'added');
       else {
         setEstado('idle');
-        window.open(href, '_blank', 'noopener');
+        window.open(hrefVivo, '_blank', 'noopener');
       }
     }
     window.addEventListener('message', onReply);
-    window.parent?.postMessage({ type: 'riverz:add_to_cart', path, after }, '*');
+    window.parent?.postMessage({ type: 'riverz:add_to_cart', path: rutaViva, after }, '*');
   };
 
   // Sin moneda no se inventa una: con `currency` vacío se caía a USD y un
   // precio de 69.900 pesos se mostraba como "US$ 69.900". Mejor el número solo
   // que un número en la moneda de otro país.
-  const precio =
-    prod?.price == null
-      ? null
-      : prod.currency
-        ? new Intl.NumberFormat('es', {
-            style: 'currency',
-            currency: prod.currency,
-            maximumFractionDigits: 0,
-          }).format(prod.price)
-        : new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(prod.price);
+  const plata = (n: number) =>
+    prod?.currency
+      ? new Intl.NumberFormat('es', {
+          style: 'currency',
+          currency: prod.currency,
+          maximumFractionDigits: 0,
+        }).format(n)
+      : new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(n);
+
+  const precio = prod?.price == null ? null : plata(prod.price);
+
+  // Las opciones con nombre. Una sola no es una opción: mostrar un selector
+  // con un único valor es pedirle a alguien que elija lo que ya está elegido.
+  const opciones = (prod?.variants ?? []).filter((v) => v.label);
+
+  // Lo que se va a llevar, cuando es más de uno. El unitario ahí se lee como
+  // el total y la sorpresa llega en el checkout.
+  const totalVisible =
+    prod?.price != null && cuantos > 1 && lineas === 1 ? plata(prod.price * cuantos) : null;
 
   return (
     <div className="mt-2 overflow-hidden rounded-xl border border-black/10 bg-white">
@@ -145,9 +175,74 @@ export function ProductCard({
         ) : null}
         {/* Sólo si el precio que se muestra ES lo que se va a cobrar: con
             varios productos o varias unidades, el unitario engaña. */}
-        {precio && lineas === 1 && unidades === 1 ? (
+        {precio && lineas === 1 && cuantos === 1 ? (
           <p className="mt-0.5 text-sm text-neutral-600">{precio}</p>
         ) : null}
+
+        {/* Elegir el talle acá y no volviendo a escribirle al agente.
+            Sólo si hay más de una opción CON nombre: un selector que dice
+            "Default Title" es ruido. */}
+        {ajustable && opciones.length > 1 ? (
+          <select
+            aria-label={T.opcion}
+            value={variante}
+            onChange={(e) => {
+              setVariante(e.target.value);
+              // Cambió de producto: lo que ya estaba agregado era el otro.
+              setEstado('idle');
+            }}
+            className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs text-neutral-900"
+          >
+            {opciones.map((v) => (
+              <option key={v.id} value={v.id} disabled={!v.available}>
+                {v.label}
+                {v.available ? '' : ` — ${T.sinStock}`}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        {/* Cuántos. Mover un número no debería costar dos turnos de chat. */}
+        {ajustable ? (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-neutral-500">{T.cantidad}</span>
+            <div className="flex items-center rounded-lg border border-neutral-300">
+              <button
+                type="button"
+                aria-label={T.menos}
+                disabled={cuantos <= 1 || estado === 'adding'}
+                onClick={() => {
+                  setCuantos((n) => Math.max(1, n - 1));
+                  setEstado('idle');
+                }}
+                className="px-2 py-1 text-sm text-neutral-700 disabled:opacity-40"
+              >
+                −
+              </button>
+              <span className="min-w-6 text-center text-xs tabular-nums text-neutral-900">
+                {cuantos}
+              </span>
+              <button
+                type="button"
+                aria-label={T.mas}
+                disabled={cuantos >= 20 || estado === 'adding'}
+                onClick={() => {
+                  setCuantos((n) => Math.min(20, n + 1));
+                  setEstado('idle');
+                }}
+                className="px-2 py-1 text-sm text-neutral-700 disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
+            {/* El total de lo que se va a llevar, cuando es más de uno: el
+                unitario ahí se lee como el total y decepciona en el checkout. */}
+            {totalVisible ? (
+              <span className="ml-auto text-xs font-medium text-neutral-900">{totalVisible}</span>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-2 flex gap-1.5">
           <button
             type="button"

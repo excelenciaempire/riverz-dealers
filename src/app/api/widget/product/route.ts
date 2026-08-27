@@ -52,6 +52,13 @@ export async function GET(request: Request) {
         id?: number | string;
         price?: number | string | null;
         promotional_price?: number | string | null;
+        title?: string | null;
+        option1?: string | null;
+        option2?: string | null;
+        option3?: string | null;
+        values?: Array<{ es?: string; en?: string; pt?: string } | string> | null;
+        available?: boolean | null;
+        stock?: number | null;
       }>;
     } | null;
   };
@@ -74,5 +81,49 @@ export async function GET(request: Request) {
     url: row.url,
     price: Number.isFinite(precio) ? precio : null,
     currency: row.currency,
+    // Las otras variantes, para poder cambiar de talle sin salir del chat.
+    //
+    // Sin esto, quien quería el mismo producto en otro color tenía que volver
+    // a escribirlo y esperar que el agente acertara. La tarjeta mostraba UNA
+    // variante —la que el modelo eligió— como si fuera todo el producto.
+    variants: (row.raw?.variants ?? [])
+      .map((v) => ({
+        id: String(v?.id ?? ''),
+        label: etiquetaDeVariante(v),
+        price: v?.promotional_price != null ? Number(v.promotional_price)
+          : v?.price != null ? Number(v.price) : null,
+        // `stock: null` en Tiendanube significa "sin control de stock", que es
+        // disponible. Tratarlo como cero escondía productos que sí se venden.
+        available: v?.available !== false && v?.stock !== 0,
+      }))
+      .filter((v) => v.id)
+      .slice(0, 24),
   });
+}
+
+/**
+ * Cómo se llama esta variante para quien compra.
+ *
+ * Cada plataforma la nombra distinto: Shopify junta las opciones en `title`,
+ * Tiendanube las trae como una lista de valores traducidos. Si no hay nada
+ * legible se devuelve vacío y la tarjeta no dibuja el selector — mejor sin
+ * selector que con opciones que dicen "Default Title".
+ */
+function etiquetaDeVariante(v: {
+  title?: string | null;
+  option1?: string | null;
+  option2?: string | null;
+  option3?: string | null;
+  values?: Array<{ es?: string; en?: string; pt?: string } | string> | null;
+}): string {
+  const deValores = (v.values ?? [])
+    .map((x) => (typeof x === 'string' ? x : x?.es || x?.en || x?.pt || ''))
+    .filter(Boolean)
+    .join(' · ');
+  if (deValores) return deValores;
+  const opciones = [v.option1, v.option2, v.option3].filter(Boolean).join(' · ');
+  if (opciones) return opciones;
+  const t = (v.title ?? '').trim();
+  // Shopify le pone este título a los productos SIN variantes.
+  return t && t.toLowerCase() !== 'default title' ? t : '';
 }
