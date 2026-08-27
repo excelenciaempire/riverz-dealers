@@ -54,11 +54,31 @@ export async function GET() {
     external_account_id: string | null;
     updated_at: string;
   } | null;
+  // Cuántas ventas se contaron y cuántas quedaron a medias.
+  //
+  // Sin esto la tarjeta sólo dice "conectado", que es exactamente el estado en
+  // el que estaría un píxel con el token vencido: conectado, y sin contar una
+  // sola venta. El número es lo único que distingue las dos cosas.
+  //
+  // Va por RLS (la política deja ver sólo lo del propio workspace), así que no
+  // hace falta filtrar por cuenta acá.
+  const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const contar = (enviado: boolean) => {
+    const q = supabase
+      .from('conversion_events')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', desde);
+    return enviado ? q.eq('status', 'enviado') : q.neq('status', 'enviado');
+  };
+  const [ok, pendientes] = await Promise.all([contar(true), contar(false)]);
+
   return NextResponse.json({
     connected: !!row?.is_active,
     // El ID es público; el token no vuelve nunca.
     pixel_id: row?.external_account_id ?? null,
     updated_at: row?.updated_at ?? null,
+    contadas: ok.count ?? 0,
+    sin_enviar: pendientes.count ?? 0,
   });
 }
 

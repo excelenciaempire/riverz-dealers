@@ -373,6 +373,10 @@ export const admin = {
     en: "Pulls rejected Mercado Pago payments",
   },
   cronDeliveryWatchdog: { es: "Marca envíos sin confirmar", en: "Flags unconfirmed deliveries" },
+  cronConversionRetry: {
+    es: "Reintenta las ventas que no le llegaron a Meta",
+    en: "Retries sales that didn't reach Meta",
+  },
   cronAdsSync: {
     es: "Marca qué comentarios vienen de un anuncio",
     en: "Flags which comments came from an ad",

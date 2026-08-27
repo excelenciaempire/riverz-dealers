@@ -192,10 +192,81 @@ export function armarEvento(v: VentaParaMeta, ahora = Date.now()) {
 }
 
 /**
- * Manda la venta y deja constancia.
+ * Manda un cuerpo YA ARMADO y deja constancia de lo que contestaron.
+ *
+ * Lo comparten el envío y el reintento, y a propósito: si el reintento armara
+ * su propio cuerpo, le estamparía la hora del reintento en vez de la de la
+ * venta, y Meta atribuye por `event_time` — la venta se mudaría de día y, con
+ * suerte, de campaña.
  *
  * Nunca lanza: una venta registrada no puede fallar porque Meta no conteste.
- * Lo que no salió queda en `conversion_events` con su error, para reintentarlo.
+ */
+async function despachar(
+  db: SupabaseClient,
+  a: {
+    workspaceId: string
+    eventName: string
+    eventId: string
+    config: ConfigMeta
+    cuerpo: unknown
+    intentos: number
+  },
+): Promise<{ ok: boolean; motivo?: string }> {
+  const marcar = (parche: Record<string, unknown>) =>
+    db
+      .from('conversion_events')
+      .update({ ...parche, intentos: a.intentos, sent_at: new Date().toISOString() })
+      .eq('workspace_id', a.workspaceId)
+      .eq('event_name', a.eventName)
+      .eq('event_id', a.eventId)
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${VERSION}/${a.config.pixelId}/events`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(a.cuerpo as Record<string, unknown>),
+          access_token: a.config.token,
+        }),
+      },
+    )
+    const texto = await res.text()
+    let respuesta: unknown = texto
+    try {
+      respuesta = JSON.parse(texto)
+    } catch {
+      /* Meta contestó algo que no es JSON: se guarda tal cual. */
+    }
+    await marcar({
+      status: res.ok ? 'enviado' : 'fallido',
+      response: respuesta as Record<string, unknown>,
+      error: res.ok ? null : `HTTP ${res.status}`,
+    })
+    if (!res.ok) {
+      log.warn('meta_rechazo', {
+        workspaceId: a.workspaceId,
+        status: res.status,
+        intentos: a.intentos,
+        cuerpo: texto.slice(0, 300),
+      })
+      return { ok: false, motivo: `http_${res.status}` }
+    }
+    return { ok: true }
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : 'error'
+    await marcar({ status: 'fallido', error: motivo.slice(0, 300) })
+    log.warn('meta_sin_respuesta', { workspaceId: a.workspaceId, error: motivo })
+    return { ok: false, motivo: 'sin_respuesta' }
+  }
+}
+
+/**
+ * Manda la venta y deja constancia.
+ *
+ * Lo que no salga queda en `conversion_events` con su cuerpo y su error, y el
+ * barrido de `reintentar-conversiones.ts` lo vuelve a intentar.
  */
 export async function contarVentaEnMeta(
   db: SupabaseClient,
@@ -203,6 +274,8 @@ export async function contarVentaEnMeta(
 ): Promise<{ ok: boolean; motivo?: string }> {
   const config = await configDeMeta(db, v.workspaceId)
   if (!config) return { ok: false, motivo: 'sin_pixel' }
+
+  const cuerpo = armarEvento(v)
 
   // La fila primero, con su índice único: si dos caminos intentan contar el
   // mismo pedido a la vez, el segundo rebota acá y no llega a mandar nada.
@@ -216,6 +289,10 @@ export async function contarVentaEnMeta(
     value: v.value,
     currency: v.currency,
     status: 'pendiente',
+    // El cuerpo exacto, para que el reintento no tenga que adivinarlo y para
+    // que el comercio pueda ver qué se mandó en su nombre.
+    payload: cuerpo,
+    intentos: 1,
   })
   if (choque) {
     if (choque.code === '23505') return { ok: true, motivo: 'ya_contada' }
@@ -223,52 +300,38 @@ export async function contarVentaEnMeta(
     return { ok: false, motivo: 'error_db' }
   }
 
-  const cuerpo = armarEvento(v)
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/${VERSION}/${config.pixelId}/events`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...cuerpo, access_token: config.token }),
-      },
-    )
-    const texto = await res.text()
-    let respuesta: unknown = texto
-    try {
-      respuesta = JSON.parse(texto)
-    } catch {
-      /* Meta contestó algo que no es JSON: se guarda tal cual. */
-    }
-    await db
-      .from('conversion_events')
-      .update({
-        status: res.ok ? 'enviado' : 'fallido',
-        response: respuesta as Record<string, unknown>,
-        error: res.ok ? null : `HTTP ${res.status}`,
-        sent_at: new Date().toISOString(),
-      })
-      .eq('workspace_id', v.workspaceId)
-      .eq('event_name', 'Purchase')
-      .eq('event_id', v.orderId)
-    if (!res.ok) {
-      log.warn('meta_rechazo', {
-        workspaceId: v.workspaceId,
-        status: res.status,
-        cuerpo: texto.slice(0, 300),
-      })
-      return { ok: false, motivo: `http_${res.status}` }
-    }
-    return { ok: true }
-  } catch (err) {
-    const motivo = err instanceof Error ? err.message : 'error'
-    await db
-      .from('conversion_events')
-      .update({ status: 'fallido', error: motivo.slice(0, 300) })
-      .eq('workspace_id', v.workspaceId)
-      .eq('event_name', 'Purchase')
-      .eq('event_id', v.orderId)
-    log.warn('meta_sin_respuesta', { workspaceId: v.workspaceId, error: motivo })
-    return { ok: false, motivo: 'sin_respuesta' }
-  }
+  return despachar(db, {
+    workspaceId: v.workspaceId,
+    eventName: 'Purchase',
+    eventId: v.orderId,
+    config,
+    cuerpo,
+    intentos: 1,
+  })
+}
+
+/** Reenvía un evento que quedó a medias, con el mismo cuerpo de la primera vez. */
+export async function reenviarEvento(
+  db: SupabaseClient,
+  fila: {
+    workspace_id: string
+    event_name: string
+    event_id: string
+    payload: unknown
+    intentos: number
+  },
+): Promise<{ ok: boolean; motivo?: string }> {
+  if (!fila.payload) return { ok: false, motivo: 'sin_cuerpo' }
+  const config = await configDeMeta(db, fila.workspace_id)
+  // Sin píxel no hay a quién mandarle: el comercio lo desconectó después de la
+  // venta. No se gasta un intento — si lo reconecta, esto vuelve a salir.
+  if (!config) return { ok: false, motivo: 'sin_pixel' }
+  return despachar(db, {
+    workspaceId: fila.workspace_id,
+    eventName: fila.event_name,
+    eventId: fila.event_id,
+    config,
+    cuerpo: fila.payload,
+    intentos: fila.intentos + 1,
+  })
 }

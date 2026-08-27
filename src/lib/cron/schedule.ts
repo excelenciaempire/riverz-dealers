@@ -102,6 +102,13 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // llegado por aviso. Sólo ingesta; el envío lo decide mercadopago-recovery.
   { name: "mercadopago-sync", whatKey: "admin.cronMercadopagoSync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *" },
   { name: "delivery-watchdog", whatKey: "admin.cronDeliveryWatchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *" },
+  // Las ventas del chat que no le llegaron a Meta. Casi todo lo que falla acá
+  // se arregla solo o en un rato (un 500, la red, un token que el comercio
+  // renueva), y sin reintento cada uno de esos ratos es una venta que el
+  // algoritmo nunca supo que ocurrió. Meta descarta lo que tenga más de 7 días,
+  // así que el barrido tiene que ser frecuente, y sale barato: sin pendientes
+  // es una consulta contra un índice parcial vacío.
+  { name: "conversion-retry", whatKey: "admin.cronConversionRetry", path: "/api/cron/conversion-retry", schedule: "*/15 * * * *" },
   // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
   // un secret: al mudar de dominio quedó apuntando al host viejo y el mapa
   // post_id → ad_id se congeló, así que los comentarios sobre anuncios dejaron

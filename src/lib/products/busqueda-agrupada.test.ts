@@ -198,14 +198,23 @@ describe('el catálogo del agente sale de un solo lugar', () => {
 describe('las otras superficies que leen el catálogo', () => {
   const leer = (p: string) => readFileSync(p, 'utf8')
 
-  it('el panel de Probar agrupa y expande como producción', () => {
+  it('el panel de Probar arma el catálogo con el mismo cargador que producción', () => {
     // Su propio comentario prometía "las mismas reglas de alcance que
     // producción" y no las tenía: mostraba cuatro publicaciones del mismo
     // producto. Un panel de prueba que no se parece a producción no prueba.
+    //
+    // Lo que se fija es que use el CARGADOR compartido, no que repita su
+    // contenido: antes esto exigía ver `unificarFilas` y `master_id` en la ruta,
+    // y cuando esa lógica se mudó a `loadProductCatalog` —donde corresponde— el
+    // test se puso rojo aunque el panel había quedado más parecido a producción,
+    // no menos.
     const ruta = leer('src/app/api/ai/agents/[id]/test/route.ts')
-    expect(ruta).toContain('unificarFilas')
+    expect(ruta).toContain('loadProductCatalog')
     expect(ruta).toContain('productosPermitidos')
-    expect(ruta).toContain('master_id')
+    // Y que el cargador compartido siga plegando por producto principal.
+    const runner = leer('src/lib/ai/runner.ts')
+    expect(runner).toMatch(/loadProductCatalog[\s\S]*?unificarFilas/)
+    expect(runner).toContain('master_id')
   })
 
   it('el Operador lista productos agrupados', () => {

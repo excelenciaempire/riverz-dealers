@@ -31,6 +31,8 @@ export function MetaPixelCard() {
   const [pixelId, setPixelId] = useState('');
   const [token, setToken] = useState('');
   const [guardado, setGuardado] = useState<string | null>(null);
+  const [contadas, setContadas] = useState(0);
+  const [sinEnviar, setSinEnviar] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +43,8 @@ export function MetaPixelCard() {
       if (res.ok) {
         setConnected(!!json.connected);
         setGuardado(json.pixel_id ?? null);
+        setContadas(Number(json.contadas ?? 0));
+        setSinEnviar(Number(json.sin_enviar ?? 0));
       }
     } catch {
       /* no-op */
@@ -123,24 +127,38 @@ export function MetaPixelCard() {
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
         </div>
       ) : connected ? (
-        <li className="flex list-none items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
-          <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-          <span className="flex-1 truncate text-xs text-foreground">
-            {guardado ? `${t('settings.connected')} · ${guardado}` : t('settings.connected')}
-          </span>
-          <button
-            onClick={disconnect}
-            disabled={saving}
-            title={t('settings.metaPixelDisconnect')}
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
-          >
-            {saving ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="size-3.5" />
+        <div className="space-y-1.5">
+          <li className="flex list-none items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
+            <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
+            <span className="flex-1 truncate text-xs text-foreground">
+              {guardado ? `${t('settings.connected')} · ${guardado}` : t('settings.connected')}
+            </span>
+            <button
+              onClick={disconnect}
+              disabled={saving}
+              title={t('settings.metaPixelDisconnect')}
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+            >
+              {saving ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+            </button>
+          </li>
+          {/* Un píxel con el token vencido también dice "conectado". */}
+          <p className="px-2 text-[11px] text-muted-foreground">
+            {contadas > 0
+              ? t('settings.metaPixelCounted', { n: String(contadas) })
+              : t('settings.metaPixelNoneYet')}
+            {sinEnviar > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {' · '}
+                {t('settings.metaPixelPending', { n: String(sinEnviar) })}
+              </span>
             )}
-          </button>
-        </li>
+          </p>
+        </div>
       ) : null}
 
       {!loading && !connected && (

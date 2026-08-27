@@ -49,6 +49,17 @@ export const settings = {
   metaPixelConnected: { es: "Píxel conectado", en: "Pixel connected" },
   metaPixelDisconnect: { es: "Desconectar el píxel", en: "Disconnect pixel" },
   metaPixelDisconnected: { es: "Píxel desconectado", en: "Pixel disconnected" },
+  // El número es lo único que distingue un píxel que funciona de uno conectado
+  // con el token vencido: los dos dicen "conectado".
+  metaPixelCounted: {
+    es: "{n} ventas contadas · 30 días",
+    en: "{n} sales counted · 30 days",
+  },
+  metaPixelNoneYet: {
+    es: "Todavía sin ventas que contar",
+    en: "No sales to report yet",
+  },
+  metaPixelPending: { es: "{n} sin enviar", en: "{n} not sent" },
 
   // Klaviyo card
   klaviyoDescription: {
