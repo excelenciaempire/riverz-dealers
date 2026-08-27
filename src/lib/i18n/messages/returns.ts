@@ -87,3 +87,33 @@ export const approvals = {
   done: { es: "Listo.", en: "Done." },
   failed: { es: "No se pudo.", en: "Could not do it." },
 } satisfies Namespace;
+
+/**
+ * Las reglas del comercio (migración 200). Viven en este archivo y no en uno
+ * propio por lo mismo que `gaps`: son tres pantallas chicas del asistente y
+ * repartirlas en tres archivos hace más difícil ver que se contradicen.
+ */
+export const reglas = {
+  title: { es: "Reglas del negocio", en: "Business rules" },
+  hint: {
+    es: "Lo que el agente tiene que hacer o no hacer, pase lo que pase. Mandan sobre su personalidad.",
+    en: "What the agent must or must not do, no matter what. They override its personality.",
+  },
+  empty: {
+    es: "Todavía no hay reglas. El agente sigue su personalidad y nada más.",
+    en: "No rules yet. The agent just follows its personality.",
+  },
+  add: { es: "Agregar regla", en: "Add rule" },
+  save: { es: "Guardar", en: "Save" },
+  cancel: { es: "Cancelar", en: "Cancel" },
+  saveFailed: { es: "No se pudo guardar.", en: "Could not save." },
+  titlePlaceholder: { es: "Nombre de la regla", en: "Rule name" },
+  whenPlaceholder: {
+    es: "Cuándo aplica (opcional): cuando pregunten por envíos",
+    en: "When it applies (optional): when they ask about shipping",
+  },
+  doPlaceholder: {
+    es: "Qué hacer: nunca prometas una fecha exacta, di el rango que figura en la web.",
+    en: "What to do: never promise an exact date, give the range published on the site.",
+  },
+} satisfies Namespace;

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey } from './platform-key';
+import { cargarReglas, reglasATexto } from './guidance';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { toolEnabled } from './toolbox'
 import { getAdapter } from '@/lib/channels/registry';
@@ -53,6 +54,10 @@ function buildSystem(
   agent: AiAgent,
   silenceHours: number,
   campaignHint?: string | null,
+  /** Las reglas del comercio (migración 200). Un seguimiento también es un
+   *  mensaje al cliente: lo que el agente no puede decir contestando tampoco
+   *  lo puede decir por su cuenta. */
+  reglas?: string | null,
 ): string {
   const tone = TONE_HINT[agent.tone] ?? 'natural';
   const lang = LANG_NAME[agent.language] ?? 'español';
@@ -86,6 +91,7 @@ function buildSystem(
   // follow-up is still a customer-facing message, so it must stay in business
   // scope and in character regardless of the merchant's persona.
   appendBusinessScopeGuardrails(parts, agent.name);
+  if (reglas) parts.push(reglas);
   return parts.join('\n');
 }
 
@@ -232,7 +238,12 @@ export async function runFollowUp(
     const resp = await client.messages.create({
       model: agent.model || 'claude-haiku-4-5-20251001',
       max_tokens: 400,
-      system: buildSystem(agent, silenceHours, args.campaignHint),
+      system: buildSystem(
+        agent,
+        silenceHours,
+        args.campaignHint,
+        reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id)),
+      ),
       messages,
     });
     const text = extractText(

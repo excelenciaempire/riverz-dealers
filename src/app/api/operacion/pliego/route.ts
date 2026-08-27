@@ -12,6 +12,7 @@ import {
   type ContextoPliego,
   type Respuestas,
 } from '@/lib/operacion/pliego'
+import { sembrarReglasDelPliego } from '@/lib/ai/guidance'
 
 /**
  * El pliego de la marca: lo que sólo el comercio puede contestar.
@@ -130,6 +131,15 @@ export async function PATCH(request: Request) {
     { onConflict: 'workspace_id' },
   )
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Las tres respuestas que SON una regla se vuelcan a `agent_guidance`.
+  //
+  // El pliego las etiquetaba "configura: never_say global" desde el día uno y
+  // ese destino global no existía: quedaban guardadas y sólo las leía el
+  // Operador al montar la cuenta. Un comercio que contestaba "nunca prometemos
+  // fechas de entrega" veía la respuesta guardada y a su agente prometiendo
+  // fechas.
+  await sembrarReglasDelPliego(ctx.admin, ctx.workspaceId, merged as Record<string, unknown>)
 
   return respuesta(merged, cuenta)
 }

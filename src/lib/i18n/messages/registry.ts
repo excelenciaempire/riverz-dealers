@@ -40,7 +40,7 @@ import { system } from "./system";
 import { templates } from "./templates";
 import { voice } from "./voice";
 import { webchat } from "./webchat";
-import { returns, gaps, unify, approvals } from "./returns";
+import { returns, gaps, unify, approvals, reglas } from "./returns";
 
 const NAMESPACES: Record<string, Namespace> = {
   admin,
@@ -83,6 +83,7 @@ const NAMESPACES: Record<string, Namespace> = {
   gaps,
   unify,
   approvals,
+  reglas,
 };
 
 /** Flat lookup: { "nav.inbox": { es, en }, ... } built once at module load. */

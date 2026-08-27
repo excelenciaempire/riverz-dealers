@@ -6,6 +6,7 @@ import {
   resolveAnthropicKey,
   type KeySource,
 } from './platform-key';
+import { cargarReglas, reglasATexto } from './guidance';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
@@ -1743,6 +1744,7 @@ async function generateReply(
     if (nav) extras.push(nav);
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
+  const reglas = reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id));
   const system = buildSystemPrompt(
     agent,
     contact,
@@ -1755,6 +1757,7 @@ async function generateReply(
     shopify,
     igContext,
     businessCurrency,
+    reglas,
   );
 
   // Ensure the conversation starts with a user turn — required by the API.
@@ -2231,6 +2234,8 @@ export function buildSystemPrompt(
   shopify: ShopifyToolContext | null = null,
   igContext: string | null = null,
   businessCurrency: string = 'COP',
+  /** Las reglas del comercio, ya renderizadas (`ai/guidance.ts`). */
+  reglas: string | null = null,
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(limpiarPersona(agent.persona));
@@ -2269,6 +2274,14 @@ export function buildSystemPrompt(
   // permitted side of Meta's general-purpose-chatbot ban — independent of
   // the merchant's persona, which must never widen it into an open assistant.
   appendBusinessScopeGuardrails(lines, agent.name);
+
+  // ── Las reglas del comercio (migración 200) ──
+  // Debajo de los guardrails —que son nuestros y no se negocian— y encima de
+  // todo lo que escribió el comercio más arriba: la persona describe cómo
+  // suena el agente, las reglas describen qué puede y qué no. Cuando las dos
+  // se contradicen manda la regla, porque es la que el comercio escribió
+  // sabiendo que era una regla.
+  if (reglas) lines.push(reglas);
 
   // ── Offer/discount policy (per-workspace checkout config) ──
   // BUNDLE MODE: enumerate the fixed offers + transfer discount so the
