@@ -54,7 +54,7 @@ function Lienzo({
           <Image src={foto} alt="" fill sizes="(max-width: 1024px) 100vw, 40vw" className="object-cover" />
           <div
             className="absolute inset-0"
-            style={{ background: "linear-gradient(180deg, rgba(243,240,235,0.30), rgba(243,240,235,0.62))" }}
+            style={{ background: "linear-gradient(180deg, rgba(243,240,235,0.06), rgba(243,240,235,0.34))" }}
           />
         </>
       )}
