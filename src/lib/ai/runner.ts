@@ -1681,6 +1681,129 @@ async function contextoDeNavegacion(
     .join('\n');
 }
 
+/**
+ * Lo que se le OFRECE al modelo, en un solo lugar.
+ *
+ * Estaba escrito dentro de `generateReply` y el panel «Probar» del editor
+ * armaba su propia lista: exponía tres herramientas de dieciséis y no miraba
+ * la pizarra del comercio. O sea, el comercio probaba un agente y publicaba
+ * otro. Con una sola función eso no puede volver a pasar.
+ *
+ * `hayContacto` es lo que antes se preguntaba como `primaryContact.id`: casi
+ * todas las herramientas escriben algo sobre una persona concreta, y sin
+ * persona no hay dónde anotarlo.
+ */
+export function construirHerramientas(args: {
+  agent: AiAgent;
+  hayContacto: boolean;
+  shopify: ShopifyToolContext | null;
+  otherStore: OtherStoreContext | null;
+  voiceCtx: VoiceEscalationContext | null;
+  topeDescuento: number;
+}): Anthropic.Tool[] {
+  const { agent, hayContacto, shopify, otherStore, voiceCtx, topeDescuento } = args;
+  // Lo que este agente puede hacer, y con qué correa.
+  //
+  // Antes cada capacidad se prendía en un lugar distinto —un booleano, una
+  // columna vieja, un tope numérico, y varias directamente cableadas— y el
+  // comercio no tenía forma de mirar una pantalla y saber qué hace su agente
+  // solo. Ahora sale todo de `toolMode`, que además distingue "lo hace" de "lo
+  // prepara y alguien confirma".
+  const puede = (k: string) => toolEnabled(agent, k);
+
+  const tools = [
+    // Buscar en el catálogo no depende de qué tienda tenga conectada: lee la
+    // tabla local, que se sincroniza igual desde las cuatro plataformas. Es lo
+    // que le permite contestar por un producto que no entró en su prompt.
+    ...(hayContacto && puede('buscar_producto') ? [BUSCAR_PRODUCTO_TOOL] : []),
+    ...(hayContacto && puede('ver_producto') ? [VER_PRODUCTO_TOOL] : []),
+    // "¿Dónde está mi pedido?" es la pregunta más frecuente que recibe
+    // cualquier comercio, y hasta acá sólo la podían contestar los de Shopify.
+    // `runTool` sabe consultar Tiendanube y WooCommerce desde hace tiempo
+    // (`lookupOrderNonShopify`), pero la tool se ofrecía sólo con `shopify`, y
+    // `otherStore` se resuelve justamente cuando NO hay Shopify.
+    ...((shopify || otherStore) && puede('lookup_order') ? [LOOKUP_ORDER_TOOL] : []),
+    // El link de compra tampoco necesita Shopify. Tiendanube y WooCommerce
+    // tenían un agente que recomendaba y no podía cerrar: llegaba a "te paso el
+    // link" y ahí se terminaba. Ver `commerce/create-checkout`.
+    ...(!shopify && otherStore && puede('crear_checkout')
+      ? [buildCheckoutTool(null, false)]
+      : []),
+    ...(shopify
+      ? [
+          ...(puede('crear_checkout')
+            ? [buildCheckoutTool(shopify.config ?? null, topeDescuento > 0)]
+            : []),
+          ...(shopify.canCreateOrders && puede('crear_pedido')
+            ? [buildOrderTool(shopify.config ?? null)]
+            : []),
+          // Sumar unidades a un pedido que la clienta ya hizo. Existía sólo
+          // durante una llamada, donde el bridge de voz deja el `orderId` en
+          // contexto; por chat se resuelve contra los pedidos de esa persona.
+          ...(puede('editar_pedido') ? [UPDATE_ORDER_TOOL] : []),
+        ]
+      : []),
+    ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
+    // Registrar un pago informado no necesita Shopify conectado: el pedido
+    // puede estar espejado de otro canal, y aunque no se pueda cobrar, callar
+    // los recordatorios ya vale por sí solo.
+    ...(hayContacto && puede('registrar_pago') ? [REGISTRAR_PAGO_TOOL] : []),
+    // Postventa. Cancelar y reembolsar PROPONEN siempre: no admiten el modo
+    // automático, así que acá sólo se pregunta si están prendidas.
+    //
+    // Y si hay dónde ejecutarlas. Se ofrecían sin mirar la tienda, y quien las
+    // ejecuta cuando el comercio dice que sí (`approvals/resolve.ts`) sólo
+    // sabía hablar con Shopify: el agente ofrecía cancelar, le decía a la
+    // clienta "ya lo pasé al equipo", el comercio recibía el aviso, apretaba
+    // que sí — y ahí fallaba. Una promesa incumplible, hecha por nosotros.
+    //
+    // Cancelar ya funciona también en Tiendanube y WooCommerce. Reembolsar no:
+    // ahí el cobro suele estar afuera de la tienda (un link de pago, una
+    // transferencia) y no hay a quién pedirle la devolución.
+    ...(hayContacto && (shopify || otherStore) && puede('cancelar_pedido')
+      ? [CANCELAR_PEDIDO_TOOL]
+      : []),
+    ...(hayContacto && shopify && puede('reembolsar') ? [REEMBOLSAR_TOOL] : []),
+    // Devoluciones y cambios. No mueven dinero: dejan el caso anotado con el
+    // pedido, el motivo y las fotos que la clienta ya mandó.
+    ...(hayContacto && puede('abrir_devolucion') ? [ABRIR_DEVOLUCION_TOOL] : []),
+    // Link de pago, SÓLO si no hay checkout de Shopify.
+    //
+    // Con Shopify el checkout ya cobra, muestra el total real y aplica los
+    // descuentos de la tienda: ofrecer además un link de Mercado Pago sería
+    // darle al modelo dos caminos para lo mismo, y elegiría mal la mitad de las
+    // veces. Esto existe para el comercio que hoy no puede cobrar de ninguna
+    // forma — Tiendanube, WooCommerce, Mercado Libre.
+    ...(!shopify && hayContacto && puede('crear_link_de_pago')
+      ? [CREAR_LINK_DE_PAGO_TOOL]
+      : []),
+    // Crear el pedido en una tienda que no es Shopify.
+    ...(!shopify && otherStore && hayContacto && puede('crear_pedido')
+      ? [buildOrderTool(null)]
+      : []),
+    // Descuento. El tope lo pone el comercio y con 0 —el default— la
+    // herramienta ni se ofrece: un descuento es margen, y ningún default puede
+    // decidir cuánto está dispuesto a regalar un negocio que no lo pidió.
+    //
+    // Y con Shopify: el cupón lo emite Shopify. En una tienda Tiendanube o
+    // WooCommerce se ofrecía igual y fallaba al ejecutarse, justo después de
+    // que el agente le prometiera la rebaja a la clienta.
+    ...(shopify && topeDescuento > 0 && hayContacto && puede('ofrecer_descuento')
+      ? [buildDescuentoTool(topeDescuento)]
+      : []),
+    // Lo que hace una persona en la bandeja mientras atiende. Ninguna recibe un
+    // id: el contacto y la conversación salen del contexto, no del modelo.
+    // Reconocer que no sabe. Se ofrece siempre que haya con qué anotarlo: sin
+    // esta salida, el modelo improvisa una respuesta plausible sobre envíos o
+    // garantías, que es el error que más caro sale y el más difícil de ver.
+    ...(hayContacto && puede('no_se_la_respuesta') ? [NO_SE_TOOL] : []),
+    ...(hayContacto && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
+    ...(hayContacto && puede('etiquetar_contacto') ? [ETIQUETAR_CONTACTO_TOOL] : []),
+    ...(hayContacto && puede('cerrar_conversacion') ? [CERRAR_CONVERSACION_TOOL] : []),
+  ];
+  return tools;
+}
+
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
@@ -1841,105 +1964,14 @@ async function generateReply(
         }
       : null;
 
-  // Lo que este agente puede hacer, y con qué correa.
-  //
-  // Antes cada capacidad se prendía en un lugar distinto —un booleano, una
-  // columna vieja, un tope numérico, y varias directamente cableadas— y el
-  // comercio no tenía forma de mirar una pantalla y saber qué hace su agente
-  // solo. Ahora sale todo de `toolMode`, que además distingue "lo hace" de "lo
-  // prepara y alguien confirma".
-  const puede = (k: string) => toolEnabled(agent, k);
-
-  const tools = [
-    // Buscar en el catálogo no depende de qué tienda tenga conectada: lee la
-    // tabla local, que se sincroniza igual desde las cuatro plataformas. Es lo
-    // que le permite contestar por un producto que no entró en su prompt.
-    ...(primaryContact.id && puede('buscar_producto') ? [BUSCAR_PRODUCTO_TOOL] : []),
-    ...(primaryContact.id && puede('ver_producto') ? [VER_PRODUCTO_TOOL] : []),
-    // "¿Dónde está mi pedido?" es la pregunta más frecuente que recibe
-    // cualquier comercio, y hasta acá sólo la podían contestar los de Shopify.
-    // `runTool` sabe consultar Tiendanube y WooCommerce desde hace tiempo
-    // (`lookupOrderNonShopify`), pero la tool se ofrecía sólo con `shopify`, y
-    // `otherStore` se resuelve justamente cuando NO hay Shopify.
-    ...((shopify || otherStore) && puede('lookup_order') ? [LOOKUP_ORDER_TOOL] : []),
-    // El link de compra tampoco necesita Shopify. Tiendanube y WooCommerce
-    // tenían un agente que recomendaba y no podía cerrar: llegaba a "te paso el
-    // link" y ahí se terminaba. Ver `commerce/create-checkout`.
-    ...(!shopify && otherStore && puede('crear_checkout')
-      ? [buildCheckoutTool(null, false)]
-      : []),
-    ...(shopify
-      ? [
-          ...(puede('crear_checkout')
-            ? [buildCheckoutTool(shopify.config ?? null, topeDescuento > 0)]
-            : []),
-          ...(shopify.canCreateOrders && puede('crear_pedido')
-            ? [buildOrderTool(shopify.config ?? null)]
-            : []),
-          // Sumar unidades a un pedido que la clienta ya hizo. Existía sólo
-          // durante una llamada, donde el bridge de voz deja el `orderId` en
-          // contexto; por chat se resuelve contra los pedidos de esa persona.
-          ...(puede('editar_pedido') ? [UPDATE_ORDER_TOOL] : []),
-        ]
-      : []),
-    ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
-    // Registrar un pago informado no necesita Shopify conectado: el pedido
-    // puede estar espejado de otro canal, y aunque no se pueda cobrar, callar
-    // los recordatorios ya vale por sí solo.
-    ...(primaryContact.id && puede('registrar_pago') ? [REGISTRAR_PAGO_TOOL] : []),
-    // Postventa. Cancelar y reembolsar PROPONEN siempre: no admiten el modo
-    // automático, así que acá sólo se pregunta si están prendidas.
-    //
-    // Y si hay dónde ejecutarlas. Se ofrecían sin mirar la tienda, y quien las
-    // ejecuta cuando el comercio dice que sí (`approvals/resolve.ts`) sólo
-    // sabía hablar con Shopify: el agente ofrecía cancelar, le decía a la
-    // clienta "ya lo pasé al equipo", el comercio recibía el aviso, apretaba
-    // que sí — y ahí fallaba. Una promesa incumplible, hecha por nosotros.
-    //
-    // Cancelar ya funciona también en Tiendanube y WooCommerce. Reembolsar no:
-    // ahí el cobro suele estar afuera de la tienda (un link de pago, una
-    // transferencia) y no hay a quién pedirle la devolución.
-    ...(primaryContact.id && (shopify || otherStore) && puede('cancelar_pedido')
-      ? [CANCELAR_PEDIDO_TOOL]
-      : []),
-    ...(primaryContact.id && shopify && puede('reembolsar') ? [REEMBOLSAR_TOOL] : []),
-    // Devoluciones y cambios. No mueven dinero: dejan el caso anotado con el
-    // pedido, el motivo y las fotos que la clienta ya mandó.
-    ...(primaryContact.id && puede('abrir_devolucion') ? [ABRIR_DEVOLUCION_TOOL] : []),
-    // Link de pago, SÓLO si no hay checkout de Shopify.
-    //
-    // Con Shopify el checkout ya cobra, muestra el total real y aplica los
-    // descuentos de la tienda: ofrecer además un link de Mercado Pago sería
-    // darle al modelo dos caminos para lo mismo, y elegiría mal la mitad de las
-    // veces. Esto existe para el comercio que hoy no puede cobrar de ninguna
-    // forma — Tiendanube, WooCommerce, Mercado Libre.
-    ...(!shopify && primaryContact.id && puede('crear_link_de_pago')
-      ? [CREAR_LINK_DE_PAGO_TOOL]
-      : []),
-    // Crear el pedido en una tienda que no es Shopify.
-    ...(!shopify && otherStore && primaryContact.id && puede('crear_pedido')
-      ? [buildOrderTool(null)]
-      : []),
-    // Descuento. El tope lo pone el comercio y con 0 —el default— la
-    // herramienta ni se ofrece: un descuento es margen, y ningún default puede
-    // decidir cuánto está dispuesto a regalar un negocio que no lo pidió.
-    //
-    // Y con Shopify: el cupón lo emite Shopify. En una tienda Tiendanube o
-    // WooCommerce se ofrecía igual y fallaba al ejecutarse, justo después de
-    // que el agente le prometiera la rebaja a la clienta.
-    ...(shopify && topeDescuento > 0 && primaryContact.id && puede('ofrecer_descuento')
-      ? [buildDescuentoTool(topeDescuento)]
-      : []),
-    // Lo que hace una persona en la bandeja mientras atiende. Ninguna recibe un
-    // id: el contacto y la conversación salen del contexto, no del modelo.
-    // Reconocer que no sabe. Se ofrece siempre que haya con qué anotarlo: sin
-    // esta salida, el modelo improvisa una respuesta plausible sobre envíos o
-    // garantías, que es el error que más caro sale y el más difícil de ver.
-    ...(primaryContact.id && puede('no_se_la_respuesta') ? [NO_SE_TOOL] : []),
-    ...(primaryContact.id && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
-    ...(primaryContact.id && puede('etiquetar_contacto') ? [ETIQUETAR_CONTACTO_TOOL] : []),
-    ...(primaryContact.id && puede('cerrar_conversacion') ? [CERRAR_CONVERSACION_TOOL] : []),
-  ];
+  const tools = construirHerramientas({
+    agent,
+    hayContacto: Boolean(primaryContact.id),
+    shopify,
+    otherStore,
+    voiceCtx,
+    topeDescuento,
+  });
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
     // anonimizado), así que lookup_order cae a lo ya espejado.

@@ -821,6 +821,19 @@ export interface LocalOrdersContext {
    * y una persona confirma. No se ejecutan acá.
    */
   requiereAprobacion?: readonly string[]
+  /**
+   * Simulación: el panel «Probar» del editor.
+   *
+   * Lo que consulta —el catálogo, un pedido, la ficha— se deja correr: sin eso
+   * el comercio prueba un agente ciego. Lo que DEJA HUELLA afuera —crear un
+   * pedido, cobrar, emitir un cupón, pedirle permiso al dueño por WhatsApp— se
+   * corta acá y se contesta como si hubiera salido bien.
+   *
+   * El corte va en un solo lugar y no en cada herramienta: una herramienta
+   * nueva que se olvide del modo prueba es un cupón real emitido desde un
+   * panel que dice "Probar".
+   */
+  simulacion?: boolean
 }
 
 /**
@@ -929,6 +942,17 @@ export async function runTool(
   // ejecuta acá, se deja pedido. Ver `pedirPermiso`.
   if (localOrders?.requiereAprobacion?.includes(toolName)) {
     return pedirPermiso(localOrders, toolName, toolInput)
+  }
+
+  // El corte del modo prueba. Va antes que cualquier despacho para que una
+  // herramienta nueva quede cubierta sin que nadie se acuerde de cubrirla.
+  if (localOrders?.simulacion && DEJA_HUELLA.has(toolName)) {
+    return JSON.stringify({
+      simulado: true,
+      ok: true,
+      message:
+        'Simulación: la acción no se ejecutó de verdad. Sigue la conversación como si hubiera salido bien.',
+    })
   }
 
   if (toolName === 'ver_contacto' || toolName === 'etiquetar_contacto' ||
@@ -1849,6 +1873,14 @@ export async function runWithTools(
   promptTokens: number
   completionTokens: number
   iterations: number
+  /**
+   * Qué herramientas llamó, en orden y con repeticiones.
+   *
+   * Se devolvía sólo el número de vueltas, así que después no había forma de
+   * contestar "¿por qué dijo eso?": la respuesta suele estar en que consultó
+   * un pedido, o en que no consultó nada.
+   */
+  herramientas: string[]
   /** True if we exhausted AGENTIC_LOOP_MAX_ITERS still asking for tools
    *  and had to force a final no-tools call. The caller may want to
    *  swap in a fallback message if the model returned empty text. */
@@ -1857,6 +1889,7 @@ export async function runWithTools(
   let messages: Anthropic.MessageParam[] = [...args.messages]
   let promptTokens = 0
   let completionTokens = 0
+  const herramientas: string[] = []
   let iter = 0
 
   // El system prompt se manda como bloque cacheable.
@@ -1929,6 +1962,7 @@ export async function runWithTools(
         promptTokens,
         completionTokens,
         iterations: iter,
+        herramientas,
         truncated: false,
       }
     }
@@ -1947,6 +1981,7 @@ export async function runWithTools(
       // Se anota ANTES de correrla: si la herramienta explota a mitad, el
       // efecto puede haber ocurrido igual.
       if (args.efectos && DEJA_HUELLA.has(block.name)) args.efectos.ejecutados += 1
+      herramientas.push(block.name)
       const result = await runTool(
         block.name,
         block.input,
@@ -1983,6 +2018,7 @@ export async function runWithTools(
       promptTokens,
       completionTokens,
       iterations: iter + 1,
+      herramientas,
       truncated: true,
     }
   }
@@ -1998,6 +2034,7 @@ export async function runWithTools(
     promptTokens,
     completionTokens,
     iterations: iter + 1,
+    herramientas,
     truncated: true,
   }
 }

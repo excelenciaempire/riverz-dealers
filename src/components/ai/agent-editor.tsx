@@ -474,7 +474,14 @@ export function AgentEditor({
   // El preview es una conversación multi-turno tipo WhatsApp. Cada
   // turno guarda los chunks individuales para que el modo "multi"
   // (varios bubbles) se vea como en producción.
-  type TestTurn = { role: 'user' | 'assistant'; chunks: string[]; stamp: string };
+  type TestTurn = {
+    role: 'user' | 'assistant';
+    chunks: string[];
+    stamp: string;
+    /** Qué herramientas usó para contestar. Es la mitad de lo que se quiere
+     *  ver al probar: no sólo qué dijo, sino si fue a buscar el dato. */
+    herramientas?: string[];
+  };
   const [testHistory, setTestHistory] = useState<TestTurn[]>([]);
   const [testing, setTesting] = useState(false);
   const testScrollRef = useRef<HTMLDivElement>(null);
@@ -980,7 +987,16 @@ export function AgentEditor({
       const res = await fetchWithCsrf(`/api/ai/agents/${currentAgentId}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          // El hilo de la prueba. Antes no se mandaba y el servidor trataba
+          // cada mensaje como el primero: era imposible probar una
+          // confirmación, un cambio de idea o cualquier cosa de dos turnos.
+          historial: testHistory.map((turn) => ({
+            role: turn.role,
+            content: turn.chunks.join('\n'),
+          })),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? t('assistant.testFailed'));
@@ -992,7 +1008,12 @@ export function AgentEditor({
           : [];
       setTestHistory((prev) => [
         ...prev,
-        { role: 'assistant', chunks, stamp: nowStamp() },
+        {
+          role: 'assistant',
+          chunks,
+          stamp: nowStamp(),
+          herramientas: Array.isArray(json.herramientas) ? json.herramientas : [],
+        },
       ]);
     } catch (err) {
       toast.error(t('assistant.genericError'));
@@ -2042,6 +2063,21 @@ export function AgentEditor({
                         </div>
                       );
                     })
+                  )}
+                  {/* Con qué se ayudó para contestar. Sin esto no hay forma de
+                      distinguir una respuesta buscada de una inventada, que es
+                      justo lo que se viene a mirar acá. */}
+                  {turn.role === 'assistant' && (turn.herramientas?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1 px-1">
+                      {turn.herramientas!.map((h, hi) => (
+                        <span
+                          key={`${h}-${hi}`}
+                          className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f]"
+                        >
+                          {h}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}

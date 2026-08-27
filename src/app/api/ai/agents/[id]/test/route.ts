@@ -9,46 +9,52 @@ import { serverError } from '@/lib/api/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
-import type { AiAgent, AiTone } from '@/lib/ai/types';
-import { formatProductLine, type ProductRow } from '@/lib/ai/runner';
-import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import { splitReplyForMode, unificarFilas, productosPermitidos } from '@/lib/ai/runner';
-import { appendBusinessScopeGuardrails } from '@/lib/ai/guardrails';
+import type { AiAgent } from '@/lib/ai/types';
+import type { Contact } from '@/types';
 import {
-  buildCheckoutTool,
-  buildOrderTool,
-  LOOKUP_ORDER_TOOL,
-  runWithTools,
-  type ShopifyToolContext,
-} from '@/lib/ai/tools';
+  buildSystemPrompt,
+  construirHerramientas,
+  detectInboundProduct,
+  loadProductCatalog,
+  productosPermitidos,
+  splitReplyForMode,
+} from '@/lib/ai/runner';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
+import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import type { CheckoutConfig } from '@/lib/shopify/create-checkout';
 
 /**
- * Smoke-test an AI agent without involving any channel. Generates a
- * reply for the supplied user message using the agent's persona,
- * knowledge, tone, and provider config, and returns it as JSON.
+ * Probar el agente sin tocar ningún canal.
+ *
+ * Esto tenía que ser una vista previa de producción y era otra cosa: armaba el
+ * prompt a mano —sin el material de los productos, sin el research, sin las
+ * reglas por producto, sin el rol, sin la política de ofertas—, exponía tres
+ * herramientas de dieciséis sin mirar la pizarra del comercio, y era SIN
+ * ESTADO: cada mensaje era el primero, así que no se podía probar una
+ * confirmación, un escalamiento por cantidad de respuestas, ni nada que
+ * necesitara dos turnos. El comercio probaba un agente y publicaba otro.
+ *
+ * Ahora usa `buildSystemPrompt` y `construirHerramientas`, los mismos que corre
+ * el runner. Lo único que cambia es lo que TIENE que cambiar:
+ *
+ *   - no hay conversación ni contacto de verdad, así que nada se guarda en la
+ *     bandeja ni cuenta para la facturación;
+ *   - `simulacion` corta toda herramienta que deje huella afuera (crear un
+ *     pedido, cobrar, emitir un cupón, pedirle permiso al dueño por WhatsApp),
+ *     y el corte está en `runTool`, no acá: una herramienta nueva queda
+ *     cubierta sin que nadie se acuerde de cubrirla.
  *
  * POST /api/ai/agents/[id]/test
- *   body: { message: string, simulated_phone?: string }
- *   response: { reply: string, chunks: string[], usage: {...} }
- *
- * `chunks` respeta el `response_mode` del agente para que el panel de
- * prueba muestre exactamente las burbujas que vería el cliente en
- * WhatsApp. `reply` queda para back-compat.
- *
- * Si el workspace dueño del agente tiene Shopify conectado, se le pasa
- * a Claude la tool `lookup_order` para que pueda probar el flujo de
- * consulta de pedidos. El teléfono del cliente simulado se toma del
- * body (`simulated_phone`); si no llega, la tool igual se expone pero
- * va a devolver "no encontré pedidos".
+ *   body: { message: string, historial?: {role,content}[], simulated_phone?: string }
+ *   → { reply, chunks, herramientas, usage }
  */
-const TONE_INSTRUCTIONS: Record<AiTone, string> = {
-  friendly: 'Conversa con calidez. Usa frases cortas. Evita formalismos rígidos.',
-  formal: 'Mantén un registro profesional y formal. Usa "usted".',
-  casual: 'Sé directo y cercano. Permítete frases coloquiales.',
-  concise: 'Responde en una o dos frases. Sin saludos. Solo lo necesario.',
-};
+
+/** Cuántos turnos previos se aceptan. Es una prueba, no una conversación. */
+const MAX_HISTORIAL = 20;
 
 export async function POST(
   request: Request,
@@ -71,6 +77,7 @@ export async function POST(
   const body = (await request.json().catch(() => null)) as {
     message?: string;
     simulated_phone?: string;
+    historial?: unknown;
   } | null;
   const message = body?.message?.trim();
   if (!message) {
@@ -109,7 +116,7 @@ export async function POST(
 
   const a = agent as AiAgent;
   try {
-    const resolvedKey = await resolveAnthropicKey(supabaseAdmin(), {
+    const resolvedKey = await resolveAnthropicKey(admin, {
       workspaceId: a.workspace_id,
       agentKeyEncrypted: a.api_key_encrypted,
     });
@@ -121,67 +128,46 @@ export async function POST(
       );
     }
 
-    const lines: string[] = [];
-    if (a.persona) lines.push(a.persona.trim());
-    lines.push(TONE_INSTRUCTIONS[a.tone] ?? '');
-    lines.push(`Responde en ${a.language || 'es'}.`);
-    // Mismo recorte de idioma que el runner: sin esto el panel de prueba
-    // contesta en voseo y el de produccion no, o al reves.
-    if ((a.language || 'es').toLowerCase().slice(0, 2) === 'es') {
-      lines.push(
-        'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
-      );
-    }
-    lines.push(`Mantente bajo ${a.max_response_chars} caracteres.`);
-    if (a.knowledge?.trim()) {
-      lines.push('Contexto adicional:');
-      lines.push(a.knowledge.trim());
-    }
-    // El catálogo, igual que en producción. Sin esto el panel de prueba
-    // contestaba "no tengo el precio a mano" sobre un producto que la cuenta
-    // sí tiene sincronizado: el comercio probaba un bot ciego y sacaba
-    // conclusiones sobre el que de verdad atiende. Mismas reglas de alcance
-    // que el runner: 'specific' ve sólo los productos que tiene asignados.
-    const catalogo = await cargarCatalogo(admin, a);
-    if (catalogo.length > 0) {
-      lines.push(
-        `<catalog scope="${a.product_scope === 'specific' ? 'specific' : 'all'}">`,
-      );
-      lines.push(catalogo.map(formatProductLine).join('\n'));
-      lines.push('</catalog>');
-    }
+    // El hilo de la prueba. Sin esto cada mensaje era el primero: se podía
+    // probar un saludo y nada más.
+    const historial = normalizarHistorial(body?.historial);
 
-    // Same server-enforced business-scope guardrails the prod runner appends,
-    // so the test panel mirrors live behavior (incl. off-topic refusals).
-    appendBusinessScopeGuardrails(lines, a.name);
-    const system = lines.filter(Boolean).join('\n\n');
+    // El mismo enganche de producto que producción: es lo que fija el producto
+    // y trae su material de entrenamiento al prompt.
+    const productMatch = await detectInboundProduct(admin, a.workspace_id, message);
+    const [products, businessCurrency, permitidos, reglas, topeDescuento] =
+      await Promise.all([
+        loadProductCatalog(admin, a, a.workspace_id, productMatch),
+        resolveWorkspaceCurrency(admin, a.workspace_id),
+        productosPermitidos(admin, a, a.workspace_id),
+        cargarReglas(admin, a.workspace_id, a.id).then(reglasATexto),
+        topeDeDescuento(admin, a.workspace_id).catch(() => 0),
+      ]);
 
-    // ── Shopify tool (opcional) ──
-    // Resolvemos la conexión cruzando workspace_members: lo mismo que
-    // hace el runner en prod cuando elige qué token usar para el lookup.
+    // Un contacto de mentira, con la forma de uno real. No se guarda en ningún
+    // lado: existe para que el prompt tenga a quién nombrar.
+    const contacto = {
+      id: '',
+      workspace_id: a.workspace_id,
+      channel: 'webchat',
+      external_id: 'prueba',
+      name: null,
+      phone: body?.simulated_phone?.trim() || null,
+      email: null,
+    } as unknown as Contact;
+
     const shopify = await resolveShopifyContextForWorkspace(
       admin,
       a.workspace_id,
       body?.simulated_phone,
     );
-    // dryRun: el panel de prueba NUNCA crea pedidos reales. canCreateOrders
-    // refleja el toggle del agente para que el tester vea la tool si aplica.
     if (shopify) {
       shopify.dryRun = true;
       shopify.canCreateOrders = a.puede_crear_pedidos === true;
       shopify.workspaceId = a.workspace_id;
       shopify.agentId = a.id;
+      shopify.currency = shopify.config?.currency || businessCurrency;
     }
-
-    const client = getAnthropic(apiKey);
-    const max_tokens = Math.max(
-      64,
-      Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
-    );
-    // Si la tienda no es Shopify, el asistente igual tiene que poder buscar
-    // un pedido: el panel de prueba no exponia ninguna herramienta y el bot
-    // contestaba "no tengo acceso al sistema de pedidos" sobre una tienda
-    // que si esta conectada.
     const otraTienda = shopify
       ? null
       : await (async () => {
@@ -190,33 +176,66 @@ export async function POST(
           return { ...t, customerEmail: null, customerPhone: null };
         })();
 
-    const tools = shopify
-      ? [
-          LOOKUP_ORDER_TOOL,
-          buildCheckoutTool(shopify.config ?? null),
-          ...(shopify.canCreateOrders
-            ? [buildOrderTool(shopify.config ?? null)]
-            : []),
-        ]
-      : otraTienda
-        ? [LOOKUP_ORDER_TOOL]
-        : [];
+    const system = buildSystemPrompt(
+      a,
+      contacto,
+      contacto,
+      null,
+      [],
+      { messages: [], rollingSummary: null, idleResetHint: null },
+      products,
+      productMatch,
+      shopify,
+      null,
+      businessCurrency,
+      reglas,
+    );
+
+    // La misma lista que produccion, resuelta por la pizarra del comercio.
+    // `hayContacto` va en true a propósito: lo que hay que previsualizar es lo
+    // que el agente PUEDE hacer, y lo que dejaría huella lo corta `runTool`.
+    const tools = construirHerramientas({
+      agent: a,
+      hayContacto: true,
+      shopify,
+      otherStore: otraTienda,
+      // Nunca se llama por teléfono a nadie desde una prueba.
+      voiceCtx: null,
+      topeDescuento,
+    });
+
+    const client = getAnthropic(apiKey);
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
-      max_tokens,
+      max_tokens: Math.max(
+        64,
+        Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
+      ),
       system,
-      messages: [{ role: 'user', content: message }],
+      messages: [...historial, { role: 'user' as const, content: message }],
       tools,
       shopify,
       otherStore: otraTienda,
+      localOrders: {
+        db: admin,
+        workspaceId: a.workspace_id,
+        // Sin contacto real: las herramientas que escriben sobre una persona
+        // devuelven su error de siempre, que es exactamente lo que pasaría.
+        contactId: '',
+        agentId: a.id,
+        permitidos,
+        simulacion: true,
+      },
     });
 
     const text = result.text;
-    const chunks = splitReplyForMode(text, a.response_mode);
-
     return NextResponse.json({
       reply: text,
-      chunks,
+      chunks: splitReplyForMode(text, a.response_mode),
+      // Qué herramientas usó. Es la mitad de lo que un comercio quiere ver al
+      // probar: no sólo qué contestó, sino si fue a buscar el dato o se lo
+      // inventó.
+      herramientas: result.herramientas,
       usage: {
         input_tokens: result.promptTokens,
         output_tokens: result.completionTokens,
@@ -228,6 +247,22 @@ export async function POST(
   }
 }
 
+/** El hilo previo que manda la pantalla, acotado y con la forma que pide la API. */
+function normalizarHistorial(valor: unknown): Array<{ role: 'user' | 'assistant'; content: string }> {
+  if (!Array.isArray(valor)) return [];
+  const turnos = valor
+    .map((t) => {
+      const role = (t as { role?: unknown })?.role;
+      const content = (t as { content?: unknown })?.content;
+      if (role !== 'user' && role !== 'assistant') return null;
+      if (typeof content !== 'string' || !content.trim()) return null;
+      return { role, content: content.trim().slice(0, 4000) };
+    })
+    .filter(Boolean) as Array<{ role: 'user' | 'assistant'; content: string }>;
+  // La API exige que el hilo arranque con el usuario.
+  while (turnos.length && turnos[0].role !== 'user') turnos.shift();
+  return turnos.slice(-MAX_HISTORIAL);
+}
 
 /**
  * Levanta el contexto Shopify del workspace del agente.
@@ -304,47 +339,4 @@ async function resolveShopifyContextForWorkspace(
     customerPhone: simulatedPhone?.trim() || undefined,
     config: (cfg as CheckoutConfig | null) ?? null,
   };
-}
-
-/**
- * Los productos que este asistente puede nombrar, con las mismas reglas de
- * alcance que producción: `product_scope='specific'` ve sólo los que tiene
- * asignados en `ai_agent_products`; cualquier otro valor ve el catálogo del
- * comercio entero.
- *
- * Falla en silencio y devuelve vacío: un tropiezo leyendo el catálogo no
- * puede tumbar el panel de prueba, igual que no tumba una respuesta real.
- */
-async function cargarCatalogo(
-  db: ReturnType<typeof supabaseAdmin>,
-  agent: AiAgent,
-): Promise<ProductRow[]> {
-  // `master_id` y `platform` no son decoración: sin ellos el plegado corre y
-  // devuelve todo suelto. Este panel mostraba las cuatro publicaciones del
-  // mismo producto mientras producción ya mostraba una — o sea, el panel que
-  // existe para previsualizar producción no previsualizaba producción.
-  const COLUMNAS =
-    'id, title, description, price_min, price_max, url, product_type, vendor, tags, master_id, platform, currency';
-  try {
-    if (agent.product_scope === 'specific') {
-      // Expandido al grupo, igual que el runner: autorizar un producto
-      // autoriza sus publicaciones en las otras plataformas.
-      const ids = await productosPermitidos(db, agent, agent.workspace_id);
-      if (!ids || ids.size === 0) return [];
-      const { data } = await db
-        .from('shopify_products')
-        .select(COLUMNAS)
-        .in('id', Array.from(ids))
-        .eq('workspace_id', agent.workspace_id);
-      return unificarFilas((data ?? []) as ProductRow[]);
-    }
-    const { data } = await db
-      .from('shopify_products')
-      .select(COLUMNAS)
-      .eq('workspace_id', agent.workspace_id)
-      .limit(60);
-    return unificarFilas((data ?? []) as ProductRow[]);
-  } catch {
-    return [];
-  }
 }
