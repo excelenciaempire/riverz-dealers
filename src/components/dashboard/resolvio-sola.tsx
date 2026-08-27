@@ -23,15 +23,6 @@ import type { Cortes } from '@/lib/dashboard/cortes'
  * mostrar cuándo devuelve el hilo es lo que hace creíble todo lo demás.
  */
 
-/**
- * Cuántas conversaciones hacen falta para mostrar un porcentaje.
- *
- * Con tres atendidas, «resolvió el 100%» es verdad y no significa nada — al día
- * siguiente dice 33% y el comercio deja de creerle a la pantalla. Debajo del
- * umbral se muestran los números enteros, que no mienten en ninguna escala.
- */
-const MINIMO_PARA_PORCENTAJE = 10
-
 export function ResolvioSola({ data }: { data: Cortes | null }) {
   const t = useT()
   const fmt = useFormat()
@@ -41,8 +32,9 @@ export function ResolvioSola({ data }: { data: Cortes | null }) {
   // que ese usuario necesita es el checklist, que ya está arriba.
   if (!data || data.ia.atendidas === 0) return null
 
+  // `tasa` ya viene en null cuando no hay muestras suficientes: el umbral vive
+  // en el servidor para que todas las pantallas usen el mismo.
   const { ia, fueraDeHorario, respuesta, escalaciones } = data
-  const hayMuestra = ia.atendidas >= MINIMO_PARA_PORCENTAJE
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -50,7 +42,7 @@ export function ResolvioSola({ data }: { data: Cortes | null }) {
         <h2 className="text-sm font-semibold text-foreground">
           {t('health.soloTitle')}
         </h2>
-        {hayMuestra && ia.tasa !== null && (
+        {ia.tasa !== null && (
           <p className="text-xs text-muted-foreground">
             {t('health.soloShare', { share: ia.tasa, total: fmt.number(ia.atendidas) })}
           </p>

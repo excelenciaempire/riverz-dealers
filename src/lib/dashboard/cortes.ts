@@ -102,6 +102,13 @@ export interface Cortes {
 
 const TOPE = 5000
 
+/**
+ * Cuántas muestras hacen falta para que un porcentaje se pueda mostrar.
+ * Diez es poco pero corta el caso que rompe la confianza: la cuenta nueva que
+ * ve 100% el lunes y 33% el martes.
+ */
+export const MINIMO_PARA_PORCENTAJE = 10
+
 export async function leerCortes(
   db: SupabaseClient,
   workspaceId: string,
@@ -260,7 +267,16 @@ export async function leerCortes(
   ).filter((c) => conIaPrevia.has(c.id))
   const resueltasPrevias = atendidasPrevias.filter((c) => !necesitoPersona(c)).length
 
-  const tasa = (total: number, ok: number) => (total > 0 ? Math.round((ok / total) * 100) : null)
+  // Un porcentaje necesita material para significar algo.
+  //
+  // Con tres conversaciones atendidas, «resolvió el 100%» es cierto y no dice
+  // nada: al día siguiente marca 33% y el comercio deja de creerle a la
+  // pantalla. Debajo del umbral se devuelve `null` y cada tarjeta muestra los
+  // números enteros, que no mienten en ninguna escala. Va acá y no en la
+  // interfaz para que TODAS las pantallas usen el mismo criterio — dos
+  // umbrales distintos serían dos verdades sobre la misma cuenta.
+  const tasa = (total: number, ok: number) =>
+    total >= MINIMO_PARA_PORCENTAJE ? Math.round((ok / total) * 100) : null
 
   // Satisfacción sobre quienes CALIFICARON, no sobre el total: dividir por
   // todas convertiría "poca gente votó" en "a poca gente le sirvió", que son
