@@ -39,7 +39,7 @@ export async function GET() {
     ? await supabase
         .from('ig_proactive_settings')
         .select(
-          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, comment_reply_mode, marketing_optin_enabled',
+          'paused, daily_cap, auto_reply_comments, outreach_enabled, comment_audience, comment_max_thread_replies, comment_public_reply, comment_instagram, comment_facebook, comment_reply_mode, marketing_optin_enabled',
         )
         .eq('workspace_id', workspaceId)
         .maybeSingle()
@@ -52,6 +52,7 @@ export async function GET() {
     comment_audience?: string;
     comment_max_thread_replies?: number;
     comment_public_reply?: boolean;
+    comment_instagram?: boolean;
     comment_facebook?: boolean;
     comment_reply_mode?: string;
     marketing_optin_enabled?: boolean;
@@ -69,6 +70,9 @@ export async function GET() {
         ? s.comment_max_thread_replies
         : 3,
     comment_public_reply: s?.comment_public_reply === true,
+    // En qué redes trabaja (migración 203). Instagram por defecto: es lo que
+    // hacía el sistema antes de que la pregunta existiera.
+    comment_instagram: s?.comment_instagram !== false,
     comment_facebook: s?.comment_facebook === true,
     // Qué sale cuando la IA contesta (migración 177). Sin modo guardado se
     // deriva del interruptor viejo, igual que en el motor.
@@ -116,6 +120,7 @@ export async function POST(request: Request) {
     body.comment_audience != null ||
     body.comment_max_thread_replies != null ||
     typeof body.comment_public_reply === 'boolean' ||
+    typeof body.comment_instagram === 'boolean' ||
     typeof body.comment_facebook === 'boolean' ||
     typeof body.comment_reply_mode === 'string' ||
     typeof body.marketing_optin_enabled === 'boolean'
@@ -129,8 +134,17 @@ export async function POST(request: Request) {
     if (typeof body.comment_public_reply === 'boolean') {
       patch.comment_public_reply = body.comment_public_reply;
     }
-    if (typeof body.comment_facebook === 'boolean') {
-      patch.comment_facebook = body.comment_facebook;
+    // Las dos redes se guardan juntas y nunca las dos apagadas: sin ninguna,
+    // "Responder con IA" quedaría encendido sin poder contestar en ningún
+    // lado. La pantalla lo hace imposible; acá se protege igual.
+    if (
+      typeof body.comment_instagram === 'boolean' ||
+      typeof body.comment_facebook === 'boolean'
+    ) {
+      const ig = body.comment_instagram !== false;
+      const fb = body.comment_facebook === true;
+      patch.comment_instagram = ig || !fb;
+      patch.comment_facebook = fb;
     }
     if (REPLY_MODES.includes(body.comment_reply_mode)) {
       patch.comment_reply_mode = body.comment_reply_mode;

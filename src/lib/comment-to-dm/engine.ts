@@ -24,12 +24,14 @@ import { composeDmText } from './rules';
  */
 
 type CommentChannel = 'ig_comment' | 'fb_comment';
+/** Lo que una regla puede escuchar: una red, o las dos (migración 203). */
+type RuleChannel = CommentChannel | 'both';
 
 interface CommentToDmRule {
   id: string;
   name: string;
   workspace_id: string;
-  channel: CommentChannel;
+  channel: RuleChannel;
   post_id: string | null;
   keywords: string[];
   match_type: 'contains' | 'exact';
@@ -80,7 +82,9 @@ export async function processCommentForDmRules(
       'id, name, workspace_id, channel, post_id, keywords, match_type, case_sensitive, public_reply_enabled, public_reply_templates, dm_message, dm_button_label, dm_button_url, dm_attachment_url, dm_attachment_type, priority',
     )
     .eq('workspace_id', ev.workspaceId)
-    .eq('channel', ev.channel)
+    // 'both' escucha las dos redes: la misma regla ya no hay que escribirla
+    // (y editarla) dos veces.
+    .in('channel', [ev.channel, 'both'])
     .eq('is_active', true)
     .order('priority', { ascending: true });
 

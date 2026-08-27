@@ -14,7 +14,10 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
  * motor después lee.
  */
 
-export type CommentRuleChannel = 'ig_comment' | 'fb_comment';
+/** Dónde escucha una regla: una red, o las dos (migración 203). */
+export type CommentRuleChannel = 'ig_comment' | 'fb_comment' | 'both';
+
+const RULE_CHANNELS: CommentRuleChannel[] = ['ig_comment', 'fb_comment', 'both'];
 
 /** Lo que se devuelve hacia afuera. Nunca `workspace_id` ni `created_by`. */
 export const RULE_COLUMNS =
@@ -119,7 +122,7 @@ export function isCompleteRuleInput(input: CommentRuleInput | null): boolean {
   if (!input) return false;
   return (
     Boolean(input.name?.trim()) &&
-    (input.channel === 'ig_comment' || input.channel === 'fb_comment') &&
+    RULE_CHANNELS.includes(input.channel as CommentRuleChannel) &&
     Boolean(input.dm_message?.trim())
   );
 }

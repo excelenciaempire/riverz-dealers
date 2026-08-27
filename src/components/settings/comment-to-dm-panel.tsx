@@ -51,7 +51,8 @@ import { cn } from "@/lib/utils";
  * src/lib/comment-to-dm/engine.ts.
  */
 
-type CommentChannel = "ig_comment" | "fb_comment";
+/** Dónde escucha una regla: una red, o las dos (migración 203). */
+type CommentChannel = "ig_comment" | "fb_comment" | "both";
 
 interface RuleRow {
   id: string;
@@ -227,7 +228,11 @@ function RuleLine({
 }) {
   const t = useT();
   const summary = [
-    rule.channel === "ig_comment" ? "Instagram" : "Facebook",
+    rule.channel === "both"
+      ? t("settings.c2dmBothComments")
+      : rule.channel === "ig_comment"
+        ? "Instagram"
+        : "Facebook",
     rule.keywords.length > 0
       ? rule.keywords.map((k) => `«${k}»`).join(", ")
       : t("settings.c2dmKeywordsAny"),
@@ -352,6 +357,7 @@ function RuleEditor({
     () => ({
       ig_comment: t("settings.c2dmIgComment"),
       fb_comment: t("settings.c2dmFbComment"),
+      both: t("settings.c2dmBothComments"),
     }),
     [t],
   );
@@ -467,6 +473,9 @@ function RuleEditor({
                   </SelectItem>
                   <SelectItem value="fb_comment">
                     {t("settings.c2dmFbComment")}
+                  </SelectItem>
+                  <SelectItem value="both">
+                    {t("settings.c2dmBothComments")}
                   </SelectItem>
                 </SelectContent>
               </Select>

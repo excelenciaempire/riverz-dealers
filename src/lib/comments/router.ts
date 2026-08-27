@@ -65,14 +65,12 @@ export async function routeComment(
   //    atender era el peor momento para callarse. El bucle lo corta el agente,
   //    que lee el hilo y respeta el tope de respuestas del comercio.
   //
-  //    Facebook entra solo si el comercio lo pidió. El comentario que decía
-  //    "en Facebook no existe la respuesta privada por comentario" era falso —
-  //    el motor de reglas lleva tiempo mandándolas por Messenger— pero dejaba
-  //    a la IA muda en toda una red.
-  if (ev.channel === 'fb_comment') {
-    const cfg = await loadCommentSettings(db, ev.workspaceId);
-    if (!cfg.facebook) return;
-  }
+  //    Cada red entra solo si el comercio la eligió arriba, en "Redes". Las
+  //    reglas no pasan por acá: las escribió una persona para una red concreta
+  //    y valen aunque la IA no trabaje ahí.
+  const cfg = await loadCommentSettings(db, ev.workspaceId);
+  const redActiva = ev.channel === 'fb_comment' ? cfg.facebook : cfg.instagram;
+  if (!redActiva) return;
   try {
     await maybeInstantOutreach(db, {
       workspaceId: ev.workspaceId,

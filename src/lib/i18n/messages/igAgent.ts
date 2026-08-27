@@ -208,20 +208,19 @@ export const igAgent = {
     en: "A line on the post; the full answer in the DM.",
   },
   replyMode_public_smart: {
-    es: "En el comentario, y por privado si hay oportunidad",
-    en: "On the comment, and by DM when there's an opportunity",
+    es: "En el comentario, y por privado si hace falta",
+    en: "On the comment, and by DM when needed",
   },
   replyModeHint_public_smart: {
-    es: "Abre el privado si quiere comprar, pregunta por su pedido o reclama.",
-    en: "Opens the DM if they want to buy, ask about an order or complain.",
+    es: "Guarda el privado para lo que no va bajo la foto: precios, pedidos, reclamos.",
+    en: "Saves the DM for what doesn't belong under a photo: prices, orders, complaints.",
   },
   replyMode_public: { es: "Solo en el comentario", en: "On the comment only" },
   replyModeHint_public: { es: "", en: "" },
-  facebookLabel: {
-    es: "Contestar también Facebook",
-    en: "Also reply on Facebook",
-  },
-  facebookHint: { es: "", en: "" },
+  networksLabel: { es: "En qué redes", en: "Which networks" },
+  network_instagram: { es: "Instagram", en: "Instagram" },
+  network_facebook: { es: "Facebook", en: "Facebook" },
+  network_both: { es: "Las dos", en: "Both" },
 
   // Order attribution ledger
   attributedOrdersTitle: {

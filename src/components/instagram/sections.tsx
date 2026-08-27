@@ -1353,6 +1353,14 @@ export type CommentAudience = 'intent' | 'all';
  */
 export type CommentReplyMode = 'dm' | 'public_dm' | 'public_smart' | 'public';
 
+/**
+ * En qué redes trabaja Comentarios (migración 203). Antes Instagram estaba
+ * clavado y Facebook era un "también" al final de la pantalla: no había forma
+ * de decir "solo Facebook", y la decisión —que es la primera que se toma—
+ * estaba escrita como la última.
+ */
+export type CommentNetworks = 'instagram' | 'facebook' | 'both';
+
 export interface ProactiveSettings {
   loaded: boolean;
   paused: boolean;
@@ -1365,8 +1373,8 @@ export interface ProactiveSettings {
   maxThreadReplies: number;
   /** Qué sale cuando contesta: público, privado o las dos (migración 177). */
   replyMode: CommentReplyMode;
-  /** Contesta también los comentarios de Facebook. */
-  facebook: boolean;
+  /** En qué redes trabaja (migración 203). */
+  networks: CommentNetworks;
   /** Pide permiso para escribir fuera de la ventana de Meta (migración 148). */
   marketingOptin: boolean;
   setPaused: (v: boolean) => void;
@@ -1376,7 +1384,7 @@ export interface ProactiveSettings {
   setAudience: (v: CommentAudience) => void;
   setMaxThreadReplies: (v: number) => void;
   setReplyMode: (v: CommentReplyMode) => void;
-  setFacebook: (v: boolean) => void;
+  setNetworks: (v: CommentNetworks) => void;
   setMarketingOptin: (v: boolean) => void;
   save: (next: {
     paused?: boolean;
@@ -1386,6 +1394,7 @@ export interface ProactiveSettings {
     comment_audience?: CommentAudience;
     comment_max_thread_replies?: number;
     comment_reply_mode?: CommentReplyMode;
+    comment_instagram?: boolean;
     comment_facebook?: boolean;
     marketing_optin_enabled?: boolean;
   }) => void;
@@ -1400,7 +1409,7 @@ export function useProactiveSettings(): ProactiveSettings {
   const [audience, setAudience] = useState<CommentAudience>('intent');
   const [maxThreadReplies, setMaxThreadReplies] = useState(3);
   const [replyMode, setReplyMode] = useState<CommentReplyMode>('dm');
-  const [facebook, setFacebook] = useState(false);
+  const [networks, setNetworks] = useState<CommentNetworks>('instagram');
   // Pedir permiso para escribir fuera de la ventana. Arranca APAGADO: es una
   // burbuja más que el cliente recibe, no algo que se le agregue solo.
   const [marketingOptin, setMarketingOptin] = useState(false);
@@ -1429,7 +1438,9 @@ export function useProactiveSettings(): ProactiveSettings {
                 ? 'public_dm'
                 : 'dm',
           );
-          setFacebook(j.comment_facebook === true);
+          setNetworks(
+            networksFrom(j.comment_instagram !== false, j.comment_facebook === true),
+          );
           setMarketingOptin(j.marketing_optin_enabled === true);
           setLoaded(true);
         }
@@ -1449,6 +1460,7 @@ export function useProactiveSettings(): ProactiveSettings {
       comment_audience?: CommentAudience;
       comment_max_thread_replies?: number;
       comment_reply_mode?: CommentReplyMode;
+      comment_instagram?: boolean;
       comment_facebook?: boolean;
       marketing_optin_enabled?: boolean;
     }) => {
@@ -1470,7 +1482,7 @@ export function useProactiveSettings(): ProactiveSettings {
     audience,
     maxThreadReplies,
     replyMode,
-    facebook,
+    networks,
     marketingOptin,
     setPaused,
     setAutoReply,
@@ -1479,7 +1491,7 @@ export function useProactiveSettings(): ProactiveSettings {
     setAudience,
     setMaxThreadReplies,
     setReplyMode,
-    setFacebook,
+    setNetworks,
     setMarketingOptin,
     save,
   };
@@ -1593,11 +1605,39 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
   if (!settings.autoReply) return null;
   return (
     <div className="mt-5 space-y-4 border-l-2 border-border pl-4">
-      {/* Tres decisiones, tres filas idénticas. Antes eran pastillas, dos
-          interruptores y un campo numérico: cuatro lenguajes visuales para
-          cuatro preguntas, y la primera repetía lo que ya decía el subtítulo
-          de arriba. El tope por hilo salió de aquí — nadie elige un número de
-          veces que un bot puede insistir; se queda en 3 por dentro. */}
+      {/* En qué redes, primero: es la decisión que enmarca a las otras dos, y
+          estaba escrita al final como un "también Facebook" que además no
+          dejaba elegir sólo Facebook. */}
+      <div>
+        <p className="text-[13px] font-medium text-foreground">
+          {t('igAgent.networksLabel')}
+        </p>
+        <div className="mt-2 flex gap-1.5">
+          {NETWORKS.map((net) => (
+            <button
+              key={net}
+              type="button"
+              onClick={() => {
+                settings.setNetworks(net);
+                settings.save({
+                  comment_instagram: net !== 'facebook',
+                  comment_facebook: net !== 'instagram',
+                });
+              }}
+              aria-pressed={settings.networks === net}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-[13px] transition-colors',
+                settings.networks === net
+                  ? 'border-accent-ink/40 bg-accent/40 font-medium text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-accent/20',
+              )}
+            >
+              {t(`igAgent.network_${net}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <OptionRow
         title={t('igAgent.audienceIntent')}
         hint={t('igAgent.audienceIntentHint')}
@@ -1632,27 +1672,30 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
           ))}
         </div>
       </div>
-
-      <OptionRow
-        title={t('igAgent.facebookLabel')}
-        hint={t('igAgent.facebookHint')}
-        checked={settings.facebook}
-        onChange={(v) => {
-          settings.setFacebook(v);
-          settings.save({ comment_facebook: v });
-        }}
-      />
     </div>
   );
 }
 
-/** Los cuatro modos, en el orden en que se leen: de menos público a más. */
+/**
+ * Los cuatro modos: primero los dos que hacen UNA sola cosa —solo privado,
+ * solo público— y después los dos que hacen las dos. Antes el "solo en el
+ * comentario" quedaba al final, lejos de su espejo.
+ */
 const REPLY_MODES: CommentReplyMode[] = [
   'dm',
+  'public',
   'public_dm',
   'public_smart',
-  'public',
 ];
+
+/** Las tres respuestas a "En qué redes". */
+const NETWORKS: CommentNetworks[] = ['instagram', 'facebook', 'both'];
+
+/** Las dos columnas de la BD, leídas como una sola decisión. */
+function networksFrom(instagram: boolean, facebook: boolean): CommentNetworks {
+  if (instagram && facebook) return 'both';
+  return facebook ? 'facebook' : 'instagram';
+}
 
 /** Una opción de "dónde contesta". Se elige una, como una radio. */
 function ModeRow({

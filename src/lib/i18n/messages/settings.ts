@@ -890,6 +890,12 @@ export const settings = {
   c2dmNew: { es: "Nueva regla", en: "New rule" },
   c2dmIgComment: { es: "Comentarios de Instagram", en: "Instagram comments" },
   c2dmFbComment: { es: "Comentarios de Facebook", en: "Facebook comments" },
+  // Una regla que escucha las dos redes (migración 203): antes había que
+  // escribirla dos veces y editarla dos veces cada vez que cambiaba el texto.
+  c2dmBothComments: {
+    es: "Comentarios de Instagram y Facebook",
+    en: "Instagram and Facebook comments",
+  },
   c2dmKeywordsLabel: { es: "Palabras clave", en: "Keywords" },
   c2dmKeywordsHint: {
     es: "Separadas por coma. Vacío: cualquier comentario.",

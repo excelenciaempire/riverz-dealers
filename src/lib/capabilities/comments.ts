@@ -35,22 +35,35 @@ const TOPE_PENDIENTES = 50
 const CANAL_DE: Record<string, CommentRuleChannel> = {
   instagram: 'ig_comment',
   facebook: 'fb_comment',
+  ambas: 'both',
 }
+/** Las redes de verdad: donde vive una conversación. 'both' no es una de ellas. */
+type CommentChannel = 'ig_comment' | 'fb_comment'
+
 const RED: Record<CommentRuleChannel, string> = {
   ig_comment: 'Instagram',
   fb_comment: 'Facebook',
+  both: 'Instagram y Facebook',
 }
 
-/** El canal pedido, o los dos. Hacia afuera se habla de redes, no de tablas. */
-function canalesPedidos(args: Record<string, unknown>): CommentRuleChannel[] {
+/**
+ * El canal pedido, o los dos. Hacia afuera se habla de redes, no de tablas.
+ *
+ * 'both' no entra nunca: es un valor de REGLA —una regla que escucha las dos
+ * redes— y ninguna conversación se guarda con ese canal. Pedir "ambas" es
+ * pedir las dos redes de verdad.
+ */
+function canalesPedidos(args: Record<string, unknown>): CommentChannel[] {
   const pedido =
     typeof args.canal === 'string' ? CANAL_DE[args.canal.trim().toLowerCase()] : undefined
-  return pedido ? [pedido] : ['ig_comment', 'fb_comment']
+  return pedido === 'ig_comment' || pedido === 'fb_comment'
+    ? [pedido]
+    : ['ig_comment', 'fb_comment']
 }
 
 const ESQUEMA_CANAL = {
   type: 'string',
-  enum: ['instagram', 'facebook'],
+  enum: ['instagram', 'facebook', 'ambas'],
 } as const
 
 /**
@@ -73,7 +86,9 @@ async function comoContestaLaIa(ctx: CapabilityContext) {
         ? 'a todo el que pregunte'
         : 'solo a quien muestra intención de compra',
     responde_en_publico: cfg.publicReply,
-    tambien_en_facebook: cfg.facebook,
+    redes: [cfg.instagram && 'Instagram', cfg.facebook && 'Facebook'].filter(
+      Boolean,
+    ),
   }
 }
 
@@ -447,10 +462,9 @@ export const COMMENT_CAPABILITIES: Capability[] = [
         palabras.length === 0
           ? 'cualquier comentario'
           : palabras.map((k) => `«${k}»`).join(' o ')
+      const canalPedido = CANAL_DE[String(args.canal ?? '').toLowerCase()]
       return `Crearía la regla «${args.nombre}» en ${
-        CANAL_DE[String(args.canal ?? '').toLowerCase()] === 'fb_comment'
-          ? 'Facebook'
-          : 'Instagram'
+        canalPedido ? RED[canalPedido] : 'Instagram'
       } para ${disparo}. Queda apagada: no le escribe a nadie hasta que la prendas.`
     },
     /**

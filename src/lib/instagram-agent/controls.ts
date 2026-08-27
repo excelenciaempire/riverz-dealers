@@ -91,7 +91,8 @@ export interface CommentReplySettings {
   replyMode: CommentReplyMode;
   /** Además del DM, publicar una respuesta en el propio comentario. */
   publicReply: boolean;
-  /** Contestar también los comentarios de Facebook, no solo los de Instagram. */
+  /** En qué redes trabaja (migración 203). Al menos una está siempre encendida. */
+  instagram: boolean;
   facebook: boolean;
 }
 
@@ -109,7 +110,7 @@ export async function loadCommentSettings(
   const { data } = await db
     .from('ig_proactive_settings')
     .select(
-      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_facebook, comment_reply_mode',
+      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_instagram, comment_facebook, comment_reply_mode',
     )
     .eq('workspace_id', workspaceId)
     .maybeSingle();
@@ -117,6 +118,7 @@ export async function loadCommentSettings(
     comment_audience?: string | null;
     comment_max_thread_replies?: number | null;
     comment_public_reply?: boolean | null;
+    comment_instagram?: boolean | null;
     comment_facebook?: boolean | null;
     comment_reply_mode?: string | null;
   } | null;
@@ -138,6 +140,9 @@ export async function loadCommentSettings(
     replyMode,
     // 'dm' es el único modo que no publica nada bajo el post.
     publicReply: replyMode !== 'dm',
+    // Sin fila de ajustes (o con la migración 203 sin aplicar) trabaja en
+    // Instagram, que es lo que hacía antes de que la pregunta existiera.
+    instagram: s?.comment_instagram !== false,
     facebook: s?.comment_facebook === true,
   };
 }
