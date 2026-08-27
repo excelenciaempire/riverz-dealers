@@ -184,7 +184,7 @@
 }
 
 .pl-plank {
-  transform: rotateX(14deg) rotateZ(-1.2deg) translateZ(0);
+  transform: perspective(1400px) rotateX(14deg) rotateZ(-1.2deg) translateZ(0);
   transform-style: preserve-3d;
   transition:
     transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
@@ -195,7 +195,7 @@
 }
 
 .pl-plank[data-active="true"] {
-  transform: rotateX(4deg) rotateZ(0deg) translateZ(60px);
+  transform: perspective(1400px) rotateX(4deg) rotateZ(0deg) translateZ(60px);
 }
 
 /* ── Superficie estable para las vistas previas reutilizadas ──

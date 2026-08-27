@@ -172,7 +172,7 @@ function Hero() {
               columna vertebral de la página no se corre. */}
           <div
             aria-hidden
-            className="pl-grain relative -mx-5 hidden min-h-[420px] overflow-hidden lg:block"
+            className="pl-grain relative hidden min-h-[420px] overflow-hidden lg:block"
             style={{
               background: "var(--pl-stage)",
               marginRight: "calc(-1 * max(0px, (100vw - 72rem) / 2) - 1.25rem)",
