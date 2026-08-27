@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useT } from "@/hooks/use-locale";
 import {
   AgentPanel,
@@ -12,6 +11,13 @@ import {
   SupportPreview,
 } from "@/components/landing/landing";
 import { Rise } from "./bits";
+import {
+  CompCampanas,
+  CompCarrito,
+  CompLlamadas,
+  CompRecompras,
+  CompTienda,
+} from "./compositions";
 
 /**
  * Qué hace — el mosaico.
@@ -24,10 +30,16 @@ import { Rise } from "./bits";
  *
  * Así que acá hay cuatro tipos de ficha y cuatro anchos distintos:
  *
- *   `window`  la vista previa del producto en su marco (la que ya existía)
- *   `photo`   una foto a sangre que representa la función, con el texto debajo
+ *   `window`  la vista previa animada del producto, en su marco
+ *   `comp`    una composición: fragmentos de la interfaz sueltos sobre el papel
  *   `figure`  un dato grande en arena, sin vista previa
  *   `plain`   solo tipografía sobre arena, con mucho aire
+ *
+ * Las composiciones son la pieza que faltaba. Una foto de un paquete es bonita
+ * pero no dice qué hace el producto; una ventanita más se lee como otra
+ * captura. La composición muestra las piezas de verdad —la ficha del producto,
+ * la burbuja, el logo del canal, el chip del estado— apoyadas en el papel y
+ * unidas por hilos finos. Es el recurso de Siena hecho con lo nuestro.
  *
  * Las filas suman seis columnas de formas distintas (4+2, 3+3, 6, 4+2, 2+4),
  * así que el ojo nunca encuentra el mismo ritmo dos veces.
@@ -47,7 +59,7 @@ type Tile = {
   lg: 2 | 3 | 4 | 6;
 } & (
   | { kind: "window"; Panel: () => React.ReactElement }
-  | { kind: "photo"; img: string; ratio: string }
+  | { kind: "comp"; Comp: () => React.ReactElement }
   | { kind: "figure"; value: string; unit: string }
   | { kind: "plain" }
 );
@@ -67,9 +79,8 @@ const TILES: Tile[] = [
   },
   {
     key: "secVoice",
-    kind: "photo",
-    img: "/portada-b/llamadas.jpg",
-    ratio: "3/4",
+    kind: "comp",
+    Comp: CompLlamadas,
     title: "landing.secVoiceTitle",
     muted: "landing.secVoiceTitleMuted",
     body: "landing.secVoiceBody",
@@ -78,9 +89,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec02",
-    kind: "photo",
-    img: "/portada-b/carritos.jpg",
-    ratio: "3/2",
+    kind: "comp",
+    Comp: CompCarrito,
     title: "landing.sec02Title",
     muted: "landing.sec02TitleMuted",
     body: "landing.sec02Body",
@@ -99,9 +109,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec03",
-    kind: "photo",
-    img: "/portada-b/recompras.jpg",
-    ratio: "3/2",
+    kind: "comp",
+    Comp: CompRecompras,
     title: "landing.sec03Title",
     muted: "landing.sec03TitleMuted",
     body: "landing.sec03Body",
@@ -120,9 +129,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec06",
-    kind: "photo",
-    img: "/portada-b/campanas.jpg",
-    ratio: "21/9",
+    kind: "comp",
+    Comp: CompCampanas,
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
@@ -151,9 +159,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec08",
-    kind: "photo",
-    img: "/portada-b/tienda.jpg",
-    ratio: "3/2",
+    kind: "comp",
+    Comp: CompTienda,
     title: "landing.sec08Title",
     muted: "landing.sec08TitleMuted",
     body: "landing.sec08Body",
@@ -219,18 +226,6 @@ export function Cards() {
               tile.kind === "figure" || tile.kind === "plain" ? "sn-card-sand" : "sn-card"
             }`}
           >
-            {tile.kind === "photo" && (
-              <div className="relative w-full" style={{ aspectRatio: tile.ratio }}>
-                <Image
-                  src={tile.img}
-                  alt=""
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  className="object-cover"
-                />
-              </div>
-            )}
-
             <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-8">
               {tile.kind === "figure" && (
                 <p className="sn-figure mb-4 !text-[clamp(76px,9vw,132px)]">{tile.value}</p>
@@ -245,6 +240,14 @@ export function Cards() {
               )}
 
               <p className="sn-body mt-3 max-w-[48ch] !text-[15px]">{t(tile.body)}</p>
+
+              {tile.kind === "comp" && (
+                // La composición va al pie de la ficha y crece con ella: son
+                // fragmentos de la interfaz apoyados en el papel, sin marco.
+                <div className="mt-auto min-w-0 pt-8">
+                  <tile.Comp />
+                </div>
+              )}
 
               {tile.kind === "window" && (
                 // min-w-0 en la celda, en la ficha y acá: sin eso, el ancho

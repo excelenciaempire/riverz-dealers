@@ -100,13 +100,26 @@ export const landingV4 = {
   // que dice «Sin código»: no es una cifra inventada.
   capsZeroLabel: { es: "líneas de código", en: "lines of code" },
 
+  // Lo poco que las composiciones no pueden tomar del catálogo `landing`.
+  // Todo lo demás —burbujas, nombres, estados— sale de allá, para que la
+  // portada nunca diga una cosa distinta de la otra.
+  compMes1: { es: "Marzo", en: "March" },
+  compMes2: { es: "Junio", en: "June" },
+  compHoy: { es: "Hoy", en: "Today" },
+  compSincro: { es: "Stock · Precios · Pedidos", en: "Stock · Prices · Orders" },
+
   // ── Operator ──
   // La pieza que no tiene nadie más en la categoría, y por eso se lleva un
   // bloque entero en vez de una ficha.
   operatorLabel: { es: "Operator", en: "Operator" },
+  // El titular tiene que sostenerse solo: este bloque es el segundo de la
+  // página, no un agregado al final. «Y si quieres cambiar algo…» servía
+  // cuando venía después de las trece fichas; arriba sonaba a nota al pie.
+  // Además le pega de frente a lo que promete el resto del mercado, que es
+  // «configura tu bot en minutos».
   operatorTitle: {
-    es: "Y si quieres cambiar algo, se lo pides",
-    en: "And if you want something changed, you just ask",
+    es: "No lo configuras. Se lo pides.",
+    en: "You don't configure it. You ask it.",
   },
   operatorBody: {
     es: "Escribes lo que necesitas como se lo dirías a un empleado. Riverz lo reparte entre catorce especialistas —uno de automatizaciones, otro de campañas, otro de productos— te muestra el reparto completo, y solo cuando lo apruebas se pone a trabajar.",

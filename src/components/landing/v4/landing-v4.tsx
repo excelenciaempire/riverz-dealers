@@ -84,13 +84,16 @@ export function LandingV4() {
       <main id="contenido">
         <Hero />
         <Wall />
+        {/* El Operator va SEGUNDO, apenas pasado el muro de plataformas.
+            Estuvo abajo de las trece fichas y ahí se perdía: es lo único de
+            todo esto que no tiene nadie más en la categoría, y enterrarlo al
+            final hacía que la página se leyera como «otra plataforma de
+            atención con IA» hasta el minuto tres. Arriba, ordena todo lo que
+            viene después. */}
+        <Operator />
         <Scene />
         <Figure />
         <Capabilities />
-        {/* El Operator va DESPUÉS de las trece fichas a propósito: primero se
-            ve todo lo que hace solo, y recién entonces tiene sentido decir que
-            además se le puede pedir un cambio. Al revés no se entiende. */}
-        <Operator />
         <Channels />
         <Cta />
       </main>
@@ -145,14 +148,16 @@ function Nav() {
         </span>
 
         <div className="hidden items-center gap-8 text-[15px] md:flex">
+          {/* El menú sigue el orden de la página, y la página empieza por lo
+              que nos separa del resto. */}
+          <a href="#operator" className="transition-opacity hover:opacity-60">
+            {t("landingV4.navOperator")}
+          </a>
           <a href="#como" className="transition-opacity hover:opacity-60">
             {t("landingV4.navHow")}
           </a>
           <a href="#capacidades" className="transition-opacity hover:opacity-60">
             {t("landingV4.navCapabilities")}
-          </a>
-          <a href="#operator" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navOperator")}
           </a>
           <a href="#canales" className="transition-opacity hover:opacity-60">
             {t("landingV4.navChannels")}
