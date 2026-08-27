@@ -95,6 +95,10 @@ export async function encolarVentasRecientes(
   const filas = pedidos.flatMap((p) => {
     const valor = Number(p.total_price ?? 0)
     if (!Number.isFinite(valor) || valor <= 0 || !p.shopify_order_id) return []
+    // Sin fecha legible no hay `event_time`, y un NaN ahí lo rechaza Meta con
+    // un error que no se parece en nada a la causa.
+    const cuando = Date.parse(p.created_at)
+    if (!Number.isFinite(cuando)) return []
     const dir = (p.shipping_address ?? {}) as Record<string, unknown>
     const partes = (p.customer_name ?? '').trim().split(/\s+/)
     const cuerpo = armarEvento(
@@ -117,7 +121,7 @@ export async function encolarVentasRecientes(
       },
       // La hora de la VENTA, no la de ahora: Meta atribuye por `event_time`, y
       // estamparlo hoy mudaría de día una venta de la semana pasada.
-      Date.parse(p.created_at),
+      cuando,
     )
     return [
       {
