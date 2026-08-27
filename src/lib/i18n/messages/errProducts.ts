@@ -143,7 +143,7 @@ export const errProducts = {
   },
 
   shopifyTokenInvalid: {
-    es: "El token no funcionó con esa tienda. Verificá el dominio y que el token tenga los permisos (read/write de pedidos, clientes y productos).",
+    es: "El token no funcionó con esa tienda. Verifica el dominio y que el token tenga los permisos (read/write de pedidos, clientes y productos).",
     en: "The token didn't work for that store. Check the domain and that the token has the right scopes (read/write orders, customers, products).",
   },
 } satisfies Namespace;

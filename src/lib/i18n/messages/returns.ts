@@ -55,7 +55,7 @@ export const gaps = {
 export const unify = {
   title: { es: "Productos repetidos entre plataformas", en: "Products duplicated across platforms" },
   hint: {
-    es: "El mismo producto vive una vez por canal. Unificalos y el conocimiento se carga una sola vez.",
+    es: "El mismo producto vive una vez por canal. Unifícalos y el conocimiento se carga una sola vez.",
     en: "The same product lives once per channel. Merge them and the knowledge is written once.",
   },
   bySku: { es: "Tienen el mismo SKU", en: "Same SKU" },
