@@ -16,7 +16,6 @@
  * un id de otro comercio.
  */
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
-import { pedirOpinion } from './opinion'
 
 export type EstadoConversacion = 'open' | 'pending' | 'closed'
 
@@ -132,17 +131,15 @@ export async function cambiarEstadoConversacion(
     .eq('id', args.conversationId)
     .eq('workspace_id', args.workspaceId)
 
-  // Al cerrar, preguntar si sirvió (migración 202). Va acá, en el único lugar
-  // que mueve el estado, para que dé igual quién cierre: una persona desde la
-  // bandeja, el agente con su herramienta o el Operator. Sin esperar y sin
-  // poder fallar hacia afuera: cerrar una conversación no puede romperse
-  // porque una encuesta no salió, y quien cerró ya se fue a la siguiente.
-  if (!error && args.estado === 'closed') {
-    void pedirOpinion(db, {
-      workspaceId: args.workspaceId,
-      conversationId: args.conversationId,
-    })
-  }
+  // La encuesta de satisfacción NO se dispara desde acá, aunque sea el lugar
+  // obvio.
+  //
+  // Esta función también la usa la capa de capacidades, y ahí hay una regla que
+  // vale más que la comodidad: gestionar la bandeja no le escribe a nadie
+  // (`capabilities/inbox.test.ts`). Un cierre en lote del Operator mandándole un
+  // mensaje a cada cliente es exactamente lo que esa regla existe para impedir.
+  // La pregunta sale donde alguien decidió cerrar ESTA conversación: la bandeja
+  // (`/api/conversations/[id]/opinion`) y la herramienta del agente.
   return { error }
 }
 

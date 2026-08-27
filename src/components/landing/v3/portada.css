@@ -1,0 +1,338 @@
+/* ============================================================
+   Portada «Papel y Señal» — sistema visual propio de /portada
+   ============================================================
+   Todo vive bajo `.pl`. La portada NO usa la paleta de la app:
+   así el conmutador claro/oscuro no la afecta y se ve igual
+   siempre, que es justamente lo que se quiere comparar.
+
+   La regla que hace que esto sea un sistema y no una paleta:
+   EL AMARILLO ES LUZ, NO PINTURA. Sobre papel aparece solo como
+   subrayado, barra de marcador y relleno del botón. Sobre el
+   escenario, solo como resplandor y estado activo. Nunca como
+   relleno plano grande.
+   ============================================================ */
+
+.pl {
+  --pl-paper: #f4f1e9;
+  --pl-paper-2: #eae5d8;
+  --pl-ink: #14140f;
+  --pl-ink-soft: #56564c;
+  --pl-stage: #070706;
+  --pl-stage-2: #14140f;
+  --pl-stage-ink: #f2efe6;
+  --pl-stage-soft: #8a8a80;
+  --pl-acid: #f7ff9e;
+  --pl-acid-ink: #5e6a00;
+  --pl-signal: #ff5b2e;
+  --pl-line: rgba(20, 20, 15, 0.14);
+  --pl-line-stage: rgba(242, 239, 230, 0.16);
+
+  background: var(--pl-paper);
+  color: var(--pl-ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Tipografía ─────────────────────────────────────────── */
+
+/* Display. `opsz` al máximo afina los remates para tamaños grandes;
+   WONK 1 tuerce la g, la y y la f — es la firma de la portada. */
+.pl-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  font-weight: 400;
+  font-size: clamp(46px, 8.4vw, 132px);
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+/* Los H2 apagan el WONK: a tamaño medio y repetido, cansa. */
+.pl-h2 {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-variation-settings: "opsz" 72, "SOFT" 100, "WONK" 0;
+  font-weight: 400;
+  font-size: clamp(28px, 3.4vw, 46px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* El dato gigante: mismos ejes que el display, sin balanceo. */
+.pl-figure {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  font-weight: 400;
+  font-size: clamp(88px, 17vw, 260px);
+  line-height: 0.8;
+  letter-spacing: -0.045em;
+}
+
+.pl-mono {
+  font-family: var(--font-mono-ui), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .pl-mono {
+    font-size: 11px;
+  }
+}
+
+.pl-body {
+  font-size: clamp(16px, 1.4vw, 18px);
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  color: var(--pl-ink-soft);
+}
+
+/* ── La regla: la columna vertebral de la página ─────────── */
+
+.pl-rule {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--pl-line);
+  color: var(--pl-ink-soft);
+}
+
+.pl-stage .pl-rule {
+  border-bottom-color: var(--pl-line-stage);
+  color: var(--pl-stage-soft);
+}
+
+/* ── El marcador: la barra amarilla detrás de una palabra ── */
+
+.pl-mark {
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+  white-space: nowrap;
+}
+
+.pl-mark::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -0.08em;
+  right: -0.08em;
+  bottom: 0.1em;
+  height: 0.44em;
+  background: var(--pl-acid);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
+}
+
+.pl-mark[data-lit="true"]::before {
+  transform: scaleX(1);
+}
+
+/* Sobre el escenario el amarillo no pinta: alumbra por debajo. */
+.pl-stage .pl-mark::before {
+  height: 0.1em;
+  bottom: 0.04em;
+  box-shadow: 0 0 28px 8px rgba(247, 255, 158, 0.32);
+}
+
+/* ── El escenario ────────────────────────────────────────── */
+
+.pl-stage {
+  background: var(--pl-stage);
+  color: var(--pl-stage-ink);
+}
+
+.pl-stage .pl-body {
+  color: var(--pl-stage-soft);
+}
+
+/* Piso de cuadrícula en fuga. Dos degradados repetidos, inclinados en X:
+   da la profundidad sin una sola línea de WebGL. */
+.pl-floor {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 46vh;
+  perspective: 320px;
+  perspective-origin: 50% 0%;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 55%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 55%);
+}
+
+.pl-floor::before {
+  content: "";
+  position: absolute;
+  inset: -100% -50% 0 -50%;
+  transform: rotateX(72deg);
+  transform-origin: 50% 100%;
+  background-image:
+    linear-gradient(to right, var(--pl-line-stage) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--pl-line-stage) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.5;
+}
+
+/* La mesa: los paneles de producto apoyados en un plano que se aleja. */
+.pl-table {
+  perspective: 1400px;
+  perspective-origin: 50% 30%;
+}
+
+.pl-plank {
+  transform: rotateX(14deg) rotateZ(-1.2deg) translateZ(0);
+  transform-style: preserve-3d;
+  transition:
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.6s ease;
+  box-shadow:
+    0 40px 90px -30px rgba(0, 0, 0, 0.9),
+    0 0 90px -20px rgba(247, 255, 158, 0.22);
+}
+
+.pl-plank[data-active="true"] {
+  transform: rotateX(4deg) rotateZ(0deg) translateZ(60px);
+}
+
+/* ── Superficie estable para las vistas previas reutilizadas ──
+   Los trece `Preview` de la portada vieja se pintan con los tokens
+   de la app, que cambian con el tema. Aquí se les vuelve a declarar
+   el juego claro para que se vean igual sobre papel y sobre negro:
+   una pantalla encendida en un cuarto oscuro. */
+.pl-panel {
+  --background: #fafaf7;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #f7ff9e;
+  --primary-foreground: #0a0a0a;
+  --primary-hover: #f1fa84;
+  --primary-soft: rgba(247, 255, 158, 0.45);
+  --primary-soft-2: rgba(247, 255, 158, 0.6);
+  --accent-ink: #5e6a00;
+  --secondary: #f5f3ec;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f1eee4;
+  --muted-foreground: #6b6b64;
+  --accent: #f0ede3;
+  --accent-foreground: #0a0a0a;
+  --border: #e8e1d2;
+  --input: #e3e0d5;
+  --ring: #c9c2b2;
+  color: var(--foreground);
+}
+
+/* ── El índice: trece renglones ──────────────────────────── */
+
+.pl-row {
+  border-bottom: 1px solid var(--pl-line);
+  transition: background-color 0.25s ease;
+}
+
+.pl-row:hover,
+.pl-row[data-on="true"] {
+  background: var(--pl-paper-2);
+}
+
+.pl-row-title {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pl-row:hover .pl-row-title,
+.pl-row[data-on="true"] .pl-row-title {
+  transform: translateX(10px);
+}
+
+/* ── Botón: el único de la página ────────────────────────── */
+
+.pl-cta {
+  background: var(--pl-ink);
+  color: var(--pl-paper);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease;
+  box-shadow: inset 0 0 0 0 var(--pl-acid);
+}
+
+.pl-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 3px var(--pl-acid);
+}
+
+.pl-stage .pl-cta {
+  background: var(--pl-acid);
+  color: var(--pl-ink);
+}
+
+.pl-stage .pl-cta:hover {
+  box-shadow: 0 0 46px 2px rgba(247, 255, 158, 0.45);
+}
+
+/* ── Descubrir el titular línea por línea al entrar ───────── */
+
+.pl-veil > span {
+  display: block;
+  overflow: hidden;
+}
+
+.pl-veil i {
+  display: block;
+  font-style: inherit;
+  transform: translateY(105%);
+  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pl-veil[data-lit="true"] i {
+  transform: translateY(0);
+}
+
+.pl-veil[data-lit="true"] span:nth-child(2) i {
+  transition-delay: 0.08s;
+}
+
+.pl-veil[data-lit="true"] span:nth-child(3) i {
+  transition-delay: 0.16s;
+}
+
+/* Grano: una sola capa de ruido sobre el escenario para que el negro
+   no se vea plástico. SVG en línea, sin pedir ningún archivo. */
+.pl-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Movimiento reducido: se queda todo quieto y legible ──── */
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-mark::before {
+    transform: scaleX(1);
+    transition: none;
+  }
+  .pl-veil i {
+    transform: none;
+    transition: none;
+  }
+  .pl-plank,
+  .pl-plank[data-active="true"] {
+    transform: none;
+    transition: none;
+  }
+  .pl-row-title,
+  .pl-cta {
+    transition: none;
+  }
+  .pl-floor {
+    display: none;
+  }
+}

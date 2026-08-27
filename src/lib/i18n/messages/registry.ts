@@ -27,6 +27,7 @@ import { igAgent } from "./igAgent";
 import { inbox } from "./inbox";
 import { landing } from "./landing";
 import { landingV2 } from "./landingV2";
+import { landingV3 } from "./landingV3";
 import { legal } from "./legal";
 import { layout } from "./layout";
 import { metrics } from "./metrics";
@@ -66,6 +67,7 @@ const NAMESPACES: Record<string, Namespace> = {
   inbox,
   landing,
   landingV2,
+  landingV3,
   legal,
   layout,
   metrics,

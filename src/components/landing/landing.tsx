@@ -136,7 +136,7 @@ const INBOX: {
 // Small shared hooks
 // ─────────────────────────────────────────────────────────────────────────
 
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
     const m = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -152,7 +152,7 @@ function useReducedMotion() {
 }
 
 /** Count up to `target` once `run` flips true. */
-function useCountUp(target: number, run: boolean, duration = 1100, trigger = 0) {
+export function useCountUp(target: number, run: boolean, duration = 1100, trigger = 0) {
   const [v, setV] = useState(0);
   useEffect(() => {
     if (!run) return;
@@ -577,7 +577,7 @@ function FeatureSection({
 // Shared preview chrome
 // ─────────────────────────────────────────────────────────────────────────
 
-function PreviewFrame({
+export function PreviewFrame({
   children,
   className,
 }: {
@@ -676,7 +676,7 @@ function LandingThemeToggle() {
 
 // Pre-launch waitlist signup. Posts to /api/waitlist, which stores the lead
 // and emails the owner. Works on light (hero) and dark (CTA) backgrounds.
-function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
+export function WaitlistForm({ tone = "light" }: { tone?: "light" | "dark" }) {
   const t = useCopy();
   const dark = tone === "dark";
   const [email, setEmail] = useState("");
@@ -911,7 +911,7 @@ function delayFor(step: Step): number {
   }
 }
 
-function HeroInbox() {
+export function HeroInbox() {
   const t = useCopy();
   const reduced = useReducedMotion();
   // One state object so switching channels resets the step count atomically
@@ -1100,7 +1100,7 @@ function SaleCard({
 // 01 · Bandeja unificada — cycling multi-channel inbox
 // ─────────────────────────────────────────────────────────────────────────
 
-function InboxPreview() {
+export function InboxPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [active, setActive] = useState(0);
@@ -1169,7 +1169,7 @@ const AGENT_SOURCES: { icon: typeof Inbox; label: string; y: number }[] = [
   { icon: Star, label: "landing.agentSourceReviews", y: 85 },
 ];
 
-function AgentPanel() {
+export function AgentPanel() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
@@ -1264,7 +1264,7 @@ function AgentPanel() {
 
 const CART_ICONS: (typeof Inbox)[] = [ShoppingCart, Sparkles, Check];
 
-function CartRecoveryPanel() {
+export function CartRecoveryPanel() {
   const t = useCopy();
   const reduced = useReducedMotion();
   // phases: 0 abandoned · 1 agent reaches out · 2 recovered · 3 hold → loop.
@@ -1366,7 +1366,7 @@ const COMMENTS: { user: string; text: string }[] = [
   { user: "cami.rr", text: "landing.comment3" },
 ];
 
-function CommentsPreview() {
+export function CommentsPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [lit, setLit] = useState(0);
@@ -1443,7 +1443,7 @@ const SUPPORT_EVENTS: { icon: typeof Inbox; title: string; meta: string }[] = [
   { icon: MessageSquare, title: "landing.supportQuestionResolved", meta: "landing.supportNow" },
 ];
 
-function SupportPreview() {
+export function SupportPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(1);
@@ -1511,7 +1511,7 @@ const CALL_LINES: { who: "agent" | "customer"; text: string }[] = [
   { who: "customer", text: "landing.callLine3" },
 ];
 
-function CallPreview() {
+export function CallPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   // 0 marcando · 1..3 líneas de la transcripción · 4 resultado
@@ -1608,7 +1608,7 @@ function CallPreview() {
 // ocurre, con la puerta abierta para que el humano entre.
 // ─────────────────────────────────────────────────────────────────────────
 
-function LivePreview() {
+export function LivePreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   // 0 llega el mensaje · 1 el agente escribe · 2 responde
@@ -1677,7 +1677,7 @@ const CONTACT_ROWS: { name: string; tag: string; spent: string }[] = [
   { name: "Sofía R.", tag: "landing.contactsTagCart", spent: "$0" },
 ];
 
-function ContactsPreview() {
+export function ContactsPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(reduced ? CONTACT_ROWS.length : 0);
@@ -1766,7 +1766,7 @@ function SetupToggle({ on }: { on: boolean }) {
   );
 }
 
-function SetupPreview() {
+export function SetupPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0); // 0..3 (3 = all done) → loop
@@ -1863,7 +1863,7 @@ const FLOW: { icon: typeof Inbox; sub: string }[] = [
   { icon: Send, sub: "landing.flowSend" },
 ];
 
-function FlowPreview() {
+export function FlowPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   const [step, setStep] = useState(0);
@@ -1917,7 +1917,7 @@ function FlowPreview() {
 // 04 · Campañas — broadcast with live-ticking delivery stats
 // ─────────────────────────────────────────────────────────────────────────
 
-function CampaignPreview() {
+export function CampaignPreview() {
   const t = useCopy();
   const reduced = useReducedMotion();
   // FeatureSection remounts this preview when it enters view, so a single
@@ -1987,7 +1987,7 @@ function CampaignPreview() {
 // 05 · Productos — Shopify-synced product card the AI sells from
 // ─────────────────────────────────────────────────────────────────────────
 
-function ProductPreview() {
+export function ProductPreview() {
   const t = useCopy();
   return (
     <PreviewFrame>
@@ -2040,7 +2040,7 @@ function ProductPreview() {
 
 const BARS = [38, 52, 44, 70, 60, 84, 96];
 
-function MetricsPreview() {
+export function MetricsPreview() {
   const t = useCopy();
   // setTimeout (not a one-shot rAF, which can be dropped off-screen) so the
   // counters reliably start. FeatureSection remounts the preview on view, so

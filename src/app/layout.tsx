@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter_Tight } from "next/font/google";
+import { Inter_Tight, Fraunces, Martian_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -26,6 +26,27 @@ const interTight = Inter_Tight({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Tipografía exclusiva de la portada «Papel y Señal» (/portada). Fraunces es
+// una serif variable con ejes SOFT y WONK: subiendo WONK la `g`, la `y` y la
+// `f` se tuercen, y el titular queda con una forma que no tiene nadie más en
+// la categoría. Martian Mono, ancha, carga solo etiquetas y números.
+//
+// next/font descarga y sirve ambas desde el propio dominio en build, así que
+// pasan el `font-src 'self' data:` de la CSP sin abrirla (src/proxy.ts).
+const fraunces = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
+  display: "swap",
+});
+
+const martianMono = Martian_Mono({
+  variable: "--font-mono-ui",
+  subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
@@ -172,7 +193,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       data-theme={DEFAULT_THEME}
-      className={`${interTight.variable} h-full antialiased`}
+      className={`${interTight.variable} ${fraunces.variable} ${martianMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

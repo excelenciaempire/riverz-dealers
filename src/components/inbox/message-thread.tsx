@@ -873,9 +873,19 @@ export function MessageThread({
         .update(patch)
         .eq("id", conversation.id);
 
+      // Al cerrar, preguntarle si sirvió — sólo si el comercio lo encendió
+      // (migración 202). Sin esperar: quien cerró ya está en la siguiente, y el
+      // servidor decide solo si corresponde preguntar en este canal, dentro de
+      // la ventana y sin haberle preguntado hace poco a esta persona.
+      if (status === "closed") {
+        void fetchWithCsrf(`/api/conversations/${conversation.id}/opinion`, {
+          method: "POST",
+        }).catch(() => {});
+      }
+
       onStatusChange(conversation.id, status);
     },
-    [conversation, onStatusChange]
+    [conversation, onStatusChange, fetchWithCsrf]
   );
 
   const handleOpenTemplates = useCallback(() => {
