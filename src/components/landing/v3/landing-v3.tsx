@@ -128,7 +128,7 @@ export function LandingV3() {
 
 function Hero() {
   const t = useT();
-  const { ref, lit } = useLit<HTMLDivElement>("0px");
+  const { ref, veil } = useLit<HTMLDivElement>("0px");
 
   return (
     <section className="relative overflow-hidden">
@@ -137,13 +137,13 @@ function Hero() {
 
         <div className="grid items-stretch gap-12 lg:grid-cols-[1fr_0.72fr] lg:gap-14">
           <div className="pb-16 pt-12 sm:pt-16">
-            <h1 className="pl-veil pl-display max-w-[13ch]" data-lit={lit}>
+            <h1 className="pl-veil pl-display max-w-[13ch]" data-lit={veil}>
               <span>
                 <i>{t("landingV3.heroTitleA")}</i>
               </span>
               <span>
                 <i>
-                  <em className="pl-mark not-italic" data-lit={lit}>
+                  <em className="pl-mark not-italic" data-lit={veil}>
                     {t("landingV3.heroTitleMark")}
                   </em>
                 </i>

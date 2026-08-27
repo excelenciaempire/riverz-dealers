@@ -12,11 +12,23 @@ import { useLocale } from "@/hooks/use-locale";
  * corregir una sea corregir todas.
  */
 
-/** Enciende un elemento la primera vez que entra en pantalla, y no lo apaga. */
+/**
+ * Enciende un elemento la primera vez que entra en pantalla, y no lo apaga.
+ *
+ * Devuelve también `armed`, que es falso hasta que el componente montó en el
+ * navegador. Importa: el estado apagado del titular lo esconde con un
+ * `translateY`, así que si el HTML del servidor ya viniera apagado, la portada
+ * llegaría con el titular INVISIBLE hasta que termine de cargar el JavaScript
+ * —en un contenedor recién despierto, varios segundos— y sin JavaScript no se
+ * vería nunca. Con `armed`, el servidor manda el texto puesto y la animación
+ * solo existe si hay navegador que la corra.
+ */
 export function useLit<T extends HTMLElement>(margin = "-12% 0px -12% 0px") {
   const ref = useRef<T>(null);
   const [lit, setLit] = useState(false);
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
+    setArmed(true);
     const el = ref.current;
     if (!el) return;
     // Sin IntersectionObserver (o en un navegador viejo) el contenido tiene
@@ -37,7 +49,10 @@ export function useLit<T extends HTMLElement>(margin = "-12% 0px -12% 0px") {
     io.observe(el);
     return () => io.disconnect();
   }, [margin]);
-  return { ref, lit };
+  // `undefined` deja el atributo fuera del HTML, que es lo que el CSS lee como
+  // «esto no se anima»: sin atributo, el texto está puesto.
+  const veil = armed ? String(lit) : undefined;
+  return { ref, lit, veil };
 }
 
 /**
@@ -69,15 +84,15 @@ export function Headline({
   b: string;
   className?: string;
 }) {
-  const { ref, lit } = useLit<HTMLHeadingElement>();
+  const { ref, veil } = useLit<HTMLHeadingElement>();
   return (
-    <h2 ref={ref} className={`pl-veil ${className}`} data-lit={lit}>
+    <h2 ref={ref} className={`pl-veil ${className}`} data-lit={veil}>
       <span>
         <i>{a}</i>
       </span>
       <span>
         <i>
-          <em className="pl-mark not-italic" data-lit={lit}>
+          <em className="pl-mark not-italic" data-lit={veil}>
             {mark}
           </em>
         </i>

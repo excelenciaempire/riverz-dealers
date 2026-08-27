@@ -124,13 +124,15 @@
   bottom: 0.1em;
   height: 0.44em;
   background: var(--pl-acid);
-  transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 
-.pl-mark[data-lit="true"]::before {
-  transform: scaleX(1);
+/* Apagado SOLO cuando el navegador dijo que hay animacion (data-lit="false").
+   Sin el atributo —HTML del servidor, o sin JavaScript— la barra ya esta
+   dibujada: nunca se pierde nada por esperar a que cargue un script. */
+.pl-mark[data-lit="false"]::before {
+  transform: scaleX(0);
 }
 
 /* Sobre el escenario el amarillo no pinta: alumbra por debajo. */
@@ -184,8 +186,7 @@
 }
 
 .pl-plank {
-  transform: perspective(1400px) rotateX(14deg) rotateZ(-1.2deg) translateZ(0);
-  transform-style: preserve-3d;
+  transform: perspective(1400px) rotateX(14deg) rotateZ(-1.2deg);
   transition:
     transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.6s ease;
@@ -284,19 +285,21 @@
 .pl-veil i {
   display: block;
   font-style: inherit;
-  transform: translateY(105%);
   transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.pl-veil[data-lit="true"] i {
-  transform: translateY(0);
+/* Misma regla que el marcador, y por el mismo motivo: el titular arranca
+   PUESTO, y solo se esconde si hay navegador que lo vaya a subir. Al reves,
+   la portada llegaba en blanco hasta que terminara de hidratar. */
+.pl-veil[data-lit="false"] i {
+  transform: translateY(105%);
 }
 
-.pl-veil[data-lit="true"] span:nth-child(2) i {
+.pl-veil span:nth-child(2) i {
   transition-delay: 0.08s;
 }
 
-.pl-veil[data-lit="true"] span:nth-child(3) i {
+.pl-veil span:nth-child(3) i {
   transition-delay: 0.16s;
 }
 
@@ -315,12 +318,16 @@
 /* ── Movimiento reducido: se queda todo quieto y legible ──── */
 
 @media (prefers-reduced-motion: reduce) {
-  .pl-mark::before {
+  .pl-mark[data-lit="false"]::before {
     transform: scaleX(1);
+  }
+  .pl-mark::before {
     transition: none;
   }
-  .pl-veil i {
+  .pl-veil[data-lit="false"] i {
     transform: none;
+  }
+  .pl-veil i {
     transition: none;
   }
   .pl-plank,
