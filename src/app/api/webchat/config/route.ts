@@ -109,7 +109,14 @@ export async function PUT(request: Request) {
   if (body.position === 'left' || body.position === 'right') patch.position = body.position;
   if (typeof body.greeting === 'string') patch.greeting = body.greeting.slice(0, 300);
   if (typeof body.brand_name === 'string') patch.brand_name = body.brand_name.slice(0, 60);
-  if (typeof body.avatar_url === 'string') patch.avatar_url = body.avatar_url.slice(0, 500);
+  if (typeof body.avatar_url === 'string') {
+    // Sólo https, o vacío. Se guardaba texto libre y se pintaba directo en un
+    // `<img src>` del widget: un `javascript:` ahí es un enlace que alguien va
+    // a clickear en la tienda de un tercero, y un `http://` rompe la página
+    // entera por contenido mixto.
+    const url = body.avatar_url.trim().slice(0, 500);
+    patch.avatar_url = !url || /^https:\/\/\S+$/i.test(url) ? url : '';
+  }
   if (typeof body.require_email === 'boolean') patch.require_email = body.require_email;
   if (typeof body.allow_uploads === 'boolean') patch.allow_uploads = body.allow_uploads;
   if (typeof body.ask_rating === 'boolean') patch.ask_rating = body.ask_rating;

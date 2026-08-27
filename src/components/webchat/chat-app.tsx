@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageText } from './message-text';
 import { MessageMedia, type Media } from './message-media';
+// La forma de la configuración se declara UNA vez, del lado del servidor que
+// la emite. Estaba copiada a mano acá y ya se habían separado: el chat leía
+// campos que el servidor no mandaba y al revés.
+import type { WebchatSettings } from '@/lib/channels/webchat/config';
 
 /**
  * El chat que ve quien visita la tienda.
@@ -27,20 +31,6 @@ interface WireMessage {
   media?: Media;
 }
 
-interface Settings {
-  primary_color: string;
-  position: 'right' | 'left';
-  greeting: string;
-  brand_name: string;
-  avatar_url: string | null;
-  require_email: boolean;
-  auto_open_seconds: number;
-  allow_uploads: boolean;
-  ask_rating: boolean;
-  locale: 'es' | 'en';
-  offline_message: string;
-  quick_replies?: string[];
-}
 
 /**
  * El marco del chat, en los dos idiomas.
@@ -190,7 +180,7 @@ type Pending = {
 
 export function ChatApp() {
   const [session, setSession] = useState<string | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<WebchatSettings | null>(null);
   const [messages, setMessages] = useState<WireMessage[]>([]);
   const [pending, setPending] = useState<Pending[]>([]);
   const [draft, setDraft] = useState('');
@@ -310,7 +300,7 @@ export function ChatApp() {
     // tiene, pero pasarla por el fragmento la dejaría en el historial.
     fetch('/api/widget/settings', { headers: { Authorization: `Bearer ${session}` } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d?.settings && setSettings(d.settings))
+      .then((d) => d?.settings && setSettings(d.settings as WebchatSettings))
       .catch(() => {});
   }, [session]);
 
