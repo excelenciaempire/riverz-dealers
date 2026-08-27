@@ -37,6 +37,17 @@ export function useLit<T extends HTMLElement>(margin = "-12% 0px -12% 0px") {
       setLit(true);
       return;
     }
+    // Lo que ya está en pantalla se enciende ahora, sin esperar al
+    // observador. No es un atajo: en una pestaña de fondo el observador no
+    // reporta nada, y el titular de arriba —que está a la vista desde el
+    // primer instante— se quedaba escondido hasta que alguien mirara la
+    // pestaña. La medición del rectángulo sí funciona siempre.
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) {
+      setLit(true);
+      return;
+    }
+
     const io = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting) {
