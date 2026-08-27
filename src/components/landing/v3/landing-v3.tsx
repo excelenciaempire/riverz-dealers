@@ -329,11 +329,16 @@ function Close() {
       <div className="relative mx-auto max-w-6xl px-5 py-[clamp(64px,9vw,140px)]">
         <Rule left={t("landingV3.closeRuleLeft")} right={t("landingV3.closeRuleRight")} />
 
-        <div className="mt-12 max-w-[22ch]">
+        {/* El ancho va EN el titular, no en un envoltorio: `ch` se mide con la
+            letra del elemento, y en el envoltorio lo medía con Inter Tight a
+            16px — 22ch daban 204 px y el titular caía en columna, una palabra
+            por renglón. */}
+        <div className="mt-12">
           <Headline
             a={t("landingV3.closeTitleA")}
             mark={t("landingV3.closeTitleMark")}
             b={t("landingV3.closeTitleB")}
+            className="pl-display max-w-[19ch] !text-[clamp(38px,6vw,92px)]"
           />
         </div>
 
