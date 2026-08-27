@@ -96,6 +96,10 @@ export const landingV4 = {
     en: "Each one with real data from your store: your stock, your prices, your orders.",
   },
 
+  // El dato de la ficha sin vista previa. Sale del propio cuerpo de sec09,
+  // que dice «Sin código»: no es una cifra inventada.
+  capsZeroLabel: { es: "líneas de código", en: "lines of code" },
+
   // ── Operator ──
   // La pieza que no tiene nadie más en la categoría, y por eso se lleva un
   // bloque entero en vez de una ficha.
