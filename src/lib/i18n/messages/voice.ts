@@ -105,6 +105,18 @@ export const voice = {
   // "sin respuesta" — ahi si se marco y no atendieron.
   statusNotPlaced: { es: "No se llamó", en: "Not placed" },
 
+  // La pestaña de llamadas del agente.
+  voiceDefault: { es: "La de la plataforma", en: "The platform default" },
+  voicePlatform: {
+    es: "La voz de las llamadas la define la plataforma.",
+    en: "The calling voice is set by the platform.",
+  },
+  whenGroup: { es: "Cuándo insiste", en: "When it keeps trying" },
+  whenGroupHint: {
+    es: "Horario, reintentos y si puede decidir llamar por su cuenta.",
+    en: "Hours, retries, and whether it can decide to call on its own.",
+  },
+
   // Cuando llama. La pregunta que ninguna pantalla contestaba.
   whenTitle: { es: "Cuándo llama", en: "When it calls" },
   whenHint: {

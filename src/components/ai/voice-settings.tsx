@@ -1,23 +1,26 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square, Sparkles, Loader2, PhoneCall } from 'lucide-react';
+import { ChevronDown, Play, Square, Sparkles, Loader2, PhoneCall } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { useT } from '@/hooks/use-locale';
+import { VoiceStatusLine } from '@/components/voice/voice-status-line';
+import { useT, useLocale } from '@/hooks/use-locale';
+import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
 import type { VoiceCallingHours, VoiceCallType, VoiceObjectives } from '@/types';
 import {
-  CURATED_VOICES,
+  type CuratedVoice,
   DEFAULT_CALLING_HOURS,
+  DEFAULT_GREETINGS,
   DEFAULT_MAX_CALL_SECONDS,
   DEFAULT_MAX_RETRIES,
+  DEFAULT_OBJECTIVES,
   DEFAULT_RETRY_DELAY_MINUTES,
-  ESTIMATED_USD_PER_MINUTE,
 } from '@/lib/voice/constants';
 import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
 
@@ -97,6 +100,39 @@ const DAY_KEYS: { day: number; key: string }[] = [
   { day: 7, key: 'voice.daySun' },
 ];
 
+/** ¿El horario o los reintentos difieren del default? Entonces se abre solo. */
+function tocado(v: VoiceState): boolean {
+  const h = v.voice_calling_hours;
+  return (
+    v.voice_ai_decides ||
+    v.voice_max_retries !== DEFAULT_MAX_RETRIES ||
+    h.start !== DEFAULT_CALLING_HOURS.start ||
+    h.end !== DEFAULT_CALLING_HOURS.end ||
+    h.days.length !== DEFAULT_CALLING_HOURS.days.length
+  );
+}
+
+/**
+ * La pestaña de Llamadas de un agente.
+ *
+ * Al prender el interruptor aparecían diez decisiones de golpe: una línea de
+ * datos, la caja de setup con IA, la de llamada de prueba, cuatro voces, el
+ * saludo, cuatro objetivos con interruptor y caja de texto, el upsell anidado,
+ * «la IA decide», dos horas más siete días, y tres opciones de reintento.
+ * Todo con el mismo peso, para algo cuyos valores por defecto ya funcionan.
+ *
+ * Ahora son tres alturas: qué se escucha (siempre), qué dice en cada tipo de
+ * llamada (plegado, con el guion por defecto a la vista) y cuándo insiste
+ * (plegado, se abre solo si alguien lo tocó). Las dos acciones —armarlo con IA
+ * y probarlo— quedan en las puntas: la primera es el camino corto, la segunda
+ * es lo último que uno hace.
+ *
+ * Y dos controles dejaron de mentir. Los interruptores de objetivo NO
+ * disparaban nada: `voice_objectives[tipo].enabled` no lo lee nadie desde que
+ * el nodo del lienzo quedó como única vía automática. Y el selector de voz
+ * ofrecía voces de ElevenLabs mientras la plataforma sintetiza con otro
+ * proveedor, así que la elección se descartaba y las cuatro sonaban igual.
+ */
 export function VoiceSettings({
   value,
   onChange,
@@ -112,6 +148,7 @@ export function VoiceSettings({
   agentId?: string | null;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [testPhone, setTestPhone] = useState('');
@@ -119,19 +156,28 @@ export function VoiceSettings({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
-  /** El numero desde el que saldrian estas llamadas, para la linea de arriba. */
-  const [numero, setNumero] = useState<string | null>(null);
+  const [voces, setVoces] = useState<CuratedVoice[] | null>(null);
+  const [verVoces, setVerVoces] = useState(false);
+  const [verGuiones, setVerGuiones] = useState(false);
+  const [verCuando, setVerCuando] = useState(() => tocado(value));
 
+  const { readiness, loading: cargandoEstado } = useVoiceReadiness(
+    value.voice_enabled ? workspaceId : undefined,
+    agentId,
+  );
+
+  // Las voces del proveedor que la plataforma tiene activo hoy. Sin esto el
+  // selector ofrecía una elección que el motor descartaba.
   useEffect(() => {
     if (!workspaceId || !value.voice_enabled) return;
     let cancelado = false;
     (async () => {
-      const res = await fetch(`/api/voice/readiness?workspace_id=${workspaceId}`, {
+      const res = await fetch(`/api/voice/voices?workspace_id=${workspaceId}`, {
         cache: 'no-store',
       });
       if (!res.ok || cancelado) return;
-      const json = (await res.json()) as { phone_number?: string | null };
-      if (!cancelado) setNumero(json.phone_number ?? null);
+      const json = (await res.json()) as { voices: CuratedVoice[] };
+      if (!cancelado) setVoces(json.voices ?? []);
     })();
     return () => {
       cancelado = true;
@@ -172,6 +218,9 @@ export function VoiceSettings({
         voice_objectives: { ...value.voice_objectives, ...c.objectives },
       });
       setSetupText('');
+      // Lo que la IA escribió se abre a la vista: aplicar algo que no se ve es
+      // pedirle al comercio que confíe sin mirar.
+      setVerGuiones(true);
       toast.success(t('voice.setupApplied'));
     } finally {
       setSetupLoading(false);
@@ -238,24 +287,26 @@ export function VoiceSettings({
 
   function setObjective(
     type: VoiceCallType,
-    patch: { enabled?: boolean; objective?: string; extra_instructions?: string },
+    patch: { objective?: string; extra_instructions?: string },
   ) {
-    const prev = value.voice_objectives[type] ?? { enabled: false, objective: '' };
+    const prev = value.voice_objectives[type] ?? { enabled: true, objective: '' };
     set({
       voice_objectives: {
         ...value.voice_objectives,
-        [type]: { ...prev, ...patch },
+        // `enabled` se sigue guardando en true por compatibilidad con lo que ya
+        // está en la base; NADIE lo lee. El guion es lo que manda.
+        [type]: { ...prev, enabled: true, ...patch },
       },
     });
   }
 
   function setUpsell(patch: { enabled?: boolean; offer_text?: string; discount?: string }) {
-    const oc = value.voice_objectives.order_confirmation ?? { enabled: false, objective: '' };
+    const oc = value.voice_objectives.order_confirmation ?? { enabled: true, objective: '' };
     const prevUpsell = oc.upsell ?? { enabled: false };
     set({
       voice_objectives: {
         ...value.voice_objectives,
-        order_confirmation: { ...oc, upsell: { ...prevUpsell, ...patch } },
+        order_confirmation: { ...oc, enabled: true, upsell: { ...prevUpsell, ...patch } },
       },
     });
   }
@@ -274,114 +325,83 @@ export function VoiceSettings({
     set({ voice_calling_hours: { ...value.voice_calling_hours, days } });
   }
 
+  const idioma = language === 'en' || locale === 'en' ? 'en' : 'es';
+  const vozElegida = (voces ?? []).find((v) => v.voice_id === value.voice_id);
+
+  if (!value.voice_enabled) return <div />;
+
   return (
     <div className="space-y-6">
-      {/* El interruptor de encendido vive en el encabezado de la tarjeta
-          (junto al título "Agente de voz" y su descripción): tenerlo también
-          acá era decir dos veces lo mismo, una debajo de la otra. */}
-      {value.voice_enabled && (
-        <>
-          {/* Los demas interruptores del editor cambian COMO escribe el
-              agente. Este hace sonar el telefono de gente real y cuesta plata
-              por minuto — merece decir desde que numero, en que horario y mas
-              o menos cuanto, antes de que alguien lo prenda sin saberlo. */}
-          <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
-            {numero
-              ? t('voice.agentVoiceFacts', {
-                  number: numero,
-                  from: value.voice_calling_hours.start,
-                  to: value.voice_calling_hours.end,
-                  cost: `$${(
-                    (ESTIMATED_USD_PER_MINUTE * value.voice_max_call_seconds) /
-                    60
-                  ).toFixed(2)}`,
-                })
-              : t('voice.agentVoiceNoNumber')}
-          </p>
-          {/* AI-assisted setup — describe it in words, we fill the form. */}
-          {workspaceId && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-              <div className="mb-1 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-foreground">{t('voice.setupTitle')}</p>
-              </div>
-              <p className="mb-2 text-xs text-muted-foreground">{t('voice.setupHint')}</p>
-              <Textarea
-                className="min-h-16 bg-background text-foreground"
-                placeholder={t('voice.setupPlaceholder')}
-                value={setupText}
-                onChange={(e) => setSetupText(e.target.value)}
-              />
-              <div className="mt-2 flex justify-end">
-                <Button size="sm" onClick={aiSetup} disabled={setupLoading || !setupText.trim()}>
-                  {setupLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles className="mr-1 h-3.5 w-3.5" />
-                      {t('voice.setupApply')}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+      {/* Si este agente puede atender el teléfono, y si no, por qué. Antes acá
+          había una línea de datos que sólo sabía decir el número: si el agente
+          estaba pausado o no había número, se callaba. */}
+      <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
 
-          {/* Probar la llamada de verdad, sin salir del editor. */}
-          {workspaceId && (
-            <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="mb-2 text-sm font-medium text-foreground">{t('voice.testCall')}</p>
-              {!agentId && (
-                <p className="mb-2 text-xs text-muted-foreground">
-                  {t('voice.testCallSaveFirst')}
-                </p>
+      {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
+          medio del formulario, después de la caja de probar. */}
+      {workspaceId && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="mb-1 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-foreground">{t('voice.setupTitle')}</p>
+          </div>
+          <p className="mb-2 text-xs text-muted-foreground">{t('voice.setupHint')}</p>
+          <Textarea
+            className="min-h-16 bg-background text-foreground"
+            placeholder={t('voice.setupPlaceholder')}
+            value={setupText}
+            onChange={(e) => setSetupText(e.target.value)}
+          />
+          <div className="mt-2 flex justify-end">
+            <Button size="sm" onClick={aiSetup} disabled={setupLoading || !setupText.trim()}>
+              {setupLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="mr-1 h-3.5 w-3.5" />
+                  {t('voice.setupApply')}
+                </>
               )}
-              <div className="flex gap-2">
-                <Input
-                  type="tel"
-                  className="bg-background text-foreground"
-                  placeholder={t('voice.testCallPlaceholder')}
-                  value={testPhone}
-                  disabled={!agentId}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  onClick={testCall}
-                  disabled={!agentId || calling || !testPhone.trim()}
-                >
-                  {calling ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <PhoneCall className="mr-1 h-3.5 w-3.5" />
-                      {t('voice.testCall')}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+            </Button>
+          </div>
+        </div>
+      )}
 
-          {/* Voice picker */}
-          <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.voiceLabel')}</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {CURATED_VOICES.map((v) => {
+      {/* ── Cómo suena ── */}
+      {voces !== null && voces.length > 0 && (
+        <div>
+          <p className="mb-1 text-sm font-medium text-foreground">{t('voice.voiceLabel')}</p>
+          {/* Una fila con la elegida, no cuatro tarjetas apiladas. */}
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
+            <span className="text-sm text-foreground">
+              {vozElegida ? vozElegida.label : t('voice.voiceDefault')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setVerVoces((v) => !v)}
+              className="text-xs text-primary hover:underline"
+            >
+              {t('voice.numberChange')}
+            </button>
+          </div>
+          {verVoces && (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {voces.map((v) => {
                 const selected = value.voice_id === v.voice_id;
                 return (
                   <div
                     key={v.voice_id}
                     className={cn(
                       'flex items-center justify-between rounded-lg border px-3 py-2',
-                      selected
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border bg-muted/40',
+                      selected ? 'border-primary bg-primary/5' : 'border-border bg-muted/40',
                     )}
                   >
                     <button
                       type="button"
-                      onClick={() => set({ voice_id: v.voice_id })}
+                      onClick={() => {
+                        set({ voice_id: v.voice_id });
+                        setVerVoces(false);
+                      }}
                       className="flex-1 text-left"
                     >
                       <p className="text-sm text-foreground">{v.label}</p>
@@ -405,113 +425,110 @@ export function VoiceSettings({
                 );
               })}
             </div>
-          </div>
+          )}
+        </div>
+      )}
+      {voces !== null && voces.length === 0 && (
+        // Sin curaduría para el proveedor activo no se dibuja un selector falso.
+        <p className="text-xs text-muted-foreground">{t('voice.voicePlatform')}</p>
+      )}
 
-          {/* Greeting */}
-          <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.greeting')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.greetingHint')}</p>
-            <Textarea
-              className="min-h-16 bg-muted text-foreground"
-              value={value.voice_greeting}
-              onChange={(e) => set({ voice_greeting: e.target.value })}
-            />
-          </div>
+      <div>
+        <p className="mb-1 text-sm font-medium text-foreground">{t('voice.greeting')}</p>
+        <p className="mb-2 text-xs text-muted-foreground">{t('voice.greetingHint')}</p>
+        <Textarea
+          className="min-h-16 bg-muted text-foreground"
+          // El placeholder muestra el saludo que YA usa el worker cuando esto
+          // está vacío. Un recuadro en blanco hacía pensar que no saluda.
+          placeholder={DEFAULT_GREETINGS[idioma]}
+          value={value.voice_greeting}
+          onChange={(e) => set({ voice_greeting: e.target.value })}
+        />
+      </div>
 
-          {/* Objectives.
-              Antes cada objetivo tenía DOS cajas de texto —"objetivo" e
-              "instrucciones extra"— más un "prompt de sistema" arriba y, en la
-              automatización, un "objetivo que pisa al del agente". Cuatro
-              lugares para escribir lo mismo y ninguna pista de cuál gana.
-              Queda UNA caja por objetivo; lo que se escriba acá es lo que el
-              agente intenta lograr en esa llamada. */}
-          <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.objectives')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.objectivesHint')}</p>
-            <div className="space-y-3">
-              {OBJECTIVE_TYPES.map(({ type, labelKey }) => {
-                const obj = value.voice_objectives[type];
-                return (
-                  <div key={type} className="rounded-lg border border-border bg-muted/40 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-sm text-foreground">{t(labelKey)}</p>
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {t('voice.objEnabled')}
-                        <Switch
-                          checked={obj?.enabled ?? false}
-                          onCheckedChange={(c) => setObjective(type, { enabled: c })}
-                        />
-                      </label>
-                    </div>
-                    {obj?.enabled && (
-                      <div className="space-y-2">
+      {/* ── Qué dice en cada tipo de llamada. Plegado: tiene guiones que
+             funcionan y casi nadie los toca. ── */}
+      <Plegable
+        titulo={t('voice.objectives')}
+        ayuda={t('voice.objectivesHint')}
+        abierto={verGuiones}
+        alternar={() => setVerGuiones((v) => !v)}
+      >
+        <div className="space-y-3">
+          {OBJECTIVE_TYPES.map(({ type, labelKey }) => {
+            const obj = value.voice_objectives[type];
+            return (
+              <div key={type} className="rounded-lg border border-border bg-muted/40 p-3">
+                <p className="mb-2 text-sm text-foreground">{t(labelKey)}</p>
+                <Textarea
+                  className="min-h-14 bg-background text-foreground"
+                  // El guion por defecto, a la vista. Antes había que prender un
+                  // interruptor para ver una caja vacía y adivinar qué escribir.
+                  placeholder={DEFAULT_OBJECTIVES[type][idioma]}
+                  value={obj?.objective ?? ''}
+                  onChange={(e) => setObjective(type, { objective: e.target.value })}
+                />
+                {/* Sólo si YA tiene algo escrito: los agentes viejos no pierden
+                    lo que cargaron, pero nadie empieza a llenar dos cajas. */}
+                {(obj?.extra_instructions ?? '').trim() !== '' && (
+                  <Textarea
+                    className="mt-2 min-h-12 bg-background text-foreground"
+                    placeholder={t('voice.extraInstructions')}
+                    value={obj?.extra_instructions ?? ''}
+                    onChange={(e) => setObjective(type, { extra_instructions: e.target.value })}
+                  />
+                )}
+                {type === 'followup' && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {t('voice.objFollowupSharedDelay')}
+                  </p>
+                )}
+                {/* El upsell sí hace algo: `context.ts` lo lee y le da al agente
+                    la herramienta de editar el pedido. Por eso conserva su
+                    interruptor, a diferencia de los de objetivo. */}
+                {type === 'order_confirmation' && (
+                  <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
+                    <label className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-foreground">
+                        {t('voice.upsellLabel')}
+                      </span>
+                      <Switch
+                        checked={obj?.upsell?.enabled ?? false}
+                        onCheckedChange={(c) => setUpsell({ enabled: c })}
+                      />
+                    </label>
+                    {obj?.upsell?.enabled && (
+                      <div className="mt-2 space-y-2">
                         <Textarea
-                          className="min-h-14 bg-background text-foreground"
-                          placeholder={t('voice.objPlaceholder')}
-                          value={obj?.objective ?? ''}
-                          onChange={(e) => setObjective(type, { objective: e.target.value })}
+                          className="min-h-12 bg-muted text-foreground"
+                          placeholder={t('voice.upsellOfferPlaceholder')}
+                          value={obj?.upsell?.offer_text ?? ''}
+                          onChange={(e) => setUpsell({ offer_text: e.target.value })}
                         />
-                        {/* Sólo se muestra si YA tiene algo escrito: los
-                            agentes viejos no pierden lo que cargaron, pero
-                            nadie empieza a llenar dos cajas. */}
-                        {(obj?.extra_instructions ?? '').trim() !== '' && (
-                          <Textarea
-                            className="min-h-12 bg-background text-foreground"
-                            placeholder={t('voice.extraInstructions')}
-                            value={obj?.extra_instructions ?? ''}
-                            onChange={(e) =>
-                              setObjective(type, { extra_instructions: e.target.value })
-                            }
-                          />
-                        )}
-                        {/* El seguimiento por teléfono usa el MISMO tiempo de
-                            espera que el seguimiento por texto, configurado en
-                            otra pestaña. No decirlo hacía que "activé el
-                            seguimiento y no llama" fuera un misterio. */}
-                        {type === 'followup' && (
-                          <p className="text-[11px] text-muted-foreground">
-                            {t('voice.objFollowupSharedDelay')}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {/* Upsell — only on order confirmation. */}
-                    {type === 'order_confirmation' && obj?.enabled && (
-                      <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
-                        <label className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-foreground">
-                            {t('voice.upsellLabel')}
-                          </span>
-                          <Switch
-                            checked={obj?.upsell?.enabled ?? false}
-                            onCheckedChange={(c) => setUpsell({ enabled: c })}
-                          />
-                        </label>
-                        {obj?.upsell?.enabled && (
-                          <div className="mt-2 space-y-2">
-                            <Textarea
-                              className="min-h-12 bg-muted text-foreground"
-                              placeholder={t('voice.upsellOfferPlaceholder')}
-                              value={obj?.upsell?.offer_text ?? ''}
-                              onChange={(e) => setUpsell({ offer_text: e.target.value })}
-                            />
-                            <Input
-                              className="bg-muted text-foreground"
-                              placeholder={t('voice.upsellDiscountPlaceholder')}
-                              value={obj?.upsell?.discount ?? ''}
-                              onChange={(e) => setUpsell({ discount: e.target.value })}
-                            />
-                          </div>
-                        )}
+                        <Input
+                          className="bg-muted text-foreground"
+                          placeholder={t('voice.upsellDiscountPlaceholder')}
+                          value={obj?.upsell?.discount ?? ''}
+                          onChange={(e) => setUpsell({ discount: e.target.value })}
+                        />
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Plegable>
 
-          {/* AI decides when to call */}
+      {/* ── Cuándo insiste. Plegado, salvo que alguien ya lo haya tocado. ── */}
+      <Plegable
+        titulo={t('voice.whenGroup')}
+        ayuda={t('voice.whenGroupHint')}
+        abierto={verCuando}
+        alternar={() => setVerCuando((v) => !v)}
+      >
+        <div className="space-y-5">
           <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/40 p-3">
             <div>
               <p className="text-sm font-medium text-foreground">{t('voice.aiDecides')}</p>
@@ -523,7 +540,6 @@ export function VoiceSettings({
             />
           </div>
 
-          {/* Calling hours */}
           <div>
             <p className="mb-1 text-sm font-medium text-foreground">{t('voice.callingHours')}</p>
             <p className="mb-2 text-xs text-muted-foreground">{t('voice.callingHoursHint')}</p>
@@ -565,9 +581,7 @@ export function VoiceSettings({
                     onClick={() => toggleDay(day)}
                     className={cn(
                       'rounded-md px-2.5 py-1 text-xs',
-                      on
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground',
+                      on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                     )}
                   >
                     {t(key)}
@@ -578,18 +592,10 @@ export function VoiceSettings({
             {noDays ? (
               <p className="mt-2 text-xs text-destructive">{t('voice.hoursNoDays')}</p>
             ) : crossesMidnight ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t('voice.hoursOvernight')}
-              </p>
+              <p className="mt-2 text-xs text-muted-foreground">{t('voice.hoursOvernight')}</p>
             ) : null}
           </div>
 
-          {/* Insistir.
-              Antes esto eran cuatro campos numéricos escondidos tras
-              "+ Avanzado": reintentos, minutos entre reintentos, duración
-              máxima y un id de voz a mano. Sólo el primero es una decisión de
-              negocio; el resto son valores que nadie que venda cremas tiene
-              cómo elegir, y quedan en su default (que ya funciona). */}
           <div>
             <p className="mb-1 text-sm font-medium text-foreground">{t('voice.retries')}</p>
             <p className="mb-2 text-xs text-muted-foreground">{t('voice.retriesHint')}</p>
@@ -603,8 +609,6 @@ export function VoiceSettings({
                     onClick={() =>
                       set({
                         voice_max_retries: retries,
-                        // Los que sí insisten vuelven al espaciado por defecto;
-                        // un agente viejo con un valor a medida lo conserva.
                         voice_retry_delay_minutes:
                           value.voice_retry_delay_minutes || DEFAULT_RETRY_DELAY_MINUTES,
                       })
@@ -620,8 +624,74 @@ export function VoiceSettings({
               })}
             </div>
           </div>
-        </>
+        </div>
+      </Plegable>
+
+      {/* Probarlo es lo último que uno hace, así que va último. */}
+      {workspaceId && (
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
+          <p className="mb-2 text-sm font-medium text-foreground">{t('voice.testCall')}</p>
+          {!agentId && (
+            <p className="mb-2 text-xs text-muted-foreground">{t('voice.testCallSaveFirst')}</p>
+          )}
+          <div className="flex gap-2">
+            <Input
+              type="tel"
+              className="bg-background text-foreground"
+              placeholder={t('voice.testCallPlaceholder')}
+              value={testPhone}
+              disabled={!agentId}
+              onChange={(e) => setTestPhone(e.target.value)}
+            />
+            <Button
+              type="button"
+              onClick={testCall}
+              disabled={!agentId || calling || !testPhone.trim()}
+            >
+              {calling ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <PhoneCall className="mr-1 h-3.5 w-3.5" />
+                  {t('voice.testCall')}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       )}
+    </div>
+  );
+}
+
+/** Bloque plegado. Mismo gesto que usa la tarjeta de comportamiento en /voz. */
+function Plegable({
+  titulo,
+  ayuda,
+  abierto,
+  alternar,
+  children,
+}: {
+  titulo: string;
+  ayuda: string;
+  abierto: boolean;
+  alternar: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={alternar}
+        className="flex w-full items-center gap-1.5 text-left"
+      >
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${abierto ? 'rotate-180' : ''}`}
+        />
+        <span className="text-sm font-medium text-foreground">{titulo}</span>
+      </button>
+      <p className="ml-[22px] mt-0.5 text-xs text-muted-foreground">{ayuda}</p>
+      {abierto && <div className="mt-3">{children}</div>}
     </div>
   );
 }

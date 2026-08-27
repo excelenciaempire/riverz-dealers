@@ -137,3 +137,29 @@ export const CURATED_VOICES: CuratedVoice[] = [
 ];
 
 export const DEFAULT_VOICE_ID = CURATED_VOICES[0].voice_id;
+
+/**
+ * Voces por proveedor de TTS.
+ *
+ * El selector del editor ofrecía SIEMPRE las cuatro de ElevenLabs, pero el
+ * proveedor lo elige la plataforma en `/admin/voz` y hoy es Fish. `resolveVoiceId`
+ * descarta un id que no tenga la forma del proveedor activo, así que el comercio
+ * elegía «Matilda», guardaba, y llamaba con la voz por defecto de Fish. Peor: el
+ * botón de escuchar sintetiza con el proveedor REAL, así que las cuatro voces
+ * sonaban idénticas. Un control que no hace nada y encima lo demuestra.
+ *
+ * Cada lista trae ids de SU proveedor. Si el activo no figura acá, el editor no
+ * dibuja el selector y dice que la voz la define la plataforma — que es la
+ * verdad, y es mejor que ofrecer una elección falsa.
+ */
+export const CURATED_VOICES_BY_PROVIDER: Record<string, CuratedVoice[]> = {
+  elevenlabs: CURATED_VOICES,
+  // reference_id de Fish Audio, verificados contra su API con español real.
+  fish: [
+    { voice_id: 'f7ffe935b3ca41598cc31dd39dcd6bc6', label: 'Delfina', locale: 'es-AR', gender: 'female' },
+    { voice_id: 'c964e3267b9448939d5087a6b4ee6007', label: 'Camila', locale: 'es-AR', gender: 'female' },
+    { voice_id: 'fc9d68adf13843d0827b39624b021bd3', label: 'Renata', locale: 'es-MX', gender: 'female' },
+    { voice_id: 'def180b161a3498db94025d5124fcb2a', label: 'Néstor', locale: 'es-419', gender: 'male' },
+    { voice_id: '47a7c0605b6a4a658acc1fb85df19444', label: 'Waldemar', locale: 'es-419', gender: 'male' },
+  ],
+};
