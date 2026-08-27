@@ -41,7 +41,13 @@ export type ProofKind =
    * del recordatorio. No es "le hablamos y compró algo": es "le dijimos que se
    * había olvidado este carrito y volvió a terminar este carrito".
    */
-  | 'cart_recovery';
+  | 'cart_recovery'
+  /**
+   * A esta persona se le rechazó un pago en esta misma tienda, Riverz le
+   * escribió, y este es el pedido con el que volvió. El motor de recuperación
+   * de Mercado Pago ya lo dio por recuperado y guardó el id del pedido.
+   */
+  | 'payment_recovered';
 
 export interface Proof {
   kind: ProofKind;
@@ -88,6 +94,8 @@ export function provenBy(
    * Sólo entran los que no dejaron error de envío.
    */
   recoveredCarts: Map<string, string> = new Map(),
+  /** Ids de pedido que el motor de pagos rechazados dio por recuperados. */
+  recoveredPayments: Set<string> = new Set(),
 ): Proof[] {
   const proofs: Proof[] = [];
 
@@ -130,6 +138,15 @@ export function provenBy(
   const enviado = token ? recoveredCarts.get(token) : undefined;
   if (enviado && Date.parse(order.created_at) > Date.parse(enviado)) {
     proofs.push({ kind: 'cart_recovery' });
+  }
+
+  // Pago rechazado que volvió. El motor de Mercado Pago ya hizo el cruce y
+  // guardó el id del pedido con el que la persona volvió: acá sólo se lee.
+  // Es la más floja de las pruebas —empareja por persona dentro de 14 días,
+  // no por carrito—, pero el disparador es un pago fallido en ESTA tienda:
+  // ya había decidido comprar y lo único que faltó fue que entrara la plata.
+  if (recoveredPayments.has(String(order.id))) {
+    proofs.push({ kind: 'payment_recovered' });
   }
 
   return proofs;

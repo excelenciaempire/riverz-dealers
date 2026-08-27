@@ -29,6 +29,7 @@ export type ProofKind =
   | 'webchat_cart'
   | 'coupon'
   | 'cart_recovery'
+  | 'payment_recovered'
 
 /**
  * Un pedido atribuido, con lo que lo tocó. Es el renglón que sostiene la cifra

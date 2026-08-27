@@ -132,6 +132,72 @@
     frame.style[other] = 'auto';
   }
 
+  /**
+   * En un teléfono el chat ocupa la pantalla entera.
+   *
+   * Antes eran dos recortes —`max-width:calc(100vw - 32px)` y una altura
+   * máxima— y con eso el panel quedaba flotando sobre la tienda con el
+   * lanzador tapándole la esquina, la caja de escribir a 88 px del borde y el
+   * pulgar del lado equivocado. En un teléfono un chat abierto no es un panel:
+   * es la pantalla.
+   *
+   * Se hace con `matchMedia` y no con una hoja de estilos porque todo lo del
+   * cargador va en estilos en línea —para que el tema de la tienda no lo
+   * toque— y una regla de hoja no le gana a un estilo en línea sin
+   * `!important`, que es peor de mantener.
+   *
+   * El teclado: en móvil el navegador encoge el viewport visual al abrirlo, y
+   * un `height:100%` deja la caja de escribir debajo del teclado. Por eso la
+   * altura sigue a `visualViewport` cuando existe.
+   */
+  var movil = window.matchMedia ? window.matchMedia('(max-width: 640px)') : null;
+
+  function esMovil() {
+    return Boolean(movil && movil.matches);
+  }
+
+  function aplicarTamano() {
+    if (esMovil()) {
+      var alto =
+        window.visualViewport && window.visualViewport.height
+          ? window.visualViewport.height + 'px'
+          : '100%';
+      frame.style.top = '0';
+      frame.style.left = '0';
+      frame.style.right = '0';
+      frame.style.bottom = 'auto';
+      frame.style.width = '100%';
+      frame.style.maxWidth = 'none';
+      frame.style.height = alto;
+      frame.style.borderRadius = '0';
+      frame.style.transform = state.open ? 'translateY(0)' : 'translateY(8px)';
+      // Con el chat abierto el lanzador sólo estorba: el chat ya tiene su
+      // propia cruz para cerrar.
+      launcher.style.display = state.open ? 'none' : 'flex';
+      return;
+    }
+    frame.style.top = 'auto';
+    frame.style.bottom = '88px';
+    frame.style.width = '400px';
+    frame.style.maxWidth = 'calc(100vw - 32px)';
+    frame.style.height = 'min(640px, calc(100vh - 120px))';
+    frame.style.borderRadius = '16px';
+    launcher.style.display = 'flex';
+    applyPosition(state.settings && state.settings.position);
+  }
+
+  if (movil) {
+    // `addListener` es lo único que entiende Safari viejo, y este archivo corre
+    // en la tienda de otro: no se puede elegir el navegador del cliente.
+    if (movil.addEventListener) movil.addEventListener('change', aplicarTamano);
+    else if (movil.addListener) movil.addListener(aplicarTamano);
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      if (esMovil() && state.open) aplicarTamano();
+    });
+  }
+
   function iconChat(color) {
     return (
       '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="' +
@@ -188,6 +254,7 @@
     });
     setUnread(0);
     renderLauncher();
+    aplicarTamano();
     // Puede caer en el vacío: la primera vez el iframe todavía está en
     // `about:blank` —que hereda el origen de la TIENDA— y el navegador descarta
     // el mensaje porque el destino no coincide con el nuestro. Por eso el
@@ -205,6 +272,7 @@
       if (!state.open) frame.style.display = 'none';
     }, 180);
     renderLauncher();
+    aplicarTamano();
     // El chat necesita saberlo para poder contar lo que llega mientras nadie
     // mira, que es de lo que se trata la burbuja del lanzador.
     post({ type: 'riverz:closed' });
@@ -328,6 +396,7 @@
     mintSession()
       .then(function () {
         applyPosition(state.settings.position);
+        aplicarTamano();
         renderLauncher();
         autoAbrir();
         root.appendChild(launcher);

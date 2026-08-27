@@ -109,6 +109,13 @@ describe('provenBy', () => {
     });
   });
 
+  it('prueba el pago rechazado que su motor ya dio por recuperado', () => {
+    expect(
+      provenBy(base, null, sinCupones, new Map(), new Set(['1'])),
+    ).toEqual([{ kind: 'payment_recovered' }]);
+    expect(provenBy(base, null, sinCupones, new Map(), new Set(['999']))).toEqual([]);
+  });
+
   it('aguanta note_attributes con cualquier forma', () => {
     expect(
       provenBy({ ...base, note_attributes: null }, null, sinCupones),

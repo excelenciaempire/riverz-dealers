@@ -139,6 +139,44 @@ const POLL_HIDDEN_MS = 15000;
  *  "está escribiendo…" eterno. */
 const WAIT_TIMEOUT_MS = 45_000;
 
+/**
+ * Un aviso corto cuando llega algo con el chat cerrado.
+ *
+ * Se sintetiza en vez de traer un archivo: un `.mp3` es un pedido más, una
+ * regla más en la política de contenidos de la tienda y un asset que cachear.
+ * Dos tonos cortos alcanzan para que alguien que dejó la pestaña de lado
+ * levante la vista.
+ *
+ * Sólo suena con el panel cerrado. Un sonido por cada burbuja de una respuesta
+ * que la persona está leyendo no avisa nada: molesta.
+ */
+function sonar() {
+  try {
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const ahora = ctx.currentTime;
+    for (const [i, hz] of [660, 880].entries()) {
+      const osc = ctx.createOscillator();
+      const vol = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = hz;
+      vol.gain.setValueAtTime(0.0001, ahora + i * 0.12);
+      vol.gain.exponentialRampToValueAtTime(0.08, ahora + i * 0.12 + 0.01);
+      vol.gain.exponentialRampToValueAtTime(0.0001, ahora + i * 0.12 + 0.1);
+      osc.connect(vol).connect(ctx.destination);
+      osc.start(ahora + i * 0.12);
+      osc.stop(ahora + i * 0.12 + 0.12);
+    }
+    setTimeout(() => void ctx.close().catch(() => {}), 600);
+  } catch {
+    // El navegador puede negar el audio sin gesto previo. No es un error que
+    // le importe a nadie: el globo del lanzador ya avisó.
+  }
+}
+
 type Pending = {
   id: string;
   text: string;
@@ -176,6 +214,7 @@ export function ChatApp() {
 
   const cursor = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   // ¿El visitante está mirando el chat? Arranca en true porque este componente
   // sólo se monta cuando el contenedor abre el iframe por primera vez; el
   // cargador confirma el estado real al recibir `riverz:ready`.
@@ -243,12 +282,26 @@ export function ChatApp() {
         abierto.current = true;
         noLeidos.current = 0;
         window.parent?.postMessage({ type: 'riverz:unread', count: 0 }, '*');
+        // El foco entra al cuadro de escribir. Sin esto, quien abre el chat
+        // con el teclado queda con el foco en la página de la tienda y tiene
+        // que tabular a ciegas dentro de un iframe para poder escribir.
+        setTimeout(() => composer.current?.focus(), 60);
       }
       if (event.data.type === 'riverz:closed') abierto.current = false;
     };
+    // Escape cierra, como cualquier panel que se abre encima. El chat corre en
+    // un iframe, así que la tecla la recibe él y no la tienda: sin esto no
+    // había forma de cerrarlo sin apuntar con el mouse a la cruz.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') window.parent?.postMessage({ type: 'riverz:close' }, '*');
+    };
     window.addEventListener('message', onMessage);
+    window.addEventListener('keydown', onKey);
     window.parent?.postMessage({ type: 'riverz:ready' }, '*');
-    return () => window.removeEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      window.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   useEffect(() => {
@@ -326,6 +379,7 @@ export function ChatApp() {
         { type: 'riverz:unread', count: noLeidos.current },
         '*',
       );
+      sonar();
     }
   }, [session]);
 
@@ -584,7 +638,12 @@ export function ChatApp() {
   );
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div
+      className="flex h-full flex-col bg-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label={settings?.brand_name || T.equipo}
+    >
       <header
         className="flex items-center gap-3 border-b border-neutral-200 px-4 py-3"
         style={{ background: color }}
@@ -615,7 +674,9 @@ export function ChatApp() {
         </button>
       </header>
 
-      <div ref={scroller} className="flex-1 overflow-y-auto px-4 py-4">
+      {/* `aria-live` para que un lector de pantalla anuncie lo que llega: sin
+          esto, una respuesta que aparece sola es invisible para quien no ve. */}
+      <div ref={scroller} aria-live="polite" className="flex-1 overflow-y-auto px-4 py-4">
         {settings?.greeting && timeline.length === 0 ? (
           <>
             <Autor nombre={settings.brand_name || T.equipo} ia T={T} />
@@ -809,6 +870,7 @@ export function ChatApp() {
           </label>
           ) : null}
           <textarea
+            ref={composer}
             value={draft}
             rows={1}
             onChange={(e) => setDraft(e.target.value)}

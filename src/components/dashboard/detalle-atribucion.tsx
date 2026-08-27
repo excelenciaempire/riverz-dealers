@@ -178,6 +178,7 @@ const PROOF_KEYS: Record<ProofKind, string> = {
   webchat_cart: 'dashboard.proofWebchatCart',
   coupon: 'dashboard.proofCoupon',
   cart_recovery: 'dashboard.proofCartRecovery',
+  payment_recovered: 'dashboard.proofPaymentRecovered',
 }
 
 function proofKey(kind: ProofKind): string {

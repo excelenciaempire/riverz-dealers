@@ -236,11 +236,20 @@ export async function GET(request: Request) {
   try {
     // Un solo fetch desde el inicio de la ventana previa; luego separamos en
     // actual [since,until) y previa [prevSince,since).
-    const all = conn
+    const crudas = conn
       ? await fetchRecentOrders(conn, prevSinceIso)
       : ((
           await fetchRecentOrdersOtherPlatform(admin, workspaceId, prevSinceIso)
         )?.orders ?? []);
+    // Un pedido cancelado o devuelto existe, pero no es plata. Contarlo
+    // inflaba las dos puntas: las ventas de la tienda y las de Riverz. El
+    // reembolso PARCIAL sí cuenta —devolver el envío no deshace la compra—,
+    // por eso se miran sólo `refunded` y `voided`.
+    const anulada = (o: (typeof crudas)[number]) =>
+      Boolean(o.cancelled_at) ||
+      o.financial_status === 'refunded' ||
+      o.financial_status === 'voided';
+    const all = crudas.filter((o) => !anulada(o));
     orders = all.filter((o) => {
       const t = Date.parse(o.created_at);
       return t >= sinceMs && t < untilMs;
@@ -430,6 +439,25 @@ export async function GET(request: Request) {
   }
 
   /**
+   * Los pagos rechazados que volvieron. Su motor ya hizo el cruce y guardó el
+   * id del pedido con el que la persona volvió; acá sólo se lee, para que esa
+   * plata —que hoy vivía sólo en su propia planilla— aparezca en la cifra.
+   */
+  const pagosRecuperados = new Set<string>();
+  {
+    const { data: recuperados } = await admin
+      .from('mp_rejected_payments')
+      .select('recovered_order_id')
+      .eq('workspace_id', workspaceId)
+      .not('recovered_order_id', 'is', null)
+      .gte('recovered_at', new Date(sinceMs - 30 * 86_400_000).toISOString())
+      .limit(5000);
+    for (const r of (recuperados ?? []) as { recovered_order_id: string }[]) {
+      pagosRecuperados.add(r.recovered_order_id);
+    }
+  }
+
+  /**
    * Los cupones que Riverz emitió para UNA persona. Que un pedido entre con
    * uno es prueba dura: ese código no existía antes y no lo tuvo nadie más.
    * Hoy los emite el Agente de IG; cualquier otro emisor entra por acá.
@@ -461,6 +489,7 @@ export async function GET(request: Request) {
       espejoDePedido.get(String(order.id)) ?? null,
       cuponesPropios,
       carritosRecordados,
+      pagosRecuperados,
     );
 
     const cId =

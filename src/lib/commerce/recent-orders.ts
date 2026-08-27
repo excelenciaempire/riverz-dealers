@@ -76,6 +76,9 @@ export async function fetchRecentOrdersOtherPlatform(
 interface PedidoTn {
   id?: number
   number?: number
+  /** Cancelado o devuelto: existe, pero no es plata. */
+  cancelled_at?: string | null
+  payment_status?: string | null
   contact_email?: string
   contact_phone?: string
   total?: string
@@ -97,6 +100,11 @@ function deTiendanube(p: PedidoTn): ShopifyOrder {
     currency: p.currency ?? undefined,
     created_at: p.created_at ?? new Date(0).toISOString(),
     discount_codes: (p.coupon ?? []).map((c) => ({ code: c.code })),
+    // Sin esto la atribución no podía descartar un pedido cancelado de
+    // Tiendanube y lo sumaba como venta. `refunded` es el valor que usa TN.
+    cancelled_at: p.cancelled_at ?? null,
+    financial_status:
+      p.payment_status === 'refunded' ? 'refunded' : (p.payment_status ?? null),
     contact_email: p.contact_email ?? null,
     customer: p.customer
       ? { email: p.customer.email ?? null, phone: p.customer.phone ?? null }
@@ -113,6 +121,8 @@ function deTiendanube(p: PedidoTn): ShopifyOrder {
 interface PedidoWoo {
   id?: number
   number?: string
+  /** `cancelled`, `refunded`, `failed`… El estado del pedido, no del pago. */
+  status?: string | null
   total?: string
   currency?: string
   date_created?: string
@@ -140,6 +150,13 @@ function deWoo(p: PedidoWoo): ShopifyOrder {
     // es el mismo instante en UTC. Se usa el mismo lector que el adaptador.
     created_at: wooFechaAIso(p.date_created, p.date_created_gmt) ?? new Date(0).toISOString(),
     discount_codes: (p.coupon_lines ?? []).map((c) => ({ code: c.code })),
+    // Woo no separa pago de pedido: el estado dice las dos cosas. Se traduce
+    // a la forma de Shopify para que la atribución no tenga que saberlo.
+    cancelled_at:
+      p.status === 'cancelled' || p.status === 'failed'
+        ? (wooFechaAIso(p.date_created, p.date_created_gmt) ?? null)
+        : null,
+    financial_status: p.status === 'refunded' ? 'refunded' : (p.status ?? null),
     contact_email: correo ?? null,
     customer: { email: correo ?? null, phone: tel ?? null },
     shipping_address: p.shipping?.phone ? { phone: p.shipping.phone } : null,

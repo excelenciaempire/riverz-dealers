@@ -68,6 +68,10 @@ export const dashboard = {
     es: "Carrito recuperado por Riverz",
     en: "Cart recovered by Riverz",
   },
+  proofPaymentRecovered: {
+    es: "Pago rechazado que volvió",
+    en: "Recovered failed payment",
+  },
 
   attrTruncated: {
     es: "Se muestran los {n} pedidos más grandes. Los totales los cuentan todos.",
