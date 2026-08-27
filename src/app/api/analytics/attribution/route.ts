@@ -145,6 +145,7 @@ function emptyResponse(days: number) {
     totals: EMPTY_TOTALS,
     attributed: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
     assisted: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
+    by_handler: { ia: { orders: 0, revenue: 0 }, humano: { orders: 0, revenue: 0 } },
     attributed_orders: [] as AttributedOrder[],
     attributed_orders_truncated: false,
   };
@@ -637,6 +638,47 @@ export async function GET(request: Request) {
 
   attributed.revenue = Math.round(attributed.revenue * 100) / 100;
   assisted.revenue = Math.round(assisted.revenue * 100) / 100;
+
+  /**
+   * Las ventas probadas, según quién atendió a esa persona.
+   *
+   * Es la comparación que ninguna otra métrica puede dar: no "la IA es más
+   * barata" sino **la IA vende**. Se mira si en las conversaciones de cada
+   * comprador escribió alguna PERSONA (`sender_type='agent'`); si no escribió
+   * nadie, esa venta se cerró sola.
+   *
+   * Una sola consulta sobre los contactos que ya compraron, no sobre todos.
+   */
+  const porQuienAtendio = { ia: { orders: 0, revenue: 0 }, humano: { orders: 0, revenue: 0 } };
+  {
+    const convsDeCompradores: string[] = [];
+    for (const p of detalle) {
+      if (p.contact_id) convsDeCompradores.push(...(convDeContacto.get(p.contact_id) ?? []));
+    }
+    const conPersona = new Set<string>();
+    if (convsDeCompradores.length > 0) {
+      const { data: humanos } = await admin
+        .from('messages')
+        .select('conversation_id')
+        .eq('sender_type', 'agent')
+        .in('conversation_id', convsDeCompradores.slice(0, 2000))
+        .limit(20000);
+      for (const m of (humanos ?? []) as { conversation_id: string | null }[]) {
+        if (m.conversation_id) conPersona.add(m.conversation_id);
+      }
+    }
+    for (const p of detalle) {
+      if (p.evidence !== 'proven') continue;
+      const convs = p.contact_id ? (convDeContacto.get(p.contact_id) ?? []) : [];
+      const lado = convs.some((c) => conPersona.has(c))
+        ? porQuienAtendio.humano
+        : porQuienAtendio.ia;
+      lado.orders += 1;
+      lado.revenue += p.revenue;
+    }
+    porQuienAtendio.ia.revenue = Math.round(porQuienAtendio.ia.revenue * 100) / 100;
+    porQuienAtendio.humano.revenue = Math.round(porQuienAtendio.humano.revenue * 100) / 100;
+  }
   // Probadas primero y, dentro de cada grupo, por plata: lo que se puede
   // defender va arriba.
   detalle.sort(
@@ -655,6 +697,7 @@ export async function GET(request: Request) {
     totals,
     attributed,
     assisted,
+    by_handler: porQuienAtendio,
     attributed_orders: detalle.slice(0, MAX_DETALLE),
     attributed_orders_truncated: detalle.length > MAX_DETALLE,
   });

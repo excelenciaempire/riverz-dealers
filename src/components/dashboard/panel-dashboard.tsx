@@ -18,8 +18,10 @@ import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
 import { QuienAtendio } from '@/components/dashboard/quien-atendio'
+import { ResolvioSola } from '@/components/dashboard/resolvio-sola'
 import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
 import { useAtribucion } from '@/lib/dashboard/use-attribution'
+import { useCortes } from '@/lib/dashboard/use-cortes'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
 import { useTimezone } from '@/hooks/use-timezone'
 import {
@@ -232,6 +234,8 @@ export function PanelDashboard({
   // Una sola vez, para las tarjetas de arriba Y el desglose de abajo: el
   // endpoint hace una consulta por pedido del rango y pedirlo dos veces se nota.
   const atribucion = useAtribucion(rangeIso?.start ?? null, rangeIso?.end ?? null)
+  // Lo mismo para los cortes de atención: los miran dos tarjetas.
+  const cortes = useCortes(rangeIso?.start ?? null, rangeIso?.end ?? null)
 
   return (
     <div className="space-y-5">
@@ -321,9 +325,14 @@ export function PanelDashboard({
           flujo. El total ya esta arriba; esto es la pregunta que sigue. */}
       <AttributedRevenue data={atribucion} />
 
+      {/* La otra mitad de la pregunta: a cuanta gente atendio que si no habria
+          esperado. Va DESPUES de la plata y antes del detalle por canal —
+          primero cuanto rindio, despues cuanto trabajo, y al final donde. */}
+      <ResolvioSola data={cortes} />
+
       {/* Donde esta trabajando la IA y donde no. El volumen por canal ya estaba;
           lo que faltaba era el corte por resultado y por agente. */}
-      <QuienAtendio start={rangeIso?.start ?? null} end={rangeIso?.end ?? null} />
+      <QuienAtendio data={cortes} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />

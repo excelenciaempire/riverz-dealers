@@ -12,6 +12,14 @@
  * está apagado, se está absteniendo, y el motivo dice por qué.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  escalacionesPorMotivo,
+  fueraDeHorario as estaFueraDeHorario,
+  primeraRespuesta,
+  type Escalacion,
+  type Horario,
+  type PrimeraRespuesta,
+} from './servicio'
 
 export interface CorteCanal {
   canal: string
@@ -62,10 +70,34 @@ export interface CorteIA {
   satisfaccion: number | null
 }
 
+/**
+ * Lo que un humano no habría contestado.
+ *
+ * `atendidas` son las conversaciones que abrió alguien fuera del horario del
+ * comercio y que la IA contestó igual. No es una métrica de volumen: es la
+ * única que no admite el "y una persona lo hubiera hecho igual", porque a las
+ * tres de la mañana no lo hubiera hecho nadie.
+ *
+ * `sinHorario` marca el caso en que no se puede saber —el agente no tiene
+ * horario cargado—, para que la pantalla diga "falta configurarlo" en vez de
+ * un cero que parece un resultado.
+ */
+export interface CorteFueraDeHorario {
+  atendidas: number
+  /** Total de conversaciones abiertas fuera de hora, con o sin respuesta. */
+  total: number
+  sinHorario: boolean
+}
+
 export interface Cortes {
   canales: CorteCanal[]
   agentes: CorteAgente[]
   ia: CorteIA
+  fueraDeHorario: CorteFueraDeHorario
+  /** Segundos hasta la primera respuesta, por quién la dio. */
+  respuesta: PrimeraRespuesta
+  /** Dónde se planta la IA y devuelve el hilo. */
+  escalaciones: { total: number; motivos: Escalacion[] }
 }
 
 const TOPE = 5000
@@ -74,6 +106,8 @@ export async function leerCortes(
   db: SupabaseClient,
   workspaceId: string,
   rango: { desde: Date; hasta: Date },
+  /** La zona del workspace: los días y el horario se cortan acá, no en UTC. */
+  tz = 'UTC',
 ): Promise<Cortes> {
   const desde = rango.desde.toISOString()
   const hasta = rango.hasta.toISOString()
@@ -83,10 +117,12 @@ export async function leerCortes(
   const largo = Math.max(1, rango.hasta.getTime() - rango.desde.getTime())
   const desdePrevio = new Date(rango.desde.getTime() - largo).toISOString()
 
-  const [convRes, iaRes, agentesRes, previoRes, iaPrevioRes] = await Promise.all([
+  const [convRes, iaRes, agentesRes, previoRes, iaPrevioRes, msgRes] = await Promise.all([
     db
       .from('conversations')
-      .select('id, channel, status, needs_human_at, assigned_agent_id, csat')
+      .select(
+        'id, channel, status, needs_human_at, needs_human_reason, assigned_agent_id, csat, created_at',
+      )
       .eq('workspace_id', workspaceId)
       .gte('last_message_at', desde)
       .lte('last_message_at', hasta)
@@ -100,7 +136,7 @@ export async function leerCortes(
       .limit(TOPE),
     db
       .from('ai_agents')
-      .select('id, name, is_active')
+      .select('id, name, is_active, business_hours_start, business_hours_end, business_hours_days')
       .eq('workspace_id', workspaceId)
       .is('deleted_at', null),
     db
@@ -118,6 +154,20 @@ export async function leerCortes(
       .gte('created_at', desdePrevio)
       .lt('created_at', desde)
       .limit(TOPE),
+    // Los mensajes del rango, para medir quién contestó primero.
+    //
+    // `messages` no tiene `workspace_id` —cuelga de la conversación (migración
+    // 013)—, así que el corte va por el join. Y sólo las tres columnas que
+    // hacen falta: el cuerpo no se usa y en una cuenta con movimiento son
+    // megabytes al pedo.
+    db
+      .from('messages')
+      .select('conversation_id, sender_type, created_at, conversations!inner(workspace_id)')
+      .eq('conversations.workspace_id', workspaceId)
+      .gte('created_at', desde)
+      .lte('created_at', hasta)
+      .order('created_at', { ascending: true })
+      .limit(20000),
   ])
 
   const convs = (convRes.data ?? []) as {
@@ -125,8 +175,10 @@ export async function leerCortes(
     channel: string | null
     status: string | null
     needs_human_at: string | null
+    needs_human_reason: string | null
     assigned_agent_id: string | null
     csat: number | null
+    created_at: string | null
   }[]
   const ias = (iaRes.data ?? []) as {
     agent_id: string | null
@@ -138,6 +190,9 @@ export async function leerCortes(
     id: string
     name: string | null
     is_active: boolean
+    business_hours_start: string | null
+    business_hours_end: string | null
+    business_hours_days: number[] | null
   }[]
 
   // Qué conversaciones tocó la IA, para cruzarlas con su canal.
@@ -213,6 +268,43 @@ export async function leerCortes(
   const calificaron = convs.filter((c) => c.csat === 1 || c.csat === -1)
   const conformes = calificaron.filter((c) => c.csat === 1).length
 
+  // ── Lo que un humano no habría contestado ──
+  //
+  // El horario sale del agente que lo tenga cargado. Con varios agentes se usa
+  // el primero que tenga uno: son el horario del comercio, no de cada agente, y
+  // en la práctica el comercio carga uno solo. Sin ninguno no se calcula nada y
+  // la pantalla pide configurarlo — un cero acá parecería un resultado.
+  const conHorario = agentes.find(
+    (a) => a.business_hours_start && a.business_hours_end && a.business_hours_days?.length,
+  )
+  const horario: Horario | null = conHorario
+    ? {
+        inicio: conHorario.business_hours_start,
+        fin: conHorario.business_hours_end,
+        dias: conHorario.business_hours_days,
+        tz,
+      }
+    : null
+
+  let fueraTotal = 0
+  let fueraAtendidas = 0
+  if (horario) {
+    for (const c of convs) {
+      // Cuándo ESCRIBIÓ la persona, no cuándo se movió el hilo por última vez.
+      const cuando = c.created_at
+      if (!cuando) continue
+      if (estaFueraDeHorario(cuando, horario) !== true) continue
+      fueraTotal += 1
+      if (conIa.has(c.id)) fueraAtendidas += 1
+    }
+  }
+
+  const mensajes = (msgRes.data ?? []) as {
+    conversation_id: string | null
+    sender_type: string | null
+    created_at: string
+  }[]
+
   return {
     ia: {
       atendidas: atendidas.length,
@@ -221,6 +313,16 @@ export async function leerCortes(
       tasaPrevia: tasa(atendidasPrevias.length, resueltasPrevias),
       calificaron: calificaron.length,
       satisfaccion: tasa(calificaron.length, conformes),
+    },
+    fueraDeHorario: {
+      atendidas: fueraAtendidas,
+      total: fueraTotal,
+      sinHorario: !horario,
+    },
+    respuesta: primeraRespuesta(mensajes),
+    escalaciones: {
+      total: convs.filter((c) => c.needs_human_at).length,
+      motivos: escalacionesPorMotivo(convs),
     },
     canales: [...porCanal.values()].sort((a, b) => b.conversaciones - a.conversaciones),
     agentes: [...porAgente.values()]

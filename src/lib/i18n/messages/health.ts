@@ -80,6 +80,44 @@ export const health: Namespace = {
     es: "Todavía no hay pedidos que se puedan atribuir a un envío de Riverz en este rango.",
     en: "No orders in this range can be traced back to a Riverz message yet.",
   },
+  // Lo que resolvió sola: la mitad que no es plata.
+  soloTitle: { es: "Lo que resolvió sola", en: "What it handled alone" },
+  soloShare: {
+    es: "{share}% de {total} conversaciones",
+    en: "{share}% of {total} conversations",
+  },
+  soloResolved: {
+    es: "cerradas sin que interviniera una persona",
+    en: "closed without a person stepping in",
+  },
+  soloAfterHours: {
+    es: "fuera de horario — no había nadie para contestarlas",
+    en: "outside business hours — nobody was there to answer",
+  },
+  soloNoSchedule: {
+    es: "Carga el horario del agente para saber cuántas fueron fuera de hora.",
+    en: "Set the agent's business hours to see how many came in after hours.",
+  },
+  soloFirstReply: { es: "Primera respuesta:", en: "First reply:" },
+  soloHuman: { es: "una persona:", en: "a person:" },
+  soloEscalated: {
+    es: "Devolvió {n} a una persona:",
+    en: "Handed {n} back to a person:",
+  },
+  durSeconds: { es: "{n} s", en: "{n}s" },
+  durMinutes: { es: "{n} min", en: "{n} min" },
+  durHours: { es: "{h} h", en: "{h}h" },
+  durHoursMinutes: { es: "{h} h {m} min", en: "{h}h {m}m" },
+
+  // Por qué devolvió el hilo. Cada motivo tiene un arreglo distinto, así que
+  // se nombran por lo que pasó y no por su código.
+  reason_escalation_keyword: { es: "por pedido del cliente", en: "customer asked" },
+  reason_escalate_after_messages: { es: "por cupo de respuestas", en: "reply cap reached" },
+  reason_flow_handoff: { es: "por un flujo", en: "flow handoff" },
+  reason_reply_burst: { es: "por ráfaga de mensajes", en: "message burst" },
+  reason_approval: { es: "esperando aprobación", en: "awaiting approval" },
+  reason_sin_motivo: { es: "sin motivo registrado", en: "no reason recorded" },
+
   revenueDisclaimer: {
     es: "Con qué habló cada comprador en las 72 h previas. Un pedido puede aparecer en varias filas; el total lo cuenta una vez.",
     en: "What each buyer engaged with in the previous 72h. One order can appear in several rows; the total counts it once.",

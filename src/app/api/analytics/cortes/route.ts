@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { leerCortes } from '@/lib/dashboard/cortes'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { workspaceTimezone } from '@/lib/workspaces/timezone'
 
 /**
  * Quién atendió: por canal y por agente.
@@ -31,10 +32,19 @@ export async function GET(request: Request) {
   const hasta = new Date(url.searchParams.get('end') ?? ahora)
   const ok = (d: Date) => !Number.isNaN(d.getTime())
 
-  const cortes = await leerCortes(admin, workspaceId, {
-    desde: ok(desde) ? desde : new Date(ahora - 30 * 86_400_000),
-    hasta: ok(hasta) ? hasta : new Date(ahora),
-  })
+  // La zona del comercio decide qué es "fuera de horario": a las 22 h de Buenos
+  // Aires no hay nadie atendiendo aunque en UTC sea media tarde.
+  const tz = await workspaceTimezone(admin, workspaceId)
+
+  const cortes = await leerCortes(
+    admin,
+    workspaceId,
+    {
+      desde: ok(desde) ? desde : new Date(ahora - 30 * 86_400_000),
+      hasta: ok(hasta) ? hasta : new Date(ahora),
+    },
+    tz,
+  )
 
   return NextResponse.json(cortes, { headers: { 'Cache-Control': 'no-store' } })
 }

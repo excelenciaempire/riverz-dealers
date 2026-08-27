@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+
 import { useT } from '@/hooks/use-locale'
 import type { Cortes } from '@/lib/dashboard/cortes'
 import { cn } from '@/lib/utils'
@@ -32,28 +32,13 @@ const NOMBRE_CANAL: Record<string, string> = {
   fb_comment: 'Comentarios FB',
 }
 
-export function QuienAtendio({ start, end }: { start: string | null; end: string | null }) {
+/**
+ * `data` llega de arriba —del hook que comparte con «Lo que resolvió sola»—
+ * en vez de pedirlo acá: es el mismo endpoint y pedirlo dos veces mostraba dos
+ * números distintos mientras uno de los dos volvía.
+ */
+export function QuienAtendio({ data: d }: { data: Cortes | null }) {
   const t = useT()
-  const [d, setD] = useState<Cortes | null>(null)
-
-  useEffect(() => {
-    if (!start || !end) return
-    let cancelado = false
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/analytics/cortes?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
-          { cache: 'no-store' },
-        )
-        if (!cancelado) setD(res.ok ? ((await res.json()) as Cortes) : null)
-      } catch {
-        if (!cancelado) setD(null)
-      }
-    })()
-    return () => {
-      cancelado = true
-    }
-  }, [start, end])
 
   // Sin conversaciones en el rango no hay nada que cortar, y una tarjeta vacía
   // ocupa el mismo lugar que una con información.
