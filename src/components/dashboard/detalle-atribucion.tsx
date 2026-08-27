@@ -172,12 +172,14 @@ function kindKey(kind: SourceKind): string {
         : 'health.kindAgent'
 }
 
+const PROOF_KEYS: Record<ProofKind, string> = {
+  order_created: 'dashboard.proofOrderCreated',
+  checkout_link: 'dashboard.proofCheckoutLink',
+  webchat_cart: 'dashboard.proofWebchatCart',
+  coupon: 'dashboard.proofCoupon',
+  cart_recovery: 'dashboard.proofCartRecovery',
+}
+
 function proofKey(kind: ProofKind): string {
-  return kind === 'order_created'
-    ? 'dashboard.proofOrderCreated'
-    : kind === 'checkout_link'
-      ? 'dashboard.proofCheckoutLink'
-      : kind === 'webchat_cart'
-        ? 'dashboard.proofWebchatCart'
-        : 'dashboard.proofCoupon'
+  return PROOF_KEYS[kind] ?? 'dashboard.proofOrderCreated'
 }

@@ -366,26 +366,66 @@ export async function GET(request: Request) {
    */
   const espejoDePedido = new Map<
     string,
-    { created_by?: string | null; channel?: string | null }
+    {
+      created_by?: string | null;
+      channel?: string | null;
+      checkout_token?: string | null;
+    }
   >();
   {
     const ids = orders.map((o) => String(o.id));
     if (ids.length > 0) {
       const { data: espejos } = await admin
         .from('orders')
-        .select('shopify_order_id, created_by, channel')
+        .select('shopify_order_id, created_by, channel, checkout_token')
         .eq('workspace_id', workspaceId)
         .in('shopify_order_id', ids);
       for (const e of (espejos ?? []) as {
         shopify_order_id: string;
         created_by?: string | null;
         channel?: string | null;
+        checkout_token?: string | null;
       }[]) {
         espejoDePedido.set(e.shopify_order_id, {
           created_by: e.created_by,
           channel: e.channel,
+          checkout_token: e.checkout_token,
         });
       }
+    }
+  }
+
+  /**
+   * Los carritos abandonados a los que Riverz les mandó el recordatorio.
+   *
+   * Es la prueba de la recuperación de carrito: el link que se manda es el de
+   * la tienda y no lleva marca nuestra, pero el pedido que lo cierra reusa el
+   * mismo token de checkout. Si ese carrito se compró después del mensaje, la
+   * venta es de Riverz sin lugar a discusión.
+   *
+   * La ventana arranca antes que el rango de pedidos porque el recordatorio
+   * sale antes de la compra —a veces días antes— y si no, el carrito que se
+   * recuperó hoy pero se recordó ayer quedaría sin prueba.
+   *
+   * `recovery_last_error IS NULL` filtra los envíos que se sabe que fallaron:
+   * un carrito que nunca recibió el mensaje no se recuperó gracias a nosotros.
+   */
+  const carritosRecordados = new Map<string, string>();
+  {
+    const desde = new Date(sinceMs - 30 * 86_400_000).toISOString();
+    const { data: recordados } = await admin
+      .from('shopify_checkouts')
+      .select('checkout_id, recovery_dispatched_at')
+      .eq('workspace_id', workspaceId)
+      .not('recovery_dispatched_at', 'is', null)
+      .is('recovery_last_error', null)
+      .gte('recovery_dispatched_at', desde)
+      .limit(5000);
+    for (const c of (recordados ?? []) as {
+      checkout_id: string;
+      recovery_dispatched_at: string;
+    }[]) {
+      carritosRecordados.set(c.checkout_id, c.recovery_dispatched_at);
     }
   }
 
@@ -420,6 +460,7 @@ export async function GET(request: Request) {
       order,
       espejoDePedido.get(String(order.id)) ?? null,
       cuponesPropios,
+      carritosRecordados,
     );
 
     const cId =

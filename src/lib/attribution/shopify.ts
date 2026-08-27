@@ -56,6 +56,13 @@ export interface ShopifyOrder {
   note_attributes?: Array<{ name?: string; value?: string }> | null;
   /** `riverz-ia` cuando el pedido lo creó la herramienta del asistente. */
   tags?: string | null;
+  /**
+   * El checkout que este pedido cerró. Shopify reutiliza el token entre el
+   * checkout y la orden, y es la clave de `shopify_checkouts.checkout_id`:
+   * con él se sabe que ESTE carrito —el que recordamos— es el que se compró.
+   */
+  checkout_token?: string | null;
+  cart_token?: string | null;
   /** Cancelado: existe pero no es una venta. */
   cancelled_at?: string | null;
   /** `paid`, `pending`, `refunded`, `voided`… */

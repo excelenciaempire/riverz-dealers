@@ -23,7 +23,12 @@ export interface AttrRow {
 export type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent'
 
 /** Qué marca de Riverz trae el pedido. Ver `lib/attribution/prueba.ts`. */
-export type ProofKind = 'order_created' | 'checkout_link' | 'webchat_cart' | 'coupon'
+export type ProofKind =
+  | 'order_created'
+  | 'checkout_link'
+  | 'webchat_cart'
+  | 'coupon'
+  | 'cart_recovery'
 
 /**
  * Un pedido atribuido, con lo que lo tocó. Es el renglón que sostiene la cifra

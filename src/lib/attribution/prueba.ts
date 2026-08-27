@@ -35,7 +35,13 @@ export type ProofKind =
   /** El carrito venía de la conversación del chat web (`riverz_wvid`). */
   | 'webchat_cart'
   /** Entró con un cupón emitido para esa persona y nadie más. */
-  | 'coupon';
+  | 'coupon'
+  /**
+   * El pedido cierra el MISMO carrito que Riverz recordó, y se compró después
+   * del recordatorio. No es "le hablamos y compró algo": es "le dijimos que se
+   * había olvidado este carrito y volvió a terminar este carrito".
+   */
+  | 'cart_recovery';
 
 export interface Proof {
   kind: ProofKind;
@@ -71,8 +77,17 @@ function hasTag(order: ShopifyOrder, tag: string): boolean {
  */
 export function provenBy(
   order: ShopifyOrder,
-  mirror: { created_by?: string | null; channel?: string | null } | null,
+  mirror: {
+    created_by?: string | null;
+    channel?: string | null;
+    checkout_token?: string | null;
+  } | null,
   couponOwners: Map<string, string>,
+  /**
+   * Carritos que Riverz recordó: `checkout_id` → cuándo salió el recordatorio.
+   * Sólo entran los que no dejaron error de envío.
+   */
+  recoveredCarts: Map<string, string> = new Map(),
 ): Proof[] {
   const proofs: Proof[] = [];
 
@@ -92,6 +107,29 @@ export function provenBy(
       proofs.push({ kind: 'coupon', detail: dc?.code ?? code });
       break;
     }
+  }
+
+  // Carrito abandonado que volvió.
+  //
+  // El link que se manda es el de la tienda (`abandoned_checkout_url`), así
+  // que el pedido NO trae marca nuestra. La prueba es otra y es más fuerte:
+  // el pedido cierra el mismo checkout que recordamos, y lo cerró DESPUÉS del
+  // recordatorio. Que compre después no alcanza —pudo volver solo—, pero que
+  // termine ESE carrito, el que le dijimos que se había olvidado, sí.
+  //
+  // Hueco conocido: `recovery_dispatched_at` lo sella el cron aunque el envío
+  // falle sin lanzar (una plantilla rechazada, por ejemplo). Los que fallaron
+  // con error quedan afuera al armar el mapa; los que fallan en silencio
+  // todavía pasan. Es el único punto flojo de esta prueba.
+  const token = (
+    order.checkout_token ??
+    order.cart_token ??
+    mirror?.checkout_token ??
+    ''
+  ).trim();
+  const enviado = token ? recoveredCarts.get(token) : undefined;
+  if (enviado && Date.parse(order.created_at) > Date.parse(enviado)) {
+    proofs.push({ kind: 'cart_recovery' });
   }
 
   return proofs;

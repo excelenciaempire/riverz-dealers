@@ -79,6 +79,36 @@ describe('provenBy', () => {
     ]);
   });
 
+  describe('carrito recuperado', () => {
+    // El recordatorio salió el 19; el pedido es del 20.
+    const recordados = new Map([['tok-abc', '2026-08-19T09:00:00.000Z']]);
+
+    it('prueba el carrito que se recordó y después se compró', () => {
+      expect(
+        provenBy({ ...base, checkout_token: 'tok-abc' }, null, sinCupones, recordados),
+      ).toEqual([{ kind: 'cart_recovery' }]);
+      // `cart_token` sirve igual: Shopify manda uno u otro según el evento.
+      expect(
+        provenBy({ ...base, cart_token: 'tok-abc' }, null, sinCupones, recordados),
+      ).toEqual([{ kind: 'cart_recovery' }]);
+      // Tiendanube y Woo no traen el token en el pedido: sale del espejo.
+      expect(
+        provenBy(base, { checkout_token: 'tok-abc' }, sinCupones, recordados),
+      ).toEqual([{ kind: 'cart_recovery' }]);
+    });
+
+    it('no se cuelga la compra que ocurrió ANTES del recordatorio', () => {
+      const antes = { ...base, created_at: '2026-08-19T08:00:00.000Z', checkout_token: 'tok-abc' };
+      expect(provenBy(antes, null, sinCupones, recordados)).toEqual([]);
+    });
+
+    it('no cuenta un carrito que nunca recordamos', () => {
+      expect(
+        provenBy({ ...base, checkout_token: 'otro' }, null, sinCupones, recordados),
+      ).toEqual([]);
+    });
+  });
+
   it('aguanta note_attributes con cualquier forma', () => {
     expect(
       provenBy({ ...base, note_attributes: null }, null, sinCupones),

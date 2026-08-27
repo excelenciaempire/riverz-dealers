@@ -64,6 +64,10 @@ export const dashboard = {
   proofCheckoutLink: { es: "Pagó por un link de Riverz", en: "Paid via a Riverz link" },
   proofWebchatCart: { es: "Carrito del chat", en: "Cart from the chat" },
   proofCoupon: { es: "Cupón de Riverz", en: "Riverz coupon" },
+  proofCartRecovery: {
+    es: "Carrito recuperado por Riverz",
+    en: "Cart recovered by Riverz",
+  },
 
   attrTruncated: {
     es: "Se muestran los {n} pedidos más grandes. Los totales los cuentan todos.",
