@@ -93,7 +93,13 @@ export function Operator() {
               className="flex items-center gap-3 rounded-[20px] px-4 py-3 transition-all duration-700"
               style={{
                 background: escribiendo ? "rgba(250,247,241,0.06)" : "rgba(250,247,241,0.1)",
-                minWidth: escribiendo ? "min(520px, 78vw)" : "0px",
+                // Mientras se escribe ocupa el ancho de su caja, como el campo
+                // de ChatGPT; después se encoge a su contenido y se va a la
+                // esquina. Va en porcentaje de la caja y no en `min(520px,
+                // 78vw)`: con vw, en pantallas angostas el campo se salía por
+                // la izquierda porque el contenedor ya venía con su margen.
+                width: escribiendo ? "100%" : "fit-content",
+                maxWidth: "100%",
                 boxShadow: escribiendo ? "0 0 0 1px rgba(250,247,241,0.08)" : "none",
               }}
             >
