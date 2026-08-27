@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
@@ -22,7 +22,6 @@ import {
 } from "@/components/inbox/inbox-tabs";
 import Link from "@/components/i18n/locale-link";
 import {
-  Search,
   Plus,
   MoreVertical,
   Trash2,
@@ -43,11 +42,9 @@ import { isToday, isYesterday, isThisWeek, isThisYear } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { normalize } from "@/lib/text/normalize";
 import { useT, useLocale } from "@/hooks/use-locale";
 import { dateFnsLocale } from "@/lib/i18n/format";
 import type { TFn } from "@/lib/i18n/translate";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,7 +107,6 @@ export function ConversationList({
 }: ConversationListProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -240,54 +236,7 @@ export function ConversationList({
     // fetch with the new scope.
   }, [resyncToken, workspaceId]);
 
-  // Memoize per-row normalized haystacks. Recomputes only when
-  // `conversations` changes (not on every keystroke). Without this,
-  // typing into the search box was O(N * normalize-cost) per character;
-  // with 500 rows that produced visible typing lag.
-  const normalizedIndex = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of conversations) {
-      map.set(
-        c.id,
-        normalize(
-          [
-            c.contact?.name,
-            c.contact?.email,
-            c.contact?.phone,
-            c.contact?.external_id,
-            c.subject,
-            c.last_message_text,
-          ]
-            .filter(Boolean)
-            .join(" "),
-        ),
-      );
-    }
-    return map;
-  }, [conversations]);
-
-  const filtered = useMemo(() => {
-    let result = conversations;
-
-    if (search.trim()) {
-      // Diacritic-insensitive — "cancion" should match "canción" and
-      // "anibal" should match "Aníbal". Both sides go through the same
-      // normalize() so the comparison is symmetric.
-      const q = normalize(search);
-      result = result.filter((c) =>
-        normalizedIndex.get(c.id)?.includes(q) ?? false,
-      );
-    }
-
-    return result;
-  }, [conversations, search, normalizedIndex]);
-
-  const handleSearchChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSearch(e.target.value);
-    },
-    []
-  );
+  const filtered = conversations;
 
   const handleSelect = useCallback(
     (conv: Conversation) => {
@@ -316,16 +265,13 @@ export function ConversationList({
       return;
     setBulkDeleting(true);
     const ids = [...selectedIds];
-    // "Clearing the whole view": every row in this tab/channel is selected and
-    // nothing (status filter / search) is narrowing the list. In that case we
-    // delete by CHANNEL SCOPE on the server, which authoritatively wipes the
-    // tab — including rows the client never loaded or that raced in mid-select.
-    // That's the fix for "deleted but reappeared on reload". Any narrower
-    // selection deletes the specific ids instead.
+    // "Clearing the whole view": every row in this tab/channel is selected. En
+    // ese caso borramos por ALCANCE DE CANAL en el servidor, que barre la
+    // pestaña de verdad — incluidas las filas que el cliente nunca cargó o que
+    // entraron a mitad de la selección. Es el arreglo de "lo borré y volvió al
+    // recargar". Cualquier selección más chica borra los ids puntuales.
     const clearingAll =
-      !search.trim() &&
-      filtered.length > 0 &&
-      selectedIds.size >= filtered.length;
+      filtered.length > 0 && selectedIds.size >= filtered.length;
     const channels = channelFilter
       ? [channelFilter]
       : inboxTab === "comments"
@@ -365,7 +311,6 @@ export function ConversationList({
   }, [
     selectedIds,
     workspaceId,
-    search,
     filtered,
     channelFilter,
     inboxTab,
@@ -421,18 +366,10 @@ export function ConversationList({
           onSelect(conv);
         }}
       />
-      {/* Search + Filter */}
-      <div className="space-y-2 border-b border-border p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={handleSearchChange}
-            placeholder={t("inbox.search")}
-            className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
-          />
-        </div>
-
+      {/* La búsqueda vive arriba de la lista (InboxSearchBox): busca en el
+          servidor y adentro de los mensajes, no sólo en la vista previa. Este
+          campo local duplicaba la caja y encontraba menos. */}
+      <div className="border-b border-border p-3">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setNewChatOpen(true)}
@@ -474,7 +411,7 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <InboxEmptyState
-            hasFilters={!!search.trim()}
+            hasFilters={false}
             channelActive={!!channelFilter}
             hasAnyConnection={hasAnyConnection}
           />

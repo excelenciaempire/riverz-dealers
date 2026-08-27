@@ -70,8 +70,7 @@ export const inbox = {
   newChatSent: { es: "Mensaje enviado", en: "Message sent" },
   newChatFailed: { es: "No se pudo enviar: {reason}", en: "Couldn't send: {reason}" },
 
-  // Conversation list — search, selection, bulk actions
-  search: { es: "Buscar", en: "Search" },
+  // Conversation list — selection, bulk actions
   select: { es: "Seleccionar", en: "Select" },
   cancel: { es: "Cancelar", en: "Cancel" },
   delete: { es: "Eliminar", en: "Delete" },
@@ -449,15 +448,6 @@ export const inbox = {
   clear: { es: "Limpiar", en: "Clear" },
   searching: { es: "Buscando…", en: "Searching…" },
   noResultsDot: { es: "Sin resultados.", en: "No results." },
-
-  // Vistas de la bandeja. Las cuatro fijas son las mismas en todos lados; las
-  // guardadas son la combinación que este comercio repite todos los días.
-  viewAll: { es: "Todas", en: "All" },
-  viewUnassigned: { es: "Sin asignar", en: "Unassigned" },
-  viewMine: { es: "Mías", en: "Mine" },
-  viewUnread: { es: "Sin leer", en: "Unread" },
-  viewSave: { es: "Guardar esta vista", en: "Save this view" },
-  viewNamePlaceholder: { es: "Nombre", en: "Name" },
 
   // Template picker
   variables: { es: "Variables", en: "Variables" },
