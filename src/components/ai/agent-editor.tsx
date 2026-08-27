@@ -1685,7 +1685,6 @@ export function AgentEditor({
                     qué puede tocar este. */}
                 <SectionCard
                   title={t('assistant.responseBehaviorTitle')}
-                  hint={t('assistant.responseBehaviorHint')}
                 >
                   <Field label={t('assistant.autonomyLabel')}>
                     <Select

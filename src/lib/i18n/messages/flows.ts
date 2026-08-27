@@ -546,8 +546,8 @@ export const flows = {
   shopifyLastOrder: { es: "Último pedido del contacto", en: "Contact's last order" },
   shopifyProductByHandle: { es: "Producto por handle", en: "Product by handle" },
   shopifyAutoInput: {
-    es: "El número, correo o handle se toma automáticamente del último dato que el cliente compartió en el chat. Las variables del resultado (total, tracking, etc.) están en el panel Variables.",
-    en: "The number, email, or handle is taken automatically from the last detail the customer shared in chat. The result variables (total, tracking, etc.) live in the Variables panel.",
+    es: "Se toma del último dato que el cliente compartió. El resultado queda en el panel Variables.",
+    en: "Taken from the last detail the customer shared. The result lands in the Variables panel.",
   },
 
   // Subflow picker

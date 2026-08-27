@@ -44,16 +44,16 @@ export const admin = {
   // Recursos que el equipo entrega a un comercio
   resourcesTitle: { es: "Recursos", en: "Resources" },
   wooPluginDesc: {
-    es: "Plugin de WordPress para recuperar carritos abandonados en WooCommerce. La tienda ya recupera los pedidos que quedaron sin pagar; el plugin agrega a quien se va antes de enviar el pedido.",
-    en: "WordPress plugin to recover abandoned carts on WooCommerce. Stores already recover orders left unpaid; the plugin adds those who leave before placing the order.",
+    es: "Plugin de WordPress: agrega los carritos que se abandonan antes de enviar el pedido.",
+    en: "WordPress plugin: adds the carts abandoned before the order is placed.",
   },
   wooPluginDownload: {
     es: "Descargar plugin de WooCommerce",
     en: "Download WooCommerce plugin",
   },
   wooPluginNoSecret: {
-    es: "Copia sin credenciales. Cada comercio pega su secreto desde Ajustes → Canales, o baja desde ahí una copia ya configurada.",
-    en: "Copy without credentials. Each merchant pastes their secret from Settings → Channels, or downloads a preconfigured copy there.",
+    es: "Copia sin credenciales. Cada comercio baja la suya ya configurada desde Ajustes → Canales.",
+    en: "Copy without credentials. Each merchant downloads a preconfigured one from Settings → Channels.",
   },
   sectionOps: { es: "Operación", en: "Operations" },
   sectionOpsDesc: {
@@ -78,8 +78,8 @@ export const admin = {
   },
   featuresTitle: { es: "Funcionalidades", en: "Features" },
   featuresDesc: {
-    es: "Al apagar una, se esconde del menú y su URL queda bloqueada para todos (los admins la siguen viendo).",
-    en: "Turning one off hides it from the menu and blocks its URL for everyone (admins still see it).",
+    es: "Apagarla la esconde del menú y bloquea su URL. Los admins la siguen viendo.",
+    en: "Turning it off hides it from the menu and blocks its URL. Admins still see it.",
   },
   featureFlows: { es: "Flujos", en: "Flows" },
   featureFlowsDesc: {
@@ -131,8 +131,8 @@ export const admin = {
   // Experiencias opt-in: arrancan apagadas y se prenden por comercio
   experiencesTitle: { es: "Experiencias", en: "Experiences" },
   experiencesDesc: {
-    es: "Versiones nuevas de la aplicación. Arrancan apagadas: lo normal es prenderlas comercio por comercio desde su ficha.",
-    en: "New versions of the app. They start off: normally you turn them on per merchant from their detail page.",
+    es: "Arrancan apagadas. Se prenden comercio por comercio desde su ficha.",
+    en: "They start off. Turn them on per merchant from their detail page.",
   },
   featureRiverz2: { es: "Riverz 2.0 · Operación IA", en: "Riverz 2.0 · AI Operation" },
   featureRiverz2Desc: {
@@ -141,8 +141,8 @@ export const admin = {
   },
   featureFlota: { es: "Operator con equipo", en: "Operator with a team" },
   featureFlotaDesc: {
-    es: "El chat reparte el pedido entre especialistas por dominio en vez de resolverlo solo. Con esto apagado funciona como siempre.",
-    en: "The chat splits the request among domain specialists instead of solving it alone. With this off it works as always.",
+    es: "El chat reparte el pedido entre especialistas por dominio.",
+    en: "The chat splits the request among domain specialists.",
   },
   forbidden: { es: "Solo para administradores de la plataforma.", en: "Platform admins only." },
   // Panel de infraestructura (saldo + estado en vivo de todo lo conectado)
@@ -446,7 +446,7 @@ export const admin = {
   },
   convGrantedUntil: { es: "Permiso hasta el {fecha}", en: "Access until {fecha}" },
   convPrivacy: {
-    es: "Metadatos, no contenido: el cuerpo de los mensajes y los datos del comprador no salen de la cuenta del comercio.",
+    es: "Metadatos, no contenido: los mensajes y los datos del comprador no salen de la cuenta.",
     en: "Metadata, not content: message bodies and buyer details never leave the account.",
   },
 
@@ -601,8 +601,8 @@ export const admin = {
   // WhatsApp de la plataforma. Era la otra pantalla que no pasaba por i18n.
   waPlatformTitle: { es: "WhatsApp de Riverz", en: "Riverz WhatsApp" },
   waPlatformDesc: {
-    es: "El número con el que la plataforma le avisa a los comercios cuando algo se rompe. Es aparte del de cada cuenta a propósito: el aviso más importante es justo el que el número del comercio no podría entregar.",
-    en: "The number the platform uses to tell merchants something broke. Separate from each account's own number on purpose: the alert that matters most is exactly the one their number couldn't deliver.",
+    es: "El número con el que la plataforma le avisa a los comercios cuando algo se rompe. Va aparte del de cada cuenta a propósito.",
+    en: "The number the platform uses to tell merchants something broke. Separate from their own on purpose.",
   },
   waNeedsMigration: {
     es: "Falta aplicar la migración 147_platform_whatsapp.sql. Hasta entonces sólo se puede configurar por variables de entorno.",
@@ -655,8 +655,8 @@ export const admin = {
   mcpCalls: { es: "{n} llamada(s) en 7 días", en: "{n} call(s) in 7 days" },
   mcpFailed: { es: "{n} fallaron", en: "{n} failed" },
   mcpHint: {
-    es: "Todo lo que hace queda en Auditoría → Agente, incluidas las lecturas. Lo irreversible pide confirmación antes de ejecutarse.",
-    en: "Everything it does lands in Audit → Agent, reads included. Irreversible actions ask for confirmation first.",
+    es: "Todo queda en Auditoría → Agente, lecturas incluidas. Lo irreversible pide confirmación.",
+    en: "Everything lands in Audit → Agent, reads included. Irreversible actions ask first.",
   },
 
   saveFailed: { es: "No se pudo guardar", en: "Couldn't save" },
@@ -772,8 +772,8 @@ export const admin = {
   resumeDone: { es: "Cuenta reactivada", en: "Account reactivated" },
   suspendError: { es: "No se pudo cambiar", en: "Couldn't change it" },
   suspendHint: {
-    es: "Suspender saca al comercio del panel y frena sus envíos automaticos. No borra nada: lo que llegue se sigue guardando.",
-    en: "Suspending locks the merchant out of the dashboard and stops their automated sends. Nothing is deleted: incoming data is still stored.",
+    es: "Saca al comercio del panel y frena sus envíos automáticos. No borra nada.",
+    en: "Locks the merchant out of the dashboard and stops their automated sends. Nothing is deleted.",
   },
 
   // El motor: muda hacia afuera, pero con panel. El otro interruptor.
@@ -789,7 +789,7 @@ export const admin = {
   motorOffDone: { es: "Motor apagado", en: "Engine off" },
   motorError: { es: "No se pudo cambiar", en: "Couldn't change it" },
   motorHint: {
-    es: "Apagar frena todo lo que sale —respuestas, automatizaciones, difusión y llamadas— pero el comercio sigue entrando al panel. Se usa mientras revisa lo que le montamos.",
-    en: "Turning it off stops everything outbound — replies, automations, broadcasts and calls — while the merchant still gets into the dashboard. Used while they review what we set up.",
+    es: "Frena todo lo que sale —respuestas, automatizaciones, difusión y llamadas—; el comercio sigue entrando al panel.",
+    en: "Stops everything outbound — replies, automations, broadcasts and calls. The merchant still gets into the dashboard.",
   },
 } satisfies Namespace;

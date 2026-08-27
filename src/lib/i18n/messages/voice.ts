@@ -164,6 +164,9 @@ export const voice = {
     es: "El teléfono del contacto no es un número válido.",
     en: "The contact's phone is not a valid number.",
   },
+  // La etiqueta del enlace que lleva a arreglar el bloqueo. Faltaba, así que
+  // el aviso imprimía «voice.blockedFix» en la pantalla del comercio.
+  blockedFix: { es: "Arreglar", en: "Fix it" },
   blockedInsertFailed: {
     es: "No se pudo guardar la llamada.",
     en: "The call could not be saved.",
