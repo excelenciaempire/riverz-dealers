@@ -78,6 +78,15 @@ export async function registrarHueco(
         status: 'pending',
         needs_human_reason: 'answer_gap',
         needs_human_at: new Date().toISOString(),
+        // Lo que necesita quien recibe el hilo: la pregunta exacta y qué dato
+        // dijo que le faltaba. Sin esto tenía que leer la conversación entera
+        // para descubrir en qué se trabó (migración 201).
+        needs_human_summary: [
+          `Preguntó: "${pregunta.slice(0, 240)}"`,
+          (input.falta ?? '').trim() ? `Le faltaba: ${(input.falta ?? '').trim().slice(0, 240)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
       })
       .eq('id', ctx.conversationId)
       .eq('workspace_id', ctx.workspaceId)

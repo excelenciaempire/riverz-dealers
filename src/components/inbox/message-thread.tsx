@@ -1425,9 +1425,12 @@ export function MessageThread({
                 quien tomaba un hilo escalado abría la conversación y leía todo
                 de nuevo — que es el peor momento del producto, porque pasa
                 justo cuando el cliente ya está esperando. */}
-            {conversation.ai_summary ? (
-              <p className="mt-1 text-xs leading-snug text-amber-800/80 dark:text-amber-200/80">
-                {conversation.ai_summary}
+            {/* El resumen de traspaso manda sobre el rodante: uno cuenta de
+                qué se habló y el otro cuenta qué se intentó y por qué se
+                traba, que es lo que necesita quien recibe el hilo. */}
+            {conversation.needs_human_summary || conversation.ai_summary ? (
+              <p className="mt-1 whitespace-pre-line text-xs leading-snug text-amber-800/80 dark:text-amber-200/80">
+                {conversation.needs_human_summary || conversation.ai_summary}
               </p>
             ) : null}
           </div>

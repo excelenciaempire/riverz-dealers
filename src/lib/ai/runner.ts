@@ -17,6 +17,7 @@ import type {
   Contact,
   ContactNote,
   Conversation,
+  NeedsHumanReason,
   Message,
   ShopifyCustomerSnapshot,
 } from '@/types';
@@ -152,7 +153,9 @@ export async function runAiAgent(
     }
 
     if (containsEscalationKeyword(agent, args.inboundMessage.content_text ?? '')) {
-      await flagNeedsHuman(db, args.conversation, 'escalation_keyword');
+      await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
+        pidio: args.inboundMessage.content_text ?? null,
+      });
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'escalation_keyword',
@@ -177,7 +180,9 @@ export async function runAiAgent(
       if ((priorSentCount ?? 0) >= agent.escalate_after_messages) {
         // Mismo criterio que las palabras clave: agotar el cupo de
         // respuestas ES un escalamiento, no un silencio.
-        await flagNeedsHuman(db, args.conversation, 'escalate_after_messages');
+        await flagNeedsHuman(db, args.conversation, 'escalate_after_messages', {
+        pidio: args.inboundMessage.content_text ?? null,
+      });
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'escalate_after_messages',
@@ -223,7 +228,9 @@ export async function runAiAgent(
           `[ai] cortacircuitos: ${burstCount} respuestas al contacto ${args.contact.id} ` +
             `en ${BURST_WINDOW_MS / 60000} min — se apaga la IA en este hilo`,
         );
-        await flagNeedsHuman(db, args.conversation, 'reply_burst_guard');
+        await flagNeedsHuman(db, args.conversation, 'reply_burst_guard', {
+        pidio: args.inboundMessage.content_text ?? null,
+      });
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'reply_burst_guard',
@@ -642,6 +649,8 @@ export async function runAiAgent(
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
       key_source: reply.keySource,
+      tools_used: reply.herramientas,
+      model: reply.model,
       ...(truncatedFallback
         ? { skip_reason: 'tool_loop_truncated_fallback' }
         : {}),
@@ -930,16 +939,36 @@ function shouldSkip(
  * un cliente que pedía hablar con alguien no se distinguía de una conversación
  * cualquiera en pausa.
  */
+/**
+ * El resumen de traspaso (migración 201).
+ *
+ * Quien toma un hilo escalado heredaba el resumen rodante, que cuenta de qué se
+ * habló — útil para ponerse al día y inútil para lo que hace falta acá: qué
+ * pidió esta persona y por qué el agente se plantó. Se arma con lo que ya
+ * sabemos, sin una llamada al modelo: escalar tiene que ser barato e
+ * instantáneo, porque del otro lado hay alguien esperando.
+ */
+function resumenDeTraspaso(detalle?: {
+  pidio?: string | null;
+  herramientas?: string[];
+}): string | null {
+  const partes: string[] = [];
+  const pidio = (detalle?.pidio ?? '').replace(/\s+/g, ' ').trim();
+  if (pidio) partes.push(`Pidió: "${pidio.slice(0, 240)}"`);
+  const usadas = Array.from(new Set(detalle?.herramientas ?? []));
+  if (usadas.length) partes.push(`Consultó: ${usadas.join(', ')}`);
+  return partes.length ? partes.join('\n') : null;
+}
+
 async function flagNeedsHuman(
   db: SupabaseClient,
   conversation: Conversation,
-  reason?:
-    | 'escalation_keyword'
-    | 'escalate_after_messages'
-    | 'flow_handoff'
-    | 'reply_burst_guard',
+  reason?: NeedsHumanReason,
+  /** Lo que se le cuenta a quien recibe el hilo. */
+  detalle?: { pidio?: string | null; herramientas?: string[] },
 ): Promise<void> {
   try {
+    const resumen = resumenDeTraspaso(detalle);
     await db
       .from('conversations')
       .update({
@@ -948,6 +977,7 @@ async function flagNeedsHuman(
         ...(reason
           ? { needs_human_reason: reason, needs_human_at: new Date().toISOString() }
           : {}),
+        ...(resumen ? { needs_human_summary: resumen } : {}),
       })
       .eq('id', conversation.id);
   } catch (err) {
@@ -1305,6 +1335,10 @@ interface ReplyResult {
    *  resolving — caller may swap in a fallback message when the model
    *  returned empty text. */
   truncated?: boolean;
+  /** Qué herramientas llamó, y con qué modelo salió. Van a `ai_replies` para
+   *  poder contestar después "¿por qué dijo eso?" (migración 201). */
+  herramientas?: string[];
+  model?: string;
 }
 
 /**
@@ -2061,6 +2095,8 @@ async function generateReply(
     completionTokens: result.completionTokens,
     truncated: result.truncated,
     keySource,
+    herramientas: result.herramientas,
+    model: opciones.model,
   };
 }
 
@@ -2803,6 +2839,10 @@ async function logReply(
     prompt_tokens?: number;
     completion_tokens?: number;
     key_source?: KeySource;
+    /** Qué herramientas llamó. Es lo que contesta "¿de dónde sacó ese dato?":
+     *  o lo fue a buscar, o no fue a buscar nada (migración 201). */
+    tools_used?: string[];
+    model?: string;
   },
 ): Promise<void> {
   await db.from('ai_replies').insert({
@@ -2816,6 +2856,8 @@ async function logReply(
     prompt_tokens: patch.prompt_tokens ?? null,
     completion_tokens: patch.completion_tokens ?? null,
     key_source: patch.key_source ?? null,
+    tools_used: patch.tools_used?.length ? patch.tools_used : null,
+    model: patch.model ?? null,
   });
 }
 

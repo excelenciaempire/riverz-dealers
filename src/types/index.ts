@@ -293,6 +293,11 @@ export interface Conversation {
   /** Escalamiento: la IA se apagó y el hilo espera a una persona. NULL = no escaló. */
   needs_human_reason?: NeedsHumanReason | null;
   needs_human_at?: string | null;
+  /** Qué pasó, qué se intentó y por qué escala — escrito PARA quien recibe el
+   * hilo. El resumen rodante (`ai_summary`) cuenta de qué se habló, que es
+   * otra cosa: sirve para ponerse al día, no para saber dónde se traba
+   * (migración 201). */
+  needs_human_summary?: string | null;
   /** Connection that produced this conversation (Meta page, mailbox, …). */
   connection_id?: string;
   /** Email-style subject, or the post/ad title for comment threads. */
