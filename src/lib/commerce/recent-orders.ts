@@ -21,8 +21,63 @@ import { resolveStoreForLookup } from './order-lookup'
  */
 
 export interface TiendaReciente {
-  platform: 'tiendanube' | 'woocommerce'
+  platform: 'tiendanube' | 'woocommerce' | 'mercadolibre'
   orders: ShopifyOrder[]
+}
+
+/**
+ * Los pedidos de Mercado Libre, que no se leen de una API sino de casa.
+ *
+ * ML no se conecta como tienda: viene por el canal de mensajes y sus pedidos
+ * llegan espejados a `orders` (migración 137). Como no había lector, un
+ * comercio que vende sólo en ML veía el panel entero en cero — ni sus ventas
+ * ni las de Riverz—, que es la peor forma de no aparecer: sin error, sin aviso.
+ */
+async function pedidosDeMercadoLibre(
+  db: SupabaseClient,
+  workspaceId: string,
+  sinceIso: string,
+): Promise<ShopifyOrder[]> {
+  const { data } = await db
+    .from('orders')
+    .select(
+      'shopify_order_id, order_number, total_price, currency, created_at, customer_email, customer_phone, status, created_by, conversation_id',
+    )
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'mercadolibre')
+    .gte('created_at', sinceIso)
+    .limit(2000)
+
+  return ((data ?? []) as PedidoEspejo[]).map((p) => ({
+    id: Number(p.shopify_order_id) || 0,
+    name: p.order_number ? `#${p.order_number}` : null,
+    email: p.customer_email ?? undefined,
+    phone: p.customer_phone ?? undefined,
+    total_price: p.total_price != null ? String(p.total_price) : '0',
+    currency: p.currency ?? undefined,
+    created_at: p.created_at,
+    // ML anonimiza al comprador: el correo casi nunca viene y el teléfono
+    // tampoco. El emparejamiento con el contacto sale por la conversación,
+    // que es donde el comprador tiene identidad.
+    contact_email: p.customer_email ?? null,
+    customer: {
+      email: p.customer_email ?? null,
+      phone: p.customer_phone ?? null,
+    },
+    cancelled_at: p.status === 'cancelled' ? p.created_at : null,
+    financial_status: p.status === 'cancelled' ? 'refunded' : null,
+  }))
+}
+
+interface PedidoEspejo {
+  shopify_order_id: string | null
+  order_number: string | null
+  total_price: number | null
+  currency: string | null
+  created_at: string
+  customer_email: string | null
+  customer_phone: string | null
+  status: string | null
 }
 
 /**
@@ -39,7 +94,22 @@ export async function fetchRecentOrdersOtherPlatform(
   sinceIso: string,
 ): Promise<TiendaReciente | null> {
   const tienda = await resolveStoreForLookup(db, workspaceId)
-  if (!tienda || tienda.platform === 'shopify') return null
+  if (!tienda || tienda.platform === 'shopify') {
+    // Sin tienda resuelta puede haber igual pedidos de Mercado Libre: ML no es
+    // una conexión de tienda sino un canal, y sus pedidos ya están espejados.
+    if (!tienda) {
+      const ml = await pedidosDeMercadoLibre(db, workspaceId, sinceIso)
+      return ml.length > 0 ? { platform: 'mercadolibre', orders: ml } : null
+    }
+    return null
+  }
+
+  if (tienda.platform === 'mercadolibre') {
+    return {
+      platform: 'mercadolibre',
+      orders: await pedidosDeMercadoLibre(db, workspaceId, sinceIso),
+    }
+  }
 
   if (tienda.platform === 'tiendanube') {
     if (!tienda.externalStoreId) return null

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { marcarEnlace } from '@/lib/marketing/enlaces';
 
 /**
  * Redirector público de short links: `/r/:token` → 302 al link real del
@@ -63,5 +64,9 @@ export async function GET(
     })
     .eq('token', token);
 
-  return NextResponse.redirect(target, 302);
+  // Se marca acá y no al crear el link: éste es el único punto por el que pasa
+  // TODO botón de plantilla, y marcar en el salto significa que la tienda
+  // guarda en el pedido la URL con nuestra huella. Sin esto, una campaña que
+  // vende no tiene con qué probarlo y su plata queda en «influidas».
+  return NextResponse.redirect(marcarEnlace(target, { medio: 'plantilla' }), 302);
 }

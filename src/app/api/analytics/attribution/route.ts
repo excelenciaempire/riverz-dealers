@@ -397,6 +397,8 @@ export async function GET(request: Request) {
       created_by?: string | null;
       channel?: string | null;
       checkout_token?: string | null;
+      /** Quién compró, cuando la tienda no lo dice. Ver Mercado Libre. */
+      contact_id?: string | null;
     }
   >();
   {
@@ -404,20 +406,44 @@ export async function GET(request: Request) {
     if (ids.length > 0) {
       const { data: espejos } = await admin
         .from('orders')
-        .select('shopify_order_id, created_by, channel, checkout_token')
+        .select('shopify_order_id, created_by, channel, checkout_token, contact_id')
         .eq('workspace_id', workspaceId)
         .in('shopify_order_id', ids);
+      const sinNombre: string[] = [];
       for (const e of (espejos ?? []) as {
         shopify_order_id: string;
         created_by?: string | null;
         channel?: string | null;
         checkout_token?: string | null;
+        contact_id?: string | null;
       }[]) {
         espejoDePedido.set(e.shopify_order_id, {
           created_by: e.created_by,
           channel: e.channel,
           checkout_token: e.checkout_token,
+          contact_id: e.contact_id,
         });
+        if (e.contact_id && !nombreDeContacto.has(e.contact_id)) {
+          sinNombre.push(e.contact_id);
+        }
+      }
+      // Los que sólo se conocen por el espejo —Mercado Libre, sobre todo, que
+      // anonimiza correo y teléfono— no pasaron por las consultas de arriba.
+      if (sinNombre.length > 0) {
+        const { data: extra } = await admin
+          .from('contacts')
+          .select('id, name, email, phone')
+          .eq('workspace_id', workspaceId)
+          .in('id', sinNombre.slice(0, 500));
+        for (const c of (extra ?? []) as {
+          id: string;
+          name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+        }[]) {
+          const etiqueta = c.name?.trim() || c.email || c.phone || '';
+          if (etiqueta) nombreDeContacto.set(c.id, etiqueta);
+        }
       }
     }
   }
@@ -506,12 +532,23 @@ export async function GET(request: Request) {
    * mostraba un cero con la moneda equivocada, que es peor que no mostrar
    * nada—. Se trae todo de una y el cruce se hace en memoria.
    */
+  /**
+   * Quién compró.
+   *
+   * Por correo, por teléfono, y —si la tienda no da ninguno de los dos— por la
+   * fila espejo. Ese último camino es el único que sirve en Mercado Libre, que
+   * anonimiza al comprador: sin él, un comercio de ML no tenía ni una venta
+   * emparejada por más que la conversación estuviera ahí.
+   */
+  const contactoDelPedido = (o: (typeof orders)[number]): string | null =>
+    (o.email && emailToContact.get(o.email.toLowerCase())) ||
+    (o.phone && phoneToContact.get(normPhone(o.phone) ?? '')) ||
+    espejoDePedido.get(String(o.id))?.contact_id ||
+    null;
+
   const contactosConPedido = new Set<string>();
   for (const o of orders) {
-    const id =
-      (o.email && emailToContact.get(o.email.toLowerCase())) ||
-      (o.phone && phoneToContact.get(normPhone(o.phone) ?? '')) ||
-      null;
+    const id = contactoDelPedido(o);
     if (id) contactosConPedido.add(id);
   }
   const toquesPorContacto = await prefetchToques(admin, {
@@ -546,10 +583,7 @@ export async function GET(request: Request) {
       pagosRecuperados,
     );
 
-    const cId =
-      (order.email && emailToContact.get(order.email.toLowerCase())) ||
-      (order.phone && phoneToContact.get(normPhone(order.phone) ?? '')) ||
-      null;
+    const cId = contactoDelPedido(order);
 
     const orderTime = new Date(order.created_at).getTime();
     const total = Number(order.total_price ?? '0');

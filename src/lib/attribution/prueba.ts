@@ -1,4 +1,5 @@
 import type { ShopifyOrder } from './shopify';
+import { marcaDelLanding } from '@/lib/marketing/enlaces';
 
 /**
  * Cuándo una venta es de Riverz, y cuándo sólo pasó cerca.
@@ -47,7 +48,13 @@ export type ProofKind =
    * escribió, y este es el pedido con el que volvió. El motor de recuperación
    * de Mercado Pago ya lo dio por recuperado y guardó el id del pedido.
    */
-  | 'payment_recovered';
+  | 'payment_recovered'
+  /**
+   * La persona entró a la tienda por un link que mandó Riverz —una campaña, un
+   * botón de plantilla, un mensaje del asistente— y compró en esa misma visita.
+   * La tienda guarda con qué URL entró; ahí vuelve nuestra marca.
+   */
+  | 'link_click';
 
 export interface Proof {
   kind: ProofKind;
@@ -147,6 +154,23 @@ export function provenBy(
   // ya había decidido comprar y lo único que faltó fue que entrara la plata.
   if (recoveredPayments.has(String(order.id))) {
     proofs.push({ kind: 'payment_recovered' });
+  }
+
+  // Entró por un link nuestro y compró en esa visita.
+  //
+  // `landing_site` es la URL con la que la tienda vio entrar a la persona en
+  // la sesión que terminó en este pedido. Que ahí esté nuestra marca significa
+  // que el click salió de un mensaje de Riverz. Y como la tienda guarda la
+  // sesión de ESTA compra, si la persona volvió después por un anuncio, el
+  // landing es el del anuncio y acá no aparece nada — el crédito queda donde
+  // corresponde sin que tengamos que decidirlo nosotros.
+  const marca =
+    marcaDelLanding(order.landing_site) ?? marcaDelLanding(order.referring_site);
+  if (marca) {
+    proofs.push({
+      kind: 'link_click',
+      detail: marca.campana ? `${marca.medio}/${marca.campana}` : marca.medio,
+    });
   }
 
   return proofs;

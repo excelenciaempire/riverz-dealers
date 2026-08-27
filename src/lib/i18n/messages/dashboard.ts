@@ -68,6 +68,10 @@ export const dashboard = {
     es: "Carrito recuperado por Riverz",
     en: "Cart recovered by Riverz",
   },
+  proofLinkClick: {
+    es: "Entró por un link de Riverz",
+    en: "Came in through a Riverz link",
+  },
   proofPaymentRecovered: {
     es: "Pago rechazado que volvió",
     en: "Recovered failed payment",

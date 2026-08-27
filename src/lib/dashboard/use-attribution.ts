@@ -30,6 +30,7 @@ export type ProofKind =
   | 'coupon'
   | 'cart_recovery'
   | 'payment_recovered'
+  | 'link_click'
 
 /**
  * Un pedido atribuido, con lo que lo tocó. Es el renglón que sostiene la cifra

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
+import { ShopifyAdminClient, nextPageInfo } from '@/lib/shopify/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 
 /**
@@ -57,6 +57,13 @@ export interface ShopifyOrder {
   /** `riverz-ia` cuando el pedido lo creó la herramienta del asistente. */
   tags?: string | null;
   /**
+   * Con qué URL entró la persona en la visita que terminó en esta compra, y
+   * de dónde venía. Es donde vuelve la marca de los links que manda Riverz
+   * (`?riverz=whatsapp`): la huella de nuestro click, dentro del pedido.
+   */
+  landing_site?: string | null;
+  referring_site?: string | null;
+  /**
    * El checkout que este pedido cerró. Shopify reutiliza el token entre el
    * checkout y la orden, y es la clave de `shopify_checkouts.checkout_id`:
    * con él se sabe que ESTE carrito —el que recordamos— es el que se compró.
@@ -74,6 +81,15 @@ export interface ActiveShopifyConnection {
   /** Decrypted Shopify Admin API access token. */
   token: string;
 }
+
+/**
+ * Tope de páginas al leer pedidos: 20 × 250 = 5.000 pedidos por ventana.
+ *
+ * Hay tope porque esto corre dentro de una petición del panel y una tienda
+ * enorme con un rango de 90 días la dejaría colgada. Con 5.000 pedidos en la
+ * ventana, la atribución ya no es el problema del comercio.
+ */
+const MAX_PAGINAS = 20;
 
 /**
  * Normalize a phone to digits-only for cross-system matching (Shopify order
@@ -122,11 +138,10 @@ export async function getActiveShopifyConnection(
  * Recent orders for a connection. Throws on a Shopify API failure so callers
  * can distinguish "fetch failed, try later" from "no orders" / "not connected".
  *
- * NOTE: single page only — no Link/page_info pagination. On a store with more
- * than `limit` (250) orders in the window, the tail is silently dropped, which
- * undercounts attribution and (for the IG incrementality engine) skews the
- * treatment/control baselines. Acceptable at current pilot volumes; if a
- * merchant exceeds this, follow the `Link: rel=next` cursor and accumulate.
+ * Sigue el cursor `Link: rel=next` hasta `MAX_PAGINAS`. Antes leía UNA página:
+ * en una tienda con más de 250 pedidos en la ventana, la cola se descartaba en
+ * silencio —el panel reportaba de menos y nadie se enteraba— y al motor de
+ * incrementalidad del Agente de IG le quedaban los grupos torcidos.
  */
 /**
  * El estado de pago de UN pedido, ahora mismo.
@@ -164,9 +179,18 @@ export async function fetchRecentOrders(
   // cuando hay más de 250 pedidos en la ventana depende de un default que no
   // está contratado: el día que cambie, la única página que se lee sería la
   // más VIEJA y el pedido de hoy —el que se está buscando— no vendría nunca.
-  const data = await client.rest<{ orders: ShopifyOrder[] }>(
+  let path =
     `/orders.json?status=any&order=created_at+desc` +
-      `&created_at_min=${encodeURIComponent(sinceIso)}&limit=${limit}`,
-  );
-  return data.orders ?? [];
+    `&created_at_min=${encodeURIComponent(sinceIso)}&limit=${limit}`;
+  const todas: ShopifyOrder[] = [];
+  for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
+    const { data, link } = await client.restPaged<{ orders?: ShopifyOrder[] }>(path);
+    todas.push(...(data.orders ?? []));
+    const cursor = nextPageInfo(link);
+    if (!cursor) break;
+    // Con `page_info` Shopify prohíbe repetir los filtros: sólo cursor y
+    // límite. El orden y el rango quedan fijados por la primera llamada.
+    path = `/orders.json?limit=${limit}&page_info=${encodeURIComponent(cursor)}`;
+  }
+  return todas;
 }
