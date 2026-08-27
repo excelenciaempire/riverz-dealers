@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight } from "next/font/google";
 import { headers } from "next/headers";
-import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
@@ -180,10 +179,20 @@ export default async function RootLayout({
         {/* A mano y no por `metadata.other`, que lo emite como `name="fb:app_id"`:
             Open Graph solo lee `property`, así que Meta lo descartaba. */}
         <meta property="fb:app_id" content="1021515967221344" />
-        <Script
-          id="theme-boot"
-          strategy="beforeInteractive"
+        {/* Un <script> pelado, que es lo que Next documenta para el arranque
+            del tema, y no `next/script` con `beforeInteractive`: para un inline
+            en el <head> hacen exactamente lo mismo.
+
+            `suppressHydrationWarning` no tapa un descuido. El navegador BORRA el
+            valor del `nonce` del DOM en cuanto lo aplica —para que una
+            inyección no pueda leerlo y reusarlo—, así que al hidratar el cliente
+            ve "" donde el servidor escribió el valor y React lo reporta como
+            desajuste en cada carga. No hay nada que corregir: es la protección
+            funcionando. Sin esto, el contador de errores del modo desarrollo
+            marca uno permanente y tapa lo que sí importa. */}
+        <script
           nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
         />
       </head>

@@ -104,6 +104,20 @@ const LEGACY_REDIRECTS: { from: string; to: string }[] = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * El indicador de desarrollo, apagado.
+   *
+   * Se dibuja abajo a la izquierda de CADA documento, y el chat web es un
+   * iframe de 400×640: ahí adentro el globo rojo cae justo encima del campo
+   * donde se escribe, así que probar el widget en desarrollo era imposible sin
+   * cerrarlo a mano en cada recarga.
+   *
+   * No se pierde nada: los errores de compilación y de ejecución se siguen
+   * mostrando igual —en la terminal y en el overlay de error—; lo único que se
+   * va es el globo que los cuenta. Y en producción nunca existió.
+   */
+  devIndicators: false,
+
   // @sentry/node usa APIs nativas de Node (node:diagnostics_channel,
   // OpenTelemetry async hooks) que el bundler no puede empaquetar. Lo
   // dejamos como `require` nativo en el server en vez de bundlearlo —
