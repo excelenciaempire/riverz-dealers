@@ -712,10 +712,21 @@ function buildVarsForOrder(
     // list. For Andreani / Correo Argentino / OCA the URL is empty and
     // the customer gets a naked number. Fall back to our resolver so
     // existing {{tracking_url}} templates keep working unchanged.
+    //
+    // Last resort: the order status page. Leaving this empty is not a
+    // cosmetic degradation — a WhatsApp template whose variable resolves
+    // to '' is rejected whole by Meta with "(#131008) Required parameter
+    // is missing", so the customer gets NO message at all instead of one
+    // without a link. Reproduced twice on 2026-08-27 with a fulfillment
+    // saved from the Shopify admin, where the carrier combobox stores
+    // `tracking_company: null` (or the literal "Otra") unless the
+    // merchant picks a carrier Shopify already knows — nothing our
+    // resolver can match. `order_status_url` is present on every order
+    // and shows the carrier and number, so it always beats silence.
     base.tracking_url =
       trackingUrl ||
       resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
-      ''
+      String(order.order_status_url ?? '')
   }
 
   return base
