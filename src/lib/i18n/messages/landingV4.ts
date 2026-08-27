@@ -62,9 +62,19 @@ export const landingV4 = {
   skipToContent: { es: "Ir al contenido", en: "Skip to content" },
 
   // ── Hero ──
-  // El titular es la definición de categoría, no una lista de canales.
-  heroTitleLead: { es: "No solo conversa.", en: "It doesn't just chat." },
-  heroTitleMuted: { es: "Opera tu tienda.", en: "It runs your store." },
+  // El titular tiene que hacer tres cosas a la vez: que cualquiera entienda en
+  // qué nos diferenciamos, que suene a inteligencia de verdad, y que se note
+  // que el trabajo se hace solo. Sin ninguna de las palabras que el documento
+  // manda evitar —«chatbot», «responde 24/7», «impulsado por IA»—, que son
+  // justo las que dice todo el mercado.
+  //
+  // «Piensa» es lo que un guion enlatado no hace. «Tu mejor vendedor» es la
+  // vara con la que el comerciante mide, y la entiende sin explicación. Y
+  // «ejecuta como un sistema» es la parte que ningún competidor puede firmar:
+  // no contesta y se va, deja el pedido creado. El contraste entre las dos
+  // mitades ES la diferenciación.
+  heroTitleLead: { es: "Piensa como tu mejor vendedor.", en: "It thinks like your best salesperson." },
+  heroTitleMuted: { es: "Ejecuta como un sistema.", en: "It executes like a system." },
   heroSubtitle: {
     es: "Riverz reúne tus canales, tu catálogo y tus pedidos para que la IA se encargue del siguiente paso: recomendar, cobrar, crear el pedido, recuperar un carrito, avisar la entrega o pasarte el caso cuando hace falta una persona.",
     en: "Riverz brings together your channels, your catalog, and your orders so the AI can take the next step: recommend, charge, create the order, recover a cart, report a delivery, or hand you the case when a person is needed.",

@@ -78,16 +78,19 @@ export function LandingV4() {
         <Wall />
         {/* El orden lo manda la investigación: primero se mata la objeción más
             grande —«esto va a ser otro proyecto de meses»— con la oferta;
-            después el mecanismo con nombre; después el ángulo del chat ya
-            pagado; y recién ahí la lista de funciones. */}
+            enseguida lo que no tiene nadie más; después el mecanismo con
+            nombre; después el ángulo del chat ya pagado; y al final la lista
+            de funciones. */}
         <Launch />
+        {/* El Operator va CUARTO, apenas pasada la oferta. Estuvo octavo un
+            rato, después de reordenar la página por la investigación, y ahí se
+            perdía: es lo único que no tiene nadie más en la categoría. Primero
+            se dice que no hay que configurar nada (Launch), y enseguida se
+            muestra por qué (se le habla y lo hace). */}
+        <Operator />
         <Scene />
         <Banda src="/portada-b/intencion.jpg" line="landingV4.bandaLine2" />
         <Pillars />
-        {/* El Operator va después de los pilares y antes de la lista: primero
-            se entiende que se puede delegar sin quedarse ciego, y entonces
-            «se lo pides y lo hace» se lee como la prueba de eso. */}
-        <Operator />
         <Capabilities />
         <Banda src="/portada-b/banda-mostrador.jpg" line="landingV4.bandaLine" />
         <Channels />
