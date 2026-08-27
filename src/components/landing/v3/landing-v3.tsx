@@ -189,7 +189,7 @@ function Hero() {
             {/* La luz de la vidriera arrastrada hacia el amarillo de la marca. */}
             <div
               className="absolute inset-0"
-              style={{ background: "var(--pl-acid)", opacity: 0.1, mixBlendMode: "overlay" }}
+              style={{ background: "var(--pl-acid)", opacity: 0.07 }}
             />
           </div>
         </div>
