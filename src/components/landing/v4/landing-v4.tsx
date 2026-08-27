@@ -54,7 +54,6 @@ const STORES: { src: string; label: string }[] = [
   { src: "/channels/shopify.svg", label: "Shopify" },
   { src: "/channels/woocommerce.svg", label: "WooCommerce" },
   { src: "/channels/tiendanube.svg", label: "Tiendanube" },
-  { src: "/channels/dropi.png", label: "Dropi" },
 ];
 
 export function LandingV4() {
@@ -219,15 +218,18 @@ function Hero() {
         </Rise>
       </div>
 
-      {/* En pantalla chica la ilustración no le roba el titular: va debajo,
-          de borde a borde. */}
-      <div aria-hidden className="relative h-52 w-full overflow-hidden sm:h-64 lg:hidden">
+      {/* En pantalla chica la ilustración va debajo del titular y ENTERA: es un
+          dibujo, no una foto, y recortarlo para llenar una franja le corta la
+          cabeza a la figura. Con la proporción original se ve completo y el
+          crema del dibujo se funde con el de la página. */}
+      <div aria-hidden className="relative -mt-2 w-full lg:hidden">
         <Image
           src="/portada-b/hero.jpg"
           alt=""
-          fill
+          width={1400}
+          height={1045}
           sizes="100vw"
-          className="object-cover object-right"
+          className="h-auto w-full"
         />
       </div>
     </section>
@@ -294,40 +296,31 @@ function Pillars() {
   ];
 
   return (
-    <section className="mx-auto max-w-6xl px-5 py-16 lg:py-24">
-      <div className="sn-card-sand relative overflow-hidden px-6 py-12 sm:px-12 sm:py-16">
-        {/* La foto entra por el borde derecho y se disuelve: el texto siempre
-            cae sobre arena limpia, a cualquier ancho. */}
+    // El campo de color va a todo el ancho y la tarjeta flota encima. Es el
+    // recurso que usa Siena en su bloque de dato, y el que le da a una página
+    // de puro papel el único momento de color que necesita.
+    <section className="sn-full relative overflow-hidden py-16 lg:py-24">
+      <Image
+        src="/portada-b/fondo-arena.jpg"
+        alt=""
+        fill
+        sizes="100vw"
+        className="object-cover"
+        aria-hidden
+      />
+      <div className="relative mx-auto max-w-6xl px-5">
         <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[38%] lg:block"
-          style={{
-            maskImage: "linear-gradient(to left, #000 45%, transparent)",
-            WebkitMaskImage: "linear-gradient(to left, #000 45%, transparent)",
-          }}
+          className="rounded-[26px] px-6 py-12 backdrop-blur-[2px] sm:px-12 sm:py-16"
+          style={{ background: "rgba(250,247,241,0.9)" }}
         >
-          <Image
-            src="/portada-b/intencion.jpg"
-            alt=""
-            fill
-            sizes="38vw"
-            className="object-cover object-center"
-            style={{ opacity: 0.85 }}
-          />
-        </div>
-
-        <div className="relative">
           <Label>{t("landingV4.pillarsLabel")}</Label>
           <h2 className="sn-h2 mt-5 max-w-[13ch]">{t("landingV4.pillarsTitle")}</h2>
-          <p className="sn-lead mt-6 max-w-[30ch]">{t("landingV4.pillarsLead")}</p>
+          <p className="sn-lead mt-6 max-w-[34ch]">{t("landingV4.pillarsLead")}</p>
 
           <div className="mt-14 grid gap-8 sm:grid-cols-3 sm:gap-8">
             {PILARES.map((pil) => (
               <div key={pil.l} className="border-t pt-5" style={{ borderColor: "var(--sn-line)" }}>
-                <p
-                  className="sn-h3 !text-[clamp(21px,2vw,27px)]"
-                  style={{ color: "var(--sn-ink)" }}
-                >
+                <p className="sn-h3 !text-[clamp(21px,2vw,27px)]" style={{ color: "var(--sn-ink)" }}>
                   {t(pil.l)}
                 </p>
                 <p className="sn-body mt-3 !text-[15px]">{t(pil.b)}</p>
@@ -456,28 +449,35 @@ function Channels() {
 function Cta() {
   const t = useT();
   return (
-    <section id="acceso" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-16 pt-4 lg:pb-24">
-      <div
-        className="rounded-[26px] px-6 py-16 text-center sm:px-12 lg:py-24"
-        style={{ background: "var(--sn-ink)" }}
-      >
-        <Rise>
-          <h2
-            className="sn-h2 mx-auto max-w-[16ch]"
-            style={{ color: "var(--sn-card)" }}
-          >
-            {t("landingV4.ctaTitle")}
-          </h2>
-          <p
-            className="mx-auto mt-5 max-w-[44ch] text-[16px] leading-relaxed"
-            style={{ color: "rgba(250,247,241,0.66)" }}
-          >
-            {t("landingV4.ctaBody")}
-          </p>
-        </Rise>
+    <section id="acceso" className="sn-full relative scroll-mt-24 overflow-hidden py-16 lg:py-24">
+      <Image
+        src="/portada-b/fondo-noche.jpg"
+        alt=""
+        fill
+        sizes="100vw"
+        className="object-cover"
+        aria-hidden
+      />
+      <div className="relative mx-auto max-w-6xl px-5">
+        <div
+          className="rounded-[26px] px-6 py-16 text-center backdrop-blur-[2px] sm:px-12 lg:py-24"
+          style={{ background: "rgba(18,32,31,0.86)" }}
+        >
+          <Rise>
+            <h2 className="sn-h2 mx-auto max-w-[17ch]" style={{ color: "var(--sn-card)" }}>
+              {t("landingV4.ctaTitle")}
+            </h2>
+            <p
+              className="mx-auto mt-5 max-w-[44ch] text-[16px] leading-relaxed"
+              style={{ color: "rgba(250,247,241,0.66)" }}
+            >
+              {t("landingV4.ctaBody")}
+            </p>
+          </Rise>
 
-        <div className="mx-auto mt-10 flex max-w-md justify-center">
-          <WaitlistForm tone="dark" />
+          <div className="mx-auto mt-10 flex max-w-md justify-center">
+            <WaitlistForm tone="dark" />
+          </div>
         </div>
       </div>
     </section>

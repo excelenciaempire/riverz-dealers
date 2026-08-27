@@ -149,7 +149,21 @@
   border-radius: var(--sn-radius);
 }
 
-/* ── La escena: tres actos que pasan con el scroll ───────── */
+/* ── A todo el ancho ──────────────────────────────────────
+   Rompe la caja de 72rem y llega a los dos bordes de la
+   ventana. Se usa donde el bloque TIENE que sentirse como
+   otra pantalla y no como una tarjeta más en la grilla.
+
+   Va con 100% y no con 100vw a propósito: `100vw` incluye el
+   ancho de la barra de desplazamiento, así que en Windows la
+   sección sobresale unos quince píxeles y toda la página se
+   puede correr de lado. El padre ya ocupa el ancho entero. */
+.sn-full {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ── La escena: cinco actos que pasan con el scroll ───────── */
 
 .sn-scene {
   height: auto;

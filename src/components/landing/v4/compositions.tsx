@@ -146,7 +146,6 @@ const TIENDAS = [
   { src: "/channels/shopify.svg", label: "Shopify" },
   { src: "/channels/woocommerce.svg", label: "WooCommerce" },
   { src: "/channels/tiendanube.svg", label: "Tiendanube" },
-  { src: "/channels/dropi.png", label: "Dropi" },
 ];
 
 export function CompTienda({ foto }: { foto?: string }) {
@@ -158,7 +157,7 @@ export function CompTienda({ foto }: { foto?: string }) {
         preserveAspectRatio="none"
         className="absolute inset-0 size-full"
       >
-        {[16, 38, 60, 82].map((y) => (
+        {[20, 46, 72].map((y) => (
           <path
             key={y}
             d={`M 26 ${y} C 46 ${y}, 52 37.5, 72 37.5`}

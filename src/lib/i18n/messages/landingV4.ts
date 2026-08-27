@@ -210,42 +210,32 @@ export const landingV4 = {
 
   // ── Operator ──
   operatorLabel: { es: "Operator", en: "Operator" },
+  // Este bloque va a todo el ancho y con la mínima cantidad de texto posible:
+  // la animación tiene que contar la función sola. Un titular, una línea y el
+  // chat. Lo que antes eran tres viñetas ahora lo dice el propio reparto.
   operatorTitle: {
     es: "No lo configuras. Se lo pides.",
     en: "You don't configure it. You ask it.",
   },
-  operatorBody: {
-    es: "Escribes lo que necesitas como se lo dirías a un empleado. Riverz lo reparte entre catorce especialistas —uno de automatizaciones, otro de campañas, otro de productos— te muestra el reparto completo, y solo cuando lo apruebas se pone a trabajar.",
-    en: "You write what you need the way you'd tell an employee. Riverz splits it across fourteen specialists — one for automations, one for campaigns, one for products — shows you the whole split, and only starts working once you approve it.",
-  },
-  operatorP1: {
-    es: "Cada especialista solo puede tocar lo suyo",
-    en: "Each specialist can only touch its own area",
-  },
-  operatorP2: {
-    es: "Ves el reparto entero antes de que corra",
-    en: "You see the whole split before it runs",
-  },
-  operatorP3: {
-    es: "Lo que le llegue a un cliente te lo pregunta aparte",
-    en: "Anything that reaches a customer gets asked separately",
+  operatorLead: {
+    es: "Le hablas como a un empleado. Catorce especialistas se reparten el trabajo y tú apruebas.",
+    en: "You talk to it like you'd talk to an employee. Fourteen specialists split the work, and you approve.",
   },
 
+  // Lo que se escribe y lo que contesta, dentro de la animación.
   opPrompt: {
     es: "Recupera los carritos de esta semana",
     en: "Recover this week's abandoned carts",
   },
-  opPlanTitle: { es: "Plan de trabajo", en: "Work plan" },
+  opLine1: { es: "Segmenté 1.284 carritos de 7 días", en: "Segmented 1,284 carts from the last 7 days" },
+  opLine2: { es: "Escribí el mensaje con el producto", en: "Wrote the message with the product" },
+  opLine3: { es: "Programé el envío a las 3 horas", en: "Scheduled the send for 3 hours later" },
+  opAsk: { es: "¿Lo activo?", en: "Shall I turn it on?" },
   opApprove: { es: "Aprobar", en: "Approve" },
-  opWorking: { es: "Trabajando…", en: "Working…" },
-  opDone: { es: "Listo", en: "Done" },
   opNote: {
-    es: "Lo que le llegue a un cliente te lo pregunta aparte.",
-    en: "Anything that reaches a customer is asked separately.",
+    es: "Nada le llega a un cliente sin que lo apruebes.",
+    en: "Nothing reaches a customer without your approval.",
   },
-  opTask1: { es: "Segmentar los carritos de 7 días", en: "Segment 7-day abandoned carts" },
-  opTask2: { es: "Escribir el mensaje con el producto", en: "Write the message with the product" },
-  opTask3: { es: "Prender el envío a las 3 horas", en: "Schedule the send for 3 hours later" },
 
   // ── La banda: un respiro entre la lista y los canales ──
   // Sale de los territorios creativos del documento. Es la frase más corta que
