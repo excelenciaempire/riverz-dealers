@@ -31,6 +31,28 @@ export const dashboard = {
     en: "{orders} orders · {share}% of sales",
   },
   roiRevenueNone: { es: "Todavía sin ventas atribuidas", en: "No attributed sales yet" },
+
+  // La cifra, abierta: de dónde sale cada peso.
+  attrDetailTitle: { es: "De dónde sale esta cifra", en: "Where this number comes from" },
+  attrModel: {
+    es: "Cuenta el pedido completo de quien recibió un mensaje de Riverz en las 72 h previas a comprar. Cada pedido se cuenta una sola vez.",
+    en: "Counts the full order of anyone who got a Riverz message in the 72h before buying. Each order is counted once.",
+  },
+  attrByRiverz: { es: "Por Riverz", en: "From Riverz" },
+  attrOrders: { es: "Pedidos", en: "Orders" },
+  attrStoreTotal: { es: "Ventas de la tienda", en: "Store sales" },
+  attrEmpty: {
+    es: "Ningún pedido de este rango se puede rastrear hasta un mensaje de Riverz.",
+    en: "No order in this range traces back to a Riverz message.",
+  },
+  attrTruncated: {
+    es: "Se muestran los {n} pedidos más grandes. El total los cuenta todos.",
+    en: "Showing the {n} largest orders. The total counts them all.",
+  },
+  attrCaveat: {
+    es: "Es último toque, no causalidad: quien compró había hablado con Riverz antes. No incluye el Agente de IG, que mide aparte con grupo de control.",
+    en: "Last touch, not causation: the buyer had talked to Riverz first. Excludes the IG agent, which measures separately with a control group.",
+  },
   roiStoreRevenue: { es: "Ventas de la tienda", en: "Store sales" },
   roiAov: { es: "Ticket promedio", en: "Average order value" },
   roiAiReplies: { es: "Contestó la IA", en: "Answered by AI" },

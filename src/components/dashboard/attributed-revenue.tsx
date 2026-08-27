@@ -52,7 +52,7 @@ export function AttributedRevenue({ data }: { data: Atribucion | null }) {
         {total && total.orders > 0 && (
           <p className="text-xs text-muted-foreground">
             {t('health.revenueAttributedTotal', {
-              total: fmt.currency(total.revenue, total.currency),
+              total: fmt.money(total.revenue, total.currency),
               orders: total.orders,
             })}
           </p>
@@ -74,7 +74,7 @@ export function AttributedRevenue({ data }: { data: Atribucion | null }) {
             <span className="shrink-0 tabular-nums text-muted-foreground">
               {row.orders_count} ·{' '}
               <span className="font-medium text-foreground">
-                {fmt.currency(row.revenue, row.currency)}
+                {fmt.money(row.revenue, row.currency)}
               </span>
             </span>
           </li>

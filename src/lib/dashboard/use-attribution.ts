@@ -19,6 +19,25 @@ export interface AttrRow {
   currency: string
 }
 
+/** Qué clase de cosa tocó el pedido. Viaja como código; la UI lo traduce. */
+export type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent'
+
+/**
+ * Un pedido atribuido, con lo que lo tocó. Es el renglón que sostiene la cifra
+ * de arriba: pedido, comprador, monto y qué mensaje de Riverz llegó antes.
+ */
+export interface AttributedOrder {
+  id: string
+  /** Cómo lo nombra la tienda: "#1042". */
+  reference: string
+  created_at: string
+  revenue: number
+  currency: string
+  contact: string | null
+  contact_id: string
+  sources: Array<{ kind: SourceKind; name: string; at: string }>
+}
+
 export interface Atribucion {
   by_broadcast: AttrRow[]
   by_flow: AttrRow[]
@@ -34,6 +53,10 @@ export interface Atribucion {
   }
   /** Las que pasaron por Riverz, contando cada pedido una vez. */
   attributed?: { revenue: number; orders: number; currency: string }
+  /** Los pedidos de esa cifra, uno por uno. Los más caros primero. */
+  attributed_orders?: AttributedOrder[]
+  /** Hubo más pedidos que los que viajaron en la lista. */
+  attributed_orders_truncated?: boolean
   not_connected?: boolean
 }
 

@@ -6,6 +6,7 @@ import {
   formatCurrency,
   formatDate,
   formatDateTime,
+  formatMoney,
   formatNumber,
   formatTime,
 } from "@/lib/i18n/format";
@@ -33,6 +34,8 @@ export function useFormat() {
       number: (v: number, opts?: Intl.NumberFormatOptions) => formatNumber(v, locale, opts),
       currency: (v: number, currency?: string, opts?: Intl.NumberFormatOptions) =>
         formatCurrency(v, locale, currency, opts),
+      /** Igual que `currency` pero sin centavos: para totales y métricas. */
+      money: (v: number, currency?: string) => formatMoney(v, locale, currency),
     }),
     [locale],
   );

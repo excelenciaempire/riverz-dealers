@@ -21,6 +21,13 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 
 export interface ShopifyOrder {
   id: number;
+  /**
+   * Cómo llama la tienda a ese pedido ("#1042"). El id interno no le dice
+   * nada a nadie: para verificar una atribución hay que poder buscar el
+   * pedido en la tienda, y se busca por este número.
+   */
+  name?: string | null;
+  order_number?: number | null;
   email?: string;
   phone?: string;
   total_price?: string;

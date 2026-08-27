@@ -73,6 +73,39 @@ interface Attributed {
   currency: string;
 }
 
+/** Qué clase de cosa tocó el pedido. La UI la traduce; acá viaja el código. */
+type SourceKind = 'automation' | 'broadcast' | 'flow' | 'agent';
+
+/**
+ * Un pedido atribuido, con lo que lo tocó y cuándo.
+ *
+ * La cifra de arriba es una suma, y una suma no se puede verificar. Esto es el
+ * renglón por renglón que la sostiene: qué pedido, de quién, por cuánto, y qué
+ * mensaje de Riverz llegó antes. Con esto el comercio abre su tienda, busca el
+ * pedido por su número y comprueba que la plata que decimos existe.
+ */
+interface AttributedOrder {
+  id: string;
+  /** "#1042" cuando la tienda lo nombra; si no, el id interno. */
+  reference: string;
+  created_at: string;
+  revenue: number;
+  currency: string;
+  /** Quién compró: nombre del contacto, o su correo/teléfono. */
+  contact: string | null;
+  contact_id: string;
+  sources: Array<{ kind: SourceKind; name: string; at: string }>;
+}
+
+/**
+ * Cuántos pedidos viajan con su detalle.
+ *
+ * El total los cuenta todos; esta lista es para mirar. Mandar 3.000 renglones
+ * a un panel que ya hace una consulta por pedido no ayuda a nadie, y nadie
+ * audita a ojo más de un par de cientos. Van los más caros primero.
+ */
+const MAX_DETALLE = 200;
+
 const EMPTY_TOTALS: CommerceTotals = {
   revenue: { current: 0, previous: 0 },
   orders: { current: 0, previous: 0 },
@@ -89,6 +122,8 @@ function emptyResponse(days: number) {
     by_instagram_agent: [] as AttrRow[],
     totals: EMPTY_TOTALS,
     attributed: { revenue: 0, orders: 0, currency: 'USD' } as Attributed,
+    attributed_orders: [] as AttributedOrder[],
+    attributed_orders_truncated: false,
   };
 }
 
@@ -232,24 +267,31 @@ export async function GET(request: Request) {
   );
   const { data: contactsByEmail } = await admin
     .from('contacts')
-    .select('id, email, phone')
+    .select('id, name, email, phone')
     .eq('workspace_id', workspaceId)
     .in('email', emails.length > 0 ? emails : ['__none__']);
   const { data: contactsByPhone } = await admin
     .from('contacts')
-    .select('id, email, phone')
+    .select('id, name, email, phone')
     .eq('workspace_id', workspaceId)
     .in('phone', phones.length > 0 ? phones : ['__none__']);
 
+  // Cómo se llama cada contacto, para el detalle. Sin esto el renglón dice un
+  // uuid, que no le sirve a nadie para reconocer al comprador.
+  const nombreDeContacto = new Map<string, string>();
   const emailToContact = new Map<string, string>();
   for (const c of contactsByEmail ?? []) {
-    const row = c as { id: string; email?: string };
+    const row = c as { id: string; name?: string | null; email?: string };
     if (row.email) emailToContact.set(row.email.toLowerCase(), row.id);
+    const etiqueta = row.name?.trim() || row.email || '';
+    if (etiqueta) nombreDeContacto.set(row.id, etiqueta);
   }
   const phoneToContact = new Map<string, string>();
   for (const c of contactsByPhone ?? []) {
-    const row = c as { id: string; phone?: string };
+    const row = c as { id: string; name?: string | null; phone?: string };
     if (row.phone) phoneToContact.set(normPhone(row.phone) ?? '', row.id);
+    const etiqueta = row.name?.trim() || row.phone || '';
+    if (etiqueta && !nombreDeContacto.has(row.id)) nombreDeContacto.set(row.id, etiqueta);
   }
 
   // Por cada orden buscamos su contacto y atribuimos a la última campaña,
@@ -259,6 +301,7 @@ export async function GET(request: Request) {
   const byAutomation = new Map<string, AttrRow>();
   const byAgent = new Map<string, AttrRow>();
   const attributed: Attributed = { revenue: 0, orders: 0, currency: totals.currency };
+  const detalle: AttributedOrder[] = [];
 
   /**
    * Las conversaciones de cada contacto, para la lente del asistente.
@@ -294,13 +337,14 @@ export async function GET(request: Request) {
     const total = Number(order.total_price ?? '0');
     const currency = order.currency || 'USD';
     // Este pedido, ¿lo tocó algo de Riverz? Basta con una lente para contarlo,
-    // y tres no lo cuentan tres veces.
-    let tocado = false;
+    // y tres no lo cuentan tres veces. `fuentes` guarda TODAS las que lo
+    // tocaron: es lo que se muestra al abrir la cifra.
+    const fuentes: AttributedOrder['sources'] = [];
 
     // Last broadcast send to this contact in the lookback window.
     const { data: bcRow } = await admin
       .from('broadcast_recipients')
-      .select('broadcast_id, broadcasts(name)')
+      .select('broadcast_id, sent_at, broadcasts(name)')
       .eq('contact_id', cId)
       .gte('sent_at', lookback)
       .lte('sent_at', order.created_at)
@@ -308,22 +352,21 @@ export async function GET(request: Request) {
       .limit(1)
       .maybeSingle();
     if (bcRow) {
-      const row = bcRow as { broadcast_id: string; broadcasts: { name?: string } | { name?: string }[] };
+      const row = bcRow as {
+        broadcast_id: string;
+        sent_at: string;
+        broadcasts: { name?: string } | { name?: string }[];
+      };
       const join = Array.isArray(row.broadcasts) ? row.broadcasts[0] : row.broadcasts;
-      accumulate(
-        byBroadcast,
-        row.broadcast_id,
-        join?.name ?? translate(locale, 'errInbox.broadcastFallback'),
-        total,
-        currency,
-      );
-      tocado = true;
+      const nombre = join?.name ?? translate(locale, 'errInbox.broadcastFallback');
+      accumulate(byBroadcast, row.broadcast_id, nombre, total, currency);
+      fuentes.push({ kind: 'broadcast', name: nombre, at: row.sent_at });
     }
 
     // Last flow run for this contact in the lookback window.
     const { data: frRow } = await admin
       .from('flow_runs')
-      .select('flow_id, flows(name)')
+      .select('flow_id, started_at, flows(name)')
       .eq('contact_id', cId)
       .eq('workspace_id', workspaceId)
       .gte('started_at', lookback)
@@ -332,22 +375,21 @@ export async function GET(request: Request) {
       .limit(1)
       .maybeSingle();
     if (frRow) {
-      const row = frRow as { flow_id: string; flows: { name?: string } | { name?: string }[] };
+      const row = frRow as {
+        flow_id: string;
+        started_at: string;
+        flows: { name?: string } | { name?: string }[];
+      };
       const join = Array.isArray(row.flows) ? row.flows[0] : row.flows;
-      accumulate(
-        byFlow,
-        row.flow_id,
-        join?.name ?? translate(locale, 'errInbox.flowFallback'),
-        total,
-        currency,
-      );
-      tocado = true;
+      const nombre = join?.name ?? translate(locale, 'errInbox.flowFallback');
+      accumulate(byFlow, row.flow_id, nombre, total, currency);
+      fuentes.push({ kind: 'flow', name: nombre, at: row.started_at });
     }
 
     // Last successful/partial automation run for this contact in the window.
     const { data: autoRow } = await admin
       .from('automation_logs')
-      .select('automation_id, automations(name)')
+      .select('automation_id, created_at, automations(name)')
       .eq('contact_id', cId)
       .eq('workspace_id', workspaceId)
       .in('status', ['success', 'partial'])
@@ -357,16 +399,15 @@ export async function GET(request: Request) {
       .limit(1)
       .maybeSingle();
     if (autoRow) {
-      const row = autoRow as { automation_id: string; automations: { name?: string } | { name?: string }[] };
+      const row = autoRow as {
+        automation_id: string;
+        created_at: string;
+        automations: { name?: string } | { name?: string }[];
+      };
       const join = Array.isArray(row.automations) ? row.automations[0] : row.automations;
-      accumulate(
-        byAutomation,
-        row.automation_id,
-        join?.name ?? translate(locale, 'errInbox.automationFallback'),
-        total,
-        currency,
-      );
-      tocado = true;
+      const nombre = join?.name ?? translate(locale, 'errInbox.automationFallback');
+      accumulate(byAutomation, row.automation_id, nombre, total, currency);
+      fuentes.push({ kind: 'automation', name: nombre, at: row.created_at });
     }
 
     // La última respuesta del asistente a este contacto, en la ventana.
@@ -379,7 +420,7 @@ export async function GET(request: Request) {
     if (convs.length > 0) {
       const { data: aiRow } = await admin
         .from('ai_replies')
-        .select('agent_id, ai_agents(name)')
+        .select('agent_id, created_at, ai_agents(name)')
         .eq('workspace_id', workspaceId)
         .eq('status', 'sent')
         .in('conversation_id', convs.slice(0, 50))
@@ -391,28 +432,39 @@ export async function GET(request: Request) {
       if (aiRow) {
         const row = aiRow as {
           agent_id: string | null;
+          created_at: string;
           ai_agents: { name?: string } | { name?: string }[] | null;
         };
         const join = Array.isArray(row.ai_agents) ? row.ai_agents[0] : row.ai_agents;
-        accumulate(
-          byAgent,
-          row.agent_id ?? 'sin-agente',
-          join?.name ?? translate(locale, 'errInbox.agentFallback'),
-          total,
-          currency,
-        );
-        tocado = true;
+        const nombre = join?.name ?? translate(locale, 'errInbox.agentFallback');
+        accumulate(byAgent, row.agent_id ?? 'sin-agente', nombre, total, currency);
+        fuentes.push({ kind: 'agent', name: nombre, at: row.created_at });
       }
     }
 
-    if (tocado) {
+    if (fuentes.length > 0) {
       attributed.orders += 1;
       attributed.revenue += total;
       attributed.currency = currency;
+      detalle.push({
+        id: String(order.id),
+        reference:
+          order.name?.trim() ||
+          (order.order_number != null ? `#${order.order_number}` : `#${order.id}`),
+        created_at: order.created_at,
+        revenue: total,
+        currency,
+        contact: nombreDeContacto.get(cId) ?? null,
+        contact_id: cId,
+        // Lo más reciente primero: el mensaje que llegó último es el que
+        // mejor explica la compra.
+        sources: fuentes.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+      });
     }
   }
 
   attributed.revenue = Math.round(attributed.revenue * 100) / 100;
+  detalle.sort((a, b) => b.revenue - a.revenue);
 
   return NextResponse.json({
     days,
@@ -423,6 +475,8 @@ export async function GET(request: Request) {
     by_instagram_agent,
     totals,
     attributed,
+    attributed_orders: detalle.slice(0, MAX_DETALLE),
+    attributed_orders_truncated: detalle.length > MAX_DETALLE,
   });
 }
 

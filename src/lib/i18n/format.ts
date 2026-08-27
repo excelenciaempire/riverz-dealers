@@ -91,3 +91,22 @@ export function formatCurrency(
     ...opts,
   }).format(value);
 }
+
+/**
+ * Plata sin centavos: 1.499.730 ARS, no 1.499.730,00 ARS.
+ *
+ * Para un precio los centavos son el precio; para una métrica son dos dígitos
+ * que siempre dicen "00" y que le roban peso a la cifra que importa. Se usa
+ * en totales y agregados (paneles, atribución, reportes) — nunca en el precio
+ * de un producto ni en el total de un pedido concreto que el cliente paga.
+ */
+export function formatMoney(
+  value: number,
+  locale: Locale,
+  currency = "USD",
+): string {
+  return formatCurrency(value, locale, currency, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}

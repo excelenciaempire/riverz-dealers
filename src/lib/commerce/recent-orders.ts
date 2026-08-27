@@ -90,6 +90,7 @@ interface PedidoTn {
 function deTiendanube(p: PedidoTn): ShopifyOrder {
   return {
     id: p.id ?? p.number ?? 0,
+    order_number: p.number ?? null,
     email: p.contact_email ?? undefined,
     phone: p.contact_phone ?? undefined,
     total_price: p.total ?? '0',
@@ -111,6 +112,7 @@ function deTiendanube(p: PedidoTn): ShopifyOrder {
 
 interface PedidoWoo {
   id?: number
+  number?: string
   total?: string
   currency?: string
   date_created?: string
@@ -126,6 +128,7 @@ function deWoo(p: PedidoWoo): ShopifyOrder {
   const tel = p.billing?.phone ?? undefined
   return {
     id: p.id ?? 0,
+    name: p.number ? `#${p.number}` : null,
     email: correo,
     phone: tel,
     total_price: p.total ?? '0',

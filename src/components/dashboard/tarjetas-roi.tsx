@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { Bot, Inbox, MessageSquare, Send, Sparkles, UserPlus } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
 import { MetricCard } from '@/components/dashboard/metric-card'
+import { DetalleAtribucion } from '@/components/dashboard/detalle-atribucion'
 import type { Atribucion } from '@/lib/dashboard/use-attribution'
 import type { MetricsBundle } from '@/lib/dashboard/types'
 
@@ -38,6 +40,7 @@ export function TarjetasRoi({
 }) {
   const t = useT()
   const fmt = useFormat()
+  const [detalle, setDetalle] = useState(false)
 
   const cargando = atribucion === null
   const sinTienda = !cargando && atribucion.not_connected === true
@@ -58,12 +61,19 @@ export function TarjetasRoi({
           value={
             cargando
               ? '—'
-              : fmt.currency(
+              : // Sin centavos: el "00" de una cifra grande no cambia
+                // ninguna decisión y le roba peso al número que importa.
+                fmt.money(
                   porRiverz?.revenue ?? 0,
                   porRiverz?.currency ?? atribucion?.totals?.currency,
                 )
           }
           icon={Sparkles}
+          // Se abre para ver pedido por pedido de dónde sale. Una cifra que no
+          // se puede verificar no se termina de creer.
+          onClick={
+            porRiverz && porRiverz.orders > 0 ? () => setDetalle(true) : undefined
+          }
           subtitle={
             cargando
               ? undefined
@@ -79,6 +89,9 @@ export function TarjetasRoi({
           }
         />
       )}
+
+      <DetalleAtribucion data={atribucion} abierto={detalle} onAbierto={setDetalle} />
+
 
       <MetricCard
         title={t('dashboard.conversations')}

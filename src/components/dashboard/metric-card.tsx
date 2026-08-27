@@ -19,11 +19,31 @@ interface MetricCardProps {
   }
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
+  /**
+   * Cuando la cifra se puede abrir para ver de dónde sale. La tarjeta pasa a
+   * ser un botón: una cifra que no se puede verificar no se termina de creer.
+   */
+  onClick?: () => void
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
+export function MetricCard({
+  title,
+  value,
+  icon: Icon,
+  delta,
+  subtitle,
+  onClick,
+}: MetricCardProps) {
+  const Root = onClick ? 'button' : 'div'
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <Root
+      {...(onClick ? { type: 'button' as const, onClick } : {})}
+      className={cn(
+        'rounded-xl border border-border bg-card p-5',
+        onClick &&
+          'w-full cursor-pointer text-left transition-colors hover:border-foreground/25 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+      )}
+    >
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -36,7 +56,7 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle }: Metric
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
         <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
       ) : null}
-    </div>
+    </Root>
   )
 }
 
