@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   armarEvento,
+  contarVentaEnMeta,
   correoNormalizado,
   telefonoNormalizado,
 } from './meta-conversions'
+
+vi.mock('@/lib/whatsapp/encryption', () => ({ decrypt: (v: string) => v }))
 
 /**
  * El evento que le cuenta a Meta una venta cerrada en el chat.
@@ -108,5 +112,60 @@ describe('el evento de compra', () => {
   it('el tiempo va en segundos, no en milisegundos', () => {
     // En milisegundos Meta lo lee como un evento del año 58.000 y lo rechaza.
     expect(e.event_time).toBe(Math.floor(1787700000000 / 1000))
+  })
+})
+
+/**
+ * Los DOS ids del pedido, que no son el mismo y no son intercambiables.
+ *
+ * `event_id` es el de la TIENDA: texto, y lo único que comparte con el píxel
+ * del checkout, así que es lo que deduplica. `order_id` es el uuid de la fila
+ * espejo en `orders`, y es una clave foránea.
+ *
+ * Meterle el de la tienda a la columna uuid no da un error visible en ningún
+ * lado: el insert entero rebota con "invalid input syntax for type uuid", la
+ * función devuelve `error_db`, y como nadie espera esta promesa la venta
+ * simplemente no se cuenta. Pasó, y sólo se vio leyendo el registro del
+ * servidor.
+ */
+describe('los dos ids del pedido', () => {
+  let insertado: Record<string, unknown> | null = null
+
+  function dbFalsa(): SupabaseClient {
+    const cadena: Record<string, unknown> = {}
+    for (const m of ['select', 'eq', 'limit', 'update']) {
+      cadena[m] = () => cadena
+    }
+    cadena.maybeSingle = async () => ({
+      data: { external_account_id: '123', api_key_encrypted: 'tok', is_active: true },
+      error: null,
+    })
+    cadena.insert = async (fila: Record<string, unknown>) => {
+      insertado = fila
+      return { error: null }
+    }
+    return { from: () => cadena } as unknown as SupabaseClient
+  }
+
+  beforeEach(() => {
+    insertado = null
+    vi.stubGlobal('fetch', async () => new Response('{}', { status: 200 }))
+  })
+
+  it('el de la tienda va a event_id y el uuid del espejo a order_id', async () => {
+    await contarVentaEnMeta(dbFalsa(), {
+      ...VENTA,
+      orderRowId: '11111111-2222-3333-4444-555555555555',
+    })
+    expect(insertado?.event_id).toBe('6722673148043')
+    expect(insertado?.order_id).toBe('11111111-2222-3333-4444-555555555555')
+  })
+
+  it('sin espejo la columna uuid queda nula, nunca con el id de la tienda', async () => {
+    // El pedido puede existir en la tienda y todavía no tener fila acá. Eso no
+    // puede impedir que la venta se cuente.
+    await contarVentaEnMeta(dbFalsa(), VENTA)
+    expect(insertado?.order_id).toBeNull()
+    expect(insertado?.event_id).toBe('6722673148043')
   })
 })

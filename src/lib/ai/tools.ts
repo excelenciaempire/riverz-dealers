@@ -1469,22 +1469,44 @@ export async function runTool(
         })
       }
       const cantidad = Number(primero?.quantity ?? input.quantity ?? 1)
-      // La ficha pública, que es lo único que se puede mandar en Tiendanube.
-      // El modelo nombra el producto con el id que le dio `buscar_producto`:
-      // el de la tienda si es numérico, el de Riverz si es un uuid.
-      const porNumero = /^\d+$/.test(id)
+      // Cada tienda quiere un id distinto, y el modelo tiene UNO solo.
+      //
+      // `buscar_producto` le da el de la primera VARIANTE, que es lo que
+      // necesitan `create_order` y el carrito de WooCommerce. Pero el carrito
+      // de Tiendanube quiere el id del PRODUCTO: pasarle el de la variante da
+      // "Product could not be found" y el link no agrega nada. Así que acá se
+      // resuelve contra el catálogo en vez de confiar en cuál mandó.
       const { data: fila } = await localOrders.db
         .from('shopify_products')
-        .select('url, title')
+        .select('url, title, external_id, raw')
         .eq('workspace_id', localOrders.workspaceId)
-        .eq(porNumero ? 'external_id' : 'id', id)
+        .or(
+          /^\d+$/.test(id)
+            ? `external_id.eq.${id},raw.cs.{"variants":[{"id":${id}}]}`
+            : `id.eq.${id}`,
+        )
         .limit(1)
         .maybeSingle()
+      const p = fila as {
+        url?: string | null
+        external_id?: number | string | null
+        raw?: { variants?: Array<{ id?: number | string }> } | null
+      } | null
+      const esTiendanube = (otherStore.platform || '').toLowerCase() === 'tiendanube'
+      const idParaLaTienda = esTiendanube
+        ? String(p?.external_id ?? id)
+        : // Woo quiere la VARIACIÓN. Si llegó el id del producto, se usa su
+          // primera variante, que es la misma que ofrece `buscar_producto`.
+          String(
+            /^\d+$/.test(id) && String(p?.external_id ?? '') !== id
+              ? id
+              : (p?.raw?.variants?.[0]?.id ?? id),
+          )
       const link = armarLinkDeCompra({
         tienda: otherStore,
-        id,
+        id: idParaLaTienda,
         cantidad,
-        productUrl: (fila as { url?: string } | null)?.url ?? null,
+        productUrl: p?.url ?? null,
       })
       if (!link) {
         return JSON.stringify({

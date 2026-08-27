@@ -58,6 +58,16 @@ export async function contarLaVenta(
     }
   }
 
+  // La fila espejo, para poder mirar el evento desde el pedido. Es un uuid y el
+  // id de la tienda no lo es: mezclarlos hacía fallar el insert entero.
+  const { data: espejo } = await db
+    .from('orders')
+    .select('id')
+    .eq('workspace_id', args.workspaceId)
+    .eq('shopify_order_id', String(args.orderId))
+    .limit(1)
+    .maybeSingle()
+
   const partes = (args.cliente?.nombre ?? '').trim().split(/\s+/)
   await contarVentaEnMeta(db, {
     workspaceId: args.workspaceId,
@@ -65,6 +75,7 @@ export async function contarLaVenta(
     // navegador cuando la compra sí pasa por el checkout, así que es lo único
     // que permite que Meta descarte el duplicado y cuente la venta una vez.
     orderId: String(args.orderId),
+    orderRowId: (espejo as { id?: string } | null)?.id ?? null,
     conversationId: args.conversationId ?? null,
     value: valor,
     currency: args.currency || 'USD',

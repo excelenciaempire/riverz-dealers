@@ -71,8 +71,18 @@ export interface SenalesDelNavegador {
 
 export interface VentaParaMeta {
   workspaceId: string
-  /** El id del pedido: es lo que deduplica contra el píxel del checkout. */
+  /**
+   * El id del pedido EN LA TIENDA. Es lo que deduplica contra el píxel del
+   * checkout, y por eso viaja como `event_id` — texto, no uuid.
+   */
   orderId: string
+  /**
+   * El uuid de la fila espejo en `orders`, cuando se conoce. Es OTRO id: la
+   * columna es una clave foránea, y meterle el de la tienda hace fallar el
+   * insert entero con "invalid input syntax for type uuid" — o sea, la venta
+   * no se cuenta y nadie se entera.
+   */
+  orderRowId?: string | null
   conversationId?: string | null
   value: number
   currency: string
@@ -201,7 +211,7 @@ export async function contarVentaEnMeta(
     destino: 'meta',
     event_name: 'Purchase',
     event_id: v.orderId,
-    order_id: v.orderId,
+    order_id: v.orderRowId ?? null,
     conversation_id: v.conversationId ?? null,
     value: v.value,
     currency: v.currency,

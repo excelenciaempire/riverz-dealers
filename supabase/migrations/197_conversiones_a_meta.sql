@@ -23,6 +23,19 @@ alter table conversations
 comment on column conversations.marketing is
   'Señales del navegador para atribuir la venta: fbp, fbc, user_agent, ip y la URL donde empezó. Las captura el widget en la tienda; se usan en la API de Conversiones de Meta.';
 
+-- 1.b Y dónde se guarda el píxel del comercio.
+--
+-- `workspace_integrations` ya tiene la forma exacta: un id externo público, una
+-- credencial cifrada y un interruptor. Lo único que faltaba era dejar entrar el
+-- proveedor nuevo — su CHECK sólo aceptaba 'klaviyo' y 'mercadopago', así que
+-- guardar el píxel fallaba con una violación de restricción.
+alter table workspace_integrations
+  drop constraint if exists workspace_integrations_provider_check;
+
+alter table workspace_integrations
+  add constraint workspace_integrations_provider_check
+  check (provider = any (array['klaviyo', 'mercadopago', 'meta_pixel']));
+
 -- 2. Qué se mandó y qué contestaron.
 --
 -- Con su propia tabla y no un booleano en `orders`: el mismo pedido puede

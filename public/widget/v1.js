@@ -60,7 +60,15 @@
   }
 
   // `ready` = el iframe ya cargó nuestro origen y puede recibir mensajes.
-  var state = { open: false, session: null, settings: null, unread: 0, ready: false };
+  var state = {
+    open: false,
+    session: null,
+    settings: null,
+    unread: 0,
+    ready: false,
+    // La invitación sale UNA vez por visita, gane el disparador que gane.
+    invitado: false,
+  };
 
   // ── Marco ──────────────────────────────────────────────────────
 
@@ -104,6 +112,32 @@
   ].join(';');
   launcher.appendChild(badge);
 
+  /**
+   * La burbuja de invitación. Vive al lado del lanzador y no dentro del
+   * iframe: el iframe no se descarga hasta que alguien abre el chat, y el
+   * sentido de esto es justamente hablarle a quien todavía no lo abrió.
+   */
+  var teaser = document.createElement('button');
+  teaser.type = 'button';
+  teaser.style.cssText = [
+    'position:fixed',
+    'bottom:88px',
+    'max-width:260px',
+    'border:0',
+    'cursor:pointer',
+    'text-align:left',
+    'padding:12px 14px',
+    'border-radius:16px',
+    'background:#fff',
+    'color:#111827',
+    'font:400 13px/1.4 system-ui,-apple-system,Segoe UI,sans-serif',
+    'box-shadow:0 10px 32px rgba(0,0,0,.18)',
+    'display:none',
+    'opacity:0',
+    'transform:translateY(6px)',
+    'transition:opacity .18s ease, transform .18s ease',
+  ].join(';');
+
   var frame = document.createElement('iframe');
   frame.title = 'Chat';
   frame.setAttribute('allow', 'clipboard-write');
@@ -130,6 +164,8 @@
     launcher.style[other] = 'auto';
     frame.style[edge] = '16px';
     frame.style[other] = 'auto';
+    teaser.style[edge] = '20px';
+    teaser.style[other] = 'auto';
   }
 
   /**
@@ -243,6 +279,8 @@
   function open() {
     if (state.open) return;
     state.open = true;
+    state.invitado = true;
+    ocultarTeaser();
     storage(STORAGE_OPEN, '1');
     if (!frame.src) frame.src = frameUrl();
     frame.style.display = 'block';
@@ -295,6 +333,14 @@
   launcher.addEventListener('click', function () {
     if (state.open) close();
     else open();
+  });
+
+  // Tocar la invitación abre el chat. Es el único botón que tiene: cerrarla
+  // sin abrir se hace tocando el lanzador, que es lo que la persona ya sabe
+  // hacer, y una cruz más en una burbuja de dos renglones es ruido.
+  teaser.addEventListener('click', function () {
+    ocultarTeaser();
+    open();
   });
 
   // ── Sesión ─────────────────────────────────────────────────────
@@ -383,13 +429,98 @@
    * pop-up. Lo cerrado se recuerda en el dominio de la tienda, igual que el
    * hilo.
    */
-  function autoAbrir() {
-    var seg = Number((state.settings && state.settings.auto_open_seconds) || 0);
-    if (!seg || seg < 1) return;
+  /**
+   * ¿Vale la pena invitar en ESTA página?
+   *
+   * Con la lista vacía, en todas. Con algo cargado, sólo donde la dirección lo
+   * contiene: un comercio que quiere salir a buscar en las fichas de producto
+   * no quiere hacerlo en el checkout, donde interrumpir cuesta la venta que ya
+   * tenía.
+   */
+  function paginaInvitable() {
+    var urls = (state.settings && state.settings.proactive_urls) || [];
+    if (!urls.length) return true;
+    var aqui = location.pathname + location.search;
+    for (var i = 0; i < urls.length; i++) {
+      if (aqui.indexOf(urls[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  /**
+   * La invitación.
+   *
+   * Con texto, una burbuja al lado del lanzador; sin texto, el panel se abre
+   * como antes. La burbuja existe porque abrir el panel de golpe tapa justo la
+   * ficha que la persona estaba leyendo: es la diferencia entre invitar y
+   * hacer un pop-up. Se muestra UNA vez por visita, nunca si la persona ya
+   * cerró el chat a mano, y desaparece apenas lo abre.
+   */
+  function invitar() {
+    if (state.invitado || state.open) return;
     if (storage(STORAGE_OPEN) === '0') return;
+    if (!paginaInvitable()) return;
+    state.invitado = true;
+    var texto = (state.settings && state.settings.proactive_message) || '';
+    if (!texto) {
+      open();
+      return;
+    }
+    teaser.textContent = texto;
+    teaser.style.display = 'block';
+    requestAnimationFrame(function () {
+      teaser.style.opacity = '1';
+      teaser.style.transform = 'translateY(0)';
+    });
+  }
+
+  function ocultarTeaser() {
+    teaser.style.opacity = '0';
+    teaser.style.transform = 'translateY(6px)';
     setTimeout(function () {
-      if (!state.open) open();
-    }, seg * 1000);
+      teaser.style.display = 'none';
+    }, 180);
+  }
+
+  /**
+   * Cuándo sale a buscar: por tiempo, por intención de salir, o por cuánto
+   * leyó de la página. Los tres apuntan al mismo lugar y el primero que llega
+   * gana — `invitar()` sólo actúa una vez.
+   */
+  function autoAbrir() {
+    var s = state.settings || {};
+    var seg = Number(s.auto_open_seconds || 0);
+    if (seg >= 1) {
+      setTimeout(invitar, seg * 1000);
+    }
+
+    // Intención de salir: el puntero cruza el borde superior de la ventana.
+    // Sólo con mouse — en un teléfono ese gesto no existe y el evento lo
+    // disparan cosas que no son irse.
+    if (s.proactive_on_exit && !esMovil()) {
+      document.addEventListener('mouseout', function (e) {
+        if (!e.relatedTarget && e.clientY <= 0) invitar();
+      });
+    }
+
+    var tope = Number(s.proactive_scroll_percent || 0);
+    if (tope >= 10) {
+      var mirando = false;
+      window.addEventListener(
+        'scroll',
+        function () {
+          if (mirando || state.invitado) return;
+          mirando = true;
+          requestAnimationFrame(function () {
+            mirando = false;
+            var alto = document.documentElement.scrollHeight - window.innerHeight;
+            if (alto <= 0) return;
+            if (((window.scrollY || 0) / alto) * 100 >= tope) invitar();
+          });
+        },
+        { passive: true },
+      );
+    }
   }
 
   function start() {
@@ -399,6 +530,7 @@
         aplicarTamano();
         renderLauncher();
         autoAbrir();
+        root.appendChild(teaser);
         root.appendChild(launcher);
         root.appendChild(frame);
         document.body.appendChild(root);
