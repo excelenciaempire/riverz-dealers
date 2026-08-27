@@ -284,7 +284,9 @@
         // sin esto quien lo leyera pedía una sesión con él y se quedaba con la
         // conversación ajena. Esto no sale nunca del navegador.
         visitorProof: storage(STORAGE_PROOF) || undefined,
-        page: { url: location.href, title: document.title },
+        // El idioma del navegador. Es el desempate cuando el comercio no fijó
+        // el idioma de su agente; la página en la que está parada la persona
+        // viaja aparte, con cada mensaje, porque cambia mientras navega.
         locale: (navigator.language || 'es').slice(0, 2),
         // Las señales que le permiten a Meta atribuir la venta a un anuncio.
         // Se leen ACÁ y en ningún otro lado: son cookies de la tienda, y el
@@ -529,7 +531,12 @@
     else if (data.type === 'riverz:unread') setUnread(data.count);
     else if (data.type === 'riverz:ready') {
       state.ready = true;
-      post({ type: 'riverz:context', url: location.href });
+      // La URL sirve para dos cosas distintas: autorizar los botones de compra
+      // (el chat compara este origen contra el que ve el navegador) y contarle
+      // al agente qué está mirando la persona. El título va con ella porque en
+      // una tienda es el nombre del producto, que es lo único de esto que un
+      // modelo puede usar tal cual.
+      post({ type: 'riverz:context', url: location.href, title: document.title });
       // El estado real de la ventana, ahora que el iframe ya está en nuestro
       // origen y puede recibirlo. El `riverz:opened` de la primera apertura se
       // pierde siempre; sin esto, el chat nunca se entera de que está abierto y

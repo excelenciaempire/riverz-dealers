@@ -308,6 +308,12 @@ export interface Conversation {
    * mencionaron en la suya). Se estampa una vez y se queda (migración 130).
    * Es lo que lleva estos hilos a la pestaña Comentarios de la bandeja. */
   engagement_kind?: "story_reply" | "story_mention" | null;
+  /** Chat web: la página de la tienda desde la que se escribió el último
+   * mensaje, y su título — que en una tienda es el nombre del producto. Se
+   * pisa en cada mensaje, así que describe dónde está la persona AHORA
+   * (migración 199). */
+  page_url?: string | null;
+  page_title?: string | null;
   /** Click-to-WhatsApp/Messenger ad referral, stamped once (inbound) when the
    * customer arrived from an ad. camelCase, as written by the adapters.
    * Migration 092 (+ Messenger/IG capture). Drives the "replied to an ad"

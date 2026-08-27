@@ -26,9 +26,14 @@ export async function GET(request: Request) {
     settings: widgetSettings(
       guard.ctx.config,
       (workspace as { name?: string } | null)?.name ?? 'Riverz',
-      // El horario se recalcula en CADA consulta: el chat queda abierto y la
-      // hora de cierre pasa mientras la persona escribe.
-      await agenteDelChat(guard.session.workspaceId, guard.ctx.config.agent_id ?? null),
+      {
+        // El horario se recalcula en CADA consulta: el chat queda abierto y la
+        // hora de cierre pasa mientras la persona escribe.
+        ...(await agenteDelChat(guard.session.workspaceId, guard.ctx.config.agent_id ?? null)),
+        // El idioma del navegador viaja en el token: acá adentro ya no se ve,
+        // porque el iframe es nuestro y no de la tienda.
+        visitorLocale: guard.session.lc ?? null,
+      },
     ),
   });
 }

@@ -90,6 +90,32 @@ function decodeCursor(cursor: string | null): { at: string; id: string } | null 
 }
 
 /**
+ * La página del visitante, si es una página.
+ *
+ * El título se limpia de saltos de línea porque va a parar a una línea del
+ * system prompt: un título con `\n` puede fabricar lo que parece una
+ * instrucción nueva. No se comprueba que el dominio sea el de la tienda —eso ya
+ * lo hizo el chat contra el origen real del contenedor antes de mandarlo—, pero
+ * sí que sea http(s): un `javascript:` guardado y mostrado después en la
+ * bandeja es un enlace que alguien va a clickear.
+ */
+function paginaValida(
+  page: { url?: unknown; title?: unknown } | undefined,
+): { url: string; title: string } | null {
+  const url = typeof page?.url === 'string' ? page.url.trim().slice(0, 500) : '';
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  } catch {
+    return null;
+  }
+  const title =
+    typeof page?.title === 'string' ? page.title.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+  return { url, title };
+}
+
+/**
  * POST /api/widget/messages — el visitante escribió.
  *
  * No hace nada especial con el mensaje: lo mete por la misma puerta que usan
@@ -111,6 +137,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     text?: unknown;
     clientMessageId?: unknown;
+    page?: { url?: unknown; title?: unknown };
   } | null;
 
   // Se comprueba el TIPO, no sólo el valor. El cuerpo lo arma un cliente que
@@ -132,6 +159,11 @@ export async function POST(request: Request) {
   const clientMessageId = body.clientMessageId.trim().slice(0, 64);
   if (!clientMessageId) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
+  // La página desde la que escribe. Llega del navegador, así que se recorta y
+  // se exige que sea una URL http(s) de verdad: termina en el prompt del
+  // agente, y ahí un texto libre de un desconocido no entra sin pasar por acá.
+  const pagina = paginaValida(body.page);
+
   try {
     const result = await ingestInboundEvent(supabaseAdmin(), {
       channel: 'webchat',
@@ -146,6 +178,20 @@ export async function POST(request: Request) {
       // reintentó y llegó igual.
       const conversation = await conversacionDelVisitante(session.workspaceId, session.visitorId);
       return NextResponse.json({ ok: true, conversation_id: conversation?.id ?? null });
+    }
+    // Dónde estaba parada la persona al escribir esto.
+    //
+    // Se espera el UPDATE en vez de soltarlo: el agente arranca con un debounce
+    // (2 s en este canal) y después lee la conversación, así que veinte
+    // milisegundos acá son la diferencia entre contestar sabiendo qué producto
+    // está mirando y volver a preguntárselo. Un fallo no puede tumbar un
+    // mensaje que ya está guardado.
+    if (pagina) {
+      await supabaseAdmin()
+        .from('conversations')
+        .update({ page_url: pagina.url, page_title: pagina.title || null })
+        .eq('id', result.conversation.id)
+        .then(undefined, () => {});
     }
     // Las señales de atribución, en la conversación recién creada.
     //

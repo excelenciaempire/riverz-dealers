@@ -1648,6 +1648,38 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
   return { role: 'user', content: blocks };
 }
 
+/**
+ * Qué está mirando quien escribe por el chat web (migración 199).
+ *
+ * En este canal el agente contesta a alguien que está PARADO en una página de
+ * la tienda, y esa página suele ser la respuesta a la mitad de lo que pregunta:
+ * "¿viene en negro?" no se puede contestar sin saber el "qué". El dato lo
+ * manda el cargador y lo sella el POST del mensaje justo antes de que este
+ * turno arranque, así que se lee fresco de la base en vez de arrastrarlo por
+ * media docena de firmas.
+ */
+async function contextoDeNavegacion(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('conversations')
+    .select('page_url, page_title')
+    .eq('id', conversationId)
+    .maybeSingle();
+  const fila = data as { page_url?: string | null; page_title?: string | null } | null;
+  if (!fila?.page_url) return null;
+  const titulo = (fila.page_title ?? '').trim();
+  return [
+    'Está escribiendo desde una página de la tienda:',
+    titulo ? `- Página: ${titulo}` : null,
+    `- Dirección: ${fila.page_url}`,
+    'Úsalo para entender a qué se refiere cuando dice "esto", "este producto" o "el que estoy viendo". Es dónde está parada, no lo que pidió: no des por hecho que quiere comprarlo, y no lo menciones si la consulta es de otra cosa.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 async function generateReply(
   agent: AiAgent,
   contact: Contact,
@@ -1705,6 +1737,10 @@ async function generateReply(
     // Contestar en público tiene sus propias reglas, y son las mismas que sigue
     // una persona con el botón de generar respuesta.
     extras.push(REGLAS_COMENTARIO_PUBLICO);
+  }
+  if (origen.channel === 'webchat') {
+    const nav = await contextoDeNavegacion(db, origen.conversationId).catch(() => null);
+    if (nav) extras.push(nav);
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
   const system = buildSystemPrompt(

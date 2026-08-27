@@ -121,6 +121,17 @@ export interface WebchatSession {
    * de otro.
    */
   mk?: { fbp?: string; fbc?: string; url?: string };
+  /**
+   * Idioma del navegador del VISITANTE, dos letras.
+   *
+   * Sólo se usa cuando el comercio no fijó el idioma de su agente: ahí el
+   * marco del chat caía en español pase lo que pase, así que una tienda sin
+   * agente configurado le mostraba "Reanudar" a un cliente inglés. Viaja en el
+   * token porque el único momento en que se puede leer es al abrir la sesión
+   * desde la página de la tienda; después el chat corre en un iframe y las
+   * llamadas siguientes no lo traen.
+   */
+  lc?: string;
 }
 
 /**
@@ -139,6 +150,7 @@ export function mintSession(
     // Sólo si vinieron: un token con `mk: {}` en cada visita engorda todas las
     // peticiones a cambio de nada.
     ...(input.mk && Object.keys(input.mk).length > 0 ? { mk: input.mk } : {}),
+    ...(input.lc ? { lc: input.lc } : {}),
   };
   const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
   return `${payload}.${sign(SESSION_DOMAIN, payload)}`;

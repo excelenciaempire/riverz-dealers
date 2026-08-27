@@ -183,6 +183,10 @@ export function ChatApp() {
   /** Correo que el visitante dio ANTES de escribir, cuando todavía no existía
    *  el contacto donde guardarlo. Se reintenta con el primer mensaje. */
   const correoPendiente = useRef<string | null>(null);
+  /** Qué página de la tienda está mirando. La manda el cargador, que es el
+   *  único que la ve: dentro del iframe `location` es la nuestra. Va en un ref
+   *  y no en el estado porque sólo la lee el envío. */
+  const pagina = useRef<{ url: string; title: string } | null>(null);
 
   // ── Arranque ─────────────────────────────────────────────────
   useEffect(() => {
@@ -203,7 +207,19 @@ export function ChatApp() {
       if (!event.data || typeof event.data !== 'object') return;
       if (event.data.type === 'riverz:context' && typeof event.data.url === 'string') {
         try {
-          if (new URL(event.data.url).origin === event.origin) setStoreOrigin(event.origin);
+          if (new URL(event.data.url).origin === event.origin) {
+            setStoreOrigin(event.origin);
+            // La página en la que está parada la persona. Se guarda sólo
+            // cuando el origen coincide, por lo mismo que `storeOrigin`: es
+            // un dato que después el agente lee como cierto.
+            pagina.current = {
+              url: String(event.data.url).slice(0, 500),
+              title:
+                typeof event.data.title === 'string'
+                  ? event.data.title.slice(0, 200)
+                  : '',
+            };
+          }
         } catch {
           /* la tienda mandó algo que no es una URL */
         }
@@ -373,7 +389,13 @@ export function ChatApp() {
       const res = await fetch('/api/widget/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
-        body: JSON.stringify({ text, clientMessageId }),
+        body: JSON.stringify({
+          text,
+          clientMessageId,
+          // Dónde está parada la persona cuando escribe. Es lo que convierte
+          // "¿viene en negro?" en una pregunta contestable sin repreguntar.
+          ...(pagina.current ? { page: pagina.current } : {}),
+        }),
       });
       if (res.status === 401) {
         setExpired(true);

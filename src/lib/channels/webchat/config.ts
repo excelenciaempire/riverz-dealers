@@ -68,7 +68,7 @@ export function segundosDeApertura(valor: number | null | undefined): number {
 export function widgetSettings(
   config: WebchatConfig,
   fallbackName: string,
-  extra?: { locale?: string | null; offline?: boolean },
+  extra?: { locale?: string | null; offline?: boolean; visitorLocale?: string | null },
 ): WebchatSettings {
   return {
     primary_color: config.primary_color || WEBCHAT_DEFAULTS.primary_color,
@@ -80,7 +80,14 @@ export function widgetSettings(
     auto_open_seconds: segundosDeApertura(config.auto_open_seconds),
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,
-    locale: (extra?.locale ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es',
+    // El idioma del agente manda; el del navegador del visitante es el
+    // desempate cuando el comercio no fijó ninguno. Antes ese caso caía en
+    // español pase lo que pase: una tienda sin agente configurado le mostraba
+    // "Reanudar" a un cliente que lee en inglés. El dato ya viajaba desde el
+    // cargador y no lo leía nadie.
+    locale: (extra?.locale ?? extra?.visitorLocale ?? 'es').toLowerCase().startsWith('en')
+      ? 'en'
+      : 'es',
     // Sólo cuando de verdad está fuera de horario: mandarlo siempre y que el
     // chat decida sería contarle al visitante el horario del comercio.
     offline_message: extra?.offline ? (config.offline_message ?? '') : '',

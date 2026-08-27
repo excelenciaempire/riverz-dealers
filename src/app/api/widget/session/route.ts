@@ -111,7 +111,6 @@ export async function POST(request: Request) {
     k?: string;
     visitorId?: string;
     visitorProof?: string;
-    page?: { url?: string; title?: string };
     locale?: string;
     marketing?: { fbp?: unknown; fbc?: unknown; url?: unknown };
   } | null;
@@ -152,10 +151,17 @@ export async function POST(request: Request) {
     (body.visitorProof ?? '').trim(),
   );
 
+  // Dos letras y sólo letras: llega del navegador y termina eligiendo en qué
+  // idioma se dibuja el chat.
+  const visitorLocale = /^[a-z]{2}$/i.test((body.locale ?? '').trim())
+    ? (body.locale ?? '').trim().toLowerCase()
+    : undefined;
+
   const sessionToken = mintSession({
     workspaceId,
     visitorId,
     origin: normalizeOrigin(origin),
+    lc: visitorLocale,
     // Las señales de atribución que el cargador leyó en la tienda. Se acotan
     // acá: son cookies de un tercero y no hay motivo para guardar más largo de
     // lo que Meta emite.
@@ -176,7 +182,10 @@ export async function POST(request: Request) {
       settings: widgetSettings(
         config,
         (workspace as { name?: string } | null)?.name ?? 'Riverz',
-        await agenteDelChat(workspaceId, config.agent_id ?? null),
+        {
+          ...(await agenteDelChat(workspaceId, config.agent_id ?? null)),
+          visitorLocale,
+        },
       ),
     },
     { headers: cors },
