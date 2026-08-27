@@ -335,3 +335,101 @@ export async function reenviarEvento(
     intentos: fila.intentos + 1,
   })
 }
+
+/**
+ * Que Meta se entere de que alguien ABRIO una conversacion.
+ *
+ * La venta ya se cuenta (`contarVentaEnMeta`), pero entre el clic en el anuncio
+ * y la compra hay un paso que para el algoritmo no existia: la persona que
+ * llega, pregunta y todavia no compro. Sin ese evento Meta no puede optimizar a
+ * "gente que conversa" — la campana entera se juega a la conversion final, que
+ * en contra-entrega tarda dias en confirmarse.
+ *
+ * `Contact` es el evento estandar de Meta para esto y no hace falta declararlo
+ * en ningun lado. `action_source: 'chat'` es literalmente este caso.
+ *
+ * El id es el de la conversacion: el mismo que dispara el pixel del navegador
+ * desde la tienda, asi que Meta descarta el duplicado y cuenta UNA. Y el indice
+ * unico de `conversion_events` garantiza que se mande una sola vez por
+ * conversacion, aunque esta funcion se llame en cada mensaje.
+ */
+export interface ContactoParaMeta {
+  workspaceId: string
+  conversationId: string
+  cliente?: { email?: string | null; phone?: string | null } | null
+  senales?: SenalesDelNavegador | null
+}
+
+/** El id que comparten el evento del navegador y el del servidor. */
+export function idDeContacto(conversationId: string): string {
+  return `wc_${conversationId}`
+}
+
+export function armarContacto(c: ContactoParaMeta, ahora = Date.now()) {
+  const s = c.senales ?? {}
+  const user: Record<string, unknown> = {}
+  const em = correoNormalizado(c.cliente?.email)
+  const ph = telefonoNormalizado(c.cliente?.phone)
+  if (em) user.em = [em]
+  if (ph) user.ph = [ph]
+  if (s.fbp) user.fbp = s.fbp
+  if (s.fbc) user.fbc = s.fbc
+  if (s.ip) user.client_ip_address = s.ip
+  if (s.userAgent) user.client_user_agent = s.userAgent
+
+  return {
+    data: [
+      {
+        event_name: 'Contact',
+        event_time: Math.floor(ahora / 1000),
+        event_id: idDeContacto(c.conversationId),
+        action_source: 'chat',
+        ...(s.url ? { event_source_url: s.url } : {}),
+        user_data: user,
+      },
+    ],
+  }
+}
+
+/**
+ * Reserva el evento y lo despacha sin esperar.
+ *
+ * Devuelve `nuevo: false` cuando esta conversacion ya se conto — asi quien
+ * llama sabe que no tiene que volver a disparar el pixel del navegador. El
+ * despacho a Meta va suelto: un mensaje del visitante no puede esperar a que
+ * Graph conteste.
+ */
+export async function contarContactoEnMeta(
+  db: SupabaseClient,
+  c: ContactoParaMeta,
+): Promise<{ nuevo: boolean }> {
+  const config = await configDeMeta(db, c.workspaceId)
+  if (!config) return { nuevo: false }
+
+  const eventId = idDeContacto(c.conversationId)
+  const cuerpo = armarContacto(c)
+
+  const { error: choque } = await db.from('conversion_events').insert({
+    workspace_id: c.workspaceId,
+    destino: 'meta',
+    event_name: 'Contact',
+    event_id: eventId,
+    conversation_id: c.conversationId,
+    status: 'pendiente',
+    payload: cuerpo,
+    intentos: 1,
+  })
+  // 23505 = ya contada. Es el caso normal a partir del segundo mensaje.
+  if (choque) return { nuevo: false }
+
+  void despachar(db, {
+    workspaceId: c.workspaceId,
+    eventName: 'Contact',
+    eventId,
+    config,
+    cuerpo,
+    intentos: 1,
+  }).catch(() => {})
+
+  return { nuevo: true }
+}

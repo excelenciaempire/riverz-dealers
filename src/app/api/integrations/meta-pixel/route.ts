@@ -63,15 +63,24 @@ export async function GET() {
   //
   // Va por RLS (la política deja ver sólo lo del propio workspace), así que no
   // hace falta filtrar por cuenta acá.
+  //
+  // Separado por tipo de evento: `Purchase` son ventas y `Contact` son
+  // conversaciones que empezaron. Sumarlos daba un número que no es ninguna de
+  // las dos cosas debajo de un rótulo que dice "ventas".
   const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const contar = (enviado: boolean) => {
-    const q = supabase
+  const contar = (evento: string | null, enviado: boolean) => {
+    let q = supabase
       .from('conversion_events')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', desde);
+    if (evento) q = q.eq('event_name', evento);
     return enviado ? q.eq('status', 'enviado') : q.neq('status', 'enviado');
   };
-  const [ok, pendientes] = await Promise.all([contar(true), contar(false)]);
+  const [ok, contactos, pendientes] = await Promise.all([
+    contar('Purchase', true),
+    contar('Contact', true),
+    contar(null, false),
+  ]);
 
   return NextResponse.json({
     connected: !!row?.is_active,
@@ -79,6 +88,7 @@ export async function GET() {
     pixel_id: row?.external_account_id ?? null,
     updated_at: row?.updated_at ?? null,
     contadas: ok.count ?? 0,
+    contactos: contactos.count ?? 0,
     sin_enviar: pendientes.count ?? 0,
   });
 }

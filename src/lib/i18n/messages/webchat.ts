@@ -73,7 +73,32 @@ export const webchat = {
     en: "Hi, how can I help?",
   },
   avatar: { es: "Imagen", en: "Image" },
-  avatarPlaceholder: { es: "https://…", en: "https://…" },
+  imageUpload: { es: "Subir imagen", en: "Upload image" },
+  imageRemove: { es: "Quitar imagen", en: "Remove image" },
+  imageBadType: { es: "Usa PNG, JPG, WEBP o GIF.", en: "Use PNG, JPG, WEBP or GIF." },
+  imageTooLarge: {
+    es: "La imagen no puede pasar de 2 MB.",
+    en: "The image can't be over 2 MB.",
+  },
+  imageFailed: { es: "No se pudo subir la imagen.", en: "Couldn't upload the image." },
+
+  // ── Vista previa ──
+  preview: { es: "Vista previa", en: "Preview" },
+  previewComposer: { es: "Escribe tu mensaje", en: "Type your message" },
+
+  // ── Píxel de Meta ──
+  // El chat le cuenta a Meta dos cosas: quién empezó a conversar y quién
+  // compró. Sin el píxel conectado, las dos se pierden.
+  pixel: { es: "Píxel de Meta", en: "Meta Pixel" },
+  pixelOff: {
+    es: "Sin conectar, Meta no ve las conversaciones ni las ventas del chat.",
+    en: "Without it, Meta never sees the chat's conversations or sales.",
+  },
+  pixelReported: {
+    es: "{contacts} conversaciones y {sales} ventas informadas",
+    en: "{contacts} conversations and {sales} sales reported",
+  },
+  pixelConnect: { es: "Conectar", en: "Connect" },
   quickReplies: { es: "Preguntas sugeridas", en: "Suggested questions" },
   quickRepliesHint: {
     es: "Hasta 4. Desaparecen cuando arranca la conversación.",

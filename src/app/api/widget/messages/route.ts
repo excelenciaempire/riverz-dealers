@@ -4,6 +4,7 @@ import { ingestInboundEvent } from '@/lib/channels/inbox-writer';
 import { requireSession } from '@/lib/channels/webchat/guard';
 import { conversacionDelVisitante } from '@/lib/channels/webchat/conversacion';
 import { clientIp } from '@/lib/i18n/detect';
+import { contarContactoEnMeta, idDeContacto } from '@/lib/marketing/meta-conversions';
 import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('widget.messages');
@@ -213,10 +214,39 @@ export async function POST(request: Request) {
         .is('marketing', null)
         .then(undefined, () => {});
     }
+    // Que Meta se entere de que alguien empezó a conversar.
+    //
+    // Entre el clic en el anuncio y la compra hay un paso que para el algoritmo
+    // no existía: quien llega, pregunta y todavía no compró. Sin él la campaña
+    // se juega entera a la conversión final, que en contra-entrega tarda días.
+    //
+    // Va suelto y se cuenta una sola vez por conversación (índice único de
+    // `conversion_events`): el visitante no espera a que Graph conteste.
+    void contarContactoEnMeta(supabaseAdmin(), {
+      workspaceId: session.workspaceId,
+      conversationId: result.conversation.id,
+      cliente: {
+        email: result.contact.email,
+        phone: result.contact.phone,
+      },
+      senales: session.mk
+        ? {
+            fbp: session.mk.fbp ?? null,
+            fbc: session.mk.fbc ?? null,
+            url: pagina?.url ?? session.mk.url ?? null,
+            userAgent: request.headers.get('user-agent')?.slice(0, 300) ?? null,
+            ip: clientIp(request.headers),
+          }
+        : null,
+    }).catch(() => {});
+
     return NextResponse.json({
       ok: true,
       message_id: result.message.id,
       conversation_id: result.conversation.id,
+      // El id que tiene que usar el píxel del navegador para que Meta cuente
+      // UNA sola vez lo que llega por los dos caminos.
+      pixel_event_id: idDeContacto(result.conversation.id),
     });
   } catch (err) {
     log.captureException(err, { workspaceId: session.workspaceId });

@@ -217,6 +217,10 @@ export function ChatApp() {
    *  único que la ve: dentro del iframe `location` es la nuestra. Va en un ref
    *  y no en el estado porque sólo la lee el envío. */
   const pagina = useRef<{ url: string; title: string } | null>(null);
+  /** Si ya se le avisó a Meta que esta persona abrió conversación. `Contact`
+   *  marca que el hilo empezó, no cada mensaje: quien vuelve a un hilo que ya
+   *  existe no vuelve a contarse. */
+  const contactoAvisado = useRef(false);
 
   // ── Arranque ─────────────────────────────────────────────────
   useEffect(() => {
@@ -321,6 +325,11 @@ export function ChatApp() {
       cursor: string | null;
       status?: string;
     };
+    // Un sondeo sin cursor es el historial: si ya había mensajes del visitante,
+    // este hilo no empieza hoy y Meta ya se enteró.
+    if (!cursor.current && data.messages.some((m) => m.sender === 'visitor')) {
+      contactoAvisado.current = true;
+    }
     if (data.cursor) cursor.current = data.cursor;
     // El servidor manda el estado de la conversación en cada sondeo y el chat
     // lo descartaba: quien volvía a un hilo que el comercio ya había cerrado
@@ -449,9 +458,26 @@ export function ChatApp() {
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
-      const { message_id: serverId } = (await res.json()) as { message_id?: string };
+      const { message_id: serverId, pixel_event_id: pixelId } = (await res.json()) as {
+        message_id?: string;
+        pixel_event_id?: string;
+      };
       if (serverId) {
         setPending((prev) => prev.map((p) => (p.id === clientMessageId ? { ...p, serverId } : p)));
+      }
+      // Meta se entera de que esta persona empezó a conversar.
+      //
+      // Sólo en el PRIMER mensaje del hilo: `Contact` marca que se abrió la
+      // conversación, no cada cosa que se escribe dentro. El píxel vive en la
+      // página de la tienda, así que lo dispara el cargador; el mismo evento
+      // sale además desde el servidor y los dos llevan el mismo id, que es lo
+      // que hace que Meta cuente uno solo.
+      if (pixelId && !contactoAvisado.current) {
+        contactoAvisado.current = true;
+        window.parent?.postMessage(
+          { type: 'riverz:pixel', event: 'Contact', eventId: pixelId },
+          '*',
+        );
       }
       // Ahora sí existe el contacto: acá se guarda el correo que el visitante
       // dio antes de escribir. Sin bloquear el envío — el mensaje ya salió.

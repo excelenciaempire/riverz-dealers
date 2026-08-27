@@ -761,6 +761,20 @@
       // el carrito: volver a agregarlo le cobraba dos unidades de algo que
       // pidió una sola vez. Falta sólo el cupón, que no se aplica al agregar.
       goCheckout(parseCart(data.path));
+    } else if (data.type === 'riverz:pixel') {
+      // El píxel de la tienda vive en ESTA página, no dentro del iframe: el
+      // chat no puede dispararlo solo. El mismo evento sale también desde
+      // nuestro servidor por la API de Conversiones, y los dos llevan el mismo
+      // `eventID`, así que Meta descarta el duplicado y cuenta uno.
+      //
+      // Si la tienda no tiene píxel, no pasa nada: `fbq` no existe y se ignora.
+      try {
+        if (typeof window.fbq === 'function' && data.event) {
+          window.fbq('track', String(data.event), {}, { eventID: String(data.eventId || '') });
+        }
+      } catch (e) {
+        /* el píxel de la tienda no puede romper el chat */
+      }
     } else if (data.type === 'riverz:resume') {
       // El token del chat caduca a las 24 h. Recargar el iframe no lo renueva:
       // el token viaja en el fragmento y el chat lo borra apenas lo lee, así
