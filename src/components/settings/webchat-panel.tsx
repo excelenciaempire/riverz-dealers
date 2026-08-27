@@ -60,6 +60,14 @@ interface Stats {
   first_response_seconds: number | null;
 }
 
+/** Con qué contesta: cuántos productos tienen ficha cargada. */
+interface Conocimiento {
+  total: number;
+  con_ficha: number;
+  sin_ficha: number;
+  ejemplos: string[];
+}
+
 /** Lo que el chat le está contando a Meta. */
 interface Pixel {
   connected: boolean;
@@ -118,14 +126,16 @@ export function WebchatPanel() {
   const [pixel, setPixel] = useState<Pixel | null>(null);
   const [suggested, setSuggested] = useState<string[]>([]);
   const [seccion, setSeccion] = useState<Seccion>('instalacion');
+  const [saber, setSaber] = useState<Conocimiento | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [cfgRes, statsRes, pixelRes] = await Promise.all([
+        const [cfgRes, statsRes, pixelRes, saberRes] = await Promise.all([
           fetch('/api/webchat/config', { cache: 'no-store' }),
           fetch('/api/webchat/stats', { cache: 'no-store' }),
           fetch('/api/integrations/meta-pixel', { cache: 'no-store' }),
+          fetch('/api/webchat/knowledge', { cache: 'no-store' }),
         ]);
         if (cfgRes.ok) {
           const json = await cfgRes.json();
@@ -135,6 +145,7 @@ export function WebchatPanel() {
           setAgents(json.agents ?? []);
         }
         if (statsRes.ok) setStats(await statsRes.json());
+        if (saberRes.ok) setSaber(await saberRes.json());
         if (pixelRes.ok) {
           const j = await pixelRes.json();
           setPixel({
@@ -540,6 +551,52 @@ export function WebchatPanel() {
           {/* ── ¿Quién atiende y cómo? ── */}
           {seccion === 'comportamiento' && (
             <Card>
+              {/* Con qué contesta, antes que quién atiende.
+                  El chat no responde con lo que sabe un modelo: responde con la
+                  ficha que el comercio cargó producto por producto. Ese hueco no
+                  se veía en ninguna pantalla — el comercio miraba el chat andar y
+                  se enteraba por una respuesta pobre a un cliente real. */}
+              {saber ? (
+                <div className="mb-4 border-b border-border pb-4">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t('webchat.knowledge')}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="text-sm text-foreground">
+                      {saber.total === 0
+                        ? t('webchat.knowledgeEmpty')
+                        : t('webchat.knowledgeReady', {
+                            done: String(saber.con_ficha),
+                            total: String(saber.total),
+                          })}
+                    </p>
+                    {saber.sin_ficha > 0 ? (
+                      <Button
+                        render={<Link href="/productos" />}
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto"
+                      >
+                        {t('webchat.knowledgeFill')}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {saber.total === 0
+                      ? null
+                      : saber.sin_ficha > 0
+                        ? t('webchat.knowledgeGap', { n: String(saber.sin_ficha) })
+                        : t('webchat.knowledgeAll')}
+                    {saber.sin_ficha > 0 && saber.ejemplos.length > 0
+                      ? ` ${saber.ejemplos.join(', ')}…`
+                      : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t('webchat.knowledgePage')}
+                  </p>
+                </div>
+              ) : null}
+
               <Field label={t('webchat.agent')}>
                 <select
                   value={cfg.agent_id ?? ''}

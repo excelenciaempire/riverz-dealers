@@ -136,6 +136,32 @@ export const webchat = {
 
   // ── Comportamiento ──
   behavior: { es: "Comportamiento", en: "Behavior" },
+
+  // Con que contesta. El chat no responde con lo que sabe un modelo: responde
+  // con la ficha que el comercio cargo producto por producto.
+  knowledge: { es: "Con qué contesta", en: "What it answers with" },
+  knowledgeReady: {
+    es: "{done} de {total} productos con ficha cargada",
+    en: "{done} of {total} products have a knowledge sheet",
+  },
+  knowledgeGap: {
+    es: "A los otros {n} los contesta solo con el título y el precio.",
+    en: "The other {n} it answers with just the title and the price.",
+  },
+  knowledgeAll: {
+    es: "Todo el catálogo tiene ficha.",
+    en: "Every product has a sheet.",
+  },
+  knowledgeEmpty: {
+    es: "Sin productos cargados, el chat contesta sin saber qué vendes.",
+    en: "With no products loaded, the chat answers without knowing what you sell.",
+  },
+  knowledgeFill: { es: "Completar", en: "Fill them in" },
+  // La ventaja del canal: quien escribe esta parado en una ficha.
+  knowledgePage: {
+    es: "Y si escribe desde la página de un producto, el chat carga esa ficha sin que tenga que nombrarlo.",
+    en: "And when someone writes from a product page, the chat loads that sheet without them naming it.",
+  },
   agent: { es: "Agente que atiende", en: "Agent on duty" },
   agentAuto: { es: "El que corresponda", en: "Whichever applies" },
   agentPaused: { es: "en pausa", en: "paused" },

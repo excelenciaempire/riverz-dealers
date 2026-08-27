@@ -174,6 +174,19 @@ export const AGENT_TOOLBOX: readonly ToolSpec[] = [
     requires: null,
   },
   {
+    // Buscar en internet.
+    //
+    // Nace APAGADA, y es la unica del tablero que nace asi: el resto describe
+    // lo que el agente ya hacia. Esta le abre una fuente que el comercio no
+    // escribio, asi que la enciende quien la quiera, a sabiendas. Ademas cada
+    // busqueda se cobra.
+    key: 'buscar_en_internet',
+    group: 'conversacion',
+    modes: ['off', 'auto'],
+    fallback: 'off',
+    requires: null,
+  },
+  {
     key: 'no_se_la_respuesta',
     group: 'conversacion',
     modes: ['off', 'auto'],

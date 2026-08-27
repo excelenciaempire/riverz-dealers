@@ -7,6 +7,7 @@ import {
   type KeySource,
 } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
+import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
@@ -1796,7 +1797,7 @@ export function construirHerramientas(args: {
   otherStore: OtherStoreContext | null;
   voiceCtx: VoiceEscalationContext | null;
   topeDescuento: number;
-}): Anthropic.Tool[] {
+}): Anthropic.ToolUnion[] {
   const { agent, hayContacto, shopify, otherStore, voiceCtx, topeDescuento } = args;
   // Lo que este agente puede hacer, y con qué correa.
   //
@@ -1896,6 +1897,15 @@ export function construirHerramientas(args: {
     ...(hayContacto && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
     ...(hayContacto && puede('etiquetar_contacto') ? [ETIQUETAR_CONTACTO_TOOL] : []),
     ...(hayContacto && puede('cerrar_conversacion') ? [CERRAR_CONVERSACION_TOOL] : []),
+    // Internet. La corre Anthropic, no nosotros: se declara y los resultados
+    // vuelven en la misma respuesta. Va al final porque es la ultima fuente —
+    // primero lo del comercio, y solo si ahi no esta, afuera.
+    //
+    // La variante depende del modelo: la de 2026 la rechaza un Haiku 4.5, y
+    // una capacidad nueva no puede romper a quien ya venia andando.
+    ...(puede('buscar_en_internet')
+      ? [herramientaDeBusqueda(agent.model ?? '')]
+      : []),
   ];
   return tools;
 }
@@ -2412,6 +2422,13 @@ export function buildSystemPrompt(
   // se contradicen manda la regla, porque es la que el comercio escribió
   // sabiendo que era una regla.
   if (reglas) lines.push(reglas);
+
+  // ── Cuando puede mirar afuera ──
+  //
+  // Solo si el comercio prendio la busqueda. Y con el orden de las fuentes
+  // explicito: sin esto el modelo contrasta en internet un precio que ya tiene
+  // en el catalogo y termina cotizandole al cliente el de otra tienda.
+  if (toolEnabled(agent, 'buscar_en_internet')) lines.push(REGLAS_DE_BUSQUEDA);
 
   // ── Offer/discount policy (per-workspace checkout config) ──
   // BUNDLE MODE: enumerate the fixed offers + transfer discount so the

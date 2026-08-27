@@ -285,6 +285,11 @@ export const operation = {
     en: "Pick up a conversation that stalled.",
   },
   toolTopeDescuento: { es: "Hasta", en: "Up to" },
+  toolBuscarEnInternet: { es: "Buscar en internet", en: "Search the web" },
+  toolBuscarEnInternetHint: {
+    es: "Solo cuando la respuesta no está en tus productos. Lo tuyo siempre manda.",
+    en: "Only when the answer isn't in your products. Yours always wins.",
+  },
   toolNoSeLaRespuesta: { es: "Admitir que no sabe", en: "Admit it doesn't know" },
   toolNoSeLaRespuestaHint: {
     es: "Antes que inventar, lo anota y te lo deja para responder.",

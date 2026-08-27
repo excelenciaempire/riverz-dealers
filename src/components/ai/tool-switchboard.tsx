@@ -54,6 +54,7 @@ export const SUFIJO: Record<string, string> = {
   abrir_devolucion: 'AbrirDevolucion',
   escalar_llamada: 'EscalarLlamada',
   enviar_proactivo: 'EnviarProactivo',
+  buscar_en_internet: 'BuscarEnInternet',
   no_se_la_respuesta: 'NoSeLaRespuesta',
   ver_contacto: 'VerContacto',
   etiquetar_contacto: 'EtiquetarContacto',

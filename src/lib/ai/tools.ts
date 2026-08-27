@@ -1854,7 +1854,8 @@ export async function runWithTools(
     max_tokens: number
     system: string
     messages: Anthropic.MessageParam[]
-    tools: Anthropic.Tool[]
+    /** Incluye las de SERVIDOR (la busqueda web), que no ejecutamos aca. */
+    tools: Anthropic.ToolUnion[]
     shopify: ShopifyToolContext | null
     /** Present → the escalate_to_call tool can place a phone call. */
     voice?: VoiceEscalationContext | null
@@ -1948,6 +1949,18 @@ export async function runWithTools(
 
     promptTokens += response.usage?.input_tokens ?? 0
     completionTokens += response.usage?.output_tokens ?? 0
+
+    // El modelo se detuvo a mitad de una herramienta de SERVIDOR (la busqueda
+    // web). No hay nada que ejecutar de nuestro lado: se le devuelve lo que
+    // lleva escrito y sigue donde iba. Sin esto la respuesta se cortaba en
+    // seco y el cliente recibia media frase — o nada.
+    if (response.stop_reason === 'pause_turn') {
+      anotarDeServidor(response.content, herramientas)
+      messages = [...messages, { role: 'assistant', content: response.content }]
+      continue
+    }
+
+    anotarDeServidor(response.content, herramientas)
 
     if (response.stop_reason !== 'tool_use') {
       const text = response.content
@@ -2071,4 +2084,18 @@ function rewriteLastUserDocumentToText(
     return next
   }
   return messages
+}
+
+/**
+ * Deja constancia de las herramientas de SERVIDOR que uso el modelo.
+ *
+ * Las corre Anthropic, no `runTool`, asi que no pasan por el bucle de abajo:
+ * sin esto una respuesta escrita mirando internet quedaba registrada como si
+ * no hubiera usado ninguna herramienta. Y cada busqueda se cobra, asi que el
+ * comercio tiene derecho a ver que se hizo en su nombre.
+ */
+function anotarDeServidor(content: Anthropic.ContentBlock[], destino: string[]): void {
+  for (const block of content) {
+    if (block.type === 'server_tool_use') destino.push(block.name)
+  }
 }
