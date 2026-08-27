@@ -7,7 +7,6 @@ import Link from '@/components/i18n/locale-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -83,6 +82,24 @@ const AUTO_OPEN = [0, 5, 15, 30] as const;
 /** Cuánto tiene que haber leído de la página para que valga la pena hablarle. */
 const SCROLL = [0, 25, 50, 75] as const;
 
+/**
+ * Las cuatro preguntas, en el orden en que se las hace el comercio.
+ *
+ * El cambio de sección se hace a mano y no con el componente `Tabs` de la
+ * librería: ese deja el panel anterior montado y VISIBLE al cambiar de
+ * pestaña —verificado en producción, dos paneles pintados uno debajo del
+ * otro—, que es exactamente el amontonamiento que las pestañas venían a
+ * resolver. Cuatro botones y un `if` no pueden fallar así.
+ */
+const SECCIONES = [
+  { id: 'instalacion', key: 'webchat.install' },
+  { id: 'apariencia', key: 'webchat.appearance' },
+  { id: 'comportamiento', key: 'webchat.behavior' },
+  { id: 'invitacion', key: 'webchat.proactive' },
+] as const;
+
+type Seccion = (typeof SECCIONES)[number]['id'];
+
 export function WebchatPanel() {
   const t = useT();
   const format = useFormat();
@@ -100,6 +117,7 @@ export function WebchatPanel() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [pixel, setPixel] = useState<Pixel | null>(null);
   const [suggested, setSuggested] = useState<string[]>([]);
+  const [seccion, setSeccion] = useState<Seccion>('instalacion');
 
   useEffect(() => {
     (async () => {
@@ -291,50 +309,64 @@ export function WebchatPanel() {
             />
           </div>
 
-          {/* Lo que de estos números ve Meta. Va acá y no en una tarjeta
-              aparte: es la misma pregunta —"¿esto sirve?"— contestada del lado
-              de la campaña, y separado nadie lo relacionaba con el chat. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-            <Target className="size-3.5 shrink-0 text-[#0866FF]" aria-hidden />
-            <span className="text-xs font-medium text-foreground">{t('webchat.pixel')}</span>
-            {pixel?.connected ? (
-              <span className="text-xs text-muted-foreground">
-                {t('webchat.pixelReported', {
-                  contacts: String(pixel.contactos),
-                  sales: String(pixel.contadas),
-                })}
-              </span>
-            ) : (
-              <>
-                <span className="text-xs text-muted-foreground">{t('webchat.pixelOff')}</span>
-                <Button
-                  render={<Link href="/integraciones" />}
-                  size="sm"
-                  variant="outline"
-                  className="ml-auto"
-                >
-                  {t('webchat.pixelConnect')}
-                </Button>
-              </>
-            )}
-          </div>
         </div>
       ) : null}
 
+      {/* Lo que de todo esto ve Meta.
+          Fila propia y siempre visible: estaba dentro de la tarjeta de
+          resultados, que no se pinta sin conversaciones — así que justo quien
+          todavía no arrancó, el que más necesita conectarlo ANTES de gastar en
+          anuncios, nunca se enteraba de que existía. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+        <Target className="size-3.5 shrink-0 text-[#0866FF]" aria-hidden />
+        <span className="text-xs font-medium text-foreground">{t('webchat.pixel')}</span>
+        {pixel?.connected ? (
+          <span className="text-xs text-muted-foreground">
+            {t('webchat.pixelReported', {
+              contacts: String(pixel.contactos),
+              sales: String(pixel.contadas),
+            })}
+          </span>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+              {t('webchat.pixelOff')}
+            </span>
+            <Button render={<Link href="/integraciones" />} size="sm" variant="outline">
+              {t('webchat.pixelConnect')}
+            </Button>
+          </>
+        )}
+      </div>
+
       {/* ── Configuración, una pregunta a la vez, con la vista previa al lado ── */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <Tabs defaultValue="instalacion">
-          {/* Sin `overflow-x-auto`: la línea de la pestaña activa se dibuja
-              5 px por debajo del borde y un contenedor con scroll la recorta. */}
-          <TabsList variant="line" className="mb-3 max-w-full flex-wrap">
-            <TabsTrigger value="instalacion">{t('webchat.install')}</TabsTrigger>
-            <TabsTrigger value="apariencia">{t('webchat.appearance')}</TabsTrigger>
-            <TabsTrigger value="comportamiento">{t('webchat.behavior')}</TabsTrigger>
-            <TabsTrigger value="invitacion">{t('webchat.proactive')}</TabsTrigger>
-          </TabsList>
+        <div>
+          <div
+            role="tablist"
+            className="mb-3 flex flex-wrap items-center gap-1 border-b border-border"
+          >
+            {SECCIONES.map(({ id, key }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={seccion === id}
+                onClick={() => setSeccion(id)}
+                className={cn(
+                  '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                  seccion === id
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
 
           {/* ── ¿Está puesto? ── */}
-          <TabsContent value="instalacion">
+          {seccion === 'instalacion' && (
             <Card>
               {/* El camino bueno primero. Con la tienda conectada es un botón;
                   el código a mano queda plegado para quien no usa Shopify. */}
@@ -422,10 +454,10 @@ export function WebchatPanel() {
                 </Field>
               </div>
             </Card>
-          </TabsContent>
+          )}
 
           {/* ── ¿Cómo se ve? ── */}
-          <TabsContent value="apariencia">
+          {seccion === 'apariencia' && (
             <Card>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label={t('webchat.brandName')}>
@@ -501,10 +533,10 @@ export function WebchatPanel() {
                 </Field>
               </div>
             </Card>
-          </TabsContent>
+          )}
 
           {/* ── ¿Quién atiende y cómo? ── */}
-          <TabsContent value="comportamiento">
+          {seccion === 'comportamiento' && (
             <Card>
               <Field label={t('webchat.agent')}>
                 <select
@@ -553,13 +585,13 @@ export function WebchatPanel() {
                 </Field>
               </div>
             </Card>
-          </TabsContent>
+          )}
 
           {/* ── ¿Cuándo sale a buscar? ──
               Los tres disparadores apuntan al mismo lugar y el primero que
               llega gana: la invitación sale una vez por visita. Van juntos
               porque la pregunta del comercio es una sola. */}
-          <TabsContent value="invitacion">
+          {seccion === 'invitacion' && (
             <Card>
               <Field
                 label={t('webchat.proactiveMessage')}
@@ -629,8 +661,8 @@ export function WebchatPanel() {
                 </Field>
               </div>
             </Card>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
 
         <div className="lg:sticky lg:top-4 lg:h-fit">
           <VistaPrevia cfg={cfg} fallbackName={t('webchat.title')} />
