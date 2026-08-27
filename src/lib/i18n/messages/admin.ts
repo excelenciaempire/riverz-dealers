@@ -319,6 +319,9 @@ export const admin = {
   },
   cronBroadcasts: { es: "Envía campañas programadas", en: "Sends scheduled campaigns" },
   cronVoiceCalls: { es: "Despacha llamadas en cola", en: "Dispatches queued calls" },
+  // No es un cron: es el worker de voz avisando que sigue vivo. Sin fila acá,
+  // que estuviera apagado no se veía en ninguna pantalla.
+  cronVoiceWorker: { es: "Latido del worker de voz", en: "Voice worker heartbeat" },
   cronVoiceCampaignRun: { es: "Avanza campañas de voz", en: "Advances voice campaigns" },
   cronInstagramAgent: {
     es: "Motor de DMs proactivos de Instagram",

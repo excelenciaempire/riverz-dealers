@@ -26,8 +26,11 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime, timezone
+
+import httpx
 
 from dotenv import load_dotenv
 from livekit import api as lkapi
@@ -1135,7 +1138,44 @@ def prewarm(proc) -> None:
     proc.userdata["vad"] = silero.VAD.load()
 
 
+_HEARTBEAT_SECS = 60
+
+
+def _heartbeat_loop() -> None:
+    """Avisa cada minuto que este worker sigue vivo.
+
+    Nadie puede sondear este proceso: no tiene puerto, y `dispatchVoiceCall`
+    del lado del web tiene ÉXITO aunque no haya un solo worker conectado
+    (LiveKit encola el trabajo y espera). El resultado era que la pantalla de
+    Llamadas decía «listo», el cron despachaba, la llamada quedaba en `dialing`
+    y veinte minutos después el barrido la cerraba como `worker_timeout`.
+
+    El latido es lo único que distingue «no hay llamadas» de «no hay quien las
+    tome». Se escribe con el cliente SÍNCRONO a propósito: `cli.run_app` es
+    dueño del event loop de los agentes, y un hilo que le meta tareas puede
+    tumbar una llamada en curso. Hilo daemon, así que muere con el proceso —
+    que es exactamente la señal que queremos.
+    """
+    base = (os.getenv("RIVERZ_BASE_URL") or "").rstrip("/")
+    secret = os.getenv("VOICE_WORKER_SECRET") or ""
+    if not base or not secret:
+        logger.warning("sin RIVERZ_BASE_URL/VOICE_WORKER_SECRET: no hay latido")
+        return
+    url = f"{base}/api/internal/voice/heartbeat"
+    headers = {"Authorization": f"Bearer {secret}"}
+    while True:
+        try:
+            with httpx.Client(timeout=10.0) as c:
+                c.post(url, headers=headers)
+        except Exception as e:
+            # Un latido que se cae nunca puede llevarse el worker puesto: sin
+            # llamadas que atender, el proceso vale más vivo que avisando.
+            logger.warning("latido falló: %s", e)
+        time.sleep(_HEARTBEAT_SECS)
+
+
 if __name__ == "__main__":
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
     # agent_name -> el worker sólo corre por dispatch explícito (salientes) y
     # recibe entrantes vía dispatch rule SIP apuntando a este mismo nombre.
     cli.run_app(

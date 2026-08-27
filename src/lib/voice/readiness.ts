@@ -7,16 +7,19 @@
  * nada — sin un solo cartel que diga qué falta.
  *
  * Esto contesta lo mismo ANTES, con los mismos criterios que `queue.ts`, para
- * que la tarjeta del lienzo, la pantalla de Voz y el botón de la bandeja digan
- * todos la misma frase en vez de adivinar cada uno por su cuenta.
+ * que la tarjeta del lienzo, la pantalla de Llamadas y el botón de la bandeja
+ * digan todos la misma frase en vez de adivinar cada uno por su cuenta.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AiAgent } from '@/lib/ai/types';
 import type { VoiceConnectionConfig } from '@/types';
+import { isStale } from '@/lib/cron/schedule';
+import { listVoiceAgents } from './agents';
 import { isLiveKitConfigured } from './livekit';
 import {
   blockerCodeFromReason,
   VOICE_BLOCKED_FIX_HREF,
+  VOICE_WORKER_JOB,
+  VOICE_WORKER_SCHEDULE,
   type VoiceBlockerCode,
 } from './labels';
 
@@ -33,8 +36,18 @@ export interface VoiceBlocker {
 export interface VoiceReadiness {
   ready: boolean;
   blockers: VoiceBlocker[];
+  /**
+   * Cosas que NO impiden llamar pero conviene decir. Van aparte de `blockers`
+   * justamente para que no toquen `ready`: meter «los entrantes están
+   * apagados» entre los bloqueos apagaría las llamadas salientes, que andan.
+   */
+  warnings: VoiceBlocker[];
   /** El número desde el que sale la llamada, si ya hay uno. */
   phoneNumber: string | null;
+  /** Los que pueden atender. La pantalla los lista sin repetir la consulta. */
+  agents: { id: string; name: string }[];
+  /** ¿Ya se completó alguna llamada? Lo usa el camino de puesta en marcha. */
+  firstCallDone: boolean;
 }
 
 /** Convierte un `reason` de `enqueueCall` en un bloqueo con su clave y su link. */
@@ -66,6 +79,35 @@ async function minutesUsedThisMonth(
 }
 
 /**
+ * ¿El worker que marca los teléfonos sigue vivo?
+ *
+ * Las variables de LiveKit viven en el servicio web, así que mirarlas sólo
+ * prueba que el web sabe a dónde despachar — no que haya alguien del otro lado.
+ * Con el worker apagado el despacho ni siquiera falla: LiveKit encola el
+ * trabajo, nadie lo toma, la llamada queda en `dialing` y veinte minutos
+ * después el barrido la cierra como `worker_timeout`. La pantalla, mientras
+ * tanto, decía «listo». Pasó, y costó un mes de silencio.
+ *
+ * El worker late en `cron_runs` con su propio nombre, así que además de esto
+ * aparece solo en el panel de infraestructura, al lado de los crons.
+ *
+ * AUSENCIA NO ES CAÍDA: si nunca hubo un latido no se levanta el bloqueo. Un
+ * worker desplegado antes que el latido no tiene por qué figurar caído, y
+ * estrenar esta comprobación no puede apagarle el teléfono a todo el mundo.
+ */
+export async function voiceWorkerDown(db: SupabaseClient): Promise<boolean> {
+  const { data } = await db
+    .from('cron_runs')
+    .select('started_at')
+    .eq('name', VOICE_WORKER_JOB)
+    .order('started_at', { ascending: false })
+    .limit(1);
+  const last = (data ?? [])[0] as { started_at: string } | undefined;
+  if (!last) return false;
+  return isStale(VOICE_WORKER_SCHEDULE, last.started_at);
+}
+
+/**
  * Todo lo que impide que esta cuenta (o este agente) haga una llamada.
  *
  * Sin `agentId` mira si hay ALGÚN agente que pueda atender el teléfono; con
@@ -79,19 +121,36 @@ export async function voiceReadiness(
   agentId?: string | null,
 ): Promise<VoiceReadiness> {
   const blockers: VoiceBlocker[] = [];
+  const warnings: VoiceBlocker[] = [];
   const add = (code: VoiceBlockerCode, agentName?: string) =>
     blockers.push({ code, fixHref: VOICE_BLOCKED_FIX_HREF[code], ...(agentName ? { agentName } : {}) });
+  const warn = (code: VoiceBlockerCode) =>
+    warnings.push({ code, fixHref: VOICE_BLOCKED_FIX_HREF[code] });
 
   if (!isLiveKitConfigured()) add('platform_unavailable');
 
+  // Las tres consultas que no dependen entre sí, juntas: esto lo llaman cinco
+  // pantallas y encadenarlas se nota.
+  const [connRes, agentes, workerDown, primera] = await Promise.all([
+    db
+      .from('channel_connections')
+      .select('config, status')
+      .eq('workspace_id', workspaceId)
+      .eq('channel', 'voice')
+      .maybeSingle(),
+    listVoiceAgents(db, workspaceId, 'id, name'),
+    voiceWorkerDown(db),
+    db
+      .from('voice_calls')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'completed'),
+  ]);
+
+  if (workerDown) add('worker_down');
+
   // ── La cuenta: conexión, número, freno, tope ──
-  const { data: connRow } = await db
-    .from('channel_connections')
-    .select('config, status')
-    .eq('workspace_id', workspaceId)
-    .eq('channel', 'voice')
-    .maybeSingle();
-  const conn = connRow as { config: VoiceConnectionConfig | null; status: string } | null;
+  const conn = connRes.data as { config: VoiceConnectionConfig | null; status: string } | null;
   const cfg = conn?.config ?? {};
 
   if (!conn) {
@@ -105,6 +164,9 @@ export async function voiceReadiness(
       const used = await minutesUsedThisMonth(db, workspaceId);
       if (used >= limit) add('monthly_limit_reached');
     }
+    // Salientes sí, entrantes no: no es un bloqueo, es media función apagada
+    // sin que nadie lo diga. Sólo cuando ya hay número — antes no significa nada.
+    if (cfg.phone_number && !cfg.inbound_enabled) warn('inbound_disabled');
   }
 
   // ── El agente ──
@@ -115,29 +177,27 @@ export async function voiceReadiness(
       .eq('id', agentId)
       .eq('workspace_id', workspaceId)
       .maybeSingle();
-    const agent = agentRow as Pick<
-      AiAgent,
-      'id' | 'name' | 'voice_enabled' | 'is_active'
-    > & { deleted_at?: string | null } | null;
+    const agent = agentRow as {
+      id: string;
+      name: string;
+      voice_enabled: boolean;
+      is_active: boolean;
+      deleted_at?: string | null;
+    } | null;
     if (!agent) add('agent_not_found');
     else if (agent.deleted_at) add('agent_deleted', agent.name);
     else if (!agent.voice_enabled) add('voice_disabled', agent.name);
     else if (!agent.is_active) add('agent_paused', agent.name);
-  } else {
-    const { data } = await db
-      .from('ai_agents')
-      .select('id')
-      .eq('workspace_id', workspaceId)
-      .eq('voice_enabled', true)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .limit(1);
-    if (((data ?? []) as unknown[]).length === 0) add('no_voice_agent');
+  } else if (agentes.length === 0) {
+    add('no_voice_agent');
   }
 
   return {
     ready: blockers.length === 0,
     blockers,
+    warnings,
     phoneNumber: cfg.phone_number ?? null,
+    agents: agentes.map((a) => ({ id: a.id, name: a.name })),
+    firstCallDone: (primera.count ?? 0) > 0,
   };
 }

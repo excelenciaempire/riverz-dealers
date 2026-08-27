@@ -61,6 +61,7 @@ export const VOICE_DIRECTION_KEY: Record<VoiceCallDirection, string> = {
  */
 export type VoiceBlockerCode =
   | 'platform_unavailable'
+  | 'worker_down'
   | 'no_voice_connection'
   | 'no_number'
   | 'voice_disconnected'
@@ -74,10 +75,60 @@ export type VoiceBlockerCode =
   | 'contact_not_found'
   | 'opt_out'
   | 'invalid_phone'
-  | 'insert_failed';
+  | 'insert_failed'
+  | 'inbound_disabled';
+
+/**
+ * Nombre y cadencia del latido del worker de voz en `cron_runs`.
+ *
+ * Viven acá, junto al resto de las constantes de texto, porque los usan tres
+ * módulos que no deberían importarse entre sí: el que evalúa si puede llamar,
+ * el catálogo de trabajos del panel y el cron que despacha.
+ */
+export const VOICE_WORKER_JOB = 'voice-worker';
+export const VOICE_WORKER_SCHEDULE = '* * * * *';
+
+/**
+ * En qué orden se cuenta lo que falta.
+ *
+ * Una pantalla que muestra UN motivo tiene que mostrar siempre el mismo, y el
+ * orden natural es de afuera hacia adentro: si el motor de la plataforma está
+ * caído no importa que además falte el número. Sin esto, dos pantallas con los
+ * mismos bloqueos mostraban motivos distintos según el orden de inserción.
+ */
+export const BLOCKER_ORDER: VoiceBlockerCode[] = [
+  'platform_unavailable',
+  'worker_down',
+  'no_voice_connection',
+  'voice_disconnected',
+  'no_number',
+  'no_voice_agent',
+  'agent_not_found',
+  'agent_deleted',
+  'voice_disabled',
+  'agent_paused',
+  'kill_switch',
+  'monthly_limit_reached',
+  'contact_not_found',
+  'opt_out',
+  'invalid_phone',
+  'insert_failed',
+  'inbound_disabled',
+];
+
+/** El motivo que se muestra cuando sólo entra uno. */
+export function primaryBlocker<T extends { code: VoiceBlockerCode }>(
+  list: T[],
+): T | null {
+  if (list.length === 0) return null;
+  return [...list].sort(
+    (a, b) => BLOCKER_ORDER.indexOf(a.code) - BLOCKER_ORDER.indexOf(b.code),
+  )[0];
+}
 
 export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
   platform_unavailable: 'voice.blockedPlatform',
+  worker_down: 'voice.blockedWorkerDown',
   no_voice_connection: 'voice.blockedNoConnection',
   no_number: 'voice.blockedNoNumber',
   voice_disconnected: 'voice.blockedDisconnected',
@@ -92,11 +143,14 @@ export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
   opt_out: 'voice.blockedOptOut',
   invalid_phone: 'voice.blockedInvalidPhone',
   insert_failed: 'voice.blockedInsertFailed',
+  inbound_disabled: 'voice.blockedInboundDisabled',
 };
 
 /** Dónde se destraba cada motivo. `null` = no lo arregla el comercio. */
 export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
   platform_unavailable: null,
+  // El worker es de la plataforma: el comercio no tiene dónde ir a arreglarlo.
+  worker_down: null,
   no_voice_connection: '/voz',
   no_number: '/voz',
   voice_disconnected: '/voz',
@@ -111,6 +165,7 @@ export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
   opt_out: null,
   invalid_phone: null,
   insert_failed: null,
+  inbound_disabled: '/voz',
 };
 
 /** Convierte un `reason` de `enqueueCall` en un código conocido. */

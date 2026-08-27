@@ -223,6 +223,18 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: "0 * * * *",
     parent: "mercadolibre",
   },
+  // El worker de voz no es un cron: es un proceso de fondo en otro servicio,
+  // sin puerto que sondear. Late por su cuenta contra
+  // /api/internal/voice/heartbeat, así que entra por la misma puerta que los
+  // sub-trabajos: `parent` impide que el reloj lo llame (no hay a dónde), y la
+  // fila le da umbral de atraso y presencia en el panel. Sin esto, "el worker
+  // está caído" no se veía en ninguna pantalla.
+  {
+    name: "voice-worker", whatKey: "admin.cronVoiceWorker",
+    path: "",
+    schedule: "* * * * *",
+    parent: "voice-calls",
+  },
 ];
 
 /**

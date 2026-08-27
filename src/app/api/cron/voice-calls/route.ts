@@ -9,6 +9,7 @@ import {
   isLiveKitConfigured,
   roomNameForCall,
 } from '@/lib/voice/livekit';
+import { voiceWorkerDown as workerDown } from '@/lib/voice/readiness';
 import { persistCallResult } from '@/lib/voice/result';
 
 /**
@@ -93,6 +94,16 @@ async function cronHandler(request: Request) {
   }
 
   const db = supabaseAdmin();
+
+  // Sin worker no se despacha NADA. `dispatchVoiceCall` tiene éxito igual —
+  // LiveKit encola el trabajo y espera a alguien que lo tome—, así que la fila
+  // pasaba a `dialing`, nadie la atendía y a los 20 minutos el barrido la
+  // cerraba como `worker_timeout`: la llamada se perdía y el cliente nunca
+  // supo que lo iban a llamar. Dejarlas en `queued` las hace salir solas
+  // cuando el worker vuelve. Con retraso, que es infinitamente mejor.
+  if (await workerDown(db)) {
+    return NextResponse.json({ skipped: 'worker_down' });
+  }
   const nowIso = new Date().toISOString();
   let dispatched = 0;
   let failed = 0;

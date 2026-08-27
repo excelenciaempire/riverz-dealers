@@ -112,6 +112,12 @@ export const voice = {
     es: "El servicio de llamadas no está disponible en este momento.",
     en: "The calling service is unavailable right now.",
   },
+  // El worker de voz dejó de latir. Es de la plataforma, no del comercio: la
+  // frase no promete que lo pueda arreglar, y por eso no lleva enlace.
+  blockedWorkerDown: {
+    es: "El servicio que marca los teléfonos no responde. Ya estamos avisados.",
+    en: "The service that dials phones is not responding. We have been alerted.",
+  },
   blockedNoConnection: {
     es: "Esta cuenta todavía no tiene el canal de voz conectado.",
     en: "This account has no voice channel connected yet.",
@@ -170,6 +176,11 @@ export const voice = {
   blockedInsertFailed: {
     es: "No se pudo guardar la llamada.",
     en: "The call could not be saved.",
+  },
+  // Advertencia, no bloqueo: sale llamar, pero las que entran se pierden.
+  blockedInboundDisabled: {
+    es: "Las llamadas que entran a este número no se atienden.",
+    en: "Incoming calls to this number are not answered.",
   },
 
   // Outcomes

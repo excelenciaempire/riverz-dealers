@@ -13,8 +13,8 @@ import type {
   VoiceCall,
   VoiceConnectionConfig,
 } from '@/types';
-import type { AiAgent } from '@/lib/ai/types';
 import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
+import { pickVoiceAgent } from './agents';
 
 function toE164(raw: string): string {
   const t = raw.trim();
@@ -41,30 +41,14 @@ function callerToE164(raw: string, didCountry?: string | null): string {
   return normalizado ? `+${normalizado}` : toE164(raw);
 }
 
-/** Best voice-enabled agent for a workspace (highest priority). */
-export async function pickVoiceAgent(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<AiAgent | null> {
-  const { data } = await db
-    .from('ai_agents')
-    .select('*, ai_agent_channels(channel)')
-    .eq('workspace_id', workspaceId)
-    .eq('is_active', true)
-    .eq('voice_enabled', true)
-    .is('deleted_at', null);
-  const agents = (data ?? []) as (AiAgent & {
-    ai_agent_channels?: { channel: string }[];
-  })[];
-  const matches = agents.filter(
-    (a) =>
-      a.scope === 'workspace' ||
-      (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice'),
-  );
-  if (matches.length === 0) return null;
-  matches.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-  return matches[0];
-}
+/**
+ * Best voice-enabled agent for a workspace (highest priority).
+ *
+ * Vive en `./agents` desde que `voiceReadiness` resultó tener una copia
+ * distinta del criterio. Se re-exporta acá para no tocar a quien ya lo
+ * importaba de este módulo.
+ */
+export { pickVoiceAgent };
 
 /** Resolve or create the caller contact for an inbound call. */
 async function resolveContact(
