@@ -108,14 +108,9 @@ export function TagsPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            {t('contacts.yourTags')}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {t('contacts.yourTagsSubtitle')}
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold text-foreground">
+          {t('contacts.yourTags')}
+        </h2>
         <Button
           onClick={() => setCreating(true)}
           className="bg-primary text-primary-foreground hover:bg-primary/90"

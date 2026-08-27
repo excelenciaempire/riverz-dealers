@@ -128,15 +128,15 @@ const FIELD_OPTIONS = [
 const RULE_TYPES: {
   type: SegmentRule['type'];
   labelKey: string;
-  descriptionKey: string;
+  descriptionKey?: string;
   Icon: typeof TagIcon;
 }[] = [
-  { type: 'tag', labelKey: 'contacts.ruleTagLabel', descriptionKey: 'contacts.ruleTagDesc', Icon: TagIcon },
-  { type: 'channel', labelKey: 'contacts.ruleChannelLabel', descriptionKey: 'contacts.ruleChannelDesc', Icon: MessageCircle },
-  { type: 'created', labelKey: 'contacts.ruleCreatedLabel', descriptionKey: 'contacts.ruleCreatedDesc', Icon: CalendarClock },
+  { type: 'tag', labelKey: 'contacts.ruleTagLabel', Icon: TagIcon },
+  { type: 'channel', labelKey: 'contacts.ruleChannelLabel', Icon: MessageCircle },
+  { type: 'created', labelKey: 'contacts.ruleCreatedLabel', Icon: CalendarClock },
   { type: 'text', labelKey: 'contacts.ruleTextLabel', descriptionKey: 'contacts.ruleTextDesc', Icon: TypeIcon },
-  { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', descriptionKey: 'contacts.ruleHasFieldDesc', Icon: CircleSlash },
-  { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', descriptionKey: 'contacts.ruleShopifyDesc', Icon: ShoppingBag },
+  { type: 'has_field', labelKey: 'contacts.ruleHasFieldLabel', Icon: CircleSlash },
+  { type: 'shopify', labelKey: 'contacts.ruleShopifyLabel', Icon: ShoppingBag },
   { type: 'offer', labelKey: 'contacts.ruleOfferLabel', descriptionKey: 'contacts.ruleOfferDesc', Icon: Gift },
   { type: 'units', labelKey: 'contacts.ruleUnitsLabel', descriptionKey: 'contacts.ruleUnitsDesc', Icon: Package },
   { type: 'spend', labelKey: 'contacts.ruleSpendLabel', descriptionKey: 'contacts.ruleSpendDesc', Icon: DollarSign },
@@ -813,7 +813,9 @@ function AddRuleMenu({
             <r.Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground">{t(r.labelKey)}</p>
-              <p className="text-[11px] text-muted-foreground">{t(r.descriptionKey)}</p>
+              {r.descriptionKey && (
+                <p className="text-[11px] text-muted-foreground">{t(r.descriptionKey)}</p>
+              )}
             </div>
           </DropdownMenuItem>
         ))}

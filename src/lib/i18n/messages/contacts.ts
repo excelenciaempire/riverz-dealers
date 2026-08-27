@@ -247,10 +247,6 @@ export const contacts = {
 
   // Tags panel
   yourTags: { es: "Tus etiquetas", en: "Your tags" },
-  yourTagsSubtitle: {
-    es: "Sirven para segmentar contactos y mandar campañas a grupos específicos.",
-    en: "Use them to segment contacts and send campaigns to specific groups.",
-  },
   newTagButton: { es: "Nueva etiqueta", en: "New tag" },
   noTagsPanelTitle: {
     es: "Todavía no tienes etiquetas",
@@ -332,13 +328,13 @@ export const contacts = {
   matchLabel: { es: "Coincidencia", en: "Match" },
   matchAllTitle: { es: "Cumple todas", en: "Match all" },
   matchAllSubtitle: {
-    es: "Estilo Y: aplica solo si todas las reglas pasan.",
-    en: "AND style: applies only if every rule passes.",
+    es: "Aplica solo si todas las reglas pasan.",
+    en: "Applies only if every rule passes.",
   },
   matchAnyTitle: { es: "Cumple alguna", en: "Match any" },
   matchAnySubtitle: {
-    es: "Estilo O: basta con una regla.",
-    en: "OR style: a single rule is enough.",
+    es: "Basta con que pase una regla.",
+    en: "A single rule passing is enough.",
   },
   rules: { es: "Reglas", en: "Rules" },
   previewOf: {
@@ -378,35 +374,15 @@ export const contacts = {
 
   // Rule type labels + descriptions
   ruleTagLabel: { es: "Etiqueta", en: "Tag" },
-  ruleTagDesc: {
-    es: "Tiene o no tiene una etiqueta.",
-    en: "Has or doesn't have a tag.",
-  },
   ruleChannelLabel: { es: "Canal", en: "Channel" },
-  ruleChannelDesc: {
-    es: "El contacto llegó por WhatsApp, Instagram, etc.",
-    en: "The contact came in via WhatsApp, Instagram, etc.",
-  },
   ruleCreatedLabel: { es: "Fecha de creación", en: "Created date" },
-  ruleCreatedDesc: {
-    es: "Cuándo se creó el contacto.",
-    en: "When the contact was created.",
-  },
   ruleTextLabel: { es: "Texto del contacto", en: "Contact text" },
   ruleTextDesc: {
     es: "El nombre, correo, teléfono o empresa contiene algo.",
     en: "The name, email, phone or company contains something.",
   },
-  ruleHasFieldLabel: { es: "Tiene dato", en: "Has field" },
-  ruleHasFieldDesc: {
-    es: "Si el contacto tiene cargado un campo.",
-    en: "Whether the contact has a field filled in.",
-  },
+  ruleHasFieldLabel: { es: "Tiene un dato cargado", en: "Has a field filled in" },
   ruleShopifyLabel: { es: "Cliente de la tienda", en: "Store customer" },
-  ruleShopifyDesc: {
-    es: "Si el contacto compró o no en tu tienda.",
-    en: "Whether the contact has bought in your store.",
-  },
   ruleOfferLabel: { es: "Oferta elegida", en: "Offer chosen" },
   ruleOfferDesc: {
     es: "La oferta que compró (ej. 3+1 gratis).",

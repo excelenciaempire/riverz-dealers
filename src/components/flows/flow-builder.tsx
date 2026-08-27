@@ -2561,7 +2561,6 @@ function buildCommandItems(args: {
     {
       group: t("flows.cmdGroupAction"),
       label: t("flows.cmdSave"),
-      hint: t("flows.cmdSaveHint"),
       run: args.handleSave,
       shortcut: "Cmd+S",
     },
@@ -2574,7 +2573,6 @@ function buildCommandItems(args: {
     {
       group: t("flows.cmdGroupAction"),
       label: t("flows.cmdFitToView"),
-      hint: t("flows.cmdFitToViewHint"),
       run: args.fitToView,
     },
   );
@@ -2599,7 +2597,6 @@ function buildCommandItems(args: {
     items.push({
       group: t("flows.cmdGroupAdd"),
       label,
-      hint: t("flows.cmdAddHint", { label: label.toLowerCase() }),
       run: () => args.addNode(nodeType),
     });
   }
@@ -3467,21 +3464,9 @@ function LogicNodeBody({
           onUpdateConfig={onUpdateConfig}
         />
       )}
-      {node.node_type === "set_tag" && (
-        <p className="text-[11px] italic text-muted-foreground">
-          {(cfg.mode as string) === "remove"
-            ? t("flows.setTagRemoveDesc")
-            : t("flows.setTagAddDesc")}
-        </p>
-      )}
       {node.node_type === "end" && (
         <p className="text-[11px] italic text-muted-foreground">
           {t("flows.endNodeDesc")}
-        </p>
-      )}
-      {node.node_type === "start" && (
-        <p className="text-[11px] italic text-muted-foreground">
-          {t("flows.startNodeDesc")}
         </p>
       )}
       {node.node_type === "customer_reply" && (
@@ -3884,9 +3869,6 @@ function SubflowPicker({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-[10px] italic text-muted-foreground">
-        {t("flows.subflowNote")}
-      </p>
     </div>
   );
 }

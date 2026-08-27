@@ -82,8 +82,8 @@ export const flows = {
 
   emptyTitle: { es: "Sin flujos todavía", en: "No flows yet" },
   emptyDescription: {
-    es: "Un flujo guía al cliente con botones: toca una opción y avanza al siguiente paso, sin IA. Empieza con una plantilla o créalo desde cero.",
-    en: "A flow guides the customer with buttons: they tap an option and move to the next step, no AI. Start from a template or build it from scratch.",
+    es: "Botones que el cliente toca para avanzar, sin IA.",
+    en: "Buttons the customer taps to move forward, no AI.",
   },
   createFirstFlow: { es: "Crear mi primer flujo", en: "Create my first flow" },
 
@@ -199,8 +199,8 @@ export const flows = {
   changesApplied: { es: "{n} cambios aplicados", en: "{n} changes applied" },
   someIdeas: { es: "Algunas ideas para tu flujo:", en: "Some ideas for your flow:" },
   aiBuilderFooter: {
-    es: "Los cambios se aplican al lienzo, pero NO se guardan hasta que pulses Guardar arriba. Ctrl+Z reverte el último turno.",
-    en: "Changes apply to the canvas but are NOT saved until you press Save above. Ctrl+Z reverts the last turn.",
+    es: "Los cambios no se guardan hasta que pulses Guardar. Ctrl+Z revierte el último turno.",
+    en: "Changes are not saved until you press Save. Ctrl+Z reverts the last turn.",
   },
   suggestWelcomeMenu: {
     es: "Arma un menú de bienvenida con tres botones: Comprar, Soporte, Estado de mi pedido.",
@@ -297,10 +297,7 @@ export const flows = {
     es: "IA: se necesita una respuesta para clasificar. Sim usa fallback.",
     en: "AI: a reply is needed to classify. Sim uses the fallback.",
   },
-  simSubflow: {
-    es: "Subflujo invocado ({id}). El simulador no carga los nodos del subflujo todavía; se continúa al siguiente paso del padre.",
-    en: "Subflow invoked ({id}). The simulator doesn't load the subflow's nodes yet; it continues to the parent's next step.",
-  },
+  simSubflow: { es: "Subflujo invocado ({id}).", en: "Subflow invoked ({id})." },
   simSubflowNoId: { es: "sin id", en: "no id" },
   simHandoff: { es: "Se pasa al equipo humano. Fin de la simulación.", en: "Handed off to the team. End of simulation." },
   simEnd: { es: "Fin del flujo.", en: "End of flow." },
@@ -330,8 +327,8 @@ export const flows = {
   variables: { es: "Variables", en: "Variables" },
   flowVariables: { es: "Variables del flujo", en: "Flow variables" },
   variablesHint: {
-    es: "Toca una para copiarla al portapapeles. Pégala en cualquier texto del nodo donde la necesites.",
-    en: "Tap one to copy it to your clipboard. Paste it into any node text where you need it.",
+    es: "Toca una para copiarla y pégala en el texto del paso.",
+    en: "Tap one to copy it and paste it into a step.",
   },
   noVariablesYet: {
     es: "Todavía no hay variables. Agrega un nodo de Recolectar dato o de Buscar en Shopify para empezar.",
@@ -354,8 +351,8 @@ export const flows = {
   versionRestored: { es: "Versión restaurada", en: "Version restored" },
   flowVersions: { es: "Versiones del flujo", en: "Flow versions" },
   versionsDescription: {
-    es: "Cada vez que guardas se snapshotea un borrador, y cada vez que activas el flujo se snapshotea la versión publicada. Puedes restaurar a cualquier punto.",
-    en: "Every save snapshots a draft, and every activation snapshots the published version. You can restore to any point.",
+    es: "Cada vez que guardas o activas queda una versión. Puedes volver a cualquiera.",
+    en: "Every save or activation keeps a version. You can go back to any of them.",
   },
   noVersionsYet: {
     es: "Todavía no hay historial. Guarda o activa el flujo para empezar a generar versiones.",
@@ -472,13 +469,11 @@ export const flows = {
   cmdSave: { es: "Guardar", en: "Save" },
   cmdSaveHint: { es: "Aplica los cambios y revisa la validación.", en: "Apply changes and check validation." },
   cmdAutoLayout: { es: "Auto-organizar nodos", en: "Auto-arrange steps" },
-  cmdAutoLayoutHint: { es: "Reordena el grafo en columnas según el flujo.", en: "Re-orders the graph into columns by flow." },
+  cmdAutoLayoutHint: { es: "Reordena los pasos en columnas.", en: "Re-orders the steps into columns." },
   cmdFitToView: { es: "Centrar todo el flujo", en: "Fit the whole flow" },
-  cmdFitToViewHint: { es: "Encuadra todos los pasos en pantalla.", en: "Frames every step on screen." },
   cmdGroupJump: { es: "Saltar a paso", en: "Jump to step" },
   cmdStepFallback: { es: "Paso {key}", en: "Step {key}" },
   cmdGroupAdd: { es: "Agregar paso", en: "Add step" },
-  cmdAddHint: { es: "Crea un nuevo {label}.", en: "Creates a new {label}." },
 
   // Header
   backToFlowsAria: { es: "Volver a flujos", en: "Back to flows" },
@@ -509,8 +504,8 @@ export const flows = {
   // Note editor
   nodeNote: { es: "Nota del nodo", en: "Step note" },
   notePlaceholder: {
-    es: "Nota interna. No se envía al cliente. Sirve para coordinar con tu equipo.",
-    en: "Internal note. It isn't sent to the customer. Use it to coordinate with your team.",
+    es: "Nota interna. No se envía al cliente.",
+    en: "Internal note. Not sent to the customer.",
   },
   cmdEnterSaves: { es: "Cmd+Enter guarda", en: "Cmd+Enter saves" },
   cancel: { es: "Cancelar", en: "Cancel" },
@@ -526,10 +521,7 @@ export const flows = {
   labelTime: { es: "Tiempo", en: "Time" },
   labelInternalNote: { es: "Nota interna", en: "Internal note" },
   handoffNotePlaceholder: { es: "Por qué se pasa a un humano…", en: "Why it hands off to a human…" },
-  setTagRemoveDesc: { es: "Quita la etiqueta.", en: "Removes the tag." },
-  setTagAddDesc: { es: "Agrega la etiqueta.", en: "Adds the tag." },
-  endNodeDesc: { es: "Fin del flujo. El cliente sale aquí.", en: "End of flow. The customer exits here." },
-  startNodeDesc: { es: "Punto de inicio.", en: "Starting point." },
+  endNodeDesc: { es: "Fin del flujo.", en: "End of flow." },
   customerReplyDesc: {
     es: "El flujo se pausa hasta que el cliente envíe un mensaje. No se guarda nada — solo se espera.",
     en: "The flow pauses until the customer sends a message. Nothing is saved — it just waits.",
@@ -562,10 +554,6 @@ export const flows = {
   flowToRun: { es: "Flujo a ejecutar", en: "Flow to run" },
   loadingEllipsis: { es: "Cargando…", en: "Loading…" },
   chooseAFlow: { es: "Elegir un flujo", en: "Choose a flow" },
-  subflowNote: {
-    es: "Hoy el subflujo se registra como evento y pasa al siguiente paso directamente. La ejecución completa del subflujo llega en una actualización aparte.",
-    en: "For now the subflow is logged as an event and continues straight to the next step. Full subflow execution arrives in a separate update.",
-  },
 
   // NodeConfigForm field labels
   goesTo: { es: "Avanza a", en: "Goes to" },
@@ -575,8 +563,8 @@ export const flows = {
   varKeyPlaceholder: { es: "nombre", en: "name" },
   afterCaptureGoesTo: { es: "Tras capturar, avanza a", en: "After capturing, goes to" },
   handoffNoteLabel: {
-    es: "Nota interna (para el agente que retome la conversación)",
-    en: "Internal note (for the agent who picks up the conversation)",
+    es: "Nota interna",
+    en: "Internal note",
   },
   fileUrlLabel: { es: "URL del archivo (https)", en: "File URL (https)" },
   filenameSeenLabel: { es: "Nombre que ve el cliente", en: "Name the customer sees" },
