@@ -3,10 +3,19 @@ import type { Namespace } from "./types";
 /**
  * Copy de la portada editorial (riverz.co/portada-b).
  *
- * Registro deliberadamente calmo: un titular grande, una línea de apoyo, una
- * sola llamada a la acción, y todo lo demás en fichas. La página no enumera
- * funciones — cuenta un turno de trabajo y después muestra la caja de
- * herramientas.
+ * Dos reglas que mandan sobre todo lo demás:
+ *
+ * 1. **La voz es la de la portada principal.** Concreta, con verbos adelante y
+ *    sin sustantivos de categoría. El titular, el subtítulo y las trece
+ *    funciones NO se reescriben acá: se leen del catálogo `landing`, que es el
+ *    que ya está trabajado. Este archivo solo agrega lo que esta portada tiene
+ *    y la otra no.
+ *
+ * 2. **No sonar como el resto del mercado.** Nada de «la plataforma de
+ *    experiencia del cliente», «el sistema operativo de la atención» ni
+ *    «impulsado por IA». Esas frases las dice todo el mundo y no significan
+ *    nada. Acá se dice qué hace: contesta, recomienda, arma el pedido, llama
+ *    por teléfono, y si quieres cambiar algo se lo pides y lo hace.
  *
  * Falta a propósito: testimonios y cifras de facturación. El producto está en
  * prelanzamiento y un testimonio inventado se huele a un kilómetro.
@@ -15,8 +24,8 @@ export const landingV4 = {
   // ── Metadatos (la página va noindex: es una variante para comparar) ──
   metaTitle: { es: "riverz", en: "riverz" },
   metaDescription: {
-    es: "El sistema operativo de atención para tiendas: agentes de IA que atienden, deciden y crean el pedido en cada canal donde te escriben.",
-    en: "The customer-experience operating system for online stores: AI agents that answer, decide, and create the order on every channel where people write you.",
+    es: "Agentes de IA que atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7, sin que tengas que responder.",
+    en: "AI agents that engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order in your store. 24/7, without you replying.",
   },
 
   // ── Barra de aviso ──
@@ -27,79 +36,107 @@ export const landingV4 = {
   },
 
   // ── Navegación ──
-  navHow: { es: "Cómo funciona", en: "How it works" },
-  navCapabilities: { es: "Capacidades", en: "Capabilities" },
+  navHow: { es: "Cómo trabaja", en: "How it works" },
+  navCapabilities: { es: "Qué hace", en: "What it does" },
+  navOperator: { es: "Operator", en: "Operator" },
   navChannels: { es: "Canales", en: "Channels" },
   navCta: { es: "Pedir acceso", en: "Request access" },
   skipToContent: { es: "Ir al contenido", en: "Skip to content" },
 
-  // ── Hero ──
-  heroTitle: {
-    es: "El sistema de atención que las tiendas necesitaban",
-    en: "The customer-experience system online stores were missing",
-  },
-  heroSubtitle: {
-    es: "Una sola capa de inteligencia que atiende, decide y ejecuta en cada canal donde te escriben.",
-    en: "One intelligence layer that answers, decides, and acts on every channel where people write you.",
-  },
-  heroCta: { es: "Pedir acceso", en: "Request access" },
-  heroImageAlt: {
-    es: "Ilustración de un comerciante atendiendo por teléfono mientras prepara un pedido",
-    en: "Illustration of a shopkeeper on the phone while wrapping an order",
-  },
-
   // ── Muro de plataformas ──
-  wallLabel: { es: "Conecta con", en: "Works with" },
+  wallLabel: { es: "Trabaja con", en: "Works with" },
 
-  // ── Cómo funciona (escena fija de tres actos) ──
-  howLabel: { es: "Cómo funciona", en: "How it works" },
-  how1Title: { es: "Aprende tu tienda", en: "It learns your store" },
+  // ── Cómo trabaja (escena fija de tres actos) ──
+  howLabel: { es: "Cómo trabaja", en: "How it works" },
+  how1Title: { es: "Se aprende tu tienda", en: "It learns your store" },
   how1Body: {
-    es: "Lee tu catálogo, tus precios, tus envíos y tus reseñas. No hay que escribirle un guion: el producto es la fuente.",
-    en: "It reads your catalog, prices, shipping, and reviews. No script to write: the product is the source.",
+    es: "Lee tu catálogo, tus precios, tus envíos y tus reseñas. No hay que escribirle un guion ni armarle un árbol de respuestas: el producto es la fuente.",
+    en: "It reads your catalog, prices, shipping, and reviews. No script to write, no decision tree to build: the product is the source.",
   },
   how1P1: { es: "Catálogo y stock en vivo", en: "Live catalog and stock" },
   how1P2: { es: "Precios, envíos y devoluciones", en: "Prices, shipping, returns" },
-  how1P3: { es: "Tus reglas de negocio, en tus palabras", en: "Your business rules, in your words" },
+  how1P3: { es: "Tus reglas, escritas en tus palabras", en: "Your rules, in your own words" },
 
-  how2Title: { es: "Atiende donde te escriben", en: "It answers where they write" },
+  how2Title: { es: "Contesta donde te escriben", en: "It answers where they write" },
   how2Body: {
-    es: "WhatsApp, Instagram, Messenger, Mercado Libre, correo, comentarios y llamadas. Una bandeja, una sola voz.",
-    en: "WhatsApp, Instagram, Messenger, Mercado Libre, email, comments, and calls. One inbox, one voice.",
+    es: "WhatsApp, Instagram, Messenger, Mercado Libre, correo, comentarios y llamadas. Una sola bandeja y una sola voz, a cualquier hora.",
+    en: "WhatsApp, Instagram, Messenger, Mercado Libre, email, comments, and calls. One inbox and one voice, any hour of the day.",
   },
   how2P1: { es: "Siete canales en una bandeja", en: "Seven channels, one inbox" },
-  how2P2: { es: "Responde en segundos, a cualquier hora", en: "Replies in seconds, any hour" },
-  how2P3: { es: "Pasa a una persona cuando conviene", en: "Hands off to a person when it matters" },
+  how2P2: { es: "Contesta en segundos, de madrugada también", en: "Replies in seconds, at 3 a.m. too" },
+  how2P3: { es: "Te pasa el chat cuando conviene", en: "Hands the chat to you when it matters" },
 
-  how3Title: { es: "Cierra la venta", en: "It closes the sale" },
+  how3Title: { es: "Cierra y deja el pedido hecho", en: "It closes and leaves the order done" },
   how3Body: {
-    es: "Recomienda, recupera el carrito, arma el pedido y lo crea en tu tienda con el link marcado.",
-    en: "It recommends, recovers the cart, builds the order, and creates it in your store with a tagged link.",
+    es: "Recomienda con stock real, recupera el carrito, arma el pedido y lo crea en tu tienda con el link marcado, para que sepas que fue suyo.",
+    en: "It recommends with real stock, recovers the cart, builds the order, and creates it in your store with a tagged link, so you know it was its doing.",
   },
-  how3P1: { es: "Recomendaciones con stock real", en: "Recommendations with real stock" },
+  how3P1: { es: "Recomienda solo lo que hay", en: "It only recommends what's in stock" },
   how3P2: { es: "Carritos abandonados y recompras", en: "Abandoned carts and repeat sales" },
   how3P3: { es: "El pedido, creado en tu tienda", en: "The order, created in your store" },
 
   // ── Bloque de dato ──
   figureLabel: { es: "El horario", en: "The hours" },
   figureLead: {
-    es: "La mitad de los mensajes que recibe una tienda entran fuera de horario. Ahí es donde se pierde la venta, y es exactamente el turno que el agente cubre sin quejarse.",
-    en: "Half the messages a store receives arrive after hours. That's where the sale is lost, and it's exactly the shift the agent covers without complaining.",
+    es: "La mitad de los mensajes que le llegan a una tienda entran fuera de horario. Ahí se pierde la venta, y ése es exactamente el turno que cubre sin quejarse.",
+    en: "Half the messages a store gets arrive after hours. That's where the sale is lost, and that's exactly the shift it covers without complaining.",
   },
   figureM1: { es: "canales en una bandeja", en: "channels, one inbox" },
   figureM2: { es: "herramientas que ejecuta", en: "tools it runs" },
   figureM3: { es: "minutos de espera", en: "minutes of waiting" },
 
-  // ── Capacidades ──
-  capsLabel: { es: "Capacidades", en: "Capabilities" },
+  // ── Qué hace (la cuadrícula de fichas) ──
+  capsLabel: { es: "Qué hace", en: "What it does" },
   capsTitle: {
-    es: "Una plataforma, no un chatbot",
-    en: "A platform, not a chatbot",
+    es: "Trece cosas que hace solo",
+    en: "Thirteen things it does on its own",
   },
   capsBody: {
-    es: "Cada tarjeta es algo que el agente hace solo, con datos reales de tu tienda.",
-    en: "Every card is something the agent does on its own, with real data from your store.",
+    es: "Cada una con los datos reales de tu tienda: tu stock, tus precios, tus pedidos.",
+    en: "Each one with real data from your store: your stock, your prices, your orders.",
   },
+
+  // ── Operator ──
+  // La pieza que no tiene nadie más en la categoría, y por eso se lleva un
+  // bloque entero en vez de una ficha.
+  operatorLabel: { es: "Operator", en: "Operator" },
+  operatorTitle: {
+    es: "Y si quieres cambiar algo, se lo pides",
+    en: "And if you want something changed, you just ask",
+  },
+  operatorBody: {
+    es: "Escribes lo que necesitas como se lo dirías a un empleado. Riverz lo reparte entre catorce especialistas —uno de automatizaciones, otro de campañas, otro de productos— te muestra el reparto completo, y recién cuando lo apruebas se pone a trabajar.",
+    en: "You write what you need the way you'd tell an employee. Riverz splits it across fourteen specialists — one for automations, one for campaigns, one for products — shows you the whole split, and only starts working once you approve it.",
+  },
+  operatorP1: {
+    es: "Cada especialista solo puede tocar lo suyo",
+    en: "Each specialist can only touch its own area",
+  },
+  operatorP2: {
+    es: "Ves el reparto entero antes de que corra",
+    en: "You see the whole split before it runs",
+  },
+  operatorP3: {
+    es: "Lo que le llegue a un cliente te lo pregunta aparte",
+    en: "Anything that reaches a customer gets asked separately",
+  },
+
+  // Texto que se escribe solo dentro de la animación del Operator.
+  opPrompt: {
+    es: "Recupera los carritos de esta semana",
+    en: "Recover this week's abandoned carts",
+  },
+  opPlanTitle: { es: "Plan de trabajo", en: "Work plan" },
+  opApprove: { es: "Aprobar", en: "Approve" },
+  opWorking: { es: "Trabajando…", en: "Working…" },
+  opDone: { es: "Listo", en: "Done" },
+  opNote: {
+    es: "Lo que le llegue a un cliente te lo pregunta aparte.",
+    en: "Anything that reaches a customer is asked separately.",
+  },
+  opTask1: { es: "Segmentar los carritos de 7 días", en: "Segment 7-day abandoned carts" },
+  opTask2: { es: "Escribir el mensaje con el producto", en: "Write the message with the product" },
+  opTask3: { es: "Prender el envío a las 3 horas", en: "Schedule the send for 3 hours later" },
 
   // ── Canales ──
   channelsLabel: { es: "Canales", en: "Channels" },

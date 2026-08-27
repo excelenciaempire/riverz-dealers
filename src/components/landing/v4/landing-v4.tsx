@@ -12,6 +12,7 @@ import { WaitlistForm } from "@/components/landing/landing";
 import { Label, LocaleSwitch, Rise } from "./bits";
 import { Scene } from "./scene";
 import { Cards } from "./cards";
+import { Operator } from "./operator";
 import "./editorial.css";
 
 /**
@@ -86,6 +87,10 @@ export function LandingV4() {
         <Scene />
         <Figure />
         <Capabilities />
+        {/* El Operator va DESPUÉS de las trece fichas a propósito: primero se
+            ve todo lo que hace solo, y recién entonces tiene sentido decir que
+            además se le puede pedir un cambio. Al revés no se entiende. */}
+        <Operator />
         <Channels />
         <Cta />
       </main>
@@ -101,15 +106,21 @@ function Banner() {
   const t = useT();
   return (
     <div className="px-3 pt-3">
+      {/* En pantalla chica el aviso se acomoda en dos renglones centrados en
+          vez de partir la frase por la mitad; la raya solo aparece cuando las
+          dos partes van en el mismo renglón. */}
       <div
-        className="mx-auto flex max-w-6xl items-center justify-center gap-2 rounded-full px-5 py-2.5 text-center"
+        className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-3xl px-5 py-2.5 text-center sm:rounded-full"
         style={{ background: "var(--sn-ink)" }}
       >
         <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
           {t("landingV4.bannerLead")}
         </span>
         <span className="text-[13px]" style={{ color: "rgba(250,247,241,0.72)" }}>
-          — {t("landingV4.bannerText")}
+          <span aria-hidden className="hidden sm:inline">
+            —{" "}
+          </span>
+          {t("landingV4.bannerText")}
         </span>
       </div>
     </div>
@@ -139,6 +150,9 @@ function Nav() {
           </a>
           <a href="#capacidades" className="transition-opacity hover:opacity-60">
             {t("landingV4.navCapabilities")}
+          </a>
+          <a href="#operator" className="transition-opacity hover:opacity-60">
+            {t("landingV4.navOperator")}
           </a>
           <a href="#canales" className="transition-opacity hover:opacity-60">
             {t("landingV4.navChannels")}
@@ -184,16 +198,22 @@ function Hero() {
         />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-5 pb-16 pt-16 text-center sm:pt-24 lg:pb-24 lg:pt-28">
+      {/* El titular, el subtítulo y la llamada a la acción salen del catálogo
+          `landing`: son los de la portada principal, palabra por palabra. Esta
+          portada cambia el diseño, no lo que promete. */}
+      <div className="relative mx-auto max-w-6xl px-5 pb-14 pt-14 text-center sm:pt-20 lg:pb-24 lg:pt-28">
         <Rise>
-          <h1 className="sn-display mx-auto max-w-[15ch]">{t("landingV4.heroTitle")}</h1>
+          <h1 className="sn-display mx-auto max-w-[16ch]">
+            {t("landing.heroTitleLead")}{" "}
+            <span style={{ color: "var(--sn-muted)" }}>{t("landing.heroTitleMuted")}</span>
+          </h1>
         </Rise>
         <Rise delay={90}>
-          <p className="sn-body mx-auto mt-7 max-w-[52ch]">{t("landingV4.heroSubtitle")}</p>
+          <p className="sn-body mx-auto mt-7 max-w-[58ch]">{t("landing.heroSubtitle")}</p>
         </Rise>
         <Rise delay={180}>
           <a href="#acceso" className="sn-pill group mt-9">
-            {t("landingV4.heroCta")}
+            {t("landingV4.navCta")}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </a>
         </Rise>
