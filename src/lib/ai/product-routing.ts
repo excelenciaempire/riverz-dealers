@@ -34,7 +34,7 @@ export interface ProductMatch {
   score: number;
   confidence: MatchConfidence;
   /** Vía de detección — útil para logs de routing. */
-  via: "title_exact" | "title_partial" | "handle" | "tags_strong";
+  via: "title_exact" | "title_partial" | "handle" | "tags_strong" | "page_url";
 }
 
 /** Mínimo de caracteres "significativos" (no stop-word) para aceptar un match. */
@@ -319,4 +319,62 @@ function pickStronger(
   if (!a) return b;
   if (!b) return a;
   return a.score >= b.score ? a : b;
+}
+
+/**
+ * El producto de la pagina en la que esta parado el visitante.
+ *
+ * Es la ventaja que el chat web tiene sobre todos los demas canales y no se
+ * estaba usando: quien escribe no esta en el vacio, esta MIRANDO una ficha de
+ * producto. La URL de esa ficha llega desde el cargador y hasta ahora se le
+ * pasaba al modelo como prosa ("esta mirando esta pagina"), lo cual sirve para
+ * entender a que se refiere con "esto" pero NO carga el conocimiento del
+ * producto: sin nombrarlo en el texto, el `training_material`, la investigacion
+ * y los guardarraies de esa ficha nunca entraban al prompt. O sea que la
+ * pregunta mejor contestable del canal —la que hace alguien parado en el
+ * producto— era la que llegaba con menos informacion.
+ *
+ * El handle sale de la URL y se compara contra el del catalogo. Es exacto, no
+ * es una adivinanza: por eso `high`.
+ *
+ * Cubre las formas de las plataformas que soportamos:
+ *   Shopify        /products/<handle>            (y /collections/x/products/<handle>)
+ *   Tiendanube     /productos/<handle>
+ *   WooCommerce    /producto/<handle>  /product/<handle>
+ *   Acortadas      /p/<handle>
+ */
+const RUTAS_DE_PRODUCTO = /\/(?:products?|productos?|p)\/([^/?#]+)/i;
+
+export function handleDeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let ruta = String(url);
+  try {
+    ruta = new URL(ruta.includes('://') ? ruta : `https://${ruta}`).pathname;
+  } catch {
+    /* No es una URL entera: se busca el patron sobre el texto tal cual. */
+  }
+  const m = RUTAS_DE_PRODUCTO.exec(ruta);
+  if (!m) return null;
+  // El handle real no lleva extension ni variante: `/products/serum.js` y
+  // `/products/serum?variant=42` son la misma ficha.
+  const crudo = decodeURIComponent(m[1]).split('.')[0].trim().toLowerCase();
+  return crudo || null;
+}
+
+export function detectProductByUrl(
+  url: string | null | undefined,
+  products: CandidateProduct[],
+): ProductMatch | null {
+  const handle = handleDeUrl(url);
+  if (!handle) return null;
+  const encontrado = products.find(
+    (p) => (p.handle ?? '').trim().toLowerCase() === handle,
+  );
+  if (!encontrado) return null;
+  return {
+    product_id: encontrado.id,
+    score: handle.length,
+    confidence: 'high',
+    via: 'page_url',
+  };
 }

@@ -12,6 +12,7 @@ import {
   loadRecentContactNotes,
   detectInboundProduct,
   getStickyAgentId,
+  paginaDeLaConversacion,
   pickAgent,
   resolveShopifyContext,
 } from './runner';
@@ -98,6 +99,11 @@ export async function componerBorrador(
       db,
       input.workspaceId,
       ultimoCliente,
+      // El borrador se arma con lo mismo que ve el agente que contesta solo:
+      // en el chat web, la ficha en la que está parado quien pregunta.
+      conversation.channel === 'webchat'
+        ? (await paginaDeLaConversacion(db, conversation.id))?.url ?? null
+        : null,
     );
     // Mismo arbitraje que cuando contesta solo: el agente que ya venía
     // atendiendo este hilo, y si no el que corresponde al canal y al producto.

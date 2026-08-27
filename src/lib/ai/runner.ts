@@ -37,6 +37,7 @@ import {
   containsEscalationKeyword as hasEscalationKeyword,
 } from './business-hours';
 import {
+  detectProductByUrl,
   detectProductMention,
   type CandidateProduct,
   type ProductMatch,
@@ -143,10 +144,24 @@ export async function runAiAgent(
     // 3. Stickiness: if this conversation already has a prior AI agent,
     //    keep it unless the detection swings to a different specific
     //    owner with HIGH confidence (prevents mid-thread persona flips).
+    // En el chat web el visitante está PARADO en una ficha de producto. Esa
+    // URL es la señal más fuerte que existe en cualquier canal —no hay que
+    // adivinar de qué habla— y hasta ahora sólo se le contaba al modelo como
+    // prosa: el conocimiento del producto no se cargaba salvo que el cliente
+    // lo nombrara. Justo la pregunta mejor contestable llegaba peor armada.
+    //
+    // Se lee FRESCA de la base y no de `args.conversation`: el POST del
+    // mensaje sella la página justo antes de que arranque este turno, así que
+    // el objeto que llegó por argumento todavía trae la página anterior.
+    const paginaActual =
+      args.channel === 'webchat'
+        ? (await paginaDeLaConversacion(db, args.conversation.id))?.url ?? null
+        : null;
     const productMatch = await detectInboundProduct(
       db,
       args.workspaceId,
       args.inboundMessage.content_text ?? '',
+      paginaActual,
     );
     const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
 
@@ -881,15 +896,29 @@ export async function detectInboundProduct(
   db: SupabaseClient,
   workspaceId: string | null,
   messageText: string,
+  /**
+   * La página de la tienda desde la que escribe (sólo chat web). Es un HECHO,
+   * no una adivinanza: quien pregunta está parado en esa ficha.
+   */
+  pageUrl?: string | null,
 ): Promise<ProductMatch | null> {
-  if (!workspaceId || !messageText) return null;
+  if (!workspaceId || (!messageText && !pageUrl)) return null;
   const { data } = await db
     .from('shopify_products')
     .select('id, title, handle, tags, vendor, product_type')
     .eq('workspace_id', workspaceId)
     .limit(500);
   if (!data || data.length === 0) return null;
-  return detectProductMention(messageText, data as CandidateProduct[]);
+  const candidatos = data as CandidateProduct[];
+
+  const porTexto = messageText ? detectProductMention(messageText, candidatos) : null;
+  // El texto gana cuando es contundente: quien está en la ficha del serum y
+  // pregunta por la crema está preguntando por la crema. Pero un match dudoso
+  // NO le gana a la página — ahí la página es lo único que sabemos de verdad.
+  if (porTexto?.confidence === 'high') return porTexto;
+
+  const porUrl = detectProductByUrl(pageUrl, candidatos);
+  return porUrl ?? porTexto;
 }
 
 /**
@@ -1717,10 +1746,10 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
  * turno arranque, así que se lee fresco de la base en vez de arrastrarlo por
  * media docena de firmas.
  */
-async function contextoDeNavegacion(
+export async function paginaDeLaConversacion(
   db: SupabaseClient,
   conversationId: string,
-): Promise<string | null> {
+): Promise<{ url: string; title: string } | null> {
   const { data } = await db
     .from('conversations')
     .select('page_url, page_title')
@@ -1728,11 +1757,20 @@ async function contextoDeNavegacion(
     .maybeSingle();
   const fila = data as { page_url?: string | null; page_title?: string | null } | null;
   if (!fila?.page_url) return null;
-  const titulo = (fila.page_title ?? '').trim();
+  return { url: fila.page_url, title: (fila.page_title ?? '').trim() };
+}
+
+async function contextoDeNavegacion(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<string | null> {
+  const pagina = await paginaDeLaConversacion(db, conversationId);
+  if (!pagina) return null;
+  const titulo = pagina.title;
   return [
     'Está escribiendo desde una página de la tienda:',
     titulo ? `- Página: ${titulo}` : null,
-    `- Dirección: ${fila.page_url}`,
+    `- Dirección: ${pagina.url}`,
     'Úsalo para entender a qué se refiere cuando dice "esto", "este producto" o "el que estoy viendo". Es dónde está parada, no lo que pidió: no des por hecho que quiere comprarlo, y no lo menciones si la consulta es de otra cosa.',
   ]
     .filter(Boolean)
