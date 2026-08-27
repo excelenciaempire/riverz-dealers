@@ -84,6 +84,31 @@ export const webchat = {
     en: "Where is my order?",
   },
 
+  // ── Invitación ──
+  proactive: { es: "Salir a buscar", en: "Reach out" },
+  proactiveMessage: { es: "Texto de la invitación", en: "Invitation text" },
+  proactiveMessageHint: {
+    es: "Con texto aparece una burbuja junto al botón. Vacío, el chat se abre solo.",
+    en: "With text, a bubble shows next to the button. Empty, the chat opens by itself.",
+  },
+  proactiveMessagePlaceholder: {
+    es: "¿Te ayudo a elegir?",
+    en: "Need help choosing?",
+  },
+  proactiveExit: { es: "Cuando el cursor va a salir", en: "When the cursor leaves" },
+  proactiveExitHint: {
+    es: "Solo en computadora: en el teléfono ese gesto no existe.",
+    en: "Desktop only: that gesture does not exist on a phone.",
+  },
+  proactiveScroll: { es: "Al leer la página", en: "After reading the page" },
+  proactiveScrollNever: { es: "Nunca", en: "Never" },
+  proactiveUrls: { es: "Solo en estas páginas", en: "Only on these pages" },
+  proactiveUrlsHint: {
+    es: "Trozos de dirección, como /products/. Vacío: en todas.",
+    en: "Parts of the address, like /products/. Empty: everywhere.",
+  },
+  proactiveUrlPlaceholder: { es: "/products/", en: "/products/" },
+
   // ── Comportamiento ──
   behavior: { es: "Comportamiento", en: "Behavior" },
   agent: { es: "Agente que atiende", en: "Agent on duty" },

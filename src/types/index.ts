@@ -1206,4 +1206,27 @@ export interface WebchatConfig {
    * hacia lo que el agente sabe contestar.
    */
   quick_replies?: string[];
+  /**
+   * El texto de la invitación, cuando el chat sale a buscar a alguien.
+   *
+   * Con esto puesto, `auto_open_seconds` deja de abrir el panel de golpe y
+   * muestra una burbuja al lado del lanzador. Es la diferencia entre una
+   * invitación y un pop-up: el panel abriéndose solo tapa justo la ficha del
+   * producto que la persona estaba leyendo. Vacío = se abre el panel, como
+   * antes.
+   */
+  proactive_message?: string;
+  /**
+   * Invitar también cuando el puntero se va hacia arriba (intención de salir).
+   * Sólo en escritorio: en un teléfono no existe ese gesto.
+   */
+  proactive_on_exit?: boolean;
+  /** Invitar al llegar a este % de la página. 0 = nunca por scroll. */
+  proactive_scroll_percent?: number;
+  /**
+   * Sólo invitar en páginas cuya dirección contenga alguno de estos textos
+   * (por ejemplo `/products/`). Vacío = en todas. No apaga el chat en el
+   * resto: sólo decide dónde sale a buscar.
+   */
+  proactive_urls?: string[];
 }

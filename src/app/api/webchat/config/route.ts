@@ -10,7 +10,13 @@ import {
   webchatConfig,
 } from '@/lib/channels/webchat/connection-store';
 import { widgetKey } from '@/lib/channels/webchat/token';
-import { normalizeOrigin, preguntasSugeridas, WEBCHAT_DEFAULTS } from '@/lib/channels/webchat/config';
+import {
+  normalizeOrigin,
+  porcentajeDeScroll,
+  preguntasSugeridas,
+  urlsDeInvitacion,
+  WEBCHAT_DEFAULTS,
+} from '@/lib/channels/webchat/config';
 import { detectStoreDomains } from '@/lib/channels/webchat/domains';
 import { publicBaseUrl } from '@/lib/base-url';
 
@@ -112,6 +118,18 @@ export async function PUT(request: Request) {
   }
   if (body.quick_replies !== undefined) {
     patch.quick_replies = preguntasSugeridas(body.quick_replies);
+  }
+  if (typeof body.proactive_message === 'string') {
+    patch.proactive_message = body.proactive_message.slice(0, 200);
+  }
+  if (typeof body.proactive_on_exit === 'boolean') {
+    patch.proactive_on_exit = body.proactive_on_exit;
+  }
+  if (body.proactive_scroll_percent !== undefined) {
+    patch.proactive_scroll_percent = porcentajeDeScroll(body.proactive_scroll_percent);
+  }
+  if (body.proactive_urls !== undefined) {
+    patch.proactive_urls = urlsDeInvitacion(body.proactive_urls);
   }
   if (body.auto_open_seconds !== undefined) {
     // Acotado: menos de tres segundos es un pop-up encima de quien recién

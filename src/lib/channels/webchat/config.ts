@@ -49,6 +49,27 @@ export interface WebchatSettings {
   offline_message: string;
   /** Preguntas sugeridas bajo el saludo. Vacío = ninguna. */
   quick_replies: string[];
+  /** La invitación: texto de la burbuja, y cuándo aparece además del tiempo. */
+  proactive_message: string;
+  proactive_on_exit: boolean;
+  proactive_scroll_percent: number;
+  proactive_urls: string[];
+}
+
+/** El % de página a partir del cual se invita. Fuera de 10–100, no se invita. */
+export function porcentajeDeScroll(valor: unknown): number {
+  const n = Math.floor(Number(valor));
+  if (!Number.isFinite(n) || n < 10) return 0;
+  return Math.min(100, n);
+}
+
+/** Trozos de URL donde vale la invitación. Vacío = en todas. */
+export function urlsDeInvitacion(valor: unknown): string[] {
+  if (!Array.isArray(valor)) return [];
+  const limpias = valor
+    .map((v) => (typeof v === 'string' ? v.trim().slice(0, 120) : ''))
+    .filter(Boolean);
+  return Array.from(new Set(limpias)).slice(0, 10);
 }
 
 /**
@@ -111,6 +132,10 @@ export function widgetSettings(
     // chat decida sería contarle al visitante el horario del comercio.
     offline_message: extra?.offline ? (config.offline_message ?? '') : '',
     quick_replies: preguntasSugeridas(config.quick_replies),
+    proactive_message: (config.proactive_message ?? '').slice(0, 200),
+    proactive_on_exit: config.proactive_on_exit === true,
+    proactive_scroll_percent: porcentajeDeScroll(config.proactive_scroll_percent),
+    proactive_urls: urlsDeInvitacion(config.proactive_urls),
   };
 }
 

@@ -68,6 +68,9 @@ function espera(segundos: number | null): string {
  *  segundos?" es una pregunta que nadie sabe contestar. */
 const AUTO_OPEN = [0, 5, 15, 30] as const;
 
+/** Cuánto tiene que haber leído de la página para que valga la pena hablarle. */
+const SCROLL = [0, 25, 50, 75] as const;
+
 export function WebchatPanel() {
   const t = useT();
   const format = useFormat();
@@ -85,6 +88,7 @@ export function WebchatPanel() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [domainDraft, setDomainDraft] = useState('');
   const [quickDraft, setQuickDraft] = useState('');
+  const [urlDraft, setUrlDraft] = useState('');
   const [suggested, setSuggested] = useState<string[]>([]);
 
   useEffect(() => {
@@ -177,6 +181,14 @@ export function WebchatPanel() {
     if (!value) return;
     setDomainDraft('');
     save({ allowed_domains: [...domains, value] });
+  };
+
+  const paginas = cfg.proactive_urls ?? [];
+  const addPagina = () => {
+    const value = urlDraft.trim();
+    if (!value) return;
+    setUrlDraft('');
+    save({ proactive_urls: [...paginas, value] });
   };
 
   const sugeridas = cfg.quick_replies ?? [];
@@ -513,7 +525,29 @@ export function WebchatPanel() {
           </Field>
         </div>
 
-        <div className="mt-3">
+      </Card>
+
+      {/* ── 4. ¿Cuándo sale a buscar? ──
+          Los tres disparadores apuntan al mismo lugar y el primero que llega
+          gana: la invitación sale una vez por visita. Van juntos porque la
+          pregunta del comercio es una sola —"¿cuándo le hablo al que está
+          mirando?"— y repartidos entre Apariencia y Comportamiento no se
+          entendía que competían entre sí. */}
+      <Card title={t('webchat.proactive')}>
+        <Field label={t('webchat.proactiveMessage')}>
+          <p className="mb-1.5 text-xs text-muted-foreground">
+            {t('webchat.proactiveMessageHint')}
+          </p>
+          <Input
+            value={cfg.proactive_message ?? ''}
+            maxLength={200}
+            placeholder={t('webchat.proactiveMessagePlaceholder')}
+            onChange={(e) => setCfg({ ...cfg, proactive_message: e.target.value })}
+            onBlur={(e) => save({ proactive_message: e.target.value })}
+          />
+        </Field>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label={t('webchat.autoOpen')}>
             <div className="flex flex-wrap gap-2">
               {AUTO_OPEN.map((s) => (
@@ -529,10 +563,80 @@ export function WebchatPanel() {
               ))}
             </div>
           </Field>
+
+          <Field label={t('webchat.proactiveScroll')}>
+            <div className="flex flex-wrap gap-2">
+              {SCROLL.map((p) => (
+                <Button
+                  key={p}
+                  type="button"
+                  size="sm"
+                  variant={(cfg.proactive_scroll_percent ?? 0) === p ? 'default' : 'outline'}
+                  onClick={() => save({ proactive_scroll_percent: p })}
+                >
+                  {p === 0 ? t('webchat.proactiveScrollNever') : `${p}%`}
+                </Button>
+              ))}
+            </div>
+          </Field>
+        </div>
+
+        <div className="mt-3">
+          <Toggle
+            label={t('webchat.proactiveExit')}
+            hint={t('webchat.proactiveExitHint')}
+            checked={cfg.proactive_on_exit === true}
+            onChange={(v) => save({ proactive_on_exit: v })}
+          />
+        </div>
+
+        <div className="mt-3">
+          <Field label={t('webchat.proactiveUrls')}>
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              {t('webchat.proactiveUrlsHint')}
+            </p>
+            {paginas.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {paginas.map((u) => (
+                  <span
+                    key={u}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-foreground"
+                  >
+                    {u}
+                    <button
+                      type="button"
+                      aria-label={u}
+                      onClick={() => save({ proactive_urls: paginas.filter((x) => x !== u) })}
+                      className="text-muted-foreground transition hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <Input
+                value={urlDraft}
+                maxLength={120}
+                placeholder={t('webchat.proactiveUrlPlaceholder')}
+                onChange={(e) => setUrlDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addPagina();
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" onClick={addPagina} disabled={saving}>
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </Field>
         </div>
       </Card>
 
-      {/* ── 4. ¿Qué produjo? ── */}
+      {/* ── 5. ¿Qué produjo? ── */}
       <Card title={t('webchat.results')} subtitle={t('webchat.period')}>
         {stats && stats.conversations > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
