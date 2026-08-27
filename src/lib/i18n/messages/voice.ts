@@ -239,17 +239,13 @@ export const voice = {
   metricCost: { es: "Costo estimado", en: "Estimated cost" },
 
   // ── Merchant "Voz" page ──
-  // ── Pantalla de Llamadas, rehecha ──
-  // Lo primero es el estado: si la cuenta puede llamar o qué le falta. Antes
-  // la pantalla eran dos tarjetas de configuración y había que deducirlo.
+  // ── Pantalla de Llamadas ──
+  // Cada cosa que falta se dice donde se arregla, no en un cartel aparte que
+  // repita las mismas frases.
   pageDesc: {
     es: "Tu agente llama y contesta por teléfono.",
     en: "Your agent calls and answers the phone.",
   },
-  readyTitle: { es: "Listo para llamar", en: "Ready to call" },
-  readyFrom: { es: "desde {number}", en: "from {number}" },
-  notReadyTitle: { es: "Todavía no puede llamar", en: "Can't call yet" },
-  readyFix: { es: "Resolver", en: "Fix" },
   usageThisMonth: {
     es: "{minutes} min este mes",
     en: "{minutes} min this month",

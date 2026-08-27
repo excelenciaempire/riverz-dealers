@@ -3,20 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
-import { AlertTriangle, Check, Loader2, Megaphone, ChevronRight, Ban } from 'lucide-react';
+import { Loader2, Megaphone, ChevronRight, Ban } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { VoiceCard } from '@/components/settings/voice-card';
 import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
-import { VOICE_BLOCKED_KEY, type VoiceBlockerCode } from '@/lib/voice/labels';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 
 type AgentRow = { id: string; name: string };
-type Blocker = { code: VoiceBlockerCode; fixHref: string | null };
 type Usage = { minutes_used: number; minutes_limit: number; spend_usd: number; calls: number };
 
 /**
@@ -27,11 +25,13 @@ type Usage = { minutes_used: number; minutes_limit: number; spend_usd: number; c
  * podía llamar. No podía: le faltaba un agente con la voz activada, y eso no
  * estaba escrito en ningún lado. Un comercio armaba todo y no pasaba nada.
  *
- * Ahora lo primero es el estado, con el motivo y el link que lo destraba
- * (`/api/voice/readiness`, los mismos criterios que la cola de llamadas), y
- * después la configuración en orden de a cuánta gente le importa. El freno de
- * emergencia sale de la lista de interruptores: es un botón de pánico, no una
- * preferencia, y estaba dibujado igual que «grabar llamadas».
+ * Ahora cada cosa que falta se dice DONDE se arregla: si no hay agente con
+ * voz, lo dice «Quién atiende»; si no hay número, la tarjeta del número. Hubo
+ * un cartel de estado arriba que repetía esas mismas frases palabra por
+ * palabra — dos veces lo mismo en una pantalla es una forma de confundir.
+ *
+ * El freno de emergencia sale de la lista de interruptores: es un botón de
+ * pánico, no una preferencia, y estaba dibujado igual que «grabar llamadas».
  */
 export default function VoicePage() {
   const t = useT();
@@ -42,24 +42,23 @@ export default function VoicePage() {
   /** Todos los que alguna vez pudieron llamar — el filtro del registro los
    *  necesita para no esconder llamadas de un agente pausado después. */
   const [voiceAgents, setVoiceAgents] = useState<AgentRow[]>([]);
-  const [blockers, setBlockers] = useState<Blocker[] | null>(null);
-  const [phone, setPhone] = useState<string | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
+  /** Sólo para el bloque de parada del final. */
+  const [parado, setParado] = useState(false);
   const [parando, setParando] = useState(false);
 
   const workspaceId = workspace?.id;
 
-  /** Estado + consumo. Se relee tras guardar, o el cartel miente hasta el F5. */
+  /** El freno y el consumo. Se relee tras guardar, o quedan mintiendo hasta el F5. */
   const recargar = useCallback(async () => {
     if (!workspaceId) return;
-    const [rd, us] = await Promise.all([
-      fetch(`/api/voice/readiness?workspace_id=${workspaceId}`, { cache: 'no-store' }),
+    const [cn, us] = await Promise.all([
+      fetch(`/api/voice/connection?workspace_id=${workspaceId}`, { cache: 'no-store' }),
       fetch(`/api/voice/usage?workspace_id=${workspaceId}`, { cache: 'no-store' }),
     ]);
-    if (rd.ok) {
-      const json = (await rd.json()) as { blockers?: Blocker[]; phone_number?: string | null };
-      setBlockers(json.blockers ?? []);
-      setPhone(json.phone_number ?? null);
+    if (cn.ok) {
+      const json = (await cn.json()) as { config?: { kill_switch?: boolean } | null };
+      setParado(!!json.config?.kill_switch);
     }
     if (us.ok) setUsage((await us.json()) as Usage);
   }, [workspaceId]);
@@ -108,11 +107,6 @@ export default function VoicePage() {
     };
   }, [workspaceId]);
 
-  const parado = (blockers ?? []).some((b) => b.code === 'kill_switch');
-  // El freno tiene su propio botón abajo; arriba sería decir dos veces lo mismo.
-  const faltantes = (blockers ?? []).filter((b) => b.code !== 'kill_switch');
-  const listo = blockers !== null && faltantes.length === 0;
-
   async function frenar(valor: boolean) {
     if (!workspaceId) return;
     setParando(true);
@@ -142,67 +136,21 @@ export default function VoicePage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('nav.voice')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('voice.pageDesc')}</p>
-      </div>
-
-      {/* ¿Puede llamar, sí o no? Es lo único que hay que saber al entrar. */}
-      {blockers === null ? (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <section
-          className={`rounded-xl border p-4 ${
-            listo
-              ? 'border-emerald-500/40 bg-emerald-500/5'
-              : 'border-amber-500/40 bg-amber-500/5'
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-              {listo ? (
-                <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              )}
-              {listo ? t('voice.readyTitle') : t('voice.notReadyTitle')}
-              {listo && phone && (
-                <span className="font-normal text-muted-foreground">
-                  {t('voice.readyFrom', { number: phone })}
-                </span>
-              )}
-            </p>
-            {usage && (
-              <p className="text-xs text-muted-foreground">
-                {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
-                {usage.minutes_limit > 0
-                  ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
-                  : ''}
-                {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
-              </p>
-            )}
-          </div>
-
-          {/* Cada motivo con el link que lo arregla. Sin esto el comercio ve
-              «no puede llamar» y no tiene idea de qué hacer al respecto. */}
-          {faltantes.length > 0 && (
-            <ul className="mt-3 space-y-1.5">
-              {faltantes.map((b) => (
-                <li key={b.code} className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-amber-700 dark:text-amber-400">
-                    {t(VOICE_BLOCKED_KEY[b.code])}
-                  </span>
-                  {b.fixHref && (
-                    <Link href={b.fixHref} className="text-primary underline">
-                      {t('voice.readyFix')}
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('voice.pageDesc')}
+          {/* Lo único del cartel viejo que no se repetía en ningún lado. */}
+          {usage && usage.calls > 0 && (
+            <>
+              {' · '}
+              {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
+              {usage.minutes_limit > 0
+                ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
+                : ''}
+              {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
+            </>
           )}
-        </section>
-      )}
+        </p>
+      </div>
 
       {/* El número propio del espacio de trabajo (compra + papeleo regulatorio). */}
       <VoiceNumberCard />
