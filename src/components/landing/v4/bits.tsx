@@ -35,12 +35,16 @@ export function useInView<T extends HTMLElement>(margin = 0.1) {
         stop();
       }
     };
+    let tick: ReturnType<typeof setInterval> | null = null;
+
     const onScroll = () => {
       if (!raf && !done) raf = requestAnimationFrame(check);
     };
     const stop = () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      if (tick) clearInterval(tick);
+      tick = null;
     };
 
     // Dos cuadros: en el primero se arma (el bloque pasa a su estado de
@@ -51,6 +55,13 @@ export function useInView<T extends HTMLElement>(margin = 0.1) {
       setState("out");
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onScroll);
+      // Además del scroll, un latido cada 250 ms mientras el bloque siga
+      // apagado. El estado apagado ESCONDE el contenido, así que no puede
+      // depender de que llegue un evento: alcanza con que la ventana cambie
+      // de tamaño en medio de un scroll, o con que el navegador agrupe los
+      // eventos, para que una ficha se quede invisible para siempre. El
+      // latido se corta solo en cuanto la ficha entra.
+      tick = setInterval(check, 250);
       raf = requestAnimationFrame(check);
     });
 
