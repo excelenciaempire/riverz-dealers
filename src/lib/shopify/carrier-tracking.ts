@@ -1,14 +1,21 @@
 /**
- * Resolve a public tracking URL for Argentine carriers that Shopify does
+ * Resolve a public tracking URL for regional carriers that Shopify does
  * NOT auto-populate. Shopify's `tracking_url` is only filled when the
  * carrier is in its built-in list (UPS, FedEx, DHL, USPS, Canada Post,
  * etc). For "Other" / free-text carriers the URL is null and the
  * customer ends up with a bare tracking number to paste somewhere.
  *
- * Starting set focuses on the three carriers Pilar uses today. Add
- * more as merchants surface them; verify each URL against the live
- * tracker before merging (Andreani / Correo Argentino / OCA URLs
- * tend to drift between SPA route changes).
+ * Two origins for that free-text carrier name today:
+ *  - Argentina: the merchant fulfils by hand and types the carrier.
+ *  - Colombia: Dropi writes the guide back into Shopify on
+ *    GUIA_GENERADA (number + carrier, confirmed with Dropi support
+ *    2026-08-27), always as free text — so `tracking_url` is always
+ *    null for COD orders and this resolver is the only source.
+ *
+ * Add more as merchants surface them; verify each URL against the live
+ * tracker before merging (these are SPAs and their routes drift). When
+ * a deep link is not verified, return the tracker entrypoint instead of
+ * a half-broken URL — same rule OCA follows below.
  */
 
 type CarrierResolver = {
@@ -41,6 +48,40 @@ const CARRIERS: CarrierResolver[] = [
     // segment — return the public tracker entrypoint instead of a
     // half-broken URL.
     build: () => 'https://www.oca.com.ar/Envios',
+  },
+
+  // --- Colombia (Dropi) -------------------------------------------------
+  // Dropi writes these names as free text, so casing and accents vary
+  // between accounts; every pattern below is matched unaccented AND
+  // accented. None of the deep links are verified yet, so all return the
+  // public tracker entrypoint — the customer still lands on the right
+  // carrier instead of googling the name. Upgrade each to a real deep
+  // link once a live guide confirms the query param.
+  {
+    patterns: ['interrapidisimo', 'interrapidísimo', 'inter rapidisimo', 'inter rapidísimo'],
+    build: () => 'https://interrapidisimo.com/sigue-tu-envio/',
+  },
+  {
+    patterns: ['servientrega'],
+    build: () => 'https://www.servientrega.com/wps/portal/rastreo-envio',
+  },
+  {
+    patterns: ['coordinadora'],
+    build: () => 'https://coordinadora.com/rastreo/rastreo-de-guia/',
+  },
+  {
+    patterns: ['deprisa'],
+    build: () => 'https://www.deprisa.com/Seguimiento',
+  },
+  // Short/generic patterns go last: the loop returns on first match, so
+  // 'tcc' and 'envia' must never shadow a more specific carrier above.
+  {
+    patterns: ['tcc'],
+    build: () => 'https://tcc.com.co/rastrea-tu-envio/',
+  },
+  {
+    patterns: ['envia', 'envía'],
+    build: () => 'https://envia.co/',
   },
 ]
 
