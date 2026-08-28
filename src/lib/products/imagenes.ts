@@ -94,12 +94,13 @@ export function unirImagenes(actuales: string[], nuevas: string[]): string[] {
   // se normaliza acá, en vez de encogerse sola en el próximo guardado.
   const out = actuales.slice(0, MAX_IMAGENES)
   for (const url of nuevas) {
+    // El corte va ANTES de sumar: comprobarlo después dejaba entrar una de más.
+    if (out.length >= MAX_IMAGENES) break
     if (!/^https?:\/\//i.test(url)) continue
     const k = clave(url)
     if (vistas.has(k)) continue
     vistas.add(k)
     out.push(url)
-    if (out.length >= MAX_IMAGENES) break
   }
   return out
 }
@@ -260,7 +261,10 @@ export async function resincronizarImagenes(
         ? [fila.image_url]
         : []
   const imagenes = unirImagenes(actuales, nuevas)
-  const agregadas = imagenes.length - actuales.length
+  // Cuántas son realmente nuevas, no cuánto creció la lista: si la galería
+  // venía pasada del tope, la resta daba negativa.
+  const previas = new Set(actuales.map(clave))
+  const agregadas = imagenes.filter((u) => !previas.has(clave(u))).length
 
   if (agregadas > 0) {
     const { error } = await db

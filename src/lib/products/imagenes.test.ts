@@ -85,6 +85,11 @@ describe('unirImagenes', () => {
     expect(unirImagenes(largas, [])).toHaveLength(MAX_IMAGENES)
   })
 
+  it('no deja entrar una de más cuando ya está en el tope', () => {
+    const llenas = Array.from({ length: MAX_IMAGENES }, (_, i) => `https://cdn/v${i}.jpg`)
+    expect(unirImagenes(llenas, ['https://cdn/nueva.jpg'])).toEqual(llenas)
+  })
+
   it('corta en el mismo tope que acepta el guardado', () => {
     // Si trajera más de las que `write.ts` guarda, el editor las mostraría y
     // el siguiente "Guardar cambios" borraría el resto sin avisar.
