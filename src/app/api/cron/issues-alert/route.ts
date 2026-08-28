@@ -5,7 +5,9 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectWorkspaceIssues, type Issue } from '@/lib/health/issues'
 import { issueDetailText } from '@/lib/health/detail'
-import { translate } from '@/lib/i18n/translate'
+import { translate, type TFn } from '@/lib/i18n/translate'
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/config'
+import { localizePath } from '@/lib/i18n/routes'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.issues-alert')
@@ -95,12 +97,13 @@ async function cronHandler(request: Request) {
       if (issues.length === 0) continue
       withIssues++
 
-      const email = await ownerEmail(ws.owner_id)
-      if (!email) {
+      const dueno = await ownerContact(ws.owner_id)
+      if (!dueno) {
         skipped.noEmail++
         continue
       }
-      if (await sendAlert(email, ws.name ?? 'tu cuenta', issues)) notified++
+      const nombre = ws.name ?? translate(dueno.locale, 'health.mailYourAccount')
+      if (await sendAlert(dueno.email, nombre, issues, dueno.locale)) notified++
       else skipped.sendFailed++
     }
 
@@ -114,21 +117,58 @@ async function cronHandler(request: Request) {
   return NextResponse.json({ workspaces: scanned, withIssues, notified, skipped })
 }
 
-async function ownerEmail(ownerId: string | null): Promise<string | null> {
+/**
+ * A quién se le escribe y en qué idioma.
+ *
+ * El idioma sale de `profiles.locale` (migración 083), que es donde queda la
+ * elección del usuario para que cruce de dispositivo. Un cron no tiene request,
+ * así que la cookie `riverz_locale` —la fuente de verdad en la app— acá no
+ * existe: si nunca eligió, `DEFAULT_LOCALE`.
+ *
+ * El correo NO es cosa aparte por ser operativo: lo lee la misma persona que
+ * usa la app, y llegarle en español cuando tiene la app en inglés es el mismo
+ * error que una pantalla sin traducir.
+ */
+async function ownerContact(
+  ownerId: string | null,
+): Promise<{ email: string; locale: Locale } | null> {
   if (!ownerId) return null
   const admin = supabaseAdmin()
   const { data } = await admin.auth.admin.getUserById(ownerId)
-  return data?.user?.email ?? null
+  const email = data?.user?.email
+  if (!email) return null
+
+  const { data: perfil } = await admin
+    .from('profiles')
+    .select('locale')
+    .eq('user_id', ownerId)
+    .maybeSingle()
+  const guardado = (perfil as { locale?: string | null } | null)?.locale
+  return { email, locale: isLocale(guardado) ? guardado : DEFAULT_LOCALE }
 }
 
 /** Un correo corto: qué pasó y el link a resolverlo. Sin fallar la corrida. */
-async function sendAlert(to: string, workspace: string, issues: Issue[]): Promise<boolean> {
+async function sendAlert(
+  to: string,
+  workspace: string,
+  issues: Issue[],
+  locale: Locale,
+): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return false
   const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co'
+  const t = (key: string, vars?: Record<string, string | number>) =>
+    translate(locale, key, vars)
 
+  // El href viene en la ruta canónica (español); en inglés se enmascara con el
+  // slug que ve el usuario. Las dos resuelven, así que un fallo acá degrada al
+  // español y nunca a un 404.
   const lines = issues
-    .map((i) => `<li style="margin:6px 0">${describe(i)} — <a href="${base}${i.href}">revisar</a></li>`)
+    .map(
+      (i) =>
+        `<li style="margin:6px 0">${describe(i, t)} — ` +
+        `<a href="${base}${localizePath(i.href, locale)}">${t('health.mailReview')}</a></li>`,
+    )
     .join('')
 
   try {
@@ -138,12 +178,12 @@ async function sendAlert(to: string, workspace: string, issues: Issue[]): Promis
       body: JSON.stringify({
         from: process.env.WAITLIST_FROM || 'Riverz <onboarding@resend.dev>',
         to: [to],
-        subject: `Riverz · algo dejó de funcionar en ${workspace}`,
+        subject: t('health.mailSubject', { workspace }),
         html:
           `<div style="font-family:system-ui;max-width:520px">` +
-          `<h2 style="margin:0 0 8px">Necesita tu atención</h2>` +
+          `<h2 style="margin:0 0 8px">${t('health.needsAttention')}</h2>` +
           `<ul style="padding-left:18px">${lines}</ul>` +
-          `<p style="color:#666;font-size:13px">Esto se revisa una vez por día. Si ya lo resolviste, mañana no vuelve.</p>` +
+          `<p style="color:#666;font-size:13px">${t('health.mailFooter')}</p>` +
           `</div>`,
       }),
     })
@@ -154,27 +194,27 @@ async function sendAlert(to: string, workspace: string, issues: Issue[]): Promis
 }
 
 /**
- * Texto del correo. Español fijo: es un aviso operativo del dueño, no UI.
+ * Texto del correo, en el idioma del dueño.
  *
  * Cada línea dice qué pasó y qué hacer, sin código de error ni jerga. Sólo
  * llegan acá las clases de `PARA_EL_COMERCIO`; el `default` existe para que
  * sumar una clase nueva al conjunto y olvidarse de este switch degrade a una
  * frase vaga en vez de romper el correo.
  */
-function describe(issue: Issue): string {
+function describe(issue: Issue, t: TFn): string {
   switch (issue.kind) {
     case 'whatsapp_blocked':
-      return 'Tu WhatsApp no puede enviar mensajes. Meta lo bloqueó: revisa el medio de pago y los datos fiscales de la cuenta'
+      return t('health.mailWhatsappBlocked')
     case 'connection_error': {
       // El único detalle que sobrevive: son nombres de canal ("Shopify,
       // Instagram"), o sea el dato que dice cuál reconectar.
-      const canales = issueDetailText(issue.kind, issue.detail, (k, v) => translate('es', k, v))
+      const canales = issueDetailText(issue.kind, issue.detail, t)
       return canales
-        ? `Se desconectó ${canales}. Vuelve a conectarlo para que los mensajes sigan saliendo`
-        : `${issue.count} conexión(es) dejaron de funcionar. Vuelve a conectarlas`
+        ? t('health.mailConnectionNamed', { channels: canales })
+        : t('health.mailConnectionPlain', { n: issue.count })
     }
     default:
-      return 'Algo necesita tu atención'
+      return t('health.needsAttention')
   }
 }
 

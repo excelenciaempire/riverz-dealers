@@ -84,6 +84,36 @@ export const health: Namespace = {
     en: "the connection lost access: reconnect it",
   },
 
+  // El correo diario del cron `issues-alert`. Va aparte de las líneas de
+  // arriba porque no lo lee nadie mirando la pantalla: no hay interfaz al lado
+  // que agregue el link ni el detalle, así que cada frase se basta sola y
+  // termina en lo que hay que hacer. El idioma sale de `profiles.locale` del
+  // dueño; sin cookie de por medio, un cron no tiene request.
+  mailSubject: {
+    es: "Riverz · algo dejó de funcionar en {workspace}",
+    en: "Riverz · something stopped working in {workspace}",
+  },
+  mailReview: { es: "revisar", en: "review" },
+  /** Cuando el workspace todavía no tiene nombre puesto. */
+  mailYourAccount: { es: "tu cuenta", en: "your account" },
+  mailFooter: {
+    es: "Esto se revisa una vez por día. Si ya lo resolviste, mañana no vuelve.",
+    en: "We check this once a day. If you've already fixed it, it won't come back tomorrow.",
+  },
+  // Con el nombre del canal adentro: es el dato que dice cuál reconectar.
+  mailConnectionNamed: {
+    es: "Se desconectó {channels}. Vuelve a conectarlo para que los mensajes sigan saliendo",
+    en: "{channels} disconnected. Reconnect it so messages keep going out",
+  },
+  mailConnectionPlain: {
+    es: "{n} conexión(es) dejaron de funcionar. Vuelve a conectarlas",
+    en: "{n} connection(s) stopped working. Reconnect them",
+  },
+  mailWhatsappBlocked: {
+    es: "Tu WhatsApp no puede enviar mensajes. Meta lo bloqueó: revisa el medio de pago y los datos fiscales de la cuenta",
+    en: "Your WhatsApp can't send messages. Meta blocked it: check the account's payment method and tax details",
+  },
+
   // Ocultar el aviso ya leído. Vuelve solo si aparece algo distinto.
   dismiss: { es: "Ocultar", en: "Dismiss" },
 
