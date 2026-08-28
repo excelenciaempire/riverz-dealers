@@ -39,6 +39,13 @@ const MAX_INTENTOS = 4;
 const ESPERA_ENTRE_INTENTOS_MS = 30 * 60 * 1000;
 const TIMEOUT_TRANSCRIPCION_MS = 120_000;
 
+/** Lo que se encontró colgado de la publicación. */
+interface Medio {
+  tipo: "imagen" | "video";
+  url: string;
+  caption?: string;
+}
+
 interface FilaContexto {
   id: string;
   workspace_id: string;
@@ -172,8 +179,13 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
   }
 
   const medio = await medioDelPost(fila, token);
+  if (medio === "falló") {
+    // Graph negó la lectura: se reintenta más tarde.
+    await marcar(db, fila, "error");
+    return false;
+  }
   if (!medio) {
-    // La publicación existe pero no tiene medio que mirar (un post de sólo
+    // La publicación existe y no tiene medio que mirar (un post de sólo
     // texto). No es un fallo y no se reintenta.
     await marcar(db, fila, "sin_medio");
     return false;
@@ -235,16 +247,32 @@ function tokenDe(conn: ChannelConnection): string | null {
 async function medioDelPost(
   fila: FilaContexto,
   token: string,
-): Promise<{ tipo: "imagen" | "video"; url: string; caption?: string } | null> {
+): Promise<Medio | "falló" | null> {
+  // Los campos van por red, NO juntos: Graph RECHAZA el campo que no existe en
+  // ese tipo de nodo en vez de ignorarlo, así que pedirle `message` a un Media
+  // de Instagram tira la petición entera y el post quedaba marcado como "sin
+  // medio" teniendo foto. Medido contra la cuenta viva el 2026-08-28.
   const campos =
-    "caption,message,media_type,media_url,thumbnail_url,full_picture," +
-    "children{media_type,media_url},attachments{media_type,media{image{src}}}";
+    fila.channel === "ig_comment"
+      ? "caption,media_type,media_url,thumbnail_url,children{media_type,media_url}"
+      : "message,full_picture,attachments{media_type,media{image{src}}}";
   const url = withAppsecretProof(
     `${GRAPH}/${fila.external_id}?fields=${campos}&access_token=${encodeURIComponent(token)}`,
     token,
   );
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) return null;
+  // "Graph dijo que no" y "el post no tiene foto" son cosas distintas: la
+  // primera se reintenta, la segunda no. Confundirlas dejaba un post con foto
+  // marcado para siempre como si no la tuviera.
+  if (!res.ok) {
+    console.warn(
+      "[publicacion-media] Graph rechazó el post:",
+      fila.external_id,
+      res.status,
+      (await res.text().catch(() => "")).slice(0, 200),
+    );
+    return "falló";
+  }
   const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
   const caption = String(j.caption ?? j.message ?? "").trim() || undefined;
@@ -273,6 +301,7 @@ async function medioDelPost(
   const adj = (j.attachments as { data?: Array<Record<string, unknown>> } | undefined)?.data?.[0];
   const src = ((adj?.media as { image?: { src?: string } } | undefined)?.image ?? {}).src;
   if (src) return { tipo: "imagen", url: String(src), caption };
+  // Graph contestó y no hay medio: es un post de sólo texto.
   return null;
 }
 
