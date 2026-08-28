@@ -31,6 +31,13 @@ interface MessageActionsProps {
    *  hidden so callers that don't yet wire delete (e.g. preview
    *  surfaces) aren't forced to. */
   onDelete?: (messageId: string) => void;
+  /** Identificador en el DOM, para poder llevar el scroll hasta este
+   *  mensaje. Lo usa el ancla: entrar al hilo directo en el mensaje de una
+   *  fecha en vez de al final. */
+  anclaId?: string;
+  /** Pinta el mensaje al que se llegó por el ancla, para que se vea cuál
+   *  es entre todos los de alrededor. */
+  resaltado?: boolean;
   children: ReactNode;
 }
 
@@ -44,6 +51,8 @@ export function MessageActions({
   onReply,
   onReact,
   onDelete,
+  anclaId,
+  resaltado,
   children,
 }: MessageActionsProps) {
   const fetchWithCsrf = useFetchWithCsrf();
@@ -179,9 +188,15 @@ export function MessageActions({
   // in the row no longer reveals the toolbar.
   return (
     <div
+      id={anclaId}
       className={cn(
         "flex w-full",
         isAgent ? "justify-end" : "justify-start",
+        // El resaltado se desvanece solo (la clase se saca a los pocos
+        // segundos): sirve para encontrar el mensaje, no para quedarse.
+        resaltado &&
+          "-mx-2 rounded-xl bg-amber-500/10 px-2 py-1 ring-2 ring-amber-400/60",
+        "transition-colors duration-700",
       )}
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}

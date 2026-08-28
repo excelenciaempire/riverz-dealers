@@ -43,6 +43,13 @@ export default function InboxPage() {
    * automatically instead of showing the empty center panel.
    */
   const deepLinkConvId = searchParams.get("c");
+  /**
+   * `?t=<fecha ISO>` — el ancla. Acompaña al `?c=` cuando quien manda el
+   * enlace sabe de qué momento habla: cada fila del detalle de atribución
+   * dice "a esta persona le llegó tal mensaje tal día", y el clic tiene que
+   * caer ahí y no al final de una charla que siguió otras dos semanas.
+   */
+  const deepLinkMomento = searchParams.get("t");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
@@ -895,6 +902,11 @@ export default function InboxPage() {
             onRefresh={handleManualRefresh}
             contactPanelOpen={contactPanelOpen}
             onToggleContactPanel={toggleContactPanel}
+            anclarEn={
+              deepLinkConvId && deepLinkConvId === activeConversation?.id
+                ? deepLinkMomento
+                : null
+            }
           />
         </div>
 

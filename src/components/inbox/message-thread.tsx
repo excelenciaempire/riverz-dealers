@@ -126,6 +126,18 @@ interface MessageThreadProps {
   /** Toggles the contact panel. When provided, the header shows a button
    *  (desktop only) to open/close it — the panel is collapsed by default. */
   onToggleContactPanel?: () => void;
+  /**
+   * EL ANCLA. Fecha ISO de un mensaje puntual: el hilo abre ahí y no al
+   * final. Viene del `?t=` que ponen las filas del detalle de atribución,
+   * donde cada fila es "a esta persona le llegó tal plantilla tal día" y
+   * el clic tiene que caer en ese mensaje, no en el último de la charla.
+   *
+   * Si la fecha es más vieja que la primera página, se carga hacia atrás
+   * hasta encontrarla (con tope, ver `MAX_PAGINAS_ANCLA`). Si no aparece
+   * —fue borrada, o quedó fuera del tope— se ancla en el más viejo que sí
+   * se cargó: la charla queda abierta cerca, que es mejor que al final.
+   */
+  anclarEn?: string | null;
 }
 
 function formatDateSeparator(
@@ -208,6 +220,7 @@ export function MessageThread({
   onRefresh,
   contactPanelOpen = false,
   onToggleContactPanel,
+  anclarEn = null,
 }: MessageThreadProps) {
   const { user } = useAuth();
   const fetchWithCsrf = useFetchWithCsrf();
@@ -296,6 +309,18 @@ export function MessageThread({
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // El ancla (ver la prop `anclarEn`). `anclado` es el id del mensaje al que
+  // se llegó, sólo para pintarlo; `anclaHechaRef` guarda la clave
+  // "<hilo>|<fecha>" ya resuelta, para no volver a bajar cada vez que llega
+  // un mensaje nuevo. `paginasDelAnclaRef` cuenta cuántas páginas se
+  // cargaron buscando, y `MAX_PAGINAS_ANCLA` es el tope: sin él, una fecha
+  // de hace un año se traería el hilo entero a la memoria del navegador.
+  const MAX_PAGINAS_ANCLA = 20;
+  const [anclado, setAnclado] = useState<string | null>(null);
+  const anclaHechaRef = useRef<string | null>(null);
+  const paginasDelAnclaRef = useRef(0);
+  const claveDelAncla =
+    conversation?.id && anclarEn ? `${conversation.id}|${anclarEn}` : null;
   // The conversation whose messages are currently loaded — lets the fetch
   // effect tell a real conversation switch (show spinner) from a resync
   // refetch (stay silent) when only resyncToken changed.
@@ -717,11 +742,15 @@ export function MessageThread({
   // restores the user's anchor itself once the new rows render.
   useEffect(() => {
     if (loadingOlder) return;
+    // Con un ancla sin resolver, ir al final es exactamente lo contrario de
+    // lo que pidió quien hizo clic. Se espera a que el ancla termine; a
+    // partir de ahí este effect vuelve a mandar para los mensajes nuevos.
+    if (claveDelAncla && anclaHechaRef.current !== claveDelAncla) return;
     if (scrollRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages, loadingOlder]);
+  }, [messages, loadingOlder, claveDelAncla]);
 
   const handleSend = useCallback(
     async (text: string, replyToId?: string) => {
@@ -1148,6 +1177,77 @@ export function MessageThread({
       setLoadingOlder(false);
     }
   }, [conversation, messages, oldestLoadedAt, loadingOlder, t]);
+
+  /**
+   * EL ANCLA: bajar hasta el mensaje de la fecha que vino en `anclarEn`.
+   *
+   * Corre en pasos, no de una: el hilo carga de a 100 y la fecha buscada
+   * puede estar mucho más atrás. Mientras el mensaje más viejo cargado sea
+   * POSTERIOR al objetivo, pide una página más y sale; el effect se vuelve a
+   * disparar solo cuando esa página aterriza en `messages`. Así el "cargar
+   * hasta encontrarlo" no es un while que bloquea, sino la misma paginación
+   * que ya usa el botón "Cargar más antiguos".
+   *
+   * Se para en tres casos: se pasó la fecha, no hay más historial, o se
+   * llegó al tope de páginas. En todos ancla en lo mejor que tenga a mano.
+   */
+  useEffect(() => {
+    if (!claveDelAncla || !anclarEn) return;
+    if (anclaHechaRef.current === claveDelAncla) return;
+    if (loading || loadingOlder || messages.length === 0) return;
+
+    const objetivo = new Date(anclarEn).getTime();
+    if (!Number.isFinite(objetivo)) {
+      anclaHechaRef.current = claveDelAncla;
+      return;
+    }
+
+    const masViejoCargado = new Date(messages[0].created_at).getTime();
+    if (
+      masViejoCargado > objetivo &&
+      hasMore &&
+      paginasDelAnclaRef.current < MAX_PAGINAS_ANCLA
+    ) {
+      paginasDelAnclaRef.current += 1;
+      void handleLoadOlder();
+      return;
+    }
+
+    anclaHechaRef.current = claveDelAncla;
+    paginasDelAnclaRef.current = 0;
+
+    // El último mensaje que sea de esa fecha o anterior. El minuto de
+    // tolerancia es porque la fecha que viaja en la URL es la del pedido o
+    // la del envío, y el mensaje se guarda unos segundos después.
+    const elegido =
+      [...messages]
+        .reverse()
+        .find((m) => new Date(m.created_at).getTime() <= objetivo + 60_000) ??
+      messages[0];
+
+    setAnclado(elegido.id);
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`msg-${elegido.id}`)
+        ?.scrollIntoView({ block: "center" });
+    });
+  }, [
+    claveDelAncla,
+    anclarEn,
+    messages,
+    loading,
+    loadingOlder,
+    hasMore,
+    handleLoadOlder,
+  ]);
+
+  // El resaltado se apaga solo. Deja tiempo para ubicar el mensaje sin que
+  // el hilo quede pintado para siempre.
+  useEffect(() => {
+    if (!anclado) return;
+    const id = setTimeout(() => setAnclado(null), 6000);
+    return () => clearTimeout(id);
+  }, [anclado]);
 
   const handleAssignChange = useCallback(
     async (agentId: string | null) => {
@@ -1710,6 +1810,8 @@ export function MessageThread({
                     return (
                       <MessageActions
                         key={msg.id}
+                        anclaId={`msg-${msg.id}`}
+                        resaltado={anclado === msg.id}
                         message={msg}
                         onReply={() => handleStartReply(msg)}
                         onReact={(emoji) => {
