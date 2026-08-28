@@ -31,6 +31,15 @@ export type IssueKind =
   | 'automation_stuck'
   | 'automation_failed'
   | 'sends_failing'
+  /**
+   * El WhatsApp que el agente prometió EN UNA LLAMADA y no llegó.
+   *
+   * Aparte de `sends_failing` porque basta UNO: en una llamada el agente dice
+   * «te lo mando por WhatsApp» y el cliente cuelga contando con eso. Y es el
+   * más difícil de descubrir solo — el POST a Meta devuelve 200 y el error
+   * llega por webhook con la llamada ya terminada.
+   */
+  | 'voice_send_failed'
   | 'whatsapp_blocked'
   | 'connection_error'
   | 'template_rejected'
@@ -66,6 +75,9 @@ function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id'>): string {
     case 'automation_failed':
       return row.ref_id ? `/automatizaciones/${row.ref_id}` : '/automatizaciones';
     case 'sends_failing':
+    // Al hilo del cliente: ahí se ve el mensaje en rojo con el motivo, y desde
+    // ahí se le puede escribir a mano lo que el agente prometió y no llegó.
+    case 'voice_send_failed':
       return '/bandeja';
     case 'connection_error':
     case 'whatsapp_blocked':

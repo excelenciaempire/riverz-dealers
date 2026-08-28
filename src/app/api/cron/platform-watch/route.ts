@@ -72,6 +72,8 @@ function nombreProblema(kind: Issue['kind']): string {
       return 'automatizaciones que fallan'
     case 'sends_failing':
       return 'mensajes sin entregar'
+    case 'voice_send_failed':
+      return 'WhatsApp prometidos en una llamada que no llegaron'
     case 'whatsapp_blocked':
       return 'WhatsApp bloqueado para enviar'
     case 'connection_error':

@@ -19,6 +19,12 @@ export const health: Namespace = {
     es: "{n} mensajes no se pudieron entregar en las últimas horas",
     en: "{n} messages couldn't be delivered in the last few hours",
   },
+  // Aparte de `sends_failing` porque el cliente se quedó esperando algo que le
+  // prometieron hablando: no es un envío más que no salió.
+  voice_send_failed: {
+    es: "{n} WhatsApp que el agente prometió en una llamada no llegaron al cliente",
+    en: "{n} WhatsApp messages the agent promised on a call never reached the customer",
+  },
   whatsapp_blocked: {
     es: "WhatsApp está bloqueado para enviar: revisa el medio de pago y los datos fiscales en Meta",
     en: "WhatsApp is blocked from sending: check your payment method and tax details in Meta",
