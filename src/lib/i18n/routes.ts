@@ -49,7 +49,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   ajustes: "settings",
   // auth
   ingresar: "login",
-  registro: "signup",
+  registro: "create",
   "recuperar-clave": "forgot-password",
   "nueva-clave": "new-password",
   "verificar-email": "verify-email",
@@ -61,10 +61,26 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   soporte: "support",
 };
 
-/** English slug → canonical (Spanish) first segment. */
-export const ROUTE_SLUGS_CANONICAL: Record<string, string> = Object.fromEntries(
-  Object.entries(ROUTE_SLUGS_EN).map(([canonical, en]) => [en, canonical]),
-);
+/**
+ * Alias que también resuelven, sin ser el slug en inglés de nadie.
+ *
+ * Un slug que cambia deja enlaces repartidos apuntando al anterior —correos,
+ * marcadores, una captura en un chat—. En vez de romperlos, el viejo queda
+ * acá: sigue sirviendo la misma página y `canonicalizePath` lo entiende, así
+ * que el proxy razona igual con las dos formas.
+ */
+export const ROUTE_ALIASES: Record<string, string> = {
+  // `/registro` se anunciaba como `/signup` antes de pasar a `/create`.
+  signup: "registro",
+};
+
+/** Slug en inglés (o alias) → canonical (Spanish) first segment. */
+export const ROUTE_SLUGS_CANONICAL: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(ROUTE_SLUGS_EN).map(([canonical, en]) => [en, canonical]),
+  ),
+  ...ROUTE_ALIASES,
+};
 
 /** Split a path into its first segment + the remainder + query/hash tail. */
 function parse(path: string): { first: string; rest: string; tail: string } {

@@ -251,11 +251,14 @@ export async function proxy(request: NextRequest) {
     return applyCsp(NextResponse.redirect(url), csp)
   }
 
-  // Pre-launch: the sign-up page is unreachable. canonicalPath covers both
-  // /registro and its English alias /signup. Anonymous visitors land ON the
-  // waitlist form (#lista) rather than the top of the landing, so someone who
-  // came to open an account still gets captured; signed-in users fall through
-  // to the /panel redirect below.
+  // Con el alta cerrada a mano, la página de registro no se alcanza.
+  // canonicalPath cubre las tres formas: /registro, su slug en inglés /create
+  // y el alias viejo /signup. Quien entra sin sesión cae EN el formulario de la
+  // lista de espera (#lista), no arriba de la portada, así que el que venía a
+  // abrir cuenta igual queda anotado; con sesión, sigue al redirect a /panel.
+  //
+  // Hoy el alta está abierta y esto no dispara: la puerta es el código de
+  // invitación, que se comprueba en `POST /api/auth/signup`.
   const puedeRegistrarse = signupsOpenForInstall(
     (nombre) => Boolean(request.cookies.get(nombre)?.value)
   )

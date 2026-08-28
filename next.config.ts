@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { ROUTE_SLUGS_EN } from "./src/lib/i18n/routes";
+import { ROUTE_SLUGS_EN, ROUTE_ALIASES } from "./src/lib/i18n/routes";
 
 /**
  * Baseline security headers applied to every response.
@@ -74,12 +74,17 @@ const CORP_SAME_ORIGIN_EXCEPT_WIDGET = {
  * `LOCALIZED_REWRITES` is generated from the slug map: for each canonical
  * folder we mask its English alias (and everything under it).
  */
-const LOCALIZED_REWRITES = Object.entries(ROUTE_SLUGS_EN).flatMap(
-  ([canonical, en]) => [
-    { source: `/${en}`, destination: `/${canonical}` },
-    { source: `/${en}/:path*`, destination: `/${canonical}/:path*` },
-  ],
-);
+const LOCALIZED_REWRITES = [
+  ...Object.entries(ROUTE_SLUGS_EN).map(
+    ([canonical, en]) => [en, canonical] as const,
+  ),
+  // Los alias viejos sirven la misma página que el slug actual: un enlace ya
+  // repartido no deja de funcionar porque el slug haya cambiado.
+  ...Object.entries(ROUTE_ALIASES),
+].flatMap(([alias, canonical]) => [
+  { source: `/${alias}`, destination: `/${canonical}` },
+  { source: `/${alias}/:path*`, destination: `/${canonical}/:path*` },
+]);
 
 /**
  * Legacy 301s for FULLY-English deep paths that the app no longer generates
