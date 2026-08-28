@@ -12,6 +12,7 @@
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { recordOrderAttribution } from '@/lib/instagram-agent/order-attribution'
 import { contarLaVenta } from '@/lib/orders/contar-conversion'
+import { identificarPorElPedido } from '@/lib/orders/identidad'
 import {
   createShopifyOrder,
   type CreateOrderContext,
@@ -91,6 +92,14 @@ export async function crearPedidoConEspejo(
     } catch (err) {
       console.error('[pedidos] creado en Shopify pero el espejo en Riverz falló:', err)
     }
+
+    // El pedido dice QUIEN es. Ver `identidad.ts`.
+    void identificarPorElPedido(espejo.db ?? supabaseAdmin(), {
+      contactId: espejo.contactId ?? null,
+      name: result.customer_name,
+      phone: result.customer_phone,
+      email: result.customer_email,
+    })
 
     // Un pedido creado por el agente no pasa por el checkout, así que el píxel
     // del navegador no dispara: si no se cuenta acá, no se cuenta en ningún
@@ -183,6 +192,14 @@ export async function crearPedidoLocalConEspejo(
   } catch (err) {
     console.error('[pedidos] creado en la tienda pero el espejo en Riverz falló:', err)
   }
+
+  // El pedido dice QUIEN es, tambien en Tiendanube y Woo. Ver `identidad.ts`.
+  void identificarPorElPedido(db, {
+    contactId: espejo.contactId ?? null,
+    name: args.cliente.name ?? null,
+    phone: args.cliente.phone ?? null,
+    email: args.cliente.email ?? null,
+  })
 
   // Y que Meta se entere. Sin esto, una venta de contra-entrega cerrada en el
   // chat no existe para el algoritmo: no hay página de gracias donde dispare
