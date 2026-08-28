@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction, MessageAttachment } from "@/types";
 import {
@@ -18,6 +26,7 @@ import {
   Phone,
   Mic,
   EyeOff,
+  Download,
 } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
 import { useTimezone } from "@/hooks/use-timezone";
@@ -31,6 +40,7 @@ import {
   stripLeadingMentions,
 } from "@/lib/channels/display";
 import { findLinks } from "@/lib/inbox/linkify";
+import { downloadMedia } from "@/lib/inbox/download";
 import { PhoneActions } from "./phone-actions";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
@@ -169,7 +179,65 @@ function UnsupportedMedia() {
   );
 }
 
-function MediaImage({ url, alt }: { url: string; alt: string }) {
+/**
+ * Guardar el archivo en el disco. Va sobre la miniatura (imagen/video) o al
+ * lado del reproductor de audio, y sirve igual para lo recibido y lo enviado:
+ * la burbuja es la misma en las dos direcciones.
+ */
+function DownloadButton({
+  url,
+  name,
+  fallbackName,
+  blobUrl,
+  variant = "overlay",
+  className,
+}: {
+  url: string;
+  name?: string;
+  fallbackName: string;
+  /** Blob que la burbuja ya bajó para mostrar la imagen: se reusa. */
+  blobUrl?: string | null;
+  variant?: "overlay" | "inline";
+  className?: string;
+}) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+
+  async function handleClick(e: MouseEvent) {
+    // La miniatura está dentro de un botón que abre el visor: sin
+    // esto, descargar también abriría el visor.
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      await downloadMedia(url, name, fallbackName, blobUrl);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={busy}
+      title={t("inbox.download")}
+      aria-label={t("inbox.download")}
+      className={cn(
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition disabled:opacity-50",
+        variant === "overlay"
+          ? "absolute right-1.5 top-1.5 bg-black/55 text-white opacity-70 backdrop-blur-sm hover:bg-black/75 hover:opacity-100 group-hover:opacity-100"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        className,
+      )}
+    >
+      <Download className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function MediaImage({ url, alt, name }: { url: string; alt: string; name?: string }) {
   const t = useT();
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -254,7 +322,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   // The blob URL is reused so we don't refetch the image for the
   // expanded view; ESC + click-outside come for free from shadcn Dialog.
   return (
-    <div ref={wrapRef}>
+    <div ref={wrapRef} className="group relative w-fit">
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -270,6 +338,12 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
           onError={() => setError(true)}
         />
       </button>
+      <DownloadButton
+        url={url}
+        name={name}
+        fallbackName={t("inbox.image")}
+        blobUrl={src}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]">
           <img
@@ -277,17 +351,25 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
             alt={alt}
             className="mx-auto max-h-[90vh] max-w-[95vw] object-contain"
           />
+          {/* right-12: deja libre la X de cerrar, que vive en top-2 right-2. */}
+          <DownloadButton
+            url={url}
+            name={name}
+            fallbackName={t("inbox.image")}
+            blobUrl={src}
+            className="right-12 top-2 opacity-100"
+          />
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function MediaVideo({ url }: { url: string }) {
+function MediaVideo({ url, name }: { url: string; name?: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   return (
-    <>
+    <div className="group relative w-fit">
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -304,6 +386,7 @@ function MediaVideo({ url }: { url: string }) {
           className="pointer-events-none max-h-64 max-w-60 rounded-lg"
         />
       </button>
+      <DownloadButton url={url} name={name} fallbackName={t("inbox.video")} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[95vw] border-0 bg-transparent p-0 shadow-none sm:max-w-[95vw]">
           <video
@@ -312,9 +395,66 @@ function MediaVideo({ url }: { url: string }) {
             autoPlay
             className="mx-auto max-h-[90vh] max-w-[95vw]"
           />
+          <DownloadButton
+            url={url}
+            name={name}
+            fallbackName={t("inbox.video")}
+            className="right-12 top-2 opacity-100"
+          />
         </DialogContent>
       </Dialog>
-    </>
+    </div>
+  );
+}
+
+/** Nota de voz o audio: reproductor + guardar. */
+function MediaAudio({ url, name }: { url: string; name?: string }) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-1">
+      <audio src={url} controls className="max-w-60" />
+      <DownloadButton
+        url={url}
+        name={name}
+        fallbackName={t("inbox.audio")}
+        variant="inline"
+      />
+    </div>
+  );
+}
+
+/** Archivo sin vista previa: la fila entera lo guarda en el disco. */
+function MediaFile({
+  url,
+  name,
+  label,
+}: {
+  url: string;
+  name?: string;
+  label: string;
+}) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      title={t("inbox.download")}
+      onClick={async () => {
+        if (busy) return;
+        setBusy(true);
+        try {
+          await downloadMedia(url, name, t("inbox.file"));
+        } finally {
+          setBusy(false);
+        }
+      }}
+      className="flex w-full items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-left text-sm hover:bg-accent disabled:opacity-50"
+    >
+      <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{label}</span>
+      <Download className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -387,25 +527,28 @@ function AttachmentList({
           );
         }
         if (kind === "image") {
-          return <MediaImage key={i} url={url} alt={a.name || t("inbox.sharedImage")} />;
+          return (
+            <MediaImage
+              key={i}
+              url={url}
+              alt={a.name || t("inbox.sharedImage")}
+              name={a.name}
+            />
+          );
         }
         if (kind === "video") {
-          return <MediaVideo key={i} url={url} />;
+          return <MediaVideo key={i} url={url} name={a.name} />;
         }
         if (kind === "audio") {
-          return <audio key={i} src={url} controls className="max-w-60" />;
+          return <MediaAudio key={i} url={url} name={a.name} />;
         }
         return (
-          <a
+          <MediaFile
             key={i}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
-          >
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{a.name || t("inbox.file")}</span>
-          </a>
+            url={url}
+            name={a.name}
+            label={a.name || t("inbox.file")}
+          />
         );
       })}
       {caption && !isTypePlaceholder(caption) && (
@@ -543,7 +686,7 @@ function MessageContent({
       return (
         <div>
           {mediaUrl ? (
-            <audio src={mediaUrl} controls className="max-w-60" />
+            <MediaAudio url={mediaUrl} />
           ) : (
             <MediaUnavailable label={t("inbox.audio")} />
           )}
@@ -555,17 +698,10 @@ function MessageContent({
         return <MediaUnavailable label={message.content_text || t("inbox.document")} />;
       }
       return (
-        <a
-          href={mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-accent"
-        >
-          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <span className="truncate">
-            {message.content_text || t("inbox.document")}
-          </span>
-        </a>
+        <MediaFile
+          url={mediaUrl}
+          label={message.content_text || t("inbox.document")}
+        />
       );
 
     case "template":

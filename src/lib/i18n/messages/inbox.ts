@@ -226,6 +226,7 @@ export const inbox = {
   mediaUnavailable: { es: "{label} no disponible", en: "{label} unavailable" },
   expandImage: { es: "Ampliar imagen", en: "Expand image" },
   expandVideo: { es: "Ampliar video", en: "Expand video" },
+  download: { es: "Descargar", en: "Download" },
   attachmentUnavailable: {
     es: "{name} (no disponible)",
     en: "{name} (unavailable)",
