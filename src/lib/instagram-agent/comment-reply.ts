@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { igCommentAdapter } from '@/lib/channels/ig_comment/adapter';
+import { humanizarTexto } from '@/lib/ai/estilo-humano';
 import type { InstagramCampaign } from './types';
 
 /**
@@ -22,7 +23,9 @@ export async function replyToComments(
   campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan'>,
   limit = 25,
 ): Promise<{ replied: number; failed: number; skipped?: string }> {
-  const text = campaign.plan.comment_reply?.trim();
+  // La escribió el modelo cuando armó el plan: se limpia acá, que es donde se
+  // publica, para que abajo de la foto no aparezcan asteriscos ni rayas.
+  const text = humanizarTexto(campaign.plan.comment_reply);
   if (!text) return { replied: 0, failed: 0, skipped: 'no_comment_reply' };
 
   // Fallback cuando el comentario no trae conexión rastreable; cada respuesta

@@ -1,4 +1,5 @@
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { brandBrief, type BrandContext } from './brand-context';
 import { linksBrief, type StoreLinks } from './store-links';
 
@@ -14,7 +15,7 @@ export function personalize(template: string, name: string | null): string {
 
 const DM_SYSTEM = `Eres el redactor de DMs de Instagram de una marca B2C. Escribes UN solo DM a una persona concreta.
 
-Lo primero: NO estás vendiendo en frío, estás INICIANDO UNA CONVERSACIÓN. Escribe como le escribirías a alguien que te cae bien: primero la persona, después —y solo si encaja— la marca. Un DM que abre vendiendo se ignora; uno que abre por algo suyo, se responde.
+Lo primero: NO estás vendiendo en frío, estás INICIANDO UNA CONVERSACIÓN. Escribe como le escribirías a alguien que te cae bien: primero la persona, después (y solo si encaja) la marca. Un DM que abre vendiendo se ignora; uno que abre por algo suyo, se responde.
 
 Reglas (estrictas):
 - Máximo 480 caracteres.
@@ -33,10 +34,11 @@ Reglas (estrictas):
 - ENLACES: si compartes un link, copia EXACTAMENTE uno de los ENLACES REALES del contexto. Está PROHIBIDO escribir marcadores como "[enlace]", "[link de la tienda]", "(link aquí)" o URLs inventadas. Si no hay ningún enlace en el contexto, no menciones ninguno: invita a responder por aquí y listo.
 - SI YA ES CLIENTA: no le vendas como si no te conociera. Pregúntale cómo le fue con lo que se llevó y, si encaja, sugiere lo que va después. Nunca le ofrezcas de nuevo lo que ya tiene.
 - SI TE PREGUNTA POR UN PEDIDO SUYO (dónde está, cuándo llega, un cambio): eso NO es una venta. Responde que lo revisas y sigue por aquí; no metas oferta ni producto.
-- SUS INTERESES sí puedes usarlos, y deberías: son lo que hace que el mensaje suene a alguien que la conoce y no a un envío masivo. Úsalos como los usa un amigo — para conectar con lo que le gusta, de pasada y en una frase—, nunca listándolos ni describiéndoselos ("veo que te gusta el gym, viajar y cocinar" es exactamente lo que NO se hace).
+- SUS INTERESES sí puedes usarlos, y deberías: son lo que hace que el mensaje suene a alguien que la conoce y no a un envío masivo. Úsalos como los usa un amigo, para conectar con lo que le gusta, de pasada y en una frase, nunca listándolos ni describiéndoselos ("veo que te gusta el gym, viajar y cocinar" es exactamente lo que NO se hace).
 - Lo que NUNCA se cita: datos suyos (seguidores, si te sigue, ubicación), ni nada que delate que se miró su perfil.
 - Adapta tono y oferta al SEGMENTO indicado (no todos reciben lo mismo).
-- Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.`;
+- Devuelve SOLO el texto del DM: sin comillas, sin etiquetas, sin explicaciones.
+- ${ESTILO_HUMANO}`;
 
 export interface CraftDMInput {
   apiKey: string | null;
@@ -152,7 +154,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     let t = personalize(input.base, input.name);
     // Make sure the discount code rides along even in the fallback.
     if (input.offer?.code && !t.toUpperCase().includes(input.offer.code.toUpperCase())) {
-      t += `\n\n🎁 ${input.offer.code}${input.offer.discount ? ` — ${input.offer.discount}` : ''}`;
+      t += `\n\n🎁 ${input.offer.code}${input.offer.discount ? `, ${input.offer.discount}` : ''}`;
     }
     return t.trim();
   };
@@ -217,7 +219,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
       effort: 'low',
     });
     // Strip wrapping quotes the model sometimes adds, and any stray token.
-    text = text.replace(/^["'“”]|["'“”]$/g, '').trim();
+    text = humanizarTexto(text.replace(/^["'“”]|["'“”]$/g, ''));
     text = personalize(text, input.name); // resolve any {{nombre}} it echoed
     text = stripLinkPlaceholders(text, input.links ?? null);
     text = enforceOffer(text, input.offer ?? null);

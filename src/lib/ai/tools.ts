@@ -78,7 +78,7 @@ export interface VoiceEscalationContext {
 export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
   name: 'escalate_to_call',
   description:
-    'Programa una LLAMADA telefónica de ti (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Úsala con criterio — la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasa un motivo corto.',
+    'Programa una LLAMADA telefónica de ti (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Úsala con criterio, la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasa un motivo corto.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -473,7 +473,7 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
       order_number: {
         type: 'string',
         description:
-          'Número de pedido (ej. "1042" o "#1042"). Opcional — si no lo tienes, igual busca por el teléfono del cliente.',
+          'Número de pedido (ej. "1042" o "#1042"). Opcional, si no lo tienes, igual busca por el teléfono del cliente.',
       },
       reason: {
         type: 'string',
@@ -674,7 +674,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     customer_phone: {
       type: 'string',
       description:
-        'Teléfono del cliente. Opcional — si no lo pasas se usa el del chat.',
+        'Teléfono del cliente. Opcional, si no lo pasas se usa el del chat.',
     },
     customer_email: {
       type: 'string',
@@ -1690,7 +1690,7 @@ export async function runTool(
         // tienda rechaza todos los pedidos ve "no pude crear el pedido" y no
         // hay forma de averiguar el motivo: ni consola, ni fila, ni nada.
         console.error(
-          `[create_order] ${localOrders.workspaceId}: ${res.error} — ${res.message}`,
+          `[create_order] ${localOrders.workspaceId}: ${res.error}, ${res.message}`,
         )
         return JSON.stringify({
           ok: false,
@@ -2073,7 +2073,7 @@ function rewriteLastUserDocumentToText(
         touched = true
         return {
           type: 'text',
-          text: '[el cliente envió un PDF que no pude procesar — pídele amablemente que mande solo las páginas relevantes o un resumen]',
+          text: '[el cliente envió un PDF que no pude procesar, pídele amablemente que mande solo las páginas relevantes o un resumen]',
         }
       }
       return b

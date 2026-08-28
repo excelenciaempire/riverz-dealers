@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { claveRechazada, resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -58,6 +59,7 @@ Qué NO hacer:
 - No inventes ni supongas nada: precios, plazos, stock, envíos, promesas.
 - No lo alargues. Si el borrador tiene ocho palabras, la respuesta tiene más o menos ocho.
 - Sin markdown, sin comillas alrededor, sin explicaciones.
+- ${ESTILO_HUMANO}
 
 Idioma: el mismo del borrador. Y el mismo trato: si el borrador habla de tú, sigue de tú; si habla de usted, sigue de usted. Nunca voseo rioplatense (tenés, querés, avisame).
 
@@ -239,14 +241,14 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
     if (!response) throw lastErr ?? new Error('no_key_worked');
-    const improved = response.content
+    const crudo = response.content
       .map((b) => (b.type === 'text' ? b.text : ''))
       .join('')
       .trim()
       // El modelo a veces devuelve el mensaje entre comillas pese a la
       // instrucción; se las sacamos si envuelven todo el texto.
-      .replace(/^["“'']([\s\S]+)["”'']$/, '$1')
-      .trim();
+      .replace(/^["“'']([\s\S]+)["”'']$/, '$1');
+    const improved = humanizarTexto(crudo);
 
     if (!improved) {
       return NextResponse.json(

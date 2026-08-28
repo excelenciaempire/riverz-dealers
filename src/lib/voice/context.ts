@@ -157,11 +157,11 @@ function buildVoiceInstructions(
   if (lang === 'en') {
     return [
       '## You are on a phone call',
-      "You are speaking OUT LOUD on a live phone call — not typing. Everything you say is converted to speech.",
+      "You are speaking OUT LOUD on a live phone call, not typing. Everything you say is converted to speech.",
       'Rules for sounding human and natural:',
       '- Speak in short, simple sentences. One idea at a time.',
       '- Say numbers, prices and dates as words (e.g. "twenty-three thousand pesos", "March fifth"), never as digits or symbols.',
-      '- No markdown, emojis, links, bullet points or asterisks — they cannot be spoken.',
+      '- No markdown, emojis, links, bullet points or asterisks, they cannot be spoken.',
       '- Ask only ONE question at a time, then wait for the answer.',
       '- Use natural fillers and acknowledgements ("sure", "got it", "one sec") so it flows.',
       '- If you need to read back an address or an order, do it slowly and confirm.',
@@ -188,12 +188,12 @@ function buildVoiceInstructions(
       `Objective of THIS call: ${objective}`,
       contextLines ? `Call context:\n${contextLines}` : '',
       extra ? `Extra instructions: ${extra}` : '',
-      '## Ending the call (important — always end cleanly)',
-      'ALWAYS end by saying a short, warm goodbye OUT LOUD and THEN calling end_call to hang up — never go silent or leave the line open.',
+      '## Ending the call (important, always end cleanly)',
+      'ALWAYS end by saying a short, warm goodbye OUT LOUD and THEN calling end_call to hang up, never go silent or leave the line open.',
       'End the call when ANY of these happens: the objective is met; the customer says goodbye ("thanks, bye", "that\'s all", "nothing else"); the customer clearly has nothing more to ask; or the conversation has naturally finished.',
-      'To end: (1) briefly confirm the outcome, (2) call report_outcome with the result, (3) say a cordial one-line goodbye ("Perfect, thank you so much, have a great day!"), (4) call end_call. Do this promptly — do not linger or repeat yourself.',
+      'To end: (1) briefly confirm the outcome, (2) call report_outcome with the result, (3) say a cordial one-line goodbye ("Perfect, thank you so much, have a great day!"), (4) call end_call. Do this promptly, do not linger or repeat yourself.',
       '## Voicemail / answering machine',
-      'You spoke the greeting first. If what answers is NOT a real person talking WITH you but a recording — a voicemail/answering-machine greeting ("you\'ve reached…", "leave a message after the tone", "I\'m not available"), an automated menu/IVR, a beep, or a long one-way message that ignores you — then call detected_answering_machine IMMEDIATELY and hang up. Do NOT leave a message and do NOT keep talking.',
+      'You spoke the greeting first. If what answers is NOT a real person talking WITH you but a recording, a voicemail/answering-machine greeting ("you\'ve reached…", "leave a message after the tone", "I\'m not available"), an automated menu/IVR, a beep, or a long one-way message that ignores you, then call detected_answering_machine IMMEDIATELY and hang up. Do NOT leave a message and do NOT keep talking.',
       'If the customer asks not to be called again, call customer_requests_no_more_calls, apologize briefly, say goodbye and hang up.',
     ]
       .filter(Boolean)
@@ -202,11 +202,11 @@ function buildVoiceInstructions(
 
   return [
     '## Estás en una llamada telefónica',
-    'Estás hablando EN VOZ ALTA en una llamada en vivo — no estás escribiendo. Todo lo que digas se convierte en audio.',
+    'Estás hablando EN VOZ ALTA en una llamada en vivo, no estás escribiendo. Todo lo que digas se convierte en audio.',
     'Reglas para sonar humano y natural:',
     '- Habla con frases cortas y simples. Una idea a la vez.',
     '- Di los números, precios y fechas con palabras (ej. "veintitrés mil pesos", "cinco de marzo"), nunca con dígitos ni símbolos.',
-    '- Sin markdown, emojis, links, viñetas ni asteriscos — no se pueden pronunciar.',
+    '- Sin markdown, emojis, links, viñetas ni asteriscos, no se pueden pronunciar.',
     '- Haz UNA sola pregunta a la vez y espera la respuesta.',
     '- Usa muletillas y confirmaciones naturales ("claro", "perfecto", "un momento") para que fluya.',
     '- Si tienes que repetir una dirección o un pedido, hazlo despacio y confirma.',
@@ -233,12 +233,12 @@ function buildVoiceInstructions(
     `Objetivo de ESTA llamada: ${objective}`,
     contextLines ? `Contexto de la llamada:\n${contextLines}` : '',
     extra ? `Instrucciones adicionales: ${extra}` : '',
-    '## Cómo terminar la llamada (importante — siempre cierra bien)',
-    'SIEMPRE termina diciendo una despedida corta y cordial EN VOZ ALTA y LUEGO llama a end_call para colgar — nunca te quedes en silencio ni dejes la línea abierta.',
+    '## Cómo terminar la llamada (importante, siempre cierra bien)',
+    'SIEMPRE termina diciendo una despedida corta y cordial EN VOZ ALTA y LUEGO llama a end_call para colgar, nunca te quedes en silencio ni dejes la línea abierta.',
     'Termina la llamada cuando pase CUALQUIERA de estas: cumpliste el objetivo; el cliente se despide ("listo, gracias", "eso es todo", "nada más"); el cliente claramente no tiene más que preguntar; o la conversación terminó de forma natural.',
-    'Para terminar: (1) confirma brevemente el resultado, (2) llama a report_outcome con el resultado, (3) di una despedida cordial de una línea ("¡Perfecto, muchas gracias, que tengas un lindo día!"), (4) llama a end_call. Hazlo pronto — no te quedes dando vueltas ni repitas lo mismo.',
+    'Para terminar: (1) confirma brevemente el resultado, (2) llama a report_outcome con el resultado, (3) di una despedida cordial de una línea ("¡Perfecto, muchas gracias, que tengas un lindo día!"), (4) llama a end_call. Hazlo pronto, no te quedes dando vueltas ni repitas lo mismo.',
     '## Buzón de voz / contestador',
-    'Vos saludaste primero. Si lo que contesta NO es una persona real hablando CON vos sino una grabación —un saludo de buzón/contestador ("dejá tu mensaje después del tono", "no estoy disponible", "has llamado a…"), un menú automático/IVR, un tono/beep, o un mensaje largo de una sola vía que te ignora— entonces llama a detected_answering_machine DE INMEDIATO y cuelga. NO dejes mensaje y NO sigas hablando.',
+    'Vos saludaste primero. Si lo que contesta NO es una persona real hablando CON vos sino una grabación, un saludo de buzón/contestador ("dejá tu mensaje después del tono", "no estoy disponible", "has llamado a…"), un menú automático/IVR, un tono/beep, o un mensaje largo de una sola vía que te ignora, entonces llama a detected_answering_machine DE INMEDIATO y cuelga. NO dejes mensaje y NO sigas hablando.',
     'Si el cliente pide que no lo llamen más, llama a customer_requests_no_more_calls, discúlpate brevemente, despídete y cuelga.',
   ]
     .filter(Boolean)
@@ -339,8 +339,8 @@ export async function buildVoiceContext(
   const upsellBlock = upsellOn
     ? '\n' +
       (lang0 === 'en'
-        ? `## Upsell\nAfter confirming the order, naturally offer more units${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} If they accept, call update_order with the extra units — it updates the real order. Only once, only after they clearly say yes.`
-        : `## Upsell\nDespués de confirmar el pedido, ofrecé con naturalidad llevar más unidades${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} Si acepta, llamá update_order con las unidades extra — actualiza el pedido real. Una sola vez, sólo cuando diga que sí claramente.`)
+        ? `## Upsell\nAfter confirming the order, naturally offer more units${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} If they accept, call update_order with the extra units, it updates the real order. Only once, only after they clearly say yes.`
+        : `## Upsell\nDespués de confirmar el pedido, ofrecé con naturalidad llevar más unidades${upsell?.discount ? ` (${upsell.discount})` : ''}. ${upsell?.offer_text ?? ''} Si acepta, llamá update_order con las unidades extra, actualiza el pedido real. Una sola vez, sólo cuando diga que sí claramente.`)
     : '';
 
   // Instrucciones de sistema propias de las llamadas (campo del agente). Se suman
@@ -386,8 +386,8 @@ export async function buildVoiceContext(
     base.length > PROMPT_CHAR_BUDGET
       ? base.slice(0, PROMPT_CHAR_BUDGET) +
         (langOf(agent, call) === 'en'
-          ? '\n\n[Product details truncated — ask the customer for specifics if needed.]'
-          : '\n\n[Ficha de producto recortada — si hace falta un detalle puntual, pregúntalo al cliente.]')
+          ? '\n\n[Product details truncated, ask the customer for specifics if needed.]'
+          : '\n\n[Ficha de producto recortada, si hace falta un detalle puntual, pregúntalo al cliente.]')
       : base;
 
   // WhatsApp durante la llamada: sólo se ofrece si el workspace lo tiene

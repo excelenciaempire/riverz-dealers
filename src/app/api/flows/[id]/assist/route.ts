@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "@/lib/ai/anthropic-client";
+import { ESTILO_HUMANO } from "@/lib/ai/estilo-humano";
 import { createClient } from "@/lib/supabase/server";
 import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
@@ -242,8 +243,8 @@ Idioma (OBLIGATORIO):
 - Escribe tu \`reply\` en ${langLabel}.
 - TODO el contenido que generes para los nodos del flujo (textos de mensajes, títulos de botones, filas de listas, prompts de captura, intents, etc.) DEBE estar en ${langLabel}. Estos mensajes los lee el cliente final del merchant.
 
-Estilo de respuesta:
-- Sin guiones largos (—) ni encabezados markdown (##).
+Estilo de respuesta, y también de todo lo que escribas para los nodos:
+- ${ESTILO_HUMANO}
 - Frases cortas y al grano. Nada que suene a script generado.
 
 Reglas:

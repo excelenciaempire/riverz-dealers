@@ -3,6 +3,7 @@ import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
 import { appendBusinessScopeGuardrails } from './guardrails';
+import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { toolEnabled } from './toolbox'
 import { getAdapter } from '@/lib/channels/registry';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
@@ -81,6 +82,7 @@ function buildSystem(
       '- No repitas tu mensaje anterior ni suenes a recordatorio automático. Que se sienta humano y oportuno.',
       '- No seas insistente ni presiones. Una sola idea, mensaje corto.',
       '- No te disculpes por escribir de nuevo ni digas que eres una IA.',
+      `- ${estiloHumano(agent.language)}`,
       '- Si NO hay nada útil ni natural que agregar (la conversación ya cerró, fue una despedida, o un follow-up sería molesto), responde EXACTAMENTE con la palabra SKIP y nada más.',
     ].join('\n'),
   );
@@ -256,7 +258,7 @@ export async function runFollowUp(
     // Marcado antes de recortar y de guardar: lo que se envía y lo que queda
     // en el hilo tienen que ser el mismo texto.
     const finalText = marcarParaCanal(
-      text.slice(0, agent.max_response_chars || 500).trim(),
+      humanizarTexto(text).slice(0, agent.max_response_chars || 500).trim(),
       conversation.channel,
     );
     if (!finalText) return { sent: false, reason: 'empty' };

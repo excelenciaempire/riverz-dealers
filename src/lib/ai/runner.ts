@@ -10,6 +10,7 @@ import { cargarReglas, reglasATexto } from './guidance';
 import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
+import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
 import { transcribeAudio } from './transcribe';
@@ -260,7 +261,7 @@ export async function runAiAgent(
       if ((burstCount ?? 0) >= topeRafaga) {
         console.error(
           `[ai] cortacircuitos: ${burstCount} respuestas al contacto ${args.contact.id} ` +
-            `en ${BURST_WINDOW_MS / 60000} min — se apaga la IA en este hilo`,
+            `en ${BURST_WINDOW_MS / 60000} min, se apaga la IA en este hilo`,
         );
         await flagNeedsHuman(db, args.conversation, 'reply_burst_guard', {
         pidio: args.inboundMessage.content_text ?? null,
@@ -1150,8 +1151,8 @@ function describeCall(c: CallRow, now: number): string {
     partes.push(m > 0 ? `(${m} min ${seg % 60}s)` : `(${seg}s)`);
   }
   const cierre = c.outcome || c.status;
-  if (cierre) partes.push(`— ${cierre}`);
-  if (c.summary) partes.push(`— ${c.summary}`);
+  if (cierre) partes.push(`· ${cierre}`);
+  if (c.summary) partes.push(`· ${c.summary}`);
   return partes.join(' ');
 }
 
@@ -1364,7 +1365,7 @@ export async function loadContext(
     const HOURS_48 = 48 * 60 * 60 * 1000;
     if (Number.isFinite(ageMs) && ageMs > HOURS_48) {
       const days = Math.max(2, Math.round(ageMs / (24 * 60 * 60 * 1000)));
-      idleResetHint = `Esta es una nueva consulta del cliente — la conversación anterior fue hace ${days} días. No asumas continuidad si la clienta no la menciona.`;
+      idleResetHint = `Esta es una nueva consulta del cliente, la conversación anterior fue hace ${days} días. No asumas continuidad si la clienta no la menciona.`;
     }
   }
 
@@ -1674,7 +1675,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
             type: 'text',
             text:
               (text ? text + '\n\n' : '') +
-              `[el cliente envió un PDF muy grande (${mb} MB) que no puedo procesar entero — pídele que mande solo las páginas relevantes o un resumen]`,
+              `[el cliente envió un PDF muy grande (${mb} MB) que no puedo procesar entero, pídele que mande solo las páginas relevantes o un resumen]`,
           });
         } else {
           blocks.push({
@@ -1716,7 +1717,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
           type: 'text',
           text:
             (text ? text + '\n\n' : '') +
-            '[el cliente envió un audio que no pude transcribir — pídele amablemente que escriba lo que quería decir]',
+            '[el cliente envió un audio que no pude transcribir, pídele amablemente que escriba lo que quería decir]',
         });
       }
       break;
@@ -1726,7 +1727,7 @@ async function toClaudeMessage(msg: ContextMessage): Promise<Anthropic.MessagePa
         type: 'text',
         text:
           (text ? text + '\n\n' : '') +
-          '[el cliente envió un video — todavía no puedes ver videos; pídele que escriba o mande una foto si necesita mostrarte algo]',
+          '[el cliente envió un video, todavía no puedes ver videos; pídele que escriba o mande una foto si necesita mostrarte algo]',
       });
       break;
     }
@@ -2156,10 +2157,14 @@ async function generateReply(
     keySource = respaldo.source;
   }
 
+  // Se limpia ANTES de cortar: sacar los asteriscos después del corte deja el
+  // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
+  // corte entero.
+  const limpio = humanizarTexto(result.text);
   const trimmed =
-    result.text.length > agent.max_response_chars
-      ? result.text.slice(0, agent.max_response_chars).trimEnd() + '…'
-      : result.text;
+    limpio.length > agent.max_response_chars
+      ? limpio.slice(0, agent.max_response_chars).trimEnd() + '…'
+      : limpio;
 
   return {
     text: trimmed,
@@ -2396,6 +2401,9 @@ export function buildSystemPrompt(
       'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
     );
   }
+  // Que el mensaje no huela a modelo: sin markdown y sin la raya larga. Ver
+  // `ai/estilo-humano.ts`, que además limpia lo que el modelo escriba igual.
+  lines.push(estiloHumano(agent.language));
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
   // Detectada de la tienda Shopify / config / catálogo (resolveWorkspaceCurrency).
@@ -2470,7 +2478,7 @@ export function buildSystemPrompt(
   // confirmación final a una persona (el link de compra sigue disponible).
   if (shopify?.canCreateOrders) {
     lines.push(
-      'Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios — nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía y ofrece ayuda de una persona del equipo. Ten 100% de certeza de lo que quiere antes de crear el pedido.',
+      'Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía y ofrece ayuda de una persona del equipo. Ten 100% de certeza de lo que quiere antes de crear el pedido.',
     );
   } else if (shopify) {
     lines.push(
@@ -2796,7 +2804,7 @@ export function formatProductLine(p: ProductRow): string {
   // dice dónde más se vende y nada más: que le falte un precio es recuperable,
   // que diga el equivocado no.
   const otros = lineaDeCanales(p);
-  return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? ` — ${desc}` : ''}${otros}${
+  return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? `, ${desc}` : ''}${otros}${
     p.url ? ` <${p.url}>` : ''
   }`;
 }
@@ -2822,7 +2830,7 @@ export function lineaDeCanales(p: ProductRow): string {
   if (!canales.every((l) => l.currency)) {
     return ` [también se vende en: ${[...new Set(canales.map((l) => l.platform))].join(
       ', ',
-    )} — ahí el precio es otro, consultalo antes de cotizar]`;
+    )}, ahí el precio es otro, consultalo antes de cotizar]`;
   }
   return ` [precio por canal: ${canales
     .map(
@@ -2877,7 +2885,7 @@ function formatShopifySnapshot(snap: ShopifyCustomerSnapshot): string | null {
       // Último ítem comprado, si tenemos lifetime_orders.
       const lastSummary = (snap.lifetime_orders ?? [])[0];
       const items = (lastSummary?.line_items_titles ?? []).slice(0, 3).join(', ');
-      const summary = items ? ` — pidió: ${items}` : '';
+      const summary = items ? `, pidió: ${items}` : '';
       lines.push(`- Último pedido: ${ageLabel} (${d.toISOString().slice(0, 10)})${summary}.`);
     }
   }
@@ -2896,8 +2904,8 @@ function formatShopifySnapshot(snap: ShopifyCustomerSnapshot): string | null {
   if (lines.length === 1) return null;
   lines.push(
     orders > 0
-      ? 'Reconoce la calidez de que vuelve — saludala como cliente recurrente, sin sobreactuar.'
-      : 'Es la primera vez que te contacta — dale la bienvenida sin asumir compras previas.',
+      ? 'Reconoce la calidez de que vuelve, saludala como cliente recurrente, sin sobreactuar.'
+      : 'Es la primera vez que te contacta, dale la bienvenida sin asumir compras previas.',
   );
   return lines.join('\n');
 }

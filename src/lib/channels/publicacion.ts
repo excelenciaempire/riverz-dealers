@@ -38,7 +38,7 @@ export const REGLAS_COMENTARIO_PUBLICO = [
   'Esta respuesta va PÚBLICA debajo de una publicación: la lee cualquiera, no sólo esta persona.',
   'NO vendas. Nada de ofrecer el producto, invitar a comprar, mandar enlaces, ni mencionar precios o promociones que no preguntaron. Un comentario se contesta, no se aprovecha.',
   'Eso incluye el final del mensaje: nada de cerrar con "si quieres, el serum…", "te puede servir" ni el nombre del producto colgado al final. Si la respuesta ya está dada, se termina ahí.',
-  'Nunca menciones datos personales suyos —pedido, dirección, teléfono, correo— NI se los pidas acá: si los escribe, quedan a la vista de todos. Cuando haga falta un dato, dile en media línea que le escribes por privado.',
+  'Nunca menciones datos personales suyos (pedido, dirección, teléfono, correo) NI se los pidas acá: si los escribe, quedan a la vista de todos. Cuando haga falta un dato, dile en media línea que le escribes por privado.',
   'Ejemplo de lo que NO se hace acá: "pasame tu número de pedido", "decime tu teléfono", "mandame tu correo". Lo que sí: "te escribo por privado y lo vemos".',
   'Una o dos frases. Nada más.',
 ].join(`
