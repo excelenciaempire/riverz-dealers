@@ -104,6 +104,9 @@ export default function InboxPage() {
   // back to the deep-linked conversation if they've already clicked
   // elsewhere.
   const autoSelectedForDeepLinkRef = useRef<string | null>(null);
+  /** El id que ya se pidió por separado por venir en un `?c=` y no estar en
+   *  la página de conversaciones cargada. Una sola vez por id. */
+  const hidratadaPorEnlaceRef = useRef<string | null>(null);
 
   // Tracks conversations whose hydrate fetch is currently in flight. The
   // conv-INSERT and the first-message-INSERT events both call into
@@ -182,6 +185,34 @@ export default function InboxPage() {
     } finally {
       hydratingConvIdsRef.current.delete(convId);
     }
+  }, []);
+
+  /**
+   * Abre una conversación que NO está en la página cargada de la lista.
+   *
+   * La lista trae las más recientes; un enlace del detalle de atribución
+   * apunta a la charla de una compra que puede ser de hace semanas. Antes
+   * ese enlace no hacía nada y no había forma de saber por qué.
+   */
+  const abrirConversacionPorId = useCallback(async (convId: string) => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("*, contact:contacts(*)")
+      .eq("id", convId)
+      .maybeSingle();
+    if (error || !data) {
+      console.error("No se pudo abrir la conversación del enlace:", convId, error);
+      return;
+    }
+    const conv = data as Conversation;
+    if (conv.deleted_at) return;
+    setConversations((prev) =>
+      prev.some((c) => c.id === conv.id) ? prev : [conv, ...prev],
+    );
+    setActiveConversation(conv);
+    setActiveContact(conv.contact ?? null);
+    setMessages([]);
   }, []);
 
   // Check WhatsApp connection status on mount
@@ -437,6 +468,24 @@ export default function InboxPage() {
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
         loaded.length > 0
       ) {
+        // La lista trae una página de conversaciones, no todas. Un enlace a
+        // una charla vieja —que es justo lo que manda el detalle de
+        // atribución— no la encontraba acá y no abría nada, en silencio: la
+        // bandeja quedaba en la lista y parecía que el enlace estaba roto.
+        // Se la pide por id y, cuando entra en la lista, este mismo camino
+        // vuelve a correr y ya la encuentra. Una sola vez por id, para que
+        // una conversación borrada no lo deje reintentando para siempre.
+        if (
+          !loaded.some((c) => c.id === deepLinkConvId) &&
+          activeConversation?.id !== deepLinkConvId
+        ) {
+          if (hidratadaPorEnlaceRef.current !== deepLinkConvId) {
+            hidratadaPorEnlaceRef.current = deepLinkConvId;
+            autoSelectedForDeepLinkRef.current = deepLinkConvId;
+            void abrirConversacionPorId(deepLinkConvId);
+          }
+          return;
+        }
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one
         // (e.g. a refresh landed on /bandeja?c=<id> for a conv that's
@@ -466,7 +515,7 @@ export default function InboxPage() {
         }
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    [deepLinkConvId, activeConversation?.id, abrirConversacionPorId]
   );
 
   const handleSelectConversation = useCallback(
