@@ -163,6 +163,39 @@
   max-width: 100%;
 }
 
+/* ── El Operator: la secuencia atada al scroll ─────────────
+   Misma mecánica que la escena, con dos diferencias que
+   importan. Es más corta —una pantalla y media de recorrido
+   alcanza para escribir el pedido y ver entrar tres
+   renglones; con cinco se hace lento y la persona rueda de
+   más buscando el final—. Y el interior se centra en vez de
+   apilar actos, porque acá no hay actos que se crucen: hay
+   una sola pieza que se va armando.
+
+   Debajo de 1024 px no se clava nada. El componente lo sabe
+   y ahí muestra la secuencia terminada, así que la sección
+   mide lo que mide su contenido. */
+
+.sn-op {
+  height: auto;
+}
+
+.sn-op-in {
+  position: static;
+  height: auto;
+}
+
+@media (min-width: 1024px) {
+  .sn-op {
+    height: 260vh;
+  }
+  .sn-op-in {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+  }
+}
+
 /* ── La escena: cinco actos que pasan con el scroll ───────── */
 
 .sn-scene {
