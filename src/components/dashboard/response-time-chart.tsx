@@ -284,9 +284,11 @@ function Bars({ data, t }: { data: ResponseTimeSummary; t: TFn }) {
               width={barW}
               height={h}
               rx={4}
-              // Lo que tardamos en contestar es una medida de lo que SALE, así
-              // que va con el mismo color que "salientes" en los otros dos.
-              fill="var(--chart-2)"
+              // El violeta de siempre, ahora por token en vez de un hex
+              // suelto. Va con `--chart-3` —una serie sin significado
+              // asignado— y no con el 1 o el 2: acá no se cuenta lo que entra
+              // ni lo que sale, se mide un tiempo.
+              fill="var(--chart-3)"
             >
               <title>
                 {label}:{' '}

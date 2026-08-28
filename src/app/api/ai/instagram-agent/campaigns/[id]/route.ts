@@ -5,6 +5,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { coercePlan, type CampaignStatus } from '@/lib/instagram-agent/types';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { traerTodo } from '@/lib/db/paginar';
 
 /**
  * GET    /api/ai/instagram-agent/campaigns/[id]  — detalle (plan + métricas + recipients resumidos).
@@ -50,31 +51,41 @@ export async function GET(
   }
 
   // Resumen de destinatarios por estado, para el dashboard de la campaña.
-  const { data: recipients } = await supabase
-    .from('instagram_campaign_recipients')
-    .select('status')
-    .eq('campaign_id', id)
-    .limit(5000);
+  const recipients = await traerTodo<{ status: string | null }>((d, h) =>
+    supabase
+      .from('instagram_campaign_recipients')
+      .select('status')
+      .eq('campaign_id', id)
+      .order('id', { ascending: true })
+      .range(d, h),
+  );
   const byStatus: Record<string, number> = {};
-  for (const r of (recipients ?? []) as { status: string }[]) {
+  for (const r of recipients as { status: string }[]) {
     byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
   }
 
   // Ingresos por post de origen — "qué post genera ventas" (atribución por
   // fuente, estilo Blueberry). Solo cuenta destinatarios convertidos cuyo
   // post de origen conocemos (los del trigger en tiempo real).
-  const { data: converted } = await supabase
-    .from('instagram_campaign_recipients')
-    .select('source_post_id, revenue, currency')
-    .eq('campaign_id', id)
-    .eq('status', 'converted')
-    .not('source_post_id', 'is', null)
-    .limit(5000);
+  const converted = await traerTodo<{
+    source_post_id: string | null;
+    revenue: number | null;
+    currency: string | null;
+  }>((d, h) =>
+    supabase
+      .from('instagram_campaign_recipients')
+      .select('source_post_id, revenue, currency')
+      .eq('campaign_id', id)
+      .eq('status', 'converted')
+      .not('source_post_id', 'is', null)
+      .order('id', { ascending: true })
+      .range(d, h),
+  );
   const postMap = new Map<
     string,
     { conversions: number; revenue: number; currency: string | null }
   >();
-  for (const r of (converted ?? []) as Array<{
+  for (const r of converted as Array<{
     source_post_id: string;
     revenue: number | null;
     currency: string | null;

@@ -274,11 +274,13 @@ function LineSvg({
         >
           <div className="font-medium text-foreground">{longDayLabel(hovered.day, df)}</div>
           <div className="mt-1 flex flex-col gap-0.5">
-            <span className="flex items-center gap-1.5 text-chart-1">
+            {/* El punto lleva el color de la serie; la cifra va en tinta.
+                `--chart-1` es un gris al 40% y como LETRA da 2,5:1. */}
+            <span className="flex items-center gap-1.5 text-foreground">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-chart-1" />
               {t('dashboard.incomingCount', { n: hovered.incoming })}
             </span>
-            <span className="flex items-center gap-1.5 text-chart-2">
+            <span className="flex items-center gap-1.5 text-foreground">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-chart-2" />
               {t('dashboard.outgoingCount', { n: hovered.outgoing })}
             </span>

@@ -3,6 +3,7 @@ import type { VoiceCall, VoiceConnectionConfig } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { serverError } from '@/lib/api/errors';
+import { traerTodo } from '@/lib/db/paginar';
 
 /**
  * GET /api/voice/usage?workspace_id=
@@ -34,12 +35,17 @@ export async function GET(request: Request) {
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 
-    const { data, error } = await supabaseAdmin()
-      .from('voice_calls')
-      .select('duration_seconds, cost')
-      .eq('workspace_id', workspaceId)
-      .gte('created_at', monthStart)
-      .limit(20000);
+    const data = await traerTodo<{ duration_seconds: number | null; cost: number | null }>(
+      (d, h) =>
+        supabaseAdmin()
+          .from('voice_calls')
+          .select('duration_seconds, cost')
+          .eq('workspace_id', workspaceId)
+          .gte('created_at', monthStart)
+          .order('id', { ascending: true })
+          .range(d, h),
+    );
+    const error = null;
     if (error) return serverError(error);
     const calls = (data ?? []) as Pick<VoiceCall, 'duration_seconds' | 'cost'>[];
 

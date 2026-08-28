@@ -128,9 +128,14 @@ html[data-theme="light"] {
      idiomas en la misma pantalla:
        --chart-1  lo que ENTRA (mensajes del cliente)
        --chart-2  lo que SALE (lo que contestamos)
-     Del 3 al 5 son series sueltas, sin significado asignado. */
-  --chart-1: #07806f;
-  --chart-2: #707817;
+     Del 3 al 5 son series sueltas, sin significado asignado.
+
+     Los dos NO son colores nuevos: son exactamente los que la barra de
+     "Volumen por canal" ya usaba a mano (`foreground/40` y `primary`).
+     Ponerles nombre es lo que hace que la curva de al lado pueda usar los
+     mismos en vez del azul y el violeta sueltos que tenía. */
+  --chart-1: color-mix(in oklab, var(--foreground) 40%, var(--card));
+  --chart-2: var(--primary);
   --chart-3: #7c3aed;
   --chart-4: #c22a6f;
   --chart-5: #a3630a;
@@ -183,9 +188,11 @@ html[data-theme="dark"] {
   --border: #25252e;
   --input: #2a2a33;
   --ring: #f7ff9e;
-  /* Mismo significado que en claro: 1 entra, 2 sale. */
-  --chart-1: #14e0cc;
-  --chart-2: #c9d23f;
+  /* Mismo significado y misma definición que en claro: 1 entra, 2 sale.
+     Salen de `--foreground` y `--primary` de ESTE bloque, así que en
+     oscuro dan el gris y el lima de siempre sin escribir un valor nuevo. */
+  --chart-1: color-mix(in oklab, var(--foreground) 40%, var(--card));
+  --chart-2: var(--primary);
   --chart-3: #8b5cf6;
   --chart-4: #f472b6;
   --chart-5: #f59e0b;

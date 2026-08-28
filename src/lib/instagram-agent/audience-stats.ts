@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { MESSAGING_WINDOW_MS, COMMENT_WINDOW_MS } from './engagement';
+import { traerTodo } from '@/lib/db/paginar';
 
 /**
  * Cuánta gente puede REALMENTE recibir un mensaje del agente ahora mismo.
@@ -30,7 +31,7 @@ export async function loadAudienceStats(
   const now = Date.now();
   const commentStart = new Date(now - COMMENT_WINDOW_MS).toISOString();
 
-  const [{ count: total }, { data: convs }] = await Promise.all([
+  const [{ count: total }, convs] = await Promise.all([
     supabase
       .from('contacts')
       .select('id', { count: 'exact', head: true })
@@ -38,14 +39,17 @@ export async function loadAudienceStats(
       .not('external_id', 'is', null),
     // Una fila por conversación de Instagram con actividad en los últimos 7
     // días; la ventana concreta se decide por canal en memoria.
-    supabase
-      .from('conversations')
-      .select('contact_id, channel, last_message_at')
-      .in('channel', ['instagram', 'ig_comment'])
-      .gt('last_message_at', commentStart)
-      .not('contact_id', 'is', null)
-      .order('last_message_at', { ascending: false })
-      .limit(5000),
+    traerTodo<{ contact_id: string | null; channel: string; last_message_at: string }>(
+      (d, h) =>
+        supabase
+          .from('conversations')
+          .select('contact_id, channel, last_message_at')
+          .in('channel', ['instagram', 'ig_comment'])
+          .gt('last_message_at', commentStart)
+          .not('contact_id', 'is', null)
+          .order('last_message_at', { ascending: false })
+          .range(d, h),
+    ),
   ]);
 
   const dm = new Set<string>();

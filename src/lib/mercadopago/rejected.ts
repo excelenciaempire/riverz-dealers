@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeForDialing, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { samePerson } from './client'
+import { traerTodo } from '@/lib/db/paginar'
 
 /**
  * Pagos rechazados de Mercado Pago → recuperación por WhatsApp.
@@ -378,12 +379,19 @@ export async function enrichMissingPhones(
   }[]
   if (rows.length === 0) return { resolved: 0, stillMissing: 0 }
 
-  const { data: contactRows } = await admin
-    .from('contacts')
-    .select('name, email, phone')
-    .eq('workspace_id', workspaceId)
-    .not('phone', 'is', null)
-    .limit(5000)
+  const contactRows = await traerTodo<{
+    name: string | null
+    email: string | null
+    phone: string | null
+  }>((d, h) =>
+    admin
+      .from('contacts')
+      .select('name, email, phone')
+      .eq('workspace_id', workspaceId)
+      .not('phone', 'is', null)
+      .order('id', { ascending: true })
+      .range(d, h),
+  )
   const contacts = (contactRows ?? []) as {
     name: string | null
     email: string | null

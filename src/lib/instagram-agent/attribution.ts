@@ -7,6 +7,7 @@ import {
 } from '@/lib/attribution/shopify';
 import { EMPTY_METRICS, type CampaignMetrics, type InstagramCampaign } from './types';
 import { recordOrderAttribution } from './order-attribution';
+import { traerTodo } from '@/lib/db/paginar';
 
 /**
  * Cierra el loop de atribución de una campaña con INCREMENTALIDAD real (el
@@ -108,11 +109,14 @@ export async function attributeAndRollup(
     'id' | 'workspace_id' | 'launched_at' | 'offer_code'
   >,
 ): Promise<CampaignMetrics> {
-  const { data: recipients } = await db
-    .from('instagram_campaign_recipients')
-    .select('id, contact_id, status, is_holdout, sent_at, revenue, currency, discount_code, contacts(email, phone)')
-    .eq('campaign_id', campaign.id)
-    .limit(5000);
+  const recipients = await traerTodo((d, h) =>
+    db
+      .from('instagram_campaign_recipients')
+      .select('id, contact_id, status, is_holdout, sent_at, revenue, currency, discount_code, contacts(email, phone)')
+      .eq('campaign_id', campaign.id)
+      .order('id', { ascending: true })
+      .range(d, h),
+  );
   const rows = (recipients ?? []) as unknown as RecipientRow[];
 
   // 1) Atribución desde Shopify (best-effort): convierte tratados + mide control.
@@ -127,11 +131,14 @@ export async function attributeAndRollup(
   }
 
   // 2) Rollup — releer estados ya actualizados.
-  const { data: fresh } = await db
-    .from('instagram_campaign_recipients')
-    .select('status, is_holdout, revenue, currency')
-    .eq('campaign_id', campaign.id)
-    .limit(5000);
+  const fresh = await traerTodo((d, h) =>
+    db
+      .from('instagram_campaign_recipients')
+      .select('status, is_holdout, revenue, currency')
+      .eq('campaign_id', campaign.id)
+      .order('id', { ascending: true })
+      .range(d, h),
+  );
   const freshRows = (fresh ?? []) as Array<{
     status: string;
     is_holdout: boolean;

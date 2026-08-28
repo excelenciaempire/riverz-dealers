@@ -139,7 +139,6 @@ export async function GET(request: Request) {
     .eq('workspace_id', workspaceId)
     .gte('rejected_at', since)
     .order('rejected_at', { ascending: false })
-    .limit(5000)
 
   if (error) return serverError(error)
 

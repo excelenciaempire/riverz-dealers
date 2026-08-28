@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { serverError } from '@/lib/api/errors';
+import { traerTodo } from '@/lib/db/paginar';
 
 /**
  * GET /api/whatsapp/templates/[id]/analytics
@@ -49,12 +50,15 @@ async function selectOrders(
   const base =
     'contact_id, customer_name, customer_phone, total_price, status, created_at';
   const run = (columns: string) =>
-    db
-      .from('orders')
-      .select(columns)
-      .eq('workspace_id', workspaceId)
-      .gte('created_at', sinceIso)
-      .limit(5000);
+    traerTodo((d, h) =>
+      db
+        .from('orders')
+        .select(columns)
+        .eq('workspace_id', workspaceId)
+        .gte('created_at', sinceIso)
+        .order('id', { ascending: true })
+        .range(d, h),
+    ).then((data) => ({ data, error: null }));
 
   const withToken = await run(`${base}, checkout_token`);
   if (!withToken.error) return (withToken.data ?? []) as unknown as OrderRow[];
@@ -245,14 +249,17 @@ export async function GET(
 
       // Envíos REALES de esta plantilla (no de otra plantilla de carrito del
       // mismo workspace), con el contacto que los recibió.
-      const { data: sendRows } = await db
-        .from('messages')
-        .select('created_at, conversations!inner(workspace_id, contact_id)')
-        .eq('template_name', tpl.name)
-        .eq('conversations.workspace_id', tpl.workspace_id)
-        .in('status', ['sent', 'delivered', 'read'])
-        .gte('created_at', sinceIso)
-        .limit(5000);
+      const sendRows = await traerTodo((d, h) =>
+        db
+          .from('messages')
+          .select('created_at, conversations!inner(workspace_id, contact_id)')
+          .eq('template_name', tpl.name)
+          .eq('conversations.workspace_id', tpl.workspace_id)
+          .in('status', ['sent', 'delivered', 'read'])
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true })
+          .range(d, h),
+      );
       const sends = (sendRows ?? []) as unknown as Array<{
         created_at: string;
         conversations: { contact_id: string } | { contact_id: string }[];
@@ -508,14 +515,17 @@ async function conteosPropios(
   sinceIso: string,
 ): Promise<{ enviados: number; entregados: number; leidos: number } | null> {
   try {
-    const { data } = await db
-      .from('messages')
-      .select('status, conversations!inner(workspace_id)')
-      .eq('template_name', templateName)
-      .eq('conversations.workspace_id', workspaceId)
-      .gte('created_at', sinceIso)
-      .limit(5000);
-    const filas = (data ?? []) as Array<{ status: string | null }>;
+    const data = await traerTodo((d, h) =>
+      db
+        .from('messages')
+        .select('status, conversations!inner(workspace_id)')
+        .eq('template_name', templateName)
+        .eq('conversations.workspace_id', workspaceId)
+        .gte('created_at', sinceIso)
+        .order('created_at', { ascending: true })
+        .range(d, h),
+    );
+    const filas = data as Array<{ status: string | null }>;
     if (filas.length === 0) return null;
     const enviados = filas.filter((f) => f.status !== 'failed').length;
     const leidos = filas.filter((f) => f.status === 'read').length;
