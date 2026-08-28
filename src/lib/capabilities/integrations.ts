@@ -191,7 +191,67 @@ async function desconectar(ctx: CapabilityContext, args: Record<string, unknown>
   }
 }
 
+/**
+ * POR QUÉ SE CAYÓ, Y CUÁNDO VOLVIÓ.
+ *
+ * `integraciones.estado` dice cómo está el canal AHORA. Eso alcanza para "está
+ * roto" y no para "se cae todos los martes" ni para "se cayó justo cuando
+ * dejaron de entrar los mensajes". El historial es lo que convierte una queja
+ * —"no me llegan los mensajes"— en una fecha.
+ */
+async function historial(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  let q = ctx.db
+    .from('connection_events')
+    .select('id, source, channel, account, previous_status, status, last_error, created_at')
+    .eq('workspace_id', ctx.workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limite)
+  if (typeof args.canal === 'string' && args.canal) q = q.eq('channel', args.canal)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  return {
+    eventos: ((data ?? []) as Array<{
+      id: string
+      source: string | null
+      channel: string | null
+      account: string | null
+      previous_status: string | null
+      status: string | null
+      last_error: string | null
+      created_at: string
+    }>).map((e) => ({
+      cuando: e.created_at,
+      canal: e.channel,
+      cuenta: e.account,
+      // De qué a qué pasó: 'connected' → 'error' es una caída.
+      paso_de: e.previous_status,
+      paso_a: e.status,
+      error: e.last_error,
+      lo_detecto: e.source,
+    })),
+  }
+}
+
 export const INTEGRATION_CAPABILITIES: Capability[] = [
+  {
+    key: 'integraciones.historial',
+    description:
+      'Las caídas y reconexiones de los canales: cuándo se cayó cada uno, de qué estado a cuál, con qué error y cuándo volvió. Es lo que convierte "no me llegan los mensajes" en una fecha, y lo que muestra el canal que se cae siempre.',
+    descriptionEn:
+      'The channel drops and reconnections: when each one went down, from which status to which, with what error and when it came back. It turns "messages stopped arriving" into a date, and shows the channel that keeps dropping.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        canal: { type: 'string', description: 'Sólo los eventos de ese canal.' },
+        limite: { type: 'number', description: 'Por defecto 30, máximo 100.' },
+      },
+    },
+    run: historial,
+  },
   {
     key: 'integraciones.estado',
     description:

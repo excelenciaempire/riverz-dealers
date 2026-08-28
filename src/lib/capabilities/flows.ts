@@ -374,7 +374,90 @@ export async function artefactoGuardadoDeFlujo(
   }
 }
 
+/**
+ * CÓMO LES FUE A LAS CONVERSACIONES QUE PASARON POR UN MENÚ.
+ *
+ * El flujo se podía leer y editar, y no había forma de saber si funciona: en
+ * qué paso se caen las personas, cuántas llegaron al final, cuántas siguen
+ * trabadas. Un menú que pierde a todos en el paso tres se ve igual de bien que
+ * uno que cierra ventas.
+ */
+async function corridas(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  let q = ctx.db
+    .from('flow_runs')
+    .select(
+      'id, flow_id, status, current_node_key, started_at, last_advanced_at, ended_at, end_reason, reprompt_count, conversation_id, contacts(name, phone), flows(name)',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .order('started_at', { ascending: false })
+    .limit(limite)
+  if (typeof args.flujo_id === 'string' && args.flujo_id) q = q.eq('flow_id', args.flujo_id)
+  if (args.solo_en_curso === true) q = q.is('ended_at', null)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    id: string
+    flow_id: string
+    status: string
+    current_node_key: string | null
+    started_at: string
+    ended_at: string | null
+    end_reason: string | null
+    reprompt_count: number | null
+    conversation_id: string | null
+    contacts: { name: string | null; phone: string | null } | null
+    flows: { name: string | null } | null
+  }>
+
+  // Dónde se traba la gente: agrupado, es lo único que dice qué arreglar.
+  const porPaso = new Map<string, number>()
+  for (const f of filas) {
+    if (f.ended_at) continue
+    const paso = f.current_node_key ?? 'sin paso'
+    porPaso.set(paso, (porPaso.get(paso) ?? 0) + 1)
+  }
+
+  return {
+    trabadas_en: [...porPaso.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([paso, cuantas]) => ({ paso, cuantas })),
+    corridas: filas.map((f) => ({
+      corrida_id: f.id,
+      menu: f.flows?.name ?? f.flow_id,
+      cliente: f.contacts?.name ?? f.contacts?.phone ?? 'sin nombre',
+      estado: f.status,
+      paso_actual: f.current_node_key,
+      // Cuántas veces hubo que repreguntarle: alto = el paso no se entiende.
+      repreguntas: f.reprompt_count ?? 0,
+      empezo: f.started_at,
+      termino: f.ended_at,
+      como_termino: f.end_reason,
+      conversation_id: f.conversation_id,
+    })),
+  }
+}
+
 export const FLOW_CAPABILITIES: Capability[] = [
+  {
+    key: 'flujos.corridas',
+    description:
+      'Cómo les fue a las personas que pasaron por un menú: en qué paso está cada una, cuántas veces hubo que repreguntarle, cómo terminó. Viene con el corte de dónde se traba la gente, que es lo único que dice qué paso hay que reescribir. Un menú que pierde a todos en el paso tres se lee igual de bien que uno que vende.',
+    descriptionEn:
+      'How the people who went through a menu did: which step each one is on, how many times they had to be re-prompted, how it ended. It comes with the breakdown of where people get stuck, which is the only thing that says which step to rewrite. A menu that loses everyone on step three reads just as well as one that sells.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        flujo_id: { type: 'string', description: 'Sólo las de ese menú.' },
+        solo_en_curso: { type: 'boolean', description: 'Sólo las que no terminaron.' },
+        limite: { type: 'number', description: 'Por defecto 30, máximo 100.' },
+      },
+    },
+    run: corridas,
+  },
   {
     key: 'flujos.listar',
     description:

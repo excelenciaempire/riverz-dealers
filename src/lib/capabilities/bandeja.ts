@@ -277,7 +277,86 @@ async function activarReparto(ctx: CapabilityContext, args: Record<string, unkno
 
 // ---------------------------------------------------------------------------
 
+/** Los estados por los que pasa una devolución. */
+const ESTADOS_DEVOLUCION = ['abierta', 'aprobada', 'rechazada', 'recibida', 'resuelta'] as const
+
+const QUE_SIGNIFICA: Record<string, string> = {
+  abierta: 'la deja esperando una decisión',
+  aprobada: 'ACEPTA la devolución: el cliente devuelve y se le reintegra',
+  rechazada: 'RECHAZA la devolución: no hay reintegro',
+  recibida: 'marca que el producto ya volvió',
+  resuelta: 'la da por cerrada',
+}
+
+async function devolucionPorId(ctx: CapabilityContext, id: string) {
+  const { data } = await ctx.db
+    .from('returns')
+    .select('id, order_number, kind, reason, status, contacts(name)')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) throw new Error('Esa devolución no existe en esta cuenta.')
+  return data as unknown as {
+    id: string
+    order_number: string | null
+    kind: string | null
+    reason: string | null
+    status: string
+    contacts: { name: string | null } | null
+  }
+}
+
+async function decidirDevolucion(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const dev = await devolucionPorId(ctx, String(args.devolucion_id ?? '').trim())
+  const estado = String(args.estado ?? '')
+  if (!(ESTADOS_DEVOLUCION as readonly string[]).includes(estado)) {
+    throw new Error(`Estado desconocido: ${estado}`)
+  }
+
+  const { error } = await ctx.db
+    .from('returns')
+    .update({
+      status: estado,
+      resolution:
+        typeof args.nota === 'string' ? args.nota.trim().slice(0, 500) || null : null,
+      decided_by: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+      decided_at: new Date().toISOString(),
+    })
+    .eq('id', dev.id)
+    // El recorte de cuenta: sin esto un id suelto movería la devolución de otro
+    // comercio, porque esto corre con llave de servicio.
+    .eq('workspace_id', ctx.workspaceId)
+  if (error) throw new Error(error.message)
+
+  return { devolucion_id: dev.id, pedido: dev.order_number, estado }
+}
+
 export const BANDEJA_CAPABILITIES: Capability[] = [
+  {
+    key: 'bandeja.decidir_devolucion',
+    description:
+      'Decide una devolución o cambio: aprobarla, rechazarla, marcar que el producto volvió o darla por cerrada, con la nota de por qué. Aprobar significa que el cliente devuelve y se le reintegra la plata — es una decisión de negocio y no se deshace sola.',
+    descriptionEn:
+      'Decides a return or exchange: approve it, reject it, mark the product as received or close it, with a note explaining why. Approving means the customer returns the item and gets their money back — a business decision that does not undo itself.',
+    risk: 'irreversible',
+    schema: {
+      type: 'object',
+      properties: {
+        devolucion_id: { type: 'string', description: 'El id que devuelve bandeja.devoluciones.' },
+        estado: { type: 'string', enum: [...ESTADOS_DEVOLUCION] },
+        nota: { type: 'string', description: 'Por qué se decidió así. La lee el equipo.' },
+      },
+      required: ['devolucion_id', 'estado'],
+    },
+    async preview(ctx, args) {
+      const dev = await devolucionPorId(ctx, String(args.devolucion_id ?? '').trim())
+      const quien = dev.contacts?.name ?? 'un cliente'
+      const pedido = dev.order_number ? ` del pedido ${dev.order_number}` : ''
+      const que = QUE_SIGNIFICA[String(args.estado ?? '')] ?? 'la mueve de estado'
+      return `Sobre la devolución de ${quien}${pedido} (hoy «${dev.status}»): ${que}.`
+    },
+    run: decidirDevolucion,
+  },
   {
     key: 'bandeja.reclamos',
     description:

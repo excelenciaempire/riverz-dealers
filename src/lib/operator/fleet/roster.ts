@@ -40,6 +40,7 @@ import type { SubagentId, SubagentSpec } from './types'
 export const SIN_DUENO: Record<string, string> = {
   'operacion.estado': 'mira la cuenta entera, no un dominio: la usa el orquestador',
   'metricas.resumen': 'mira la cuenta entera, no un dominio: la usa el orquestador',
+  'metricas.cortes': 'mira la cuenta entera, no un dominio: la usa el orquestador',
 }
 
 export const ROSTER: SubagentSpec[] = [

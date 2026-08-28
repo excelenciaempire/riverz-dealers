@@ -30,6 +30,7 @@ import {
 } from '@/lib/ai/roles'
 import type { AiTone, BusinessHours } from '@/lib/ai/types'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import { MAX_REGLAS } from '@/lib/ai/guidance'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext) {
@@ -605,7 +606,265 @@ export async function artefactoGuardadoDeAgente(
   }
 }
 
+// ---------------------------------------------------------------------------
+// LAS REGLAS DEL NEGOCIO.
+//
+// El agente las lee en cada respuesta —`cargarReglas` las mete en el prompt— y
+// el Operador no las conocía. Eso lo dejaba explicando por qué la IA contestó
+// algo sin poder ver la instrucción que se lo hizo contestar, y le impedía la
+// mitad más útil: agregar la regla que faltaba.
+//
+// Van con `agentes.` y no con un dominio propio porque son eso: cómo se
+// comporta la IA. Una regla sin agente vale para todos los de la cuenta.
+// ---------------------------------------------------------------------------
+
+const MAX_TITULO = 80
+const MAX_TEXTO = 600
+
+async function reglas(ctx: CapabilityContext, args: Record<string, unknown>) {
+  let q = ctx.db
+    .from('agent_guidance')
+    .select('id, agent_id, titulo, cuando, hacer, activa, orden, origen, created_at')
+    .eq('workspace_id', ctx.workspaceId)
+    .order('orden', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(100)
+  if (args.solo_activas === true) q = q.eq('activa', true)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as Array<{
+    id: string
+    agent_id: string | null
+    titulo: string
+    cuando: string | null
+    hacer: string
+    activa: boolean
+    orden: number
+    origen: string
+    created_at: string
+  }>
+
+  // El nombre del agente y no su uuid, y sólo si alguna regla es de uno.
+  const nombres = new Map<string, string>()
+  if (filas.some((r) => r.agent_id)) {
+    const { data: ags } = await ctx.db
+      .from('ai_agents')
+      .select('id, name')
+      .eq('workspace_id', ctx.workspaceId)
+    for (const a of (ags ?? []) as Array<{ id: string; name: string }>) {
+      nombres.set(a.id, a.name)
+    }
+  }
+
+  return {
+    // Sólo las primeras entran al prompt: pasado el tope, una regla nueva no
+    // cambia nada y hay que apagar otra.
+    entran_al_prompt: MAX_REGLAS,
+    reglas: filas.map((r) => ({
+      regla_id: r.id,
+      titulo: r.titulo,
+      cuando: r.cuando,
+      hacer: r.hacer,
+      activa: r.activa,
+      orden: r.orden,
+      // 'pliego' = salió del cuestionario de alta; 'comercio' = la escribió una
+      // persona.
+      origen: r.origen,
+      para: r.agent_id ? (nombres.get(r.agent_id) ?? r.agent_id) : 'todos los agentes',
+    })),
+  }
+}
+
+async function crearRegla(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const titulo = String(args.titulo ?? '').trim().slice(0, MAX_TITULO)
+  const hacer = String(args.hacer ?? '').trim().slice(0, MAX_TEXTO)
+  if (!titulo) throw new Error('Falta el título de la regla.')
+  if (!hacer) throw new Error('Falta qué tiene que hacer el agente.')
+
+  const cuando =
+    typeof args.cuando === 'string' && args.cuando.trim()
+      ? args.cuando.trim().slice(0, MAX_TEXTO)
+      : null
+
+  const { count } = await ctx.db
+    .from('agent_guidance')
+    .select('id', { count: 'exact', head: true })
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('activa', true)
+  if ((count ?? 0) >= MAX_REGLAS) {
+    throw new Error(
+      `Ya hay ${count} reglas activas y al prompt entran ${MAX_REGLAS}. Apagá una antes de sumar otra.`,
+    )
+  }
+
+  const { data, error } = await ctx.db
+    .from('agent_guidance')
+    .insert({
+      workspace_id: ctx.workspaceId,
+      agent_id: typeof args.agent_id === 'string' && args.agent_id ? args.agent_id : null,
+      titulo,
+      cuando,
+      hacer,
+      // Nace APAGADA: una regla nueva cambia lo que la IA le contesta a un
+      // cliente en el próximo mensaje, y eso lo prende una persona.
+      activa: false,
+      orden: (count ?? 0) + 1,
+      origen: 'comercio',
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+
+  return { regla_id: (data as { id: string }).id, titulo, cuando, hacer, activa: false }
+}
+
+async function reglaPorId(ctx: CapabilityContext, id: string) {
+  const { data } = await ctx.db
+    .from('agent_guidance')
+    .select('id, titulo, hacer, activa')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) throw new Error('Esa regla no existe en esta cuenta.')
+  return data as { id: string; titulo: string; hacer: string; activa: boolean }
+}
+
+async function activarRegla(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const regla = await reglaPorId(ctx, String(args.regla_id ?? '').trim())
+  const activa = args.activa === true
+
+  const { error } = await ctx.db
+    .from('agent_guidance')
+    .update({ activa })
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', regla.id)
+  if (error) throw new Error(error.message)
+
+  return { regla_id: regla.id, titulo: regla.titulo, activa }
+}
+
+/**
+ * LOS DESCUENTOS QUE DIO LA IA.
+ *
+ * Cada fila es un cupón que el agente creó en la tienda y le pasó a un cliente
+ * concreto. Es plata regalada con permiso, y no había forma de verla junta.
+ */
+async function descuentos(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  const { data, error } = await ctx.db
+    .from('agent_discounts')
+    .select('id, code, percent, shop_domain, redeemed_at, created_at, conversation_id, contacts(name, phone)')
+    .eq('workspace_id', ctx.workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limite)
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    id: string
+    code: string
+    percent: number | null
+    shop_domain: string | null
+    redeemed_at: string | null
+    created_at: string
+    conversation_id: string | null
+    contacts: { name: string | null; phone: string | null } | null
+  }>
+
+  return {
+    usados: filas.filter((d) => d.redeemed_at).length,
+    descuentos: filas.map((d) => ({
+      codigo: d.code,
+      porcentaje: d.percent,
+      cliente: d.contacts?.name ?? d.contacts?.phone ?? 'sin nombre',
+      tienda: d.shop_domain,
+      cuando: d.created_at,
+      // Si lo usó de verdad: un cupón dado y no usado no costó nada.
+      usado_el: d.redeemed_at,
+      conversation_id: d.conversation_id,
+    })),
+  }
+}
+
 export const AGENT_CAPABILITIES: Capability[] = [
+  {
+    key: 'agentes.reglas',
+    description:
+      'Las reglas del negocio que los agentes obedecen en cada respuesta: cuándo aplica cada una y qué tienen que hacer. Una regla sin agente vale para todos. Dice también cuántas entran al prompt: pasadas esas, una regla más no cambia nada. Es lo primero que hay que mirar cuando la IA contestó algo raro.',
+    descriptionEn:
+      'The business rules the agents obey on every reply: when each one applies and what they must do. A rule with no agent applies to all of them. It also says how many fit in the prompt: past that, one more rule changes nothing. This is the first thing to check when the AI answered something odd.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { solo_activas: { type: 'boolean' } },
+    },
+    run: reglas,
+  },
+
+  {
+    key: 'agentes.crear_regla',
+    description:
+      'Escribe una regla del negocio, APAGADA. Cuando se prenda, todos los agentes (o el que se indique) la obedecen en cada respuesta. Se escribe en las palabras del comercio: "cuándo" es la situación y "hacer" es qué tiene que hacer la IA.',
+    descriptionEn:
+      'Writes a business rule, switched OFF. Once turned on, every agent (or the one given) obeys it on each reply. It is written in the merchant words: "cuándo" is the situation and "hacer" is what the AI must do.',
+    risk: 'reversible',
+    // Nace apagada: no cambia ninguna respuesta hasta que alguien la prenda.
+    inerte: true,
+    schema: {
+      type: 'object',
+      properties: {
+        titulo: { type: 'string', description: `Cómo se llama la regla. Hasta ${MAX_TITULO} caracteres.` },
+        cuando: { type: 'string', description: 'En qué situación aplica. Vacío = siempre.' },
+        hacer: { type: 'string', description: 'Qué tiene que hacer el agente.' },
+        agent_id: { type: 'string', description: 'Vacío = vale para todos los agentes.' },
+      },
+      required: ['titulo', 'hacer'],
+    },
+    async preview(_ctx, args) {
+      const cuando = typeof args.cuando === 'string' && args.cuando.trim() ? ` Cuando ${args.cuando}.` : ''
+      return `Guardaría la regla «${args.titulo}», apagada.${cuando} Al prenderla, la IA hará: ${args.hacer}`
+    },
+    run: crearRegla,
+  },
+
+  {
+    key: 'agentes.activar_regla',
+    description:
+      'Prende o apaga una regla del negocio. Prenderla cambia lo que la IA le contesta a un cliente en el próximo mensaje. Se deshace llamando de nuevo.',
+    descriptionEn:
+      'Turns a business rule on or off. Turning it on changes what the AI replies to a customer on the next message. Undone by calling it again.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        regla_id: { type: 'string', description: 'El id que devuelve agentes.reglas.' },
+        activa: { type: 'boolean' },
+      },
+      required: ['regla_id', 'activa'],
+    },
+    async preview(ctx, args) {
+      const regla = await reglaPorId(ctx, String(args.regla_id ?? '').trim())
+      return args.activa === true
+        ? `Prendería la regla «${regla.titulo}». Desde el próximo mensaje la IA hará: ${regla.hacer}`
+        : `Apagaría la regla «${regla.titulo}». La IA deja de tenerla en cuenta.`
+    },
+    run: activarRegla,
+  },
+
+  {
+    key: 'agentes.descuentos',
+    description:
+      'Los descuentos que la IA le dio a clientes: el código, el porcentaje, a quién, y si lo usó. Es plata regalada con permiso, y sirve para saber si el permiso está bien puesto.',
+    descriptionEn:
+      'The discounts the AI gave customers: the code, the percentage, to whom, and whether it was redeemed. It is money given away with permission, and it shows whether that permission is set right.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { limite: { type: 'number', description: 'Por defecto 30, máximo 100.' } },
+    },
+    run: descuentos,
+  },
   {
     key: 'agentes.listar',
     description:

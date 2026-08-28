@@ -525,6 +525,70 @@ async function borradores(ctx: CapabilityContext, args: Record<string, unknown>)
   }
 }
 
+/**
+ * DÓNDE SE PLANTA LA IA.
+ *
+ * Un caso escalado es un cliente esperando a una persona, y hasta ahora vivía
+ * marcado adentro de la bandeja, mezclado con todo lo demás. Para saber cuántas
+ * veces la IA se plantó, por qué, y si alguien lo atendió, había que ir hilo por
+ * hilo. Sin agrupar, al revés que los huecos: dos personas con el mismo problema
+ * son DOS clientes esperando, no uno.
+ */
+async function escalaciones(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  let q = ctx.db
+    .from('conversations')
+    .select(
+      'id, channel, needs_human_reason, needs_human_at, needs_human_visto_at, needs_human_summary, last_message_text, status, contacts(name, phone)',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .not('needs_human_at', 'is', null)
+    .is('deleted_at', null)
+    .order('needs_human_at', { ascending: false })
+    .limit(limite)
+  // Por defecto sólo lo que nadie abrió: es lo único accionable de la lista.
+  if (args.incluir_vistos !== true) q = q.is('needs_human_visto_at', null)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    id: string
+    channel: string
+    needs_human_reason: string | null
+    needs_human_at: string
+    needs_human_visto_at: string | null
+    needs_human_summary: string | null
+    last_message_text: string | null
+    status: string
+    contacts: { name: string | null; phone: string | null } | null
+  }>
+
+  // Por qué se planta: agrupado, es la lista de lo que hay que enseñarle.
+  const porMotivo = new Map<string, number>()
+  for (const c of filas) {
+    const m = (c.needs_human_reason ?? 'sin motivo').trim().toLowerCase()
+    porMotivo.set(m, (porMotivo.get(m) ?? 0) + 1)
+  }
+
+  return {
+    por_motivo: [...porMotivo.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([motivo, veces]) => ({ motivo, veces })),
+    casos: filas.map((c) => ({
+      conversation_id: c.id,
+      canal: c.channel,
+      cliente: c.contacts?.name ?? c.contacts?.phone ?? 'sin nombre',
+      motivo: c.needs_human_reason,
+      resumen: c.needs_human_summary ?? c.last_message_text,
+      horas_esperando: hoursWaiting(c.needs_human_at),
+      // Sin abrir por nadie: el cliente sigue esperando y no lo sabe nadie.
+      nadie_lo_vio: !c.needs_human_visto_at,
+      estado: c.status,
+    })),
+  }
+}
+
 // ---------------------------------------------------------------------------
 
 const ID_CONVERSACION = {
@@ -533,6 +597,22 @@ const ID_CONVERSACION = {
 } as const
 
 export const INBOX_CAPABILITIES: Capability[] = [
+  {
+    key: 'conversaciones.escalaciones',
+    description:
+      'Los casos donde la IA se plantó y devolvió el hilo a una persona: por qué, hace cuánto y si alguien lo abrió. Viene agrupado por motivo, que es la lista de lo que hay que enseñarle a la IA para que deje de plantarse. Por defecto sólo los que nadie miró todavía — esos son clientes esperando sin que nadie lo sepa.',
+    descriptionEn:
+      'The cases where the AI stopped and handed the thread to a person: why, how long ago and whether anyone opened it. It comes grouped by reason, which is the list of what to teach the AI so it stops stopping. By default only the ones nobody looked at yet — those are customers waiting with nobody knowing.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        incluir_vistos: { type: 'boolean' },
+        limite: { type: 'number', description: 'Por defecto 30, máximo 100.' },
+      },
+    },
+    run: escalaciones,
+  },
   {
     key: 'conversaciones.buscar',
     description:

@@ -608,7 +608,66 @@ export async function artefactoGuardadoDeCampana(
   }
 }
 
+/**
+ * QUÉ SE CLICKEÓ DE VERDAD.
+ *
+ * Todo enlace que Riverz manda sale acortado, y el acortador cuenta los clicks.
+ * Es la única medida de si el mensaje sirvió que no depende de que el cliente
+ * conteste: entregado y leído dicen que llegó; el click dice que le interesó.
+ */
+async function enlaces(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  let q = ctx.db
+    .from('short_links')
+    .select('token, target_url, click_count, last_clicked_at, created_at, contacts(name, phone)')
+    .eq('workspace_id', ctx.workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limite)
+  if (args.solo_clickeados === true) q = q.gt('click_count', 0)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    token: string
+    target_url: string
+    click_count: number | null
+    last_clicked_at: string | null
+    created_at: string
+    contacts: { name: string | null; phone: string | null } | null
+  }>
+
+  return {
+    clickeados: filas.filter((l) => (l.click_count ?? 0) > 0).length,
+    de: filas.length,
+    enlaces: filas.map((l) => ({
+      enlace: l.token,
+      a_donde: l.target_url,
+      cliente: l.contacts?.name ?? l.contacts?.phone ?? null,
+      clicks: l.click_count ?? 0,
+      ultimo_click: l.last_clicked_at,
+      creado: l.created_at,
+    })),
+  }
+}
+
 export const BROADCAST_CAPABILITIES: Capability[] = [
+  {
+    key: 'campanas.enlaces',
+    description:
+      'Los enlaces que Riverz mandó y cuántas veces se abrieron, con quién los abrió. Entregado y leído dicen que el mensaje llegó; el click dice que le interesó, y es la única medida que no depende de que el cliente conteste.',
+    descriptionEn:
+      'The links Riverz sent and how many times they were opened, and by whom. Delivered and read say the message arrived; a click says they cared, and it is the only measure that does not depend on the customer replying.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        solo_clickeados: { type: 'boolean' },
+        limite: { type: 'number', description: 'Por defecto 30, máximo 100.' },
+      },
+    },
+    run: enlaces,
+  },
   {
     key: 'campanas.crear',
     description:

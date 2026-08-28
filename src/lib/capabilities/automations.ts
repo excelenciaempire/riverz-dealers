@@ -551,7 +551,127 @@ async function nombreDe(ctx: CapabilityContext, automationId: string): Promise<s
   return (data as { name?: string } | null)?.name ?? 'esa automatización'
 }
 
+/**
+ * LO QUE ESTÁ POR SALIR.
+ *
+ * Una automatización con una espera deja la ejecución congelada hasta que llega
+ * la hora: "a las 4 horas mandale el recordatorio". Esas filas son mensajes que
+ * todavía no salieron y que van a salir. Nadie las veía, así que "¿qué le va a
+ * llegar a mi lista esta noche?" no tenía respuesta, y apagar la automatización
+ * NO frena lo que ya está en cola.
+ */
+async function enCola(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+  const { data, error } = await ctx.db
+    .from('automation_pending_executions')
+    .select(
+      'id, automation_id, status, run_at, branch, next_step_position, created_at, contacts(name, phone), automations(name, is_active)',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('status', 'pending')
+    .order('run_at', { ascending: true })
+    .limit(limite)
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    id: string
+    automation_id: string
+    status: string
+    run_at: string | null
+    branch: string | null
+    next_step_position: number | null
+    contacts: { name: string | null; phone: string | null } | null
+    automations: { name: string | null; is_active: boolean | null } | null
+  }>
+
+  return {
+    esperando: filas.length,
+    en_cola: filas.map((f) => ({
+      espera_id: f.id,
+      automatizacion: f.automations?.name ?? f.automation_id,
+      // Una automatización pausada con cosas en cola sigue mandándolas: pausar
+      // frena las NUEVAS, no las que ya arrancaron.
+      automatizacion_activa: f.automations?.is_active === true,
+      cliente: f.contacts?.name ?? f.contacts?.phone ?? 'sin nombre',
+      sale: f.run_at,
+      rama: f.branch,
+      paso: f.next_step_position,
+    })),
+  }
+}
+
+async function esperaPorId(ctx: CapabilityContext, id: string) {
+  const { data } = await ctx.db
+    .from('automation_pending_executions')
+    .select('id, run_at, status, contacts(name, phone), automations(name)')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) throw new Error('Esa espera no existe en esta cuenta.')
+  return data as unknown as {
+    id: string
+    run_at: string | null
+    status: string
+    contacts: { name: string | null; phone: string | null } | null
+    automations: { name: string | null } | null
+  }
+}
+
+async function cancelarEspera(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const espera = await esperaPorId(ctx, String(args.espera_id ?? '').trim())
+  const { error } = await ctx.db
+    .from('automation_pending_executions')
+    .update({ status: 'cancelled' })
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', espera.id)
+    .eq('status', 'pending')
+  if (error) throw new Error(error.message)
+
+  return {
+    espera_id: espera.id,
+    automatizacion: espera.automations?.name ?? null,
+    cliente: espera.contacts?.name ?? espera.contacts?.phone ?? null,
+    cancelada: true,
+  }
+}
+
 export const AUTOMATION_CAPABILITIES: Capability[] = [
+  {
+    key: 'automatizaciones.en_cola',
+    description:
+      'Lo que está esperando para salir: las automatizaciones que quedaron congeladas en una espera y el mensaje que le va a llegar a cada cliente, con la hora. Dato clave: pausar una automatización NO frena lo que ya está en cola — eso se cancela una por una. Contesta "¿qué le va a llegar a mi gente esta noche?".',
+    descriptionEn:
+      'What is queued to go out: the automations frozen on a wait step and the message each customer is going to get, with the time. Key detail: pausing an automation does NOT stop what is already queued — that is cancelled one by one. It answers "what is going to reach my people tonight?".',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { limite: { type: 'number', description: 'Por defecto 30, máximo 100.' } },
+    },
+    run: enCola,
+  },
+
+  {
+    key: 'automatizaciones.cancelar_espera',
+    description:
+      'Cancela UNA espera en cola: ese cliente no recibe el mensaje que le iba a llegar. Es lo que hay que usar cuando se pausó una automatización y lo que ya estaba en camino sigue saliendo. No se puede volver a poner en cola.',
+    descriptionEn:
+      'Cancels ONE queued wait: that customer does not get the message that was on its way. Use it when an automation was paused and what was already in flight keeps going out. It cannot be re-queued.',
+    risk: 'irreversible',
+    schema: {
+      type: 'object',
+      properties: {
+        espera_id: { type: 'string', description: 'El id que devuelve automatizaciones.en_cola.' },
+      },
+      required: ['espera_id'],
+    },
+    async preview(ctx, args) {
+      const e = await esperaPorId(ctx, String(args.espera_id ?? '').trim())
+      const quien = e.contacts?.name ?? e.contacts?.phone ?? 'ese cliente'
+      const cuando = e.run_at ? ` (salía ${e.run_at})` : ''
+      return `Cancelaría el mensaje de «${e.automations?.name ?? 'una automatización'}» a ${quien}${cuando}. Queda cancelado para siempre: la cola no lo vuelve a tomar.`
+    },
+    run: cancelarEspera,
+  },
   {
     key: 'automatizaciones.listar',
     description:

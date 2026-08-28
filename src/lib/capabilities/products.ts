@@ -283,7 +283,107 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * CARGAR LA RESPUESTA QUE FALTABA.
+ *
+ * `bandeja.huecos` dice lo que la IA no supo contestar. Sin esto, esa lista era
+ * un reproche: se leía "no supo decir si sirve para piel sensible", había que
+ * buscar el producto, abrirlo, encontrar el campo y pegarlo a mano. La mitad de
+ * las veces nadie lo hacía y la misma pregunta volvía a la semana.
+ *
+ * Va a las preguntas frecuentes del producto y no a una tabla nueva: ahí ya vive
+ * lo que el comercio agrega a mano y `buildTrainingMaterial` lo compila para el
+ * prompt. Un segundo lugar sería un segundo lugar donde buscar lo mismo.
+ */
+async function responderHueco(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const productId = String(args.producto_id ?? '').trim()
+  const pregunta = String(args.pregunta ?? '').trim().slice(0, 300)
+  const respuesta = String(args.respuesta ?? '').trim().slice(0, 2000)
+  if (!productId) throw new Error('Falta el id del producto.')
+  if (!pregunta) throw new Error('Falta la pregunta.')
+  if (!respuesta) throw new Error('Falta la respuesta.')
+
+  const { data: producto } = await ctx.db
+    .from('shopify_products')
+    .select('id, title, custom_faqs')
+    .eq('id', productId)
+    .eq('workspace_id', ctx.workspaceId)
+    .maybeSingle()
+  if (!producto) throw new Error('Ese producto no existe en esta cuenta.')
+
+  const previas = Array.isArray((producto as { custom_faqs?: unknown }).custom_faqs)
+    ? ((producto as { custom_faqs: Array<{ q?: string; a?: string }> }).custom_faqs ?? [])
+    : []
+  // La misma pregunta cargada dos veces se reemplaza, no se duplica: si no, el
+  // material del prompt junta respuestas contradictorias y el agente elige mal.
+  const sinRepetir = previas
+    .map((f) => ({ q: String(f?.q ?? '').trim(), a: String(f?.a ?? '').trim() }))
+    .filter((f) => f.q && f.a && f.q.toLowerCase() !== pregunta.toLowerCase())
+
+  const res = await actualizarProducto(ctx.db, {
+    id: productId,
+    cambios: { custom_faqs: [...sinRepetir, { q: pregunta, a: respuesta }] },
+    locale: ctx.locale ?? 'es',
+    workspaceId: ctx.workspaceId,
+  })
+  if (!res.ok) throw new Error(res.motivo ?? 'no se pudo guardar')
+
+  // Recién ahora se marca resuelto el hueco: si el guardado falla, la pregunta
+  // sigue en la lista. Al revés se perdería y nadie sabría que falta.
+  const clave = typeof args.hueco_clave === 'string' ? args.hueco_clave.trim() : ''
+  if (clave) {
+    await ctx.db
+      .from('answer_gaps')
+      .update({
+        resolved_at: new Date().toISOString(),
+        resolved_by: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+      })
+      .eq('workspace_id', ctx.workspaceId)
+      .eq('question_key', clave)
+      .is('resolved_at', null)
+  }
+
+  return {
+    producto: (producto as { title?: string }).title ?? productId,
+    pregunta,
+    respuesta,
+    hueco_cerrado: Boolean(clave),
+  }
+}
+
 export const PRODUCT_CAPABILITIES: Capability[] = [
+  {
+    key: 'productos.responder_hueco',
+    description:
+      'Carga la respuesta que la IA no supo dar. Queda en las preguntas frecuentes del producto, que es lo que el agente lee verbatim, así que la próxima vez la contesta él. Si se pasa la clave del hueco (la que devuelve bandeja.huecos), además lo marca resuelto. La misma pregunta cargada dos veces se reemplaza, no se duplica.',
+    descriptionEn:
+      'Loads the answer the AI could not give. It lands in the product FAQs, which the agent reads verbatim, so next time it answers on its own. If the gap key is passed (the one bandeja.huecos returns), it also marks it resolved. The same question loaded twice is replaced, not duplicated.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        producto_id: { type: 'string', description: 'El id que devuelve productos.listar.' },
+        pregunta: { type: 'string' },
+        respuesta: { type: 'string' },
+        hueco_clave: {
+          type: 'string',
+          description: 'La clave del hueco, para marcarlo resuelto. Opcional.',
+        },
+      },
+      required: ['producto_id', 'pregunta', 'respuesta'],
+    },
+    async preview(ctx, args) {
+      const { data } = await ctx.db
+        .from('shopify_products')
+        .select('title')
+        .eq('id', String(args.producto_id ?? ''))
+        .eq('workspace_id', ctx.workspaceId)
+        .maybeSingle()
+      const titulo = (data as { title?: string } | null)?.title ?? 'ese producto'
+      return `En ${titulo} guardaría: «${args.pregunta}» → «${args.respuesta}». El agente lo repite tal cual ante un cliente.`
+    },
+    run: responderHueco,
+  },
   {
     key: 'productos.listar',
     description:

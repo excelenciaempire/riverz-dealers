@@ -679,7 +679,110 @@ async function previewConfigurar(
   return cambios.join(' ')
 }
 
+/**
+ * DE QUÉ HABLA CADA PUBLICACIÓN.
+ *
+ * Un comentario sin el post es media conversación: "¿y el precio?" debajo de un
+ * reel no se contesta igual que debajo de una foto de otro producto. Riverz ya
+ * lee la publicación —entiende la foto, transcribe el video— y eso lo usaba
+ * sólo el agente por dentro. Acá se ve: qué mostró la marca, qué dice el video,
+ * y si la publicación es un anuncio pago.
+ */
+async function publicaciones(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 20, 50)
+
+  const [meta, videos, anuncios] = await Promise.all([
+    ctx.db
+      .from('publicacion_contexto')
+      .select('channel, external_id, titulo, cuerpo, medio_tipo, medio_entendido, estado, created_at')
+      .eq('workspace_id', ctx.workspaceId)
+      .order('created_at', { ascending: false })
+      .limit(limite),
+    ctx.db
+      .from('tiktok_videos')
+      .select('video_id, caption, share_url, posted_at, transcript, transcript_status')
+      .eq('workspace_id', ctx.workspaceId)
+      .order('posted_at', { ascending: false })
+      .limit(limite),
+    ctx.db
+      .from('ad_posts')
+      .select('post_id, ad_name, campaign_name, is_dark_post, last_seen_at')
+      .eq('workspace_id', ctx.workspaceId)
+      .order('last_seen_at', { ascending: false })
+      .limit(limite),
+  ])
+
+  const esAnuncio = new Map<string, { ad_name: string | null; campaign_name: string | null; is_dark_post: boolean | null }>()
+  for (const a of (anuncios.data ?? []) as Array<{
+    post_id: string
+    ad_name: string | null
+    campaign_name: string | null
+    is_dark_post: boolean | null
+  }>) {
+    esAnuncio.set(a.post_id, a)
+  }
+
+  return {
+    publicaciones: ((meta.data ?? []) as Array<{
+      channel: string
+      external_id: string
+      titulo: string | null
+      cuerpo: string | null
+      medio_tipo: string | null
+      medio_entendido: string | null
+      estado: string | null
+      created_at: string
+    }>).map((p) => {
+      const ad = esAnuncio.get(p.external_id)
+      return {
+        publicacion: p.external_id,
+        canal: p.channel,
+        titulo: p.titulo,
+        texto: p.cuerpo,
+        tipo_de_medio: p.medio_tipo,
+        // Qué entendió Riverz de la foto o del video: es lo que el agente usa
+        // para contestar "¿y esto qué es?".
+        que_muestra: p.medio_entendido,
+        estado: p.estado,
+        // Si además es un anuncio pago, con qué campaña.
+        anuncio: ad
+          ? { nombre: ad.ad_name, campana: ad.campaign_name, oculto: ad.is_dark_post === true }
+          : null,
+      }
+    }),
+    videos_de_tiktok: ((videos.data ?? []) as Array<{
+      video_id: string
+      caption: string | null
+      share_url: string | null
+      posted_at: string | null
+      transcript: string | null
+      transcript_status: string | null
+    }>).map((v) => ({
+      video: v.video_id,
+      texto: v.caption,
+      enlace: v.share_url,
+      publicado: v.posted_at,
+      // Lo que se dice hablando en el video, que es donde está la promesa.
+      lo_que_dice: v.transcript,
+      transcripcion: v.transcript_status,
+    })),
+  }
+}
+
 export const COMMENT_CAPABILITIES: Capability[] = [
+  {
+    key: 'comentarios.publicaciones',
+    description:
+      'De qué habla cada publicación donde la gente comenta: el texto, qué muestra la foto o el video según lo entendió Riverz, si además es un anuncio pago y con qué campaña, y la transcripción de los videos de TikTok. Un comentario sin la publicación es media conversación: "¿y el precio?" debajo de un reel no se contesta igual que debajo de otra cosa.',
+    descriptionEn:
+      'What each post people comment on is about: the text, what the photo or video shows as Riverz understood it, whether it is also a paid ad and from which campaign, and the transcript of TikTok videos. A comment without its post is half a conversation: "how much?" under a reel is not answered the same as under something else.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { limite: { type: 'number', description: 'Por defecto 20, máximo 50.' } },
+    },
+    run: publicaciones,
+  },
   {
     key: 'comentarios.ajustes',
     description:

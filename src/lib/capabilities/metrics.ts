@@ -12,6 +12,7 @@
  * suma acá, porque son las preguntas que alguien le hace a un agente y no a un
  * gráfico.
  */
+import { MINIMO_PARA_PORCENTAJE, leerCortes } from '@/lib/dashboard/cortes'
 import { loadMetrics } from '@/lib/dashboard/queries'
 import { daysAgoStart, previousRange } from '@/lib/dashboard/date-utils'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
@@ -85,7 +86,67 @@ async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+/**
+ * QUIÉN ATENDIÓ.
+ *
+ * `metricas.resumen` cuenta el volumen: cuántas conversaciones, cuántos
+ * mensajes, cuánto se facturó. No dice quién hizo ese trabajo, y esa es la
+ * pregunta que sigue: cuánto resolvió la IA sola, dónde se abstiene y por qué,
+ * y cuánto contestó a una hora en la que no había nadie.
+ *
+ * Es el mismo `leerCortes` que dibuja la pantalla de Inicio: dos números para
+ * la misma pregunta es peor que ninguno.
+ */
+async function cortes(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const dias = windowDays(args.dias)
+  const tz = await workspaceTimezone(ctx.db, ctx.workspaceId)
+  const desde = daysAgoStart(tz, dias - 1)
+  const hasta = new Date()
+
+  const c = await leerCortes(ctx.db, ctx.workspaceId, { desde, hasta }, tz)
+
+  return {
+    periodo: { dias, desde: desde.toISOString(), hasta: hasta.toISOString(), zona_horaria: tz },
+    por_canal: c.canales,
+    por_agente: c.agentes,
+    ia: {
+      atendidas: c.ia.atendidas,
+      // Resuelta = la atendió la IA y NUNCA necesitó a una persona.
+      resueltas: c.ia.resueltas,
+      tasa: c.ia.tasa,
+      tasa_anterior: c.ia.tasaPrevia,
+      calificaron: c.ia.calificaron,
+      satisfaccion: c.ia.satisfaccion,
+      // Bajo este piso un porcentaje engaña más de lo que informa.
+      minimo_para_porcentaje: MINIMO_PARA_PORCENTAJE,
+    },
+    // Lo que una persona no habría contestado: a las tres de la mañana no
+    // estaba nadie. Es el número que no admite el "lo hacíamos igual".
+    fuera_de_horario: {
+      atendidas: c.fueraDeHorario.atendidas,
+      total: c.fueraDeHorario.total,
+      falta_cargar_horario: c.fueraDeHorario.sinHorario,
+    },
+    primera_respuesta: c.respuesta,
+    // Dónde se planta la IA, agrupado por motivo.
+    escalaciones: c.escalaciones,
+  }
+}
+
 export const METRICS_CAPABILITIES: Capability[] = [
+  {
+    key: 'metricas.cortes',
+    description:
+      'Quién atendió: cuánto resolvió la IA sola (y cómo venía antes), cuánto tarda la primera respuesta, qué hizo cada agente y dónde se abstiene, el corte por canal, y cuántas conversaciones atendió fuera del horario del comercio — ese es el trabajo que ninguna persona habría hecho. Es el paso siguiente a metricas.resumen, que sólo cuenta volumen.',
+    descriptionEn:
+      'Who did the work: how much the AI resolved on its own (and how that compares to before), how long the first reply takes, what each agent did and where it abstains, the per-channel breakdown, and how many conversations were handled outside business hours — that is work no person would have done. The step after metricas.resumen, which only counts volume.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: { dias: { type: 'number', description: 'Ventana en días. Por defecto 7.' } },
+    },
+    run: cortes,
+  },
   {
     key: 'metricas.resumen',
     description:

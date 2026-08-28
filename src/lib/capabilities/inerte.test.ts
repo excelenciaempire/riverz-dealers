@@ -25,6 +25,7 @@ const INERTES: Record<string, string> = {
   'etiquetas.crear': 'una etiqueta vacía no tiene a nadie adentro',
   'campanas.crear': 'borrador: guarda a quién y con qué, y no manda nada',
   'comentarios.crear_regla': 'nace apagada',
+  'agentes.crear_regla': 'nace apagada: no cambia ninguna respuesta hasta prenderla',
   'prospeccion.crear_campana': 'borrador: ni siquiera resuelve la audiencia',
   'ajustes.renombrar': 'lo ve el equipo en su barra lateral y nadie más',
   'bandeja.crear_atajo': 'una respuesta guardada; no sale hasta que alguien la use',
@@ -56,6 +57,11 @@ const NO_INERTES_A_PROPOSITO: Record<string, string> = {
   'productos.editar': 'los agentes repiten esto ante un cliente en cuanto se guarda',
   'ajustes.zona_horaria': 'mueve cuándo dispara todo lo que ya está corriendo',
   'conversaciones.ia': 'prenderla pone a contestar sola una conversación abierta',
+  'agentes.activar_regla': 'prenderla cambia lo que la IA contesta en el próximo mensaje',
+  'comentarios.configurar': 'cambia cómo se le contesta a un cliente en el próximo comentario',
+  'bandeja.decidir_devolucion': 'aprobar una devolución le reintegra la plata a alguien',
+  'automatizaciones.cancelar_espera': 'ese cliente deja de recibir el mensaje que iba a recibir',
+  'productos.responder_hueco': 'el agente repite esto ante un cliente en cuanto se guarda',
   // Ocultar no manda nada, pero SÍ lo nota quien escribió el comentario:
   // lo ve tachado bajo la publicación y se lee como censura.
   'comentarios.moderar': 'sacar algo de la vista del público lo nota quien lo escribió',

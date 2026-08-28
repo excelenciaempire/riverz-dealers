@@ -286,7 +286,104 @@ async function llamar(ctx: CapabilityContext, args: Record<string, unknown>) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * UNA LLAMADA, ENTERA.
+ *
+ * `voz.listar` da la fila del listado. Cuando una salió mal, lo que hace falta
+ * es lo otro: el resumen que dejó el agente, con qué contexto se hizo, cuánto
+ * duró, cuánto costó, el error si hubo, y la grabación para escucharla.
+ */
+async function detalleLlamada(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const id = String(args.llamada_id ?? '').trim()
+  if (!id) throw new Error('Falta el id de la llamada.')
+
+  const { data } = await ctx.db
+    .from('voice_calls')
+    .select(
+      'id, direction, call_type, phone, language, status, outcome, outcome_details, summary, context, scheduled_at, started_at, answered_at, ended_at, duration_seconds, cost, recording_url, error, attempt, max_attempts, city, upsell_amount, conversation_id, contacts(name), ai_agents(name)',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) throw new Error('Esa llamada no existe en esta cuenta.')
+
+  const c = data as unknown as {
+    id: string
+    direction: string | null
+    call_type: string | null
+    phone: string | null
+    language: string | null
+    status: string | null
+    outcome: string | null
+    outcome_details: unknown
+    summary: string | null
+    context: unknown
+    scheduled_at: string | null
+    started_at: string | null
+    answered_at: string | null
+    ended_at: string | null
+    duration_seconds: number | null
+    cost: number | null
+    recording_url: string | null
+    error: string | null
+    attempt: number | null
+    max_attempts: number | null
+    city: string | null
+    upsell_amount: number | null
+    conversation_id: string | null
+    contacts: { name: string | null } | null
+    ai_agents: { name: string | null } | null
+  }
+
+  return {
+    llamada_id: c.id,
+    quien: c.contacts?.name ?? c.phone ?? 'sin nombre',
+    telefono: c.phone,
+    agente: c.ai_agents?.name ?? null,
+    sentido: c.direction,
+    tipo: c.call_type,
+    idioma: c.language,
+    estado: c.status,
+    // Cómo salió, y el detalle que dejó el agente al colgar.
+    resultado: c.outcome,
+    detalle_del_resultado: c.outcome_details,
+    resumen: c.summary,
+    // Con qué datos se hizo la llamada: explica por qué dijo lo que dijo.
+    contexto: c.context,
+    agendada: c.scheduled_at,
+    empezo: c.started_at,
+    atendieron: c.answered_at,
+    termino: c.ended_at,
+    duracion_segundos: c.duration_seconds,
+    costo: c.cost,
+    // Para escucharla. Es lo único que zanja una discusión sobre qué se dijo.
+    grabacion: c.recording_url,
+    error: c.error,
+    intento: c.attempt,
+    intentos_maximos: c.max_attempts,
+    ciudad: c.city,
+    venta_adicional: c.upsell_amount,
+    conversation_id: c.conversation_id,
+  }
+}
+
 export const VOICE_CAPABILITIES: Capability[] = [
+  {
+    key: 'voz.detalle',
+    description:
+      'Una llamada entera: cómo salió, el resumen que dejó el agente al colgar, con qué contexto se hizo la llamada, cuánto duró, cuánto costó, el error si lo hubo y el enlace a la grabación. Es lo que hay que mirar cuando una llamada salió mal — la grabación zanja cualquier discusión sobre qué se dijo.',
+    descriptionEn:
+      'One call in full: how it went, the summary the agent left when hanging up, the context the call was made with, how long it lasted, what it cost, the error if any and the recording link. This is what to look at when a call went wrong — the recording settles any argument about what was said.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        llamada_id: { type: 'string', description: 'El id que devuelve voz.listar.' },
+      },
+      required: ['llamada_id'],
+    },
+    run: detalleLlamada,
+  },
   {
     key: 'voz.listar',
     description:
