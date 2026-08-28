@@ -66,13 +66,21 @@ export function VoiceStatusLine({
               ? t('voice.canCallFrom', { number: readiness.phoneNumber })
               : t('voice.canCall')}
           </span>
-          {readiness.agents.length > 0 && (
+          {readiness.agents.length === 1 ? (
+            // El nombre ES el enlace a su pestaña de llamadas. Antes esto era
+            // texto muerto y abajo había una tarjeta entera repitiendo el mismo
+            // nombre sólo para colgarle un «Configurar».
+            <Link
+              href={`/asistente?agent=${readiness.agents[0].id}&tab=voice`}
+              className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              {t('voice.answeredBy', { name: readiness.agents[0].name })}
+            </Link>
+          ) : readiness.agents.length > 1 ? (
             <span className="text-muted-foreground">
-              {readiness.agents.length === 1
-                ? t('voice.answeredBy', { name: readiness.agents[0].name })
-                : t('voice.answeredByMany', { count: String(readiness.agents.length) })}
+              {t('voice.answeredByMany', { count: String(readiness.agents.length) })}
             </span>
-          )}
+          ) : null}
         </>
       ) : (
         <>

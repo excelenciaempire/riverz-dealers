@@ -24,6 +24,7 @@ import {
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import {
+  BUSINESS_FALLBACK,
   DEFAULT_GREETING_AR,
   DEFAULT_GREETINGS,
   DEFAULT_OBJECTIVES,
@@ -86,6 +87,24 @@ export interface VoiceContextPayload {
  * Sólo se usa cuando el teléfono del contacto está guardado en formato local
  * (sin código de país) y no hay dirección de Shopify de donde sacarlo.
  */
+/**
+ * Cómo se llama el comercio, para que el saludo lo diga.
+ *
+ * Sin esto el agente abría con «te llamo de parte de la tienda» y la clienta
+ * respondía «¿cuál tienda?» antes de escuchar nada más.
+ */
+async function workspaceName(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('workspaces')
+    .select('name')
+    .eq('id', workspaceId)
+    .maybeSingle();
+  return ((data as { name?: string } | null)?.name ?? '').trim() || null;
+}
+
 async function workspaceDialCountry(
   db: SupabaseClient,
   workspaceId: string,
@@ -119,12 +138,13 @@ function resolveObjective(agent: AiAgent, call: VoiceCall): string {
   return DEFAULT_OBJECTIVES[call.call_type][langOf(agent, call)];
 }
 
-/** Interpolate {{contact_name}} in the greeting; falls back to a default. */
+/** Interpolate {{contact_name}} and {{business_name}}; falls back to a default. */
 function resolveGreeting(
   agent: AiAgent,
   contact: Contact,
   call: VoiceCall,
   isArgentina = false,
+  businessName?: string | null,
 ): string {
   const lang = langOf(agent, call);
   const fallback =
@@ -133,7 +153,12 @@ function resolveGreeting(
   const first = (contact.name ?? '').trim().split(/\s+/)[0] ?? '';
   // "{{contact_name}}" is meant to sit after "Hola"/"Hi" — inject a leading
   // space + name when known, or collapse to nothing so it reads naturally.
-  return raw.replace(/\{\{\s*contact_name\s*\}\}/gi, first ? ` ${first}` : '');
+  return raw
+    .replace(/\{\{\s*contact_name\s*\}\}/gi, first ? ` ${first}` : '')
+    .replace(
+      /\{\{\s*business_name\s*\}\}/gi,
+      (businessName ?? '').trim() || BUSINESS_FALLBACK[lang],
+    );
 }
 
 /**
@@ -166,7 +191,18 @@ function buildVoiceInstructions(
       '- Use natural fillers and acknowledgements ("sure", "got it", "one sec") so it flows.',
       '- If you need to read back an address or an order, do it slowly and confirm.',
       "- Never say you are an AI unless directly asked; act as a member of the store's team.",
-      '## Sound like a person, not a script',
+        ...(call.direction === 'outbound'
+        ? [
+            '## YOU called THEM',
+            'They did not ask for this call. They picked up an unknown number, so the first thing they need is who you are and why you are calling.',
+            `- Your very first sentence after the greeting must say WHY you are calling, in plain words. Not "how can I help you" — you called them, so the reason is yours to give.`,
+            '- NEVER open with "how can I help you?" or "what can I do for you?". That flips the roles and makes people think it is a scam.',
+            '- If they ask who you are or which store, answer immediately and concretely, with the business name, and then give the reason again in one short sentence.',
+            '- Only state facts you actually have in the call context. If there is no order or cart in the context, do NOT claim they bought something.',
+            '- Get to the point within the first two sentences. If they sound busy or confused, say the reason in one line and ask if it is a good time.',
+          ]
+        : []),
+    '## Sound like a person, not a script',
       'You are having a CONVERSATION, not reciting. Nobody wants a catalog read to them over the phone.',
       '- React to what the customer says before moving on. If they share something, acknowledge it.',
       '- Never dump two or three things in a row. Say one, then ask.',
@@ -211,6 +247,23 @@ function buildVoiceInstructions(
     '- Usa muletillas y confirmaciones naturales ("claro", "perfecto", "un momento") para que fluya.',
     '- Si tienes que repetir una dirección o un pedido, hazlo despacio y confirma.',
     '- Nunca digas que eres una IA a menos que te lo pregunten directamente; actúa como alguien del equipo de la tienda.',
+    // Lo que faltaba, visto en la primera llamada real: el agente abrió con
+    // «te llamo de parte de la tienda», la clienta preguntó «¿cuál tienda?», y
+    // en vez de decir para qué llamaba respondió «¿en qué puedo ayudarte?».
+    // Ella contestó «¿qué me llamas?» y colgó. Nunca supo por qué sonó el
+    // teléfono, y encima el agente le afirmó una compra que no estaba en el
+    // contexto de la llamada.
+    ...(call.direction === 'outbound'
+      ? [
+          '## Vos llamaste, no al revés',
+          'La persona no pidió esta llamada. Atendió un número desconocido, así que lo primero que necesita saber es quién sos y para qué la llamás.',
+          '- Tu primera frase después del saludo tiene que decir POR QUÉ llamás, en palabras simples. El motivo lo ponés vos, que sos quien llamó.',
+          '- NUNCA abras con "¿en qué puedo ayudarte?" ni "¿qué necesitas?". Invierte los roles y hace que la llamada parezca un engaño.',
+          '- Si te preguntan quién sos o de qué tienda, respondé al toque y concreto, con el nombre del negocio, y volvé a dar el motivo en una frase corta.',
+          '- Afirmá SÓLO lo que está en el contexto de la llamada. Si ahí no hay un pedido ni un carrito, no digas que compró algo: inventarlo quema la confianza en el primer minuto.',
+          '- Andá al punto en las primeras dos frases. Si la persona suena ocupada o confundida, decí el motivo en una línea y preguntá si es buen momento.',
+        ]
+      : []),
     '## Suena a persona, no a guion',
     'Estás CONVERSANDO, no recitando. Nadie quiere que le lean un catálogo por teléfono.',
     '- Reaccioná a lo que dice el cliente antes de seguir con lo tuyo. Si te cuenta algo, comentalo.',
@@ -441,7 +494,8 @@ export async function buildVoiceContext(
   // (estados de consentimiento de ambas partes en EE.UU., RGPD en la UE), y esa
   // decisión es del comercio, que es quien conoce a quién llama.
   const lang = langOf(agent, call);
-  let greeting = resolveGreeting(agent, contact, call, isArgentina);
+  const negocio = await workspaceName(db, call.workspace_id);
+  let greeting = resolveGreeting(agent, contact, call, isArgentina, negocio);
   if (opts.recordingEnabled && opts.recordingDisclosure) {
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }

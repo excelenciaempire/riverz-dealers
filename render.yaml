@@ -217,6 +217,24 @@ services:
     region: frankfurt
     branch: main
     autoDeploy: true
+    # Sólo se redespliega cuando cambia SU código.
+    #
+    # Un deploy reemplaza el contenedor, y con él el proceso que está hablando:
+    # LiveKit drena, pero Render le manda SIGTERM igual y el job muere sin
+    # reportar. La llamada queda en `dialing` hasta que el barrido de los 20
+    # minutos la cierra como `worker_timeout`, con el cliente del otro lado
+    # escuchando cómo se corta.
+    #
+    # Medido el 2026-08-28: una llamada de prueba se cortó por DOS deploys
+    # seguidos, disparados por commits de la portada y del prompt de chat que no
+    # tocan una sola línea de este worker. Mientras haya alguien empujando a
+    # main, el teléfono no se puede usar.
+    #
+    # OJO: el blueprint no pisa servicios ya creados — esto también hay que
+    # setearlo por la API (`PATCH /v1/services/{id}` con `buildFilter`).
+    buildFilter:
+      paths:
+        - voice-worker/**
     dockerfilePath: ./voice-worker/Dockerfile
     dockerContext: ./voice-worker
     envVars:

@@ -73,10 +73,18 @@ export const DEFAULT_OBJECTIVES: Record<
   },
 };
 
-/** Default greeting per language ({{contact_name}} interpolated at call time). */
+/**
+ * Saludo por defecto. Se interpolan `{{contact_name}}` y `{{business_name}}`.
+ *
+ * Decía «te llamo de parte de la tienda». En la primera llamada real la
+ * clienta contestó, textual, «¿cuál tienda?» — y tenía razón: nadie atiende un
+ * número desconocido que no dice de dónde llama. El nombre del negocio va en la
+ * primera frase, siempre. Sale de `workspaces.name`; si no hubiera, la frase
+ * cae con elegancia a «de la tienda» y se sigue entendiendo.
+ */
 export const DEFAULT_GREETINGS: { es: string; en: string } = {
-  es: 'Hola{{contact_name}}, te llamo de parte de la tienda. ¿Tienes un minuto?',
-  en: "Hi{{contact_name}}, I'm calling on behalf of the store. Do you have a minute?",
+  es: 'Hola{{contact_name}}, te llamo de {{business_name}}. ¿Tienes un minuto?',
+  en: "Hi{{contact_name}}, I'm calling from {{business_name}}. Do you have a minute?",
 };
 
 /**
@@ -85,7 +93,13 @@ export const DEFAULT_GREETINGS: { es: string; en: string } = {
  * Sólo se usa si el comercio no escribió el suyo.
  */
 export const DEFAULT_GREETING_AR =
-  'Hola{{contact_name}}, te llamo de parte de la tienda. ¿Tenés un minuto?';
+  'Hola{{contact_name}}, te llamo de {{business_name}}. ¿Tenés un minuto?';
+
+/** Cuando no sabemos el nombre del negocio, la frase tiene que seguir cerrando. */
+export const BUSINESS_FALLBACK: { es: string; en: string } = {
+  es: 'la tienda',
+  en: 'the store',
+};
 
 /**
  * Instrucciones de habla rioplatense para el agente (se suman al system prompt

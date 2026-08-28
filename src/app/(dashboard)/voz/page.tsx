@@ -140,13 +140,16 @@ export default function VoicePage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="app-page-title">{t('nav.voice')}</h1>
+          {/* La frase de qué es esto sólo mientras no hay nada montado: apenas
+              la línea de estado dice «Puede llamar desde tal número», explicar
+              que el agente llama por teléfono es decir lo mismo dos veces. */}
           <p className="mt-1.5 text-[13px] text-muted-foreground">
-            {t('voice.pageDesc')}
+            {readiness?.ready ? '' : t('voice.pageDesc')}
             {/* El consumo, en gris y sólo cuando ya hubo llamadas: en una
                 cuenta nueva un «0 min» no le dice nada a nadie. */}
             {usage && usage.calls > 0 && (
               <>
-                {' · '}
+                {readiness?.ready ? '' : ' · '}
                 {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
                 {usage.minutes_limit > 0
                   ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
@@ -201,16 +204,13 @@ export default function VoicePage() {
 
         <VoiceNumberCard />
 
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h3>
-          {(readiness?.agents.length ?? 0) === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t('voice.whoAnswersNone')}{' '}
-              <Link href="/asistente" className="text-primary underline">
-                {t('voice.whoAnswersTurnOn')}
-              </Link>
-            </p>
-          ) : (
+        {/* «Quién atiende» era una tarjeta entera para repetir lo que la línea
+            de estado ya dice tres centímetros más arriba: el nombre del agente.
+            Cuando hay más de uno —el caso raro— la línea dice cuántos y la
+            lista aparece acá; con uno solo, la tarjeta sobraba entera. */}
+        {(readiness?.agents.length ?? 0) > 1 && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h3>
             <ul className="mt-2 divide-y divide-border">
               {(readiness?.agents ?? []).map((a) => (
                 <li key={a.id} className="flex items-center justify-between py-2">
@@ -227,8 +227,8 @@ export default function VoicePage() {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Cuándo llama va DESPUÉS de quién atiende y antes del comportamiento:
             es el orden en que se piensa —tengo número, tengo quien atienda,

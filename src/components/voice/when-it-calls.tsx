@@ -110,8 +110,13 @@ export function WhenItCalls() {
 
       {/* El botón de la bandeja no es una regla, pero es la forma más común de
           hacer la primera llamada: callarlo dejaba pensar que sin automatización
-          no hay manera de llamar. */}
-      <p className="mt-3 text-xs text-muted-foreground">{t('voice.whenManual')}</p>
+          no hay manera de llamar.
+          Sólo cuando YA hay reglas: en vacío el propio cartel de arriba termina
+          con «o llamá a mano desde la bandeja», así que esta línea decía lo
+          mismo dos veces seguidas. */}
+      {!vacio && (
+        <p className="mt-3 text-xs text-muted-foreground">{t('voice.whenManual')}</p>
+      )}
     </div>
   );
 }
