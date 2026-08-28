@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import Link from "@/components/i18n/locale-link";
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -243,16 +243,12 @@ export function ContactForm({
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTag(tag.id)}
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
+                      className={`app-chip-tono inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors cursor-pointer ${
                         selected
                           ? 'ring-2 ring-primary ring-offset-1 ring-offset-card'
                           : 'opacity-60 hover:opacity-100'
                       }`}
-                      style={{
-                        backgroundColor: tag.color + '20',
-                        color: tag.color,
-                        borderColor: tag.color,
-                      }}
+                      style={{ '--tono': tag.color } as CSSProperties}
                     >
                       {tag.name}
                     </button>

@@ -62,7 +62,7 @@ export function WhenItCalls() {
         </div>
         <Link
           href="/automatizaciones"
-          className="flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"
+          className="flex shrink-0 items-center gap-1 text-xs text-accent-ink hover:underline"
         >
           <Plus className="h-3.5 w-3.5" />
           {t('voice.whenNewRule')}

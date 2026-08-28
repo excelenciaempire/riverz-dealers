@@ -173,7 +173,7 @@ export function Pliego({ onListo }: { onListo?: () => void }) {
         {onListo && (
           <button
             onClick={onListo}
-            className="text-sm font-medium text-primary transition-colors hover:underline"
+            className="text-sm font-medium text-accent-ink transition-colors hover:underline"
           >
             {t('pliego.listo')}
           </button>

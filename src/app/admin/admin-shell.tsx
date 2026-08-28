@@ -34,7 +34,7 @@ export function AdminShell({
               className="flex shrink-0 items-baseline gap-1.5"
               aria-label={`riverz ${t("admin.title")}`}
             >
-              <span className="text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-primary">
+              <span className="text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
                 riverz
               </span>
               <span className="text-xs lowercase text-muted-foreground">admin</span>

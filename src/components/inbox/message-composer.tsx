@@ -665,7 +665,7 @@ export function MessageComposer({
                   setCreating(true);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-primary hover:bg-muted",
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-accent-ink hover:bg-muted",
                   filteredSnippets.length > 0 && "border-t border-border",
                 )}
               >

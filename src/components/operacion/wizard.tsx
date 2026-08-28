@@ -496,7 +496,7 @@ function Plan({
           decir. */}
       <Link
         href="/operacion/pliego"
-        className="mt-3 block text-sm text-primary transition-colors hover:underline"
+        className="mt-3 block text-sm text-accent-ink transition-colors hover:underline"
       >
         {t('operation.motorRevisarReglas')}
       </Link>

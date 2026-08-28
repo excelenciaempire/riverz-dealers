@@ -417,7 +417,9 @@ function TemplateCard({
         <span
           className={cn(
             "inline-flex items-center gap-1 text-xs font-medium text-accent-ink",
-            "opacity-80 transition-opacity group-hover:opacity-100",
+            // Sin `opacity-80`: atenuar el verde lo bajaba a 3.74:1 sobre la
+            // tarjeta clara. El realce al pasar por encima lo da la flecha.
+            "transition-opacity",
           )}
         >
           {t("automations.viewTemplate")}
@@ -523,7 +525,7 @@ function AutomationCard({
         <button
           type="button"
           onClick={onStats}
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink opacity-80 transition-opacity hover:opacity-100"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent-ink transition-colors hover:underline"
         >
           <BarChart3 className="h-3.5 w-3.5" />
           {t("automations.viewStats")}

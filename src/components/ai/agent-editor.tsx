@@ -1062,7 +1062,7 @@ export function AgentEditor({
       >
         <div className="flex items-start justify-between border-b border-border px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
               <Sparkles className="size-4" />
             </div>
             <div>
@@ -1152,7 +1152,7 @@ export function AgentEditor({
                 >
                   {isNew ? (
                     applyingProduct ? (
-                      <p className="flex items-center gap-2 text-[11px] text-primary">
+                      <p className="flex items-center gap-2 text-[11px] text-accent-ink">
                         <Loader2 className="size-3.5 animate-spin" />
                         {t('assistant.preparingWithProduct')}
                       </p>
@@ -1786,7 +1786,7 @@ export function AgentEditor({
                     {escalateKeywords.map((kw) => (
                       <span
                         key={kw}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary"
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-accent-ink"
                       >
                         {kw}
                         <button

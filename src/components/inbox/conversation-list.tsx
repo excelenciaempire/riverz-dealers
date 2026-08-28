@@ -699,7 +699,10 @@ const ConversationItem = memo(function ConversationItem({
             <span
               className={cn(
                 "min-w-0 flex-1 truncate",
-                conversation.last_message_hidden && "italic opacity-70",
+                // Sólo cursiva: el `opacity-70` que llevaba antes bajaba el
+                // gris a 2.96:1 sobre la tarjeta clara y la vista previa del
+                // mensaje oculto dejaba de leerse.
+                conversation.last_message_hidden && "italic",
               )}
             >
               {/* En ML el prefijo del subject ("Pregunta · <id>") repetiría el

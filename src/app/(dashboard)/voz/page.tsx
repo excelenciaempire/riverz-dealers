@@ -220,7 +220,7 @@ export default function VoicePage() {
                       cuál abrir y en qué solapa estaba la voz. */}
                   <Link
                     href={`/asistente?agent=${a.id}&tab=voice`}
-                    className="text-xs text-primary underline"
+                    className="text-xs text-accent-ink underline"
                   >
                     {t('voice.configure')}
                   </Link>
@@ -252,7 +252,7 @@ export default function VoicePage() {
           {/* Campañas era una tarjeta entera para un link. */}
           <Link
             href="/voz/campanas"
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
+            className="flex items-center gap-1 text-xs text-accent-ink hover:underline"
           >
             <Megaphone className="h-3.5 w-3.5" />
             {t('voice.campaignsTitle')}

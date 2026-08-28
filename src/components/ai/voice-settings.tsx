@@ -342,7 +342,7 @@ export function VoiceSettings({
       {workspaceId && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
           <div className="mb-1 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <Sparkles className="h-4 w-4 text-accent-ink" />
             <p className="text-sm font-medium text-foreground">{t('voice.setupTitle')}</p>
           </div>
           <p className="mb-2 text-xs text-muted-foreground">{t('voice.setupHint')}</p>
@@ -379,7 +379,7 @@ export function VoiceSettings({
             <button
               type="button"
               onClick={() => setVerVoces((v) => !v)}
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-accent-ink hover:underline"
             >
               {t('voice.numberChange')}
             </button>

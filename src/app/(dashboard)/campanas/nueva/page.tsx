@@ -611,7 +611,7 @@ export default function NewBroadcastPage() {
                         key={v}
                         className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5"
                       >
-                        <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-accent-ink">
                           {`{{${v}}}`}
                         </span>
                         <select

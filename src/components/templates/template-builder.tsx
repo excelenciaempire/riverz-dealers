@@ -464,7 +464,7 @@ export function TemplateBuilder() {
                       key={v}
                       className="flex flex-col gap-2 rounded-lg border border-border bg-background px-2 py-2 sm:flex-row sm:items-center"
                     >
-                      <span className="w-fit rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                      <span className="w-fit rounded-md bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-accent-ink">
                         {`{{${v}}}`}
                       </span>
                       <Select

@@ -393,7 +393,7 @@ export function SegmentsPanel() {
                     onClick={() => startEdit(s)}
                     className="flex flex-1 items-start gap-3 text-left"
                   >
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
                       <Layers className="size-4" />
                     </div>
                     <div className="min-w-0">
@@ -862,7 +862,7 @@ function RuleHeader({ rule }: { rule: SegmentRule }) {
   const meta = RULE_TYPES.find((r) => r.type === rule.type);
   if (!meta) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-accent-ink">
       <meta.Icon className="size-3" />
       {t(meta.labelKey)}
     </span>

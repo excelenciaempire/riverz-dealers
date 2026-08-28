@@ -401,7 +401,7 @@ export default function ProductosPage() {
             }}
             className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
           >
-            <span className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <span className="flex size-10 items-center justify-center rounded-full bg-primary/15 text-accent-ink">
               <Plus className="size-5" />
             </span>
             <span className="text-sm font-medium">{t('products.newProduct')}</span>

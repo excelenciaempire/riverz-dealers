@@ -161,7 +161,7 @@ export function CallDetail({ callId, onClose }: { callId: string | null; onClose
               <div className="flex justify-end">
                 <Link
                   href={`/bandeja?c=${call.conversation_id}`}
-                  className="text-xs text-primary underline"
+                  className="text-xs text-accent-ink underline"
                 >
                   {t('voice.openInInbox')}
                 </Link>

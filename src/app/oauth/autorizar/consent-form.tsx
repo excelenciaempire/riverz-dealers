@@ -71,7 +71,7 @@ export function ConsentForm({
       <div className="w-full max-w-sm space-y-5 rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-2">
           <KeyRound className="size-4 text-muted-foreground" />
-          <span className="text-[18px] font-semibold lowercase tracking-[0.04em] text-primary">
+          <span className="text-[18px] font-semibold lowercase tracking-[0.04em] text-accent-ink">
             riverz
           </span>
         </div>

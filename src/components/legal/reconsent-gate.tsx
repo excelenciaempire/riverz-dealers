@@ -59,14 +59,14 @@ export function ReconsentGate() {
           <Link
             href="/terminos"
             target="_blank"
-            className="text-primary underline underline-offset-2"
+            className="text-accent-ink underline underline-offset-2"
           >
             {t("legal.footerTerms")}
           </Link>
           <Link
             href="/privacidad"
             target="_blank"
-            className="text-primary underline underline-offset-2"
+            className="text-accent-ink underline underline-offset-2"
           >
             {t("legal.footerPrivacy")}
           </Link>

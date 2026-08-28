@@ -3543,7 +3543,7 @@ function VoiceCallStepEditor({
         ) : agents.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             {t("automations.voiceCallNoAgents")}{" "}
-            <Link href="/asistente" className="text-primary underline">
+            <Link href="/asistente" className="text-accent-ink underline">
               {t("automations.voiceCallCreateAgent")}
             </Link>
           </p>

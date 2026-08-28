@@ -178,7 +178,7 @@ export default function AdminHomePage() {
                   <Sparkline
                     values={values}
                     label={t(`admin.${key}`)}
-                    className="h-9 w-full text-primary"
+                    className="h-9 w-full text-accent-ink"
                   />
                 </figure>
               ))}

@@ -148,7 +148,7 @@ export function PendingReplyCard({
   return (
     <div className="border-t border-border bg-primary/5 px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
-        <Sparkles className="size-3.5 shrink-0 text-primary" />
+        <Sparkles className="size-3.5 shrink-0 text-accent-ink" />
         <span className="text-xs font-medium text-foreground">
           {draft.agent_name
             ? t("inbox.pendingReplyFrom", { name: draft.agent_name })

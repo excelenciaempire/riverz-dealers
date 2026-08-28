@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toast } from 'sonner';
 import { Check, Plus, X, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -144,8 +144,8 @@ export function ContactTags({ contactId, onChanged, className }: ContactTagsProp
       {selectedTags.map((tag) => (
         <span
           key={tag.id}
-          className="group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+          className="app-chip-tono group inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{ '--tono': tag.color } as CSSProperties}
         >
           {tag.name}
           <button

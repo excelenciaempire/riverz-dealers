@@ -261,7 +261,7 @@ export default function AdminAiKeyPage() {
               )}
             >
               <div className="flex items-center gap-1.5 text-sm font-medium">
-                {data.mode === m.value && <Check className="size-3.5 text-primary" />}
+                {data.mode === m.value && <Check className="size-3.5 text-accent-ink" />}
                 {m.label}
               </div>
               <div className="mt-0.5 text-xs text-muted-foreground">{m.hint}</div>

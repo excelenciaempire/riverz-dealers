@@ -102,7 +102,9 @@ html[data-theme="light"] {
      fill (with dark text) but is invisible as text on light surfaces,
      so colored text/icons use this deep chartreuse instead. In dark
      mode it becomes the original pale yellow (see dark block). */
-  --accent-ink: #5e6a00;
+  /* #5e6a00 llegaba a 4.41:1 sobre `--accent`, el fondo de lo elegido, y se
+     quedaba corto justo donde más se usa (pestañas, filas activas). */
+  --accent-ink: #586300;
   --secondary: #edeae0;
   --secondary-foreground: #1b1a17;
   --muted: #e9e6da;
@@ -319,7 +321,10 @@ html[data-theme="dark"] {
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--sidebar-foreground);
-    opacity: 0.38;
+    /* 0.38 daba 3.46:1 sobre la tira oscura: por debajo del mínimo para un
+       texto de 9px, y fallaba en los DOS modos porque la barra es oscura
+       siempre. Es la etiqueta que se repite en cada pantalla. */
+    opacity: 0.5;
   }
 
   /* Sidebar nav row. Active = signature lime pill with dark ink. */
@@ -383,6 +388,31 @@ html[data-theme="dark"] {
   .app-cta-outline:hover {
     border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
     background: var(--secondary);
+  }
+
+  /* Pastilla teñida con un color que elige la persona (etiquetas de
+     contacto). El color vive en la base de datos, así que llega como
+     `--tono` en el `style` del elemento.
+
+     Antes se pintaba el tono crudo como texto sobre un fondo del mismo
+     tono al 12%: el ámbar #f59e0b daba 1.78:1 y el verde 2.05:1 sobre la
+     tarjeta clara — la etiqueta no se leía. Sobre superficie clara la
+     letra usa el tono ENSOMBRECIDO; en oscuro se queda crudo, que ahí sí
+     contrasta. El relleno y el canto no cambian: son los que dan el
+     color reconocible de la etiqueta. */
+  .app-chip-tono {
+    background: color-mix(in oklab, var(--tono) 13%, transparent);
+    color: color-mix(in oklab, var(--tono) 62%, #14130f);
+    border-color: color-mix(in oklab, var(--tono) 55%, transparent);
+  }
+  html[data-theme="dark"] .app-chip-tono {
+    color: var(--tono);
+    border-color: var(--tono);
+  }
+  /* Variante "elegida": el mismo tono, más presente. */
+  .app-chip-tono-activo {
+    background: color-mix(in oklab, var(--tono) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tono) 70%, transparent);
   }
 
   /* Uppercase arrow CTA used inside cards. */

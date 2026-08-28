@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { escapeLike } from '@/lib/security/like';
 import { toast } from 'sonner';
@@ -680,21 +680,11 @@ export default function ContactsPage() {
                   );
                   setPage(0);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all hover:-translate-y-px"
-                style={
-                  active
-                    ? {
-                        backgroundColor: `${color}33`,
-                        color,
-                        borderColor: color,
-                        boxShadow: `inset 0 0 0 1px ${color}`,
-                      }
-                    : {
-                        backgroundColor: `${color}1f`,
-                        color,
-                        borderColor: `${color}52`,
-                      }
-                }
+                className={cn(
+                  'app-chip-tono inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all hover:-translate-y-px',
+                  active && 'app-chip-tono-activo',
+                )}
+                style={{ '--tono': color } as CSSProperties}
               >
                 <span
                   className="size-2 shrink-0 rounded-full"
@@ -842,11 +832,8 @@ export default function ContactsPage() {
                         contact.tags.slice(0, 3).map((tag) => (
                           <span
                             key={tag.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            style={{
-                              backgroundColor: tag.color + '20',
-                              color: tag.color,
-                            }}
+                            className="app-chip-tono inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            style={{ '--tono': tag.color } as CSSProperties}
                           >
                             {tag.name}
                           </span>

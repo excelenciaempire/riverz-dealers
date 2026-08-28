@@ -114,7 +114,7 @@ export function SetupChecklist() {
       <section className="rounded-xl border border-primary/30 bg-primary/5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-accent-ink">
               <CheckCircle2 className="size-5" aria-hidden />
             </span>
             <div>
@@ -167,7 +167,7 @@ export function SetupChecklist() {
               render={<Link href="/operacion/activar" />}
               size="xs"
               variant="ghost"
-              className="mt-2 -ml-2 text-primary"
+              className="mt-2 -ml-2 text-accent-ink"
             >
               {t('dashboard.setupWithAssistant')}
               <ArrowRight className="size-3" aria-hidden />
@@ -259,7 +259,7 @@ export function SetupChecklist() {
 
               <div className="shrink-0 pl-9 sm:pl-0">
                 {step.done ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-ink">
                     <Check className="size-3.5" aria-hidden />
                     {t('dashboard.done')}
                   </span>
@@ -304,7 +304,7 @@ function StepBadge({
         done
           ? 'bg-primary text-primary-foreground'
           : current
-            ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+            ? 'bg-primary/15 text-accent-ink ring-1 ring-primary/30'
             : 'bg-muted text-muted-foreground',
       )}
       aria-hidden

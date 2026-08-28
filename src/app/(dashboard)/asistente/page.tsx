@@ -432,7 +432,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   const t = useT();
   return (
     <div className="rounded-2xl border border-dashed border-border bg-card/40 p-10 text-center">
-      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-accent-ink">
         <Sparkles className="size-7" />
       </div>
       <p className="mt-4 text-base font-semibold text-foreground">

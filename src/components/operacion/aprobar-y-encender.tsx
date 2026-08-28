@@ -84,7 +84,7 @@ export function AprobarYEncender() {
   return (
     <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
       <div className="flex items-start gap-3">
-        <Power className="mt-0.5 size-4 shrink-0 text-primary" />
+        <Power className="mt-0.5 size-4 shrink-0 text-accent-ink" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">
             {t(instalado ? 'operation.motorTitulo' : 'operation.motorApagadoTitulo')}
@@ -102,7 +102,7 @@ export function AprobarYEncender() {
                   key={`${h.que}-${i}`}
                   className="flex items-center gap-2 text-sm text-foreground"
                 >
-                  <Check className="size-3 shrink-0 text-primary" />
+                  <Check className="size-3 shrink-0 text-accent-ink" />
                   {h.que}
                 </li>
               ))}
