@@ -20,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
 import { MAXIMO_CENTAVOS, MINIMO_CENTAVOS } from './recarga'
+import { localeDeCuenta } from '@/lib/i18n/cuenta'
 
 /** Después de esto, se deja de intentar hasta que cambien la tarjeta. */
 export const FALLOS_PARA_RENDIRSE = 3
@@ -79,6 +80,8 @@ export async function urlDeTarjeta(
   const sesion = await stripe().checkout.sessions.create({
     mode: 'setup',
     customer,
+    // El formulario de la tarjeta, en el idioma del comercio.
+    locale: await localeDeCuenta(db, workspaceId),
     // Stripe la exige en `setup` aunque no se cobre nada: es la moneda en la
     // que va a poder cobrarse después. Sin esto responde
     // "Missing required param: currency" y no hay forma de guardar la tarjeta.

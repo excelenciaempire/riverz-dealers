@@ -1052,6 +1052,46 @@ export const settings = {
   },
   walletEstimate: { es: "estimado", en: "estimate" },
   walletNoCharge: { es: "Sin cargo", en: "No charge" },
+
+  // ── Lo que sale FUERA de la app: el checkout de Stripe y los avisos por
+  //    WhatsApp. Van acá y no en el componente porque los escribe el servidor,
+  //    a veces desde un cron donde no hay pantalla ni cookie de idioma.
+  walletProductName: { es: "Saldo Riverz", en: "Riverz balance" },
+  walletProductDesc: {
+    es: "Saldo para las respuestas de la IA, las llamadas y todo lo que consuma la cuenta.",
+    en: "Balance for AI replies, calls and everything the account uses.",
+  },
+  avisoSaldoBajoTitulo: { es: "Te queda poco saldo", en: "You're running low" },
+  avisoSaldoBajoCuerpo: {
+    es: "Te quedan {saldo}. Cuando llegue a cero la IA deja de responder. Recarga en riverz.co/ajustes?tab=saldo",
+    en: "You have {saldo} left. When it hits zero the AI stops replying. Top up at riverz.co/ajustes?tab=saldo",
+  },
+  avisoSinSaldoTitulo: { es: "Te quedaste sin saldo", en: "You're out of balance" },
+  avisoSinSaldoCuerpo: {
+    es: "La IA dejó de responder por falta de saldo. La bandeja sigue abierta para contestar a mano. Recarga en riverz.co/ajustes?tab=saldo",
+    en: "The AI stopped replying: no balance left. The inbox is still open to answer manually. Top up at riverz.co/ajustes?tab=saldo",
+  },
+  avisoPlanFalloTitulo: {
+    es: "No pudimos cobrar tu plan",
+    en: "We couldn't charge your plan",
+  },
+  avisoPlanFalloCuerpo: {
+    es: "El cobro del plan no entró. Tienes {horas} horas para actualizar el pago antes de perder el acceso: riverz.co/ajustes?tab=billing",
+    en: "The plan charge didn't go through. You have {horas} hours to update your payment before losing access: riverz.co/ajustes?tab=billing",
+  },
+  avisoPlanPausadaTitulo: {
+    es: "Tu cuenta está pausada",
+    en: "Your account is paused",
+  },
+  avisoPlanPausadaCuerpo: {
+    es: "El cobro del plan no entró y la cuenta quedó pausada. Pon una tarjeta y vuelve todo enseguida: riverz.co/ajustes?tab=billing",
+    en: "The plan charge didn't go through and the account is paused. Add a card and everything comes back right away: riverz.co/ajustes?tab=billing",
+  },
+  avisoActivoTitulo: { es: "Tu plan quedó activo", en: "Your plan is active" },
+  avisoActivoCuerpo: {
+    es: "El pago entró y la cuenta está al día. Tu saldo para la IA es de {saldo} — lo ves y lo recargas en riverz.co/ajustes?tab=saldo",
+    en: "The payment went through and your account is up to date. Your AI balance is {saldo} — check it and top it up at riverz.co/ajustes?tab=saldo",
+  },
   walletInsideOf: { es: "Dentro de «{linea}»", en: "Inside “{linea}”" },
   walletIncluded: {
     es: "Sin cargo: transcribir las notas de voz de tus clientes y el audio de tus videos.",

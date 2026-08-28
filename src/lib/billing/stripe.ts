@@ -18,6 +18,8 @@
 import Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Suscripcion } from './plan'
+import { localeDeCuenta } from '@/lib/i18n/cuenta'
+import { translate } from '@/lib/i18n/translate'
 
 let cliente: Stripe | null = null
 
@@ -92,6 +94,9 @@ export async function urlDeCheckout(
   const sesion = await stripe().checkout.sessions.create({
     mode: 'subscription',
     customer,
+    // Que el checkout hable el idioma del comercio y no el del navegador de
+    // quien lo abrió: es la cuenta la que paga, no el navegador.
+    locale: await localeDeCuenta(db, workspaceId),
     line_items: items,
     // El id de la cuenta viaja con la suscripción: el webhook llega sin sesión
     // y sin esto habría que adivinar de quién es.
@@ -164,12 +169,13 @@ async function darLaBienvenida(
     .maybeSingle()
   const saldo = Number((data as { saldo_centavos?: number } | null)?.saldo_centavos ?? 0)
 
+  const locale = await localeDeCuenta(db, workspaceId)
   await sendPlatformAlert({
     to: telefono,
-    title: 'Tu plan quedó activo',
-    body:
-      `El pago entró y la cuenta está al día. Tu saldo para la IA es de US$${(saldo / 100).toFixed(2)}` +
-      ' — lo ves y lo recargas en riverz.co/ajustes?tab=saldo',
+    title: translate(locale, 'settings.avisoActivoTitulo'),
+    body: translate(locale, 'settings.avisoActivoCuerpo', {
+      saldo: `US$${(saldo / 100).toFixed(2)}`,
+    }),
   })
 }
 

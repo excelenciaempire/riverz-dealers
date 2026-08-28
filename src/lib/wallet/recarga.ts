@@ -16,6 +16,8 @@ import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
+import { translate } from '@/lib/i18n/translate'
+import { localeDeCuenta } from '@/lib/i18n/cuenta'
 
 /**
  * Lo mínimo y lo máximo que se puede cargar de una vez, en centavos.
@@ -73,8 +75,15 @@ export async function urlDeRecarga(
   const customerId = (sus as { stripe_customer_id?: string | null } | null)
     ?.stripe_customer_id
 
+  // El checkout es de Stripe pero lo que dice adentro es nuestro: el nombre del
+  // producto y su descripción los escribimos acá, así que van en el idioma del
+  // comercio. Y `locale` pone en ese idioma lo que escribe Stripe —los botones,
+  // los campos de la tarjeta—, que si no sale en inglés siempre.
+  const locale = await localeDeCuenta(db, workspaceId)
+
   const sesion = await stripe().checkout.sessions.create({
     mode: 'payment',
+    locale,
     ...(customerId
       ? { customer: customerId }
       : { customer_email: quien.email ?? undefined, customer_creation: 'always' }),
@@ -85,9 +94,8 @@ export async function urlDeRecarga(
           currency: 'usd',
           unit_amount: centavos,
           product_data: {
-            name: 'Saldo Riverz',
-            description:
-              'Saldo para las respuestas de la IA, las llamadas y todo lo que consuma la cuenta.',
+            name: translate(locale, 'settings.walletProductName'),
+            description: translate(locale, 'settings.walletProductDesc'),
           },
         },
       },

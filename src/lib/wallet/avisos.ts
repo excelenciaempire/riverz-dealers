@@ -23,6 +23,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { aQuienAvisar } from '@/lib/ai/aviso-escalada'
 import { acceso, aSuscripcion } from '@/lib/billing/plan'
+import { localeDeCuenta } from '@/lib/i18n/cuenta'
+import { translate } from '@/lib/i18n/translate'
 
 /** Saldo por debajo del cual se avisa, si la cuenta no fijó su propio umbral. */
 const UMBRAL_POR_DEFECTO_CENTAVOS = 500
@@ -105,13 +107,20 @@ async function avisarSaldo(db: SupabaseClient): Promise<{ n: number; detalle: st
       continue
     }
 
+    // En el idioma de la cuenta, no en el del servidor: el aviso lo lee una
+    // persona, y una que eligió inglés en la app no tiene por qué recibir un
+    // WhatsApp en español.
+    const locale = await localeDeCuenta(db, f.workspace_id)
+    const vacio = saldo <= 0
     const r = await sendPlatformAlert({
       to: telefono,
-      title: saldo <= 0 ? 'Te quedaste sin saldo' : 'Te queda poco saldo',
-      body:
-        saldo <= 0
-          ? 'La IA dejó de responder por falta de saldo. La bandeja sigue abierta para contestar a mano. Recarga en riverz.co/ajustes?tab=saldo'
-          : `Te quedan ${usd(saldo)}. Cuando llegue a cero la IA deja de responder. Recarga en riverz.co/ajustes?tab=saldo`,
+      title: translate(
+        locale,
+        vacio ? 'settings.avisoSinSaldoTitulo' : 'settings.avisoSaldoBajoTitulo',
+      ),
+      body: vacio
+        ? translate(locale, 'settings.avisoSinSaldoCuerpo')
+        : translate(locale, 'settings.avisoSaldoBajoCuerpo', { saldo: usd(saldo) }),
     })
     await db
       .from('wallet_accounts')
@@ -159,12 +168,18 @@ async function avisarPlan(db: SupabaseClient): Promise<{ n: number; detalle: str
       continue
     }
 
+    const locale = await localeDeCuenta(db, s.workspaceId)
     const r = await sendPlatformAlert({
       to: telefono,
-      title: a.puede ? 'No pudimos cobrar tu plan' : 'Tu cuenta está pausada',
+      title: translate(
+        locale,
+        a.puede ? 'settings.avisoPlanFalloTitulo' : 'settings.avisoPlanPausadaTitulo',
+      ),
       body: a.puede
-        ? `El cobro del plan no entró. Tienes ${a.horasDeGracia ?? 48} horas para actualizar el pago antes de perder el acceso: riverz.co/ajustes?tab=billing`
-        : 'El cobro del plan no entró y la cuenta quedó pausada. Pon una tarjeta y vuelve todo enseguida: riverz.co/ajustes?tab=billing',
+        ? translate(locale, 'settings.avisoPlanFalloCuerpo', {
+            horas: a.horasDeGracia ?? 48,
+          })
+        : translate(locale, 'settings.avisoPlanPausadaCuerpo'),
     })
     await db
       .from('workspace_subscriptions')
