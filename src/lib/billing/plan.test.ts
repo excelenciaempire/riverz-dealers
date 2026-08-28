@@ -37,6 +37,7 @@ const sus = (over: Record<string, unknown> = {}): any =>
     prueba_hasta: null,
     periodo_desde: null,
     periodo_hasta: null,
+    vencida_desde: null,
     precio_centavos_override: null,
     incluidas_override: null,
     excedente_centavos_override: null,
@@ -122,10 +123,38 @@ describe('quién puede seguir usando Riverz', () => {
     expect(acceso(null).puede).toBe(true)
   })
 
-  it('cancelada y vencida no pueden', () => {
-    for (const estado of ['cancelada', 'vencida'] as EstadoSuscripcion[]) {
-      expect(acceso(sus({ estado })).puede, estado).toBe(false)
-    }
+  it('cancelada no puede', () => {
+    expect(acceso(sus({ estado: 'cancelada' })).puede).toBe(false)
+  })
+
+  it('vencida hace una hora todavía puede: está en la gracia', () => {
+    const a = acceso(
+      sus({
+        estado: 'vencida',
+        vencida_desde: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      }),
+    )
+    expect(a.puede).toBe(true)
+    expect(a.horasDeGracia).toBe(47)
+  })
+
+  it('vencida hace tres días ya no puede', () => {
+    const a = acceso(
+      sus({
+        estado: 'vencida',
+        vencida_desde: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+      }),
+    )
+    expect(a.puede).toBe(false)
+    expect(a.horasDeGracia).toBe(0)
+  })
+
+  it('vencida sin marca de cuándo: se le da la gracia igual', () => {
+    // La marca la escribe el webhook. Una cuenta que quedó vencida antes de que
+    // esa columna existiera no tiene por qué pagar ese hueco con su operación.
+    const a = acceso(sus({ estado: 'vencida' }))
+    expect(a.puede).toBe(true)
+    expect(a.horasDeGracia).toBe(48)
   })
 })
 
