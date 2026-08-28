@@ -28,7 +28,11 @@ import {
   loadCommentSettings,
 } from './controls';
 import { decideCommentDm } from './dm-opportunity';
-import { recordProactiveDm, recordPublicCommentReply } from './record-dm';
+import {
+  recordProactiveDm,
+  recordPublicCommentReply,
+  type CommentChannel,
+} from './record-dm';
 import { loadCustomerContext } from './customer-context';
 import { loadOrderStatus } from './order-status';
 import { loadCommentThread } from './comment-thread';
@@ -206,7 +210,7 @@ export async function maybeInstantOutreach(
     parentCommentId?: string | null;
     engagementText: string | null;
     /** De qué red viene el comentario (Instagram si no se dice). */
-    commentChannel?: 'ig_comment' | 'fb_comment';
+    commentChannel?: CommentChannel;
   },
 ): Promise<void> {
   if (!opts.contact.external_id) return;
@@ -593,12 +597,13 @@ async function autonomousCommentReply(
     engagementText: string | null;
     /** De qué red viene el comentario. Por defecto Instagram, que era el único
      *  canal que llegaba aquí antes de que Facebook se habilitara. */
-    commentChannel?: 'ig_comment' | 'fb_comment';
+    commentChannel?: CommentChannel;
   },
 ): Promise<void> {
   // Solo aplica al camino comentario → DM privado: sin id de comentario no hay
   // ruta permitida por Meta para escribirle.
-  if (!opts.commentId || !opts.contact.external_id) return;
+  if (!opts.commentId) return;
+  if (!opts.contact.external_id && !isTikTokChannel(opts.commentChannel)) return;
   if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) return;
 
   // Instagram ↔ Messenger: mismo camino, distinta red. El comentario se
@@ -606,6 +611,10 @@ async function autonomousCommentReply(
   // responde por Instagram.
   const commentChannel = opts.commentChannel ?? 'ig_comment';
   const isFacebook = commentChannel === 'fb_comment';
+  // TikTok no tiene privado: su API de mensajes está cerrada a terceros. Todo
+  // lo que se conteste ahí se publica bajo el video, y las ramas del DM —el
+  // candado, el tope, el opt-in de Meta— simplemente no corren.
+  const isTikTok = commentChannel === 'tiktok_comment';
   const dmChannel = isFacebook ? ('messenger' as const) : ('instagram' as const);
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
@@ -648,9 +657,13 @@ async function autonomousCommentReply(
     const [s] = await scoreLeads(apiKey, [engagement]);
     if (!s) return;
     if (s.spam) {
-      const conn =
-        opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
-      if (conn) await setCommentHidden(conn, commentChannel, opts.commentId);
+      // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
+      // contestar, que es lo que importa.
+      if (!isTikTok) {
+        const conn =
+          opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
+        if (conn) await setCommentHidden(conn, commentChannel, opts.commentId);
+      }
       return;
     }
     // El desinterés solo descarta cuando NO hay una duda de post-venta detrás.
@@ -681,15 +694,13 @@ async function autonomousCommentReply(
   // privada que Meta permite sin haber escrito a nadie — dejando mudo al
   // camino que sí quería usarla.
 
-  const connection = await dmConnectionFor(
-    db,
-    opts.workspaceId,
-    opts.connection,
-    dmChannel,
-  );
+  // En TikTok no se busca conexión de DM: no existe esa superficie.
+  const connection = isTikTok
+    ? null
+    : await dmConnectionFor(db, opts.workspaceId, opts.connection, dmChannel);
   // Sin conexión de DM sólo se cae el camino privado: el modo "Solo en el
   // comentario" publica igual, que es justo lo que el comercio pidió.
-  if (!connection && commentCfg.replyMode !== 'public') return;
+  if (!connection && !isTikTok && commentCfg.replyMode !== 'public') return;
 
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
@@ -782,7 +793,9 @@ async function autonomousCommentReply(
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
   // un "qué linda foto" es perderla para el que sí quería comprar.
   const decision = await decideCommentDm({
-    mode: commentCfg.replyMode,
+    // En TikTok la única respuesta posible es la pública, así que no se le
+    // pregunta al clasificador algo que no se puede ejecutar.
+    mode: isTikTok ? 'public' : commentCfg.replyMode,
     apiKey,
     comment: engagement,
     reply: text,
@@ -807,7 +820,9 @@ async function autonomousCommentReply(
   // Si además se publica en el comentario, la bandeja recibe la respuesta
   // PÚBLICA de verdad (abajo) y no hace falta espejar encima el DM: serían dos
   // mensajes casi iguales en el mismo hilo.
-  const willPublish = commentCfg.publicReply;
+  // En TikTok siempre se publica: es lo único que TikTok deja hacer, así que
+  // el modo elegido para Instagram y Facebook no la puede dejar muda.
+  const willPublish = isTikTok || commentCfg.publicReply;
 
   let dmSent = false;
   try {
@@ -843,7 +858,7 @@ async function autonomousCommentReply(
     // Respuesta pública en el propio comentario, si el comercio la pidió.
     // Va DESPUÉS del DM y en su propio try: es lo que puede fallar por
     // permisos de Meta, y un fallo aquí no debe tumbar un DM ya enviado.
-    if (commentCfg.publicReply) {
+    if (willPublish) {
       // Sin DM, lo público NO puede decir "te escribí por privado": es la
       // respuesta entera, ahí mismo.
       const publicText = publicReplyFrom(text, dmSent);
@@ -855,7 +870,11 @@ async function autonomousCommentReply(
           connection: publicConnection,
           conversation: {
             id: '',
-            thread_external_id: opts.commentId,
+            // TikTok necesita además el video, y su adapter lo lee de aquí con
+            // la forma "video:<id>|comment:<id>" que arma el poll.
+            thread_external_id: isTikTok
+              ? `video:${opts.sourcePostId ?? ''}|comment:${opts.commentId}`
+              : opts.commentId,
           } as unknown as Conversation,
           contact: { id: opts.contact.id } as unknown as Contact,
           text: publicText,
@@ -953,6 +972,11 @@ async function autonomousCommentReply(
  * respuesta ES esta, así que va entera —recortada a lo que se lee bajo una
  * foto— y sin prometer un privado que nadie va a recibir.
  */
+/** ¿El comentario viene de TikTok? Se pregunta antes de resolver el canal. */
+function isTikTokChannel(channel?: CommentChannel): boolean {
+  return channel === 'tiktok_comment';
+}
+
 export function publicReplyFrom(dmText: string, dmSent = true): string {
   const clean = dmText.trim();
   if (!dmSent) {

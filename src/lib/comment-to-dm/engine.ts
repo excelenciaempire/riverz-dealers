@@ -23,7 +23,7 @@ import { composeDmText } from './rules';
  * `comment_to_dm_log` (migration 086).
  */
 
-type CommentChannel = 'ig_comment' | 'fb_comment';
+type CommentChannel = 'ig_comment' | 'fb_comment' | 'tiktok_comment';
 /** Lo que una regla puede escuchar: una red, o las dos (migración 203). */
 type RuleChannel = CommentChannel | 'both';
 
@@ -60,10 +60,17 @@ export interface CommentEvent {
   text: string;
 }
 
-/** Which DM surface to send the private reply on, per comment channel. */
-const DM_CHANNEL: Record<CommentChannel, 'instagram' | 'messenger'> = {
+/**
+ * Por dónde sale el privado de cada red.
+ *
+ * TikTok no está: su API de mensajes está cerrada a terceros, así que una
+ * regla de TikTok publica bajo el video y no manda nada por privado. No es una
+ * decisión de producto — es lo único que TikTok deja hacer.
+ */
+const DM_CHANNEL: Record<CommentChannel, 'instagram' | 'messenger' | null> = {
   ig_comment: 'instagram',
   fb_comment: 'messenger',
+  tiktok_comment: null,
 };
 
 export async function processCommentForDmRules(
@@ -157,7 +164,7 @@ export async function processCommentForDmRules(
         connection: ev.connection,
         conversation: {
           id: '',
-          thread_external_id: ev.commentId,
+          thread_external_id: threadDeRespuesta(ev),
         } as unknown as Conversation,
         contact: { id: ev.contact.id } as unknown as Contact,
         text,
@@ -188,13 +195,16 @@ export async function processCommentForDmRules(
   //    lock: Meta allows one private reply per comment, and the campaign
   //    instant-outreach path can also reply to this same comment — whoever
   //    claims first sends, the other skips.
-  const wonReply = await claimCommentPrivateReply(
-    db,
-    ev.workspaceId,
-    ev.commentId,
-    'rule',
-  );
-  if (!wonReply) {
+  //
+  //    En TikTok no hay paso 2: la regla ya hizo todo lo que TikTok permite.
+  const dmChannel = DM_CHANNEL[ev.channel];
+  const wonReply = dmChannel
+    ? await claimCommentPrivateReply(db, ev.workspaceId, ev.commentId, 'rule')
+    : false;
+  if (!dmChannel) {
+    dmStatus = 'skipped';
+    errMsg = errMsg ?? 'TikTok no tiene mensajes privados';
+  } else if (!wonReply) {
     dmStatus = 'skipped';
     errMsg = errMsg ?? 'private reply ya enviado para este comentario';
   } else {
@@ -205,11 +215,11 @@ export async function processCommentForDmRules(
     //     componer el texto.
     let attachmentFallbackUrl: string | null = null;
     if (rule.dm_attachment_url) {
-      const dmAdapter = getAdapter(DM_CHANNEL[ev.channel]);
+      const dmAdapter = getAdapter(dmChannel);
       try {
         if (!dmAdapter.sendMedia) throw new Error('canal sin adjuntos');
         await dmAdapter.sendMedia({
-          channel: DM_CHANNEL[ev.channel],
+          channel: dmChannel,
           connection: ev.connection,
           conversation: { id: '' } as unknown as Conversation,
           contact: {
@@ -238,11 +248,11 @@ export async function processCommentForDmRules(
       attachmentFallbackUrl
         ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
         : composeDmText(rule),
-      DM_CHANNEL[ev.channel],
+      dmChannel,
     );
     try {
-      const res = await getAdapter(DM_CHANNEL[ev.channel]).sendText({
-        channel: DM_CHANNEL[ev.channel],
+      const res = await getAdapter(dmChannel).sendText({
+        channel: dmChannel,
         connection: ev.connection,
         conversation: { id: '' } as unknown as Conversation,
         contact: {
@@ -263,7 +273,7 @@ export async function processCommentForDmRules(
         workspaceId: ev.workspaceId,
         contactId: ev.contact.id,
         externalId: ev.contact.external_id,
-        dmChannel: DM_CHANNEL[ev.channel],
+        dmChannel: dmChannel,
         commentChannel: ev.channel,
         connection: ev.connection,
         text: dmText,
@@ -304,6 +314,18 @@ export async function processCommentForDmRules(
   // Una regla del comercio se hizo cargo de este comentario: el router no debe
   // mandarlo además por el camino del agente.
   return true;
+}
+
+/**
+ * A qué hilo se le publica la respuesta.
+ *
+ * Meta identifica el comentario y basta. TikTok necesita además el video, y su
+ * adapter lo lee de `thread_external_id` con la forma "video:<id>|comment:<id>"
+ * (la misma que arma el poll). Sin el video, TikTok rechaza la respuesta.
+ */
+function threadDeRespuesta(ev: CommentEvent): string {
+  if (ev.channel !== 'tiktok_comment') return ev.commentId ?? '';
+  return `video:${ev.postId ?? ''}|comment:${ev.commentId ?? ''}`;
 }
 
 /** Empty keyword list = match ANY comment. Otherwise contains/exact. */

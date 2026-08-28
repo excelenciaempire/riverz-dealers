@@ -14,9 +14,11 @@
  * aprueba es, literalmente, lo que sale.
  */
 import {
+  cleanStrings,
   composeDmText,
   getRule,
   listRulesWithCounts,
+  reglaSinPrivado,
   ruleFields,
   setRuleActive,
   type CommentRule,
@@ -36,14 +38,16 @@ const CANAL_DE: Record<string, CommentRuleChannel> = {
   instagram: 'ig_comment',
   facebook: 'fb_comment',
   ambas: 'both',
+  tiktok: 'tiktok_comment',
 }
 /** Las redes de verdad: donde vive una conversación. 'both' no es una de ellas. */
-type CommentChannel = 'ig_comment' | 'fb_comment'
+type CommentChannel = 'ig_comment' | 'fb_comment' | 'tiktok_comment'
 
 const RED: Record<CommentRuleChannel, string> = {
   ig_comment: 'Instagram',
   fb_comment: 'Facebook',
   both: 'Instagram y Facebook',
+  tiktok_comment: 'TikTok',
 }
 
 /**
@@ -56,14 +60,14 @@ const RED: Record<CommentRuleChannel, string> = {
 function canalesPedidos(args: Record<string, unknown>): CommentChannel[] {
   const pedido =
     typeof args.canal === 'string' ? CANAL_DE[args.canal.trim().toLowerCase()] : undefined
-  return pedido === 'ig_comment' || pedido === 'fb_comment'
+  return pedido && pedido !== 'both'
     ? [pedido]
-    : ['ig_comment', 'fb_comment']
+    : ['ig_comment', 'fb_comment', 'tiktok_comment']
 }
 
 const ESQUEMA_CANAL = {
   type: 'string',
-  enum: ['instagram', 'facebook', 'ambas'],
+  enum: ['instagram', 'facebook', 'ambas', 'tiktok'],
 } as const
 
 /**
@@ -86,9 +90,11 @@ async function comoContestaLaIa(ctx: CapabilityContext) {
         ? 'a todo el que pregunte'
         : 'solo a quien muestra intención de compra',
     responde_en_publico: cfg.publicReply,
-    redes: [cfg.instagram && 'Instagram', cfg.facebook && 'Facebook'].filter(
-      Boolean,
-    ),
+    redes: [
+      cfg.instagram && 'Instagram',
+      cfg.facebook && 'Facebook',
+      cfg.tiktok && 'TikTok',
+    ].filter(Boolean),
   }
 }
 
@@ -252,11 +258,22 @@ async function reglas(ctx: CapabilityContext) {
 
 async function crearRegla(ctx: CapabilityContext, args: Record<string, unknown>) {
   const canal = CANAL_DE[String(args.canal ?? '').trim().toLowerCase()]
-  if (!canal) throw new Error('El canal tiene que ser instagram o facebook.')
+  if (!canal) {
+    throw new Error('El canal tiene que ser instagram, facebook, tiktok o ambas.')
+  }
   const nombre = String(args.nombre ?? '').trim()
   if (!nombre) throw new Error('Falta el nombre de la regla.')
+  const publicas = cleanStrings(args.respuesta_publica)
   const dm = String(args.dm ?? '').trim()
-  if (!dm) throw new Error('Falta el texto del mensaje privado.')
+  // En TikTok no hay privado: lo obligatorio es lo que se publica bajo el
+  // video. Sin eso, la regla no haría nada y quedaría ahí ocupando lugar.
+  if (reglaSinPrivado(canal)) {
+    if (publicas.length === 0) {
+      throw new Error('En TikTok no hay privado: falta la respuesta que se publica.')
+    }
+  } else if (!dm) {
+    throw new Error('Falta el texto del mensaje privado.')
+  }
 
   const fields = ruleFields({
     name: nombre,
@@ -264,10 +281,8 @@ async function crearRegla(ctx: CapabilityContext, args: Record<string, unknown>)
     post_id: typeof args.publicacion === 'string' ? args.publicacion : null,
     keywords: args.palabras_clave,
     match_type: args.coincidencia === 'exacta' ? 'exact' : 'contains',
-    public_reply_templates: args.respuesta_publica,
-    public_reply_enabled: Array.isArray(args.respuesta_publica)
-      ? args.respuesta_publica.length > 0
-      : false,
+    public_reply_templates: publicas,
+    public_reply_enabled: publicas.length > 0,
     dm_message: dm,
     dm_button_label: typeof args.boton_texto === 'string' ? args.boton_texto : null,
     dm_button_url: typeof args.boton_enlace === 'string' ? args.boton_enlace : null,
@@ -452,7 +467,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
           description: 'Gana el número más bajo cuando varias reglas encajan. Por defecto 100.',
         },
       },
-      required: ['nombre', 'canal', 'dm'],
+      required: ['nombre', 'canal'],
     },
     async preview(_ctx, args) {
       const palabras = Array.isArray(args.palabras_clave)

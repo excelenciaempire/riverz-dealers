@@ -118,6 +118,7 @@ describe('comentarios.pendientes', () => {
       },
       { count: 4 },
       { count: 1 },
+      { count: 3 },
     ],
     messages: {
       data: [
@@ -141,7 +142,7 @@ describe('comentarios.pendientes', () => {
       comentarios: Array<Record<string, unknown>>
     }
     // El total por red NO es el largo de la lista: se cuenta aparte.
-    expect(r.por_canal).toEqual({ Instagram: 4, Facebook: 1 })
+    expect(r.por_canal).toEqual({ Instagram: 4, Facebook: 1, TikTok: 3 })
     expect(r.comentarios).toHaveLength(1)
     expect(r.comentarios[0]).toMatchObject({
       conversation_id: 'c1',
@@ -267,10 +268,36 @@ describe('comentarios.crear_regla', () => {
     await expect(
       cap('comentarios.crear_regla').run(ctxCon(db), {
         nombre: 'x',
+        canal: 'twitter',
+        dm: 'hola',
+      }),
+    ).rejects.toThrow(/instagram, facebook, tiktok o ambas/)
+  })
+
+  it('una regla de TikTok sin respuesta pública no se puede guardar', async () => {
+    // TikTok no tiene privado: sin lo que se publica, la regla no haría nada.
+    const { db } = fakeDb({})
+    await expect(
+      cap('comentarios.crear_regla').run(ctxCon(db), {
+        nombre: 'x',
         canal: 'tiktok',
         dm: 'hola',
       }),
-    ).rejects.toThrow(/instagram o facebook/)
+    ).rejects.toThrow(/no hay privado/)
+  })
+
+  it('una regla de TikTok guarda lo público y descarta los campos del privado', async () => {
+    const { db, calls } = fakeDb({})
+    await cap('comentarios.crear_regla').run(ctxCon(db), {
+      nombre: 'Precio',
+      canal: 'tiktok',
+      dm: 'esto no se puede mandar',
+      respuesta_publica: ['Te dejamos el precio abajo 👇'],
+    })
+    const insert = calls.find((c) => c.m === 'insert')?.args[0] as Record<string, unknown>
+    expect(insert.channel).toBe('tiktok_comment')
+    expect(insert.dm_message).toBe('')
+    expect(insert.public_reply_enabled).toBe(true)
   })
 })
 

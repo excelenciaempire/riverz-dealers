@@ -444,7 +444,9 @@ export async function ingestInboundEvent(
     !event.outbound &&
     !event.historical &&
     !event.suppressAutoReply &&
-    (channel === "ig_comment" || channel === "fb_comment")
+    (channel === "ig_comment" ||
+      channel === "fb_comment" ||
+      channel === "tiktok_comment")
   ) {
     void routeComment(db, {
       workspaceId,

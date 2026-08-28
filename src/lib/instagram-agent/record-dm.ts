@@ -3,6 +3,13 @@ import type { ChannelConnection } from '@/types';
 import { upsertContact } from '@/lib/channels/inbox-writer';
 
 /**
+ * Las tres redes con comentarios. TikTok entra igual que las otras dos aunque
+ * no tenga privado: lo que se publica bajo el video también es una respuesta y
+ * también tiene que verse en la bandeja.
+ */
+export type CommentChannel = 'ig_comment' | 'fb_comment' | 'tiktok_comment';
+
+/**
  * Deja constancia en la BANDEJA del DM que el agente acaba de enviar.
  *
  * El adapter de Instagram solo habla con Meta; no persiste nada. Sin esto, un
@@ -43,7 +50,7 @@ export async function recordProactiveDm(
      */
     dmChannel?: 'instagram' | 'messenger';
     /** Canal del hilo de comentarios donde se espeja la copia. */
-    commentChannel?: 'ig_comment' | 'fb_comment';
+    commentChannel?: CommentChannel;
     connection: ChannelConnection;
     text: string;
     /**
@@ -191,7 +198,7 @@ export async function recordPublicCommentReply(
     workspaceId: string;
     /** El contacto del hilo de comentarios (quien comentó). */
     commentContactId: string;
-    commentChannel: 'ig_comment' | 'fb_comment';
+    commentChannel: CommentChannel;
     text: string;
     /** Id que devolvió Meta para NUESTRA respuesta. Es lo que corta duplicados. */
     externalId?: string | null;
@@ -229,7 +236,7 @@ async function mirrorReplyToCommentThread(
   args: {
     workspaceId: string;
     commentContactId: string;
-    commentChannel: 'ig_comment' | 'fb_comment';
+    commentChannel: CommentChannel;
     text: string;
     preview: string;
     now: string;

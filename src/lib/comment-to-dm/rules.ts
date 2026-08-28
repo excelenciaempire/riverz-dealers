@@ -14,10 +14,30 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
  * motor después lee.
  */
 
-/** Dónde escucha una regla: una red, o las dos (migración 203). */
-export type CommentRuleChannel = 'ig_comment' | 'fb_comment' | 'both';
+/**
+ * Dónde escucha una regla: una red, o las dos de Meta (migraciones 203 y 204).
+ *
+ * 'both' es Instagram + Facebook y no incluye TikTok a propósito: esas dos
+ * comparten el mecanismo del privado y TikTok no lo tiene, así que una regla
+ * escrita para las dos no se puede ejecutar igual en la tercera.
+ */
+export type CommentRuleChannel =
+  | 'ig_comment'
+  | 'fb_comment'
+  | 'both'
+  | 'tiktok_comment';
 
-const RULE_CHANNELS: CommentRuleChannel[] = ['ig_comment', 'fb_comment', 'both'];
+const RULE_CHANNELS: CommentRuleChannel[] = [
+  'ig_comment',
+  'fb_comment',
+  'both',
+  'tiktok_comment',
+];
+
+/** ¿Esta regla vive en una red sin mensajes privados? */
+export function reglaSinPrivado(channel: unknown): boolean {
+  return channel === 'tiktok_comment';
+}
 
 /** Lo que se devuelve hacia afuera. Nunca `workspace_id` ni `created_by`. */
 export const RULE_COLUMNS =
@@ -115,16 +135,19 @@ export function cleanStrings(arr: unknown): string[] {
 /**
  * ¿Alcanza para guardar una regla?
  *
- * Sin nombre no se distingue de las otras, sin canal no se sabe dónde escucha y
- * sin el texto del DM no hay nada que mandar — las tres columnas son NOT NULL.
+ * Sin nombre no se distingue de las otras y sin canal no se sabe dónde escucha.
+ * Lo tercero depende de la red: en Instagram y Facebook una regla existe para
+ * mandar un privado, así que el DM es obligatorio; en TikTok no hay privado, y
+ * lo que no puede faltar es la respuesta que se publica bajo el video —una
+ * regla de TikTok sin eso no haría absolutamente nada.
  */
 export function isCompleteRuleInput(input: CommentRuleInput | null): boolean {
   if (!input) return false;
-  return (
-    Boolean(input.name?.trim()) &&
-    RULE_CHANNELS.includes(input.channel as CommentRuleChannel) &&
-    Boolean(input.dm_message?.trim())
-  );
+  if (!input.name?.trim()) return false;
+  if (!RULE_CHANNELS.includes(input.channel as CommentRuleChannel)) return false;
+  return reglaSinPrivado(input.channel)
+    ? cleanStrings(input.public_reply_templates).length > 0
+    : Boolean(input.dm_message?.trim());
 }
 
 /**
@@ -144,6 +167,10 @@ export function ruleFields(input: CommentRuleInput): CommentRuleFields {
   // "publica en el comentario" con la caja vacía era una promesa vacía — la
   // lista lo anunciaba y el motor lo saltaba en silencio.
   const publicReplies = cleanStrings(input.public_reply_templates);
+  // En TikTok no hay privado: lo que se escriba en los campos del DM no se
+  // podría mandar, así que no se guarda y la regla no promete nada que no
+  // vaya a pasar. `dm_message` es NOT NULL en la BD, de ahí la cadena vacía.
+  const sinPrivado = reglaSinPrivado(input.channel);
   return {
     name: (input.name ?? '').trim(),
     channel: input.channel as CommentRuleChannel,
@@ -153,14 +180,16 @@ export function ruleFields(input: CommentRuleInput): CommentRuleFields {
     case_sensitive: Boolean(input.case_sensitive),
     public_reply_enabled: (input.public_reply_enabled ?? true) && publicReplies.length > 0,
     public_reply_templates: publicReplies,
-    dm_message: (input.dm_message ?? '').trim(),
-    dm_button_label: nullIfBlank(input.dm_button_label),
-    dm_button_url: nullIfBlank(input.dm_button_url),
-    dm_attachment_url: nullIfBlank(input.dm_attachment_url),
-    dm_attachment_type: attachmentTypeFor(
-      nullIfBlank(input.dm_attachment_url),
-      input.dm_attachment_type,
-    ),
+    dm_message: sinPrivado ? '' : (input.dm_message ?? '').trim(),
+    dm_button_label: sinPrivado ? null : nullIfBlank(input.dm_button_label),
+    dm_button_url: sinPrivado ? null : nullIfBlank(input.dm_button_url),
+    dm_attachment_url: sinPrivado ? null : nullIfBlank(input.dm_attachment_url),
+    dm_attachment_type: sinPrivado
+      ? null
+      : attachmentTypeFor(
+          nullIfBlank(input.dm_attachment_url),
+          input.dm_attachment_type,
+        ),
     is_active: input.is_active ?? true,
     priority: typeof input.priority === 'number' ? input.priority : 100,
   };

@@ -896,6 +896,7 @@ export const settings = {
     es: "Comentarios de Instagram y Facebook",
     en: "Instagram and Facebook comments",
   },
+  c2dmTtComment: { es: "Comentarios de TikTok", en: "TikTok comments" },
   c2dmKeywordsLabel: { es: "Palabras clave", en: "Keywords" },
   c2dmKeywordsHint: {
     es: "Separadas por coma. Vacío: cualquier comentario.",
@@ -935,6 +936,8 @@ export const settings = {
   c2dmEmpty: { es: "Sin reglas.", en: "No rules." },
   c2dmActionReplyAndDm: { es: "responde y manda DM", en: "public reply + DM" },
   c2dmActionDmOnly: { es: "manda DM", en: "DM only" },
+  // TikTok no tiene privado: la regla sólo puede publicar bajo el video.
+  c2dmActionReplyOnly: { es: "responde en el video", en: "replies on the video" },
   c2dmOnePostOnly: { es: "un solo post", en: "one post only" },
   c2dmPostLabel: { es: "Post", en: "Post" },
   c2dmPostPlaceholder: { es: "Todos los posts", en: "All posts" },
@@ -943,6 +946,15 @@ export const settings = {
   c2dmPublicRepliesLabel: {
     es: "Respuesta pública (opcional)",
     en: "Public reply (optional)",
+  },
+  // En TikTok es lo único que la regla puede hacer, así que deja de ser opcional.
+  c2dmPublicRepliesRequiredLabel: {
+    es: "Respuesta pública",
+    en: "Public reply",
+  },
+  c2dmPublicReplyRequired: {
+    es: "Escribe la respuesta que se publica",
+    en: "Write the reply that gets posted",
   },
   c2dmPublicRepliesHint: {
     es: "Una por línea; rotamos al azar.",

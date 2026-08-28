@@ -26,14 +26,16 @@ import { loadCommentSettings } from '@/lib/instagram-agent/controls';
  * Las respuestas dentro de un hilo pasan por el mismo camino: el agente lee lo
  * que ya se dijeron bajo ese post y continúa desde ahí.
  *
- * Solo Instagram llega al paso 2: en Facebook no existe la respuesta privada
- * por comentario que el agente necesita, así que ahí manda solo el paso 1.
+ * Las tres redes pasan por los dos pasos. TikTok con una diferencia que no es
+ * una limitación de Riverz sino de TikTok: no tiene privado (su API de
+ * mensajes está cerrada a terceros), así que ahí todo lo que se conteste se
+ * publica bajo el video.
  */
 export async function routeComment(
   db: SupabaseClient,
   ev: {
     workspaceId: string;
-    channel: 'ig_comment' | 'fb_comment';
+    channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment';
     connection: ChannelConnection;
     contact: { id: string; external_id: string | null; name: string | null };
     commentId: string | null;
@@ -69,7 +71,12 @@ export async function routeComment(
   //    reglas no pasan por acá: las escribió una persona para una red concreta
   //    y valen aunque la IA no trabaje ahí.
   const cfg = await loadCommentSettings(db, ev.workspaceId);
-  const redActiva = ev.channel === 'fb_comment' ? cfg.facebook : cfg.instagram;
+  const redActiva =
+    ev.channel === 'fb_comment'
+      ? cfg.facebook
+      : ev.channel === 'tiktok_comment'
+        ? cfg.tiktok
+        : cfg.instagram;
   if (!redActiva) return;
   try {
     await maybeInstantOutreach(db, {

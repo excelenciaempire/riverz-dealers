@@ -220,7 +220,14 @@ export const igAgent = {
   networksLabel: { es: "En qué redes", en: "Which networks" },
   network_instagram: { es: "Instagram", en: "Instagram" },
   network_facebook: { es: "Facebook", en: "Facebook" },
-  network_both: { es: "Las dos", en: "Both" },
+  network_tiktok: { es: "TikTok", en: "TikTok" },
+  // TikTok no tiene privado: su API de mensajes está cerrada a terceros. Sin
+  // este aviso, elegir "Solo por privado" con TikTok encendido sorprende con
+  // respuestas públicas bajo el video.
+  tiktokPublicOnly: {
+    es: "En TikTok siempre contesta en el comentario: no tiene privado.",
+    en: "On TikTok it always replies on the comment: there are no DMs.",
+  },
 
   // Order attribution ledger
   attributedOrdersTitle: {

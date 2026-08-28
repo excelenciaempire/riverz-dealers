@@ -1354,12 +1354,14 @@ export type CommentAudience = 'intent' | 'all';
 export type CommentReplyMode = 'dm' | 'public_dm' | 'public_smart' | 'public';
 
 /**
- * En qué redes trabaja Comentarios (migración 203). Antes Instagram estaba
- * clavado y Facebook era un "también" al final de la pantalla: no había forma
- * de decir "solo Facebook", y la decisión —que es la primera que se toma—
- * estaba escrita como la última.
+ * En qué redes trabaja Comentarios (migraciones 203 y 204). Antes Instagram
+ * estaba clavado y Facebook era un "también" al final de la pantalla: no había
+ * forma de decir "solo Facebook", y la decisión —que es la primera que se
+ * toma— estaba escrita como la última.
+ *
+ * Se eligen varias: son independientes, no tres respuestas a una sola pregunta.
  */
-export type CommentNetworks = 'instagram' | 'facebook' | 'both';
+export type CommentNetwork = 'instagram' | 'facebook' | 'tiktok';
 
 export interface ProactiveSettings {
   loaded: boolean;
@@ -1373,8 +1375,8 @@ export interface ProactiveSettings {
   maxThreadReplies: number;
   /** Qué sale cuando contesta: público, privado o las dos (migración 177). */
   replyMode: CommentReplyMode;
-  /** En qué redes trabaja (migración 203). */
-  networks: CommentNetworks;
+  /** En qué redes trabaja. Nunca vacío. */
+  networks: CommentNetwork[];
   /** Pide permiso para escribir fuera de la ventana de Meta (migración 148). */
   marketingOptin: boolean;
   setPaused: (v: boolean) => void;
@@ -1384,7 +1386,7 @@ export interface ProactiveSettings {
   setAudience: (v: CommentAudience) => void;
   setMaxThreadReplies: (v: number) => void;
   setReplyMode: (v: CommentReplyMode) => void;
-  setNetworks: (v: CommentNetworks) => void;
+  setNetworks: (v: CommentNetwork[]) => void;
   setMarketingOptin: (v: boolean) => void;
   save: (next: {
     paused?: boolean;
@@ -1396,6 +1398,7 @@ export interface ProactiveSettings {
     comment_reply_mode?: CommentReplyMode;
     comment_instagram?: boolean;
     comment_facebook?: boolean;
+    comment_tiktok?: boolean;
     marketing_optin_enabled?: boolean;
   }) => void;
 }
@@ -1409,7 +1412,7 @@ export function useProactiveSettings(): ProactiveSettings {
   const [audience, setAudience] = useState<CommentAudience>('intent');
   const [maxThreadReplies, setMaxThreadReplies] = useState(3);
   const [replyMode, setReplyMode] = useState<CommentReplyMode>('dm');
-  const [networks, setNetworks] = useState<CommentNetworks>('instagram');
+  const [networks, setNetworks] = useState<CommentNetwork[]>(['instagram']);
   // Pedir permiso para escribir fuera de la ventana. Arranca APAGADO: es una
   // burbuja más que el cliente recibe, no algo que se le agregue solo.
   const [marketingOptin, setMarketingOptin] = useState(false);
@@ -1439,7 +1442,11 @@ export function useProactiveSettings(): ProactiveSettings {
                 : 'dm',
           );
           setNetworks(
-            networksFrom(j.comment_instagram !== false, j.comment_facebook === true),
+            networksFrom({
+              instagram: j.comment_instagram !== false,
+              facebook: j.comment_facebook === true,
+              tiktok: j.comment_tiktok === true,
+            }),
           );
           setMarketingOptin(j.marketing_optin_enabled === true);
           setLoaded(true);
@@ -1462,6 +1469,7 @@ export function useProactiveSettings(): ProactiveSettings {
       comment_reply_mode?: CommentReplyMode;
       comment_instagram?: boolean;
       comment_facebook?: boolean;
+      comment_tiktok?: boolean;
       marketing_optin_enabled?: boolean;
     }) => {
       void fetchWithCsrf('/api/ai/instagram-agent/settings', {
@@ -1612,30 +1620,48 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
         <p className="text-[13px] font-medium text-foreground">
           {t('igAgent.networksLabel')}
         </p>
-        <div className="mt-2 flex gap-1.5">
-          {NETWORKS.map((net) => (
-            <button
-              key={net}
-              type="button"
-              onClick={() => {
-                settings.setNetworks(net);
-                settings.save({
-                  comment_instagram: net !== 'facebook',
-                  comment_facebook: net !== 'instagram',
-                });
-              }}
-              aria-pressed={settings.networks === net}
-              className={cn(
-                'rounded-lg border px-3 py-1.5 text-[13px] transition-colors',
-                settings.networks === net
-                  ? 'border-accent-ink/40 bg-accent/40 font-medium text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-accent/20',
-              )}
-            >
-              {t(`igAgent.network_${net}`)}
-            </button>
-          ))}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {NETWORKS.map((net) => {
+            const on = settings.networks.includes(net);
+            return (
+              <button
+                key={net}
+                type="button"
+                onClick={() => {
+                  const next = on
+                    ? settings.networks.filter((n) => n !== net)
+                    : [...settings.networks, net];
+                  // Apagarlas todas dejaría "Responder con IA" encendido sin
+                  // ningún lado donde contestar: la última no se apaga.
+                  if (next.length === 0) return;
+                  settings.setNetworks(next);
+                  settings.save({
+                    comment_instagram: next.includes('instagram'),
+                    comment_facebook: next.includes('facebook'),
+                    comment_tiktok: next.includes('tiktok'),
+                  });
+                }}
+                aria-pressed={on}
+                className={cn(
+                  'rounded-lg border px-3 py-1.5 text-[13px] transition-colors',
+                  on
+                    ? 'border-accent-ink/40 bg-accent/40 font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/20',
+                )}
+              >
+                {t(`igAgent.network_${net}`)}
+              </button>
+            );
+          })}
         </div>
+        {/* Lo único que hay que saber de TikTok, y sólo cuando está elegido:
+            sin esto, elegir "Solo por privado" con TikTok encendido sorprende
+            con respuestas públicas bajo el video. */}
+        {settings.networks.includes('tiktok') && (
+          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+            {t('igAgent.tiktokPublicOnly')}
+          </p>
+        )}
       </div>
 
       <OptionRow
@@ -1688,13 +1714,13 @@ const REPLY_MODES: CommentReplyMode[] = [
   'public_smart',
 ];
 
-/** Las tres respuestas a "En qué redes". */
-const NETWORKS: CommentNetworks[] = ['instagram', 'facebook', 'both'];
+/** Las redes con comentarios, en el orden en que se leen. */
+const NETWORKS: CommentNetwork[] = ['instagram', 'facebook', 'tiktok'];
 
-/** Las dos columnas de la BD, leídas como una sola decisión. */
-function networksFrom(instagram: boolean, facebook: boolean): CommentNetworks {
-  if (instagram && facebook) return 'both';
-  return facebook ? 'facebook' : 'instagram';
+/** Las columnas de la BD, leídas como una sola lista. Nunca devuelve vacío. */
+function networksFrom(on: Record<CommentNetwork, boolean>): CommentNetwork[] {
+  const list = NETWORKS.filter((n) => on[n]);
+  return list.length > 0 ? list : ['instagram'];
 }
 
 /** Una opción de "dónde contesta". Se elige una, como una radio. */

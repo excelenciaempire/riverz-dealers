@@ -51,8 +51,11 @@ import { cn } from "@/lib/utils";
  * src/lib/comment-to-dm/engine.ts.
  */
 
-/** Dónde escucha una regla: una red, o las dos (migración 203). */
-type CommentChannel = "ig_comment" | "fb_comment" | "both";
+/** Dónde escucha una regla: una red, o las dos de Meta (migraciones 203/204). */
+type CommentChannel = "ig_comment" | "fb_comment" | "both" | "tiktok_comment";
+
+/** TikTok no tiene privado: una regla suya sólo puede publicar bajo el video. */
+const sinPrivado = (c: CommentChannel) => c === "tiktok_comment";
 
 interface RuleRow {
   id: string;
@@ -206,6 +209,14 @@ export function CommentToDmPanel() {
   );
 }
 
+/** Cómo se nombra cada red en el resumen de una fila. */
+const CHANNEL_SUMMARY: Record<CommentChannel, string> = {
+  ig_comment: "Instagram",
+  fb_comment: "Facebook",
+  tiktok_comment: "TikTok",
+  both: "Instagram y Facebook",
+};
+
 /** Una fila = una frase. Dónde · con qué palabras · qué hace. */
 function RuleLine({
   rule,
@@ -228,17 +239,15 @@ function RuleLine({
 }) {
   const t = useT();
   const summary = [
-    rule.channel === "both"
-      ? t("settings.c2dmBothComments")
-      : rule.channel === "ig_comment"
-        ? "Instagram"
-        : "Facebook",
+    CHANNEL_SUMMARY[rule.channel] ?? "Instagram",
     rule.keywords.length > 0
       ? rule.keywords.map((k) => `«${k}»`).join(", ")
       : t("settings.c2dmKeywordsAny"),
-    rule.public_reply_enabled
-      ? t("settings.c2dmActionReplyAndDm")
-      : t("settings.c2dmActionDmOnly"),
+    sinPrivado(rule.channel)
+      ? t("settings.c2dmActionReplyOnly")
+      : rule.public_reply_enabled
+        ? t("settings.c2dmActionReplyAndDm")
+        : t("settings.c2dmActionDmOnly"),
     ...(rule.post_id ? [t("settings.c2dmOnePostOnly")] : []),
   ].join(" · ");
 
@@ -358,6 +367,7 @@ function RuleEditor({
       ig_comment: t("settings.c2dmIgComment"),
       fb_comment: t("settings.c2dmFbComment"),
       both: t("settings.c2dmBothComments"),
+      tiktok_comment: t("settings.c2dmTtComment"),
     }),
     [t],
   );
@@ -381,7 +391,13 @@ function RuleEditor({
       toast.error(t("settings.giveItAName"));
       return;
     }
-    if (!draft.dm_message.trim()) {
+    // En TikTok no hay privado: lo obligatorio es lo que se publica.
+    if (sinPrivado(draft.channel)) {
+      if (!draft.public_reply_templates.trim()) {
+        toast.error(t("settings.c2dmPublicReplyRequired"));
+        return;
+      }
+    } else if (!draft.dm_message.trim()) {
       toast.error(t("settings.c2dmDmMessageRequired"));
       return;
     }
@@ -477,6 +493,9 @@ function RuleEditor({
                   <SelectItem value="both">
                     {t("settings.c2dmBothComments")}
                   </SelectItem>
+                  <SelectItem value="tiktok_comment">
+                    {t("settings.c2dmTtComment")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
@@ -504,49 +523,60 @@ function RuleEditor({
             <div className="space-y-3">
               <p className="app-eyebrow">{t("settings.c2dmSectionWhat")}</p>
 
-              <Field label={t("settings.c2dmDmMessageLabel")}>
-                <Textarea
-                  value={draft.dm_message}
-                  onChange={(e) => set("dm_message", e.target.value)}
-                  placeholder={t("settings.c2dmDmMessagePlaceholder")}
-                  rows={3}
-                />
-              </Field>
+              {/* En TikTok no hay privado, así que estos campos no se muestran:
+                  pedir un mensaje que no se puede mandar es peor que no
+                  ofrecerlo. Queda sólo lo que sí se publica. */}
+              {!sinPrivado(draft.channel) && (
+                <>
+                  <Field label={t("settings.c2dmDmMessageLabel")}>
+                    <Textarea
+                      value={draft.dm_message}
+                      onChange={(e) => set("dm_message", e.target.value)}
+                      placeholder={t("settings.c2dmDmMessagePlaceholder")}
+                      rows={3}
+                    />
+                  </Field>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label={t("settings.c2dmButtonLabelLabel")}>
-                  <Input
-                    value={draft.dm_button_label}
-                    onChange={(e) => set("dm_button_label", e.target.value)}
-                  />
-                </Field>
-                <Field label={t("settings.c2dmButtonUrlLabel")}>
-                  <Input
-                    value={draft.dm_button_url}
-                    onChange={(e) => set("dm_button_url", e.target.value)}
-                    placeholder="https://"
-                    className="font-mono text-xs"
-                  />
-                </Field>
-              </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label={t("settings.c2dmButtonLabelLabel")}>
+                      <Input
+                        value={draft.dm_button_label}
+                        onChange={(e) => set("dm_button_label", e.target.value)}
+                      />
+                    </Field>
+                    <Field label={t("settings.c2dmButtonUrlLabel")}>
+                      <Input
+                        value={draft.dm_button_url}
+                        onChange={(e) => set("dm_button_url", e.target.value)}
+                        placeholder="https://"
+                        className="font-mono text-xs"
+                      />
+                    </Field>
+                  </div>
 
-              <Field
-                label={t("settings.c2dmAttachmentLabel")}
-                hint={t("settings.c2dmAttachmentHint")}
-              >
-                <Input
-                  value={draft.dm_attachment_url}
-                  onChange={(e) => set("dm_attachment_url", e.target.value)}
-                  placeholder="https://"
-                  className="font-mono text-xs"
-                />
-              </Field>
+                  <Field
+                    label={t("settings.c2dmAttachmentLabel")}
+                    hint={t("settings.c2dmAttachmentHint")}
+                  >
+                    <Input
+                      value={draft.dm_attachment_url}
+                      onChange={(e) => set("dm_attachment_url", e.target.value)}
+                      placeholder="https://"
+                      className="font-mono text-xs"
+                    />
+                  </Field>
+                </>
+              )}
 
               {/* Un solo control: lo que escribas acá se publica bajo el
                   comentario; vacío, la regla sólo manda el DM. El interruptor
                   aparte se podía dejar encendido sin nada que publicar. */}
               <Field
-                label={t("settings.c2dmPublicRepliesLabel")}
+                label={
+                  sinPrivado(draft.channel)
+                    ? t("settings.c2dmPublicRepliesRequiredLabel")
+                    : t("settings.c2dmPublicRepliesLabel")
+                }
                 hint={t("settings.c2dmPublicRepliesHint")}
               >
                 <Textarea
@@ -633,6 +663,7 @@ function RulePreview({ draft }: { draft: RuleDraft }) {
           </div>
         )}
 
+        {!sinPrivado(draft.channel) && (
         <div>
           <p className="text-[10px] text-muted-foreground">
             {t("settings.c2dmPreviewDm")}
@@ -657,6 +688,7 @@ function RulePreview({ draft }: { draft: RuleDraft }) {
             )}
           </div>
         </div>
+        )}
       </div>
     </aside>
   );

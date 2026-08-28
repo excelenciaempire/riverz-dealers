@@ -91,9 +91,15 @@ export interface CommentReplySettings {
   replyMode: CommentReplyMode;
   /** Además del DM, publicar una respuesta en el propio comentario. */
   publicReply: boolean;
-  /** En qué redes trabaja (migración 203). Al menos una está siempre encendida. */
+  /** En qué redes trabaja (migraciones 203 y 204). Al menos una encendida. */
   instagram: boolean;
   facebook: boolean;
+  /**
+   * TikTok no tiene privado —su API de mensajes está cerrada a terceros—, así
+   * que ahí la respuesta es SIEMPRE pública, sea cual sea `replyMode`. Y por
+   * eso arranca apagado: lo que publica lo lee cualquiera que pase por el video.
+   */
+  tiktok: boolean;
 }
 
 export const COMMENT_REPLY_MODES: CommentReplyMode[] = [
@@ -110,7 +116,7 @@ export async function loadCommentSettings(
   const { data } = await db
     .from('ig_proactive_settings')
     .select(
-      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_instagram, comment_facebook, comment_reply_mode',
+      'comment_audience, comment_max_thread_replies, comment_public_reply, comment_instagram, comment_facebook, comment_tiktok, comment_reply_mode',
     )
     .eq('workspace_id', workspaceId)
     .maybeSingle();
@@ -120,6 +126,7 @@ export async function loadCommentSettings(
     comment_public_reply?: boolean | null;
     comment_instagram?: boolean | null;
     comment_facebook?: boolean | null;
+    comment_tiktok?: boolean | null;
     comment_reply_mode?: string | null;
   } | null;
   // Sin modo guardado (fila vieja, migración sin aplicar) se deriva del
@@ -144,6 +151,7 @@ export async function loadCommentSettings(
     // Instagram, que es lo que hacía antes de que la pregunta existiera.
     instagram: s?.comment_instagram !== false,
     facebook: s?.comment_facebook === true,
+    tiktok: s?.comment_tiktok === true,
   };
 }
 

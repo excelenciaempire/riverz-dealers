@@ -72,7 +72,7 @@ export interface SuperAgentInput {
   /** El contacto del canal de comentarios que acaba de comentar. */
   commentContactId: string;
   /** En qué red está su hilo de comentarios. */
-  commentChannel?: 'ig_comment' | 'fb_comment';
+  commentChannel?: 'ig_comment' | 'fb_comment' | 'tiktok_comment';
   /** Lo que escribió en el comentario. */
   commentText: string;
   /** Lo que el llamador ya averiguó (estado del pedido, cerebro del producto,
