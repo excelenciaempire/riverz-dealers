@@ -65,6 +65,10 @@ export default function AiAgentsPage() {
   const params = useSearchParams();
   const agenteEnLaUrl = params.get('agent');
   const solapaEnLaUrl = params.get('tab');
+  // La solapa con la que se abre el editor cuando se pide desde una tarjeta.
+  // Va por estado y no por la URL porque es un gesto de esta pantalla, no una
+  // dirección que alguien vaya a compartir.
+  const [solapaPedida, setSolapaPedida] = useState<'stats' | undefined>(undefined);
   // Una sola vez: si no, cerrar el editor con el parámetro todavía en la URL
   // lo volvía a abrir en el acto y no había forma de salir.
   const yaAbierto = useRef(false);
@@ -184,6 +188,10 @@ export default function AiAgentsPage() {
               key={agent.id}
               agent={agent}
               onEdit={() => setEditing(agent)}
+              onStats={() => {
+                setSolapaPedida('stats');
+                setEditing(agent);
+              }}
               onToggle={() => toggleActive(agent)}
               onDelete={() => handleDelete(agent)}
             />
@@ -218,15 +226,19 @@ export default function AiAgentsPage() {
           workspaceId={workspace.id}
           agent={editing === 'new' ? null : editing}
           initialTab={
-            solapaEnLaUrl === 'voice' ||
+            solapaPedida ??
+            (solapaEnLaUrl === 'voice' ||
             solapaEnLaUrl === 'tools' ||
             solapaEnLaUrl === 'reach' ||
             solapaEnLaUrl === 'advanced' ||
             solapaEnLaUrl === 'stats'
               ? solapaEnLaUrl
-              : undefined
+              : undefined)
           }
-          onClose={() => setEditing(null)}
+          onClose={() => {
+            setSolapaPedida(undefined);
+            setEditing(null);
+          }}
           onSaved={(saved) => {
             applySavedAgent(saved);
             setEditing(null);
@@ -245,11 +257,13 @@ export default function AiAgentsPage() {
 function AgentCard({
   agent,
   onEdit,
+  onStats,
   onToggle,
   onDelete,
 }: {
   agent: AgentSummary;
   onEdit: () => void;
+  onStats: () => void;
   onToggle: () => void;
   onDelete: () => void;
 }) {
@@ -334,7 +348,13 @@ function AgentCard({
       )}
 
       <div className="flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
-        <span className="capitalize">{agent.tone}</span>
+        <button
+          type="button"
+          onClick={onStats}
+          className="rounded px-1 -mx-1 hover:text-foreground hover:underline"
+        >
+          {t('assistant.tabStats')}
+        </button>
         <div className="flex items-center gap-2">
           <TooltipProvider delay={150}>
             <Tooltip>
