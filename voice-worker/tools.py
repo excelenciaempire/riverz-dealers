@@ -128,11 +128,22 @@ def _generic_tool(api, call_state: CallState, spec: dict):
     )
 
 
-# Las que están escritas a mano más abajo. Se dejan mandar a ellas: son el
-# camino probado, y el genérico se reserva para todo lo demás. Si el esquema
-# crudo tuviera un problema en alguna versión de livekit-agents, el teléfono
-# conserva igual lo esencial —pedido, checkout, crear pedido, WhatsApp— en vez
-# de quedarse sin nada.
+# Las que están escritas a mano más abajo. YA NO se les da prioridad: son la
+# red de abajo, no el camino.
+#
+# Antes estas cinco se salteaban el esquema del backend y usaban la copia
+# escrita acá. Esa copia se congeló el día que se escribió: el
+# `create_checkout` de abajo no conoce el enum de ofertas del comercio ni el
+# descuento por transferencia, y el `lookup_order` no sabe que puede buscar
+# por teléfono. Por chat el modelo recibía la descripción real y por teléfono
+# una versión pobre de la misma herramienta — la clase de diferencia que no
+# falla, sólo contesta peor, y por eso nadie la ve.
+#
+# Ahora TODAS se arman desde el esquema. Las de abajo siguen existiendo y se
+# activan solas si `_generic_tool` falla para ese nombre (una versión de
+# livekit-agents sin `raw_schema`, un esquema torcido): `enabled` se recorta
+# con las que sí se armaron, así que el bloque a mano cubre exactamente el
+# hueco. El teléfono nunca se queda sin lo esencial.
 _A_MANO = {
     "lookup_order",
     "create_checkout",
@@ -155,14 +166,14 @@ def build_tools(
     enabled = set(tools_enabled or [])
     tools: list = []
 
-    # Camino nuevo: el backend manda el esquema de cada herramienta y se arman
-    # genéricamente. Si algo falla —una versión de livekit-agents sin
-    # `raw_schema`, un esquema torcido— se cae a las escritas a mano de abajo,
-    # que cubren lo esencial. Nunca se queda sin herramientas por esto.
+    # El backend manda el esquema de cada herramienta y se arman genéricamente.
+    # TODAS, incluidas las cinco que además están escritas a mano abajo: el
+    # esquema del backend es la única fuente, y la copia local sólo entra si
+    # armarla desde el esquema falla. Ver `_A_MANO`.
     hechas: set[str] = set()
     for spec in tool_specs or []:
         nombre = spec.get("name")
-        if not nombre or nombre in _A_MANO:
+        if not nombre:
             continue
         try:
             tools.append(_generic_tool(api, call_state, spec))
@@ -172,6 +183,12 @@ def build_tools(
                            nombre, exc_info=True)
     if hechas:
         logger.info("tools desde esquema: %s", ", ".join(sorted(hechas)))
+    # Sólo las que el backend habilitó y el esquema no pudo armar: ésas son las
+    # que van a salir de la copia local, y conviene verlo en el log.
+    faltantes = (enabled & _A_MANO) - hechas
+    if faltantes:
+        logger.warning("tools a mano (el esquema no alcanzó): %s",
+                       ", ".join(sorted(faltantes)))
     enabled -= hechas
 
     # --- Tools de negocio (subconjunto) ---

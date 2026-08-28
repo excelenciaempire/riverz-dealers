@@ -5,7 +5,10 @@ import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import { resolveShopifyContext } from '@/lib/ai/runner';
-import { AGENT_TOOLBOX, toolMode } from '@/lib/ai/toolbox';
+import { AGENT_TOOLBOX, toolEnabled, toolMode } from '@/lib/ai/toolbox';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { buscarEnInternet } from '@/lib/ai/busqueda-web';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { runTool } from '@/lib/ai/tools';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -86,6 +89,32 @@ export async function POST(request: Request) {
         input?.scenario ?? null,
       );
       return NextResponse.json(sent);
+    }
+
+    // Internet durante la llamada. Por chat la búsqueda la resuelve Anthropic
+    // dentro del mismo turno, pero el teléfono corre sobre otro modelo, así que
+    // por ahí no le llegaba: era el único canal que no podía mirar afuera. Acá
+    // la corre el servidor y devuelve texto, que es lo que el worker sabe
+    // manejar. Tampoco pasa por `runTool`: no toca la tienda.
+    if (body.tool === 'buscar_en_internet') {
+      const input = body.input as { consulta?: string; query?: string } | null;
+      const consulta = (input?.consulta ?? input?.query ?? '').trim();
+      if (!consulta) return NextResponse.json({ ok: false, error: 'consulta_required' });
+      if (!agente || !toolEnabled(agente, 'buscar_en_internet')) {
+        return NextResponse.json({ ok: false, error: 'tool_disabled' });
+      }
+      const resolved = await resolveAnthropicKey(db, {
+        workspaceId: call.workspace_id,
+        agentKeyEncrypted: agente.api_key_encrypted ?? null,
+      });
+      if (!resolved) return NextResponse.json({ ok: false, error: 'no_api_key' });
+      const texto = await buscarEnInternet({
+        client: getAnthropic(resolved.key),
+        model: agente.model || 'claude-sonnet-5',
+        consulta,
+        idioma: agente.language || undefined,
+      });
+      return NextResponse.json({ ok: true, result: texto });
     }
 
     const shopify = await resolveShopifyContext(db, call.workspace_id, contact, null);

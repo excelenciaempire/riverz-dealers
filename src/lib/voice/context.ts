@@ -22,6 +22,8 @@ import {
   resolveShopifyContext,
   type LoadedContext,
 } from '@/lib/ai/runner';
+import { BUSCAR_EN_INTERNET_TOOL } from '@/lib/ai/busqueda-web';
+import { toolEnabled } from '@/lib/ai/toolbox';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -534,7 +536,7 @@ export async function buildVoiceContext(
       })();
   const topeDescuento = await topeDeDescuento(db, call.workspace_id).catch(() => 0);
 
-  const NO_EN_LLAMADA = new Set(['escalate_to_call', 'buscar_en_internet']);
+  const NO_EN_LLAMADA = new Set(['escalate_to_call']);
   const herramientas = construirHerramientas({
     agent,
     hayContacto: true,
@@ -543,8 +545,9 @@ export async function buildVoiceContext(
     voiceCtx: null,
     topeDescuento,
   })
-    // Sólo las de esquema propio: las de servidor (búsqueda web) no se pueden
-    // reenviar por el puente del worker.
+    // Sólo las de esquema propio. La de servidor —la búsqueda web— no tiene
+    // `input_schema` y se cae acá; vuelve más abajo por el puente, como una
+    // herramienta común.
     .map((t) => t as unknown as { name?: string; description?: string; input_schema?: unknown })
     .filter(
       (t): t is { name: string; description?: string; input_schema: unknown } =>
@@ -569,7 +572,7 @@ export async function buildVoiceContext(
           {
             name: 'send_whatsapp',
             description:
-              'Envía un WhatsApp al mismo número de esta llamada. Úsalo para mandar links de pago, datos de transferencia, seguimiento del envío, información de un producto o el resumen de lo acordado: todo lo que no se pueda dictar por teléfono.',
+              'Envía un WhatsApp al mismo número de esta llamada. Úsalo para mandar links de pago, datos de transferencia, seguimiento del envío, información de un producto o el resumen de lo acordado: todo lo que no se pueda dictar por teléfono. ESPERÁ el resultado antes de decir que lo mandaste: si devuelve un error, decíselo al cliente y ofrecé otra vía.',
             parameters: {
               type: 'object',
               properties: {
@@ -597,6 +600,18 @@ export async function buildVoiceContext(
               },
               required: ['text', 'scenario'],
             },
+          },
+        ]
+      : []),
+    // Internet. La corre el servidor y vuelve como texto, así que para el
+    // worker es una herramienta común. Sigue la misma pizarra que el chat:
+    // nace apagada y se enciende por agente.
+    ...(toolEnabled(agent, 'buscar_en_internet')
+      ? [
+          {
+            name: BUSCAR_EN_INTERNET_TOOL.name,
+            description: BUSCAR_EN_INTERNET_TOOL.description ?? '',
+            parameters: BUSCAR_EN_INTERNET_TOOL.input_schema,
           },
         ]
       : []),

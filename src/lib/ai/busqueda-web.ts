@@ -59,6 +59,101 @@ export function herramientaDeBusqueda(
 }
 
 /**
+ * La misma capacidad, pero POR TELÉFONO.
+ *
+ * Arriba es una herramienta de servidor: se declara y Anthropic la resuelve
+ * dentro del mismo turno. El agente de voz no habla con Anthropic —corre sobre
+ * otro modelo, en el worker— así que por ese camino no le llega, y el teléfono
+ * era el único canal que no podía mirar afuera. Un canal no puede saber menos
+ * que otro por un detalle de quién ejecuta la búsqueda.
+ *
+ * Acá se da vuelta: la búsqueda la corre el servidor en una llamada aparte y
+ * devuelve texto, así que para el worker es una herramienta común más — entra
+ * por el mismo puente que las demás (`POST /voice/tool`).
+ *
+ * Una sola búsqueda, no tres: del otro lado hay alguien esperando en silencio
+ * al teléfono, y tres rondas de búsqueda son medio minuto de nada.
+ */
+export const BUSCAR_EN_INTERNET_TOOL: Anthropic.Tool = {
+  name: 'buscar_en_internet',
+  description:
+    'Busca un dato en internet cuando la respuesta no está en el negocio (si un ingrediente sirve para algo, si un modelo es compatible, qué dice una norma). NO la uses para precios, stock, plazos ni políticas de este negocio: eso ya lo tenés. Tarda unos segundos: decile al cliente que lo estás buscando antes de llamarla, y no te quedes callado.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      consulta: {
+        type: 'string',
+        description: 'Qué buscar, en una frase. Como lo escribirías en un buscador.',
+      },
+    },
+    required: ['consulta'],
+  },
+}
+
+/** Cuántas búsquedas en la variante hablada. Ver arriba. */
+const MAX_BUSQUEDAS_EN_LLAMADA = 1
+
+/**
+ * Corre la búsqueda del lado del servidor y devuelve texto plano.
+ *
+ * `pause_turn` se maneja igual que en `runWithTools`: el modelo se detiene a
+ * mitad de la herramienta de servidor y hay que devolverle lo que lleva para
+ * que siga. Sin eso vuelve media frase.
+ *
+ * Nunca tira: el que llama está a mitad de una llamada telefónica y un error
+ * acá no puede cortarla. Devuelve una frase que el agente puede decir.
+ */
+export async function buscarEnInternet(args: {
+  client: Anthropic
+  model: string
+  consulta: string
+  /** Idioma en el que tiene que volver el resumen. */
+  idioma?: string
+}): Promise<string> {
+  const consulta = (args.consulta ?? '').trim()
+  if (!consulta) return 'No hay nada que buscar.'
+
+  const herramienta = { ...herramientaDeBusqueda(args.model), max_uses: MAX_BUSQUEDAS_EN_LLAMADA }
+  const sistema = [
+    'Buscás un dato en internet y lo resumís para que otra persona lo diga en voz alta por teléfono.',
+    'Contestá en 2 o 3 frases cortas, sin listas, sin links y sin markdown: se va a leer en voz alta.',
+    'Nombrá la fuente en una frase ("según la web del correo", "según el fabricante").',
+    'Si no encontrás algo claro, decí exactamente eso. Inventar es peor que no saber.',
+    args.idioma ? `Respondé en ${args.idioma}.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  let messages: Anthropic.MessageParam[] = [{ role: 'user', content: consulta }]
+  try {
+    // Dos vueltas alcanzan: la que pausa para buscar y la que redacta.
+    for (let i = 0; i < 4; i++) {
+      const res = await args.client.messages.create({
+        model: args.model,
+        max_tokens: 700,
+        system: sistema,
+        tools: [herramienta as Anthropic.ToolUnion],
+        messages,
+      })
+      if (res.stop_reason === 'pause_turn') {
+        messages = [...messages, { role: 'assistant', content: res.content }]
+        continue
+      }
+      const texto = res.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim()
+      return texto || 'No encontré nada claro sobre eso.'
+    }
+    return 'La búsqueda tardó demasiado. Mejor lo revisa una persona.'
+  } catch (e) {
+    console.warn('[busqueda-web] falló la búsqueda en llamada', e)
+    return 'No pude buscarlo ahora. Decile al cliente que lo revisa una persona y seguí.'
+  }
+}
+
+/**
  * Lo que el agente tiene que saber sobre cuándo usarla.
  *
  * Sin esto el modelo busca de más: contrasta en internet un precio que tiene
