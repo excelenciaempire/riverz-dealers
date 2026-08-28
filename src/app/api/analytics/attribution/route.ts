@@ -122,6 +122,41 @@ interface AttributedOrder {
 }
 
 /**
+ * Trae TODAS las filas de una consulta, no las primeras mil.
+ *
+ * PostgREST corta en 1000 filas y no avisa: `.limit(5000)` devuelve 1000 y el
+ * código sigue como si eso fuera todo. Medido en este proyecto el 2026-08-28:
+ * el workspace tenía 1893 conversaciones con contacto y la lectura devolvía
+ * exactamente 1000, sin error. Lo que quedaba afuera eran justo las más
+ * nuevas, que son las de la gente que compró esta semana.
+ *
+ * Se pide de a 1000 con `range` hasta que un tramo venga incompleto. Hace
+ * falta un `order` estable en el llamador o dos tramos pueden traer la misma
+ * fila. El tope existe para que un error de filtro no barra la tabla entera.
+ */
+async function traerTodo<T>(
+  consulta: (
+    desde: number,
+    hasta: number,
+  ) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  tope = 50000,
+): Promise<T[]> {
+  const TRAMO = 1000;
+  const filas: T[] = [];
+  for (let desde = 0; desde < tope; desde += TRAMO) {
+    const { data, error } = await consulta(desde, desde + TRAMO - 1);
+    if (error) {
+      console.error('[atribucion] no se pudo traer un tramo:', error);
+      break;
+    }
+    const lote = data ?? [];
+    filas.push(...lote);
+    if (lote.length < TRAMO) break;
+  }
+  return filas;
+}
+
+/**
  * Cuántos pedidos viajan con su detalle.
  *
  * El total los cuenta todos; esta lista es para mirar. Mandar 3.000 renglones
@@ -356,17 +391,20 @@ export async function GET(request: Request) {
   const convDeContacto = new Map<string, string[]>();
   const contactosDeAnuncio = new Set<string>();
   {
-    const { data: convs } = await admin
-      .from('conversations')
-      .select('id, contact_id, ad_referral')
-      .eq('workspace_id', workspaceId)
-      .not('contact_id', 'is', null)
-      .limit(5000);
-    for (const c of (convs ?? []) as {
+    const convs = await traerTodo<{
       id: string;
       contact_id: string;
       ad_referral: unknown;
-    }[]) {
+    }>((desde, hasta) =>
+      admin
+        .from('conversations')
+        .select('id, contact_id, ad_referral')
+        .eq('workspace_id', workspaceId)
+        .not('contact_id', 'is', null)
+        .order('id')
+        .range(desde, hasta),
+    );
+    for (const c of convs) {
       const lista = convDeContacto.get(c.contact_id) ?? [];
       lista.push(c.id);
       convDeContacto.set(c.contact_id, lista);
@@ -456,18 +494,21 @@ export async function GET(request: Request) {
   const carritosRecordados = new Map<string, string>();
   {
     const desde = new Date(sinceMs - 30 * 86_400_000).toISOString();
-    const { data: recordados } = await admin
-      .from('shopify_checkouts')
-      .select('checkout_id, recovery_dispatched_at')
-      .eq('workspace_id', workspaceId)
-      .not('recovery_dispatched_at', 'is', null)
-      .is('recovery_last_error', null)
-      .gte('recovery_dispatched_at', desde)
-      .limit(5000);
-    for (const c of (recordados ?? []) as {
+    const recordados = await traerTodo<{
       checkout_id: string;
       recovery_dispatched_at: string;
-    }[]) {
+    }>((a, b) =>
+      admin
+        .from('shopify_checkouts')
+        .select('checkout_id, recovery_dispatched_at')
+        .eq('workspace_id', workspaceId)
+        .not('recovery_dispatched_at', 'is', null)
+        .is('recovery_last_error', null)
+        .gte('recovery_dispatched_at', desde)
+        .order('checkout_id')
+        .range(a, b),
+    );
+    for (const c of recordados) {
       carritosRecordados.set(c.checkout_id, c.recovery_dispatched_at);
     }
   }
@@ -479,14 +520,17 @@ export async function GET(request: Request) {
    */
   const pagosRecuperados = new Set<string>();
   {
-    const { data: recuperados } = await admin
-      .from('mp_rejected_payments')
-      .select('recovered_order_id')
-      .eq('workspace_id', workspaceId)
-      .not('recovered_order_id', 'is', null)
-      .gte('recovered_at', new Date(sinceMs - 30 * 86_400_000).toISOString())
-      .limit(5000);
-    for (const r of (recuperados ?? []) as { recovered_order_id: string }[]) {
+    const recuperados = await traerTodo<{ recovered_order_id: string }>((a, b) =>
+      admin
+        .from('mp_rejected_payments')
+        .select('recovered_order_id')
+        .eq('workspace_id', workspaceId)
+        .not('recovered_order_id', 'is', null)
+        .gte('recovered_at', new Date(sinceMs - 30 * 86_400_000).toISOString())
+        .order('recovered_order_id')
+        .range(a, b),
+    );
+    for (const r of recuperados) {
       pagosRecuperados.add(r.recovered_order_id);
     }
   }
@@ -663,13 +707,17 @@ export async function GET(request: Request) {
     }
     const conPersona = new Set<string>();
     if (convsDeCompradores.length > 0) {
-      const { data: humanos } = await admin
-        .from('messages')
-        .select('conversation_id')
-        .eq('sender_type', 'agent')
-        .in('conversation_id', convsDeCompradores.slice(0, 2000))
-        .limit(20000);
-      for (const m of (humanos ?? []) as { conversation_id: string | null }[]) {
+      const humanos = await traerTodo<{ conversation_id: string | null }>(
+        (a, b) =>
+          admin
+            .from('messages')
+            .select('conversation_id')
+            .eq('sender_type', 'agent')
+            .in('conversation_id', convsDeCompradores.slice(0, 2000))
+            .order('id')
+            .range(a, b),
+      );
+      for (const m of humanos) {
         if (m.conversation_id) conPersona.add(m.conversation_id);
       }
     }
@@ -758,30 +806,39 @@ async function prefetchToques(
   // Las cuatro en paralelo: son independientes y esperar una por una era la
   // otra mitad de la demora.
   const [bcs, flows, autos, convs] = await Promise.all([
-    admin
-      .from('broadcast_recipients')
-      .select('contact_id, broadcast_id, sent_at, broadcasts(name)')
-      .in('contact_id', contactIds)
-      .gte('sent_at', desde)
-      .lte('sent_at', hasta)
-      .limit(20000),
-    admin
-      .from('flow_runs')
-      .select('contact_id, flow_id, started_at, flows(name)')
-      .eq('workspace_id', workspaceId)
-      .in('contact_id', contactIds)
-      .gte('started_at', desde)
-      .lte('started_at', hasta)
-      .limit(20000),
-    admin
-      .from('automation_logs')
-      .select('contact_id, automation_id, created_at, automations(name)')
-      .eq('workspace_id', workspaceId)
-      .in('contact_id', contactIds)
-      .in('status', ['success', 'partial'])
-      .gte('created_at', desde)
-      .lte('created_at', hasta)
-      .limit(20000),
+    traerTodo((a, b) =>
+      admin
+        .from('broadcast_recipients')
+        .select('contact_id, broadcast_id, sent_at, broadcasts(name)')
+        .in('contact_id', contactIds)
+        .gte('sent_at', desde)
+        .lte('sent_at', hasta)
+        .order('sent_at')
+        .range(a, b),
+    ).then((data) => ({ data })),
+    traerTodo((a, b) =>
+      admin
+        .from('flow_runs')
+        .select('contact_id, flow_id, started_at, flows(name)')
+        .eq('workspace_id', workspaceId)
+        .in('contact_id', contactIds)
+        .gte('started_at', desde)
+        .lte('started_at', hasta)
+        .order('started_at')
+        .range(a, b),
+    ).then((data) => ({ data })),
+    traerTodo((a, b) =>
+      admin
+        .from('automation_logs')
+        .select('contact_id, automation_id, created_at, automations(name)')
+        .eq('workspace_id', workspaceId)
+        .in('contact_id', contactIds)
+        .in('status', ['success', 'partial'])
+        .gte('created_at', desde)
+        .lte('created_at', hasta)
+        .order('created_at')
+        .range(a, b),
+    ).then((data) => ({ data })),
     (async () => {
       // `ai_replies` guarda conversación, no contacto: hace falta el mapa
       // inverso para saber de quién es cada respuesta.
@@ -794,18 +851,21 @@ async function prefetchToques(
         }
       }
       if (ids.length === 0) return { data: [], deConv };
-      const { data } = await admin
-        .from('ai_replies')
-        .select('conversation_id, agent_id, created_at, ai_agents(name)')
-        .eq('workspace_id', workspaceId)
-        .eq('status', 'sent')
-        // Tope duro: `in` viaja en la URL y con miles de uuids PostgREST
-        // devuelve 414 y la lente entera se pierde en silencio.
-        .in('conversation_id', ids.slice(0, 2000))
-        .gte('created_at', desde)
-        .lte('created_at', hasta)
-        .limit(20000);
-      return { data: data ?? [], deConv };
+      const data = await traerTodo((a, b) =>
+        admin
+          .from('ai_replies')
+          .select('conversation_id, agent_id, created_at, ai_agents(name)')
+          .eq('workspace_id', workspaceId)
+          .eq('status', 'sent')
+          // Tope duro: `in` viaja en la URL y con miles de uuids PostgREST
+          // devuelve 414 y la lente entera se pierde en silencio.
+          .in('conversation_id', ids.slice(0, 2000))
+          .gte('created_at', desde)
+          .lte('created_at', hasta)
+          .order('created_at')
+          .range(a, b),
+      );
+      return { data, deConv };
     })(),
   ]);
 
