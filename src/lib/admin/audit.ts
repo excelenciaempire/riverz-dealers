@@ -67,6 +67,10 @@ export type AdminAction =
   // abrio el propio comercio. Queda escrito quien miro que, y cuando.
   | 'view.conversation_content'
   | 'view.billing'
+  // El saldo de cada proveedor. Es una lectura cara —le pregunta a seis APIs
+  // externas— y ademas dispara una llamada cobrada a Anthropic: conviene poder
+  // ver quien la pidio si alguien la deja recargando en bucle.
+  | 'view.provider_balances'
   | 'update.billing_plan'
   | 'update.billing_subscription'
   // Cargar saldo a mano y prender el corte por saldo. Regalar saldo es regalar

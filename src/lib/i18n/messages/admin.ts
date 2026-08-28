@@ -492,6 +492,27 @@ export const admin = {
     es: "Recarga la billetera de quien bajó del umbral y tiene tarjeta",
     en: "Tops up wallets that fell below their threshold and have a card",
   },
+  // ── Saldos de proveedores ──
+  sectionBalances: { es: "Saldos", en: "Balances" },
+  sectionBalancesDesc: {
+    es: "Cuánto le queda a cada proveedor que hay que recargar",
+    en: "How much is left with each provider you have to top up",
+  },
+  balancesAllGood: {
+    es: "Nada por recargar",
+    en: "Nothing to top up",
+  },
+  balancesNeedTopUp: {
+    es: "{n} para recargar",
+    en: "{n} to top up",
+  },
+  balancesTopUp: { es: "Recargar", en: "Top up" },
+  balanceState_ok: { es: "Con saldo", en: "Funded" },
+  balanceState_bajo: { es: "Bajo", en: "Low" },
+  balanceState_sin_saldo: { es: "Sin saldo", en: "Empty" },
+  balanceState_desconocido: { es: "No lo dice", en: "Not exposed" },
+  balanceState_sin_llave: { es: "Sin llave", en: "No key" },
+  balanceState_error: { es: "No respondió", en: "No answer" },
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
   walletMovements: { es: "Movimientos", en: "Movements" },
   walletNoMovements: { es: "Sin movimientos", en: "No movements" },

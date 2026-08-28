@@ -1,4 +1,5 @@
 import {
+  Battery,
   SlidersHorizontal,
   ToggleRight,
   Store,
@@ -45,6 +46,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/whatsapp": MessageCircle,
   "/admin/comercios": Store,
   "/admin/negocio": DollarSign,
+  "/admin/saldos": Battery,
   "/admin/conversaciones": MessagesSquare,
   "/admin/usuarios": Users,
   "/admin/uso": Gauge,
