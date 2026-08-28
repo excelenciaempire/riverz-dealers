@@ -136,14 +136,14 @@ function ThemeCard({
           {tagline}
         </div>
       </div>
-      {/* Mini preview: superficie, acento y borde del modo. El acento NO es
-          el mismo en los dos: sobre crema el lima pálido da 1.02:1 y no se
-          ve, así que en claro es un chartreuse oliva. */}
+      {/* Mini preview: superficie, acento y borde del modo. El acento es la
+          inversa de la superficie en cada uno: tinta sobre crema en claro,
+          crema sobre carbón en oscuro. */}
       <div className="mt-1 flex h-2 overflow-hidden rounded-full" aria-hidden>
         <span className="flex-1" style={{ background: swatch }} />
         <span
           className="w-5"
-          style={{ background: isDark ? "#f7ff9e" : "#8f9a1e" }}
+          style={{ background: isDark ? "#fafaf7" : "#1b1a17" }}
         />
         <span
           className="w-3"

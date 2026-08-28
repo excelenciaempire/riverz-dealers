@@ -62,7 +62,10 @@
  *
  * Brand DNA:
  *   - Warm cream surfaces (never pure gray), warm-charcoal ink.
- *   - Signature chartreuse-yellow accent (#f7ff9e) on dark text.
+ *   - El acento es la INVERSA de la superficie, no un color: en claro el
+ *     botón es tinta sobre crema, en oscuro crema sobre carbón. Antes era
+ *     un lima #f7ff9e que sobre crema daba 1.02:1 — invisible. El lima
+ *     sobrevive sólo como resaltador (`--marca-lima`).
  *   - Sidebar stays dark in BOTH modes (editorial contrast strip).
  *   - Inter Tight, tight negative tracking, 14px card radius.
  *
@@ -85,26 +88,19 @@ html[data-theme="light"] {
   --card-foreground: #1b1a17;
   --popover: #fbfaf5;
   --popover-foreground: #1b1a17;
-  /* El lima de marca es #f7ff9e y en oscuro da 17:1 — se ve de lejos.
-     Sobre crema daba 1.02:1: un botón lima y la tarjeta debajo eran el
-     MISMO color, así que un toggle encendido no se distinguía de uno
-     apagado. En claro el acento baja a este chartreuse oliva: misma
-     familia, 2.95:1 contra la tarjeta y 5.6:1 para la letra encima.
-     El bloque dark conserva el lima pálido intacto. */
-  --primary: #8f9a1e;
-  /* Tinta oscura encima, no blanca: sobre este oliva el blanco da 3.08:1
-     y la tinta 5.64:1. */
-  --primary-foreground: #1b1a17;
-  --primary-hover: #7f8a19;
-  --primary-soft: rgba(143, 154, 30, 0.18);
-  --primary-soft-2: rgba(143, 154, 30, 0.28);
-  /* Readable accent for TEXT/icons. The pale yellow #f7ff9e works as a
-     fill (with dark text) but is invisible as text on light surfaces,
-     so colored text/icons use this deep chartreuse instead. In dark
-     mode it becomes the original pale yellow (see dark block). */
-  /* #5e6a00 llegaba a 4.41:1 sobre `--accent`, el fondo de lo elegido, y se
-     quedaba corto justo donde más se usa (pestañas, filas activas). */
-  --accent-ink: #586300;
+  /* El acento es la INVERSA de la superficie: tinta sobre crema en claro,
+     crema sobre carbón en oscuro. Un botón es lo más oscuro de la
+     pantalla y por eso se ve primero, sin depender de un color de marca
+     que sobre crema no contrastaba (el lima daba 1.02:1). 16.6:1. */
+  --primary: #1b1a17;
+  --primary-foreground: #fbfaf5;
+  --primary-hover: #35322b;
+  --primary-soft: rgba(27, 26, 23, 0.08);
+  --primary-soft-2: rgba(27, 26, 23, 0.14);
+  /* Color de la letra y los iconos "de acento" (enlaces, "Ver plantilla").
+     Ya no es un verde: en un sistema de tinta, un enlace se distingue por
+     el subrayado y la flecha, no por teñirlo. */
+  --accent-ink: #1b1a17;
   --secondary: #edeae0;
   --secondary-foreground: #1b1a17;
   --muted: #e9e6da;
@@ -122,7 +118,7 @@ html[data-theme="light"] {
      1.6:1 sobre la tarjeta y la línea desaparecía. Los cinco pasan 4.5:1
      ahora, así que sirven también para la etiqueta del valor. El bloque
      dark tiene sus propios valores, más brillantes. */
-  --chart-1: #707817;
+  --chart-1: #35322b;
   --chart-2: #07806f;
   --chart-3: #7c3aed;
   --chart-4: #c22a6f;
@@ -132,22 +128,22 @@ html[data-theme="light"] {
   --glass-surface: color-mix(in oklab, #ffffff 72%, transparent);
   --glass-edge: color-mix(in oklab, var(--foreground) 12%, transparent);
   --glass-sheen: color-mix(in oklab, #ffffff 80%, transparent);
-  /* El lima pálido de la marca, para lo DECORATIVO: el resaltador, el halo
-     y el barrido del Operador. Esos quieren ser amarillos —un resaltador
-     oliva no se lee como resaltador— mientras que `--primary`, que es lo
-     que se toca (botón, toggle, pill activa), necesita contraste y en
-     claro es oliva. Un token para cada trabajo. */
+  /* El lima queda SÓLO para el resaltador del Operador: ahí es un
+     marcador, y un marcador es amarillo. Fuera de eso el sistema es de
+     tinta. */
   --marca-lima: #f7ff9e;
-  --halo-fuerza: 40%;
+  --halo-fuerza: 14%;
   --radius: 0.875rem;
   --sidebar: #0e0e13;
   --sidebar-foreground: #fafaf7;
-  --sidebar-primary: #f7ff9e;
-  --sidebar-primary-foreground: #0a0a0a;
+  /* La tira lateral es oscura en los dos modos, así que su pastilla activa
+     invierte igual: crema sobre carbón. */
+  --sidebar-primary: #fafaf7;
+  --sidebar-primary-foreground: #0e0e13;
   --sidebar-accent: #1a1a22;
   --sidebar-accent-foreground: #fafaf7;
   --sidebar-border: #1a1a22;
-  --sidebar-ring: #f7ff9e;
+  --sidebar-ring: #fafaf7;
 }
 
 html[data-theme="dark"] {
@@ -157,14 +153,14 @@ html[data-theme="dark"] {
   --card-foreground: #fafaf7;
   --popover: #15151a;
   --popover-foreground: #fafaf7;
-  --primary: #f7ff9e;
+  /* La misma inversión, al revés: en oscuro el botón es lo más CLARO de la
+     pantalla. 17.4:1. */
+  --primary: #fafaf7;
   --primary-foreground: #0a0a0a;
-  --primary-hover: #f1fa84;
-  --primary-soft: rgba(247, 255, 158, 0.16);
-  --primary-soft-2: rgba(247, 255, 158, 0.26);
-  /* On dark surfaces the pale yellow reads fine as text, so accent-ink
-     matches --primary — preserves the original dark-theme look. */
-  --accent-ink: #f7ff9e;
+  --primary-hover: #e6e4dc;
+  --primary-soft: rgba(250, 250, 247, 0.12);
+  --primary-soft-2: rgba(250, 250, 247, 0.2);
+  --accent-ink: #fafaf7;
   --secondary: #1a1a22;
   --secondary-foreground: #fafaf7;
   --muted: #1a1a22;
@@ -174,8 +170,8 @@ html[data-theme="dark"] {
   --destructive: oklch(0.704 0.191 22.216);
   --border: #25252e;
   --input: #2a2a33;
-  --ring: #f7ff9e;
-  --chart-1: #c9d23f;
+  --ring: #fafaf7;
+  --chart-1: #d9d9d2;
   --chart-2: #14e0cc;
   --chart-3: #8b5cf6;
   --chart-4: #f472b6;
@@ -188,12 +184,12 @@ html[data-theme="dark"] {
   --halo-fuerza: 16%;
   --sidebar: #06060a;
   --sidebar-foreground: #fafaf7;
-  --sidebar-primary: #f7ff9e;
-  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-primary: #fafaf7;
+  --sidebar-primary-foreground: #06060a;
   --sidebar-accent: #15151a;
   --sidebar-accent-foreground: #fafaf7;
   --sidebar-border: #15151a;
-  --sidebar-ring: #f7ff9e;
+  --sidebar-ring: #fafaf7;
 }
 
 @layer base {
@@ -474,7 +470,7 @@ html[data-theme="dark"] {
   .app-halo {
     background: radial-gradient(
       760px 420px at 22% -8%,
-      color-mix(in oklab, var(--marca-lima) var(--halo-fuerza), transparent),
+      color-mix(in oklab, var(--primary) var(--halo-fuerza), transparent),
       transparent 70%
     );
   }
@@ -602,7 +598,7 @@ html[data-theme="dark"] {
     background: linear-gradient(
       100deg,
       transparent 20%,
-      color-mix(in oklab, var(--marca-lima) 16%, transparent) 45%,
+      color-mix(in oklab, var(--foreground) 10%, transparent) 45%,
       transparent 70%
     );
     transform: translateX(-100%);

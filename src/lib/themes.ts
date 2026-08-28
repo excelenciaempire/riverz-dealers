@@ -60,7 +60,7 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
     id: "light",
     name: "Claro",
-    tagline: "Crema editorial — superficies cálidas, tinta carbón, acento lima.",
+    tagline: "Crema editorial — superficies cálidas y tinta carbón.",
     swatch: "#f5f3ec",
   },
   {
