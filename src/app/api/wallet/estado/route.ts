@@ -53,6 +53,9 @@ export async function GET(request: Request) {
       moneda: billetera.moneda,
       bloquearSinSaldo: billetera.bloquearSinSaldo && !exenta,
       exenta,
+      // A esta cuenta se le pasa el costo sin margen: la lista de tarifas de
+      // abajo es referencia, no lo que se le descuenta.
+      aCosto: billetera.cobrarACosto,
       // La recarga automática, tal como la ve el comercio.
       auto: {
         tieneTarjeta: billetera.tieneTarjeta,

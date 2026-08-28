@@ -38,6 +38,8 @@ interface Estado {
   bloquearSinSaldo: boolean;
   /** Cuenta de cortesía: no gasta saldo y nunca se le apaga la IA. */
   exenta: boolean;
+  /** Se le descuenta el costo real, sin margen. */
+  aCosto: boolean;
   resumen: {
     rango: { desde: string; hasta: string };
     cargadoCentavos: number;
@@ -646,6 +648,14 @@ export function WalletPanel() {
         <h3 className="text-sm font-semibold text-foreground">
           {t('settings.walletRates')}
         </h3>
+        {/* Con el costo pasado sin margen, la lista de abajo deja de ser lo que
+            se cobra. Decirlo es lo único honesto: si no, el primer resumen que
+            no coincida con esta tabla parece un error de facturación. */}
+        {e.aCosto && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('settings.walletAtCostNote')}
+          </p>
+        )}
         <ul className="mt-3 space-y-1.5 text-sm">
           {e.tarifas.map((tar) => (
             <li key={tar.concepto} className="flex justify-between gap-3">

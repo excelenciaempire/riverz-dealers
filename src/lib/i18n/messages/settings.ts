@@ -1042,6 +1042,10 @@ export const settings = {
   walletPrev: { es: "Anterior", en: "Previous" },
   walletNext: { es: "Siguiente", en: "Next" },
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
+  walletAtCostNote: {
+    es: "Tu cuenta paga el costo real, sin margen. Estos precios son de referencia.",
+    en: "Your account pays the real cost, with no margin. These prices are a reference.",
+  },
 
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },
