@@ -100,6 +100,12 @@ export const webchat = {
   previewOpen: { es: "Abierto", en: "Open" },
   previewClosed: { es: "Cerrado", en: "Closed" },
   previewAi: { es: "IA", en: "AI" },
+  try: { es: "Probar el chat", en: "Try the chat" },
+  tryHint: {
+    es: "Escribes como un cliente y la conversación entra a la bandeja.",
+    en: "You write as a customer and the conversation lands in the inbox.",
+  },
+  tryFailed: { es: "No se pudo abrir el chat.", en: "Couldn't open the chat." },
 
   // ── Píxel de Meta ──
   // El chat le cuenta a Meta dos cosas: quién empezó a conversar y quién

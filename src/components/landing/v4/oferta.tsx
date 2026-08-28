@@ -118,13 +118,13 @@ export function Oferta() {
                 foto de manos con cajas no dice nada de eso. Se ve en todos los
                 anchos —antes estaba oculta en el teléfono, que es justo donde
                 más falta hace algo que descanse la lista. */}
-            <div className="relative mt-7 aspect-[4/3] w-full overflow-hidden rounded-2xl sm:aspect-[16/9]">
+            <div className="relative mt-7 aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--sn-card)]">
               <Image
                 src="/portada-b/i-bandeja-3.jpg"
                 alt=""
                 fill
                 sizes="(min-width: 640px) 640px, 92vw"
-                className="object-cover object-center"
+                className="object-contain"
               />
             </div>
 

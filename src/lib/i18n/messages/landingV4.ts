@@ -185,8 +185,8 @@ export const landingV4 = {
     en: "The sale was lost afterwards, when nobody answered in time and the conversation went cold.",
   },
   pillarsKicker: {
-    es: "Es plata que ya pagaste.",
-    en: "That's money you already spent.",
+    es: "Menos caos, más facturación.",
+    en: "Less chaos, more revenue.",
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
@@ -318,8 +318,8 @@ export const landingV4 = {
   // conectamos: quiere saber que no se le va a caer nada encima. Eso se dice
   // en una línea y se prueba con un sello, no con una lista.
   trustTitle: {
-    es: "Menos caos, más facturación",
-    en: "Less chaos, more revenue",
+    es: "Tu número está a salvo",
+    en: "Your number is safe",
   },
   trustBody: {
     es: "Riverz conecta tus canales por la vía oficial de Meta, con todos los permisos aprobados. Tu número queda a tu nombre y tus datos son sólo tuyos.",
@@ -332,8 +332,8 @@ export const landingV4 = {
   // Las dos vueltas del sello.
   trustSealTop: { es: "Conexión oficial", en: "Official connection" },
   trustSealRing: {
-    es: "API OFICIAL DE META · APP REVIEW APROBADO · ",
-    en: "OFFICIAL META API · APP REVIEW APPROVED · ",
+    es: "API OFICIAL DE META · APP REVIEW APROBADO",
+    en: "OFFICIAL META API · APP REVIEW APPROVED",
   },
 
   // ── Cierre ──

@@ -153,7 +153,12 @@ export async function requireSession(
   // alguien le está usando el chat desde otro sitio— no cortaba nada hasta el
   // día siguiente. 401 y no 404 para que el widget legítimo pida una sesión
   // nueva en vez de apagarse solo.
-  if (!originAllowed(session.origin, guard.ctx.config.allowed_domains)) {
+  //
+  // La prueba desde el panel no pasa por acá: su origen es el nuestro, que
+  // nunca está en la lista de dominios de la tienda. Se emite sólo con sesión
+  // del panel y para el propio workspace, así que no abre nada que su dueño no
+  // tuviera ya.
+  if (!session.pr && !originAllowed(session.origin, guard.ctx.config.allowed_domains)) {
     return {
       ok: false,
       response: NextResponse.json({ error: 'session_expired' }, { status: 401 }),

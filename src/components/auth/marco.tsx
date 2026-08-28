@@ -56,7 +56,7 @@ export function MarcoAuth({
   ];
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+    <div className="grid min-h-dvh lg:grid-cols-2">
       {/* ── La tira ── */}
       <aside className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-center lg:px-12 lg:py-14 xl:px-16">
         <Image
@@ -90,7 +90,7 @@ export function MarcoAuth({
               width={1300}
               height={975}
               sizes="(min-width: 1280px) 44vw, 46vw"
-              className="h-auto max-h-[42vh] w-full object-cover object-center"
+              className="max-h-[38vh] w-full object-contain"
             />
           </div>
 

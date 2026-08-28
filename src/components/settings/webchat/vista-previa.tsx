@@ -1,7 +1,10 @@
 'use client';
 
-import { Paperclip, Send, X } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Paperclip, Send, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
 import type { WebchatConfig } from '@/types';
@@ -24,6 +27,10 @@ import type { WebchatConfig } from '@/types';
  * el texto sobre el color de marca sale negro o blanco según su brillo, con la
  * misma cuenta que hace el widget. Eso último es justo lo que hay que ver
  * antes de elegir un color donde el nombre no se lee.
+ *
+ * Y debajo, «Probar»: el chat de verdad, el mismo que se sirve en la tienda,
+ * en un iframe. Ahí ya no se mira cómo queda sino qué contesta — el dibujo no
+ * puede decir si el agente sabe el precio ni cuánto tarda.
  */
 export function VistaPrevia({
   cfg,
@@ -170,7 +177,98 @@ export function VistaPrevia({
           )}
         </span>
       </div>
+
+      <Probar habilitado={cfg.enabled !== false} />
     </div>
+  );
+}
+
+/**
+ * El chat de verdad, en un iframe, desde el panel.
+ *
+ * No es una simulación: es `/widget/chat`, el mismo que carga la tienda, con
+ * una sesión firmada que emite `POST /api/webchat/probar`. Lo que conteste acá
+ * es lo que va a contestar allá, con su conocimiento y sus herramientas, y la
+ * conversación entra a la bandeja como cualquier otra.
+ *
+ * El token se pide una vez y se queda: reabrir el diálogo no gasta otro, y el
+ * hilo sigue donde estaba porque el visitante de prueba es siempre el mismo.
+ */
+function Probar({ habilitado }: { habilitado: boolean }) {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [abierto, setAbierto] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const abrir = useCallback(async () => {
+    setAbierto(true);
+    if (token || cargando) return;
+    setCargando(true);
+    setError(null);
+    try {
+      const res = await fetchWithCsrf('/api/webchat/probar', { method: 'POST' });
+      const data = (await res.json().catch(() => null)) as { sessionToken?: string } | null;
+      if (!res.ok || !data?.sessionToken) throw new Error('sin sesión');
+      setToken(data.sessionToken);
+    } catch {
+      setError(t('webchat.tryFailed'));
+    } finally {
+      setCargando(false);
+    }
+  }, [cargando, fetchWithCsrf, t, token]);
+
+  // La cruz de adentro del chat —y la tecla Escape, que el iframe se come—
+  // avisan por `postMessage`, igual que en la tienda. Sin esto, el único modo
+  // de cerrar es el fondo del diálogo y la cruz de adentro no hace nada.
+  useEffect(() => {
+    if (!abierto) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if ((e.data as { type?: string } | null)?.type === 'riverz:close') setAbierto(false);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [abierto]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-3 w-full"
+        disabled={!habilitado}
+        onClick={() => void abrir()}
+      >
+        {t('webchat.try')}
+      </Button>
+
+      <Dialog open={abierto} onOpenChange={setAbierto}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+          <DialogTitle className="border-b border-border px-4 py-3 text-sm">
+            {t('webchat.try')}
+            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+              {t('webchat.tryHint')}
+            </span>
+          </DialogTitle>
+          <div className="h-[min(620px,70vh)] bg-white">
+            {token ? (
+              <iframe
+                title={t('webchat.try')}
+                src={`/widget/chat#s=${encodeURIComponent(token)}`}
+                className="size-full border-0"
+              />
+            ) : (
+              <div className="grid size-full place-items-center text-sm text-muted-foreground">
+                {error ?? <Loader2 className="size-4 animate-spin" aria-hidden />}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

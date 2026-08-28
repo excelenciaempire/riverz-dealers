@@ -440,37 +440,27 @@ function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
       <circle cx="110" cy="110" r="99" fill="none" stroke="var(--sn-ink)" strokeWidth="1" opacity="0.35" />
       <circle cx="110" cy="110" r="70" fill="var(--sn-ink)" />
 
-      {/* La leyenda, dando la vuelta. */}
+      {/* La leyenda, dando la vuelta. UNA sola vez y centrada: repetida se
+          pasaba de la circunferencia y se montaba sobre sí misma. */}
       <text
         fill="var(--sn-ink)"
-        style={{ fontSize: 10.5, letterSpacing: "0.2em", fontWeight: 500 }}
+        style={{ fontSize: 10.5, letterSpacing: "0.18em", fontWeight: 500 }}
         opacity="0.75"
       >
-        <textPath href="#sn-sello-anillo" startOffset="0%">
-          {anillo}
+        <textPath href="#sn-sello-anillo" startOffset="50%" textAnchor="middle">
           {anillo}
         </textPath>
       </text>
 
       {/* El visto, en el lima de la casa. */}
       <path
-        d="M88 111 l15 15 l30 -32"
+        d="M88 110 l16 16 l32 -34"
         fill="none"
         stroke="var(--sn-accent)"
         strokeWidth="7.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <text
-        x="110"
-        y="152"
-        textAnchor="middle"
-        fill="var(--sn-card)"
-        style={{ fontSize: 10, letterSpacing: "0.16em", fontWeight: 600, textTransform: "uppercase" }}
-        opacity="0.72"
-      >
-        {arriba}
-      </text>
     </svg>
   );
 }

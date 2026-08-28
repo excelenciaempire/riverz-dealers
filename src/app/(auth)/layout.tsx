@@ -33,8 +33,10 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
     <>
       {children}
       {/* Discoverable legal links (Meta App Review expects the privacy
-          policy reachable from the app). Subtle, fixed at the bottom. */}
-      <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-[11px] text-muted-foreground">
+          policy reachable from the app). En escritorio se centra en la MITAD
+          derecha: el marco parte la pantalla y, centrado en la ventana, el pie
+          caia sobre la tira oscura y se volvia ilegible. */}
+      <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center gap-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-[11px] text-muted-foreground lg:left-1/2">
         <Link href="/privacidad" className="pointer-events-auto hover:text-foreground">
           {t("auth.privacy")}
         </Link>

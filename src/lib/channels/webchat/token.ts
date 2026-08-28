@@ -132,6 +132,18 @@ export interface WebchatSession {
    * llamadas siguientes no lo traen.
    */
   lc?: string;
+  /**
+   * Sesión de prueba, abierta desde el panel por el propio comercio.
+   *
+   * La emite `POST /api/webchat/probar`, que exige sesión del panel, CSRF y
+   * membresía: no hay forma de pedirla desde fuera. Lo único que cambia es que
+   * el origen no se compara con la lista de dominios —el comercio prueba desde
+   * NUESTRO panel, que nunca va a estar en la lista de su tienda, y quien
+   * todavía no cargó ningún dominio es justamente el que más necesita probar—.
+   * No amplía el alcance: el token sigue atado a su propio workspace y dura
+   * dos horas en vez de un día.
+   */
+  pr?: 1;
 }
 
 /**
@@ -151,6 +163,7 @@ export function mintSession(
     // peticiones a cambio de nada.
     ...(input.mk && Object.keys(input.mk).length > 0 ? { mk: input.mk } : {}),
     ...(input.lc ? { lc: input.lc } : {}),
+    ...(input.pr ? { pr: 1 as const } : {}),
   };
   const payload = Buffer.from(JSON.stringify(session)).toString('base64url');
   return `${payload}.${sign(SESSION_DOMAIN, payload)}`;

@@ -77,6 +77,21 @@ describe('token de sesión', () => {
     expect(verifySession(mintSession({ ...base, exp: Date.now() - 1 }))).toBeNull();
   });
 
+  it('la marca de prueba viaja firmada y sólo si se pidió', () => {
+    // Es lo único que exime del control de dominios (`requireSession`), así que
+    // tiene que salir de la firma y no del cuerpo del pedido: un visitante que
+    // pudiera ponérsela usaría el chat del comercio desde cualquier sitio.
+    expect(verifySession(mintSession(base))?.pr).toBeUndefined();
+    expect(verifySession(mintSession({ ...base, pr: 1 }))?.pr).toBe(1);
+
+    const token = mintSession(base);
+    const [, sig] = token.split('.');
+    const forjado = Buffer.from(
+      JSON.stringify({ ...base, pr: 1, exp: Date.now() + 1000 }),
+    ).toString('base64url');
+    expect(verifySession(`${forjado}.${sig}`)).toBeNull();
+  });
+
   it('rechaza vacío y malformado', () => {
     expect(verifySession(null)).toBeNull();
     expect(verifySession('')).toBeNull();
