@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, VoiceCall } from '@/types';
-import { sendTextMessage } from '@/lib/whatsapp/meta-api';
+import { sendTemplateMessage, sendTextMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 
@@ -20,6 +20,57 @@ export interface ToolResult {
   ok: boolean;
   result?: string;
   error?: string;
+}
+
+/**
+ * La plantilla con la que se le escribe a alguien fuera de la ventana de 24 h.
+ *
+ * Una sola variable de contenido y en UNA línea: los parámetros de Meta no
+ * admiten saltos de línea, tabuladores ni cuatro espacios seguidos.
+ */
+const PLANTILLA_LLAMADA = 'seguimiento_llamada';
+
+/**
+ * ¿Se le puede mandar texto libre a este contacto?
+ *
+ * Meta sólo lo permite dentro de las 24 h posteriores al último mensaje QUE
+ * ESCRIBIÓ EL CLIENTE. Fuera de esa ventana el envío se acepta con un `wamid` y
+ * falla después, por webhook, con el error 131047 «Re-engagement message» — o
+ * sea que el `POST` devuelve 200 y la tool le contesta al agente que salió
+ * bien. Pasó en producción el 2026-08-28: el agente dijo «ya te lo mandé», el
+ * cliente colgó esperando el link, y el mensaje nunca llegó.
+ *
+ * Por eso se decide ANTES de mandar, no después: el resultado tardío no sirve
+ * para elegir el camino.
+ */
+async function ventanaAbierta(
+  db: SupabaseClient,
+  conversationId: string | null,
+): Promise<boolean> {
+  if (!conversationId) return false;
+  const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .gt('created_at', desde)
+    .limit(1);
+  return ((data ?? []) as unknown[]).length > 0;
+}
+
+/**
+ * El texto del agente, en una sola línea.
+ *
+ * Un parámetro de plantilla con un salto de línea lo rechaza Meta entero, así
+ * que los links van separados por un punto medio en vez de por renglones.
+ */
+function enUnaLinea(texto: string): string {
+  return texto
+    .replace(/\s*\n+\s*/g, ' · ')
+    .replace(/\s{4,}/g, ' ')
+    .trim()
+    .slice(0, 900);
 }
 
 /**
@@ -106,24 +157,44 @@ export async function sendWhatsAppDuringCall(
   const to = sanitizePhoneForMeta(call.phone || contact.phone || '');
   if (!isValidE164(to)) return { ok: false, error: 'invalid_phone' };
 
+  // El hilo va PRIMERO: hace falta para saber si la ventana de 24 h está
+  // abierta, que es lo que decide si se puede mandar texto libre o hay que ir
+  // por plantilla.
+  //
+  // Va al hilo de WhatsApp del contacto, NO al de la llamada: durante la
+  // llamada `call.conversation_id` todavía es null —la conversación de voz se
+  // crea recién al final, con la transcripción— así que la condición de antes
+  // no se cumplía nunca y el mensaje se enviaba sin dejar rastro en ningún
+  // lado.
+  const conversationId = await hiloDeWhatsApp(db, call);
+  const abierta = await ventanaAbierta(db, conversationId);
+  const accessToken = decrypt(config.access_token);
+
   try {
-    const res = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken: decrypt(config.access_token),
-      to,
-      text,
-    });
+    const res = abierta
+      ? await sendTextMessage({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to,
+          text,
+        })
+      : await sendTemplateMessage({
+          // Fuera de la ventana Meta SÓLO acepta plantillas. El texto libre se
+          // aceptaba con un wamid y fallaba después por webhook (131047), así
+          // que el agente creía que había salido.
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to,
+          templateName: PLANTILLA_LLAMADA,
+          language: 'es',
+          params: [
+            (contact.name ?? '').trim().split(/\s+/)[0] || 'Hola',
+            enUnaLinea(text),
+          ],
+        });
 
     // Reflejarlo en la bandeja. Fail-soft: si esto falla el mensaje YA se envió,
     // y hacer fallar la tool le haría creer al agente que no llegó.
-    //
-    // Va al hilo de WhatsApp del contacto, NO al de la llamada: durante la
-    // llamada `call.conversation_id` todavía es null —la conversación de voz se
-    // crea recién al final, con la transcripción— así que la condición de antes
-    // no se cumplía nunca y el mensaje se enviaba sin dejar rastro en ningún
-    // lado. El cliente lo recibía y el comercio no se enteraba de que su agente
-    // le había escrito.
-    const conversationId = await hiloDeWhatsApp(db, call);
     if (conversationId) {
       await db
         .from('messages')
