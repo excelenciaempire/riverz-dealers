@@ -35,8 +35,8 @@ interface Snippet {
   trigger: string;
   label: string;
   body: string;
-  /** Workspace snippet id — present only for user-created ones (the two
-   *  built-in defaults have none and can't be deleted). */
+  /** Workspace snippet id — present only for user-created ones (los dos
+   *  atajos base no tienen fila hasta que se los edita o elimina). */
   id?: string;
 }
 
@@ -118,10 +118,16 @@ export function MessageComposer({
   const [createShortcut, setCreateShortcut] = useState("");
   const [createBody, setCreateBody] = useState("");
 
-  const { snippets: wsSnippets, create: createSnippet, remove: removeSnippet } =
-    useSnippets();
+  const {
+    snippets: wsSnippets,
+    create: createSnippet,
+    remove: removeSnippet,
+    hide: hideSnippet,
+  } = useSnippets();
   // 2 built-in defaults (translated) + workspace snippets (literal), keyed by
-  // trigger so a workspace snippet can override a default.
+  // trigger so a workspace snippet can override a default. Las filas con
+  // `hidden` son lápidas de atajos eliminados: no se muestran, y tapan al
+  // atajo base del mismo trigger.
   const allSnippets = useMemo<Snippet[]>(() => {
     const byTrigger = new Map<string, Snippet>();
     byTrigger.set("saludo", {
@@ -136,10 +142,26 @@ export function MessageComposer({
     });
     for (const s of wsSnippets) {
       const trigger = s.shortcut.toLowerCase();
+      if (s.hidden) {
+        byTrigger.delete(trigger);
+        continue;
+      }
       byTrigger.set(trigger, { trigger, label: s.title ?? "", body: s.body, id: s.id });
     }
     return [...byTrigger.values()];
   }, [t, wsSnippets]);
+
+  /**
+   * Eliminar cualquier atajo. Los del workspace se borran; los base
+   * (sin fila) dejan una lápida para que no vuelvan a aparecer.
+   */
+  const deleteSnippet = useCallback(
+    (s: Snippet) => {
+      const esBase = s.trigger === "saludo" || s.trigger === "gracias";
+      void (esBase ? hideSnippet(s.trigger, s.id) : removeSnippet(s.id!));
+    },
+    [hideSnippet, removeSnippet],
+  );
 
   const filteredSnippets = snippetMenu
     ? allSnippets.filter((s) =>
@@ -153,6 +175,13 @@ export function MessageComposer({
   useEffect(() => {
     setSnippetActiveIdx(0);
   }, [snippetMenu?.query]);
+  // La lista puede ser más larga que su caja: al moverse con las flechas el
+  // elegido tiene que entrar en vista solo (con el mouse ya se desplaza).
+  const snippetListRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const item = snippetListRef.current?.children[snippetActiveIdx];
+    item?.scrollIntoView({ block: "nearest" });
+  }, [snippetActiveIdx, snippetMenu?.query]);
   // Closing the picker also closes any open "create shortcut" form.
   useEffect(() => {
     if (!snippetMenu) setCreating(false);
@@ -527,7 +556,10 @@ export function MessageComposer({
           ) : (
             <>
               {filteredSnippets.length > 0 && (
-                <ul className="max-h-56 overflow-y-auto py-1">
+                <ul
+                  ref={snippetListRef}
+                  className="max-h-56 overflow-y-auto overscroll-contain py-1"
+                >
                   {filteredSnippets.map((s, i) => (
                     <li
                       key={s.trigger}
@@ -558,21 +590,19 @@ export function MessageComposer({
                           </p>
                         </div>
                       </button>
-                      {s.id && (
-                        <button
-                          type="button"
-                          aria-label={t("inbox.deleteSnippet")}
-                          title={t("inbox.deleteSnippet")}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void removeSnippet(s.id!);
-                          }}
-                          className="mr-1.5 mt-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-colors hover:bg-red-500/10 hover:text-red-600 focus:opacity-100 group-hover:opacity-100 dark:hover:text-red-400"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        aria-label={t("inbox.deleteSnippet")}
+                        title={t("inbox.deleteSnippet")}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteSnippet(s);
+                        }}
+                        className="mr-1.5 mt-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-colors hover:bg-red-500/10 hover:text-red-600 focus:opacity-100 group-hover:opacity-100 dark:hover:text-red-400"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
                     </li>
                   ))}
                 </ul>

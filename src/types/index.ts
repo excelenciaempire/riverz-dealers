@@ -610,6 +610,8 @@ export interface MessageSnippet {
   shortcut: string;
   title?: string | null;
   body: string;
+  /** Lápida: el workspace eliminó este atajo (sirve para tapar los base). */
+  hidden?: boolean | null;
   created_at: string;
 }
 
