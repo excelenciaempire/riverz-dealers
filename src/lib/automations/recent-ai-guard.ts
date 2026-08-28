@@ -212,5 +212,73 @@ export async function shouldAllowAutomationSend(args: {
   if (recent) {
     return { allow: false, reason: 'ai_or_agent_active_within_5min' }
   }
+  // Y el caso que los cinco minutos no cubren: una persona del equipo ya está
+  // atendiendo a este cliente por lo mismo.
+  //
+  // Pasó el 2026-08-28 con María Cristina. Pagó por transferencia el día 27,
+  // mandó el comprobante, una persona le contestó y le dijo entre qué días
+  // salía. Al día siguiente el pedido entró a Shopify —lo cargaron después de
+  // validar el pago— y el flujo "Nuevo pedido" le pidió el comprobante de
+  // nuevo. Ella contestó "lo reenvié ayer, estoy esperando mi pedido". No fue
+  // un mensaje repetido: fue el primero de ese flujo, cayendo veinte horas
+  // tarde encima de una conversación que ya estaba resuelta.
+  //
+  // La ventana de cinco minutos está pensada para "la IA acaba de hablar".
+  // Esto es otra cosa: hay alguien del equipo adentro del caso, y un mensaje
+  // enlatado ahí no molesta, contradice.
+  const atendida = await hayAlguienAtendiendo(args.contactId)
+  if (atendida) {
+    return { allow: false, reason: atendida }
+  }
   return { allow: true }
+}
+
+/** Cuánto vale "una persona está atendiendo esto". Un día: si alguien del
+ *  equipo contestó ayer, el caso sigue siendo suyo. */
+const VENTANA_ATENDIDA_MS = 24 * 60 * 60 * 1000
+
+/**
+ * ¿Hay una persona del equipo metida en el caso de este contacto?
+ *
+ * Dos formas de estarlo, y las dos cuentan: que el hilo esté marcado como que
+ * necesita una persona (o asignado a alguien), o que alguien del equipo haya
+ * escrito en el último día. Ante cualquier error se responde que no, para no
+ * frenar flujos por una consulta que falló.
+ */
+async function hayAlguienAtendiendo(contactId: string): Promise<string | null> {
+  const db = supabaseAdmin()
+  try {
+    const desde = new Date(Date.now() - VENTANA_ATENDIDA_MS).toISOString()
+
+    const { data: hilos } = await db
+      .from('conversations')
+      .select('id, needs_human_at, assigned_to')
+      .eq('contact_id', contactId)
+      .is('deleted_at', null)
+      .gte('last_message_at', desde)
+    const abiertos = (hilos ?? []) as Array<{
+      id: string
+      needs_human_at: string | null
+      assigned_to: string | null
+    }>
+    if (abiertos.some((c) => c.needs_human_at || c.assigned_to)) {
+      return 'caso en manos de una persona'
+    }
+    if (abiertos.length === 0) return null
+
+    // Un mensaje escrito por alguien del equipo (no la IA: la IA ya la cubre
+    // la ventana de cinco minutos, y frenar un día entero por un mensaje del
+    // bot apagaría flujos legítimos).
+    const { count } = await db
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .in('conversation_id', abiertos.map((c) => c.id))
+      .eq('sender_type', 'agent')
+      .is('origin', null)
+      .gte('created_at', desde)
+    return (count ?? 0) > 0 ? 'una persona contestó en las últimas 24 h' : null
+  } catch (err) {
+    console.error('[automations] guard: no se pudo mirar si alguien atiende:', err)
+    return null
+  }
 }
