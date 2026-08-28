@@ -112,7 +112,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec03",
-    img: "/portada-b/i-recompras.jpg?v=2",
+    img: "/portada-b/i-recompras-2.jpg",
     ratio: "4 / 3",
     title: "landing.sec03Title",
     muted: "landing.sec03TitleMuted",
@@ -143,7 +143,7 @@ const TILES: Tile[] = [
   },
   {
     key: "secLive",
-    img: "/portada-b/i-envivo.jpg?v=2",
+    img: "/portada-b/i-envivo-2.jpg",
     ratio: "3 / 4",
     title: "landing.secLiveTitle",
     muted: "landing.secLiveTitleMuted",
@@ -163,7 +163,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec07",
-    img: "/portada-b/i-bandeja.jpg?v=2",
+    img: "/portada-b/i-bandeja-2.jpg",
     ratio: "4 / 3",
     title: "landing.sec07Title",
     muted: "landing.sec07TitleMuted",
@@ -184,7 +184,7 @@ const TILES: Tile[] = [
   },
   {
     key: "secContacts",
-    img: "/portada-b/i-contactos.jpg?v=2",
+    img: "/portada-b/i-contactos-2.jpg",
     ratio: "4 / 3",
     title: "landing.secContactsTitle",
     muted: "landing.secContactsTitleMuted",

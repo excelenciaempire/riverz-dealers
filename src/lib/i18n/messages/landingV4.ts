@@ -55,7 +55,9 @@ export const landingV4 = {
   cerrar: { es: "Cerrar", en: "Close" },
 
   // ── Navegación ──
-  navLoop: { es: "Cómo opera", en: "How it operates" },
+  // El enlace dice lo mismo que la etiqueta de la sección a la que lleva: si
+  // no coinciden, quien hace clic cree que aterrizó en otro lado.
+  navLoop: { es: "Cómo trabaja", en: "How it works" },
   navCapabilities: { es: "Qué hace", en: "What it does" },
   navOperator: { es: "Operator", en: "Operator" },
   navChannels: { es: "Canales", en: "Channels" },
@@ -115,14 +117,17 @@ export const landingV4 = {
   },
 
   // ── Riverz Loop: el mecanismo ──
-  loopLabel: { es: "Riverz Loop", en: "Riverz Loop" },
+  // «Riverz Loop» era un nombre interno. Nadie que entra por primera vez sabe
+  // qué es un loop, y una portada no es el lugar para enseñar vocabulario
+  // propio: la etiqueta dice qué vas a leer y el titular hace el argumento.
+  loopLabel: { es: "Cómo trabaja", en: "How it works" },
   loopTitle: {
     es: "Un chatbot termina cuando responde",
     en: "A chatbot is done when it replies",
   },
   loopLead: {
-    es: "El Loop termina cuando la oportunidad avanzó, o cuando quedó en manos de la persona correcta. Cinco pasos, cada vez que pasa algo en tu tienda.",
-    en: "The Loop is done when the opportunity moved forward, or when it landed with the right person. Five steps, every time something happens in your store.",
+    es: "Riverz recién termina cuando la venta avanzó, o cuando la conversación quedó en manos de la persona correcta. Estos cinco pasos ocurren cada vez que algo pasa en tu tienda.",
+    en: "Riverz isn't done until the sale moved forward, or the conversation landed with the right person. These five steps run every time something happens in your store.",
   },
   loop1Title: { es: "Detecta la señal", en: "It spots the signal" },
   loop1Body: {
