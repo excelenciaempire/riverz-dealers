@@ -97,6 +97,9 @@ export const webchat = {
   // ── Vista previa ──
   preview: { es: "Vista previa", en: "Preview" },
   previewComposer: { es: "Escribe tu mensaje", en: "Type your message" },
+  previewOpen: { es: "Abierto", en: "Open" },
+  previewClosed: { es: "Cerrado", en: "Closed" },
+  previewAi: { es: "IA", en: "AI" },
 
   // ── Píxel de Meta ──
   // El chat le cuenta a Meta dos cosas: quién empezó a conversar y quién
