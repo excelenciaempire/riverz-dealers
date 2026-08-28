@@ -2676,9 +2676,28 @@ export function buildSystemPrompt(
     }
   }
 
+  // La tienda, para cuando la consulta no es de un producto concreto. Sale del
+  // primer enlace de producto que haya: es el mismo dominio y ahorra una
+  // consulta. Sin esto, "mandale el home" era una instrucción sin dato.
+  const inicio = products.map((p) => p.url).find((u) => u && /^https?:\/\//.test(u));
+  if (inicio) {
+    try {
+      lines.push(`Página de la tienda: ${new URL(inicio).origin}`);
+    } catch {
+      /* url rara: se sigue sin el home */
+    }
+  }
+
   // Cuándo mandarlo, que es distinto de tenerlo.
+  //
+  // La regla es "nadie se queda sin a dónde ir". El enlace correcto depende de
+  // la conversación: el del producto si se habla de uno, el de la página por la
+  // que llegó si vino de un anuncio, y la tienda si la consulta es general. Lo
+  // único prohibido es inventar una dirección: si no está listada arriba, no
+  // existe.
   lines.push(
-    'Si te piden el link, dónde comprar, o te dicen que no pueden ver la página o el precio, pasa el enlace del producto TAL CUAL aparece arriba, sin acortarlo ni cambiarlo. Un precio sin enlace deja a la persona donde estaba.',
+    'Si te piden el link, dónde comprar, o te dicen que no pueden ver la página o el precio, pasa el enlace TAL CUAL aparece arriba, sin acortarlo ni cambiarlo. Un precio sin enlace deja a la persona donde estaba.',
+    'Elige el más específico que sirva: el del producto del que están hablando; si llegaron por un anuncio y la consulta es sobre eso, el de la página a la que llevaba; y si la consulta es general, el de la tienda. Nunca inventes una dirección ni armes una a partir del nombre del producto: si no está escrita arriba, no la tienes.',
   );
 
   const knownContact: string[] = [];

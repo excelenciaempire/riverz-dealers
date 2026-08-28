@@ -30,10 +30,19 @@ export async function syncShopifyProducts(
   // divisa canónica del workspace. Fail-open: si falla, seguimos con null
   // (comportamiento anterior).
   let shopCurrency: string | null = null
+  // Y el dominio con el que la tienda se muestra al público. El enlace de cada
+  // producto se armaba con `shopDomain`, que es el `*.myshopify.com` con el que
+  // hablamos con la API — así que el link que el agente le pasa a un cliente
+  // decía "j9kgap-kn.myshopify.com" en vez del dominio de la tienda. Se ve mal
+  // y, en una tienda con la vidriera restringida, ni siquiera abre.
+  // `shop.domain` es el dominio principal, y ya lo pedíamos para la divisa.
+  let dominioPublico: string | null = null
   try {
-    shopCurrency = (await client.getShopInfo()).currency || null
+    const info = await client.getShopInfo()
+    shopCurrency = info.currency || null
+    dominioPublico = info.domain || null
   } catch {
-    /* seguimos sin divisa — no bloqueamos el sync del catálogo */
+    /* seguimos sin divisa ni dominio — no bloqueamos el sync del catálogo */
   }
   if (shopCurrency) {
     await db
@@ -60,7 +69,7 @@ export async function syncShopifyProducts(
 
   if (allProducts.length === 0) return { synced: 0, deleted: 0, bundlesDetected: 0 }
 
-  const rows = allProducts.map((p) => productToRow(p, args, shopCurrency))
+  const rows = allProducts.map((p) => productToRow(p, args, shopCurrency, dominioPublico))
   const bundlesDetected = rows.filter((r) => Boolean(r.is_bundle)).length
 
   // Upsert in chunks — PostgREST caps the request payload.
@@ -119,6 +128,8 @@ function productToRow(
   p: ShopifyProduct,
   args: { userId: string; workspaceId: string; shopDomain: string },
   shopCurrency: string | null,
+  /** El dominio de cara al público; sin él se cae al `*.myshopify.com`. */
+  dominioPublico: string | null,
 ): Record<string, unknown> {
   const prices = (p.variants ?? [])
     .map((v) => Number(v.price))
@@ -152,7 +163,7 @@ function productToRow(
     price_max: max,
     currency: shopCurrency,
     image_url: p.image?.src ?? p.images?.[0]?.src ?? null,
-    url: `https://${args.shopDomain}/products/${p.handle}`,
+    url: `https://${dominioPublico || args.shopDomain}/products/${p.handle}`,
     is_bundle: bundle.isBundle,
     bundle_app: bundle.app,
     bundle_metadata: bundle.metadata,
