@@ -87,10 +87,12 @@ function clave(url: string): string {
   return limpia.replace(/^http:/, 'https:')
 }
 
-/** Suma sin repetir y conservando el orden de llegada. */
+/** Suma sin repetir y conservando el orden de llegada, dentro del tope. */
 export function unirImagenes(actuales: string[], nuevas: string[]): string[] {
   const vistas = new Set(actuales.map(clave))
-  const out = [...actuales]
+  // El recorte incluye lo que ya estaba: una galería que quedó larga de antes
+  // se normaliza acá, en vez de encogerse sola en el próximo guardado.
+  const out = actuales.slice(0, MAX_IMAGENES)
   for (const url of nuevas) {
     if (!/^https?:\/\//i.test(url)) continue
     const k = clave(url)
