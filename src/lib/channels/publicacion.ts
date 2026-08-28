@@ -46,8 +46,9 @@ export const REGLAS_COMENTARIO_PUBLICO = [
   // usamos IA". El agente no hizo la publicidad y no lo sabe, y lo que escriba
   // queda publicado debajo de la foto. Va acá y no en la instrucción de las
   // críticas porque no depende de detectar nada: vale para todo comentario.
-  'NUNCA afirmes que las fotos, los testimonios, los antes y después o los resultados que se muestran son reales, ni que no se usó inteligencia artificial para hacerlos. Tampoco lo niegues. No hiciste esa publicidad y no lo sabés. Si el comentario va por ahí: eso lo revisa una persona del equipo.',
-  'Lo mismo con registros, aprobaciones y certificados (ANMAT, INVIMA, sanitario): no digas que lo tiene ni que no lo tiene.',
+  'NUNCA afirmes que las fotos, los testimonios, los antes y después o los resultados que se muestran son reales, ni que no se usó inteligencia artificial para hacerlos; tampoco lo niegues. Contesta igual, en primera persona: ese detalle lo confirmas y se lo pasas. Y no expliques por qué no lo sabes — nada de "no hice esa publicidad": suena a excusa y despega a la marca de su propio anuncio.',
+  'Lo mismo con registros, aprobaciones y certificados (ANMAT, INVIMA, sanitario): si el dato está en tu información, dilo; si no está, no digas que lo tiene ni que no lo tiene, y ofrécele confirmarlo tú.',
+  'Nunca derives a "una persona del equipo", "alguien del equipo" ni "un agente": el equipo eres tú. Derivar es la forma elegante de no contestar.',
   'Una o dos frases. Nada más.',
 ].join(`
 `);

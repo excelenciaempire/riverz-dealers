@@ -75,8 +75,12 @@ export function esPregunta(texto: string): boolean {
 export type MotivoRespuesta = 'duda' | 'reclamo' | 'pregunta' | 'legal';
 
 /**
- * Lo que NO se contesta solo, nunca: cómo se hizo la publicidad, si el
+ * Lo que hay que contestar CON CUIDADO: cómo se hizo la publicidad, si el
  * producto está aprobado o registrado, y cualquier cosa con olor a juicio.
+ *
+ * Se contesta igual —el agente ES el equipo y derivar es no contestar—, pero
+ * sólo con lo que de verdad se sabe. Lo que no está cargado no se completa de
+ * memoria: se dice que se confirma y se pasa.
  *
  * No es prudencia de más. Puesto a redactar estas respuestas contra la base de
  * producción el 2026-08-28, el agente escribió, para publicar debajo de la
@@ -90,7 +94,10 @@ export type MotivoRespuesta = 'duda' | 'reclamo' | 'pregunta' | 'legal';
  * la marca ante un regulador o un juez. La tercera además declara en público
  * que el producto no tiene una aprobación — un renglón que cualquiera captura.
  * Nadie le pidió que mintiera: le preguntaron y contestó, porque un modelo
- * siempre prefiere contestar. La única salida es que acá no le esté permitido.
+ * siempre prefiere contestar antes que decir que no sabe. La salida no es
+ * mandarla a esperar a otro —eso es no contestar con buenos modales— sino
+ * prohibirle afirmar y negar lo que no le consta, y dejarle decir en primera
+ * persona que lo confirma.
  */
 const LEGAL = [
   'anmat', 'invima', 'registro sanitario', 'aprobación', 'aprobacion',
@@ -104,12 +111,19 @@ const LEGAL = [
   'fda', 'lawsuit', 'ai generated', 'deepfake',
 ];
 
+/**
+ * "IA" suelta, que es como lo escribe casi todo el mundo: "tanta IA en
+ * publicidades", "eso es con IA", "I.A.". Con `includes` no se puede —
+ * atraparía familia, día, media—, así que va por límite de palabra.
+ */
+const IA_SUELTA = /(^|[^a-záéíóúñ])(i\.?\s?a\.?|inteligencia artificial)([^a-záéíóúñ]|$)/i;
+
 export function mereceRespuesta(texto: string): MotivoRespuesta | null {
   const t = normalizar(texto);
   // Un comentario de tres letras no es nada de esto.
   if (t.length < 8) return null;
   // Lo legal gana sobre todo lo demás: es lo que peor se puede contestar.
-  if (contiene(t, LEGAL)) return 'legal';
+  if (contiene(t, LEGAL) || IA_SUELTA.test(t)) return 'legal';
   if (contiene(t, RECLAMO)) return 'reclamo';
   if (contiene(t, DUDA)) return 'duda';
   // Una pregunta suelta sólo cuenta si de verdad pregunta algo: sin esto,
@@ -129,28 +143,41 @@ export function instruccionPara(motivo: MotivoRespuesta): string {
   const comun = [
     'Esta persona NO está comprando: está cuestionando o preguntando algo. No le vendas nada, no cierres ofreciendo el producto y no la trates como una oportunidad.',
     'Una respuesta corta, tranquila y sin ponerse a la defensiva. No discutas, no ironices y no la contradigas dos veces: se contesta una vez y se deja ahí.',
-    'Si te piden un dato que no tienes a mano (un registro sanitario, un certificado, un estudio), NO lo inventes ni lo aproximes: dile que te lo pasan por privado o que lo consulte con el equipo.',
+    // Contestas TÚ. Nunca "te responde una persona del equipo": la IA es el
+    // equipo, y mandar a alguien a esperar a otro es la forma elegante de no
+    // contestar. Lo que no se puede es inventar, que no es lo mismo. El propio
+    // `borrador.ts` ya tenía "un agente del equipo" en su lista de frases
+    // prohibidas, así que derivar además se contradecía con el resto.
+    'Contesta TÚ. Nunca digas que el tema lo ve "una persona del equipo", "alguien del equipo" ni "un agente": eres el equipo, y derivar es no contestar.',
+    'Si te piden un dato que no tienes (un registro sanitario, un certificado, un estudio), la respuesta honesta va en primera persona: ese dato no lo tienes a mano, lo confirmas y se lo pasas. Nunca lo inventes, nunca lo aproximes y nunca lo cambies por una derivación.',
   ];
   switch (motivo) {
     case 'legal':
       return [
-        '## Te están preguntando algo que NO podés contestar',
-        'Mencionaron un registro, una aprobación, un certificado, un juicio, o cómo se hizo la publicidad (si hay IA, si los rostros o los testimonios son reales).',
-        'PROHIBIDO afirmar Y PROHIBIDO negar. No digas que el producto está aprobado ni que no lo está; no digas que la publicidad es real ni que no usa IA; no opines sobre lo legal. No sabés si es cierto, y lo que escribas queda publicado y se puede capturar.',
-        'Tampoco te despegues del contenido de la marca ("eso no lo manejamos nosotros", "es contenido del video"): la publicación es de la tienda y esa frase queda peor que no contestar.',
-        'Lo único que se hace: agradecer que lo plantee, decir en una línea que ese tema lo responde una persona del equipo, y ofrecer seguir por privado. Nada más, sin justificarte y sin discutir.',
+        '## Te preguntan por un registro, una aprobación o cómo se hizo la publicidad',
+        ...comun,
+        'Si el dato está en la información del producto o en las reglas del negocio, dilo con esas palabras: es lo que sabes, y contestarlo es tu trabajo.',
+        'Si NO está, no lo completes de memoria: no digas que el producto tiene la aprobación ni que no la tiene, no digas que la publicidad es real ni que no usa IA. Dile en una línea que ese dato lo confirmas y se lo pasas, y sigue con lo que sí puedas responderle.',
+        // Sin esto el modelo repite el MOTIVO como si fuera el guion: en la
+        // prueba del 2026-08-28 le contestó a una clienta "no hice esa
+        // publicidad", que despega a la marca de su propio anuncio y suena a
+        // excusa. Las razones son para vos, no para el cliente.
+        'NO le expliques por qué no lo sabes. Nada de "no hice esa publicidad", "no tengo forma de saberlo", "no quiero afirmar algo que no sé": eso despega a la marca de su propio contenido y suena a excusa. Se dice qué vas a hacer, no por qué no puedes.',
+        'Tampoco arranques todas las respuestas igual ("tomo el comentario"): responde a lo que dijo.',
+        'Y registra lo que no supiste contestar con la herramienta que tienes para eso: así el comercio lo carga una vez y la próxima lo contestas tú.',
+        'La publicación es de la tienda: nunca digas "eso no lo manejamos nosotros" ni "es contenido del video".',
       ].join('\n');
     case 'duda':
       return [
         '## Están dudando de la marca en público',
         ...comun,
-        'Reconoce lo que dice sin pelear, y responde con lo que sí sabes. Callarse acá se lee como que no hay nada que decir.',
+        'Reconoce lo que dice sin pelear, y responde tú con lo que sí sabes. Callarse acá se lee como que no hay nada que decir.',
       ].join('\n');
     case 'reclamo':
       return [
         '## Es un reclamo, a la vista de todos',
         ...comun,
-        'Lo primero es que se sienta escuchada; lo segundo, llevarlo al privado, que es donde se resuelve y donde puede dar sus datos sin publicarlos.',
+        'Lo primero es que se sienta escuchada; lo segundo, llevarlo al privado —que es donde se resuelve y donde puede dar sus datos sin publicarlos— y resolverlo TÚ ahí, no anunciar que lo verá otro.',
       ].join('\n');
     case 'pregunta':
       return [

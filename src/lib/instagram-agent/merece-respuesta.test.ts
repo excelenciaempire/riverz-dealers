@@ -26,6 +26,17 @@ describe('mereceRespuesta', () => {
     expect(mereceRespuesta('no confío en esta marca, parece un fraude')).toBe('duda')
   })
 
+  it('reconoce la IA escrita como la escribe la gente', () => {
+    // "Basta de tanta IA en publicidades" se colaba: la lista buscaba
+    // "hecho con ia" y nadie escribe así. Sin el motivo, el agente contestó
+    // "La voz del video es real, no es de máquina" — justo lo que no puede
+    // afirmar.
+    expect(mereceRespuesta('Basta de tanta IA en publicidades. Hace que creamos menos!!!')).toBe('legal')
+    expect(mereceRespuesta('eso está hecho con inteligencia artificial')).toBe('legal')
+    // Y no se dispara con palabras que llevan esas letras adentro.
+    expect(mereceRespuesta('me encanta, lo uso a diario en toda la familia')).toBeNull()
+  })
+
   it('reconoce un reclamo de post-venta', () => {
     expect(mereceRespuesta('compré hace tres semanas y no me llegó nada')).toBe('reclamo')
     expect(mereceRespuesta('quiero la devolución, nadie contesta')).toBe('reclamo')
