@@ -955,6 +955,22 @@ async def _silence_guard(session: AgentSession, context: dict, call_state: CallS
         while True:
             await asyncio.sleep(1.0)
             now = time.monotonic()
+
+            # Mientras el agente habla o piensa, no hay silencio que medir.
+            #
+            # El reloj se refresca con `conversation_item_added`, que llega
+            # cuando el modelo GENERA el turno — no cuando el TTS termina de
+            # decirlo. Una respuesta larga tarda quince segundos en sonar, así
+            # que a los ocho el guard disparaba «¿sigues ahí?» encima de la voz
+            # del propio agente. Visto en la llamada del 2026-08-28: la frase se
+            # pegó al final de su propia oferta, dos veces, y le preguntaba al
+            # cliente si seguía ahí mientras el cliente esperaba que terminara
+            # de hablar.
+            estado = str(getattr(session, "agent_state", "") or "")
+            if estado in ("speaking", "thinking", "initializing"):
+                call_state.last_activity_at = now
+                continue
+
             idle = now - (call_state.last_activity_at or now)
             # El cliente volvió a hablar tras el aviso -> reinicia el ciclo.
             if nudged_at and call_state.last_user_at > nudged_at:

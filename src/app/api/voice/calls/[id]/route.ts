@@ -46,10 +46,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
     // Reproducción de la grabación: el egress sube a un bucket PRIVADO
-    // "voice-recordings" como `<call_id>.ogg`. Firmamos una URL de corta vida para
-    // que el navegador pueda reproducirla (el recording_url guardado es una ruta
-    // S3, no reproducible directo). Fail-soft: si no hay objeto, se deja como está.
-    if (call.recording_url) {
+    // "voice-recordings" como `<call_id>.ogg`. Firmamos una URL de corta vida
+    // para que el navegador pueda reproducirla (el recording_url guardado es una
+    // ruta S3, no reproducible directo).
+    //
+    // Se intenta SIEMPRE, no sólo cuando la fila tiene `recording_url`. El
+    // egress sube el archivo por su cuenta, directo de LiveKit a Storage: si el
+    // worker muere antes de reportar —lo vimos hoy, un deploy ajeno le reemplazó
+    // el contenedor a mitad de llamada— el audio queda ahí y la fila sin URL, o
+    // sea una grabación que existe y nadie puede escuchar. La clave es
+    // determinista, así que preguntarle a Storage es la fuente de verdad.
+    // Fail-soft: si no hay objeto, `createSignedUrl` devuelve error y se deja
+    // como estaba.
+    {
       const { data: signed } = await supabaseAdmin()
         .storage.from('voice-recordings')
         .createSignedUrl(`${call.id}.ogg`, 60 * 60);

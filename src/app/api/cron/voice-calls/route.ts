@@ -10,6 +10,11 @@ import {
   roomNameForCall,
 } from '@/lib/voice/livekit';
 import { voiceWorkerDown as workerDown } from '@/lib/voice/readiness';
+import {
+  recordingExists,
+  recordingKey,
+  transcribeRecording,
+} from '@/lib/voice/rescate';
 import { persistCallResult } from '@/lib/voice/result';
 
 /**
@@ -193,17 +198,60 @@ async function cronHandler(request: Request) {
     const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
     const { data: stuck } = await db
       .from('voice_calls')
-      .select('id')
+      .select('id, direction, language, started_at')
       .in('status', ['dialing', 'in_progress'])
       .lt('started_at', stuckBefore)
       .is('ended_at', null)
       .limit(CLAIM_BATCH);
-    for (const row of (stuck ?? []) as { id: string }[]) {
+    for (const row of (stuck ?? []) as {
+      id: string;
+      direction: string;
+      language: string | null;
+      started_at: string | null;
+    }[]) {
+      // Antes de darla por perdida, mirar si quedó el audio.
+      //
+      // El egress sube directo de LiveKit a Storage, sin pasar por el worker,
+      // así que una llamada que se cortó porque el worker murió TIENE su .ogg
+      // aunque no haya reportado nada. Cerrarla a secas dejaba una fila
+      // «Fallida» sin una palabra y sin grabación enlazada, con el audio de una
+      // conversación entera ahí al lado. Se reconstruye lo que se pueda.
+      let transcript: Awaited<ReturnType<typeof transcribeRecording>> = null;
+      let recordingUrl: string | null = null;
+      try {
+        if (await recordingExists(db, row.id)) {
+          recordingUrl = recordingKey(row.id);
+          transcript = await transcribeRecording(db, row.id, {
+            language: row.language ?? 'es',
+            direction: row.direction,
+          });
+        }
+      } catch (err) {
+        console.error('[cron/voice-calls] rescate falló:', row.id, err);
+      }
+
+      const conecto = (transcript?.length ?? 0) > 0;
+      const ended = new Date();
       await persistCallResult({
         call_id: row.id,
-        status: 'failed',
-        ended_at: new Date().toISOString(),
-        error: 'worker_timeout',
+        // Con transcripción rescatada la llamada SÍ se atendió: marcarla
+        // `failed` mentiría igual que antes, sólo que ahora tenemos la prueba.
+        // El motivo queda igual para que se vea que se cortó de nuestro lado.
+        status: conecto ? 'completed' : 'failed',
+        ended_at: ended.toISOString(),
+        answered_at: conecto ? row.started_at : null,
+        duration_seconds:
+          conecto && row.started_at
+            ? Math.max(
+                0,
+                Math.round((ended.getTime() - new Date(row.started_at).getTime()) / 1000),
+              )
+            : null,
+        transcript: transcript ?? undefined,
+        recording_url: recordingUrl,
+        error: conecto
+          ? 'worker_timeout: la llamada se cortó de nuestro lado; transcripción rescatada del audio'
+          : 'worker_timeout',
       }).catch((err) => console.error('[cron/voice-calls] sweep failed:', row.id, err));
       swept++;
     }
