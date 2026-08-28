@@ -83,8 +83,8 @@ export function LandingV4() {
             arriba y se despliega en un diálogo, porque es temporal y tiene que
             poder retirarse sin dejar un hueco. */}
         <Operator />
-        <Scene />
         <Pillars />
+        <Scene />
         <Capabilities />
         <Channels />
         <Confianza />
@@ -263,16 +263,16 @@ function Wall() {
  */
 function Pillars() {
   const t = useT();
-  const PILARES = [
-    { l: "landingV4.pillar1Label", b: "landingV4.pillar1" },
-    { l: "landingV4.pillar2Label", b: "landingV4.pillar2" },
-    { l: "landingV4.pillar3Label", b: "landingV4.pillar3" },
-  ];
 
   return (
     // El campo de color va a todo el ancho y la tarjeta flota encima. Es el
     // recurso que usa Siena en su bloque de dato, y el que le da a una página
     // de puro papel el único momento de color que necesita.
+    //
+    // Es la sección más corta de la portada a propósito: dice el problema y se
+    // calla. Tenía tres pilares —Recupera, Ejecuta, Delega— que repetían, uno
+    // por uno, el titular de acá mismo, el de «La diferencia» y una viñeta del
+    // paso 03. En un teléfono eran media pantalla de texto ya leído.
     <section className="sn-full relative overflow-hidden py-16 lg:py-24">
       <Image
         src="/portada-b/fondo-arena.jpg"
@@ -289,18 +289,13 @@ function Pillars() {
         >
           <Label>{t("landingV4.pillarsLabel")}</Label>
           <h2 className="sn-h2 mt-5 max-w-[13ch]">{t("landingV4.pillarsTitle")}</h2>
-          <p className="sn-lead mt-6 max-w-[34ch]">{t("landingV4.pillarsLead")}</p>
-
-          <div className="mt-14 grid gap-8 sm:grid-cols-3 sm:gap-8">
-            {PILARES.map((pil) => (
-              <div key={pil.l} className="border-t pt-5" style={{ borderColor: "var(--sn-line)" }}>
-                <p className="sn-h3 !text-[clamp(21px,2vw,27px)]" style={{ color: "var(--sn-ink)" }}>
-                  {t(pil.l)}
-                </p>
-                <p className="sn-body mt-3 !text-[15px]">{t(pil.b)}</p>
-              </div>
-            ))}
-          </div>
+          <p className="sn-lead mt-6 max-w-[36ch]">{t("landingV4.pillarsLead")}</p>
+          {/* El remate va sobre el amarillo: es la única frase de la sección que
+              habla de plata, y tiene que quedarse. */}
+          <p className="mt-7 inline-block rounded-full px-4 py-2 text-[15px] font-medium"
+             style={{ background: "var(--sn-accent)", color: "var(--sn-ink)" }}>
+            {t("landingV4.pillarsKicker")}
+          </p>
         </div>
       </div>
     </section>

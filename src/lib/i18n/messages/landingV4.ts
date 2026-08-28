@@ -61,7 +61,7 @@ export const landingV4 = {
   // ── Navegación ──
   // El enlace dice lo mismo que la etiqueta de la sección a la que lleva: si
   // no coinciden, quien hace clic cree que aterrizó en otro lado.
-  navLoop: { es: "Cómo trabaja", en: "How it works" },
+  navLoop: { es: "La diferencia", en: "The difference" },
   navCapabilities: { es: "Qué hace", en: "What it does" },
   navOperator: { es: "Operator", en: "Operator" },
   navChannels: { es: "Canales", en: "Channels" },
@@ -124,14 +124,19 @@ export const landingV4 = {
   // «Riverz Loop» era un nombre interno. Nadie que entra por primera vez sabe
   // qué es un loop, y una portada no es el lugar para enseñar vocabulario
   // propio: la etiqueta dice qué vas a leer y el titular hace el argumento.
-  loopLabel: { es: "Cómo trabaja", en: "How it works" },
+  // El titular decía «Un chatbot termina cuando responde»: una adivinanza que
+  // obligaba a leer la bajada para entenderla, y la bajada tampoco cerraba
+  // («la venta avanzó» no es nada que se pueda ver). Ahora el titular es la
+  // comparación directa y la bajada la prueba con lo único que se nota: quién
+  // carga el pedido.
+  loopLabel: { es: "La diferencia", en: "The difference" },
   loopTitle: {
-    es: "Un chatbot termina cuando responde",
-    en: "A chatbot is done when it replies",
+    es: "Las demás plataformas contestan. Riverz vende.",
+    en: "Other platforms reply. Riverz sells.",
   },
   loopLead: {
-    es: "Riverz recién termina cuando la venta avanzó, o cuando la conversación quedó en manos de la persona correcta. Estos cinco pasos ocurren cada vez que algo pasa en tu tienda.",
-    en: "Riverz isn't done until the sale moved forward, or the conversation landed with the right person. These five steps run every time something happens in your store.",
+    es: "Un chatbot contesta y ahí se acaba: el pedido lo terminas cargando tú. Riverz lo crea en tu tienda, cobra y sigue el envío.",
+    en: "A chatbot replies and that's it — you still enter the order yourself. Riverz creates it in your store, takes the payment, and follows the shipment.",
   },
   // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
   // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
@@ -177,29 +182,23 @@ export const landingV4 = {
   loop5P2: { es: "Ves qué resolvió y qué te pasó a ti", en: "You see what it solved and what it handed you" },
 
   // ── Los pilares: el ángulo del chat ya pagado ──
+  // Esta sección es el PROBLEMA, y es lo único que dice que no diga otra.
+  // Tenía además tres pilares —Recupera, Ejecuta, Delega— que repetían, uno por
+  // uno, el titular de acá mismo, el de «La diferencia» y una viñeta del paso
+  // 03. Se fueron los tres: en un teléfono eran media pantalla de texto ya
+  // leído.
   pillarsLabel: { es: "Por qué importa", en: "Why it matters" },
   pillarsTitle: {
     es: "Tu anuncio sí trajo al cliente",
     en: "Your ad did bring the customer",
   },
   pillarsLead: {
-    es: "La venta se perdió después, cuando la conversación se enfrió. Entre el mensaje que nadie contestó, el carrito que quedó a medias y el pago que nunca se confirmó.",
-    en: "The sale was lost afterwards, when the conversation went cold. Between the message nobody answered, the cart left halfway, and the payment never confirmed.",
+    es: "La venta se perdió después: el mensaje que nadie contestó, el carrito a medias, el pago sin confirmar.",
+    en: "The sale was lost afterwards: the message nobody answered, the half-finished cart, the payment never confirmed.",
   },
-  pillar1Label: { es: "Recupera", en: "Recover" },
-  pillar1: {
-    es: "La intención que ya pagaste: comentarios, consultas, carritos y pagos pendientes reciben continuidad antes de enfriarse.",
-    en: "The intent you already paid for: comments, questions, carts, and pending payments get followed through before they cool off.",
-  },
-  pillar2Label: { es: "Ejecuta", en: "Execute" },
-  pillar2: {
-    es: "Trabajo, no solamente respuestas. Consulta, recomienda, crea, cobra, informa, escala y deja registro de todo.",
-    en: "Work, not just replies. It looks things up, recommends, creates, charges, reports, escalates, and logs all of it.",
-  },
-  pillar3Label: { es: "Delega", en: "Delegate" },
-  pillar3: {
-    es: "Sin quedarte ciega. Cada acción puede estar apagada, pedirte permiso o ejecutarse sola. Tú eliges cuál.",
-    en: "Without going blind. Every action can be off, ask you first, or run on its own. You choose which.",
+  pillarsKicker: {
+    es: "Es plata que ya pagaste.",
+    en: "That's money you already spent.",
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
@@ -328,28 +327,28 @@ export const landingV4 = {
     en: "Connected through the front door",
   },
   trustBody: {
-    es: "Muchas herramientas se cuelgan de un teléfono espejo o de una sesión no oficial, y el día que la plataforma lo detecta el número se cae. Riverz no hace eso.",
-    en: "Plenty of tools hang off a mirrored phone or an unofficial session, and the day the platform notices, the number goes down. Riverz doesn't do that.",
+    es: "Muchas herramientas se cuelgan de un teléfono espejo. El día que la plataforma lo detecta, el número se cae. Riverz no hace eso.",
+    en: "Plenty of tools hang off a mirrored phone. The day the platform notices, the number goes down. Riverz doesn't do that.",
   },
   trust1Title: { es: "API oficial de Meta", en: "Official Meta APIs" },
   trust1Body: {
-    es: "WhatsApp Business Platform, Instagram y Messenger por sus canales oficiales. Tu número queda a tu nombre y no se expone a un bloqueo.",
-    en: "WhatsApp Business Platform, Instagram and Messenger through their official channels. Your number stays yours and isn't exposed to a ban.",
+    es: "WhatsApp, Instagram y Messenger por sus canales oficiales. Tu número queda a tu nombre.",
+    en: "WhatsApp, Instagram, and Messenger through their official channels. Your number stays in your name.",
   },
   trust2Title: { es: "Revisada por Meta", en: "Reviewed by Meta" },
   trust2Body: {
-    es: "La aplicación pasó el App Review de Meta con todos los permisos que usa en acceso avanzado, incluidos mensajes y comentarios.",
-    en: "The app passed Meta's App Review with every permission it uses at advanced access, messaging and comments included.",
+    es: "Meta revisó y aprobó todos los permisos que usamos.",
+    en: "Meta reviewed and approved every permission we use.",
   },
   trust3Title: { es: "Nada sale sin permiso", en: "Nothing goes out unapproved" },
   trust3Body: {
-    es: "Cada herramienta del agente se prende, se pide aprobación o se apaga. Cancelar un pedido o devolver plata nunca queda en automático.",
-    en: "Every agent tool is on, ask-first, or off. Cancelling an order or refunding money is never left on automatic.",
+    es: "Tú eliges qué hace sola y qué te pregunta. Cancelar o devolver plata nunca es automático.",
+    en: "You choose what it does alone and what it asks about. Cancelling or refunding is never automatic.",
   },
   trust4Title: { es: "Tus datos, tuyos", en: "Your data stays yours" },
   trust4Body: {
-    es: "Cifrado en tránsito y en reposo, cada comercio aislado del resto, y exportas o borras todo cuando quieras.",
-    en: "Encrypted in transit and at rest, every store isolated from the rest, and you can export or delete everything whenever you want.",
+    es: "Cifrados, aislados de los demás comercios, y los borras cuando quieras.",
+    en: "Encrypted, isolated from every other store, and you can delete them whenever you want.",
   },
 
   // ── Cierre ──
