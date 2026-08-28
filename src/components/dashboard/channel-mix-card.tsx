@@ -65,7 +65,10 @@ export function ChannelMixCard({ mix, cortes }: ChannelMixCardProps) {
               key={m.channel}
               className={cn('flex items-center gap-3', sum === 0 && 'opacity-45')}
             >
-              <div className="flex w-16 sm:w-28 shrink-0 items-center gap-2">
+              {/* Ancho suficiente para "Comentarios TikTok" y "Comentarios FB":
+                  a 7rem los dos se cortaban en "Comentarios ..." y quedaban dos
+                  filas distintas con el mismo nombre. */}
+              <div className="flex w-16 sm:w-40 shrink-0 items-center gap-2">
                 <span className="flex size-6 items-center justify-center rounded-md bg-muted">
                   <ChannelLogo channel={m.channel as Channel} size={14} />
                 </span>

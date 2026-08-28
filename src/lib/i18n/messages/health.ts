@@ -201,6 +201,56 @@ export const health: Namespace = {
   reason_approval: { es: "esperando aprobación", en: "awaiting approval" },
   reason_sin_motivo: { es: "sin motivo registrado", en: "no reason recorded" },
 
+  // Por qué NO contestó. `ai_replies.skip_reason` guarda un código interno y el
+  // panel lo mostraba crudo —«debounced_by_newer_inbound» en la cara del
+  // comercio—, que es la forma más rápida de que una pantalla parezca rota.
+  // Un código sin traducción cae en `skipOther`: mejor "otro motivo" que un
+  // identificador de la base.
+  skip_ai_disabled_for_conversation: {
+    es: "el asistente está apagado en ese chat",
+    en: "the assistant is off in that chat",
+  },
+  skip_conversation_assigned: {
+    es: "ya la atendía una persona",
+    en: "a person was already on it",
+  },
+  skip_conversation_closed: {
+    es: "la conversación ya estaba cerrada",
+    en: "the conversation was already closed",
+  },
+  skip_outside_hours: { es: "fuera de horario", en: "outside business hours" },
+  skip_debounced_by_newer_inbound: {
+    es: "llegó otro mensaje antes",
+    en: "another message arrived first",
+  },
+  skip_stale_by_newer_inbound: {
+    es: "llegó otro mensaje antes",
+    en: "another message arrived first",
+  },
+  skip_escalation_keyword: { es: "por pedido del cliente", en: "customer asked" },
+  skip_escalate_after_messages: {
+    es: "por cupo de respuestas",
+    en: "reply cap reached",
+  },
+  skip_reply_burst_guard: { es: "por ráfaga de mensajes", en: "message burst" },
+  skip_opted_out: {
+    es: "el cliente pidió no recibir mensajes",
+    en: "the customer opted out",
+  },
+  skip_recently_contacted: {
+    es: "ya se le había escrito hace poco",
+    en: "already messaged recently",
+  },
+  skip_already_paid: { es: "el pedido ya estaba pago", en: "the order was already paid" },
+  skip_empty_reply: { es: "no tenía nada que decir", en: "nothing to say" },
+  skip_risk: { es: "el mensaje necesitaba revisión", en: "the reply needed review" },
+  skip_no_phone: { es: "el contacto no tiene teléfono", en: "the contact has no phone" },
+  skip_tool_loop_truncated_fallback: {
+    es: "se quedó sin pasos",
+    en: "ran out of steps",
+  },
+  skipOther: { es: "otro motivo", en: "another reason" },
+
   revenueDisclaimer: {
     es: "Con qué habló cada comprador en las 72 h previas. Un pedido puede aparecer en varias filas; el total lo cuenta una vez.",
     en: "What each buyer engaged with in the previous 72h. One order can appear in several rows; the total counts it once.",

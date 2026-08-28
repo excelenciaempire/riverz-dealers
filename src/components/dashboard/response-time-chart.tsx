@@ -8,6 +8,7 @@ import type {
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
 import { useT } from '@/hooks/use-locale'
+import type { Cortes } from '@/lib/dashboard/cortes'
 import type { TFn } from '@/lib/i18n/translate'
 import { cn } from '@/lib/utils'
 import { EmptyState } from './empty-state'
@@ -16,6 +17,14 @@ import { Skeleton } from './skeleton'
 interface ResponseTimeChartProps {
   data: ResponseTimeReport | null
   loading: boolean
+  /**
+   * Quién contestó primero, la IA o una persona. Vive acá y no en la tarjeta de
+   * «Lo que resolvió sola»: el promedio de esta tarjeta y la mediana de aquélla
+   * son dos formas de medir el mismo minuto, y en la misma pantalla no se leen
+   * como dos lecturas sino como un número mal calculado. Acá abajo del promedio
+   * la diferencia se explica sola.
+   */
+  cortes?: Cortes | null
 }
 
 const VB_W = 760
@@ -25,6 +34,7 @@ const PADDING = { top: 24, right: 16, bottom: 32, left: 44 }
 export function ResponseTimeChart({
   data,
   loading,
+  cortes,
 }: ResponseTimeChartProps) {
   const t = useT()
   // Las dos lecturas vienen calculadas de la misma consulta, así que
@@ -55,21 +65,42 @@ export function ResponseTimeChart({
             />
           </div>
         </div>
-        {summary &&
-          (summary.thisPeriodAvg != null || summary.prevPeriodAvg != null) && (
-            <div className="text-right text-xs">
-              <div className="text-muted-foreground">
-                {t('dashboard.average')}:{' '}
-                <span className="font-medium text-foreground tabular-nums">
-                  {fmt(summary.thisPeriodAvg)}
-                </span>
-              </div>
-              <div className="text-muted-foreground">
-                {t('dashboard.previousPeriod')}:{' '}
-                <span className="tabular-nums">{fmt(summary.prevPeriodAvg)}</span>
-              </div>
+        <div className="text-right text-xs">
+          {summary &&
+            (summary.thisPeriodAvg != null || summary.prevPeriodAvg != null) && (
+              <>
+                <div className="text-muted-foreground">
+                  {t('dashboard.average')}:{' '}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {fmt(summary.thisPeriodAvg)}
+                  </span>
+                </div>
+                <div className="text-muted-foreground">
+                  {t('dashboard.previousPeriod')}:{' '}
+                  <span className="tabular-nums">{fmt(summary.prevPeriodAvg)}</span>
+                </div>
+              </>
+            )}
+          {/* La comparación que prueba para qué sirve el asistente: segundos
+              contra horas, en la tarjeta donde ya se habla de tiempos. */}
+          {mode === 'first' && cortes?.respuesta.ia != null && (
+            <div className="mt-1 text-muted-foreground">
+              {t('health.soloFirstReply')}{' '}
+              <span className="font-medium text-foreground tabular-nums">
+                {duracion(cortes.respuesta.ia, t)}
+              </span>
+              {cortes.respuesta.humano != null && (
+                <>
+                  {' · '}
+                  {t('health.soloHuman')}{' '}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {duracion(cortes.respuesta.humano, t)}
+                  </span>
+                </>
+              )}
             </div>
           )}
+        </div>
       </header>
 
       <div className="p-5">
@@ -86,6 +117,22 @@ export function ResponseTimeChart({
       </div>
     </section>
   )
+}
+
+/**
+ * Segundos en algo que se lee de un vistazo.
+ *
+ * Nadie compara "8" con "15600". La gracia de esta línea es que la diferencia
+ * se entienda sin hacer cuentas, así que se pasa a la unidad que corresponda.
+ */
+function duracion(segundos: number, t: TFn): string {
+  if (segundos < 60) return t('health.durSeconds', { n: segundos })
+  if (segundos < 3600) return t('health.durMinutes', { n: Math.round(segundos / 60) })
+  const h = Math.floor(segundos / 3600)
+  const m = Math.round((segundos % 3600) / 60)
+  return m > 0
+    ? t('health.durHoursMinutes', { h, m })
+    : t('health.durHours', { h })
 }
 
 function ModeButton({

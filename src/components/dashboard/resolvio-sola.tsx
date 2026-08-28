@@ -30,6 +30,34 @@ import { cn } from '@/lib/utils'
  * leída dos veces.
  */
 
+/**
+ * Los motivos de abstención que tienen nombre en castellano.
+ *
+ * `translate` devuelve la CLAVE cuando no encuentra la traducción, así que
+ * pedirle `health.skip_lo_que_sea` a ciegas cambiaría un código de la base por
+ * uno más largo. Lo que no está acá cae en «otro motivo»: el código sigue en
+ * `ai_replies.skip_reason` para quien lo tenga que depurar, pero no se le
+ * muestra al comercio.
+ */
+const MOTIVOS_CON_NOMBRE = new Set([
+  'ai_disabled_for_conversation',
+  'conversation_assigned',
+  'conversation_closed',
+  'outside_hours',
+  'debounced_by_newer_inbound',
+  'stale_by_newer_inbound',
+  'escalation_keyword',
+  'escalate_after_messages',
+  'reply_burst_guard',
+  'opted_out',
+  'recently_contacted',
+  'already_paid',
+  'empty_reply',
+  'risk',
+  'no_phone',
+  'tool_loop_truncated_fallback',
+])
+
 export function ResolvioSola({ data }: { data: Cortes | null }) {
   const t = useT()
   const fmt = useFormat()
@@ -41,7 +69,7 @@ export function ResolvioSola({ data }: { data: Cortes | null }) {
 
   // `tasa` ya viene en null cuando no hay muestras suficientes: el umbral vive
   // en el servidor para que todas las pantallas usen el mismo.
-  const { ia, fueraDeHorario, respuesta, escalaciones, agentes } = data
+  const { ia, fueraDeHorario, escalaciones, agentes } = data
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -93,23 +121,6 @@ export function ResolvioSola({ data }: { data: Cortes | null }) {
           />
         )}
 
-        {respuesta.ia !== null && (
-          <li className="text-muted-foreground">
-            {t('health.soloFirstReply')}{' '}
-            <span className="font-medium text-foreground">
-              {duracion(respuesta.ia, t)}
-            </span>
-            {respuesta.humano !== null && (
-              <>
-                {' · '}
-                {t('health.soloHuman')}{' '}
-                <span className="font-medium text-foreground">
-                  {duracion(respuesta.humano, t)}
-                </span>
-              </>
-            )}
-          </li>
-        )}
       </ul>
 
       {escalaciones.total > 0 && (
@@ -145,7 +156,13 @@ export function ResolvioSola({ data }: { data: Cortes | null }) {
               {a.seAbstuvo > 0 && (
                 <span className="tabular-nums text-muted-foreground">
                   · {t('dashboard.whoSkipped', { n: a.seAbstuvo })}
-                  {a.motivo ? ` (${a.motivo})` : ''}
+                  {a.motivo
+                    ? ` (${t(
+                        MOTIVOS_CON_NOMBRE.has(a.motivo)
+                          ? `health.skip_${a.motivo}`
+                          : 'health.skipOther',
+                      )})`
+                    : ''}
                 </span>
               )}
               {a.fallo > 0 && (
@@ -168,22 +185,4 @@ function Linea({ valor, texto }: { valor: string; texto: string }) {
       <span className="text-muted-foreground">{texto}</span>
     </li>
   )
-}
-
-type TFn = ReturnType<typeof useT>
-
-/**
- * Segundos en algo que se lee de un vistazo.
- *
- * Nadie compara "8" con "15600". La gracia de esta línea es que la diferencia
- * se entienda sin hacer cuentas, así que se pasa a la unidad que corresponda.
- */
-function duracion(segundos: number, t: TFn): string {
-  if (segundos < 60) return t('health.durSeconds', { n: segundos })
-  if (segundos < 3600) return t('health.durMinutes', { n: Math.round(segundos / 60) })
-  const h = Math.floor(segundos / 3600)
-  const m = Math.round((segundos % 3600) / 60)
-  return m > 0
-    ? t('health.durHoursMinutes', { h, m })
-    : t('health.durHours', { h })
 }

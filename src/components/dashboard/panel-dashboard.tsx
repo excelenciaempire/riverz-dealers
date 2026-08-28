@@ -319,8 +319,14 @@ export function PanelDashboard({
       {/* Conversations over time */}
       <ConversationsChart data={series} loading={seriesLoading} />
 
-      {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      {/* Response time. La comparacion IA-vs-persona va acá adentro: es el
+          mismo minuto medido de otra forma, y en dos tarjetas se leia como dos
+          numeros que no cierran. */}
+      <ResponseTimeChart
+        data={responseTime}
+        loading={responseTimeLoading}
+        cortes={cortes}
+      />
 
       {/* De donde salio esa plata: cual automatizacion, cual campana, cual
           flujo. El total ya esta arriba; esto es la pregunta que sigue. */}
