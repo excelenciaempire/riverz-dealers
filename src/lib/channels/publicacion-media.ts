@@ -38,6 +38,17 @@ const MAX_INTENTOS = 4;
  *  por un rato, no para siempre. */
 const ESPERA_ENTRE_INTENTOS_MS = 30 * 60 * 1000;
 const TIMEOUT_TRANSCRIPCION_MS = 120_000;
+/**
+ * Cuánto puede durar la tanda entera.
+ *
+ * Vive dentro del cron de comentarios, que arranca cada 2 minutos. Una foto se
+ * describe en ~1 s, pero un video son la descarga más ~12 s de Whisper: cuatro
+ * videos seguidos empujarían la corrida por encima de los 2 minutos y la
+ * siguiente arrancaría encima de esta. Se deja de EMPEZAR trabajos nuevos al
+ * llegar acá; lo que quede espera a la próxima corrida, que es dentro de dos
+ * minutos.
+ */
+const PRESUPUESTO_MS = 45_000;
 
 /** Lo que se encontró colgado de la publicación. */
 interface Medio {
@@ -137,7 +148,9 @@ export async function entenderPendientes(
 
   const filas = (data ?? []) as FilaContexto[];
   let entendidos = 0;
+  const hasta = Date.now() + PRESUPUESTO_MS;
   for (const fila of filas) {
+    if (Date.now() > hasta) break;
     try {
       if (await entenderUna(db, fila)) entendidos++;
     } catch (err) {
