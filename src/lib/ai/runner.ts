@@ -8,6 +8,8 @@ import {
 } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
 import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
+import { limpiarPersona } from './persona-limpia';
+export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
@@ -76,6 +78,10 @@ import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import {
+  briefDeQueHablaPorId,
+  puedeAportarContexto,
+} from '@/lib/channels/de-que-habla';
 import {
   briefDePublicacionPorId,
   REGLAS_COMENTARIO_PUBLICO,
@@ -1973,6 +1979,14 @@ async function generateReply(
     const nav = await contextoDeNavegacion(db, origen.conversationId).catch(() => null);
     if (nav) extras.push(nav);
   }
+  // Y en el resto de canales, de qué habla: la publicación de Mercado Libre
+  // sobre la que preguntan, o el anuncio por el que escribieron. Sin esto el
+  // agente contestaba "¿en qué te ayudo?" a alguien que acababa de hacer clic
+  // en un anuncio de un producto concreto.
+  if (puedeAportarContexto(origen.channel)) {
+    const de = await briefDeQueHablaPorId(db, origen.conversationId).catch(() => null);
+    if (de) extras.push(de);
+  }
   const igContext = extras.length ? extras.join('\n\n') : null;
   const reglas = reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id));
   const system = buildSystemPrompt(
@@ -2330,41 +2344,6 @@ async function resolveDefaultVariantId(
   } catch {
     return null;
   }
-}
-
-/**
- * La persona del agente, sin la basura de un bug ya arreglado.
- *
- * La generación desde el producto hacía `String(x)` sobre listas que a veces
- * traen objetos (`{objection, rebuttal}`), y escribía "[object Object]" DENTRO
- * de la persona — o sea, dentro del prompt. Se arregló en el editor
- * (`researchText`), pero eso sólo protege a las personas que se generen desde
- * entonces: los agentes que ya lo tenían guardado lo siguen mandando en cada
- * respuesta. Medido en el asesor de Serum Pilar: "Maneja con tacto estas
- * objeciones comunes: [object Object]; [object Object]; [object Object]".
- *
- * Se limpia acá, al armar el prompt, porque es el único lugar por el que pasan
- * todos: los viejos, los nuevos y los que se importen mañana. Si al sacar la
- * lista la oración se queda sin contenido, se va entera — una instrucción vacía
- * ocupa lugar y no dice nada.
- */
-export function limpiarPersona(persona: string): string {
-  if (!persona.includes('[object Object]')) return persona.trim();
-  return persona
-    .split('\n')
-    .map((linea) => {
-      if (!linea.includes('[object Object]')) return linea;
-      // Se cortan las oraciones que quedaron sin nada que decir.
-      const limpio = linea
-        .split(/(?<=\.)\s+/)
-        .filter((oracion) => !oracion.includes('[object Object]'))
-        .join(' ')
-        .trim();
-      return limpio;
-    })
-    .filter((linea, i, todas) => linea !== '' || (i > 0 && todas[i - 1] !== ''))
-    .join('\n')
-    .trim();
 }
 
 export function buildSystemPrompt(

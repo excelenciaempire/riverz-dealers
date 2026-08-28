@@ -52,6 +52,7 @@ import {
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
+import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import type { AgentTools } from '@/lib/ai/toolbox';
 import type { TFn } from '@/lib/i18n/translate';
 import type {
@@ -333,7 +334,13 @@ export function AgentEditor({
 
   const [name, setName] = useState(agent?.name ?? '');
   const [isActive, setIsActive] = useState(agent?.is_active ?? false);
-  const [persona, setPersona] = useState(agent?.persona ?? defaultPersona(locale));
+  // Limpia de entrada. Un agente viejo trae "[object Object]" guardado en su
+  // persona; el runner ya lo saca del prompt, pero el comercio lo LEIA en el
+  // cuadro y no tenia forma de saber que era basura nuestra. Entrando limpia,
+  // su proximo guardado la deja limpia tambien en la base.
+  const [persona, setPersona] = useState(
+    agent?.persona ? limpiarPersona(agent.persona) : defaultPersona(locale),
+  );
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
   // New agents default to the merchant's UI language; existing agents keep
   // whatever was saved.

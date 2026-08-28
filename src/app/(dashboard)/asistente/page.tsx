@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
+import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
 import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
@@ -328,7 +329,7 @@ function AgentCard({
             active ? 'text-muted-foreground' : 'text-muted-foreground/70',
           )}
         >
-          {agent.persona}
+          {limpiarPersona(agent.persona)}
         </p>
       )}
 

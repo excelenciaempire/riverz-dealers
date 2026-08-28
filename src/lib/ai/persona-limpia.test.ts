@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { limpiarPersona } from './runner'
+import { limpiarPersona } from './persona-limpia'
 
 /**
  * Un agente que ya tiene "[object Object]" guardado en su persona lo manda en
