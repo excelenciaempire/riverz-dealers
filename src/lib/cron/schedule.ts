@@ -63,6 +63,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
   { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
   { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
+  // La recarga automática de la billetera. Cada 5 minutos: entre que el saldo
+  // cae y que la IA se queda muda hay margen —el descubierto—, y un cobro con
+  // tarjeta no conviene apurarlo. Lo bastante seguido para que nadie se entere
+  // de que estuvo en cero, lo bastante espaciado para que un fallo no se
+  // multiplique por sesenta.
+  { name: "wallet-autorecarga", whatKey: "admin.cronWalletAutorecarga", path: "/api/cron/wallet-autorecarga", schedule: "*/5 * * * *" },
   // Cada 5 minutos, que es el ritmo al que TikTok entrega de verdad: su propio
   // webhook comment.update se dispara "dentro de 5 min", así que preguntar más
   // seguido no adelanta nada. Estaba cada minuto y se medía: 1.434 corridas por

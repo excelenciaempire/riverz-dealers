@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe'
 import { acreditarDesdeEvento } from '@/lib/wallet/recarga'
+import { guardarTarjetaDesdeEvento } from '@/lib/wallet/auto'
 
 /**
  * Lo que Stripe cuenta después.
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
     const db = supabaseAdmin()
     // Por el mismo endpoint entran dos cosas distintas: el estado de la
     // suscripción y las recargas de saldo. Cada una ignora lo que no es suyo.
+    const tarjeta = await guardarTarjetaDesdeEvento(db, evento)
+    if (tarjeta) return NextResponse.json({ ok: true, que: tarjeta })
     const recarga = await acreditarDesdeEvento(db, evento)
     if (recarga) return NextResponse.json({ ok: true, que: recarga })
     const que = await aplicarEvento(db, evento)

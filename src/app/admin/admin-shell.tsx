@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Lock } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowLeft, ChevronLeft, Lock } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { useT } from "@/hooks/use-locale";
@@ -40,6 +41,8 @@ export function AdminShell({
               <span className="text-xs lowercase text-muted-foreground">admin</span>
             </Link>
 
+            <VolverAlIndice />
+
             <div className="flex-1" />
 
             <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
@@ -60,6 +63,36 @@ export function AdminShell({
         <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
       </div>
     </CsrfProvider>
+  );
+}
+
+
+/**
+ * Volver al índice del panel.
+ *
+ * El panel no tiene menú lateral —once secciones no entran en una barra— así
+ * que desde adentro de una sección la única salida era el logo, que nadie lee
+ * como "volver". Sin esto, la forma de moverse entre secciones era el botón
+ * del navegador.
+ *
+ * En el índice no aparece: un botón de volver que lleva a donde ya estás es
+ * ruido.
+ */
+function VolverAlIndice() {
+  const t = useT();
+  const pathname = usePathname();
+  // En admin.riverz.co el índice es "/"; en el dominio viejo, "/admin".
+  const enElIndice = pathname === "/" || pathname === "/admin";
+  if (enElIndice) return null;
+
+  return (
+    <Link
+      href="/admin"
+      className="flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <ChevronLeft className="h-4 w-4" />
+      <span className="hidden sm:inline">{t("admin.backToIndex")}</span>
+    </Link>
   );
 }
 

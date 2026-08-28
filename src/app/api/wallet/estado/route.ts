@@ -53,6 +53,14 @@ export async function GET(request: Request) {
       moneda: billetera.moneda,
       bloquearSinSaldo: billetera.bloquearSinSaldo && !exenta,
       exenta,
+      // La recarga automática, tal como la ve el comercio.
+      auto: {
+        tieneTarjeta: billetera.tieneTarjeta,
+        recargaCentavos: billetera.autoRecargaCentavos,
+        umbralCentavos: billetera.autoUmbralCentavos,
+        fallos: billetera.autoFallos,
+        ultimoError: billetera.autoUltimoError,
+      },
       resumen: datos,
       tarifas: tarifas
         .filter((t) => t.activo)

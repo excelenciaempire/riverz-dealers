@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Wallet } from 'lucide-react';
+import { CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -54,6 +54,13 @@ interface Estado {
   tarifas: Tarifa[];
   puedeRecargar: boolean;
   sugeridos: number[];
+  auto: {
+    tieneTarjeta: boolean;
+    recargaCentavos: number | null;
+    umbralCentavos: number | null;
+    fallos: number;
+    ultimoError: string | null;
+  };
 }
 
 interface Movimiento {
@@ -95,6 +102,8 @@ export function WalletPanel() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
+  const [autoMonto, setAutoMonto] = useState("");
+  const [autoUmbral, setAutoUmbral] = useState("");
 
   const rango = useMemo(() => {
     if (dias !== null) {
@@ -172,6 +181,52 @@ export function WalletPanel() {
     [fetchWithCsrf, t],
   );
 
+  /** Guardar la tarjeta, o cambiarla. No cobra nada: es una autorización. */
+  const irPorTarjeta = useCallback(async () => {
+    setYendo(true);
+    try {
+      const res = await fetchWithCsrf('/api/wallet/auto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tarjeta: true }),
+      });
+      const json = (await res.json()) as { url?: string };
+      if (json.url) window.location.href = json.url;
+      else toast.error(t('settings.walletTopUpFailed'));
+    } catch {
+      toast.error(t('settings.walletTopUpFailed'));
+    } finally {
+      setYendo(false);
+    }
+  }, [fetchWithCsrf, t]);
+
+  const guardarAuto = useCallback(
+    async (cuerpo: Record<string, unknown>) => {
+      setYendo(true);
+      try {
+        const res = await fetchWithCsrf('/api/wallet/auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cuerpo),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) {
+          toast.error(json.error ?? t('settings.walletTopUpFailed'));
+          return;
+        }
+        toast.success(t('settings.walletAutoSaved'));
+        const q = new URLSearchParams({ desde: rango.desde, hasta: rango.hasta });
+        const nuevo = await fetch(`/api/wallet/estado?${q}`, { cache: 'no-store' });
+        if (nuevo.ok) setE((await nuevo.json()) as Estado);
+      } catch {
+        toast.error(t('settings.walletTopUpFailed'));
+      } finally {
+        setYendo(false);
+      }
+    },
+    [fetchWithCsrf, rango.desde, rango.hasta, t],
+  );
+
   const plata = useCallback(
     (centavos: number) => fmt.currency(centavos / 100, (e?.moneda ?? 'usd').toUpperCase()),
     [fmt, e?.moneda],
@@ -196,7 +251,7 @@ export function WalletPanel() {
   }
   if (!e) return null;
 
-  const { resumen } = e;
+  const { resumen, auto } = e;
   const maxDia = Math.max(1, ...resumen.porDia.map((d) => d.gastadoCentavos));
   const enRojo = e.saldoCentavos <= 0 && !e.exenta;
 
@@ -263,6 +318,107 @@ export function WalletPanel() {
           </p>
         )}
       </section>
+
+      {/* ── Recarga automática ──────────────────────────────────────── */}
+      {e.puedeRecargar && !e.exenta && (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('settings.walletAutoTitle')}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {auto.recargaCentavos !== null && auto.umbralCentavos !== null
+                  ? t('settings.walletAutoOn', {
+                      monto: plata(auto.recargaCentavos),
+                      umbral: plata(auto.umbralCentavos),
+                    })
+                  : t('settings.walletAutoOff')}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" disabled={yendo} onClick={() => void irPorTarjeta()}>
+              <CreditCard className="size-4" />
+              {auto.tieneTarjeta
+                ? t('settings.walletCardChange')
+                : t('settings.walletCardAdd')}
+            </Button>
+          </div>
+
+          {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
+              prometer un cobro que no se puede hacer. */}
+          {auto.tieneTarjeta && (
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <label className="text-sm">
+                <span className="block text-muted-foreground">
+                  {t('settings.walletAutoAmount')}
+                </span>
+                <Input
+                  value={autoMonto}
+                  onChange={(ev) => setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))}
+                  placeholder={
+                    auto.recargaCentavos !== null
+                      ? String(auto.recargaCentavos / 100)
+                      : '50'
+                  }
+                  inputMode="numeric"
+                  className="mt-1 h-9 w-28"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="block text-muted-foreground">
+                  {t('settings.walletAutoThreshold')}
+                </span>
+                <Input
+                  value={autoUmbral}
+                  onChange={(ev) => setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))}
+                  placeholder={
+                    auto.umbralCentavos !== null
+                      ? String(auto.umbralCentavos / 100)
+                      : '10'
+                  }
+                  inputMode="numeric"
+                  className="mt-1 h-9 w-28"
+                />
+              </label>
+              <Button
+                size="sm"
+                disabled={yendo || (!autoMonto && !autoUmbral)}
+                onClick={() =>
+                  void guardarAuto({
+                    recargaCentavos:
+                      (Number(autoMonto) || (auto.recargaCentavos ?? 0) / 100) * 100,
+                    umbralCentavos:
+                      (Number(autoUmbral) || (auto.umbralCentavos ?? 0) / 100) * 100,
+                  })
+                }
+              >
+                {t('settings.walletAutoSave')}
+              </Button>
+              {auto.recargaCentavos !== null && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={yendo}
+                  onClick={() => void guardarAuto({ apagar: true })}
+                >
+                  {t('settings.walletAutoTurnOff')}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* El error del banco, tal cual. "No se pudo cobrar" no le sirve a
+              nadie: fondos insuficientes y tarjeta vencida se arreglan distinto. */}
+          {auto.fallos > 0 && (
+            <p className="mt-3 text-sm text-destructive">
+              {auto.fallos >= 3
+                ? t('settings.walletAutoGaveUp')
+                : t('settings.walletAutoFailed')}
+              {auto.ultimoError ? ` — ${auto.ultimoError}` : ''}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* ── Rango ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">

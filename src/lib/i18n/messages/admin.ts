@@ -5,6 +5,7 @@ export const admin = {
   title: { es: "Admin", en: "Admin" },
   subtitle: { es: "Ajustes globales de la plataforma", en: "Platform-wide settings" },
   backToApp: { es: "Volver a la app", en: "Back to app" },
+  backToIndex: { es: "Volver", en: "Back" },
   // Grupos del índice
   groupWorkspaces: { es: "Comercios", en: "Merchants" },
   groupObservability: { es: "Qué está pasando", en: "What's happening" },

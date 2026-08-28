@@ -21,6 +21,9 @@ const billetera = (over: Partial<Billetera> = {}): Billetera => ({
   bloquearSinSaldo: true,
   autoRecargaCentavos: null,
   autoUmbralCentavos: null,
+  tieneTarjeta: false,
+  autoFallos: 0,
+  autoUltimoError: null,
   ...over,
 })
 

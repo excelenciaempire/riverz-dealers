@@ -1034,6 +1034,32 @@ export const settings = {
   walletNext: { es: "Siguiente", en: "Next" },
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
 
+  // ── Recarga automática ──
+  walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },
+  walletAutoOff: {
+    es: "Guarda una tarjeta y el saldo se repone solo antes de que la IA se calle.",
+    en: "Save a card and your balance refills itself before the AI goes quiet.",
+  },
+  walletAutoOn: {
+    es: "Se cargan {monto} cuando el saldo baja de {umbral}.",
+    en: "{monto} is charged whenever the balance drops below {umbral}.",
+  },
+  walletCardAdd: { es: "Agregar tarjeta", en: "Add card" },
+  walletCardChange: { es: "Cambiar tarjeta", en: "Change card" },
+  walletAutoAmount: { es: "Cargar (US$)", en: "Load (US$)" },
+  walletAutoThreshold: { es: "Cuando baje de (US$)", en: "When it drops below (US$)" },
+  walletAutoSave: { es: "Guardar", en: "Save" },
+  walletAutoTurnOff: { es: "Apagar", en: "Turn off" },
+  walletAutoSaved: { es: "Listo.", en: "Done." },
+  walletAutoFailed: {
+    es: "El último cobro automático no entró. Se vuelve a intentar.",
+    en: "The last automatic charge didn't go through. It will retry.",
+  },
+  walletAutoGaveUp: {
+    es: "El cobro automático falló tres veces y se detuvo. Cambia la tarjeta para reanudarlo.",
+    en: "Auto top-up failed three times and stopped. Change the card to resume it.",
+  },
+
   // ── Avisos de cobro ──
   avisoGracia: {
     es: "El último cobro falló. Tienes {n} horas para actualizar el pago antes de perder el acceso.",

@@ -32,6 +32,12 @@ export interface Billetera {
   bloquearSinSaldo: boolean
   autoRecargaCentavos: number | null
   autoUmbralCentavos: number | null
+  /** Si hay una tarjeta guardada en Stripe para cobrar sin que nadie mire. */
+  tieneTarjeta: boolean
+  /** Rechazos seguidos del cobro automático. A los 3 se deja de intentar. */
+  autoFallos: number
+  /** Por qué falló el último intento, en el idioma de Stripe. */
+  autoUltimoError: string | null
 }
 
 interface FilaCuenta {
@@ -42,10 +48,13 @@ interface FilaCuenta {
   bloquear_sin_saldo: boolean
   auto_recarga_centavos: number | null
   auto_umbral_centavos: number | null
+  stripe_payment_method_id: string | null
+  auto_fallos: number | null
+  auto_ultimo_error: string | null
 }
 
 const COLUMNAS =
-  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos'
+  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos, stripe_payment_method_id, auto_fallos, auto_ultimo_error'
 
 function aBilletera(f: FilaCuenta): Billetera {
   return {
@@ -56,6 +65,9 @@ function aBilletera(f: FilaCuenta): Billetera {
     bloquearSinSaldo: f.bloquear_sin_saldo === true,
     autoRecargaCentavos: f.auto_recarga_centavos,
     autoUmbralCentavos: f.auto_umbral_centavos,
+    tieneTarjeta: Boolean(f.stripe_payment_method_id),
+    autoFallos: f.auto_fallos ?? 0,
+    autoUltimoError: f.auto_ultimo_error ?? null,
   }
 }
 
@@ -95,6 +107,9 @@ export async function leerBilletera(
         bloquearSinSaldo: false,
         autoRecargaCentavos: null,
         autoUmbralCentavos: null,
+        tieneTarjeta: false,
+        autoFallos: 0,
+        autoUltimoError: null,
       }
 }
 
