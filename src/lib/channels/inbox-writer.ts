@@ -9,6 +9,7 @@ import type { InboundEvent } from "./types";
 import { runAiAgent } from "@/lib/ai/runner";
 import { dispatchAutomationsAndFlows } from "./inbound-dispatch";
 import { linkUnifiedContact } from "@/lib/contacts/dedupe";
+import type { OrigenDelDato } from "@/lib/contacts/identidad-probada";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
 import { mediaPreviewToken } from "./display";
@@ -166,8 +167,16 @@ export async function ingestInboundEvent(
       external_id: event.externalContactId,
       name: event.contactName,
       avatar_url: event.contactAvatarUrl,
+      // El identificador del canal ES la identidad: el numero con el que
+      // escribe por WhatsApp es su numero, la casilla desde la que manda un
+      // correo es su casilla. No hay dato mas probado que ese, y por eso se
+      // marca `canal` (migracion 206) -- es lo que habilita unirlo con su
+      // ficha de otro canal.
       email: channel === "gmail" || channel === "outlook" ? event.externalContactId : undefined,
       phone: channel === "whatsapp" ? event.externalContactId : undefined,
+      email_origen:
+        channel === "gmail" || channel === "outlook" ? "canal" : undefined,
+      phone_origen: channel === "whatsapp" ? "canal" : undefined,
       created_at: historicalCreatedAt,
     },
     contactOutcome,
@@ -650,6 +659,9 @@ export interface UpsertContactInput {
   avatar_url?: string;
   email?: string;
   phone?: string;
+  /** De donde salio cada dato (migracion 206). Decide si puede unir. */
+  email_origen?: OrigenDelDato;
+  phone_origen?: OrigenDelDato;
   /** Momento histórico del primer mensaje visto (backfill); si se omite, la DB
    *  usa NOW(). Solo aplica al INSERT — nunca reescribe un contacto existente. */
   created_at?: string;
@@ -780,6 +792,8 @@ export async function upsertContact(
       avatar_url: input.avatar_url ?? inherited?.avatar_url ?? null,
       email: input.email,
       phone: input.phone,
+      ...(input.email_origen ? { email_origen: input.email_origen } : {}),
+      ...(input.phone_origen ? { phone_origen: input.phone_origen } : {}),
       ...(input.created_at ? { created_at: input.created_at } : {}),
     })
     .select()

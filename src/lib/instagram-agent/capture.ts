@@ -94,8 +94,16 @@ export async function detectRepliesAndCapture(
       | { name: string | null; email: string | null; phone: string | null }
       | null;
     const patch: Record<string, string> = {};
-    if (email && !c?.email) patch.email = email;
-    if (phone && phone.length >= 8 && !c?.phone) patch.phone = phone;
+    // `afirmado`: lo escribio la persona en un DM. Se guarda para poder
+    // escribirle, pero no une fichas -- ver `contacts/identidad-probada.ts`.
+    if (email && !c?.email) {
+      patch.email = email;
+      patch.email_origen = 'afirmado';
+    }
+    if (phone && phone.length >= 8 && !c?.phone) {
+      patch.phone = phone;
+      patch.phone_origen = 'afirmado';
+    }
     if (Object.keys(patch).length > 0) {
       await db.from('contacts').update(patch).eq('id', r.contact_id);
       captured += 1;

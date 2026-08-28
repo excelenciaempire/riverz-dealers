@@ -2,6 +2,20 @@ import type { Namespace } from "./types";
 
 /** Contacts area: list, detail, form, tags, segments and CSV import. */
 export const contacts = {
+  // Union entre canales: la misma persona escribiendo por WhatsApp y por
+  // Instagram es UN cliente. Cuando esta bien es la mitad de lo que hace bueno
+  // al agente; cuando esta mal, le muestra a alguien los pedidos de otro.
+  unionTitle: {
+    es: "También te escribe desde",
+    en: "Also writes to you from",
+  },
+  unionSeparated: {
+    es: "Separado a mano: no se vuelve a unir solo",
+    en: "Separated by hand: it won't re-join on its own",
+  },
+  unionSeparate: { es: "Separar", en: "Separate" },
+  unionRejoin: { es: "Permitir unir", en: "Allow joining" },
+  unionFailed: { es: "No se pudo cambiar.", en: "Couldn't change it." },
   // Page header + tabs
   title: { es: "Contactos", en: "Contacts" },
   totalCount: { es: "{count} en total", en: "{count} total" },

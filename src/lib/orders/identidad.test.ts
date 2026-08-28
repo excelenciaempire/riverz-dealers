@@ -53,6 +53,11 @@ describe('identificarPorElPedido', () => {
       name: 'Ana',
       phone: '+5491133334444',
       email: 'ana@mail.com',
+      // El origen es lo que despues habilita unir esta ficha con la de otro
+      // canal: un pedido tiene del otro lado una direccion a la que va a
+      // llegar algo. Ver contacts/identidad-probada.ts.
+      phone_origen: 'pedido',
+      email_origen: 'pedido',
     });
     expect(unir).toHaveBeenCalledOnce();
   });

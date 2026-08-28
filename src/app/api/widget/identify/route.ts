@@ -68,10 +68,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, linked: false });
   }
 
+  // `afirmado` (migracion 206): lo escribio alguien anonimo en un chat y nadie
+  // lo verifico. Se guarda -- sirve para escribirle -- pero NO une. Si manana
+  // ese mismo correo aparece en un pedido, ahi si.
   const patch: Record<string, string> = {};
-  if (email && !contact.email) patch.email = email;
+  if (email && !contact.email) {
+    patch.email = email;
+    patch.email_origen = 'afirmado';
+  }
   if (name && !contact.name) patch.name = name;
-  if (phone && !contact.phone) patch.phone = phone;
+  if (phone && !contact.phone) {
+    patch.phone = phone;
+    patch.phone_origen = 'afirmado';
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ ok: true, linked: false });

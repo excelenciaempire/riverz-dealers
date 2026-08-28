@@ -22,6 +22,7 @@ import { ContactChatLinks } from '@/components/contacts/contact-chat-links';
 import { ContactActivityTimeline } from '@/components/contacts/contact-activity-timeline';
 import { ContactPurchasesPanel } from '@/components/contacts/contact-purchases-panel';
 import { useT } from '@/hooks/use-locale';
+import { UnionDeContactos } from './union-de-contactos';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { TFn } from '@/lib/i18n/translate';
@@ -283,6 +284,10 @@ export function ContactDetailView({
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
+                  {/* Con quien esta unido. Arriba de todo: cambia como hay que
+                      leer TODO lo de abajo -- las compras y las notas que se
+                      ven son las del cliente unificado, no las de esta ficha. */}
+                  <UnionDeContactos contactId={contact.id} />
                   {(contact.last_offer_chosen || contact.last_offer_units) && (
                     <div className="space-y-1 rounded-lg border border-primary/30 bg-primary/5 p-3">
                       <div className="flex items-center gap-1.5 text-xs font-medium text-accent-ink">

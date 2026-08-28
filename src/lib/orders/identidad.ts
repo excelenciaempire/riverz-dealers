@@ -54,12 +54,18 @@ export async function identificarPorElPedido(
 
     const patch: Record<string, string> = {};
     if (nombre && !contacto.name) patch.name = nombre;
+    // `pedido`: del otro lado hay una direccion a la que va a llegar algo.
+    // Es lo que habilita unir esta ficha con la de otro canal.
     // Ocho dígitos es el piso de un teléfono real: por debajo es una extensión
     // o un número mal copiado, y unir por eso mezcla gente que no se conoce.
     if (telefono && telefono.replace(/\D/g, '').length >= 8 && !contacto.phone) {
       patch.phone = telefono;
+      patch.phone_origen = 'pedido';
     }
-    if (correo.includes('@') && !contacto.email) patch.email = correo;
+    if (correo.includes('@') && !contacto.email) {
+      patch.email = correo;
+      patch.email_origen = 'pedido';
+    }
 
     let enriquecido = contacto;
     if (Object.keys(patch).length > 0) {
