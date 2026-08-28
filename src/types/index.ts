@@ -302,6 +302,10 @@ export interface Conversation {
    * otra cosa: sirve para ponerse al día, no para saber dónde se traba
    * (migración 201). */
   needs_human_summary?: string | null;
+  /** Cuándo alguien abrió el hilo escalado. NULL = la bandeja lo marca urgente. */
+  needs_human_visto_at?: string | null;
+  /** Cuándo salió el aviso por WhatsApp. NULL = todavía no se avisó. */
+  needs_human_avisado_at?: string | null;
   /** Satisfacción: 1 (sirvió) / -1 (no sirvió), y cuándo (migración 181). La
    * escribía sólo el widget del chat web; desde la 202 también se pregunta en
    * los canales 1 a 1 al cerrar. */

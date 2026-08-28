@@ -730,6 +730,14 @@ const ConversationItem = memo(function ConversationItem({
             </span>
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
+            {/* Un caso que el asistente dejó de atender. Se apaga solo al abrir
+                el hilo: si siguiera puesto después de leerlo, en un día la
+                bandeja entera estaría en rojo y el aviso no diría nada. */}
+            {conversation.needs_human_at && !conversation.needs_human_visto_at && (
+              <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                {t("inbox.needsHumanBadge")}
+              </span>
+            )}
             {conversation.unread_count > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                 {conversation.unread_count}
@@ -758,6 +766,8 @@ const ConversationItem = memo(function ConversationItem({
   a.conversation.last_message_at === b.conversation.last_message_at &&
   a.conversation.last_message_text === b.conversation.last_message_text &&
   a.conversation.unread_count === b.conversation.unread_count &&
+  a.conversation.needs_human_at === b.conversation.needs_human_at &&
+  a.conversation.needs_human_visto_at === b.conversation.needs_human_visto_at &&
   a.conversation.status === b.conversation.status &&
   a.conversation.last_sender_type === b.conversation.last_sender_type &&
   a.conversation.last_message_status === b.conversation.last_message_status &&

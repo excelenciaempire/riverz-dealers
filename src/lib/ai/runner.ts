@@ -13,6 +13,8 @@ export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
+import { detectarEscalada, type Escalada } from './escalada';
+import { avisarEscalada } from './aviso-escalada';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
@@ -194,10 +196,39 @@ export async function runAiAgent(
       return;
     }
 
-    if (containsEscalationKeyword(agent, args.inboundMessage.content_text ?? '')) {
+    const textoEntrante = args.inboundMessage.content_text ?? '';
+    if (containsEscalationKeyword(agent, textoEntrante)) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
-        pidio: args.inboundMessage.content_text ?? null,
+        pidio: textoEntrante,
       });
+      await avisarDelCaso(db, args, {
+        clase: 'pide_persona',
+        urgencia: 'hoy',
+        porQue: 'Usó una de las palabras que el comercio marcó para escalar',
+      });
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'escalation_keyword',
+      });
+      return;
+    }
+
+    // Lo que las palabras del comercio no cubren: un problema real en curso.
+    // Un envío que va a la ciudad equivocada no trae ninguna palabra clave y
+    // no puede esperar a que alguien mire la bandeja.
+    const escalada = await detectarEscalada({
+      mensaje: textoEntrante,
+      // El hilo lo lee el clasificador sólo si hace falta; se pide acá para
+      // no armar un contexto caro en cada mensaje.
+      hilo: await ultimosTurnos(db, args.conversation.id),
+      hayPedido: Boolean(args.conversation.subject),
+      apiKey: process.env.ANTHROPIC_API_KEY ?? null,
+    }).catch(() => null);
+    if (escalada) {
+      await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
+        pidio: textoEntrante,
+      });
+      await avisarDelCaso(db, args, escalada);
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'escalation_keyword',
@@ -3046,4 +3077,56 @@ export function splitReplyForMode(
     .map((s) => s.trim())
     .filter(Boolean);
   return parts.length > 0 ? parts : [text];
+}
+
+/**
+ * El aviso por WhatsApp del caso que acaba de escalar. Best-effort: si no sale,
+ * el hilo igual queda marcado en la bandeja.
+ */
+async function avisarDelCaso(
+  db: SupabaseClient,
+  args: {
+    conversation: Conversation;
+    contact: Contact;
+    channel: Channel;
+    inboundMessage: Message;
+  },
+  escalada: Escalada,
+): Promise<void> {
+  try {
+    await avisarEscalada(db, {
+      workspaceId: args.conversation.workspace_id,
+      conversationId: args.conversation.id,
+      cliente: args.contact?.name ?? null,
+      contacto: args.contact?.phone ?? args.contact?.external_id ?? null,
+      canal: args.channel,
+      escalada,
+      ultimoMensaje: args.inboundMessage.content_text ?? null,
+      pedido: args.conversation.subject ? { numero: args.conversation.subject } : null,
+    });
+  } catch (err) {
+    console.error('[ai] el aviso de escalada falló:', err);
+  }
+}
+
+/** Los últimos turnos del hilo, en texto plano, del más viejo al más nuevo. */
+async function ultimosTurnos(
+  db: SupabaseClient,
+  conversationId: string,
+): Promise<string[]> {
+  const { data } = await db
+    .from('messages')
+    .select('sender_type, content_text')
+    .eq('conversation_id', conversationId)
+    .not('content_text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(6);
+  const filas = (data ?? []) as Array<{ sender_type: string; content_text: string }>;
+  return filas
+    .reverse()
+    .map(
+      (m) =>
+        `${m.sender_type === 'customer' ? 'Cliente' : 'Nosotros'}: ${m.content_text}`,
+    )
+    .filter((l) => l.trim().length > 12);
 }

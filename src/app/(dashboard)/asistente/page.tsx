@@ -27,6 +27,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
+import { EscalacionesPanel } from '@/components/ai/escalaciones-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
@@ -198,6 +199,21 @@ export default function AiAgentsPage() {
           ))}
         </div>
       )}
+
+      {/* Los casos que dejó en manos de una persona. Van antes que los huecos
+          porque tienen a alguien esperando del otro lado: un hueco se puede
+          cerrar mañana, un caso escalado no. */}
+      {!loading && agents.length > 0 ? (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('assistant.escalacionesTitle')}
+          </h2>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
+            {t('assistant.escalacionesHint')}
+          </p>
+          <EscalacionesPanel />
+        </section>
+      ) : null}
 
       {/* Lo que no supo contestar. Va acá y no en una pantalla aparte porque es
           conocimiento del agente: se mira en el mismo lugar donde se lo edita,

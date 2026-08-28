@@ -2,6 +2,19 @@ import type { Namespace } from "./types";
 
 /** AI Assistant area: agents list page + the agent editor dialog. */
 export const assistant = {
+  // Los casos que el asistente dejó en manos de una persona.
+  escalacionesTitle: { es: "Casos para una persona", en: "Cases for a person" },
+  escalacionesHint: {
+    es: "Donde el asistente se plantó. Abrí el que tenga la marca roja.",
+    en: "Where the assistant stopped. Open the ones flagged in red.",
+  },
+  escalacionesVacio: {
+    es: "Ninguno quedó esperando a una persona.",
+    en: "None are waiting for a person.",
+  },
+  escalacionesSinNombre: { es: "Sin nombre", en: "No name" },
+  escalacionesOtroMotivo: { es: "Necesita una persona", en: "Needs a person" },
+
   // ── List page ──────────────────────────────────────────────
   pageTitle: { es: "Asistentes con IA", en: "AI assistants" },
   newAgent: { es: "Nuevo asistente", en: "New assistant" },

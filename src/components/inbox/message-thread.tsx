@@ -692,6 +692,24 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
+  // Y apagar la marca de "revisar ya" al abrir el hilo. Es un hecho distinto
+  // de leerlo —un caso escalado puede no tener mensajes sin leer— así que va
+  // en su propia columna y en su propio efecto.
+  const escaladoSinVer = Boolean(
+    conversation?.needs_human_at && !conversation?.needs_human_visto_at,
+  );
+  useEffect(() => {
+    if (!conversationId || !escaladoSinVer) return;
+    const supabase = createClient();
+    supabase
+      .from("conversations")
+      .update({ needs_human_visto_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .then(({ error }) => {
+        if (error) console.error("No se pudo marcar el caso como visto:", error);
+      });
+  }, [conversationId, escaladoSinVer]);
+
   // Auto-scroll to bottom on new messages. Suppressed while a
   // "Cargar más antiguos" fetch is in flight so prepending older rows
   // doesn't yank the scroll position to the bottom — handleLoadOlder
