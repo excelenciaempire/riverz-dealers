@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { humanizarTexto } from '@/lib/ai/estilo-humano';
+import { instruccionPara, mereceRespuesta } from './merece-respuesta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -648,6 +650,12 @@ async function autonomousCommentReply(
   // Comentarios (migración 132). Los defaults son la conducta de siempre.
   const commentCfg = await loadCommentSettings(db, opts.workspaceId);
 
+  // ¿Hay algo que atender aunque no quiera comprar? Una crítica a la marca, un
+  // reclamo o una pregunta concreta. El 2026-08-28 seis comentarios así —uno
+  // pedía la aprobación de ANMAT— se descartaron por no mostrar intención de
+  // compra y quedaron a la vista de todos sin respuesta.
+  const motivo = mereceRespuesta(engagement);
+
   // ¿Intención de compra? Con 'intent' (por defecto) solo contestamos a quien
   // pregunta de verdad: el "😍" no recibe DM. Con 'all' contestamos a todo el
   // que escriba algo — el spam se sigue filtrando y ocultando en los dos casos,
@@ -666,8 +674,16 @@ async function autonomousCommentReply(
       }
       return;
     }
-    // El desinterés solo descarta cuando NO hay una duda de post-venta detrás.
-    if (commentCfg.audience === 'intent' && s.score === 'low' && !orderStatus) {
+    // El desinterés sólo descarta cuando no hay nada más que atender: ni una
+    // duda de post-venta, ni una crítica, ni una pregunta. "Solo a quien
+    // quiere comprar" es un filtro para no perseguir a nadie por privado, no
+    // un permiso para callarse cuando cuestionan a la marca en público.
+    if (
+      commentCfg.audience === 'intent' &&
+      s.score === 'low' &&
+      !orderStatus &&
+      !motivo
+    ) {
       return;
     }
     score = s.score;
@@ -754,11 +770,25 @@ async function autonomousCommentReply(
         commentChannel,
         commentText: engagement,
         extraBrief:
-          [customer?.brief, orderStatus, thread?.brief, product?.brief]
+          [
+            // Va PRIMERO: cómo contestar una crítica manda sobre todo lo
+            // demás. Sin esto el agente le respondía a quien cuestiona la
+            // marca con el mismo tono que a quien quiere comprar.
+            motivo ? instruccionPara(motivo) : null,
+            customer?.brief,
+            orderStatus,
+            thread?.brief,
+            product?.brief,
+          ]
             .filter(Boolean)
             .join('\n\n') || null,
       }).catch(() => null)
     : null;
+  // El agente completo escribe en Markdown —`**$39.990**`— y ni Instagram ni
+  // TikTok lo renderizan: al cliente le llegan los asteriscos. El resto de las
+  // superficies ya pasaban por acá; ésta no, y era justo la que contesta en
+  // público. Visto en producción el 2026-08-28.
+  if (text) text = humanizarTexto(text);
 
   // Respaldo: si el agente completo falla por lo que sea (sin clave, sin saldo,
   // texto vacío), contesta el redactor de una pasada. Un comentario no se queda
@@ -848,6 +878,8 @@ async function autonomousCommentReply(
         connection,
         text,
         commentContactId: willPublish ? null : opts.contact.id,
+        // Para que el hilo privado no se abra con nuestro mensaje a secas.
+        commentText: engagement,
         // Comentarios se gobierna solo, así que la bandeja tiene que decirlo con
         // ese nombre: es el interruptor que el comercio apaga si no lo quiere.
         origin: 'comment_ai',
@@ -981,11 +1013,34 @@ export function publicReplyFrom(dmText: string, dmSent = true): string {
   const clean = dmText.trim();
   if (!dmSent) {
     if (!clean) return '';
-    return clean.length > 480 ? `${clean.slice(0, 477).trimEnd()}…` : clean;
+    return recortar(clean, 480);
   }
   const first = clean.split('\n')[0]?.trim() ?? '';
-  const short = first.length > 120 ? `${first.slice(0, 117).trimEnd()}…` : first;
+  const short = recortar(first, 120);
   return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
+}
+
+/**
+ * Recorta sin partir una palabra.
+ *
+ * Cortaba por número de caracteres a secas, así que debajo de la foto quedaba
+ * publicado "¿Hay algo del serum que qui…". Se prefiere la última frase
+ * completa que entre; si no entra ninguna, el último espacio.
+ */
+export function recortar(texto: string, tope: number): string {
+  const t = texto.trim();
+  if (t.length <= tope) return t;
+  const cabe = t.slice(0, tope);
+  const frase = Math.max(
+    cabe.lastIndexOf('. '),
+    cabe.lastIndexOf('! '),
+    cabe.lastIndexOf('? '),
+  );
+  // Una frase entera sólo si no deja el mensaje en un muñón.
+  if (frase > tope * 0.5) return cabe.slice(0, frase + 1).trim();
+  const espacio = cabe.lastIndexOf(' ');
+  const corte = espacio > tope * 0.5 ? espacio : tope - 1;
+  return `${cabe.slice(0, corte).trimEnd()}…`;
 }
 
 /**

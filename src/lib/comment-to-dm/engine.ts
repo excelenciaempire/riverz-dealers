@@ -280,6 +280,9 @@ export async function processCommentForDmRules(
         // Con respuesta pública publicada, el hilo del comentario ya la
         // muestra: espejar encima el DM dejaba dos mensajes casi iguales.
         commentContactId: publicReplyStatus === 'sent' ? null : ev.contact.id,
+        // Idem para una regla: el hilo privado tiene que decir a raíz de qué
+        // comentario se abrió.
+        commentText: ev.text,
         origin: 'comment_rule',
         originName: rule.name ?? null,
       });

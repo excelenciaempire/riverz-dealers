@@ -60,6 +60,15 @@ export async function recordProactiveDm(
      */
     commentContactId?: string | null;
     /**
+     * El comentario que provocó este DM.
+     *
+     * Sin esto el hilo privado se abría con NUESTRO mensaje y nada más: el
+     * comercio entraba y veía al agente hablándole a nadie, sin saber por qué
+     * ni a raíz de qué. Lo que la persona dijo estaba en el otro hilo (el del
+     * comentario) y no había forma de relacionarlos mirando la bandeja.
+     */
+    commentText?: string | null;
+    /**
      * Qué funcionalidad lo mandó (migración 143). Se sella en la fila para que
      * la bandeja lo diga: Comentarios, Prospección, una regla… Además sobrevive
      * al eco de Meta, que se reconcilia contra esta misma fila en vez de
@@ -102,6 +111,7 @@ export async function recordProactiveDm(
       .maybeSingle();
 
     let conversationId = (existing as { id?: string } | null)?.id ?? null;
+    const hiloNuevo = !conversationId;
     if (!conversationId) {
       const { data: created } = await db
         .from('conversations')
@@ -121,6 +131,23 @@ export async function recordProactiveDm(
       conversationId = (created as { id?: string } | null)?.id ?? null;
     }
     if (!conversationId) return null;
+
+    // 1.b El comentario que abrió el privado, como primer mensaje del hilo.
+    //     Sólo al crearlo: en un hilo que ya existía la conversación se lee
+    //     sola. No suma no leídos —ese comentario ya cuenta en su propio
+    //     hilo— y se guarda sin `message_id` para que el eco de Meta no
+    //     choque con él.
+    const comentario = (input.commentText ?? '').trim();
+    if (hiloNuevo && comentario) {
+      await db.from('messages').insert({
+        conversation_id: conversationId,
+        channel: dmChannel,
+        sender_type: 'customer',
+        content_type: 'text',
+        content_text: comentario,
+        status: 'delivered',
+      });
+    }
 
     // 2. ¿Ya está? (el eco pudo ganarnos la carrera). Mismo hilo + mismo texto
     //    en los últimos minutos = el mismo mensaje.
