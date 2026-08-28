@@ -125,8 +125,16 @@ export async function aQuienAvisar(
     .eq('id', workspaceId)
     .maybeSingle();
   const fila = ws as { alert_phone?: string | null; owner_id?: string | null } | null;
-  const propio = (fila?.alert_phone ?? '').trim();
+  const propio = soloDigitos(fila?.alert_phone);
   if (propio) return propio;
+
+  // EL NÚMERO CONECTADO DE LA CUENTA. Es el que trabaja: la bandeja de ese
+  // número es donde está la gente que puede meterse en el caso. El teléfono
+  // personal del dueño queda de respaldo para las cuentas que usan Riverz sin
+  // WhatsApp (sólo Instagram, sólo correo), no como primera opción: un aviso
+  // de operación tiene que caer en la línea del negocio.
+  const conectado = await numeroConectado(db, workspaceId);
+  if (conectado) return conectado;
 
   const { data: miembros } = await db
     .from('workspace_members')
@@ -134,19 +142,66 @@ export async function aQuienAvisar(
     .eq('workspace_id', workspaceId);
   const ids = ((miembros ?? []) as Array<{ user_id: string }>).map((m) => m.user_id);
   if (fila?.owner_id && !ids.includes(fila.owner_id)) ids.push(fila.owner_id);
-  if (ids.length === 0) return null;
 
-  const { data: perfiles } = await db
-    .from('profiles')
-    .select('user_id, phone')
-    .in('user_id', ids)
-    .not('phone', 'is', null);
-  const conTelefono = ((perfiles ?? []) as Array<{ user_id: string; phone: string }>)
-    .filter((p) => (p.phone ?? '').trim());
-  if (conTelefono.length === 0) return null;
+  if (ids.length > 0) {
+    const { data: perfiles } = await db
+      .from('profiles')
+      .select('user_id, phone')
+      .in('user_id', ids)
+      .not('phone', 'is', null);
+    const conTelefono = ((perfiles ?? []) as Array<{ user_id: string; phone: string }>)
+      .filter((p) => soloDigitos(p.phone));
+    const delDuenio = conTelefono.find((p) => p.user_id === fila?.owner_id);
+    const elegido = delDuenio ?? conTelefono[0];
+    if (elegido) return soloDigitos(elegido.phone);
+  }
 
-  const delDuenio = conTelefono.find((p) => p.user_id === fila?.owner_id);
-  return (delDuenio ?? conTelefono[0]).phone.trim();
+  return null;
+}
+
+/**
+ * EL NÚMERO DE WHATSAPP QUE LA CUENTA TIENE CONECTADO.
+ *
+ * Es el que nunca falta. Un comercio puede no haber cargado su teléfono en el
+ * perfil —medido el 2026-08-28: 8 de 10 cuentas no lo tenían, así que sus
+ * casos escalados no le llegaban a nadie— pero si usa Riverz para WhatsApp
+ * tiene un número conectado sí o sí, y es un número que alguien mira.
+ *
+ * El aviso sale desde el WhatsApp de la plataforma, no desde el del comercio,
+ * así que esto es una conversación normal entre dos números distintos.
+ *
+ * Se descartan los desconectados: escribirle a un número que el comercio dejó
+ * de usar es no avisar, con el agravante de que el registro dice que sí.
+ */
+async function numeroConectado(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('channel_connections')
+    .select('config')
+    .eq('workspace_id', workspaceId)
+    .eq('channel', 'whatsapp')
+    .eq('status', 'connected');
+  for (const fila of (data ?? []) as Array<{
+    config: Record<string, unknown> | null;
+  }>) {
+    const numero = soloDigitos(
+      (fila.config?.display_phone_number as string | undefined) ?? null,
+    );
+    if (numero) return numero;
+  }
+  return null;
+}
+
+/**
+ * Meta quiere el número en dígitos. Los que guardamos vienen como los devuelve
+ * cada integración —"+54 9 11 7678-3848"— y con espacios y guiones el envío
+ * falla, que es la peor forma de fallar: en silencio.
+ */
+function soloDigitos(valor: string | null | undefined): string | null {
+  const limpio = (valor ?? '').replace(/\D/g, '');
+  return limpio.length >= 8 ? limpio : null;
 }
 
 /**
@@ -170,12 +225,25 @@ export async function avisarEscalada(
       .maybeSingle();
     if (!reservado) return { avisado: false, motivo: 'ya se había avisado' };
 
+    // Si de acá en adelante algo falla hay que SOLTAR la reserva. La marca
+    // dice "ya se avisó" y es lo que impide un segundo intento: dejarla
+    // puesta sobre un envío que no salió es perder el aviso para siempre, y
+    // encima el registro queda diciendo que se mandó. Es exactamente el caso
+    // en que hace falta reintentar.
+    const soltar = async () => {
+      await db
+        .from('conversations')
+        .update({ needs_human_avisado_at: null })
+        .eq('id', d.conversationId);
+    };
+
     const telefono = await aQuienAvisar(db, d.workspaceId);
     if (!telefono) {
       console.warn(
         '[escalada] hay un caso para una persona y no hay a quién avisarle:',
         d.workspaceId,
       );
+      await soltar();
       return { avisado: false, motivo: 'sin número de aviso' };
     }
 
@@ -183,11 +251,22 @@ export async function avisarEscalada(
     const res = await sendPlatformAlert({ to: telefono, title: titulo, body: cuerpo });
     if (!res.ok) {
       console.warn('[escalada] no se pudo avisar por WhatsApp:', res.error);
+      await soltar();
       return { avisado: false, motivo: res.error };
     }
     return { avisado: true };
   } catch (err) {
     console.error('[escalada] el aviso falló:', err);
+    // Mismo motivo: sin soltar la reserva, un error de red se lleva puesto el
+    // aviso y nadie se entera nunca.
+    try {
+      await db
+        .from('conversations')
+        .update({ needs_human_avisado_at: null })
+        .eq('id', d.conversationId);
+    } catch {
+      /* si tampoco se puede soltar, ya se registró el error de arriba */
+    }
     return { avisado: false, motivo: 'error' };
   }
 }
