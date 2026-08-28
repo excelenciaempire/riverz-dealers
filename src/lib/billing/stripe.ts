@@ -232,9 +232,16 @@ export async function aplicarEvento(
     vencidaDesde = null
   }
 
-  const { error } = await db
-    .from('workspace_subscriptions')
-    .update({
+  // UPSERT y no update.
+  //
+  // Un `update` sobre una fila que no existe no falla: no hace nada y devuelve
+  // ok. Una cuenta que paga sin haber pasado nunca por la pantalla de
+  // facturación —que es exactamente quien entra por un link de pago— todavía no
+  // tiene fila, así que su pago entraba en Stripe y en la app no cambiaba nada.
+  // Sin error, sin rastro y sin acceso.
+  const { error } = await db.from('workspace_subscriptions').upsert(
+    {
+      workspace_id: workspaceId,
       estado,
       vencida_desde: vencidaDesde,
       stripe_subscription_id: sub.id,
@@ -243,8 +250,9 @@ export async function aplicarEvento(
       periodo_hasta: hasta ? new Date(hasta * 1000).toISOString() : null,
       cancelar_al_final: sub.cancel_at_period_end === true,
       updated_at: new Date().toISOString(),
-    })
-    .eq('workspace_id', workspaceId)
+    },
+    { onConflict: 'workspace_id' },
+  )
   if (error) throw new Error(error.message)
 
   // Empezó a pagar. Se le avisa por WhatsApp y se le asegura la billetera.
