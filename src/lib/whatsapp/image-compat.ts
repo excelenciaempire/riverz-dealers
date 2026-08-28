@@ -11,11 +11,14 @@ import {
 /**
  * Compatibilidad de imágenes salientes con WhatsApp Cloud API.
  *
- * Por qué existe: WhatsApp solo acepta **JPEG y PNG** en mensajes de tipo
- * `image`. Un `.webp` (lo que sirve Shopify por defecto y lo que exporta media
- * herramienta de diseño) se envía bien a Meta y **falla en la entrega** con el
- * código 131053 — `"WebP image uploads are not currently supported."`. Lo mismo
- * pasa con HEIC/HEIF (fotos de iPhone), AVIF, GIF, BMP y TIFF.
+ * Por qué existe: WhatsApp solo acepta **JPEG y PNG, RGB/RGBA de 8 bits por
+ * canal y hasta 5 MB** en mensajes de tipo `image`. Un `.webp` (lo que sirve
+ * Shopify por defecto y lo que exporta media herramienta de diseño) se envía
+ * bien a Meta y **falla en la entrega** con el código 131053 — `"WebP image
+ * uploads are not currently supported."`. Lo mismo pasa con HEIC/HEIF, AVIF,
+ * GIF, BMP y TIFF, y también con un PNG que *parece* válido: una captura de
+ * iPhone viene en 16 bits por canal y Meta la rechaza con `"Image is invalid.
+ * Please check the image properties…"`.
  *
  * Solución: convertir a JPEG antes de enviar. Dos puntos de entrada:
  *  - `toSendableImage` — al subir un adjunto desde el composer (se guarda ya
@@ -83,34 +86,57 @@ export async function toSendableImage(
     const meta = await sharp(buffer).metadata();
     const format = meta.format; // 'webp' | 'heif' | 'jpeg' | 'png' | 'gif' | ...
     if (!format) return unchanged;
-    const realMime = format === "jpeg" ? "image/jpeg" : format === "png" ? "image/png" : null;
-    // Ya es enviable: solo corregimos el mime si venía mal declarado.
-    if (realMime) {
-      return { buffer, mime: realMime, converted: false };
+    // Ser JPEG o PNG no alcanza. Meta pide además 8 bit por canal y RGB/RGBA:
+    // una captura de iPhone es PNG de 16 bits (space rgb16, depth ushort) y la
+    // rechaza con 131053 "Image is invalid…". Lo mismo un JPEG en CMYK, un PNG
+    // animado (APNG) o cualquier archivo que pase de 5 MB.
+    const yaEnviable =
+      (format === "jpeg" || format === "png") &&
+      meta.depth === "uchar" &&
+      (meta.space === "srgb" || meta.space === "b-w") &&
+      (meta.pages ?? 1) <= 1 &&
+      buffer.length <= MAX_IMAGE_BYTES;
+    if (yaEnviable) {
+      return {
+        buffer,
+        mime: format === "jpeg" ? "image/jpeg" : "image/png",
+        converted: false,
+      };
     }
-    // GIF animado → primer frame. Perder la animación es mejor que no entregar:
-    // WhatsApp tampoco acepta GIF como `image` (iría como video o sticker).
-    const jpeg = await sharp(buffer)
-      .rotate() // respeta la orientación EXIF antes de tirar los metadatos
-      .resize({
-        width: MAX_DIMENSION,
-        height: MAX_DIMENSION,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: 85, mozjpeg: true })
+    // Re-codificar. Con transparencia va PNG de 8 bits (JPEG la pintaría de
+    // negro); sin transparencia, JPEG, que pesa mucho menos. GIF/APNG pierden
+    // la animación: WhatsApp tampoco los acepta como `image`.
+    const destino: "png" | "jpeg" = meta.hasAlpha ? "png" : "jpeg";
+    const reencode = (maxLado: number, quality: number) => {
+      const pipe = sharp(buffer)
+        .rotate() // respeta la orientación EXIF antes de tirar los metadatos
+        .resize({
+          width: maxLado,
+          height: maxLado,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        // Baja a 8 bits por canal y aplana Display P3 / CMYK a sRGB.
+        .toColourspace("srgb");
+      return destino === "png"
+        ? pipe.png({ compressionLevel: 9, palette: false }).toBuffer()
+        : pipe.jpeg({ quality, mozjpeg: true }).toBuffer();
+    };
+    const mime = destino === "png" ? "image/png" : "image/jpeg";
+    const salida = await reencode(MAX_DIMENSION, 85);
+    if (salida.length <= MAX_IMAGE_BYTES) return { buffer: salida, mime, converted: true };
+    const menor = await reencode(1600, 72);
+    if (menor.length <= MAX_IMAGE_BYTES) return { buffer: menor, mime, converted: true };
+    // Sigue sin entrar: como último recurso se sacrifica la transparencia
+    // (fondo blanco) y se baja la calidad — un JPEG chico siempre entra.
+    const plano = await sharp(buffer)
+      .rotate()
+      .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" })
+      .toColourspace("srgb")
+      .jpeg({ quality: 65, mozjpeg: true })
       .toBuffer();
-    if (jpeg.length > MAX_IMAGE_BYTES) {
-      const smaller = await sharp(buffer)
-        .rotate()
-        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 72, mozjpeg: true })
-        .toBuffer();
-      if (smaller.length <= MAX_IMAGE_BYTES) {
-        return { buffer: smaller, mime: "image/jpeg", converted: true };
-      }
-    }
-    return { buffer: jpeg, mime: "image/jpeg", converted: true };
+    return { buffer: plano, mime: "image/jpeg", converted: true };
   } catch {
     // No es una imagen que sharp entienda: que siga el camino normal.
     return unchanged;
@@ -119,8 +145,17 @@ export async function toSendableImage(
 
 /** Cambia la extensión del nombre de archivo a .jpg conservando el resto. */
 export function toJpegFileName(name: string | undefined): string | undefined {
+  return renameForMime(name, "image/jpeg");
+}
+
+/** Alinea la extensión del nombre con el mime real tras la conversión. */
+export function renameForMime(
+  name: string | undefined,
+  mime: string,
+): string | undefined {
   if (!name) return name;
-  return name.includes(".") ? `${name.replace(/\.[^.]+$/, "")}.jpg` : `${name}.jpg`;
+  const ext = mime === "image/png" ? "png" : "jpg";
+  return name.includes(".") ? `${name.replace(/\.[^.]+$/, "")}.${ext}` : `${name}.${ext}`;
 }
 
 /**
@@ -151,10 +186,10 @@ export async function ensureSendableImageUrl(url: string): Promise<string> {
     const key = createHash("sha1")
       .update(storagePathFromUrl(url) ?? url)
       .digest("hex");
-    const path = `transcoded/${key}.jpg`;
+    const path = `transcoded/${key}.${safe.mime === "image/png" ? "png" : "jpg"}`;
     const db = supabaseAdmin();
     const { error } = await db.storage.from(BUCKET).upload(path, safe.buffer, {
-      contentType: "image/jpeg",
+      contentType: safe.mime,
       upsert: true,
       cacheControl: "31536000",
     });

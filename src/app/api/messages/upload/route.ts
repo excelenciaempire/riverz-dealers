@@ -6,7 +6,7 @@ import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { ingestRawMedia, MAX_ATTACHMENT_BYTES } from "@/lib/channels/media-ingest";
-import { toSendableImage, toJpegFileName } from "@/lib/whatsapp/image-compat";
+import { toSendableImage, renameForMime } from "@/lib/whatsapp/image-compat";
 import type { Conversation } from "@/types";
 
 /**
@@ -91,7 +91,7 @@ export async function POST(req: Request): Promise<Response> {
   const safe = await toSendableImage(raw, file.type || "application/octet-stream");
   const buffer = safe.buffer;
   const mime = safe.mime;
-  if (safe.converted) fileName = toJpegFileName(fileName) ?? fileName;
+  if (safe.converted) fileName = renameForMime(fileName, safe.mime) ?? fileName;
   const ingested = await ingestRawMedia({
     buffer,
     mime,
