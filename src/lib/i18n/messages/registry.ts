@@ -29,6 +29,7 @@ import { landing } from "./landing";
 import { landingV2 } from "./landingV2";
 import { landingV3 } from "./landingV3";
 import { landingV4 } from "./landingV4";
+import { landingV5 } from "./landingV5";
 import { legal } from "./legal";
 import { layout } from "./layout";
 import { metrics } from "./metrics";
@@ -70,6 +71,7 @@ const NAMESPACES: Record<string, Namespace> = {
   landingV2,
   landingV3,
   landingV4,
+  landingV5,
   legal,
   layout,
   metrics,

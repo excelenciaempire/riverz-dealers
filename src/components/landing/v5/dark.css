@@ -1,0 +1,226 @@
+/* ============================================================
+   Portada oscura — sistema visual propio de /portada-c
+   ============================================================
+   Todo vive bajo `.sh`. Es el registro de shopify.com, que es
+   el opuesto exacto de /portada-b:
+
+     /portada-b   papel crema, serif de contraste alto,
+                  filetes de 1 px, un solo acento
+     /portada-c   negro de punta a punta, grotesca blanca,
+                  UN DEGRADADO PROPIO POR SECCIÓN, foto real
+
+   La regla que lo sostiene: cada bloque grande tiene su color.
+   No es decoración — es lo que hace que una página de 12 000 px
+   no se lea como una sola pared negra.
+   ============================================================ */
+
+.sh {
+  --sh-bg: #0a0f0e;
+  --sh-card: #111917;
+  --sh-card-2: #16211e;
+
+  --sh-ink: #ffffff;
+  --sh-muted: rgba(255, 255, 255, 0.64);
+  --sh-faint: rgba(255, 255, 255, 0.38);
+  --sh-line: rgba(255, 255, 255, 0.13);
+
+  /* Los colores de sección. Saturados y oscuros: tienen que aguantar
+     texto blanco encima sin bajar el contraste. */
+  --sh-green: #0b3b2c;
+  --sh-violet: #3a1e8f;
+  --sh-navy: #0c1c3d;
+
+  /* El amarillo de riverz sobrevive al cambio de piel: acá sí funciona
+     como texto, porque el fondo es negro. */
+  --sh-accent: #f7ff9e;
+
+  background: var(--sh-bg);
+  color: var(--sh-ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Tipografía ─────────────────────────────────────────────
+   Grotesca en todos lados. Lo que da la escala no es el peso
+   —Shopify usa 400/500, no negritas— sino el tamaño y una
+   interlínea corta. */
+
+.sh-display {
+  font-size: clamp(38px, 5.2vw, 76px);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.sh-h2 {
+  font-size: clamp(28px, 3.4vw, 48px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.sh-h3 {
+  font-size: clamp(19px, 1.6vw, 23px);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+/* El dato gigante: blanco puro, sin adornos. */
+.sh-figure {
+  font-size: clamp(56px, 7vw, 104px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.sh-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sh-faint);
+}
+
+.sh-body {
+  font-size: clamp(15px, 1.15vw, 17px);
+  line-height: 1.55;
+  color: var(--sh-muted);
+}
+
+/* ── Botones ────────────────────────────────────────────────
+   Dos, siempre juntos: uno blanco macizo y uno de contorno.
+   Es la firma de Shopify y funciona porque sobre negro el
+   blanco macizo es lo más fuerte que existe. */
+
+.sh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.85rem 1.5rem;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.sh-btn-solid {
+  background: var(--sh-ink);
+  color: #0a0f0e;
+}
+
+.sh-btn-solid:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.sh-btn-ghost {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--sh-ink);
+}
+
+.sh-btn-ghost:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ── Bloques de sección ─────────────────────────────────────
+   El degradado va del color propio al fondo, siempre hacia
+   abajo, para que las secciones se encadenen sin costura. */
+
+.sh-full {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sh-tinte {
+  position: relative;
+  overflow: hidden;
+}
+
+.sh-tinte::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    var(--tinte, var(--sh-green)) 0%,
+    rgba(10, 15, 14, 0) 72%
+  );
+}
+
+.sh-tinte > * {
+  position: relative;
+}
+
+/* ── Fichas ─────────────────────────────────────────────────
+   Casi negras sobre negro, separadas por un borde de un píxel
+   en vez de por una sombra: sobre fondo oscuro la sombra no
+   se ve y el borde sí. */
+
+.sh-card {
+  background: var(--sh-card);
+  border: 1px solid var(--sh-line);
+  border-radius: 20px;
+}
+
+/* ── Superficie clara para las vistas previas reutilizadas ──
+   Las trece vistas previas del producto se pintan con los
+   tokens de la app. Acá se les declara el juego CLARO a
+   propósito: una pantalla encendida sobre negro es
+   exactamente lo que hace Shopify con sus capturas. */
+.sh-panel {
+  --background: #ffffff;
+  --foreground: #0a0f0e;
+  --card: #ffffff;
+  --card-foreground: #0a0f0e;
+  --popover: #ffffff;
+  --popover-foreground: #0a0f0e;
+  --primary: #f7ff9e;
+  --primary-foreground: #0a0f0e;
+  --primary-hover: #f1fa84;
+  --primary-soft: rgba(247, 255, 158, 0.45);
+  --primary-soft-2: rgba(247, 255, 158, 0.6);
+  --accent-ink: #4d5a00;
+  --secondary: #f4f5f0;
+  --secondary-foreground: #0a0f0e;
+  --muted: #f1f2ed;
+  --muted-foreground: #5f6b66;
+  --accent: #eaece5;
+  --accent-foreground: #0a0f0e;
+  --border: #e2e5df;
+  --input: #e2e5df;
+  --ring: #c9cec6;
+  color: var(--foreground);
+}
+
+/* ── Entrada al scrollear ───────────────────────────────── */
+
+.sh-rise[data-in="false"] {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.sh-rise[data-in] {
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-rise[data-in="false"] {
+    opacity: 1;
+    transform: none;
+  }
+  .sh-rise,
+  .sh-btn {
+    transition: none;
+  }
+}
