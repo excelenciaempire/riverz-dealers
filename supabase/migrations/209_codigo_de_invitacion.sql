@@ -58,6 +58,10 @@ ALTER TABLE public.signup_code_redemptions ENABLE ROW LEVEL SECURITY;
 -- Devuelve el id del código si quedaba cupo, NULL si no existe, está revocado,
 -- vencido o agotado. El UPDATE condicional es el candado: dos llamadas
 -- simultáneas con el último cupo, una gana y la otra recibe NULL.
+--
+-- La normalización se repite acá aunque la app ya la haga: el código se muestra
+-- con guion (`QATE-ST01`) y quien lo pegue en una consulta a mano no debería
+-- recibir un "no vale" por el guion.
 CREATE OR REPLACE FUNCTION public.claim_signup_code(p_code TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
@@ -69,7 +73,7 @@ DECLARE
 BEGIN
   UPDATE public.signup_codes
      SET uses = uses + 1
-   WHERE code = upper(p_code)
+   WHERE code = regexp_replace(upper(p_code), '[^A-Z0-9]', '', 'g')
      AND revoked_at IS NULL
      AND (expires_at IS NULL OR expires_at > now())
      AND uses < max_uses

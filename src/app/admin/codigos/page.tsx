@@ -61,10 +61,17 @@ export default function AdminSignupCodesPage() {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const copiar = useCallback(async (code: string) => {
-    await navigator.clipboard.writeText(formatSignupCode(code));
-    setCopied(code);
-    setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
+  // El portapapeles pide que la pestaña esté enfocada; sin eso la promesa
+  // puede quedar colgada para siempre. Nunca se espera: copiar es una cortesía
+  // y no puede dejar un botón en "Emitiendo…" de por vida.
+  const copiar = useCallback((code: string) => {
+    navigator.clipboard?.writeText(formatSignupCode(code)).then(
+      () => {
+        setCopied(code);
+        setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
+      },
+      () => {},
+    );
   }, []);
 
   const crear = useCallback(
@@ -86,7 +93,7 @@ export default function AdminSignupCodesPage() {
         const payload = (await res.json()) as { codes: string[] };
         // Un código solo se copia al portapapeles apenas nace: es lo que se
         // hace con él y ahorra el viaje a la tabla.
-        if (payload.codes.length === 1) await copiar(payload.codes[0]);
+        if (payload.codes.length === 1) copiar(payload.codes[0]);
         toast.success(t("admin.codesCreated", { n: String(payload.codes.length) }));
         setNote("");
         reload();
