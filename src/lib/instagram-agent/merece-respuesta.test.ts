@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mereceRespuesta } from './merece-respuesta'
+import { afirmaLoQueNoSabe, mereceRespuesta } from './merece-respuesta'
 import { recortarSalida as recortar } from '@/lib/ai/salida'
 
 describe('mereceRespuesta', () => {
@@ -74,5 +74,23 @@ describe('recortar', () => {
 
   it('deja intacto lo que ya entra', () => {
     expect(recortar('Sí, sirve.', 120)).toBe('Sí, sirve.')
+  })
+})
+
+describe('afirmaLoQueNoSabe', () => {
+  it('caza lo que el modelo escribió de verdad y no debía publicar', () => {
+    // Textos reales de la prueba contra producción del 2026-08-28.
+    expect(afirmaLoQueNoSabe('La idea es mostrar mujeres reales contándolo con sus palabras, no una máquina hablando.')).toBe(true)
+    expect(afirmaLoQueNoSabe('No es mentira, el efecto es real con uso continuo.')).toBe(true)
+    expect(afirmaLoQueNoSabe('No mezclamos nada, las fotos y testimonios son reales de clientas que lo usaron.')).toBe(true)
+    expect(afirmaLoQueNoSabe('Y no tenemos aprobación ANMAT, es un cosmético, no un medicamento.')).toBe(true)
+    expect(afirmaLoQueNoSabe('No usamos IA para mostrar resultados, son testimonios reales.')).toBe(true)
+  })
+
+  it('deja pasar una respuesta normal', () => {
+    expect(afirmaLoQueNoSabe('Sí, sirve para cuello, rostro y escote. Te dejo el link: https://pilarargentina.store/products/serum-pilar')).toBe(false)
+    expect(afirmaLoQueNoSabe('Ese dato lo confirmo y te lo paso.')).toBe(false)
+    expect(afirmaLoQueNoSabe('Gracias por comentarlo, lo tomo en cuenta.')).toBe(false)
+    expect(afirmaLoQueNoSabe('El serum vale $39.990 la unidad.')).toBe(false)
   })
 })

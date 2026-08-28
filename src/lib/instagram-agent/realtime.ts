@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { salidaParaCliente, recortarSalida } from '@/lib/ai/salida';
-import { instruccionPara, mereceRespuesta } from './merece-respuesta';
+import {
+  afirmaLoQueNoSabe,
+  instruccionPara,
+  mereceRespuesta,
+} from './merece-respuesta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -819,6 +823,20 @@ async function autonomousCommentReply(
     });
   }
   if (!text.trim()) return;
+
+  // Última puerta antes de publicar: que no afirme lo que no le consta. La
+  // prohibición está en el prompt y aun así se cuela —el modelo de los agentes
+  // es Haiku y con una lista larga se le escapan las últimas reglas—, así que
+  // se comprueba el texto ya escrito. Si afirma que los testimonios son reales
+  // o que el producto tiene una aprobación, no sale nada y el comentario queda
+  // para una persona: callarse es recuperable, publicarlo no.
+  if (afirmaLoQueNoSabe(text)) {
+    console.warn(
+      '[ig-agent] respuesta descartada, afirmaba lo que no le consta:',
+      text.slice(0, 160),
+    );
+    return;
+  }
 
   // ¿Además del comentario, hace falta abrir el privado? Lo decide el modo que
   // eligió el comercio (migración 177). En 'public_smart' pregunta al

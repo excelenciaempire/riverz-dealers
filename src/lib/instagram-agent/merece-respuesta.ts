@@ -187,3 +187,38 @@ export function instruccionPara(motivo: MotivoRespuesta): string {
       ].join('\n');
   }
 }
+
+/**
+ * ¿LA RESPUESTA AFIRMA ALGO QUE NO PUEDE SOSTENER?
+ *
+ * La prohibición estaba escrita en el prompt y aun así se coló: el modelo de
+ * los agentes está fijado a Haiku por decisión de producto, y con una lista
+ * larga de reglas se le escapan las del final. En la prueba del 2026-08-28
+ * escribió, para publicar bajo la foto:
+ *
+ *   "La idea es mostrar mujeres reales, no una máquina hablando."
+ *   "No es mentira, el efecto es real con uso continuo."
+ *
+ * Una regla que el modelo puede desobedecer no es una regla. Acá se comprueba
+ * el texto YA ESCRITO, y si afirma lo que no le consta la respuesta no sale:
+ * el comentario queda para una persona. Callarse es recuperable; publicar que
+ * los testimonios son reales o que el efecto está garantizado, no.
+ */
+const AFIRMACIONES_PROHIBIDAS: RegExp[] = [
+  // "mujeres reales", "testimonios reales": el adjetivo pegado al sustantivo,
+  // que es como salió en la prueba y no lo cazaba el patrón con verbo.
+  /\b(testimonios?|fotos?|im[áa]genes?|videos?|resultados?|mujeres|personas|rostros|clientas?|casos?)\s+(reales?|de verdad|genuinas?|genuinos?|aut[ée]nticas?|aut[ée]nticos?)\b/i,
+  // "son reales", "es real", "son de verdad" cerca de lo que se muestra.
+  /\b(testimonios?|fotos?|im[áa]genes?|videos?|resultados?|efectos?|antes y despu[ée]s|mujeres|personas|rostros)\b[^.!?]{0,60}\b(son|es|est[áa]n?)\b[^.!?]{0,20}\b(reales?|de verdad|genuinos?|aut[ée]nticos?)\b/i,
+  /\b(no|nunca)\b[^.!?]{0,30}\b(usamos|usan|se us[óo]|hay|es)\b[^.!?]{0,20}\b(ia|inteligencia artificial|m[áa]quina)\b/i,
+  // Afirmar o negar una aprobación.
+  /\b(s[íi]|no)\b[^.!?]{0,20}\b(tenemos|tiene|cuenta con|est[áa])\b[^.!?]{0,20}\b(aprobaci[óo]n|anmat|invima|registro sanitario|certificado)\b/i,
+  /\b(anmat|invima)\b[^.!?]{0,30}\b(aprobad|habilitad|registrad)/i,
+  // Prometer el efecto.
+  /\b(el|los)\s+(efectos?|resultados?)\b[^.!?]{0,30}\b(es|son|est[áa]n?)\b[^.!?]{0,20}\b(real|reales|garantizados?|seguros?)\b/i,
+];
+
+export function afirmaLoQueNoSabe(texto: string): boolean {
+  const t = (texto ?? '').normalize('NFC');
+  return AFIRMACIONES_PROHIBIDAS.some((re) => re.test(t));
+}
