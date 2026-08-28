@@ -86,8 +86,8 @@ export function LandingV4() {
         <Scene />
         <Pillars />
         <Capabilities />
-        <Banda src="/portada-b/banda-mostrador.jpg" line="landingV4.bandaLine" />
         <Channels />
+        <Confianza />
         <Cta />
       </main>
 
@@ -320,40 +320,6 @@ function Capabilities() {
   );
 }
 
-/**
- * La banda: una foto a todo el ancho con una sola línea encima.
- *
- * Es el respiro entre bloques largos, y el respiro tiene que decir algo. Las
- * dos frases salen de los territorios creativos del documento: son las
- * versiones más cortas del mecanismo.
- */
-function Banda({ src, line }: { src: string; line: string }) {
-  const t = useT();
-  return (
-    <section className="relative mx-auto mt-4 max-w-[1600px] px-3 lg:px-5">
-      <div className="relative overflow-hidden rounded-[26px]">
-        <div className="relative aspect-[21/9] max-h-[46vh] w-full sm:max-h-none">
-          <Image src={src} alt="" fill sizes="100vw" className="object-cover" />
-          {/* Velo desde abajo: la línea siempre cae sobre zona oscura, sin
-              importar cómo recorte la foto a cada ancho. */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(0deg, rgba(18,32,31,0.74) 0%, rgba(18,32,31,0.3) 45%, rgba(18,32,31,0.05) 100%)",
-            }}
-          />
-        </div>
-        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10 lg:p-14">
-          <p className="sn-h2 max-w-[16ch]" style={{ color: "var(--sn-card)" }}>
-            {t(line)}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ── Canales ───────────────────────────────────────────────────────────────
 
 function Channels() {
@@ -401,6 +367,61 @@ function Channels() {
             </div>
           </div>
         </Rise>
+      </div>
+    </section>
+  );
+}
+
+// ── Confianza ───────────────────────────────────────────
+
+/**
+ * Confianza — la objeción que nadie dice en voz alta.
+ *
+ * Quien vende por WhatsApp ya vio caer un número, propio o de un conocido, por
+ * usar una herramienta colgada de un teléfono espejo. Esa es la duda de verdad
+ * y ninguna funcionalidad la contesta.
+ *
+ * Lo que NO va acá: la insignia de «Meta Business Partner». Ese es un programa
+ * cerrado, con directorio propio, y ponerse el sello sin estar adentro va
+ * contra las normas de marca de Meta — el riesgo es perder la app, que es
+ * exactamente lo contrario de tranquilizar a nadie. Lo que sí va son hechos
+ * comprobables: la conexión es por la API oficial y el App Review está
+ * aprobado. Dicho así pesa más que un logo prestado.
+ */
+
+const CONFIANZA = [
+  { t: "landingV4.trust1Title", b: "landingV4.trust1Body" },
+  { t: "landingV4.trust2Title", b: "landingV4.trust2Body" },
+  { t: "landingV4.trust3Title", b: "landingV4.trust3Body" },
+  { t: "landingV4.trust4Title", b: "landingV4.trust4Body" },
+] as const;
+
+function Confianza() {
+  const t = useT();
+  return (
+    <section id="confianza" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-16 lg:pb-24">
+      <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
+        <Rise>
+          <Label>{t("landingV4.trustLabel")}</Label>
+          <h2 className="sn-h2 mt-5 max-w-[18ch]">{t("landingV4.trustTitle")}</h2>
+          <p className="sn-body mt-5 max-w-[52ch]">{t("landingV4.trustBody")}</p>
+        </Rise>
+
+        <div className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
+          {CONFIANZA.map((c, i) => (
+            <Rise key={c.t} delay={i * 70}>
+              {/* Un filete arriba en vez de un icono: cuatro iconos genéricos
+                  ahí abajo se leen como una plantilla comprada. */}
+              <span
+                aria-hidden
+                className="block h-px w-10"
+                style={{ background: "var(--sn-ink-accent)" }}
+              />
+              <h3 className="sn-h3 mt-5 max-w-[16ch]">{t(c.t)}</h3>
+              <p className="sn-body mt-3 !text-[15px]">{t(c.b)}</p>
+            </Rise>
+          ))}
+        </div>
       </div>
     </section>
   );

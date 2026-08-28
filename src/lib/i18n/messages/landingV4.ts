@@ -242,14 +242,6 @@ export const landingV4 = {
     en: "Nothing reaches a customer without your approval.",
   },
 
-  // ── La banda: un respiro entre la lista y los canales ──
-  // Sale de los territorios creativos del documento. Es la frase más corta que
-  // dice el mecanismo entero.
-  bandaLine: {
-    es: "De chat a pedido, sin perder el hilo.",
-    en: "From chat to order, without losing the thread.",
-  },
-
   // ── Canales ──
   channelsLabel: { es: "Canales", en: "Channels" },
   channelsTitle: {
@@ -263,6 +255,42 @@ export const landingV4 = {
   channelsInboxes: { es: "Bandejas", en: "Inboxes" },
   channelsStores: { es: "Tiendas y logística", en: "Stores and logistics" },
   channelsCalls: { es: "Llamadas", en: "Calls" },
+
+  // ── Confianza ──
+  // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es
+  // un programa cerrado con su propio directorio y su propia insignia, y usar
+  // el sello sin estar adentro va contra las normas de marca de Meta y pone en
+  // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
+  // que la conexión es por la API oficial y que el App Review está aprobado.
+  trustLabel: { es: "Confianza", en: "Trust" },
+  trustTitle: {
+    es: "Conectado por la puerta de adelante",
+    en: "Connected through the front door",
+  },
+  trustBody: {
+    es: "Muchas herramientas se cuelgan de un teléfono espejo o de una sesión no oficial, y el día que la plataforma lo detecta el número se cae. Riverz no hace eso.",
+    en: "Plenty of tools hang off a mirrored phone or an unofficial session, and the day the platform notices, the number goes down. Riverz doesn't do that.",
+  },
+  trust1Title: { es: "API oficial de Meta", en: "Official Meta APIs" },
+  trust1Body: {
+    es: "WhatsApp Business Platform, Instagram y Messenger por sus canales oficiales. Tu número queda a tu nombre y no se expone a un bloqueo.",
+    en: "WhatsApp Business Platform, Instagram and Messenger through their official channels. Your number stays yours and isn't exposed to a ban.",
+  },
+  trust2Title: { es: "Revisada por Meta", en: "Reviewed by Meta" },
+  trust2Body: {
+    es: "La aplicación pasó el App Review de Meta con todos los permisos que usa en acceso avanzado, incluidos mensajes y comentarios.",
+    en: "The app passed Meta's App Review with every permission it uses at advanced access, messaging and comments included.",
+  },
+  trust3Title: { es: "Nada sale sin permiso", en: "Nothing goes out unapproved" },
+  trust3Body: {
+    es: "Cada herramienta del agente se prende, se pide aprobación o se apaga. Cancelar un pedido o devolver plata nunca queda en automático.",
+    en: "Every agent tool is on, ask-first, or off. Cancelling an order or refunding money is never left on automatic.",
+  },
+  trust4Title: { es: "Tus datos, tuyos", en: "Your data stays yours" },
+  trust4Body: {
+    es: "Cifrado en tránsito y en reposo, cada comercio aislado del resto, y exportas o borras todo cuando quieras.",
+    en: "Encrypted in transit and at rest, every store isolated from the rest, and you can export or delete everything whenever you want.",
+  },
 
   // ── Cierre ──
   // Sin promesa de instalación: eso vive en la oferta, que es temporal.

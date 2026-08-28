@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useT } from "@/hooks/use-locale";
 import {
   AgentPanel,
@@ -57,9 +59,11 @@ type Tile = {
   /** Ancho en la cuadrícula de 2 columnas (tablet) y en la de 6 (escritorio). */
   sm: 1 | 2;
   lg: 2 | 3 | 4 | 6;
+  /** La imagen propia de esta funcionalidad. Una por ficha, ninguna repetida. */
+  foto?: string;
 } & (
   | { kind: "window"; Panel: () => React.ReactElement }
-  | { kind: "comp"; Comp: (p: { foto?: string }) => React.ReactElement; foto?: string }
+  | { kind: "comp"; Comp: (p: { foto?: string }) => React.ReactElement }
   | { kind: "figure"; value: string; unit: string }
   | { kind: "plain" }
 );
@@ -71,6 +75,7 @@ type Tile = {
 const TILES: Tile[] = [
   {
     key: "sec01",
+    foto: "/portada-b/f-agente.jpg",
     kind: "window",
     Panel: AgentPanel,
     title: "landing.sec01Title",
@@ -81,9 +86,9 @@ const TILES: Tile[] = [
   },
   {
     key: "secVoice",
+    foto: "/portada-b/f-llamadas.jpg",
     kind: "comp",
     Comp: CompLlamadas,
-    foto: "/portada-b/llamadas.jpg",
     title: "landing.secVoiceTitle",
     muted: "landing.secVoiceTitleMuted",
     body: "landing.secVoiceBody",
@@ -92,9 +97,9 @@ const TILES: Tile[] = [
   },
   {
     key: "sec02",
+    foto: "/portada-b/f-carritos.jpg",
     kind: "comp",
     Comp: CompCarrito,
-    foto: "/portada-b/carritos.jpg",
     title: "landing.sec02Title",
     muted: "landing.sec02TitleMuted",
     body: "landing.sec02Body",
@@ -103,6 +108,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec04",
+    foto: "/portada-b/f-atencion.jpg",
     kind: "window",
     Panel: SupportPreview,
     title: "landing.sec04Title",
@@ -113,9 +119,9 @@ const TILES: Tile[] = [
   },
   {
     key: "sec03",
+    foto: "/portada-b/f-recompras.jpg",
     kind: "comp",
     Comp: CompRecompras,
-    foto: "/portada-b/recompras.jpg",
     title: "landing.sec03Title",
     muted: "landing.sec03TitleMuted",
     body: "landing.sec03Body",
@@ -124,6 +130,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec05",
+    foto: "/portada-b/f-comentarios.jpg",
     kind: "window",
     Panel: CommentsPreview,
     title: "landing.sec05Title",
@@ -134,9 +141,9 @@ const TILES: Tile[] = [
   },
   {
     key: "sec06",
+    foto: "/portada-b/f-campanas.jpg",
     kind: "comp",
     Comp: CompCampanas,
-    foto: "/portada-b/campanas.jpg",
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
@@ -145,6 +152,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec07",
+    foto: "/portada-b/f-bandeja.jpg",
     kind: "window",
     Panel: InboxPreview,
     title: "landing.sec07Title",
@@ -155,6 +163,7 @@ const TILES: Tile[] = [
   },
   {
     key: "secLive",
+    foto: "/portada-b/f-envivo.jpg",
     kind: "window",
     Panel: LivePreview,
     title: "landing.secLiveTitle",
@@ -165,9 +174,9 @@ const TILES: Tile[] = [
   },
   {
     key: "sec08",
+    foto: "/portada-b/f-tienda.jpg",
     kind: "comp",
     Comp: CompTienda,
-    foto: "/portada-b/tienda.jpg",
     title: "landing.sec08Title",
     muted: "landing.sec08TitleMuted",
     body: "landing.sec08Body",
@@ -176,6 +185,7 @@ const TILES: Tile[] = [
   },
   {
     key: "secContacts",
+    foto: "/portada-b/f-contactos.jpg",
     kind: "window",
     Panel: ContactsPreview,
     title: "landing.secContactsTitle",
@@ -186,6 +196,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec09",
+    foto: "/portada-b/f-minutos.jpg",
     kind: "figure",
     value: "0",
     unit: "landingV4.capsZeroLabel",
@@ -197,6 +208,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec10",
+    foto: "/portada-b/f-roas.jpg",
     kind: "window",
     Panel: MetricsPreview,
     title: "landing.sec10Title",
@@ -217,6 +229,9 @@ const LG = {
   6: "lg:col-span-6",
 } as const;
 
+/** El alto de la banda de apertura, segun lo ancha que sea la ficha. */
+const BANDA = { 2: "5 / 4", 3: "16 / 9", 4: "21 / 9", 6: "24 / 9" } as const;
+
 export function Cards() {
   const t = useT();
 
@@ -229,11 +244,60 @@ export function Cards() {
           className={`min-w-0 ${SM[tile.sm]} ${LG[tile.lg]}`}
         >
           <article
-            className={`flex h-full min-w-0 flex-col overflow-hidden ${
+            className={`relative flex h-full min-w-0 flex-col overflow-hidden ${
               tile.kind === "figure" || tile.kind === "plain" ? "sn-card-sand" : "sn-card"
             }`}
           >
-            <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-8">
+            {/* La ficha del dato lleva la foto de fondo, a sangre y muy tenue:
+                el numero tiene que seguir siendo lo primero que se lee. */}
+            {tile.kind === "figure" && tile.foto && (
+              <div className="absolute inset-0" aria-hidden>
+                <Image
+                  src={tile.foto}
+                  alt=""
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 34vw"
+                  className="object-cover"
+                  style={{ opacity: 0.5 }}
+                />
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(160deg, rgba(238,232,220,0.92) 30%, rgba(238,232,220,0.55))",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Las de ventana abren con una banda a sangre. El alto cambia con
+                el ancho de la ficha —cinemascope en las anchas, casi cuadrada
+                en las angostas— para que la cuadricula nunca repita el mismo
+                ritmo. El degradado del pie funde la foto con el crema. */}
+            {tile.kind === "window" && tile.foto && (
+              <div
+                className="relative w-full shrink-0 overflow-hidden"
+                style={{ aspectRatio: BANDA[tile.lg] }}
+                aria-hidden
+              >
+                <Image
+                  src={tile.foto}
+                  alt=""
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
+                />
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(250,247,241,0) 68%, rgba(250,247,241,0.55) 88%, var(--sn-card))",
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="relative flex min-w-0 flex-1 flex-col p-5 sm:p-8">
               {tile.kind === "figure" && (
                 <p className="sn-figure mb-4 !text-[clamp(76px,9vw,132px)]">{tile.value}</p>
               )}

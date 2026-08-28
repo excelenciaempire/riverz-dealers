@@ -274,9 +274,6 @@ export function Operator() {
                   >
                     {t("landingV4.opApprove")}
                   </span>
-                  <span className="sn-label" style={{ color: "rgba(250,247,241,0.34)" }}>
-                    {t("landingV4.opNote")}
-                  </span>
                 </div>
               </div>
             </div>

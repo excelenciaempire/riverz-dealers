@@ -187,7 +187,9 @@
 
 @media (min-width: 1024px) {
   .sn-op {
-    height: 260vh;
+    /* Cuanto más alta, más lento se desarrolla: el mismo recorrido de 0 a 1
+       repartido sobre más scroll. A 420vh cada encargo se alcanza a leer. */
+    height: 420vh;
   }
   .sn-op-in {
     position: sticky;
