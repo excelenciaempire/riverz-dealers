@@ -136,13 +136,18 @@ function ThemeCard({
           {tagline}
         </div>
       </div>
-      {/* Mini preview: surface, then the shared lime accent swatch. */}
+      {/* Mini preview: superficie, acento y borde del modo. El acento NO es
+          el mismo en los dos: sobre crema el lima pálido da 1.02:1 y no se
+          ve, así que en claro es un chartreuse oliva. */}
       <div className="mt-1 flex h-2 overflow-hidden rounded-full" aria-hidden>
         <span className="flex-1" style={{ background: swatch }} />
-        <span className="w-5" style={{ background: "#f7ff9e" }} />
+        <span
+          className="w-5"
+          style={{ background: isDark ? "#f7ff9e" : "#8f9a1e" }}
+        />
         <span
           className="w-3"
-          style={{ background: isDark ? "#25252e" : "#e8e1d2" }}
+          style={{ background: isDark ? "#25252e" : "#ded8c8" }}
         />
       </div>
       <span className="sr-only">{idLabel}</span>

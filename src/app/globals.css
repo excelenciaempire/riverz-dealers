@@ -85,11 +85,19 @@ html[data-theme="light"] {
   --card-foreground: #1b1a17;
   --popover: #fbfaf5;
   --popover-foreground: #1b1a17;
-  --primary: #f7ff9e;
+  /* El lima de marca es #f7ff9e y en oscuro da 17:1 — se ve de lejos.
+     Sobre crema daba 1.02:1: un botón lima y la tarjeta debajo eran el
+     MISMO color, así que un toggle encendido no se distinguía de uno
+     apagado. En claro el acento baja a este chartreuse oliva: misma
+     familia, 2.95:1 contra la tarjeta y 5.6:1 para la letra encima.
+     El bloque dark conserva el lima pálido intacto. */
+  --primary: #8f9a1e;
+  /* Tinta oscura encima, no blanca: sobre este oliva el blanco da 3.08:1
+     y la tinta 5.64:1. */
   --primary-foreground: #1b1a17;
-  --primary-hover: #f1fa84;
-  --primary-soft: rgba(247, 255, 158, 0.45);
-  --primary-soft-2: rgba(247, 255, 158, 0.6);
+  --primary-hover: #7f8a19;
+  --primary-soft: rgba(143, 154, 30, 0.18);
+  --primary-soft-2: rgba(143, 154, 30, 0.28);
   /* Readable accent for TEXT/icons. The pale yellow #f7ff9e works as a
      fill (with dark text) but is invisible as text on light surfaces,
      so colored text/icons use this deep chartreuse instead. In dark
@@ -122,8 +130,13 @@ html[data-theme="light"] {
   --glass-surface: color-mix(in oklab, #ffffff 72%, transparent);
   --glass-edge: color-mix(in oklab, var(--foreground) 12%, transparent);
   --glass-sheen: color-mix(in oklab, #ffffff 80%, transparent);
-  /* Cuánto lima lleva el halo del banco. El pálido se pierde en crema. */
-  --halo-fuerza: 34%;
+  /* El lima pálido de la marca, para lo DECORATIVO: el resaltador, el halo
+     y el barrido del Operador. Esos quieren ser amarillos —un resaltador
+     oliva no se lee como resaltador— mientras que `--primary`, que es lo
+     que se toca (botón, toggle, pill activa), necesita contraste y en
+     claro es oliva. Un token para cada trabajo. */
+  --marca-lima: #f7ff9e;
+  --halo-fuerza: 40%;
   --radius: 0.875rem;
   --sidebar: #0e0e13;
   --sidebar-foreground: #fafaf7;
@@ -169,6 +182,7 @@ html[data-theme="dark"] {
   --glass-surface: color-mix(in oklab, var(--foreground) 4%, transparent);
   --glass-edge: color-mix(in oklab, var(--foreground) 10%, transparent);
   --glass-sheen: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --marca-lima: #f7ff9e;
   --halo-fuerza: 16%;
   --sidebar: #06060a;
   --sidebar-foreground: #fafaf7;
@@ -430,7 +444,7 @@ html[data-theme="dark"] {
   .app-halo {
     background: radial-gradient(
       760px 420px at 22% -8%,
-      color-mix(in oklab, var(--primary) var(--halo-fuerza), transparent),
+      color-mix(in oklab, var(--marca-lima) var(--halo-fuerza), transparent),
       transparent 70%
     );
   }
@@ -459,14 +473,15 @@ html[data-theme="dark"] {
     background-image: linear-gradient(
       to bottom,
       transparent 8%,
-      color-mix(in oklab, var(--primary) 55%, transparent) 8%,
-      color-mix(in oklab, var(--primary) 55%, transparent) 92%,
+      color-mix(in oklab, var(--marca-lima) 55%, transparent) 8%,
+      color-mix(in oklab, var(--marca-lima) 55%, transparent) 92%,
       transparent 92%
     );
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
     padding: 0 4px;
-    color: var(--primary-foreground);
+    /* Tinta oscura siempre: el trazo es amarillo pálido en los dos modos. */
+    color: #1b1a17;
   }
 }
 
@@ -557,7 +572,7 @@ html[data-theme="dark"] {
     background: linear-gradient(
       100deg,
       transparent 20%,
-      color-mix(in oklab, var(--primary) 16%, transparent) 45%,
+      color-mix(in oklab, var(--marca-lima) 16%, transparent) 45%,
       transparent 70%
     );
     transform: translateX(-100%);

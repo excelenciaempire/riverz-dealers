@@ -64,7 +64,7 @@ export function DateRangeFilter({ tz, preset, custom, onChange }: DateRangeFilte
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1"
+      className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1"
       title={t('dashboard.rangeTimezone', { tz })}
     >
       {PRESETS.map((p) => (
@@ -77,7 +77,7 @@ export function DateRangeFilter({ tz, preset, custom, onChange }: DateRangeFilte
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 md:py-1 text-xs font-medium transition-colors',
             preset === 'custom'
-              ? 'bg-muted text-foreground'
+              ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -114,7 +114,12 @@ function Chip({
       onClick={onClick}
       className={cn(
         'rounded-md px-2.5 py-2 md:py-1 text-xs font-medium transition-colors',
-        active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+        // Elegido = pastilla levantada sobre la pista hundida. Antes era
+        // `bg-muted` sobre una pista `bg-muted/60`: el mismo color, así que
+        // no se veía cuál estaba elegido.
+        active
+          ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {children}
