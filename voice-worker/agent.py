@@ -230,7 +230,6 @@ def _wire_events(session: AgentSession, call_state: CallState, usage_collector) 
     # hablando solo doce segundos y colgo. La llamada se reporto `completed`,
     # el comercio la pago y la rama «contesto» de la automatizacion es la que
     # corrio. Sin esto, ese fallo no aparece en ningun lado.
-    @session.on("error")
     def _on_error(ev) -> None:
         try:
             fuente = getattr(ev, "source", None)
@@ -245,6 +244,15 @@ def _wire_events(session: AgentSession, call_state: CallState, usage_collector) 
                                call_state.llm_errors, detalle)
         except Exception:
             logger.debug("no se pudo registrar el error de sesion", exc_info=True)
+
+    # Suscribirse aparte y blindado: si esta version de livekit-agents no
+    # emitiera "error", que se pierda el diagnostico — NUNCA la llamada. Este
+    # bloque corre al armar cada sesion, asi que una excepcion acá se lleva
+    # puesta la llamada entera, que es justo lo que veniamos a evitar.
+    try:
+        session.on("error", _on_error)
+    except Exception:
+        logger.warning("no se pudo escuchar los errores de sesion", exc_info=True)
 
     # NOTE: UsageCollector/UsageSummary siguen presentes en 1.6.x (marcados
     # deprecated a favor de ModelUsageCollector). Fail-soft: si algo cambia,
