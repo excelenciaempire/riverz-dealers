@@ -480,7 +480,92 @@ async function pagosRechazados(ctx: CapabilityContext, args: Record<string, unkn
   }
 }
 
+/**
+ * QUÉ LLEGÓ, Y A QUIÉN SE LE PREGUNTÓ CÓMO LE FUE.
+ *
+ * `pedidos.listar` dice el estado de envío que trae el pedido. Esta tabla dice
+ * otra cosa: CUÁNDO se entregó de verdad y si Riverz ya le escribió para pedirle
+ * la opinión. Es el único lugar donde vive el post-venta, y era el último hueco
+ * de datos que quedaba sin mirar.
+ */
+async function entregas(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 30, 100)
+
+  // El recorte por cuenta va por las tiendas del workspace: esta tabla se
+  // indexa por dominio de tienda y no por workspace_id, así que sin este paso
+  // una llamada devolvería los pedidos de otro comercio.
+  const { data: conexiones } = await ctx.db
+    .from('shopify_connections')
+    .select('shop_domain')
+    .eq('workspace_id', ctx.workspaceId)
+  const dominios = ((conexiones ?? []) as Array<{ shop_domain: string }>).map(
+    (c) => c.shop_domain,
+  )
+  if (dominios.length === 0) {
+    return { entregas: [], nota: 'Esta cuenta no tiene ninguna tienda de Shopify conectada.' }
+  }
+
+  let q = ctx.db
+    .from('shopify_order_fulfillment_state')
+    .select(
+      'order_id, shop_domain, fulfillment_status, shipment_status, financial_status, cancelled, delivered_at, feedback_dispatched_at, updated_at, contacts(name, phone)',
+    )
+    .in('shop_domain', dominios)
+    .order('updated_at', { ascending: false })
+    .limit(limite)
+  if (args.solo_entregados === true) q = q.not('delivered_at', 'is', null)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  return {
+    entregas: ((data ?? []) as unknown as Array<{
+      // Shopify lo manda como número, no como texto.
+      order_id: number | string
+      shop_domain: string
+      fulfillment_status: string | null
+      shipment_status: string | null
+      financial_status: string | null
+      cancelled: boolean | null
+      delivered_at: string | null
+      feedback_dispatched_at: string | null
+      updated_at: string | null
+      contacts: { name: string | null; phone: string | null } | null
+    }>).map((e) => ({
+      pedido: e.order_id,
+      tienda: e.shop_domain,
+      cliente: e.contacts?.name ?? e.contacts?.phone ?? null,
+      estado_de_envio: e.fulfillment_status,
+      estado_del_paquete: e.shipment_status,
+      estado_del_pago: e.financial_status,
+      cancelado: e.cancelled === true,
+      // Cuándo llegó de verdad, que es distinto de cuándo se despachó.
+      entregado_el: e.delivered_at,
+      // Si ya se le preguntó cómo le fue. Sin esto, el post-venta es una caja
+      // negra: no se sabe a quién se le escribió ni a quién falta.
+      le_pedimos_opinion_el: e.feedback_dispatched_at,
+      actualizado: e.updated_at,
+    })),
+  }
+}
+
 export const ORDER_CAPABILITIES: Capability[] = [
+  {
+    key: 'pedidos.entregas',
+    description:
+      'Qué pedidos llegaron de verdad y a quién se le preguntó cómo le fue: el estado del paquete, cuándo se entregó y si Riverz ya le escribió pidiendo la opinión. Es distinto del estado de envío que trae el pedido — acá está el post-venta, que es donde se pierde la reseña que nadie pidió.',
+    descriptionEn:
+      'Which orders actually arrived and who was asked how it went: the shipment status, when it was delivered, and whether Riverz already messaged asking for their opinion. Different from the fulfillment status on the order — this is the post-purchase side, where the review nobody asked for gets lost.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        solo_entregados: { type: 'boolean' },
+        limite: { type: 'number', description: 'Por defecto 30, máximo 100.' },
+      },
+    },
+    run: entregas,
+  },
   {
     key: 'pedidos.carritos',
     description:
