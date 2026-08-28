@@ -2623,9 +2623,18 @@ export function buildSystemPrompt(
     // llegaban sin el precio del marketplace, y el agente le cotizaba el de la
     // tienda a quien escribía desde ahí.
     const canales = lineaDeCanales(p);
+    // El ENLACE va siempre, igual que el precio por canal y por la misma
+    // razón. La línea de catálogo lo lleva (`<url>`), pero esa línea sólo se
+    // usa cuando el producto NO tiene ficha compilada — así que justo los
+    // productos que el comercio se tomó el trabajo de llenar llegaban al
+    // agente SIN su link. El 2026-08-28 alguien escribió "no puedo ver precio,
+    // se me tilda la página, ¿me pasarías?" y recibió los precios sin un solo
+    // enlace: el agente no lo tenía.
+    const enlace = p.url ? `\nEnlace del producto: ${p.url}` : '';
     const body = tmRaw
       ? (tmRaw.length > perCap ? tmRaw.slice(0, perCap) + '\n…[truncado]' : tmRaw) +
-        (canales ? `\n${canales.trim()}` : '')
+        (canales ? `\n${canales.trim()}` : '') +
+        enlace
       : formatProductLine(p);
     lines.push(
       isMatch
@@ -2666,6 +2675,11 @@ export function buildSystemPrompt(
       lines.push('</catalog>');
     }
   }
+
+  // Cuándo mandarlo, que es distinto de tenerlo.
+  lines.push(
+    'Si te piden el link, dónde comprar, o te dicen que no pueden ver la página o el precio, pasa el enlace del producto TAL CUAL aparece arriba, sin acortarlo ni cambiarlo. Un precio sin enlace deja a la persona donde estaba.',
+  );
 
   const knownContact: string[] = [];
   if (contact.name) knownContact.push(`Nombre: ${contact.name}`);

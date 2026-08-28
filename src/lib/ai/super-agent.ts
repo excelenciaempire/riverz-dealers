@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { salidaParaCliente, recortarSalida } from './salida';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
 import type { AiAgent } from './types';
@@ -220,11 +221,14 @@ export async function composeSuperAgentReply(
       voice: null,
     });
 
-    const text = (result.text ?? '').trim();
+    // Por la única puerta: acá se limpian los tics del modelo (los asteriscos
+    // de Markdown llegaron a publicarse debajo de una foto) y se descarta lo
+    // que no vale la pena mandar. Va DENTRO del compositor y no en cada
+    // llamador a propósito: cuando era decisión del llamador, la superficie
+    // nueva se olvidó y nadie se enteró hasta leer lo que se publicó.
+    const text = salidaParaCliente(result.text);
     if (!text) return null;
-    return text.length > maxChars
-      ? text.slice(0, maxChars).trimEnd() + '…'
-      : text;
+    return text.length > maxChars ? recortarSalida(text, maxChars) : text;
   } catch (err) {
     console.error('[super-agent] compose falló, cae al redactor:', err);
     return null;

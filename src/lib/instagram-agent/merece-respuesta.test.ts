@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mereceRespuesta } from './merece-respuesta'
-import { recortar } from './realtime'
+import { recortarSalida as recortar } from '@/lib/ai/salida'
 
 describe('mereceRespuesta', () => {
   it('atiende las críticas que quedaron sin respuesta el 2026-08-28', () => {

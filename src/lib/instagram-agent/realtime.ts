@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
-import { humanizarTexto } from '@/lib/ai/estilo-humano';
+import { salidaParaCliente, recortarSalida } from '@/lib/ai/salida';
 import { instruccionPara, mereceRespuesta } from './merece-respuesta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
@@ -788,7 +788,9 @@ async function autonomousCommentReply(
   // TikTok lo renderizan: al cliente le llegan los asteriscos. El resto de las
   // superficies ya pasaban por acá; ésta no, y era justo la que contesta en
   // público. Visto en producción el 2026-08-28.
-  if (text) text = humanizarTexto(text);
+  // Segunda pasada barata: el respaldo de abajo tambien escribe, y una sola
+  // puerta vale mas que dos recordatorios.
+  if (text) text = salidaParaCliente(text);
 
   // Respaldo: si el agente completo falla por lo que sea (sin clave, sin saldo,
   // texto vacío), contesta el redactor de una pasada. Un comentario no se queda
@@ -1013,35 +1015,13 @@ export function publicReplyFrom(dmText: string, dmSent = true): string {
   const clean = dmText.trim();
   if (!dmSent) {
     if (!clean) return '';
-    return recortar(clean, 480);
+    return recortarSalida(clean, 480);
   }
   const first = clean.split('\n')[0]?.trim() ?? '';
-  const short = recortar(first, 120);
+  const short = recortarSalida(first, 120);
   return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
 }
 
-/**
- * Recorta sin partir una palabra.
- *
- * Cortaba por número de caracteres a secas, así que debajo de la foto quedaba
- * publicado "¿Hay algo del serum que qui…". Se prefiere la última frase
- * completa que entre; si no entra ninguna, el último espacio.
- */
-export function recortar(texto: string, tope: number): string {
-  const t = texto.trim();
-  if (t.length <= tope) return t;
-  const cabe = t.slice(0, tope);
-  const frase = Math.max(
-    cabe.lastIndexOf('. '),
-    cabe.lastIndexOf('! '),
-    cabe.lastIndexOf('? '),
-  );
-  // Una frase entera sólo si no deja el mensaje en un muñón.
-  if (frase > tope * 0.5) return cabe.slice(0, frase + 1).trim();
-  const espacio = cabe.lastIndexOf(' ');
-  const corte = espacio > tope * 0.5 ? espacio : tope - 1;
-  return `${cabe.slice(0, corte).trimEnd()}…`;
-}
 
 /**
  * Alguien de una campaña respondió: lo marcamos en el embudo (sent → replied).
