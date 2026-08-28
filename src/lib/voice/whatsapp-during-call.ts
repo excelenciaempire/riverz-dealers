@@ -23,12 +23,34 @@ export interface ToolResult {
 }
 
 /**
- * La plantilla con la que se le escribe a alguien fuera de la ventana de 24 h.
+ * Con qué plantilla se le escribe a alguien fuera de la ventana de 24 h.
  *
- * Una sola variable de contenido y en UNA línea: los parámetros de Meta no
- * admiten saltos de línea, tabuladores ni cuatro espacios seguidos.
+ * Una por escenario, y no una sola genérica, porque el encabezado es lo único
+ * que el cliente lee antes de decidir si abre el mensaje: «aquí tienes el link
+ * para completar tu compra» y «aquí tienes el seguimiento de tu pedido» no se
+ * pueden decir con la misma frase sin sonar a mensaje automático.
+ *
+ * Todas comparten la MISMA forma de variables —{{1}} nombre, {{2}} contenido en
+ * una sola línea— para que elegir una no cambie cómo se arman los parámetros.
+ * Y todas son UTILITY: Meta retiene las MARKETING en silencio, y esto no es
+ * promoción sino la continuación por escrito de algo que el cliente acaba de
+ * pedir por teléfono.
  */
-const PLANTILLA_LLAMADA = 'seguimiento_llamada';
+export const PLANTILLAS_LLAMADA = {
+  link_de_pago: 'llamada_link_de_pago',
+  transferencia: 'llamada_datos_transferencia',
+  resumen_pedido: 'llamada_resumen_pedido',
+  info_producto: 'llamada_info_producto',
+  seguimiento_envio: 'llamada_seguimiento_envio',
+  otro: 'seguimiento_llamada',
+} as const;
+
+export type EscenarioWhatsApp = keyof typeof PLANTILLAS_LLAMADA;
+
+function plantillaPara(escenario?: string | null): string {
+  const k = (escenario ?? '') as EscenarioWhatsApp;
+  return PLANTILLAS_LLAMADA[k] ?? PLANTILLAS_LLAMADA.otro;
+}
 
 /**
  * ¿Se le puede mandar texto libre a este contacto?
@@ -130,6 +152,9 @@ export async function sendWhatsAppDuringCall(
   call: VoiceCall,
   contact: Contact,
   text: string,
+  /** Qué pidió el cliente. Sólo decide la plantilla cuando la ventana está
+   *  cerrada; dentro de las 24 h se manda el texto tal cual. */
+  escenario?: string | null,
 ): Promise<ToolResult> {
   // El opt-out de WhatsApp es independiente del de llamadas: que acepte que lo
   // llamen no significa que acepte que le escriban.
@@ -185,7 +210,7 @@ export async function sendWhatsAppDuringCall(
           phoneNumberId: config.phone_number_id,
           accessToken,
           to,
-          templateName: PLANTILLA_LLAMADA,
+          templateName: plantillaPara(escenario),
           language: 'es',
           params: [
             (contact.name ?? '').trim().split(/\s+/)[0] || 'Hola',

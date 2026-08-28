@@ -73,11 +73,18 @@ export async function POST(request: Request) {
     // teléfono, así que se lo manda al mismo número al que está llamando. No
     // pasa por `runTool` porque no es una tool de Shopify.
     if (body.tool === 'send_whatsapp') {
-      const text = (body.input as { text?: string } | null)?.text?.trim();
+      const input = body.input as { text?: string; scenario?: string } | null;
+      const text = input?.text?.trim();
       if (!text) {
         return NextResponse.json({ ok: false, error: 'text_required' });
       }
-      const sent = await sendWhatsAppDuringCall(db, call, contact, text);
+      const sent = await sendWhatsAppDuringCall(
+        db,
+        call,
+        contact,
+        text,
+        input?.scenario ?? null,
+      );
       return NextResponse.json(sent);
     }
 

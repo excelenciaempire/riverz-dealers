@@ -569,7 +569,7 @@ export async function buildVoiceContext(
           {
             name: 'send_whatsapp',
             description:
-              'Envía un WhatsApp al mismo número de esta llamada. Úsalo para mandar links de pago, de seguimiento o cualquier dato que no se pueda dictar por teléfono.',
+              'Envía un WhatsApp al mismo número de esta llamada. Úsalo para mandar links de pago, datos de transferencia, seguimiento del envío, información de un producto o el resumen de lo acordado: todo lo que no se pueda dictar por teléfono.',
             parameters: {
               type: 'object',
               properties: {
@@ -577,8 +577,25 @@ export async function buildVoiceContext(
                   type: 'string',
                   description: 'El mensaje a enviar. Claro y completo.',
                 },
+                // Fuera de la ventana de 24 h de Meta sólo se puede escribir con
+                // una plantilla aprobada, y hay una por escenario. El encabezado
+                // es lo único que el cliente lee antes de abrir el mensaje, así
+                // que elegir bien acá es la diferencia entre que lo lea o no.
+                scenario: {
+                  type: 'string',
+                  enum: [
+                    'link_de_pago',
+                    'transferencia',
+                    'resumen_pedido',
+                    'info_producto',
+                    'seguimiento_envio',
+                    'otro',
+                  ],
+                  description:
+                    'Qué te pidió el cliente: link_de_pago para completar una compra, transferencia para los datos bancarios, resumen_pedido para confirmar lo acordado, info_producto para la ficha de un producto, seguimiento_envio para el estado de un envío, otro si no encaja en ninguno.',
+                },
               },
-              required: ['text'],
+              required: ['text', 'scenario'],
             },
           },
         ]

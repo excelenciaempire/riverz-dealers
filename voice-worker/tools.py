@@ -267,13 +267,27 @@ def build_tools(
             name="send_whatsapp",
             description=(
                 "Envía un mensaje de WhatsApp al cliente MIENTRAS hablás con él. "
-                "Úsalo para mandarle el link de pago, un dato o lo que te pida: "
-                "por teléfono no se pueden dictar direcciones web. "
-                "Después de llamarla, decile en voz alta que se lo acabás de enviar."
+                "Úsalo para mandarle el link de pago, los datos de transferencia, "
+                "el seguimiento del envío, la ficha de un producto o el resumen de "
+                "lo acordado: por teléfono no se pueden dictar direcciones web. "
+                "ESPERÁ el resultado antes de decir que lo mandaste: si devuelve "
+                "un error, decíselo y ofrecé otra vía."
             ),
         )
-        async def send_whatsapp(ctx: RunContext, text: str) -> str:
-            return await _forward(api, call_state, "send_whatsapp", {"text": text})
+        async def send_whatsapp(
+            ctx: RunContext,
+            text: str,
+            scenario: str = "otro",
+        ) -> str:
+            """`scenario` elige la plantilla cuando pasaron mas de 24 h desde el
+            ultimo mensaje del cliente: fuera de esa ventana Meta sólo acepta
+            plantillas aprobadas, y hay una por escenario. Valores:
+            link_de_pago, transferencia, resumen_pedido, info_producto,
+            seguimiento_envio, otro."""
+            return await _forward(
+                api, call_state, "send_whatsapp",
+                {"text": text, "scenario": scenario},
+            )
 
         tools.append(send_whatsapp)
 
