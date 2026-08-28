@@ -11,12 +11,13 @@ import {
   loadProductCatalog,
   loadRecentContactNotes,
   detectInboundProduct,
+  construirHerramientas,
   getStickyAgentId,
   paginaDeLaConversacion,
   pickAgent,
   resolveShopifyContext,
 } from './runner';
-import { LOOKUP_ORDER_TOOL, runWithTools } from './tools';
+import { runWithTools } from './tools';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -225,7 +226,19 @@ export async function componerBorrador(
           max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
           system,
           messages: claudeMessages,
-          tools: shopify ? [LOOKUP_ORDER_TOOL] : [],
+          // El mismo constructor que usa el agente cuando contesta solo, en
+          // modo `borrador`: de lectura. Antes era una lista aparte con UNA
+          // herramienta, asi que cada capacidad nueva -- buscar en internet,
+          // ver la ficha de quien escribe -- nacia sin llegar nunca aca.
+          tools: construirHerramientas({
+            agent,
+            hayContacto: Boolean(primaryContact.id),
+            shopify,
+            otherStore: null,
+            voiceCtx: null,
+            topeDescuento: 0,
+            modo: 'borrador',
+          }),
           shopify,
           voice: null,
         });

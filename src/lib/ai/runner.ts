@@ -1797,6 +1797,46 @@ async function contextoDeNavegacion(
  * todas las herramientas escriben algo sobre una persona concreta, y sin
  * persona no hay dónde anotarlo.
  */
+/**
+ * Para quien se arma la lista.
+ *
+ *   conversacion — el agente contestando en un canal. Todo lo que este
+ *                  prendido en la pizarra.
+ *   borrador     — propone y una persona manda. SOLO LECTURA: un borrador que
+ *                  nadie llego a mandar no puede dejar carritos ni pedidos
+ *                  colgados en la tienda.
+ *   comentario   — responde en publico. Sin las de la bandeja (etiquetar,
+ *                  cerrar el caso, escalar a llamada): ahi no hay un hilo que
+ *                  administrar, hay un comentario que contestar.
+ */
+export type ModoDeHerramientas = 'conversacion' | 'borrador' | 'comentario';
+
+/** Las que ESCRIBEN algo fuera de la conversacion. El borrador no las lleva. */
+const ESCRIBEN = new Set([
+  'crear_checkout',
+  'crear_link_de_pago',
+  'ofrecer_descuento',
+  'crear_pedido',
+  'registrar_pago',
+  'editar_pedido',
+  'cancelar_pedido',
+  'reembolsar',
+  'abrir_devolucion',
+  'etiquetar_contacto',
+  'cerrar_conversacion',
+  'enviar_proactivo',
+  'escalar_llamada',
+  'no_se_la_respuesta',
+]);
+
+/** Las que administran un hilo de la bandeja. Un comentario no tiene hilo. */
+const DE_LA_BANDEJA = new Set([
+  'etiquetar_contacto',
+  'cerrar_conversacion',
+  'escalar_llamada',
+  'enviar_proactivo',
+]);
+
 export function construirHerramientas(args: {
   agent: AiAgent;
   hayContacto: boolean;
@@ -1804,8 +1844,11 @@ export function construirHerramientas(args: {
   otherStore: OtherStoreContext | null;
   voiceCtx: VoiceEscalationContext | null;
   topeDescuento: number;
+  /** Por defecto, el agente contestando. Ver `ModoDeHerramientas`. */
+  modo?: ModoDeHerramientas;
 }): Anthropic.ToolUnion[] {
   const { agent, hayContacto, shopify, otherStore, voiceCtx, topeDescuento } = args;
+  const modo = args.modo ?? 'conversacion';
   // Lo que este agente puede hacer, y con qué correa.
   //
   // Antes cada capacidad se prendía en un lugar distinto —un booleano, una
@@ -1813,7 +1856,18 @@ export function construirHerramientas(args: {
   // comercio no tenía forma de mirar una pantalla y saber qué hace su agente
   // solo. Ahora sale todo de `toolMode`, que además distingue "lo hace" de "lo
   // prepara y alguien confirma".
-  const puede = (k: string) => toolEnabled(agent, k);
+  //
+  // El recorte por modo vive ACA y no en tres listas paralelas. Antes cada
+  // llamador armaba la suya: el borrador con una herramienta, los comentarios
+  // con tres, y el runner con dieciseis. Agregar una capacidad -- la busqueda
+  // web, sin ir mas lejos -- la sumaba a una sola y nadie se enteraba de que
+  // las otras dos se habian quedado atras.
+  const puede = (k: string) => {
+    if (!toolEnabled(agent, k)) return false;
+    if (modo === 'borrador' && ESCRIBEN.has(k)) return false;
+    if (modo === 'comentario' && DE_LA_BANDEJA.has(k)) return false;
+    return true;
+  };
 
   const tools = [
     // Buscar en el catálogo no depende de qué tienda tenga conectada: lee la
@@ -1847,7 +1901,7 @@ export function construirHerramientas(args: {
           ...(puede('editar_pedido') ? [UPDATE_ORDER_TOOL] : []),
         ]
       : []),
-    ...(voiceCtx ? [ESCALATE_TO_CALL_TOOL] : []),
+    ...(voiceCtx && puede('escalar_llamada') ? [ESCALATE_TO_CALL_TOOL] : []),
     // Registrar un pago informado no necesita Shopify conectado: el pedido
     // puede estar espejado de otro canal, y aunque no se pueda cobrar, callar
     // los recordatorios ya vale por sí solo.

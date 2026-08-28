@@ -6,19 +6,14 @@ import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey } from './platform-key';
 import {
   buildSystemPrompt,
+  construirHerramientas,
   loadContext,
   loadProductCatalog,
   loadRecentContactNotes,
   detectInboundProduct,
   resolveShopifyContext,
 } from './runner';
-import {
-  buildCheckoutTool,
-  buildOrderTool,
-  LOOKUP_ORDER_TOOL,
-  runWithTools,
-  type ShopifyToolContext,
-} from './tools';
+import { runWithTools } from './tools';
 import { toolEnabled } from './toolbox';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -200,7 +195,19 @@ export async function composeSuperAgentReply(
 
     // Sin herramientas de Shopify no hay nada que ofrecerle al modelo, y
     // describírselas costaría tokens en vano. `voice` va en null a propósito.
-    const tools = shopify ? commentTools(shopify) : [];
+    // Mismo constructor que el resto, en modo `comentario`: sin las de la
+    // bandeja (ahi no hay un hilo que administrar). Era una lista propia de
+    // tres herramientas y por eso se quedaba atras cada vez que el agente
+    // aprendia algo nuevo.
+    const tools = construirHerramientas({
+      agent,
+      hayContacto: Boolean(primaryContact.id),
+      shopify,
+      otherStore: null,
+      voiceCtx: null,
+      topeDescuento: 0,
+      modo: 'comentario',
+    });
 
     const maxChars = Math.min(agent.max_response_chars || 500, IG_DM_MAX_CHARS);
     const result = await runWithTools(getAnthropic(apiKey), {
@@ -236,12 +243,4 @@ const SURFACE_RULES = [
   'Si su duda ya está resuelta, ofrécele avanzar con la compra en una frase. Si no, no vendas.',
 ].join('\n');
 
-/** Las mismas herramientas que el runner expone en un DM, menos la de voz. */
-function commentTools(shopify: ShopifyToolContext): Anthropic.Tool[] {
-  return [
-    LOOKUP_ORDER_TOOL,
-    buildCheckoutTool(shopify.config ?? null),
-    ...(shopify.canCreateOrders ? [buildOrderTool(shopify.config ?? null)] : []),
-  ];
-}
 
