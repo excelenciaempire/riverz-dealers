@@ -27,16 +27,25 @@ type AgentWithChannels = AiAgent & {
  * `columns` existe porque los llamadores quieren cosas distintas: el worker
  * necesita el agente entero para armar el prompt, y una pantalla que sólo
  * pinta una lista de nombres no tiene por qué bajarse el prompt de cada uno.
- * El filtro de canales viaja siempre — sin él el criterio cambia.
+ *
+ * OJO: `scope` y `priority` se agregan SIEMPRE, pase lo que pase el llamador.
+ * El filtro de abajo lee `scope` y el orden lee `priority`; pedir sólo
+ * `id, name` los dejaba en `undefined`, con lo cual ningún agente pasaba el
+ * filtro y la cuenta figuraba sin nadie que atendiera el teléfono. Un filtro
+ * sobre una columna que no se trajo no falla: descarta todo en silencio.
  */
 export async function listVoiceAgents(
   db: SupabaseClient,
   workspaceId: string,
   columns = '*',
 ): Promise<AgentWithChannels[]> {
+  const select =
+    columns.trim() === '*'
+      ? '*'
+      : `${columns}, scope, priority`;
   const { data } = await db
     .from('ai_agents')
-    .select(`${columns}, ai_agent_channels(channel)`)
+    .select(`${select}, ai_agent_channels(channel)`)
     .eq('workspace_id', workspaceId)
     .eq('is_active', true)
     .eq('voice_enabled', true)
