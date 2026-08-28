@@ -49,6 +49,8 @@ interface Product {
   currency: string | null;
   image_url: string | null;
   images: string[] | null;
+  /** De dónde vino: 'shopify' | 'mercadolibre' | 'tiendanube' | 'woocommerce'. */
+  platform: string | null;
   url: string | null;
   websites: string[] | null;
   /** Dónde más se vende lo mismo. Presente sólo si está unificado (mig. 183). */
@@ -98,6 +100,15 @@ interface Product {
   /** True when allowed_offers was auto-populated by offer detection (migration 088). */
   offers_auto_detected: boolean | null;
 }
+
+/** El nombre de cada plataforma tal como se escribe. La columna guarda el
+ *  identificador (`mercadolibre`), que no es lo que se le muestra a nadie. */
+const PLATAFORMA: Record<string, string> = {
+  shopify: 'Shopify',
+  mercadolibre: 'Mercado Libre',
+  tiendanube: 'Tiendanube',
+  woocommerce: 'WooCommerce',
+};
 
 /** Una oferta de "Precios de venta" tal como se edita en el form.
  *  `units` = número de unidades del paquete; el webhook de pedidos lo usa
@@ -712,7 +723,9 @@ export default function ProductDetailPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs text-foreground">
-                      <span className="font-medium">{c.platform}</span>
+                      <span className="font-medium">
+                        {PLATAFORMA[c.platform] ?? c.platform}
+                      </span>
                       {c.price_min != null ? ` · ${c.price_min} ${c.currency ?? ''}` : ''}
                     </p>
                     <p className="truncate text-[11px] text-muted-foreground">{c.title}</p>
@@ -979,7 +992,13 @@ export default function ProductDetailPage() {
       <div className="sticky bottom-0 z-20 mt-8 border-t border-border bg-background/85 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="flex items-center gap-2">
           <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
-            {isShopify ? t('products.syncedFromShopify') : t('products.manualProduct')}
+            {isShopify
+              ? t('products.syncedFrom', {
+                  platform:
+                    PLATAFORMA[product.platform ?? 'shopify'] ??
+                    (product.platform || 'Shopify'),
+                })
+              : t('products.manualProduct')}
             {' · '}
             {product.title}
           </span>

@@ -200,9 +200,9 @@ export const products = {
   adopt: { es: "Adoptar", en: "Adopt" },
 
   // Save bar
-  syncedFromShopify: {
-    es: "Sincronizado desde Shopify",
-    en: "Synced from Shopify",
+  syncedFrom: {
+    es: "Sincronizado desde {platform}",
+    en: "Synced from {platform}",
   },
   manualProduct: { es: "Producto manual", en: "Manual product" },
   generateResearch: { es: "Generar investigación", en: "Generate research" },
