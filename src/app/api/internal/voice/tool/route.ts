@@ -5,7 +5,9 @@ import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import { resolveShopifyContext } from '@/lib/ai/runner';
+import { AGENT_TOOLBOX, toolMode } from '@/lib/ai/toolbox';
 import { runTool } from '@/lib/ai/tools';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
 
@@ -52,13 +54,15 @@ export async function POST(request: Request) {
     if (!contactRow) return NextResponse.json({ error: 'contact_not_found' }, { status: 404 });
     const contact = contactRow as Contact;
 
+    // El agente ENTERO: la pizarra de herramientas vive en sus columnas, y sin
+    // ella no se puede saber qué puso el comercio «con aprobación».
     const { data: agentRow } = await db
       .from('ai_agents')
-      .select('puede_crear_pedidos')
+      .select('*')
       .eq('id', call.agent_id)
       .maybeSingle();
-    const canCreateOrders =
-      (agentRow as Pick<AiAgent, 'puede_crear_pedidos'> | null)?.puede_crear_pedidos === true;
+    const agente = agentRow as AiAgent | null;
+    const canCreateOrders = agente?.puede_crear_pedidos === true;
 
     const orderId =
       call.context && typeof call.context.order_id !== 'undefined'
@@ -91,7 +95,43 @@ export async function POST(request: Request) {
       shopify.orderId = orderId; // for in-call upsell (update_order)
     }
 
-    const result = await runTool(body.tool, body.input ?? {}, shopify);
+    // La ficha de esta conversación, que es lo que la mitad de las
+    // herramientas necesita para existir.
+    //
+    // Este puente pasaba SÓLO el contexto de Shopify, así que todo lo que se
+    // apoya en `localOrders` —ver la ficha del cliente, etiquetarlo, buscar en
+    // el catálogo, abrir una devolución, anotar lo que no supo contestar,
+    // registrar un pago— contestaba «no tengo la ficha de esta conversación».
+    // Por teléfono el agente quedaba con cinco herramientas mientras el mismo
+    // agente por chat tenía diecisiete.
+    const store = shopify
+      ? null
+      : await (async () => {
+          const t = await resolveStoreForLookup(db, call.workspace_id);
+          if (!t || t.platform === 'shopify') return null;
+          return { ...t, customerEmail: null, customerPhone: null };
+        })();
+
+    const localOrders = {
+      db,
+      workspaceId: call.workspace_id,
+      contactId: call.contact_id,
+      conversationId: call.conversation_id,
+      agentId: call.agent_id,
+      channel: 'voice',
+      // La correa del comercio vale igual por teléfono: lo que puso «con
+      // aprobación» se prepara y espera a una persona, no se ejecuta porque la
+      // conversación sea hablada.
+      // Cancelar y reembolsar quedan afuera porque ya preguntan por su cuenta:
+      // ponerles el freno encima pediría dos confirmaciones por lo mismo.
+      requiereAprobacion: agente
+        ? AGENT_TOOLBOX.filter(
+            (t) => !t.proponeSolo && toolMode(agente, t.key) === 'aprobacion',
+          ).map((t) => t.key)
+        : [],
+    };
+
+    const result = await runTool(body.tool, body.input ?? {}, shopify, null, localOrders, store);
 
     // Stamp in-call upsell revenue for analytics. Estimate the delta from the
     // order's unit price (total_price / item_count) × extra units.

@@ -17,10 +17,13 @@ import type {
 import type { AiAgent } from '@/lib/ai/types';
 import {
   buildSystemPrompt,
+  construirHerramientas,
   loadProductCatalog,
   resolveShopifyContext,
   type LoadedContext,
 } from '@/lib/ai/runner';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import {
@@ -79,7 +82,14 @@ export interface VoiceContextPayload {
   max_call_seconds: number;
   sip: { trunk_id: string | null; caller_number: string | null };
   contact: { id: string; name: string | null };
+  /** Nombres, para el worker viejo que arma cada tool a mano. */
   tools_enabled: string[];
+  /**
+   * El esquema completo de cada herramienta. El worker las construye de acá,
+   * genéricamente, así que sumar una capacidad al agente la deja disponible en
+   * el teléfono sin desplegar el worker.
+   */
+  tools: { name: string; description: string; parameters: unknown }[];
 }
 
 /**
@@ -496,17 +506,86 @@ export async function buildVoiceContext(
     .maybeSingle();
   const hasWhatsApp = !!(waCfg as { phone_number_id?: string } | null)?.phone_number_id;
 
-  const toolsEnabled = [
-    ...(shopify
+  /**
+   * Todo lo que el agente sabe hacer, también por teléfono.
+   *
+   * Esto era una lista a mano de cinco herramientas —pedido, checkout, crear
+   * pedido, editar pedido, WhatsApp— mientras el mismo agente por chat tenía
+   * diecisiete. El teléfono quedaba con un agente mutilado: no podía buscar un
+   * producto en el catálogo, ni abrir una devolución, ni mirar la ficha del
+   * cliente, ni anotar lo que no supo contestar. Y se notó caro: sin
+   * `buscar_producto` el modelo inventó de memoria una oferta que no existía y
+   * cotizó ocho unidades al precio de cuatro.
+   *
+   * Ahora sale de `construirHerramientas`, la MISMA función que arma las del
+   * chat, así que respeta la pizarra del comercio (apagada / con aprobación /
+   * automática) y una capacidad nueva llega a la llamada sin tocar nada acá.
+   *
+   * Se sacan dos que no significan nada en una llamada: `escalate_to_call`
+   * (ya estamos en una) y la búsqueda web, que es una tool de servidor y en
+   * mitad de una conversación hablada tarda más de lo que nadie espera.
+   */
+  const otherStore = shopify
+    ? null
+    : await (async () => {
+        const t = await resolveStoreForLookup(db, call.workspace_id);
+        if (!t || t.platform === 'shopify') return null;
+        return { ...t, customerEmail: null, customerPhone: null };
+      })();
+  const topeDescuento = await topeDeDescuento(db, call.workspace_id).catch(() => 0);
+
+  const NO_EN_LLAMADA = new Set(['escalate_to_call', 'buscar_en_internet']);
+  const herramientas = construirHerramientas({
+    agent,
+    hayContacto: true,
+    shopify,
+    otherStore,
+    voiceCtx: null,
+    topeDescuento,
+  })
+    // Sólo las de esquema propio: las de servidor (búsqueda web) no se pueden
+    // reenviar por el puente del worker.
+    .map((t) => t as unknown as { name?: string; description?: string; input_schema?: unknown })
+    .filter(
+      (t): t is { name: string; description?: string; input_schema: unknown } =>
+        typeof t.name === 'string' && t.input_schema !== undefined,
+    )
+    .filter((t) => !NO_EN_LLAMADA.has(t.name));
+
+  // El upsell en llamada necesita un pedido en contexto; sin eso `update_order`
+  // no tiene sobre qué trabajar y sólo confunde al modelo.
+  const utiles = herramientas.filter((t) => t.name !== 'update_order' || upsellOn);
+
+  const toolSpecs = [
+    ...utiles.map((t) => ({
+      name: t.name,
+      description: t.description ?? '',
+      parameters: t.input_schema,
+    })),
+    // Sólo del teléfono: un link no se puede dictar en voz alta, así que se
+    // manda por WhatsApp al mismo número al que se está llamando.
+    ...(hasWhatsApp
       ? [
-          'lookup_order',
-          'create_checkout',
-          ...(shopify.canCreateOrders ? ['create_order'] : []),
-          ...(upsellOn ? ['update_order'] : []),
+          {
+            name: 'send_whatsapp',
+            description:
+              'Envía un WhatsApp al mismo número de esta llamada. Úsalo para mandar links de pago, de seguimiento o cualquier dato que no se pueda dictar por teléfono.',
+            parameters: {
+              type: 'object',
+              properties: {
+                text: {
+                  type: 'string',
+                  description: 'El mensaje a enviar. Claro y completo.',
+                },
+              },
+              required: ['text'],
+            },
+          },
         ]
       : []),
-    ...(hasWhatsApp ? ['send_whatsapp'] : []),
   ];
+
+  const toolsEnabled = toolSpecs.map((t) => t.name);
 
   // Global model stack (platform-admin setting). STT/TTS/mode + endpoints are
   // platform-wide; the LLM model still honors a per-agent override when set.
@@ -609,5 +688,6 @@ export async function buildVoiceContext(
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },
     tools_enabled: toolsEnabled,
+    tools: toolSpecs,
   };
 }

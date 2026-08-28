@@ -96,17 +96,83 @@ async def _forward(api, call_state: CallState, tool: str, raw_input: dict[str, A
     return json.dumps({"error": data.get("error", "unknown")}, ensure_ascii=False)
 
 
+def _generic_tool(api, call_state: CallState, spec: dict):
+    """Una function tool armada desde el esquema que manda el backend.
+
+    Las de negocio estaban escritas a mano, una por una, así que el teléfono
+    tenía cinco herramientas mientras el mismo agente por chat tenía
+    diecisiete: sumar una capacidad exigía tocar este archivo y desplegar el
+    worker, y nadie se acordaba. Ahora el backend manda `tools` con nombre,
+    descripción y JSON Schema, y acá se construyen solas — una capacidad nueva
+    llega a la llamada sin tocar el worker.
+
+    `raw_schema` es la forma que tiene LiveKit de aceptar un esquema tal cual,
+    sin derivarlo de la firma de una función Python.
+    """
+    nombre = spec.get("name")
+
+    # Firma según las docs de LiveKit para tools de esquema crudo:
+    # (raw_arguments, context). Respetarla importa: un desajuste no falla al
+    # construir la tool sino al INVOCARLA, o sea a mitad de llamada.
+    async def _run(raw_arguments: dict, context: RunContext) -> str:
+        return await _forward(api, call_state, nombre, raw_arguments or {})
+
+    return function_tool(
+        _run,
+        raw_schema={
+            "name": nombre,
+            "description": spec.get("description") or "",
+            "parameters": spec.get("parameters")
+            or {"type": "object", "properties": {}},
+        },
+    )
+
+
+# Las que están escritas a mano más abajo. Se dejan mandar a ellas: son el
+# camino probado, y el genérico se reserva para todo lo demás. Si el esquema
+# crudo tuviera un problema en alguna versión de livekit-agents, el teléfono
+# conserva igual lo esencial —pedido, checkout, crear pedido, WhatsApp— en vez
+# de quedarse sin nada.
+_A_MANO = {
+    "lookup_order",
+    "create_checkout",
+    "create_order",
+    "update_order",
+    "send_whatsapp",
+}
+
+
 def build_tools(
     *,
     call_state: CallState,
     api,
     tools_enabled: list[str],
     transfer_number: str | None = None,
+    tool_specs: list[dict] | None = None,
 ) -> list:
     """Construye la lista de tools según lo habilitado + las de control.
     `transfer_number` (opcional): si viene, se agrega `transfer_to_human`."""
     enabled = set(tools_enabled or [])
     tools: list = []
+
+    # Camino nuevo: el backend manda el esquema de cada herramienta y se arman
+    # genéricamente. Si algo falla —una versión de livekit-agents sin
+    # `raw_schema`, un esquema torcido— se cae a las escritas a mano de abajo,
+    # que cubren lo esencial. Nunca se queda sin herramientas por esto.
+    hechas: set[str] = set()
+    for spec in tool_specs or []:
+        nombre = spec.get("name")
+        if not nombre or nombre in _A_MANO:
+            continue
+        try:
+            tools.append(_generic_tool(api, call_state, spec))
+            hechas.add(nombre)
+        except Exception:
+            logger.warning("no se pudo armar la tool %s desde el esquema",
+                           nombre, exc_info=True)
+    if hechas:
+        logger.info("tools desde esquema: %s", ", ".join(sorted(hechas)))
+    enabled -= hechas
 
     # --- Tools de negocio (subconjunto) ---
 

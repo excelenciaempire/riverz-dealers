@@ -1068,6 +1068,7 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
             call_state=call_state,
             api=api,
             tools_enabled=context.get("tools_enabled") or [],
+            tool_specs=context.get("tools") or [],
             transfer_number=(context.get("transfer") or {}).get("number"),
         ),
     )
@@ -1180,6 +1181,7 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
             call_state=call_state,
             api=api,
             tools_enabled=context.get("tools_enabled") or [],
+            tool_specs=context.get("tools") or [],
             transfer_number=(context.get("transfer") or {}).get("number"),
         ),
     )
