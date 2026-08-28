@@ -141,6 +141,7 @@ export default function ProductDetailPage() {
   const [scraping, setScraping] = useState(false);
   const [researching, setResearching] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [syncingImages, setSyncingImages] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   /** Cuántos asistentes tienen este producto asignado — lo avisamos antes de borrar. */
@@ -361,6 +362,34 @@ export default function ProductDetailPage() {
     }
   }
 
+  /** Trae la galería completa de la(s) plataforma(s) donde vive el producto.
+   *  Guarda primero, como el re-leer: el servidor escribe `images` y una
+   *  recarga con el formulario sin guardar perdería lo editado. */
+  async function handleSyncImages() {
+    if (!product) return;
+    setSyncingImages(true);
+    try {
+      await saveProduct();
+      const res = await fetchWithCsrf(`/api/products/${product.id}/imagenes`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? t('products.syncImagesError'));
+      if (Array.isArray(json.images)) setImages(json.images);
+      toast.success(
+        json.added > 0
+          ? t('products.imagesSynced', { n: json.added })
+          : t('products.imagesUpToDate'),
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('products.syncImagesError'),
+      );
+    } finally {
+      setSyncingImages(false);
+    }
+  }
+
   async function handleRescrape() {
     if (!product) return;
     setScraping(true);
@@ -442,6 +471,9 @@ export default function ProductDetailPage() {
   }
 
   const isShopify = product.shop_domain && product.shop_domain !== 'manual';
+  // ¿Está publicado en alguna plataforma? Sólo entonces hay fotos que traer:
+  // un producto cargado a mano no tiene de dónde.
+  const sincronizado = Boolean(isShopify) || (product.listings?.length ?? 0) > 0;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -463,6 +495,25 @@ export default function ProductDetailPage() {
 
       {/* Media gallery */}
       <section className="mb-7">
+        {sincronizado && (
+          <div className="mb-2 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncImages}
+              disabled={syncingImages}
+              title={t('products.syncImagesTitle')}
+              className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+            >
+              {syncingImages ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              {t('products.syncImages')}
+            </Button>
+          </div>
+        )}
         <div className="flex gap-3 overflow-x-auto pb-1">
           {images.map((src, idx) => (
             <div

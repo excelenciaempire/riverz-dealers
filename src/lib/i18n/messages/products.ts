@@ -73,6 +73,23 @@ export const products = {
     es: "No se pudo subir la imagen.",
     en: "Couldn't upload the image.",
   },
+  syncImages: { es: "Traer de la tienda", en: "Fetch from store" },
+  syncImagesTitle: {
+    es: "Traer todas las fotos de las plataformas conectadas",
+    en: "Fetch every photo from the connected platforms",
+  },
+  imagesSynced: {
+    es: "{n} foto(s) nuevas.",
+    en: "{n} new photo(s).",
+  },
+  imagesUpToDate: {
+    es: "Ya estaban todas las fotos de la tienda.",
+    en: "Every store photo was already here.",
+  },
+  syncImagesError: {
+    es: "No se pudieron traer las fotos.",
+    en: "Couldn't fetch the photos.",
+  },
 
   // Core fields
   name: { es: "Nombre", en: "Name" },

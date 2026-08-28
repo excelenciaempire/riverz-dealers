@@ -17,6 +17,12 @@ export const errProducts = {
     en: "Couldn't resolve the workspace.",
   },
 
+  // --- /api/products/[id]/imagenes (POST) ---
+  noPlatformImages: {
+    es: "Este producto no tiene fotos en ninguna plataforma conectada.",
+    en: "This product has no photos on any connected platform.",
+  },
+
   // --- /api/products/[id]/agents (POST, DELETE) ---
   agentIdRequired: {
     es: "agent_id es requerido",
