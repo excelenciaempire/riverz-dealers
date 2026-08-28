@@ -72,12 +72,44 @@ export function esPregunta(texto: string): boolean {
  * El motivo viaja al prompt: contestar una duda sobre la marca no se escribe
  * igual que contestar un reclamo de un pedido.
  */
-export type MotivoRespuesta = 'duda' | 'reclamo' | 'pregunta';
+export type MotivoRespuesta = 'duda' | 'reclamo' | 'pregunta' | 'legal';
+
+/**
+ * Lo que NO se contesta solo, nunca: cómo se hizo la publicidad, si el
+ * producto está aprobado o registrado, y cualquier cosa con olor a juicio.
+ *
+ * No es prudencia de más. Puesto a redactar estas respuestas contra la base de
+ * producción el 2026-08-28, el agente escribió, para publicar debajo de la
+ * foto:
+ *
+ *   "No mezclamos nada, las fotos y testimonios son reales de clientas."
+ *   "No usamos IA para mostrar resultados, son testimonios reales."
+ *   "Y no tenemos aprobación ANMAT, es un cosmético, no un medicamento."
+ *
+ * Las tres son afirmaciones que el agente no puede saber y que comprometen a
+ * la marca ante un regulador o un juez. La tercera además declara en público
+ * que el producto no tiene una aprobación — un renglón que cualquiera captura.
+ * Nadie le pidió que mintiera: le preguntaron y contestó, porque un modelo
+ * siempre prefiere contestar. La única salida es que acá no le esté permitido.
+ */
+const LEGAL = [
+  'anmat', 'invima', 'registro sanitario', 'aprobación', 'aprobacion',
+  'aprobado', 'aprobada', 'certificado', 'certificación', 'certificacion',
+  'habilitado', 'habilitación', 'habilitacion', 'permiso', 'licencia',
+  'juicio', 'demanda', 'denuncia', 'abogado', 'defensa del consumidor',
+  'publicidad engañosa', 'publicidad enganosa', 'publicidades falsas',
+  'hecho con ia', 'hechos con ia', 'generado con ia', 'generada con ia',
+  'con inteligencia artificial', 'rostros', 'actrices', 'actores',
+  'testimonios falsos', 'antes y después falso',
+  'fda', 'lawsuit', 'ai generated', 'deepfake',
+];
 
 export function mereceRespuesta(texto: string): MotivoRespuesta | null {
   const t = normalizar(texto);
   // Un comentario de tres letras no es nada de esto.
   if (t.length < 8) return null;
+  // Lo legal gana sobre todo lo demás: es lo que peor se puede contestar.
+  if (contiene(t, LEGAL)) return 'legal';
   if (contiene(t, RECLAMO)) return 'reclamo';
   if (contiene(t, DUDA)) return 'duda';
   // Una pregunta suelta sólo cuenta si de verdad pregunta algo: sin esto,
@@ -100,6 +132,14 @@ export function instruccionPara(motivo: MotivoRespuesta): string {
     'Si te piden un dato que no tienes a mano (un registro sanitario, un certificado, un estudio), NO lo inventes ni lo aproximes: dile que te lo pasan por privado o que lo consulte con el equipo.',
   ];
   switch (motivo) {
+    case 'legal':
+      return [
+        '## Te están preguntando algo que NO podés contestar',
+        'Mencionaron un registro, una aprobación, un certificado, un juicio, o cómo se hizo la publicidad (si hay IA, si los rostros o los testimonios son reales).',
+        'PROHIBIDO afirmar Y PROHIBIDO negar. No digas que el producto está aprobado ni que no lo está; no digas que la publicidad es real ni que no usa IA; no opines sobre lo legal. No sabés si es cierto, y lo que escribas queda publicado y se puede capturar.',
+        'Tampoco te despegues del contenido de la marca ("eso no lo manejamos nosotros", "es contenido del video"): la publicación es de la tienda y esa frase queda peor que no contestar.',
+        'Lo único que se hace: agradecer que lo plantee, decir en una línea que ese tema lo responde una persona del equipo, y ofrecer seguir por privado. Nada más, sin justificarte y sin discutir.',
+      ].join('\n');
     case 'duda':
       return [
         '## Están dudando de la marca en público',

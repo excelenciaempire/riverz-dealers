@@ -25,6 +25,10 @@ import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import { briefDePublicacion, REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
 import { briefDeQueHabla, puedeAportarContexto } from '@/lib/channels/de-que-habla';
+import {
+  instruccionPara,
+  mereceRespuesta,
+} from '@/lib/instagram-agent/merece-respuesta';
 
 /** El borrador lo escribe Sonnet aunque el agente use otro modelo: ver la
  *  nota en la llamada. */
@@ -146,7 +150,7 @@ export async function componerBorrador(
         loadContext(db, conversation, agent.context_messages || 30),
         loadProductCatalog(db, agent, input.workspaceId, productMatch),
         resolveWorkspaceCurrency(db, input.workspaceId),
-        contextoDeLaPublicacion(db, input.workspaceId, conversation, contact.id).catch(
+        contextoDeLaPublicacion(db, input.workspaceId, conversation, contact.id, ultimoCliente).catch(
           () => null,
         ),
       ]);
@@ -279,6 +283,8 @@ async function contextoDeLaPublicacion(
   workspaceId: string,
   conversation: Conversation,
   contactId: string,
+  /** Lo último que dijo la persona: de ahí sale con qué reglas se contesta. */
+  ultimoCliente: string,
 ): Promise<string | null> {
   void workspaceId;
   const partes: string[] = [];
@@ -287,6 +293,12 @@ async function contextoDeLaPublicacion(
   // dice en el video).
   const publicacion = await briefDePublicacion(db, conversation).catch(() => null);
   if (publicacion) partes.push(publicacion);
+
+  // Las mismas reglas que sigue el agente cuando contesta solo. Sin esto, el
+  // botón de generar respuesta redactaba una cosa y la automatización otra —
+  // y era el borrador el que ofrecía publicar "no tenemos aprobación ANMAT".
+  const motivo = ultimoCliente ? mereceRespuesta(ultimoCliente) : null;
+  if (motivo) partes.push(instruccionPara(motivo));
 
   // Y en el resto de canales: la publicación de Mercado Libre sobre la que
   // preguntan, o el anuncio por el que escribieron. Quien redacta a mano

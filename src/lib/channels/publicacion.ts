@@ -41,6 +41,13 @@ export const REGLAS_COMENTARIO_PUBLICO = [
   'Eso incluye el final del mensaje: nada de cerrar con "si quieres, el serum…", "te puede servir" ni el nombre del producto colgado al final. Si la respuesta ya está dada, se termina ahí.',
   'Nunca menciones datos personales suyos (pedido, dirección, teléfono, correo) NI se los pidas acá: si los escribe, quedan a la vista de todos. Cuando haga falta un dato, dile en media línea que le escribes por privado.',
   'Ejemplo de lo que NO se hace acá: "pasame tu número de pedido", "decime tu teléfono", "mandame tu correo". Lo que sí: "te escribo por privado y lo vemos".',
+  // La afirmación que volvía una y otra vez, redactada de mil maneras: "los
+  // resultados son reales", "los testimonios son de clientas de verdad", "no
+  // usamos IA". El agente no hizo la publicidad y no lo sabe, y lo que escriba
+  // queda publicado debajo de la foto. Va acá y no en la instrucción de las
+  // críticas porque no depende de detectar nada: vale para todo comentario.
+  'NUNCA afirmes que las fotos, los testimonios, los antes y después o los resultados que se muestran son reales, ni que no se usó inteligencia artificial para hacerlos. Tampoco lo niegues. No hiciste esa publicidad y no lo sabés. Si el comentario va por ahí: eso lo revisa una persona del equipo.',
+  'Lo mismo con registros, aprobaciones y certificados (ANMAT, INVIMA, sanitario): no digas que lo tiene ni que no lo tiene.',
   'Una o dos frases. Nada más.',
 ].join(`
 `);

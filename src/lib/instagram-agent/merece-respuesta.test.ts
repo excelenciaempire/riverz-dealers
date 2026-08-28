@@ -6,13 +6,24 @@ describe('mereceRespuesta', () => {
   it('atiende las críticas que quedaron sin respuesta el 2026-08-28', () => {
     // Los seis comentarios reales de ese día bajo el mismo post. Ninguno
     // quiere comprar, así que el filtro "solo compradores" los descartaba.
+    //
+    // Los tres salen como 'legal' y no como 'duda' a propósito: hablan de una
+    // aprobación, de rostros hechos con IA y de juicios. Puestas a redactar,
+    // esas tres preguntas le sacaron al agente un "no tenemos aprobación
+    // ANMAT" y un "los testimonios son reales" — afirmaciones que no puede
+    // sostener y que quedan publicadas. 'legal' es la instrucción que le
+    // prohíbe afirmar Y negar.
     expect(
       mereceRespuesta(
         'Muchos posteos con IA . No confío. Historias defenestrando otros productos. Podrán mostrar aprobación de ANMAT? GRACIAS',
       ),
-    ).toBe('duda')
-    expect(mereceRespuesta('Qué manera de hacer publicidades falsas mezclando rostros….')).toBe('duda')
-    expect(mereceRespuesta('Se van a comer algunos juicios por hablar mal de otras marcas!!!')).toBe('duda')
+    ).toBe('legal')
+    expect(mereceRespuesta('Qué manera de hacer publicidades falsas mezclando rostros….')).toBe('legal')
+    expect(mereceRespuesta('Se van a comer algunos juicios por hablar mal de otras marcas!!!')).toBe('legal')
+  })
+
+  it('una duda de marca sin arista legal sigue siendo duda', () => {
+    expect(mereceRespuesta('no confío en esta marca, parece un fraude')).toBe('duda')
   })
 
   it('reconoce un reclamo de post-venta', () => {
