@@ -213,6 +213,59 @@ export const landingV4 = {
   compHoy: { es: "Hoy", en: "Today" },
   compSincro: { es: "Stock · Precios · Pedidos", en: "Stock · Prices · Orders" },
 
+  // Vendedor: la gracia es que la respuesta CITA el dato de la ficha.
+  compAsk: { es: "¿Les queda en talla 38?", en: "Do you have it in size 38?" },
+  compAnswer: {
+    es: "Sí, quedan 4 en talla 38. Te la aparto.",
+    en: "Yes, 4 left in size 38. I'll hold one for you.",
+  },
+  compStock: { es: "Talla 38 · 4 en stock", en: "Size 38 · 4 in stock" },
+  compCatalog: { es: "Tu catálogo", en: "Your catalog" },
+
+  // Atención: la hora es el argumento entero.
+  compOrder: { es: "Pedido", en: "Order" },
+  compConfirmed: { es: "Confirmado", en: "Confirmed" },
+  compShipped: { es: "En camino", en: "On its way" },
+  compTracking: { es: "Guía 889-2231", en: "Tracking 889-2231" },
+  compHour: { es: "3:14 a. m.", en: "3:14 AM" },
+
+  // Comentarios: el comentario público y el DM que sigue.
+  compComment: { es: "precio?", en: "how much?" },
+  compPublicReply: {
+    es: "¡Te escribimos por DM! 💛",
+    en: "Just sent you a DM! 💛",
+  },
+  compDm: {
+    es: "$239.000 y tenemos envío gratis hoy.",
+    en: "$239,000 and shipping is free today.",
+  },
+
+  // Bandeja: los cinco canales y la fila que llega.
+  compOneInbox: { es: "Una bandeja", en: "One inbox" },
+  compUnread: { es: "3 sin responder", en: "3 unanswered" },
+
+  // En vivo: lo que se ve desde el teléfono.
+  compLiveNow: { es: "En vivo", en: "Live" },
+  compTakeOver: { es: "Entrar a la conversación", en: "Join the conversation" },
+
+  // Contactos: la ficha que se llena sola y el segmento que sale de ella.
+  compCity: { es: "Bogotá", en: "Bogotá" },
+  compSpent: { es: "$1.240.000 gastados", en: "$1,240,000 spent" },
+  compOrders: { es: "3 pedidos", en: "3 orders" },
+  compSegment: { es: "Compradores frecuentes · 412", en: "Frequent buyers · 412" },
+
+  // Puesta en marcha: tres pasos y ya.
+  compStep1: { es: "Conecta la tienda", en: "Connect your store" },
+  compStep2: { es: "Conecta WhatsApp", en: "Connect WhatsApp" },
+  compStep3: { es: "Enciende el agente", en: "Turn the agent on" },
+  compMinutes: { es: "8 minutos", en: "8 minutes" },
+
+  // ROAS: la cifra y de dónde sale.
+  compRoas: { es: "ROAS", en: "ROAS" },
+  compAttributed: { es: "Atribuido al agente", en: "Attributed to the agent" },
+  compInvested: { es: "Invertido", en: "Spent" },
+  compReturned: { es: "Devuelto", en: "Returned" },
+
   // ── Operator ──
   operatorLabel: { es: "Operator", en: "Operator" },
   // Este bloque va a todo el ancho y con la mínima cantidad de texto posible:
