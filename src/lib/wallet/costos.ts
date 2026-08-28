@@ -44,10 +44,19 @@ const LISTA: Record<string, { centavos: number; unidad: string; proveedor: strin
   // Telefonía + transcripción + modelo + voz, todo junto. Medido en producción
   // sobre llamadas reales: 0,055 USD el minuto.
   llamada_voz: { centavos: 5.5, unidad: 'minuto', proveedor: 'Telnyx + Deepgram + Fish Audio' },
+  // La voz y la transcripción NO son líneas propias: ya están adentro del
+  // minuto de llamada. Se dejan acá para poder desglosar de qué está hecho ese
+  // minuto, pero sus tarifas nacen apagadas — cobrarlas aparte sería cobrar dos
+  // veces lo mismo.
   voz_tts: { centavos: 5, unidad: '1k caracteres', proveedor: 'Fish Audio' },
   voz_stt: { centavos: 0.78, unidad: 'minuto', proveedor: 'Deepgram' },
   // La búsqueda web de Anthropic: 10 USD cada mil búsquedas.
   busqueda_web: { centavos: 1, unidad: 'búsqueda', proveedor: 'Anthropic' },
+  // Estos dos NO existen en este producto y quedaron apagados en la tabla:
+  // acá la IA MIRA imágenes (y eso ya se paga en los tokens de la respuesta),
+  // no las genera; y la investigación de mercado es de la otra herramienta de
+  // Riverz, no del CRM. Se dejan definidos para que, si alguien los reactiva
+  // desde /admin, al menos tengan un costo y un proveedor detrás.
   imagen: { centavos: 4, unidad: 'imagen', proveedor: 'Gemini / Replicate' },
   investigacion: { centavos: 100, unidad: 'informe', proveedor: 'Anthropic' },
 }
