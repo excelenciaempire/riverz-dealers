@@ -1016,6 +1016,7 @@ export const settings = {
     en: "Couldn't open the top-up.",
   },
   walletOther: { es: "Otro", en: "Other" },
+  walletMin: { es: "Mínimo US$5", en: "Minimum US$5" },
   walletEmpty: {
     es: "Te quedaste sin saldo. La cuenta sigue funcionando, pero conviene recargar.",
     en: "You're out of balance. The account still works, but it's worth topping up.",
@@ -1050,6 +1051,8 @@ export const settings = {
     en: "Your account pays the real cost, with no margin: this is exactly what gets deducted.",
   },
   walletEstimate: { es: "estimado", en: "estimate" },
+  walletNoCharge: { es: "Sin cargo", en: "No charge" },
+  walletInsideOf: { es: "Dentro de «{linea}»", en: "Inside “{linea}”" },
   walletIncluded: {
     es: "Sin cargo: transcribir las notas de voz de tus clientes y el audio de tus videos.",
     en: "No charge: transcribing your customers' voice notes and your videos' audio.",

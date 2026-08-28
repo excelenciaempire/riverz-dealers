@@ -17,8 +17,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
 
-/** Lo mínimo y lo máximo que se puede cargar de una vez, en centavos. */
-export const MINIMO_CENTAVOS = 1000
+/**
+ * Lo mínimo y lo máximo que se puede cargar de una vez, en centavos.
+ *
+ * El mínimo era 10 USD y sobraba: alguien escribía 5 —un monto perfectamente
+ * razonable— y le salía "no se pudo abrir la recarga", que además no decía por
+ * qué. Cinco dólares dan para 250 respuestas de la IA; que la plataforma decida
+ * que es poco es decidir por el comercio con su plata.
+ */
+export const MINIMO_CENTAVOS = 500
 export const MAXIMO_CENTAVOS = 500_000
 
 /** Los montos que ofrece el panel. El comercio igual puede escribir otro. */
@@ -53,7 +60,9 @@ export async function urlDeRecarga(
   quien: { email: string | null; nombre: string | null },
 ): Promise<string> {
   if (!montoValido(centavos)) {
-    throw new Error('El monto de la recarga está fuera de lo permitido.')
+    throw new Error(
+      `El monto tiene que estar entre US$${MINIMO_CENTAVOS / 100} y US$${MAXIMO_CENTAVOS / 100}.`,
+    )
   }
 
   const { data: sus } = await db

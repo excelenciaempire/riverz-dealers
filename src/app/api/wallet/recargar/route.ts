@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { montoValido, urlDeRecarga } from '@/lib/wallet/recarga'
+import { MAXIMO_CENTAVOS, MINIMO_CENTAVOS, montoValido, urlDeRecarga } from '@/lib/wallet/recarga'
 
 /**
  * Lleva a cargar saldo.
@@ -34,7 +34,14 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { centavos?: number } | null
   const centavos = Math.round(Number(body?.centavos ?? 0))
   if (!montoValido(centavos)) {
-    return NextResponse.json({ error: 'monto_invalido' }, { status: 400 })
+    // El motivo, no un código: el panel lo muestra tal cual, y "monto_invalido"
+    // no le dice a nadie que el mínimo son cinco dólares.
+    return NextResponse.json(
+      {
+        error: `El monto tiene que estar entre US$${MINIMO_CENTAVOS / 100} y US$${MAXIMO_CENTAVOS / 100}.`,
+      },
+      { status: 400 },
+    )
   }
 
   try {

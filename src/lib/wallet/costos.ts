@@ -21,48 +21,136 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { costForModel } from '@/lib/admin/cost'
 
+/**
+ * Cómo se cobra cada cosa.
+ *
+ * `incluido` y `sin_cargo` existen para poder MOSTRARLOS. Un tablero que sólo
+ * lista lo que descuenta deja al comercio adivinando qué más está corriendo con
+ * nuestras llaves, y esa duda es peor que cualquier número.
+ */
+export type FormaDeCobro = 'por_uso' | 'incluido' | 'sin_cargo'
+
 export interface CostoReal {
   concepto: string
-  /** Centavos por unidad. */
+  nombreEs: string
+  nombreEn: string
+  /** Centavos por unidad. Cero en lo que no se cobra. */
   centavos: number
   unidad: string
   /** Quién cobra ese consumo. */
   proveedor: string
   /** Si sale de lo que consumió ESTA cuenta, o es la tarifa de lista. */
   medido: boolean
+  cobro: FormaDeCobro
+  /** Dentro de qué otra línea viaja, cuando es `incluido`. */
+  dentroDeEs?: string
+  dentroDeEn?: string
 }
 
 /** Cuántos días de historia se miran para promediar. */
 const VENTANA_DIAS = 30
 
-/** Lo que cobra cada proveedor, de lista, cuando la cuenta no tiene historia. */
-const LISTA: Record<string, { centavos: number; unidad: string; proveedor: string }> = {
-  // Una respuesta típica del agente con su prompt cacheado. Se reemplaza por el
-  // promedio real de la cuenta en cuanto tenga una sola respuesta enviada.
-  ia_respuesta: { centavos: 1.44, unidad: 'respuesta', proveedor: 'Anthropic' },
-  ia_operador: { centavos: 8, unidad: 'respuesta', proveedor: 'Anthropic' },
-  // Telefonía + transcripción + modelo + voz, todo junto. Medido en producción
-  // sobre llamadas reales: 0,055 USD el minuto.
-  llamada_voz: { centavos: 5.5, unidad: 'minuto', proveedor: 'Telnyx + Deepgram + Fish Audio' },
-  // La voz y la transcripción NO son líneas propias: ya están adentro del
-  // minuto de llamada. Se dejan acá para poder desglosar de qué está hecho ese
-  // minuto, pero sus tarifas nacen apagadas — cobrarlas aparte sería cobrar dos
-  // veces lo mismo.
-  voz_tts: { centavos: 5, unidad: '1k caracteres', proveedor: 'Fish Audio' },
-  voz_stt: { centavos: 0.78, unidad: 'minuto', proveedor: 'Deepgram' },
-  // La búsqueda web de Anthropic: 10 USD cada mil búsquedas.
-  busqueda_web: { centavos: 1, unidad: 'búsqueda', proveedor: 'Anthropic' },
-  // Mirar la foto de una publicación para poder contestar sus comentarios: una
-  // llamada de visión con ~300 tokens de salida.
-  entender_publicacion: { centavos: 1.5, unidad: 'publicación', proveedor: 'Anthropic' },
-  // Estos dos NO existen en este producto y quedaron apagados en la tabla:
-  // acá la IA MIRA imágenes (y eso ya se paga en los tokens de la respuesta),
-  // no las genera; y la investigación de mercado es de la otra herramienta de
-  // Riverz, no del CRM. Se dejan definidos para que, si alguien los reactiva
-  // desde /admin, al menos tengan un costo y un proveedor detrás.
-  imagen: { centavos: 4, unidad: 'imagen', proveedor: 'Gemini / Replicate' },
-  investigacion: { centavos: 100, unidad: 'informe', proveedor: 'Anthropic' },
-}
+/**
+ * TODO lo que corre con las llaves de Riverz, se cobre o no.
+ *
+ * Lo que no se cobra está acá igual y dice por qué: o viaja adentro de otra
+ * línea —la voz y la transcripción ya están en el minuto de llamada— o sale tan
+ * poco que cobrarlo costaría más ruido que la plata que mueve. Esconderlo sería
+ * dejar al comercio preguntándose qué más estamos usando en su nombre.
+ */
+const CATALOGO: Omit<CostoReal, 'medido'>[] = [
+  {
+    concepto: 'ia_respuesta',
+    nombreEs: 'Respuestas de la IA',
+    nombreEn: 'AI replies',
+    centavos: 1.44,
+    unidad: 'respuesta',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'ia_operador',
+    nombreEs: 'Operador',
+    nombreEn: 'Operator',
+    centavos: 8,
+    unidad: 'respuesta',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    // Telefonía + transcripción + modelo + voz, todo junto.
+    concepto: 'llamada_voz',
+    nombreEs: 'Llamadas',
+    nombreEn: 'Calls',
+    centavos: 5.5,
+    unidad: 'minuto',
+    proveedor: 'Telnyx + Deepgram + Fish Audio',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'entender_publicacion',
+    nombreEs: 'Entender una publicación o un anuncio',
+    nombreEn: 'Understanding a post or ad',
+    centavos: 1.5,
+    unidad: 'publicación',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    // La búsqueda web de Anthropic: 10 USD cada mil búsquedas.
+    concepto: 'busqueda_web',
+    nombreEs: 'Búsquedas en internet',
+    nombreEn: 'Web searches',
+    centavos: 1,
+    unidad: 'búsqueda',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'voz_tts',
+    nombreEs: 'La voz con la que habla el agente',
+    nombreEn: "The agent's voice",
+    centavos: 5,
+    unidad: '1k caracteres',
+    proveedor: 'Fish Audio',
+    cobro: 'incluido',
+    dentroDeEs: 'Llamadas',
+    dentroDeEn: 'Calls',
+  },
+  {
+    concepto: 'voz_stt',
+    nombreEs: 'Entender lo que se dice en la llamada',
+    nombreEn: 'Understanding what is said on the call',
+    centavos: 0.78,
+    unidad: 'minuto',
+    proveedor: 'Deepgram',
+    cobro: 'incluido',
+    dentroDeEs: 'Llamadas',
+    dentroDeEn: 'Calls',
+  },
+  {
+    concepto: 'imagen_entrante',
+    nombreEs: 'Mirar la foto que manda tu cliente',
+    nombreEn: "Looking at the photo your customer sends",
+    centavos: 0,
+    unidad: 'foto',
+    proveedor: 'Anthropic',
+    cobro: 'incluido',
+    dentroDeEs: 'Respuestas de la IA',
+    dentroDeEn: 'AI replies',
+  },
+  {
+    // Whisper en Groq sale ~0,04 USD la HORA. El piso de un movimiento del
+    // libro es un centavo: cobrarlo sería cobrar catorce veces el trabajo.
+    concepto: 'transcripcion_audio',
+    nombreEs: 'Transcribir notas de voz y el audio de tus videos',
+    nombreEn: 'Transcribing voice notes and your videos audio',
+    centavos: 0,
+    unidad: 'audio',
+    proveedor: 'Groq (Whisper)',
+    cobro: 'sin_cargo',
+  },
+]
 
 function desde(): string {
   return new Date(Date.now() - VENTANA_DIAS * 24 * 60 * 60 * 1000).toISOString()
@@ -140,18 +228,16 @@ export async function costosReales(
     costoPorMinuto(db, workspaceId).catch(() => null),
   ])
 
-  return Object.entries(LISTA).map(([concepto, l]) => {
+  return CATALOGO.map((c) => {
     const medidoCentavos =
-      concepto === 'ia_respuesta'
+      c.concepto === 'ia_respuesta'
         ? porRespuesta
-        : concepto === 'llamada_voz'
+        : c.concepto === 'llamada_voz'
           ? porMinuto
           : null
     return {
-      concepto,
-      centavos: medidoCentavos ?? l.centavos,
-      unidad: l.unidad,
-      proveedor: l.proveedor,
+      ...c,
+      centavos: medidoCentavos ?? c.centavos,
       medido: medidoCentavos !== null,
     }
   })

@@ -42,10 +42,15 @@ interface Estado {
   aCosto: boolean;
   costos: {
     concepto: string;
+    nombreEs: string;
+    nombreEn: string;
     centavos: number;
     unidad: string;
     proveedor: string;
     medido: boolean;
+    cobro: 'por_uso' | 'incluido' | 'sin_cargo';
+    dentroDeEs?: string;
+    dentroDeEn?: string;
   }[];
   resumen: {
     rango: { desde: string; hasta: string };
@@ -200,7 +205,9 @@ export function WalletPanel() {
         });
         const json = (await res.json()) as { url?: string; error?: string };
         if (json.url) window.location.href = json.url;
-        else toast.error(t('settings.walletTopUpFailed'));
+        // El error del servidor, tal cual: dice el mínimo y el máximo. El texto
+        // genérico dejaba a la persona probando montos a ciegas.
+        else toast.error(json.error ?? t('settings.walletTopUpFailed'));
       } catch {
         toast.error(t('settings.walletTopUpFailed'));
       } finally {
@@ -321,6 +328,7 @@ export function WalletPanel() {
                   value={otro}
                   onChange={(ev) => setOtro(ev.target.value.replace(/[^\d]/g, ''))}
                   placeholder={t('settings.walletOther')}
+                  title={t('settings.walletMin')}
                   inputMode="numeric"
                   className="h-9 w-24"
                 />
@@ -688,55 +696,58 @@ export function WalletPanel() {
           </p>
         )}
         <ul className="mt-3 space-y-2 text-sm">
-          {e.tarifas.map((tar) => {
+          {e.costos.map((c) => {
             // Tres números posibles, y se elige el más cierto que haya:
             //   1. lo que ya se le cobró por unidad en este rango,
             //   2. lo que le sale de verdad según SU consumo,
-            //   3. la tarifa, que es lo último y sólo para el que no pagó nunca.
+            //   3. la tarifa de lista, marcada como estimado.
+            const tar = e.tarifas.find((x) => x.concepto === c.concepto);
             const cobrado = resumen.porConcepto.find(
-              (c) => c.concepto === tar.concepto,
+              (x) => x.concepto === c.concepto,
             )?.porUnidadCentavos;
-            const costo = e.costos.find((c) => c.concepto === tar.concepto);
             const centavos =
               cobrado ??
-              (e.aCosto && costo ? costo.centavos : tar.precioMilicentavos / 1000);
+              (e.aCosto || !tar ? c.centavos : tar.precioMilicentavos / 1000);
             const esMedido =
-              cobrado !== null && cobrado !== undefined
-                ? true
-                : Boolean(e.aCosto && costo?.medido);
+              cobrado !== null && cobrado !== undefined ? true : c.medido;
+            const dentroDe = locale === 'en' ? c.dentroDeEn : c.dentroDeEs;
             return (
-              <li key={tar.concepto} className="flex justify-between gap-3">
+              <li key={c.concepto} className="flex justify-between gap-3">
                 <span className="min-w-0">
                   <span className="text-foreground">
-                    {locale === 'en' ? tar.nombreEn : tar.nombreEs}
+                    {locale === 'en' ? c.nombreEn : c.nombreEs}
                   </span>
-                  {/* Quién cobra. Es la pregunta que sigue siempre. */}
-                  {costo && (
-                    <span className="block text-xs text-muted-foreground">
-                      {costo.proveedor}
-                    </span>
-                  )}
+                  <span className="block text-xs text-muted-foreground">
+                    {c.proveedor}
+                  </span>
                 </span>
                 <span className="shrink-0 text-right tabular-nums text-foreground">
-                  {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
-                    maximumFractionDigits: 4,
-                  })}{' '}
-                  / {tar.unidad}
-                  <span className="block text-xs text-muted-foreground">
-                    {esMedido
-                      ? t('settings.walletYourAverage')
-                      : e.aCosto
-                        ? t('settings.walletEstimate')
-                        : ''}
-                  </span>
+                  {c.cobro === 'por_uso' ? (
+                    <>
+                      {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
+                        maximumFractionDigits: 4,
+                      })}{' '}
+                      / {c.unidad}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {c.cobro === 'sin_cargo'
+                        ? t('settings.walletNoCharge')
+                        : t('settings.walletInsideOf', { linea: dentroDe ?? '' })}
+                    </span>
+                  )}
+                  {c.cobro === 'por_uso' && (
+                    <span className="block text-xs text-muted-foreground">
+                      {esMedido
+                        ? t('settings.walletYourAverage')
+                        : t('settings.walletEstimate')}
+                    </span>
+                  )}
                 </span>
               </li>
             );
           })}
         </ul>
-        {/* Lo que corre con nuestras llaves y NO se cobra. Decirlo importa: si
-            no, el comercio no sabe que existe y el día que vea "transcripción"
-            en otro lado va a pensar que se la estamos escondiendo. */}
         <p className="mt-3 text-xs text-muted-foreground">
           {t('settings.walletIncluded')}
         </p>
