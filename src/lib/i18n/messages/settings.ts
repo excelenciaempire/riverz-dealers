@@ -997,4 +997,40 @@ export const settings = {
   billingTotal: { es: "Total", en: "Total" },
   billingSubscribe: { es: "Poner tarjeta", en: "Add a card" },
   billingManage: { es: "Administrar", en: "Manage" },
+
+  // ── Billetera ──
+  tabWallet: { es: "Saldo", en: "Balance" },
+  walletBalance: { es: "Saldo disponible", en: "Available balance" },
+  walletTopUp: { es: "Recarga", en: "Top-up" },
+  walletTopUpFailed: {
+    es: "No se pudo abrir la recarga.",
+    en: "Couldn't open the top-up.",
+  },
+  walletOther: { es: "Otro", en: "Other" },
+  walletEmpty: {
+    es: "Te quedaste sin saldo. La cuenta sigue funcionando, pero conviene recargar.",
+    en: "You're out of balance. The account still works, but it's worth topping up.",
+  },
+  walletEmptyBlocking: {
+    es: "Te quedaste sin saldo y la IA dejó de responder. Recarga para reanudar.",
+    en: "You're out of balance and the AI stopped replying. Top up to resume.",
+  },
+  walletLastDays: { es: "{n} días", en: "{n} days" },
+  walletSpent: { es: "Gastado", en: "Spent" },
+  walletLoaded: { es: "Cargado", en: "Loaded" },
+  walletByDay: { es: "Gasto por día", en: "Spend per day" },
+  walletByConcept: { es: "En qué se fue", en: "Where it went" },
+  walletNoSpend: {
+    es: "Sin consumo en este rango.",
+    en: "No usage in this range.",
+  },
+  walletLedger: { es: "Detalle", en: "Activity" },
+  walletNoMovements: {
+    es: "Sin movimientos en este rango.",
+    en: "No movements in this range.",
+  },
+  walletClearFilter: { es: "Ver todo", en: "Show all" },
+  walletPrev: { es: "Anterior", en: "Previous" },
+  walletNext: { es: "Siguiente", en: "Next" },
+  walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
 } satisfies Namespace;

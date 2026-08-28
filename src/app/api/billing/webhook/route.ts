@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe'
+import { acreditarDesdeEvento } from '@/lib/wallet/recarga'
 
 /**
  * Lo que Stripe cuenta después.
@@ -42,7 +43,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const que = await aplicarEvento(supabaseAdmin(), evento)
+    const db = supabaseAdmin()
+    // Por el mismo endpoint entran dos cosas distintas: el estado de la
+    // suscripción y las recargas de saldo. Cada una ignora lo que no es suyo.
+    const recarga = await acreditarDesdeEvento(db, evento)
+    if (recarga) return NextResponse.json({ ok: true, que: recarga })
+    const que = await aplicarEvento(db, evento)
     return NextResponse.json({ ok: true, que })
   } catch (e) {
     // 500 para que Stripe reintente: el evento es válido y algo nuestro falló.

@@ -26,6 +26,7 @@ import {
   resumeAfterVoiceCall,
 } from '@/lib/automations/engine';
 import { ensureTag, applyTags } from '@/lib/contacts/tags';
+import { cobrar } from '@/lib/wallet/saldo';
 import { nextAllowedTime, retryDelayMinutes } from './queue';
 import { DEFAULT_CALLING_HOURS } from './constants';
 import { maybeCodWriteback } from './cod';
@@ -479,6 +480,26 @@ export async function persistCallResult(
       updated_at: new Date().toISOString(),
     })
     .eq('id', call.id);
+
+  // ── La billetera ──
+  // Se cobra el minuto hablado, no la llamada intentada: un teléfono que suena
+  // y nadie atiende no le costó nada al comercio y cobrarlo sería inexplicable.
+  // `cobrar` nunca lanza, así que esto no puede romper el cierre de la llamada.
+  const minutosCobrables = cost.minutes ?? 0;
+  if (minutosCobrables > 0) {
+    void cobrar(db, call.workspace_id, {
+      concepto: 'llamada_voz',
+      cantidad: minutosCobrables,
+      costoUsd: cost.total_usd ?? 0,
+      referenciaTipo: 'voice_call',
+      referenciaId: call.id,
+      detalle: {
+        direccion: call.direction,
+        resultado: payload.outcome ?? null,
+        segundos: durationSeconds,
+      },
+    });
+  }
 
   // Opt-out: the customer asked not to be called → stamp the contact.
   if (payload.outcome === 'opt_out') {

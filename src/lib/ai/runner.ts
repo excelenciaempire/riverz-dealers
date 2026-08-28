@@ -11,6 +11,8 @@ import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { limpiarPersona } from './persona-limpia';
 export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
+import { cobrar } from '@/lib/wallet/saldo';
+import { costForModel } from '@/lib/admin/cost';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { detectarEscalada, type Escalada } from './escalada';
@@ -734,6 +736,31 @@ export async function runAiAgent(
         ? { skip_reason: 'tool_loop_truncated_fallback' }
         : {}),
     });
+
+    // ── La billetera ──
+    // Se cobra la respuesta que SALIÓ, no el intento. Y sólo si la pagó una
+    // llave de Riverz: al comercio que trae su propia clave de Anthropic ya le
+    // cobra Anthropic, cobrarle también acá sería cobrarle dos veces.
+    // `cobrar` nunca lanza: el cliente ya tiene su respuesta y un error de
+    // contabilidad no puede convertirse en un error de mensajería.
+    if (reply.keySource !== 'agent') {
+      void cobrar(db, args.workspaceId, {
+        concepto: 'ia_respuesta',
+        cantidad: 1,
+        costoUsd: costForModel(
+          reply.model,
+          reply.promptTokens ?? 0,
+          reply.completionTokens ?? 0,
+        ),
+        referenciaTipo: 'conversation',
+        referenciaId: args.conversation.id,
+        detalle: {
+          canal: args.conversation.channel,
+          modelo: reply.model ?? null,
+          agente: agent.name ?? null,
+        },
+      });
+    }
 
     // ── Memoria rodante (background, fail-soft) ──
     // No esperamos — el cliente ya recibió la respuesta. Si fallan,

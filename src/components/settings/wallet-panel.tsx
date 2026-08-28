@@ -1,0 +1,511 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2, Plus, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
+import { useLocale, useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
+/**
+ * El saldo, y en qué se fue.
+ *
+ * El comercio no tiene por qué enterarse de que atrás hay tres proveedores con
+ * tres facturas. Carga saldo y ve una sola cuenta: cuánto le queda, cuánto
+ * gastó en el rango que elija y en qué —respuestas, llamadas, voz— con el
+ * detalle línea por línea abajo.
+ *
+ * El desglose por concepto está arriba del detalle a propósito: la pregunta que
+ * trae a alguien a esta pantalla es "¿en qué se me va la plata?", y esa la
+ * contesta el resumen. La lista es el respaldo para el que no le cree al
+ * resumen, que es exactamente para lo que tiene que estar.
+ */
+
+interface Tarifa {
+  concepto: string;
+  nombreEs: string;
+  nombreEn: string;
+  unidad: string;
+  precioMilicentavos: number;
+}
+
+interface Estado {
+  saldoCentavos: number;
+  moneda: string;
+  bloquearSinSaldo: boolean;
+  resumen: {
+    rango: { desde: string; hasta: string };
+    cargadoCentavos: number;
+    gastadoCentavos: number;
+    movimientos: number;
+    porConcepto: {
+      concepto: string;
+      centavos: number;
+      cantidad: number;
+      movimientos: number;
+    }[];
+    porDia: { dia: string; gastadoCentavos: number; cargadoCentavos: number }[];
+  };
+  tarifas: Tarifa[];
+  puedeRecargar: boolean;
+  sugeridos: number[];
+}
+
+interface Movimiento {
+  id: string;
+  creadoEn: string;
+  tipo: string;
+  concepto: string;
+  centavos: number;
+  saldoDespuesCentavos: number;
+  cantidad: number | null;
+  unidad: string | null;
+  referenciaTipo: string | null;
+  referenciaId: string | null;
+}
+
+const DIAS = [7, 30, 90] as const;
+
+function desdeHace(dias: number): string {
+  return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Sólo la parte YYYY-MM-DD, que es lo que entiende un <input type=date>. */
+const soloDia = (iso: string) => iso.slice(0, 10);
+
+export function WalletPanel() {
+  const t = useT();
+  const { locale } = useLocale();
+  const fmt = useFormat();
+  const fetchWithCsrf = useFetchWithCsrf();
+
+  const [dias, setDias] = useState<number | null>(30);
+  const [desde, setDesde] = useState<string>(soloDia(desdeHace(30)));
+  const [hasta, setHasta] = useState<string>(soloDia(new Date().toISOString()));
+  const [e, setE] = useState<Estado | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [yendo, setYendo] = useState(false);
+  const [otro, setOtro] = useState('');
+  const [concepto, setConcepto] = useState<string | null>(null);
+  const [movs, setMovs] = useState<Movimiento[] | null>(null);
+  const [pagina, setPagina] = useState(0);
+  const [hayMas, setHayMas] = useState(false);
+
+  const rango = useMemo(() => {
+    if (dias !== null) {
+      return { desde: desdeHace(dias), hasta: new Date().toISOString() };
+    }
+    return {
+      desde: new Date(`${desde}T00:00:00`).toISOString(),
+      // El día "hasta" se toma entero: quien elige el 20 quiere lo del 20.
+      hasta: new Date(`${hasta}T23:59:59`).toISOString(),
+    };
+  }, [dias, desde, hasta]);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      setCargando(true);
+      try {
+        const q = new URLSearchParams({ desde: rango.desde, hasta: rango.hasta });
+        const res = await fetch(`/api/wallet/estado?${q}`, { cache: 'no-store' });
+        if (vivo) setE(res.ok ? ((await res.json()) as Estado) : null);
+      } catch {
+        if (vivo) setE(null);
+      } finally {
+        if (vivo) setCargando(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [rango.desde, rango.hasta]);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const q = new URLSearchParams({
+          desde: rango.desde,
+          hasta: rango.hasta,
+          pagina: String(pagina),
+        });
+        if (concepto) q.set('concepto', concepto);
+        const res = await fetch(`/api/wallet/movimientos?${q}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = (await res.json()) as { filas: Movimiento[]; hayMas: boolean };
+        if (!vivo) return;
+        setMovs(json.filas);
+        setHayMas(json.hayMas);
+      } catch {
+        if (vivo) setMovs([]);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [rango.desde, rango.hasta, concepto, pagina]);
+
+  const recargar = useCallback(
+    async (centavos: number) => {
+      setYendo(true);
+      try {
+        const res = await fetchWithCsrf('/api/wallet/recargar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ centavos }),
+        });
+        const json = (await res.json()) as { url?: string; error?: string };
+        if (json.url) window.location.href = json.url;
+        else toast.error(t('settings.walletTopUpFailed'));
+      } catch {
+        toast.error(t('settings.walletTopUpFailed'));
+      } finally {
+        setYendo(false);
+      }
+    },
+    [fetchWithCsrf, t],
+  );
+
+  const plata = useCallback(
+    (centavos: number) => fmt.currency(centavos / 100, (e?.moneda ?? 'usd').toUpperCase()),
+    [fmt, e?.moneda],
+  );
+
+  const nombreConcepto = useCallback(
+    (c: string) => {
+      if (c === 'recarga') return t('settings.walletTopUp');
+      const tar = e?.tarifas.find((x) => x.concepto === c);
+      if (!tar) return c;
+      return locale === 'en' ? tar.nombreEn : tar.nombreEs;
+    },
+    [e?.tarifas, locale, t],
+  );
+
+  if (cargando && !e) {
+    return (
+      <div className="flex justify-center py-10">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!e) return null;
+
+  const { resumen } = e;
+  const maxDia = Math.max(1, ...resumen.porDia.map((d) => d.gastadoCentavos));
+  const enRojo = e.saldoCentavos <= 0;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Saldo y recarga ─────────────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Wallet className="size-4" />
+              {t('settings.walletBalance')}
+            </p>
+            <p
+              className={cn(
+                'mt-1 text-3xl font-semibold tabular-nums',
+                enRojo ? 'text-destructive' : 'text-foreground',
+              )}
+            >
+              {plata(e.saldoCentavos)}
+            </p>
+          </div>
+          {e.puedeRecargar && (
+            <div className="flex flex-wrap items-center gap-2">
+              {e.sugeridos.map((c) => (
+                <Button
+                  key={c}
+                  variant="outline"
+                  size="sm"
+                  disabled={yendo}
+                  onClick={() => void recargar(c)}
+                >
+                  {plata(c)}
+                </Button>
+              ))}
+              <div className="flex items-center gap-1">
+                <Input
+                  value={otro}
+                  onChange={(ev) => setOtro(ev.target.value.replace(/[^\d]/g, ''))}
+                  placeholder={t('settings.walletOther')}
+                  inputMode="numeric"
+                  className="h-9 w-24"
+                />
+                <Button
+                  size="sm"
+                  disabled={yendo || !otro}
+                  onClick={() => void recargar(Number(otro) * 100)}
+                >
+                  {yendo ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Plus className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        {enRojo && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {e.bloquearSinSaldo
+              ? t('settings.walletEmptyBlocking')
+              : t('settings.walletEmpty')}
+          </p>
+        )}
+      </section>
+
+      {/* ── Rango ───────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {DIAS.map((d) => (
+          <Button
+            key={d}
+            size="sm"
+            variant={dias === d ? 'default' : 'outline'}
+            onClick={() => {
+              setDias(d);
+              setPagina(0);
+            }}
+          >
+            {t('settings.walletLastDays', { n: d })}
+          </Button>
+        ))}
+        <div className="flex items-center gap-1">
+          <Input
+            type="date"
+            value={desde}
+            onChange={(ev) => {
+              setDesde(ev.target.value);
+              setDias(null);
+              setPagina(0);
+            }}
+            className="h-9 w-40"
+          />
+          <span className="text-muted-foreground">–</span>
+          <Input
+            type="date"
+            value={hasta}
+            onChange={(ev) => {
+              setHasta(ev.target.value);
+              setDias(null);
+              setPagina(0);
+            }}
+            className="h-9 w-40"
+          />
+        </div>
+      </div>
+
+      {/* ── Entró / salió ───────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm text-muted-foreground">{t('settings.walletSpent')}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+            {plata(resumen.gastadoCentavos)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm text-muted-foreground">{t('settings.walletLoaded')}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+            {plata(resumen.cargadoCentavos)}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Gasto por día ───────────────────────────────────────────── */}
+      {resumen.porDia.length > 0 && (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('settings.walletByDay')}
+          </h3>
+          <div className="mt-4 flex h-28 items-end gap-1">
+            {resumen.porDia.map((d) => (
+              <div
+                key={d.dia}
+                className="group relative flex-1"
+                title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
+              >
+                <div
+                  className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary"
+                  style={{
+                    height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+            <span>{fmt.date(resumen.porDia[0].dia)}</span>
+            <span>{fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}</span>
+          </div>
+        </section>
+      )}
+
+      {/* ── En qué se fue ───────────────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground">
+          {t('settings.walletByConcept')}
+        </h3>
+        {resumen.porConcepto.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {t('settings.walletNoSpend')}
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {resumen.porConcepto.map((c) => {
+              const pct = Math.round((c.centavos / Math.max(1, resumen.gastadoCentavos)) * 100);
+              const activo = concepto === c.concepto;
+              return (
+                <li key={c.concepto}>
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      setConcepto(activo ? null : c.concepto);
+                      setPagina(0);
+                    }}
+                  >
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <span
+                        className={cn(
+                          'truncate',
+                          activo ? 'font-medium text-foreground' : 'text-foreground',
+                        )}
+                      >
+                        {nombreConcepto(c.concepto)}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {plata(c.centavos)} · {pct}%
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${Math.max(2, pct)}%` }}
+                      />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* ── El detalle ──────────────────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card">
+        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('settings.walletLedger')}
+          </h3>
+          {concepto && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setConcepto(null);
+                setPagina(0);
+              }}
+            >
+              {t('settings.walletClearFilter')}
+            </Button>
+          )}
+        </header>
+
+        {!movs ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : movs.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            {t('settings.walletNoMovements')}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {movs.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between gap-4 px-5 py-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-foreground">{nombreConcepto(m.concepto)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmt.dateTime(m.creadoEn)}
+                    {m.cantidad !== null && m.unidad
+                      ? ` · ${fmt.number(m.cantidad)} ${m.unidad}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p
+                    className={cn(
+                      'tabular-nums',
+                      m.centavos >= 0 ? 'text-primary' : 'text-foreground',
+                    )}
+                  >
+                    {m.centavos >= 0 ? '+' : '−'}
+                    {plata(Math.abs(m.centavos))}
+                  </p>
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    {plata(m.saldoDespuesCentavos)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {(pagina > 0 || hayMas) && (
+          <footer className="flex items-center justify-between border-t border-border px-5 py-3">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pagina === 0}
+              onClick={() => setPagina((p) => Math.max(0, p - 1))}
+            >
+              {t('settings.walletPrev')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!hayMas}
+              onClick={() => setPagina((p) => p + 1)}
+            >
+              {t('settings.walletNext')}
+            </Button>
+          </footer>
+        )}
+      </section>
+
+      {/* ── Cuánto sale cada cosa ───────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold text-foreground">
+          {t('settings.walletRates')}
+        </h3>
+        <ul className="mt-3 space-y-1.5 text-sm">
+          {e.tarifas.map((tar) => (
+            <li key={tar.concepto} className="flex justify-between gap-3">
+              <span className="text-muted-foreground">
+                {locale === 'en' ? tar.nombreEn : tar.nombreEs}
+              </span>
+              <span className="tabular-nums text-foreground">
+                {fmt.currency(
+                  tar.precioMilicentavos / 100_000,
+                  (e.moneda ?? 'usd').toUpperCase(),
+                  { maximumFractionDigits: 3 },
+                )}{' '}
+                / {tar.unidad}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
