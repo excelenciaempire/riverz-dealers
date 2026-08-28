@@ -1240,8 +1240,16 @@ export function MessageThread({
           {conversation.channel === "whatsapp" && (
             <Badge
               variant="outline"
+              // El reloj no se explica solo: dice cuánto queda de la ventana de
+              // 24 h de WhatsApp, que es lo que separa contestar libre de tener
+              // que mandar una plantilla.
+              title={
+                sessionInfo.expired
+                  ? t("inbox.sessionWindowExpiredHint")
+                  : t("inbox.sessionWindowHint")
+              }
               className={cn(
-                "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
+                "ml-1 hidden cursor-help gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
                 sessionInfo.expired ? "text-red-600 dark:text-red-400" : "text-accent-ink"
               )}
             >

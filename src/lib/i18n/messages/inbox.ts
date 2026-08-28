@@ -366,6 +366,16 @@ export const inbox = {
   sessionExpired: { es: "Expirada", en: "Expired" },
   hoursRemaining: { es: "{n}h restantes", en: "{n}h left" },
   minutesRemaining: { es: "{n}m restantes", en: "{n}m left" },
+  // Qué es ese reloj. WhatsApp sólo deja escribir libre durante 24 h desde el
+  // último mensaje del cliente; después hay que usar una plantilla aprobada.
+  sessionWindowHint: {
+    es: "Tiempo que queda para responder gratis y sin plantilla. Cuenta 24 h desde el último mensaje del cliente.",
+    en: "Time left to reply for free without a template. It counts 24h from the customer's last message.",
+  },
+  sessionWindowExpiredHint: {
+    es: "Pasaron 24 h desde el último mensaje del cliente: para escribirle hay que usar una plantilla aprobada.",
+    en: "24h have passed since the customer's last message: to write you need an approved template.",
+  },
 
   // Message thread — send / react / load
   sendFailed: { es: "No se envió: {reason}", en: "Not sent: {reason}" },

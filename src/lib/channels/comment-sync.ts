@@ -46,6 +46,8 @@ export interface CommentRow {
   is_liked?: boolean | null;
   status: string | null;
   content_text: string | null;
+  /** Migración 208: cuándo lo reescribió el comercio desde la bandeja. */
+  edited_at?: string | null;
 }
 
 /**
@@ -67,7 +69,9 @@ export async function applyCommentLifecycle(
 ): Promise<boolean> {
   const { data: rows } = await db
     .from("messages")
-    .select("id, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)")
+    .select(
+      "id, is_hidden, is_liked, status, content_text, edited_at, conversations!inner(workspace_id)",
+    )
     .eq("channel", input.channel)
     .eq("message_id", input.commentExternalId)
     .eq("conversations.workspace_id", input.workspaceId);
@@ -86,6 +90,15 @@ export async function applyCommentLifecycle(
     changed = true;
   }
   return changed;
+}
+
+/** Ventana en la que nuestra edición gana sobre una lectura de Graph. */
+const EDICION_RECIENTE_MS = 2 * 60 * 1000;
+
+function editadoRecienPorNosotros(row: CommentRow): boolean {
+  if (!row.edited_at) return false;
+  const at = Date.parse(row.edited_at);
+  return Number.isFinite(at) && Date.now() - at < EDICION_RECIENTE_MS;
 }
 
 export function patchFor(
@@ -108,6 +121,12 @@ export function patchFor(
     case "edit": {
       // Never resurrect a deleted comment, and don't blank the text.
       if (isDeleted || !text || text === row.content_text) return null;
+      // Carrera con nuestra propia edición: la bandeja escribe primero en
+      // Facebook y después la fila. Una lectura de Graph que salió ANTES de esa
+      // escritura trae el texto viejo y desharía el cambio sin que nadie lo
+      // pida. Pasada la ventana manda Facebook — puede haberlo editado una
+      // persona desde ahí.
+      if (editadoRecienPorNosotros(row)) return null;
       return { content_text: text };
     }
     // El me gusta del comercio (migración 169): lo informa TikTok en cada
@@ -152,7 +171,9 @@ export async function reconcileCommentsForConnection(
   const sinceIso = new Date(Date.now() - RECONCILE_WINDOW_MS).toISOString();
   const { data: rows } = await db
     .from("messages")
-    .select("id, message_id, is_hidden, status, content_text, conversations!inner(connection_id)")
+    .select(
+      "id, message_id, is_hidden, status, content_text, edited_at, conversations!inner(connection_id)",
+    )
     .eq("channel", channel)
     .eq("conversations.connection_id", connection.id)
     .not("message_id", "is", null)

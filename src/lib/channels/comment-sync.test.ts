@@ -84,3 +84,23 @@ describe("una fila que nunca se tocó", () => {
     expect(patchFor(fila({ is_hidden: null }), "hide")).toEqual({ is_hidden: true })
   })
 })
+
+describe("patchFor — edición nuestra vs lectura de Graph", () => {
+  it("no deshace una edición recién hecha desde la bandeja", () => {
+    const recien = fila({
+      content_text: "texto nuevo",
+      edited_at: new Date().toISOString(),
+    })
+    expect(patchFor(recien, "edit", "texto viejo")).toBeNull()
+  })
+
+  it("pasada la ventana, lo que diga Facebook manda", () => {
+    const viejo = fila({
+      content_text: "texto nuestro",
+      edited_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    })
+    expect(patchFor(viejo, "edit", "editado desde Facebook")).toEqual({
+      content_text: "editado desde Facebook",
+    })
+  })
+})
