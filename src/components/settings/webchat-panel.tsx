@@ -233,11 +233,23 @@ export function WebchatPanel() {
   // Por qué el chat no se ve. Son las dos únicas razones, y hasta ahora el
   // comercio tenía que deducirlas: pegaba el código, no pasaba nada, y el
   // widget —que falla callado para no ensuciar su tienda— no decía por qué.
+  //
+  // La tercera es la que no se veia: el chat es la BOCA, el agente es quien
+  // piensa. Un chat "Activo", con su dominio y su codigo puesto, igual no
+  // contesta si no hay un agente encendido -- el mensaje entra a la bandeja y
+  // ahi se queda. Paso en Pilar: el unico agente quedo en pausa y la pantalla
+  // seguia diciendo "Activo".
+  const elegido = cfg.agent_id ? agents.find((a) => a.id === cfg.agent_id) : null;
+  const hayQuienConteste = cfg.agent_id
+    ? Boolean(elegido?.is_active)
+    : agents.some((a) => a.is_active);
   const motivoInvisible = !enabled
     ? t('webchat.whyOff')
     : domains.length === 0
       ? t('webchat.whyNoDomains')
-      : null;
+      : !hayQuienConteste
+        ? t(cfg.agent_id ? 'webchat.whyAgentPaused' : 'webchat.whyNoAgent')
+        : null;
 
   return (
     <div className="space-y-4">
@@ -264,7 +276,14 @@ export function WebchatPanel() {
         {motivoInvisible ? (
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="text-xs text-amber-700 dark:text-amber-300">{motivoInvisible}</p>
+            <p className="min-w-0 flex-1 text-xs text-amber-700 dark:text-amber-300">
+              {motivoInvisible}
+            </p>
+            {enabled && domains.length > 0 && !hayQuienConteste ? (
+              <Button render={<Link href="/asistente" />} size="sm" variant="outline">
+                {t('webchat.whyNoAgentCta')}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

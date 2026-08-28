@@ -57,6 +57,18 @@ export const webchat = {
     es: "Falta el dominio de tu tienda. Sin él el chat no abre en ninguna página.",
     en: "Your store domain is missing. Without it the chat won't open anywhere.",
   },
+  // La tercera forma de estar "activo" y no contestar: el chat es la boca, el
+  // agente es quien piensa. Sin un agente encendido el mensaje entra a la
+  // bandeja y ahi se queda.
+  whyNoAgent: {
+    es: "El chat abre, pero no hay ningún agente encendido: los mensajes entran a la bandeja y nadie los contesta.",
+    en: "The chat opens, but no agent is on: messages land in the inbox and nobody answers them.",
+  },
+  whyAgentPaused: {
+    es: "El agente que elegiste está en pausa: el chat abre y nadie contesta.",
+    en: "The agent you picked is paused: the chat opens and nobody answers.",
+  },
+  whyNoAgentCta: { es: "Encender", en: "Turn it on" },
   domainAdd: { es: "Agregar dominio", en: "Add domain" },
   domainPlaceholder: { es: "mitienda.com", en: "mystore.com" },
 
