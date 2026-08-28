@@ -12,13 +12,15 @@ export const landing = {
     es: "Agentes de IA que atienden, deciden y ejecutan en WhatsApp, Instagram, Messenger, Mercado Libre, correo y llamadas: recomiendan, recuperan carritos y crean el pedido en tu tienda. 24/7, sin que tengas que responder.",
     en: "AI agents that engage, decide, and act on WhatsApp, Instagram, Messenger, Mercado Libre, email, and calls: they recommend, recover carts, and create the order in your store. 24/7, without you replying.",
   },
+  // Lidera con el alcance, no con «24/7»: eso lo prometen Meta Business Agent y
+  // media docena mas, asi que como titular no separa de nadie.
   ogTitle: {
-    es: "Agentes de IA que venden y atienden 24/7 · riverz",
-    en: "AI agents that sell and support 24/7 · riverz",
+    es: "Toda tu operación comercial, un solo sistema agéntico · riverz",
+    en: "Your entire commercial operation, one agentic system · riverz",
   },
   ogDescription: {
-    es: "Recomiendan, cierran la venta y dejan la orden creada en tu tienda. Recuperan carritos y confirman pedidos, en todos tus canales.",
-    en: "They recommend, close the sale, and leave the order created in your store. They recover carts and confirm orders, across every channel.",
+    es: "Un chatbot termina cuando responde. Riverz crea el pedido en tu tienda, cobra y hace el seguimiento, en todos tus canales.",
+    en: "A chatbot is done when it replies. Riverz creates the order in your store, takes the payment, and follows the shipment — across every channel.",
   },
 
   // ── Header / nav ──

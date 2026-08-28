@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getT, getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
-import { Landing } from "@/components/landing/landing";
+import { LandingV4 } from "@/components/landing/v4/landing-v4";
 
 // Idioma de la vista previa al compartir. Va atado al de la tarjeta
 // (src/components/og/share-card.tsx), que se renderiza en español: si se
@@ -13,6 +13,11 @@ const SHARE_LOCALE = "es" as const;
 
 // Per-request: logged-in users go straight to the app; logged-out visitors
 // (and Meta's reviewer) see the public marketing landing.
+//
+// La portada es la editorial (`LandingV4`), la misma que se estuvo revisando en
+// `/portada-b`. Esa URL sigue viva y sin indexar para no romper los enlaces
+// compartidos; la version anterior (`Landing`) sigue existiendo y se sirve en
+// `/landing`.
 export const dynamic = "force-dynamic";
 
 // Locale-aware metadata: resolved per request via the server `t()` so the
@@ -33,7 +38,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: {
       absolute: t("landing.metaTitle"),
     },
-    description: t("landing.metaDescription"),
+    description: t("landingV4.metaDescription"),
     robots: { index: true, follow: true },
     alternates: { canonical: "/" },
     openGraph: {
@@ -101,7 +106,7 @@ export default async function RootPage() {
 
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const t = await getT();
-  const data = structuredData(await getLocale(), t("landing.metaDescription"));
+  const data = structuredData(await getLocale(), t("landingV4.metaDescription"));
 
   return (
     <>
@@ -110,7 +115,7 @@ export default async function RootPage() {
         nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
       />
-      <Landing />
+      <LandingV4 />
     </>
   );
 }
