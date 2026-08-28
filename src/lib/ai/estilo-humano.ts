@@ -53,13 +53,29 @@ export function estiloHumano(idioma: string | null | undefined): string {
 export const ESTILO_HUMANO = ESTILO_HUMANO_ES;
 
 /**
+ * La variante del panel: el Operator y su equipo.
+ *
+ * Es la única superficie donde el markdown NO se ve roto: lo que el Operator
+ * escribe se dibuja con `ui/texto-rico.tsx`, que interpreta la negrita y la
+ * convierte en negrita de verdad. Ahí una cifra o el nombre de lo que acaba de
+ * crear resaltados se leen mejor, y por eso el dueño las quiere.
+ *
+ * Lo que no cambia: la raya larga se va igual, y las negritas NO entran en lo
+ * que se le escribe a un cliente. Cuando el equipo redacta una plantilla o el
+ * mensaje de una automatización, ese texto sale por WhatsApp o por Instagram,
+ * donde el asterisco se lee tal cual.
+ */
+export const ESTILO_HUMANO_PANEL =
+  'Escribe como escribe una persona, no como un informe. Prohibida la raya larga («—») para meter una aclaración o separar ideas: usa una coma, un punto o dos frases. Nada de muletillas de manual ("Además", "Es importante destacar", "En resumen", "Espero que esto te sirva"). Usa negritas sólo en lo que importa: cifras, nombres de lo que creaste, estados. Nunca uses negritas ni ningún otro asterisco DENTRO de un texto que va a leer un cliente (una plantilla, el mensaje de una automatización, una respuesta de la bandeja): ahí no se interpretan y llegan como asteriscos a la vista.';
+
+/**
  * ¿El prompt lleva la regla? Lo usan los tests para que ninguna superficie
  * nueva salga sin ella, igual que con los guardrails de negocio.
  */
 export function tieneEstiloHumano(systemPrompt: string): boolean {
   return (
-    systemPrompt.includes('Prohibido el markdown') ||
-    systemPrompt.includes('No markdown')
+    systemPrompt.includes('Prohibida la raya larga') ||
+    systemPrompt.includes('Never use the em dash')
   );
 }
 

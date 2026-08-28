@@ -159,15 +159,40 @@ describe('el prompt no se contradice a sí mismo', () => {
 
   const RAYAS = /[‒–—―]/
 
+  /**
+   * El Operador y su equipo escriben en el panel, y el panel SÍ interpreta la
+   * negrita (`ui/texto-rico.tsx`). Ahí queda, por pedido del dueño. La raya
+   * larga no: ésa se va en todos lados.
+   */
+  const CON_NEGRITA = new Set([
+    'lib/operator/prompt.ts',
+    'lib/operator/fleet/prompts.ts',
+    'lib/operator/fleet/orchestrator-tools.ts',
+    'lib/operator/fleet/preguntas.ts',
+  ])
+
   for (const rel of PROMPTS) {
     it(`${rel} no tiene rayas largas ni negritas`, () => {
       const contenido = readFileSync(join(RAIZ, rel), 'utf8')
       const encontrado: string[] = []
       for (const { n, texto } of lineasVivas(contenido)) {
         if (RAYAS.test(texto)) encontrado.push(`${rel}:${n} raya larga`)
-        if (texto.includes('**')) encontrado.push(`${rel}:${n} negrita`)
+        if (!CON_NEGRITA.has(rel) && texto.includes('**')) {
+          encontrado.push(`${rel}:${n} negrita`)
+        }
       }
       expect(encontrado, encontrado.join('\n')).toEqual([])
     })
   }
+
+  /**
+   * Y la negrita del panel no se puede colar en un mensaje para un cliente: la
+   * regla del panel tiene que decirlo con todas las letras, porque el mismo
+   * equipo que escribe en pantalla es el que redacta las plantillas.
+   */
+  it('la regla del panel prohíbe la negrita dentro de lo que lee un cliente', async () => {
+    const { ESTILO_HUMANO_PANEL } = await import('./estilo-humano')
+    expect(ESTILO_HUMANO_PANEL).toMatch(/plantilla/)
+    expect(ESTILO_HUMANO_PANEL).toMatch(/Nunca uses negritas/)
+  })
 })
