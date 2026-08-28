@@ -14,6 +14,7 @@ import {
   MessageCircle,
   DollarSign,
   MessagesSquare,
+  Ticket,
 } from "lucide-react";
 
 import {
@@ -47,6 +48,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/conversaciones": MessagesSquare,
   "/admin/usuarios": Users,
   "/admin/uso": Gauge,
+  "/admin/codigos": Ticket,
   "/admin/lista-espera": Mailbox,
   "/admin/logs": ScrollText,
   "/admin/canales": Radio,

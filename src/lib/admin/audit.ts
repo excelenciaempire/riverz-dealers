@@ -25,6 +25,11 @@ export type AdminAction =
   | 'view.channels'
   | 'view.audit'
   | 'view.waitlist'
+  // Códigos de invitación: son la puerta del alta, así que emitir uno o
+  // revocarlo deja rastro de quién lo hizo.
+  | 'view.signup_codes'
+  | 'create.signup_code'
+  | 'revoke.signup_code'
   | 'view.infrastructure'
   | 'update.feature_flag'
   | 'update.workspace_feature_flag'

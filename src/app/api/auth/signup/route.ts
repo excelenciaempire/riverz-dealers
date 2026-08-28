@@ -15,6 +15,11 @@ import { translate } from "@/lib/i18n/translate";
 import { signupsOpen } from "@/lib/auth/signups";
 import { pendingInstallExists, CLAIM_COOKIE as SHOPIFY_CLAIM_COOKIE } from "@/lib/shopify/pending-install";
 import { TN_CLAIM_COOKIE } from "@/lib/commerce/tiendanube-claim-cookies";
+import {
+  claimSignupCode,
+  releaseSignupCode,
+  recordSignupCodeRedemption,
+} from "@/lib/auth/signup-codes";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
 /**
@@ -30,27 +35,31 @@ import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
  * address (so the real owner can recover the account) and return the
  * same generic message used on a normal sign-up. Probes can't tell the
  * two branches apart.
+ *
+ * Código de invitación: el alta está abierta pero no es pública. Hace falta un
+ * código emitido por el equipo (migración 209), que se reserva ANTES de crear
+ * la cuenta y se devuelve si el alta no llega a existir. Las excepciones son el
+ * comercio que llega instalando desde una tienda de aplicaciones y la persona
+ * invitada al equipo de un comercio: en las dos ya hay una invitación.
  */
 
 export async function POST(req: Request) {
   const locale = await getLocale();
 
-  // Con el alta pública cerrada, la única puerta es venir instalando desde una
-  // tienda de aplicaciones. No alcanza con que exista la cookie: el token tiene
-  // que corresponder a una instalación estacionada y vigente, o inventarse la
-  // cookie sería suficiente para saltarse el cierre.
-  if (!signupsOpen()) {
-    const cookies = await nextCookies();
-    const reclamo =
-      cookies.get(TN_CLAIM_COOKIE)?.value ?? cookies.get(SHOPIFY_CLAIM_COOKIE)?.value;
-    const instalando =
-      Boolean(reclamo) && (await pendingInstallExists(supabaseAdmin(), reclamo!));
-    if (!instalando) {
-      return NextResponse.json(
-        { error: translate(locale, "errAccount.signupsClosed") },
-        { status: 403 },
-      );
-    }
+  // No alcanza con que exista la cookie: el token tiene que corresponder a una
+  // instalación estacionada y vigente, o inventarse la cookie sería suficiente
+  // para saltarse tanto el cierre como el código.
+  const cookies = await nextCookies();
+  const reclamo =
+    cookies.get(TN_CLAIM_COOKIE)?.value ?? cookies.get(SHOPIFY_CLAIM_COOKIE)?.value;
+  const instalando =
+    Boolean(reclamo) && (await pendingInstallExists(supabaseAdmin(), reclamo!));
+
+  if (!signupsOpen() && !instalando) {
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.signupsClosed") },
+      { status: 403 },
+    );
   }
 
   const genericOk = {
@@ -67,6 +76,9 @@ export async function POST(req: Request) {
         accept_terms?: boolean;
         terms_version?: string;
         redirect_to?: string;
+        invite_code?: string;
+        /** Token de invitación de equipo, si vino por `/invitacion/<token>`. */
+        invite_token?: string;
       }
     | null;
   const email = body?.email?.trim().toLowerCase();
@@ -111,6 +123,38 @@ export async function POST(req: Request) {
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
+  // ── Código de invitación ──
+  // Se reserva acá, después del límite de ritmo (si no, probar códigos a
+  // ciegas sería gratis) y antes de crear la cuenta. Si el alta no prospera,
+  // más abajo se devuelve el uso.
+  //
+  // Dos altas no lo necesitan: la que llega instalando desde una tienda de
+  // aplicaciones, y la de alguien a quien un comercio invitó a su equipo. En
+  // las dos ya hay una invitación, sólo que no tiene forma de código.
+  const invitadoAlEquipo = await tieneInvitacionDeEquipo(
+    body?.invite_token,
+    email,
+  );
+  let codeId: string | null = null;
+  if (!instalando && !invitadoAlEquipo) {
+    const raw = body?.invite_code?.trim() ?? "";
+    if (!raw) {
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.inviteCodeRequired") },
+        { status: 400 },
+      );
+    }
+    codeId = await claimSignupCode(supabaseAdmin(), raw);
+    if (!codeId) {
+      // Un solo mensaje para inexistente, revocado, vencido y agotado: por
+      // fuera son el mismo hecho, y distinguirlos sólo ayudaría a adivinar.
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.inviteCodeInvalid") },
+        { status: 400 },
+      );
+    }
+  }
+
   // Defence-in-depth: only honor a `redirect_to` whose origin matches
   // this app's own NEXT_PUBLIC_SITE_URL. Anything else (open-redirect
   // attempt) is silently coerced to undefined so Supabase falls back
@@ -134,10 +178,21 @@ export async function POST(req: Request) {
   const isCollision =
     !!error || (data?.user?.identities?.length ?? 1) === 0;
   if (isCollision) {
+    // El correo ya tenía cuenta: no se creó nada, así que el código vuelve a
+    // estar disponible. Sin esto, tipear mal el correo quemaría la invitación.
+    if (codeId) await releaseSignupCode(supabaseAdmin(), codeId);
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,
     });
   } else if (data?.user?.id) {
+    if (codeId) {
+      await recordSignupCodeRedemption(supabaseAdmin(), {
+        codeId,
+        userId: data.user.id,
+        email,
+      });
+    }
+
     // Genuine new account: persist the clickwrap consent (append-only
     // audit row + profile mirror) so we hold proof of who accepted
     // which version, when, and from where. Best-effort: a logging
@@ -167,6 +222,31 @@ export async function POST(req: Request) {
         );
       }
     }
+  } else if (codeId) {
+    // Ni colisión ni usuario: Supabase no creó nada. El cupo vuelve.
+    await releaseSignupCode(supabaseAdmin(), codeId);
   }
   return NextResponse.json(genericOk);
+}
+
+/**
+ * ¿El correo tiene una invitación de equipo vigente con ese token?
+ *
+ * Es la otra forma de invitación que ya existía. Se comprueba contra la base
+ * —no basta con que la URL traiga un token— y contra el correo que se está
+ * registrando, para que un enlace ajeno no sirva de llave.
+ */
+async function tieneInvitacionDeEquipo(
+  token: string | undefined,
+  email: string,
+): Promise<boolean> {
+  if (!token) return false;
+  const { data } = await supabaseAdmin()
+    .from("workspace_invites")
+    .select("email, accepted_at, expires_at")
+    .eq("token", token)
+    .maybeSingle();
+  if (!data || data.accepted_at) return false;
+  if (data.expires_at && new Date(data.expires_at) <= new Date()) return false;
+  return (data.email ?? "").trim().toLowerCase() === email;
 }

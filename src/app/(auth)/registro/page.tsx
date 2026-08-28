@@ -28,7 +28,18 @@ function SignupForm() {
   // parked and auto-connects right after this signup (dashboard claim).
   const pendingShop =
     searchParams.get("shopify") === "pending" ? searchParams.get("shop") : null;
+  // Quien llega instalando desde una tienda de aplicaciones, o invitado al
+  // equipo de un comercio, ya trae su invitación: no se le pide código. El
+  // servidor comprueba las dos cosas por su cuenta — esto sólo decide si el
+  // campo se dibuja.
+  const llegaInstalando =
+    searchParams.get("shopify") === "pending" ||
+    searchParams.get("tiendanube") === "pending";
+  const pideCodigo = !llegaInstalando && !inviteToken;
 
+  const [inviteCode, setInviteCode] = useState(
+    searchParams.get("codigo") ?? searchParams.get("code") ?? "",
+  );
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(prefillEmail ?? "");
   const [emailLocked] = useState(Boolean(inviteToken && prefillEmail));
@@ -84,6 +95,8 @@ function SignupForm() {
         phone: cleanPhone,
         accept_terms: accepted,
         terms_version: LEGAL_VERSION,
+        invite_code: inviteCode.trim(),
+        invite_token: inviteToken ?? undefined,
         redirect_to: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
       }),
     });
@@ -154,6 +167,29 @@ function SignupForm() {
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
                 {error}
+              </div>
+            )}
+
+            {pideCodigo && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="inviteCode" className="text-foreground">
+                  {t("auth.inviteCodeLabel")}
+                </Label>
+                <Input
+                  id="inviteCode"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  placeholder={t("auth.inviteCodePlaceholder")}
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  required
+                  className="border-border bg-muted font-mono uppercase tracking-[0.12em] text-foreground placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("auth.inviteCodeHint")}
+                </p>
               </div>
             )}
 

@@ -67,6 +67,12 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     group: "comercios",
   },
   {
+    href: "/admin/codigos",
+    label: "admin.sectionCodes",
+    description: "admin.sectionCodesDesc",
+    group: "comercios",
+  },
+  {
     href: "/admin/lista-espera",
     label: "admin.sectionWaitlist",
     description: "admin.sectionWaitlistDesc",

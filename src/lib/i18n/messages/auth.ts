@@ -48,6 +48,12 @@ export const auth = {
     en: "This invitation is for this address. Your account must use it.",
   },
   confirmPasswordLabel: { es: "Confirmar contraseña", en: "Confirm password" },
+  inviteCodeLabel: { es: "Código de invitación", en: "Invitation code" },
+  inviteCodePlaceholder: { es: "RIVZ-8K3M", en: "RIVZ-8K3M" },
+  inviteCodeHint: {
+    es: "Te lo da el equipo de Riverz.",
+    en: "The Riverz team gives you this.",
+  },
   phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
   phonePlaceholder: { es: "+57 300 000 0000", en: "+1 555 000 0000" },
   phoneHint: {

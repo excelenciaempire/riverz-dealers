@@ -23,6 +23,14 @@ export const errAccount = {
     es: "Si el correo es válido, recibirás un mensaje.",
     en: "If the email is valid, you'll receive a message.",
   },
+  inviteCodeRequired: {
+    es: "Necesitas un código de invitación para crear la cuenta.",
+    en: "You need an invitation code to create an account.",
+  },
+  inviteCodeInvalid: {
+    es: "El código de invitación no es válido o ya se usó.",
+    en: "That invitation code isn't valid or has already been used.",
+  },
   signupsClosed: {
     es: "El registro está cerrado por ahora. Apúntate a la lista de espera en riverz.co.",
     en: "Sign-ups are closed for now. Join the waitlist at riverz.co.",
