@@ -22,6 +22,58 @@ export interface ToolResult {
   error?: string;
 }
 
+/**
+ * El hilo de WhatsApp de este contacto: el que ya existe, o uno nuevo.
+ *
+ * Se reusa el que haya para que el mensaje caiga en la misma conversación que
+ * el comercio ya conoce, en vez de abrir un hilo suelto por cada llamada.
+ * Devuelve null si no se pudo: el envío ya salió y no se va a deshacer por no
+ * poder anotarlo.
+ */
+async function hiloDeWhatsApp(
+  db: SupabaseClient,
+  call: VoiceCall,
+): Promise<string | null> {
+  try {
+    const { data: existente } = await db
+      .from('conversations')
+      .select('id')
+      .eq('workspace_id', call.workspace_id)
+      .eq('contact_id', call.contact_id)
+      .eq('channel', 'whatsapp')
+      .is('deleted_at', null)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (existente) return (existente as { id: string }).id;
+
+    const { data: conexion } = await db
+      .from('channel_connections')
+      .select('id')
+      .eq('workspace_id', call.workspace_id)
+      .eq('channel', 'whatsapp')
+      .limit(1)
+      .maybeSingle();
+
+    const { data: creada } = await db
+      .from('conversations')
+      .insert({
+        workspace_id: call.workspace_id,
+        contact_id: call.contact_id,
+        channel: 'whatsapp',
+        connection_id: (conexion as { id: string } | null)?.id ?? null,
+        status: 'open',
+        last_sender_type: 'bot',
+      })
+      .select('id')
+      .single();
+    return (creada as { id: string } | null)?.id ?? null;
+  } catch (e) {
+    console.warn('[voice/send_whatsapp] no se pudo resolver el hilo', e);
+    return null;
+  }
+}
+
 export async function sendWhatsAppDuringCall(
   db: SupabaseClient,
   call: VoiceCall,
@@ -64,7 +116,15 @@ export async function sendWhatsAppDuringCall(
 
     // Reflejarlo en la bandeja. Fail-soft: si esto falla el mensaje YA se envió,
     // y hacer fallar la tool le haría creer al agente que no llegó.
-    if (call.conversation_id) {
+    //
+    // Va al hilo de WhatsApp del contacto, NO al de la llamada: durante la
+    // llamada `call.conversation_id` todavía es null —la conversación de voz se
+    // crea recién al final, con la transcripción— así que la condición de antes
+    // no se cumplía nunca y el mensaje se enviaba sin dejar rastro en ningún
+    // lado. El cliente lo recibía y el comercio no se enteraba de que su agente
+    // le había escrito.
+    const conversationId = await hiloDeWhatsApp(db, call);
+    if (conversationId) {
       await db
         .from('messages')
         .insert({
@@ -73,7 +133,7 @@ export async function sendWhatsAppDuringCall(
           // whatsapp_message_id, metadata): el insert fallaba entero y el
           // WhatsApp que el agente mandó por teléfono no aparecía en ningún
           // lado, aunque el cliente sí lo recibía.
-          conversation_id: call.conversation_id,
+          conversation_id: conversationId,
           channel: 'whatsapp',
           sender_type: 'bot',
           content_type: 'text',
