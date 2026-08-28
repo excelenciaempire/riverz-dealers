@@ -162,6 +162,32 @@ export async function acreditarDesdeEvento(
       ? sesion.payment_intent
       : (sesion.payment_intent?.id ?? sesion.id)
 
+  // El cliente de Stripe que quedó del pago, guardado.
+  //
+  // Sin esto, el comercio que recarga antes de suscribirse estrena un cliente
+  // NUEVO en Stripe cada vez —`customer_creation: 'always'`— y termina con tres
+  // clientes, tres historiales y una discusión el día que pida una factura. Se
+  // escribe sólo si no había uno: el de la suscripción manda.
+  const cliente =
+    typeof sesion.customer === 'string' ? sesion.customer : (sesion.customer?.id ?? null)
+  if (cliente) {
+    const { data: sus } = await db
+      .from('workspace_subscriptions')
+      .select('stripe_customer_id')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    if (!(sus as { stripe_customer_id?: string | null } | null)?.stripe_customer_id) {
+      await db.from('workspace_subscriptions').upsert(
+        {
+          workspace_id: workspaceId,
+          stripe_customer_id: cliente,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'workspace_id' },
+      )
+    }
+  }
+
   const r = await mover(db, workspaceId, {
     tipo: 'recarga',
     concepto: 'recarga',
