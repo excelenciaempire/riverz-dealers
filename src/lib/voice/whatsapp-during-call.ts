@@ -46,11 +46,13 @@ export const PLANTILLAS_LLAMADA = {
   resumen_pedido: 'llamada_resumen_pedido',
   info_producto: 'llamada_info_producto',
   seguimiento_envio: 'llamada_seguimiento_envio',
-  // El catch-all también ancla en algo concreto —«lo que nos pediste durante la
-  // llamada»— y pide una acción de vuelta. Una plantilla vaga la lee Meta como
-  // promoción: la primera versión, «te dejamos lo que hablamos», salió
-  // recategorizada a MARKETING y por eso rebotaba con el tope de frecuencia.
-  otro: 'llamada_lo_que_pediste',
+  // El catch-all es el resumen de lo acordado. Se intentó una plantilla propia
+  // —«lo que nos pediste durante la llamada»— y Meta TAMBIÉN la dejó en
+  // MARKETING: cualquier cosa que no nombre una transacción concreta la lee
+  // como promoción, por más que pida una respuesta. El resumen del pedido sí
+  // quedó Utility, y como catch-all dice algo verdadero en casi todos los
+  // casos: se le está confirmando por escrito lo que se habló.
+  otro: 'llamada_resumen_pedido',
 } as const;
 
 export type EscenarioWhatsApp = keyof typeof PLANTILLAS_LLAMADA;
