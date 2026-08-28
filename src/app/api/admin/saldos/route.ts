@@ -1,5 +1,6 @@
 import { adminGet } from '@/lib/admin/route';
 import { cuantosEnRojo, leerSaldosDeProveedores } from '@/lib/admin/saldos';
+import { leerCostosFijos } from '@/lib/admin/costos-fijos';
 
 /**
  * GET /api/admin/saldos
@@ -12,7 +13,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   return adminGet(request, { action: 'view.provider_balances' }, async () => {
-    const saldos = await leerSaldosDeProveedores();
-    return { saldos, enRojo: cuantosEnRojo(saldos) };
+    const [saldos, fijos] = await Promise.all([
+      leerSaldosDeProveedores(),
+      leerCostosFijos(),
+    ]);
+    return { saldos, fijos, enRojo: cuantosEnRojo(saldos) };
   });
 }
