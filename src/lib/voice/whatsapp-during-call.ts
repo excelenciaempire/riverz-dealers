@@ -73,7 +73,7 @@ export type EscenarioWhatsApp = keyof typeof PLANTILLAS_LLAMADA;
  * recategorizar una plantilla en cualquier momento y eso no puede volver a
  * romper el envío en silencio.
  */
-async function plantillaUsable(
+export async function plantillaUsable(
   db: SupabaseClient,
   workspaceId: string,
   escenario?: string | null,
@@ -113,7 +113,7 @@ async function plantillaUsable(
  * Por eso se decide ANTES de mandar, no después: el resultado tardío no sirve
  * para elegir el camino.
  */
-async function ventanaAbierta(
+export async function ventanaAbierta(
   db: SupabaseClient,
   conversationId: string | null,
 ): Promise<boolean> {
@@ -135,7 +135,7 @@ async function ventanaAbierta(
  * Un parámetro de plantilla con un salto de línea lo rechaza Meta entero, así
  * que los links van separados por un punto medio en vez de por renglones.
  */
-function enUnaLinea(texto: string): string {
+export function enUnaLinea(texto: string): string {
   return texto
     .replace(/\s*\n+\s*/g, ' · ')
     .replace(/\s{4,}/g, ' ')
