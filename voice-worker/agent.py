@@ -533,10 +533,23 @@ def _make_llm(cfg: dict):
                 logger.warning("openai.LLM no acepta reasoning_effort; sin él")
         return openai.LLM(**llm_kwargs)
     # caching="ephemeral" activa prompt caching de Anthropic (system + tools + historial).
-    return anthropic.LLM(
-        model=cfg.get("model") or "claude-haiku-4-5",
-        caching="ephemeral",
-    )
+    #
+    # El timeout va explícito y holgado. El primer turno de una llamada ESCRIBE
+    # la caché —system + las quince herramientas + el historial— y esa escritura
+    # tarda bastante más que las lecturas que vienen después. Con el default
+    # corto del plugin, ese primer turno se pasaba: «Request timed out», y el
+    # cliente que acababa de decir lo que quería se quedaba escuchando silencio.
+    # Visto en producción el 2026-08-28.
+    kw = {"model": cfg.get("model") or "claude-haiku-4-5", "caching": "ephemeral"}
+    try:
+        return anthropic.LLM(
+            **kw, timeout=float(os.getenv("VOICE_LLM_TIMEOUT_SECS", "25"))
+        )
+    except TypeError:
+        # Una versión del plugin que no acepta `timeout` no puede costar la
+        # llamada: se arma igual, con su default.
+        logger.warning("anthropic.LLM no acepta timeout; sigo con el default")
+        return anthropic.LLM(**kw)
 
 
 def _make_tts(cfg: dict):
@@ -670,10 +683,16 @@ def _backup_for(layer: str, primary_provider: str | None = None):
         # por la llamada entera.
         if (primary_provider or "").lower() == "anthropic":
             if os.getenv("GROQ_API_KEY"):
+                # `openai/gpt-oss-120b`, NO `llama-3.3-70b-versatile`: esa no
+                # existe en esta cuenta de Groq. Verificado contra
+                # GET /openai/v1/models — el respaldo devolvía 404
+                # `model_not_found` y la cadena entera moría con «all LLMs
+                # failed», que en el teléfono suena a que el agente no escucha.
+                # Si hay que cambiarlo, mirar primero qué modelos lista la API.
                 return openai.LLM(
                     base_url="https://api.groq.com/openai/v1",
                     api_key=os.getenv("GROQ_API_KEY"),
-                    model="llama-3.3-70b-versatile",
+                    model=os.getenv("VOICE_BACKUP_LLM_MODEL", "openai/gpt-oss-120b"),
                 )
             raise RuntimeError("sin GROQ_API_KEY para respaldar a Anthropic")
         return anthropic.LLM(model="claude-haiku-4-5", caching="ephemeral")
