@@ -341,6 +341,59 @@ async function tagContactForOutcome(
 }
 
 /**
+ * ¿Esta llamada «completada» en realidad se rompió? Devuelve el motivo, o null.
+ *
+ * El saludo lo dice el TTS con un texto de la configuración: sale aunque el
+ * modelo esté caído. Así que una llamada donde el cerebro nunca funcionó suena
+ * igual que una buena durante los primeros tres segundos, y el worker la
+ * reporta `completed`. El comercio la paga y —lo peor— la automatización toma
+ * la rama «contestó», que es exactamente la equivocada.
+ *
+ * Dos formas de romperse, las dos vistas en producción:
+ *
+ * 1. **Nunca habló.** 2026-08-25: Cerebras devolvía 402 y salieron cuatro
+ *    llamadas «completadas» de 19 s donde el cliente escuchó un saludo y
+ *    silencio.
+ * 2. **Dejó de hablar.** 2026-08-28: con Groq en el plan gratis el prompt
+ *    pesaba ~5.600 tokens y el techo eran 8.000 por minuto, así que el segundo
+ *    turno daba 429. El agente saludó, contestó una vez y se calló; el cliente
+ *    dijo «¿qué me llamas?», «¿hola?» y colgó. Como SÍ había hablado, el guard
+ *    de arriba no la agarraba.
+ *
+ * La señal de la segunda es la cola de la transcripción: dos turnos seguidos
+ * del cliente al cierre significan que alguien preguntó dos veces y nadie
+ * contestó. Con uno solo no alcanza — un «listo, gracias» final es normal.
+ *
+ * Un turno del agente EN LA TRANSCRIPCIÓN es la única prueba de que el modelo
+ * respondió: el saludo no aparece ahí porque no lo generó el modelo.
+ */
+export function llamadaRota(input: {
+  status: VoiceCallStatus;
+  connected: boolean;
+  transcript: VoiceTranscriptTurn[];
+  summary: string | null;
+}): string | null {
+  if (input.status !== 'completed' || !input.connected) return null;
+
+  const hablo = input.transcript.some(
+    (t) => t.role === 'agent' && (t.text ?? '').trim() !== '',
+  );
+  if (!hablo && !input.summary) {
+    return 'agent_silent: el modelo no respondió durante la llamada';
+  }
+
+  let cola = 0;
+  for (let i = input.transcript.length - 1; i >= 0; i--) {
+    if (input.transcript[i].role !== 'customer') break;
+    cola++;
+  }
+  if (hablo && cola >= 2) {
+    return 'agent_silent: el agente dejó de responder a mitad de la llamada';
+  }
+  return null;
+}
+
+/**
  * Persist a finished call. Idempotent: a second delivery for a call that
  * already has `ended_at` is a no-op (returns ok).
  */
@@ -383,42 +436,21 @@ export async function persistCallResult(
   const cost = estimateCost(payload.usage, durationSeconds);
   const connected = call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 
-  /**
-   * ¿El agente llegó a hablar?
-   *
-   * El saludo lo dice el TTS con un texto de la configuración: sale aunque el
-   * modelo esté caído. Si el modelo no puede pensar —la clave sin saldo, el
-   * proveedor caído— la llamada conecta, se oye el saludo, nadie responde, y a
-   * los ~20 s el guardia de silencio cuelga. El worker reporta `completed`.
-   *
-   * Medido en producción el 2026-08-25: Cerebras devolvía 402 y salieron cuatro
-   * llamadas «completadas» de 19 segundos donde el cliente escuchó un saludo y
-   * silencio. El comercio las paga, y la automatización toma la rama
-   * «contestó», que es la peor de las dos.
-   *
-   * Un turno del agente EN LA TRANSCRIPCIÓN es la única prueba de que el modelo
-   * respondió: el saludo no aparece ahí porque no lo generó el modelo.
-   */
-  const agenteHablo = (payload.transcript ?? []).some(
-    (t) => t.role === 'agent' && (t.text ?? '').trim() !== '',
-  );
-
   // Materialize the transcript into a conversation when the call connected.
   let conversationId: string | null = call.conversation_id;
   if (connected) {
     conversationId = await materializeTranscript(db, call, payload);
   }
 
-  // Una llamada que conectó pero en la que el agente nunca dijo una palabra no
-  // es una llamada contestada: es una llamada fallida que suena a contestada.
-  // Se guarda como `failed` con el motivo, para que el registro lo muestre y
-  // para que la rama «si no contesta» de la automatización sea la que corra.
-  const mudo =
-    payload.status === 'completed' && connected && !agenteHablo && !payload.summary;
+  const roto = llamadaRota({
+    status: payload.status,
+    connected,
+    transcript: payload.transcript ?? [],
+    summary: payload.summary ?? null,
+  });
+  const mudo = roto !== null;
   const statusFinal = mudo ? 'failed' : payload.status;
-  const errorFinal = mudo
-    ? payload.error || 'agent_silent: el modelo no respondió durante la llamada'
-    : payload.error ?? null;
+  const errorFinal = mudo ? payload.error || roto : payload.error ?? null;
   if (mudo) {
     console.error(
       '[voice] llamada sin una sola respuesta del agente — revisar el LLM:',

@@ -53,6 +53,12 @@ class CallState:
     # habla el CLIENTE. 0.0 = todavía sin marcar (el guard lo inicializa).
     last_activity_at: float = 0.0
     last_user_at: float = 0.0
+    # Fallos del modelo DURANTE la llamada (429, 401, proveedor caído). Se
+    # cuentan para no reportar como «completada» una llamada en la que el
+    # agente saludó y despues se quedo mudo: el cliente sigue hablando solo,
+    # el comercio paga, y la automatizacion toma la rama «contesto».
+    llm_errors: int = 0
+    last_llm_error: str | None = None
 
 
 async def hangup() -> None:

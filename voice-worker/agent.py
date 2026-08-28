@@ -222,6 +222,30 @@ def _wire_events(session: AgentSession, call_state: CallState, usage_collector) 
         except Exception:
             logger.debug("error capturando transcript", exc_info=True)
 
+    # Que el modelo se muera a mitad de llamada tiene que DEJAR RASTRO.
+    #
+    # El 2026-08-28, con Groq en el plan gratis, el agente saludo, contesto una
+    # vez y se callo: el prompt son ~5.600 tokens y el techo son 8.000 por
+    # minuto, asi que el segundo turno daba 429 siempre. El cliente siguio
+    # hablando solo doce segundos y colgo. La llamada se reporto `completed`,
+    # el comercio la pago y la rama «contesto» de la automatizacion es la que
+    # corrio. Sin esto, ese fallo no aparece en ningun lado.
+    @session.on("error")
+    def _on_error(ev) -> None:
+        try:
+            fuente = getattr(ev, "source", None)
+            detalle = str(getattr(ev, "error", ev))[:300]
+            # Solo interesa el cerebro: un hipo del TTS se oye, uno del LLM
+            # deja al cliente hablando solo.
+            if "llm" in f"{type(fuente).__module__}.{type(fuente).__name__}".lower() \
+                    or "llm" in detalle.lower():
+                call_state.llm_errors += 1
+                call_state.last_llm_error = detalle
+                logger.warning("fallo del LLM en llamada (%d): %s",
+                               call_state.llm_errors, detalle)
+        except Exception:
+            logger.debug("no se pudo registrar el error de sesion", exc_info=True)
+
     # NOTE: UsageCollector/UsageSummary siguen presentes en 1.6.x (marcados
     # deprecated a favor de ModelUsageCollector). Fail-soft: si algo cambia,
     # `usage` sale null y el resto del reporte no se ve afectado.
@@ -334,6 +358,36 @@ async def _finalize(
 
     ended_at = _now_iso()
     status = call_state.status or ("completed" if call_state.answered_at else "failed")
+
+    # El agente dejó al cliente hablando solo.
+    #
+    # Dos señales juntas: el modelo falló durante la llamada Y el último turno
+    # es del cliente. Cualquiera de las dos sola es normal —un 429 aislado del
+    # que se recupera no arruina nada, y una llamada que termina con el cliente
+    # diciendo «listo, gracias» está perfecta—, pero las dos a la vez son
+    # exactamente la llamada rota: saludó, se quedó mudo, y del otro lado
+    # alguien repitió «¿hola?» hasta colgar.
+    #
+    # Va a `failed` a propósito: así la rama «si no contestó» de la
+    # automatización es la que corre, y el registro lo muestra con su motivo en
+    # vez de un «Completada» que le miente al comercio que acaba de pagarla.
+    ultimo_es_cliente = bool(call_state.transcript) and \
+        call_state.transcript[-1].get("role") == "customer"
+    agente_mudo = (
+        status == "completed"
+        and call_state.llm_errors > 0
+        and ultimo_es_cliente
+    )
+    if agente_mudo:
+        status = "failed"
+        error = error or (
+            f"llm_sin_respuesta: el modelo falló {call_state.llm_errors} vez/veces "
+            f"y el cliente quedó sin respuesta. {call_state.last_llm_error or ''}"
+        )[:500]
+        logger.error(
+            "llamada rota: el agente dejó de contestar tras %d fallo(s) del LLM",
+            call_state.llm_errors,
+        )
 
     duration = None
     if call_state.answered_at:
@@ -597,10 +651,23 @@ _BACKUP_ENV = {
 }
 
 
-def _backup_for(layer: str):
+def _backup_for(layer: str, primary_provider: str | None = None):
     if layer == "stt":
         return deepgram.STT(model="nova-3", language="multi")
     if layer == "llm":
+        # Con Anthropic de primaria, caer a Anthropic no es una red: es la misma
+        # rama del árbol. Ahí el respaldo pasa a ser Groq, que tiene key en el
+        # worker. Groq tiene un techo bajo de tokens por minuto en el plan
+        # gratis, pero de respaldo eso alcanza: se usa por turnos sueltos, no
+        # por la llamada entera.
+        if (primary_provider or "").lower() == "anthropic":
+            if os.getenv("GROQ_API_KEY"):
+                return openai.LLM(
+                    base_url="https://api.groq.com/openai/v1",
+                    api_key=os.getenv("GROQ_API_KEY"),
+                    model="llama-3.3-70b-versatile",
+                )
+            raise RuntimeError("sin GROQ_API_KEY para respaldar a Anthropic")
         return anthropic.LLM(model="claude-haiku-4-5", caching="ephemeral")
     return elevenlabs.TTS(
         model="eleven_flash_v2_5",
@@ -618,15 +685,20 @@ def _with_backup(layer: str, primary, context: dict):
     if os.getenv("VOICE_DISABLE_FALLBACK") == "1":
         return primary
     cfg = context.get("voice" if layer == "tts" else layer) or {}
+    proveedor = (cfg.get("provider") or "").lower()
     # Con base_url la capa apunta a un endpoint propio (Modal); el proveedor
     # declarado no dice nada del servicio real, pero el respaldo igual sirve.
-    if (cfg.get("provider") or "").lower() == _BACKUP_PROVIDER[layer] and not cfg.get("base_url"):
+    #
+    # El LLM es la excepción: cuando la primaria YA es el respaldo, en vez de
+    # quedarse sin red se busca otra (ver `_backup_for`). Quedarse sin red en
+    # la capa que piensa es justamente lo que deja al cliente hablando solo.
+    if proveedor == _BACKUP_PROVIDER[layer] and not cfg.get("base_url") and layer != "llm":
         return primary
-    if not any(os.getenv(v) for v in _BACKUP_ENV[layer]):
+    if layer != "llm" and not any(os.getenv(v) for v in _BACKUP_ENV[layer]):
         logger.info("capa %s sin respaldo: falta %s", layer, "/".join(_BACKUP_ENV[layer]))
         return primary
     try:
-        backup = _backup_for(layer)
+        backup = _backup_for(layer, proveedor)
         adapter = {
             "stt": agents_stt.FallbackAdapter,
             "llm": agents_llm.FallbackAdapter,

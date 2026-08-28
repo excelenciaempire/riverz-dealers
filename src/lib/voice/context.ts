@@ -377,11 +377,21 @@ export async function buildVoiceContext(
     voiceSystemBlock;
 
   // El system prompt se re-envía en CADA turno, así que su tamaño multiplica el
-  // costo y los tokens-por-minuto (los tiers gratis, ej. Groq, cortan en ~12k
-  // TPM). El grueso vive en `base` (catálogo/ficha de producto); lo acotamos a
-  // un presupuesto de caracteres y NUNCA tocamos el bloque de comportamiento de
-  // voz. Configurable con VOICE_SYSTEM_PROMPT_MAX_CHARS.
-  const PROMPT_CHAR_BUDGET = Number(process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 14000);
+  // costo, la latencia y los tokens-por-minuto. El grueso vive en `base`
+  // (catálogo/ficha de producto); lo acotamos a un presupuesto de caracteres y
+  // NUNCA tocamos el bloque de comportamiento de voz.
+  //
+  // El techo bajó de 14.000 a 6.000 el 2026-08-28, midiendo una llamada real:
+  // con 14k el prompt pesaba ~5.600 tokens POR TURNO, y el plan gratis de Groq
+  // corta en 8.000 tokens por minuto. O sea que el segundo turno daba 429
+  // siempre: el agente saludaba, contestaba una vez y se quedaba mudo mientras
+  // el cliente seguía hablando. No era azar, era aritmética.
+  //
+  // Seis mil caracteres siguen siendo una ficha de producto entera; lo que se
+  // recorta es la cola del catálogo, y para eso está la línea que le dice al
+  // agente que pregunte si necesita un detalle puntual.
+  // Configurable con VOICE_SYSTEM_PROMPT_MAX_CHARS.
+  const PROMPT_CHAR_BUDGET = Number(process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 6000);
   const baseTrimmed =
     base.length > PROMPT_CHAR_BUDGET
       ? base.slice(0, PROMPT_CHAR_BUDGET) +
