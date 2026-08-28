@@ -127,6 +127,72 @@ async function deRender(): Promise<CostoFijo[]> {
 }
 
 /**
+ * El plan de Supabase, que sí se puede preguntar.
+ *
+ * La API de la organización devuelve el plan; el precio de lista de cada uno es
+ * público y estable. Se pregunta en vez de escribirlo a mano porque el día que
+ * el plan cambie, este número tiene que cambiar solo — un costo fijo escrito a
+ * mano envejece en silencio.
+ */
+const SUPABASE_USD: Record<string, number | null> = {
+  free: 0,
+  pro: 25,
+  team: 599,
+  enterprise: null,
+}
+
+async function deSupabase(): Promise<CostoFijo> {
+  const url = 'https://supabase.com/dashboard/org/_/billing'
+  const base = {
+    id: 'supabase',
+    nombre: 'Supabase',
+    detalle: 'La base de datos de todos los comercios',
+    activo: true,
+    url,
+  }
+  const token = process.env.SUPABASE_ACCESS_TOKEN
+  const ref = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1]
+  if (!token || !ref) {
+    return { ...base, detalle: `${base.detalle} — falta SUPABASE_ACCESS_TOKEN`, usdMes: null }
+  }
+
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  try {
+    const cabeceras = {
+      authorization: `Bearer ${token}`,
+      // Cloudflare rechaza el User-Agent por defecto de fetch en este host.
+      'user-agent': 'Mozilla/5.0',
+    }
+    const proy = await fetch(`https://api.supabase.com/v1/projects/${ref}`, {
+      headers: cabeceras,
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
+    if (!proy.ok) return { ...base, usdMes: null }
+    const org = (await proy.json()) as { organization_id?: string }
+    if (!org.organization_id) return { ...base, usdMes: null }
+
+    const res = await fetch(`https://api.supabase.com/v1/organizations/${org.organization_id}`, {
+      headers: cabeceras,
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
+    if (!res.ok) return { ...base, usdMes: null }
+    const plan = ((await res.json()) as { plan?: string }).plan ?? ''
+    return {
+      ...base,
+      detalle: `${base.detalle} · plan ${plan || 'desconocido'}`,
+      usdMes: SUPABASE_USD[plan] ?? null,
+    }
+  } catch {
+    return { ...base, usdMes: null }
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/**
  * Lo que se paga y ninguna API dice.
  *
  * Se listan igual, sin número: un fijo que no aparece en la pantalla es un fijo
@@ -134,14 +200,6 @@ async function deRender(): Promise<CostoFijo[]> {
  */
 function sinApi(): CostoFijo[] {
   return [
-    {
-      id: 'supabase',
-      nombre: 'Supabase',
-      detalle: 'La base de datos de todos los comercios',
-      usdMes: null,
-      activo: true,
-      url: 'https://supabase.com/dashboard/org/_/billing',
-    },
     {
       id: 'dominios',
       nombre: 'Dominios',
@@ -170,7 +228,8 @@ export interface Fijos {
 }
 
 export async function leerCostosFijos(): Promise<Fijos> {
-  const items = [...(await deRender()), ...sinApi()]
+  const [render, supabase] = await Promise.all([deRender(), deSupabase()])
+  const items = [...render, supabase, ...sinApi()]
   return {
     items,
     totalUsdMes: items.reduce((n, i) => n + (i.activo ? (i.usdMes ?? 0) : 0), 0),
