@@ -106,6 +106,12 @@ export function issueDetailText(
   kind: IssueKind,
   detail: string | null | undefined,
   t: TFn,
+  /**
+   * Quién lo lee. El panel de plataforma ve el motivo técnico crudo —es quien
+   * puede arreglarlo—; el comercio ve qué hacer. Es el mismo aviso contado a
+   * dos personas con poderes distintos.
+   */
+  paraPlataforma = false,
 ): string | null {
   const raw = detail?.trim();
   if (!raw) return null;
@@ -113,6 +119,26 @@ export function issueDetailText(
   // Nombres propios: la plantilla rechazada y la campaña trabada se identifican
   // por su nombre, y traducir un nombre es romperlo.
   if (kind === 'template_rejected' || kind === 'broadcast_stalled') return raw;
+
+  /**
+   * El WhatsApp de una llamada NO muestra el motivo de Meta.
+   *
+   * El motivo es cierto y es útil —para nosotros—: dice si hubo que tocar una
+   * plantilla o si la persona nunca había escrito. Pero al comercio le llegaba
+   * como «WhatsApp limitó los mensajes de marketing que recibe esta persona.
+   * Reintenta en 24 h.», que es un consejo que no puede seguir: no hay botón de
+   * reintentar, y si el problema fue la categoría de la plantilla, reintentar
+   * tampoco lo arregla. Peor: en el caso que lo destapó la causa era NUESTRA
+   * —elegíamos una plantilla que Meta había recategorizado— y el texto se lo
+   * cobraba al comercio.
+   *
+   * Lo único que el comercio puede hacer es siempre lo mismo, y no depende del
+   * código: escribirle a esa persona. El motivo crudo sigue viajando en la fila
+   * para el panel de plataforma, que es quien sí puede arreglarlo.
+   */
+  if (kind === 'voice_send_failed' && !paraPlataforma) {
+    return t('health.detailVoiceSendFailed');
+  }
 
   if (kind === 'connection_error') return connectionDetail(raw, t);
 

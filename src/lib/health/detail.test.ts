@@ -7,8 +7,12 @@ const t = (k: string, v?: Record<string, string | number>) => translate('es', k,
 describe('issueDetailText: los avisos de Meta en castellano', () => {
   // La frase que aparecía cruda en el panel de producción.
   it('traduce el aviso de "healthy ecosystem" aunque venga sin código', () => {
+    // El aviso va con `sends_failing` y no con `voice_send_failed`: al segundo
+    // se le muestra al comercio qué hacer en vez del motivo de Meta, así que
+    // no pasa por esta traducción. Lo que se protege acá es la traducción, no
+    // el aviso.
     const out = issueDetailText(
-      'promised_whatsapp_failed',
+      'sends_failing',
       'In order to maintain a healthy ecosystem engagement, the message failed to be delivered.',
       t,
     )
@@ -36,6 +40,30 @@ describe('issueDetailText: los avisos de Meta en castellano', () => {
       expect(out, f).not.toBe(f)
       expect(out, f).toBeTruthy()
     }
+  })
+
+  /**
+   * El mismo aviso, contado a dos personas con poderes distintos.
+   *
+   * Al comercio le llegaba «WhatsApp limitó los mensajes de marketing que
+   * recibe esta persona. Reintenta en 24 h.»: un consejo que no puede seguir
+   * —no hay botón de reintentar— y que encima le cobraba a él una causa que
+   * era nuestra (elegíamos una plantilla que Meta había recategorizado).
+   */
+  it('al comercio le dice qué hacer, no el código de Meta', () => {
+    const crudo =
+      'In order to maintain a healthy ecosystem engagement, the message failed to be delivered.'
+    const paraElComercio = issueDetailText('voice_send_failed', crudo, t)
+    expect(paraElComercio).toBe(translate('es', 'health.detailVoiceSendFailed'))
+    expect(paraElComercio).not.toMatch(/marketing|24 h/i)
+  })
+
+  it('a la plataforma le deja el motivo tecnico, que es quien puede arreglarlo', () => {
+    const crudo =
+      'In order to maintain a healthy ecosystem engagement, the message failed to be delivered.'
+    expect(issueDetailText('voice_send_failed', crudo, t, true)).toBe(
+      translate('es', 'deliveryErrors.code131049', { code: 131049 }),
+    )
   })
 
   it('no toca los nombres propios ni inventa traducción para lo que no conoce', () => {

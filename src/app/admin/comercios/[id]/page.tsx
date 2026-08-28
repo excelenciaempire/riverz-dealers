@@ -111,10 +111,10 @@ export default function AdminWorkspaceDetailPage({
                 />
                 <span className="min-w-0 flex-1 text-foreground">
                   {t(`health.${issue.kind}`, { n: issue.count })}
-                  {issueDetailText(issue.kind, issue.detail, t) && (
+                  {issueDetailText(issue.kind, issue.detail, t, true) && (
                     <span className="text-muted-foreground">
                       {" · "}
-                      {issueDetailText(issue.kind, issue.detail, t)}
+                      {issueDetailText(issue.kind, issue.detail, t, true)}
                     </span>
                   )}
                 </span>

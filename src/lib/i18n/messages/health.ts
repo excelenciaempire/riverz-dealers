@@ -53,6 +53,11 @@ export const health: Namespace = {
     es: "el canal no informó el motivo",
     en: "the channel gave no reason",
   },
+  // Lo único que el comercio puede hacer, y no depende del código de Meta.
+  detailVoiceSendFailed: {
+    es: "escríbele desde la bandeja para que no se quede esperando",
+    en: "message them from the inbox so they aren't left waiting",
+  },
   detailTemplateNamed: {
     es: "la plantilla «{name}» ya no existe",
     en: "template “{name}” no longer exists",
