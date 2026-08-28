@@ -12,6 +12,7 @@
  * suma acá, porque son las preguntas que alguien le hace a un agente y no a un
  * gráfico.
  */
+import { leerAtribucion } from '@/lib/attribution/informe'
 import { MINIMO_PARA_PORCENTAJE, leerCortes } from '@/lib/dashboard/cortes'
 import { loadMetrics } from '@/lib/dashboard/queries'
 import { daysAgoStart, previousRange } from '@/lib/dashboard/date-utils'
@@ -133,7 +134,101 @@ async function cortes(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+/**
+ * CUÁNTO VENDIÓ RIVERZ, Y CUÁNTO SÓLO PASÓ CERCA.
+ *
+ * La distinción es el producto entero: "le hablamos y después compró" no prueba
+ * nada —esa persona también vio un anuncio y le llegó un correo—, así que hay
+ * dos cifras y NO se suman. Probada es el pedido que trae una marca que puso
+ * Riverz: el link de pago lo armó el asistente, el pedido lo creó él, el carrito
+ * salía del chat, entró con un cupón emitido para esa persona. Influida es la
+ * correlación temporal, que es lo que reporta cualquier panel de anuncios.
+ *
+ * Usa el MISMO `leerAtribucion` que dibuja la pantalla. Es lento a propósito —
+ * le pide los pedidos a la tienda en vivo— porque la marca viaja en el pedido
+ * de Shopify y no en nuestra base.
+ */
+async function atribucion(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const dias = windowDays(args.dias)
+  const hasta = new Date()
+  const desde = new Date(hasta.getTime() - dias * 86_400_000)
+  // La ventana de last-touch para la parte influida: cuánto antes del pedido
+  // cuenta un mensaje como el que lo causó. 24 h es el default de la pantalla.
+  const horas = Math.max(1, Math.min(720, Number(args.horas_de_ventana) || 24))
+
+  const informe = (await leerAtribucion(ctx.db, {
+    workspaceId: ctx.workspaceId,
+    sinceIso: desde.toISOString(),
+    untilIso: hasta.toISOString(),
+    days: dias,
+    lookbackMs: horas * 3_600_000,
+    locale: ctx.locale ?? 'es',
+  })) as {
+    not_connected?: boolean
+    error?: string
+    totals?: { revenue?: { current: number; previous: number }; orders?: { current: number; previous: number }; currency?: string | null }
+    attributed?: { revenue: number; orders: number; currency: string | null }
+    assisted?: { revenue: number; orders: number; currency: string | null }
+    by_handler?: Record<string, { orders: number; revenue: number }>
+    by_broadcast?: unknown[]
+    by_flow?: unknown[]
+    by_automation?: unknown[]
+    by_agent?: unknown[]
+    by_instagram_agent?: unknown[]
+  }
+
+  if (informe.not_connected) {
+    return { conectado: false, nota: 'Esta cuenta no tiene la tienda conectada, así que no hay pedidos que atribuir.' }
+  }
+  if (informe.error) {
+    return { conectado: true, error: informe.error, nota: 'La tienda no contestó: la cifra de este rango no se puede calcular ahora.' }
+  }
+
+  return {
+    periodo: { dias, desde: desde.toISOString(), hasta: hasta.toISOString() },
+    moneda: informe.totals?.currency ?? null,
+    // Todo lo que vendió el comercio en el rango, para poder poner la cifra de
+    // Riverz en escala.
+    venta_total: informe.totals?.revenue?.current ?? 0,
+    venta_total_periodo_anterior: informe.totals?.revenue?.previous ?? 0,
+    pedidos_totales: informe.totals?.orders?.current ?? 0,
+    // PROBADA: el pedido trae una marca que puso Riverz. Es la cifra que se
+    // defiende sola.
+    probada: informe.attributed ?? null,
+    // INFLUIDA: habló con Riverz antes y compró, sin marca. Se muestra, se
+    // explica y NO se suma a la anterior.
+    influida: informe.assisted ?? null,
+    // De lo probado, cuánto lo cerró la IA y cuánto una persona.
+    quien_lo_cerro: informe.by_handler ?? null,
+    por_campana: informe.by_broadcast ?? [],
+    por_flujo: informe.by_flow ?? [],
+    por_automatizacion: informe.by_automation ?? [],
+    por_agente: informe.by_agent ?? [],
+    horas_de_ventana: horas,
+  }
+}
+
 export const METRICS_CAPABILITIES: Capability[] = [
+  {
+    key: 'metricas.atribucion',
+    description:
+      'Cuánto vendió Riverz, separado en dos cifras que NO se suman. PROBADA: el pedido trae una marca que puso Riverz (el link de pago lo armó el asistente, el pedido lo creó él, el carrito salía del chat, entró con un cupón emitido para esa persona) — es la que se defiende sola. INFLUIDA: habló con Riverz antes y compró, sin marca; es la misma correlación que reporta cualquier panel de anuncios. Trae además cuánto cerró la IA y cuánto una persona, y el corte por campaña, flujo y automatización. Tarda: le pide los pedidos a la tienda en vivo.',
+    descriptionEn:
+      'How much Riverz sold, split into two figures that are NOT added together. PROVEN: the order carries a mark Riverz put on it (the checkout link was built by the assistant, the order was created by it, the cart came from the chat, it came in with a coupon issued to that person) — the figure that holds up on its own. ASSISTED: they talked to Riverz before and bought, with no mark; the same correlation any ads dashboard reports. It also brings how much the AI closed versus a person, and the breakdown by campaign, flow and automation. It is slow: it asks the store for the orders live.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        dias: { type: 'number', description: 'Ventana en días. Por defecto 7.' },
+        horas_de_ventana: {
+          type: 'number',
+          description:
+            'Cuántas horas antes del pedido cuenta un mensaje como el que lo causó, para la parte INFLUIDA. Por defecto 24.',
+        },
+      },
+    },
+    run: atribucion,
+  },
   {
     key: 'metricas.cortes',
     description:
