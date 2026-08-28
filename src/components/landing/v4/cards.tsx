@@ -8,13 +8,7 @@ import { Rise } from "./bits";
 /**
  * Qué hace — el mosaico.
  *
- * Trece funcionalidades, una ilustración propia cada una. Ninguna repetida.
- *
- * PENDIENTE: van seis de trece. Kie se quedó sin saldo a mitad de la tanda, y
- * las siete que faltan (campañas, bandeja, en vivo, tienda, contactos, minutos,
- * ROAS) se recuperan corriendo de nuevo `kie-ilus.py`, que se saltea las que ya
- * existen. Mientras tanto esas fichas van en arena y solo con tipografía: es un
- * cuarto tipo de ficha, no un hueco.
+ * Trece funcionalidades, trece ilustraciones. Ninguna repetida.
  *
  * Por acá pasaron tres versiones. Trece fichas idénticas con la misma vista
  * previa en el mismo marco de navegador: a la quinta se lee como una lista y se
@@ -49,13 +43,9 @@ type Tile = {
   /** Ancho en la cuadrícula de 2 columnas (tablet) y en la de 6 (escritorio). */
   sm: 1 | 2;
   lg: 2 | 3 | 4 | 6;
-  /**
-   * La ilustración y su proporción, generada a esa misma medida.
-   * Sin ella la ficha se pinta en arena y queda solo la tipografía —que es un
-   * cuarto tipo de ficha, no un hueco.
-   */
-  img?: string;
-  ratio?: string;
+  /** La ilustración y su proporción, generada a esa misma medida. */
+  img: string;
+  ratio: string;
 };
 
 const TILES: Tile[] = [
@@ -121,6 +111,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec06",
+    img: "/portada-b/i-campanas.jpg",
+    ratio: "16 / 9",
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
@@ -129,6 +121,8 @@ const TILES: Tile[] = [
   },
   {
     key: "secLive",
+    img: "/portada-b/i-envivo.jpg",
+    ratio: "3 / 4",
     title: "landing.secLiveTitle",
     muted: "landing.secLiveTitleMuted",
     body: "landing.secLiveBody",
@@ -137,6 +131,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec07",
+    img: "/portada-b/i-bandeja.jpg",
+    ratio: "4 / 3",
     title: "landing.sec07Title",
     muted: "landing.sec07TitleMuted",
     body: "landing.sec07Body",
@@ -145,6 +141,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec08",
+    img: "/portada-b/i-tienda.jpg",
+    ratio: "4 / 3",
     title: "landing.sec08Title",
     muted: "landing.sec08TitleMuted",
     body: "landing.sec08Body",
@@ -153,6 +151,8 @@ const TILES: Tile[] = [
   },
   {
     key: "secContacts",
+    img: "/portada-b/i-contactos.jpg",
+    ratio: "4 / 3",
     title: "landing.secContactsTitle",
     muted: "landing.secContactsTitleMuted",
     body: "landing.secContactsBody",
@@ -161,6 +161,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec09",
+    img: "/portada-b/i-minutos.jpg",
+    ratio: "4 / 3",
     title: "landing.sec09Title",
     muted: "landing.sec09TitleMuted",
     body: "landing.sec09Body",
@@ -169,6 +171,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec10",
+    img: "/portada-b/i-roas.jpg",
+    ratio: "16 / 9",
     title: "landing.sec10Title",
     muted: "landing.sec10TitleMuted",
     body: "landing.sec10Body",
@@ -198,11 +202,7 @@ export function Cards() {
           delay={(i % 2) * 80}
           className={`min-w-0 ${SM[tile.sm]} ${LG[tile.lg]}`}
         >
-          <article
-            className={`flex h-full min-w-0 flex-col overflow-hidden ${
-              tile.img ? "sn-card" : "sn-card-sand"
-            }`}
-          >
+          <article className="sn-card flex h-full min-w-0 flex-col overflow-hidden">
             <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-8">
               <h3 className="sn-h3 max-w-[20ch]">
                 {t(tile.title)} <span style={{ color: "var(--sn-muted)" }}>{t(tile.muted)}</span>
@@ -217,23 +217,21 @@ export function Cards() {
                   El fondo de la imagen es el mismo crema de la ficha, así que
                   no hace falta marco ni sombra: la ilustración se apoya en el
                   papel y las esquinas redondeadas alcanzan. */}
-              {tile.img && (
-                <div className="mt-auto min-w-0 pt-8">
-                  <div
-                    className="relative w-full overflow-hidden rounded-2xl"
-                    style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
-                  >
-                    <Image
-                      src={tile.img}
-                      alt=""
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
-                      className="object-cover"
-                      aria-hidden
-                    />
-                  </div>
+              <div className="mt-auto min-w-0 pt-8">
+                <div
+                  className="relative w-full overflow-hidden rounded-2xl"
+                  style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
+                >
+                  <Image
+                    src={tile.img}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+                    className="object-cover"
+                    aria-hidden
+                  />
                 </div>
-              )}
+              </div>
             </div>
           </article>
         </Rise>
