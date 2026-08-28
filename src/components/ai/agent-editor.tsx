@@ -26,6 +26,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
+import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1438,6 +1439,16 @@ export function AgentEditor({
                     placeholder={t('assistant.businessInfoPlaceholder')}
                     className="resize-y bg-background font-mono text-xs leading-relaxed"
                   />
+                </SectionCard>
+
+                {/* Las reglas del negocio. Vivían en una tarjeta suelta debajo
+                    de la lista de asistentes, así que se configuraba en un
+                    lado lo que se leía en otro: quien abría el asistente para
+                    ajustarlo no las veía, y quien las escribía afuera no sabía
+                    a qué asistente le hablaba. Van acá, en "Mi negocio", que
+                    es de lo que son. */}
+                <SectionCard title={t('reglas.title')} hint={t('reglas.hint')}>
+                  <ReglasPanel />
                 </SectionCard>
 
               </>

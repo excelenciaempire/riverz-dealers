@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
+  BarChart3,
   Loader2,
   Plus,
   Sparkles,
@@ -26,7 +27,6 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { AgentEditor } from '@/components/ai/agent-editor';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import { AnswerGapsPanel } from '@/components/ai/answer-gaps-panel';
-import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
@@ -199,17 +199,6 @@ export default function AiAgentsPage() {
         </div>
       )}
 
-      {/* Las reglas del negocio. Van acá y no dentro del editor de un agente
-          porque son del COMERCIO: "nunca prometemos fechas" no es de un agente,
-          es de la casa, y vale para el que atienda. */}
-      {!loading && agents.length > 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="text-sm font-semibold text-foreground">{t('reglas.title')}</h2>
-          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">{t('reglas.hint')}</p>
-          <ReglasPanel />
-        </section>
-      ) : null}
-
       {/* Lo que no supo contestar. Va acá y no en una pantalla aparte porque es
           conocimiento del agente: se mira en el mismo lugar donde se lo edita,
           que es donde uno va a cargar la respuesta que falta. */}
@@ -351,8 +340,9 @@ function AgentCard({
         <button
           type="button"
           onClick={onStats}
-          className="rounded px-1 -mx-1 hover:text-foreground hover:underline"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-accent-ink/40 hover:bg-accent/40 hover:text-foreground"
         >
+          <BarChart3 className="size-3.5" />
           {t('assistant.tabStats')}
         </button>
         <div className="flex items-center gap-2">
