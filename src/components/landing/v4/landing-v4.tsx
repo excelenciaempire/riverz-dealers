@@ -132,9 +132,11 @@ function Nav() {
               quedaban dos llamadas a la acción a cuatro dedos de distancia —la
               de la barra y la del hero— y la de arriba solo empujaba el
               contenido hacia abajo. En escritorio no estorba y se queda. */}
-          <a href="#acceso" className="sn-pill sn-pill-sm hidden sm:inline-flex">
-            {t("landingV4.navCta")}
-          </a>
+          <span className="hidden sm:block">
+            <a href="#acceso" className="sn-pill sn-pill-sm">
+              {t("landingV4.navCta")}
+            </a>
+          </span>
         </div>
       </nav>
     </header>
