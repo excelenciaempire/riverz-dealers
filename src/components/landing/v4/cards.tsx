@@ -257,7 +257,9 @@ function Ilustracion({ tile }: { tile: Tile }) {
   const reduced = useReducedMotion();
   const caja = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
+  // `cerca` no vuelve a false nunca: una vez bajado, el clip se queda.
   const [cerca, setCerca] = useState(false);
+  const [aLaVista, setALaVista] = useState(false);
 
   useEffect(() => {
     const el = caja.current;
@@ -265,17 +267,23 @@ function Ilustracion({ tile }: { tile: Tile }) {
 
     const io = new IntersectionObserver(
       ([e]) => {
+        setALaVista(e.isIntersecting);
         if (e.isIntersecting) setCerca(true);
-        const v = video.current;
-        if (!v) return;
-        if (e.isIntersecting) void v.play().catch(() => {});
-        else v.pause();
       },
       { rootMargin: "300px 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
   }, [tile.video, reduced]);
+
+  // Aparte del observador a proposito: este efecto corre DESPUES de que el
+  // <video> exista, que es lo que el observador no puede garantizar.
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    if (aLaVista) void v.play().catch(() => {});
+    else v.pause();
+  }, [aLaVista, cerca]);
 
   return (
     <div
@@ -300,7 +308,7 @@ function Ilustracion({ tile }: { tile: Tile }) {
           loop
           playsInline
           autoPlay
-          preload="none"
+          preload="auto"
           aria-hidden
           className="absolute inset-0 size-full object-cover"
         />
