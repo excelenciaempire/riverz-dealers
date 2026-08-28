@@ -8,6 +8,7 @@ export const admin = {
   backToIndex: { es: "Volver", en: "Back" },
   // Grupos del índice
   groupWorkspaces: { es: "Comercios", en: "Merchants" },
+  groupMoney: { es: "La plata", en: "Money" },
   groupObservability: { es: "Qué está pasando", en: "What's happening" },
   groupConfig: { es: "Configuración", en: "Configuration" },
   // Secciones

@@ -10,7 +10,11 @@
  *
  * Ahora la lista vive una sola vez, acá, y los dos la importan.
  */
-export type AdminGroup = "comercios" | "observabilidad" | "configuracion";
+export type AdminGroup =
+  | "comercios"
+  | "plata"
+  | "observabilidad"
+  | "configuracion";
 
 export interface AdminSectionMeta {
   href: string;
@@ -58,19 +62,19 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/saldos",
     label: "admin.sectionBalances",
     description: "admin.sectionBalancesDesc",
-    group: "observabilidad",
+    group: "plata",
   },
   {
     href: "/admin/negocio",
     label: "admin.sectionBusiness",
     description: "admin.sectionBusinessDesc",
-    group: "comercios",
+    group: "plata",
   },
   {
     href: "/admin/uso",
     label: "admin.sectionUsage",
     description: "admin.sectionUsageDesc",
-    group: "comercios",
+    group: "plata",
   },
   {
     href: "/admin/codigos",
