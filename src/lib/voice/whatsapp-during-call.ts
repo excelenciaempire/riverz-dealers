@@ -42,14 +42,56 @@ export const PLANTILLAS_LLAMADA = {
   resumen_pedido: 'llamada_resumen_pedido',
   info_producto: 'llamada_info_producto',
   seguimiento_envio: 'llamada_seguimiento_envio',
-  otro: 'seguimiento_llamada',
+  // El catch-all también ancla en algo concreto —«lo que nos pediste durante la
+  // llamada»— y pide una acción de vuelta. Una plantilla vaga la lee Meta como
+  // promoción: la primera versión, «te dejamos lo que hablamos», salió
+  // recategorizada a MARKETING y por eso rebotaba con el tope de frecuencia.
+  otro: 'llamada_lo_que_pediste',
 } as const;
 
 export type EscenarioWhatsApp = keyof typeof PLANTILLAS_LLAMADA;
 
-function plantillaPara(escenario?: string | null): string {
-  const k = (escenario ?? '') as EscenarioWhatsApp;
-  return PLANTILLAS_LLAMADA[k] ?? PLANTILLAS_LLAMADA.otro;
+/**
+ * La plantilla que de verdad se puede usar ahora mismo.
+ *
+ * No alcanza con nombrarla: **Meta recategoriza**. `seguimiento_llamada` se
+ * pidió como UTILITY y Meta la dejó en MARKETING —su cuerpo era un seguimiento
+ * genérico, sin ancla transaccional— y las MARKETING caen bajo el tope de
+ * frecuencia por usuario: el envío se acepta y después falla con 131049, «in
+ * order to maintain a healthy ecosystem engagement». Otra vez el agente
+ * creyendo que mandó algo que no llegó.
+ *
+ * Así que la elección se hace contra la base: la del escenario si está
+ * aprobada y es Utility; si no, cualquier otra plantilla de llamada que sí lo
+ * esté. Si no hay ninguna, se avisa en vez de mandar a la nada — Meta puede
+ * recategorizar una plantilla en cualquier momento y eso no puede volver a
+ * romper el envío en silencio.
+ */
+async function plantillaUsable(
+  db: SupabaseClient,
+  workspaceId: string,
+  escenario?: string | null,
+): Promise<string | null> {
+  const preferida =
+    PLANTILLAS_LLAMADA[(escenario ?? '') as EscenarioWhatsApp] ??
+    PLANTILLAS_LLAMADA.otro;
+
+  const { data } = await db
+    .from('message_templates')
+    .select('name, category, status')
+    .eq('workspace_id', workspaceId)
+    .in('name', Object.values(PLANTILLAS_LLAMADA));
+
+  const usables = ((data ?? []) as { name: string; category: string; status: string }[])
+    .filter(
+      (t) =>
+        (t.status ?? '').toLowerCase() === 'approved' &&
+        (t.category ?? '').toLowerCase() === 'utility',
+    )
+    .map((t) => t.name);
+
+  if (usables.includes(preferida)) return preferida;
+  return usables[0] ?? null;
 }
 
 /**
@@ -195,6 +237,15 @@ export async function sendWhatsAppDuringCall(
   const abierta = await ventanaAbierta(db, conversationId);
   const accessToken = decrypt(config.access_token);
 
+  const plantilla = abierta
+    ? null
+    : await plantillaUsable(db, call.workspace_id, escenario);
+  if (!abierta && !plantilla) {
+    // El modelo lee esto y le dice al cliente la verdad, en vez de prometer un
+    // WhatsApp que Meta va a rechazar.
+    return { ok: false, error: 'fuera_de_ventana_sin_plantilla' };
+  }
+
   try {
     const res = abierta
       ? await sendTextMessage({
@@ -210,7 +261,7 @@ export async function sendWhatsAppDuringCall(
           phoneNumberId: config.phone_number_id,
           accessToken,
           to,
-          templateName: plantillaPara(escenario),
+          templateName: plantilla as string,
           language: 'es',
           params: [
             (contact.name ?? '').trim().split(/\s+/)[0] || 'Hola',
