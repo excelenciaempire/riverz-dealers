@@ -473,4 +473,23 @@ export const assistant = {
     es: "Shopify conectado. Ya puedes activar el cierre de ventas.",
     en: "Shopify connected. You can now enable sales closing.",
   },
+  // El aviso por WhatsApp cuando un caso queda en manos de una persona.
+  avisoDestino: {
+    es: "Los casos urgentes se avisan por WhatsApp al",
+    en: "Urgent cases are sent by WhatsApp to",
+  },
+  avisoSinDestino: {
+    es: "Nadie recibe los avisos: conecta un WhatsApp o carga tu teléfono en el perfil.",
+    en: "No one receives the alerts: connect a WhatsApp number or add your phone to your profile.",
+  },
+  avisoProbar: { es: "Probar", en: "Send a test" },
+  avisoEnviado: { es: "Aviso enviado", en: "Alert sent" },
+  avisoPruebaTitulo: {
+    es: "Prueba de aviso de Riverz",
+    en: "Riverz alert test",
+  },
+  avisoPruebaCuerpo: {
+    es: "Si lees esto, los casos que el asistente deje en manos de una persona van a llegar a este número.",
+    en: "If you can read this, the cases the assistant hands to a person will reach this number.",
+  },
 } satisfies Namespace;

@@ -75,6 +75,7 @@ import {
 import { roleTemplate } from '@/lib/ai/role-templates';
 import type { AgentSummary } from '@/app/(dashboard)/asistente/page';
 import type { Channel } from '@/types';
+import { AvisoEscalada } from '@/components/ai/aviso-escalada';
 
 /** "shopify" → "Shopify". Los nombres propios se escriben como se escriben.
  *  Mismo mapa que la pantalla de Productos: un canal nombrado distinto en cada
@@ -1828,6 +1829,10 @@ export function AgentEditor({
                       {t('assistant.escalateAfterHelp')}
                     </p>
                   </Field>
+                  {/* A donde cae el aviso. Estaba resuelto en el codigo y no
+                      se veia en ningun lado: se descubria el dia que hubiera
+                      un caso urgente, que es el peor dia para descubrirlo. */}
+                  <AvisoEscalada />
                 </SectionCard>
 
                 <SectionCard
