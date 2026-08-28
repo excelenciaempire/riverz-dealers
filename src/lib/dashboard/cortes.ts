@@ -12,6 +12,7 @@
  * está apagado, se está absteniendo, y el motivo dice por qué.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { BusinessHours } from '@/lib/ai/types'
 import {
   escalacionesPorMotivo,
   fueraDeHorario as estaFueraDeHorario,
@@ -143,7 +144,7 @@ export async function leerCortes(
       .limit(TOPE),
     db
       .from('ai_agents')
-      .select('id, name, is_active, business_hours_start, business_hours_end, business_hours_days')
+      .select('id, name, is_active, business_hours')
       .eq('workspace_id', workspaceId)
       .is('deleted_at', null),
     db
@@ -197,9 +198,7 @@ export async function leerCortes(
     id: string
     name: string | null
     is_active: boolean
-    business_hours_start: string | null
-    business_hours_end: string | null
-    business_hours_days: number[] | null
+    business_hours: BusinessHours | null
   }[]
 
   // Qué conversaciones tocó la IA, para cruzarlas con su canal.
@@ -290,17 +289,14 @@ export async function leerCortes(
   // el primero que tenga uno: son el horario del comercio, no de cada agente, y
   // en la práctica el comercio carga uno solo. Sin ninguno no se calcula nada y
   // la pantalla pide configurarlo — un cero acá parecería un resultado.
-  const conHorario = agentes.find(
-    (a) => a.business_hours_start && a.business_hours_end && a.business_hours_days?.length,
-  )
-  const horario: Horario | null = conHorario
-    ? {
-        inicio: conHorario.business_hours_start,
-        fin: conHorario.business_hours_end,
-        dias: conHorario.business_hours_days,
-        tz,
-      }
-    : null
+  // El horario sale de `business_hours`, que es donde lo escribe el editor del
+  // asistente y donde lo lee el motor para decidir si contesta. Antes se leían
+  // las columnas sueltas `business_hours_start/end/days`, que NO las escribe
+  // nadie: siempre venían en null, así que esta pantalla pedía configurar un
+  // horario que el comercio ya tenía configurado.
+  const horario: Horario | null = agentes
+    .map((a) => horarioDeLasVentanas(a.business_hours, tz))
+    .find((h): h is Horario => h !== null) ?? null
 
   let fueraTotal = 0
   let fueraAtendidas = 0
@@ -348,4 +344,36 @@ export async function leerCortes(
       }))
       .sort((a, b) => b.respondio - a.respondio),
   }
+}
+
+/**
+ * El horario semanal del asistente, traducido a la forma que espera el panel.
+ *
+ * El asistente lo guarda como ventanas por día ("1": ["09:00-18:00"]) porque
+ * puede tener varias por día; el panel trabaja con un inicio, un fin y los días
+ * en que abre. Se toma la primera ventana de cada día: para "de 9 a 18 de lunes
+ * a viernes" —que es lo que carga casi todo el mundo— dice exactamente eso.
+ */
+function horarioDeLasVentanas(
+  bh: BusinessHours | null,
+  tz: string,
+): Horario | null {
+  const ventanas = (bh?.windows ?? null) as Record<string, string[]> | null
+  if (!ventanas) return null
+  const dias: number[] = []
+  let inicio: string | null = null
+  let fin: string | null = null
+  for (const [dia, lista] of Object.entries(ventanas)) {
+    const primera = (lista ?? [])[0]
+    if (!primera) continue
+    const [desde, hasta] = primera.split('-')
+    if (!desde || !hasta) continue
+    dias.push(Number(dia))
+    if (!inicio) {
+      inicio = desde
+      fin = hasta
+    }
+  }
+  if (dias.length === 0 || !inicio || !fin) return null
+  return { inicio, fin, dias, tz: bh?.timezone || tz }
 }

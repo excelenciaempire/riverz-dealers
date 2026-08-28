@@ -1599,38 +1599,6 @@ export function AgentEditor({
                   )}
                 </SectionCard>
 
-                <Field label={t('assistant.escalateKeywordsLabel')}>
-                  <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
-                    {escalateKeywords.map((kw) => (
-                      <span
-                        key={kw}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary"
-                      >
-                        {kw}
-                        <button
-                          type="button"
-                          onClick={() => toggleEscalate(kw)}
-                          className="rounded hover:text-red-400"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      value={escalateInput}
-                      onChange={(e) => setEscalateInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault();
-                          addEscalate();
-                        }
-                      }}
-                      onBlur={addEscalate}
-                      placeholder={t('assistant.escalateKeywordsPlaceholder')}
-                      className="min-w-[140px] flex-1 bg-transparent px-1 text-xs text-foreground focus:outline-none"
-                    />
-                  </div>
-                </Field>
               </>
             )}
 
@@ -1810,6 +1778,42 @@ export function AgentEditor({
                   title={t('assistant.escalationTitle')}
                   hint={t('assistant.escalationHint')}
                 >
+                  {/* Las palabras que escalan vivian en "Alcance", a dos
+                      pestanas del "escalar despues de N mensajes": la misma
+                      decision partida en dos lugares, y ninguno de los dos
+                      mostraba la mitad que faltaba. */}
+                <Field label={t('assistant.escalateKeywordsLabel')}>
+                  <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
+                    {escalateKeywords.map((kw) => (
+                      <span
+                        key={kw}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary"
+                      >
+                        {kw}
+                        <button
+                          type="button"
+                          onClick={() => toggleEscalate(kw)}
+                          className="rounded hover:text-red-400"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      value={escalateInput}
+                      onChange={(e) => setEscalateInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          addEscalate();
+                        }
+                      }}
+                      onBlur={addEscalate}
+                      placeholder={t('assistant.escalateKeywordsPlaceholder')}
+                      className="min-w-[140px] flex-1 bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                    />
+                  </div>
+                  </Field>
                   <Field label={t('assistant.escalateAfterLabel')}>
                     <Input
                       type="number"
