@@ -52,7 +52,20 @@ export function DetalleAtribucion({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('dashboard.attrDetailTitle')}</DialogTitle>
-          <DialogDescription>{t('dashboard.attrModel')}</DialogDescription>
+          <DialogDescription>
+            {t('dashboard.attrModel')}
+            {/* El período, acá mismo. Dos pantallas del panel con cifras
+                distintas son indistinguibles de un bug si ninguna dice qué
+                rango está mirando. */}
+            {data?.range && (
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {t('dashboard.attrRange', {
+                  desde: fmt.date(data.range.start),
+                  hasta: fmt.date(data.range.end),
+                })}
+              </span>
+            )}
+          </DialogDescription>
         </DialogHeader>
 
         <section>

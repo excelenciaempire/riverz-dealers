@@ -102,10 +102,18 @@ function enlaceDelHilo(conversationId: string): string {
 /**
  * A quién se le avisa.
  *
- * Primero el número que el comercio cargó para avisos; si no puso ninguno, el
- * del dueño de la cuenta, que es el que ya tenemos. Sin ninguno de los dos no
- * se avisa — y se deja dicho en el log, porque "no salió" y "no había a quién"
- * son cosas distintas y sólo una se arregla sola.
+ * El número sale de Ajustes → Perfil → WhatsApp, que es el campo que el
+ * comercio ya llena y cuyo texto dice exactamente esto: "a este número te
+ * preguntamos lo que la IA no decide sola".
+ *
+ * Se busca por `profiles.user_id`, NO por `profiles.id`: son dos columnas
+ * distintas y `id` es la clave de la fila, no la del usuario. Buscar por `id`
+ * —que es lo que hacía la primera versión— no encontraba a nadie nunca, así
+ * que el aviso quedaba escrito y no salía jamás.
+ *
+ * Primero el dueño de la cuenta; si no cargó el suyo, cualquier miembro que sí.
+ * Y `workspaces.alert_phone` gana sobre todo, para el comercio que quiera
+ * mandar los avisos a otro lado (el encargado de turno, un grupo de guardia).
  */
 async function aQuienAvisar(
   db: SupabaseClient,
@@ -119,13 +127,26 @@ async function aQuienAvisar(
   const fila = ws as { alert_phone?: string | null; owner_id?: string | null } | null;
   const propio = (fila?.alert_phone ?? '').trim();
   if (propio) return propio;
-  if (!fila?.owner_id) return null;
-  const { data: perfil } = await db
+
+  const { data: miembros } = await db
+    .from('workspace_members')
+    .select('user_id')
+    .eq('workspace_id', workspaceId);
+  const ids = ((miembros ?? []) as Array<{ user_id: string }>).map((m) => m.user_id);
+  if (fila?.owner_id && !ids.includes(fila.owner_id)) ids.push(fila.owner_id);
+  if (ids.length === 0) return null;
+
+  const { data: perfiles } = await db
     .from('profiles')
-    .select('phone')
-    .eq('id', fila.owner_id)
-    .maybeSingle();
-  return ((perfil as { phone?: string | null } | null)?.phone ?? '').trim() || null;
+    .select('user_id, phone')
+    .in('user_id', ids)
+    .not('phone', 'is', null);
+  const conTelefono = ((perfiles ?? []) as Array<{ user_id: string; phone: string }>)
+    .filter((p) => (p.phone ?? '').trim());
+  if (conTelefono.length === 0) return null;
+
+  const delDuenio = conTelefono.find((p) => p.user_id === fila?.owner_id);
+  return (delDuenio ?? conTelefono[0]).phone.trim();
 }
 
 /**

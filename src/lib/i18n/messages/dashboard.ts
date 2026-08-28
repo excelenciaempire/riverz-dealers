@@ -38,6 +38,7 @@ export const dashboard = {
 
   // La cifra, abierta: qué está probado y qué no.
   attrDetailTitle: { es: "De dónde sale esta cifra", en: "Where this number comes from" },
+  attrRange: { es: "Del {desde} al {hasta}", en: "From {desde} to {hasta}" },
   attrModel: {
     es: "La cifra cuenta sólo los pedidos que traen una marca de Riverz. Lo que apenas pasó cerca va abajo, aparte.",
     en: "The number counts only orders carrying a Riverz stamp. Anything that merely came close is listed separately below.",

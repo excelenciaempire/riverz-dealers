@@ -74,6 +74,9 @@ export interface Atribucion {
   attributed_orders?: AttributedOrder[]
   /** Hubo más pedidos que los que viajaron en la lista. */
   attributed_orders_truncated?: boolean
+  /** El período que produjo estas cifras. Va a la vista para que un número no
+   *  se pueda leer fuera de contexto. */
+  range?: { start: string; end: string }
   not_connected?: boolean
   /**
    * La tienda no contestó. Distinto de "no hubo ventas": mostrar cero acá

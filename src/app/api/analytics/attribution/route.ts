@@ -700,6 +700,13 @@ export async function GET(request: Request) {
     by_handler: porQuienAtendio,
     attributed_orders: detalle.slice(0, MAX_DETALLE),
     attributed_orders_truncated: detalle.length > MAX_DETALLE,
+    // El rango que produjo estas cifras, para que se puedan leer solas.
+    //
+    // Sin esto, dos pantallas del mismo panel mostrando numeros distintos son
+    // indistinguibles de un bug: no hay forma de saber si miran el mismo
+    // periodo. Viaja en la respuesta y no como prop porque quien lo tiene que
+    // decir es quien lo calculo.
+    range: { start: sinceIso, end: untilIso },
   });
 }
 
