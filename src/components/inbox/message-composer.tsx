@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useMemo, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Slash, Paperclip, X, Plus, Trash2, Sparkles, Wand2, Loader2 } from "lucide-react";
+import {
+  Send,
+  LayoutTemplate,
+  Slash,
+  Paperclip,
+  X,
+  Plus,
+  Pencil,
+  Trash2,
+  Sparkles,
+  Wand2,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -113,8 +125,11 @@ export function MessageComposer({
     start: number; // posición del "/" en el textarea
   } | null>(null);
   const [snippetActiveIdx, setSnippetActiveIdx] = useState(0);
-  // Inline "create shortcut" form state (opened from the picker footer).
+  // Formulario del picker: crear un atajo nuevo (desde el pie) o editar uno
+  // existente (desde el lápiz de la fila). `editando` guarda a quién se está
+  // reescribiendo, para poder renombrarlo sin dejar el viejo dando vueltas.
   const [creating, setCreating] = useState(false);
+  const [editando, setEditando] = useState<Snippet | null>(null);
   const [createShortcut, setCreateShortcut] = useState("");
   const [createBody, setCreateBody] = useState("");
 
@@ -184,7 +199,10 @@ export function MessageComposer({
   }, [snippetActiveIdx, snippetMenu?.query]);
   // Closing the picker also closes any open "create shortcut" form.
   useEffect(() => {
-    if (!snippetMenu) setCreating(false);
+    if (!snippetMenu) {
+      setCreating(false);
+      setEditando(null);
+    }
   }, [snippetMenu]);
 
   const insertSnippet = useCallback(
@@ -212,11 +230,24 @@ export function MessageComposer({
   const submitCreate = useCallback(async () => {
     if (!snippetMenu) return;
     const body = createBody.trim();
-    const shortcut = createShortcut.trim().replace(/^\/+/, "");
+    const shortcut = createShortcut.trim().replace(/^\/+/, "").toLowerCase();
     if (!body || !shortcut) return;
     // Persist (fail-soft if the table isn't there yet) then insert the body
     // into the composer, replacing the typed "/query".
     await createSnippet(shortcut, body).catch(() => ({}));
+    // Editar y cambiarle el nombre no debe dejar el atajo viejo en la lista.
+    if (editando && editando.trigger !== shortcut) {
+      await Promise.resolve(deleteSnippet(editando)).catch(() => {});
+    }
+    if (editando) {
+      // Editar no escribe en el chat: se vuelve a la lista y listo.
+      setCreating(false);
+      setEditando(null);
+      setCreateBody("");
+      setCreateShortcut("");
+      requestAnimationFrame(() => textareaRef.current?.focus());
+      return;
+    }
     const before = text.slice(0, snippetMenu.start);
     const after = text.slice(snippetMenu.start + 1 + snippetMenu.query.length);
     setText(`${before}${body}${after}`);
@@ -233,7 +264,7 @@ export function MessageComposer({
       el.style.height = "auto";
       el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT)}px`;
     });
-  }, [snippetMenu, createBody, createShortcut, createSnippet, text]);
+  }, [snippetMenu, createBody, createShortcut, createSnippet, text, editando, deleteSnippet]);
 
   const adjustHeight = useCallback(() => {
     const el = textareaRef.current;
@@ -535,6 +566,7 @@ export function MessageComposer({
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setCreating(false);
+                    setEditando(null);
                   }}
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
                 >
@@ -549,7 +581,7 @@ export function MessageComposer({
                   disabled={!createBody.trim() || !createShortcut.trim()}
                   className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
                 >
-                  {t("inbox.createSnippet")}
+                  {editando ? t("common.save") : t("inbox.createSnippet")}
                 </button>
               </div>
             </div>
@@ -592,6 +624,22 @@ export function MessageComposer({
                       </button>
                       <button
                         type="button"
+                        aria-label={t("inbox.editSnippet")}
+                        title={t("inbox.editSnippet")}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditando(s);
+                          setCreateShortcut(s.trigger);
+                          setCreateBody(s.body);
+                          setCreating(true);
+                        }}
+                        className="mt-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-foreground focus:opacity-100 group-hover:opacity-100"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         aria-label={t("inbox.deleteSnippet")}
                         title={t("inbox.deleteSnippet")}
                         onMouseDown={(e) => {
@@ -611,6 +659,7 @@ export function MessageComposer({
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
+                  setEditando(null);
                   setCreateShortcut(snippetMenu.query);
                   setCreateBody("");
                   setCreating(true);

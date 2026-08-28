@@ -297,6 +297,7 @@ export const inbox = {
   createSnippet: { es: "Crear atajo", en: "Create shortcut" },
   newSnippet: { es: "Nuevo atajo", en: "New shortcut" },
   deleteSnippet: { es: "Eliminar atajo", en: "Delete shortcut" },
+  editSnippet: { es: "Editar atajo", en: "Edit shortcut" },
   snippetShortcutPlaceholder: { es: "atajo", en: "shortcut" },
   snippetBodyPlaceholder: {
     es: "Texto que se insertará…",
