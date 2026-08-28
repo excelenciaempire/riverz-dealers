@@ -298,10 +298,10 @@ export async function maybeInstantOutreach(
   if (hasLlm(apiKey) && opts.engagementText) {
     try {
       const [s] = await scoreLeads(apiKey, [opts.engagementText]);
-      // Mismo criterio que el piso autónomo: una crítica con contenido —una
-      // duda, un reclamo, una pregunta— nunca se oculta, aunque el triage la
-      // haya llamado spam. Ver `mereceRespuesta`.
-      if (s?.spam && !mereceRespuesta(opts.engagementText)) {
+      // Mismo criterio que el piso autónomo: lo que el triage llama spam se
+      // oculta y no se contesta, crítica incluida. Ver el comentario largo en
+      // `autonomousCommentReply`.
+      if (s?.spam) {
         // Auto-hide spam/hate on the merchant's own post — sanctioned API,
         // best-effort (degrades if instagram_manage_comments isn't granted yet).
         if (opts.commentId) {
@@ -676,20 +676,23 @@ async function autonomousCommentReply(
   try {
     const [s] = await scoreLeads(apiKey, [engagement]);
     if (!s) return;
-    // El spam se oculta y se calla… salvo que además MEREZCA respuesta.
+    // El spam se oculta y se calla. DECISIÓN DEL COMERCIO, 2026-08-28.
     //
-    // El clasificador es un modelo de triage con una sola línea de criterio
-    // ("insulto/hate, irrelevante") y una crítica dura le da spam: "dejen de
-    // mentir", "publicidades falsas", "necesitamos comentarios verdaderos".
-    // Ocultar a una clienta que cuestiona a la marca es el peor final posible
-    // —lo ve ella, y se lee como censura— y encima la dejaba sin respuesta,
-    // porque acá se cortaba el camino antes de llegar a redactar nada.
+    // Estuvo un rato al revés: `mereceRespuesta` mandaba sobre el clasificador,
+    // con el argumento de que ocultar a una clienta que cuestiona la marca se
+    // lee como censura. El dueño lo revisó y decidió lo contrario: a un
+    // comentario que ataca a la marca —"dejen de mentir", "publicidades
+    // falsas"— no se le contesta en público, se lo saca de la vista. Contestar
+    // ahí sube el hilo, lo pone arriba en la publicación y le da tribuna a la
+    // discusión delante de todos los que pasan.
     //
-    // Así que `mereceRespuesta` manda sobre el clasificador: si hay una duda,
-    // un reclamo, una pregunta o algo con olor a juicio, no se oculta y sigue
-    // hasta la respuesta. Sólo se oculta el spam SIN nada que atender: el bot,
-    // el link, la autopromo.
-    if (s.spam && !motivo) {
+    // No hace falta una excepción para el cliente con un problema: el
+    // clasificador manda a spam el insulto y la autopromo, no un "no me llegó
+    // el pedido", que sigue de largo y llega a la respuesta como siempre.
+    //
+    // Si esto se vuelve a dar vuelta, que sea porque el dueño lo pide, no
+    // porque el comentario de arriba convenza a alguien.
+    if (s.spam) {
       // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
       // contestar, que es lo que importa.
       if (!isTikTok) {

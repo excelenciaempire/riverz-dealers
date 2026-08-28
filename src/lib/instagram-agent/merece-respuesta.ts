@@ -1,25 +1,25 @@
 /**
  * ¿ESTE COMENTARIO MERECE RESPUESTA AUNQUE NO QUIERA COMPRAR?
  *
+ * OJO CON EL ALCANCE (2026-08-28). Esto decide CÓMO se contesta un comentario
+ * que llegó hasta acá, y no si se oculta. Lo que el clasificador manda a spam
+ * —el insulto, la autopromo, el ataque a la marca— se oculta antes y no pasa
+ * por esta función: es una decisión del comercio, no un descuido. Ver
+ * `autonomousCommentReply` en `realtime.ts`.
+ *
  * El filtro "Solo a quien quiere comprar" existe para no perseguir por privado
- * al que sólo dejó un emoji. Pero se estaba llevando puesto algo distinto: las
- * críticas y las preguntas que no son de compra.
+ * al que sólo dejó un emoji. Pero se llevaba puesto algo distinto: la pregunta
+ * concreta y el reclamo de post-venta, que no son intención de compra y sí
+ * merecen respuesta. Un "no me llegó el pedido" debajo de una foto no es un
+ * cliente frío: es un problema sin resolver a la vista de todos.
  *
- * El 2026-08-28, debajo de un mismo post, quedaron sin contestar:
+ * Eso es lo que arregla esta función, y sólo eso. La hostilidad pura —"dejen de
+ * mentir, bastaaaa"— no llega hasta acá: la ataja el clasificador de spam, que
+ * la oculta y no la contesta. Contestarle subiría el hilo y le daría tribuna
+ * delante de todos los que pasan por la publicación.
  *
- *   "Muchos posteos con IA. No confío. ¿Podrán mostrar aprobación de ANMAT?"
- *   "No deberías hablar mal de otras marcas"
- *   "Qué manera de hacer publicidades falsas mezclando rostros…"
- *
- * Ninguna quiere comprar, así que las tres se descartaron. Pero un reclamo sin
- * responder debajo de una publicación se lee como que no hay nada que decir, y
- * la primera además hacía una pregunta concreta que la marca puede contestar.
- * Callarse ahí cuesta más que cualquier DM no enviado.
- *
- * Lo que NO entra: la hostilidad pura. "Dejen de mentir, bastaaaa" no tiene
- * pregunta ni afirmación que aclarar, y contestarle sube el hilo a la vista de
- * todos sin ayudar a nadie. Es un juicio distinto del de un reclamo con
- * contenido.
+ * El motivo que devuelve viaja al prompt: contestar una duda sobre la marca no
+ * se escribe igual que contestar un reclamo de un pedido.
  */
 
 /** Palabras que indican que se está poniendo en duda a la marca o el producto. */
