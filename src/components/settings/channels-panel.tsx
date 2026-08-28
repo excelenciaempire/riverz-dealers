@@ -460,7 +460,7 @@ export function ChannelsPanel() {
                             <button
                               onClick={() => handleDisconnect(ids)}
                               title={t("settings.disconnectAction")}
-                              className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-400"
+                              className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
                             >
                               <Unplug className="size-3.5" />
                             </button>

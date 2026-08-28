@@ -104,7 +104,7 @@ export function MlClaimsPanel({ workspaceId }: { workspaceId: string | null }) {
                   <span
                     className={cn(
                       "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                      "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
+                      "bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/30",
                     )}
                   >
                     {c.stage}

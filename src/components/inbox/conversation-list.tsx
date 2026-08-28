@@ -611,7 +611,7 @@ const ConversationItem = memo(function ConversationItem({
           >
             <DropdownMenuItem
               onClick={(e) => handleDelete(e as unknown as Event)}
-              className="text-sm text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
+              className="text-sm text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-700 dark:focus:text-red-300"
             >
               <Trash2 className="mr-2 h-4 w-4" />
               {t("inbox.deleteConversation")}
@@ -734,7 +734,7 @@ const ConversationItem = memo(function ConversationItem({
                 el hilo: si siguiera puesto después de leerlo, en un día la
                 bandeja entera estaría en rojo y el aviso no diría nada. */}
             {conversation.needs_human_at && !conversation.needs_human_visto_at && (
-              <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+              <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">
                 {t("inbox.needsHumanBadge")}
               </span>
             )}

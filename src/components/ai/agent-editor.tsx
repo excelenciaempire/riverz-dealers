@@ -1792,7 +1792,7 @@ export function AgentEditor({
                         <button
                           type="button"
                           onClick={() => toggleEscalate(kw)}
-                          className="rounded hover:text-red-400"
+                          className="rounded hover:text-red-700 dark:hover:text-red-400"
                         >
                           <X className="size-3" />
                         </button>

@@ -689,7 +689,7 @@ function ButtonRow({
           size="icon"
           onClick={onRemove}
           aria-label={t('templates.removeButton')}
-          className="text-muted-foreground hover:text-red-400"
+          className="text-muted-foreground hover:text-red-700 dark:hover:text-red-400"
         >
           <X className="h-4 w-4" />
         </Button>

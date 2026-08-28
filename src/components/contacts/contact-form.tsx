@@ -183,7 +183,7 @@ export function ContactForm({
 
           <div className="space-y-2">
             <Label htmlFor="cf-phone" className="text-foreground">
-              {t('contacts.fieldPhone')} <span className="text-red-400">*</span>
+              {t('contacts.fieldPhone')} <span className="text-red-700 dark:text-red-400">*</span>
             </Label>
             <Input
               id="cf-phone"

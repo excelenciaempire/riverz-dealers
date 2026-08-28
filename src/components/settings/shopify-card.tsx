@@ -176,7 +176,7 @@ export function ShopifyCard() {
               onClick={handleDisconnect}
               disabled={disconnecting}
               title={t('settings.disconnect')}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-700 dark:hover:text-amber-400"
             >
               {disconnecting ? (
                 <Loader2 className="size-3.5 animate-spin" />

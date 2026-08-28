@@ -412,7 +412,7 @@ export function WorkspacePanel() {
                   {isAdmin && (
                     <button
                       onClick={() => handleRemoveMember(m.id)}
-                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
                       aria-label={t("settings.removeMember")}
                     >
                       <Trash2 className="size-4" />
@@ -562,7 +562,7 @@ export function WorkspacePanel() {
                   {isAdmin && (
                     <button
                       onClick={() => handleRevokeInvite(inv.id)}
-                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+                      className="rounded-md p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground transition-colors hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
                       aria-label={t("settings.revokeInvite")}
                     >
                       <Trash2 className="size-4" />

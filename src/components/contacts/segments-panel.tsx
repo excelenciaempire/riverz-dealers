@@ -435,7 +435,7 @@ export function SegmentsPanel() {
                       onClick={() => handleDelete(s.id)}
                       disabled={deletingId === s.id}
                       title={t('contacts.delete')}
-                      className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-red-400 disabled:opacity-50"
+                      className="rounded p-2.5 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400 disabled:opacity-50"
                     >
                       {deletingId === s.id ? (
                         <Loader2 className="size-4 animate-spin" />
@@ -848,7 +848,7 @@ function RuleRow({
         <button
           onClick={onRemove}
           title={t('contacts.removeRule')}
-          className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+          className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
         >
           <X className="size-3.5" />
         </button>

@@ -265,7 +265,7 @@ export function MessageActions({
           <button
             type="button"
             onClick={handleDelete}
-            className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-red-500/20 hover:text-red-400"
+            className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-red-500/20 hover:text-red-700 dark:hover:text-red-400"
             aria-label={t("inbox.delete")}
           >
             <Trash2 className="h-3.5 w-3.5" />

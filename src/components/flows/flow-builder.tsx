@@ -256,7 +256,7 @@ const NODE_META: Record<
   send_list: {
     label: "flows.metaSendList",
     icon: ListPlus,
-    color: "text-indigo-400",
+    color: "text-indigo-700 dark:text-indigo-400",
     bg: "bg-indigo-500/15",
   },
   collect_input: {
@@ -268,7 +268,7 @@ const NODE_META: Record<
   condition: {
     label: "flows.metaCondition",
     icon: GitFork,
-    color: "text-fuchsia-400",
+    color: "text-fuchsia-700 dark:text-fuchsia-400",
     bg: "bg-fuchsia-500/15",
   },
   set_tag: {
@@ -304,7 +304,7 @@ const NODE_META: Record<
   send_cta_url: {
     label: "flows.metaSendCtaUrl",
     icon: ExternalLink,
-    color: "text-indigo-400",
+    color: "text-indigo-700 dark:text-indigo-400",
     bg: "bg-indigo-500/15",
   },
   wait: {
@@ -316,7 +316,7 @@ const NODE_META: Record<
   ai_intent: {
     label: "flows.metaAiIntent",
     icon: Sparkles,
-    color: "text-fuchsia-400",
+    color: "text-fuchsia-700 dark:text-fuchsia-400",
     bg: "bg-fuchsia-500/15",
   },
   shopify_lookup: {
@@ -2712,7 +2712,7 @@ function Header({
       />
       {!templatePreview && <StatusBadge status={state.status} />}
       {dirty && !templatePreview && (
-        <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-400 sm:inline-block" title={t("flows.unsavedChanges")} />
+        <span className="hidden h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400 sm:inline-block" title={t("flows.unsavedChanges")} />
       )}
       <div className="ml-auto flex items-center gap-1.5">
         {/* Undo / Redo — atajo Ctrl/Cmd+Z + Shift. Botones se
@@ -2825,7 +2825,7 @@ function Header({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDelete}
-              className="text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-300"
+              className="text-red-600 dark:text-red-400 focus:bg-red-500/10 focus:text-red-700 dark:focus:text-red-300"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {t("flows.deleteFlow")}
@@ -4302,7 +4302,7 @@ function SendButtonsForm({
                 variant="ghost"
                 size="sm"
                 onClick={() => removeButton(i)}
-                className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300"
                 aria-label={t("flows.deleteButton")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -4490,7 +4490,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeSection(sIdx)}
-                  className="shrink-0 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="shrink-0 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300"
                   aria-label={t("flows.deleteSection")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -4544,7 +4544,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeRow(sIdx, rIdx)}
-                  className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300"
                   aria-label={t("flows.deleteRow")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -5210,7 +5210,7 @@ function AiIntentForm({
                 <button
                   type="button"
                   onClick={() => removeIntent(idx)}
-                  className="self-start justify-self-end rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+                  className="self-start justify-self-end rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
                   aria-label={t("flows.removeIntent")}
                 >
                   <Trash2 className="size-3.5" />

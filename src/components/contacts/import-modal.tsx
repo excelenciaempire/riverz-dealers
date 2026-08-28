@@ -364,7 +364,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                   <label key={field} className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5">
                     <span className="text-xs text-foreground">
                       {t(`contacts.col${field[0].toUpperCase()}${field.slice(1)}`)}
-                      {field === 'phone' && <span className="text-red-400"> *</span>}
+                      {field === 'phone' && <span className="text-red-700 dark:text-red-400"> *</span>}
                     </span>
                     <select
                       value={mapping[field]}
@@ -443,7 +443,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                   </div>
                 )}
                 {result.failed > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-red-400">
+                  <div className="flex items-center gap-1.5 text-sm text-red-700 dark:text-red-400">
                     <XCircle className="size-4" />
                     {t('contacts.failedCount', { count: result.failed })}
                   </div>

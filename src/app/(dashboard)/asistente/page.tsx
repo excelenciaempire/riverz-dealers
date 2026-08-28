@@ -323,7 +323,7 @@ function AgentCard({
       <div
         className={cn(
           'pointer-events-none absolute inset-x-0 top-0 h-[2px]',
-          active ? 'bg-emerald-400' : 'bg-muted-foreground/20',
+          active ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-muted-foreground/20',
         )}
       />
 
@@ -366,7 +366,7 @@ function AgentCard({
           <span
             className={cn(
               'size-1.5 rounded-full',
-              active ? 'animate-pulse bg-emerald-400' : 'bg-muted-foreground/60',
+              active ? 'animate-pulse bg-emerald-500 dark:bg-emerald-400' : 'bg-muted-foreground/60',
             )}
           />
           {active ? t('assistant.statusOnline') : t('assistant.statusPaused')}
@@ -418,7 +418,7 @@ function AgentCard({
           <button
             onClick={onDelete}
             title={t('assistant.delete')}
-            className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-400"
+            className="inline-flex items-center justify-center min-h-9 min-w-9 rounded p-1 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
           >
             <Trash2 className="size-4" />
           </button>

@@ -95,7 +95,7 @@ export function EscalacionesPanel() {
                 {/* Sólo lo que nadie abrió: una lista entera en rojo no
                     distingue nada. */}
                 {c.pendiente && (
-                  <span className="shrink-0 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                  <span className="shrink-0 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-400">
                     {t('inbox.needsHumanBadge')}
                   </span>
                 )}

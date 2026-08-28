@@ -174,7 +174,7 @@ export function MercadoPagoCard() {
               onClick={disconnect}
               disabled={saving}
               title={t('settings.mpDisconnect')}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-400"
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-700 dark:hover:text-amber-400"
             >
               {saving ? (
                 <Loader2 className="size-3.5 animate-spin" />

@@ -29,9 +29,9 @@ const LABELS: Record<MlThreadKind, { row: string; header: string }> = {
 };
 
 const TONES: Record<MlThreadKind, string> = {
-  question: "bg-sky-400/10 text-sky-300 ring-1 ring-sky-400/30",
-  message: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
-  review: "bg-violet-400/10 text-violet-300 ring-1 ring-violet-400/30",
+  question: "bg-sky-400/10 text-sky-700 dark:text-sky-300 ring-1 ring-sky-400/30",
+  message: "bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/30",
+  review: "bg-violet-400/10 text-violet-700 dark:text-violet-300 ring-1 ring-violet-400/30",
 };
 
 export function MlKindBadge({

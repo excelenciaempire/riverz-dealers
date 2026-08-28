@@ -123,9 +123,9 @@ export function CommentModerationBar({
           disabled={busy !== null}
           title={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
           aria-label={liked ? t("inbox.removeLike") : t("inbox.likeAsPage")}
-          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-300"
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-rose-700 dark:hover:text-rose-300"
         >
-          <Heart className={liked ? "size-3 fill-rose-400 text-rose-400" : "size-3"} />
+          <Heart className={liked ? "size-3 fill-rose-400 text-rose-700 dark:text-rose-400" : "size-3"} />
         </button>
       )}
       {/* Ocultar es sólo para lo ajeno —ni Facebook ni Instagram dejan
@@ -139,7 +139,7 @@ export function CommentModerationBar({
           disabled={busy !== null}
           title={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
           aria-label={hidden ? t("inbox.showComment") : t("inbox.hideComment")}
-          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-300"
+          className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-amber-700 dark:hover:text-amber-300"
         >
           {hidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
         </button>
@@ -161,12 +161,12 @@ export function CommentModerationBar({
         disabled={busy !== null}
         title={t("inbox.delete")}
         aria-label={t("inbox.deleteComment")}
-        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-400"
+        className="flex items-center gap-1 rounded-md p-2 md:px-1.5 md:py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
       >
         <Trash2 className="size-3" />
       </button>
       {hidden && (
-        <span className="ml-0.5 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+        <span className="ml-0.5 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
           {t("inbox.moderationHidden")}
         </span>
       )}
