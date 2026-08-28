@@ -13,6 +13,7 @@ export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
 import { transcribeAudio } from './transcribe';
@@ -2173,11 +2174,14 @@ async function generateReply(
           ).map((t) => t.key),
         }
       : null,
-    model: agent.model || 'claude-haiku-4-5-20251001',
-    max_tokens: Math.max(
-      64,
-      Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2)),
-    ),
+    model: agent.model || MODELO_POR_DEFECTO,
+    // El techo de la RESPUESTA sale del largo que eligio el comercio. Con un
+    // modelo que piensa antes de contestar hay que sumarle aire: lo que piensa
+    // sale del mismo presupuesto, y sin margen se queda sin lugar para la
+    // respuesta y devuelve un mensaje cortado o vacio.
+    max_tokens:
+      Math.max(64, Math.min(2048, Math.ceil((agent.max_response_chars || 500) / 2))) +
+      (reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4000 : 0),
     system,
     messages: claudeMessages,
     tools,

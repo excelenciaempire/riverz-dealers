@@ -26,6 +26,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
+import { MODELO_POR_DEFECTO } from '@/lib/ai/esfuerzo';
 import { ReglasPanel } from '@/components/ai/reglas-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,10 +95,11 @@ const TONES: { value: AiTone; label: string; hint: string }[] = [
   { value: 'concise', label: 'assistant.toneConcise', hint: 'assistant.toneConciseHint' },
 ];
 
-// Modelo fijo: Haiku es la mejor relación calidad/costo y la decisión
-// no aporta valor al merchant; lo elegimos por ellos. Si en el futuro
-// queremos exponerlo, vuelve a ser una constante con varios valores.
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+// Modelo fijo: la decisión no aporta valor al comercio, la tomamos por él. Lo
+// que cambió es cuál. Estuvo en Haiku 4.5 por costo hasta que se midió lo que
+// escribía: con una lista larga de reglas se le escapan las últimas, y las
+// últimas son las que le prohíben afirmar lo que no le consta.
+const DEFAULT_MODEL = MODELO_POR_DEFECTO;
 
 // El persona por defecto sigue el idioma del merchant (su locale de UI): un
 // merchant de habla inglesa arranca con un persona en inglés. Guardamos ambas

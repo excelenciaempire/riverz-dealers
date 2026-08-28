@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
 import type { AiAgent } from './types';
@@ -227,7 +228,11 @@ export async function componerBorrador(
           // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
           // de ingredientes.
           model: MODELO_BORRADOR,
-          max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
+          // Lo que el modelo piensa sale del mismo presupuesto que la
+          // respuesta: sin aire se queda sin lugar para contestar.
+          max_tokens:
+            Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
+            (reguladoPorEsfuerzo(MODELO_BORRADOR) ? 4000 : 0),
           system,
           messages: claudeMessages,
           // El mismo constructor que usa el agente cuando contesta solo, en
@@ -439,7 +444,7 @@ function redactorGenerico(workspaceId: string, nombreDelComercio: string | null)
     followup_max_count: 0,
     puede_crear_pedidos: false,
     provider: 'anthropic',
-    model: 'claude-haiku-4-5-20251001',
+    model: MODELO_POR_DEFECTO,
     api_key_encrypted: null,
     scope: 'workspace',
     product_scope: 'all',

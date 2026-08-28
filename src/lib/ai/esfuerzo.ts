@@ -47,3 +47,18 @@ export function esfuerzo(
     output_config: { effort: opciones.effort ?? 'low' },
   }
 }
+
+/**
+ * El modelo con el que atiende un asistente nuevo.
+ *
+ * Estuvo clavado en Haiku 4.5 por costo, y hasta el 2026-08-28 fue una
+ * decision razonable. Dejo de serlo cuando se midio lo que escribia: con una
+ * lista larga de reglas se le escapan las ultimas, y las ultimas eran las que
+ * le prohiben afirmar lo que no le consta. Publico "no tenemos aprobacion
+ * ANMAT" y "los testimonios son reales" debajo de una foto.
+ *
+ * Un modelo que desobedece la regla numero ocho no sirve para atender en
+ * publico, por barato que sea. Se corre con esfuerzo BAJO, que es donde la
+ * diferencia de precio se achica y la obediencia se mantiene.
+ */
+export const MODELO_POR_DEFECTO = 'claude-opus-5'

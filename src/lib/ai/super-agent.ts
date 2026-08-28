@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { salidaParaCliente, recortarSalida } from './salida';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
@@ -212,8 +213,12 @@ export async function composeSuperAgentReply(
 
     const maxChars = Math.min(agent.max_response_chars || 500, IG_DM_MAX_CHARS);
     const result = await runWithTools(getAnthropic(apiKey), {
-      model: agent.model || 'claude-haiku-4-5-20251001',
-      max_tokens: Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))),
+      model: agent.model || MODELO_POR_DEFECTO,
+      // Lo que el modelo piensa sale del mismo presupuesto que la
+      // respuesta: sin aire se queda sin lugar para contestar.
+      max_tokens:
+        Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
+        (reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4000 : 0),
       system,
       messages: claudeMessages,
       tools,

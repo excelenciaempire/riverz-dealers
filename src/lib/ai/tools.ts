@@ -13,6 +13,7 @@
  */
 
 import { filtroDeNumero } from '@/lib/orders/numero'
+import { esfuerzo, reguladoPorEsfuerzo } from './esfuerzo'
 import { armarLinkDeCompra } from '@/lib/commerce/create-checkout'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -1921,6 +1922,15 @@ export async function runWithTools(
         system,
         messages,
         ...(args.tools.length > 0 ? { tools: args.tools } : {}),
+        // Cuánto piensa antes de contestar. `esfuerzo` devuelve {} en Haiku,
+        // que rechaza estos dos parámetros con un 400 — así que la misma
+        // llamada sirve para los dos modelos.
+        //
+        // Esfuerzo BAJO a propósito: contestar un DM no es un problema
+        // difícil, y lo que se piensa se cobra y se descuenta de max_tokens.
+        // Lo que se busca del modelo grande acá no es que razone más, es que
+        // no se saltee las reglas.
+        ...esfuerzo(args.model, { effort: 'low', pensar: 'adaptive' }),
       })
     } catch (err) {
       // On the FIRST iteration only, retry once after rewriting any

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MODELO_POR_DEFECTO, esfuerzo, reguladoPorEsfuerzo } from './esfuerzo';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
@@ -241,8 +242,10 @@ export async function runFollowUp(
 
     const client = getAnthropic(apiKey);
     const resp = await client.messages.create({
-      model: agent.model || 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      model: agent.model || MODELO_POR_DEFECTO,
+      // 400 alcanzaba para el mensaje; con un modelo que piensa antes de
+      // escribir, lo que piensa sale del mismo presupuesto.
+      max_tokens: reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4400 : 400,
       system: buildSystem(
         agent,
         silenceHours,
@@ -250,6 +253,7 @@ export async function runFollowUp(
         reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id)),
       ),
       messages,
+      ...esfuerzo(agent.model || MODELO_POR_DEFECTO, { effort: 'low', pensar: 'adaptive' }),
     });
     const text = extractText(
       resp as unknown as { content?: Array<{ type?: string; text?: string }> },
