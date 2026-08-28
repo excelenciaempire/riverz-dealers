@@ -1,43 +1,40 @@
 "use client";
 
+import Image from "next/image";
+
 import { useT } from "@/hooks/use-locale";
 import { Rise } from "./bits";
-import {
-  CompAtencion,
-  CompBandeja,
-  CompCampanas,
-  CompCarrito,
-  CompComentarios,
-  CompContactos,
-  CompEnVivo,
-  CompLlamadas,
-  CompMinutos,
-  CompRecompras,
-  CompRoas,
-  CompTienda,
-  CompVendedor,
-} from "./compositions";
 
 /**
  * Qué hace — el mosaico.
  *
- * Trece funcionalidades, trece dibujos. Ninguno repetido.
+ * Trece funcionalidades, una ilustración propia cada una. Ninguna repetida.
  *
- * Por acá pasaron dos versiones que no funcionaban. La primera eran trece
- * fichas idénticas con la misma vista previa metida en el mismo marco de
- * navegador: a la quinta se lee como una lista y se saltea. La segunda le puso
- * una fotografía a cada una: quedaban lindas y no decían nada del producto —una
- * canasta volcada no explica qué es recuperar un carrito.
+ * PENDIENTE: van seis de trece. Kie se quedó sin saldo a mitad de la tanda, y
+ * las siete que faltan (campañas, bandeja, en vivo, tienda, contactos, minutos,
+ * ROAS) se recuperan corriendo de nuevo `kie-ilus.py`, que se saltea las que ya
+ * existen. Mientras tanto esas fichas van en arena y solo con tipografía: es un
+ * cuarto tipo de ficha, no un hueco.
  *
- * Lo que sí funciona es lo que hace Siena: un pequeño diagrama por función,
- * armado con las piezas de la interfaz de verdad. La ficha del producto con su
- * línea de stock, la burbuja que cita ese dato, el logo del canal en su placa,
- * el chip del estado. Se entiende de un vistazo y es imposible de confundir con
- * la competencia, porque está hecho con nuestras piezas.
+ * Por acá pasaron tres versiones. Trece fichas idénticas con la misma vista
+ * previa en el mismo marco de navegador: a la quinta se lee como una lista y se
+ * saltea. Fotografía de objetos: linda y muda —una canasta volcada no explica
+ * qué es recuperar un carrito—. Diagramas de interfaz dibujados en HTML:
+ * precisos, pero al tamaño de una ficha se leen como una captura chica más.
  *
- * Los anchos siguen siendo cuatro y las filas suman seis columnas de formas
- * distintas (4+2, 3+3, 6, 4+2, 2+4), así que el ojo nunca encuentra el mismo
- * ritmo dos veces. Los huecos los rellena `grid-auto-flow: dense`.
+ * Lo que quedó es ilustración editorial plana, en el mismo registro que la del
+ * hero: cuatro colores, formas geométricas, grano de risografía y una idea
+ * gráfica por función que se entiende antes de leer el título. El carrito que
+ * se escapa y el lazo amarillo que lo trae. El reloj cuyas horas son burbujas.
+ * La clepsidra con tres granos. Son imágenes, no capturas, así que compiten en
+ * el terreno donde una landing se gana: el primer segundo.
+ *
+ * Ninguna lleva texto adentro, a propósito: las letras generadas salen
+ * deformes y además habría que dibujar cada imagen dos veces, una por idioma.
+ *
+ * Los anchos son cuatro y las filas suman seis columnas de formas distintas,
+ * así que el ojo nunca encuentra el mismo ritmo dos veces. Los huecos los
+ * rellena `grid-auto-flow: dense`.
  *
  * Los textos salen del catálogo `landing`: son las trece funciones de la
  * portada principal, con sus palabras. Si mañana se corrige una, se corrige en
@@ -52,13 +49,20 @@ type Tile = {
   /** Ancho en la cuadrícula de 2 columnas (tablet) y en la de 6 (escritorio). */
   sm: 1 | 2;
   lg: 2 | 3 | 4 | 6;
-  Comp: () => React.ReactElement;
+  /**
+   * La ilustración y su proporción, generada a esa misma medida.
+   * Sin ella la ficha se pinta en arena y queda solo la tipografía —que es un
+   * cuarto tipo de ficha, no un hueco.
+   */
+  img?: string;
+  ratio?: string;
 };
 
 const TILES: Tile[] = [
   {
     key: "sec01",
-    Comp: CompVendedor,
+    img: "/portada-b/i-vendedor.jpg",
+    ratio: "16 / 9",
     title: "landing.sec01Title",
     muted: "landing.sec01TitleMuted",
     body: "landing.sec01Body",
@@ -67,7 +71,8 @@ const TILES: Tile[] = [
   },
   {
     key: "secVoice",
-    Comp: CompLlamadas,
+    img: "/portada-b/i-llamadas.jpg",
+    ratio: "3 / 4",
     title: "landing.secVoiceTitle",
     muted: "landing.secVoiceTitleMuted",
     body: "landing.secVoiceBody",
@@ -76,7 +81,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec02",
-    Comp: CompCarrito,
+    img: "/portada-b/i-carritos.jpg",
+    ratio: "4 / 3",
     title: "landing.sec02Title",
     muted: "landing.sec02TitleMuted",
     body: "landing.sec02Body",
@@ -85,7 +91,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec04",
-    Comp: CompAtencion,
+    img: "/portada-b/i-atencion.jpg",
+    ratio: "4 / 3",
     title: "landing.sec04Title",
     muted: "landing.sec04TitleMuted",
     body: "landing.sec04Body",
@@ -94,7 +101,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec03",
-    Comp: CompRecompras,
+    img: "/portada-b/i-recompras.jpg",
+    ratio: "4 / 3",
     title: "landing.sec03Title",
     muted: "landing.sec03TitleMuted",
     body: "landing.sec03Body",
@@ -103,7 +111,8 @@ const TILES: Tile[] = [
   },
   {
     key: "sec05",
-    Comp: CompComentarios,
+    img: "/portada-b/i-comentarios.jpg",
+    ratio: "4 / 3",
     title: "landing.sec05Title",
     muted: "landing.sec05TitleMuted",
     body: "landing.sec05Body",
@@ -112,7 +121,6 @@ const TILES: Tile[] = [
   },
   {
     key: "sec06",
-    Comp: CompCampanas,
     title: "landing.sec06Title",
     muted: "landing.sec06TitleMuted",
     body: "landing.sec06Body",
@@ -121,7 +129,6 @@ const TILES: Tile[] = [
   },
   {
     key: "secLive",
-    Comp: CompEnVivo,
     title: "landing.secLiveTitle",
     muted: "landing.secLiveTitleMuted",
     body: "landing.secLiveBody",
@@ -130,7 +137,6 @@ const TILES: Tile[] = [
   },
   {
     key: "sec07",
-    Comp: CompBandeja,
     title: "landing.sec07Title",
     muted: "landing.sec07TitleMuted",
     body: "landing.sec07Body",
@@ -139,7 +145,6 @@ const TILES: Tile[] = [
   },
   {
     key: "sec08",
-    Comp: CompTienda,
     title: "landing.sec08Title",
     muted: "landing.sec08TitleMuted",
     body: "landing.sec08Body",
@@ -148,7 +153,6 @@ const TILES: Tile[] = [
   },
   {
     key: "secContacts",
-    Comp: CompContactos,
     title: "landing.secContactsTitle",
     muted: "landing.secContactsTitleMuted",
     body: "landing.secContactsBody",
@@ -157,7 +161,6 @@ const TILES: Tile[] = [
   },
   {
     key: "sec09",
-    Comp: CompMinutos,
     title: "landing.sec09Title",
     muted: "landing.sec09TitleMuted",
     body: "landing.sec09Body",
@@ -166,7 +169,6 @@ const TILES: Tile[] = [
   },
   {
     key: "sec10",
-    Comp: CompRoas,
     title: "landing.sec10Title",
     muted: "landing.sec10TitleMuted",
     body: "landing.sec10Body",
@@ -196,7 +198,11 @@ export function Cards() {
           delay={(i % 2) * 80}
           className={`min-w-0 ${SM[tile.sm]} ${LG[tile.lg]}`}
         >
-          <article className="sn-card flex h-full min-w-0 flex-col overflow-hidden">
+          <article
+            className={`flex h-full min-w-0 flex-col overflow-hidden ${
+              tile.img ? "sn-card" : "sn-card-sand"
+            }`}
+          >
             <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-8">
               <h3 className="sn-h3 max-w-[20ch]">
                 {t(tile.title)} <span style={{ color: "var(--sn-muted)" }}>{t(tile.muted)}</span>
@@ -204,12 +210,30 @@ export function Cards() {
 
               <p className="sn-body mt-3 max-w-[48ch] !text-[15px]">{t(tile.body)}</p>
 
-              {/* El diagrama va al pie y crece con la ficha. `mt-auto` lo
-                  empuja abajo, así que las fichas de una misma fila alinean el
-                  dibujo aunque el texto mida distinto. */}
-              <div className="mt-auto min-w-0 pt-8">
-                <tile.Comp />
-              </div>
+              {/* La ilustración va al pie y crece con la ficha. `mt-auto` la
+                  empuja abajo, así que las fichas de una misma fila alinean la
+                  imagen aunque el texto mida distinto.
+
+                  El fondo de la imagen es el mismo crema de la ficha, así que
+                  no hace falta marco ni sombra: la ilustración se apoya en el
+                  papel y las esquinas redondeadas alcanzan. */}
+              {tile.img && (
+                <div className="mt-auto min-w-0 pt-8">
+                  <div
+                    className="relative w-full overflow-hidden rounded-2xl"
+                    style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
+                  >
+                    <Image
+                      src={tile.img}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+                      className="object-cover"
+                      aria-hidden
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </article>
         </Rise>
