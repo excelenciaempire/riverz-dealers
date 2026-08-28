@@ -51,6 +51,12 @@ next-env.d.ts
 *.mov
 *.mkv
 
+# …salvo los que la web SIRVE. Lo de arriba es para que no entre una grabación
+# de pantalla de 80 MB; un clip de la landing es un recurso del producto, y sin
+# esta excepción se ignora en silencio, el deploy sale sin él y el <video> da
+# 404 sin que nada avise.
+!public/**/*.mp4
+
 # Volcados de la API de PyPI que quedaron de una sesión anterior de voz.
 fishpkg.json
 la.json
