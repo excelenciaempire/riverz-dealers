@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { idColumn } from '@/lib/short-id';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -460,13 +461,69 @@ export async function GET(
       }
     }
 
+    // ── Enviados / entregados / leídos: los nuestros, no los de Meta ──
+    //
+    // Meta reportaba 75 envíos de `carrito_abandonado_2` en 30 días y nuestra
+    // propia base tenía 96 mensajes a 93 personas, con acuse de Meta en cada
+    // uno (72 leídos, 24 entregados). En la misma tarjeta convivían "Enviados
+    // 75" y "12 de 93 que lo recibieron": imposible alcanzar a más gente que
+    // mensajes salieron, y nadie puede saber cuál creer.
+    //
+    // `template_analytics` de Meta llega tarde y no cuenta todo. Nuestras filas
+    // son lo que de verdad salió y lo que Meta acusó, así que mandan ellas.
+    // Lo único que sigue viniendo de Meta son los CLICS: eso no lo sabemos por
+    // nuestra cuenta.
+    // Los mismos 30 días que mira el resto de la tarjeta.
+    const desde30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const propias = await conteosPropios(db, tpl.workspace_id, tpl.name, desde30d);
+
     return NextResponse.json({
       hasButtons,
       metaOk,
-      metrics: { sent, delivered, read, clicked },
+      metrics: {
+        sent: propias ? propias.enviados : sent,
+        delivered: propias ? propias.entregados : delivered,
+        read: propias ? propias.leidos : read,
+        clicked,
+      },
       cart,
     });
   } catch (err) {
     return serverError(err, 'template analytics failed');
+  }
+}
+
+/**
+ * Lo que de verdad salió de esta plantilla, contado en nuestra base.
+ *
+ * `sent` = lo que Meta aceptó (todo menos lo fallido). `delivered` = lo que
+ * llegó al teléfono: entregado o leído, porque un mensaje leído estuvo
+ * entregado antes. Devuelve null si no hay ninguna fila, para caer a lo de
+ * Meta en vez de mostrar ceros.
+ */
+async function conteosPropios(
+  db: SupabaseClient,
+  workspaceId: string,
+  templateName: string,
+  sinceIso: string,
+): Promise<{ enviados: number; entregados: number; leidos: number } | null> {
+  try {
+    const { data } = await db
+      .from('messages')
+      .select('status, conversations!inner(workspace_id)')
+      .eq('template_name', templateName)
+      .eq('conversations.workspace_id', workspaceId)
+      .gte('created_at', sinceIso)
+      .limit(5000);
+    const filas = (data ?? []) as Array<{ status: string | null }>;
+    if (filas.length === 0) return null;
+    const enviados = filas.filter((f) => f.status !== 'failed').length;
+    const leidos = filas.filter((f) => f.status === 'read').length;
+    const entregados = filas.filter(
+      (f) => f.status === 'delivered' || f.status === 'read',
+    ).length;
+    return { enviados, entregados, leidos };
+  } catch {
+    return null;
   }
 }
