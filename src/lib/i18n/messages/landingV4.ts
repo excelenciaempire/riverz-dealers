@@ -91,34 +91,22 @@ export const landingV4 = {
     en: "You don't have to set anything up",
   },
   launchBody: {
-    es: "La mayoría de las herramientas te entrega un panel vacío y te desea suerte. Aquí entra como entra un empleado que ya sabe trabajar: conectas la tienda y el resto lo montamos nosotros.",
-    en: "Most tools hand you an empty dashboard and wish you luck. This arrives the way a new hire does when they already know the job: you connect the store, and we build the rest.",
+    es: "Otras herramientas te dan un panel vacío. Riverz llega montado: conectas la tienda y nosotros hacemos el resto.",
+    en: "Other tools hand you an empty dashboard. Riverz arrives built: you connect the store, we do the rest.",
   },
-  launch1Title: { es: "Conectas tu tienda y tus canales", en: "You connect your store and channels" },
-  launch1Body: {
-    es: "Unos cuantos clics. No tienes que diseñar la operación ni dibujar cien caminos antes de saber si sirve.",
-    en: "A few clicks. No operation to design, no hundred branches to draw before you know if it works.",
-  },
+  // Su propio botón, distinto al de la barra. El de arriba dice qué hacés;
+  // éste dice qué te llevás, que es de lo que trata el diálogo.
+  launchCta: { es: "Que lo monten por mí", en: "Set it up for me" },
+  launch1Title: { es: "Conectas tu tienda", en: "You connect your store" },
+  launch1Body: { es: "Unos clics. No hay nada que diseñar.", en: "A few clicks. Nothing to design." },
   launch2Title: { es: "Riverz estudia tu marca", en: "Riverz studies your brand" },
-  launch2Body: {
-    es: "Revisa el catálogo, las políticas, el tono, los pedidos y lo que hoy hace tu equipo a mano.",
-    en: "It reviews the catalog, the policies, the tone, the orders, and what your team does by hand today.",
-  },
-  launch3Title: { es: "Nosotros configuramos todo", en: "We configure everything" },
-  launch3Body: {
-    es: "Los agentes, los flujos, los seguimientos, las aprobaciones y los límites. No lo dejamos de tu lado.",
-    en: "The agents, the flows, the follow-ups, the approvals, and the limits. We don't leave it on your side.",
-  },
-  launch4Title: { es: "Tú revisas y apruebas", en: "You review and approve" },
-  launch4Body: {
-    es: "Nada le escribe a un cliente hasta que estés conforme con lo que va a decir y con lo que puede hacer.",
-    en: "Nothing writes to a customer until you're happy with what it will say and what it's allowed to do.",
-  },
-  launch5Title: { es: "Empiezas a pagar después", en: "You start paying later" },
-  launch5Body: {
-    es: "La instalación no cuesta y te acompañamos hasta que la operación muestre el valor que acordamos. Recién ahí arranca el plan.",
-    en: "Setup is free and we stay with you until the operation shows the value we agreed on. Only then does the plan start.",
-  },
+  launch2Body: { es: "Catálogo, políticas, tono y pedidos.", en: "Catalog, policies, tone and orders." },
+  launch3Title: { es: "Lo configuramos nosotros", en: "We configure it" },
+  launch3Body: { es: "Agentes, flujos, seguimientos y límites.", en: "Agents, flows, follow-ups and limits." },
+  launch4Title: { es: "Tú apruebas", en: "You approve" },
+  launch4Body: { es: "No le escribe a nadie hasta que digas que sí.", en: "It writes to nobody until you say yes." },
+  launch5Title: { es: "Pagas después", en: "You pay later" },
+  launch5Body: { es: "La instalación no cuesta. El plan arranca cuando ya funciona.", en: "Setup is free. The plan starts once it works." },
 
   // ── Riverz Loop: el mecanismo ──
   // «Riverz Loop» era un nombre interno. Nadie que entra por primera vez sabe
@@ -322,27 +310,31 @@ export const landingV4 = {
   // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
   // que la conexión es por la API oficial y que el App Review está aprobado.
   trustLabel: { es: "Confianza", en: "Trust" },
-  // El título es la promesa, no la metáfora. Antes decía «Conectado por la
-  // puerta de adelante»: bonito, pero hay que leer el párrafo entero para
-  // saber qué gana quien lo lee. Esto lo dice en cuatro palabras, y es
-  // exactamente el miedo que tiene: que un día el número deje de andar.
+  // Una frase y una descripción. Nada más.
+  //
+  // Acá hubo primero cuatro bloques de título + párrafo (noventa palabras) y
+  // después cinco insignias de texto. Las dos versiones explicaban; ninguna
+  // tranquilizaba. Quien lee esto no quiere el detalle técnico de cómo nos
+  // conectamos: quiere saber que no se le va a caer nada encima. Eso se dice
+  // en una línea y se prueba con un sello, no con una lista.
   trustTitle: {
-    es: "Tu número no se cae",
-    en: "Your number stays up",
+    es: "Menos caos, más facturación",
+    en: "Less chaos, more revenue",
   },
   trustBody: {
-    es: "Las herramientas colgadas de un teléfono espejo se caen el día que Meta las detecta. Riverz entra por la API oficial.",
-    en: "Tools that hang off a mirrored phone go down the day Meta notices. Riverz connects through the official API.",
+    es: "Riverz conecta tus canales por la vía oficial de Meta, con todos los permisos aprobados. Tu número queda a tu nombre y tus datos son sólo tuyos.",
+    en: "Riverz connects your channels the official Meta way, with every permission approved. Your number stays in your name and your data stays yours.",
   },
-  // Cinco hechos comprobables, de tres a cinco palabras cada uno. Antes eran
-  // cuatro bloques de título + párrafo: noventa palabras para decir esto
-  // mismo. La confianza se declara corta — un texto largo explicando por qué
-  // confiar consigue lo contrario.
-  trustBadge1: { es: "API oficial de Meta", en: "Official Meta API" },
-  trustBadge2: { es: "App Review aprobado", en: "Meta App Review approved" },
-  trustBadge3: { es: "El número, a tu nombre", en: "The number stays yours" },
-  trustBadge4: { es: "Datos cifrados y aislados", en: "Encrypted, isolated data" },
-  trustBadge5: { es: "Nada crítico en automático", en: "Nothing critical on autopilot" },
+  trustPill: {
+    es: "Nada se cae. Nada se pierde.",
+    en: "Nothing goes down. Nothing gets lost.",
+  },
+  // Las dos vueltas del sello.
+  trustSealTop: { es: "Conexión oficial", en: "Official connection" },
+  trustSealRing: {
+    es: "API OFICIAL DE META · APP REVIEW APROBADO · ",
+    en: "OFFICIAL META API · APP REVIEW APPROVED · ",
+  },
 
   // ── Cierre ──
   // Sin promesa de instalación: eso vive en la oferta, que es temporal.

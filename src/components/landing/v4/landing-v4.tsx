@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, PhoneCall } from "lucide-react";
+import { ArrowRight, PhoneCall } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { localizePath } from "@/lib/i18n/routes";
@@ -396,35 +396,107 @@ function Channels() {
  * plantilla comprada, esto como una credencial.
  */
 
-const CONFIANZA = [
-  "landingV4.trustBadge1",
-  "landingV4.trustBadge2",
-  "landingV4.trustBadge3",
-  "landingV4.trustBadge4",
-  "landingV4.trustBadge5",
-] as const;
+/**
+ * El sello. Una credencial dibujada, no una lista de hechos.
+ *
+ * Es la pieza que hace el trabajo que hacía el texto: una lista de cinco
+ * cosas se lee y se olvida, un sello se reconoce. Va en SVG y no en un JPG
+ * para que escale sin pesar y tome los colores de la portada.
+ *
+ * Lo que dice es sólo lo comprobable —API oficial y App Review aprobado—.
+ * Sigue sin ir «Meta Business Partner»: es un programa cerrado y usar el
+ * sello sin estar adentro pone en riesgo la app.
+ */
+function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
+  const muescas = Array.from({ length: 60 });
+  return (
+    <svg
+      viewBox="0 0 220 220"
+      className="h-[168px] w-[168px] shrink-0 sm:h-[200px] sm:w-[200px]"
+      role="img"
+      aria-label={arriba}
+    >
+      <defs>
+        <path id="sn-sello-anillo" d="M110,110 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0" />
+      </defs>
+
+      {/* El canto dentado del troquel. */}
+      {muescas.map((_, i) => {
+        const a = (i / muescas.length) * Math.PI * 2;
+        return (
+          <line
+            key={i}
+            x1={110 + Math.cos(a) * 103}
+            y1={110 + Math.sin(a) * 103}
+            x2={110 + Math.cos(a) * 108}
+            y2={110 + Math.sin(a) * 108}
+            stroke="var(--sn-ink)"
+            strokeWidth={i % 5 === 0 ? 2 : 1}
+            opacity={i % 5 === 0 ? 0.55 : 0.28}
+          />
+        );
+      })}
+
+      <circle cx="110" cy="110" r="99" fill="none" stroke="var(--sn-ink)" strokeWidth="1" opacity="0.35" />
+      <circle cx="110" cy="110" r="70" fill="var(--sn-ink)" />
+
+      {/* La leyenda, dando la vuelta. */}
+      <text
+        fill="var(--sn-ink)"
+        style={{ fontSize: 10.5, letterSpacing: "0.2em", fontWeight: 500 }}
+        opacity="0.75"
+      >
+        <textPath href="#sn-sello-anillo" startOffset="0%">
+          {anillo}
+          {anillo}
+        </textPath>
+      </text>
+
+      {/* El visto, en el lima de la casa. */}
+      <path
+        d="M88 111 l15 15 l30 -32"
+        fill="none"
+        stroke="var(--sn-accent)"
+        strokeWidth="7.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x="110"
+        y="152"
+        textAnchor="middle"
+        fill="var(--sn-card)"
+        style={{ fontSize: 10, letterSpacing: "0.16em", fontWeight: 600, textTransform: "uppercase" }}
+        opacity="0.72"
+      >
+        {arriba}
+      </text>
+    </svg>
+  );
+}
 
 function Confianza() {
   const t = useT();
   return (
     <section id="confianza" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-16 lg:pb-24">
       <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
-        <Rise>
-          <Label>{t("landingV4.trustLabel")}</Label>
-          <h2 className="sn-h2 mt-5 max-w-[16ch]">{t("landingV4.trustTitle")}</h2>
-          <p className="sn-body mt-5 max-w-[46ch]">{t("landingV4.trustBody")}</p>
-        </Rise>
+        <div className="flex flex-col-reverse items-start gap-10 md:flex-row md:items-center md:justify-between md:gap-14">
+          <Rise>
+            <Label>{t("landingV4.trustLabel")}</Label>
+            <h2 className="sn-h2 mt-5 max-w-[15ch]">{t("landingV4.trustTitle")}</h2>
+            <p className="sn-body mt-5 max-w-[48ch]">{t("landingV4.trustBody")}</p>
+            <p className="sn-pill sn-pill-sm mt-7 !bg-[var(--sn-accent)] !text-[var(--sn-ink)]">
+              {t("landingV4.trustPill")}
+            </p>
+          </Rise>
 
-        <Rise delay={90}>
-          <ul className="mt-11 flex flex-wrap gap-2.5">
-            {CONFIANZA.map((k) => (
-              <li key={k} className="sn-badge">
-                <BadgeCheck aria-hidden className="size-[17px]" strokeWidth={1.75} />
-                {t(k)}
-              </li>
-            ))}
-          </ul>
-        </Rise>
+          <Rise delay={90}>
+            <Sello
+              anillo={t("landingV4.trustSealRing")}
+              arriba={t("landingV4.trustSealTop")}
+            />
+          </Rise>
+        </div>
       </div>
     </section>
   );

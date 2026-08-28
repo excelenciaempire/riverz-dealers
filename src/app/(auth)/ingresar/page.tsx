@@ -7,7 +7,7 @@ import { signupsOpen } from "@/lib/auth/signups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MarcoAuth, TituloAuth } from "@/components/auth/marco";
+import { ARTE, MarcoAuth, TituloAuth } from "@/components/auth/marco";
 
 export default function LoginPage() {
   const t = useT();
@@ -44,7 +44,7 @@ export default function LoginPage() {
   };
 
   return (
-    <MarcoAuth>
+    <MarcoAuth arte={ARTE.bandeja}>
       <TituloAuth titulo={t("auth.loginTitle")} />
       <form onSubmit={handleLogin} className="flex flex-col gap-4">
             {error && (
@@ -60,7 +60,6 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -83,7 +82,6 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

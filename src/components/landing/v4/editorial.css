@@ -137,35 +137,6 @@
   font-size: 14px;
 }
 
-/* ── Insignias: una credencial, no una viñeta ──────────────
-   Van sobre la ficha arena, así que el relleno es la crema —
-   un escalón MÁS claro que el fondo, que es lo que las hace
-   ver aplicadas encima y no dibujadas dentro. El sello va en
-   el acento y el texto en tinta: el acento de esta portada no
-   contrasta como letra, sólo como marca. */
-
-.sn-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: 999px;
-  background: var(--sn-card);
-  border: 1px solid var(--sn-line);
-  color: var(--sn-ink);
-  font-size: 14.5px;
-  font-weight: 500;
-  letter-spacing: -0.012em;
-  line-height: 1;
-  padding: 0.62rem 1.05rem 0.62rem 0.78rem;
-  /* Sin `nowrap`: en un teléfono angosto una insignia de cinco
-     palabras tiene que poder partirse en vez de desbordar. */
-}
-
-.sn-badge svg {
-  flex-shrink: 0;
-  color: var(--sn-ink-accent);
-}
-
 /* ── Fichas: crema sobre crema, esquina generosa, sin borde ── */
 
 .sn-card {

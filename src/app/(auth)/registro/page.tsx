@@ -8,7 +8,7 @@ import { LEGAL_VERSION } from "@/lib/legal/version";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MarcoAuth, TituloAuth } from "@/components/auth/marco";
+import { ARTE, MarcoAuth, TituloAuth } from "@/components/auth/marco";
 import { CheckCircle, Eye, EyeOff } from "lucide-react";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
@@ -113,7 +113,7 @@ function SignupForm() {
 
   if (success) {
     return (
-      <MarcoAuth>
+      <MarcoAuth arte={ARTE.envivo}>
         <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
           <CheckCircle className="h-6 w-6 text-accent-ink" />
         </div>
@@ -139,7 +139,7 @@ function SignupForm() {
   }
 
   return (
-    <MarcoAuth>
+    <MarcoAuth arte={ARTE.vendedor}>
       <TituloAuth
         titulo={t("auth.signupTitle")}
         bajada={pendingShop ? t("auth.shopifyPendingNotice", { shop: pendingShop }) : undefined}
@@ -162,7 +162,6 @@ function SignupForm() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  placeholder={t("auth.inviteCodePlaceholder")}
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   required
@@ -181,7 +180,6 @@ function SignupForm() {
               <Input
                 id="fullName"
                 type="text"
-                placeholder=""
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
@@ -196,7 +194,6 @@ function SignupForm() {
               <Input
                 id="email"
                 type="email"
-                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -220,7 +217,6 @@ function SignupForm() {
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder={t("auth.phonePlaceholder")}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -237,8 +233,7 @@ function SignupForm() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder=""
-                  value={password}
+                    value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="border-border bg-muted pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"

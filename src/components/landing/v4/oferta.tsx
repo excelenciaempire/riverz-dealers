@@ -112,8 +112,20 @@ export function Oferta() {
             <h2 className="sn-h2 mt-4 max-w-[14ch]">{t("landingV4.launchTitle")}</h2>
             <p className="sn-body mt-4 max-w-[46ch] !text-[15px]">{t("landingV4.launchBody")}</p>
 
-            <div className="relative mt-7 hidden aspect-[3/1] w-full overflow-hidden rounded-2xl sm:block">
-              <Image src="/portada-b/launch.jpg" alt="" fill sizes="640px" className="object-cover" />
+            {/* La ilustración de la bandeja y no la foto de archivo: acá hay
+                que mostrar QUÉ te queda montado, y eso es el dibujo de los
+                canales entrando a un solo lugar y saliendo a la tienda. Una
+                foto de manos con cajas no dice nada de eso. Se ve en todos los
+                anchos —antes estaba oculta en el teléfono, que es justo donde
+                más falta hace algo que descanse la lista. */}
+            <div className="relative mt-7 aspect-[4/3] w-full overflow-hidden rounded-2xl sm:aspect-[16/9]">
+              <Image
+                src="/portada-b/i-bandeja-3.jpg"
+                alt=""
+                fill
+                sizes="(min-width: 640px) 640px, 92vw"
+                className="object-cover object-center"
+              />
             </div>
 
             <ol className="mt-7">
@@ -135,8 +147,12 @@ export function Oferta() {
               ))}
             </ol>
 
-            <a href="#acceso" onClick={() => setAbierto(false)} className="sn-pill mt-7">
-              {t("landingV4.navCta")}
+            <a
+              href="#acceso"
+              onClick={() => setAbierto(false)}
+              className="sn-pill mt-7 w-full sm:w-auto"
+            >
+              {t("landingV4.launchCta")}
             </a>
           </div>
         </div>
