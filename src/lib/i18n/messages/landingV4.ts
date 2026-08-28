@@ -51,9 +51,10 @@ export const landingV4 = {
     es: "la configuramos contigo y empiezas a pagar cuando ya esté dando resultados.",
     en: "we set it up with you, and you start paying once it's already delivering.",
   },
+  bannerVer: { es: "Ver cómo", en: "See how" },
+  cerrar: { es: "Cerrar", en: "Close" },
 
   // ── Navegación ──
-  navLaunch: { es: "Cómo empiezas", en: "Getting started" },
   navLoop: { es: "Cómo opera", en: "How it operates" },
   navCapabilities: { es: "Qué hace", en: "What it does" },
   navOperator: { es: "Operator", en: "Operator" },
@@ -248,10 +249,6 @@ export const landingV4 = {
     es: "De chat a pedido, sin perder el hilo.",
     en: "From chat to order, without losing the thread.",
   },
-  bandaLine2: {
-    es: "Cada señal activa el siguiente paso.",
-    en: "Every signal triggers the next step.",
-  },
 
   // ── Canales ──
   channelsLabel: { es: "Canales", en: "Channels" },
@@ -268,9 +265,10 @@ export const landingV4 = {
   channelsCalls: { es: "Llamadas", en: "Calls" },
 
   // ── Cierre ──
+  // Sin promesa de instalación: eso vive en la oferta, que es temporal.
   ctaTitle: {
-    es: "Conecta tu tienda. El resto lo montamos nosotros.",
-    en: "Connect your store. We'll build the rest.",
+    es: "Conecta tu tienda y empieza a operar.",
+    en: "Connect your store and start operating.",
   },
   ctaBody: {
     es: "Estamos abriendo cupos de a poco. Déjanos tu correo y te escribimos para armar la operación contigo.",

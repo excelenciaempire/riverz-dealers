@@ -12,7 +12,7 @@ import { WaitlistForm } from "@/components/landing/landing";
 import { Label, LocaleSwitch, Rise } from "./bits";
 import { Scene } from "./scene";
 import { Cards } from "./cards";
-import { Launch } from "./launch";
+import { Oferta } from "./oferta";
 import { Operator } from "./operator";
 import "./editorial.css";
 
@@ -70,26 +70,20 @@ export function LandingV4() {
         {t("landingV4.skipToContent")}
       </a>
 
-      <Banner />
+      <Oferta />
       <Nav />
 
       <main id="contenido">
         <Hero />
         <Wall />
-        {/* El orden lo manda la investigación: primero se mata la objeción más
-            grande —«esto va a ser otro proyecto de meses»— con la oferta;
-            enseguida lo que no tiene nadie más; después el mecanismo con
-            nombre; después el ángulo del chat ya pagado; y al final la lista
-            de funciones. */}
-        <Launch />
-        {/* El Operator va CUARTO, apenas pasada la oferta. Estuvo octavo un
-            rato, después de reordenar la página por la investigación, y ahí se
-            perdía: es lo único que no tiene nadie más en la categoría. Primero
-            se dice que no hay que configurar nada (Launch), y enseguida se
-            muestra por qué (se le habla y lo hace). */}
+        {/* El Operator abre el recorrido: es lo único que no tiene nadie más
+            en la categoría, y dejarlo para el final hacía que la página se
+            leyera como «otra plataforma de atención con IA» hasta el minuto
+            tres. La oferta ya no ocupa una sección: vive en la barra de
+            arriba y se despliega en un diálogo, porque es temporal y tiene que
+            poder retirarse sin dejar un hueco. */}
         <Operator />
         <Scene />
-        <Banda src="/portada-b/intencion.jpg" line="landingV4.bandaLine2" />
         <Pillars />
         <Capabilities />
         <Banda src="/portada-b/banda-mostrador.jpg" line="landingV4.bandaLine" />
@@ -98,33 +92,6 @@ export function LandingV4() {
       </main>
 
       <Footer locale={locale} />
-    </div>
-  );
-}
-
-// ── Barra de aviso ────────────────────────────────────────────────────────
-
-function Banner() {
-  const t = useT();
-  return (
-    <div className="px-3 pt-3">
-      {/* En pantalla chica el aviso se acomoda en dos renglones centrados en
-          vez de partir la frase por la mitad; la raya solo aparece cuando las
-          dos partes van en el mismo renglón. */}
-      <div
-        className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-3xl px-5 py-2.5 text-center sm:rounded-full"
-        style={{ background: "var(--sn-ink)" }}
-      >
-        <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
-          {t("landingV4.bannerLead")}
-        </span>
-        <span className="text-[13px]" style={{ color: "rgba(250,247,241,0.72)" }}>
-          <span aria-hidden className="hidden sm:inline">
-            —{" "}
-          </span>
-          {t("landingV4.bannerText")}
-        </span>
-      </div>
     </div>
   );
 }
@@ -148,9 +115,6 @@ function Nav() {
 
         <div className="hidden items-center gap-8 text-[15px] md:flex">
           {/* El menú sigue el orden real de la página. */}
-          <a href="#launch" className="transition-opacity hover:opacity-60">
-            {t("landingV4.navLaunch")}
-          </a>
           <a href="#loop" className="transition-opacity hover:opacity-60">
             {t("landingV4.navLoop")}
           </a>
