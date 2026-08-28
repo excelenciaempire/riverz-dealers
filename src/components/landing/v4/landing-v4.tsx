@@ -128,7 +128,11 @@ function Nav() {
 
         <div className="flex items-center gap-4">
           <LocaleSwitch />
-          <a href="#acceso" className="sn-pill sn-pill-sm">
+          {/* En el teléfono esta píldora se va. Debajo del aviso de la oferta
+              quedaban dos llamadas a la acción a cuatro dedos de distancia —la
+              de la barra y la del hero— y la de arriba solo empujaba el
+              contenido hacia abajo. En escritorio no estorba y se queda. */}
+          <a href="#acceso" className="sn-pill sn-pill-sm hidden sm:inline-flex">
             {t("landingV4.navCta")}
           </a>
         </div>

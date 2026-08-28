@@ -53,23 +53,26 @@ export function Oferta() {
   return (
     <>
       <div className="px-3 pt-3">
-        {/* En pantalla chica el aviso se acomoda en dos renglones centrados en
-            vez de partir la frase por la mitad; la raya solo aparece cuando
-            las dos partes van en el mismo renglón. */}
+        {/* En el teléfono el aviso es UNA sola línea: la promesa y el enlace.
+            La frase larga se cae en pantalla chica —a 390 px ocupaba tres
+            renglones y el bloque negro se comía media portada antes de que se
+            viera nada—. Quien quiera el detalle lo abre; para eso está el
+            diálogo. */}
         <button
           type="button"
           onClick={() => setAbierto(true)}
           aria-haspopup="dialog"
-          className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-3xl px-5 py-2.5 text-center transition-opacity hover:opacity-90 sm:rounded-full"
+          className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full px-4 py-2.5 text-center transition-opacity hover:opacity-90 sm:px-5"
           style={{ background: "var(--sn-ink)" }}
         >
           <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
             {t("landingV4.bannerLead")}
           </span>
-          <span className="text-[13px]" style={{ color: "rgba(250,247,241,0.72)" }}>
-            <span aria-hidden className="hidden sm:inline">
-              —{" "}
-            </span>
+          <span
+            className="hidden text-[13px] sm:inline"
+            style={{ color: "rgba(250,247,241,0.72)" }}
+          >
+            <span aria-hidden>— </span>
             {t("landingV4.bannerText")}
           </span>
           <span

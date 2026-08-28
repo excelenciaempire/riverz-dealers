@@ -152,8 +152,8 @@ export const landing = {
   sec07Title: { es: "Y todo, en una", en: "And it all lives in" },
   sec07TitleMuted: { es: "sola bandeja.", en: "a single inbox." },
   sec07Body: {
-    es: "WhatsApp, Instagram, Messenger, Mercado Libre y correo en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
-    en: "WhatsApp, Instagram, Messenger, Mercado Libre, and email on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
+    es: "WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, el chat de tu web y el correo, en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
+    en: "WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, your website chat, and email — all on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
   },
 
   sec08Title: { es: "Conecta tu tienda", en: "Connect your store" },

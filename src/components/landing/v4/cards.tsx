@@ -163,7 +163,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec07",
-    img: "/portada-b/i-bandeja-2.jpg",
+    img: "/portada-b/i-bandeja-3.jpg",
     ratio: "4 / 3",
     title: "landing.sec07Title",
     muted: "landing.sec07TitleMuted",
