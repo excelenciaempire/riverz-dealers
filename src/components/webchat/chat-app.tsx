@@ -203,6 +203,10 @@ export function ChatApp() {
   const T = TEXTOS[settings?.locale === 'en' ? 'en' : 'es'];
 
   const cursor = useRef<string | null>(null);
+  // Hasta cuándo ya vimos ediciones. El servidor manda su propio reloj y se
+  // lo devolvemos: si el mensaje viejo cambia, vuelve por acá y no por el
+  // cursor, que sólo avanza hacia adelante.
+  const editCursor = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   // ¿El visitante está mirando el chat? Arranca en true porque este componente
@@ -311,9 +315,11 @@ export function ChatApp() {
   // ── Sondeo ───────────────────────────────────────────────────
   const poll = useCallback(async () => {
     if (!session) return;
-    const url = cursor.current
-      ? `/api/widget/messages?after=${encodeURIComponent(cursor.current)}`
-      : '/api/widget/messages';
+    const params = new URLSearchParams();
+    if (cursor.current) params.set('after', cursor.current);
+    if (editCursor.current) params.set('edited_after', editCursor.current);
+    const qs = params.toString();
+    const url = qs ? `/api/widget/messages?${qs}` : '/api/widget/messages';
     const res = await fetch(url, { headers: { Authorization: `Bearer ${session}` } });
     if (res.status === 401) {
       setExpired(true);
@@ -322,6 +328,8 @@ export function ChatApp() {
     if (!res.ok) return;
     const data = (await res.json()) as {
       messages: WireMessage[];
+      edits?: Array<{ id: string; text: string }>;
+      now?: string;
       cursor: string | null;
       status?: string;
     };
@@ -331,6 +339,14 @@ export function ChatApp() {
       contactoAvisado.current = true;
     }
     if (data.cursor) cursor.current = data.cursor;
+    // El comercio corrigió algo que el visitante ya tiene en pantalla.
+    if (data.edits?.length) {
+      const porId = new Map(data.edits.map((e) => [e.id, e.text]));
+      setMessages((prev) =>
+        prev.map((m) => (porId.has(m.id) ? { ...m, text: porId.get(m.id) as string } : m)),
+      );
+    }
+    if (data.now) editCursor.current = data.now;
     // El servidor manda el estado de la conversación en cada sondeo y el chat
     // lo descartaba: quien volvía a un hilo que el comercio ya había cerrado
     // veía una caja de texto idéntica a la de una conversación viva. Y sin

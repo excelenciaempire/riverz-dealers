@@ -474,6 +474,9 @@ export interface Message {
   /** Nombre de la pieza concreta que lo envió (la automatización, el flujo, la
    *  campaña, el agente), fotografiado al momento del envío. Migración 143. */
   origin_name?: string | null;
+  /** Cuándo se reescribió el mensaje ya enviado (migración 208). Sólo el chat
+   *  web y el comentario de Facebook pueden editarse; ver lib/inbox/editable. */
+  edited_at?: string | null;
 }
 
 /** Un botón resuelto de un mensaje saliente (plantilla/interactivo) tal como

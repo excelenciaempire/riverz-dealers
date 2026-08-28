@@ -361,9 +361,30 @@ export async function GET(request: Request) {
       };
     });
 
+  // Lo REESCRITO no vuelve por el cursor: éste avanza por created_at y un
+  // mensaje viejo editado quedaría para siempre con el texto original del lado
+  // del visitante. Se le manda aparte lo que cambió desde su último sondeo.
+  const editadoDesde = url.searchParams.get('edited_after');
+  let edits: Array<{ id: string; text: string }> = [];
+  if (editadoDesde) {
+    const { data: reescritos } = await admin
+      .from('messages')
+      .select('id, content_text')
+      .eq('conversation_id', conversation.id)
+      .gt('edited_at', editadoDesde)
+      .limit(50);
+    edits = ((reescritos ?? []) as Array<{ id: string; content_text: string | null }>).map(
+      (m) => ({ id: m.id, text: m.content_text ?? '' }),
+    );
+  }
+
   const last = ordered[ordered.length - 1];
   return NextResponse.json({
     messages,
+    edits,
+    // Reloj del servidor: el visitante lo devuelve tal cual en el sondeo
+    // siguiente, así no dependemos de que su reloj esté en hora.
+    now: new Date().toISOString(),
     cursor: last ? encodeCursor(last.created_at, last.id) : (url.searchParams.get('after') ?? null),
     status: conversation.status,
   });

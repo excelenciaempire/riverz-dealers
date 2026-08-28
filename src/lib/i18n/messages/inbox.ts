@@ -298,6 +298,22 @@ export const inbox = {
   newSnippet: { es: "Nuevo atajo", en: "New shortcut" },
   deleteSnippet: { es: "Eliminar atajo", en: "Delete shortcut" },
   editSnippet: { es: "Editar atajo", en: "Edit shortcut" },
+  editMessage: { es: "Editar mensaje", en: "Edit message" },
+  editMessageTitle: { es: "Editar mensaje", en: "Edit message" },
+  editMessageChatDesc: {
+    es: "El cliente verá el texto nuevo en el chat.",
+    en: "The customer will see the new text in the chat.",
+  },
+  editMessageCommentDesc: {
+    es: "El comentario cambia en Facebook, a la vista de todos.",
+    en: "The comment changes on Facebook, in public view.",
+  },
+  editMessageFailed: {
+    es: "No se pudo editar el mensaje",
+    en: "Couldn't edit the message",
+  },
+  messageEdited: { es: "Mensaje editado", en: "Message edited" },
+  editedMark: { es: "editado", en: "edited" },
   snippetShortcutPlaceholder: { es: "atajo", en: "shortcut" },
   snippetBodyPlaceholder: {
     es: "Texto que se insertará…",

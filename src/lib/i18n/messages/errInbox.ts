@@ -142,6 +142,16 @@ export const errInbox = {
     en: "The call to Meta failed",
   },
 
+  // messages/:id PATCH — editar lo ya enviado
+  editNotSupported: {
+    es: "Este canal no permite editar un mensaje ya enviado",
+    en: "This channel doesn't allow editing a sent message",
+  },
+  editEmptyText: {
+    es: "El mensaje editado no puede quedar vacío",
+    en: "The edited message can't be empty",
+  },
+
   // conversations/:id PATCH
   aiEnabledRequired: {
     es: "Se requiere ai_enabled (booleano)",

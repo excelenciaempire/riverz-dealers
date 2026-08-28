@@ -5,6 +5,11 @@ import { csrfGuard } from "@/lib/csrf";
 import { serverError } from "@/lib/api/errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
+import { decrypt } from "@/lib/channels/encryption";
+import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
+import { puedeEditarse } from "@/lib/inbox/editable";
+import type { ChannelConnection, Conversation, Message } from "@/types";
 
 /**
  * DELETE /api/messages/:id
@@ -89,4 +94,192 @@ export async function DELETE(
     return serverError(error);
   }
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * PATCH /api/messages/:id  — body { text }
+ *
+ * Reescribe un mensaje que YA salió. Sólo donde el canal lo permite de verdad
+ * (ver `puedeEditarse`): el chat web, que es nuestro, y el comentario de
+ * Facebook, que Graph deja actualizar. En un comentario primero se cambia el
+ * texto EN Facebook y sólo si eso sale bien se toca la fila: al revés, la
+ * bandeja mostraría un texto que el público no ve.
+ */
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const block = await csrfGuard(req);
+  if (block) return block;
+  const locale = await getLocale();
+  const { id } = await ctx.params;
+  const body = (await req.json().catch(() => null)) as { text?: string } | null;
+  const texto = (body?.text ?? "").trim();
+  if (!id) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.missingIdGeneric") },
+      { status: 400 },
+    );
+  }
+  if (!texto) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.editEmptyText") },
+      { status: 400 },
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notSignedIn") },
+      { status: 401 },
+    );
+  }
+
+  const admin = supabaseAdmin();
+  const { data: row } = await admin
+    .from("messages")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (!row) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.notFound") },
+      { status: 404 },
+    );
+  }
+  const message = row as Message;
+  if (!puedeEditarse(message)) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.editNotSupported") },
+      { status: 409 },
+    );
+  }
+
+  const { data: conv } = await admin
+    .from("conversations")
+    .select("*")
+    .eq("id", message.conversation_id)
+    .maybeSingle();
+  if (!conv) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.conversationNotFound") },
+      { status: 404 },
+    );
+  }
+  const conversation = conv as Conversation;
+  const { data: membership } = await admin
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", conversation.workspace_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbidden") },
+      { status: 403 },
+    );
+  }
+
+  if (message.channel === "fb_comment") {
+    // Un comentario es público: cambiarlo es del mismo peso que borrarlo, así
+    // que pide el mismo rol que la barra de moderación.
+    if ((membership as { role: string }).role !== "admin") {
+      return NextResponse.json(
+        { error: translate(locale, "errInbox.adminOnly") },
+        { status: 403 },
+      );
+    }
+    if (!message.message_id) {
+      return NextResponse.json(
+        { error: translate(locale, "errInbox.commentNoExternalId") },
+        { status: 409 },
+      );
+    }
+    // Mismo criterio que /moderate: manda la conexión DUEÑA del comentario, no
+    // la de la conversación, que puede ser de otra cuenta del mismo comercio.
+    const { data: cmeta } = await admin
+      .from("comments_meta")
+      .select("connection_id")
+      .eq("message_id", message.id)
+      .maybeSingle();
+    const connectionId =
+      (cmeta as { connection_id?: string | null } | null)?.connection_id ??
+      conversation.connection_id ??
+      "";
+    const { data: connection } = await admin
+      .from("channel_connections")
+      .select("*")
+      .eq("id", connectionId)
+      .maybeSingle();
+    if (!connection) {
+      return NextResponse.json(
+        { error: translate(locale, "errInbox.connectionNotFound") },
+        { status: 404 },
+      );
+    }
+    const secrets = ((connection as ChannelConnection).secrets ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const accessToken = decrypt(String(secrets.access_token ?? ""));
+    const applied = await editarComentarioFacebook(
+      message.message_id,
+      texto,
+      accessToken,
+    );
+    if (!applied.ok) {
+      const parsed = parseMetaError(applied.detail ?? "");
+      const detalle = parsed
+        ? describeMetaSendError("fb_comment", 502, parsed, locale).userMessage
+        : (applied.detail ?? translate(locale, "errInbox.graphCallFailed"));
+      return NextResponse.json({ error: detalle }, { status: 502 });
+    }
+  }
+
+  const { error } = await admin
+    .from("messages")
+    .update({ content_text: texto, edited_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return serverError(error);
+
+  return NextResponse.json({ ok: true, text: texto });
+}
+
+/** Graph acepta pisar el texto de un comentario con POST /{comment-id}. */
+async function editarComentarioFacebook(
+  commentId: string,
+  message: string,
+  accessToken: string,
+): Promise<{ ok: boolean; detail?: string }> {
+  const GRAPH = "https://graph.facebook.com/v21.0";
+  try {
+    const res = await fetch(
+      withAppsecretProof(
+        `${GRAPH}/${commentId}?access_token=${encodeURIComponent(accessToken)}`,
+        accessToken,
+      ),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ message }),
+      },
+    );
+    const text = await res.text().catch(() => "");
+    if (!res.ok) return { ok: false, detail: text };
+    try {
+      const json = JSON.parse(text) as { error?: unknown };
+      if (json && typeof json === "object" && json.error) {
+        return { ok: false, detail: text };
+      }
+    } catch {
+      /* un 2xx que no es JSON (Graph devuelve `true` a veces) es éxito */
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, detail: String(err) };
+  }
 }

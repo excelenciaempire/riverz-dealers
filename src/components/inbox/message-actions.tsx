@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus, Trash2 } from "lucide-react";
+import { CornerUpLeft, Copy, Pencil, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -16,6 +16,8 @@ import {
   DeleteMessageDialog,
   type DeleteScope,
 } from "./delete-message-dialog";
+import { EditMessageDialog } from "./edit-message-dialog";
+import { puedeEditarse } from "@/lib/inbox/editable";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -52,6 +54,7 @@ export function MessageActions({
   const [touchOpen, setTouchOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const isAgent =
     message.sender_type === "agent" || message.sender_type === "bot";
@@ -76,6 +79,9 @@ export function MessageActions({
     message.channel === "ig_comment" ||
     message.channel === "tiktok_comment";
   const canDelete = Boolean(onDelete) && !isComment;
+  // Editar lo ya enviado: sólo donde el canal deja que el cambio le llegue
+  // al cliente (chat web y comentario de Facebook). Ver lib/inbox/editable.
+  const canEdit = puedeEditarse(message);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -106,6 +112,25 @@ export function MessageActions({
   const handleReply = () => {
     onReply();
     setTouchOpen(false);
+  };
+
+  /** Guarda el texto nuevo; el canal se encarga adentro del endpoint. */
+  const runEdit = async (text: string) => {
+    try {
+      const res = await fetchWithCsrf(`/api/messages/${message.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(j.error ?? t("inbox.editMessageFailed"));
+        return;
+      }
+      toast.success(t("inbox.messageEdited"));
+    } catch {
+      toast.error(t("inbox.networkError"));
+    }
   };
 
   const handleDelete = () => {
@@ -223,6 +248,19 @@ export function MessageActions({
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              setTouchOpen(false);
+              setEditOpen(true);
+            }}
+            className="flex h-8 w-8 md:h-5 md:w-5 items-center justify-center rounded-full text-foreground hover:bg-accent hover:text-foreground"
+            aria-label={t("inbox.editMessage")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
         {canDelete && (
           <button
             type="button"
@@ -235,6 +273,13 @@ export function MessageActions({
         )}
       </div>
       </div>
+      <EditMessageDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        channel={message.channel}
+        initialText={message.content_text ?? ""}
+        onConfirm={runEdit}
+      />
       <DeleteMessageDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

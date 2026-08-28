@@ -1107,6 +1107,16 @@ export function MessageBubble({
           >
             {time}
           </span>
+          {message.edited_at && (
+            <span
+              className={cn(
+                "text-[10px]",
+                isAgent ? "text-primary-foreground/60" : "text-muted-foreground",
+              )}
+            >
+              {t("inbox.editedMark")}
+            </span>
+          )}
           {isAgent && (
             <StatusIcon message={message} />
           )}
