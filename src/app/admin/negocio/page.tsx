@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useT } from "@/hooks/use-locale";
+import { useLocale, useT } from "@/hooks/use-locale";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Plan } from "@/lib/billing/plan";
 import type { CuentaDelNegocio, Negocio } from "@/lib/billing/negocio";
@@ -516,6 +516,7 @@ function FilaTarifa({
   onGuardar: (t: Record<string, unknown>) => void;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const [precio, setPrecio] = useState(String(tarifa.precioMilicentavos / 100000));
 
   const guardar = () => {
@@ -530,7 +531,9 @@ function FilaTarifa({
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 text-sm">
-      <span className="min-w-40 flex-1 text-foreground">{tarifa.nombreEs}</span>
+      <span className="min-w-40 flex-1 text-foreground">
+        {locale === "en" ? tarifa.nombreEn : tarifa.nombreEs}
+      </span>
       <span className="w-28">
         <input
           className={INPUT}
