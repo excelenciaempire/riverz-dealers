@@ -101,7 +101,34 @@ export interface Cortes {
   escalaciones: { total: number; motivos: Escalacion[] }
 }
 
-const TOPE = 5000
+/**
+ * Trae TODAS las filas, en páginas de mil.
+ *
+ * Antes cada consulta de acá cortaba en 5.000 (y los mensajes en 20.000). El
+ * tope no se notaba en una cuenta chica y en una grande hacía algo peor que
+ * fallar: el panel mostraba un número seguro y equivocado, sin avisar. Un
+ * comercio con más movimiento veía menos conversaciones que uno con menos.
+ *
+ * PostgREST corta en 1.000 por defecto aunque se pida más, así que la página
+ * es de mil y se corta cuando una vuelve incompleta.
+ */
+async function todas<T>(
+  hacer: (
+    desde: number,
+    hasta: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>,
+): Promise<T[]> {
+  const PAGINA = 1000
+  const filas: T[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await hacer(desde, desde + PAGINA - 1)
+    if (error) throw error as Error
+    const lote = data ?? []
+    filas.push(...lote)
+    if (lote.length < PAGINA) break
+  }
+  return filas
+}
 
 /**
  * Cuántas muestras hacen falta para que un porcentaje se pueda mostrar.
@@ -126,76 +153,98 @@ export async function leerCortes(
   const desdePrevio = new Date(rango.desde.getTime() - largo).toISOString()
 
   const [convRes, iaRes, agentesRes, previoRes, iaPrevioRes, msgRes] = await Promise.all([
-    db
-      .from('conversations')
-      .select(
-        'id, channel, status, needs_human_at, needs_human_reason, assigned_agent_id, csat, created_at',
-      )
-      .eq('workspace_id', workspaceId)
-      .gte('last_message_at', desde)
-      .lte('last_message_at', hasta)
-      .limit(TOPE),
-    db
-      .from('ai_replies')
-      .select('agent_id, conversation_id, status, skip_reason')
-      .eq('workspace_id', workspaceId)
-      .gte('created_at', desde)
-      .lte('created_at', hasta)
-      .limit(TOPE),
+    todas<{
+      id: string
+      channel: string | null
+      status: string
+      needs_human_at: string | null
+      needs_human_reason: string | null
+      assigned_agent_id: string | null
+      csat: number | null
+      created_at: string
+    }>((d, h) =>
+      db
+        .from('conversations')
+        .select(
+          'id, channel, status, needs_human_at, needs_human_reason, assigned_agent_id, csat, created_at',
+        )
+        .eq('workspace_id', workspaceId)
+        .gte('last_message_at', desde)
+        .lte('last_message_at', hasta)
+        .order('id', { ascending: true })
+        .range(d, h),
+    ),
+    todas<{
+      agent_id: string | null
+      conversation_id: string | null
+      status: string
+      skip_reason: string | null
+    }>((d, h) =>
+      db
+        .from('ai_replies')
+        .select('agent_id, conversation_id, status, skip_reason')
+        .eq('workspace_id', workspaceId)
+        .gte('created_at', desde)
+        .lte('created_at', hasta)
+        .order('id', { ascending: true })
+        .range(d, h),
+    ),
     db
       .from('ai_agents')
       .select('id, name, is_active, business_hours')
       .eq('workspace_id', workspaceId)
       .is('deleted_at', null),
-    db
-      .from('conversations')
-      .select('id, needs_human_at, assigned_agent_id')
-      .eq('workspace_id', workspaceId)
-      .gte('last_message_at', desdePrevio)
-      .lt('last_message_at', desde)
-      .limit(TOPE),
-    db
-      .from('ai_replies')
-      .select('conversation_id')
-      .eq('workspace_id', workspaceId)
-      .eq('status', 'sent')
-      .gte('created_at', desdePrevio)
-      .lt('created_at', desde)
-      .limit(TOPE),
+    todas<{ id: string; needs_human_at: string | null; assigned_agent_id: string | null }>(
+      (d, h) =>
+        db
+          .from('conversations')
+          .select('id, needs_human_at, assigned_agent_id')
+          .eq('workspace_id', workspaceId)
+          .gte('last_message_at', desdePrevio)
+          .lt('last_message_at', desde)
+          .order('id', { ascending: true })
+          .range(d, h),
+    ),
+    todas<{ conversation_id: string | null }>((d, h) =>
+      db
+        .from('ai_replies')
+        .select('conversation_id')
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'sent')
+        .gte('created_at', desdePrevio)
+        .lt('created_at', desde)
+        .order('id', { ascending: true })
+        .range(d, h),
+    ),
     // Los mensajes del rango, para medir quién contestó primero.
     //
     // `messages` no tiene `workspace_id` —cuelga de la conversación (migración
-    // 013)—, así que el corte va por el join. Y sólo las tres columnas que
-    // hacen falta: el cuerpo no se usa y en una cuenta con movimiento son
-    // megabytes al pedo.
-    db
-      .from('messages')
-      // `origin` es lo que separa al asistente de una automatización: sin él,
-      // `primeraRespuesta` mete a las dos en la misma bolsa.
-      .select('conversation_id, sender_type, created_at, origin, conversations!inner(workspace_id)')
-      .eq('conversations.workspace_id', workspaceId)
-      .gte('created_at', desde)
-      .lte('created_at', hasta)
-      .order('created_at', { ascending: true })
-      .limit(20000),
+    // 013)—, así que el corte va por el join. Y sólo las columnas que hacen
+    // falta: el cuerpo no se usa y en una cuenta con movimiento son megabytes
+    // al pedo.
+    todas<{
+      conversation_id: string | null
+      sender_type: string | null
+      created_at: string
+      origin: string | null
+    }>((d, h) =>
+      db
+        .from('messages')
+        // `origin` es lo que separa al asistente de una automatización: sin él,
+        // `primeraRespuesta` mete a las dos en la misma bolsa.
+        .select(
+          'conversation_id, sender_type, created_at, origin, conversations!inner(workspace_id)',
+        )
+        .eq('conversations.workspace_id', workspaceId)
+        .gte('created_at', desde)
+        .lte('created_at', hasta)
+        .order('created_at', { ascending: true })
+        .range(d, h),
+    ),
   ])
 
-  const convs = (convRes.data ?? []) as {
-    id: string
-    channel: string | null
-    status: string | null
-    needs_human_at: string | null
-    needs_human_reason: string | null
-    assigned_agent_id: string | null
-    csat: number | null
-    created_at: string | null
-  }[]
-  const ias = (iaRes.data ?? []) as {
-    agent_id: string | null
-    conversation_id: string | null
-    status: string | null
-    skip_reason: string | null
-  }[]
+  const convs = convRes
+  const ias = iaRes
   const agentes = (agentesRes.data ?? []) as {
     id: string
     name: string | null
@@ -255,17 +304,9 @@ export async function leerCortes(
   const resueltas = atendidas.filter((c) => !necesitoPersona(c)).length
 
   const conIaPrevia = new Set(
-    ((iaPrevioRes.data ?? []) as { conversation_id: string | null }[])
-      .filter((r) => r.conversation_id)
-      .map((r) => r.conversation_id!),
+    iaPrevioRes.filter((r) => r.conversation_id).map((r) => r.conversation_id!),
   )
-  const atendidasPrevias = (
-    (previoRes.data ?? []) as {
-      id: string
-      needs_human_at: string | null
-      assigned_agent_id: string | null
-    }[]
-  ).filter((c) => conIaPrevia.has(c.id))
+  const atendidasPrevias = previoRes.filter((c) => conIaPrevia.has(c.id))
   const resueltasPrevias = atendidasPrevias.filter((c) => !necesitoPersona(c)).length
 
   // Un porcentaje necesita material para significar algo.
@@ -313,11 +354,7 @@ export async function leerCortes(
     }
   }
 
-  const mensajes = (msgRes.data ?? []) as {
-    conversation_id: string | null
-    sender_type: string | null
-    created_at: string
-  }[]
+  const mensajes = msgRes
 
   return {
     ia: {

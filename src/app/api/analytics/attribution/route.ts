@@ -548,29 +548,29 @@ export async function GET(request: Request) {
     // agente negocia el descuento, la persona compra con ÉSE código, y la
     // venta caía en «influidas» como si nadie hubiera hecho nada.
     const [igs, agente] = await Promise.all([
-      admin
-        .from('instagram_campaign_recipients')
-        .select('contact_id, discount_code, instagram_campaigns!inner(workspace_id)')
-        .eq('instagram_campaigns.workspace_id', workspaceId)
-        .not('discount_code', 'is', null)
-        .limit(5000),
-      admin
-        .from('agent_discounts')
-        .select('contact_id, code')
-        .eq('workspace_id', workspaceId)
-        .limit(5000),
+      traerTodo<{ contact_id: string | null; discount_code: string | null }>((d, h) =>
+        admin
+          .from('instagram_campaign_recipients')
+          .select('contact_id, discount_code, instagram_campaigns!inner(workspace_id)')
+          .eq('instagram_campaigns.workspace_id', workspaceId)
+          .not('discount_code', 'is', null)
+          .order('contact_id', { ascending: true })
+          .range(d, h),
+      ),
+      traerTodo<{ contact_id: string | null; code: string | null }>((d, h) =>
+        admin
+          .from('agent_discounts')
+          .select('contact_id, code')
+          .eq('workspace_id', workspaceId)
+          .order('contact_id', { ascending: true })
+          .range(d, h),
+      ),
     ]);
-    for (const r of (igs.data ?? []) as {
-      contact_id: string | null;
-      discount_code: string | null;
-    }[]) {
+    for (const r of igs) {
       const code = (r.discount_code ?? '').trim().toLowerCase();
       if (code) cuponesPropios.set(code, r.contact_id ?? '');
     }
-    for (const r of (agente.data ?? []) as {
-      contact_id: string | null;
-      code: string | null;
-    }[]) {
+    for (const r of agente) {
       const code = (r.code ?? '').trim().toLowerCase();
       if (code) cuponesPropios.set(code, r.contact_id ?? '');
     }
@@ -975,18 +975,21 @@ async function attributeInstagramAgent(
   untilIso: string,
   locale: Locale,
 ): Promise<AttrRow[]> {
-  const { data } = await admin
-    .from('instagram_campaign_recipients')
-    .select('revenue, currency, campaign_id, instagram_campaigns!inner(name, workspace_id)')
-    .eq('status', 'converted')
-    .eq('instagram_campaigns.workspace_id', workspaceId)
-    .gte('converted_at', sinceIso)
-    .lt('converted_at', untilIso)
-    .not('revenue', 'is', null)
-    .limit(5000);
+  const data = await traerTodo<unknown>((d, h) =>
+    admin
+      .from('instagram_campaign_recipients')
+      .select('revenue, currency, campaign_id, instagram_campaigns!inner(name, workspace_id)')
+      .eq('status', 'converted')
+      .eq('instagram_campaigns.workspace_id', workspaceId)
+      .gte('converted_at', sinceIso)
+      .lt('converted_at', untilIso)
+      .not('revenue', 'is', null)
+      .order('campaign_id', { ascending: true })
+      .range(d, h),
+  );
 
   const map = new Map<string, AttrRow>();
-  for (const r of data ?? []) {
+  for (const r of data) {
     const row = r as {
       revenue: number | null;
       currency: string | null;

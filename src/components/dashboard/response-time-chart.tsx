@@ -284,7 +284,9 @@ function Bars({ data, t }: { data: ResponseTimeSummary; t: TFn }) {
               width={barW}
               height={h}
               rx={4}
-              fill="#7c3aed"
+              // Lo que tardamos en contestar es una medida de lo que SALE, así
+              // que va con el mismo color que "salientes" en los otros dos.
+              fill="var(--chart-2)"
             >
               <title>
                 {label}:{' '}

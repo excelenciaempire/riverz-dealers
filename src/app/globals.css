@@ -118,12 +118,19 @@ html[data-theme="light"] {
   --border: #ded8c8;
   --input: #d2ccb9;
   --ring: #b6ae99;
-  /* Serie de gráficos oscurecida para fondo claro: el lima #c9d23f daba
-     1.6:1 sobre la tarjeta y la línea desaparecía. Los cinco pasan 4.5:1
-     ahora, así que sirven también para la etiqueta del valor. El bloque
-     dark tiene sus propios valores, más brillantes. */
-  --chart-1: #707817;
-  --chart-2: #07806f;
+  /* La paleta de gráficos, oscurecida para fondo claro: el lima #c9d23f
+     daba 1.6:1 sobre la tarjeta y la línea desaparecía. Los cinco pasan
+     4.5:1, así que sirven para el trazo Y para la etiqueta del valor
+     encima. El bloque dark tiene los suyos, más brillantes.
+
+     Los dos primeros tienen significado FIJO en todo el panel, y quien
+     agregue un gráfico tiene que respetarlo — si no, el comercio lee dos
+     idiomas en la misma pantalla:
+       --chart-1  lo que ENTRA (mensajes del cliente)
+       --chart-2  lo que SALE (lo que contestamos)
+     Del 3 al 5 son series sueltas, sin significado asignado. */
+  --chart-1: #07806f;
+  --chart-2: #707817;
   --chart-3: #7c3aed;
   --chart-4: #c22a6f;
   --chart-5: #a3630a;
@@ -176,8 +183,9 @@ html[data-theme="dark"] {
   --border: #25252e;
   --input: #2a2a33;
   --ring: #f7ff9e;
-  --chart-1: #c9d23f;
-  --chart-2: #14e0cc;
+  /* Mismo significado que en claro: 1 entra, 2 sale. */
+  --chart-1: #14e0cc;
+  --chart-2: #c9d23f;
   --chart-3: #8b5cf6;
   --chart-4: #f472b6;
   --chart-5: #f59e0b;

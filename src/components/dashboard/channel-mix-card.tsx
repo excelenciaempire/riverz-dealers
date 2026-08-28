@@ -78,12 +78,18 @@ export function ChannelMixCard({ mix, cortes }: ChannelMixCardProps) {
               </div>
               <div className="flex-1">
                 <div className="relative h-2 overflow-hidden rounded-full bg-muted/60">
+                  {/* Mismos dos colores que la curva de "Conversaciones en
+                      el tiempo": --chart-1 lo que entra, --chart-2 lo que
+                      sale. Antes esta barra usaba `foreground/40` y `primary`
+                      y la curva usaba un azul y un violeta sueltos, o sea que
+                      la misma serie tenia un color distinto en cada grafico de
+                      la misma pantalla. */}
                   <div
-                    className="absolute inset-y-0 left-0 bg-foreground/40"
+                    className="absolute inset-y-0 left-0 bg-chart-1"
                     style={{ width: `${inboundPct}%` }}
                   />
                   <div
-                    className="absolute inset-y-0 left-0 bg-primary"
+                    className="absolute inset-y-0 left-0 bg-chart-2"
                     style={{ width: `${outboundPct}%`, marginLeft: `${inboundPct}%` }}
                   />
                 </div>
@@ -109,11 +115,11 @@ export function ChannelMixCard({ mix, cortes }: ChannelMixCardProps) {
       </ul>
       <div className="mt-4 flex items-center gap-4 text-[10px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-sm bg-foreground/40" />
+          <span className="size-2 rounded-sm bg-chart-1" />
           {t('dashboard.received')}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-2 rounded-sm bg-primary" />
+          <span className="size-2 rounded-sm bg-chart-2" />
           {t('dashboard.sent')}
         </span>
       </div>
