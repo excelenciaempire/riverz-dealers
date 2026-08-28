@@ -5,6 +5,7 @@ import { useT } from "@/hooks/use-locale";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Plan } from "@/lib/billing/plan";
 import type { CuentaDelNegocio, Negocio } from "@/lib/billing/negocio";
+import type { Tarifa } from "@/lib/wallet/tarifas";
 import {
   useAdminData,
   PageHeader,
@@ -40,6 +41,7 @@ import { RangePicker, RefreshButton, fromDays } from "../_components/filters";
 interface Payload {
   planes: Plan[];
   negocio: Negocio;
+  tarifas: Tarifa[];
   diasDePrueba: number;
 }
 
@@ -144,6 +146,20 @@ export default function AdminNegocioPage() {
     }
   };
 
+  const guardarTarifa = async (tarifa: Record<string, unknown>) => {
+    setGuardando(true);
+    try {
+      await fetchWithCsrf("/api/admin/billing", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tarifa }),
+      });
+      reload();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const guardarPlan = async (plan: Record<string, unknown>) => {
     setGuardando(true);
     try {
@@ -238,7 +254,7 @@ export default function AdminNegocioPage() {
   if (loading && !data) return <Loading />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
-  const { negocio, planes } = data;
+  const { negocio, planes, tarifas } = data;
 
   return (
     <div className="space-y-6">
@@ -325,6 +341,19 @@ export default function AdminNegocioPage() {
             <FilaPlan key={p.slug} plan={p} onGuardar={guardarPlan} guardando={guardando} />
           ))}
           <FilaPlan onGuardar={guardarPlan} guardando={guardando} />
+        </div>
+      </Panel>
+
+      <Panel title={t("admin.walletRates")}>
+        <div className="space-y-2 p-4">
+          {(tarifas ?? []).map((tar) => (
+            <FilaTarifa
+              key={tar.concepto}
+              tarifa={tar}
+              guardando={guardando}
+              onGuardar={guardarTarifa}
+            />
+          ))}
         </div>
       </Panel>
 
@@ -464,6 +493,61 @@ function BloqueBilletera({
           {t("admin.walletGrant")}
         </button>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * Una tarifa, editable en su fila.
+ *
+ * El precio se muestra en dólares por unidad —que es como se piensa— y se
+ * guarda en milésimas de centavo, que es como se cobra sin redondear de más
+ * cada respuesta. Tres decimales alcanzan: por debajo de un décimo de centavo
+ * la diferencia no se ve ni en mil respuestas.
+ */
+function FilaTarifa({
+  tarifa,
+  guardando,
+  onGuardar,
+}: {
+  tarifa: Tarifa;
+  guardando: boolean;
+  onGuardar: (t: Record<string, unknown>) => void;
+}) {
+  const t = useT();
+  const [precio, setPrecio] = useState(String(tarifa.precioMilicentavos / 100000));
+
+  const guardar = () => {
+    const dolares = Number(precio.replace(",", "."));
+    if (!Number.isFinite(dolares) || dolares < 0) return;
+    onGuardar({
+      concepto: tarifa.concepto,
+      precio_milicentavos: Math.round(dolares * 100000),
+      activo: tarifa.activo,
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 text-sm">
+      <span className="min-w-40 flex-1 text-foreground">{tarifa.nombreEs}</span>
+      <span className="w-28">
+        <input
+          className={INPUT}
+          inputMode="decimal"
+          value={precio}
+          onChange={(e) => setPrecio(e.target.value)}
+        />
+      </span>
+      <Muted>US$ / {tarifa.unidad}</Muted>
+      <button
+        type="button"
+        disabled={guardando}
+        onClick={guardar}
+        className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground disabled:opacity-60"
+      >
+        {t("admin.billingSave")}
+      </button>
     </div>
   );
 }

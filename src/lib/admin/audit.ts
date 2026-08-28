@@ -74,6 +74,7 @@ export type AdminAction =
   // que poder rastrearse hasta quien las hizo.
   | 'update.wallet_balance'
   | 'update.wallet_blocking'
+  | 'update.wallet_rate'
   | 'download.woocommerce_plugin';
 
 interface AuditEntry {

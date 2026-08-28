@@ -6,6 +6,7 @@ import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
 import { listarPlanes, DIAS_DE_PRUEBA } from '@/lib/billing/plan';
 import { leerNegocio } from '@/lib/billing/negocio';
+import { listarTarifas } from '@/lib/wallet/tarifas';
 
 /**
  * El negocio y sus perillas, en un solo lugar.
@@ -30,11 +31,12 @@ export async function GET(request: Request) {
   const { from, to } = rangeFromSearch(url);
   return adminGet(request, { action: 'view.billing' }, async () => {
     const db = supabaseAdmin();
-    const [planes, negocio] = await Promise.all([
+    const [planes, negocio, tarifas] = await Promise.all([
       listarPlanes(db),
       leerNegocio(db, { desde: from, hasta: to }),
+      listarTarifas(db),
     ]);
-    return { planes, negocio, diasDePrueba: DIAS_DE_PRUEBA };
+    return { planes, negocio, tarifas, diasDePrueba: DIAS_DE_PRUEBA };
   });
 }
 
@@ -71,6 +73,13 @@ interface CuerpoSaldo {
   motivo?: string | null;
 }
 
+interface CuerpoTarifa {
+  concepto: string;
+  /** En milésimas de centavo. Una respuesta corta cuesta menos de un centavo. */
+  precio_milicentavos: number;
+  activo?: boolean;
+}
+
 interface CuerpoBilletera {
   workspace_id: string;
   bloquear_sin_saldo: boolean;
@@ -93,6 +102,7 @@ export async function PUT(request: Request) {
     cuenta?: CuerpoCuenta;
     saldo?: CuerpoSaldo;
     billetera?: CuerpoBilletera;
+    tarifa?: CuerpoTarifa;
   } | null;
   const db = supabaseAdmin();
 
@@ -228,6 +238,36 @@ export async function PUT(request: Request) {
       targetType: 'workspace',
       targetId: bi.workspace_id,
       meta: { bloquear_sin_saldo: bi.bloquear_sin_saldo === true },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // El precio de lo que consume la IA. Vive en filas justamente para esto: en
+  // esta etapa se descubre probando, y compilarlo costaría un despliegue por
+  // prueba. No crea conceptos nuevos — un concepto que el código no sabe cobrar
+  // sería una fila que no cobra nada y nadie entendería por qué.
+  if (body?.tarifa) {
+    const ta = body.tarifa;
+    const precio = Math.round(Number(ta.precio_milicentavos));
+    if (!ta.concepto || !Number.isFinite(precio) || precio < 0) {
+      return NextResponse.json({ error: 'concepto o precio inválido' }, { status: 400 });
+    }
+    const fila: Record<string, unknown> = {
+      precio_milicentavos: precio,
+      updated_at: new Date().toISOString(),
+    };
+    if (ta.activo !== undefined) fila.activo = ta.activo === true;
+    const { error } = await db
+      .from('wallet_tarifas')
+      .update(fila)
+      .eq('concepto', ta.concepto);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.wallet_rate',
+      targetType: 'wallet_tarifa',
+      targetId: ta.concepto,
+      meta: { precio_milicentavos: precio, activo: ta.activo },
     });
     return NextResponse.json({ ok: true });
   }
