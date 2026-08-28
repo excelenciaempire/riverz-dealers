@@ -37,7 +37,11 @@ export interface ToolResult {
  * pedir por teléfono.
  */
 export const PLANTILLAS_LLAMADA = {
-  link_de_pago: 'llamada_link_de_pago',
+  // `llamada_link_de_pago` decía «el link para completar tu compra» y Meta la
+  // recategorizó a MARKETING: una invitación a comprar es promoción. Esta ancla
+  // en un pedido que el cliente YA confirmó y en un pago pendiente, que es lo
+  // que la vuelve transaccional.
+  link_de_pago: 'llamada_pago_pedido',
   transferencia: 'llamada_datos_transferencia',
   resumen_pedido: 'llamada_resumen_pedido',
   info_producto: 'llamada_info_producto',
