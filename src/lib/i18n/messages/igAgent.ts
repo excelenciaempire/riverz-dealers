@@ -191,10 +191,9 @@ export const igAgent = {
     es: "Solo a quien quiere comprar",
     en: "Only people who want to buy",
   },
-  audienceIntentHint: {
-    es: "Apagado: contesta a todos.",
-    en: "Off: it replies to everyone.",
-  },
+  // Sin glosa: vive debajo de "Responder con IA", que ya está encendido, así
+  // que apagar un filtro sólo puede significar quitar el filtro.
+  audienceIntentHint: { es: "", en: "" },
   // Dónde contesta la IA un comentario (migración 177)
   replyModeLabel: { es: "Dónde contesta", en: "Where it replies" },
   replyMode_dm: { es: "Solo por privado", en: "Private message only" },
