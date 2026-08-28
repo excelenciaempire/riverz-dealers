@@ -26,7 +26,9 @@ describe("canalPermiteEditar", () => {
 describe("puedeEditarse", () => {
   it("acepta lo que escribió el comercio en un canal editable", () => {
     expect(puedeEditarse(mensaje())).toBe(true);
-    expect(puedeEditarse(mensaje({ channel: "fb_comment" }))).toBe(true);
+    expect(puedeEditarse(mensaje({ channel: "fb_comment", message_id: "123_456" }))).toBe(
+      true,
+    );
     expect(puedeEditarse(mensaje({ sender_type: "bot" }))).toBe(true);
   });
 
@@ -46,5 +48,29 @@ describe("puedeEditarse", () => {
     for (const channel of ["whatsapp", "instagram", "messenger", "gmail", "ig_comment"] as Channel[]) {
       expect(puedeEditarse(mensaje({ channel }))).toBe(false);
     }
+  });
+});
+
+describe("puedeEditarse — el lápiz no puede prometer lo que la API no hace", () => {
+  it("un comentario de Facebook sin id externo no se edita", () => {
+    // Se edita POR id de comentario: sin él, guardar devolvería 409.
+    expect(puedeEditarse(mensaje({ channel: "fb_comment", message_id: undefined }))).toBe(
+      false,
+    );
+    expect(puedeEditarse(mensaje({ channel: "fb_comment", message_id: "123_456" }))).toBe(
+      true,
+    );
+  });
+
+  it("el chat web no necesita id externo", () => {
+    expect(puedeEditarse(mensaje({ channel: "webchat", message_id: undefined }))).toBe(true);
+  });
+
+  it("un comentario borrado (queda como fallido) no se edita", () => {
+    expect(
+      puedeEditarse(
+        mensaje({ channel: "fb_comment", message_id: "123_456", status: "failed" }),
+      ),
+    ).toBe(false);
   });
 });

@@ -246,6 +246,24 @@ export async function PATCH(
     .eq("id", id);
   if (error) return serverError(error);
 
+  // La lista de conversaciones no lee la tabla de mensajes: muestra el resumen
+  // que quedó
+  // pegado en la conversación. Sin esto, editar el último mensaje dejaba el
+  // texto viejo en la lista y el nuevo en el hilo, uno al lado del otro.
+  const { data: ultimo } = await admin
+    .from("messages")
+    .select("id")
+    .eq("conversation_id", message.conversation_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if ((ultimo as { id?: string } | null)?.id === id) {
+    await admin
+      .from("conversations")
+      .update({ last_message_text: texto.slice(0, 200) })
+      .eq("id", message.conversation_id);
+  }
+
   return NextResponse.json({ ok: true, text: texto });
 }
 

@@ -364,18 +364,25 @@ export async function GET(request: Request) {
   // Lo REESCRITO no vuelve por el cursor: éste avanza por created_at y un
   // mensaje viejo editado quedaría para siempre con el texto original del lado
   // del visitante. Se le manda aparte lo que cambió desde su último sondeo.
-  const editadoDesde = url.searchParams.get('edited_after');
+  // El valor lo elige quien llama y termina dentro de un filtro de PostgREST:
+  // se acepta SÓLO una fecha ISO nuestra. Con texto libre el filtro rompía y el
+  // sondeo entero devolvía 502, o sea el chat mudo — el mismo agujero que ya
+  // tenía el cursor.
+  const crudo = url.searchParams.get('edited_after');
+  const editadoDesde =
+    crudo && !Number.isNaN(Date.parse(crudo)) ? new Date(crudo).toISOString() : null;
   let edits: Array<{ id: string; text: string }> = [];
   if (editadoDesde) {
     const { data: reescritos } = await admin
       .from('messages')
-      .select('id, content_text')
+      .select('id, content_text, status')
       .eq('conversation_id', conversation.id)
       .gt('edited_at', editadoDesde)
       .limit(50);
-    edits = ((reescritos ?? []) as Array<{ id: string; content_text: string | null }>).map(
-      (m) => ({ id: m.id, text: m.content_text ?? '' }),
-    );
+    edits = ((reescritos ?? []) as Array<{ id: string; content_text: string | null; status: string | null }>)
+      // Lo que nunca se entregó tampoco se corrige del lado del visitante.
+      .filter((m) => m.status !== 'failed')
+      .map((m) => ({ id: m.id, text: m.content_text ?? '' }));
   }
 
   const last = ordered[ordered.length - 1];
