@@ -320,7 +320,7 @@ export function WalletPanel() {
       </section>
 
       {/* ── Recarga automática ──────────────────────────────────────── */}
-      {e.puedeRecargar && !e.exenta && (
+      {e.puedeRecargar && (
         <section className="rounded-xl border border-border bg-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

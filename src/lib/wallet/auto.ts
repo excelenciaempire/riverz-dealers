@@ -79,6 +79,10 @@ export async function urlDeTarjeta(
   const sesion = await stripe().checkout.sessions.create({
     mode: 'setup',
     customer,
+    // Stripe la exige en `setup` aunque no se cobre nada: es la moneda en la
+    // que va a poder cobrarse después. Sin esto responde
+    // "Missing required param: currency" y no hay forma de guardar la tarjeta.
+    currency: 'usd',
     metadata: { workspace_id: workspaceId, tipo: 'tarjeta_billetera' },
     success_url: volverA('/ajustes?tab=saldo&tarjeta=lista'),
     cancel_url: volverA('/ajustes?tab=saldo&tarjeta=cancelada'),
