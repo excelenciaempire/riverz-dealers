@@ -3,6 +3,7 @@
 import { ChannelLogo } from '@/components/inbox/channel-logo'
 import { CHANNEL_DISPLAY, channelLabel } from '@/lib/channels/display'
 import type { ChannelMixPoint } from '@/lib/dashboard/types'
+import type { Cortes } from '@/lib/dashboard/cortes'
 import type { Channel } from '@/types'
 import { cn } from '@/lib/utils'
 import { useT } from '@/hooks/use-locale'
@@ -10,6 +11,12 @@ import { useFormat } from '@/hooks/use-format'
 
 interface ChannelMixCardProps {
   mix: ChannelMixPoint[]
+  /**
+   * Cuántas conversaciones de cada canal tocó la IA. Vive acá y no en una
+   * tarjeta aparte: «Quién atendió» listaba los mismos canales una segunda vez,
+   * más abajo y sin logo. La lista de canales del panel es ésta.
+   */
+  cortes?: Cortes | null
 }
 
 /**
@@ -19,10 +26,22 @@ interface ChannelMixCardProps {
  *
  * La lista incluye TODOS los canales conectados del workspace: uno sin tráfico
  * en la ventana se muestra atenuado en 0 en vez de desaparecer de la tarjeta.
+ *
+ * A la derecha, dónde está trabajando la IA y dónde no. El volumen solo no
+ * contesta esa pregunta, y era la única razón por la que existía una segunda
+ * lista de canales más abajo.
  */
-export function ChannelMixCard({ mix }: ChannelMixCardProps) {
+export function ChannelMixCard({ mix, cortes }: ChannelMixCardProps) {
   const t = useT()
   const fmt = useFormat()
+  // Conversaciones con IA por canal, para cruzarlas con la fila del volumen.
+  // Son unidades distintas —mensajes en la barra, conversaciones acá— así que
+  // va como texto y no como tramo de la misma barra: pintarlas encima diría
+  // que un canal con muchos mensajes y pocas conversaciones está peor cubierto
+  // de lo que está.
+  const iaPorCanal = new Map(
+    (cortes?.canales ?? []).map((c) => [c.canal, c]),
+  )
   const total = mix.reduce((n, m) => n + m.inbound + m.outbound, 0)
   const peak = Math.max(1, ...mix.map((m) => m.inbound + m.outbound))
   return (
@@ -71,6 +90,15 @@ export function ChannelMixCard({ mix }: ChannelMixCardProps) {
                 <span className="ml-2 text-muted-foreground">
                   ↓ {fmt.number(m.inbound)} · ↑ {fmt.number(m.outbound)}
                 </span>
+                {(() => {
+                  const ia = iaPorCanal.get(m.channel)
+                  if (!ia || ia.conversaciones === 0) return null
+                  return (
+                    <span className="block text-muted-foreground">
+                      {t('dashboard.whoOfWithAi', { n: ia.conIa, total: ia.conversaciones })}
+                    </span>
+                  )
+                })()}
               </div>
             </li>
           )

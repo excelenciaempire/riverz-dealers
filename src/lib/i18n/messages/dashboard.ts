@@ -242,7 +242,6 @@ export const dashboard = {
   later: { es: "Más adelante", en: "Later" },
 
   // Quien atendio: por canal y por agente.
-  whoTitle: { es: "Quién atendió", en: "Who handled it" },
   whoOfWithAi: {
     es: "{n} de {total} con IA",
     en: "{n} of {total} with AI",
@@ -251,10 +250,6 @@ export const dashboard = {
   whoSkipped: { es: "{n} se abstuvo", en: "{n} skipped" },
   whoFailed: { es: "{n} falló", en: "{n} failed" },
   whoPaused: { es: "pausado", en: "paused" },
-  iaResolved: {
-    es: "resueltas sola ({n} de {total})",
-    en: "resolved on its own ({n} of {total})",
-  },
   iaSatisfaction: {
     es: "conformes ({n} calificaron)",
     en: "satisfied ({n} rated)",

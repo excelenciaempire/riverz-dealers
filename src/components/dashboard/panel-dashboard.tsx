@@ -17,7 +17,6 @@ import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
-import { QuienAtendio } from '@/components/dashboard/quien-atendio'
 import { ResolvioSola } from '@/components/dashboard/resolvio-sola'
 import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
 import { useAtribucion } from '@/lib/dashboard/use-attribution'
@@ -310,9 +309,11 @@ export function PanelDashboard({
         )}
       </div>
 
-      {/* Channel mix — volume per channel over the selected range. */}
+      {/* Channel mix — volume per channel over the selected range, y cuánto de
+          cada canal tocó la IA. El corte por canal vivía en una segunda tarjeta
+          («Quién atendió») que repetía esta misma lista más abajo. */}
       {metrics && metrics.channelMix.length > 0 && (
-        <ChannelMixCard mix={metrics.channelMix} />
+        <ChannelMixCard mix={metrics.channelMix} cortes={cortes} />
       )}
 
       {/* Conversations over time */}
@@ -326,13 +327,10 @@ export function PanelDashboard({
       <AttributedRevenue data={atribucion} />
 
       {/* La otra mitad de la pregunta: a cuanta gente atendio que si no habria
-          esperado. Va DESPUES de la plata y antes del detalle por canal —
-          primero cuanto rindio, despues cuanto trabajo, y al final donde. */}
+          esperado. Va DESPUES de la plata — primero cuanto rindio, despues
+          cuanto trabajo. Trae adentro el corte por agente, que antes era una
+          tarjeta aparte que repetia el mismo porcentaje. */}
       <ResolvioSola data={cortes} />
-
-      {/* Donde esta trabajando la IA y donde no. El volumen por canal ya estaba;
-          lo que faltaba era el corte por resultado y por agente. */}
-      <QuienAtendio data={cortes} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
