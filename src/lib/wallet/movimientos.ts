@@ -88,6 +88,15 @@ export interface PorConcepto {
   centavos: number
   cantidad: number
   movimientos: number
+  /**
+   * Lo que salió cada unidad, de verdad.
+   *
+   * Es el promedio medido de ESTA cuenta, no la tarifa: en la cuenta que paga a
+   * costo, la tarifa no es lo que se le cobra, y en cualquier caso una
+   * respuesta corta y una larga no cuestan lo mismo. Null cuando no hubo
+   * cantidad que promediar.
+   */
+  porUnidadCentavos: number | null
 }
 
 export interface PorDia {
@@ -153,7 +162,13 @@ export async function resumen(
       d.gastadoCentavos += -c
       const acc =
         conceptos.get(f.concepto) ??
-        { concepto: f.concepto, centavos: 0, cantidad: 0, movimientos: 0 }
+        {
+          concepto: f.concepto,
+          centavos: 0,
+          cantidad: 0,
+          movimientos: 0,
+          porUnidadCentavos: null,
+        }
       acc.centavos += -c
       acc.cantidad += Number(f.cantidad ?? 0)
       acc.movimientos += 1
@@ -167,7 +182,12 @@ export async function resumen(
     cargadoCentavos: cargado,
     gastadoCentavos: gastado,
     movimientos: filas.length,
-    porConcepto: [...conceptos.values()].sort((a, b) => b.centavos - a.centavos),
+    porConcepto: [...conceptos.values()]
+      .map((c) => ({
+        ...c,
+        porUnidadCentavos: c.cantidad > 0 ? c.centavos / c.cantidad : null,
+      }))
+      .sort((a, b) => b.centavos - a.centavos),
     porDia: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
   }
 }

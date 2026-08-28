@@ -50,6 +50,7 @@ interface Estado {
       centavos: number;
       cantidad: number;
       movimientos: number;
+      porUnidadCentavos: number | null;
     }[];
     porDia: { dia: string; gastadoCentavos: number; cargadoCentavos: number }[];
   };
@@ -680,21 +681,35 @@ export function WalletPanel() {
           </p>
         )}
         <ul className="mt-3 space-y-1.5 text-sm">
-          {e.tarifas.map((tar) => (
-            <li key={tar.concepto} className="flex justify-between gap-3">
-              <span className="text-muted-foreground">
-                {locale === 'en' ? tar.nombreEn : tar.nombreEs}
-              </span>
-              <span className="tabular-nums text-foreground">
-                {fmt.currency(
-                  tar.precioMilicentavos / 100_000,
-                  (e.moneda ?? 'usd').toUpperCase(),
-                  { maximumFractionDigits: 3 },
-                )}{' '}
-                / {tar.unidad}
-              </span>
-            </li>
-          ))}
+          {e.tarifas.map((tar) => {
+            // Lo que le salió DE VERDAD a esta cuenta, cuando ya consumió algo.
+            // Es lo único que le sirve para hacerse una idea: la tarifa es un
+            // promedio de todos, y en la cuenta que paga a costo ni siquiera es
+            // lo que se le cobra.
+            const real = resumen.porConcepto.find(
+              (c) => c.concepto === tar.concepto,
+            )?.porUnidadCentavos;
+            const centavos = real ?? tar.precioMilicentavos / 1000;
+            return (
+              <li key={tar.concepto} className="flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  {locale === 'en' ? tar.nombreEn : tar.nombreEs}
+                </span>
+                <span className="tabular-nums text-foreground">
+                  {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
+                    maximumFractionDigits: 4,
+                  })}{' '}
+                  / {tar.unidad}
+                  {real !== null && real !== undefined && (
+                    <span className="text-muted-foreground">
+                      {' '}
+                      · {t('settings.walletYourAverage')}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </section>
     </div>

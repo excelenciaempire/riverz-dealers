@@ -136,6 +136,43 @@ export async function cancelarSuscripcion(
   })
 }
 
+/**
+ * El primer día pagando: asegurar la billetera y avisar.
+ *
+ * Se importa acá adentro y no arriba para no arrastrar el WhatsApp de la
+ * plataforma —ni sus dependencias— a cada archivo que sólo quiere cobrar.
+ */
+async function darLaBienvenida(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<void> {
+  await db
+    .from('wallet_accounts')
+    .upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
+
+  const [{ sendPlatformAlert }, { aQuienAvisar }] = await Promise.all([
+    import('@/lib/admin/platform-whatsapp'),
+    import('@/lib/ai/aviso-escalada'),
+  ])
+  const telefono = await aQuienAvisar(db, workspaceId)
+  if (!telefono) return
+
+  const { data } = await db
+    .from('wallet_accounts')
+    .select('saldo_centavos')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  const saldo = Number((data as { saldo_centavos?: number } | null)?.saldo_centavos ?? 0)
+
+  await sendPlatformAlert({
+    to: telefono,
+    title: 'Tu plan quedó activo',
+    body:
+      `El pago entró y la cuenta está al día. Tu saldo para la IA es de US$${(saldo / 100).toFixed(2)}` +
+      ' — lo ves y lo recargas en riverz.co/ajustes?tab=saldo',
+  })
+}
+
 /** Cómo se traduce el estado de Stripe al nuestro. */
 function estadoDe(s: Stripe.Subscription.Status): string {
   if (s === 'active' || s === 'trialing') return 'activa'
@@ -180,14 +217,16 @@ export async function aplicarEvento(
   // siga fallando: Stripe reintenta y manda `updated` varias veces, y si cada
   // uno reiniciara la marca la gracia no terminaría nunca. Volver a estar al
   // día la borra.
+  const { data: previa } = await db
+    .from('workspace_subscriptions')
+    .select('estado, vencida_desde')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  const estadoPrevio = (previa as { estado?: string } | null)?.estado ?? null
+
   let vencidaDesde: string | null | undefined
   if (estado === 'vencida') {
-    const { data: actual } = await db
-      .from('workspace_subscriptions')
-      .select('vencida_desde')
-      .eq('workspace_id', workspaceId)
-      .maybeSingle()
-    const yaMarcada = (actual as { vencida_desde?: string | null } | null)?.vencida_desde
+    const yaMarcada = (previa as { vencida_desde?: string | null } | null)?.vencida_desde
     vencidaDesde = yaMarcada ?? new Date().toISOString()
   } else {
     vencidaDesde = null
@@ -207,5 +246,18 @@ export async function aplicarEvento(
     })
     .eq('workspace_id', workspaceId)
   if (error) throw new Error(error.message)
+
+  // Empezó a pagar. Se le avisa por WhatsApp y se le asegura la billetera.
+  //
+  // El aviso importa más de lo que parece: el día que una cuenta de cortesía
+  // pasa a pagar es el día en que el saldo empieza a contar para ella, y
+  // enterarse de eso por una IA que dejó de contestar sería la peor forma.
+  // `bloquear_sin_saldo` NO se toca acá: nace apagado y se prende cuando la
+  // cuenta ya cargó, no en el minuto en que pagó su primera mensualidad.
+  if (estado === 'activa' && estadoPrevio !== 'activa') {
+    void darLaBienvenida(db, workspaceId).catch((e) =>
+      console.error('[billing] no se pudo avisar la activación', e),
+    )
+  }
   return `${workspaceId}: ${sub.status}`
 }
