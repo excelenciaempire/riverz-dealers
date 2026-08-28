@@ -82,11 +82,11 @@ export function Operator() {
             Ese movimiento es lo que hace entender de una que se le HABLA. */}
         <div className="relative mx-auto mt-10 min-h-[400px] max-w-[600px] text-left sm:mt-14">
           <div
-            className="absolute transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            className="absolute inset-x-0 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
             style={
               escribiendo
-                ? { top: "42%", left: "50%", transform: "translate(-50%, -50%)" }
-                : { top: 0, left: "100%", transform: "translate(-100%, 0)" }
+                ? { top: "42%", transform: "translateY(-50%)" }
+                : { top: 0, transform: "translateY(0)" }
             }
           >
             <div
@@ -99,6 +99,7 @@ export function Operator() {
                 // 78vw)`: con vw, en pantallas angostas el campo se salía por
                 // la izquierda porque el contenedor ya venía con su margen.
                 width: escribiendo ? "100%" : "fit-content",
+                marginLeft: "auto",
                 maxWidth: "100%",
                 boxShadow: escribiendo ? "0 0 0 1px rgba(250,247,241,0.08)" : "none",
               }}

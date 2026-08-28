@@ -57,11 +57,11 @@ export function OperatorDark() {
       {/* El campo arranca centrado, como el de ChatGPT cuando no hay nada
           escrito; al enviarse sube a la esquina y aparece la respuesta. */}
       <div
-        className="absolute transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="absolute inset-x-0 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={
           escribiendo
-            ? { top: "40%", left: "50%", transform: "translate(-50%, -50%)" }
-            : { top: 0, left: "100%", transform: "translate(-100%, 0)" }
+            ? { top: "40%", transform: "translateY(-50%)" }
+            : { top: 0, transform: "translateY(0)" }
         }
       >
         <div
@@ -70,6 +70,7 @@ export function OperatorDark() {
             background: "rgba(255,255,255,0.08)",
             border: "1px solid rgba(255,255,255,0.14)",
             width: escribiendo ? "100%" : "fit-content",
+            marginLeft: "auto",
             maxWidth: "100%",
           }}
         >
