@@ -13,6 +13,30 @@ export const auth = {
     en: "Too many attempts. Try again in {retry} seconds.",
   },
 
+  // La tira oscura de las pantallas de acceso. Es lo primero que ve alguien
+  // que todavía no decidió si nos va a confiar su WhatsApp, así que dice la
+  // promesa y las credenciales — no una frase de marketing.
+  frameTitle: {
+    es: "Tu tienda, atendida",
+    en: "Your store, always answered",
+  },
+  frameBody: {
+    es: "WhatsApp, Instagram, Messenger y correo en una sola bandeja, con un asistente que contesta, vende y te pasa el hilo cuando hace falta.",
+    en: "WhatsApp, Instagram, Messenger and email in one inbox, with an assistant that replies, sells, and hands the thread over when it matters.",
+  },
+  trustOfficialApi: {
+    es: "Por la API oficial de Meta",
+    en: "Through the official Meta API",
+  },
+  trustReviewed: {
+    es: "App Review de Meta aprobado",
+    en: "Meta App Review approved",
+  },
+  trustYourNumber: {
+    es: "Tu número queda a tu nombre",
+    en: "Your number stays in your name",
+  },
+
   // Login
   loginTitle: { es: "Iniciar sesión", en: "Sign in" },
   loginError: { es: "No se pudo iniciar sesión", en: "Could not sign in" },

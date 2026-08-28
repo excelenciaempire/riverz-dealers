@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, PhoneCall } from "lucide-react";
+import { ArrowRight, BadgeCheck, PhoneCall } from "lucide-react";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { localizePath } from "@/lib/i18n/routes";
@@ -388,13 +388,20 @@ function Channels() {
  * exactamente lo contrario de tranquilizar a nadie. Lo que sí va son hechos
  * comprobables: la conexión es por la API oficial y el App Review está
  * aprobado. Dicho así pesa más que un logo prestado.
+ *
+ * Y va en INSIGNIAS, no en párrafos. Eran cuatro bloques de título + texto,
+ * noventa palabras para decir cinco hechos; leer noventa palabras sobre por
+ * qué confiar produce lo contrario de confianza. Un sello repetido cinco
+ * veces no es lo mismo que cuatro iconos distintos: aquello se lee como una
+ * plantilla comprada, esto como una credencial.
  */
 
 const CONFIANZA = [
-  { t: "landingV4.trust1Title", b: "landingV4.trust1Body" },
-  { t: "landingV4.trust2Title", b: "landingV4.trust2Body" },
-  { t: "landingV4.trust3Title", b: "landingV4.trust3Body" },
-  { t: "landingV4.trust4Title", b: "landingV4.trust4Body" },
+  "landingV4.trustBadge1",
+  "landingV4.trustBadge2",
+  "landingV4.trustBadge3",
+  "landingV4.trustBadge4",
+  "landingV4.trustBadge5",
 ] as const;
 
 function Confianza() {
@@ -404,25 +411,20 @@ function Confianza() {
       <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
         <Rise>
           <Label>{t("landingV4.trustLabel")}</Label>
-          <h2 className="sn-h2 mt-5 max-w-[18ch]">{t("landingV4.trustTitle")}</h2>
-          <p className="sn-body mt-5 max-w-[52ch]">{t("landingV4.trustBody")}</p>
+          <h2 className="sn-h2 mt-5 max-w-[16ch]">{t("landingV4.trustTitle")}</h2>
+          <p className="sn-body mt-5 max-w-[46ch]">{t("landingV4.trustBody")}</p>
         </Rise>
 
-        <div className="mt-12 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
-          {CONFIANZA.map((c, i) => (
-            <Rise key={c.t} delay={i * 70}>
-              {/* Un filete arriba en vez de un icono: cuatro iconos genéricos
-                  ahí abajo se leen como una plantilla comprada. */}
-              <span
-                aria-hidden
-                className="block h-px w-10"
-                style={{ background: "var(--sn-ink-accent)" }}
-              />
-              <h3 className="sn-h3 mt-5 max-w-[16ch]">{t(c.t)}</h3>
-              <p className="sn-body mt-3 !text-[15px]">{t(c.b)}</p>
-            </Rise>
-          ))}
-        </div>
+        <Rise delay={90}>
+          <ul className="mt-11 flex flex-wrap gap-2.5">
+            {CONFIANZA.map((k) => (
+              <li key={k} className="sn-badge">
+                <BadgeCheck aria-hidden className="size-[17px]" strokeWidth={1.75} />
+                {t(k)}
+              </li>
+            ))}
+          </ul>
+        </Rise>
       </div>
     </section>
   );

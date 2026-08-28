@@ -7,13 +7,7 @@ import { signupsOpen } from "@/lib/auth/signups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { MarcoAuth, TituloAuth } from "@/components/auth/marco";
 
 export default function LoginPage() {
   const t = useT();
@@ -50,16 +44,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
-            riverz
-          </span>
-          <CardTitle className="text-xl text-foreground">{t("auth.loginTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+    <MarcoAuth>
+      <TituloAuth titulo={t("auth.loginTitle")} />
+      <form onSubmit={handleLogin} className="flex flex-col gap-4">
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
                 {error}
@@ -110,23 +97,18 @@ export default function LoginPage() {
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {loading ? t("auth.signingIn") : t("auth.signIn")}
-            </Button>
-          </form>
+        </Button>
+      </form>
 
-          {/* Pre-launch: sign-ups are closed, so no "create account" link. */}
-          {signupsOpen() && (
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              {t("auth.noAccount")}{" "}
-              <Link
-                href="/registro"
-                className="text-accent-ink hover:text-accent-ink/80"
-              >
-                {t("auth.createAccount")}
-              </Link>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      {/* Pre-launch: sign-ups are closed, so no "create account" link. */}
+      {signupsOpen() && (
+        <p className="mt-7 text-sm text-muted-foreground">
+          {t("auth.noAccount")}{" "}
+          <Link href="/registro" className="text-accent-ink hover:underline">
+            {t("auth.createAccount")}
+          </Link>
+        </p>
+      )}
+    </MarcoAuth>
   );
 }

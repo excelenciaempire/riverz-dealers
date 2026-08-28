@@ -8,13 +8,7 @@ import { LEGAL_VERSION } from "@/lib/legal/version";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { MarcoAuth, TituloAuth } from "@/components/auth/marco";
 import { CheckCircle, Eye, EyeOff } from "lucide-react";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
@@ -119,50 +113,37 @@ function SignupForm() {
 
   if (success) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-        <Card className="w-full max-w-md border-border bg-card">
-          <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <CheckCircle className="h-6 w-6 text-accent-ink" />
-            </div>
-            <CardTitle className="text-xl text-foreground">
-              {t("auth.checkYourEmail")}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
+      <MarcoAuth>
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <CheckCircle className="h-6 w-6 text-accent-ink" />
+        </div>
+        <TituloAuth
+          titulo={t("auth.checkYourEmail")}
+          bajada={
+            <>
               {t("auth.confirmationLinkSent")}{" "}
               <span className="text-foreground">{email}</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/ingresar">
-              <Button
-                variant="outline"
-                className="w-full border-border text-foreground hover:bg-accent hover:text-foreground"
-              >
-                {t("auth.backToLogin")}
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+            </>
+          }
+        />
+        <Link href="/ingresar">
+          <Button
+            variant="outline"
+            className="w-full border-border text-foreground hover:bg-accent hover:text-foreground"
+          >
+            {t("auth.backToLogin")}
+          </Button>
+        </Link>
+      </MarcoAuth>
     );
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <span className="mb-3 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
-            riverz
-          </span>
-          <CardTitle className="text-xl text-foreground">{t("auth.signupTitle")}</CardTitle>
-          {pendingShop && (
-            <CardDescription className="text-muted-foreground">
-              {t("auth.shopifyPendingNotice", { shop: pendingShop })}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
+    <MarcoAuth>
+      <TituloAuth
+        titulo={t("auth.signupTitle")}
+        bajada={pendingShop ? t("auth.shopifyPendingNotice", { shop: pendingShop }) : undefined}
+      />
           <form onSubmit={handleSignup} className="flex flex-col gap-4">
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -320,18 +301,13 @@ function SignupForm() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t("auth.haveAccount")}{" "}
-            <Link
-              href="/ingresar"
-              className="text-accent-ink hover:text-accent-ink/80"
-            >
-              {t("auth.signInLink")}
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+      <p className="mt-7 text-sm text-muted-foreground">
+        {t("auth.haveAccount")}{" "}
+        <Link href="/ingresar" className="text-accent-ink hover:underline">
+          {t("auth.signInLink")}
+        </Link>
+      </p>
+    </MarcoAuth>
   );
 }
 

@@ -322,34 +322,27 @@ export const landingV4 = {
   // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
   // que la conexión es por la API oficial y que el App Review está aprobado.
   trustLabel: { es: "Confianza", en: "Trust" },
+  // El título es la promesa, no la metáfora. Antes decía «Conectado por la
+  // puerta de adelante»: bonito, pero hay que leer el párrafo entero para
+  // saber qué gana quien lo lee. Esto lo dice en cuatro palabras, y es
+  // exactamente el miedo que tiene: que un día el número deje de andar.
   trustTitle: {
-    es: "Conectado por la puerta de adelante",
-    en: "Connected through the front door",
+    es: "Tu número no se cae",
+    en: "Your number stays up",
   },
   trustBody: {
-    es: "Muchas herramientas se cuelgan de un teléfono espejo. El día que la plataforma lo detecta, el número se cae. Riverz no hace eso.",
-    en: "Plenty of tools hang off a mirrored phone. The day the platform notices, the number goes down. Riverz doesn't do that.",
+    es: "Las herramientas colgadas de un teléfono espejo se caen el día que Meta las detecta. Riverz entra por la API oficial.",
+    en: "Tools that hang off a mirrored phone go down the day Meta notices. Riverz connects through the official API.",
   },
-  trust1Title: { es: "API oficial de Meta", en: "Official Meta APIs" },
-  trust1Body: {
-    es: "WhatsApp, Instagram y Messenger por sus canales oficiales. Tu número queda a tu nombre.",
-    en: "WhatsApp, Instagram, and Messenger through their official channels. Your number stays in your name.",
-  },
-  trust2Title: { es: "Revisada por Meta", en: "Reviewed by Meta" },
-  trust2Body: {
-    es: "Meta revisó y aprobó todos los permisos que usamos.",
-    en: "Meta reviewed and approved every permission we use.",
-  },
-  trust3Title: { es: "Nada sale sin permiso", en: "Nothing goes out unapproved" },
-  trust3Body: {
-    es: "Cancelar un pedido o devolver plata nunca queda en automático. Eso siempre pasa por ti.",
-    en: "Cancelling an order or refunding money is never left on automatic. That always goes through you.",
-  },
-  trust4Title: { es: "Tus datos, tuyos", en: "Your data stays yours" },
-  trust4Body: {
-    es: "Cifrados, aislados de los demás comercios, y los borras cuando quieras.",
-    en: "Encrypted, isolated from every other store, and you can delete them whenever you want.",
-  },
+  // Cinco hechos comprobables, de tres a cinco palabras cada uno. Antes eran
+  // cuatro bloques de título + párrafo: noventa palabras para decir esto
+  // mismo. La confianza se declara corta — un texto largo explicando por qué
+  // confiar consigue lo contrario.
+  trustBadge1: { es: "API oficial de Meta", en: "Official Meta API" },
+  trustBadge2: { es: "App Review aprobado", en: "Meta App Review approved" },
+  trustBadge3: { es: "El número, a tu nombre", en: "The number stays yours" },
+  trustBadge4: { es: "Datos cifrados y aislados", en: "Encrypted, isolated data" },
+  trustBadge5: { es: "Nada crítico en automático", en: "Nothing critical on autopilot" },
 
   // ── Cierre ──
   // Sin promesa de instalación: eso vive en la oferta, que es temporal.

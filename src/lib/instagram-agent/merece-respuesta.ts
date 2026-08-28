@@ -118,6 +118,68 @@ const LEGAL = [
  */
 const IA_SUELTA = /(^|[^a-záéíóúñ])(i\.?\s?a\.?|inteligencia artificial)([^a-záéíóúñ]|$)/i;
 
+/**
+ * Interrogativos que no se pueden leer como reproche. Es `PREGUNTA` sin "qué"
+ * ni "porque": con esos dos empieza tanto la consulta como la acusación.
+ */
+/**
+ * Hostilidad pura: no discute un dato, descalifica. No entra en `DUDA` a
+ * propósito — `mereceRespuesta` tiene que seguir devolviendo `null` para
+ * "dejen de mentir", porque contestarlo no ayuda a nadie. Acá sirve para lo
+ * contrario: decidir que se oculta.
+ */
+const HOSTILIDAD = [
+  'mentir', 'mentiras', 'trucha', 'truchas', 'trucho', 'truchos',
+  'chanta', 'chantas', 'verguenza', 'vergüenza', 'basura', 'porqueria',
+  'porquería', 'no le crean', 'no compren',
+];
+
+const INTERROGATIVOS = [
+  'cuando', 'cuándo', 'como', 'cómo', 'donde', 'dónde', 'cual', 'cuál',
+  'quien', 'quién', 'puedo', 'puede', 'pueden', 'podrán', 'podran',
+  'tienen', 'hay ', 'se puede', 'sirve', 'funciona', 'venden', 'llega',
+];
+
+/**
+ * ¿ESTO ES UNA CRÍTICA PÚBLICA, DE LAS QUE SE OCULTAN Y NO SE CONTESTAN?
+ *
+ * Decisión del dueño, y hay que sostenerla: a la crítica se le saca la
+ * tribuna, no se le da. Contestar sube el hilo, lo pone arriba en la
+ * publicación y deja la acusación a la vista de todos los que pasan.
+ *
+ * La línea NO es "negativo o positivo": es VEREDICTO contra PREGUNTA.
+ *
+ *   "Qué manera de hacer publicidades falsas mezclando rostros"  → veredicto
+ *   "¿El producto tiene aprobación de ANMAT?"                    → pregunta
+ *
+ * Los dos tocan las mismas palabras. El primero se oculta; el segundo es de
+ * alguien que está evaluando comprar y merece una respuesta cuidada. Por eso
+ * una pregunta nunca se oculta, por más incómoda que sea.
+ *
+ * Y un reclamo de post-venta tampoco: "no me llegó el pedido" es un problema
+ * real de un cliente real. Ocultarlo sería taparle la boca a quien ya pagó.
+ */
+export function esCriticaPublica(texto: string): boolean {
+  const t = normalizar(texto);
+  if (t.length < 8) return false;
+  // Quien pregunta no está acusando: contesta la duda, no la escondas.
+  //
+  // Acá NO sirve `esPregunta`: acepta cualquier frase que empiece con "qué", y
+  // en español el reproche empieza igual que la pregunta. "Qué manera de hacer
+  // publicidades falsas" no pregunta nada, y con `esPregunta` se salvaba de
+  // ocultarse. Vale el signo, o un interrogativo que no admita esa lectura.
+  if (t.includes('?') || t.includes('¿')) return false;
+  if (INTERROGATIVOS.some((p) => t.startsWith(p))) return false;
+  // Quien ya compró y tiene un problema se atiende, no se oculta.
+  if (contiene(t, RECLAMO)) return false;
+  return (
+    contiene(t, DUDA) ||
+    contiene(t, LEGAL) ||
+    contiene(t, HOSTILIDAD) ||
+    IA_SUELTA.test(t)
+  );
+}
+
 export function mereceRespuesta(texto: string): MotivoRespuesta | null {
   const t = normalizar(texto);
   // Un comentario de tres letras no es nada de esto.

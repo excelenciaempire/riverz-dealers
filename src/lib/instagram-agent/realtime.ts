@@ -5,6 +5,7 @@ import {
   afirmaLoQueNoSabe,
   instruccionPara,
   mereceRespuesta,
+  esCriticaPublica,
 } from './merece-respuesta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
@@ -597,6 +598,28 @@ async function generateCloserReply(input: {
  * y el spam no reciben nada—, pausa de emergencia, tope diario, una sola
  * respuesta privada por comentario, y baja del contacto respetada.
  */
+/**
+ * ¿Este comentario está oculto?
+ *
+ * La fila de la bandeja guarda el id de Meta en `message_id`, que es el mismo
+ * que llega por el webhook. Ante la duda —fila que no aparece, consulta que
+ * falla— devuelve `false`: no contestar por un error de lectura sería peor que
+ * el problema que arregla.
+ */
+async function estaOculto(
+  db: SupabaseClient,
+  commentId: string | null | undefined,
+): Promise<boolean> {
+  if (!commentId) return false;
+  const { data } = await db
+    .from('messages')
+    .select('is_hidden')
+    .eq('message_id', commentId)
+    .limit(1)
+    .maybeSingle();
+  return Boolean((data as { is_hidden?: boolean | null } | null)?.is_hidden);
+}
+
 async function autonomousCommentReply(
   db: SupabaseClient,
   opts: {
@@ -638,6 +661,18 @@ async function autonomousCommentReply(
   // Un comentario sin texto (un emoji, una mención) no dice nada que responder.
   const engagement = (opts.engagementText ?? '').trim();
   if (engagement.length < 3) return;
+
+  // UN COMENTARIO OCULTO NO SE CONTESTA.
+  //
+  // Ocultarlo es la decisión de no darle tribuna. Contestarlo después la
+  // deshace y encima queda peor: el comentario no se ve y la respuesta sí, así
+  // que el que pasa lee una respuesta a una acusación invisible y se entera de
+  // que existió. Medido el 2026-08-28 en la cuenta de Pilar: los TRES
+  // comentarios negativos que el agente contestó en público estaban ocultos.
+  //
+  // Da igual quién lo ocultó —el comercio a mano, el agente por spam, o la
+  // propia red—: la fila lo dice y con eso alcanza.
+  if (await estaOculto(db, opts.commentId)) return;
 
   // No abrir la puerta a fan-out: el mismo tope por minuto que el alcance de
   // campaña, para que un post viral no dispare cientos de llamadas.
@@ -692,14 +727,27 @@ async function autonomousCommentReply(
     //
     // Si esto se vuelve a dar vuelta, que sea porque el dueño lo pide, no
     // porque el comentario de arriba convenza a alguien.
-    if (s.spam) {
+    // La crítica pública entra por acá junto con el spam. El clasificador no
+    // la marcaba —su definición de spam es "bot, autopromo, insulto"— así que
+    // un "publicidades falsas mezclando rostros" salía limpio y se contestaba
+    // en público, que es exactamente lo que el dueño no quiere. `esCritica`
+    // distingue el veredicto de la pregunta: quien pregunta por la aprobación
+    // de ANMAT está evaluando comprar y recibe respuesta.
+    const esCritica = esCriticaPublica(engagement);
+    if (s.spam || esCritica) {
       // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
       // contestar, que es lo que importa.
       if (!isTikTok) {
         const conn =
           opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
         if (conn)
-          await setCommentHidden(conn, commentChannel, opts.commentId, true, 'spam');
+          await setCommentHidden(
+            conn,
+            commentChannel,
+            opts.commentId,
+            true,
+            s.spam ? 'spam' : 'critica',
+          );
       }
       return;
     }
