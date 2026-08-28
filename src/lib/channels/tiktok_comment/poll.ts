@@ -389,7 +389,20 @@ async function convergeState(
       ...(liked === null ? {} : (patchFor(row, liked ? "like" : "unlike") ?? {})),
     };
     if (Object.keys(patch).length === 0) continue;
-    await db.from("messages").update(patch).eq("id", row.id);
+    // Con QUÉ palabra lo ocultó TikTok.
+    //
+    // Acá se trata como oculto cualquier `status` que no sea PUBLIC, y eso es
+    // una suposición: TikTok también usa estados que no significan "lo
+    // escondí" (uno en revisión, por ejemplo). Sin guardar el valor, un hilo
+    // que aparece tachado en la bandeja no se puede explicar — el 2026-08-28
+    // el 74% de las respuestas que el comercio escribió A MANO figuraban
+    // ocultas y no hubo forma de saber por qué. Cuesta una columna que ya
+    // existe.
+    const conMotivo =
+      status !== null && status !== "PUBLIC"
+        ? { ...patch, meta_status_raw: { tiktok_status: status } }
+        : patch;
+    await db.from("messages").update(conMotivo).eq("id", row.id);
   }
 }
 
