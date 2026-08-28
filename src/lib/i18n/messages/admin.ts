@@ -487,6 +487,10 @@ export const admin = {
   walletGrant: { es: "Cargar", en: "Load" },
   walletGrantAmount: { es: "Saldo a cargar (US$)", en: "Balance to load (US$)" },
   walletGrantWhy: { es: "Por qué", en: "Why" },
+  cronWalletAutorecarga: {
+    es: "Recarga la billetera de quien bajó del umbral y tiene tarjeta",
+    en: "Tops up wallets that fell below their threshold and have a card",
+  },
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
   walletMovements: { es: "Movimientos", en: "Movements" },
   walletNoMovements: { es: "Sin movimientos", en: "No movements" },

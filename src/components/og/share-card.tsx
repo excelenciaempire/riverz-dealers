@@ -79,8 +79,8 @@ export function renderShareCard(): ImageResponse {
               maxWidth: 880,
             }}
           >
-            Un chatbot termina cuando responde. Riverz crea el pedido en tu
-            tienda, cobra y hace el seguimiento del envío.
+            Las demás plataformas contestan. Riverz recomienda, recupera el
+            carrito, confirma la compra y sigue el envío.
           </span>
         </div>
 

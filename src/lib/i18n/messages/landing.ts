@@ -19,8 +19,8 @@ export const landing = {
     en: "Your entire commercial operation, one agentic system · riverz",
   },
   ogDescription: {
-    es: "Un chatbot termina cuando responde. Riverz crea el pedido en tu tienda, cobra y hace el seguimiento, en todos tus canales.",
-    en: "A chatbot is done when it replies. Riverz creates the order in your store, takes the payment, and follows the shipment — across every channel.",
+    es: "Las demás plataformas contestan. Riverz recomienda, recupera el carrito, confirma la compra y sigue el envío, en todos tus canales.",
+    en: "Other platforms reply. Riverz recommends, recovers the cart, confirms the purchase, and follows the shipment — across every channel.",
   },
 
   // ── Header / nav ──

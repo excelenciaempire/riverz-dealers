@@ -135,8 +135,8 @@ export const landingV4 = {
     en: "Other platforms reply. Riverz sells.",
   },
   loopLead: {
-    es: "Un chatbot contesta y ahí se acaba: el pedido lo terminas cargando tú. Riverz lo crea en tu tienda, cobra y sigue el envío.",
-    en: "A chatbot replies and that's it — you still enter the order yourself. Riverz creates it in your store, takes the payment, and follows the shipment.",
+    es: "Un chatbot contesta la pregunta y ahí se acaba. Riverz sigue: recomienda, va a buscar el carrito que quedó a medias, confirma la compra y avisa dónde viene el pedido.",
+    en: "A chatbot answers the question and that's where it ends. Riverz keeps going: it recommends, chases the cart left halfway, confirms the purchase, and tells them where the order is.",
   },
   // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
   // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
@@ -167,10 +167,10 @@ export const landingV4 = {
   // El cuarto es el argumento entero. Si alguien lee un solo paso, que sea este.
   loop4Title: { es: "Cierra la venta, no solo la charla", en: "It closes the sale, not just the chat" },
   loop4Body: {
-    es: "Acá deja de parecerse a un chatbot: crea el pedido en tu tienda, cobra y hace el seguimiento del envío. Y si hace falta, llama por teléfono.",
-    en: "This is where it stops resembling a chatbot: it creates the order in your store, takes the payment, and follows the shipment. And if it takes a call, it calls.",
+    es: "Acá deja de parecerse a un chatbot: manda el link para pagar, confirma la compra y sigue el envío hasta la puerta. Y si hace falta, llama por teléfono.",
+    en: "This is where it stops resembling a chatbot: it sends the link to pay, confirms the purchase, and follows the shipment to the door. And if a call is what it takes, it calls.",
   },
-  loop4P1: { es: "El pedido queda creado en tu tienda", en: "The order ends up created in your store" },
+  loop4P1: { es: "La venta se cierra en el chat", en: "The sale closes inside the chat" },
   loop4P2: { es: "Cobra por el medio que uses en tu país", en: "Charges through the method your country uses" },
 
   loop5Title: { es: "Te muestra qué ganaste", en: "It shows you what you earned" },
@@ -193,8 +193,8 @@ export const landingV4 = {
     en: "Your ad did bring the customer",
   },
   pillarsLead: {
-    es: "La venta se perdió después: el mensaje que nadie contestó, el carrito a medias, el pago sin confirmar.",
-    en: "The sale was lost afterwards: the message nobody answered, the half-finished cart, the payment never confirmed.",
+    es: "La venta se perdió después, cuando nadie contestó a tiempo y la conversación se enfrió.",
+    en: "The sale was lost afterwards, when nobody answered in time and the conversation went cold.",
   },
   pillarsKicker: {
     es: "Es plata que ya pagaste.",
@@ -208,8 +208,8 @@ export const landingV4 = {
     en: "Thirteen things it does on its own",
   },
   capsBody: {
-    es: "Cada una con los datos reales de tu tienda: tu stock, tus precios, tus pedidos.",
-    en: "Each one with real data from your store: your stock, your prices, your orders.",
+    es: "Desde la primera pregunta hasta la recompra.",
+    en: "From the first question to the repeat purchase.",
   },
   capsZeroLabel: { es: "líneas de código", en: "lines of code" },
 
@@ -308,8 +308,8 @@ export const landingV4 = {
     en: "Where your customers already write you",
   },
   channelsBody: {
-    es: "Cada mensaje sale por las APIs oficiales, con los permisos aprobados. Nada de WhatsApp Web ni números clonados: tu cuenta no se bloquea.",
-    en: "Every message goes out through the official APIs, with approved permissions. No WhatsApp Web, no cloned numbers: your account doesn't get blocked.",
+    es: "Siete bandejas, los comentarios de tus anuncios y las llamadas, en una sola pantalla. Y del otro lado, tu tienda y tus pagos.",
+    en: "Seven inboxes, the comments on your ads, and the calls — on one screen. And on the other side, your store and your payments.",
   },
   channelsInboxes: { es: "Bandejas", en: "Inboxes" },
   channelsStores: { es: "Tiendas y logística", en: "Stores and logistics" },
@@ -342,8 +342,8 @@ export const landingV4 = {
   },
   trust3Title: { es: "Nada sale sin permiso", en: "Nothing goes out unapproved" },
   trust3Body: {
-    es: "Tú eliges qué hace sola y qué te pregunta. Cancelar o devolver plata nunca es automático.",
-    en: "You choose what it does alone and what it asks about. Cancelling or refunding is never automatic.",
+    es: "Cancelar un pedido o devolver plata nunca queda en automático. Eso siempre pasa por ti.",
+    en: "Cancelling an order or refunding money is never left on automatic. That always goes through you.",
   },
   trust4Title: { es: "Tus datos, tuyos", en: "Your data stays yours" },
   trust4Body: {
