@@ -20,10 +20,14 @@ import type { Namespace } from "./types";
  *    esté demostrando el valor acordado. Eso mata de una la objeción más
  *    grande del avatar («integrarlo va a ser otro proyecto de meses»).
  *
- * 4. **Dos mecanismos con nombre propio.** Riverz Launch —nosotros lo
- *    montamos— y Riverz Loop —los cinco pasos que mantienen cada oportunidad
- *    en movimiento—. Un chatbot termina cuando responde; el Loop termina
- *    cuando la oportunidad avanzó o quedó en manos de la persona correcta.
+ * 4. **El mecanismo, no la marca del mecanismo.** El documento lo bautizaba
+ *    «Riverz Loop»; en la página no aparece esa palabra. Nadie que entra por
+ *    primera vez sabe qué es un loop, y una portada no enseña vocabulario
+ *    propio. Lo que sí queda es el argumento: un chatbot termina cuando
+ *    responde; Riverz recién termina cuando la venta avanzó o quedó en manos
+ *    de la persona correcta. Los cinco pasos están escritos del lado del
+ *    comercio, y el cuarto —«cierra la venta, no solo la charla»— es el que
+ *    carga la diferencia, por si alguien lee uno solo.
  *
  * El avatar es Camila: fundadora o líder de e-commerce, 28-45, que ya vende y
  * ya invierte en pauta, y que está perdiendo parte de esa inversión entre
@@ -129,50 +133,48 @@ export const landingV4 = {
     es: "Riverz recién termina cuando la venta avanzó, o cuando la conversación quedó en manos de la persona correcta. Estos cinco pasos ocurren cada vez que algo pasa en tu tienda.",
     en: "Riverz isn't done until the sale moved forward, or the conversation landed with the right person. These five steps run every time something happens in your store.",
   },
-  loop1Title: { es: "Detecta la señal", en: "It spots the signal" },
+  // Cinco pasos, del lado del comercio. Sin «señal», sin «contexto», sin
+  // «ejecuta»: nadie que vende por WhatsApp piensa con esas palabras.
+  loop1Title: { es: "Se entera", en: "It notices" },
   loop1Body: {
-    es: "Un mensaje, un comentario bajo un anuncio, un carrito abandonado, un pago rechazado, un pedido o una novedad de la entrega.",
-    en: "A message, a comment under an ad, an abandoned cart, a declined payment, an order, or a delivery update.",
+    es: "Un mensaje, un comentario en un anuncio, un carrito que quedó a medias, un pago que se cayó. Lo ve todo, también de madrugada.",
+    en: "A message, a comment on an ad, a cart left half-finished, a payment that bounced. It catches all of it, at 3 a.m. too.",
   },
   loop1P1: { es: "Siete canales y los comentarios", en: "Seven channels plus comments" },
-  loop1P2: { es: "Eventos de tu tienda y de tus pagos", en: "Events from your store and payments" },
-  loop1P3: { es: "También lo que pasa fuera de horario", en: "Including what happens after hours" },
+  loop1P2: { es: "Y lo que pasa en tu tienda y tus pagos", en: "Plus what happens in your store and payments" },
 
-  loop2Title: { es: "Entiende el contexto", en: "It reads the context" },
+  loop2Title: { es: "Sabe con quién habla", en: "It knows who it's talking to" },
   loop2Body: {
-    es: "Quién es la persona, qué producto miró, qué compró antes, qué hay disponible ahora y qué reglas pusiste tú.",
-    en: "Who the person is, what they looked at, what they bought before, what's in stock now, and the rules you set.",
+    es: "Antes de escribir ya sabe qué compró esa persona, qué estuvo mirando y qué hay en stock ahora mismo. No adivina: lee tu tienda.",
+    en: "Before it types, it already knows what that person bought, what they were looking at, and what's in stock right now. It doesn't guess — it reads your store.",
   },
   loop2P1: { es: "Catálogo, stock y precios en vivo", en: "Live catalog, stock, and prices" },
   loop2P2: { es: "Historial de compras y conversaciones", en: "Purchase and conversation history" },
-  loop2P3: { es: "Tus políticas, escritas en tus palabras", en: "Your policies, in your own words" },
 
-  loop3Title: { es: "Decide el siguiente paso", en: "It decides the next step" },
+  loop3Title: { es: "Decide hasta dónde llega", en: "It decides how far to go" },
   loop3Body: {
-    es: "Elige qué conviene hacer dentro de los límites que pusiste. Lo seguro lo ejecuta, lo sensible te lo pregunta y lo incierto te lo pasa.",
-    en: "It picks what to do within the limits you set. It runs what's safe, asks about what's sensitive, and hands over what's uncertain.",
+    es: "Tú marcas los límites. Lo seguro lo hace solo, lo delicado te lo pregunta, y lo que no sabe te lo pasa a ti.",
+    en: "You set the limits. It handles what's safe on its own, asks you about anything delicate, and hands you what it doesn't know.",
   },
-  loop3P1: { es: "Cada herramienta: apagada, con permiso o sola", en: "Each tool: off, on approval, or automatic" },
+  loop3P1: { es: "Cada herramienta: apagada, con permiso o sola", en: "Each tool: off, ask first, or automatic" },
   loop3P2: { es: "Nunca inventa un precio ni un plazo", en: "It never invents a price or a deadline" },
-  loop3P3: { es: "Si no sabe, lo dice y escala", en: "If it doesn't know, it says so and escalates" },
 
-  loop4Title: { es: "Ejecuta", en: "It executes" },
+  // El cuarto es el argumento entero. Si alguien lee un solo paso, que sea este.
+  loop4Title: { es: "Cierra la venta, no solo la charla", en: "It closes the sale, not just the chat" },
   loop4Body: {
-    es: "Responde, recomienda, manda el link de pago, crea el pedido en tu tienda, hace el seguimiento o levanta el teléfono.",
-    en: "It replies, recommends, sends the payment link, creates the order in your store, follows up, or picks up the phone.",
+    es: "Acá deja de parecerse a un chatbot: crea el pedido en tu tienda, cobra y hace el seguimiento del envío. Y si hace falta, llama por teléfono.",
+    en: "This is where it stops resembling a chatbot: it creates the order in your store, takes the payment, and follows the shipment. And if it takes a call, it calls.",
   },
   loop4P1: { es: "El pedido queda creado en tu tienda", en: "The order ends up created in your store" },
   loop4P2: { es: "Cobra por el medio que uses en tu país", en: "Charges through the method your country uses" },
-  loop4P3: { es: "Y si hace falta, llama por teléfono", en: "And if needed, it calls on the phone" },
 
-  loop5Title: { es: "Cierra el ciclo", en: "It closes the loop" },
+  loop5Title: { es: "Te muestra qué ganaste", en: "It shows you what you earned" },
   loop5Body: {
-    es: "Registra qué pasó, qué resultado dio y qué información le faltó, para hacerlo mejor la próxima vez.",
-    en: "It records what happened, what came of it, and what information was missing, to do it better next time.",
+    es: "Cada venta queda atribuida, así ves cuánto te devolvió de verdad. Y lo que no supo responder queda anotado para que la próxima sí.",
+    en: "Every sale is attributed, so you see what it actually returned. And whatever it couldn't answer gets written down, so next time it can.",
   },
   loop5P1: { es: "Cada venta queda atribuida", en: "Every sale is attributed" },
-  loop5P2: { es: "Los huecos de conocimiento quedan anotados", en: "Knowledge gaps get written down" },
-  loop5P3: { es: "Ves qué resolvió y qué escaló", en: "You see what it solved and what it escalated" },
+  loop5P2: { es: "Ves qué resolvió y qué te pasó a ti", en: "You see what it solved and what it handed you" },
 
   // ── Los pilares: el ángulo del chat ya pagado ──
   pillarsLabel: { es: "Por qué importa", en: "Why it matters" },
