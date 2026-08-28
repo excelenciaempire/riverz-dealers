@@ -224,7 +224,8 @@ export function MessageThread({
   }, [conversation?.id, conversation?.ai_enabled]);
 
   // ¿Hay un agente IA que cubra el canal de ESTA conversación? Si no, el
-  // toggle "IA activa/en pausa" es engañoso (no hay quién responda), así que
+  // toggle "Responde la IA / Respondes tú" es engañoso (no hay IA que
+  // responda), así que
   // no lo mostramos. Un agente cubre el canal si está activo y es
   // workspace-scoped (todos los canales) o channel-scoped con el canal
   // enlazado en ai_agent_channels — misma regla que pickAgent en el runner.
@@ -1339,6 +1340,11 @@ export function MessageThread({
               onClick={toggleAi}
               disabled={aiToggling}
               title={
+                aiEnabled
+                  ? t("inbox.aiActiveTooltip")
+                  : t("inbox.aiPausedTooltip")
+              }
+              aria-label={
                 aiEnabled
                   ? t("inbox.aiActiveTooltip")
                   : t("inbox.aiPausedTooltip")

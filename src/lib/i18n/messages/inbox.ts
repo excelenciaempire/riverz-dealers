@@ -429,15 +429,15 @@ export const inbox = {
   refresh: { es: "Actualizar", en: "Refresh" },
 
   // Message thread — AI toggle
-  aiActive: { es: "IA activa", en: "AI on" },
-  aiPaused: { es: "IA en pausa", en: "AI paused" },
+  aiActive: { es: "Responde la IA", en: "AI is replying" },
+  aiPaused: { es: "Respondes tú", en: "You reply" },
   aiActiveTooltip: {
-    es: "IA activa en este chat — toca para pausarla",
-    en: "AI is on in this chat — tap to pause it",
+    es: "En este chat contesta la IA. Toca para pausarla y responder tú.",
+    en: "The AI answers this chat. Tap to pause it and reply yourself.",
   },
   aiPausedTooltip: {
-    es: "IA en pausa en este chat — toca para reactivarla",
-    en: "AI is paused in this chat — tap to resume it",
+    es: "En este chat la IA no contesta. Toca para que vuelva a responder.",
+    en: "The AI doesn't answer this chat. Tap to let it reply again.",
   },
 
   // Message thread — comment post context banner
