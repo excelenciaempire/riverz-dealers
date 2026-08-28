@@ -52,6 +52,34 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   webchat: 'assistant.channelWebchat',
 };
 
+/**
+ * ¿Hay otro asistente que se queda con todos sus mensajes?
+ *
+ * `pickAgent` no reparte: entre los que pueden atender un canal elige por
+ * prioridad y, como la prioridad no se edita desde ningún lado y todos valen
+ * cero, el desempate real es la ANTIGÜEDAD. Así que dos asistentes con el
+ * mismo alcance, todo el catálogo y el mismo rol no se turnan: contesta el más
+ * viejo siempre y el otro no contesta nunca, los dos mostrando "en línea".
+ *
+ * Se avisa sólo en ese caso exacto. Un asistente de un canal concreto o de
+ * unos productos concretos SÍ puede ganar por su lado, y marcarlo como tapado
+ * sería mentir.
+ */
+function tapadoPor(
+  todos: AgentSummary[],
+  agent: AgentSummary,
+): string | null {
+  if (!agent.is_active || agent.product_scope !== 'all') return null;
+  const mismoAlcance = (a: AgentSummary) =>
+    a.scope === agent.scope &&
+    a.product_scope === 'all' &&
+    (a.role ?? 'general') === (agent.role ?? 'general');
+  const gana = todos
+    .filter((a) => a.is_active && mismoAlcance(a))
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0];
+  return gana && gana.id !== agent.id ? gana.name : null;
+}
+
 export default function AiAgentsPage() {
   const t = useT();
   const { workspace } = useWorkspace();
@@ -188,6 +216,7 @@ export default function AiAgentsPage() {
             <AgentCard
               key={agent.id}
               agent={agent}
+              tapadoPor={tapadoPor(agents, agent)}
               onEdit={() => setEditing(agent)}
               onStats={() => {
                 setSolapaPedida('stats');
@@ -263,12 +292,15 @@ function AgentCard({
   agent,
   onEdit,
   onStats,
+  tapadoPor,
   onToggle,
   onDelete,
 }: {
   agent: AgentSummary;
   onEdit: () => void;
   onStats: () => void;
+  /** Si otro asistente se queda con todos sus mensajes, cuál. */
+  tapadoPor: string | null;
   onToggle: () => void;
   onDelete: () => void;
 }) {

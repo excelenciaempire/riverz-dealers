@@ -2,6 +2,12 @@ import type { Namespace } from "./types";
 
 /** AI Assistant area: agents list page + the agent editor dialog. */
 export const assistant = {
+  // Dos asistentes para lo mismo no se reparten el trabajo: gana el más viejo.
+  tapadoPor: {
+    es: "No atiende: con este alcance contesta «{nombre}». Cambiale el alcance o apagá uno.",
+    en: "Not answering: «{nombre}» covers this scope. Narrow its scope or turn one off.",
+  },
+
   // Los casos que el asistente dejó en manos de una persona.
   escalacionesTitle: { es: "Casos para una persona", en: "Cases for a person" },
   escalacionesHint: {
