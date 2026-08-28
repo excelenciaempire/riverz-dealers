@@ -120,7 +120,9 @@ export async function acumularDia(
   // que no existe — el que no existe se nota.
   const { data, error } = await db
     .from('ai_replies')
-    .select('workspace_id, conversation_id, prompt_tokens, completion_tokens')
+    .select(
+      'workspace_id, conversation_id, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model',
+    )
     .eq('status', 'sent')
     .gte('created_at', desde.toISOString())
     .lt('created_at', hasta.toISOString())
@@ -136,6 +138,9 @@ export async function acumularDia(
     conversation_id: string | null
     prompt_tokens: number | null
     completion_tokens: number | null
+    cache_read_tokens: number | null
+    cache_write_tokens: number | null
+    model: string | null
   }[]) {
     const acc =
       porCuenta.get(r.workspace_id) ??
@@ -144,9 +149,16 @@ export async function acumularDia(
     acc.respuestas += 1
     acc.prompt += r.prompt_tokens ?? 0
     acc.completion += r.completion_tokens ?? 0
-    // `ai_replies` no guarda el modelo, así que se estima con la tarifa del que
-    // usan los agentes por defecto. Es la misma cuenta que hizo el backfill.
-    acc.usd += costForModel(null, r.prompt_tokens ?? 0, r.completion_tokens ?? 0)
+    // Con el modelo cuando la fila lo tiene, y con los tokens de caché, que
+    // Anthropic NO mete dentro de `input_tokens` (migración 215). Sin ellos
+    // este número era un piso y no el costo: el prompt del sistema va cacheado,
+    // así que en una conversación con historia la lectura de caché es la mayor
+    // parte de lo que se paga. Las filas viejas no los tienen y valen cero — no
+    // se puede reconstruir lo que la API nunca dijo.
+    acc.usd += costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
+      read: r.cache_read_tokens ?? 0,
+      write: r.cache_write_tokens ?? 0,
+    })
     porCuenta.set(r.workspace_id, acc)
   }
 

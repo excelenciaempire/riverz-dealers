@@ -1024,6 +1024,8 @@ export const settings = {
     es: "Te quedaste sin saldo y la IA dejó de responder. Recarga para reanudar.",
     en: "You're out of balance and the AI stopped replying. Top up to resume.",
   },
+  walletToday: { es: "Hoy", en: "Today" },
+  walletYesterday: { es: "Ayer", en: "Yesterday" },
   walletLastDays: { es: "{n} días", en: "{n} days" },
   walletSpent: { es: "Gastado", en: "Spent" },
   walletLoaded: { es: "Cargado", en: "Loaded" },

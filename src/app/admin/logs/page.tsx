@@ -25,6 +25,7 @@ import {
   RefreshButton,
   SearchInput,
   fromDays,
+  toDays,
 } from "../_components/filters";
 
 /**
@@ -82,6 +83,7 @@ export default function AdminLogsPage() {
 
   const url =
     `/api/admin/logs?kind=${kind}&from=${encodeURIComponent(fromDays(days))}&limit=200` +
+    (toDays(days) ? `&to=${encodeURIComponent(toDays(days) as string)}` : "") +
     (workspace ? `&workspace=${encodeURIComponent(workspace)}` : "") +
     (level ? `&status=${encodeURIComponent(level)}` : "");
   const { data, loading, error, reload, live } =

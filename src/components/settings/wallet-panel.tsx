@@ -78,10 +78,20 @@ interface Movimiento {
   referenciaId: string | null;
 }
 
-const DIAS = [7, 30, 90] as const;
+/** 0 = hoy, -1 = ayer. Los positivos son ventanas móviles hacia atrás. */
+const DIAS = [0, -1, 7, 30, 90] as const;
 
 function desdeHace(dias: number): string {
   return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Medianoche de hoy, o de hace `offset` días. En la hora del navegador: el
+ *  comercio piensa "hoy" en su reloj, no en UTC. */
+function inicioDelDia(offset: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offset);
+  return d.toISOString();
 }
 
 /** Sólo la parte YYYY-MM-DD, que es lo que entiende un <input type=date>. */
@@ -108,6 +118,15 @@ export function WalletPanel() {
   const [autoUmbral, setAutoUmbral] = useState("");
 
   const rango = useMemo(() => {
+    // Hoy y ayer son DÍAS, no ventanas de 24 horas: "hoy" arranca a la
+    // medianoche. Un resumen que dice "hoy" y trae lo de anoche hace dudar de
+    // todos los demás números de la pantalla.
+    if (dias === 0) {
+      return { desde: inicioDelDia(0), hasta: new Date().toISOString() };
+    }
+    if (dias === -1) {
+      return { desde: inicioDelDia(-1), hasta: inicioDelDia(0) };
+    }
     if (dias !== null) {
       return { desde: desdeHace(dias), hasta: new Date().toISOString() };
     }
@@ -434,7 +453,11 @@ export function WalletPanel() {
               setPagina(0);
             }}
           >
-            {t('settings.walletLastDays', { n: d })}
+            {d === 0
+              ? t('settings.walletToday')
+              : d === -1
+                ? t('settings.walletYesterday')
+                : t('settings.walletLastDays', { n: d })}
           </Button>
         ))}
         <div className="flex items-center gap-1">

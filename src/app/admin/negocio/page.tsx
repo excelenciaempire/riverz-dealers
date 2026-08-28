@@ -19,7 +19,7 @@ import {
   type Column,
   type Tone,
 } from "../_components/admin-ui";
-import { RangePicker, RefreshButton, fromDays } from "../_components/filters";
+import { RangePicker, RefreshButton, fromDays, toDays } from "../_components/filters";
 
 /**
  * El negocio: cuánto entra, cuánto sale y qué paga cada comercio.
@@ -67,7 +67,10 @@ export default function AdminNegocioPage() {
   const [alta, setAlta] = useState(false);
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
 
-  const url = `/api/admin/billing?from=${fromDays(dias)}`;
+  const hasta = toDays(dias);
+  const url =
+    `/api/admin/billing?from=${encodeURIComponent(fromDays(dias))}` +
+    (hasta ? `&to=${encodeURIComponent(hasta)}` : "");
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
 
   const guardarCuenta = async (cuenta: Record<string, unknown>) => {

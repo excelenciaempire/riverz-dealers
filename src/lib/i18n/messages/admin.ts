@@ -179,6 +179,8 @@ export const admin = {
     es: "El panel solo lee: no muestra el contenido de los mensajes ni datos personales de los compradores.",
     en: "This panel is read-only: it never shows message content or shoppers' personal data.",
   },
+  rangeToday: { es: "Hoy", en: "Today" },
+  rangeYesterday: { es: "Ayer", en: "Yesterday" },
   rangeLast7: { es: "7 días", en: "7 days" },
   rangeLast30: { es: "30 días", en: "30 days" },
   rangeLast90: { es: "90 días", en: "90 days" },

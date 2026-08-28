@@ -1888,6 +1888,16 @@ export async function runWithTools(
   text: string
   promptTokens: number
   completionTokens: number
+  /**
+   * Tokens que se leyeron de la caché y tokens que costó escribirla.
+   *
+   * Van aparte porque Anthropic los cobra distinto —la lectura sale una décima
+   * parte, la escritura un 25% más— y porque **`input_tokens` NO los incluye**.
+   * Sumarlos al costo era la mitad que faltaba: sin esto, todo el gasto de IA
+   * que muestra la plataforma es un piso, no una medición.
+   */
+  cacheReadTokens: number
+  cacheWriteTokens: number
   iterations: number
   /**
    * Qué herramientas llamó, en orden y con repeticiones.
@@ -1904,6 +1914,8 @@ export async function runWithTools(
 }> {
   let messages: Anthropic.MessageParam[] = [...args.messages]
   let promptTokens = 0
+  let cacheReadTokens = 0
+  let cacheWriteTokens = 0
   let completionTokens = 0
   const herramientas: string[] = []
   let iter = 0
@@ -1973,6 +1985,8 @@ export async function runWithTools(
 
     promptTokens += response.usage?.input_tokens ?? 0
     completionTokens += response.usage?.output_tokens ?? 0
+    cacheReadTokens += response.usage?.cache_read_input_tokens ?? 0
+    cacheWriteTokens += response.usage?.cache_creation_input_tokens ?? 0
 
     // El modelo se detuvo a mitad de una herramienta de SERVIDOR (la busqueda
     // web). No hay nada que ejecutar de nuestro lado: se le devuelve lo que
@@ -1998,6 +2012,8 @@ export async function runWithTools(
         text,
         promptTokens,
         completionTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
         iterations: iter,
         herramientas,
         truncated: false,
@@ -2054,6 +2070,8 @@ export async function runWithTools(
       text: '',
       promptTokens,
       completionTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
       iterations: iter + 1,
       herramientas,
       truncated: true,
@@ -2061,6 +2079,8 @@ export async function runWithTools(
   }
   promptTokens += final.usage?.input_tokens ?? 0
   completionTokens += final.usage?.output_tokens ?? 0
+  cacheReadTokens += final.usage?.cache_read_input_tokens ?? 0
+  cacheWriteTokens += final.usage?.cache_creation_input_tokens ?? 0
   const text = final.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
@@ -2070,6 +2090,8 @@ export async function runWithTools(
     text,
     promptTokens,
     completionTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
     iterations: iter + 1,
     herramientas,
     truncated: true,

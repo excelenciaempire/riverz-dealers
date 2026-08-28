@@ -83,6 +83,8 @@ export function RangePicker({
       value={String(days)}
       onChange={(v) => onChange(Number(v))}
       options={[
+        { value: "0", label: t("admin.rangeToday") },
+        { value: "-1", label: t("admin.rangeYesterday") },
         { value: "7", label: t("admin.rangeLast7") },
         { value: "30", label: t("admin.rangeLast30") },
         { value: "90", label: t("admin.rangeLast90") },
@@ -114,7 +116,30 @@ export function RefreshButton({ onClick }: { onClick: () => void }) {
  * hora y la pantalla hace una sola consulta.
  */
 export function fromDays(days: number): string {
+  // Hoy y ayer son DÍAS, no ventanas móviles: "hoy" arranca a la medianoche,
+  // no hace 24 horas. Un tablero que dice "hoy" y muestra lo de anoche hace
+  // dudar de todos los demás números.
+  if (days <= 0) return inicioDelDia(days === 0 ? 0 : -1);
   const hour = 60 * 60 * 1000;
   const anchored = Math.floor(Date.now() / hour) * hour;
   return new Date(anchored - days * 24 * hour).toISOString();
+}
+
+/** Medianoche UTC de hoy, o de hace `offset` días. */
+function inicioDelDia(offset: number): string {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString();
+}
+
+/**
+ * El final del rango, cuando lo tiene.
+ *
+ * Sólo "ayer" lo necesita: es el único que termina antes de ahora. Los demás
+ * llegan hasta este momento y devolver un `to` sería recortarles el día que
+ * está corriendo.
+ */
+export function toDays(days: number): string | null {
+  return days === -1 ? inicioDelDia(0) : null;
 }

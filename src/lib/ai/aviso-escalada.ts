@@ -115,7 +115,7 @@ function enlaceDelHilo(conversationId: string): string {
  * Y `workspaces.alert_phone` gana sobre todo, para el comercio que quiera
  * mandar los avisos a otro lado (el encargado de turno, un grupo de guardia).
  */
-async function aQuienAvisar(
+export async function aQuienAvisar(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string | null> {

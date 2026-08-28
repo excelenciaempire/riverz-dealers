@@ -742,6 +742,8 @@ export async function runAiAgent(
       message_id: insertedIds[0] ?? null,
       prompt_tokens: reply.promptTokens,
       completion_tokens: reply.completionTokens,
+      cache_read_tokens: reply.cacheReadTokens,
+      cache_write_tokens: reply.cacheWriteTokens,
       key_source: reply.keySource,
       tools_used: reply.herramientas,
       model: reply.model,
@@ -764,6 +766,7 @@ export async function runAiAgent(
           reply.model,
           reply.promptTokens ?? 0,
           reply.completionTokens ?? 0,
+          { read: reply.cacheReadTokens ?? 0, write: reply.cacheWriteTokens ?? 0 },
         ),
         referenciaTipo: 'conversation',
         referenciaId: args.conversation.id,
@@ -1461,6 +1464,10 @@ interface ReplyResult {
   text: string;
   promptTokens?: number;
   completionTokens?: number;
+  /** Tokens de caché. Van aparte porque `promptTokens` NO los incluye y
+   *  Anthropic los cobra distinto: leer sale 10%, escribir 125%. */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   /** Qué clave pagó la llamada — se guarda en ai_replies para poder separar
    *  en /admin lo que gasta Riverz de lo que gasta el comercio. */
   keySource?: KeySource;
@@ -2313,6 +2320,8 @@ async function generateReply(
     text: trimmed,
     promptTokens: result.promptTokens,
     completionTokens: result.completionTokens,
+    cacheReadTokens: result.cacheReadTokens,
+    cacheWriteTokens: result.cacheWriteTokens,
     truncated: result.truncated,
     keySource,
     herramientas: result.herramientas,
@@ -3066,6 +3075,8 @@ async function logReply(
     message_id?: string | null;
     prompt_tokens?: number;
     completion_tokens?: number;
+    cache_read_tokens?: number;
+    cache_write_tokens?: number;
     key_source?: KeySource;
     /** Qué herramientas llamó. Es lo que contesta "¿de dónde sacó ese dato?":
      *  o lo fue a buscar, o no fue a buscar nada (migración 201). */
@@ -3083,6 +3094,8 @@ async function logReply(
     error: patch.error ?? null,
     prompt_tokens: patch.prompt_tokens ?? null,
     completion_tokens: patch.completion_tokens ?? null,
+    cache_read_tokens: patch.cache_read_tokens ?? null,
+    cache_write_tokens: patch.cache_write_tokens ?? null,
     key_source: patch.key_source ?? null,
     tools_used: patch.tools_used?.length ? patch.tools_used : null,
     model: patch.model ?? null,

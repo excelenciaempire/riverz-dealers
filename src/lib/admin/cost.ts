@@ -16,6 +16,16 @@ interface Rate {
   output: number;
 }
 
+/**
+ * Lo que cuesta la caché, en proporción al token de entrada.
+ *
+ * Leer de la caché sale una décima parte; escribirla, un 25% más. Son los
+ * multiplicadores de Anthropic para la caché de 5 minutos, que es la que usa el
+ * agente (`cache_control: { type: 'ephemeral' }`).
+ */
+const CACHE_READ = 0.1;
+const CACHE_WRITE = 1.25;
+
 const RATES: Record<string, Rate> = {
   'claude-haiku-4-5': { input: 1, output: 5 },
   'claude-sonnet-5': { input: 3, output: 15 },
@@ -46,11 +56,23 @@ export function costForModel(
   model: string | null | undefined,
   promptTokens: number,
   completionTokens: number,
+  /**
+   * Los tokens de caché, que NO vienen dentro de `promptTokens`.
+   *
+   * Omitirlos devuelve el número de antes, que es un PISO y no el costo: el
+   * prompt del sistema va cacheado, así que en una conversación con historia la
+   * lectura de caché es la mayor parte de lo que se paga. Se dejan opcionales
+   * porque las filas anteriores a la migración 215 no los tienen y no se pueden
+   * inventar.
+   */
+  cache?: { read?: number; write?: number },
 ): number {
   const rate = rateFor(model);
   return (
     (promptTokens / 1_000_000) * rate.input +
-    (completionTokens / 1_000_000) * rate.output
+    (completionTokens / 1_000_000) * rate.output +
+    ((cache?.read ?? 0) / 1_000_000) * rate.input * CACHE_READ +
+    ((cache?.write ?? 0) / 1_000_000) * rate.input * CACHE_WRITE
   );
 }
 

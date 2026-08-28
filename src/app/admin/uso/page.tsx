@@ -17,7 +17,7 @@ import {
   Stat,
   type Column,
 } from "../_components/admin-ui";
-import { RangePicker, RefreshButton, fromDays } from "../_components/filters";
+import { RangePicker, RefreshButton, fromDays, toDays } from "../_components/filters";
 
 type Row = UsageRow & { ai_cost_usd: number };
 
@@ -43,7 +43,10 @@ export default function AdminUsagePage() {
   const router = useRouter();
   const [days, setDays] = useState(30);
 
-  const url = `/api/admin/usage?from=${encodeURIComponent(fromDays(days))}`;
+  const hasta = toDays(days);
+  const url =
+    `/api/admin/usage?from=${encodeURIComponent(fromDays(days))}` +
+    (hasta ? `&to=${encodeURIComponent(hasta)}` : "");
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
 
   const columns = useMemo<Column<Row>[]>(
