@@ -1195,10 +1195,24 @@ export async function runTool(
     })
 
     if (res.kind === 'sin_pedido') {
+      // Mandó el comprobante y no encontramos su pedido. Casi nunca es que no
+      // exista: los pedidos de Shopify no están espejados acá, y quien paga por
+      // transferencia a veces ni tiene número. Decirle "no me figura un pedido a
+      // tu nombre" o pedirle el número suena a "perdimos tu pago" — se lo
+      // dijimos a dos clientas el 2026-08-28 y las dos tenían razón.
+      //
+      // Así que no se le pregunta nada: lo mira una persona, que es quien
+      // puede abrir Shopify y cruzarlo.
+      await pasarAUnaPersona(localOrders, {
+        clase: 'cobro',
+        urgencia: 'ahora',
+        porQue: 'Mandó el comprobante y no encontramos su pedido',
+      })
       return JSON.stringify({
-        ok: false,
+        ok: true,
+        estado: 'en_verificacion',
         message:
-          'No encontré un pedido pendiente de pago a nombre de esta persona. Pregúntale el número de pedido.',
+          'Confírmale que recibiste el comprobante y que lo están verificando, y que le avisan por aquí apenas esté. NO le pidas el número de pedido y NO le digas que no figura un pedido a su nombre: ya avisamos a una persona del equipo, que es quien puede cruzarlo.',
       })
     }
     if (res.kind === 'error') {
@@ -2107,5 +2121,55 @@ function rewriteLastUserDocumentToText(
 function anotarDeServidor(content: Anthropic.ContentBlock[], destino: string[]): void {
   for (const block of content) {
     if (block.type === 'server_tool_use') destino.push(block.name)
+  }
+}
+
+/**
+ * Deja el caso en manos de una persona y avisa por WhatsApp.
+ *
+ * Vive acá y no en el runner porque hay situaciones que una herramienta
+ * descubre y el runner no puede ver: un comprobante que no cruza con ningún
+ * pedido se sabe recién cuando la búsqueda vuelve vacía.
+ *
+ * Best-effort: si algo falla, el cliente igual recibe una respuesta que no lo
+ * deja peor de lo que estaba.
+ */
+async function pasarAUnaPersona(
+  ctx: LocalOrdersContext,
+  escalada: { clase: 'cobro'; urgencia: 'ahora'; porQue: string },
+): Promise<void> {
+  try {
+    if (!ctx.conversationId) return
+    await ctx.db
+      .from('conversations')
+      .update({
+        needs_human_reason: 'comprobante_sin_pedido',
+        needs_human_at: new Date().toISOString(),
+        needs_human_summary: escalada.porQue,
+        status: 'pending',
+      })
+      .eq('id', ctx.conversationId)
+      .is('needs_human_at', null)
+
+    const { data: c } = await ctx.db
+      .from('conversations')
+      .select('id, contacts(name, phone)')
+      .eq('id', ctx.conversationId)
+      .maybeSingle()
+    const fila = c as { contacts?: { name?: string; phone?: string } | Array<{ name?: string; phone?: string }> } | null
+    const contacto = Array.isArray(fila?.contacts) ? fila?.contacts[0] : fila?.contacts
+
+    const { avisarEscalada } = await import('./aviso-escalada')
+    await avisarEscalada(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      conversationId: ctx.conversationId,
+      cliente: contacto?.name ?? null,
+      contacto: contacto?.phone ?? null,
+      canal: ctx.channel ?? 'whatsapp',
+      escalada,
+      ultimoMensaje: null,
+    })
+  } catch (err) {
+    console.error('[tools] no se pudo pasar el caso a una persona:', err)
   }
 }

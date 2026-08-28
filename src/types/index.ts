@@ -285,6 +285,9 @@ export type NeedsHumanReason =
   /** El agente reconoció que no sabía la respuesta y anotó la pregunta
    *  (migración 182). */
   | 'answer_gap'
+  /** Mandó el comprobante y no encontramos su pedido. Lo mira una persona:
+   *  pedirle el número, o decirle que no figura, suena a "perdimos tu pago". */
+  | 'comprobante_sin_pedido'
   /** El visitante del chat web apretó "hablar con una persona" (migración
    *  198). Es el único motivo que nace de un pedido explícito. */
   | 'visitor_request';

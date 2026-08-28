@@ -5,6 +5,12 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  // Mandó el comprobante y no encontramos su pedido.
+  needsHumanComprobante: {
+    es: "Mandó el comprobante y no encontramos su pedido",
+    en: "Sent the receipt and we could not find their order",
+  },
+
   // El comentario que abrió un hilo privado.
   originCommentInbound: { es: "Vino de un comentario", en: "Came from a comment" },
 

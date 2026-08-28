@@ -170,6 +170,7 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   flow_handoff: "inbox.needsHumanFlow",
   reply_burst_guard: "inbox.needsHumanBurst",
   approval_unnotified: "inbox.needsHumanApproval",
+  comprobante_sin_pedido: "inbox.needsHumanComprobante",
   answer_gap: "inbox.needsHumanUnknown",
   visitor_request: "inbox.needsHumanAsked",
 };
