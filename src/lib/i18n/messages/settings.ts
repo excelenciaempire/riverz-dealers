@@ -560,34 +560,6 @@ export const settings = {
   menuAccess: { es: "Acceso al menú", en: "Menu access" },
   menuAccessFull: { es: "Acceso completo", en: "Full access" },
 
-  // Reglas de asignación (migración 032). El motor corría desde siempre y no
-  // tenía pantalla: se podían crear por API y nadie podía verlas.
-  csatTitle: {
-    es: "Preguntar si sirvió al cerrar",
-    en: "Ask if it helped when closing",
-  },
-  csatHint: {
-    es: "Un mensaje corto al cerrar la conversación en WhatsApp, Instagram, Messenger y correo. El chat web ya pregunta solo.",
-    en: "A short message when the conversation closes on WhatsApp, Instagram, Messenger and email. The web chat already asks on its own.",
-  },
-  rulesTitle: { es: "Quién atiende qué", en: "Who handles what" },
-  rulesHint: {
-    es: "Se evalúan en orden al llegar un mensaje a una conversación sin dueño. La primera que coincide, asigna.",
-    en: "Evaluated in order when a message lands on an unassigned conversation. The first match wins.",
-  },
-  ruleEmpty: {
-    es: "Sin reglas: las conversaciones llegan sin dueño y las toma quien pueda.",
-    en: "No rules: conversations arrive unassigned and whoever is free picks them up.",
-  },
-  ruleAdd: { es: "Agregar regla", en: "Add rule" },
-  ruleRoundRobin: { es: "Rotar entre varias personas", en: "Rotate among several people" },
-  ruleByChannel: { es: "Por canal", en: "By channel" },
-  ruleByKeyword: { es: "Por palabra del primer mensaje", en: "By word in the first message" },
-  ruleByTag: { es: "Por etiqueta del contacto", en: "By contact tag" },
-  ruleRotatesAmong: { es: "Rota entre {n} personas", en: "Rotates among {n} people" },
-  rulePickPerson: { es: "Elige a quién asignar", en: "Pick who to assign" },
-  ruleKeywordPlaceholder: { es: "Palabra o frase", en: "Word or phrase" },
-  ruleSaveFailed: { es: "No se pudo guardar la regla.", en: "Could not save the rule." },
   menuAccessHint: {
     es: "Elige a qué secciones del menú puede entrar.",
     en: "Choose which menu sections they can open.",
