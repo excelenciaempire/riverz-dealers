@@ -277,6 +277,7 @@ export function PanelDashboard({
             metrics={metrics}
             atribucion={atribucion}
             respuestasIa={respuestasIa}
+            cortes={cortes}
             sufijo={suffix}
           />
         ) : (

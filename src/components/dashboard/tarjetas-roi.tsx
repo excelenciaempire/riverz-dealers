@@ -7,6 +7,7 @@ import { useFormat } from '@/hooks/use-format'
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { DetalleAtribucion } from '@/components/dashboard/detalle-atribucion'
 import type { Atribucion } from '@/lib/dashboard/use-attribution'
+import type { Cortes } from '@/lib/dashboard/cortes'
 import type { MetricsBundle } from '@/lib/dashboard/types'
 
 /**
@@ -29,12 +30,15 @@ export function TarjetasRoi({
   metrics,
   atribucion,
   respuestasIa,
+  cortes,
   sufijo,
 }: {
   metrics: MetricsBundle
   atribucion: Atribucion | null
   /** Mensajes que escribió la IA en el período. */
   respuestasIa: number | null
+  /** En cuántas conversaciones los escribió. Es lo que le da escala al número. */
+  cortes?: Cortes | null
   /** "vs 7 días previos", ya traducido. */
   sufijo: string
 }) {
@@ -147,14 +151,23 @@ export function TarjetasRoi({
         icon={Send}
         delta={delta(salientes, metrics.messagesSent.previous, sufijo, t, fmt.number)}
       />
+      {/* Cuánto escribió la IA, y en cuántas charlas.
+       *
+       * Antes el subtítulo era «{share}% de lo que salió», con TODOS los
+       * mensajes salientes de denominador: difusiones, automatizaciones y lo
+       * que escribe una persona. Contra eso el asistente nunca puede dar un
+       * número grande —marcaba 4% en una cuenta que funciona— y esa tarjeta
+       * terminaba diciendo lo contrario de lo que pasa. La escala honesta de
+       * "15 mensajes" no es el total saliente: es en cuántas conversaciones
+       * los escribió. Y si eso no se sabe, va el número solo. */}
       <MetricCard
         title={t('dashboard.roiAiReplies')}
         value={respuestasIa === null ? '—' : fmt.number(respuestasIa)}
         icon={Bot}
         subtitle={
-          respuestasIa !== null && salientes > 0
-            ? t('dashboard.roiAiRepliesSub', {
-                share: Math.min(100, Math.round((respuestasIa / salientes) * 100)),
+          respuestasIa !== null && cortes && cortes.ia.atendidas > 0
+            ? t('dashboard.roiAiRepliesConvs', {
+                n: fmt.number(cortes.ia.atendidas),
               })
             : undefined
         }

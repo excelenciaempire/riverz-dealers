@@ -84,7 +84,7 @@ export const dashboard = {
   roiStoreRevenue: { es: "Ventas de la tienda", en: "Store sales" },
   roiAov: { es: "Ticket promedio", en: "Average order value" },
   roiAiReplies: { es: "Contestó la IA", en: "Answered by AI" },
-  roiAiRepliesSub: { es: "{share}% de lo que salió", en: "{share}% of what went out" },
+  roiAiRepliesConvs: { es: "en {n} conversaciones", en: "across {n} conversations" },
   roiFirstReply: { es: "Primera respuesta", en: "First reply" },
   roiMinutes: { es: "{n} min", en: "{n} min" },
   roiNoData: { es: "Sin datos", en: "No data" },
