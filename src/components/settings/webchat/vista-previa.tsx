@@ -74,13 +74,13 @@ export function VistaPrevia({
 
       {/* El marco imita una página de tienda: sin un fondo detrás, el chat
           flotando en el vacío no dice de qué lado va a quedar. */}
-      <div className="relative h-[420px] select-none overflow-hidden rounded-lg border border-border bg-neutral-100">
+      <div className="relative h-[380px] select-none overflow-hidden rounded-lg border border-border bg-neutral-100">
         <Pagina />
 
         {abierto ? (
           <div
             className={cn(
-              'absolute bottom-[54px] top-5 flex w-[250px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_16px_48px_rgba(0,0,0,.24)]',
+              'absolute bottom-12 top-8 flex w-[206px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_16px_48px_rgba(0,0,0,.24)]',
               lado,
             )}
           >
@@ -148,7 +148,7 @@ export function VistaPrevia({
         ) : invitacion ? (
           <p
             className={cn(
-              'absolute bottom-[54px] max-w-[164px] rounded-xl bg-white px-3 py-2 text-[11px] leading-snug text-neutral-900 shadow-[0_10px_32px_rgba(0,0,0,.18)]',
+              'absolute bottom-12 max-w-[150px] rounded-xl bg-white px-3 py-2 text-[11px] leading-snug text-neutral-900 shadow-[0_10px_32px_rgba(0,0,0,.18)]',
               lado,
             )}
           >
@@ -158,13 +158,13 @@ export function VistaPrevia({
 
         <span
           className={cn(
-            'absolute bottom-3 grid size-9 place-items-center rounded-full shadow-[0_6px_24px_rgba(0,0,0,.22)]',
+            'absolute bottom-3 grid size-8 place-items-center rounded-full shadow-[0_6px_24px_rgba(0,0,0,.22)]',
             lado,
           )}
           style={{ backgroundColor: color }}
         >
           {abierto ? (
-            <X className="size-4" style={{ color: ink }} aria-hidden />
+            <X className="size-3.5" style={{ color: ink }} aria-hidden />
           ) : (
             <IconoChat color={ink} />
           )}
@@ -183,11 +183,11 @@ function Pagina() {
         <span className="ml-auto h-1.5 w-6 rounded-full bg-neutral-200" />
         <span className="h-1.5 w-6 rounded-full bg-neutral-200" />
       </div>
-      <div className="mt-3 h-24 rounded-md bg-neutral-200/70" />
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="h-14 rounded-md bg-neutral-200/70" />
-        <div className="h-14 rounded-md bg-neutral-200/70" />
-        <div className="h-14 rounded-md bg-neutral-200/70" />
+      <div className="mt-2.5 h-24 rounded-md bg-neutral-200/70" />
+      <div className="mt-2.5 grid grid-cols-3 gap-2">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-16 rounded-md bg-neutral-200/70" />
+        ))}
       </div>
     </div>
   );
@@ -197,8 +197,8 @@ function Pagina() {
 function IconoChat({ color }: { color: string }) {
   return (
     <svg
-      width="17"
-      height="17"
+      width="15"
+      height="15"
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
