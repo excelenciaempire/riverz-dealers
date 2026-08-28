@@ -35,6 +35,41 @@ export function metaCodeIn(text: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * El texto en inglés de Meta cuando viene SIN el código al lado.
+ *
+ * `deliveryErrorKey` ya sabe traducir cada código, pero sólo si hay un código
+ * que leer. Meta manda muchos avisos como frase suelta —«In order to maintain a
+ * healthy ecosystem engagement, the message failed to be delivered.»— y ésos se
+ * caían hasta el `return raw` del final: una oración en inglés en medio de una
+ * pantalla en castellano.
+ *
+ * Cada patrón devuelve el código que le corresponde y de ahí sale la misma
+ * traducción que ya usa la bandeja: una sola redacción por error, no dos.
+ */
+const META_TEXTOS: Array<{ re: RegExp; code: number }> = [
+  { re: /healthy ecosystem engagement/i, code: 131049 },
+  { re: /24 hours have passed since|last replied to this number/i, code: 131047 },
+  { re: /chosen to stop receiving marketing|stopped marketing messages/i, code: 131050 },
+  { re: /part of an experiment/i, code: 130472 },
+  { re: /message undeliverable/i, code: 131026 },
+  { re: /spam rate limit/i, code: 131048 },
+  { re: /too many messages sent from sender phone number/i, code: 131056 },
+  { re: /template is paused|paused (due to|for) (low|poor) quality/i, code: 132015 },
+  { re: /template is disabled|disabled (due to|for) (low|poor) quality/i, code: 132016 },
+  { re: /number of parameters does not match/i, code: 132000 },
+  { re: /required parameter is missing/i, code: 131008 },
+  { re: /parameter value is not valid/i, code: 131009 },
+  { re: /does not exist in .*translation|template name does not exist/i, code: 132001 },
+  { re: /account (has been )?(locked|restricted)|business account is restricted/i, code: 131031 },
+  { re: /payment method|business eligibility payment/i, code: 131042 },
+  { re: /phone number (is )?not registered/i, code: 133010 },
+  { re: /registration error/i, code: 131045 },
+  { re: /media (download|upload) error|unable to download/i, code: 131052 },
+  { re: /service temporarily unavailable/i, code: 131016 },
+  { re: /business (has )?blocked this (user|number)/i, code: 130403 },
+]
+
 /** Patrones de error propios (no de Meta) que sí sabemos explicar. */
 const PATTERNS: Array<{ re: RegExp; key: string; param?: 'name' }> = [
   { re: /template not found:?\s*(.+)/i, key: 'detailTemplateNamed', param: 'name' },
@@ -85,7 +120,8 @@ export function issueDetailText(
   // dijo por qué; es la única cadena en español que sale de la base.
   if (/^sin motivo$/i.test(raw)) return t('health.detailNoReason');
 
-  const code = metaCodeIn(raw);
+  // Primero el código escrito; si no está, la frase que lo delata.
+  const code = metaCodeIn(raw) ?? META_TEXTOS.find((m) => m.re.test(raw))?.code ?? null;
   if (code != null) {
     const key = deliveryErrorKey(code);
     if (key) return t(key, { code });
