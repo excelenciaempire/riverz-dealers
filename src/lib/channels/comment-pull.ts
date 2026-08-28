@@ -385,7 +385,14 @@ async function ingestCustomerComment(
   // en el caso en que el comercio acaba de ocultarlo y viene a comprobar que
   // quedó bien.
   if (written && ocultoEn(comment)) {
-    await db.from("messages").update({ is_hidden: true }).eq("message_id", commentId);
+    await db
+      .from("messages")
+      .update({
+        is_hidden: true,
+        hidden_by: "red",
+        hidden_at: new Date().toISOString(),
+      })
+      .eq("message_id", commentId);
   }
   return Boolean(written);
 }

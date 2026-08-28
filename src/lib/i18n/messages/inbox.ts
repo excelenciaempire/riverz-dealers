@@ -193,6 +193,11 @@ export const inbox = {
     es: "Oculto en la publicación",
     en: "Hidden on the post",
   },
+  // Quién lo ocultó (migración 212). Se dice al lado del aviso de arriba:
+  // "lo ocultó la IA" y "lo ocultó tu equipo" llevan a lugares distintos.
+  hiddenByAi: { es: "lo ocultó la IA (spam)", en: "hidden by the AI (spam)" },
+  hiddenByTeam: { es: "lo ocultó tu equipo", en: "hidden by your team" },
+  hiddenByNetwork: { es: "lo ocultaron desde {red}", en: "hidden from {red}" },
 
   // Ad-referral banner (customer arrived from a click-to-message ad)
   adBadge: { es: "Anuncio", en: "Ad" },

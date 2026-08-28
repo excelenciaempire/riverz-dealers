@@ -23,6 +23,9 @@ export async function setCommentHidden(
   channel: 'ig_comment' | 'fb_comment',
   commentId: string,
   hidden = true,
+  /** Por qué lo oculta la IA. Queda escrito en la fila: sin esto, "lo ocultó
+   *  Riverz o lo ocultamos nosotros" no se puede contestar. */
+  motivo: string | null = null,
 ): Promise<boolean> {
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const enc = String(secrets.access_token ?? '');
@@ -39,7 +42,7 @@ export async function setCommentHidden(
       ),
       signal: AbortSignal.timeout(15_000),
     });
-    if (res.ok) await anotarOculto(commentId, hidden);
+    if (res.ok) await anotarOculto(commentId, hidden, motivo);
     return res.ok;
   } catch {
     return false;
@@ -57,12 +60,31 @@ export async function setCommentHidden(
  *
  * Best-effort igual que el resto: si no se puede escribir, el cron lo corrige.
  */
-async function anotarOculto(commentId: string, hidden: boolean): Promise<void> {
+async function anotarOculto(
+  commentId: string,
+  hidden: boolean,
+  motivo: string | null,
+): Promise<void> {
   try {
     const { supabaseAdmin } = await import('@/lib/automations/admin-client');
     await supabaseAdmin()
       .from('messages')
-      .update({ is_hidden: hidden })
+      .update(
+        hidden
+          ? {
+              is_hidden: true,
+              hidden_by: 'ia',
+              hidden_reason: motivo,
+              hidden_at: new Date().toISOString(),
+            }
+          : {
+              is_hidden: false,
+              hidden_by: null,
+              hidden_by_user_id: null,
+              hidden_reason: null,
+              hidden_at: null,
+            },
+      )
       .eq('message_id', commentId);
   } catch (err) {
     console.error('[comments] no se pudo anotar el ocultado:', commentId, err);

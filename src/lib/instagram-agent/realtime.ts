@@ -298,14 +298,18 @@ export async function maybeInstantOutreach(
   if (hasLlm(apiKey) && opts.engagementText) {
     try {
       const [s] = await scoreLeads(apiKey, [opts.engagementText]);
-      if (s?.spam) {
+      // Mismo criterio que el piso autónomo: una crítica con contenido —una
+      // duda, un reclamo, una pregunta— nunca se oculta, aunque el triage la
+      // haya llamado spam. Ver `mereceRespuesta`.
+      if (s?.spam && !mereceRespuesta(opts.engagementText)) {
         // Auto-hide spam/hate on the merchant's own post — sanctioned API,
         // best-effort (degrades if instagram_manage_comments isn't granted yet).
         if (opts.commentId) {
           // Hide it on the account that OWNS the comment (the connection
           // the webhook attributed it to), not an arbitrary IG row.
           const conn = opts.connection ?? (await igConnection(db, opts.workspaceId));
-          if (conn) await setCommentHidden(conn, 'ig_comment', opts.commentId);
+          if (conn)
+            await setCommentHidden(conn, 'ig_comment', opts.commentId, true, 'spam');
         }
         await db
           .from('instagram_campaign_recipients')
@@ -672,13 +676,27 @@ async function autonomousCommentReply(
   try {
     const [s] = await scoreLeads(apiKey, [engagement]);
     if (!s) return;
-    if (s.spam) {
+    // El spam se oculta y se calla… salvo que además MEREZCA respuesta.
+    //
+    // El clasificador es un modelo de triage con una sola línea de criterio
+    // ("insulto/hate, irrelevante") y una crítica dura le da spam: "dejen de
+    // mentir", "publicidades falsas", "necesitamos comentarios verdaderos".
+    // Ocultar a una clienta que cuestiona a la marca es el peor final posible
+    // —lo ve ella, y se lee como censura— y encima la dejaba sin respuesta,
+    // porque acá se cortaba el camino antes de llegar a redactar nada.
+    //
+    // Así que `mereceRespuesta` manda sobre el clasificador: si hay una duda,
+    // un reclamo, una pregunta o algo con olor a juicio, no se oculta y sigue
+    // hasta la respuesta. Sólo se oculta el spam SIN nada que atender: el bot,
+    // el link, la autopromo.
+    if (s.spam && !motivo) {
       // Ocultarlo es una llamada de Meta: en TikTok se deja pasar sin
       // contestar, que es lo que importa.
       if (!isTikTok) {
         const conn =
           opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
-        if (conn) await setCommentHidden(conn, commentChannel, opts.commentId);
+        if (conn)
+          await setCommentHidden(conn, commentChannel, opts.commentId, true, 'spam');
       }
       return;
     }

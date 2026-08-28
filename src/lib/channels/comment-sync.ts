@@ -82,7 +82,22 @@ export async function applyCommentLifecycle(
   for (const row of list) {
     const patch = patchFor(row, input.kind, input.text);
     if (!patch) continue;
-    const { error } = await db.from("messages").update(patch).eq("id", row.id);
+    // Este camino es SIEMPRE la red: el webhook o la conciliación traen lo que
+    // pasó en Instagram/Facebook/TikTok. Si el comentario aparece oculto y no
+    // lo ocultamos nosotros, lo ocultó alguien desde la app de la red.
+    const conRastro =
+      input.kind === "hide"
+        ? { ...patch, hidden_by: "red", hidden_at: new Date().toISOString() }
+        : input.kind === "unhide"
+          ? {
+              ...patch,
+              hidden_by: null,
+              hidden_by_user_id: null,
+              hidden_reason: null,
+              hidden_at: null,
+            }
+          : patch;
+    const { error } = await db.from("messages").update(conRastro).eq("id", row.id);
     if (error) {
       console.warn("[comment-sync] update failed:", error.message);
       continue;

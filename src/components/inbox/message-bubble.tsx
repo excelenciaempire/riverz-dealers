@@ -1111,6 +1111,29 @@ export function MessageBubble({
   /** Escondido del público en la red, pero acá se sigue leyendo entero. */
   const ocultoEnMeta = isComment && message.is_hidden === true && !isCommentDeleted(message);
 
+  /**
+   * Y quién lo ocultó (migración 212). "Lo ocultó la IA" y "lo ocultó tu
+   * equipo" llevan a decisiones distintas: la primera se revisa en Comentarios,
+   * la segunda no se revisa. Los comentarios ocultados antes de la migración no
+   * tienen autor y se quedan con el aviso a secas.
+   */
+  const quienOculto = !ocultoEnMeta
+    ? null
+    : message.hidden_by === "ia"
+      ? t("inbox.hiddenByAi")
+      : message.hidden_by === "persona"
+        ? t("inbox.hiddenByTeam")
+        : message.hidden_by === "red"
+          ? t("inbox.hiddenByNetwork", {
+              red:
+                message.channel === "fb_comment"
+                  ? "Facebook"
+                  : message.channel === "tiktok_comment"
+                    ? "TikTok"
+                    : "Instagram",
+            })
+          : null;
+
   // Email channels render as full-width cards rather than chat bubbles —
   // an email thread reads better as stacked messages with an explicit
   // "Tú / cliente" header and a color-coded side rail than as left/right
@@ -1224,6 +1247,9 @@ export function MessageBubble({
               <p className="mb-1 flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400">
                 <EyeOff className="size-3" aria-hidden />
                 {t("inbox.commentHiddenNotice")}
+                {quienOculto && (
+                  <span className="font-normal opacity-70">· {quienOculto}</span>
+                )}
               </p>
             )}
             <MessageContent message={message} contactName={contactName} contactPhone={contactPhone} />

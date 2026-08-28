@@ -164,9 +164,28 @@ export async function POST(req: Request): Promise<Response> {
     // (messages is in the realtime publication → the UPDATE propagates). Best
     // effort: if migration 095 isn't applied yet the column is missing and the
     // update errors — don't fail the request, the Graph action already worked.
+    // Y QUIÉN lo ocultó. Sin esto `is_hidden` es un sí/no sin autor: la misma
+    // marca la escriben el filtro de spam de la IA, esta barra y la
+    // conciliación con la red, y después no hay forma de contestar quién fue.
     const { error: updErr } = await admin
       .from("messages")
-      .update({ is_hidden: action === "hide" })
+      .update(
+        action === "hide"
+          ? {
+              is_hidden: true,
+              hidden_by: "persona",
+              hidden_by_user_id: user.id,
+              hidden_reason: null,
+              hidden_at: new Date().toISOString(),
+            }
+          : {
+              is_hidden: false,
+              hidden_by: null,
+              hidden_by_user_id: null,
+              hidden_reason: null,
+              hidden_at: null,
+            },
+      )
       .eq("id", m.id);
     if (updErr) console.warn("[moderate] persist is_hidden failed:", updErr.message);
   }
