@@ -120,24 +120,36 @@ export interface Mensaje {
   origin?: string | null
 }
 
+/** Orígenes en los que el que escribe es un modelo, no una regla. */
+const ORIGEN_IA = new Set(['ai_agent', 'ai_followup', 'comment_ai', 'voice_agent'])
+
 export interface PrimeraRespuesta {
-  /** Segundos hasta la primera respuesta, mediana. `null` = sin muestras. */
+  /** Segundos hasta la primera respuesta, MEDIANA. `null` = sin muestras. */
   ia: number | null
+  /** Automatización, flujo, difusión: salió sola, pero no la pensó nadie. */
+  automatico: number | null
   humano: number | null
   muestrasIa: number
+  muestrasAutomatico: number
   muestrasHumano: number
 }
 
 /**
- * Cuánto tardó la PRIMERA respuesta de cada lado.
+ * Cuánto tardó la PRIMERA respuesta, según QUIÉN la dio.
  *
  * Por conversación se busca el primer mensaje del cliente y la primera
- * respuesta que vino después, y se anota de quién fue. Una conversación aporta
- * a un lado o al otro, nunca a los dos: lo que se compara es quién llegó
- * primero, que es lo que vive el cliente.
+ * respuesta que vino después. Una conversación aporta a UN lado y sólo a uno:
+ * lo que se compara es quién llegó primero, que es lo que vive el cliente.
  *
- * `sender_type` distingue bot de persona (`agent`), y es el mismo criterio con
- * el que la bandeja pinta cada burbuja — no se inventa una segunda definición.
+ * Son TRES lados, no dos. Antes eran dos y el rápido se llamaba "la IA", pero
+ * ahí caía todo lo que sale con `sender_type = 'bot'`: automatizaciones,
+ * flujos y difusiones incluidas. Una automatización dispara en segundos porque
+ * es un disparador, no porque el asistente sea rápido — así que esa cifra
+ * decía "la IA contesta en 25 s" cuando la IA no había contestado nada. El
+ * `origin` es lo que los separa.
+ *
+ * Devuelve MEDIANAS, no promedios: quien las muestre al lado de un promedio
+ * tiene que decirlo, porque si no la tarjeta se lee como si se contradijera.
  */
 export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
   const porConv = new Map<string, Mensaje[]>()
@@ -149,6 +161,7 @@ export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
   }
 
   const ia: number[] = []
+  const automatico: number[] = []
   const humano: number[] = []
   for (const lista of porConv.values()) {
     lista.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
@@ -163,14 +176,17 @@ export function primeraRespuesta(mensajes: Mensaje[]): PrimeraRespuesta {
     if (!resp) continue
     const segs = Math.round((Date.parse(resp.created_at) - t0) / 1000)
     if (segs < 0) continue
-    if (resp.sender_type === 'bot') ia.push(segs)
-    else humano.push(segs)
+    if (resp.sender_type === 'agent') humano.push(segs)
+    else if (ORIGEN_IA.has(resp.origin ?? '')) ia.push(segs)
+    else automatico.push(segs)
   }
 
   return {
     ia: mediana(ia),
+    automatico: mediana(automatico),
     humano: mediana(humano),
     muestrasIa: ia.length,
+    muestrasAutomatico: automatico.length,
     muestrasHumano: humano.length,
   }
 }

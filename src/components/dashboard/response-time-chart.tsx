@@ -9,6 +9,7 @@ import type {
 } from '@/lib/dashboard/types'
 import { useT } from '@/hooks/use-locale'
 import type { Cortes } from '@/lib/dashboard/cortes'
+import type { PrimeraRespuesta } from '@/lib/dashboard/servicio'
 import type { TFn } from '@/lib/i18n/translate'
 import { cn } from '@/lib/utils'
 import { EmptyState } from './empty-state'
@@ -81,24 +82,21 @@ export function ResponseTimeChart({
                 </div>
               </>
             )}
-          {/* La comparación que prueba para qué sirve el asistente: segundos
-              contra horas, en la tarjeta donde ya se habla de tiempos. */}
-          {mode === 'first' && cortes?.respuesta.ia != null && (
-            <div className="mt-1 text-muted-foreground">
-              {t('health.soloFirstReply')}{' '}
-              <span className="font-medium text-foreground tabular-nums">
-                {duracion(cortes.respuesta.ia, t)}
-              </span>
-              {cortes.respuesta.humano != null && (
-                <>
-                  {' · '}
-                  {t('health.soloHuman')}{' '}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {duracion(cortes.respuesta.humano, t)}
-                  </span>
-                </>
-              )}
-            </div>
+          {/* Quién llegó primero, y cuánto tardó cada uno.
+           *
+           * Va debajo del promedio y dice MEDIANA a propósito: son dos
+           * estadísticos distintos y antes se apilaban sin decirlo, así que la
+           * tarjeta parecía contradecirse — «promedio 4,3 h» arriba y «25 s»
+           * abajo. Una media se va con cuatro conversaciones contestadas a los
+           * tres días; la mediana no. Las dos son ciertas y miden cosas
+           * distintas.
+           *
+           * El paréntesis es sobre cuántas conversaciones se calculó: una
+           * mediana de tres casos no es un dato, y sin el número no hay forma
+           * de saberlo. Por eso también se esconde el lado que no llega a
+           * cinco. */}
+          {mode === 'first' && cortes && (
+            <MedianasPrimeraRespuesta r={cortes.respuesta} t={t} />
           )}
         </div>
       </header>
@@ -125,6 +123,41 @@ export function ResponseTimeChart({
  * Nadie compara "8" con "15600". La gracia de esta línea es que la diferencia
  * se entienda sin hacer cuentas, así que se pasa a la unidad que corresponda.
  */
+/** Mínimo de conversaciones para que una mediana signifique algo. */
+const MINIMO_MUESTRAS = 5
+
+function MedianasPrimeraRespuesta({
+  r,
+  t,
+}: {
+  r: PrimeraRespuesta
+  t: TFn
+}) {
+  const lados = [
+    { v: r.ia, n: r.muestrasIa, etiqueta: t('health.soloIa') },
+    { v: r.automatico, n: r.muestrasAutomatico, etiqueta: t('health.soloAutomatico') },
+    { v: r.humano, n: r.muestrasHumano, etiqueta: t('health.soloHuman') },
+  ].filter((l) => l.v != null && l.n >= MINIMO_MUESTRAS)
+
+  if (lados.length === 0) return null
+
+  return (
+    <div className="mt-1 text-muted-foreground">
+      {t('health.soloMediana')}{' '}
+      {lados.map((l, i) => (
+        <span key={l.etiqueta}>
+          {i > 0 && ' · '}
+          {l.etiqueta}{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {duracion(l.v as number, t)}
+          </span>{' '}
+          <span className="tabular-nums">({l.n})</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function duracion(segundos: number, t: TFn): string {
   if (segundos < 60) return t('health.durSeconds', { n: segundos })
   if (segundos < 3600) return t('health.durMinutes', { n: Math.round(segundos / 60) })

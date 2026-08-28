@@ -81,17 +81,23 @@ describe('mediana', () => {
 });
 
 describe('primeraRespuesta', () => {
-  const msg = (conv: string, tipo: string, iso: string): Mensaje => ({
+  const msg = (
+    conv: string,
+    tipo: string,
+    iso: string,
+    origin?: string,
+  ): Mensaje => ({
     conversation_id: conv,
     sender_type: tipo,
     created_at: iso,
+    origin: origin ?? null,
   });
 
   it('separa lo que tardo la IA de lo que tardo una persona', () => {
     const r = primeraRespuesta([
-      // Conversacion A: contesta la IA a los 10 s.
+      // Conversacion A: contesta el asistente a los 10 s.
       msg('a', 'customer', '2026-08-25T10:00:00Z'),
-      msg('a', 'bot', '2026-08-25T10:00:10Z'),
+      msg('a', 'bot', '2026-08-25T10:00:10Z', 'ai_agent'),
       // Conversacion B: contesta una persona a las 2 h.
       msg('b', 'customer', '2026-08-25T10:00:00Z'),
       msg('b', 'agent', '2026-08-25T12:00:00Z'),
@@ -102,12 +108,28 @@ describe('primeraRespuesta', () => {
     expect(r.muestrasHumano).toBe(1);
   });
 
+  it('una automatizacion NO cuenta como la IA', () => {
+    // Dispara en segundos porque es un disparador. Meterla con el asistente
+    // era lo que hacia decir "la IA contesta en 25 s" sin que la IA hubiera
+    // contestado nada.
+    const r = primeraRespuesta([
+      msg('a', 'customer', '2026-08-25T10:00:00Z'),
+      msg('a', 'bot', '2026-08-25T10:00:03Z', 'automation'),
+      msg('b', 'customer', '2026-08-25T10:00:00Z'),
+      msg('b', 'bot', '2026-08-25T10:00:40Z', 'ai_agent'),
+    ]);
+    expect(r.automatico).toBe(3);
+    expect(r.muestrasAutomatico).toBe(1);
+    expect(r.ia).toBe(40);
+    expect(r.muestrasIa).toBe(1);
+  });
+
   it('cuenta a quien llego PRIMERO, no a los dos', () => {
     // La IA contesta y despues entra una persona: la conversacion cuenta para
     // la IA, que es lo que vivio el cliente.
     const r = primeraRespuesta([
       msg('a', 'customer', '2026-08-25T10:00:00Z'),
-      msg('a', 'bot', '2026-08-25T10:00:05Z'),
+      msg('a', 'bot', '2026-08-25T10:00:05Z', 'ai_agent'),
       msg('a', 'agent', '2026-08-25T11:00:00Z'),
     ]);
     expect(r.ia).toBe(5);
@@ -117,9 +139,9 @@ describe('primeraRespuesta', () => {
   it('ignora un saliente anterior al mensaje del cliente', () => {
     // Una campana enviada antes no es "responder rapido".
     const r = primeraRespuesta([
-      msg('a', 'bot', '2026-08-25T09:00:00Z'),
+      msg('a', 'bot', '2026-08-25T09:00:00Z', 'ai_agent'),
       msg('a', 'customer', '2026-08-25T10:00:00Z'),
-      msg('a', 'bot', '2026-08-25T10:00:30Z'),
+      msg('a', 'bot', '2026-08-25T10:00:30Z', 'ai_agent'),
     ]);
     expect(r.ia).toBe(30);
   });
@@ -132,7 +154,7 @@ describe('primeraRespuesta', () => {
 
   it('aguanta mensajes desordenados', () => {
     const r = primeraRespuesta([
-      msg('a', 'bot', '2026-08-25T10:00:20Z'),
+      msg('a', 'bot', '2026-08-25T10:00:20Z', 'ai_agent'),
       msg('a', 'customer', '2026-08-25T10:00:00Z'),
     ]);
     expect(r.ia).toBe(20);

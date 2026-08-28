@@ -186,8 +186,15 @@ export const health: Namespace = {
     es: "Carga el horario del agente para saber cuántas fueron fuera de hora.",
     en: "Set the agent's business hours to see how many came in after hours.",
   },
-  soloFirstReply: { es: "Primera respuesta:", en: "First reply:" },
-  soloHuman: { es: "una persona:", en: "a person:" },
+  // Quién contestó primero. Dice "Mediana" porque justo arriba hay un
+  // promedio: sin la palabra, los dos números se leen como el mismo dato mal
+  // calculado. El paréntesis de cada lado es sobre cuántas conversaciones.
+  soloMediana: { es: "Mediana:", en: "Median:" },
+  soloIa: { es: "la IA", en: "the AI" },
+  // Automatización, flujo o difusión. Separado de la IA a propósito: dispara
+  // en segundos porque es un disparador, no porque el asistente sea rápido.
+  soloAutomatico: { es: "automático", en: "automated" },
+  soloHuman: { es: "una persona", en: "a person" },
   soloEscalated: {
     es: "Devolvió {n} a una persona:",
     en: "Handed {n} back to a person:",

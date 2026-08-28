@@ -170,7 +170,9 @@ export async function leerCortes(
     // megabytes al pedo.
     db
       .from('messages')
-      .select('conversation_id, sender_type, created_at, conversations!inner(workspace_id)')
+      // `origin` es lo que separa al asistente de una automatización: sin él,
+      // `primeraRespuesta` mete a las dos en la misma bolsa.
+      .select('conversation_id, sender_type, created_at, origin, conversations!inner(workspace_id)')
       .eq('conversations.workspace_id', workspaceId)
       .gte('created_at', desde)
       .lte('created_at', hasta)
