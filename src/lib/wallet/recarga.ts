@@ -119,6 +119,30 @@ export async function acreditarDesdeEvento(
   db: SupabaseClient,
   evento: Stripe.Event,
 ): Promise<string | null> {
+  // El cobro automático corre en un cron y acredita él mismo, en la misma
+  // vuelta. Si el proceso se cae justo entre que Stripe cobra y que se escribe
+  // el movimiento, la plata quedó cobrada y sin acreditar — y el comercio pagó
+  // por nada. Esta rama es la red: el mismo pago llega también por webhook y se
+  // acredita acá. No puede duplicar, porque el id del pago es único en el libro.
+  if (evento.type === 'payment_intent.succeeded') {
+    const pi = evento.data.object as Stripe.PaymentIntent
+    if (pi.metadata?.tipo !== 'recarga_billetera') return null
+    const workspaceId = pi.metadata?.workspace_id
+    if (!workspaceId) return 'recarga sin workspace_id'
+    const centavos = Number(pi.amount_received ?? pi.amount ?? 0)
+    if (!(centavos > 0)) return `recarga en cero: ${pi.id}`
+    const r = await mover(db, workspaceId, {
+      tipo: 'recarga',
+      concepto: 'recarga',
+      centavos,
+      stripeId: pi.id,
+      detalle: { moneda: pi.currency ?? 'usd', porWebhook: true },
+    })
+    return r.duplicado
+      ? `recarga ya acreditada: ${pi.id}`
+      : `${workspaceId}: +${centavos} → ${r.saldoCentavos} (rescatada del webhook)`
+  }
+
   if (evento.type !== 'checkout.session.completed') return null
 
   const sesion = evento.data.object as Stripe.Checkout.Session
