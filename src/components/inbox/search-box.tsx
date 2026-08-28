@@ -1,128 +1,91 @@
 "use client";
 
 /**
- * Búsqueda full-text dentro de la Bandeja. Aparece arriba de
- * ChannelFilter. Cuando el usuario tipea 2+ caracteres, debouncea
- * 300ms y golpea /api/inbox/search. Los resultados se renderizan en
- * un dropdown debajo del input con el snippet del mensaje y el nombre
- * del contacto.
+ * Búsqueda full-text dentro de la Bandeja. Vive arriba de la lista y filtra
+ * ESA MISMA lista: se escribe y abajo quedan sólo las conversaciones que
+ * coinciden, en orden de relevancia.
  *
- * Click en un resultado abre esa conversación (delegado vía onSelect).
+ * Antes los resultados aparecían en un panel flotante sobre la lista: dos
+ * listas distintas, una tapando a la otra, y las filas del panel no eran las
+ * de la bandeja —sin canal, sin no-leídos, sin acciones—. Buscar y ver son la
+ * misma cosa, así que ahora hay una sola lista.
+ *
+ * La búsqueda sigue siendo del servidor (`/api/inbox/search`, con `unaccent`),
+ * que es lo que permite encontrar una palabra dicha ADENTRO de una
+ * conversación y no sólo en la vista previa. Lo que viaja hacia arriba son los
+ * ids en orden; la lista de abajo hace el resto.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Search, X, MessageSquare, Inbox as InboxIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useT, useLocale } from "@/hooks/use-locale";
-import { localeTag } from "@/lib/i18n/format";
+import { Search, X } from "lucide-react";
+import { useT } from "@/hooks/use-locale";
+
+export interface InboxSearchState {
+  /** Hay una búsqueda en curso (2+ caracteres). */
+  active: boolean;
+  loading: boolean;
+  /** Ids de conversación, ya ordenados por relevancia. */
+  ids: string[];
+}
 
 interface SearchResult {
   id: string;
-  contact_name: string;
-  snippet: string;
-  last_message_at: string | null;
-  match_in: "preview" | "message";
-  message_id?: string;
 }
 
 export function InboxSearchBox({
-  onSelect,
+  onResults,
 }: {
-  onSelect: (conversationId: string, messageId?: string) => void;
+  onResults: (state: InboxSearchState) => void;
 }) {
   const t = useT();
-  const { locale } = useLocale();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Ref para que el efecto de búsqueda no dependa de la identidad del callback.
+  const onResultsRef = useRef(onResults);
+  useEffect(() => {
+    onResultsRef.current = onResults;
+  }, [onResults]);
 
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
-      setResults([]);
-      setLoading(false);
+      onResultsRef.current({ active: false, loading: false, ids: [] });
       return;
     }
-    setLoading(true);
+    onResultsRef.current({ active: true, loading: true, ids: [] });
     const ctrl = new AbortController();
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/inbox/search?q=${encodeURIComponent(q)}`,
-          { signal: ctrl.signal },
-        );
+        const res = await fetch(`/api/inbox/search?q=${encodeURIComponent(q)}`, {
+          signal: ctrl.signal,
+        });
         if (!res.ok) {
-          setResults([]);
+          onResultsRef.current({ active: true, loading: false, ids: [] });
           return;
         }
         const data = (await res.json()) as { conversations: SearchResult[] };
-        setResults(data.conversations ?? []);
-        setActiveIdx(0);
+        // Una conversación puede venir varias veces (coincide la vista previa
+        // y además un mensaje viejo): la lista de abajo la muestra una sola.
+        const ids = [...new Set((data.conversations ?? []).map((r) => r.id))];
+        onResultsRef.current({ active: true, loading: false, ids });
       } catch {
-        // silent — abort or network blip
-      } finally {
-        setLoading(false);
+        // silencio — abort o corte de red
       }
     }, 300);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       ctrl.abort();
     };
   }, [query]);
 
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const showResults = open && query.trim().length >= 2;
-
   return (
-    <div ref={wrapperRef} className="relative border-b border-border bg-card p-2">
+    <div className="border-b border-border bg-card p-2">
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={query}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (!showResults) return;
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setActiveIdx((i) =>
-                results.length === 0 ? 0 : (i + 1) % results.length,
-              );
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setActiveIdx((i) =>
-                results.length === 0
-                  ? 0
-                  : (i - 1 + results.length) % results.length,
-              );
-            } else if (e.key === "Enter") {
-              e.preventDefault();
-              const r = results[activeIdx];
-              if (r) {
-                onSelect(r.id, r.message_id);
-                setOpen(false);
-              }
-            } else if (e.key === "Escape") {
-              setOpen(false);
-            }
+            if (e.key === "Escape") setQuery("");
           }}
           placeholder={t("inbox.searchAll")}
           className="w-full rounded-md border border-border bg-muted/30 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-foreground/30"
@@ -130,10 +93,7 @@ export function InboxSearchBox({
         {query && (
           <button
             type="button"
-            onClick={() => {
-              setQuery("");
-              setResults([]);
-            }}
+            onClick={() => setQuery("")}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label={t("inbox.clear")}
           >
@@ -141,57 +101,6 @@ export function InboxSearchBox({
           </button>
         )}
       </div>
-
-      {showResults && (
-        <div className="absolute left-2 right-2 top-full z-30 mt-1 max-h-96 overflow-y-auto rounded-md border border-border bg-popover shadow-xl shadow-black/30">
-          {loading && results.length === 0 && (
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              {t("inbox.searching")}
-            </div>
-          )}
-          {!loading && results.length === 0 && (
-            <div className="px-3 py-3 text-xs text-muted-foreground">
-              {t("inbox.noResultsDot")}
-            </div>
-          )}
-          {results.map((r, i) => (
-            <button
-              key={`${r.id}-${r.message_id ?? "preview"}`}
-              type="button"
-              onMouseEnter={() => setActiveIdx(i)}
-              onClick={() => {
-                onSelect(r.id, r.message_id);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors",
-                i === activeIdx ? "bg-accent" : "hover:bg-muted",
-              )}
-            >
-              {r.match_in === "preview" ? (
-                <InboxIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-              ) : (
-                <MessageSquare className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {r.contact_name}
-                  </span>
-                  {r.last_message_at && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(r.last_message_at).toLocaleDateString(localeTag(locale))}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                  {r.snippet}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

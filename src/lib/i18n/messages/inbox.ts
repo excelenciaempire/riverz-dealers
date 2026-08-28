@@ -486,8 +486,6 @@ export const inbox = {
     en: "Search messages and conversations",
   },
   clear: { es: "Limpiar", en: "Clear" },
-  searching: { es: "Buscando…", en: "Searching…" },
-  noResultsDot: { es: "Sin resultados.", en: "No results." },
 
   // Template picker
   variables: { es: "Variables", en: "Variables" },

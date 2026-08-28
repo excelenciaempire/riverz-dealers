@@ -85,6 +85,13 @@ interface ConversationListProps {
    * or the tab was throttled. Optional so existing callers keep working.
    */
   resyncToken?: number;
+  /**
+   * Hay una búsqueda escrita arriba. La lista ya llega filtrada; esto sólo
+   * cambia el vacío: "sin resultados" en vez de "todavía no llegaron mensajes".
+   */
+  searchActive?: boolean;
+  /** La búsqueda está yendo al servidor: se muestra el mismo spinner. */
+  searchLoading?: boolean;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -104,6 +111,8 @@ export function ConversationList({
   channelFilter = null,
   hasAnyConnection = false,
   resyncToken = 0,
+  searchActive = false,
+  searchLoading = false,
 }: ConversationListProps) {
   const fetchWithCsrf = useFetchWithCsrf();
   const t = useT();
@@ -270,8 +279,10 @@ export function ConversationList({
     // pestaña de verdad — incluidas las filas que el cliente nunca cargó o que
     // entraron a mitad de la selección. Es el arreglo de "lo borré y volvió al
     // recargar". Cualquier selección más chica borra los ids puntuales.
+    // Con una búsqueda escrita NUNCA se borra por alcance: "seleccionar todo"
+    // sobre tres resultados significa esos tres, no la pestaña entera.
     const clearingAll =
-      filtered.length > 0 && selectedIds.size >= filtered.length;
+      !searchActive && filtered.length > 0 && selectedIds.size >= filtered.length;
     const channels = channelFilter
       ? [channelFilter]
       : inboxTab === "comments"
@@ -312,6 +323,7 @@ export function ConversationList({
     selectedIds,
     workspaceId,
     filtered,
+    searchActive,
     channelFilter,
     inboxTab,
     fetchWithCsrf,
@@ -405,13 +417,13 @@ export function ConversationList({
           wheel scrolling on long lists. A plain overflow-y-auto always
           scrolls. */}
       <div ref={parentRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        {loading ? (
+        {loading || searchLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
           <InboxEmptyState
-            hasFilters={false}
+            hasFilters={searchActive}
             channelActive={!!channelFilter}
             hasAnyConnection={hasAnyConnection}
           />

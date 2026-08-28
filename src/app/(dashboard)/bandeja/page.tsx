@@ -11,7 +11,10 @@ import { MlClaimsPanel } from "@/components/inbox/ml-claims-panel";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { ChannelFilter } from "@/components/inbox/channel-filter";
-import { InboxSearchBox } from "@/components/inbox/search-box";
+import {
+  InboxSearchBox,
+  type InboxSearchState,
+} from "@/components/inbox/search-box";
 import { MlSubFilter, type MlKindFilter } from "@/components/inbox/ml-subfilter";
 import { mediaPreviewToken, mlThreadKind } from "@/lib/channels/display";
 import {
@@ -52,6 +55,15 @@ export default function InboxPage() {
   const deepLinkMomento = searchParams.get("t");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Búsqueda: filtra ESTA lista en vez de abrir un panel encima. Mientras hay
+  // búsqueda, manda ella: los chips de pestaña y canal no la recortan, porque
+  // buscar es global y "no aparece" con el resultado tapado por un filtro es
+  // el peor final posible.
+  const [search, setSearch] = useState<InboxSearchState>({
+    active: false,
+    loading: false,
+    ids: [],
+  });
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
   const [activeContact, setActiveContact] = useState<Contact | null>(null);
@@ -709,6 +721,14 @@ export default function InboxPage() {
   // ConversationItem actually do its job.
   const filteredConversations = useMemo(() => {
     let list = conversations;
+    // Búsqueda activa: sólo las que coinciden, en el orden de relevancia que
+    // devolvió el servidor.
+    if (search.active) {
+      const rank = new Map(search.ids.map((id, i) => [id, i]));
+      return conversations
+        .filter((c) => rank.has(c.id))
+        .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+    }
     // Tab-level filter — "all" (modo unificado) no filtra por tab: muestra
     // mensajes y comentarios juntos.
     if (inboxTab === "comments") {
@@ -737,7 +757,7 @@ export default function InboxPage() {
       list = list.filter((c) => Boolean(c.needs_human_reason));
     }
     return list;
-  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly]);
+  }, [conversations, inboxTab, channelFilter, mlKindFilter, needsHumanOnly, search]);
 
   // Cuántas esperan a una persona, sobre TODO lo cargado (no sobre la lista
   // ya filtrada) para que el contador no se vacíe al activar el propio filtro.
@@ -855,12 +875,7 @@ export default function InboxPage() {
                 filtraba en memoria y sólo sobre el texto de la vista previa,
                 así que buscar una palabra dicha adentro de una conversación
                 no encontraba nada. */}
-            <InboxSearchBox
-              onSelect={(conversationId) => {
-                const match = conversations.find((c) => c.id === conversationId);
-                if (match) handleSelectConversation(match);
-              }}
-            />
+            <InboxSearchBox onResults={setSearch} />
             <InboxTabs
               value={inboxTab}
               onChange={handleTabChange}
@@ -914,6 +929,8 @@ export default function InboxPage() {
                 channelFilter={channelFilter}
                 hasAnyConnection={hasAnyConnection !== false}
                 resyncToken={resyncToken}
+                searchActive={search.active}
+                searchLoading={search.loading}
               />
               )}
             </div>
