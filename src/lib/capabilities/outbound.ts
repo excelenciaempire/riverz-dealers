@@ -16,6 +16,7 @@ import {
   type EntradaCrearPlantilla,
   type ResultadoCrearPlantilla,
 } from '@/lib/templates/create'
+import { darFormaAlCuerpo } from '@/lib/templates/forma'
 import {
   normalizeTemplateName,
   type TemplateButtonInput,
@@ -265,6 +266,17 @@ export async function artefactoGuardadoDePlantilla(
  * especialista como resultado de herramienta y lo corrige en la misma vuelta,
  * sin que nadie se entere.
  */
+/**
+ * El cuerpo tal como se va a guardar: en bloques.
+ *
+ * Es puro y se llama por separado desde la tarjeta y desde el `run`, así que
+ * los dos ven exactamente el mismo texto. Aprobar sigue siendo aprobar lo que
+ * se leyó.
+ */
+function cuerpoConForma(args: Record<string, unknown>): string {
+  return darFormaAlCuerpo(String(args.cuerpo ?? ''))
+}
+
 function revisarCuerpo(args: Record<string, unknown>): void {
   const cuerpo = String(args.cuerpo ?? '').trim()
   if (!cuerpo) throw new Error('El mensaje está vacío.')
@@ -307,7 +319,7 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       categoria: String(args.categoria ?? 'MARKETING').toUpperCase(),
       headerType: typeof args.encabezado === 'string' && args.encabezado.trim() ? 'text' : 'none',
       headerText: typeof args.encabezado === 'string' ? args.encabezado : undefined,
-      bodyText: String(args.cuerpo ?? ''),
+      bodyText: cuerpoConForma(args),
       footerText: typeof args.pie === 'string' ? args.pie : undefined,
       buttons: leerBotones(args.botones),
       bodySamples: Array.isArray(args.ejemplos) ? args.ejemplos.map((x) => String(x)) : undefined,
@@ -498,7 +510,8 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
         },
         cuerpo: {
           type: 'string',
-          description: 'El mensaje. Hasta 1024 caracteres. Admite {{1}}, {{2}}…',
+          description:
+            'El mensaje, en dos o tres bloques separados por una línea en blanco (nunca un párrafo compacto). Hasta 1024 caracteres. Admite {{1}}, {{2}}…',
         },
         categoria: {
           type: 'string',
@@ -543,7 +556,7 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
         nombre: normalizeTemplateName(String(args.nombre ?? '')),
         categoria: String(args.categoria ?? 'MARKETING'),
         idioma: typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es',
-        cuerpo: String(args.cuerpo ?? ''),
+        cuerpo: cuerpoConForma(args),
         encabezado: typeof args.encabezado === 'string' ? args.encabezado : null,
         pie: typeof args.pie === 'string' ? args.pie : null,
         botones: (Array.isArray(args.botones) ? args.botones : []).map((b) => {

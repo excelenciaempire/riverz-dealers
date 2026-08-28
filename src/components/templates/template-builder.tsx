@@ -50,6 +50,7 @@ import {
   validateTemplate,
   type TemplateIssue,
 } from '@/lib/whatsapp/template-validate';
+import { darFormaAlCuerpo } from '@/lib/templates/forma';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
@@ -446,6 +447,11 @@ export function TemplateBuilder() {
                 rows={10}
                 maxLength={1024}
                 onChange={(e) => setBodyText(e.target.value)}
+                // Al salir del campo, un párrafo compacto queda en bloques: es
+                // la forma que se lee en un chat. Se ve en el propio cuadro y
+                // en la vista previa, así que sigue siendo editable; y no se
+                // toca lo que ya trae saltos de línea.
+                onBlur={(e) => setBodyText(darFormaAlCuerpo(e.target.value))}
                 className="min-h-[220px] resize-y bg-background text-sm leading-relaxed"
               />
             </div>

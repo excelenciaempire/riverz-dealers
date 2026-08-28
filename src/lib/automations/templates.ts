@@ -105,7 +105,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     suggested_template_body:
-      'Hola {{customer_name}}, dejaste tu carrito sin terminar. Te lo guardamos por si quieres retomarlo: {{checkout_url}}.',
+      'Hola {{customer_name}}, te guardamos el carrito tal como lo dejaste.\n\nNo tienes que elegir nada de nuevo: lo retomas donde ibas en {{checkout_url}} y en un minuto queda.\n\n¿Lo terminamos?',
     steps: [
       {
         // 1. Marcar el carrito abandonado, antes de todo. Es un hecho, no un
@@ -204,7 +204,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     // espera la pone el paso `Esperar` del flujo.
     trigger_config: {},
     suggested_template_body:
-      'Hola {{customer_name}}, no pudimos procesar el pago de tu pedido por {{total_price}}. Responde este mensaje y te ayudamos a completar la compra.',
+      'Hola {{customer_name}}, tu pago de {{total_price}} no pasó. Casi siempre es el límite de la tarjeta o un dato mal copiado, así que tu pedido sigue guardado.\n\nLo intentas otra vez con el mismo medio o con otro, y no pierdes nada de lo que elegiste.\n\n¿Te paso el link de pago?',
     steps: [
       {
         // 1. Esperar. Un rechazo se reintenta solo muy seguido: escribir al
@@ -262,7 +262,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'shopify_order_created',
     trigger_config: {},
     suggested_template_body:
-      'Hola {{customer_name}}, tu pedido {{order_name}} por {{total_price}} está reservado y esperando la transferencia. Cuando la hagas, mándanos el comprobante por acá.',
+      'Hola {{customer_name}}, tu pedido {{order_name}} por {{total_price}} quedó reservado a tu nombre y esperando la transferencia.\n\nApenas la hagas, mándanos el comprobante por aquí y lo preparamos el mismo día.\n\n¿Necesitas los datos de la cuenta?',
     steps: [
       {
         // 1. ¿Quedó esperando pago? Un pedido pagado con tarjeta sale del
@@ -366,7 +366,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'shopify_order_created',
     trigger_config: {},
     suggested_template_body:
-      'Gracias por tu compra, {{customer_name}}. Confirmamos el pedido {{order_name}} por {{total_price}} {{currency}}. Te avisamos apenas salga.',
+      'Gracias por tu compra, {{customer_name}}. Tu pedido {{order_name}} por {{total_price}} {{currency}} quedó confirmado.\n\nYa lo estamos preparando y te avisamos por aquí apenas salga, con el seguimiento.\n\n¿Alguna indicación para la entrega?',
     steps: [
       {
         step_type: 'send_template',
@@ -393,7 +393,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'shopify_order_fulfilled',
     trigger_config: {},
     suggested_template_body:
-      'Tu pedido salió. Número de seguimiento: {{tracking_number}}. Lo sigues aquí: {{tracking_url}}.',
+      'Buenas noticias, {{customer_name}}: tu pedido ya salió.\n\nSeguimiento {{tracking_number}}, y lo ves en camino en {{tracking_url}} cuando quieras.\n\nSi ese día no vas a estar, dímelo y lo reprogramamos.',
     steps: [
       {
         step_type: 'send_template',
@@ -423,7 +423,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'post_delivery_feedback',
     trigger_config: { days_after: 3 },
     suggested_template_body:
-      '{{customer_name}}, ¿cómo te fue con tu pedido? Cualquier feedback nos sirve un montón.',
+      'Hola {{customer_name}}, ya tuviste unos días para probarlo.\n\nQuiero saber una cosa sola: ¿te funcionó como esperabas?\n\nCon una línea me alcanza, y si algo no salió bien lo resolvemos.',
     steps: [
       {
         // The cron dispatch always fires outside the 24h window —
@@ -455,7 +455,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     trigger_type: 'customer_inactive',
     trigger_config: { days_threshold: 45 },
     suggested_template_body:
-      'Hola {{customer_name}}, hace un tiempo de tu último pedido. ¿Quieres reponer? Te dejo el link para volver a comprar.',
+      'Hola {{customer_name}}, por las fechas de tu último pedido debe estar por acabársete.\n\nSi lo pides ahora te llega antes de quedarte sin nada, y no cortas el uso a mitad de camino.\n\n¿Te mando otro igual?',
     // Flujo ramificado: el camino se elige según las UNIDADES de la última
     // compra (last_offer_units, que el webhook de pedidos guarda en el
     // contacto). El merchant puede cambiar la condición por la oferta elegida
@@ -528,17 +528,19 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
  */
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
   'carrito-abandonado':
-    'Hi {{customer_name}}, you left your cart unfinished. We saved it in case you want to pick it back up: {{checkout_url}}.',
+    'Hi {{customer_name}}, we saved your cart exactly as you left it.\n\nNothing to pick again: you carry on right where you were at {{checkout_url}} and it takes a minute.\n\nShall we finish it?',
+  'pago-rechazado':
+    "Hi {{customer_name}}, your {{total_price}} payment didn't go through. It's usually the card limit or a mistyped digit, so your order is still held for you.\n\nYou can try again with the same card or another one, and you keep everything you picked.\n\nWant me to send the payment link?",
   'pago-pendiente':
-    'Hi {{customer_name}}, your order {{order_name}} for {{total_price}} is reserved and waiting for the transfer. Send us the receipt here once you make it.',
+    'Hi {{customer_name}}, your order {{order_name}} for {{total_price}} is held under your name, waiting for the transfer.\n\nSend us the receipt here as soon as you make it and we prepare it the same day.\n\nDo you need the account details?',
   'nuevo-pedido':
-    "Thanks for your purchase, {{customer_name}}. We confirmed order {{order_name}} for {{total_price}} {{currency}}. We'll let you know as soon as it ships.",
+    'Thanks for your purchase, {{customer_name}}. Your order {{order_name}} for {{total_price}} {{currency}} is confirmed.\n\nWe are already packing it and will message you here the moment it ships, with the tracking.\n\nAny instructions for the delivery?',
   'enviar-tracking':
-    'Your order has shipped. Tracking number: {{tracking_number}}. Follow it here: {{tracking_url}}.',
+    'Good news, {{customer_name}}: your order is on its way.\n\nTracking {{tracking_number}}, and you can follow it any time at {{tracking_url}}.\n\nIf you will not be home that day, tell me and we reschedule it.',
   'post-survey':
-    '{{customer_name}}, how did it go with your order? Any feedback really helps us.',
+    'Hi {{customer_name}}, you have had a few days to try it now.\n\nJust one thing I want to know: did it work the way you expected?\n\nOne line is enough, and if something went wrong we will sort it out.',
   recompras:
-    "Hi {{customer_name}}, it's been a while since your last order. Want to restock? Here's the link to buy again.",
+    'Hi {{customer_name}}, going by the date of your last order it must be running out.\n\nOrder now and it reaches you before you run out, so you do not have to stop halfway.\n\nShall I send you another one?',
 }
 
 function localizeTemplate(

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
+import { darFormaAlCuerpo } from '@/lib/templates/forma'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { createClient } from '@/lib/supabase/server'
@@ -27,6 +28,7 @@ Escribes el CUERPO de una plantilla de mensaje que Meta debe aprobar.
 Reglas estrictas:
 - Devuelve SOLO el texto del cuerpo, sin comillas, sin encabezado, sin pie, sin explicaciones.
 - Máximo 1024 caracteres. Si necesitas personalización, usa variables correlativas {{1}}, {{2}}… empezando en {{1}}, sin saltos.
+- El cuerpo va en dos o tres bloques separados por una línea en blanco. Nunca un solo párrafo.
 - No incluyas URLs ni teléfonos en el cuerpo (van en botones).
 - Cumple las políticas de Meta: nada engañoso, sin contenido prohibido.
 - Responde en el idioma que se indique.
@@ -119,8 +121,11 @@ export async function POST(request: Request) {
       )
     }
 
-    // Meta hard-caps the body at 1024 chars; clamp defensively.
-    const bodyText = text.slice(0, 1024)
+    // Meta hard-caps the body at 1024 chars; clamp defensively. La forma en
+    // bloques no se deja librada al modelo: si volvió un párrafo compacto,
+    // `darFormaAlCuerpo` lo parte antes de que llegue al editor, que es el
+    // último momento en que corregirlo sale gratis.
+    const bodyText = darFormaAlCuerpo(text.slice(0, 1024))
 
     return NextResponse.json({ success: true, body_text: bodyText })
   } catch (error) {
