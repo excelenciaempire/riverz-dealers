@@ -62,12 +62,13 @@
  *
  * Brand DNA:
  *   - Warm cream surfaces (never pure gray), warm-charcoal ink.
- *   - El lima #f7ff9e sigue siendo la marca: pastilla activa del menú,
- *     enlaces, anillo de foco, resaltador, halo.
- *   - Pero los RELLENOS que se tocan (`--primary`: botón, toggle, burbuja
- *     saliente) NO son lima: son la inversa de la superficie — tinta sobre
- *     crema en claro, crema sobre carbón en oscuro. Sobre crema el lima
- *     daba 1.02:1 y un botón desaparecía dentro de la tarjeta.
+ *   - Signature chartreuse-yellow accent (#f7ff9e) on dark text.
+ *   - ÚNICA excepción, y sólo en CLARO: el relleno que se toca
+ *     (`--primary`: botón, toggle, burbuja saliente) es tinta, no lima.
+ *     Sobre crema el lima da 1.02:1 y el botón desaparece dentro de la
+ *     tarjeta; sobre carbón da 17:1 y funciona, así que el bloque dark no
+ *     se toca. Todo el resto del lima (menú, enlaces, foco, resaltador,
+ *     halo) sigue igual en los dos modos.
  *   - Sidebar stays dark in BOTH modes (editorial contrast strip).
  *   - Inter Tight, tight negative tracking, 14px card radius.
  *
@@ -156,13 +157,14 @@ html[data-theme="dark"] {
   --card-foreground: #fafaf7;
   --popover: #15151a;
   --popover-foreground: #fafaf7;
-  /* La misma inversión, al revés: en oscuro el botón es lo más CLARO de la
-     pantalla. 17.4:1. */
-  --primary: #fafaf7;
+  /* En oscuro el lima NO tiene el problema del claro: sobre carbón da
+     17:1. Así que acá el relleno sigue siendo lima, igual que siempre. La
+     inversión es sólo del bloque claro. */
+  --primary: #f7ff9e;
   --primary-foreground: #0a0a0a;
-  --primary-hover: #e6e4dc;
-  --primary-soft: rgba(250, 250, 247, 0.12);
-  --primary-soft-2: rgba(250, 250, 247, 0.2);
+  --primary-hover: #f1fa84;
+  --primary-soft: rgba(247, 255, 158, 0.16);
+  --primary-soft-2: rgba(247, 255, 158, 0.26);
   --accent-ink: #f7ff9e;
   --secondary: #1a1a22;
   --secondary-foreground: #fafaf7;
@@ -509,8 +511,9 @@ html[data-theme="dark"] {
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
     padding: 0 4px;
-    /* Tinta oscura siempre: el trazo es amarillo pálido en los dos modos. */
-    color: #1b1a17;
+    /* Tinta oscura siempre: el trazo es amarillo pálido en los dos modos,
+       así que no puede seguir a `--primary-foreground` (en claro es crema). */
+    color: #0a0a0a;
   }
 }
 

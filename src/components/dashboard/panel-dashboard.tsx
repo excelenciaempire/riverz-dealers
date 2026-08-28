@@ -16,8 +16,6 @@ import { ChannelMixCard } from '@/components/dashboard/channel-mix-card'
 import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
-import { AttributedRevenue } from '@/components/dashboard/attributed-revenue'
-import { ResolvioSola } from '@/components/dashboard/resolvio-sola'
 import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
 import { useAtribucion } from '@/lib/dashboard/use-attribution'
 import { useCortes } from '@/lib/dashboard/use-cortes'
@@ -328,16 +326,6 @@ export function PanelDashboard({
         loading={responseTimeLoading}
         cortes={cortes}
       />
-
-      {/* De donde salio esa plata: cual automatizacion, cual campana, cual
-          flujo. El total ya esta arriba; esto es la pregunta que sigue. */}
-      <AttributedRevenue data={atribucion} />
-
-      {/* La otra mitad de la pregunta: a cuanta gente atendio que si no habria
-          esperado. Va DESPUES de la plata — primero cuanto rindio, despues
-          cuanto trabajo. Trae adentro el corte por agente, que antes era una
-          tarjeta aparte que repetia el mismo porcentaje. */}
-      <ResolvioSola data={cortes} />
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
