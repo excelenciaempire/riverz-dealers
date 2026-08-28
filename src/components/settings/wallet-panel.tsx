@@ -36,6 +36,8 @@ interface Estado {
   saldoCentavos: number;
   moneda: string;
   bloquearSinSaldo: boolean;
+  /** Cuenta de cortesía: no gasta saldo y nunca se le apaga la IA. */
+  exenta: boolean;
   resumen: {
     rango: { desde: string; hasta: string };
     cargadoCentavos: number;
@@ -196,7 +198,7 @@ export function WalletPanel() {
 
   const { resumen } = e;
   const maxDia = Math.max(1, ...resumen.porDia.map((d) => d.gastadoCentavos));
-  const enRojo = e.saldoCentavos <= 0;
+  const enRojo = e.saldoCentavos <= 0 && !e.exenta;
 
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { leerBilletera } from '@/lib/wallet/saldo'
+import { leerSuscripcion } from '@/lib/billing/plan'
 import { rangoDe, resumen } from '@/lib/wallet/movimientos'
 import { listarTarifas } from '@/lib/wallet/tarifas'
 import { stripeDisponible } from '@/lib/billing/stripe'
@@ -34,17 +35,24 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const rango = rangoDe(url.searchParams.get('desde'), url.searchParams.get('hasta'))
 
-  const [billetera, datos, tarifas] = await Promise.all([
+  const [billetera, datos, tarifas, sus] = await Promise.all([
     leerBilletera(admin, workspaceId),
     resumen(admin, workspaceId, rango),
     listarTarifas(admin),
+    leerSuscripcion(admin, workspaceId),
   ])
+
+  // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
+  // esto el panel le avisaba que la IA dejó de responder a alguien a quien
+  // nunca se le va a apagar — un susto inventado.
+  const exenta = sus?.estado === 'cortesia'
 
   return NextResponse.json(
     {
       saldoCentavos: billetera.saldoCentavos,
       moneda: billetera.moneda,
-      bloquearSinSaldo: billetera.bloquearSinSaldo,
+      bloquearSinSaldo: billetera.bloquearSinSaldo && !exenta,
+      exenta,
       resumen: datos,
       tarifas: tarifas
         .filter((t) => t.activo)
