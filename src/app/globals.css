@@ -109,13 +109,14 @@ html[data-theme="light"] {
   --input: #d2ccb9;
   --ring: #b6ae99;
   /* Serie de gráficos oscurecida para fondo claro: el lima #c9d23f daba
-     1.7:1 sobre la tarjeta y la línea desaparecía. El bloque dark tiene
-     sus propios valores, más brillantes. */
-  --chart-1: #8f9a1e;
+     1.6:1 sobre la tarjeta y la línea desaparecía. Los cinco pasan 4.5:1
+     ahora, así que sirven también para la etiqueta del valor. El bloque
+     dark tiene sus propios valores, más brillantes. */
+  --chart-1: #707817;
   --chart-2: #07806f;
-  --chart-3: #8b5cf6;
+  --chart-3: #7c3aed;
   --chart-4: #c22a6f;
-  --chart-5: #b4700a;
+  --chart-5: #a3630a;
   /* Vidrio del Operador: sobre crema, un velo de negro al 4% no existe.
      En claro el cristal es blanco translúcido con canto de tinta. */
   --glass-surface: color-mix(in oklab, #ffffff 72%, transparent);
