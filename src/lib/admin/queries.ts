@@ -218,6 +218,27 @@ export interface WorkspaceDetail {
     global: Record<string, boolean>;
     overrides: Record<string, boolean>;
   };
+  /**
+   * La billetera de este comercio, con las últimas líneas del libro.
+   *
+   * El saldo suelto no alcanza para entender una queja: "me quedé sin saldo"
+   * se contesta mirando en qué se le fue, y eso son los movimientos. Van las
+   * últimas 20 — más que eso ya es una auditoría y no una ficha.
+   */
+  billetera: {
+    saldoCentavos: number;
+    bloqueaSinSaldo: boolean;
+    movimientos: Array<{
+      id: string;
+      creadoEn: string;
+      tipo: string;
+      concepto: string;
+      centavos: number;
+      saldoDespuesCentavos: number;
+      cantidad: number | null;
+      unidad: string | null;
+    }>;
+  };
 }
 
 async function countIn(table: string, workspaceId: string): Promise<number> {
@@ -357,6 +378,28 @@ export async function getWorkspaceDetail(
     }
   }
 
+  // ── Billetera ──
+  // Va fuera del Promise.all de arriba a propósito: son dos consultas chicas y
+  // meterlas ahí obligaba a renumerar la desestructuración entera, que es
+  // justo el tipo de cambio que rompe un archivo largo sin que se note.
+  const [billeteraRes, movimientosRes] = await Promise.all([
+    client
+      .from('wallet_accounts')
+      .select('saldo_centavos, bloquear_sin_saldo')
+      .eq('workspace_id', id)
+      .maybeSingle(),
+    client
+      .from('wallet_movimientos')
+      .select('id, creado_en, tipo, concepto, centavos, saldo_despues_centavos, cantidad, unidad')
+      .eq('workspace_id', id)
+      .order('creado_en', { ascending: false })
+      .limit(20),
+  ]);
+  const cuentaBilletera = billeteraRes.data as {
+    saldo_centavos?: number;
+    bloquear_sin_saldo?: boolean;
+  } | null;
+
   const recentErrors: WorkspaceDetail['recentErrors'] = [
     ...((aiErrRes.data ?? []) as Array<{ created_at: string; error: string | null }>).map(
       (r) => ({ kind: 'ai' as const, at: r.created_at, detail: r.error }),
@@ -377,6 +420,29 @@ export async function getWorkspaceDetail(
     .slice(0, 10);
 
   return {
+    billetera: {
+      saldoCentavos: Number(cuentaBilletera?.saldo_centavos ?? 0),
+      bloqueaSinSaldo: cuentaBilletera?.bloquear_sin_saldo === true,
+      movimientos: ((movimientosRes.data ?? []) as unknown as Array<{
+        id: string;
+        creado_en: string;
+        tipo: string;
+        concepto: string;
+        centavos: number;
+        saldo_despues_centavos: number;
+        cantidad: number | null;
+        unidad: string | null;
+      }>).map((m) => ({
+        id: m.id,
+        creadoEn: m.creado_en,
+        tipo: m.tipo,
+        concepto: m.concepto,
+        centavos: Number(m.centavos ?? 0),
+        saldoDespuesCentavos: Number(m.saldo_despues_centavos ?? 0),
+        cantidad: m.cantidad === null ? null : Number(m.cantidad),
+        unidad: m.unidad,
+      })),
+    },
     workspace,
     owner: (ownerRes.data as { email: string | null; full_name: string | null } | null) ?? null,
     members: memberRows.map((m) => ({

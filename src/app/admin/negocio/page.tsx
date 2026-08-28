@@ -111,6 +111,39 @@ export default function AdminNegocioPage() {
     }
   };
 
+  /**
+   * Cargar saldo a mano: el bono del piloto, la disculpa por una falla, la
+   * corrección de un cobro mal hecho. No edita el libro —es append-only— sino
+   * que le agrega una línea, y queda auditado.
+   */
+  const moverSaldo = async (saldo: Record<string, unknown>) => {
+    setGuardando(true);
+    try {
+      await fetchWithCsrf("/api/admin/billing", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saldo }),
+      });
+      reload();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const cambiarBloqueo = async (workspace_id: string, bloquear_sin_saldo: boolean) => {
+    setGuardando(true);
+    try {
+      await fetchWithCsrf("/api/admin/billing", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billetera: { workspace_id, bloquear_sin_saldo } }),
+      });
+      reload();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const guardarPlan = async (plan: Record<string, unknown>) => {
     setGuardando(true);
     try {
@@ -168,6 +201,24 @@ export default function AdminNegocioPage() {
         ),
       },
       {
+        key: "saldo",
+        header: t("admin.walletBalance"),
+        cell: (c) => {
+          // El rojo es sólo cuando el saldo cero APAGA algo. Pintar en rojo a
+          // una cuenta de cortesía —que nunca se apaga— es inventar una alarma.
+          const apagada = c.bloqueaSinSaldo && c.saldoCentavos <= 0;
+          return (
+            <span className="tabular-nums">
+              <span className={apagada ? "text-destructive" : undefined}>
+                {usd(c.saldoCentavos)}
+              </span>
+              {c.gastadoCentavos > 0 && <Muted> · −{usd(c.gastadoCentavos)}</Muted>}
+              {apagada && <Muted> · {t("admin.walletOff")}</Muted>}
+            </span>
+          );
+        },
+      },
+      {
         key: "acciones",
         header: "",
         cell: (c) => (
@@ -219,6 +270,29 @@ export default function AdminNegocioPage() {
           label={t("admin.billingArpu")}
           value={usd(negocio.arpuCentavos)}
           hint={t("admin.billingPaying", { n: negocio.clientes.pagando })}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Stat
+          label={t("admin.walletLoaded")}
+          value={usd(negocio.cargadoCentavos)}
+          tone="ok"
+          hint={t("admin.walletLoadedHint")}
+        />
+        <Stat
+          label={t("admin.walletSpent")}
+          value={usd(negocio.gastadoCentavos)}
+          hint={
+            negocio.margenBilleteraPct === null
+              ? t("admin.billingNoMargin")
+              : t("admin.billingMargin", { n: negocio.margenBilleteraPct })
+          }
+        />
+        <Stat
+          label={t("admin.walletFloat")}
+          value={usd(negocio.saldoTotalCentavos)}
+          hint={t("admin.walletFloatHint")}
         />
       </div>
 
@@ -288,9 +362,108 @@ export default function AdminNegocioPage() {
               onGuardar={guardarCuenta}
               onCerrar={() => setEditando(null)}
             />
+            <BloqueBilletera
+              cuenta={negocio.cuentas.find((c) => c.workspaceId === editando)!}
+              guardando={guardando}
+              onMover={moverSaldo}
+              onBloqueo={cambiarBloqueo}
+            />
           </div>
         )}
       </Panel>
+    </div>
+  );
+}
+
+
+/**
+ * La billetera de una cuenta, desde el panel.
+ *
+ * Dos perillas y nada más: cargarle saldo y decidir si quedarse sin saldo le
+ * apaga la IA. El interruptor está acá y no en un ajuste global porque una
+ * cuenta de piloto que nunca cargó no puede quedarse muda porque se prendió una
+ * regla nueva para todos.
+ *
+ * El saldo no se "edita": se le suma una línea al libro. Poner un número y que
+ * el anterior desaparezca haría imposible contestar "¿por qué tenía 40 dólares
+ * el martes?".
+ */
+function BloqueBilletera({
+  cuenta,
+  guardando,
+  onMover,
+  onBloqueo,
+}: {
+  cuenta: CuentaDelNegocio;
+  guardando: boolean;
+  onMover: (s: Record<string, unknown>) => void;
+  onBloqueo: (workspaceId: string, bloquear: boolean) => void;
+}) {
+  const t = useT();
+  const [monto, setMonto] = useState("");
+  const [motivo, setMotivo] = useState("");
+
+  const cargar = () => {
+    const dolares = Number(monto.replace(",", "."));
+    if (!Number.isFinite(dolares) || dolares === 0) return;
+    onMover({
+      workspace_id: cuenta.workspaceId,
+      centavos: Math.round(dolares * 100),
+      tipo: "bono",
+      motivo,
+    });
+    setMonto("");
+    setMotivo("");
+  };
+
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-foreground">
+          {t("admin.walletBalance")}:{" "}
+          <span className="tabular-nums font-medium">{usd(cuenta.saldoCentavos)}</span>
+          <Muted>
+            {" "}
+            · {t("admin.walletLoaded")} {usd(cuenta.cargadoCentavos)} ·{" "}
+            {t("admin.walletSpent")} {usd(cuenta.gastadoCentavos)}
+          </Muted>
+        </p>
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={cuenta.bloqueaSinSaldo}
+            disabled={guardando}
+            onChange={(e) => onBloqueo(cuenta.workspaceId, e.target.checked)}
+          />
+          {t("admin.walletBlockToggle")}
+        </label>
+      </div>
+      <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-4">
+        <Campo label={t("admin.walletGrantAmount")}>
+          <input
+            className={INPUT}
+            inputMode="decimal"
+            placeholder="50"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+          />
+        </Campo>
+        <Campo label={t("admin.walletGrantWhy")}>
+          <input
+            className={INPUT}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+        </Campo>
+        <button
+          type="button"
+          disabled={guardando || !monto}
+          onClick={cargar}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-60"
+        >
+          {t("admin.walletGrant")}
+        </button>
+      </div>
     </div>
   );
 }

@@ -82,6 +82,54 @@ export default function AdminWorkspaceDetailPage({
         />
       </Panel>
 
+      {/* La billetera. Va arriba porque es la respuesta a la queja más
+          frecuente que va a llegar —"se me apagó la IA"— y la contesta de un
+          vistazo: cuánto le queda y en qué se le fue. */}
+      <Panel title={t("admin.walletBalance")}>
+        <div className="space-y-3 p-4">
+          <p className="text-sm text-foreground">
+            <span className="text-2xl font-semibold tabular-nums">
+              US${(data.billetera.saldoCentavos / 100).toFixed(2)}
+            </span>
+            {data.billetera.bloqueaSinSaldo && data.billetera.saldoCentavos <= 0 && (
+              <span className="ml-2 text-sm text-destructive">
+                {t("admin.walletOff")}
+              </span>
+            )}
+          </p>
+          {data.billetera.movimientos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("admin.walletNoMovements")}
+            </p>
+          ) : (
+            <ul className="divide-y divide-border text-sm">
+              {data.billetera.movimientos.map((m) => (
+                <li key={m.id} className="flex items-center justify-between gap-4 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-foreground">{m.concepto}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(m.creadoEn).toLocaleString()}
+                      {m.cantidad !== null && m.unidad
+                        ? ` · ${m.cantidad} ${m.unidad}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right tabular-nums">
+                    <p className={m.centavos >= 0 ? "text-foreground" : "text-muted-foreground"}>
+                      {m.centavos >= 0 ? "+" : "−"}US$
+                      {(Math.abs(m.centavos) / 100).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      US${(m.saldoDespuesCentavos / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Panel>
+
       <Panel title={t("admin.suspendTitle")}>
         <SuspensionSwitch
           workspaceId={workspace.id}

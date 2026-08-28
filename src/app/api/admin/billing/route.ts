@@ -63,6 +63,19 @@ interface CuerpoCuenta {
   nota?: string | null;
 }
 
+interface CuerpoSaldo {
+  workspace_id: string;
+  /** Firmado: positivo regala, negativo corrige de más. */
+  centavos: number;
+  tipo?: 'bono' | 'ajuste';
+  motivo?: string | null;
+}
+
+interface CuerpoBilletera {
+  workspace_id: string;
+  bloquear_sin_saldo: boolean;
+}
+
 const ENTERO = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
   const n = Math.round(Number(v));
@@ -78,6 +91,8 @@ export async function PUT(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     plan?: CuerpoPlan;
     cuenta?: CuerpoCuenta;
+    saldo?: CuerpoSaldo;
+    billetera?: CuerpoBilletera;
   } | null;
   const db = supabaseAdmin();
 
@@ -147,6 +162,72 @@ export async function PUT(request: Request) {
       targetType: 'workspace',
       targetId: c.workspace_id,
       meta: { estado: c.estado, nota: c.nota },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // Cargar saldo a mano: el bono del piloto, la disculpa por una falla, la
+  // corrección de un cobro mal hecho. NO borra ni edita nada — el libro es
+  // append-only, así que una corrección es otra línea. Auditado: regalar saldo
+  // es regalar plata.
+  if (body?.saldo) {
+    const sa = body.saldo;
+    const centavos = Math.round(Number(sa.centavos));
+    if (!sa.workspace_id || !Number.isFinite(centavos) || centavos === 0) {
+      return NextResponse.json({ error: 'falta workspace_id o monto' }, { status: 400 });
+    }
+    const tipo = sa.tipo === 'ajuste' ? 'ajuste' : 'bono';
+    const { data, error } = await db.rpc('wallet_mover', {
+      p_workspace: sa.workspace_id,
+      p_tipo: tipo,
+      p_concepto: tipo,
+      p_centavos: centavos,
+      p_costo: 0,
+      p_cantidad: null,
+      p_unidad: null,
+      p_referencia_tipo: 'admin',
+      p_referencia_id: gate.actor?.userId ?? null,
+      p_stripe_id: null,
+      p_detalle: { motivo: sa.motivo?.trim() || null },
+      p_creado_por: gate.actor?.userId ?? null,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.wallet_balance',
+      targetType: 'workspace',
+      targetId: sa.workspace_id,
+      meta: { centavos, tipo, motivo: sa.motivo ?? null },
+    });
+    const fila = (Array.isArray(data) ? data[0] : data) as
+      | { saldo_centavos?: number }
+      | undefined;
+    return NextResponse.json({ ok: true, saldoCentavos: fila?.saldo_centavos ?? null });
+  }
+
+  // El interruptor de "sin saldo se apaga". Se prende cuenta por cuenta: una
+  // cuenta de piloto que todavía no cargó nunca no puede quedarse muda porque
+  // se prendió una regla nueva.
+  if (body?.billetera) {
+    const bi = body.billetera;
+    if (!bi.workspace_id) {
+      return NextResponse.json({ error: 'falta workspace_id' }, { status: 400 });
+    }
+    const { error } = await db.from('wallet_accounts').upsert(
+      {
+        workspace_id: bi.workspace_id,
+        bloquear_sin_saldo: bi.bloquear_sin_saldo === true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'workspace_id' },
+    );
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await recordAdminAction(gate.actor, request, {
+      action: 'update.wallet_blocking',
+      targetType: 'workspace',
+      targetId: bi.workspace_id,
+      meta: { bloquear_sin_saldo: bi.bloquear_sin_saldo === true },
     });
     return NextResponse.json({ ok: true });
   }
