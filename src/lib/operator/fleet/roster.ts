@@ -266,7 +266,7 @@ export const ROSTER: SubagentSpec[] = [
     id: 'ajustes',
     nombreKey: 'operation.subAjustes',
     alcance:
-      'Cambia la configuración de la cuenta: nombre, zona horaria, quién es del equipo y qué puede ver cada uno. NO toca automatizaciones, agentes ni envíos.',
+      'Cambia la configuración de la cuenta: nombre, zona horaria, quién es del equipo y qué puede ver cada uno. También sabe de plata: cuánto saldo queda, en qué se fue y qué plan tiene la cuenta. NO toca automatizaciones, agentes ni envíos, y NO recarga saldo ni cambia de plan (eso cobra a una tarjeta).',
     capacidades: ['ajustes.'],
     tier: 'mecanico',
     maxIters: 5,

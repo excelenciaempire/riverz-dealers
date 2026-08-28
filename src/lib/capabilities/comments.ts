@@ -25,7 +25,9 @@ import {
   type CommentRuleChannel,
 } from '@/lib/comment-to-dm/rules'
 import {
+  COMMENT_REPLY_MODES,
   autoReplyCommentsEnabled,
+  guardarAjustesDeComentarios,
   loadCommentSettings,
 } from '@/lib/instagram-agent/controls'
 import {
@@ -523,7 +525,214 @@ async function moderar(ctx: CapabilityContext, args: Record<string, unknown>) {
   return { message_id: comentario.id, accion, hecho: true }
 }
 
+// ---------------------------------------------------------------------------
+// EL INTERRUPTOR.
+//
+// `comentarios.pendientes` ya decía CÓMO contesta la IA, y con eso se explicaba
+// por qué se acumulan los pendientes. Pero no había forma de cambiarlo: la
+// respuesta terminaba siempre en "andá a la pantalla de Comentarios". El
+// 2026-08-28 la IA ocultó como spam la crítica de una clienta y el criterio que
+// decide eso se toca justo acá.
+// ---------------------------------------------------------------------------
+
+/** Qué publica la IA cuando contesta, dicho en castellano. */
+const QUE_PUBLICA: Record<string, string> = {
+  dm: 'solo por privado',
+  public_dm: 'en el comentario y por privado',
+  public_smart: 'en el comentario siempre, y por privado sólo si hace falta',
+  public: 'solo en el comentario',
+}
+
+async function ajustes(ctx: CapabilityContext) {
+  const [contesta, cfg] = await Promise.all([
+    autoReplyCommentsEnabled(ctx.db, ctx.workspaceId),
+    loadCommentSettings(ctx.db, ctx.workspaceId),
+  ])
+  const { data } = await ctx.db
+    .from('ig_proactive_settings')
+    .select('paused, daily_cap, marketing_optin_enabled')
+    .eq('workspace_id', ctx.workspaceId)
+    .maybeSingle()
+  const s = data as {
+    paused?: boolean | null
+    daily_cap?: number | null
+    marketing_optin_enabled?: boolean | null
+  } | null
+
+  return {
+    contesta_con_ia: contesta,
+    a_quien:
+      cfg.audience === 'all'
+        ? 'a todo el que escriba'
+        : 'solo a quien muestra intención de compra',
+    audiencia: cfg.audience,
+    que_publica: QUE_PUBLICA[cfg.replyMode] ?? cfg.replyMode,
+    modo: cfg.replyMode,
+    redes: {
+      instagram: cfg.instagram,
+      facebook: cfg.facebook,
+      tiktok: cfg.tiktok,
+    },
+    // Cuántas veces insiste en el MISMO hilo antes de dejarlo para una persona.
+    tope_por_hilo: cfg.maxThreadReplies,
+    // El freno de emergencia: manda sobre todo lo demás.
+    pausado: s?.paused === true,
+    tope_diario_de_privados: s?.daily_cap ?? 500,
+    pide_permiso_de_marketing: s?.marketing_optin_enabled === true,
+  }
+}
+
+/** Traduce los argumentos del modelo al cuerpo que entiende `controls`. */
+function parcheDesdeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (typeof args.contestar === 'boolean') body.auto_reply_comments = args.contestar
+  if (args.audiencia === 'intent' || args.audiencia === 'all') {
+    body.comment_audience = args.audiencia
+  }
+  if (COMMENT_REPLY_MODES.includes(args.modo as never)) body.comment_reply_mode = args.modo
+  // Las redes viajan juntas: mandar una sola apagaría las otras dos, porque
+  // `construirParche` las guarda como un conjunto. Se leen las tres del estado
+  // actual y se pisa la que pidieron.
+  if (
+    typeof args.instagram === 'boolean' ||
+    typeof args.facebook === 'boolean' ||
+    typeof args.tiktok === 'boolean'
+  ) {
+    body.__redes = true
+  }
+  if (args.tope_por_hilo != null) body.comment_max_thread_replies = args.tope_por_hilo
+  if (args.tope_diario != null) body.daily_cap = args.tope_diario
+  if (typeof args.pausar === 'boolean') body.paused = args.pausar
+  return body
+}
+
+async function configurar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const body = parcheDesdeArgs(args)
+  if (body.__redes) {
+    delete body.__redes
+    const cfg = await loadCommentSettings(ctx.db, ctx.workspaceId)
+    body.comment_instagram =
+      typeof args.instagram === 'boolean' ? args.instagram : cfg.instagram
+    body.comment_facebook =
+      typeof args.facebook === 'boolean' ? args.facebook : cfg.facebook
+    body.comment_tiktok = typeof args.tiktok === 'boolean' ? args.tiktok : cfg.tiktok
+  }
+  if (Object.keys(body).length === 0) {
+    throw new Error('No pediste ningún cambio.')
+  }
+  await guardarAjustesDeComentarios(ctx.db, ctx.workspaceId, body)
+  return ajustes(ctx)
+}
+
+/** Qué cambiaría, en una línea por cosa. */
+async function previewConfigurar(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const antes = await ajustes(ctx)
+  const cambios: string[] = []
+  if (typeof args.contestar === 'boolean' && args.contestar !== antes.contesta_con_ia) {
+    cambios.push(
+      args.contestar
+        ? 'La IA vuelve a contestar los comentarios.'
+        : 'La IA deja de contestar comentarios: pasan todos a la bandeja.',
+    )
+  }
+  if (args.audiencia && args.audiencia !== antes.audiencia) {
+    cambios.push(
+      args.audiencia === 'all'
+        ? 'Pasa a contestarle a TODO el que escriba, no sólo a quien quiere comprar.'
+        : 'Pasa a contestarle sólo a quien muestra intención de compra.',
+    )
+  }
+  if (args.modo && args.modo !== antes.modo) {
+    cambios.push(`Lo que contesta pasa a salir ${QUE_PUBLICA[String(args.modo)]}.`)
+  }
+  for (const red of ['instagram', 'facebook', 'tiktok'] as const) {
+    if (typeof args[red] === 'boolean' && args[red] !== antes.redes[red]) {
+      const nombre = red === 'instagram' ? 'Instagram' : red === 'facebook' ? 'Facebook' : 'TikTok'
+      cambios.push(args[red] ? `Empieza a trabajar en ${nombre}.` : `Deja de trabajar en ${nombre}.`)
+    }
+  }
+  if (args.tope_por_hilo != null && Number(args.tope_por_hilo) !== antes.tope_por_hilo) {
+    cambios.push(
+      `Insiste hasta ${Number(args.tope_por_hilo)} veces en el mismo hilo (antes ${antes.tope_por_hilo}).`,
+    )
+  }
+  if (args.tope_diario != null && Number(args.tope_diario) !== antes.tope_diario_de_privados) {
+    cambios.push(
+      `El tope diario de privados pasa a ${Number(args.tope_diario)} (antes ${antes.tope_diario_de_privados}).`,
+    )
+  }
+  if (typeof args.pausar === 'boolean' && args.pausar !== antes.pausado) {
+    cambios.push(
+      args.pausar
+        ? 'FRENO DE EMERGENCIA: se para todo lo proactivo, comentarios y privados.'
+        : 'Se saca el freno de emergencia: vuelve a salir todo lo proactivo.',
+    )
+  }
+  // Sin cambios se dice qué QUEDA, no que no pasa nada: quien aprueba tiene que
+  // leer el estado, no un aviso de que su pedido era redundante.
+  if (cambios.length === 0) {
+    return `Quedaría como está: contesta ${antes.a_quien}, ${antes.que_publica}.`
+  }
+  return cambios.join(' ')
+}
+
 export const COMMENT_CAPABILITIES: Capability[] = [
+  {
+    key: 'comentarios.ajustes',
+    description:
+      'Cómo contesta hoy la IA en los comentarios: si está encendida, a quién le contesta (sólo a quien quiere comprar, o a todos), qué publica (sólo privado, sólo el comentario, o los dos), en qué redes trabaja, cuántas veces insiste en el mismo hilo, el tope diario de privados y si el freno de emergencia está puesto. Es lo que explica por qué la IA contestó —o no contestó— un comentario.',
+    descriptionEn:
+      'How the AI currently answers comments: whether it is on, who it answers (only buyers, or everyone), what it posts (DM only, the comment only, or both), which networks it works on, how many times it insists on the same thread, the daily DM cap, and whether the emergency brake is on. This is what explains why the AI answered — or did not answer — a comment.',
+    risk: 'lectura',
+    schema: { type: 'object', properties: {} },
+    run: ajustes,
+  },
+
+  {
+    key: 'comentarios.configurar',
+    description:
+      'Cambia cómo contesta la IA en los comentarios: prenderla o apagarla, a quién le contesta, qué publica, en qué redes trabaja, cuánto insiste en un hilo, el tope diario de privados y el freno de emergencia. Alcanza a los comentarios NUEVOS, no reescribe lo ya contestado. Se deshace llamando de nuevo.',
+    descriptionEn:
+      'Changes how the AI answers comments: turn it on or off, who it answers, what it posts, which networks it works on, how much it insists on a thread, the daily DM cap and the emergency brake. It affects NEW comments; it does not rewrite what was already answered. Undone by calling it again.',
+    risk: 'reversible',
+    schema: {
+      type: 'object',
+      properties: {
+        contestar: { type: 'boolean', description: 'Prende o apaga la respuesta con IA.' },
+        audiencia: {
+          type: 'string',
+          enum: ['intent', 'all'],
+          description: 'intent = sólo a quien quiere comprar; all = a todo el que escriba.',
+        },
+        modo: {
+          type: 'string',
+          enum: [...COMMENT_REPLY_MODES],
+          description:
+            'dm = sólo privado; public_dm = comentario y privado; public_smart = comentario siempre y privado si hace falta; public = sólo el comentario.',
+        },
+        instagram: { type: 'boolean' },
+        facebook: { type: 'boolean' },
+        tiktok: { type: 'boolean' },
+        tope_por_hilo: {
+          type: 'number',
+          description: 'Cuántas veces insiste en el mismo hilo. 0 = sin tope. Máximo 10.',
+        },
+        tope_diario: {
+          type: 'number',
+          description: 'Tope de mensajes privados proactivos en 24 h. 0 = sin tope.',
+        },
+        pausar: {
+          type: 'boolean',
+          description: 'Freno de emergencia: para TODO lo proactivo, no sólo comentarios.',
+        },
+      },
+    },
+    preview: previewConfigurar,
+    run: configurar,
+  },
   {
     key: 'comentarios.listar',
     description:

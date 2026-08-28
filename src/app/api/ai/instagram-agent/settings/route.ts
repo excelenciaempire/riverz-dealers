@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { resolveWorkspaceId } from '@/lib/instagram-agent/workspace';
+import {
+  guardarAjustesDeComentarios,
+  hayAjustesQueGuardar,
+} from '@/lib/instagram-agent/controls';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -115,78 +119,16 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
 
-  // Workspace-level controls (pause + cap).
-  if (
-    typeof body.paused === 'boolean' ||
-    body.daily_cap != null ||
-    typeof body.auto_reply_comments === 'boolean' ||
-    typeof body.outreach_enabled === 'boolean' ||
-    body.comment_audience != null ||
-    body.comment_max_thread_replies != null ||
-    typeof body.comment_public_reply === 'boolean' ||
-    typeof body.comment_instagram === 'boolean' ||
-    typeof body.comment_facebook === 'boolean' ||
-    typeof body.comment_tiktok === 'boolean' ||
-    typeof body.comment_reply_mode === 'string' ||
-    typeof body.marketing_optin_enabled === 'boolean'
-  ) {
-    const patch: Record<string, unknown> = { workspace_id: workspaceId };
-    // A quién contesta la IA en comentarios y cuánto insiste (migración 132).
-    // Valor desconocido ⇒ se ignora, no se guarda basura que rompa el CHECK.
-    if (body.comment_audience === 'intent' || body.comment_audience === 'all') {
-      patch.comment_audience = body.comment_audience;
-    }
-    if (typeof body.comment_public_reply === 'boolean') {
-      patch.comment_public_reply = body.comment_public_reply;
-    }
-    // Las redes se guardan juntas y nunca todas apagadas: sin ninguna,
-    // "Responder con IA" quedaría encendido sin poder contestar en ningún
-    // lado. La pantalla lo hace imposible; acá se protege igual.
-    if (
-      typeof body.comment_instagram === 'boolean' ||
-      typeof body.comment_facebook === 'boolean' ||
-      typeof body.comment_tiktok === 'boolean'
-    ) {
-      const fb = body.comment_facebook === true;
-      const tt = body.comment_tiktok === true;
-      const ig = body.comment_instagram === true;
-      patch.comment_instagram = ig || (!fb && !tt);
-      patch.comment_facebook = fb;
-      patch.comment_tiktok = tt;
-    }
-    if (REPLY_MODES.includes(body.comment_reply_mode)) {
-      patch.comment_reply_mode = body.comment_reply_mode;
-      // El interruptor viejo se sigue escribiendo: si algún día se lee esa
-      // columna otra vez, dice lo mismo que el modo.
-      patch.comment_public_reply = body.comment_reply_mode !== 'dm';
-    }
-    if (typeof body.marketing_optin_enabled === 'boolean') {
-      patch.marketing_optin_enabled = body.marketing_optin_enabled;
-    }
-    if (body.comment_max_thread_replies != null) {
-      patch.comment_max_thread_replies = Math.max(
-        0,
-        Math.min(10, Math.round(Number(body.comment_max_thread_replies)) || 0),
-      );
-    }
-    if (typeof body.paused === 'boolean') patch.paused = body.paused;
-    if (typeof body.auto_reply_comments === 'boolean') {
-      patch.auto_reply_comments = body.auto_reply_comments;
-    }
-    if (typeof body.outreach_enabled === 'boolean') {
-      patch.outreach_enabled = body.outreach_enabled;
-    }
-    if (body.daily_cap != null) {
-      patch.daily_cap = Math.max(
-        0,
-        Math.min(10000, Math.round(Number(body.daily_cap)) || 0),
-      );
-    }
-    const { error } = await supabase
-      .from('ig_proactive_settings')
-      .upsert(patch, { onConflict: 'workspace_id' });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+  // El cuerpo de esta escritura vive en `lib/instagram-agent/controls`, que es
+  // lo que llama también el Operador cuando le piden cambiar cómo contesta la
+  // IA en comentarios. Una segunda validación acá sería una segunda forma de
+  // dejar las tres redes apagadas.
+  if (hayAjustesQueGuardar(body)) {
+    try {
+      await guardarAjustesDeComentarios(supabase, workspaceId, body);
+    } catch (err) {
+      const detalle = err instanceof Error ? err.message : 'error';
+      return NextResponse.json({ error: detalle }, { status: 500 });
     }
   }
 

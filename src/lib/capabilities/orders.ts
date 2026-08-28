@@ -340,7 +340,180 @@ const ESQUEMA_COMPRA = {
   },
 } as const
 
+// ---------------------------------------------------------------------------
+// LA PLATA QUE NO ENTRÓ.
+//
+// Dos listas que existían hace meses y a las que el chat no llegaba: los
+// carritos que alguien dejó a medias y los pagos que Mercado Pago rechazó.
+// Son la venta más barata que tiene un comercio —ya eligieron, ya pusieron la
+// tarjeta— y la pregunta "¿a quién le falta poco?" no tenía respuesta.
+// ---------------------------------------------------------------------------
+
+/** Cuántas filas devuelve como mucho una de estas listas. */
+const TOPE_RECUPERACION = 50
+
+/** Por qué lo rechazó el banco, dicho para una persona. */
+const POR_QUE: Record<string, string> = {
+  retry: 'un dato mal cargado: se arregla reintentando',
+  funds: 'sin fondos suficientes',
+  bank: 'lo frenó el banco',
+  risk: 'sospecha de fraude — a esta gente NO se le escribe',
+  other: 'otro motivo',
+}
+
+async function carritos(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 20, TOPE_RECUPERACION)
+  let q = ctx.db
+    .from('shopify_checkouts')
+    .select(
+      'id, checkout_id, customer_name, customer_email, customer_phone, total_price, currency, line_items, abandoned_checkout_url, status, completed_at, created_at, recovery_dispatched_at, recovery_attempts, recovery_last_error, platform',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limite)
+  // Por defecto sólo los que siguen sin comprar: un carrito completado ya es
+  // un pedido y vive en `pedidos.listar`.
+  if (args.incluir_completados !== true) q = q.is('completed_at', null)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  return {
+    carritos: ((data ?? []) as unknown as Array<{
+      id: string
+      checkout_id: string | null
+      customer_name: string | null
+      customer_email: string | null
+      customer_phone: string | null
+      total_price: number | string | null
+      currency: string | null
+      line_items: unknown
+      abandoned_checkout_url: string | null
+      status: string | null
+      completed_at: string | null
+      created_at: string
+      recovery_dispatched_at: string | null
+      recovery_attempts: number | null
+      recovery_last_error: string | null
+      platform: string | null
+    }>).map((c) => ({
+      carrito_id: c.id,
+      cliente: c.customer_name ?? c.customer_email ?? c.customer_phone ?? 'sin nombre',
+      telefono: c.customer_phone,
+      email: c.customer_email,
+      monto: c.total_price,
+      moneda: c.currency,
+      que_llevaba: c.line_items,
+      cuando: c.created_at,
+      tienda: c.platform,
+      // El enlace para terminar la compra: es lo que se le manda.
+      enlace: c.abandoned_checkout_url,
+      // Si ya se le escribió, cuántas veces, y si el envío falló.
+      se_le_escribio: c.recovery_dispatched_at,
+      intentos: c.recovery_attempts ?? 0,
+      ultimo_error: c.recovery_last_error,
+      // Comprado = dejó de ser un carrito abandonado.
+      comprado_el: c.completed_at,
+    })),
+  }
+}
+
+async function pagosRechazados(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 20, TOPE_RECUPERACION)
+  let q = ctx.db
+    .from('mp_rejected_payments')
+    .select(
+      'id, payer_name, email, phone, amount, currency, installments, attempts, status_detail, reason_bucket, payment_method, recovery_url, rejected_at, contacted_at, dispatched_at, skip_reason, last_error, recovered_at, recovered_amount, paid_at',
+    )
+    .eq('workspace_id', ctx.workspaceId)
+    .order('rejected_at', { ascending: false })
+    .limit(limite)
+  // Por defecto los que siguen sin pagar: el recuperado ya es una venta.
+  if (args.incluir_recuperados !== true) q = q.is('recovered_at', null)
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  return {
+    pagos: ((data ?? []) as unknown as Array<{
+      id: string
+      payer_name: string | null
+      email: string | null
+      phone: string | null
+      amount: number | null
+      currency: string | null
+      installments: number | null
+      attempts: number | null
+      status_detail: string | null
+      reason_bucket: string | null
+      payment_method: string | null
+      recovery_url: string | null
+      rejected_at: string
+      contacted_at: string | null
+      skip_reason: string | null
+      last_error: string | null
+      recovered_at: string | null
+      recovered_amount: number | null
+      paid_at: string | null
+    }>).map((p) => ({
+      pago_id: p.id,
+      cliente: p.payer_name ?? p.email ?? p.phone ?? 'sin nombre',
+      telefono: p.phone,
+      email: p.email,
+      monto: p.amount,
+      moneda: p.currency,
+      cuotas: p.installments,
+      intentos: p.attempts,
+      cuando: p.rejected_at,
+      medio: p.payment_method,
+      por_que: POR_QUE[p.reason_bucket ?? 'other'] ?? p.reason_bucket,
+      motivo_crudo: p.status_detail,
+      enlace_para_reintentar: p.recovery_url,
+      se_le_escribio: p.contacted_at,
+      // Por qué NO se le escribió: casi siempre es sospecha de fraude o que no
+      // dejó teléfono. Es la mitad de la respuesta a "¿por qué no se recupera?".
+      no_se_le_escribio_porque: p.skip_reason,
+      ultimo_error: p.last_error,
+      recuperado_el: p.recovered_at,
+      recuperado_monto: p.recovered_amount,
+    })),
+  }
+}
+
 export const ORDER_CAPABILITIES: Capability[] = [
+  {
+    key: 'pedidos.carritos',
+    description:
+      'Los carritos que alguien dejó a medias: quién es, cuánto llevaba, qué productos, el enlace para terminar la compra, y si ya se le escribió para recuperarlo (cuántas veces y si el envío falló). Es la venta más barata que hay: ya eligieron y no pagaron. Con incluir_completados=true trae también los que terminaron comprando.',
+    descriptionEn:
+      'The carts someone left half done: who they are, how much, which products, the link to finish the purchase, and whether they were already messaged to recover it (how many times and whether sending failed). It is the cheapest sale there is: they already chose and did not pay. With incluir_completados=true it also returns the ones that ended up buying.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        incluir_completados: { type: 'boolean' },
+        limite: { type: 'number', description: `Por defecto 20, máximo ${TOPE_RECUPERACION}.` },
+      },
+    },
+    run: carritos,
+  },
+
+  {
+    key: 'pedidos.pagos_rechazados',
+    description:
+      'Los pagos que Mercado Pago rechazó: quién intentó pagar, cuánto, con qué medio, POR QUÉ se rechazó (dato mal cargado, sin fondos, lo frenó el banco, sospecha de fraude) y el enlace para reintentar. Dice también si ya se le escribió y, cuando no, por qué no — a los rechazos por fraude no se les escribe a propósito.',
+    descriptionEn:
+      'The payments Mercado Pago rejected: who tried to pay, how much, with what method, WHY it was rejected (bad data, no funds, the bank blocked it, suspected fraud) and the link to retry. It also says whether they were already messaged and, if not, why not — fraud rejections are deliberately never contacted.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        incluir_recuperados: { type: 'boolean' },
+        limite: { type: 'number', description: `Por defecto 20, máximo ${TOPE_RECUPERACION}.` },
+      },
+    },
+    run: pagosRechazados,
+  },
   {
     key: 'pedidos.listar',
     description:

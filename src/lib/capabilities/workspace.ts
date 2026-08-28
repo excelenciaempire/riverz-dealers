@@ -26,6 +26,10 @@ import {
   renombrarCuenta,
   type RolDeEquipo,
 } from '@/lib/workspaces/settings'
+import { leerSuscripcion } from '@/lib/billing/plan'
+import { rangoDe, resumen } from '@/lib/wallet/movimientos'
+import { leerBilletera } from '@/lib/wallet/saldo'
+import { listarTarifas } from '@/lib/wallet/tarifas'
 import type { Capability, CapabilityContext } from './types'
 
 /**
@@ -114,7 +118,127 @@ async function invitar(ctx: CapabilityContext, args: Record<string, unknown>) {
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// LA PLATA.
+//
+// El chat no sabía cuánto saldo quedaba. "¿Por qué dejó de contestar la IA?"
+// tiene tres respuestas posibles y una es «se quedó sin saldo»; sin esto había
+// que mandar a mirar una pantalla.
+//
+// Se LEE y no se toca: recargar y cambiar de plan cobran a una tarjeta, y esa
+// sigue siendo una decisión que se toma con el dedo, no por chat.
+// ---------------------------------------------------------------------------
+
+/** Centavos a plata legible: 12345 → "123,45 USD". */
+function enPlata(centavos: number, moneda: string): string {
+  const signo = centavos < 0 ? '-' : ''
+  const abs = Math.abs(centavos)
+  return `${signo}${Math.floor(abs / 100)},${String(abs % 100).padStart(2, '0')} ${moneda.toUpperCase()}`
+}
+
+async function saldo(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const rango = rangoDe(
+    typeof args.desde === 'string' ? args.desde : null,
+    typeof args.hasta === 'string' ? args.hasta : null,
+  )
+  const [billetera, movimiento, tarifas] = await Promise.all([
+    leerBilletera(ctx.db, ctx.workspaceId),
+    resumen(ctx.db, ctx.workspaceId, rango),
+    listarTarifas(ctx.db),
+  ])
+
+  const moneda = billetera.moneda
+  return {
+    saldo: enPlata(billetera.saldoCentavos, moneda),
+    saldo_centavos: billetera.saldoCentavos,
+    moneda,
+    // Cuánto puede quedar en rojo antes de que se corte.
+    descubierto: enPlata(billetera.descubiertoCentavos, moneda),
+    // Si quedarse sin saldo apaga la operación o sólo queda debiendo.
+    corta_sin_saldo: billetera.bloquearSinSaldo,
+    recarga_automatica: billetera.autoRecargaCentavos
+      ? {
+          cuanto: enPlata(billetera.autoRecargaCentavos, moneda),
+          cuando_baja_de: enPlata(billetera.autoUmbralCentavos ?? 0, moneda),
+        }
+      : null,
+    desde: rango.desde,
+    hasta: rango.hasta,
+    cargado: enPlata(movimiento.cargadoCentavos, moneda),
+    gastado: enPlata(movimiento.gastadoCentavos, moneda),
+    // En qué se fue: es la respuesta a "¿por qué gasté tanto?".
+    en_que: movimiento.porConcepto.map((c) => ({
+      concepto: c.concepto,
+      gastado: enPlata(c.centavos, moneda),
+      cantidad: c.cantidad,
+    })),
+    por_dia: movimiento.porDia,
+    movimientos: movimiento.movimientos,
+    // Cuánto sale cada cosa, para poder explicar el consumo.
+    tarifas: tarifas
+      .filter((t) => t.activo)
+      .map((t) => ({
+        concepto: t.concepto,
+        que_es: ctx.locale === 'en' ? t.nombreEn : t.nombreEs,
+        unidad: t.unidad,
+        precio_milicentavos: t.precioMilicentavos,
+      })),
+  }
+}
+
+async function plan(ctx: CapabilityContext) {
+  const suscripcion = await leerSuscripcion(ctx.db, ctx.workspaceId)
+  if (!suscripcion) {
+    return { tiene_plan: false, nota: 'Esta cuenta todavía no tiene suscripción.' }
+  }
+  const moneda = suscripcion.plan?.moneda ?? 'usd'
+  return {
+    tiene_plan: true,
+    plan: suscripcion.plan?.nombre ?? null,
+    estado: suscripcion.estado,
+    precio: enPlata(suscripcion.precioCentavos, moneda),
+    // Si el precio de ESTA cuenta no es el de lista.
+    trato_propio: suscripcion.tratoPropio,
+    incluidas: suscripcion.incluidas,
+    excedente: enPlata(suscripcion.excedenteCentavos, moneda),
+    prueba_hasta: suscripcion.pruebaHasta,
+    periodo_desde: suscripcion.periodoDesde,
+    periodo_hasta: suscripcion.periodoHasta,
+    // Desde cuándo viene fallando el cobro: es el reloj de la gracia.
+    cobro_fallando_desde: suscripcion.vencidaDesde,
+    se_cancela_al_final: suscripcion.cancelarAlFinal,
+    nota: suscripcion.nota,
+  }
+}
+
 export const WORKSPACE_CAPABILITIES: Capability[] = [
+  {
+    key: 'ajustes.saldo',
+    description:
+      'El saldo de la cuenta y en qué se fue: cuánto queda, cuánto se cargó y se gastó en el rango, el detalle por concepto (respuestas de la IA, llamadas, búsquedas, imágenes) y cuánto sale cada cosa. Contesta "¿por qué gasté tanto?" y también "¿por qué dejó de contestar la IA?", que muchas veces es quedarse sin saldo.',
+    descriptionEn:
+      'The account balance and where it went: how much is left, how much was topped up and spent in the range, the breakdown by concept (AI replies, calls, web searches, images) and what each one costs. It answers "why did I spend so much?" and also "why did the AI stop replying?", which is often running out of balance.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        desde: { type: 'string', description: 'Fecha ISO. Por defecto, 30 días atrás.' },
+        hasta: { type: 'string', description: 'Fecha ISO. Por defecto, ahora.' },
+      },
+    },
+    run: saldo,
+  },
+
+  {
+    key: 'ajustes.plan',
+    description:
+      'El plan de la cuenta: cuál es, en qué estado está la suscripción, qué se paga, qué incluye y cuánto sale el excedente, hasta cuándo dura la prueba y —si el cobro viene fallando— desde cuándo. Cambiar de plan NO se hace desde acá: eso cobra a una tarjeta y se toca en la pantalla de facturación.',
+    descriptionEn:
+      'The account plan: which one, the subscription status, what is paid, what it includes and the overage price, when the trial ends and — if billing is failing — since when. Changing plan is NOT done here: that charges a card and lives in the billing screen.',
+    risk: 'lectura',
+    schema: { type: 'object', properties: {} },
+    run: plan,
+  },
   {
     key: 'ajustes.cuenta',
     description:

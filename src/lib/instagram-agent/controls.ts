@@ -155,6 +155,117 @@ export async function loadCommentSettings(
   };
 }
 
+/**
+ * GUARDAR ESOS AJUSTES.
+ *
+ * Vivía inline dentro de `POST /api/ai/instagram-agent/settings`, así que sólo
+ * existía para quien tuviera la pantalla abierta. El Operador podía LEER cómo
+ * contesta la IA en comentarios —`comentarios.pendientes` lo dice— y no podía
+ * cambiarlo, que es justo lo que hace falta cuando la IA está contestando mal.
+ *
+ * La validación va acá y no en cada llamador porque no es cosmética: hay un
+ * CHECK en la base sobre `comment_audience` y `comment_reply_mode`, un rango en
+ * los dos topes, y la regla de que nunca quedan las tres redes apagadas —sin
+ * ella "Responder con IA" queda encendido sin poder contestar en ningún lado—.
+ * Un valor desconocido se IGNORA en vez de guardarse: es preferible que un
+ * campo no cambie a que la fila entera se rechace.
+ */
+export interface AjustesDeComentarios {
+  paused?: unknown;
+  daily_cap?: unknown;
+  auto_reply_comments?: unknown;
+  outreach_enabled?: unknown;
+  comment_audience?: unknown;
+  comment_max_thread_replies?: unknown;
+  comment_public_reply?: unknown;
+  comment_instagram?: unknown;
+  comment_facebook?: unknown;
+  comment_tiktok?: unknown;
+  comment_reply_mode?: unknown;
+  marketing_optin_enabled?: unknown;
+}
+
+/** ¿El cuerpo trae algo que guardar? Sin esto se escribiría una fila vacía. */
+export function hayAjustesQueGuardar(body: AjustesDeComentarios): boolean {
+  return Object.keys(construirParche(body)).length > 0;
+}
+
+/**
+ * El parche listo para la base, sin el `workspace_id`. Puro: se puede probar
+ * sin tocar la red, que es donde vive el riesgo de esta función.
+ */
+export function construirParche(
+  body: AjustesDeComentarios,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  // A quién le contesta la IA (migración 132).
+  if (body.comment_audience === 'intent' || body.comment_audience === 'all') {
+    patch.comment_audience = body.comment_audience;
+  }
+  if (typeof body.comment_public_reply === 'boolean') {
+    patch.comment_public_reply = body.comment_public_reply;
+  }
+  // Las redes se guardan juntas y nunca todas apagadas. La pantalla lo hace
+  // imposible; acá se protege igual, porque el chat no tiene esa pantalla.
+  if (
+    typeof body.comment_instagram === 'boolean' ||
+    typeof body.comment_facebook === 'boolean' ||
+    typeof body.comment_tiktok === 'boolean'
+  ) {
+    const fb = body.comment_facebook === true;
+    const tt = body.comment_tiktok === true;
+    const ig = body.comment_instagram === true;
+    patch.comment_instagram = ig || (!fb && !tt);
+    patch.comment_facebook = fb;
+    patch.comment_tiktok = tt;
+  }
+  if (COMMENT_REPLY_MODES.includes(body.comment_reply_mode as CommentReplyMode)) {
+    patch.comment_reply_mode = body.comment_reply_mode;
+    // El interruptor viejo se sigue escribiendo: si algún día se lee esa
+    // columna otra vez, dice lo mismo que el modo.
+    patch.comment_public_reply = body.comment_reply_mode !== 'dm';
+  }
+  if (typeof body.marketing_optin_enabled === 'boolean') {
+    patch.marketing_optin_enabled = body.marketing_optin_enabled;
+  }
+  if (body.comment_max_thread_replies != null) {
+    patch.comment_max_thread_replies = Math.max(
+      0,
+      Math.min(10, Math.round(Number(body.comment_max_thread_replies)) || 0),
+    );
+  }
+  if (typeof body.paused === 'boolean') patch.paused = body.paused;
+  if (typeof body.auto_reply_comments === 'boolean') {
+    patch.auto_reply_comments = body.auto_reply_comments;
+  }
+  if (typeof body.outreach_enabled === 'boolean') {
+    patch.outreach_enabled = body.outreach_enabled;
+  }
+  if (body.daily_cap != null) {
+    patch.daily_cap = Math.max(
+      0,
+      Math.min(10000, Math.round(Number(body.daily_cap)) || 0),
+    );
+  }
+  return patch;
+}
+
+/** Guarda el parche. Lanza con el mensaje de la base si no se pudo. */
+export async function guardarAjustesDeComentarios(
+  db: SupabaseClient,
+  workspaceId: string,
+  body: AjustesDeComentarios,
+): Promise<Record<string, unknown>> {
+  const patch = construirParche(body);
+  if (Object.keys(patch).length === 0) return {};
+  const { error } = await db
+    .from('ig_proactive_settings')
+    .upsert({ workspace_id: workspaceId, ...patch }, { onConflict: 'workspace_id' });
+  if (error) throw new Error(error.message);
+  return patch;
+}
+
 /** ¿Está encendido el piso autónomo (responder comentarios sin campaña)? */
 export async function autoReplyCommentsEnabled(
   db: SupabaseClient,
