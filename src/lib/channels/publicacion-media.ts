@@ -209,11 +209,43 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
   return true;
 }
 
-/** La conexión del canal, para hablar con Graph con su token. */
+/**
+ * La conexión con la que hablarle a Graph de ESTE post.
+ *
+ * Sale del hilo donde entró el comentario, no de "la conexión más nueva del
+ * workspace": una cuenta puede tener dos Instagram conectados y el token del
+ * segundo no puede leer los posts del primero. Graph contesta a eso con
+ * "Object with ID does not exist, cannot be loaded due to missing
+ * permissions", que se lee como un post borrado y no lo es. Medido contra la
+ * cuenta viva el 2026-08-28: de tres posts, el que venía de la otra cuenta era
+ * el único que fallaba.
+ */
 async function conexionDe(
   db: SupabaseClient,
   fila: FilaContexto,
 ): Promise<ChannelConnection | null> {
+  const { data: conv } = await db
+    .from("conversations")
+    .select("connection_id")
+    .eq("workspace_id", fila.workspace_id)
+    .eq("channel", fila.channel)
+    .eq("thread_external_id", fila.external_id)
+    .not("connection_id", "is", null)
+    .order("last_message_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const connId = (conv as { connection_id?: string | null } | null)?.connection_id;
+  if (connId) {
+    const { data } = await db
+      .from("channel_connections")
+      .select("*")
+      .eq("id", connId)
+      .maybeSingle();
+    const propia = (data as ChannelConnection | null) ?? null;
+    if (propia?.secrets) return propia;
+  }
+
+  // Sin hilo (o sin secretos en esa fila): la conexión viva del canal.
   const { data } = await db
     .from("channel_connections")
     .select("*")
@@ -341,10 +373,23 @@ async function queSeVeEnLaImagen(
       maxTokens: 300,
       anthropicKey: resuelta.key,
     });
-    return texto.trim() || null;
+    return limpiar(texto);
   } catch {
     return null;
   }
+}
+
+/**
+ * El modelo a veces encabeza con "# Descripción de la imagen". Eso viaja
+ * después DENTRO de otro prompt, donde un título suelto no describe nada y
+ * sólo ocupa lugar.
+ */
+function limpiar(texto: string): string | null {
+  const sinTitulo = texto
+    .trim()
+    .replace(/^#{1,6}\s[^\n]*\n*/, "")
+    .trim();
+  return sinTitulo || null;
 }
 
 /** Qué se dice en el video. Mismo Whisper que usa TikTok. */
