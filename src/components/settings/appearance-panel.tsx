@@ -136,15 +136,10 @@ function ThemeCard({
           {tagline}
         </div>
       </div>
-      {/* Mini preview: superficie, acento y borde del modo. El acento es la
-          inversa de la superficie en cada uno: tinta sobre crema en claro,
-          crema sobre carbón en oscuro. */}
+      {/* Mini preview: superficie, el lima de la marca y el borde del modo. */}
       <div className="mt-1 flex h-2 overflow-hidden rounded-full" aria-hidden>
         <span className="flex-1" style={{ background: swatch }} />
-        <span
-          className="w-5"
-          style={{ background: isDark ? "#fafaf7" : "#1b1a17" }}
-        />
+        <span className="w-5" style={{ background: "#f7ff9e" }} />
         <span
           className="w-3"
           style={{ background: isDark ? "#25252e" : "#ded8c8" }}
