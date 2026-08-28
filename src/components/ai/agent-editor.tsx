@@ -23,7 +23,6 @@ import {
   Check,
   CheckCheck,
   RotateCcw,
-  BarChart3,
 } from 'lucide-react';
 import { AgentStats } from '@/components/ai/agent-stats';
 import { MODELO_POR_DEFECTO } from '@/lib/ai/esfuerzo';
@@ -523,10 +522,8 @@ export function AgentEditor({
     { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
     { key: 'voice', label: t('voice.tab'), icon: PhoneCall },
     { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
-    // La pestaña de estadísticas solo aplica a un agente ya creado.
-    ...(agent?.id
-      ? [{ key: 'stats' as TabKey, label: t('assistant.tabStats'), icon: BarChart3 }]
-      : []),
+    // Estadísticas no está en el rail: se entra por el botón de la tarjeta del
+    // agente. El panel sigue existiendo (tab === 'stats').
   ];
 
   // Mapas valor→etiqueta para <SelectValue labels={...}>, resueltos con t()
