@@ -82,7 +82,9 @@ interface CuerpoTarifa {
 
 interface CuerpoBilletera {
   workspace_id: string;
-  bloquear_sin_saldo: boolean;
+  bloquear_sin_saldo?: boolean;
+  /** El consumo se le descuenta a costo, sin margen. */
+  cobrar_a_costo?: boolean;
 }
 
 const ENTERO = (v: unknown): number | null => {
@@ -223,21 +225,31 @@ export async function PUT(request: Request) {
     if (!bi.workspace_id) {
       return NextResponse.json({ error: 'falta workspace_id' }, { status: 400 });
     }
-    const { error } = await db.from('wallet_accounts').upsert(
-      {
-        workspace_id: bi.workspace_id,
-        bloquear_sin_saldo: bi.bloquear_sin_saldo === true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'workspace_id' },
-    );
+    // Parcial a propósito: el formulario manda UN interruptor por vez, y un
+    // upsert con el otro en `false` lo apagaría sin que nadie lo pidiera.
+    const fila: Record<string, unknown> = {
+      workspace_id: bi.workspace_id,
+      updated_at: new Date().toISOString(),
+    };
+    if (bi.bloquear_sin_saldo !== undefined) {
+      fila.bloquear_sin_saldo = bi.bloquear_sin_saldo === true;
+    }
+    if (bi.cobrar_a_costo !== undefined) {
+      fila.cobrar_a_costo = bi.cobrar_a_costo === true;
+    }
+    const { error } = await db
+      .from('wallet_accounts')
+      .upsert(fila, { onConflict: 'workspace_id' });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     await recordAdminAction(gate.actor, request, {
       action: 'update.wallet_blocking',
       targetType: 'workspace',
       targetId: bi.workspace_id,
-      meta: { bloquear_sin_saldo: bi.bloquear_sin_saldo === true },
+      meta: {
+        bloquear_sin_saldo: bi.bloquear_sin_saldo,
+        cobrar_a_costo: bi.cobrar_a_costo,
+      },
     });
     return NextResponse.json({ ok: true });
   }

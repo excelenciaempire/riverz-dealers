@@ -34,6 +34,11 @@ export interface Billetera {
   autoUmbralCentavos: number | null
   /** Si hay una tarjeta guardada en Stripe para cobrar sin que nadie mire. */
   tieneTarjeta: boolean
+  /**
+   * El consumo se descuenta a lo que costó, sin margen. Para los primeros
+   * clientes, mientras el precio todavía se está descubriendo.
+   */
+  cobrarACosto: boolean
   /** Rechazos seguidos del cobro automático. A los 3 se deja de intentar. */
   autoFallos: number
   /** Por qué falló el último intento, en el idioma de Stripe. */
@@ -49,12 +54,13 @@ interface FilaCuenta {
   auto_recarga_centavos: number | null
   auto_umbral_centavos: number | null
   stripe_payment_method_id: string | null
+  cobrar_a_costo: boolean | null
   auto_fallos: number | null
   auto_ultimo_error: string | null
 }
 
 const COLUMNAS =
-  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos, stripe_payment_method_id, auto_fallos, auto_ultimo_error'
+  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos, stripe_payment_method_id, cobrar_a_costo, auto_fallos, auto_ultimo_error'
 
 function aBilletera(f: FilaCuenta): Billetera {
   return {
@@ -66,6 +72,7 @@ function aBilletera(f: FilaCuenta): Billetera {
     autoRecargaCentavos: f.auto_recarga_centavos,
     autoUmbralCentavos: f.auto_umbral_centavos,
     tieneTarjeta: Boolean(f.stripe_payment_method_id),
+    cobrarACosto: f.cobrar_a_costo === true,
     autoFallos: f.auto_fallos ?? 0,
     autoUltimoError: f.auto_ultimo_error ?? null,
   }
@@ -108,6 +115,7 @@ export async function leerBilletera(
         autoRecargaCentavos: null,
         autoUmbralCentavos: null,
         tieneTarjeta: false,
+        cobrarACosto: false,
         autoFallos: 0,
         autoUltimoError: null,
       }
@@ -191,7 +199,23 @@ export async function cobrar(
   try {
     const tarifa = await tarifaDe(db, args.concepto)
     if (!tarifa) return null
-    const centavos = centavosDe(tarifa, args.cantidad)
+
+    // ¿Esta cuenta paga precio o paga costo?
+    //
+    // A costo se descuenta lo que ese consumo costó de verdad, no un promedio:
+    // una respuesta de 3.000 tokens y una de 39.000 cuestan diez veces distinto
+    // y una tarifa por respuesta sólo puede ser el promedio de las dos — que
+    // cobra de más a las cortas y de menos a las largas, justo lo contrario de
+    // lo que se prometió.
+    //
+    // Si el costo de ese consumo no se puede saber (0), se cae a la tarifa:
+    // nada puede salir gratis por no haberlo medido.
+    const costoCentavos = (args.costoUsd ?? 0) * 100
+    const aCosto = await cobraACosto(db, workspaceId)
+    const centavos =
+      aCosto && costoCentavos > 0
+        ? Math.max(1, Math.round(costoCentavos))
+        : centavosDe(tarifa, args.cantidad)
     if (centavos <= 0) return null
     return await mover(db, workspaceId, {
       tipo: 'consumo',
@@ -208,6 +232,25 @@ export async function cobrar(
     console.error('[wallet] no se pudo cobrar', args.concepto, e)
     return null
   }
+}
+
+/**
+ * ¿A esta cuenta se le pasa el costo sin margen?
+ *
+ * Lectura propia y chica en vez de arrastrar la billetera entera al camino
+ * caliente: acá sólo hace falta un booleano, y `leerBilletera` además crea la
+ * fila si falta, que es escritura y no corresponde en un cobro.
+ */
+async function cobraACosto(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from('wallet_accounts')
+    .select('cobrar_a_costo')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  return (data as { cobrar_a_costo?: boolean } | null)?.cobrar_a_costo === true
 }
 
 /**

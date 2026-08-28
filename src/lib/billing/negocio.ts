@@ -39,6 +39,8 @@ export interface CuentaDelNegocio {
   costoBilleteraCentavos: number
   /** Si quedarse sin saldo le apaga la IA. */
   bloqueaSinSaldo: boolean
+  /** El consumo se le descuenta a costo, sin margen. */
+  cobraACosto: boolean
 }
 
 export interface Negocio {
@@ -99,7 +101,7 @@ export async function leerNegocio(
       .select('workspace_id, conversaciones, costo_usd')
       .gte('dia', dia(periodo.desde))
       .lt('dia', dia(periodo.hasta)),
-    db.from('wallet_accounts').select('workspace_id, saldo_centavos, bloquear_sin_saldo'),
+    db.from('wallet_accounts').select('workspace_id, saldo_centavos, bloquear_sin_saldo, cobrar_a_costo'),
     // El libro del período, crudo. Se suma acá y no con un `group by` en SQL
     // porque son los movimientos de un puñado de cuentas en un rango, y una
     // vista nueva por cada corte que quiera mirar el dueño no escala como
@@ -133,9 +135,14 @@ export async function leerNegocio(
       workspace_id: string
       saldo_centavos: number
       bloquear_sin_saldo: boolean
+      cobrar_a_costo: boolean
     }[]).map((b) => [
       b.workspace_id,
-      { saldo: Number(b.saldo_centavos ?? 0), bloquea: b.bloquear_sin_saldo === true },
+      {
+        saldo: Number(b.saldo_centavos ?? 0),
+        bloquea: b.bloquear_sin_saldo === true,
+        aCosto: b.cobrar_a_costo === true,
+      },
     ]),
   )
 
@@ -166,7 +173,7 @@ export async function leerNegocio(
     .filter((s) => nombres.has(s.workspaceId))
     .map((s) => {
       const u = uso.get(s.workspaceId) ?? { conversaciones: 0, costoUsd: 0 }
-      const b = billeteras.get(s.workspaceId) ?? { saldo: 0, bloquea: false }
+      const b = billeteras.get(s.workspaceId) ?? { saldo: 0, bloquea: false, aCosto: false }
       const l = libro.get(s.workspaceId) ?? { cargado: 0, gastado: 0, costo: 0 }
       return {
         workspaceId: s.workspaceId,
@@ -188,6 +195,7 @@ export async function leerNegocio(
         gastadoCentavos: l.gastado,
         costoBilleteraCentavos: Math.round(l.costo),
         bloqueaSinSaldo: b.bloquea,
+        cobraACosto: b.aCosto,
       }
     })
     .sort((a, b) => b.mrrCentavos - a.mrrCentavos || b.conversaciones - a.conversaciones)

@@ -39,6 +39,11 @@ export async function GET() {
       acceso: acceso(sus),
       cuenta: cuentaDelPeriodo(sus, uso),
       tratoPropio: sus.tratoPropio,
+      // Lo que paga y cuándo vuelve a pagarlo: es lo primero que alguien busca
+      // en esta pantalla y no estaba en ningún lado.
+      precioCentavos: sus.precioCentavos,
+      periodoHasta: sus.periodoHasta,
+      puedeCancelar: stripeDisponible() && Boolean(sus.stripeSubscriptionId),
       // Sin Stripe configurado no se ofrece un botón que no puede funcionar.
       puedeSuscribirse: stripeDisponible() && Boolean(sus.plan?.stripePriceId),
       tienePortal: stripeDisponible() && Boolean(sus.stripeCustomerId),

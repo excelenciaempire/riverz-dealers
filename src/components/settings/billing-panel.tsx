@@ -34,6 +34,11 @@ interface Estado {
     moneda: string;
   };
   tratoPropio: boolean;
+  /** Lo que paga por mes, ya con el trato de esta cuenta. */
+  precioCentavos: number;
+  /** Cuándo se cobra de nuevo. Null mientras no haya suscripción viva. */
+  periodoHasta: string | null;
+  puedeCancelar: boolean;
   puedeSuscribirse: boolean;
   tienePortal: boolean;
   cancelarAlFinal: boolean;
@@ -86,6 +91,28 @@ export function BillingPanel() {
     },
     [fetchWithCsrf],
   );
+
+  const cancelar = async (valor: boolean) => {
+    setYendo(true);
+    try {
+      const res = await fetchWithCsrf('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelar: valor }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!json.ok) {
+        toast.error(json.error ?? 'No se pudo.');
+        return;
+      }
+      const nuevo = await fetch('/api/billing/estado', { cache: 'no-store' });
+      if (nuevo.ok) setE((await nuevo.json()) as Estado);
+    } catch {
+      toast.error('No se pudo.');
+    } finally {
+      setYendo(false);
+    }
+  };
 
   if (cargando) {
     return (
@@ -184,11 +211,55 @@ export function BillingPanel() {
       </div>
 
       {e.estado !== 'cortesia' && (
-        <div className="flex items-baseline justify-between border-t border-border pt-3 text-sm">
-          <span className="text-muted-foreground">{t('settings.billingTotal')}</span>
-          <span className="tabular-nums font-medium text-foreground">
-            {plata(cuenta.totalCentavos, cuenta.moneda)}
-          </span>
+        <div className="space-y-2 border-t border-border pt-3 text-sm">
+          <div className="flex items-baseline justify-between">
+            <span className="text-muted-foreground">{t('settings.billingPerMonth')}</span>
+            <span className="tabular-nums font-medium text-foreground">
+              {plata(e.precioCentavos, cuenta.moneda)}
+            </span>
+          </div>
+          {e.periodoHasta && (
+            <div className="flex items-baseline justify-between">
+              <span className="text-muted-foreground">
+                {e.cancelarAlFinal
+                  ? t('settings.billingEndsOn')
+                  : t('settings.billingRenewsOn')}
+              </span>
+              <span className="tabular-nums text-foreground">
+                {new Date(e.periodoHasta).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Cancelar. Al final del período y no al instante: el mes ya está
+          pagado, y cortarlo el mismo día seria quedarse con plata suya. Y se
+          puede volver atrás mientras no termine — arrepentirse tiene que costar
+          un clic, igual que cancelar. */}
+      {e.puedeCancelar && (
+        <div className="border-t border-border pt-3">
+          {e.cancelarAlFinal ? (
+            <button
+              type="button"
+              disabled={yendo}
+              onClick={() => void cancelar(false)}
+              className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
+            >
+              {t('settings.billingResume')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={yendo}
+              onClick={() => {
+                if (confirm(t('settings.billingCancelConfirm'))) void cancelar(true);
+              }}
+              className="text-xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
+            >
+              {t('settings.billingCancel')}
+            </button>
+          )}
         </div>
       )}
     </div>

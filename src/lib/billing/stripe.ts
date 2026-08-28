@@ -113,6 +113,29 @@ export async function urlDelPortal(s: Suscripcion): Promise<string> {
   return sesion.url
 }
 
+/**
+ * Cancelar al final del período, o volver atrás.
+ *
+ * **Al final del período y no al instante**: el comercio ya pagó ese mes y
+ * cortarle la operación el mismo día que cancela sería quedarse con plata suya.
+ * Hasta que termine sigue andando igual, y puede arrepentirse — que es
+ * exactamente lo que `reanudar` deshace.
+ *
+ * El estado que la app muestra lo sigue escribiendo el webhook: acá sólo se le
+ * pide el cambio a Stripe.
+ */
+export async function cancelarSuscripcion(
+  s: Suscripcion,
+  cancelar: boolean,
+): Promise<void> {
+  if (!s.stripeSubscriptionId) {
+    throw new Error('Esta cuenta no tiene una suscripción para cancelar.')
+  }
+  await stripe().subscriptions.update(s.stripeSubscriptionId, {
+    cancel_at_period_end: cancelar,
+  })
+}
+
 /** Cómo se traduce el estado de Stripe al nuestro. */
 function estadoDe(s: Stripe.Subscription.Status): string {
   if (s === 'active' || s === 'trialing') return 'activa'

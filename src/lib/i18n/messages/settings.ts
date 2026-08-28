@@ -997,6 +997,15 @@ export const settings = {
   billingTotal: { es: "Total", en: "Total" },
   billingSubscribe: { es: "Poner tarjeta", en: "Add a card" },
   billingManage: { es: "Administrar", en: "Manage" },
+  billingPerMonth: { es: "Por mes", en: "Per month" },
+  billingRenewsOn: { es: "Se renueva el", en: "Renews on" },
+  billingEndsOn: { es: "Termina el", en: "Ends on" },
+  billingCancel: { es: "Cancelar suscripción", en: "Cancel subscription" },
+  billingCancelConfirm: {
+    es: "Se cancela al final del período ya pagado. Hasta entonces todo sigue funcionando.",
+    en: "It cancels at the end of the period you already paid. Everything keeps working until then.",
+  },
+  billingResume: { es: "Reanudar suscripción", en: "Resume subscription" },
 
   // ── Billetera ──
   tabWallet: { es: "Saldo", en: "Balance" },

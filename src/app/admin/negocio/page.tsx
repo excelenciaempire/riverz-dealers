@@ -132,13 +132,16 @@ export default function AdminNegocioPage() {
     }
   };
 
-  const cambiarBloqueo = async (workspace_id: string, bloquear_sin_saldo: boolean) => {
+  const cambiarBloqueo = async (
+    workspace_id: string,
+    cambio: Record<string, unknown>,
+  ) => {
     setGuardando(true);
     try {
       await fetchWithCsrf("/api/admin/billing", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ billetera: { workspace_id, bloquear_sin_saldo } }),
+        body: JSON.stringify({ billetera: { workspace_id, ...cambio } }),
       });
       reload();
     } finally {
@@ -426,7 +429,7 @@ function BloqueBilletera({
   cuenta: CuentaDelNegocio;
   guardando: boolean;
   onMover: (s: Record<string, unknown>) => void;
-  onBloqueo: (workspaceId: string, bloquear: boolean) => void;
+  onBloqueo: (workspaceId: string, cambio: Record<string, unknown>) => void;
 }) {
   const t = useT();
   const [monto, setMonto] = useState("");
@@ -457,15 +460,33 @@ function BloqueBilletera({
             {t("admin.walletSpent")} {usd(cuenta.gastadoCentavos)}
           </Muted>
         </p>
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={cuenta.bloqueaSinSaldo}
-            disabled={guardando}
-            onChange={(e) => onBloqueo(cuenta.workspaceId, e.target.checked)}
-          />
-          {t("admin.walletBlockToggle")}
-        </label>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={cuenta.bloqueaSinSaldo}
+              disabled={guardando}
+              onChange={(e) =>
+                onBloqueo(cuenta.workspaceId, { bloquear_sin_saldo: e.target.checked })
+              }
+            />
+            {t("admin.walletBlockToggle")}
+          </label>
+          {/* Pasarle el costo sin margen. Es por cuenta y no global: al primer
+              cliente se le pasa a costo mientras el precio se descubre; al que
+              entre en seis meses, no. */}
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={cuenta.cobraACosto}
+              disabled={guardando}
+              onChange={(e) =>
+                onBloqueo(cuenta.workspaceId, { cobrar_a_costo: e.target.checked })
+              }
+            />
+            {t("admin.walletAtCost")}
+          </label>
+        </div>
       </div>
       <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-4">
         <Campo label={t("admin.walletGrantAmount")}>

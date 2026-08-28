@@ -485,6 +485,10 @@ export const admin = {
     es: "Sin saldo se apaga la IA",
     en: "No balance turns the AI off",
   },
+  walletAtCost: {
+    es: "Cobrarle a costo (sin margen)",
+    en: "Charge at cost (no margin)",
+  },
   walletGrant: { es: "Cargar", en: "Load" },
   walletGrantAmount: { es: "Saldo a cargar (US$)", en: "Balance to load (US$)" },
   walletGrantWhy: { es: "Por qué", en: "Why" },

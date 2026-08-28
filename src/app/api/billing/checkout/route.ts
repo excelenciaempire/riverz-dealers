@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { asegurarSuscripcion } from '@/lib/billing/plan'
-import { urlDeCheckout, urlDelPortal } from '@/lib/billing/stripe'
+import { cancelarSuscripcion, urlDeCheckout, urlDelPortal } from '@/lib/billing/stripe'
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
@@ -32,10 +32,19 @@ export async function POST(request: Request) {
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id)
   if (!workspaceId) return NextResponse.json({ error: 'no_workspace' }, { status: 400 })
 
-  const body = (await request.json().catch(() => null)) as { portal?: boolean } | null
+  const body = (await request.json().catch(() => null)) as {
+    portal?: boolean
+    /** true cancela al final del período; false se arrepiente. */
+    cancelar?: boolean
+  } | null
   const sus = await asegurarSuscripcion(admin, workspaceId)
 
   try {
+    if (body?.cancelar !== undefined) {
+      await cancelarSuscripcion(sus, body.cancelar === true)
+      // El estado lo escribe el webhook; acá sólo se confirma que se pidió.
+      return NextResponse.json({ ok: true, cancelarAlFinal: body.cancelar === true })
+    }
     if (body?.portal) {
       return NextResponse.json({ url: await urlDelPortal(sus) })
     }
