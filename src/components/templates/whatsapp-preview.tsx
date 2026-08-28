@@ -1,5 +1,10 @@
 'use client';
 
+/* Los hex sueltos de este archivo (#ece5dd, #111b21, #dcf8c6, #667781…) son
+ * el cromo REAL de WhatsApp, no un descuido del sistema de temas. La vista
+ * previa tiene que verse como el teléfono del cliente, así que no siguen el
+ * modo claro/oscuro ni se cambian por tokens. */
+
 import { FileText, Image as ImageIcon, Video, Reply, ExternalLink, Phone } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import type {

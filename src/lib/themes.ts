@@ -17,11 +17,11 @@ export const THEME_IDS = ["light", "dark"] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
 /**
- * Default for the *app* surface (dashboard, auth, legal): deep charcoal dark.
+ * Default for the *app* surface (dashboard, auth, legal): warm cream light.
  * Only the default before the visitor makes an explicit choice — a saved
  * light/dark preference (STORAGE_KEY) still wins on every surface.
  */
-export const DEFAULT_THEME: ThemeId = "dark";
+export const DEFAULT_THEME: ThemeId = "light";
 
 /**
  * Default for the public marketing *landing* (`/`): deep charcoal dark — the
@@ -61,7 +61,7 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
     id: "light",
     name: "Claro",
     tagline: "Crema editorial — superficies cálidas, tinta carbón, acento lima.",
-    swatch: "#fafaf7",
+    swatch: "#f5f3ec",
   },
   {
     id: "dark",

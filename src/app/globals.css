@@ -71,16 +71,22 @@
  * Riverz's secondary brand colors: teal, violet, rose, amber.
  * ============================================================ */
 
+/* LIGHT — la rampa cálida.
+ *
+ * Siete escalones que se distinguen a simple vista, de más claro a más
+ * oscuro: card › background › secondary › muted › accent › border › input.
+ * La tarjeta ya NO es blanco puro: encima de un fondo crema, el #ffffff
+ * quedaba más brillante que la página y cansaba en sesiones largas. */
 :root,
 html[data-theme="light"] {
-  --background: #fafaf7;
-  --foreground: #0a0a0a;
-  --card: #ffffff;
-  --card-foreground: #0a0a0a;
-  --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
+  --background: #f5f3ec;
+  --foreground: #1b1a17;
+  --card: #fbfaf5;
+  --card-foreground: #1b1a17;
+  --popover: #fbfaf5;
+  --popover-foreground: #1b1a17;
   --primary: #f7ff9e;
-  --primary-foreground: #0a0a0a;
+  --primary-foreground: #1b1a17;
   --primary-hover: #f1fa84;
   --primary-soft: rgba(247, 255, 158, 0.45);
   --primary-soft-2: rgba(247, 255, 158, 0.6);
@@ -89,21 +95,34 @@ html[data-theme="light"] {
      so colored text/icons use this deep chartreuse instead. In dark
      mode it becomes the original pale yellow (see dark block). */
   --accent-ink: #5e6a00;
-  --secondary: #f5f3ec;
-  --secondary-foreground: #0a0a0a;
-  --muted: #f1eee4;
-  --muted-foreground: #6b6b64;
-  --accent: #f0ede3;
-  --accent-foreground: #0a0a0a;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #e8e1d2;
-  --input: #e3e0d5;
-  --ring: #c9c2b2;
-  --chart-1: #c9d23f;
-  --chart-2: #07a498;
+  --secondary: #edeae0;
+  --secondary-foreground: #1b1a17;
+  --muted: #e9e6da;
+  --muted-foreground: #6a665c;
+  /* `accent` es el escalón de hover/selección. Antes valía #f0ede3 —
+     un punto por canal debajo de `muted`, así que `hover:bg-accent` no
+     se veía en ninguna lista. Ahora es un escalón real. */
+  --accent: #e2ded0;
+  --accent-foreground: #1b1a17;
+  --destructive: #c2251a;
+  --border: #ded8c8;
+  --input: #d2ccb9;
+  --ring: #b6ae99;
+  /* Serie de gráficos oscurecida para fondo claro: el lima #c9d23f daba
+     1.7:1 sobre la tarjeta y la línea desaparecía. El bloque dark tiene
+     sus propios valores, más brillantes. */
+  --chart-1: #8f9a1e;
+  --chart-2: #07806f;
   --chart-3: #8b5cf6;
-  --chart-4: #f472b6;
-  --chart-5: #f59e0b;
+  --chart-4: #c22a6f;
+  --chart-5: #b4700a;
+  /* Vidrio del Operador: sobre crema, un velo de negro al 4% no existe.
+     En claro el cristal es blanco translúcido con canto de tinta. */
+  --glass-surface: color-mix(in oklab, #ffffff 72%, transparent);
+  --glass-edge: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --glass-sheen: color-mix(in oklab, #ffffff 80%, transparent);
+  /* Cuánto lima lleva el halo del banco. El pálido se pierde en crema. */
+  --halo-fuerza: 34%;
   --radius: 0.875rem;
   --sidebar: #0e0e13;
   --sidebar-foreground: #fafaf7;
@@ -145,6 +164,11 @@ html[data-theme="dark"] {
   --chart-3: #8b5cf6;
   --chart-4: #f472b6;
   --chart-5: #f59e0b;
+  /* Vidrio y halo: los valores originales del Operador en oscuro. */
+  --glass-surface: color-mix(in oklab, var(--foreground) 4%, transparent);
+  --glass-edge: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --glass-sheen: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --halo-fuerza: 16%;
   --sidebar: #06060a;
   --sidebar-foreground: #fafaf7;
   --sidebar-primary: #f7ff9e;
@@ -376,14 +400,16 @@ html[data-theme="dark"] {
 @layer components {
   /* Vidrio: una superficie que flota sobre el banco. */
   .app-glass {
-    background: color-mix(in oklab, var(--foreground) 4%, transparent);
+    background: var(--glass-surface);
     backdrop-filter: blur(20px) saturate(1.4);
     -webkit-backdrop-filter: blur(20px) saturate(1.4);
     /* El anillo hace de borde y el `inset` de brillo superior: es lo que
-       da el canto de un cristal en vez de un rectángulo plano. */
+       da el canto de un cristal en vez de un rectángulo plano. El tinte
+       viene por tema (--glass-*): en claro es blanco translúcido, en
+       oscuro el velo de tinta original. */
     box-shadow:
-      inset 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent),
-      inset 0 1px 0 0 color-mix(in oklab, var(--foreground) 8%, transparent);
+      inset 0 0 0 1px var(--glass-edge),
+      inset 0 1px 0 0 var(--glass-sheen);
   }
 
   /* La trama del banco. Sin esto el fondo se lee como fondo y no como
@@ -403,7 +429,7 @@ html[data-theme="dark"] {
   .app-halo {
     background: radial-gradient(
       760px 420px at 22% -8%,
-      color-mix(in oklab, var(--primary) 16%, transparent),
+      color-mix(in oklab, var(--primary) var(--halo-fuerza), transparent),
       transparent 70%
     );
   }

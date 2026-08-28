@@ -1,5 +1,10 @@
 'use client';
 
+/* Los hex sueltos de este archivo (#ece5dd, #111b21, #dcf8c6, #667781…) son
+ * el cromo REAL de WhatsApp, no un descuido del sistema de temas. La burbuja
+ * tiene que verse como el teléfono del cliente, así que no sigue el modo
+ * claro/oscuro ni se cambia por tokens. */
+
 import { useEffect, useRef } from 'react';
 import {
   FileText,

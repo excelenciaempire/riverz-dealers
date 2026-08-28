@@ -118,7 +118,7 @@ function ThemeCard({
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           style={{
             background: swatch,
-            color: isDark ? "#fafaf7" : "#0a0a0a",
+            color: isDark ? "#fafaf7" : "#1b1a17",
             boxShadow: "inset 0 0 0 1px rgba(120,120,120,0.25)",
           }}
         >

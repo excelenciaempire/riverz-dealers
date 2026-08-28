@@ -6,6 +6,11 @@
  * exactamente lo que el bot mandaría, con los valores reales de las
  * variables.
  *
+ * Los hex sueltos de este archivo (#ece5dd, #111b21, #dcf8c6, #667781…)
+ * son el cromo REAL de WhatsApp, no un descuido del sistema de temas:
+ * el simulador tiene que verse como el teléfono del cliente, así que no
+ * siguen el modo claro/oscuro ni se cambian por tokens.
+ *
  * No es el engine completo (no toca DB, no llama a Meta) — es una
  * versión client-side que cubre los casos de uso del 90%:
  *   - send_message: muestra el bubble + auto-avanza.

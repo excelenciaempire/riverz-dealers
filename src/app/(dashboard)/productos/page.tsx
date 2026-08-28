@@ -470,7 +470,7 @@ function ProductCard({
       href={`/productos/${product.handle || product.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30"
     >
-      <div className="relative aspect-square w-full bg-white">
+      <div className="relative aspect-square w-full bg-card">
         {/* La casilla sólo aparece al pasar por encima o cuando ya está
             elegida: mostrarla siempre convierte una grilla de productos en un
             formulario, y elegir varios es lo excepcional. */}

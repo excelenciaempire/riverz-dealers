@@ -47,6 +47,9 @@ export interface StepMeta {
 }
 
 // `label` holds an i18n key, resolved with t() where the meta is rendered.
+// `iconBg: "bg-white"` es a propósito y en los dos modos: esas piezas llevan
+// el logo de un canal (marca de colores sobre fondo transparente) y sobre
+// superficie oscura se pierde.
 export const STEP_META: Record<BuilderStepType, StepMeta> = {
   switch: {
     // Mismo nombre e icono que `condition`: para quien arma el flujo es UN

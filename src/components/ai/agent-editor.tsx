@@ -2005,6 +2005,11 @@ export function AgentEditor({
                 </button>
               )}
             </div>
+            {/* De acá para abajo los hex sueltos (#ece5dd, #111b21, #dcf8c6,
+                #54656f…) y los `bg-white` son el cromo REAL de WhatsApp, no
+                un descuido del sistema de temas: la prueba tiene que verse
+                como el teléfono del cliente, así que no siguen el modo
+                claro/oscuro ni se cambian por tokens. */}
             <div
               ref={testScrollRef}
               className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"

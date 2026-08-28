@@ -250,6 +250,8 @@ export function StoreCard({ platform }: { platform: StorePlatform }) {
       )}
     >
       <div className="flex items-start gap-3">
+        {/* El logo va sobre blanco en los dos modos: son marcas de colores
+            sobre fondo transparente y en oscuro se pierden. */}
         <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
           <Image src={meta.logo} alt={meta.label} width={28} height={28} />
         </div>

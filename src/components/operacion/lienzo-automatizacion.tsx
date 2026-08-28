@@ -51,6 +51,8 @@ function Disparador({ cuando }: { cuando: string }) {
     <div className="z-10 w-full max-w-[320px] sm:w-80">
       <div className="rounded-lg border border-border border-l-4 border-l-emerald-500 bg-card shadow-lg">
         <div className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left">
+          {/* Blanco en los dos modos: el logo de Shopify es de colores sobre
+              fondo transparente y en oscuro se pierde. */}
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
             <Image src="/channels/shopify.svg" alt="" width={22} height={22} />
           </div>
