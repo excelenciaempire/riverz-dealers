@@ -9,8 +9,12 @@ import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('products.imagenes')
 
-/** Tope por producto: una galería más larga que esto no la mira nadie. */
-const MAX_IMAGENES = 24
+/**
+ * Tope de la galería de un producto. Lo comparte `write.ts`: si acá entraran
+ * más de las que el guardado acepta, el editor las mostraría y el siguiente
+ * "Guardar cambios" borraría la mitad sin decir nada.
+ */
+export const MAX_IMAGENES = 12
 
 /**
  * Traer TODAS las fotos que la publicación tiene en su plataforma.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { imagenesDeRaw, unirImagenes } from './imagenes'
+import { MAX_IMAGENES, imagenesDeRaw, unirImagenes } from './imagenes'
 
 /**
  * El producto se veía con UNA foto aunque la tienda tuviera ocho: el sync sólo
@@ -80,8 +80,11 @@ describe('unirImagenes', () => {
     )
   })
 
-  it('corta en el tope para no dejar una galería infinita', () => {
+  it('corta en el mismo tope que acepta el guardado', () => {
+    // Si trajera más de las que `write.ts` guarda, el editor las mostraría y
+    // el siguiente "Guardar cambios" borraría el resto sin avisar.
     const muchas = Array.from({ length: 40 }, (_, i) => `https://cdn/${i}.jpg`)
-    expect(unirImagenes([], muchas)).toHaveLength(24)
+    expect(unirImagenes([], muchas)).toHaveLength(MAX_IMAGENES)
+    expect(MAX_IMAGENES).toBe(12)
   })
 })

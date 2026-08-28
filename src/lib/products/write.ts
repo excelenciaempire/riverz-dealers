@@ -21,6 +21,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveWorkspaceCurrency } from './currency'
 import { handleSuffix, isUuid, slugifyTitle } from './slug'
 import { buildTrainingMaterial } from './training-material'
+import { MAX_IMAGENES } from './imagenes'
 
 type ProductoLocale = 'es' | 'en'
 
@@ -147,7 +148,7 @@ export function armarParche(cambios: CambiosDeProducto): Record<string, unknown>
     const imgs = (Array.isArray(cambios.images) ? cambios.images : [])
       .map((s) => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)
-      .slice(0, 12)
+      .slice(0, MAX_IMAGENES)
     patch.images = imgs
     patch.image_url = imgs[0] ?? null
   }
