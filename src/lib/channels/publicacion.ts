@@ -3,6 +3,7 @@ import type { ChannelConnection, Conversation } from "@/types";
 import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
 import { briefDeVideo, videoDelHilo } from "./tiktok_comment/videos";
+import { briefDeMedio } from "./publicacion-media";
 
 /**
  * DE QUÉ ESTÁ COLGADO ESTE COMENTARIO.
@@ -59,12 +60,26 @@ export async function briefDePublicacion(
       return null;
     }
 
-    const guardado = (conversation.subject ?? "").trim();
-    if (guardado) return bloque(guardado, conversation.channel);
-
     const postId = String(
       (conversation as { thread_external_id?: string | null }).thread_external_id ?? "",
     );
+
+    // Qué muestra la foto / qué se dice en el video. Va JUNTO al texto, no en
+    // su lugar: el caption dice de qué habla el post y la imagen dice qué se
+    // ve. Lo resuelve un cron aparte, así que puede no estar todavía — se
+    // prefiere contestar rápido y sin la foto que hacer esperar a alguien
+    // mientras se transcribe un reel.
+    const medio = postId
+      ? await briefDeMedio(db, {
+          workspaceId: conversation.workspace_id,
+          channel: conversation.channel,
+          externalId: postId,
+        }).catch(() => null)
+      : null;
+
+    const guardado = (conversation.subject ?? "").trim();
+    if (guardado) return bloque(guardado, conversation.channel, medio);
+
     if (!postId) return null;
     const texto = await textoDelPost(db, conversation, postId);
     if (!texto) return null;
@@ -75,7 +90,7 @@ export async function briefDePublicacion(
       .from("conversations")
       .update({ subject: texto.slice(0, 300) })
       .eq("id", conversation.id);
-    return bloque(texto, conversation.channel);
+    return bloque(texto, conversation.channel, medio);
   } catch {
     return null;
   }
@@ -98,14 +113,26 @@ export async function briefDePublicacionPorId(
   return conv ? briefDePublicacion(db, conv) : null;
 }
 
-function bloque(texto: string, canal: "ig_comment" | "fb_comment"): string {
+function bloque(
+  texto: string,
+  canal: "ig_comment" | "fb_comment",
+  medio: string | null,
+): string {
   const red = canal === "ig_comment" ? "Instagram" : "Facebook";
   return [
     "## La publicación que están comentando",
     `Este comentario está debajo de una publicación de ${red} de la tienda. La persona le habla a la PUBLICACIÓN, no a una conversación previa: si su comentario parece suelto, se entiende leyendo lo de abajo.`,
     `Texto de la publicación: ${texto.trim().slice(0, 2000)}`,
+    // Qué se ve en la foto o qué se dice en el video. En Instagram esto suele
+    // pesar más que el texto: el caption son tres palabras y un emoji.
+    medio,
     "Sirve para entender de qué habla la persona, no como fuente de datos: los ingredientes, los precios y las promociones salen de la ficha del producto.",
-  ].join("\n");
+    medio
+      ? null
+      : "No se pudo mirar la imagen ni el video del post: no supongas qué se ve en ellos.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** El texto del post, con el token de la conexión de comentarios. */

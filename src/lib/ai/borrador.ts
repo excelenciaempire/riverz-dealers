@@ -23,6 +23,7 @@ import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import { briefDePublicacion, REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
+import { briefDeQueHabla, puedeAportarContexto } from '@/lib/channels/de-que-habla';
 
 /** El borrador lo escribe Sonnet aunque el agente use otro modelo: ver la
  *  nota en la llamada. */
@@ -273,6 +274,14 @@ async function contextoDeLaPublicacion(
   // dice en el video).
   const publicacion = await briefDePublicacion(db, conversation).catch(() => null);
   if (publicacion) partes.push(publicacion);
+
+  // Y en el resto de canales: la publicación de Mercado Libre sobre la que
+  // preguntan, o el anuncio por el que escribieron. Quien redacta a mano
+  // necesita saberlo tanto como el agente.
+  if (puedeAportarContexto(conversation.channel)) {
+    const de = await briefDeQueHabla(db, conversation).catch(() => null);
+    if (de) partes.push(de);
+  }
 
   // Quién es esta persona en Instagram ("un solo cerebro"): sirve tanto en el
   // DM como debajo del post.

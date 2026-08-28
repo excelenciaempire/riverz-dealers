@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
 import { pullCommentsAll } from "@/lib/channels/comment-pull";
+import { entenderPendientes } from "@/lib/channels/publicacion-media";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
 
@@ -52,11 +53,21 @@ async function cronHandler(request: Request) {
       return { connections: 0, ingestedInbound: 0, ingested: 0, seen: 0, detail: [] };
     });
 
+    // Entender la publicación: qué muestra la foto, qué se dice en el video.
+    // Viaja acá y no en un cron propio porque Render cobra un mínimo mensual
+    // por cada cron job, y el trabajo es el mismo: mirar lo que la gente está
+    // comentando. Tope chico por corrida — lo que importa es que el post de
+    // hoy se entienda pronto, no vaciar la cola de una sentada.
+    const publicaciones = await entenderPendientes(db, { limite: 4 }).catch((err) => {
+      console.error("[comment-sync] entender publicaciones falló:", err);
+      return { intentados: 0, entendidos: 0 };
+    });
+
     // Lo caro, sólo cuando toca.
     const due = await reconcileIsDue(db);
     if (!due) {
       return NextResponse.json(
-        { ok: true, reconciled: false, pulled },
+        { ok: true, reconciled: false, pulled, publicaciones },
         { status: 200 },
       );
     }
@@ -65,7 +76,7 @@ async function cronHandler(request: Request) {
     await pingCron(RECONCILE_JOB);
     const result = await reconcileAllCommentConnections(db);
     return NextResponse.json(
-      { ...result, reconciled: true, pulled },
+      { ...result, reconciled: true, pulled, publicaciones },
       { status: 200 },
     );
   } catch (err) {

@@ -3,6 +3,7 @@ import type { ChannelConnection } from '@/types';
 import { processCommentForDmRules } from '@/lib/comment-to-dm/engine';
 import { maybeInstantOutreach } from '@/lib/instagram-agent/realtime';
 import { loadCommentSettings } from '@/lib/instagram-agent/controls';
+import { anotarPublicacion } from '@/lib/channels/publicacion-media';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -31,6 +32,26 @@ import { loadCommentSettings } from '@/lib/instagram-agent/controls';
  * mensajes está cerrada a terceros), así que ahí todo lo que se conteste se
  * publica bajo el video.
  */
+/**
+ * Anota la publicación para que el cron la entienda: qué muestra la foto, qué
+ * se dice en el video. No espera a que termine — una respuesta no puede
+ * quedarse esperando a que se transcriba un reel.
+ *
+ * TikTok no entra: sus videos ya tienen su propia tabla y su propio cron.
+ */
+async function anotarLaPublicacion(
+  db: SupabaseClient,
+  ev: { workspaceId: string; channel: string; postId: string | null },
+): Promise<void> {
+  if (ev.channel !== 'ig_comment' && ev.channel !== 'fb_comment') return;
+  if (!ev.postId) return;
+  await anotarPublicacion(db, {
+    workspaceId: ev.workspaceId,
+    channel: ev.channel,
+    externalId: ev.postId,
+  });
+}
+
 export async function routeComment(
   db: SupabaseClient,
   ev: {
@@ -44,6 +65,15 @@ export async function routeComment(
     text: string;
   },
 ): Promise<void> {
+  // 0. De qué habla esta persona. Se anota primero y sin esperar: la
+  //    publicación se entiende en el cron, y para cuando llegue el segundo
+  //    comentario del mismo post ya está lista.
+  void anotarLaPublicacion(db, {
+    workspaceId: ev.workspaceId,
+    channel: ev.channel,
+    postId: ev.postId,
+  }).catch(() => {});
+
   // 1. Reglas del comercio.
   let handledByRule = false;
   try {
