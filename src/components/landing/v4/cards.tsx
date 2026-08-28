@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 import { useT } from "@/hooks/use-locale";
+import { useReducedMotion } from "@/components/landing/landing";
 import { Rise } from "./bits";
 
 /**
@@ -46,6 +48,12 @@ type Tile = {
   /** La ilustración y su proporción, generada a esa misma medida. */
   img: string;
   ratio: string;
+  /**
+   * Las cuatro que se animan. La imagen sigue existiendo y hace de cartel: es
+   * lo que se ve mientras el video no cargó, y lo único que se ve si la
+   * persona pidió menos movimiento.
+   */
+  video?: string;
 };
 
 const TILES: Tile[] = [
@@ -71,6 +79,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec02",
+    video: "/portada-b/i-carritos.mp4",
     img: "/portada-b/i-carritos.jpg",
     ratio: "4 / 3",
     title: "landing.sec02Title",
@@ -111,6 +120,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec06",
+    video: "/portada-b/i-campanas.mp4",
     img: "/portada-b/i-campanas.jpg",
     ratio: "16 / 9",
     title: "landing.sec06Title",
@@ -161,6 +171,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec09",
+    video: "/portada-b/i-minutos.mp4",
     img: "/portada-b/i-minutos.jpg",
     ratio: "4 / 3",
     title: "landing.sec09Title",
@@ -171,6 +182,7 @@ const TILES: Tile[] = [
   },
   {
     key: "sec10",
+    video: "/portada-b/i-roas.mp4",
     img: "/portada-b/i-roas.jpg",
     ratio: "16 / 9",
     title: "landing.sec10Title",
@@ -218,24 +230,81 @@ export function Cards() {
                   no hace falta marco ni sombra: la ilustración se apoya en el
                   papel y las esquinas redondeadas alcanzan. */}
               <div className="mt-auto min-w-0 pt-8">
-                <div
-                  className="relative w-full overflow-hidden rounded-2xl"
-                  style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
-                >
-                  <Image
-                    src={tile.img}
-                    alt=""
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
-                    className="object-cover"
-                    aria-hidden
-                  />
-                </div>
+                <Ilustracion tile={tile} />
               </div>
             </div>
           </article>
         </Rise>
       ))}
+    </div>
+  );
+}
+
+/**
+ * La pieza de abajo de cada ficha: imagen siempre, video cuando lo hay.
+ *
+ * El video no se descarga hasta que la ficha se acerca a la pantalla. Con
+ * cuatro clips en una página de doce mil píxeles, cargarlos todos de entrada
+ * serían varios megas que nadie va a ver nunca: el que entra por el hero y se
+ * va a los diez segundos no llegó ni a la tercera fila.
+ *
+ * Y se pausa al salir de pantalla. Cuatro videos en bucle decodificando a la
+ * vez calientan un teléfono de gama media aunque no se vean.
+ *
+ * `prefers-reduced-motion` deja la imagen quieta y no baja el video.
+ */
+function Ilustracion({ tile }: { tile: Tile }) {
+  const reduced = useReducedMotion();
+  const caja = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const [cerca, setCerca] = useState(false);
+
+  useEffect(() => {
+    const el = caja.current;
+    if (!el || !tile.video || reduced) return;
+
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setCerca(true);
+        const v = video.current;
+        if (!v) return;
+        if (e.isIntersecting) void v.play().catch(() => {});
+        else v.pause();
+      },
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [tile.video, reduced]);
+
+  return (
+    <div
+      ref={caja}
+      className="relative w-full overflow-hidden rounded-2xl"
+      style={{ aspectRatio: tile.ratio, background: "var(--sn-sand)" }}
+    >
+      <Image
+        src={tile.img}
+        alt=""
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 40vw"
+        className="object-cover"
+        aria-hidden
+      />
+      {tile.video && !reduced && cerca && (
+        <video
+          ref={video}
+          src={tile.video}
+          poster={tile.img}
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload="none"
+          aria-hidden
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
     </div>
   );
 }
