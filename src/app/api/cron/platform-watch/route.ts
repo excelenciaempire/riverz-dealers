@@ -15,14 +15,20 @@ const log = getLogger('cron.platform-watch')
  *
  * El panel ya muestra lo que está roto, pero sólo sirve si alguien lo tiene
  * abierto — y lo que importa es enterarse justo cuando NO se está mirando. Esto
- * cierra el círculo: cada 15 minutos cruza los problemas de todos los comercios
- * con el estado de los trabajos de fondo, y si apareció algo NUEVO manda un
- * WhatsApp por el número de la plataforma.
+ * cierra el círculo: cada 15 minutos mira el estado de los trabajos de fondo y
+ * los problemas de todos los comercios, y si apareció algo NUEVO **de la
+ * plataforma** manda un WhatsApp por el número de Riverz.
  *
- * Es el hermano de `issues-alert`, que avisa al comercio una vez por día. Este
- * avisa al equipo enseguida, y por eso necesita deduplicar: sin memoria sería o
- * el mismo mensaje cada 15 minutos —que a la tercera vez se deja de leer, y con
- * él todos los demás— o un resumen diario que llega tarde.
+ * Qué es "de la plataforma" y qué no: un trabajo de fondo detenido, o un mismo
+ * problema en varios comercios a la vez. Un comercio con un envío fallado NO lo
+ * es —por más que el mensaje se pueda armar igual— y avisarlo cada 15 minutos
+ * era lo que ahogaba a los avisos que sí importan: llegaban "Pilar: 4 mensajes
+ * sin entregar (Image is invalid…)" mezclados con "Trabajo detenido:
+ * tiktok-webhook", y a la tercera vez se dejan de leer los dos. Lo de un solo
+ * comercio vive en /admin, que es donde se mira a propósito.
+ *
+ * Y no baja al comercio: `issues-alert` decide aparte qué de eso le sirve al
+ * dueño de la cuenta. Lo técnico no cruza esa línea en ninguna dirección.
  *
  * La huella es el conjunto de problemas. Si no cambió, no se avisa. Si aparecen
  * claves nuevas, el mensaje trae SÓLO esas: repetir lo que ya se dijo es la
@@ -32,34 +38,48 @@ const log = getLogger('cron.platform-watch')
 /** Cuántas líneas entran en el mensaje antes de resumir. */
 const MAX_LINEAS = 8
 
+/**
+ * A partir de cuántos comercios un mismo problema deja de ser de un comercio y
+ * pasa a ser de la plataforma. Tres cuentas distintas fallando por lo mismo el
+ * mismo día no es casualidad: es un token vencido, un permiso caído o un
+ * despliegue. Con menos de tres, la explicación más probable es la cuenta.
+ */
+const UMBRAL_MASIVO = 3
+
 type Clave = string
 
-function claves(porWorkspace: Map<string, Issue[]>): Map<Clave, { ws: string; issue: Issue }> {
-  const out = new Map<Clave, { ws: string; issue: Issue }>()
-  for (const [ws, issues] of porWorkspace) {
-    for (const issue of issues) out.set(`${ws}:${issue.kind}`, { ws, issue })
+/** Cuántos comercios distintos sufren cada clase de problema. */
+function porClase(porWorkspace: Map<string, Issue[]>): Map<Issue['kind'], number> {
+  const out = new Map<Issue['kind'], number>()
+  for (const issues of porWorkspace.values()) {
+    for (const kind of new Set(issues.map((i) => i.kind))) {
+      out.set(kind, (out.get(kind) ?? 0) + 1)
+    }
   }
   return out
 }
 
-/** Qué dice cada problema, en una línea. Español fijo: es un aviso interno. */
-function describe(kind: Issue['kind'], count: number, detail?: string | null): string {
-  const extra = detail ? ` (${detail})` : ''
+/**
+ * Cómo se llama cada clase de problema cuando es masivo. Sin el detalle crudo:
+ * el motivo de un comercio no explica a los otros dos, y pegarlo en el mensaje
+ * hace creer que sí.
+ */
+function nombreProblema(kind: Issue['kind']): string {
   switch (kind) {
     case 'automation_stuck':
-      return `${count} corrida(s) de automatización trabadas${extra}`
+      return 'automatizaciones trabadas'
     case 'automation_failed':
-      return `${count} corrida(s) de automatización fallaron${extra}`
+      return 'automatizaciones que fallan'
     case 'sends_failing':
-      return `${count} mensajes sin entregar${extra}`
+      return 'mensajes sin entregar'
     case 'whatsapp_blocked':
       return 'WhatsApp bloqueado para enviar'
     case 'connection_error':
-      return `${count} conexión(es) caídas${extra}`
+      return 'conexiones caídas'
     case 'template_rejected':
-      return `${count} plantilla(s) rechazadas${extra}`
+      return 'plantillas rechazadas'
     case 'broadcast_stalled':
-      return `${count} campaña(s) trabadas${extra}`
+      return 'campañas trabadas'
   }
 }
 
@@ -81,19 +101,16 @@ async function cronHandler(request: Request) {
     | Array<{ name: string; status: string; started_at: string | null }>
     | null
 
-  // Nombres de comercio para que el mensaje diga algo más que un uuid.
-  const nombres = new Map<string, string>()
-  if (porWorkspace.size > 0) {
-    const { data } = await admin
-      .from('workspaces')
-      .select('id, name')
-      .in('id', [...porWorkspace.keys()])
-    for (const w of (data ?? []) as { id: string; name: string }[]) {
-      nombres.set(w.id, w.name)
-    }
-  }
+  // Clave estable -> la línea tal cual va en el mensaje.
+  const actuales = new Map<Clave, string>()
 
-  const actuales = claves(porWorkspace)
+  // Lo mismo roto en varios comercios a la vez: eso sí es de la plataforma.
+  let masivos = 0
+  for (const [kind, comercios] of porClase(porWorkspace)) {
+    if (comercios < UMBRAL_MASIVO) continue
+    masivos++
+    actuales.set(`masivo:${kind}`, `· ${comercios} comercios con ${nombreProblema(kind)}`)
+  }
 
   // Los trabajos de fondo entran a la misma lista: un cron muerto no le pertenece
   // a ningún comercio, pero es lo que hace que dejen de salir los mensajes.
@@ -131,10 +148,7 @@ async function cronHandler(request: Request) {
       cronsRotos.length = 0
     }
     for (const name of cronsRotos) {
-      actuales.set(`cron:${name}`, {
-        ws: '',
-        issue: { kind: 'automation_failed', severity: 'critical', count: 1, href: '' },
-      })
+      actuales.set(`cron:${name}`, `· Trabajo detenido: ${name}`)
     }
   }
 
@@ -178,17 +192,16 @@ async function cronHandler(request: Request) {
     return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
   }
 
-  const lineas = nuevas.slice(0, MAX_LINEAS).map((k) => {
-    if (k.startsWith('cron:')) return `· Trabajo detenido: ${k.slice(5)}`
-    const entry = actuales.get(k)!
-    const nombre = nombres.get(entry.ws) ?? entry.ws.slice(0, 8)
-    return `· ${nombre}: ${describe(entry.issue.kind, entry.issue.count, entry.issue.detail)}`
-  })
+  const lineas = nuevas.slice(0, MAX_LINEAS).map((k) => actuales.get(k)!)
   if (nuevas.length > MAX_LINEAS) {
     lineas.push(`· y ${nuevas.length - MAX_LINEAS} más`)
   }
 
-  const titulo = 'Riverz · algo nuevo se rompió'
+  // Dos títulos y no uno: la plantilla de WhatsApp ya empieza con "Riverz ·",
+  // así que mandarle el prefijo llegaba como "Riverz · Riverz · algo nuevo se
+  // rompió". El correo no tiene ese encabezado y sí lo necesita en el asunto.
+  const tituloWhatsapp = 'algo nuevo se rompió'
+  const tituloCorreo = 'Riverz · algo nuevo se rompió'
   const cuerpo = lineas.join('\n')
   const via: string[] = []
 
@@ -198,7 +211,7 @@ async function cronHandler(request: Request) {
   // dejaba de salir en silencio al día siguiente — el peor modo de falla para
   // algo cuya única función es avisar.
   if (telefono) {
-    const enviado = await sendPlatformAlert({ to: telefono, title: titulo, body: cuerpo })
+    const enviado = await sendPlatformAlert({ to: telefono, title: tituloWhatsapp, body: cuerpo })
     if (enviado.ok) via.push('whatsapp')
     else log.warn('no se pudo avisar por whatsapp', { error: enviado.error })
   }
@@ -207,7 +220,7 @@ async function cronHandler(request: Request) {
   // número de WhatsApp dado de alta, sin plantilla aprobada y sin ventana de
   // 24 h. Los dos salen si los dos están configurados — un aviso duplicado
   // molesta; uno que no sale, no se nota.
-  if (correo && (await avisarPorCorreo(correo, titulo, cuerpo))) via.push('correo');
+  if (correo && (await avisarPorCorreo(correo, tituloCorreo, cuerpo))) via.push('correo');
 
   if (via.length === 0) {
     log.warn('había novedades y ningún aviso salió', { nuevos: nuevas.length })
@@ -217,6 +230,8 @@ async function cronHandler(request: Request) {
     problemas: actuales.size,
     nuevos: nuevas.length,
     cronsRotos: cronsRotos.length,
+    masivos,
+    comerciosConProblemas: porWorkspace.size,
     avisado: via.length > 0,
     via,
   })

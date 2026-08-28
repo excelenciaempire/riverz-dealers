@@ -14,9 +14,8 @@ const log = getLogger('cron.issues-alert')
  * El aviso que va a buscar al comercio.
  *
  * La tarjeta de Inicio sólo sirve si alguien entra a mirar, y los problemas que
- * importan son justo los que nadie mira: un envío que no salió no genera
- * ninguna señal en la pantalla. Una vez por día, si hay algo roto, sale un
- * correo al dueño del workspace.
+ * importan son justo los que nadie mira. Una vez por día, si hay algo que SÓLO
+ * el comercio puede destrabar, sale un correo al dueño del workspace.
  *
  * Una vez por día y sin ledger a propósito: la frecuencia ES la deduplicación.
  * Si el problema sigue mañana, el correo vuelve — que es lo correcto, porque
@@ -28,6 +27,27 @@ const log = getLogger('cron.issues-alert')
  * en silencio y sin quedar registrado en ningún lado.
  */
 const PAGE = 100
+
+/**
+ * Lo único que se le escribe al comercio.
+ *
+ * El resto de lo que detecta `admin_workspace_issues` —corridas fallidas,
+ * mensajes que Meta rechazó, campañas trabadas, plantillas rechazadas— es
+ * trabajo nuestro, no suyo. Iba en este mismo correo y llegaba con el error
+ * crudo adentro: "4 mensajes no se pudieron entregar (Image is invalid. Please
+ * check the image properties; supported are JPG/JPEG, RGB/RGBA, 8 bit…)". Eso
+ * no le dice a nadie qué hacer, y un aviso que no se puede atender enseña a
+ * ignorar todos los demás — incluidos los dos de acá abajo, que sí importan.
+ *
+ * El filtro es una pregunta sola: ¿puede resolverlo el comercio, y sólo él?
+ * Reconectar una cuenta y arreglar el pago en Meta piden su sesión; nosotros no
+ * podemos hacerlos por él. Todo lo demás vive en /admin y en el vigilante de
+ * plataforma.
+ */
+const PARA_EL_COMERCIO: ReadonlySet<Issue['kind']> = new Set([
+  'whatsapp_blocked',
+  'connection_error',
+])
 
 async function cronHandler(request: Request) {
   try {
@@ -71,6 +91,7 @@ async function cronHandler(request: Request) {
         skipped.collectFailed++
         continue
       }
+      issues = issues.filter((i) => PARA_EL_COMERCIO.has(i.kind))
       if (issues.length === 0) continue
       withIssues++
 
@@ -117,7 +138,7 @@ async function sendAlert(to: string, workspace: string, issues: Issue[]): Promis
       body: JSON.stringify({
         from: process.env.WAITLIST_FROM || 'Riverz <onboarding@resend.dev>',
         to: [to],
-        subject: `Riverz · ${issues.length} cosa(s) necesitan tu atención en ${workspace}`,
+        subject: `Riverz · algo dejó de funcionar en ${workspace}`,
         html:
           `<div style="font-family:system-ui;max-width:520px">` +
           `<h2 style="margin:0 0 8px">Necesita tu atención</h2>` +
@@ -132,29 +153,26 @@ async function sendAlert(to: string, workspace: string, issues: Issue[]): Promis
   }
 }
 
-/** Texto del correo. Español fijo: es un aviso operativo del dueño, no UI. */
+/**
+ * Texto del correo. Español fijo: es un aviso operativo del dueño, no UI.
+ *
+ * Cada línea dice qué pasó y qué hacer, sin código de error ni jerga. Sólo
+ * llegan acá las clases de `PARA_EL_COMERCIO`; el `default` existe para que
+ * sumar una clase nueva al conjunto y olvidarse de este switch degrade a una
+ * frase vaga en vez de romper el correo.
+ */
 function describe(issue: Issue): string {
-  // El detalle sí pasa por el traductor: el crudo de Meta llega en inglés y
-  // con el código pelado, y eso adentro de un correo en español no se lee.
-  const legible = issueDetailText(issue.kind, issue.detail, (k, v) => translate('es', k, v))
-  const detail = legible ? ` (${legible})` : ''
   switch (issue.kind) {
-    case 'automation_stuck':
-      return `${issue.count} envío(s) de una automatización quedaron a medias${detail}`
-    case 'automation_failed':
-      // El detalle acá es el mensaje crudo del error ("template not found:
-      // carrito_v3"): es lo más accionable que manda este correo.
-      return `${issue.count} corrida(s) de una automatización fallaron${detail}`
-    case 'sends_failing':
-      return `${issue.count} mensajes no se pudieron entregar${detail}`
     case 'whatsapp_blocked':
-      return 'WhatsApp está bloqueado para enviar: revisa medio de pago y datos fiscales en Meta'
-    case 'connection_error':
-      return `${issue.count} conexión(es) dejaron de funcionar${detail}`
-    case 'template_rejected':
-      return `${issue.count} plantilla(s) rechazadas por Meta${detail}`
-    case 'broadcast_stalled':
-      return `${issue.count} campaña(s) quedaron enviando sin terminar${detail}`
+      return 'Tu WhatsApp no puede enviar mensajes. Meta lo bloqueó: revisa el medio de pago y los datos fiscales de la cuenta'
+    case 'connection_error': {
+      // El único detalle que sobrevive: son nombres de canal ("Shopify,
+      // Instagram"), o sea el dato que dice cuál reconectar.
+      const canales = issueDetailText(issue.kind, issue.detail, (k, v) => translate('es', k, v))
+      return canales
+        ? `Se desconectó ${canales}. Vuelve a conectarlo para que los mensajes sigan saliendo`
+        : `${issue.count} conexión(es) dejaron de funcionar. Vuelve a conectarlas`
+    }
     default:
       return 'Algo necesita tu atención'
   }
