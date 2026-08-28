@@ -146,6 +146,10 @@ export async function recordProactiveDm(
         content_type: 'text',
         content_text: comentario,
         status: 'delivered',
+        // Con etiqueta: sin ella, el hilo privado empieza con algo que la
+        // persona escribió debajo de una foto y parece un DM que mandó de la
+        // nada. Así la bandeja dice de dónde salió esta conversación.
+        origin: 'comment_inbound',
       });
     }
 

@@ -14,6 +14,13 @@ export const MESSAGE_ORIGINS = [
   'ai_followup',
   'comment_ai',
   'comment_rule',
+  /**
+   * El comentario que ABRIÓ un hilo privado. Es el único origen que se pone en
+   * un mensaje ENTRANTE, y por eso existe: sin él, el hilo de DM empieza con lo
+   * que la persona escribió debajo de una foto y parece que mandó un privado
+   * de la nada. La etiqueta dice de dónde salió.
+   */
+  'comment_inbound',
   'ig_outreach',
   'automation',
   'flow',
@@ -35,6 +42,7 @@ const ORIGIN_KEYS: Record<MessageOrigin, string> = {
   ai_followup: 'originAiFollowup',
   comment_ai: 'originCommentAi',
   comment_rule: 'originCommentRule',
+  comment_inbound: 'originCommentInbound',
   ig_outreach: 'originIgOutreach',
   automation: 'originAutomation',
   flow: 'originFlow',

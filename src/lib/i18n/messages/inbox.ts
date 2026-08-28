@@ -5,6 +5,9 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  // El comentario que abrió un hilo privado.
+  originCommentInbound: { es: "Vino de un comentario", en: "Came from a comment" },
+
   // La etiqueta del hilo que el asistente dejó de atender. Corta a propósito:
   // en una fila de lista compite con el nombre y el último mensaje.
   needsHumanBadge: { es: "Revisar ya", en: "Review now" },
