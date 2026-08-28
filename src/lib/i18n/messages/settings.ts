@@ -1046,9 +1046,10 @@ export const settings = {
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
   walletYourAverage: { es: "tu promedio", en: "your average" },
   walletAtCostNote: {
-    es: "Tu cuenta paga el costo real, sin margen. Estos precios son de referencia.",
-    en: "Your account pays the real cost, with no margin. These prices are a reference.",
+    es: "Tu cuenta paga el costo real, sin margen: esto es exactamente lo que se te descuenta.",
+    en: "Your account pays the real cost, with no margin: this is exactly what gets deducted.",
   },
+  walletEstimate: { es: "estimado", en: "estimate" },
 
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },

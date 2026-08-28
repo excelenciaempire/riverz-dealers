@@ -40,6 +40,13 @@ interface Estado {
   exenta: boolean;
   /** Se le descuenta el costo real, sin margen. */
   aCosto: boolean;
+  costos: {
+    concepto: string;
+    centavos: number;
+    unidad: string;
+    proveedor: string;
+    medido: boolean;
+  }[];
   resumen: {
     rango: { desde: string; hasta: string };
     cargadoCentavos: number;
@@ -680,32 +687,48 @@ export function WalletPanel() {
             {t('settings.walletAtCostNote')}
           </p>
         )}
-        <ul className="mt-3 space-y-1.5 text-sm">
+        <ul className="mt-3 space-y-2 text-sm">
           {e.tarifas.map((tar) => {
-            // Lo que le salió DE VERDAD a esta cuenta, cuando ya consumió algo.
-            // Es lo único que le sirve para hacerse una idea: la tarifa es un
-            // promedio de todos, y en la cuenta que paga a costo ni siquiera es
-            // lo que se le cobra.
-            const real = resumen.porConcepto.find(
+            // Tres números posibles, y se elige el más cierto que haya:
+            //   1. lo que ya se le cobró por unidad en este rango,
+            //   2. lo que le sale de verdad según SU consumo,
+            //   3. la tarifa, que es lo último y sólo para el que no pagó nunca.
+            const cobrado = resumen.porConcepto.find(
               (c) => c.concepto === tar.concepto,
             )?.porUnidadCentavos;
-            const centavos = real ?? tar.precioMilicentavos / 1000;
+            const costo = e.costos.find((c) => c.concepto === tar.concepto);
+            const centavos =
+              cobrado ??
+              (e.aCosto && costo ? costo.centavos : tar.precioMilicentavos / 1000);
+            const esMedido =
+              cobrado !== null && cobrado !== undefined
+                ? true
+                : Boolean(e.aCosto && costo?.medido);
             return (
               <li key={tar.concepto} className="flex justify-between gap-3">
-                <span className="text-muted-foreground">
-                  {locale === 'en' ? tar.nombreEn : tar.nombreEs}
+                <span className="min-w-0">
+                  <span className="text-foreground">
+                    {locale === 'en' ? tar.nombreEn : tar.nombreEs}
+                  </span>
+                  {/* Quién cobra. Es la pregunta que sigue siempre. */}
+                  {costo && (
+                    <span className="block text-xs text-muted-foreground">
+                      {costo.proveedor}
+                    </span>
+                  )}
                 </span>
-                <span className="tabular-nums text-foreground">
+                <span className="shrink-0 text-right tabular-nums text-foreground">
                   {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
                     maximumFractionDigits: 4,
                   })}{' '}
                   / {tar.unidad}
-                  {real !== null && real !== undefined && (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {t('settings.walletYourAverage')}
-                    </span>
-                  )}
+                  <span className="block text-xs text-muted-foreground">
+                    {esMedido
+                      ? t('settings.walletYourAverage')
+                      : e.aCosto
+                        ? t('settings.walletEstimate')
+                        : ''}
+                  </span>
                 </span>
               </li>
             );

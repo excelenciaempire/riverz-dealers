@@ -7,6 +7,7 @@ import { leerBilletera } from '@/lib/wallet/saldo'
 import { leerSuscripcion } from '@/lib/billing/plan'
 import { rangoDe, resumen } from '@/lib/wallet/movimientos'
 import { listarTarifas } from '@/lib/wallet/tarifas'
+import { costosReales } from '@/lib/wallet/costos'
 import { stripeDisponible } from '@/lib/billing/stripe'
 import { SUGERIDOS_CENTAVOS } from '@/lib/wallet/recarga'
 
@@ -35,11 +36,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const rango = rangoDe(url.searchParams.get('desde'), url.searchParams.get('hasta'))
 
-  const [billetera, datos, tarifas, sus] = await Promise.all([
+  const [billetera, datos, tarifas, sus, costos] = await Promise.all([
     leerBilletera(admin, workspaceId),
     resumen(admin, workspaceId, rango),
     listarTarifas(admin),
     leerSuscripcion(admin, workspaceId),
+    costosReales(admin, workspaceId),
   ])
 
   // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
@@ -56,6 +58,10 @@ export async function GET(request: Request) {
       // A esta cuenta se le pasa el costo sin margen: la lista de tarifas de
       // abajo es referencia, no lo que se le descuenta.
       aCosto: billetera.cobrarACosto,
+      // Lo que cuesta cada cosa de verdad, con quién lo cobra. La cuenta que
+      // paga a costo mira esto, no las tarifas: la tarifa es precio de lista y
+      // a ella se le prometió lo contrario.
+      costos,
       // La recarga automática, tal como la ve el comercio.
       auto: {
         tieneTarjeta: billetera.tieneTarjeta,
