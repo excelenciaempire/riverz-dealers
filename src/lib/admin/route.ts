@@ -67,14 +67,22 @@ export function rangeFromSearch(url: URL): { from: Date; to: Date } {
   };
 }
 
-/** Entero acotado de un query param. */
+/**
+ * Entero acotado de un query param.
+ *
+ * El parámetro ausente vale por el defecto. Antes no: `Number(null)` da 0 —
+ * finito y no negativo— así que pedir la ruta sin `?limit=` devolvía cero
+ * filas en vez del defecto, y la pantalla salía vacía con el total bien.
+ */
 export function intParam(
   url: URL,
   name: string,
   fallback: number,
   max: number,
 ): number {
-  const raw = Number(url.searchParams.get(name));
+  const value = url.searchParams.get(name);
+  if (value === null || value.trim() === '') return fallback;
+  const raw = Number(value);
   if (!Number.isFinite(raw) || raw < 0) return fallback;
   return Math.min(Math.floor(raw), max);
 }
