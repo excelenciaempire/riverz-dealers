@@ -1,5 +1,6 @@
 'use client'
 
+import Link from '@/components/i18n/locale-link'
 import { useT } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
 import {
@@ -131,6 +132,34 @@ function Encabezado({ titulo, total }: { titulo: string; total: string | null })
   )
 }
 
+/**
+ * Envuelve la fila en un enlace al hilo, si sabemos cuál es.
+ *
+ * `t` lleva el momento de la compra: el hilo lo usa para abrirse donde estaba
+ * la conversación ese día, en vez de al final. Sin conversación conocida la
+ * fila se queda como estaba — un enlace que no lleva a ningún lado es peor que
+ * no tenerlo.
+ */
+function Fila({
+  conversationId,
+  desde,
+  children,
+}: {
+  conversationId: string | null
+  desde: string
+  children: React.ReactNode
+}) {
+  if (!conversationId) return <>{children}</>
+  return (
+    <Link
+      href={`/bandeja?c=${conversationId}&t=${encodeURIComponent(desde)}`}
+      className="-mx-2 block rounded-lg px-2 transition-colors hover:bg-accent/30"
+    >
+      {children}
+    </Link>
+  )
+}
+
 function Lista({ pedidos }: { pedidos: AttributedOrder[] }) {
   const t = useT()
   const fmt = useFormat()
@@ -139,6 +168,10 @@ function Lista({ pedidos }: { pedidos: AttributedOrder[] }) {
     <ul className="mt-2 divide-y divide-border/60">
       {pedidos.map((p) => (
         <li key={p.id} className="py-2.5 first:pt-0">
+          {/* La fila entera lleva al hilo de esa persona. Antes el detalle
+              contaba de dónde salió cada venta y no dejaba ir a verla: había
+              que copiar el nombre y buscarlo a mano en la bandeja. */}
+          <Fila conversationId={p.conversation_id ?? null} desde={p.created_at}>
           <div className="flex items-baseline justify-between gap-3">
             <span className="min-w-0 truncate text-sm font-medium text-foreground">
               {p.reference}
@@ -169,6 +202,7 @@ function Lista({ pedidos }: { pedidos: AttributedOrder[] }) {
             ))}
             {p.from_ad && <span>{' · '}{t('dashboard.attrFromAd')}</span>}
           </p>
+          </Fila>
         </li>
       ))}
     </ul>

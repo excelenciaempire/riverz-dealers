@@ -111,6 +111,8 @@ interface AttributedOrder {
   evidence: 'proven' | 'assisted';
   /** Qué lo prueba, cuando está probado. */
   proofs: Proof[];
+  /** El hilo de la bandeja donde vive esta persona, para poder abrirlo. */
+  conversation_id?: string | null;
   /**
    * La conversación de esta persona nació de un anuncio (Click-to-WhatsApp,
    * Instagram, Messenger). Se dice en la cara: el anuncio la trajo. Riverz a
@@ -627,6 +629,10 @@ export async function GET(request: Request) {
       currency,
       contact: cId ? (nombreDeContacto.get(cId) ?? null) : null,
       contact_id: cId,
+      // El hilo donde hablar con esta persona. Sin esto, el detalle contaba de
+      // dónde salió cada venta y no dejaba ir a verla: había que copiar el
+      // nombre y buscarlo a mano en la bandeja.
+      conversation_id: cId ? (convDeContacto.get(cId)?.[0] ?? null) : null,
       // Lo más reciente primero: el mensaje que llegó último es el que
       // mejor explica la compra.
       sources: fuentes.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),

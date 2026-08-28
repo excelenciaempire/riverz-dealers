@@ -48,6 +48,8 @@ export interface AttributedOrder {
   sources: Array<{ kind: SourceKind; entityId: string; name: string; at: string }>
   /** `proven` = trae marca de Riverz. `assisted` = sólo hubo charla antes. */
   evidence: 'proven' | 'assisted'
+  /** El hilo donde hablar con esta persona. */
+  conversation_id?: string | null
   proofs: Array<{ kind: ProofKind; detail?: string }>
   /** A esta persona la trajo un anuncio. Se dice, no se esconde. */
   from_ad: boolean
