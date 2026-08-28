@@ -155,6 +155,19 @@ export function ChannelsPanel() {
       );
   }, []);
 
+  /**
+   * El navegador salta al `#canal-…` sólo si el elemento ya existe, y acá las
+   * tarjetas se pintan después de cargar el workspace: sin esto, el link del
+   * aviso abría la página arriba de todo, como si el ancla no existiera.
+   */
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id || loading) return;
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ block: "center" });
+    });
+  }, [loading]);
+
   const isProviderReady = (channel: Channel): boolean => {
     if (!providers) return false;
     if (channel === "gmail") return providers.google;
@@ -396,8 +409,11 @@ export function ChannelsPanel() {
           return (
             <li
               key={g.key}
+              // Ancla del aviso "Necesita tu atención": el link lleva a la
+              // tarjeta del canal caído, no al principio de la página.
+              id={`canal-${g.key}`}
               className={cn(
-                "group flex flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all",
+                "group flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all",
                 anyConnected
                   ? "border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]"
                   : "border-border hover:border-foreground/30",

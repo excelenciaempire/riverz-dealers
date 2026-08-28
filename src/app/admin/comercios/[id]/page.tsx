@@ -91,9 +91,11 @@ export default function AdminWorkspaceDetailPage({
         />
       </Panel>
 
-      {/* Lo que está roto AHORA — el mismo criterio que ve el comercio en su
-          Inicio. Va antes que los números: los últimos errores son historial,
-          esto es estado, y una corrida trabada no deja línea de error. */}
+      {/* Lo que está roto AHORA — la lista COMPLETA. El comercio ve en su
+          Inicio sólo lo que puede arreglar él; lo demás llega hasta acá y a
+          ningún otro lado, así que va marcado. Va antes que los números: los
+          últimos errores son historial, esto es estado, y una corrida trabada
+          no deja línea de error. */}
       {issues.length > 0 && (
         <Panel title={t("health.needsAttention")}>
           <ul className="divide-y divide-border">
@@ -118,6 +120,11 @@ export default function AdminWorkspaceDetailPage({
                     </span>
                   )}
                 </span>
+                {issue.audience === "plataforma" && (
+                  <span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    {t("health.onlyHere")}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

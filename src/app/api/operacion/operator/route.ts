@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
+import { puertaDeIa } from '@/lib/wallet/puerta'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature-flags'
 import { limitByKey } from '@/lib/rate-limit'
@@ -203,6 +204,14 @@ export async function POST(request: Request) {
   } | null
   const texto = (body?.texto ?? '').trim().slice(0, 4000)
   if (!texto) return NextResponse.json({ error: 'texto_required' }, { status: 400 })
+
+  // El Operador es la IA mas cara de la casa: un turno son varias llamadas al
+  // modelo. Sin saldo o con la suscripcion vencida no arranca, y el motivo
+  // vuelve al cliente para que la pantalla diga cual de los dos es.
+  const puerta = await puertaDeIa(ctx.admin, ctx.workspaceId)
+  if (!puerta.puede) {
+    return NextResponse.json({ error: puerta.motivo }, { status: 402 })
+  }
 
   const locale = await getLocale()
 

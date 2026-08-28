@@ -9,6 +9,9 @@ import { getFeatureFlags, type FeatureFlags } from "@/lib/admin/feature-flags";
 import { isPlatformAdmin } from "@/lib/auth/platform-admin";
 import { isWorkspaceSuspended } from "@/lib/workspaces/suspension";
 import { SuspendedGate } from "@/components/layout/suspended-gate";
+import { ImpagoGate } from "@/components/billing/impago-gate";
+import { AvisoDeCobro } from "@/components/billing/aviso-cobro";
+import { estadoDeCobro, type Aviso } from "@/lib/wallet/puerta";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -50,6 +53,9 @@ export default async function DashboardLayout({
   let flags: FeatureFlags = {};
   let platformAdmin = false;
   let suspended = false;
+  let impago = false;
+  let aviso: Aviso = null;
+  let horasDeGracia: number | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -80,6 +86,16 @@ export default async function DashboardLayout({
       suspended =
         !platformAdmin &&
         (await isWorkspaceSuspended(supabaseAdmin(), workspaceId));
+      // Cobro: la cuenta se cierra recien cuando pasaron las 48 horas de
+      // gracia. Antes de eso se avisa y se sigue trabajando. Un admin de
+      // plataforma que entra a mirar una cuenta impaga no ve la pared: la
+      // necesita abierta justamente para ayudar a destrabarla.
+      if (!platformAdmin && workspaceId) {
+        const cobro = await estadoDeCobro(supabaseAdmin(), workspaceId);
+        impago = cobro.bloqueado;
+        aviso = cobro.aviso;
+        horasDeGracia = cobro.horas;
+      }
       // Re-consent gate: if the Terms/Privacy changed since this user last
       // accepted (LEGAL_VERSION bumped), block the app until they accept the
       // new version. Fail-soft — any read error defaults to NOT gating so a
@@ -98,11 +114,16 @@ export default async function DashboardLayout({
   }
 
   if (suspended) return <SuspendedGate />;
+  if (impago) return <ImpagoGate />;
 
   return (
     <>
       {mustReconsent && <ReconsentGate />}
-      <DashboardShell flags={flags} isPlatformAdmin={platformAdmin}>
+      <DashboardShell
+        flags={flags}
+        isPlatformAdmin={platformAdmin}
+        aviso={<AvisoDeCobro aviso={aviso} horas={horasDeGracia} />}
+      >
         {children}
       </DashboardShell>
     </>

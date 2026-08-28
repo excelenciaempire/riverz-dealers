@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { collectWorkspaceIssues } from '@/lib/health/issues';
+import { collectMerchantIssues } from '@/lib/health/issues';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { serverError } from '@/lib/api/errors';
 
 /**
  * GET /api/health/issues
  *
- * Lo que necesita atención en el workspace de quien pregunta.
+ * Lo que necesita atención en el workspace de quien pregunta, y que ese
+ * workspace puede arreglar: lo que es nuestro no llega hasta acá, se ve entero
+ * en /admin. Los avisos ocultados tampoco vuelven hasta que el problema pase de
+ * nuevo.
  *
  * Se resuelve del lado del servidor con la clave de servicio porque la
  * detección cruza tablas que el navegador no puede leer enteras (las esperas
@@ -26,7 +29,7 @@ export async function GET() {
   if (!workspaceId) return NextResponse.json({ issues: [] });
 
   try {
-    const issues = await collectWorkspaceIssues(supabaseAdmin(), workspaceId);
+    const issues = await collectMerchantIssues(supabaseAdmin(), workspaceId);
     return NextResponse.json({ issues });
   } catch (err) {
     return serverError(err);

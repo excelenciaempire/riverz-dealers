@@ -24,6 +24,7 @@
  * dos pantallas no se pueden contradecir.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { metaCodeIn } from './detail';
 
 export type IssueSeverity = 'critical' | 'warning';
 
@@ -45,6 +46,17 @@ export type IssueKind =
   | 'template_rejected'
   | 'broadcast_stalled';
 
+/**
+ * Quién puede arreglarlo.
+ *
+ * El comercio sólo ve lo que depende de él. Un aviso que no puede atender no
+ * es información: es una alarma que suena sola, y a la tercera vez deja de
+ * leerse — con ella, todas las demás. Lo que es nuestro (una cola trabada, una
+ * campaña que no terminó, un canal que dio timeout) sigue calculándose igual y
+ * se ve entero en /admin, que es donde está quien lo puede arreglar.
+ */
+export type IssueAudience = 'comercio' | 'plataforma';
+
 export interface Issue {
   /** Clave estable; la UI la traduce y decide el link. */
   kind: IssueKind;
@@ -55,6 +67,11 @@ export interface Issue {
   detail?: string | null;
   /** A dónde va el comercio a resolverlo (ruta canónica, en español). */
   href: string;
+  audience: IssueAudience;
+  /** Cuándo pasó por última vez (ISO). Decide si un aviso ocultado vuelve. */
+  lastAt: string | null;
+  /** A qué apunta, para poder ocultar ESTE aviso y no la clase entera. */
+  refId: string;
 }
 
 /** Fila cruda de la función SQL. */
@@ -64,29 +81,140 @@ export interface IssueRow {
   severity: IssueSeverity;
   count: number;
   detail: string | null;
-  /** Id de la automatización, cuando el aviso apunta a una en particular. */
+  /** La cosa a la que apunta: automatización, conversación, plantilla, canal. */
   ref_id: string | null;
+  /** La fila exacta adentro: la corrida que falló. */
+  ref_child: string | null;
+  last_at: string | null;
 }
 
-/** A dónde se resuelve cada clase de problema. */
-function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id'>): string {
+/**
+ * A dónde se resuelve cada clase de problema.
+ *
+ * Al LUGAR EXACTO, no a la sección. Quien abre el aviso ya sabe que algo se
+ * rompió; lo que no sabe es cuál, y hacérselo buscar en una lista de cien
+ * filas es la diferencia entre arreglarlo y cerrar la pestaña.
+ */
+function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id' | 'ref_child' | 'last_at'>): string {
   switch (row.kind) {
+    // A la corrida que falló, ya abierta, dentro del historial de esa
+    // automatización: ahí está el paso exacto y el error de Meta.
     case 'automation_stuck':
-    case 'automation_failed':
-      return row.ref_id ? `/automatizaciones/${row.ref_id}` : '/automatizaciones';
+    case 'automation_failed': {
+      if (!row.ref_id) return '/automatizaciones';
+      const base = `/automatizaciones/${row.ref_id}/registros`;
+      return row.ref_child ? `${base}?log=${row.ref_child}` : base;
+    }
+    // Al hilo del cliente y al mensaje: ahí se ve en rojo con el motivo, y
+    // desde ahí se le escribe a mano lo que se le prometió y no llegó.
     case 'sends_failing':
-    // Al hilo del cliente: ahí se ve el mensaje en rojo con el motivo, y desde
-    // ahí se le puede escribir a mano lo que el agente prometió y no llegó.
-    case 'voice_send_failed':
-      return '/bandeja';
+    case 'voice_send_failed': {
+      if (!row.ref_id) return '/bandeja';
+      const iso = aISO(row.last_at);
+      return `/bandeja?c=${row.ref_id}${iso ? `&t=${encodeURIComponent(iso)}` : ''}`;
+    }
+    // A la tarjeta del canal caído, no al principio de la página.
     case 'connection_error':
-    case 'whatsapp_blocked':
-      return '/integraciones';
+    case 'whatsapp_blocked': {
+      const ancla = anchorDeCanal(row.ref_id);
+      return ancla ? `/integraciones#${ancla}` : '/integraciones';
+    }
     case 'template_rejected':
-      return '/plantillas';
+      return row.ref_id ? `/plantillas/${row.ref_id}` : '/plantillas';
     case 'broadcast_stalled':
-      return '/campanas';
+      return row.ref_id ? `/campanas/${row.ref_id}` : '/campanas';
   }
+}
+
+/**
+ * Ancla de la tarjeta del canal en /integraciones. Las tarjetas agrupan varios
+ * canales internos (Messenger y sus comentarios son una sola "Meta"), así que
+ * el slug de la conexión no siempre es el de la tarjeta. Una tienda caída llega
+ * como dominio y no tiene tarjeta propia: ahí no hay ancla y se abre la página.
+ */
+const TARJETA_POR_CANAL: Record<string, string> = {
+  whatsapp: 'canal-whatsapp',
+  messenger: 'canal-facebook',
+  fb_comment: 'canal-facebook',
+  instagram: 'canal-instagram',
+  ig_comment: 'canal-instagram',
+  gmail: 'canal-gmail',
+  outlook: 'canal-outlook',
+  mercadolibre: 'canal-mercadolibre',
+  tiktok_comment: 'canal-tiktok',
+};
+
+function anchorDeCanal(slug: string | null): string | null {
+  if (!slug) return null;
+  return TARJETA_POR_CANAL[slug.trim()] ?? null;
+}
+
+/**
+ * Códigos de Meta que el comercio SÍ puede arreglar: son de la plantilla o del
+ * destinatario, no del transporte. Los otros —ventana de 24 h, tope de
+ * marketing, spam, timeout— no tienen botón que apretar de su lado.
+ */
+const CODIGOS_DE_CONFIGURACION = new Set([
+  131008, // falta un parámetro obligatorio (variable vacía)
+  131009, // el valor de un parámetro no es válido
+  132000, // la cantidad de parámetros no coincide
+  132001, // la plantilla no existe en ese idioma
+  132005, // el texto traducido excede el largo
+  132007, // el contenido viola el formato permitido
+  132012, // el formato del parámetro no coincide
+  133010, // el número no está registrado en la Cloud API
+  100, // parámetro inválido
+]);
+
+/** Lo mismo cuando el motivo llega como frase y no como código. */
+const MOTIVOS_DE_CONFIGURACION =
+  /template not found|plantilla no encontrada|no template|template name does not exist|required parameter is missing|parameter value is not valid|number of parameters does not match|no recipients?|sin destinatarios|invalid phone number|número inválido|not connected|sin conexión|no (whatsapp )?connection/i;
+
+function esDeConfiguracion(detail: string | null): boolean {
+  const raw = detail?.trim();
+  if (!raw) return false;
+  const code = metaCodeIn(raw);
+  if (code != null) return CODIGOS_DE_CONFIGURACION.has(code);
+  return MOTIVOS_DE_CONFIGURACION.test(raw);
+}
+
+function audienceFor(row: Pick<IssueRow, 'kind' | 'detail'>): IssueAudience {
+  switch (row.kind) {
+    // Se arreglan en el panel de Meta, en /integraciones o en la plantilla:
+    // todo del lado del comercio.
+    case 'whatsapp_blocked':
+    case 'connection_error':
+    case 'template_rejected':
+      return 'comercio';
+    // Alguien quedó esperando un mensaje que le prometieron hablando. Aunque
+    // la causa sea nuestra, el que puede escribirle hoy es el comercio.
+    case 'voice_send_failed':
+      return 'comercio';
+    // Depende del motivo: una variable vacía la llena el comercio; un timeout
+    // del canal no lo arregla nadie desde la pantalla.
+    case 'automation_failed':
+    case 'sends_failing':
+      return esDeConfiguracion(row.detail) ? 'comercio' : 'plataforma';
+    // Cola trabada y campaña a medio enviar: no hay nada que tocar del lado
+    // del comercio, se destraban de este lado.
+    case 'automation_stuck':
+    case 'broadcast_stalled':
+      return 'plataforma';
+  }
+}
+
+/**
+ * `last_at` en ISO, siempre. PostgREST ya lo devuelve así, pero la misma
+ * función se consulta por otras vías que escriben «2026-08-28 06:06:23+00», y
+ * ese formato no lo parsea todo motor de JS. Si no se puede leer, se devuelve
+ * null: sin fecha el aviso se muestra igual, que es el lado seguro del error.
+ */
+function aISO(raw: string | null): string | null {
+  if (!raw) return null;
+  const conT = raw.includes('T') ? raw : raw.replace(' ', 'T');
+  const conZona = /[+-]\d{2}$/.test(conT) ? `${conT}:00` : conT;
+  const d = new Date(conZona);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 /** Lo crítico primero: son las que cortan envíos. */
@@ -102,6 +230,9 @@ export function toIssue(row: IssueRow): Issue {
     count: Number(row.count) || 0,
     detail: row.detail,
     href: hrefFor(row),
+    audience: audienceFor(row),
+    lastAt: aISO(row.last_at),
+    refId: row.ref_id ?? '',
   };
 }
 
@@ -117,6 +248,51 @@ export async function collectWorkspaceIssues(
   const issues = ((data ?? []) as IssueRow[]).map(toIssue);
 
   return issues.sort(porGravedad);
+}
+
+/** Clave de un aviso a los efectos de ocultarlo. */
+export function issueKey(i: Pick<Issue, 'kind' | 'refId'>): string {
+  return `${i.kind}::${i.refId}`;
+}
+
+/**
+ * Lo que el comercio tiene que ver HOY en Inicio.
+ *
+ * Dos filtros sobre la lista completa: lo que puede arreglar él, y lo que no
+ * ocultó. Ocultar no es "para siempre" ni "hasta que recargue": vale hasta el
+ * instante que se ocultó, así que si el problema vuelve a pasar más tarde el
+ * aviso reaparece solo. Es la única regla que no entrena a ignorarlo.
+ */
+export async function collectMerchantIssues(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<Issue[]> {
+  const [issues, ocultos] = await Promise.all([
+    collectWorkspaceIssues(db, workspaceId),
+    db
+      .from('health_issue_dismissals')
+      .select('kind, ref_id, hidden_through')
+      .eq('workspace_id', workspaceId),
+  ]);
+
+  const hasta = new Map<string, number>();
+  for (const row of (ocultos.data ?? []) as {
+    kind: string;
+    ref_id: string;
+    hidden_through: string;
+  }[]) {
+    hasta.set(`${row.kind}::${row.ref_id}`, new Date(row.hidden_through).getTime());
+  }
+
+  return issues.filter((i) => {
+    if (i.audience !== 'comercio') return false;
+    const limite = hasta.get(issueKey(i));
+    if (limite == null) return true;
+    // Sin fecha no se puede decidir si es nuevo; se muestra, que es el lado
+    // seguro del error.
+    if (!i.lastAt) return true;
+    return new Date(i.lastAt).getTime() > limite;
+  });
 }
 
 /**

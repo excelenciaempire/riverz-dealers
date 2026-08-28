@@ -1,6 +1,7 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useLocalizedRouter } from "@/hooks/use-localized-router"
 import {
   ArrowLeft,
@@ -27,10 +28,19 @@ export default function AutomationLogsPage({
   const router = useLocalizedRouter()
   const t = useT()
 
+  /**
+   * `?log=` — la corrida exacta. Lo manda "Necesita tu atención": el aviso dice
+   * que fallaron dos corridas, y el clic tiene que abrir ESA, no dejar cien
+   * filas plegadas para que la busque a ojo.
+   */
+  const deepLinkLogId = useSearchParams().get("log")
+
   const [automation, setAutomation] = useState<Automation | null>(null)
   const [logs, setLogs] = useState<AutomationLog[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openLogId, setOpenLogId] = useState<string | null>(null)
+  /** Una sola vez: después el plegado vuelve a ser del usuario. */
+  const yaAbierto = useRef(false)
 
   useEffect(() => {
     async function load() {
@@ -66,6 +76,20 @@ export default function AutomationLogsPage({
     }
     load()
   }, [id, t])
+
+  // Abrir la corrida enlazada y traerla a la vista. Se hace acá y no en la
+  // carga porque el `<li>` recién existe cuando `logs` está en pantalla.
+  useEffect(() => {
+    if (!deepLinkLogId || !logs || yaAbierto.current) return
+    if (!logs.some((l) => l.id === deepLinkLogId)) return
+    yaAbierto.current = true
+    setOpenLogId(deepLinkLogId)
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`corrida-${deepLinkLogId}`)
+        ?.scrollIntoView({ block: "center" })
+    })
+  }, [deepLinkLogId, logs])
 
   if (error) {
     return (
@@ -111,7 +135,13 @@ export default function AutomationLogsPage({
             return (
               <li
                 key={log.id}
-                className="rounded-xl border border-border bg-card"
+                id={`corrida-${log.id}`}
+                className={cn(
+                  "rounded-xl border bg-card",
+                  deepLinkLogId === log.id
+                    ? "border-amber-500/50 ring-1 ring-amber-500/30"
+                    : "border-border",
+                )}
               >
                 <button
                   type="button"

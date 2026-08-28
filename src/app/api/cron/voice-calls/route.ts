@@ -4,6 +4,7 @@ import { serverError } from '@/lib/api/errors';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { withCronRun } from "@/lib/cron/heartbeat";
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import {
   dispatchVoiceCall,
   isLiveKitConfigured,
@@ -152,6 +153,17 @@ async function cronHandler(request: Request) {
       const connStatus = (conn as { status?: string } | null)?.status;
       if (cfg.kill_switch || connStatus === 'disconnected') {
         await cancelCall(row, 'kill_switch');
+        continue;
+      }
+
+      // Sin saldo o con la suscripcion vencida no se marca: una llamada gasta
+      // telefonia, modelo y voz, y es el gasto mas caro de todos. Vuelve a la
+      // cola en vez de cancelarse — en cuanto recargue, sale sola.
+      if (!(await puedeUsarIa(db, row.workspace_id))) {
+        await db
+          .from('voice_calls')
+          .update({ status: 'queued', updated_at: new Date().toISOString() })
+          .eq('id', row.id);
         continue;
       }
 

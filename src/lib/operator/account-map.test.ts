@@ -102,6 +102,9 @@ describe('el mapa como lo lee el modelo', () => {
           count: 2,
           detail: '2 plantillas rechazadas',
           href: '/plantillas',
+          audience: 'comercio',
+          lastAt: null,
+          refId: '',
         },
       ],
     })

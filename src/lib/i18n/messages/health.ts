@@ -125,8 +125,13 @@ export const health: Namespace = {
     en: "Your WhatsApp can't send messages. Meta blocked it: check the account's payment method and tax details",
   },
 
-  // Ocultar el aviso ya leído. Vuelve solo si aparece algo distinto.
+  // Ocultar el aviso ya leído. Vuelve solo si el problema pasa de nuevo.
   dismiss: { es: "Ocultar", en: "Dismiss" },
+
+  // Sólo en /admin: marca el aviso que el comercio NO ve en su Inicio porque
+  // no lo puede arreglar. Sin la marca, /admin y el panel del comercio parecen
+  // la misma lista y no lo son.
+  onlyHere: { es: "el comercio no lo ve", en: "hidden from the merchant" },
 
   // Decisiones que esperan a una persona
   approvalsTitle: { es: "Esperando tu decisión", en: "Waiting on you" },

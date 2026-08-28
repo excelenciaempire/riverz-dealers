@@ -1033,4 +1033,26 @@ export const settings = {
   walletPrev: { es: "Anterior", en: "Previous" },
   walletNext: { es: "Siguiente", en: "Next" },
   walletRates: { es: "Cuánto sale cada cosa", en: "What each thing costs" },
+
+  // ── Avisos de cobro ──
+  avisoGracia: {
+    es: "El último cobro falló. Tienes {n} horas para actualizar el pago antes de perder el acceso.",
+    en: "The last charge failed. You have {n} hours to update your payment before losing access.",
+  },
+  avisoGraciaCta: { es: "Actualizar pago", en: "Update payment" },
+  avisoSinSaldo: {
+    es: "Te quedaste sin saldo: la IA dejó de responder. La bandeja sigue abierta para contestar a mano.",
+    en: "You're out of balance: the AI stopped replying. The inbox is still open to answer manually.",
+  },
+  avisoSinSaldoCta: { es: "Recargar", en: "Top up" },
+  impagoTitle: { es: "La cuenta está pausada", en: "Your account is paused" },
+  impagoBody: {
+    es: "El cobro de la suscripción no entró y pasaron las 48 horas. Pon una tarjeta y vuelve todo enseguida.",
+    en: "The subscription payment didn't go through and the 48 hours are up. Add a card and everything comes back right away.",
+  },
+  impagoCta: { es: "Pagar ahora", en: "Pay now" },
+  impagoError: {
+    es: "No se pudo abrir el pago. Intenta de nuevo.",
+    en: "Couldn't open the payment. Try again.",
+  },
 } satisfies Namespace;

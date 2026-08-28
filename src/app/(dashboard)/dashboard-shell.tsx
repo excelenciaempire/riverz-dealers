@@ -19,7 +19,13 @@ import { useT } from "@/hooks/use-locale";
 
 const COLLAPSE_KEY = "ui.sidebar.collapsed";
 
-function DashboardShellInner({ children }: { children: React.ReactNode }) {
+function DashboardShellInner({
+  children,
+  aviso,
+}: {
+  children: React.ReactNode;
+  aviso?: React.ReactNode;
+}) {
   const { user, loading } = useAuth();
   const router = useLocalizedRouter();
   const t = useT();
@@ -106,6 +112,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={openSidebar} />
+        {/* El aviso de cobro va debajo del encabezado y arriba del contenido:
+            se ve siempre, en cualquier pantalla, y no tapa nada. */}
+        {aviso}
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
@@ -119,16 +128,18 @@ export function DashboardShell({
   children,
   flags = {},
   isPlatformAdmin = false,
+  aviso,
 }: {
   children: React.ReactNode;
   flags?: FeatureFlags;
   isPlatformAdmin?: boolean;
+  aviso?: React.ReactNode;
 }) {
   return (
     <AuthProvider>
       <CsrfProvider>
         <FeatureFlagsProvider value={{ flags, isPlatformAdmin }}>
-          <DashboardShellInner>{children}</DashboardShellInner>
+          <DashboardShellInner aviso={aviso}>{children}</DashboardShellInner>
         </FeatureFlagsProvider>
       </CsrfProvider>
     </AuthProvider>

@@ -12,6 +12,7 @@ import { limpiarPersona } from './persona-limpia';
 export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { cobrar } from '@/lib/wallet/saldo';
+import { puertaDeIa } from '@/lib/wallet/puerta';
 import { costForModel } from '@/lib/admin/cost';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
@@ -128,6 +129,18 @@ export async function runAiAgent(
     // apruebe la instalación—: el asistente no contesta. Antes de elegir
     // agente y antes de gastar la clave de IA, que casi siempre paga Riverz.
     if (await motorApagado(db, args.workspaceId)) return;
+
+    // Sin saldo o con la suscripcion vencida: la IA no habla.
+    //
+    // Va acá arriba, antes de elegir agente y antes de tocar la clave, porque
+    // el gasto empieza en la primera llamada al modelo. La bandeja NO se
+    // apaga: el comercio sigue leyendo y contestando a mano, y el aviso de por
+    // qué la IA está callada lo muestra la pantalla.
+    const puerta = await puertaDeIa(db, args.workspaceId);
+    if (!puerta.puede) {
+      console.warn('[ai] apagado por', puerta.motivo, args.workspaceId);
+      return;
+    }
 
     // ¿Es la respuesta a un "¿te sirvió?" (migración 202)?
     //

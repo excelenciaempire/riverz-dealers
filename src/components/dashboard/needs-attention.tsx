@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
 import { AlertTriangle, ArrowRight, X } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { cn } from '@/lib/utils';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { issueDetailText } from '@/lib/health/detail';
 import type { IssueKind } from '@/lib/health/issues';
 
@@ -14,38 +15,27 @@ interface Issue {
   count: number;
   detail?: string | null;
   href: string;
-}
-
-/**
- * Se guarda por navegador, igual que el checklist de onboarding: es una
- * preferencia de lectura, no un estado del negocio.
- */
-const DISMISS_KEY = 'riverz.needsAttentionDismissed';
-
-/**
- * Firma de lo que se ocultó. No alcanza con un "ya lo vi": si mañana falla otra
- * cosa —o la misma más veces— el aviso tiene que volver, porque es información
- * nueva. Se ordena para que el mismo conjunto dé siempre la misma firma.
- */
-function signature(issues: Issue[]): string {
-  return issues
-    .map((i) => `${i.kind}:${i.count}:${i.detail ?? ''}`)
-    .sort()
-    .join('|');
+  refId: string;
+  lastAt: string | null;
 }
 
 /**
  * "Esto necesita tu atención", arriba de todo en Inicio.
  *
- * Cada línea es un problema que ya ocurrió y que el comercio puede resolver, con
- * el link al lugar donde se resuelve. Si no hay nada, no se renderiza: un
- * cartel de "todo bien" permanente entrena a no mirar la zona, y entonces el
- * día que aparezca algo tampoco se va a mirar.
+ * Sólo llega acá lo que el comercio puede resolver — el filtro está en el
+ * servidor (`collectMerchantIssues`); lo que es nuestro se ve entero en /admin.
+ * Cada línea lleva al lugar exacto: la corrida que falló, el chat del cliente,
+ * la plantilla rechazada. Si no hay nada, no se renderiza: un cartel de "todo
+ * bien" permanente entrena a no mirar la zona, y entonces el día que aparezca
+ * algo tampoco se va a mirar.
+ *
+ * "Ocultar" se guarda en la cuenta, no en el navegador, y con la fecha de lo
+ * que se ocultó: si el problema vuelve a pasar, el aviso vuelve.
  */
 export function NeedsAttention() {
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   const [issues, setIssues] = useState<Issue[] | null>(null);
-  const [hiddenSig, setHiddenSig] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,30 +53,31 @@ export function NeedsAttention() {
     };
   }, []);
 
-  // Se lee después de montar, no en el initializer: servidor y cliente tienen
-  // que arrancar iguales o la hidratación se desalinea.
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura client-only post-montaje
-      setHiddenSig(localStorage.getItem(DISMISS_KEY));
-    } catch {
-      /* localStorage bloqueado: se muestra igual */
-    }
-  }, []);
-
-  const sig = useMemo(() => (issues ? signature(issues) : ''), [issues]);
-
-  const dismiss = () => {
-    try {
-      localStorage.setItem(DISMISS_KEY, sig);
-    } catch {
-      /* no-op */
-    }
-    setHiddenSig(sig);
-  };
+  const ocultar = useCallback(
+    async (lista: Issue[]) => {
+      // Optimista: la tarjeta se va enseguida. Es un aviso, no una operación;
+      // esperar al servidor para que desaparezca un cartel se siente roto.
+      setIssues((prev) => (prev ?? []).filter((i) => !lista.includes(i)));
+      try {
+        await fetchWithCsrf('/api/health/issues/ocultar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            issues: lista.map((i) => ({
+              kind: i.kind,
+              refId: i.refId,
+              lastAt: i.lastAt,
+            })),
+          }),
+        });
+      } catch {
+        /* si no se pudo guardar, vuelve en la próxima carga */
+      }
+    },
+    [fetchWithCsrf],
+  );
 
   if (!issues || issues.length === 0) return null;
-  if (hiddenSig === sig) return null;
 
   return (
     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -97,7 +88,7 @@ export function NeedsAttention() {
         </h2>
         <button
           type="button"
-          onClick={dismiss}
+          onClick={() => void ocultar(issues)}
           aria-label={t('health.dismiss')}
           title={t('health.dismiss')}
           className="ml-auto -mr-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-amber-500/10 hover:text-foreground"

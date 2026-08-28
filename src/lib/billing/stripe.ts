@@ -148,10 +148,33 @@ export async function aplicarEvento(
   const desde = item?.current_period_start
   const hasta = item?.current_period_end
 
+  const estado =
+    tipo === 'customer.subscription.deleted' ? 'cancelada' : estadoDe(sub.status)
+
+  // El reloj de la gracia.
+  //
+  // Se marca la PRIMERA vez que el cobro falla y no se vuelve a tocar mientras
+  // siga fallando: Stripe reintenta y manda `updated` varias veces, y si cada
+  // uno reiniciara la marca la gracia no terminaría nunca. Volver a estar al
+  // día la borra.
+  let vencidaDesde: string | null | undefined
+  if (estado === 'vencida') {
+    const { data: actual } = await db
+      .from('workspace_subscriptions')
+      .select('vencida_desde')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    const yaMarcada = (actual as { vencida_desde?: string | null } | null)?.vencida_desde
+    vencidaDesde = yaMarcada ?? new Date().toISOString()
+  } else {
+    vencidaDesde = null
+  }
+
   const { error } = await db
     .from('workspace_subscriptions')
     .update({
-      estado: tipo === 'customer.subscription.deleted' ? 'cancelada' : estadoDe(sub.status),
+      estado,
+      vencida_desde: vencidaDesde,
       stripe_subscription_id: sub.id,
       stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
       periodo_desde: desde ? new Date(desde * 1000).toISOString() : null,

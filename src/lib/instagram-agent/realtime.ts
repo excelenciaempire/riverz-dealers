@@ -25,6 +25,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import {
   proactiveGate,
@@ -611,6 +612,9 @@ async function autonomousCommentReply(
   if (!opts.commentId) return;
   if (!opts.contact.external_id && !isTikTokChannel(opts.commentChannel)) return;
   if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) return;
+  // Sin saldo o con la suscripcion vencida, la IA no contesta comentarios
+  // tampoco: es la misma clave de Riverz pagando la misma llamada al modelo.
+  if (!(await puedeUsarIa(db, opts.workspaceId))) return;
 
   // Instagram ↔ Messenger: mismo camino, distinta red. El comentario se
   // contesta por el DM de SU plataforma — un comentario de Facebook no se
