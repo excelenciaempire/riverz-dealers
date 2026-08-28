@@ -24,6 +24,7 @@ const DOMINIO: Record<string, string> = {
   ajustes: 'operation.domAjustes',
   aprobaciones: 'operation.domAprobaciones',
   automatizaciones: 'operation.domAutomatizaciones',
+  bandeja: 'operation.domBandeja',
   campanas: 'operation.domCampanas',
   comentarios: 'operation.domComentarios',
   contactos: 'operation.domContactos',

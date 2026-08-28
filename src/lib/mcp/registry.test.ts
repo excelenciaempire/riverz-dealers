@@ -71,6 +71,8 @@ describe('registro de herramientas', () => {
         'campanas_estado',
         'contacto_buscar',
         'contactos_listar',
+        'conversacion_detalle',
+        'conversacion_mensajes',
         'conversaciones_pendientes',
         'cron_estado',
         'cuentas_listar',

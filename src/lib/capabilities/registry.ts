@@ -9,6 +9,7 @@
 import { AGENT_CAPABILITIES } from './agents'
 import { APPROVAL_CAPABILITIES } from './approvals'
 import { AUTOMATION_CAPABILITIES } from './automations'
+import { BANDEJA_CAPABILITIES } from './bandeja'
 import { BROADCAST_CAPABILITIES } from './broadcasts'
 import { COMMENT_CAPABILITIES } from './comments'
 import { CONTACT_CAPABILITIES } from './contacts'
@@ -31,6 +32,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   ...METRICS_CAPABILITIES,
   ...MESSAGING_CAPABILITIES,
   ...INBOX_CAPABILITIES,
+  ...BANDEJA_CAPABILITIES,
   ...AUTOMATION_CAPABILITIES,
   ...FLOW_CAPABILITIES,
   ...CONTACT_CAPABILITIES,

@@ -340,6 +340,7 @@ export const operation = {
   domCampanas: { es: "Las campañas", en: "The campaigns" },
   domComentarios: { es: "Los comentarios", en: "The comments" },
   domContactos: { es: "Los contactos", en: "The contacts" },
+  domBandeja: { es: "La bandeja", en: "The inbox" },
   domConversaciones: { es: "Las conversaciones", en: "The conversations" },
   domEtiquetas: { es: "Las etiquetas", en: "The tags" },
   domFlujos: { es: "Los flujos", en: "The flows" },

@@ -541,6 +541,49 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
     .filter((t): t is { name: string } => Boolean(t))
     .map((t) => t.name)
 
+  // Lo que la bandeja muestra en la columna de la derecha y el chat no veía:
+  // las notas que dejó el equipo, quién es en Instagram, qué compró de verdad
+  // (no lo que dice Shopify de memoria) y los campos que inventó el comercio.
+  const [notas, ig, compras, personalizados] = await Promise.all([
+    ctx.db
+      .from('contact_notes')
+      .select('note_text, created_at')
+      .eq('contact_id', c.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    ctx.db
+      .from('contact_ig_profile')
+      .select('follower_count, is_verified, follows_business, persona_hint')
+      .eq('contact_id', c.id)
+      .maybeSingle(),
+    ctx.db
+      .from('contact_purchases')
+      .select('order_number, placed_at, total, currency, financial_status, fulfillment_status, platform')
+      .eq('contact_id', c.id)
+      .order('placed_at', { ascending: false })
+      .limit(10),
+    ctx.db
+      .from('contact_custom_values')
+      .select('value, custom_fields(field_name)')
+      .eq('contact_id', c.id),
+  ])
+
+  const perfilIg = ig.data as {
+    follower_count: number | null
+    is_verified: boolean | null
+    follows_business: boolean | null
+    persona_hint: string | null
+  } | null
+
+  const campos: Record<string, string> = {}
+  for (const f of (personalizados.data ?? []) as unknown as Array<{
+    value: string | null
+    custom_fields: { field_name: string } | { field_name: string }[] | null
+  }>) {
+    const campo = Array.isArray(f.custom_fields) ? f.custom_fields[0] : f.custom_fields
+    if (campo?.field_name) campos[campo.field_name] = f.value ?? ''
+  }
+
   const shop = c.shopify_customer_data
   const direccion = shop?.default_address
   return {
@@ -566,6 +609,54 @@ async function detalle(ctx: CapabilityContext, args: Record<string, unknown>) {
     pais: direccion?.country ?? null,
     ultimo_producto: c.last_product,
     ultima_oferta: c.last_offer_chosen,
+    // Lo que escribió el equipo sobre esta persona. Es la memoria del negocio
+    // y no estaba en ninguna respuesta.
+    notas: (notas.data ?? []) as unknown[],
+    instagram: perfilIg
+      ? {
+          seguidores: perfilIg.follower_count,
+          verificada: perfilIg.is_verified === true,
+          nos_sigue: perfilIg.follows_business === true,
+          quien_es: perfilIg.persona_hint,
+        }
+      : null,
+    // Las compras REALES traídas de la tienda, no el resumen que Shopify
+    // guarda en el contacto.
+    compras: (compras.data ?? []) as unknown[],
+    campos: Object.keys(campos).length > 0 ? campos : null,
+  }
+}
+
+async function anotar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const id = String(args.contacto_id ?? '').trim()
+  const texto = String(args.nota ?? '').trim()
+  if (!id) throw new Error('Falta el id del contacto.')
+  if (!texto) throw new Error('Falta la nota.')
+
+  const { data: existe } = await ctx.db
+    .from('contacts')
+    .select('id, name')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('id', id)
+    .maybeSingle()
+  if (!existe) throw new Error('Ese contacto no existe en esta cuenta.')
+
+  const { data, error } = await ctx.db
+    .from('contact_notes')
+    .insert({
+      workspace_id: ctx.workspaceId,
+      contact_id: id,
+      note_text: texto,
+      user_id: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+
+  return {
+    nota_id: (data as { id: string }).id,
+    contacto: (existe as { name: string | null }).name,
+    nota: texto,
   }
 }
 
@@ -829,6 +920,36 @@ async function borrarEtiqueta(ctx: CapabilityContext, args: Record<string, unkno
 // ---------------------------------------------------------------------------
 
 export const CONTACT_CAPABILITIES: Capability[] = [
+  {
+    key: 'contactos.anotar',
+    description:
+      'Deja una nota sobre un contacto: lo que hay que saber la próxima vez que escriba. Es la memoria del negocio sobre esa persona y la lee cualquiera del equipo desde su ficha en la bandeja. No le llega al cliente.',
+    descriptionEn:
+      'Leaves a note on a contact: what to know the next time they write. It is the business memory about that person and anyone on the team reads it from their record in the inbox. The customer never sees it.',
+    risk: 'reversible',
+    // Es interna: no sale de la cuenta y no la ve ningún cliente.
+    inerte: true,
+    schema: {
+      type: 'object',
+      properties: {
+        contacto_id: { type: 'string', description: 'El id que devuelve contactos.buscar.' },
+        nota: { type: 'string' },
+      },
+      required: ['contacto_id', 'nota'],
+    },
+    async preview(ctx, args) {
+      const { data } = await ctx.db
+        .from('contacts')
+        .select('name, phone')
+        .eq('workspace_id', ctx.workspaceId)
+        .eq('id', String(args.contacto_id ?? ''))
+        .maybeSingle()
+      const c = data as { name?: string | null; phone?: string | null } | null
+      if (!c) throw new Error('Ese contacto no existe en esta cuenta.')
+      return `Anotaría en la ficha de ${c.name ?? c.phone ?? 'ese contacto'}: "${String(args.nota ?? '')}". No le llega a la persona.`
+    },
+    run: anotar,
+  },
   {
     key: 'contactos.listar',
     description:

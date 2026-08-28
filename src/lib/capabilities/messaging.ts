@@ -9,6 +9,8 @@
  * segunda implementación del envío sería una segunda forma de saltárselas.
  */
 import { engineSendText } from '@/lib/automations/meta-send'
+import { cargarConversacion } from '@/lib/inbox/conversaciones'
+import { enviarTextoEnConversacion } from '@/lib/inbox/enviar-texto'
 import {
   PENDING_SENDER,
   hoursWaiting,
@@ -179,7 +181,106 @@ async function conversacionDe(ctx: CapabilityContext, contactId: string) {
   return (data as { id: string } | null)?.id ?? null
 }
 
+/**
+ * Aprobar la respuesta que la IA dejó lista.
+ *
+ * Vive acá y no en `inbox.ts` por una razón de fondo: la bandeja gestiona hilos
+ * y NO le escribe a nadie —hay un test que lo cuida—, y esto sí le escribe. Es
+ * la misma frontera que deja `mensajes.enviar` de este lado.
+ */
+async function conversacionDelBorrador(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+) {
+  const id = String(args.conversacion_id ?? '').trim()
+  if (!id) throw new Error('Falta el id de la conversación.')
+  const conv = await cargarConversacion(ctx.db, ctx.workspaceId, id)
+  if (!conv) throw new Error('Esa conversación no existe en esta cuenta.')
+  return conv
+}
+
+/** El borrador de esa conversación, o un error legible. */
+async function exigirBorrador(ctx: CapabilityContext, conversationId: string) {
+  const { data } = await ctx.db
+    .from('ai_pending_replies')
+    .select('id, content_text, agent_name')
+    .eq('workspace_id', ctx.workspaceId)
+    .eq('conversation_id', conversationId)
+    .maybeSingle()
+  if (!data) throw new Error('Esa conversación no tiene ninguna respuesta esperando.')
+  return data as { id: string; content_text: string; agent_name: string | null }
+}
+
+async function decidirBorrador(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const conv = await conversacionDelBorrador(ctx, args)
+  const borrador = await exigirBorrador(ctx, conv.id)
+
+  if (args.descartar === true) {
+    await ctx.db.from('ai_pending_replies').delete().eq('id', borrador.id)
+    return { conversation_id: conv.id, contacto: conv.contacto, enviado: false }
+  }
+
+  // El texto se puede corregir al aprobarlo: cambiar dos palabras no debería
+  // obligar a descartar y escribir de cero.
+  const texto =
+    typeof args.texto === 'string' && args.texto.trim()
+      ? args.texto.trim()
+      : borrador.content_text
+
+  const enviado = await enviarTextoEnConversacion(ctx.db, {
+    workspaceId: ctx.workspaceId,
+    conversationId: conv.id,
+    texto,
+    actorUserId: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+    origen: 'ai_agent',
+    origenNombre: borrador.agent_name,
+  })
+  // Recién ahora: si el envío falla, el borrador sigue ahí para reintentar.
+  await ctx.db.from('ai_pending_replies').delete().eq('id', borrador.id)
+
+  return { conversation_id: conv.id, enviado: true, ...enviado }
+}
+
 export const MESSAGING_CAPABILITIES: Capability[] = [
+  {
+    key: 'conversaciones.aprobar_borrador',
+    description:
+      'Manda la respuesta que la IA dejó esperando en una conversación, o la descarta con descartar=true. Se puede corregir el texto al aprobarlo. Le llega a una persona real y no se puede deshacer.',
+    descriptionEn:
+      'Sends the reply the AI left waiting on a conversation, or discards it with descartar=true. The text can be edited on approval. It reaches a real person and cannot be undone.',
+    risk: 'irreversible',
+    // Descartar no le llega a nadie: borra un borrador que nunca salió.
+    inerte: (args) => args.descartar === true,
+    schema: {
+      type: 'object',
+      properties: {
+        conversacion_id: {
+          type: 'string',
+          description: 'El conversation_id que devuelve conversaciones.buscar.',
+        },
+        texto: {
+          type: 'string',
+          description: 'Reemplaza el texto del borrador. Vacío = se manda tal cual.',
+        },
+        descartar: { type: 'boolean', description: 'true lo borra sin mandarlo.' },
+      },
+      required: ['conversacion_id'],
+    },
+    async preview(ctx, args) {
+      const conv = await conversacionDelBorrador(ctx, args)
+      const borrador = await exigirBorrador(ctx, conv.id)
+      if (args.descartar === true) {
+        return `Descartaría la respuesta que la IA dejó para ${`${conv.contacto ?? 'sin nombre'} (${conv.channel})`}. No sale nada.`
+      }
+      const texto =
+        typeof args.texto === 'string' && args.texto.trim()
+          ? args.texto.trim()
+          : borrador.content_text
+      return `Le mandaría a ${`${conv.contacto ?? 'sin nombre'} (${conv.channel})`}: "${texto}"`
+    },
+    run: decidirBorrador,
+  },
+
   {
     key: 'conversaciones.pendientes',
     description:

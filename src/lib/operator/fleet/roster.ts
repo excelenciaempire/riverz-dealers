@@ -126,7 +126,12 @@ export const ROSTER: SubagentSpec[] = [
       'Ordena la bandeja: quién está esperando respuesta, a quién se le asigna, qué se cierra, y por qué a alguien no le llegó un mensaje. También puede redactar un mensaje para un cliente, que siempre queda esperando aprobación. NO arma campañas ni automatizaciones.',
     capacidades: [
       'conversaciones.',
+      // Lo que vive dentro de la bandeja y no es un hilo: reclamos de Mercado
+      // Libre, devoluciones, atajos, filtros guardados y las reglas de reparto.
+      'bandeja.',
       'contactos.buscar',
+      // La nota se escribe mirando una conversación, no armando un segmento.
+      'contactos.anotar',
       'mensajes.diagnostico',
       'mensajes.enviar',
     ],

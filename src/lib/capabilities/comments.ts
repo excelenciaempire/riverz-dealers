@@ -28,6 +28,11 @@ import {
   autoReplyCommentsEnabled,
   loadCommentSettings,
 } from '@/lib/instagram-agent/controls'
+import {
+  ACCIONES_COMENTARIO,
+  moderarComentario,
+  type AccionComentario,
+} from '@/lib/channels/comment-actions'
 import { PENDING_SENDER, hoursWaiting } from './predicates'
 import type { Capability, CapabilityContext } from './types'
 
@@ -385,7 +390,216 @@ async function activarRegla(
   return { id: regla.id, name: regla.name, is_active: regla.is_active }
 }
 
+// ---------------------------------------------------------------------------
+// VER TODOS, Y PODER TOCARLOS.
+//
+// `comentarios.pendientes` sólo trae los que nadie respondió, que es la lista
+// de trabajo. Pero "¿por qué este comentario está oculto?" y "sacá ese de la
+// vista" no tenían por dónde: el chat veía la cola y no podía mover nada.
+// ---------------------------------------------------------------------------
+
+/** Cuántos comentarios devuelve como mucho un listado. */
+const TOPE_LISTADO = 50
+
+async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const limite = Math.min(Number(args.limite) || 20, TOPE_LISTADO)
+  const canales: CommentChannel[] =
+    typeof args.red === 'string' && CANAL_DE[args.red] && CANAL_DE[args.red] !== 'both'
+      ? [CANAL_DE[args.red] as CommentChannel]
+      : ['ig_comment', 'fb_comment', 'tiktok_comment']
+
+  let q = ctx.db
+    .from('messages')
+    .select(
+      'id, created_at, content_text, sender_type, is_hidden, hidden_by, hidden_reason, hidden_at, is_liked, message_id, status, conversation_id, comments_meta(permalink, post_id, is_ad), conversations!inner(channel, workspace_id, contacts(name))',
+    )
+    .eq('conversations.workspace_id', ctx.workspaceId)
+    .in('conversations.channel', canales)
+    .order('created_at', { ascending: false })
+    .limit(limite)
+
+  if (args.solo_ocultos === true) q = q.eq('is_hidden', true)
+  if (typeof args.texto === 'string' && args.texto.trim()) {
+    q = q.ilike('content_text', `%${args.texto.trim().replace(/[%,]/g, ' ')}%`)
+  }
+
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+
+  const filas = (data ?? []) as unknown as Array<{
+    id: string
+    created_at: string
+    content_text: string | null
+    sender_type: string
+    is_hidden: boolean | null
+    hidden_by: string | null
+    hidden_reason: string | null
+    hidden_at: string | null
+    is_liked: boolean | null
+    message_id: string | null
+    conversation_id: string
+    comments_meta: { permalink: string | null; post_id: string | null; is_ad: boolean | null } | null
+    conversations: { channel: string; contacts: { name: string | null } | null } | null
+  }>
+
+  return {
+    comentarios: filas.map((m) => {
+      const meta = Array.isArray(m.comments_meta) ? m.comments_meta[0] : m.comments_meta
+      return {
+        // El id que pide `comentarios.moderar` es ESTE, el del mensaje.
+        message_id: m.id,
+        conversation_id: m.conversation_id,
+        canal: RED[(m.conversations?.channel ?? 'ig_comment') as CommentRuleChannel],
+        // 'customer' es quien comentó; lo demás es lo que respondió la cuenta.
+        quien: m.sender_type,
+        persona: m.conversations?.contacts?.name ?? 'sin nombre',
+        comentario: m.content_text,
+        cuando: m.created_at,
+        oculto: m.is_hidden === true,
+        // Quién lo ocultó (migración 212): la IA por spam, una persona desde la
+        // bandeja, o alguien desde la app de la red. Son tres conversaciones
+        // distintas con el comercio.
+        lo_oculto: m.hidden_by,
+        oculto_porque: m.hidden_reason,
+        oculto_el: m.hidden_at,
+        me_gusta: m.is_liked === true,
+        es_anuncio: meta?.is_ad === true,
+        publicacion: meta?.post_id ?? null,
+        enlace: meta?.permalink ?? null,
+      }
+    }),
+  }
+}
+
+const QUE_HACE: Record<AccionComentario, string> = {
+  hide: 'Lo sacaría de la vista del público',
+  unhide: 'Lo volvería a mostrar en público',
+  delete: 'Lo BORRARÍA de la publicación, y eso no se deshace',
+  like: 'Le pondría me gusta desde la cuenta',
+  unlike: 'Le sacaría el me gusta',
+}
+
+async function comentarioParaModerar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const id = String(args.message_id ?? '').trim()
+  if (!id) throw new Error('Falta el message_id del comentario.')
+  const { data } = await ctx.db
+    .from('messages')
+    .select('id, content_text, is_hidden, conversations!inner(workspace_id, contacts(name))')
+    .eq('id', id)
+    .eq('conversations.workspace_id', ctx.workspaceId)
+    .maybeSingle()
+  if (!data) throw new Error('Ese comentario no existe en esta cuenta.')
+  return data as unknown as {
+    id: string
+    content_text: string | null
+    is_hidden: boolean | null
+    conversations: { contacts: { name: string | null } | null } | null
+  }
+}
+
+async function moderar(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const comentario = await comentarioParaModerar(ctx, args)
+  const accion = String(args.accion ?? '') as AccionComentario
+  if (!ACCIONES_COMENTARIO.includes(accion)) {
+    throw new Error(`Acción desconocida: ${accion}`)
+  }
+
+  const r = await moderarComentario(ctx.db, {
+    workspaceId: ctx.workspaceId,
+    messageId: comentario.id,
+    accion,
+    // Detrás de esto hay una persona que lo aprobó, no el filtro de spam.
+    actorUserId: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+  })
+  if (!r.ok) {
+    throw new Error(
+      r.motivo === 'sin_conexion'
+        ? 'La cuenta de esa red no está conectada.'
+        : r.motivo === 'no_es_comentario'
+          ? 'Eso no es un comentario.'
+          : (r.detail ?? 'La red rechazó la acción.'),
+    )
+  }
+  return { message_id: comentario.id, accion, hecho: true }
+}
+
 export const COMMENT_CAPABILITIES: Capability[] = [
+  {
+    key: 'comentarios.listar',
+    description:
+      'Los comentarios de Instagram, Facebook y TikTok, del más nuevo al más viejo, respondidos o no. De cada uno dice de qué publicación es, si es de un anuncio, si está oculto y QUIÉN lo ocultó: la IA por spam, alguien del equipo desde la bandeja, o alguien desde la app de la red. Con solo_ocultos=true trae únicamente los que no ve el público. De acá sale el message_id que pide comentarios.moderar.',
+    descriptionEn:
+      'The Instagram, Facebook and TikTok comments, newest first, answered or not. Each says which post it belongs to, whether it is on an ad, whether it is hidden and WHO hid it: the AI as spam, someone on the team from the inbox, or someone from the network app. With solo_ocultos=true it returns only the ones the public cannot see. The message_id that comentarios.moderar needs comes from here.',
+    risk: 'lectura',
+    schema: {
+      type: 'object',
+      properties: {
+        red: { type: 'string', enum: ['instagram', 'facebook', 'tiktok'] },
+        solo_ocultos: { type: 'boolean', description: 'Sólo los ocultos del público.' },
+        texto: { type: 'string', description: 'Busca dentro del comentario.' },
+        limite: { type: 'number', description: `Por defecto 20, máximo ${TOPE_LISTADO}.` },
+      },
+    },
+    run: listar,
+  },
+
+  {
+    key: 'comentarios.moderar',
+    description:
+      'Oculta, vuelve a mostrar, borra o le pone me gusta a un comentario, sobre la red donde está. Ocultar y mostrar se deshacen; borrar NO: el comentario desaparece de la publicación y no vuelve. El message_id sale de comentarios.listar o comentarios.pendientes.',
+    descriptionEn:
+      'Hides, unhides, deletes or likes a comment on the network where it lives. Hiding and unhiding can be undone; deleting CANNOT: the comment disappears from the post and does not come back. The message_id comes from comentarios.listar or comentarios.pendientes.',
+    // Borrar no vuelve; el resto sí. Se declara por lo peor que puede pasar y
+    // el preview dice cuál de las dos es.
+    risk: 'irreversible',
+    // NUNCA inerte, ni siquiera ocultar. Un comentario oculto lo sigue viendo
+    // quien lo escribió, y ahí se lee como censura: el 2026-08-28 el filtro de
+    // spam ocultó solo la crítica de una clienta y ese fue exactamente el
+    // problema. Sacar algo de la vista del público es una decisión de una
+    // persona, no un paso de construcción.
+    schema: {
+      type: 'object',
+      properties: {
+        message_id: {
+          type: 'string',
+          description: 'El message_id que devuelve comentarios.listar.',
+        },
+        accion: { type: 'string', enum: [...ACCIONES_COMENTARIO] },
+      },
+      required: ['message_id', 'accion'],
+    },
+    async preview(ctx, args) {
+      const c = await comentarioParaModerar(ctx, args)
+      const accion = String(args.accion ?? '') as AccionComentario
+      const quien = c.conversations?.contacts?.name ?? 'alguien'
+      const texto = (c.content_text ?? '').slice(0, 120)
+      return `${QUE_HACE[accion] ?? 'Actuaría sobre'} el comentario de ${quien}: "${texto}"`
+    },
+    async deshacer(ctx, args) {
+      const accion = String(args.accion ?? '') as AccionComentario
+      const vuelta: Partial<Record<AccionComentario, AccionComentario>> = {
+        hide: 'unhide',
+        unhide: 'hide',
+        like: 'unlike',
+        unlike: 'like',
+      }
+      const contraria = vuelta[accion]
+      // Borrar no está en el mapa: no hay vuelta y prometerla sería mentir.
+      if (!contraria) throw new Error('Un comentario borrado no vuelve.')
+      await moderarComentario(ctx.db, {
+        workspaceId: ctx.workspaceId,
+        messageId: String(args.message_id),
+        accion: contraria,
+        actorUserId: ctx.actor.type === 'operator' ? (ctx.actor.id ?? null) : null,
+      })
+      return contraria === 'unhide'
+        ? 'El comentario volvió a estar visible.'
+        : contraria === 'hide'
+          ? 'El comentario volvió a estar oculto.'
+          : 'Se deshizo el me gusta.'
+    },
+    run: moderar,
+  },
   {
     key: 'comentarios.pendientes',
     description:

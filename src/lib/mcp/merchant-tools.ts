@@ -22,6 +22,10 @@ import { desdeCapacidad, type McpTool } from './tool'
  */
 export const MERCHANT_TOOLS: McpTool[] = [
   desdeCapacidad('conversaciones_pendientes', 'conversaciones.pendientes'),
+  // Leer el hilo. Contestar «¿por qué se quejó este cliente?» sin poder abrir
+  // la conversación era adivinar sobre el último renglón del preview.
+  desdeCapacidad('conversacion_detalle', 'conversaciones.detalle'),
+  desdeCapacidad('conversacion_mensajes', 'conversaciones.mensajes'),
   desdeCapacidad('contacto_buscar', 'contactos.buscar'),
   desdeCapacidad('contactos_listar', 'contactos.listar'),
   desdeCapacidad('metricas', 'metricas.resumen'),

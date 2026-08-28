@@ -27,6 +27,8 @@ const INERTES: Record<string, string> = {
   'comentarios.crear_regla': 'nace apagada',
   'prospeccion.crear_campana': 'borrador: ni siquiera resuelve la audiencia',
   'ajustes.renombrar': 'lo ve el equipo en su barra lateral y nadie más',
+  'bandeja.crear_atajo': 'una respuesta guardada; no sale hasta que alguien la use',
+  'contactos.anotar': 'una nota interna: la lee el equipo, nunca el cliente',
 }
 
 /**
@@ -54,6 +56,10 @@ const NO_INERTES_A_PROPOSITO: Record<string, string> = {
   'productos.editar': 'los agentes repiten esto ante un cliente en cuanto se guarda',
   'ajustes.zona_horaria': 'mueve cuándo dispara todo lo que ya está corriendo',
   'conversaciones.ia': 'prenderla pone a contestar sola una conversación abierta',
+  // Ocultar no manda nada, pero SÍ lo nota quien escribió el comentario:
+  // lo ve tachado bajo la publicación y se lee como censura.
+  'comentarios.moderar': 'sacar algo de la vista del público lo nota quien lo escribió',
+  'conversaciones.aprobar_borrador': 'manda el mensaje que la IA dejó esperando',
 }
 
 describe('qué puede construirse sin preguntar', () => {
