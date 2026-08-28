@@ -52,6 +52,9 @@ const LISTA: Record<string, { centavos: number; unidad: string; proveedor: strin
   voz_stt: { centavos: 0.78, unidad: 'minuto', proveedor: 'Deepgram' },
   // La búsqueda web de Anthropic: 10 USD cada mil búsquedas.
   busqueda_web: { centavos: 1, unidad: 'búsqueda', proveedor: 'Anthropic' },
+  // Mirar la foto de una publicación para poder contestar sus comentarios: una
+  // llamada de visión con ~300 tokens de salida.
+  entender_publicacion: { centavos: 1.5, unidad: 'publicación', proveedor: 'Anthropic' },
   // Estos dos NO existen en este producto y quedaron apagados en la tabla:
   // acá la IA MIRA imágenes (y eso ya se paga en los tokens de la respuesta),
   // no las genera; y la investigación de mercado es de la otra herramienta de

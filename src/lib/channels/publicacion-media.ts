@@ -5,6 +5,7 @@ import { withAppsecretProof } from "./meta-graph";
 import { describeImage, toImageMediaType } from "@/lib/ai/llm-client";
 import { resolveAnthropicKey } from "@/lib/ai/platform-key";
 import { transcribeBuffer, transcripcionDisponible } from "@/lib/ai/transcribe";
+import { cobrar } from "@/lib/wallet/saldo";
 
 /**
  * QUÉ MUESTRA LA PUBLICACIÓN.
@@ -208,6 +209,21 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
     medio.tipo === "video"
       ? await queSeDiceEnElVideo(medio.url)
       : await queSeVeEnLaImagen(db, fila.workspace_id, medio.url);
+
+  // Entender la publicación se le cobra al comercio: es una llamada al modelo
+  // con la clave de Riverz, igual que una respuesta. Se cobra sólo si salió
+  // bien — un intento fallido no le dio nada a nadie. El video queda gratis a
+  // propósito: lo transcribe Whisper en Groq, que sale una fracción de centavo
+  // por hora y cobrarlo costaría más ruido en el libro que la plata que mueve.
+  if (entendido && medio.tipo !== "video") {
+    void cobrar(db, fila.workspace_id, {
+      concepto: "entender_publicacion",
+      cantidad: 1,
+      referenciaTipo: "publicacion",
+      referenciaId: fila.external_id,
+      detalle: { medio: medio.tipo },
+    });
+  }
 
   if (!entendido) {
     await marcar(db, fila, "error", { medio_tipo: medio.tipo, medio_url: medio.url });

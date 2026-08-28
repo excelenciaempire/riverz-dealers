@@ -1050,6 +1050,10 @@ export const settings = {
     en: "Your account pays the real cost, with no margin: this is exactly what gets deducted.",
   },
   walletEstimate: { es: "estimado", en: "estimate" },
+  walletIncluded: {
+    es: "Sin cargo: transcribir las notas de voz de tus clientes y el audio de tus videos.",
+    en: "No charge: transcribing your customers' voice notes and your videos' audio.",
+  },
 
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },

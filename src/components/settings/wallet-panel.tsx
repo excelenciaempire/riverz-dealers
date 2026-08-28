@@ -734,6 +734,12 @@ export function WalletPanel() {
             );
           })}
         </ul>
+        {/* Lo que corre con nuestras llaves y NO se cobra. Decirlo importa: si
+            no, el comercio no sabe que existe y el día que vea "transcripción"
+            en otro lado va a pensar que se la estamos escondiendo. */}
+        <p className="mt-3 text-xs text-muted-foreground">
+          {t('settings.walletIncluded')}
+        </p>
       </section>
     </div>
   );
