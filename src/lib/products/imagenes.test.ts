@@ -81,7 +81,7 @@ describe('unirImagenes', () => {
   })
 
   it('recorta también la galería que ya venía pasada de largo', () => {
-    const largas = Array.from({ length: 20 }, (_, i) => `https://cdn/v${i}.jpg`)
+    const largas = Array.from({ length: MAX_IMAGENES + 8 }, (_, i) => `https://cdn/v${i}.jpg`)
     expect(unirImagenes(largas, [])).toHaveLength(MAX_IMAGENES)
   })
 
@@ -93,8 +93,7 @@ describe('unirImagenes', () => {
   it('corta en el mismo tope que acepta el guardado', () => {
     // Si trajera más de las que `write.ts` guarda, el editor las mostraría y
     // el siguiente "Guardar cambios" borraría el resto sin avisar.
-    const muchas = Array.from({ length: 40 }, (_, i) => `https://cdn/${i}.jpg`)
+    const muchas = Array.from({ length: MAX_IMAGENES + 8 }, (_, i) => `https://cdn/${i}.jpg`)
     expect(unirImagenes([], muchas)).toHaveLength(MAX_IMAGENES)
-    expect(MAX_IMAGENES).toBe(12)
   })
 })

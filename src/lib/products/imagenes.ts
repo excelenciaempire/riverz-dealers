@@ -13,8 +13,13 @@ const log = getLogger('products.imagenes')
  * Tope de la galería de un producto. Lo comparte `write.ts`: si acá entraran
  * más de las que el guardado acepta, el editor las mostraría y el siguiente
  * "Guardar cambios" borraría la mitad sin decir nada.
+ *
+ * Eran 12, que alcanzaban cuando la galería se cargaba a mano. Un producto
+ * unificado tiene cuatro publicaciones —la tienda y tres de Mercado Libre— y
+ * las 12 de la tienda se comían el cupo enteras: las de Mercado Libre no
+ * entraban nunca.
  */
-export const MAX_IMAGENES = 12
+export const MAX_IMAGENES = 30
 
 /**
  * Traer TODAS las fotos que la publicación tiene en su plataforma.
