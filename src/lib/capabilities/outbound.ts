@@ -24,6 +24,7 @@ import {
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { isStalledBroadcast, since, windowDays } from './predicates'
+import { corto, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function plantillas(ctx: CapabilityContext) {
@@ -443,6 +444,106 @@ async function detallePlantilla(ctx: CapabilityContext, args: Record<string, unk
   }
 }
 
+
+/**
+ * Las plantillas y las campañas, dibujadas.
+ *
+ * En las plantillas la columna que decide todo es el estado: una rechazada hay
+ * que corregirla y una que lleva días en pendiente casi nunca es la plantilla
+ * —es el WABA bloqueado por facturación—. Por eso el motivo del rechazo viaja
+ * al lado y no escondido en un detalle.
+ */
+function vistaPlantillas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    name: string
+    category: string | null
+    language: string | null
+    status: string | null
+    rejected_reason: string | null
+    quality_score: string | null
+  }>(r, 'plantillas')
+  return tabla({
+    titulo: tt(ctx, 'operation.subPlantillas'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'categoria', titulo: tt(ctx, 'operation.vColCategoria') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'motivo', titulo: tt(ctx, 'operation.vColMotivo') },
+    ],
+    filas: filas.map((p) => ({
+      nombre: corto(p.name, 30),
+      categoria: [p.category, p.language].filter(Boolean).join(' · ') || '—',
+      estado: p.status ?? '—',
+      motivo: corto(p.rejected_reason, 40),
+    })),
+    vacio: tt(ctx, 'operation.vSinPlantillas'),
+  })
+}
+
+/**
+ * Una plantilla, en su teléfono.
+ *
+ * Es el kind `plantilla` que el banco ya sabe dibujar con `WhatsappPreview`:
+ * aprobar o corregir un mensaje es mirar el mensaje, no leer sus campos en una
+ * lista. Que la lectura y la creación produzcan el MISMO dibujo es el punto.
+ */
+function vistaPlantilla(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof detallePlantilla>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'encontrada') || !r.encontrada) return null
+  return {
+    kind: 'plantilla',
+    nombre: String(r.nombre ?? ''),
+    categoria: String(r.categoria ?? ''),
+    idioma: String(r.idioma ?? ''),
+    cuerpo: String(r.cuerpo ?? ''),
+    encabezado: r.encabezado ? String(r.encabezado) : undefined,
+    pie: r.pie ? String(r.pie) : undefined,
+    botones: lista<{ text?: string; texto?: string; type?: string; tipo?: string }>(
+      r,
+      'botones',
+    ).map((b) => ({ texto: String(b.texto ?? b.text ?? ''), tipo: String(b.tipo ?? b.type ?? '') })),
+  }
+}
+
+/**
+ * Las campañas, con lo que hace falta para saber si salió bien.
+ *
+ * Enviados sobre destinatarios, y los fallidos aparte: una campaña que "salió"
+ * con la mitad fallada no salió, y ese número no se ve en ninguna otra parte
+ * sin restar de memoria.
+ */
+function vistaCampanas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    name: string
+    template_name: string | null
+    status: string
+    total_recipients: number | null
+    sent_count: number | null
+    failed_count: number | null
+    replied_count: number | null
+  }>(r, 'campanas')
+  return tabla({
+    titulo: tt(ctx, 'operation.subCampanas'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColCampana') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'enviados', titulo: tt(ctx, 'operation.vColEnviados'), alineado: 'der' },
+      { clave: 'fallidos', titulo: tt(ctx, 'operation.vColFallidos'), alineado: 'der' },
+      { clave: 'respuestas', titulo: tt(ctx, 'operation.vColRespuestas'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      nombre: corto(c.name, 26),
+      estado: c.status,
+      enviados: `${numero(ctx, c.sent_count ?? 0)}/${numero(ctx, c.total_recipients ?? 0)}`,
+      fallidos: numero(ctx, c.failed_count ?? 0),
+      respuestas: numero(ctx, c.replied_count ?? 0),
+    })),
+    vacio: tt(ctx, 'operation.vSinCampanas'),
+  })
+}
+
 export const OUTBOUND_CAPABILITIES: Capability[] = [
   {
     key: 'plantillas.estado',
@@ -453,6 +554,7 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: plantillas,
+    vista: (ctx, _args, r) => vistaPlantillas(ctx, r),
   },
 
   {
@@ -469,6 +571,7 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
       },
     },
     run: campanas,
+    vista: (ctx, _args, r) => vistaCampanas(ctx, r),
   },
 
   {
@@ -490,6 +593,8 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
       required: ['nombre'],
     },
     run: detallePlantilla,
+    vista: (ctx, _args, r) =>
+      vistaPlantilla(ctx, r as Awaited<ReturnType<typeof detallePlantilla>>),
   },
 
   {

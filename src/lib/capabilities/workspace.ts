@@ -30,6 +30,8 @@ import { leerSuscripcion } from '@/lib/billing/plan'
 import { rangoDe, resumen } from '@/lib/wallet/movimientos'
 import { leerBilletera } from '@/lib/wallet/saldo'
 import { listarTarifas } from '@/lib/wallet/tarifas'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, cifras, fecha, ficha, lista, numero, tablero, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /**
@@ -211,6 +213,134 @@ async function plan(ctx: CapabilityContext) {
   }
 }
 
+
+/**
+ * La cuenta, dibujada.
+ *
+ * El saldo va en cifras porque son tres números que se miran juntos —cuánto
+ * hay, cuánto entró, cuánto se fue— y la serie por día contesta la pregunta
+ * que sigue sola: ¿desde cuándo gasto así? El plan es una ficha: son campos,
+ * no magnitudes.
+ */
+function vistaSaldo(ctx: CapabilityContext, r: Awaited<ReturnType<typeof saldo>>): Artefacto | null {
+  if (!tieneCampos(r, 'saldo', 'moneda')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const tiles = [
+    { etiqueta: t('vSaldo'), valor: String(r.saldo), tono: 'neutro' as const },
+    { etiqueta: t('vCargado'), valor: String(r.cargado), tono: 'neutro' as const },
+    { etiqueta: t('vGastadoPeriodo'), valor: String(r.gastado), tono: 'neutro' as const },
+  ]
+  if (r.recarga_automatica) {
+    tiles.push({
+      etiqueta: t('vRecargaAutomatica'),
+      valor: String(r.recarga_automatica.cuanto),
+      tono: 'neutro' as const,
+    })
+  }
+  return cifras({
+    titulo: t('vTitSaldo'),
+    // Sin saldo la operación se corta o queda debiendo, y son dos cosas muy
+    // distintas: se dice en la bajada porque cambia la urgencia de recargar.
+    bajada: r.corta_sin_saldo ? t('vCortaSinSaldo') : t('vQuedaDebiendo'),
+    tiles,
+    serie: lista<{ dia?: string; fecha?: string; centavos?: number; gastado?: number }>(
+      r,
+      'por_dia',
+    ).map((d) => ({
+      etiqueta: String(d.dia ?? d.fecha ?? ''),
+      valor: Number(d.centavos ?? d.gastado ?? 0),
+    })),
+  })
+}
+
+function vistaPlan(ctx: CapabilityContext, r: Awaited<ReturnType<typeof plan>>): Artefacto | null {
+  if (!tieneCampos(r, 'tiene_plan')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  if (!r.tiene_plan) {
+    return ficha({ titulo: t('vTitPlan'), campos: [], nota: String(r.nota ?? '') })
+  }
+  const chips = [String(r.estado)]
+  // Un precio propio explica por qué esta cuenta no paga lo de la lista, y es
+  // la primera pregunta cuando alguien compara.
+  if (r.trato_propio) chips.push(t('vTratoPropio'))
+  return ficha({
+    titulo: String(r.plan ?? t('vTitPlan')),
+    chips,
+    campos: [
+      { etiqueta: t('vColPrecio'), valor: String(r.precio ?? '') },
+      { etiqueta: t('vIncluidas'), valor: r.incluidas != null ? numero(ctx, r.incluidas) : '' },
+      { etiqueta: t('vExcedente'), valor: String(r.excedente ?? '') },
+      {
+        etiqueta: t('vPeriodo'),
+        valor: r.periodo_hasta ? fecha(ctx, r.periodo_hasta) : '',
+      },
+      { etiqueta: t('vPruebaHasta'), valor: r.prueba_hasta ? fecha(ctx, r.prueba_hasta) : '' },
+    ],
+    // El cobro fallando es el reloj de la gracia: si no se lee, la cuenta se
+    // corta sin que nadie haya visto venir nada.
+    nota: r.cobro_fallando_desde
+      ? `${t('vCobroFallando')} ${fecha(ctx, r.cobro_fallando_desde)}`
+      : undefined,
+  })
+}
+
+function vistaCuenta(ctx: CapabilityContext, r: Awaited<ReturnType<typeof ver>>): Artefacto | null {
+  if (!tieneCampos(r, 'nombre')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const equipo = lista<{ nombre: string | null; email: string | null; rol: string; es_dueno: boolean }>(
+    r,
+    'equipo',
+  )
+  const invitados = lista<{ email: string; rol: string }>(r, 'invitaciones_pendientes')
+  return tablero({
+    titulo: String(r.nombre),
+    filas: [
+      { que: t('vZonaHoraria'), estado: 'ok', detalle: String(r.zona_horaria) },
+      ...equipo.map((m) => ({
+        que: m.nombre || m.email || t('vSinNombre'),
+        estado: 'ok' as const,
+        detalle: m.es_dueno ? `${m.rol} · ${t('vDueno')}` : m.rol,
+      })),
+      // Una invitación sin aceptar no es un miembro: se ve distinta a
+      // propósito, porque esa persona todavía no entró a nada.
+      ...invitados.map((i) => ({
+        que: i.email,
+        estado: 'apagado' as const,
+        detalle: `${i.rol} · ${t('vInvitacionPendiente')}`,
+      })),
+    ],
+  })
+}
+
+/** Lo que se cambia de la cuenta, con el antes al lado del después. */
+function vistaCambioDeCuenta(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  campo: 'nombre' | 'zona_horaria',
+): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cambio({
+    titulo: t(campo === 'nombre' ? 'vTitRenombrar' : 'vTitZonaHoraria'),
+    que: t(campo === 'nombre' ? 'vQueRenombrar' : 'vQueZonaHoraria'),
+    campos: [
+      {
+        etiqueta: t(campo === 'nombre' ? 'vColNombre' : 'vZonaHoraria'),
+        despues: String(args[campo] ?? ''),
+      },
+    ],
+  })
+}
+
+/** A quién se invita y a qué entra. */
+function vistaInvitar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cambio({
+    titulo: String(args.email ?? ''),
+    que: accesoQueGana(ctx, args),
+    // Una invitación llega a un correo real: no es un cambio interno.
+    aviso: t('vInvitarAviso'),
+  })
+}
 export const WORKSPACE_CAPABILITIES: Capability[] = [
   {
     key: 'ajustes.saldo',
@@ -227,6 +357,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
       },
     },
     run: saldo,
+    vista: (ctx, _args, r) => vistaSaldo(ctx, r as Awaited<ReturnType<typeof saldo>>),
   },
 
   {
@@ -238,6 +369,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: plan,
+    vista: (ctx, _args, r) => vistaPlan(ctx, r as Awaited<ReturnType<typeof plan>>),
   },
   {
     key: 'ajustes.cuenta',
@@ -248,6 +380,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: ver,
+    vista: (ctx, _args, r) => vistaCuenta(ctx, r as Awaited<ReturnType<typeof ver>>),
   },
 
   {
@@ -280,6 +413,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
       return `«${nombre}» pasaría de reportar en ${actual} a ${zona.trim()}. Cambian los horarios de toda la cuenta a la vez: el corte del día en las métricas, las horas de la bandeja y el horario de atención de las automatizaciones que ya están corriendo.`
     },
     run: cambiarZona,
+    artifact: (ctx, args) => vistaCambioDeCuenta(ctx, args, 'zona_horaria'),
   },
 
   {
@@ -304,6 +438,7 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
       return `La cuenta pasaría de llamarse «${actual}» a «${nuevo}».`
     },
     run: renombrar,
+    artifact: (ctx, args) => vistaCambioDeCuenta(ctx, args, 'nombre'),
   },
 
   {
@@ -340,5 +475,6 @@ export const WORKSPACE_CAPABILITIES: Capability[] = [
       )}. Cuando lo acepte entra a la cuenta y ve los datos de los clientes. El correo no se puede cancelar una vez enviado.`
     },
     run: invitar,
+    artifact: (ctx, args) => vistaInvitar(ctx, args),
   },
 ]

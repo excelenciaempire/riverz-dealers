@@ -44,6 +44,7 @@ import {
 import type { BuilderStepInput } from '@/lib/automations/steps-tree'
 import { translate } from '@/lib/i18n/translate'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, corto, fecha, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext) {
@@ -635,6 +636,132 @@ async function cancelarEspera(ctx: CapabilityContext, args: Record<string, unkno
   }
 }
 
+
+/**
+ * Las automatizaciones, dibujadas.
+ *
+ * `ver` produce el MISMO árbol que ya se dibuja al crear o editar una: mirar
+ * una que existe y aprobar una que se está armando tienen que verse igual, o
+ * comparar las dos obliga a traducir de memoria entre dos formas.
+ */
+function vistaVer(ctx: CapabilityContext, r: Awaited<ReturnType<typeof ver>>): Artefacto | null {
+  if (!tieneCampos(r, 'nombre', 'pasos')) return null
+  return {
+    kind: 'automatizacion',
+    nombre: String(r.nombre),
+    cuando: String(r.cuando ?? r.disparador ?? ''),
+    pasos: lista<{ resumen?: string; tipo?: string }>(r, 'pasos').map((p) => ({
+      tipo: String(p.tipo ?? ''),
+      resumen: String(p.resumen ?? ''),
+    })),
+  }
+}
+
+function vistaListarAutomatizaciones(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    name: string
+    trigger_type: string | null
+    is_active: boolean | null
+    execution_count: number | null
+    last_executed_at: string | null
+  }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.subAutomatizaciones'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColDispara') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'corridas', titulo: tt(ctx, 'operation.vColCorridas'), alineado: 'der' },
+      { clave: 'ultima', titulo: tt(ctx, 'operation.vColUltima') },
+    ],
+    filas: filas.map((a) => ({
+      nombre: corto(a.name, 28),
+      cuando: corto(a.trigger_type, 22),
+      estado: a.is_active ? tt(ctx, 'operation.vEncendida') : tt(ctx, 'operation.vApagada'),
+      corridas: numero(ctx, a.execution_count ?? 0),
+      ultima: a.last_executed_at ? fecha(ctx, a.last_executed_at) : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinAutomatizaciones'),
+  })
+}
+
+/**
+ * Lo que está por salir esta noche.
+ *
+ * La columna que no está en ninguna otra pantalla es si la automatización está
+ * PAUSADA: pausarla no frena lo que ya arrancó, y esa cola sigue saliendo. Ver
+ * «pausada» al lado de un mensaje que va a salir es toda la información.
+ */
+function vistaEnCola(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    automatizacion: string
+    automatizacion_activa: boolean
+    cliente: string
+    sale: string | null
+  }>(r, 'en_cola')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitEnCola'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'automatizacion', titulo: tt(ctx, 'operation.subAutomatizaciones') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'sale', titulo: tt(ctx, 'operation.vColSale') },
+    ],
+    filas: filas.map((e) => ({
+      cliente: corto(e.cliente, 22),
+      automatizacion: corto(e.automatizacion, 26),
+      estado: e.automatizacion_activa
+        ? tt(ctx, 'operation.vEncendida')
+        : tt(ctx, 'operation.vPausadaPeroSale'),
+      sale: e.sale ? fecha(ctx, e.sale) : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinCola'),
+  })
+}
+
+function vistaRecetas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{ nombre: string; disparador: string; pasarela_requerida: string | null }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitRecetas'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColDispara') },
+      { clave: 'necesita', titulo: tt(ctx, 'operation.vColNecesita') },
+    ],
+    filas: filas.map((x) => ({
+      nombre: corto(x.nombre, 30),
+      cuando: corto(x.disparador, 24),
+      necesita: x.pasarela_requerida ?? '—',
+    })),
+  })
+}
+
+/**
+ * Prender o pausar, dibujado.
+ *
+ * Prender es el momento en que empieza a hablarle a gente real. La tarjeta
+ * tiene que decir cuál de las dos cosas es, porque el `preview` se lee rápido y
+ * las dos frases se parecen demasiado.
+ */
+function vistaActivar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = Boolean(args.activa)
+  return cambio({
+    titulo: tt(ctx, prende ? 'operation.vTitPrender' : 'operation.vTitPausar'),
+    que: tt(ctx, prende ? 'operation.vQuePrender' : 'operation.vQuePausar'),
+    // Pausar no frena la cola: es el error más caro de esta pantalla, porque
+    // quien pausa cree que ya no sale nada.
+    aviso: prende ? undefined : tt(ctx, 'operation.vPausarNoFrenaCola'),
+  })
+}
+
+/** Cancelar una espera: a ese cliente no le llega el mensaje. */
+function vistaCancelarEspera(ctx: CapabilityContext): Artefacto {
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitCancelarEspera'),
+    que: tt(ctx, 'operation.vQueCancelarEspera'),
+    aviso: tt(ctx, 'operation.vCancelarEsperaAviso'),
+  })
+}
 export const AUTOMATION_CAPABILITIES: Capability[] = [
   {
     key: 'automatizaciones.en_cola',
@@ -648,6 +775,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       properties: { limite: { type: 'number', description: 'Por defecto 30, máximo 100.' } },
     },
     run: enCola,
+    vista: (ctx, _args, r) => vistaEnCola(ctx, r),
   },
 
   {
@@ -671,6 +799,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       return `Cancelaría el mensaje de «${e.automations?.name ?? 'una automatización'}» a ${quien}${cuando}. Queda cancelado para siempre: la cola no lo vuelve a tomar.`
     },
     run: cancelarEspera,
+    artifact: (ctx) => vistaCancelarEspera(ctx),
   },
   {
     key: 'automatizaciones.listar',
@@ -681,6 +810,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listar,
+    vista: (ctx, _args, r) => vistaListarAutomatizaciones(ctx, r),
   },
 
   {
@@ -696,6 +826,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       required: ['automation_id'],
     },
     run: ver,
+    vista: (ctx, _args, r) => vistaVer(ctx, r as Awaited<ReturnType<typeof ver>>),
   },
 
   {
@@ -707,6 +838,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: recetas,
+    vista: (ctx, _args, r) => vistaRecetas(ctx, r),
   },
 
   {
@@ -767,6 +899,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
         : `«${nombre}» quedó prendida otra vez.`
     },
     run: activar,
+    artifact: (ctx, args) => vistaActivar(ctx, args),
   },
 
   {
