@@ -21,6 +21,14 @@ import { join } from 'node:path'
  *   - `lib/voice/**` tiene un modo rioplatense deliberado, con su propio test
  *     que exige el voseo (`voice/rioplatense.test.ts`). Es una variante, no un
  *     error.
+ *   - `ai/registro-rioplatense.ts` es la misma variante para los canales de
+ *     TEXTO, y por eso tampoco entra. Ojo con la diferencia: lo que este test
+ *     protege es que el voseo no se filtre por el andamiaje del prompt —las
+ *     descripciones de herramientas, los mensajes que devuelven— porque de ahí
+ *     lo copia el modelo aunque el comercio sea colombiano. El registro
+ *     rioplatense de ese archivo NO se filtra: se elige por conversación, con
+ *     el país del cliente, y `registro-rioplatense.test.ts` prueba que un
+ *     cliente colombiano lo deja en neutro aunque el comercio sea argentino.
  *   - `operator/fleet/intencion.ts` y `channels/email/automated-sender.ts` no
  *     ESCRIBEN texto: LEEN el que escribió otro. Sacarles el voseo de las
  *     listas es dejar de entender a quien lo usa.

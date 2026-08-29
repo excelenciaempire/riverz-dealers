@@ -6,6 +6,11 @@ import {
   resolveAnthropicKey,
   type KeySource,
 } from './platform-key';
+import {
+  RIOPLATENSE_TEXTO,
+  resolverRegistro,
+  type Registro,
+} from './registro-rioplatense';
 import { cargarReglas, reglasATexto } from './guidance';
 import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
 import { limpiarPersona } from './persona-limpia';
@@ -2235,6 +2240,22 @@ async function generateReply(
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
   const reglas = reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id));
+  // De vos o de tú, según de dónde sea el CLIENTE. Sirve en todos los canales:
+  // donde no hay teléfono (Instagram, comentarios, chat web, correo) el país
+  // sale de la dirección del cliente en la tienda y, si tampoco, del número
+  // del comercio.
+  const registro = await resolverRegistro({
+    db,
+    workspaceId: agent.workspace_id,
+    idioma: agent.language,
+    contact,
+    primaryContact,
+    paisEnLaTienda:
+      (shopifySnapshot?.default_address as { country_code?: string | null } | undefined)
+        ?.country_code ??
+      shopifySnapshot?.default_address?.country ??
+      null,
+  });
   const system = buildSystemPrompt(
     agent,
     contact,
@@ -2248,6 +2269,7 @@ async function generateReply(
     igContext,
     businessCurrency,
     reglas,
+    registro,
   );
 
   // Ensure the conversation starts with a user turn — required by the API.
@@ -2611,6 +2633,12 @@ export function buildSystemPrompt(
   businessCurrency: string = 'COP',
   /** Las reglas del comercio, ya renderizadas (`ai/guidance.ts`). */
   reglas: string | null = null,
+  /**
+   * Con qué trato escribe. Lo resuelve `ai/registro-rioplatense.ts` a partir
+   * del país del CLIENTE (no del comercio, y no de una preferencia global).
+   * Neutro es la casa; ver el bloque de idioma más abajo.
+   */
+  registro: Registro = 'neutro',
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(limpiarPersona(agent.persona));
@@ -2626,9 +2654,16 @@ export function buildSystemPrompt(
   // El modelo se va solo al voseo rioplatense ("tenés", "recibís") aunque el
   // comercio sea colombiano o mexicano, y a veces lo mezcla con el tuteo en la
   // misma conversación. Español neutro es la casa.
+  //
+  // La excepción es cuando el cliente ES rioplatense: ahí el neutro suena a
+  // traducción —nadie en Buenos Aires escribe "¿tienes alguna duda?" por
+  // WhatsApp— y el trato de vos es el natural. Lo decide el dato, no una
+  // preferencia: ver `ai/registro-rioplatense.ts`.
   if (idioma === 'es') {
     lines.push(
-      'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
+      registro === 'rioplatense'
+        ? RIOPLATENSE_TEXTO
+        : 'Escribe en español neutro, de tú: "tienes", "recibes", "quieres". Nunca uses voseo rioplatense ("tenés", "recibís", "querés") ni cambies de trato a mitad de la conversación.',
     );
   }
   // Que el mensaje no huela a modelo: sin markdown y sin la raya larga. Ver

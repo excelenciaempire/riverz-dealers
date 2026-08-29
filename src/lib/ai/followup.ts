@@ -5,6 +5,11 @@ import { resolveAnthropicKey } from './platform-key';
 import { cargarReglas, reglasATexto } from './guidance';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
+import {
+  RIOPLATENSE_TEXTO,
+  resolverRegistro,
+  type Registro,
+} from './registro-rioplatense';
 import { toolEnabled } from './toolbox'
 import { getAdapter } from '@/lib/channels/registry';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
@@ -61,9 +66,12 @@ function buildSystem(
    *  mensaje al cliente: lo que el agente no puede decir contestando tampoco
    *  lo puede decir por su cuenta. */
   reglas?: string | null,
+  /** De vos o de tú, según de dónde sea el cliente. Ver `registro-rioplatense`. */
+  registro: Registro = 'neutro',
 ): string {
   const tone = TONE_HINT[agent.tone] ?? 'natural';
   const lang = LANG_NAME[agent.language] ?? 'español';
+  const esEspanol = (agent.language || 'es').toLowerCase().slice(0, 2) === 'es';
   const parts: string[] = [];
   parts.push(agent.persona?.trim() || 'Eres un asistente de atención al cliente.');
   if (agent.knowledge?.trim()) {
@@ -84,6 +92,17 @@ function buildSystem(
       '- No seas insistente ni presiones. Una sola idea, mensaje corto.',
       '- No te disculpes por escribir de nuevo ni digas que eres una IA.',
       `- ${estiloHumano(agent.language)}`,
+      // El seguimiento decía sólo "Idioma: español" y dejaba el trato al
+      // criterio del modelo: el mismo hilo podía pasar de tú a vos entre la
+      // respuesta y el seguimiento. Se decide con el mismo dato que el resto,
+      // y sólo cuando el agente escribe en español.
+      ...(esEspanol
+        ? [
+            registro === 'rioplatense'
+              ? RIOPLATENSE_TEXTO
+              : '- Español neutro, de tú: "tienes", "quieres". Nunca voseo rioplatense.',
+          ]
+        : []),
       '- Si NO hay nada útil ni natural que agregar (la conversación ya cerró, fue una despedida, o un follow-up sería molesto), responde EXACTAMENTE con la palabra SKIP y nada más.',
     ].join('\n'),
   );
@@ -251,6 +270,12 @@ export async function runFollowUp(
         silenceHours,
         args.campaignHint,
         reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id)),
+        await resolverRegistro({
+          db,
+          workspaceId: agent.workspace_id,
+          idioma: agent.language,
+          contact,
+        }),
       ),
       messages,
       ...esfuerzo(agent.model || MODELO_POR_DEFECTO, { effort: 'low', pensar: 'adaptive' }),

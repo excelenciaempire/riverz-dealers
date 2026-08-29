@@ -17,6 +17,7 @@ import {
 } from './runner';
 import { runWithTools } from './tools';
 import { toolEnabled } from './toolbox';
+import { resolverRegistro } from './registro-rioplatense';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -176,6 +177,16 @@ export async function composeSuperAgentReply(
       shopify,
       igContext,
       businessCurrency,
+      null,
+      // El mismo trato que en el privado: el comentario y el DM que sale
+      // después son la misma conversación para quien la lee.
+      await resolverRegistro({
+        db,
+        workspaceId: input.workspaceId,
+        idioma: agent.language,
+        contact,
+        primaryContact,
+      }),
     );
     system += `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`;
     if (input.extraBrief?.trim()) {

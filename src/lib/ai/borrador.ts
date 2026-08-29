@@ -20,6 +20,7 @@ import {
 } from './runner';
 import { runWithTools } from './tools';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
+import { resolverRegistro } from './registro-rioplatense';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -186,6 +187,17 @@ export async function componerBorrador(
       shopify,
       igContext,
       businessCurrency,
+      null,
+      // El borrador se lo va a mandar una persona del equipo: tiene que sonar
+      // igual que lo que manda el agente solo, o el hilo cambia de trato a la
+      // mitad.
+      await resolverRegistro({
+        db,
+        workspaceId: input.workspaceId,
+        idioma: agent.language,
+        contact,
+        primaryContact,
+      }),
     );
     system += `\n\n## Esto es un BORRADOR\n${REGLAS_BORRADOR}`;
     system += `\n${reglasDeSuperficie(conversation.channel)}`;
