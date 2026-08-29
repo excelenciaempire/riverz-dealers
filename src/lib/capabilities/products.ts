@@ -23,6 +23,8 @@ import { escapeLike } from '@/lib/security/like'
 import { isUuid } from '@/lib/products/slug'
 import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar'
 import { actualizarProducto, type CambiosDeProducto } from '@/lib/products/write'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, corto, ficha, lista, plata, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántos productos como mucho devuelve el catálogo de una vez. */
@@ -351,6 +353,117 @@ async function responderHueco(ctx: CapabilityContext, args: Record<string, unkno
   }
 }
 
+
+/**
+ * Los productos, dibujados.
+ *
+ * En la lista, lo que se busca es cuál elegir: nombre, precio y —la columna que
+ * nadie más tiene— si tiene material cargado, que es lo que decide si el agente
+ * puede hablar de él o va a improvisar.
+ */
+function vistaProductos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre?: string | null
+    tipo?: string | null
+    precio_min?: number | null
+    precio_max?: number | null
+    divisa?: string | null
+    tiene_material?: boolean
+    preguntas_frecuentes?: number
+  }>(r, 'productos')
+  return tabla({
+    titulo: tt(ctx, 'operation.subProductos'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColProducto') },
+      { clave: 'tipo', titulo: tt(ctx, 'operation.vColTipo') },
+      { clave: 'material', titulo: tt(ctx, 'operation.vColMaterial') },
+      { clave: 'precio', titulo: tt(ctx, 'operation.vColPrecio'), alineado: 'der' },
+    ],
+    filas: filas.map((p) => ({
+      nombre: corto(p.nombre, 32),
+      tipo: corto(p.tipo, 18),
+      // Sin material el agente improvisa, así que la respuesta útil acá es sí o
+      // no y no un número de caracteres que nadie sabe interpretar.
+      material: p.tiene_material
+        ? tt(ctx, 'operation.vSi')
+        : tt(ctx, 'operation.vNo'),
+      precio: rango(ctx, p.precio_min, p.precio_max, p.divisa),
+    })),
+    vacio: tt(ctx, 'operation.vSinProductos'),
+  })
+}
+
+/** «$1.200» o «$1.200 – $1.800», según haya una variante o varias. */
+function rango(
+  ctx: CapabilityContext,
+  min: unknown,
+  max: unknown,
+  divisa?: string | null,
+): string {
+  const a = plata(ctx, min, divisa)
+  const b = plata(ctx, max, divisa)
+  return a === b ? a : `${a} – ${b}`
+}
+
+function vistaProducto(ctx: CapabilityContext, r: Awaited<ReturnType<typeof detalle>>): Artefacto | null {
+  if (!tieneCampos(r, 'id')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const chips: string[] = []
+  if (r.tema_de_salud) chips.push(t('vTemaDeSalud'))
+  if (r.investigacion) chips.push(String(r.investigacion))
+
+  return ficha({
+    titulo: String(r.nombre ?? t('vSinNombre')),
+    subtitulo: [r.marca, r.tipo].filter(Boolean).map(String).join(' · ') || undefined,
+    chips,
+    campos: [
+      { etiqueta: t('vColPrecio'), valor: rango(ctx, r.precio_min, r.precio_max, r.divisa as string) },
+      { etiqueta: t('vColOrigen'), valor: String(r.origen ?? '') },
+      {
+        etiqueta: t('vColPreguntas'),
+        valor: String(
+          lista(r, 'preguntas_frecuentes').length +
+            lista(r, 'preguntas_frecuentes_de_la_investigacion').length,
+        ),
+      },
+      { etiqueta: t('vColQueDecir'), valor: corto(r.que_decir, 80) },
+      { etiqueta: t('vColQueNoDecir'), valor: corto(r.que_no_decir, 80) },
+    ],
+    // Sin material el agente improvisa: es lo primero que hay que saber de un
+    // producto y no se ve en ningún otro campo.
+    nota: r.material ? undefined : t('vSinMaterial'),
+  })
+}
+
+/**
+ * Lo que se va a cambiar del producto, campo por campo.
+ *
+ * `artifact` y no `vista`: esto se aprueba, así que se dibuja desde los
+ * ARGUMENTOS y tiene que verse antes de ejecutar. El «antes» lo pone
+ * `artifactBefore`, que sí puede consultar la base.
+ */
+function vistaEditarProducto(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const campos: { etiqueta: string; despues: string }[] = []
+  if (typeof args.descripcion === 'string') {
+    campos.push({ etiqueta: t('vColDescripcion'), despues: corto(args.descripcion, 300) })
+  }
+  if (typeof args.notas === 'string') {
+    campos.push({ etiqueta: t('vColNotas'), despues: corto(args.notas, 300) })
+  }
+  const faqs = lista<{ pregunta?: string; question?: string }>(args.preguntas_frecuentes)
+  if (faqs.length > 0) {
+    campos.push({
+      etiqueta: t('vColPreguntas'),
+      despues: faqs.map((f) => corto(f.pregunta ?? f.question, 60)).join('\n'),
+    })
+  }
+  return cambio({
+    titulo: corto(args.producto, 40),
+    que: t('vQueEditarProducto'),
+    campos,
+  })
+}
 export const PRODUCT_CAPABILITIES: Capability[] = [
   {
     key: 'productos.responder_hueco',
@@ -399,6 +512,7 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
       },
     },
     run: listar,
+    vista: (ctx, _args, r) => vistaProductos(ctx, r),
   },
 
   {
@@ -419,6 +533,7 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
       required: ['producto'],
     },
     run: detalle,
+    vista: (ctx, _args, r) => vistaProducto(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
 
   {
@@ -501,5 +616,6 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
       )}. Es lo que el agente le cita a un cliente desde su próxima respuesta.`
     },
     run: editar,
+    artifact: (ctx, args) => vistaEditarProducto(ctx, args),
   },
 ]

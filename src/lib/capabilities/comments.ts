@@ -36,6 +36,18 @@ import {
   type AccionComentario,
 } from '@/lib/channels/comment-actions'
 import { PENDING_SENDER, hoursWaiting } from './predicates'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import {
+  cambio,
+  corto,
+  fecha,
+  lista,
+  numero,
+  tabla,
+  tablero,
+  tieneCampos,
+  tt,
+} from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántos comentarios sin responder devuelve como mucho una llamada. */
@@ -769,6 +781,219 @@ async function publicaciones(ctx: CapabilityContext, args: Record<string, unknow
   }
 }
 
+
+/**
+ * Los comentarios, dibujados.
+ *
+ * Un comentario pendiente no es una fila más de una tabla: es alguien esperando
+ * en público, debajo de una publicación, donde lo lee cualquiera. Lo que hace
+ * falta ver es QUÉ escribió y cuánto hace, y si alguna regla ya le contestó por
+ * privado — porque eso cambia por completo qué hay que hacer con él.
+ */
+function vistaPendientes(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    persona: string
+    canal: string
+    comentario: string | null
+    horas_esperando: number | null
+    oculto: boolean
+    dm_de_regla: boolean
+  }>(r, 'comentarios')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitPendientes'),
+    columnas: [
+      { clave: 'persona', titulo: tt(ctx, 'operation.vColPersona') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'comentario', titulo: tt(ctx, 'operation.vColComentario') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'espera', titulo: tt(ctx, 'operation.vColEsperando'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      persona: corto(c.persona, 20),
+      canal: c.canal,
+      comentario: corto(c.comentario, 46),
+      // Un comentario ya atendido por privado parece abandonado si no se dice.
+      estado: c.oculto
+        ? tt(ctx, 'operation.vOculto')
+        : c.dm_de_regla
+          ? tt(ctx, 'operation.vYaLeEscribio')
+          : '—',
+      espera: c.horas_esperando != null ? `${numero(ctx, Math.round(c.horas_esperando))} h` : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinPendientes'),
+  })
+}
+
+function vistaComentarios(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    persona: string
+    quien: string
+    canal: string
+    comentario: string | null
+    cuando: string
+    oculto: boolean
+    lo_oculto: string | null
+  }>(r, 'comentarios')
+  return tabla({
+    titulo: tt(ctx, 'operation.subComentarios'),
+    columnas: [
+      { clave: 'persona', titulo: tt(ctx, 'operation.vColPersona') },
+      { clave: 'comentario', titulo: tt(ctx, 'operation.vColComentario') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+    ],
+    filas: filas.map((c) => ({
+      persona: corto(c.quien === 'customer' ? c.persona : tt(ctx, 'operation.vLaCuenta'), 20),
+      comentario: corto(c.comentario, 50),
+      cuando: fecha(ctx, c.cuando),
+      estado: c.oculto ? `${tt(ctx, 'operation.vOculto')}${c.lo_oculto ? ` · ${c.lo_oculto}` : ''}` : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinComentarios'),
+  })
+}
+
+/**
+ * Cómo está configurada la respuesta automática.
+ *
+ * Es un tablero y no una ficha porque lo que se pregunta acá es binario y por
+ * red: ¿está contestando? ¿en cuál? ¿está pausado? Un punto de color contesta
+ * eso de un vistazo; una lista de «instagram: true» no.
+ */
+function vistaAjustesComentarios(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof ajustes>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'redes')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const sino = (v: boolean): 'ok' | 'apagado' => (v ? 'ok' : 'apagado')
+  return tablero({
+    titulo: t('vTitAjustesComentarios'),
+    filas: [
+      // El freno de emergencia primero: manda sobre todo lo demás, y leerlo al
+      // final después de cinco renglones en verde es leerlo tarde.
+      ...(r.pausado ? [{ que: t('vPausado'), estado: 'roto' as const }] : []),
+      { que: t('vContestaConIa'), estado: sino(r.contesta_con_ia), detalle: String(r.a_quien) },
+      { que: 'Instagram', estado: sino(r.redes.instagram) },
+      { que: 'Facebook', estado: sino(r.redes.facebook) },
+      { que: 'TikTok', estado: sino(r.redes.tiktok) },
+      { que: t('vQuePublica'), estado: 'ok', detalle: String(r.que_publica) },
+      {
+        que: t('vTopePorHilo'),
+        estado: 'ok',
+        detalle: numero(ctx, r.tope_por_hilo),
+      },
+    ],
+  })
+}
+
+function vistaReglasComentarios(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre: string
+    canal: string
+    activa: boolean
+    atiende: string
+    dm: string | null
+    dm_enviados: number | null
+  }>(r, 'reglas')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitReglasComentarios'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColRegla') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'atiende', titulo: tt(ctx, 'operation.vColAtiende') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'enviados', titulo: tt(ctx, 'operation.vColEnviados'), alineado: 'der' },
+    ],
+    filas: filas.map((g) => ({
+      nombre: corto(g.nombre, 28),
+      canal: g.canal,
+      atiende: g.atiende,
+      estado: g.activa ? tt(ctx, 'operation.vEncendida') : tt(ctx, 'operation.vApagada'),
+      enviados: numero(ctx, g.dm_enviados ?? 0),
+    })),
+    vacio: tt(ctx, 'operation.vSinReglas'),
+  })
+}
+
+/**
+ * Las publicaciones donde la gente comenta.
+ *
+ * La columna que no está en ningún otro lado es «qué muestra»: lo que Riverz
+ * entendió de la foto o del video. Sin eso, «¿y el precio?» debajo de un reel
+ * es media conversación.
+ */
+function vistaPublicaciones(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    canal: string
+    titulo: string | null
+    texto: string | null
+    que_muestra: string | null
+    anuncio: { campana: string | null } | null
+  }>(r, 'publicaciones')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitPublicaciones'),
+    columnas: [
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'texto', titulo: tt(ctx, 'operation.vColPublicacion') },
+      { clave: 'muestra', titulo: tt(ctx, 'operation.vColQueMuestra') },
+      { clave: 'anuncio', titulo: tt(ctx, 'operation.vColAnuncio') },
+    ],
+    filas: filas.map((p) => ({
+      canal: p.canal,
+      texto: corto(p.titulo ?? p.texto, 44),
+      muestra: corto(p.que_muestra, 44),
+      anuncio: corto(p.anuncio?.campana, 24),
+    })),
+    vacio: tt(ctx, 'operation.vSinPublicaciones'),
+  })
+}
+
+/**
+ * Lo que se le va a hacer a un comentario.
+ *
+ * Moderar toca algo que está en público bajo el nombre del comercio, y borrar
+ * no se deshace. El aviso lo dice con todas las letras: es lo que separa
+ * «ocultarlo» de «borrarlo» para quien aprueba de un vistazo.
+ */
+function vistaModerar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const accion = String(args.accion ?? '')
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitModerar'),
+    que: QUE_HACE[accion as AccionComentario] ?? accion,
+    aviso: accion === 'delete' ? tt(ctx, 'operation.vBorrarNoVuelve') : undefined,
+  })
+}
+
+/** Lo que se cambia de la respuesta automática, campo por campo. */
+function vistaConfigurar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const campos: { etiqueta: string; despues: string }[] = []
+  const si = t('vSi')
+  const no = t('vNo')
+  if (typeof args.contestar === 'boolean') {
+    campos.push({ etiqueta: t('vContestaConIa'), despues: args.contestar ? si : no })
+  }
+  for (const [clave, etiqueta] of [
+    ['instagram', 'Instagram'],
+    ['facebook', 'Facebook'],
+    ['tiktok', 'TikTok'],
+  ] as const) {
+    if (typeof args[clave] === 'boolean') {
+      campos.push({ etiqueta, despues: args[clave] ? si : no })
+    }
+  }
+  if (typeof args.modo === 'string') campos.push({ etiqueta: t('vQuePublica'), despues: args.modo })
+  if (typeof args.audiencia === 'string') {
+    campos.push({ etiqueta: t('vColAtiende'), despues: args.audiencia })
+  }
+  if (args.tope_por_hilo != null) {
+    campos.push({ etiqueta: t('vTopePorHilo'), despues: String(args.tope_por_hilo) })
+  }
+  if (typeof args.pausar === 'boolean') {
+    campos.push({ etiqueta: t('vPausado'), despues: args.pausar ? si : no })
+  }
+  return cambio({ titulo: t('vTitAjustesComentarios'), que: t('vQueConfigurar'), campos })
+}
 export const COMMENT_CAPABILITIES: Capability[] = [
   {
     key: 'comentarios.publicaciones',
@@ -782,6 +1007,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
       properties: { limite: { type: 'number', description: 'Por defecto 20, máximo 50.' } },
     },
     run: publicaciones,
+    vista: (ctx, _args, r) => vistaPublicaciones(ctx, r),
   },
   {
     key: 'comentarios.ajustes',
@@ -792,6 +1018,8 @@ export const COMMENT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: ajustes,
+    vista: (ctx, _args, r) =>
+      vistaAjustesComentarios(ctx, r as Awaited<ReturnType<typeof ajustes>>),
   },
 
   {
@@ -835,6 +1063,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
     },
     preview: previewConfigurar,
     run: configurar,
+    artifact: (ctx, args) => vistaConfigurar(ctx, args),
   },
   {
     key: 'comentarios.listar',
@@ -853,6 +1082,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
       },
     },
     run: listar,
+    vista: (ctx, _args, r) => vistaComentarios(ctx, r),
   },
 
   {
@@ -911,6 +1141,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
           : 'Se deshizo el me gusta.'
     },
     run: moderar,
+    artifact: (ctx, args) => vistaModerar(ctx, args),
   },
   {
     key: 'comentarios.pendientes',
@@ -930,6 +1161,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
       },
     },
     run: pendientes,
+    vista: (ctx, _args, r) => vistaPendientes(ctx, r),
   },
 
   {
@@ -941,6 +1173,7 @@ export const COMMENT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: reglas,
+    vista: (ctx, _args, r) => vistaReglasComentarios(ctx, r),
   },
 
   {

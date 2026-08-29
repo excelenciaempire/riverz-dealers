@@ -23,6 +23,8 @@ import { translate } from '@/lib/i18n/translate'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
 import type { VoiceCall, VoiceCallType, VoiceCallingHours } from '@/types'
 import { since, windowDays } from './predicates'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, corto, fecha, ficha, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántas llamadas como mucho devuelve un listado. */
@@ -367,6 +369,124 @@ async function detalleLlamada(ctx: CapabilityContext, args: Record<string, unkno
   }
 }
 
+
+/**
+ * Las llamadas, dibujadas.
+ *
+ * En la lista se busca cuál abrir, así que las columnas son cómo salió y qué
+ * dejó dicho el agente. En la ficha de una está lo que zanja la discusión: el
+ * resumen, cuánto duró y el enlace a la grabación.
+ */
+function vistaLlamadas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    cuando: string
+    contacto: string | null
+    telefono: string | null
+    estado: string | null
+    resultado: string | null
+    duracion_seg: number | null
+    resumen: string | null
+  }>(r, 'llamadas')
+  return tabla({
+    titulo: tt(ctx, 'operation.subVoz'),
+    columnas: [
+      { clave: 'quien', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'resultado', titulo: tt(ctx, 'operation.vColResultado') },
+      { clave: 'resumen', titulo: tt(ctx, 'operation.vColResumen') },
+      { clave: 'duracion', titulo: tt(ctx, 'operation.vColDuracion'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      quien: corto(c.contacto ?? c.telefono, 22),
+      cuando: fecha(ctx, c.cuando),
+      resultado: c.resultado ?? c.estado ?? '—',
+      resumen: corto(c.resumen, 46),
+      duracion: c.duracion_seg != null ? segundos(c.duracion_seg) : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinLlamadas'),
+  })
+}
+
+function vistaLlamada(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof detalleLlamada>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'llamada_id')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return ficha({
+    titulo: String(r.quien),
+    subtitulo: [r.agente, r.tipo].filter(Boolean).map(String).join(' · ') || undefined,
+    chips: [r.estado, r.resultado].filter(Boolean).map(String),
+    campos: [
+      { etiqueta: t('vColCuando'), valor: r.empezo ? fecha(ctx, r.empezo) : '' },
+      {
+        etiqueta: t('vColDuracion'),
+        valor: r.duracion_segundos != null ? segundos(r.duracion_segundos) : '',
+      },
+      { etiqueta: t('vColResumen'), valor: corto(r.resumen, 240) },
+      { etiqueta: t('vColMotivo'), valor: corto(r.error, 120) },
+      // La grabación es lo único que zanja una discusión sobre qué se dijo.
+      { etiqueta: t('vColGrabacion'), valor: r.grabacion ? String(r.grabacion) : '' },
+    ],
+  })
+}
+
+/** Segundos, en la unidad que se lee sin dividir mentalmente. */
+function segundos(s: number): string {
+  if (s < 60) return `${Math.round(s)} s`
+  const m = Math.floor(s / 60)
+  return `${m}:${String(Math.round(s % 60)).padStart(2, '0')}`
+}
+
+/**
+ * Las campañas de llamadas, con lo que falta por llamar.
+ *
+ * `faltan` es la única columna que contesta la pregunta que se hace: ¿ya
+ * terminó? El total y las encoladas por separado obligan a restar de memoria.
+ */
+function vistaCampanasVoz(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre?: string
+    name?: string
+    estado?: string
+    publico?: number | null
+    encoladas?: number
+    faltan?: number | null
+  }>(r, 'campanas')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitCampanasVoz'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColCampana') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'llamadas', titulo: tt(ctx, 'operation.vColLlamadas'), alineado: 'der' },
+      { clave: 'faltan', titulo: tt(ctx, 'operation.vColFaltan'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      nombre: corto(c.nombre ?? c.name, 28),
+      estado: c.estado ?? '—',
+      llamadas: `${numero(ctx, c.encoladas ?? 0)}/${c.publico != null ? numero(ctx, c.publico) : '—'}`,
+      faltan: c.faltan != null ? numero(ctx, c.faltan) : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinCampanasVoz'),
+  })
+}
+
+/**
+ * A quién se va a llamar, antes de que suene.
+ *
+ * Una llamada es irreversible de la peor manera: le suena el teléfono a una
+ * persona y no hay forma de deshacerlo. Así que lo que se aprueba tiene que
+ * decir a quién, con qué agente y para qué, y decirlo con todas las letras.
+ */
+function vistaLlamar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cambio({
+    titulo: t('vTitLlamar'),
+    que: corto(args.objetivo, 120),
+    alcance: typeof args.telefono === 'string' ? args.telefono : undefined,
+    aviso: t('vLlamarAviso'),
+  })
+}
 export const VOICE_CAPABILITIES: Capability[] = [
   {
     key: 'voz.detalle',
@@ -383,6 +503,7 @@ export const VOICE_CAPABILITIES: Capability[] = [
       required: ['llamada_id'],
     },
     run: detalleLlamada,
+    vista: (ctx, _args, r) => vistaLlamada(ctx, r as Awaited<ReturnType<typeof detalleLlamada>>),
   },
   {
     key: 'voz.listar',
@@ -402,6 +523,7 @@ export const VOICE_CAPABILITIES: Capability[] = [
       },
     },
     run: listar,
+    vista: (ctx, _args, r) => vistaLlamadas(ctx, r),
   },
 
   {
@@ -413,6 +535,7 @@ export const VOICE_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: campanas,
+    vista: (ctx, _args, r) => vistaCampanasVoz(ctx, r),
   },
 
   {
@@ -491,5 +614,6 @@ export const VOICE_CAPABILITIES: Capability[] = [
       ].join('')
     },
     run: llamar,
+    artifact: (ctx, args) => vistaLlamar(ctx, args),
   },
 ]
