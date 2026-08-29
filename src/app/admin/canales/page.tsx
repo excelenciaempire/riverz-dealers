@@ -27,32 +27,15 @@ import { Choice, RefreshButton } from "../_components/filters";
  * Todo lo que un comercio puede tener conectado, en un solo lugar.
  *
  * Los primeros son canales de mensajería (`channel_connections`); los últimos
- * son tiendas (`shopify_connections`) y medios de pago o marketing
- * (`workspace_integrations`). Vivían en tablas distintas y por eso el panel
- * mostraba sólo los primeros — pero para el comercio, y para quien mira si algo
- * se cayó, es exactamente el mismo problema.
+ * son tiendas (`shopify_connections`), medios de pago o marketing
+ * (`workspace_integrations`) y la entrega contra reembolso
+ * (`dropi_connections`). Viven en tablas distintas y por eso el panel mostraba
+ * sólo los primeros — pero para el comercio, y para quien mira si algo se cayó,
+ * es exactamente el mismo problema.
+ *
+ * La lista de tipos la arma el servidor a partir de los datos. Escrita a mano
+ * acá se quedó atrás sin que nada fallara: le faltaba `webchat`.
  */
-const CHANNELS = [
-  "whatsapp",
-  "instagram",
-  "messenger",
-  "gmail",
-  "outlook",
-  "fb_comment",
-  "ig_comment",
-  "mercadolibre",
-  // Faltaba: el CHECK de la tabla lo admite desde la migración 135.
-  "ml_review",
-  "tiktok_comment",
-  "voice",
-  // Comercio
-  "shopify",
-  "tiendanube",
-  "woocommerce",
-  "mercadopago",
-  "klaviyo",
-];
-
 const STATUSES = ["connected", "disconnected", "error", "pending", "expired"];
 
 /** Salud de todas las conexiones de la plataforma. */
@@ -63,10 +46,16 @@ export default function AdminChannelsPage() {
   const [status, setStatus] = useState("");
 
   const url = `/api/admin/channels?channel=${channel}&status=${status}`;
-  const { data, loading, error, reload, live } =
-    useAdminData<{ rows: ChannelRow[] }>(url);
+  const { data, loading, error, reload, live } = useAdminData<{
+    rows: ChannelRow[];
+    channels: string[];
+  }>(url);
 
   const rows = data?.rows ?? [];
+  // Los tipos vienen de los datos, no de una lista escrita a mano acá: la que
+  // había ya no incluía `webchat`, así que esas filas se veían pero no se
+  // podían filtrar y nada fallaba para avisarlo.
+  const channels = data?.channels ?? [];
   const broken = rows.filter(
     (r) => r.status === "error" || r.status === "expired",
   ).length;
@@ -183,7 +172,7 @@ export default function AdminChannelsPage() {
               onChange={setChannel}
               options={[
                 { value: "", label: t("admin.all") },
-                ...CHANNELS.map((c) => ({ value: c, label: c })),
+                ...channels.map((c) => ({ value: c, label: c })),
               ]}
             />
             <Choice
@@ -214,7 +203,7 @@ export default function AdminChannelsPage() {
 
       <Panel>
         {loading ? (
-          <Loading />
+          <Loading forma="table" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (

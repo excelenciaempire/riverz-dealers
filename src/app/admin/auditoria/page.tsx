@@ -5,7 +5,9 @@ import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { cn } from "@/lib/utils";
+import { toShortId } from "@/lib/short-id";
 import type { AuditRow, PlatformAuditRow } from "@/lib/admin/queries";
+import type { Llave } from "@/lib/admin/llaves";
 import {
   useAdminData,
   PageHeader,
@@ -20,7 +22,7 @@ import {
 } from "../_components/admin-ui";
 import { RefreshButton, SearchInput } from "../_components/filters";
 
-type Source = "panel" | "agente";
+type Source = "panel" | "agente" | "llaves";
 
 /**
  * Qué se hizo sobre las cuentas, desde los dos lados.
@@ -30,6 +32,11 @@ type Source = "panel" | "agente";
  * porque sobre datos ajenos saber quién miró qué también es parte de la
  * respuesta. Esa segunda tabla se venía escribiendo desde el primer día y no la
  * leía ninguna pantalla.
+ *
+ * *Llaves* es la otra mitad de esa pregunta: no qué se hizo, sino qué está
+ * habilitado a hacerse. Una llave que nadie usó todavía no deja una sola fila
+ * de auditoría — y es justo la que hay que encontrar: la de la laptop que se
+ * perdió, la del conector que se probó una vez y quedó.
  */
 export default function AdminAuditPage() {
   const t = useT();
@@ -37,9 +44,14 @@ export default function AdminAuditPage() {
   const [source, setSource] = useState<Source>("panel");
   const [actor, setActor] = useState("");
 
-  const url = `/api/admin/audit?limit=200&source=${source}&actor=${encodeURIComponent(actor)}`;
+  // Las llaves salen de su propia ruta: no son un libro de actas filtrable por
+  // actor, son un inventario.
+  const url =
+    source === "llaves"
+      ? "/api/admin/audit/llaves?limit=200"
+      : `/api/admin/audit?limit=200&source=${source}&actor=${encodeURIComponent(actor)}`;
   const { data, loading, error, reload, live } = useAdminData<{
-    rows: (AuditRow | PlatformAuditRow)[];
+    rows: (AuditRow | PlatformAuditRow | Llave)[];
   }>(url);
 
   const panelColumns = useMemo<Column<AuditRow>[]>(
@@ -165,9 +177,81 @@ export default function AdminAuditPage() {
     [t, format],
   );
 
+  const keyColumns = useMemo<Column<Llave>[]>(
+    () => [
+      {
+        key: "name",
+        header: t("admin.keysName"),
+        cell: (r) => (
+          <div>
+            <p className="font-medium text-foreground">{r.nombre}</p>
+            {r.prefijo && <Muted>{r.prefijo}…</Muted>}
+          </div>
+        ),
+      },
+      {
+        key: "type",
+        header: t("admin.keysType"),
+        cell: (r) => <Muted>{t(`admin.keysType_${r.tipo}`)}</Muted>,
+      },
+      {
+        key: "workspace",
+        header: t("admin.workspace"),
+        cell: (r) => (
+          <Link
+            href={`/admin/comercios/${toShortId(r.workspace_id)}`}
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            {r.workspace_name ?? r.workspace_id.slice(0, 8)}
+          </Link>
+        ),
+      },
+      {
+        key: "scope",
+        header: t("admin.keysScope"),
+        cell: (r) => <Clamp text={r.alcance} />,
+      },
+      {
+        key: "created",
+        header: t("admin.colWhen"),
+        cell: (r) => (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {r.created_at ? format.dateTime(r.created_at) : "—"}
+          </span>
+        ),
+      },
+      {
+        // La columna que decide si una llave sobra: una que nunca se usó no
+        // está sirviendo a nadie y sigue abriendo la cuenta.
+        key: "used",
+        header: t("admin.keysLastUsed"),
+        cell: (r) =>
+          r.last_used_at ? (
+            <span className="whitespace-nowrap text-xs text-muted-foreground">
+              {format.dateTime(r.last_used_at)}
+            </span>
+          ) : (
+            <Muted>{t("admin.never")}</Muted>
+          ),
+      },
+      {
+        key: "state",
+        header: t("admin.colStatus"),
+        cell: (r) =>
+          r.revoked_at ? (
+            <StatusPill tone="muted" label={t("admin.keysRevoked")} />
+          ) : (
+            <StatusPill tone="ok" label={t("admin.keysActive")} />
+          ),
+      },
+    ],
+    [t, format],
+  );
+
   const tabs: { key: Source; label: string }[] = [
     { key: "panel", label: t("admin.auditSourcePanel") },
     { key: "agente", label: t("admin.auditSourceAgent") },
+    { key: "llaves", label: t("admin.auditSourceKeys") },
   ];
 
   return (
@@ -178,11 +262,15 @@ export default function AdminAuditPage() {
         description={t("admin.auditDesc")}
         actions={
           <>
-            <SearchInput
-              value={actor}
-              onChange={setActor}
-              placeholder={t("admin.filterActor")}
-            />
+            {/* Las llaves son un inventario, no un libro de actas: filtrar por
+                actor ahí no querría decir nada. */}
+            {source !== "llaves" && (
+              <SearchInput
+                value={actor}
+                onChange={setActor}
+                placeholder={t("admin.filterActor")}
+              />
+            )}
             <RefreshButton onClick={reload} />
           </>
         }
@@ -210,6 +298,12 @@ export default function AdminAuditPage() {
           <Loading forma="table" />
         ) : error ? (
           <LoadError onRetry={reload} />
+        ) : source === "llaves" ? (
+          <DataTable
+            columns={keyColumns}
+            rows={(data?.rows ?? []) as Llave[]}
+            rowKey={(r) => r.id}
+          />
         ) : source === "agente" ? (
           <DataTable
             columns={agentColumns}

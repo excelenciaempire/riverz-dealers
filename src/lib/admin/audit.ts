@@ -31,6 +31,9 @@ export type AdminAction =
   | 'create.signup_code'
   | 'revoke.signup_code'
   | 'view.infrastructure'
+  // Qué llaves pueden operar una cuenta desde afuera. Mirar quién tiene acceso
+  // es en sí mismo un acto que conviene que quede registrado.
+  | 'view.keys'
   | 'update.feature_flag'
   | 'update.workspace_feature_flag'
   | 'update.voice_model'

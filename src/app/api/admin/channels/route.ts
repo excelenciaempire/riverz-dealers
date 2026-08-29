@@ -12,6 +12,8 @@ export async function GET(request: Request) {
   return adminGet(
     request,
     { action: 'view.channels', meta: { channel: channel ?? null, status: status ?? null } },
-    async () => ({ rows: await listChannels({ channel, status }) }),
+    // `channels` es el catálogo de tipos que existen de verdad, para que el
+    // selector de la pantalla no sea una lista escrita a mano que envejece.
+    () => listChannels({ channel, status }),
   );
 }

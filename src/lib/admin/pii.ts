@@ -105,7 +105,15 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   // le mandó — el MCP ya los guarda ocultos, pero las filas viejas no.
   platform_audit_log: ['args'],
   approval_requests: ['notified_phone', 'payload'],
-  dropi_connections: ['api_key', 'password', 'credentials'],
+  // Las llaves vivas. El hash nunca sale: con el prefijo alcanza para
+  // reconocer una llave, y con el hash se podría usar.
+  mcp_tokens: ['token_hash'],
+  oauth_refresh_tokens: ['token_hash'],
+  oauth_clients: [],
+  // `api_key_encrypted` es el nombre REAL de la columna (migración 116). La
+  // lista tenía tres nombres que esa tabla no tiene y le faltaba el único que
+  // sí: la barrera no habría bloqueado nada.
+  dropi_connections: ['api_key_encrypted', 'api_key', 'password', 'credentials'],
 } as const;
 
 /** Limpia un token de `select()`: alias, hints `!inner`, espacios. */

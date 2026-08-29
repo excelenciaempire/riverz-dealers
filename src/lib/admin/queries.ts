@@ -24,8 +24,14 @@ function db(): SupabaseClient {
   return supabaseAdmin();
 }
 
-/** `select()` con la barrera de privacidad puesta delante. */
-function safeSelect(client: SupabaseClient, table: string, columns: string) {
+/**
+ * `select()` con la barrera de privacidad puesta delante.
+ *
+ * Exportado para que cualquier lector nuevo del panel (por ejemplo
+ * `llaves.ts`) pase por la misma barrera en vez de escribir su propio
+ * `.from().select()` sin ella.
+ */
+export function safeSelect(client: SupabaseClient, table: string, columns: string) {
   assertMetadataOnly(table, columns);
   return client.from(table).select(columns);
 }
@@ -563,10 +569,19 @@ export interface ChannelRow {
   created_at: string | null;
 }
 
+/**
+ * Las conexiones, y la lista de tipos que existen de verdad.
+ *
+ * `channels` sale de los datos y no de una constante escrita a mano en la
+ * pantalla. La lista a mano ya se había quedado atrás: no incluía `webchat`
+ * —un canal vivo desde la migración 171— ni `meta_pixel` ni `stripe`, así que
+ * esas filas aparecían en la tabla pero no se podían filtrar, y nada fallaba
+ * para avisarlo. Derivándola, el próximo canal aparece solo.
+ */
 export async function listChannels(opts: {
   channel?: string;
   status?: string;
-}): Promise<ChannelRow[]> {
+}): Promise<{ rows: ChannelRow[]; channels: string[] }> {
   // `config` trae `health_status`, que es lo único de ese jsonb que mira el
   // panel. No es un secreto (los secretos viven en `secrets`, que la barrera
   // bloquea), pero se recorta acá para no arrastrar el resto al navegador.
@@ -596,24 +611,47 @@ export async function listChannels(opts: {
   // parte de comercio —Shopify, Tiendanube, WooCommerce, Mercado Pago,
   // Klaviyo— no tenía salud a nivel plataforma, aunque `issues.ts` ya supiera
   // leer la primera de esas tablas.
-  const comercio = await listCommerceConnections(opts);
+  const comercio = await listCommerceConnections();
 
-  const todas = [...mensajeria, ...comercio];
+  // El catálogo de tipos se arma SIN el filtro de canal: si no, elegir uno
+  // dejaría la lista con una sola opción y sin forma de volver.
+  const { data: tipos } = await safeSelect(db(), 'channel_connections', 'channel').limit(
+    2000,
+  );
+  const channels = [
+    ...new Set([
+      ...((tipos ?? []) as unknown as { channel: string }[]).map((r) => r.channel),
+      ...comercio.map((r) => r.channel),
+    ]),
+  ].sort();
+
+  const filtradas = comercio.filter(
+    (f) =>
+      (!opts.channel || f.channel === opts.channel) &&
+      (!opts.status || f.status === opts.status),
+  );
+
+  const todas = [...mensajeria, ...filtradas];
   const names = await workspaceNames(todas.map((r) => r.workspace_id));
-  return todas.map((r) => ({
-    ...r,
-    workspace_name: names.get(r.workspace_id) ?? null,
-  }));
+  return {
+    rows: todas.map((r) => ({
+      ...r,
+      workspace_name: names.get(r.workspace_id) ?? null,
+    })),
+    channels,
+  };
 }
 
-/** Canales que no son de mensajería, normalizados a la misma fila. */
-async function listCommerceConnections(opts: {
-  channel?: string;
-  status?: string;
-}): Promise<Omit<ChannelRow, 'workspace_name'>[]> {
+/**
+ * Canales que no son de mensajería, normalizados a la misma fila.
+ *
+ * Devuelve TODO y el filtro lo aplica quien llama: la lista completa es lo que
+ * alimenta el catálogo de tipos del selector.
+ */
+async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_name'>[]> {
   const client = db();
 
-  const [tiendas, integraciones] = await Promise.all([
+  const [tiendas, integraciones, dropi] = await Promise.all([
     safeSelect(
       client,
       'shopify_connections',
@@ -623,6 +661,14 @@ async function listCommerceConnections(opts: {
       client,
       'workspace_integrations',
       'id, workspace_id, provider, external_account_id, expires_at, created_at, updated_at',
+    ).limit(500),
+    // Dropi (entrega contra reembolso) vive en su propia tabla, con
+    // `workspace_id` de clave primaria y sin columna `id`. Faltaba: era la
+    // única conexión de un comercio que el panel no veía de ninguna forma.
+    safeSelect(
+      client,
+      'dropi_connections',
+      'workspace_id, status, created_at, updated_at',
     ).limit(500),
   ]);
 
@@ -676,13 +722,23 @@ async function listCommerceConnections(opts: {
       external_account_id: i.external_account_id,
       created_at: i.created_at,
     })),
+    ...((dropi.data ?? []) as unknown as Array<{
+      workspace_id: string;
+      status: string;
+      created_at: string | null;
+    }>).map((d) => ({
+      ...vacio,
+      // Sin columna `id`: la clave primaria de la tabla es el comercio.
+      id: `dropi-${d.workspace_id}`,
+      workspace_id: d.workspace_id,
+      channel: 'dropi',
+      status: d.status,
+      external_account_id: null,
+      created_at: d.created_at,
+    })),
   ];
 
-  return filas.filter(
-    (f) =>
-      (!opts.channel || f.channel === opts.channel) &&
-      (!opts.status || f.status === opts.status),
-  );
+  return filas;
 }
 
 /** Nombres de comercio para un lote de ids — para no mostrar UUIDs pelados. */
