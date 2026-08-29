@@ -292,5 +292,24 @@ export function acceso(s: Suscripcion | null): Acceso {
       horasDeGracia: quedan > 0 ? Math.ceil(quedan) : 0,
     }
   }
+  // Cancelada: sigue entrando hasta que termine el mes que ya pagó.
+  //
+  // Cancelar en Stripe "ahora" corta la suscripción al instante, y hasta acá
+  // eso cortaba el acceso el mismo día — con el mes cobrado. Eso es quedarse
+  // con plata ajena. Se paga hasta el 29, se usa hasta el 29.
+  //
+  // Sin fecha de período no se puede saber hasta cuándo, y ahí sí se corta: es
+  // el caso de una suscripción que nunca llegó a cobrarse.
+  if (s.estado === 'cancelada') {
+    const hasta = s.periodoHasta ? Date.parse(s.periodoHasta) : null
+    const vigente = hasta !== null && Number.isFinite(hasta) && hasta > Date.now()
+    return {
+      puede: vigente,
+      estado: 'cancelada',
+      diasDePrueba: null,
+      horasDeGracia: null,
+    }
+  }
+
   return { puede: false, estado: s.estado, diasDePrueba: null, horasDeGracia: null }
 }

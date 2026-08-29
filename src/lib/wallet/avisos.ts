@@ -32,6 +32,17 @@ const UMBRAL_POR_DEFECTO_CENTAVOS = 500
 /** Nadie recibe el mismo aviso dos veces en menos de esto. */
 const CADA_HORAS = 24
 
+/**
+ * Cuánto se espera antes de avisar que el cobro falló.
+ *
+ * Stripe crea la suscripción en `incomplete` y recién la pasa a `active` cuando
+ * el pago se confirma — con 3D Secure eso son minutos, y para nosotros
+ * `incomplete` es "vencida". Sin esta espera, alguien que está tecleando el
+ * código del banco recibía un WhatsApp diciéndole que no pudimos cobrarle. La
+ * primera hora se la damos al banco.
+ */
+const ESPERA_ANTES_DE_AVISAR_HORAS = 1
+
 const HACE = (horas: number) =>
   new Date(Date.now() - horas * 60 * 60 * 1000).toISOString()
 
@@ -158,6 +169,10 @@ async function avisarPlan(db: SupabaseClient): Promise<{ n: number; detalle: str
   for (const cruda of (data ?? []) as unknown as Record<string, unknown>[]) {
     const avisadoEn = cruda.aviso_plan_en as string | null
     if (avisadoEn && avisadoEn > HACE(CADA_HORAS)) continue
+
+    // Recién vencida: puede ser un pago que se está confirmando ahora mismo.
+    const desdeCuando = cruda.vencida_desde as string | null
+    if (desdeCuando && desdeCuando > HACE(ESPERA_ANTES_DE_AVISAR_HORAS)) continue
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s = aSuscripcion(cruda as any)

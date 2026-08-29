@@ -175,3 +175,23 @@ describe('el período que se factura', () => {
     expect(p.hasta.getTime()).toBeGreaterThan(p.desde.getTime())
   })
 })
+
+describe('la cancelación no corta el mes ya pagado', () => {
+  const enDias = (n: number) =>
+    new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString()
+
+  it('cancelada con el período corriendo, sigue entrando', () => {
+    // Cancelar en Stripe "ahora" corta la suscripción al instante. El mes ya
+    // está cobrado: cortarle el acceso el mismo día es quedarse con plata suya.
+    const a = acceso(sus({ estado: 'cancelada', periodo_hasta: enDias(12) }))
+    expect(a.puede).toBe(true)
+  })
+
+  it('cancelada con el período terminado, ya no', () => {
+    expect(acceso(sus({ estado: 'cancelada', periodo_hasta: enDias(-1) })).puede).toBe(false)
+  })
+
+  it('cancelada sin fecha de período, no: no hay mes que respetar', () => {
+    expect(acceso(sus({ estado: 'cancelada' })).puede).toBe(false)
+  })
+})
