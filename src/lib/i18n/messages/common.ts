@@ -34,4 +34,9 @@ export const common = {
   channelFbComments: { es: "Comentarios FB", en: "FB comments" },
   channelIgComments: { es: "Comentarios IG", en: "IG comments" },
   channelTiktokComments: { es: "Comentarios TikTok", en: "TikTok comments" },
+
+  // Campo de teléfono con selector de país (components/ui/campo-telefono).
+  phoneCountry: { es: "País", en: "Country" },
+  phoneSearchCountry: { es: "Buscar país o prefijo", en: "Search country or code" },
+  phoneNoResults: { es: "Sin resultados", en: "No results" },
 } satisfies Namespace;
