@@ -44,7 +44,7 @@ export default function LoginPage() {
   };
 
   return (
-    <MarcoAuth arte={ARTE.bandeja}>
+    <MarcoAuth arte={ARTE.plena}>
       <TituloAuth titulo={t("auth.loginTitle")} />
       <form onSubmit={handleLogin} className="flex flex-col gap-4">
             {error && (

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ARTE, MarcoAuth, TituloAuth } from "@/components/auth/marco";
+import { CampoTelefono } from "@/components/ui/campo-telefono";
 import { CheckCircle, Eye, EyeOff } from "lucide-react";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 
@@ -113,7 +114,7 @@ function SignupForm() {
 
   if (success) {
     return (
-      <MarcoAuth arte={ARTE.envivo}>
+      <MarcoAuth arte={ARTE.llega}>
         <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
           <CheckCircle className="h-6 w-6 text-accent-ink" />
         </div>
@@ -139,7 +140,7 @@ function SignupForm() {
   }
 
   return (
-    <MarcoAuth arte={ARTE.vendedor}>
+    <MarcoAuth arte={ARTE.nace}>
       <TituloAuth
         titulo={t("auth.signupTitle")}
         bajada={pendingShop ? t("auth.shopifyPendingNotice", { shop: pendingShop }) : undefined}
@@ -212,16 +213,7 @@ function SignupForm() {
               <Label htmlFor="phone" className="text-foreground">
                 {t("auth.phoneLabel")}
               </Label>
-              <Input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
+              <CampoTelefono id="phone" value={phone} onChange={setPhone} required />
               <p className="text-xs text-muted-foreground">{t("auth.phoneHint")}</p>
             </div>
 

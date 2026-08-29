@@ -6,18 +6,30 @@ import { BadgeCheck } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 
 /**
- * Las ilustraciones de la portada, reusadas acá.
+ * Obra a sangre, una por pantalla.
  *
- * No se dibujó nada nuevo a propósito: son las mismas piezas que ya vio quien
- * llegó desde riverz.co, así que entrar se siente como seguir en el mismo
- * lugar y no como saltar a un formulario prestado. Y son fichas claras sobre
- * crema, o sea que flotan sobre el fondo noche sin ningún tratamiento.
+ * Antes acá había una ilustración de la portada metida en una tarjeta blanca
+ * flotando sobre una foto de noche: dos imágenes peleándose el mismo cuadro y
+ * ninguna hecha para estar ahí. Y era material reciclado, que en la primera
+ * pantalla de la marca se nota.
+ *
+ * Estas tres son propias y ocupan la mitad de la ventana entera. El tema es la
+ * corriente —el nombre de la marca, que nadie en la categoría está usando—:
+ * verde petróleo casi negro, una sola luz amarilla, exposición larga. Cada
+ * pantalla tiene la suya y ninguna se repite:
+ *
+ *   nace   la corriente arranca de un hilo y se abre — crear cuenta
+ *   plena  la corriente trenzada, en pleno caudal — entrar
+ *   llega  muchos hilos que se juntan y se aquietan — cuenta creada
+ *
+ * Están compuestas con el tercio inferior izquierdo vacío y oscuro a
+ * propósito, que es donde cae el texto: así alcanza un velo suave y la obra no
+ * queda tapada por una cortina negra.
  */
 export const ARTE = {
-  bandeja: "/portada-b/i-bandeja-3.jpg",
-  vendedor: "/portada-b/i-vendedor.jpg",
-  atencion: "/portada-b/i-atencion.jpg",
-  envivo: "/portada-b/i-envivo-2.jpg",
+  nace: "/auth/corriente-nace.jpg",
+  plena: "/auth/corriente-plena.jpg",
+  llega: "/auth/corriente-llega.jpg",
 } as const;
 
 export type Arte = (typeof ARTE)[keyof typeof ARTE];
@@ -42,7 +54,7 @@ export type Arte = (typeof ARTE)[keyof typeof ARTE];
  */
 export function MarcoAuth({
   children,
-  arte = ARTE.bandeja,
+  arte = ARTE.plena,
 }: {
   children: ReactNode;
   /** La pieza que acompaña a ESTA pantalla. */
@@ -58,43 +70,25 @@ export function MarcoAuth({
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       {/* ── La tira ── */}
-      <aside className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-center lg:px-12 lg:py-14 xl:px-16">
-        <Image
-          src="/portada-b/fondo-noche.jpg"
-          alt=""
-          fill
-          sizes="50vw"
-          priority
-          className="object-cover"
-        />
-        {/* Un velo para que la letra no dependa de por dónde caiga el
-            degradado: el fondo tiene una zona clara arriba a la derecha. */}
+      <aside className="relative hidden overflow-hidden lg:block">
+        <Image src={arte} alt="" fill sizes="50vw" priority className="object-cover" />
+        {/* Un velo que sube desde abajo y nada más. La obra ya está compuesta
+            con el pie oscuro, así que no hace falta una cortina sobre todo. */}
         <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(105deg, rgba(10,10,10,0.82), rgba(10,10,10,0.45))" }}
           aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(6,12,11,0.94) 0%, rgba(6,12,11,0.6) 32%, rgba(6,12,11,0) 62%)",
+          }}
         />
 
-        <div className="relative flex flex-col">
-          <span className="text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary">
-            riverz
-          </span>
+        <span className="absolute left-12 top-12 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary xl:left-16 xl:top-14">
+          riverz
+        </span>
 
-          {/* La pieza. `max-h` en vh y no en px: en un portátil de 13" con la
-              barra del navegador quedan ~600px de alto, y una ilustración fija
-              empujaba las credenciales fuera de la pantalla. */}
-          <div className="mt-9 overflow-hidden rounded-2xl bg-[#f7f3ec] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)]">
-            <Image
-              src={arte}
-              alt=""
-              width={1300}
-              height={975}
-              sizes="(min-width: 1280px) 44vw, 46vw"
-              className="max-h-[38vh] w-full object-contain"
-            />
-          </div>
-
-          <p className="mt-9 max-w-[15ch] text-[34px] font-medium leading-[1.06] tracking-[-0.03em] text-sidebar-foreground xl:text-[38px]">
+        <div className="absolute inset-x-12 bottom-12 xl:inset-x-16 xl:bottom-14">
+          <p className="max-w-[15ch] text-[34px] font-medium leading-[1.06] tracking-[-0.03em] text-sidebar-foreground xl:text-[38px]">
             {t("auth.frameTitle")}
           </p>
 

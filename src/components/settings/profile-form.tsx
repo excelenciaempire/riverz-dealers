@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { CampoTelefono } from '@/components/ui/campo-telefono';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -340,13 +341,10 @@ export function ProfileForm() {
             <Label htmlFor="profile-phone" className="text-foreground">
               {t('settings.phoneLabel')}
             </Label>
-            <Input
+            <CampoTelefono
               id="profile-phone"
-              type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+54 9 11 5555 5555"
-              maxLength={30}
+              onChange={setPhone}
               disabled={saving}
             />
             <p className="text-xs text-muted-foreground">{t('settings.phoneHint')}</p>
