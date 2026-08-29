@@ -198,17 +198,18 @@ function Reparto({ lienzos }: { lienzos: LienzoEnMesa[] }) {
 /**
  * De dónde salió esta pieza.
  *
- * El nombre propio gana siempre. Cuando no lo hay —una tabla se llama por su
- * título, y algunas vistas por nada— se cae al especialista que la armó, y si
- * tampoco hay equipo, al dominio de la capacidad: `pedidos.listar` es
- * «Pedidos». Sin eso, una lectura sin equipo quedaba bajo el encabezado
- * «Automatizaciones», que era el que estaba escrito a mano.
+ * El nombre propio gana siempre. Cuando no lo hay se cae al especialista que la
+ * armó — pero SÓLO si lo hay, y no al dominio de la capacidad. Eso último se
+ * probó y se vio en producción: `operacion.estado` daba `operation.subOperacion`,
+ * que no existe en el catálogo, y el encabezado imprimía la clave cruda
+ * («OPERATION.SUBOPERACION») sobre el tablero de salud.
+ *
+ * Y no hace falta: una vista de lectura ya lleva su título adentro del marco
+ * («Cómo está la operación»), así que el encabezado no agregaba nada.
  */
 function Titulo({ lienzo }: { lienzo: LienzoEnMesa }) {
   const t = useT()
-  const propio = nombreDe(lienzo.artefacto)
-  const dominio = lienzo.agente ?? lienzo.key?.split('.')[0]
-  const texto = propio || (dominio ? t(`operation.sub${cap(dominio)}`) : '')
+  const texto = nombreDe(lienzo.artefacto) || (lienzo.agente ? t(`operation.sub${cap(lienzo.agente)}`) : '')
   if (!texto) return null
   return <h3 className="app-eyebrow mb-2 text-muted-foreground">{texto}</h3>
 }
