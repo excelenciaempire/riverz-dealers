@@ -1027,6 +1027,15 @@ export const settings = {
     es: "El umbral tiene que ser menor que el monto de la recarga.",
     en: "The threshold has to be lower than the top-up amount.",
   },
+  alertPhonesLabel: {
+    es: "A qué números avisamos",
+    en: "Which numbers we notify",
+  },
+  alertPhonesHint: {
+    es: "Hasta tres. Aquí llegan los avisos de Riverz: saldo, cobros y los casos que necesitan una persona.",
+    en: "Up to three. Riverz alerts land here: balance, charges and the cases that need a person.",
+  },
+  alertPhonesSaved: { es: "Números guardados", en: "Numbers saved" },
   walletCardRemove: { es: "Quitar tarjeta", en: "Remove card" },
   walletCardRemoved: {
     es: "Tarjeta quitada. La recarga automática queda apagada.",

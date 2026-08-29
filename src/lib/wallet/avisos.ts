@@ -21,7 +21,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
-import { aQuienAvisar } from '@/lib/ai/aviso-escalada'
+import { telefonosDeAviso } from '@/lib/ai/aviso-escalada'
 import { acceso, aSuscripcion } from '@/lib/billing/plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 import { stripe, stripeDisponible } from '@/lib/billing/stripe'
@@ -68,8 +68,11 @@ async function aQuienesAvisar(
   const digitos = (t: string) => t.replace(/\D/g, '')
   const salida = new Map<string, string>()
 
-  const delComercio = await aQuienAvisar(db, workspaceId).catch(() => null)
-  if (delComercio && digitos(delComercio)) salida.set(digitos(delComercio), delComercio)
+  // Todos los del comercio: el principal y los que haya cargado de más.
+  const delComercio = await telefonosDeAviso(db, workspaceId).catch(() => [])
+  for (const t of delComercio) {
+    if (digitos(t)) salida.set(digitos(t), t)
+  }
 
   try {
     const { data } = await db

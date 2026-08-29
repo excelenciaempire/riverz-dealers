@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Building2,
+  Bell,
   Clock,
   Loader2,
   Mail,
@@ -23,6 +24,12 @@ import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
 import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
+import {
+  isValidE164,
+  normalizeToWhatsApp,
+  sanitizePhoneForMeta,
+} from "@/lib/whatsapp/phone-utils";
+import { CampoTelefono } from "@/components/ui/campo-telefono";
 import { GATEABLE_SECTIONS } from "@/lib/rbac/sections";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
@@ -45,6 +52,9 @@ export function WorkspacePanel() {
   const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [savingTz, setSavingTz] = useState(false);
+  // Los teléfonos a los que Riverz avisa. Tres: el principal y dos más.
+  const [avisos, setAvisos] = useState<string[]>(['', '', '']);
+  const [savingAvisos, setSavingAvisos] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
@@ -152,6 +162,48 @@ export function WorkspacePanel() {
     toast.success(t("settings.timezoneUpdated"));
     reload();
   }, [workspace, timezone, reload, t]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const w = workspace as unknown as {
+      alert_phone?: string | null;
+      alert_phones?: string[] | null;
+    };
+    const guardados = [w.alert_phone ?? '', ...(w.alert_phones ?? [])];
+    setAvisos([0, 1, 2].map((i) => guardados[i] ?? ''));
+  }, [workspace]);
+
+  const handleSaveAvisos = useCallback(async () => {
+    if (!workspace) return;
+    const limpios = avisos.map((t) => t.trim()).filter(Boolean);
+    // Uno inválido no puede guardarse: el aviso saldría a un número que no
+    // existe y nadie se enteraría — el envío es a prueba de fallos justamente
+    // para no tumbar lo que estaba haciendo.
+    const malo = limpios.find((t) => !isValidE164(sanitizePhoneForMeta(t)));
+    if (malo) {
+      toast.error(t('settings.phoneInvalid'));
+      return;
+    }
+    setSavingAvisos(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('workspaces')
+      .update({
+        // El primero es el principal; los otros dos van a la lista. Se guardan
+        // ya normalizados: en Argentina un móvil sin el 9 no recibe nada.
+        alert_phone: limpios[0] ? normalizeToWhatsApp(limpios[0]) : null,
+        alert_phones: limpios.slice(1).map((x) => normalizeToWhatsApp(x)),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', workspace.id);
+    setSavingAvisos(false);
+    if (error) {
+      toast.error(t('settings.genericError'));
+      return;
+    }
+    toast.success(t('settings.alertPhonesSaved'));
+    reload();
+  }, [workspace, avisos, reload, t]);
 
   const handleInvite = useCallback(async () => {
     if (!workspace || !inviteEmail.trim()) return;
@@ -352,6 +404,49 @@ export function WorkspacePanel() {
         <p className="mt-2 text-xs text-muted-foreground">
           {t("settings.timezoneHint")}
         </p>
+
+        {/* A quién avisa Riverz.
+            Tres números y no uno: un comercio con turnos no tiene un solo
+            responsable, y a las once de la noche el aviso le llega a quien está
+            durmiendo mientras el que trabaja no se entera. Más de tres deja de
+            ser un aviso y pasa a ser una difusión. */}
+        <div className="mt-6 border-t border-border pt-4">
+          <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Bell className="size-3.5" />
+            {t("settings.alertPhonesLabel")}
+          </Label>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <CampoTelefono
+                key={i}
+                id={`alert-phone-${i}`}
+                value={avisos[i] ?? ''}
+                onChange={(v) =>
+                  setAvisos((prev) => prev.map((x, j) => (j === i ? v : x)))
+                }
+                disabled={!isAdmin || savingAvisos}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {t("settings.alertPhonesHint")}
+            </p>
+            {isAdmin && (
+              <Button
+                onClick={handleSaveAvisos}
+                disabled={savingAvisos}
+                className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {savingAvisos ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  t("common.save")
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Members card */}

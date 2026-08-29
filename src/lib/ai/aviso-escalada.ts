@@ -270,3 +270,45 @@ export async function avisarEscalada(
     return { avisado: false, motivo: 'error' };
   }
 }
+
+/**
+ * TODOS los teléfonos a los que este comercio quiere que le avisen.
+ *
+ * Un comercio con turnos no tiene un solo responsable: a las once de la noche
+ * el aviso le llega a quien está durmiendo y el que está trabajando no se
+ * entera. Por eso hay hasta tres —el dueño, el encargado y un suplente— y por
+ * eso no hay más: cuatro deja de ser un aviso y pasa a ser una difusión.
+ *
+ * Sale sin repetidos: se comparan por dígitos, así que «+54 9 11…» y
+ * «5491161047646» cuentan como uno. Si nadie configuró números propios, cae al
+ * que ya resuelve `aQuienAvisar` — el de la línea del negocio.
+ */
+export async function telefonosDeAviso(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<string[]> {
+  const digitos = (t: string) => t.replace(/\D/g, '');
+  const salida = new Map<string, string>();
+
+  const { data: ws } = await db
+    .from('workspaces')
+    .select('alert_phone, alert_phones')
+    .eq('id', workspaceId)
+    .maybeSingle();
+  const fila = ws as {
+    alert_phone?: string | null;
+    alert_phones?: string[] | null;
+  } | null;
+
+  for (const t of [fila?.alert_phone ?? '', ...(fila?.alert_phones ?? [])]) {
+    const limpio = (t ?? '').trim();
+    if (limpio && digitos(limpio)) salida.set(digitos(limpio), limpio);
+  }
+
+  if (salida.size === 0) {
+    const uno = await aQuienAvisar(db, workspaceId);
+    if (uno && digitos(uno)) salida.set(digitos(uno), uno);
+  }
+
+  return [...salida.values()];
+}
