@@ -55,6 +55,9 @@ const TEXTOS = {
     graciasNo: 'Gracias, se lo paso al equipo.',
     empezar: 'Empezar',
     correo: 'tu@correo.com',
+    telefono: 'Tu teléfono',
+    seguirWa: 'Seguir por WhatsApp',
+    waSaludo: 'Hola, vengo del chat de la web.',
     agregar: 'Agregar',
     agregado: 'Agregado',
     agregando: 'Agregando…',
@@ -86,6 +89,9 @@ const TEXTOS = {
     graciasNo: 'Thanks — passing it to the team.',
     empezar: 'Start',
     correo: 'you@email.com',
+    telefono: 'Your phone number',
+    seguirWa: 'Continue on WhatsApp',
+    waSaludo: 'Hi, I was chatting on your website.',
     agregar: 'Add',
     agregado: 'Added',
     agregando: 'Adding…',
@@ -186,6 +192,7 @@ export function ChatApp() {
   const [draft, setDraft] = useState('');
   const [waiting, setWaiting] = useState(false);
   const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [identified, setIdentified] = useState(false);
   const [expired, setExpired] = useState(false);
   const [reanudando, setReanudando] = useState(false);
@@ -214,9 +221,9 @@ export function ChatApp() {
   // cargador confirma el estado real al recibir `riverz:ready`.
   const abierto = useRef(true);
   const noLeidos = useRef(0);
-  /** Correo que el visitante dio ANTES de escribir, cuando todavía no existía
-   *  el contacto donde guardarlo. Se reintenta con el primer mensaje. */
-  const correoPendiente = useRef<string | null>(null);
+  /** Lo que el visitante dio ANTES de escribir, cuando todavía no existía el
+   *  contacto donde guardarlo. Se reintenta con el primer mensaje. */
+  const datosPendientes = useRef<{ email?: string; phone?: string } | null>(null);
   /** Qué página de la tienda está mirando. La manda el cargador, que es el
    *  único que la ve: dentro del iframe `location` es la nuestra. Va en un ref
    *  y no en el estado porque sólo la lee el envío. */
@@ -495,15 +502,15 @@ export function ChatApp() {
           '*',
         );
       }
-      // Ahora sí existe el contacto: acá se guarda el correo que el visitante
+      // Ahora sí existe el contacto: acá se guardan los datos que el visitante
       // dio antes de escribir. Sin bloquear el envío — el mensaje ya salió.
-      if (correoPendiente.current) {
-        const correo = correoPendiente.current;
-        correoPendiente.current = null;
+      if (datosPendientes.current) {
+        const datos = datosPendientes.current;
+        datosPendientes.current = null;
         void fetch('/api/widget/identify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
-          body: JSON.stringify({ email: correo }),
+          body: JSON.stringify(datos),
         }).catch(() => {});
       }
       poll().catch(() => {});
@@ -615,27 +622,66 @@ export function ChatApp() {
   }, [session, pidiendoPersona, estado]);
 
   const identify = useCallback(async () => {
-    const value = email.trim();
-    if (!value || !session) return;
+    const datos: { email?: string; phone?: string } = {};
+    if (email.trim()) datos.email = email.trim();
+    if (telefono.trim()) datos.phone = telefono.trim();
+    if (!session || (!datos.email && !datos.phone)) return;
     const res = await fetch('/api/widget/identify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
-      body: JSON.stringify({ email: value }),
+      body: JSON.stringify(datos),
     }).catch(() => null);
-    // Con "pedir el correo antes de escribir", este es SIEMPRE el primer paso:
+    // Con "pedir datos antes de escribir", este es SIEMPRE el primer paso:
     // todavía no hay contacto —nadie escribió— así que el servidor no tiene
-    // dónde guardarlo y contesta `linked:false`. El comercio configuró que se
-    // lo pidan y el correo se perdía igual. Se recuerda y se vuelve a mandar
-    // apenas el primer mensaje cree el contacto: no se crea una fila para quien
-    // sólo abrió el widget, y el ajuste hace lo que promete.
+    // dónde guardarlos y contesta `linked:false`. El comercio configuró que se
+    // los pidan y se perdían igual. Se recuerdan y se vuelven a mandar apenas
+    // el primer mensaje cree el contacto: no se crea una fila para quien sólo
+    // abrió el widget, y el ajuste hace lo que promete.
     const json = (await res?.json().catch(() => null)) as { linked?: boolean } | null;
-    correoPendiente.current = json?.linked === false ? value : null;
+    datosPendientes.current = json?.linked === false ? datos : null;
     setIdentified(true);
-  }, [email, session]);
+  }, [email, telefono, session]);
 
   const color = settings?.primary_color ?? '#A3E635';
   const ink = useMemo(() => contrast(color), [color]);
-  const needsEmail = Boolean(settings?.require_email) && !identified && messages.length === 0;
+
+  /**
+   * Qué se pide antes de escribir. `require_email` es la forma vieja del mismo
+   * ajuste y sigue llegando en las configuraciones ya guardadas.
+   */
+  const pide = settings?.require_contact ?? (settings?.require_email ? 'email' : 'off');
+  const pideCorreo = pide === 'email' || pide === 'both';
+  const pideTelefono = pide === 'phone' || pide === 'both';
+  const needsEmail = (pideCorreo || pideTelefono) && !identified && messages.length === 0;
+
+  /**
+   * Seguir por WhatsApp.
+   *
+   * El chat web era el único canal sin salida al de al lado: quien escribía acá
+   * cerraba la pestaña y la conversación se terminaba. Lo abre la persona
+   * —wa.me con el mensaje ya escrito— así que no hace falta ninguna plantilla y
+   * la ventana de 24 h de Meta se abre sola. El código que va en el mensaje une
+   * las dos fichas del otro lado.
+   */
+  const [yendoAWhatsApp, setYendoAWhatsApp] = useState(false);
+  const seguirEnWhatsApp = useCallback(async () => {
+    if (!session || yendoAWhatsApp) return;
+    setYendoAWhatsApp(true);
+    try {
+      const res = await fetch('/api/widget/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+        body: JSON.stringify({ saludo: T.waSaludo }),
+      });
+      const json = (await res.json().catch(() => null)) as { url?: string } | null;
+      // Se abre en la ventana de la TIENDA, no en el iframe: adentro de un
+      // iframe de otro dominio el navegador bloquea la navegación a wa.me y no
+      // pasa nada de nada.
+      if (json?.url) window.parent?.postMessage({ type: 'riverz:abrir', url: json.url }, '*');
+    } finally {
+      setYendoAWhatsApp(false);
+    }
+  }, [session, yendoAWhatsApp, T]);
 
   /**
    * Quién firma un mensaje entrante.
@@ -808,7 +854,7 @@ export function ChatApp() {
           estado === 'pending' || pidiendoPersona ? (
             <p className="mt-3 text-center text-[11px] text-neutral-500">{T.avisamos}</p>
           ) : (
-            <div className="mt-3 flex justify-center">
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 onClick={pedirPersona}
@@ -816,6 +862,19 @@ export function ChatApp() {
               >
                 {T.hablarPersona}
               </button>
+              {/* Llevarse la conversación. Al lado de "hablar con una persona"
+                  porque resuelven lo mismo desde dos lados: seguir en otro
+                  lado en vez de terminar acá. */}
+              {settings?.whatsapp_handoff ? (
+                <button
+                  type="button"
+                  onClick={seguirEnWhatsApp}
+                  disabled={yendoAWhatsApp}
+                  className="rounded-md border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {T.seguirWa}
+                </button>
+              ) : null}
             </div>
           )
         ) : null}
@@ -851,14 +910,26 @@ export function ChatApp() {
             identify();
           }}
         >
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={T.correo}
-            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
-          />
+          {pideCorreo ? (
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={T.correo}
+              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500"
+            />
+          ) : null}
+          {pideTelefono ? (
+            <input
+              type="tel"
+              required
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder={T.telefono}
+              className={`w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-500${pideCorreo ? ' mt-2' : ''}`}
+            />
+          ) : null}
           <button
             type="submit"
             className="mt-2 w-full rounded-lg px-3 py-2 text-sm font-semibold"

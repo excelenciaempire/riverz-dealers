@@ -16,6 +16,7 @@ import { parseReply, resolveByCode } from '@/lib/approvals/resolve'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { reclamarTraspaso } from '@/lib/channels/webchat/seguir-en-whatsapp'
 import { metaErrorText, metaErrorCode } from '@/lib/whatsapp/delivery-errors'
 import {
   handleTemplateStatusUpdate,
@@ -1026,6 +1027,23 @@ async function processMessage(
     .eq('id', contactRecord.id)
   if (contactUpdateErr) {
     console.error('Error updating contact last_inbound_at:', contactUpdateErr)
+  }
+
+  // ¿Viene del chat de la web?
+  //
+  // El mensaje trae un código que emitió el widget cuando la persona tocó
+  // "Seguir por WhatsApp". Une las dos fichas: a partir de acá el agente ve lo
+  // que ya se habló en la web y no le hace repetir todo. El código prueba que
+  // quien escribe tenía esa sesión abierta, así que el teléfono queda como
+  // identidad del canal y no como un dato afirmado.
+  //
+  // Best-effort: si algo falla, el mensaje ya entró igual a la bandeja.
+  if (contentText && contactRecord.workspace_id) {
+    await reclamarTraspaso(supabaseAdmin(), {
+      workspaceId: contactRecord.workspace_id,
+      texto: contentText,
+      contactoWhatsapp: contactRecord,
+    }).catch((e: unknown) => console.warn('[webhook] traspaso desde el chat web falló:', e))
   }
 
   // If this contact was a recent broadcast recipient, flag the reply

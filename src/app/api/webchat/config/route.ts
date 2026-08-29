@@ -18,6 +18,7 @@ import {
   WEBCHAT_DEFAULTS,
 } from '@/lib/channels/webchat/config';
 import { detectStoreDomains } from '@/lib/channels/webchat/domains';
+import { tieneWhatsApp } from '@/lib/channels/webchat/seguir-en-whatsapp';
 import { publicBaseUrl } from '@/lib/base-url';
 
 /**
@@ -80,6 +81,9 @@ export async function GET() {
     snippet: snippet(key),
     suggested_domains: suggested,
     agents: agentes ?? [],
+    // Para poder decir POR QUÉ "Seguir por WhatsApp" no se puede activar, en vez
+    // de mostrar un interruptor que se apaga solo al guardar.
+    has_whatsapp: await tieneWhatsApp(admin, resolved.workspaceId),
   });
 }
 
@@ -118,6 +122,19 @@ export async function PUT(request: Request) {
     patch.avatar_url = !url || /^https:\/\/\S+$/i.test(url) ? url : '';
   }
   if (typeof body.require_email === 'boolean') patch.require_email = body.require_email;
+  if (
+    body.require_contact === 'off' ||
+    body.require_contact === 'email' ||
+    body.require_contact === 'phone' ||
+    body.require_contact === 'both'
+  ) {
+    patch.require_contact = body.require_contact;
+    // El booleano viejo se mantiene en sincronía: hay lecturas que todavía lo
+    // miran, y dejarlo desfasado haría que el widget pida el correo por un
+    // lado y el panel diga que no por el otro.
+    patch.require_email = body.require_contact === 'email' || body.require_contact === 'both';
+  }
+  if (typeof body.whatsapp_handoff === 'boolean') patch.whatsapp_handoff = body.whatsapp_handoff;
   if (typeof body.allow_uploads === 'boolean') patch.allow_uploads = body.allow_uploads;
   if (typeof body.ask_rating === 'boolean') patch.ask_rating = body.ask_rating;
   if (typeof body.offline_message === 'string') {

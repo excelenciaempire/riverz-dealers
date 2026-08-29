@@ -1216,8 +1216,30 @@ export interface WebchatConfig {
    */
   allowed_domains?: string[];
   /** Pedir email antes de escribir. Off por defecto: la fricción mata la
-   *  conversación, y el email igual se captura solo si la persona compra. */
+   *  conversación, y el email igual se captura solo si la persona compra.
+   *
+   *  Lo reemplaza `require_contact`, que además puede pedir el teléfono. Se
+   *  conserva para leer las configuraciones que ya existen. */
   require_email?: boolean;
+  /**
+   * Qué datos se piden antes de escribir: nada, el correo, el teléfono o los
+   * dos.
+   *
+   * El teléfono no es un campo más. Es lo que convierte a un visitante anónimo
+   * —que cierra la pestaña y desaparece— en alguien a quien el comercio puede
+   * volver a escribirle, y lo que permite seguir la conversación por WhatsApp.
+   * Sigue siendo opcional: cada campo que se pide antes de la primera frase
+   * cuesta conversaciones.
+   */
+  require_contact?: 'off' | 'email' | 'phone' | 'both';
+  /**
+   * Ofrecer "Seguir por WhatsApp".
+   *
+   * Cada canal tiene una salida al de al lado cuando el suyo se queda corto: la
+   * llamada manda un WhatsApp con el link que no se puede dictar, el comentario
+   * público sigue por DM. Ésta es la del chat web. Requiere WhatsApp conectado.
+   */
+  whatsapp_handoff?: boolean;
   /**
    * Segundos hasta que el chat se abre solo. 0 = nunca.
    *

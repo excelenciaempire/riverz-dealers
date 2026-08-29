@@ -23,6 +23,24 @@ export const WEBCHAT_DEFAULTS: Required<
   ask_rating: true,
 };
 
+/**
+ * Qué se le pide al visitante antes de escribir.
+ *
+ * `require_email` era un sí/no y sigue existiendo en las configuraciones ya
+ * guardadas: un booleano viejo se lee como "pedir el correo". Lo nuevo se
+ * guarda en `require_contact`, que manda cuando está.
+ *
+ * El teléfono no es un campo más: es lo que convierte a un anónimo que cierra
+ * la pestaña en alguien a quien el comercio puede volver a escribirle.
+ */
+export type DatosPedidos = 'off' | 'email' | 'phone' | 'both';
+
+export function datosPedidos(config: WebchatConfig): DatosPedidos {
+  const v = config.require_contact;
+  if (v === 'off' || v === 'email' || v === 'phone' || v === 'both') return v;
+  return config.require_email ? 'email' : 'off';
+}
+
 /** Lo que el widget necesita saber para dibujarse. Nunca incluye los dominios
  *  ni el agente: eso es del comercio, no del visitante. */
 export interface WebchatSettings {
@@ -32,6 +50,11 @@ export interface WebchatSettings {
   brand_name: string;
   avatar_url: string | null;
   require_email: boolean;
+  /** Qué se pide antes de escribir: nada, correo, teléfono o los dos. */
+  require_contact: DatosPedidos;
+  /** Ofrecer "Seguir por WhatsApp". Sólo llega en true si además hay WhatsApp
+   *  conectado: un botón que no lleva a ningún lado es peor que no tenerlo. */
+  whatsapp_handoff: boolean;
   auto_open_seconds: number;
   allow_uploads: boolean;
   ask_rating: boolean;
@@ -108,7 +131,13 @@ export function segundosDeApertura(valor: number | null | undefined): number {
 export function widgetSettings(
   config: WebchatConfig,
   fallbackName: string,
-  extra?: { locale?: string | null; offline?: boolean; visitorLocale?: string | null },
+  extra?: {
+    locale?: string | null;
+    offline?: boolean;
+    visitorLocale?: string | null;
+    /** ¿El comercio tiene WhatsApp conectado? Lo resuelve quien llama. */
+    hasWhatsApp?: boolean;
+  },
 ): WebchatSettings {
   return {
     primary_color: config.primary_color || WEBCHAT_DEFAULTS.primary_color,
@@ -117,6 +146,10 @@ export function widgetSettings(
     brand_name: config.brand_name || fallbackName,
     avatar_url: config.avatar_url || null,
     require_email: config.require_email ?? WEBCHAT_DEFAULTS.require_email,
+    require_contact: datosPedidos(config),
+    // El botón sólo existe si hay a dónde ir. Ofrecer "Seguir por WhatsApp" sin
+    // WhatsApp conectado es prometer un canal que no contesta.
+    whatsapp_handoff: config.whatsapp_handoff === true && extra?.hasWhatsApp === true,
     auto_open_seconds: segundosDeApertura(config.auto_open_seconds),
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,
