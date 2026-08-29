@@ -40,17 +40,24 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readInitialTheme(): ThemeId {
   if (typeof window === "undefined") return DEFAULT_THEME;
-  // Whatever the boot script applied is the truth. Fall back to
-  // localStorage / default if for some reason the attribute is missing
-  // (e.g. someone bypassed the boot script in a custom layout).
-  const fromAttr = document.documentElement.dataset.theme;
-  if (isThemeId(fromAttr)) return fromAttr;
+  // La elección guardada manda, y el atributo es el respaldo — no al revés.
+  //
+  // Antes ganaba el atributo, "lo que el guion de arranque aplicó". El problema
+  // es que no hay forma de distinguir un atributo que puso el guion de uno que
+  // viene del servidor, donde SIEMPRE dice `light`: si el guion no llegó a
+  // correr, leer el atributo devuelve claro y pisa el oscuro que la persona
+  // eligió. `localStorage` no tiene esa ambigüedad — si hay algo, lo eligió
+  // alguien.
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (isThemeId(stored)) return stored;
   } catch {
     // localStorage can throw in private-browsing / sandboxed contexts.
   }
+  // Sin elección guardada, el atributo lleva el defecto por superficie que el
+  // guion de arranque calculó (oscuro en la portada, claro en la app).
+  const fromAttr = document.documentElement.dataset.theme;
+  if (isThemeId(fromAttr)) return fromAttr;
   return DEFAULT_THEME;
 }
 
@@ -69,6 +76,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // still updates so the current tab works for the session.
     }
   }, []);
+
+  /**
+   * Que el DOM diga lo mismo que el estado, siempre.
+   *
+   * El guion de arranque pinta el tema antes de hidratar, pero no siempre
+   * sobrevive: medido en producción el 2026-08-28, tras recargar con
+   * `wacrm.theme = "dark"` guardado, `<html>` volvía SIN `data-theme` mientras
+   * este proveedor —que sí lee localStorage como respaldo— tenía el estado en
+   * `dark`. O sea: el botón mostraba el sol, decía "cambiar a claro", y la
+   * página seguía clara. Elegir oscuro no sobrevivía a un refresco.
+   *
+   * Esto lo cierra por el lado que no puede fallar: lo que el proveedor tiene
+   * como verdad se escribe en el DOM al montar. El guion de arranque sigue
+   * siendo el que evita el parpadeo; esto es la red abajo.
+   */
+  useEffect(() => {
+    if (document.documentElement.dataset.theme !== theme) {
+      document.documentElement.dataset.theme = theme;
+    }
+  }, [theme]);
 
   // Sync from other tabs — if you change your theme in tab A, tab B
   // catches up without a refresh.
