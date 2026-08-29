@@ -23,6 +23,25 @@ export async function register() {
       log.warn(`${msg} (permitido fuera de producción)`)
     }
 
+    // Las llaves de los proveedores que se cargaron desde el panel, al entorno
+    // del proceso. Va ANTES del reloj: el primer latido puede disparar un
+    // trabajo que las use, y arrancar con la clave vieja de Render sería
+    // exactamente lo que se acaba de cambiar en el panel para arreglar.
+    //
+    // Después se refresca en cada latido (ver `scheduler.ts`), así que un
+    // cambio vale en todas las instancias en menos de un minuto y sin
+    // redeploy. Ver `lib/admin/claves.ts`.
+    try {
+      const { hidratarClaves } = await import('@/lib/admin/claves')
+      const n = await hidratarClaves()
+      if (n > 0) log.info('claves del panel aplicadas al entorno', { n })
+    } catch (e) {
+      // Sin esto el proceso sigue con lo de Render, que es lo que había antes.
+      log.warn('no se pudieron leer las claves del panel', {
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+
     // Reloj de los trabajos periódicos. Vive dentro del servicio web porque
     // los Render Cron Jobs cuestan un mínimo de 1 USD/mes cada uno y no tienen
     // plan gratuito; ver src/lib/cron/schedule.ts.

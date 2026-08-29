@@ -8,6 +8,8 @@ import type {
   EstadoProveedor,
 } from "@/lib/admin/proveedores";
 import type { CostoFijo } from "@/lib/admin/costos-fijos";
+import type { EstadoDeClave } from "@/lib/admin/claves";
+import { ClaveEditor } from "../_components/clave-editor";
 import {
   useAdminData,
   PageHeader,
@@ -56,6 +58,13 @@ export default function AdminProveedoresPage() {
     "/api/admin/proveedores",
     0,
   );
+  // Las llaves van por su propia ruta: el saldo se consulta afuera y tarda,
+  // y no hay motivo para que administrar una llave espere a que once APIs
+  // contesten.
+  const { data: llaves, setData: setLlaves } = useAdminData<{
+    claves: EstadoDeClave[];
+  }>("/api/admin/claves", 0);
+  const claveDe = (id: string) => llaves?.claves.find((c) => c.id === id);
 
   if (loading && !data) return <Loading forma="stats+table" cajas={3} />;
   if (error || !data) return <LoadError onRetry={reload} />;
@@ -119,7 +128,14 @@ export default function AdminProveedoresPage() {
       <Panel title={t("admin.providersMoneyBlock")}>
         <ul className="divide-y divide-border">
           {conSaldo.map((p) => (
-            <Fila key={p.id} p={p} monto={monto(p)} accion={t("admin.balancesTopUp")} />
+            <Fila
+              key={p.id}
+              p={p}
+              monto={monto(p)}
+              accion={t("admin.balancesTopUp")}
+              clave={claveDe(p.id)}
+              onClaves={(claves) => setLlaves({ claves })}
+            />
           ))}
         </ul>
       </Panel>
@@ -147,10 +163,15 @@ function Fila({
   p,
   monto,
   accion,
+  clave,
+  onClaves,
 }: {
   p: Proveedor;
   monto: string;
   accion: string;
+  /** Su llave global, cuando es de los que se administran desde acá. */
+  clave?: EstadoDeClave;
+  onClaves?: (claves: EstadoDeClave[]) => void;
 }) {
   const t = useT();
   const format = useFormat();
@@ -175,6 +196,9 @@ function Fila({
       <div className="flex shrink-0 items-center gap-3">
         <span className="tabular-nums text-foreground">{monto}</span>
         <StatusPill tone={TONO[p.estado]} label={t(`admin.balanceState_${p.estado}`)} />
+        {/* La llave se administra donde se ve el problema: si dice «Sin llave»,
+            cargarla está acá al lado y no en otro tablero. */}
+        {clave && onClaves && <ClaveEditor clave={clave} onDone={onClaves} />}
         {p.url && (
           <a
             href={p.url}

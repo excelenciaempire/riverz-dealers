@@ -136,6 +136,18 @@ function tick(secret: string): void {
   if (s.draining) return;
   const now = new Date();
   s.lastTickAt = now;
+
+  // Las llaves que se cargaron desde el panel, al entorno del proceso.
+  //
+  // Va acá arriba, antes del corte por "no hay trabajos": es lo que hace que
+  // cambiar una clave en /admin/proveedores valga en TODAS las instancias en
+  // menos de un minuto, sin redeploy y sin tocar ningún `process.env.X` de los
+  // que ya existen. Sin await ni manejo de error: es una consulta chica a una
+  // tabla chica, y si falla el proceso sigue con lo que ya tenía puesto.
+  void import('@/lib/admin/claves')
+    .then((m) => m.hidratarClaves())
+    .catch(() => {});
+
   const jobs = dueJobs(now);
   if (jobs.length === 0) return;
 

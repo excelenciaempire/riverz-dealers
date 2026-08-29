@@ -34,6 +34,12 @@ export type AdminAction =
   // Qué llaves pueden operar una cuenta desde afuera. Mirar quién tiene acceso
   // es en sí mismo un acto que conviene que quede registrado.
   | 'view.keys'
+  // Las llaves globales de IA y voz: con ellas trabajan todos los comercios y
+  // su consumo se le cobra a la billetera de cada uno, así que cambiar una es
+  // de lo más sensible que se puede hacer desde el panel. Queda el proveedor,
+  // nunca el valor.
+  | 'update.platform_key'
+  | 'delete.platform_key'
   | 'update.feature_flag'
   | 'update.workspace_feature_flag'
   | 'update.voice_model'

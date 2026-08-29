@@ -543,6 +543,33 @@ export const admin = {
     es: "{tokens} tokens · {usd} este mes",
     en: "{tokens} tokens · {usd} this month",
   },
+  // Administrar las llaves globales: las que Riverz pone y con las que
+  // trabajan todos los comercios.
+  keyEdit: { es: "Cambiar llave", en: "Change key" },
+  keyMissing: { es: "Sin llave", en: "No key" },
+  keySave: { es: "Guardar", en: "Save" },
+  keyRemove: { es: "Quitar del panel", en: "Remove from panel" },
+  keySaved: { es: "Llave guardada", en: "Key saved" },
+  keyRemoved: {
+    es: "Quitada. Vuelve a la de Render.",
+    en: "Removed. Falls back to Render's.",
+  },
+  keyError: { es: "No se pudo guardar", en: "Couldn't save" },
+  keyPlaceholder: { es: "Pegar la llave nueva", en: "Paste the new key" },
+  keyOrigin: { es: "La que está activa sale {v}", en: "The active one comes {v}" },
+  keyOrigin_panel: { es: "de este panel", en: "from this panel" },
+  keyOrigin_render: { es: "de Render", en: "from Render" },
+  keyOrigin_falta: { es: "de ningún lado: falta", en: "from nowhere: missing" },
+  keyBilling: { es: "Sin ella no se puede cobrar", en: "Without it you can't bill" },
+  // Los conceptos de la billetera que dependen de cada llave.
+  concepto_ia_respuesta: { es: "Respuestas de la IA", en: "AI replies" },
+  concepto_ia_operador: { es: "El Operador", en: "The Operator" },
+  concepto_llamada_voz: { es: "Llamadas", en: "Calls" },
+  concepto_voz_tts: { es: "Voz", en: "Voice" },
+  concepto_voz_stt: { es: "Transcripción", en: "Transcription" },
+  concepto_busqueda_web: { es: "Búsqueda web", en: "Web search" },
+  concepto_imagen: { es: "Imágenes", en: "Images" },
+  concepto_investigacion: { es: "Investigación", en: "Research" },
   // Costos fijos
   fixedMissingEnv: { es: "Falta {v}", en: "Missing {v}" },
   fixedNoAnswer: { es: "No respondió", en: "No answer" },
