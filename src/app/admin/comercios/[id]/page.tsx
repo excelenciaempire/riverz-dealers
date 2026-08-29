@@ -39,7 +39,7 @@ export default function AdminWorkspaceDetailPage({
     `/api/admin/workspaces/${id}`,
   );
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading forma="panel" />;
   if (error || !data)
     return (
       <div className="space-y-4">

@@ -156,7 +156,7 @@ export default function AdminOpsPage() {
     [t, format],
   );
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading forma="table" />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
   const broken = jobs.filter((j) => jobStatus(j, t).tone === "error").length;

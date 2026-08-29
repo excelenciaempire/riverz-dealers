@@ -72,7 +72,7 @@ export default function AdminWaitlistPage() {
 
       <Panel>
         {loading ? (
-          <Loading />
+          <Loading forma="table" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
 
@@ -36,6 +36,40 @@ interface Fetched<T> {
 export const LIVE_MS = 30_000;
 
 /**
+ * Lo último que contestó cada ruta, para pintar antes de preguntar.
+ *
+ * El panel es todo cliente: cada pantalla montaba, mandaba su GET y mostraba un
+ * spinner hasta que volvía. Con `/api/admin/overview` cruzando los avisos de
+ * todos los comercios eso son varios segundos de pantalla vacía **cada vez que
+ * se entra**, aunque hayas estado ahí hace diez segundos.
+ *
+ * Guardar la última respuesta por URL vuelve inmediato el segundo ingreso: se
+ * pinta lo de antes con el punto de "se está actualizando" y la respuesta nueva
+ * lo reemplaza cuando llega. `sessionStorage` y no `localStorage` a propósito —
+ * son datos de plataforma de todas las cuentas, y no tienen por qué sobrevivir
+ * a que se cierre la pestaña.
+ */
+const CACHE_PREFIJO = "riverz.admin.cache:";
+
+function leerCache<T>(url: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_PREFIJO + url);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    // Modo privado, cuota llena o un JSON viejo con otra forma: se pide igual.
+    return null;
+  }
+}
+
+function guardarCache(url: string, valor: unknown): void {
+  try {
+    sessionStorage.setItem(CACHE_PREFIJO + url, JSON.stringify(valor));
+  } catch {
+    // Sin caché se sigue funcionando: sólo se pierde el pintado inmediato.
+  }
+}
+
+/**
  * GET a una ruta de admin, con refresco automático, recarga manual y
  * cancelación al desmontar.
  *
@@ -66,9 +100,24 @@ export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
     /** `silent` = refresco de fondo: no vuelve a poner la pantalla en "cargando". */
     const load = async (silent: boolean) => {
       const ticket = ++latest.current;
+      // Con algo ya en pantalla, esta carga se comporta como un refresco de
+      // fondo aunque no lo sea: no muestra "cargando" y un fallo no borra lo
+      // que se está viendo.
+      let mudo = silent;
       if (!silent) {
-        setLoading(true);
-        setError(false);
+        // La caché se lee acá dentro —en el efecto— y no en el `useState`: en
+        // el servidor no existe `sessionStorage`, así que sembrarla arriba
+        // haría que el HTML del servidor y el del cliente no coincidan.
+        const previo = leerCache<T>(url);
+        if (previo !== null) {
+          setData(previo);
+          setError(false);
+          setLoading(false);
+          mudo = true;
+        } else {
+          setLoading(true);
+          setError(false);
+        }
       }
       try {
         const res = await fetch(url, { cache: "no-store" });
@@ -77,14 +126,15 @@ export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
         if (ticket === latest.current && !cancelled) {
           setData(json);
           setError(false);
+          guardarCache(url, json);
         }
       } catch {
         // Un fallo del refresco de fondo no borra lo que ya se está viendo:
         // dejar la pantalla en rojo por un corte de red de un segundo es peor
         // que mostrar datos de hace treinta.
-        if (ticket === latest.current && !cancelled && !silent) setError(true);
+        if (ticket === latest.current && !cancelled && !mudo) setError(true);
       } finally {
-        if (ticket === latest.current && !cancelled && !silent) setLoading(false);
+        if (ticket === latest.current && !cancelled && !mudo) setLoading(false);
       }
     };
 
@@ -202,11 +252,66 @@ export function Panel({
   );
 }
 
-export function Loading() {
+/**
+ * Lo que se ve mientras llega el JSON.
+ *
+ * Un spinner centrado sobre fondo vacío no dice nada y hace sentir la espera
+ * más larga de lo que es. Un esqueleto con la geometría de lo que viene deja la
+ * página quieta: cuando llegan los datos no salta nada de lugar.
+ *
+ * `forma` describe la pantalla que está cargando; el defecto es la mezcla más
+ * común del panel (unas cajas de números y una tabla).
+ */
+export function Loading({
+  forma = "stats+table",
+  filas = 6,
+  cajas = 4,
+}: {
+  forma?: "stats" | "table" | "panel" | "stats+table";
+  /** Filas del esqueleto de tabla. */
+  filas?: number;
+  /** Cajas del esqueleto de números. */
+  cajas?: number;
+}) {
   return (
-    <div className="flex h-40 items-center justify-center">
-      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+    <div className="space-y-3" aria-busy="true" aria-live="polite">
+      {(forma === "stats" || forma === "stats+table") && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: cajas }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-4">
+              <Hueso className="h-3 w-20" />
+              <Hueso className="mt-2 h-7 w-16" />
+            </div>
+          ))}
+        </div>
+      )}
+      {(forma === "table" || forma === "panel" || forma === "stats+table") && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <Hueso className="h-4 w-40" />
+          </div>
+          <div className="divide-y divide-border">
+            {Array.from({ length: forma === "panel" ? 3 : filas }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3">
+                <Hueso className="h-3.5 flex-1" />
+                <Hueso className="hidden h-3.5 w-24 sm:block" />
+                <Hueso className="h-3.5 w-16" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Un bloque gris que late. Respeta "reducir movimiento" por el propio Tailwind. */
+function Hueso({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn("block animate-pulse rounded bg-muted-foreground/15", className)}
+    />
   );
 }
 

@@ -69,7 +69,7 @@ export default function AdminFeaturesPage() {
       />
 
       {loading ? (
-        <Loading />
+        <Loading forma="panel" />
       ) : error || !data ? (
         <LoadError onRetry={reload} />
       ) : (

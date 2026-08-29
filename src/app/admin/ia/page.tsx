@@ -156,7 +156,7 @@ export default function AdminAiKeyPage() {
     [data],
   );
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading forma="panel" />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
   const MODES: { value: Mode; label: string; hint: string }[] = [

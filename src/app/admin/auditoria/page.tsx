@@ -207,7 +207,7 @@ export default function AdminAuditPage() {
 
       <Panel>
         {loading ? (
-          <Loading />
+          <Loading forma="table" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : source === "agente" ? (

@@ -158,7 +158,7 @@ export default function AdminConversationsPage() {
     [abrir, format, t],
   );
 
-  if (loading && !data) return <Loading />;
+  if (loading && !data) return <Loading forma="table" />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
   return (

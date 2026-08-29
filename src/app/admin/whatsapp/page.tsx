@@ -106,7 +106,7 @@ export default function AdminWhatsAppPage() {
   }
 
   if (failed) return <LoadError onRetry={load} />;
-  if (!status) return <Loading />;
+  if (!status) return <Loading forma="panel" />;
 
   return (
     <div className="space-y-5">

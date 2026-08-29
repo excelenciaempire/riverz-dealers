@@ -25,9 +25,19 @@ interface Payload {
     cronsBroken: number;
     schedulerAlive: boolean;
     schedulerLastTickAt: string | null;
-    workspacesWithIssues: number;
-    workspacesCritical: number;
   };
+}
+
+/**
+ * Los comercios rotos, aparte.
+ *
+ * Se pide en su propia llamada porque recorrer los avisos de todas las cuentas
+ * es lo más lento del home: pegado al resumen, hacía esperar a unos números que
+ * ya estaban listos.
+ */
+interface Issues {
+  workspacesWithIssues: number;
+  workspacesCritical: number;
 }
 
 /**
@@ -45,6 +55,8 @@ export default function AdminHomePage() {
 
   const url = `/api/admin/overview?from=${encodeURIComponent(fromDays(PERIOD_DAYS))}`;
   const { data, loading, error, reload, live } = useAdminData<Payload>(url);
+  const { data: issues, reload: reloadIssues } =
+    useAdminData<Issues>("/api/admin/overview/issues");
   const o = data?.overview ?? null;
   const series = data?.series ?? [];
 
@@ -58,7 +70,7 @@ export default function AdminHomePage() {
         // Primero los comercios rotos: es lo único de esta lista que se
         // traduce, hoy, en un cliente que no recibió lo que esperaba.
         {
-          n: ops?.workspacesCritical ?? 0,
+          n: issues?.workspacesCritical ?? 0,
           label: t("admin.alertWorkspacesBroken"),
           href: "/admin/comercios",
         },
@@ -74,7 +86,14 @@ export default function AdminHomePage() {
         live={live}
         title={t("admin.overviewTitle")}
         description={t("admin.overviewDesc")}
-        actions={<RefreshButton onClick={reload} />}
+        actions={
+          <RefreshButton
+            onClick={() => {
+              reload();
+              reloadIssues();
+            }}
+          />
+        }
       />
 
       {loading ? (

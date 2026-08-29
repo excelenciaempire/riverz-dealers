@@ -190,7 +190,7 @@ export default function AdminLogsPage() {
 
       <Panel>
         {loading ? (
-          <Loading />
+          <Loading forma="table" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (
