@@ -1273,6 +1273,10 @@ const CHANNEL_LABEL: Record<string, string> = {
   ml_review: 'opinión de Mercado Libre',
   tiktok_comment: 'comentario de TikTok',
   voice: 'llamada',
+  // Faltaba: los turnos del chat web llegaban rotulados "webchat", el nombre
+  // interno de la columna. Se lee raro justo en el caso que más importa —
+  // alguien que venía hablando en la web y sigue por WhatsApp.
+  webchat: 'chat de la web',
 };
 
 /**
@@ -1301,6 +1305,58 @@ function turnHeader(args: {
   if (args.automation) parts.push(`automatización: ${args.automation}`);
   const inner = parts.filter(Boolean).join(' · ');
   return inner ? `[${inner}] ` : '';
+}
+
+/**
+ * El resumen de LA PERSONA, no el de un hilo.
+ *
+ * Los mensajes recientes ya se mezclan entre canales, pero el resumen rodante
+ * no: era el de la conversación en curso y nada más. En una persona que ya
+ * venía hablando, lo viejo de los OTROS canales vive justamente ahí — cae
+ * fuera de la ventana de mensajes y queda resumido en un resumen que nunca se
+ * inyectaba. Resultado: alguien que se pasa del chat web a WhatsApp arrastra
+ * los últimos turnos y pierde todo lo anterior, que es lo que hace falta para
+ * no preguntar dos veces lo mismo.
+ *
+ * Se suman los hilos hermanos con su canal al frente, para que el modelo sepa
+ * dónde se dijo cada cosa. Tres como mucho y recortados: esto va al system
+ * prompt de CADA respuesta, y un resumen largo desplaza al catálogo.
+ */
+export async function resumenDeLaPersona(
+  db: SupabaseClient,
+  conversation: Conversation,
+  conversationIds: string[],
+): Promise<string | null> {
+  const propio = (conversation.ai_summary ?? '').trim();
+  const otros = conversationIds.filter((id) => id !== conversation.id);
+  if (otros.length === 0) return propio || null;
+
+  const partes: string[] = [];
+  if (propio) partes.push(propio);
+
+  try {
+    const { data } = await db
+      .from('conversations')
+      .select('id, channel, ai_summary, last_message_at')
+      .in('id', otros)
+      .not('ai_summary', 'is', null)
+      .order('last_message_at', { ascending: false })
+      .limit(3);
+    for (const row of (data ?? []) as {
+      channel: string | null;
+      ai_summary: string | null;
+    }[]) {
+      const texto = (row.ai_summary ?? '').trim();
+      if (!texto) continue;
+      const canal = CHANNEL_LABEL[row.channel ?? ''] ?? row.channel ?? '';
+      partes.push(`${canal ? `[${canal}] ` : ''}${texto.slice(0, 500)}`);
+    }
+  } catch {
+    // Un resumen de más nunca puede costar la respuesta: se sigue con el propio.
+  }
+
+  const junto = partes.join('\n').trim();
+  return junto ? junto.slice(0, 1800) : null;
 }
 
 export interface LoadedContext {
@@ -1434,7 +1490,7 @@ export async function loadContext(
     media: turn.media,
   }));
 
-  const rollingSummary = conversation.ai_summary ?? null;
+  const rollingSummary = await resumenDeLaPersona(db, conversation, conversationIds);
 
   // ── Idle-reset hint ──
   // Si la última actividad de la conversación fue hace >48h, el cliente
