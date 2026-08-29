@@ -29,8 +29,8 @@ export const legal = {
 
   privacy1Title: { es: "1. Quiénes somos", en: "1. Who we are" },
   privacy1BodyPre: {
-    es: "riverz es una plataforma de atención y CRM omnicanal que permite a comercios y empresas centralizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger, Mercado Libre y correo electrónico. El servicio se presta a través de ",
-    en: "riverz is an omnichannel support and CRM platform that lets merchants and companies centralize and respond, from a single inbox, to their customers' conversations on WhatsApp, Instagram, Messenger, Mercado Libre and email. The service is provided through ",
+    es: "riverz es una plataforma de atención, ventas y CRM omnicanal que permite a comercios y empresas centralizar y responder, desde una sola bandeja, las conversaciones de sus clientes en WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, el chat de su propia web y correo electrónico; además, conectar su tienda en línea y realizar y atender llamadas telefónicas con agentes de voz. El servicio se presta a través de ",
+    en: "riverz is an omnichannel support, sales and CRM platform that lets merchants and businesses centralize and answer, from a single inbox, their customers' conversations on WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, the chat on their own website and email; it also connects their online store and places and answers phone calls with voice agents. The service is provided through ",
   },
   privacy1BodyMid: {
     es: ". Para cualquier consulta sobre privacidad escríbenos a ",
@@ -48,16 +48,16 @@ export const legal = {
     en: "Merchant data (our customer):",
   },
   privacy2Item1Rest: {
-    es: " nombre, correo, datos de la cuenta y de la empresa, y los tokens de acceso de las cuentas que conecta (WhatsApp, Páginas de Facebook, cuentas de Instagram, Mercado Libre, Shopify y correo — Gmail y Outlook). Los tokens se guardan cifrados.",
-    en: " name, email, account and company details, and the access tokens of the accounts they connect (WhatsApp, Facebook Pages, Instagram accounts, Mercado Libre, Shopify and email — Gmail and Outlook). Tokens are stored encrypted.",
+    es: " nombre, correo, teléfono, datos de la cuenta y de la empresa, y los tokens de acceso de las cuentas que conecta: WhatsApp, Páginas de Facebook, cuentas de Instagram, TikTok, Mercado Libre, su tienda (Shopify, Tiendanube o WooCommerce), su cuenta de cobros (Mercado Pago) y su correo (Gmail y Outlook). Los tokens se guardan cifrados.",
+    en: " name, email, phone, account and company details, and the access tokens of the accounts they connect: WhatsApp, Facebook Pages, Instagram accounts, TikTok, Mercado Libre, their store (Shopify, Tiendanube or WooCommerce), their payments account (Mercado Pago) and their email (Gmail and Outlook). Tokens are stored encrypted.",
   },
   privacy2Item2Strong: {
     es: "Datos de los clientes finales del comercio:",
     en: "Data of the merchant's end customers:",
   },
   privacy2Item2Rest: {
-    es: " cuando un comercio conecta sus cuentas, procesamos en su nombre los mensajes, comentarios, preguntas y mensajes post-venta, nombre de perfil público, identificadores de usuario y metadatos de las conversaciones que esas personas le envían, para mostrarlos en la bandeja y permitir responderlos.",
-    en: " when a merchant connects their accounts, we process on their behalf the messages, comments, questions and post-sale messages, public profile name, user identifiers and conversation metadata that those people send them, in order to display them in the inbox and allow replies.",
+    es: " cuando un comercio conecta sus cuentas, procesamos en su nombre los mensajes, comentarios, preguntas y mensajes post-venta, las conversaciones del chat de su web, el audio y la transcripción de las llamadas, el nombre de perfil público, los identificadores de usuario, los datos de sus pedidos y los metadatos de las conversaciones que esas personas le envían, para mostrarlos en la bandeja y permitir responderlos.",
+    en: " when a merchant connects their accounts, we process on their behalf the messages, comments, questions and post-sale messages, the conversations from the chat on their website, call audio and transcripts, public profile name, user identifiers, their order data and the conversation metadata that those people send them, in order to display them in the inbox and allow replies.",
   },
   privacy2Isolation: {
     es: "Como operador de la plataforma, riverz almacena y procesa técnicamente los datos de todas las cuentas que los comercios conectan (los tokens —cifrados— y las conversaciones), porque es imprescindible para prestar el servicio. Sin embargo, cada comercio solo puede ver y gestionar SUS propias cuentas: los datos están aislados por comercio y ningún comercio accede a los datos de otro. Nuestro personal accede a esos datos solo cuando es estrictamente necesario para operar el servicio, brindar soporte o cumplir la ley, bajo obligaciones de confidencialidad.",
@@ -74,8 +74,8 @@ export const legal = {
   },
 
   privacy4Title: {
-    es: "4. Plataformas conectadas (Meta y Mercado Libre)",
-    en: "4. Connected platforms (Meta and Mercado Libre)",
+    es: "4. Plataformas conectadas (Meta, TikTok y Mercado Libre)",
+    en: "4. Connected platforms (Meta, TikTok and Mercado Libre)",
   },
   privacy4BodyPre: {
     es: "riverz utiliza las APIs de Meta (WhatsApp Business, Messenger Platform e Instagram). Cuando un comercio conecta su Página de Facebook o su cuenta de Instagram, accedemos a sus mensajes y comentarios ",
@@ -100,8 +100,12 @@ export const legal = {
     en: "We rely on providers that process data on our behalf, under contract and only to operate the service:",
   },
   privacy5ItemMeta: {
-    es: "Meta Platforms (APIs de WhatsApp, Messenger e Instagram).",
-    en: "Meta Platforms (WhatsApp, Messenger and Instagram APIs).",
+    es: "Meta Platforms (APIs de WhatsApp, Messenger, Instagram y publicidad).",
+    en: "Meta Platforms (WhatsApp, Messenger, Instagram and advertising APIs).",
+  },
+  privacy5ItemTiktok: {
+    es: "TikTok (cuando el comercio conecta su cuenta, para leer y responder los comentarios de sus publicaciones).",
+    en: "TikTok (when the merchant connects their account, to read and reply to the comments on their posts).",
   },
   privacy5ItemSupabase: {
     es: "Supabase (base de datos y almacenamiento).",
@@ -112,26 +116,38 @@ export const legal = {
     en: "Render (application hosting).",
   },
   privacy5ItemAnthropic: {
-    es: "Anthropic (modelos de IA, solo cuando el comercio activa el asistente).",
-    en: "Anthropic (AI models, only when the merchant enables the assistant).",
+    es: "Proveedores de modelos de IA (Anthropic, Google, OpenAI, Groq y Cerebras), solo cuando el comercio activa el agente o los agentes de voz.",
+    en: "AI model providers (Anthropic, Google, OpenAI, Groq and Cerebras), only when the merchant enables the agent or the voice agents.",
+  },
+  privacy5ItemVoz: {
+    es: "Proveedores de telefonía y voz (Telnyx, LiveKit, Deepgram, Cartesia, ElevenLabs y Fish Audio), solo cuando el comercio activa los agentes de voz.",
+    en: "Telephony and voice providers (Telnyx, LiveKit, Deepgram, Cartesia, ElevenLabs and Fish Audio), only when the merchant enables the voice agents.",
   },
   privacy5ItemShopify: {
-    es: "Shopify (cuando el comercio conecta su tienda).",
-    en: "Shopify (when the merchant connects their store).",
+    es: "Plataformas de tienda (Shopify, Tiendanube y WooCommerce), cuando el comercio conecta la suya.",
+    en: "Store platforms (Shopify, Tiendanube and WooCommerce), when the merchant connects theirs.",
   },
   privacy5ItemMercadoLibre: {
     es: "Mercado Libre (cuando el comercio conecta su cuenta).",
     en: "Mercado Libre (when the merchant connects their account).",
   },
+  privacy5ItemPagos: {
+    es: "Mercado Pago (enlaces de cobro y avisos de pago, cuando el comercio conecta su cuenta) y Stripe (cobro de los planes de riverz). Los datos de la tarjeta los trata el procesador de pago y no pasan por nuestros servidores.",
+    en: "Mercado Pago (payment links and payment notifications, when the merchant connects their account) and Stripe (billing for riverz plans). Card data is handled by the payment processor and never passes through our servers.",
+  },
   privacy5ItemEmail: {
     es: "Google y Microsoft (correo Gmail y Outlook, cuando el comercio conecta su bandeja).",
     en: "Google and Microsoft (Gmail and Outlook email, when the merchant connects their inbox).",
   },
+  privacy5ItemResend: {
+    es: "Resend (envío de los correos que manda riverz: verificación, recuperación de acceso y avisos).",
+    en: "Resend (delivery of the emails riverz sends: verification, account recovery and notices).",
+  },
 
   privacy6Title: { es: "6. Conservación", en: "6. Retention" },
   privacy6Body: {
-    es: "Conservamos los datos mientras la cuenta del comercio esté activa y sean necesarios para prestar el servicio. Cuando una cuenta se elimina, o cuando se recibe una solicitud de eliminación válida, borramos o anonimizamos los datos asociados en un plazo razonable.",
-    en: "We retain data for as long as the merchant's account is active and the data is necessary to provide the service. When an account is deleted, or when a valid deletion request is received, we erase or anonymize the associated data within a reasonable period.",
+    es: "Conservamos los datos mientras la cuenta del comercio esté activa y sean necesarios para prestar el servicio. Las grabaciones y transcripciones de llamadas se conservan mientras el comercio mantenga esa opción activada y no las elimine. Cuando una cuenta se elimina, o cuando se recibe una solicitud de eliminación válida, borramos o anonimizamos los datos asociados en un plazo razonable.",
+    en: "We retain data for as long as the merchant's account is active and the data is necessary to provide the service. Call recordings and transcripts are kept while the merchant leaves that option on and does not delete them. When an account is deleted, or when a valid deletion request is received, we erase or anonymize the associated data within a reasonable period.",
   },
 
   privacy7Title: {
@@ -271,20 +287,47 @@ export const legal = {
   },
 
   privacyVoiceTitle: {
-    es: "Llamadas de voz con IA",
-    en: "AI voice calls",
+    es: "13. Llamadas de voz con IA",
+    en: "13. AI voice calls",
   },
   privacyVoiceBody: {
-    es: "Si activas los agentes de voz, procesamos el número de teléfono y el audio/transcripción de las llamadas (entrantes y salientes) para prestar el servicio. Podemos grabar las llamadas cuando el comercio lo activa; en ese caso se incluye un aviso hablado de grabación al inicio. El audio se procesa mediante sub-encargados de tratamiento (proveedores de telefonía y de modelos de voz/IA, p. ej. LiveKit, Telnyx, Deepgram, ElevenLabs, Modal y el proveedor del modelo de lenguaje) únicamente para generar la llamada. El destinatario puede pedir no ser llamado (opción \"No llamar\") y el comercio debe respetar los horarios y la normativa local de llamadas. No usamos el contenido de las llamadas para publicidad.",
-    en: "If you enable voice agents, we process the phone number and the audio/transcript of calls (inbound and outbound) to provide the service. Calls may be recorded when the merchant turns it on; in that case a spoken recording disclosure is played at the start. Audio is processed through sub-processors (telephony and voice/AI model providers, e.g. LiveKit, Telnyx, Deepgram, ElevenLabs, Modal and the language-model provider) solely to run the call. Recipients can ask not to be called (\"Do not call\") and the merchant must respect calling hours and local calling regulations. We do not use call content for advertising.",
+    es: "Si activas los agentes de voz, procesamos el número de teléfono y el audio/transcripción de las llamadas (entrantes y salientes) para prestar el servicio. Podemos grabar las llamadas cuando el comercio lo activa; en ese caso se incluye un aviso hablado de grabación al inicio. El audio se procesa mediante sub-encargados de tratamiento (proveedores de telefonía y de modelos de voz/IA, p. ej. Telnyx, LiveKit, Deepgram, Cartesia, ElevenLabs, Fish Audio y el proveedor del modelo de lenguaje) únicamente para generar la llamada. El destinatario puede pedir no ser llamado (opción \"No llamar\") y el comercio debe respetar los horarios y la normativa local de llamadas. No usamos el contenido de las llamadas para publicidad.",
+    en: "If you enable voice agents, we process the phone number and the audio/transcript of calls (inbound and outbound) to provide the service. Calls may be recorded when the merchant turns it on; in that case a spoken recording disclosure is played at the start. Audio is processed through sub-processors (telephony and voice/AI model providers, e.g. Telnyx, LiveKit, Deepgram, Cartesia, ElevenLabs, Fish Audio and the language-model provider) solely to run the call. Recipients can ask not to be called (\"Do not call\") and the merchant must respect calling hours and local calling regulations. We do not use call content for advertising.",
   },
-  privacy10Title: { es: "13. Cambios", en: "13. Changes" },
+  // El chat web es la única superficie donde riverz toca a alguien que todavía
+  // NO es cliente del comercio: un visitante de su sitio. Merece su párrafo, y
+  // sobre todo merece decir quién es el responsable de esos datos.
+  privacyWebchatTitle: {
+    es: "14. Chat web en el sitio del comercio",
+    en: "14. Website chat on the merchant's site",
+  },
+  privacyWebchatBody: {
+    es: "El chat web es un widget que el comercio instala en su propio sitio. Cuando un visitante lo abre, procesamos en nombre del comercio los mensajes que escribe, un identificador del navegador para poder continuar la misma conversación si vuelve, y la página desde la que escribió. Los datos de contacto solo se recogen si el visitante los escribe. El responsable de esos datos es el comercio, y es él quien debe informarlo en el aviso de privacidad de su propio sitio.",
+    en: "The website chat is a widget the merchant installs on their own site. When a visitor opens it, we process on the merchant's behalf the messages they write, a browser identifier so the same conversation can continue if they come back, and the page they wrote from. Contact details are only collected if the visitor types them. The merchant is the controller of that data, and it is the merchant who must disclose it in the privacy notice of their own site.",
+  },
+
+  privacyAdsTitle: {
+    es: "15. Medición de anuncios",
+    en: "15. Ad measurement",
+  },
+  privacyAdsBody: {
+    es: "Si el comercio lo activa, riverz informa a Meta las ventas originadas en las conversaciones para que pueda medir el rendimiento de sus anuncios. Se envía el hecho de la compra y su valor, junto con identificadores del contacto en forma cifrada; no se envía el contenido de las conversaciones. Lo activa el comercio y es él quien debe declararlo en su propia política de privacidad. riverz no vende datos personales ni los usa para publicidad propia.",
+    en: "If the merchant turns it on, riverz reports to Meta the sales that started in conversations so they can measure how their ads perform. We send the fact of the purchase and its value, along with hashed contact identifiers; we do not send conversation content. The merchant enables it and the merchant must disclose it in their own privacy policy. riverz does not sell personal data and does not use it for our own advertising.",
+  },
+
+  privacyCookiesTitle: { es: "16. Cookies", en: "16. Cookies" },
+  privacyCookiesBody: {
+    es: "Usamos solo las cookies necesarias para que el servicio funcione: la que mantiene la sesión iniciada, la que protege los formularios contra peticiones falsificadas y la que recuerda el idioma elegido. No usamos cookies de publicidad ni de seguimiento entre sitios, y por eso no verás un aviso pidiéndote permiso para instalarlas.",
+    en: "We only use the cookies the service needs to work: the one that keeps you signed in, the one that protects forms against forged requests, and the one that remembers your chosen language. We do not use advertising or cross-site tracking cookies, which is why you will not see a banner asking permission to set them.",
+  },
+
+  privacy10Title: { es: "17. Cambios", en: "17. Changes" },
   privacy10Body: {
     es: "Podemos actualizar esta política. Publicaremos los cambios en esta página con su fecha de actualización.",
     en: "We may update this policy. We will publish any changes on this page along with their update date.",
   },
 
-  privacy11Title: { es: "14. Contacto", en: "14. Contact" },
+  privacy11Title: { es: "18. Contacto", en: "18. Contact" },
   privacy11BodyPre: { es: "¿Preguntas? Escríbenos a ", en: "Questions? Write to us at " },
   privacy11BodyEnd: { es: ".", en: "." },
 
@@ -383,8 +426,8 @@ export const legal = {
     en: "5. Third-party channels and services",
   },
   terms5Body: {
-    es: "El Servicio se integra con plataformas de terceros (Meta/WhatsApp, Instagram, Messenger, Mercado Libre, Shopify, proveedores de correo y modelos de IA). El uso de esas integraciones está sujeto a los términos y políticas de cada proveedor. Al conectar una cuenta declaras que estás autorizado a hacerlo y nos autorizas a acceder a los datos de esa cuenta que sean necesarios para prestar el Servicio, únicamente con ese fin. No somos responsables de cambios, interrupciones o decisiones de esas plataformas que afecten el Servicio.",
-    en: "The Service integrates with third-party platforms (Meta/WhatsApp, Instagram, Messenger, Mercado Libre, Shopify, email providers and AI models). Use of those integrations is subject to the terms and policies of each provider. By connecting an account you represent that you are authorized to do so and you authorize us to access the data of that account necessary to provide the Service, solely for that purpose. We are not responsible for changes, interruptions or decisions by those platforms that affect the Service.",
+    es: "El Servicio se integra con plataformas de terceros: Meta (WhatsApp, Instagram, Messenger), TikTok, Mercado Libre, tiendas en línea (Shopify, Tiendanube, WooCommerce), pasarelas de cobro (Mercado Pago), proveedores de correo, de telefonía y de modelos de IA. El uso de esas integraciones está sujeto a los términos y políticas de cada proveedor. Al conectar una cuenta declaras que estás autorizado a hacerlo y nos autorizas a acceder a los datos de esa cuenta que sean necesarios para prestar el Servicio, únicamente con ese fin. No somos responsables de cambios, interrupciones o decisiones de esas plataformas que afecten el Servicio.",
+    en: "The Service integrates with third-party platforms: Meta (WhatsApp, Instagram, Messenger), TikTok, Mercado Libre, online stores (Shopify, Tiendanube, WooCommerce), payment gateways (Mercado Pago), and email, telephony and AI-model providers. Use of those integrations is subject to the terms and policies of each provider. By connecting an account you represent that you are authorized to do so and you authorize us to access the data of that account necessary to provide the Service, solely for that purpose. We are not responsible for changes, interruptions or decisions by those platforms that affect the Service.",
   },
 
   terms6Title: {
@@ -392,8 +435,8 @@ export const legal = {
     en: "6. Plans, payments and billing",
   },
   terms6Body: {
-    es: "Algunas funciones del Servicio pueden requerir un plan de pago. Los precios, ciclos de facturación y condiciones aplicables se informan al momento de la contratación. Salvo que la ley exija lo contrario, los pagos no son reembolsables. Podemos actualizar los precios notificándolo con antelación razonable.",
-    en: "Some features of the Service may require a paid plan. Prices, billing cycles and applicable conditions are disclosed at the time of purchase. Unless the law requires otherwise, payments are non-refundable. We may update prices by giving reasonable advance notice.",
+    es: "Algunas funciones del Servicio pueden requerir un plan de pago. Los precios, ciclos de facturación y condiciones aplicables se informan al momento de la contratación, y el cobro lo procesa un proveedor externo. Algunas funciones consumen saldo prepago: es un crédito para usar dentro del Servicio, se descuenta según el uso, no devenga intereses y no es dinero retirable ni transferible; si cierras la cuenta, el saldo no utilizado se pierde salvo que la ley diga otra cosa. Salvo que la ley exija lo contrario, los pagos no son reembolsables. Podemos actualizar los precios notificándolo con antelación razonable.",
+    en: "Some features of the Service may require a paid plan. Prices, billing cycles and applicable conditions are disclosed at the time of purchase, and payment is processed by an external provider. Some features consume prepaid balance: it is credit to spend inside the Service, it is drawn down by usage, it earns no interest and it is not withdrawable or transferable cash; if you close your account, any unused balance is forfeited unless the law says otherwise. Unless the law requires otherwise, payments are non-refundable. We may update prices by giving reasonable advance notice.",
   },
 
   terms7Title: {
@@ -462,7 +505,16 @@ export const legal = {
     es: "Riverz permite que agentes de IA realicen y atiendan llamadas telefónicas en tu nombre (confirmación de pedidos, recuperación de carritos, seguimientos, campañas y llamadas entrantes). Como responsable del negocio, te comprometes a: (a) llamar solo a personas con una relación o base legal para el contacto; (b) respetar los horarios permitidos, los límites de reintentos y las solicitudes de \"no llamar\" (opt-out); (c) cumplir las leyes de telemarketing, protección de datos y grabación de llamadas de cada país donde operes, incluyendo el aviso y/o consentimiento de grabación cuando corresponda. Riverz provee controles (horarios, opt-out, aviso de grabación, kill switch) pero el uso conforme a la ley es tu responsabilidad. Los minutos de llamada y los modelos de voz pueden facturarse según tu plan.",
     en: "Riverz lets AI agents place and answer phone calls on your behalf (order confirmation, cart recovery, follow-ups, campaigns and inbound calls). As the business, you agree to: (a) only call people with a relationship or lawful basis for contact; (b) respect allowed calling hours, retry limits and \"do not call\" (opt-out) requests; (c) comply with the telemarketing, data-protection and call-recording laws of each country you operate in, including recording notice and/or consent where required. Riverz provides controls (hours, opt-out, recording disclosure, kill switch), but lawful use is your responsibility. Call minutes and voice models may be billed per your plan.",
   },
-  terms14Title: { es: "14. Contacto", en: "14. Contact" },
+  terms15Title: {
+    es: "15. Acciones automáticas del agente",
+    en: "15. Automated agent actions",
+  },
+  terms15Body: {
+    es: "Riverz ejecuta acciones en tu nombre sobre las cuentas y tiendas que conectas: responder mensajes y comentarios públicos, recomendar productos, crear y modificar pedidos, generar enlaces de cobro, aplicar cancelaciones o devoluciones, enviar campañas y publicar contenido. Tú controlas cada herramienta por separado —apagada, con aprobación previa, o automática— y las acciones sobre dinero, como cancelar un pedido o devolver un importe, no quedan en automático por defecto. Las acciones que el Servicio ejecute conforme a la configuración que elegiste se consideran hechas por ti y bajo tu responsabilidad. Lo mismo vale para las llaves de API y las conexiones MCP que emitas: quien tenga una llave puede actuar sobre tu cuenta con el alcance que le hayas dado, y es tu responsabilidad guardarlas y revocarlas.",
+    en: "Riverz performs actions on your behalf across the accounts and stores you connect: replying to messages and public comments, recommending products, creating and modifying orders, generating payment links, applying cancellations or refunds, sending campaigns and publishing content. You control each tool separately — off, approval-first, or automatic — and money actions such as cancelling an order or issuing a refund are not automatic by default. Actions the Service performs under the configuration you chose are deemed taken by you and are your responsibility. The same applies to any API keys and MCP connections you issue: whoever holds a key can act on your account within the scope you granted, and keeping them safe and revoking them is your responsibility.",
+  },
+
+  terms14Title: { es: "16. Contacto", en: "16. Contact" },
   terms14BodyPre: {
     es: "¿Preguntas sobre estos Términos? Escríbenos a ",
     en: "Questions about these Terms? Write to us at ",
@@ -510,8 +562,8 @@ export const legal = {
 
   deleteWhatTitle: { es: "Qué eliminamos", en: "What we delete" },
   deleteWhatBody: {
-    es: "Mensajes, comentarios, nombre de perfil, identificadores y metadatos de conversación asociados a tu cuenta en nuestra base de datos. Cierta información puede conservarse si la ley lo exige.",
-    en: "Messages, comments, profile name, identifiers and conversation metadata associated with your account in our database. Certain information may be retained if required by law.",
+    es: "Mensajes, comentarios, nombre de perfil, identificadores y metadatos de conversación asociados a tu cuenta en nuestra base de datos, incluidas las conversaciones del chat web y las grabaciones y transcripciones de llamadas. Cierta información puede conservarse si la ley lo exige.",
+    en: "Messages, comments, profile name, identifiers and conversation metadata associated with your account in our database, including website-chat conversations and call recordings and transcripts. Certain information may be retained if required by law.",
   },
 
   // Soporte

@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "24 de julio de 2026";
+const UPDATED = "29 de agosto de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function PrivacidadPage() {
@@ -83,12 +83,16 @@ export default async function PrivacidadPage() {
           <p>{t("legal.privacy5Intro")}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>{t("legal.privacy5ItemMeta")}</li>
+            <li>{t("legal.privacy5ItemTiktok")}</li>
             <li>{t("legal.privacy5ItemSupabase")}</li>
             <li>{t("legal.privacy5ItemRender")}</li>
             <li>{t("legal.privacy5ItemAnthropic")}</li>
+            <li>{t("legal.privacy5ItemVoz")}</li>
             <li>{t("legal.privacy5ItemShopify")}</li>
             <li>{t("legal.privacy5ItemMercadoLibre")}</li>
+            <li>{t("legal.privacy5ItemPagos")}</li>
             <li>{t("legal.privacy5ItemEmail")}</li>
+            <li>{t("legal.privacy5ItemResend")}</li>
           </ul>
         </Section>
 
@@ -153,6 +157,18 @@ export default async function PrivacidadPage() {
 
         <Section title={t("legal.privacyVoiceTitle")}>
           <p>{t("legal.privacyVoiceBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyWebchatTitle")}>
+          <p>{t("legal.privacyWebchatBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyAdsTitle")}>
+          <p>{t("legal.privacyAdsBody")}</p>
+        </Section>
+
+        <Section title={t("legal.privacyCookiesTitle")}>
+          <p>{t("legal.privacyCookiesBody")}</p>
         </Section>
 
         <Section title={t("legal.privacy10Title")}>
