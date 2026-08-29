@@ -88,25 +88,25 @@ export function LocaleProvider({
       }
       // Best-effort cross-device persistence for signed-in users. Anonymous
       // visitors 401 here; that's fine, the cookie already holds the choice.
+      // keepalive: la navegación de abajo puede cortar la petición.
       void fetch("/api/profile/locale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: next }),
+        keepalive: true,
       }).catch(() => {});
-      // Switch the address bar to the new language too (e.g. /inbox ↔
-      // /bandeja). Falls back to a plain refresh when the current route has no
-      // localized form. router.replace re-renders server components, so we
-      // don't also need router.refresh() on that path.
+      // Navegación completa, no router.replace(): las páginas servidas desde
+      // el servidor leen el idioma de la cookie, y el router de Next servía el
+      // árbol que ya tenía en caché. En las páginas legales eso se veía como
+      // que la URL cambiaba a /terms y el texto seguía en español. Recargar
+      // garantiza que el servidor vuelva a renderizar con la cookie nueva.
       try {
         const here =
           window.location.pathname +
           window.location.search +
           window.location.hash;
-        const localized = localizePath(canonicalizePath(here), next);
-        if (localized !== here) {
-          router.replace(localized);
-          return;
-        }
+        window.location.assign(localizePath(canonicalizePath(here), next));
+        return;
       } catch {
         // window unavailable / malformed URL — fall through to refresh.
       }

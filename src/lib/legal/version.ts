@@ -9,9 +9,10 @@
  *
  * BUMP THIS whenever the substance of /terminos (`src/app/terminos`)
  * or /privacidad (`src/app/privacidad`) changes — it tracks the most
- * recent update to EITHER document — and keep it in sync with the
- * human-readable "Last updated" date rendered on those pages. Bumping
- * it lets us later require existing users to re-accept the new version.
+ * recent update to EITHER document. Las páginas muestran esta misma
+ * fecha, formateada en el idioma activo, así que no hay nada más que
+ * tocar. Bumping it lets us later require existing users to re-accept
+ * the new version.
  *
  * Format: ISO date (YYYY-MM-DD) of the update.
  */
