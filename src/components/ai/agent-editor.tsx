@@ -547,6 +547,13 @@ export function AgentEditor({
   const TIMEZONE_LABELS = Object.fromEntries(
     TIMEZONES.map((tz) => [tz.value, t(tz.label)]),
   );
+  /** El texto de cada modo de cobro, para que el selector no muestre el nombre
+   *  interno de la columna. */
+  const COBRO_LABELS = {
+    segun_pago: t('operation.cobroSegunPago'),
+    chat: t('operation.cobroChat'),
+    checkout: t('operation.cobroCheckout'),
+  };
   const ROLE_LABELS = Object.fromEntries(
     AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)]),
   );
@@ -1669,7 +1676,10 @@ export function AgentEditor({
                       }
                     >
                       <SelectTrigger className="w-full bg-background">
-                        <SelectValue />
+                        {/* Con `labels`: sin ellas el disparador pinta el valor
+                            crudo de la columna ("segun_pago"), que es el nombre
+                            interno y no le dice nada a nadie. */}
+                        <SelectValue labels={COBRO_LABELS} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="segun_pago">
