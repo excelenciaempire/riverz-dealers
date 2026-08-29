@@ -663,6 +663,23 @@ export function ChatApp() {
       .catch(() => {});
   }, [session]);
 
+  /**
+   * Los dominios de la tienda.
+   *
+   * Los manda el servidor con los ajustes —salen de los dominios permitidos—
+   * y se suma el que la página anuncie por `postMessage`. Antes venía sólo de
+   * lo segundo, y eso dejaba sin tarjetas la vista previa del panel: el
+   * comercio probaba su chat, veía enlaces pelados y concluía que su agente
+   * manda links feos.
+   */
+  const origenesDeLaTienda = useMemo(
+    () =>
+      Array.from(
+        new Set([...(settings?.store_origins ?? []), ...(storeOrigin ? [storeOrigin] : [])]),
+      ),
+    [settings?.store_origins, storeOrigin],
+  );
+
   const color = settings?.primary_color ?? '#A3E635';
   const ink = useMemo(() => contrast(color), [color]);
 
@@ -801,7 +818,7 @@ export function ChatApp() {
                 {m.text ? (
                   <MessageText
                     text={m.text}
-                    storeOrigin={storeOrigin}
+                    storeOrigins={origenesDeLaTienda}
                     color={color}
                     ink={ink}
                     session={session}

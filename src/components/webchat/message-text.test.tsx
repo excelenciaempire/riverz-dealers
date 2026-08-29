@@ -45,7 +45,13 @@ const T = {
 
 const render = (text: string, storeOrigin: string | null = null) =>
   renderToStaticMarkup(
-    <MessageText text={text} storeOrigin={storeOrigin} color="#A3E635" ink="#111827" T={T} />,
+    <MessageText
+      text={text}
+      storeOrigins={storeOrigin ? [storeOrigin] : []}
+      color="#A3E635"
+      ink="#111827"
+      T={T}
+    />,
   );
 
 describe('formato', () => {

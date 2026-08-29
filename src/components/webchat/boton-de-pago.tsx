@@ -16,13 +16,13 @@ import type { TextosChat } from './chat-app';
  */
 
 /** ¿Esta dirección es una caja? */
-export function esEnlaceDePago(href: string, storeOrigin: string | null): boolean {
+export function esEnlaceDePago(href: string, origenes: string[]): boolean {
   try {
     const url = new URL(href);
     const ruta = url.pathname.toLowerCase();
 
     // La caja de la tienda donde está el widget.
-    if (storeOrigin && url.origin === storeOrigin) {
+    if (origenes.includes(url.origin)) {
       // `/checkout` en Shopify y WooCommerce, `/comprar/` en Tiendanube.
       return ruta.startsWith('/checkout') || ruta.startsWith('/comprar');
     }

@@ -52,6 +52,21 @@ export interface WebchatSettings {
   require_email: boolean;
   /** Qué se pide antes de escribir: nada, correo, teléfono o los dos. */
   require_contact: DatosPedidos;
+  /**
+   * Los dominios de la tienda, como origen (`https://host`).
+   *
+   * Es lo que decide si un enlace del agente se dibuja como tarjeta o como
+   * texto azul. Venía SÓLO de que la página contenedora se anunciara por
+   * `postMessage`, y eso tiene dos agujeros: en la vista previa del panel no
+   * hay tienda que se anuncie —así que el comercio probaba su chat y veía
+   * enlaces pelados, justo lo que la tarjeta viene a evitar— y un comercio con
+   * dos dominios sólo acertaba con uno.
+   *
+   * Sale de los dominios permitidos, que ya los tiene el servidor. Es además
+   * más confiable que lo que diga la página: no depende de quién embeba el
+   * chat.
+   */
+  store_origins: string[];
   auto_open_seconds: number;
   allow_uploads: boolean;
   ask_rating: boolean;
@@ -142,6 +157,11 @@ export function widgetSettings(
     avatar_url: config.avatar_url || null,
     require_email: config.require_email ?? WEBCHAT_DEFAULTS.require_email,
     require_contact: datosPedidos(config),
+    store_origins: (config.allowed_domains ?? [])
+      .map((d) => normalizeOrigin(d))
+      .filter(Boolean)
+      .map((h) => `https://${h}`)
+      .slice(0, 10),
     auto_open_seconds: segundosDeApertura(config.auto_open_seconds),
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,

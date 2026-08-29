@@ -19,32 +19,32 @@ const TIENDA = 'https://pilarargentina.store';
 describe('qué es un enlace de pago', () => {
   it('la caja de cada plataforma', () => {
     // Shopify y Woo: /checkout. Tiendanube: /comprar/.
-    expect(esEnlaceDePago(`${TIENDA}/checkout`, TIENDA)).toBe(true);
-    expect(esEnlaceDePago(`${TIENDA}/checkout/?add-to-cart=42&quantity=1`, TIENDA)).toBe(true);
-    expect(esEnlaceDePago(`${TIENDA}/comprar/`, TIENDA)).toBe(true);
+    expect(esEnlaceDePago(`${TIENDA}/checkout`, [TIENDA])).toBe(true);
+    expect(esEnlaceDePago(`${TIENDA}/checkout/?add-to-cart=42&quantity=1`, [TIENDA])).toBe(true);
+    expect(esEnlaceDePago(`${TIENDA}/comprar/`, [TIENDA])).toBe(true);
   });
 
   it('un cobro de Mercado Pago, que es de otro dominio', () => {
     // Es la caja de los comercios sin caja propia, así que no se puede
     // comparar contra el dominio de la tienda.
-    expect(esEnlaceDePago('https://mpago.la/2abcdef', TIENDA)).toBe(true);
+    expect(esEnlaceDePago('https://mpago.la/2abcdef', [TIENDA])).toBe(true);
     expect(
-      esEnlaceDePago('https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=1', TIENDA),
+      esEnlaceDePago('https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=1', [TIENDA]),
     ).toBe(true);
   });
 
   it('una ficha o un carrito NO son la caja', () => {
     // Esos ya se dibujan como tarjeta, con foto y precio. Tratarlos como caja
     // saltearía el paso donde la persona elige.
-    expect(esEnlaceDePago(`${TIENDA}/products/serum-pilar`, TIENDA)).toBe(false);
-    expect(esEnlaceDePago(`${TIENDA}/cart/42:1`, TIENDA)).toBe(false);
+    expect(esEnlaceDePago(`${TIENDA}/products/serum-pilar`, [TIENDA])).toBe(false);
+    expect(esEnlaceDePago(`${TIENDA}/cart/42:1`, [TIENDA])).toBe(false);
   });
 
   it('la caja de OTRA tienda no cuenta', () => {
     // El agente lee mensajes de desconocidos: un enlace pegado por el visitante
     // no puede pintarse como el botón de pago del comercio.
-    expect(esEnlaceDePago('https://otra-tienda.com/checkout', TIENDA)).toBe(false);
-    expect(esEnlaceDePago('cualquier cosa', TIENDA)).toBe(false);
+    expect(esEnlaceDePago('https://otra-tienda.com/checkout', [TIENDA])).toBe(false);
+    expect(esEnlaceDePago('cualquier cosa', [TIENDA])).toBe(false);
   });
 });
 

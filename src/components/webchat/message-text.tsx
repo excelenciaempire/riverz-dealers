@@ -22,12 +22,12 @@ import { TextoRico } from '@/components/ui/texto-rico';
 
 function parseCartLink(
   href: string,
-  storeOrigin: string | null,
+  origenes: string[],
 ): { path: string; variantId: string; lineas: number; unidades: number } | null {
-  if (!storeOrigin) return null;
+  if (origenes.length === 0) return null;
   try {
     const url = new URL(href);
-    if (url.origin !== storeOrigin) return null;
+    if (!origenes.includes(url.origin)) return null;
 
     // Tiendanube y WooCommerce. El link que manda el agente es el de la ficha
     // del producto —el único que sobrevive a un copiar y pegar por WhatsApp—
@@ -84,11 +84,11 @@ function parseCartLink(
  * Se reconoce por la forma del camino, que es igual en las tres plataformas:
  * la palabra de la sección y después el nombre del producto.
  */
-function esFichaDeProducto(href: string, storeOrigin: string | null): boolean {
-  if (!storeOrigin) return false;
+function esFichaDeProducto(href: string, origenes: string[]): boolean {
+  if (origenes.length === 0) return false;
   try {
     const url = new URL(href);
-    if (url.origin !== storeOrigin) return false;
+    if (!origenes.includes(url.origin)) return false;
     const tramos = url.pathname.split('/').filter(Boolean);
     if (tramos.length < 2) return false;
     const seccion = tramos[tramos.length - 2].toLowerCase();
@@ -100,7 +100,7 @@ function esFichaDeProducto(href: string, storeOrigin: string | null): boolean {
 
 export function MessageText({
   text,
-  storeOrigin,
+  storeOrigins,
   color,
   ink,
   session,
@@ -108,7 +108,9 @@ export function MessageText({
   onIrAPagar,
 }: {
   text: string;
-  storeOrigin: string | null;
+  /** Los dominios de la tienda. Un enlace fuera de ellos nunca es una tarjeta:
+   *  el agente lee mensajes de desconocidos. */
+  storeOrigins: string[];
   color: string;
   ink: string;
   /** Token del chat: la tarjeta lo necesita para resolver el producto. */
@@ -125,7 +127,7 @@ export function MessageText({
         // La caja va primero: el checkout de Woo lleva `add-to-cart` en la
         // dirección, así que si se mirara antes el carrito, el último clic de
         // la venta se dibujaría como una tarjeta para volver a elegir.
-        if (esEnlaceDePago(href, storeOrigin)) {
+        if (esEnlaceDePago(href, storeOrigins)) {
           return (
             <BotonDePago
               key={k}
@@ -137,14 +139,14 @@ export function MessageText({
             />
           );
         }
-        if (esFichaDeProducto(href, storeOrigin)) {
+        if (esFichaDeProducto(href, storeOrigins)) {
           return (
             <ProductCard
               key={k}
               path={new URL(href).pathname}
               href={href}
               fichaUrl={href}
-              storeOrigin={storeOrigin}
+              storeOrigin={storeOrigins[0] ?? null}
               variantId=""
               session={session}
               color={color}
@@ -153,7 +155,7 @@ export function MessageText({
             />
           );
         }
-        const cart = parseCartLink(href, storeOrigin);
+        const cart = parseCartLink(href, storeOrigins);
         if (cart) {
           return (
             <ProductCard

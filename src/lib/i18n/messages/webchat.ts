@@ -193,8 +193,8 @@ export const webchat = {
   },
   requireContact: { es: "Pedir datos antes de escribir", en: "Ask for details first" },
   requireContactHint: {
-    es: "Cada campo cuesta conversaciones. El teléfono permite seguir por WhatsApp.",
-    en: "Every field costs conversations. A phone number enables the WhatsApp handoff.",
+    es: "Cada campo cuesta conversaciones. Con el teléfono puedes escribirle si no compró.",
+    en: "Every field costs conversations. With a phone you can follow up if they didn't buy.",
   },
   pedirNada: { es: "No pedir nada", en: "Ask for nothing" },
   pedirCorreo: { es: "Correo", en: "Email" },
