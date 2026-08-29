@@ -135,6 +135,7 @@ function paramSeguro(v: string): string {
 }
 
 export async function sendPlatformAlert(args: {
+  /** El número, en cualquier formato. Se normaliza acá. */
   to: string;
   /** Título corto: primer parámetro de la plantilla. */
   title: string;
@@ -146,13 +147,23 @@ export async function sendPlatformAlert(args: {
     return { ok: false, error: 'el WhatsApp de Riverz no está configurado' };
   }
 
+  // El número, sin `+`, sin espacios y sin guiones.
+  //
+  // `profiles.phone` guarda lo que la persona escribió —«+54 9 11 6104-7646»— y
+  // Meta quiere sólo dígitos. El aviso de bienvenida del primer cliente no
+  // salió por esto: el número estaba bien, el formato no. Se normaliza en el
+  // único lugar por donde pasan todos los avisos, para que no haya que
+  // acordarse en cada uno.
+  const destino = args.to.replace(/\D/g, '');
+  if (!destino) return { ok: false, error: 'el número está vacío' };
+
   const { sendTemplateMessage, sendTextMessage } = await import('@/lib/whatsapp/meta-api');
   try {
     if (plataforma.templateName) {
       const res = await sendTemplateMessage({
         phoneNumberId: plataforma.phoneNumberId,
         accessToken: plataforma.token,
-        to: args.to,
+        to: destino,
         templateName: plataforma.templateName,
         language: plataforma.templateLanguage,
         params: [paramSeguro(args.title), paramSeguro(args.body)],
@@ -162,7 +173,7 @@ export async function sendPlatformAlert(args: {
     const res = await sendTextMessage({
       phoneNumberId: plataforma.phoneNumberId,
       accessToken: plataforma.token,
-      to: args.to,
+      to: destino,
       text: `${args.title}\n\n${args.body}`,
     });
     return { ok: true, messageId: res.messageId ?? undefined };
