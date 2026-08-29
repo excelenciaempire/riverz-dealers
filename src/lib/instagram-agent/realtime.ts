@@ -181,7 +181,17 @@ async function isOptedOut(db: SupabaseClient, contactId: string): Promise<boolea
   return (data as { opted_out?: boolean } | null)?.opted_out === true;
 }
 
-/** La conexión de DM del workspace para una red concreta. */
+/**
+ * La conexión de DM del workspace para una red concreta.
+ *
+ * Descarta las desconectadas, igual que `dmConnectionFor` acá abajo. Sin ese
+ * filtro se tomaba "la fila más reciente" a secas, y cada reconexión deja una
+ * fila muerta atrás: el 2026-08-29 había 60 filas de la misma página de Meta en
+ * una sola cuenta, todas `disconnected` salvo una. Funcionaba de casualidad
+ * —la viva era además la más reciente— y con una reconexión vieja tocada
+ * después, el token que se usa para mandar el DM o para ocultar un comentario
+ * sería uno muerto.
+ */
 async function dmConnection(
   db: SupabaseClient,
   workspaceId: string,
@@ -192,6 +202,7 @@ async function dmConnection(
     .select('*')
     .eq('workspace_id', workspaceId)
     .eq('channel', channel)
+    .neq('status', 'disconnected')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -735,8 +735,12 @@ export const admin = {
   },
   cronReengagement: { es: "Reengancha compradores inactivos", en: "Re-engages dormant buyers" },
   cronMlOrders: {
-    es: "Pedidos, envíos y reclamos de Mercado Libre",
-    en: "Mercado Libre orders, shipping and claims",
+    es: "Pedidos y envíos de Mercado Libre",
+    en: "Mercado Libre orders and shipping",
+  },
+  cronMlClaims: {
+    es: "Reclamos de Mercado Libre",
+    en: "Mercado Libre claims",
   },
   cronMlCatalog: { es: "Precio y stock de Mercado Libre", en: "Mercado Libre price and stock" },
   cronMlReviews: { es: "Opiniones de Mercado Libre", en: "Mercado Libre reviews" },

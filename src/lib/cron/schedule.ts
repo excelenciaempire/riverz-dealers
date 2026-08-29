@@ -237,6 +237,16 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     schedule: "0 * * * *",
     parent: "mercadolibre",
   },
+  // Escribía en `cron_runs` sin estar declarado acá: corría cada ~9 min y el
+  // panel no lo listaba, que es justo el problema que documenta el comentario
+  // de arriba de este archivo. El ritmo real lo pone el propio cron de ML
+  // (`api/cron/mercadolibre/route.ts`), esto sólo lo hace visible.
+  {
+    name: "mercadolibre-claims", whatKey: "admin.cronMlClaims",
+    path: "/api/cron/mercadolibre",
+    schedule: "*/10 * * * *",
+    parent: "mercadolibre",
+  },
   // El worker de voz no es un cron: es un proceso de fondo en otro servicio,
   // sin puerto que sondear. Late por su cuenta contra
   // /api/internal/voice/heartbeat, así que entra por la misma puerta que los
