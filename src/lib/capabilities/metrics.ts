@@ -17,7 +17,10 @@ import { MINIMO_PARA_PORCENTAJE, leerCortes } from '@/lib/dashboard/cortes'
 import { loadMetrics } from '@/lib/dashboard/queries'
 import { daysAgoStart, previousRange } from '@/lib/dashboard/date-utils'
 import { workspaceTimezone } from '@/lib/workspaces/timezone'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { translate } from '@/lib/i18n/translate'
 import { windowDays } from './predicates'
+import { cifras, lista, loc, numero, plata, tieneCampos, tile, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function resumen(ctx: CapabilityContext, args: Record<string, unknown>) {
@@ -208,6 +211,165 @@ async function atribucion(ctx: CapabilityContext, args: Record<string, unknown>)
   }
 }
 
+
+/**
+ * Las tres métricas, dibujadas.
+ *
+ * Se calculan desde el RESULTADO y no desde los argumentos: son lecturas, ya
+ * corrieron y no hay nada que aprobar. Viven acá abajo y no dentro de cada
+ * capacidad para que las tres compartan el formato de plata y de porcentaje,
+ * que es la misma razón por la que existe toda esta capa.
+ */
+
+function vistaResumen(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof resumen>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'periodo', 'conversaciones')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cifras({
+    titulo: t('vTitMetricas'),
+    bajada: translate(loc(ctx), 'operation.vUltimosDias', { dias: r.periodo.dias }),
+    tiles: [
+      tile(ctx, t('vConversaciones'), r.conversaciones.actual, r.conversaciones.anterior),
+      tile(ctx, t('vContactosNuevos'), r.contactos_nuevos.actual, r.contactos_nuevos.anterior),
+      tile(ctx, t('vResueltas'), r.resueltas.actual, r.resueltas.anterior),
+      tile(ctx, t('vEntrantes'), r.mensajes_entrantes.actual, r.mensajes_entrantes.anterior),
+      tile(ctx, t('vSalientes'), r.mensajes_salientes.actual, r.mensajes_salientes.anterior),
+      tile(ctx, t('vRespondioIa'), r.ia.respondio),
+      tile(ctx, t('vPedidos'), r.pedidos.cantidad),
+      { etiqueta: t('vFacturado'), valor: plata(ctx, r.pedidos.facturado, r.pedidos.moneda) },
+    ],
+    // La mezcla por canal es la única serie que se explica sin ejes: de dónde
+    // viene la gente. Los demás cortes son listas y no barras.
+    serie: lista<{ channel: string; inbound: number; outbound: number }>(r, 'por_canal').map((c) => ({
+      etiqueta: c.channel,
+      valor: c.inbound + c.outbound,
+    })),
+  })
+}
+
+/**
+ * Lo vendido, con la línea que sostiene el producto entero: probada e influida
+ * NO se suman. Dibujarlas una al lado de la otra sin totalizarlas es la forma
+ * de que eso se lea, en vez de explicarse en un párrafo que nadie lee.
+ *
+ * Sin tienda conectada no se dibuja nada: un tablero de ceros parece un mal
+ * resultado y lo que pasa es que no hay de dónde sacar el dato.
+ */
+function vistaAtribucion(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof atribucion>>,
+): Artefacto | null {
+  // Sin tienda conectada el resultado ni siquiera trae estos campos: no hay
+  // nada que dibujar, y un tablero de ceros se lee como un mal resultado.
+  if (!tieneCampos(r, 'probada', 'periodo')) return null
+  if (!('probada' in r) || !r.probada || !('periodo' in r)) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const pedidos = t('vPedidos').toLowerCase()
+  const tiles: {
+    etiqueta: string
+    valor: string
+    delta?: string
+    tono?: 'bueno' | 'malo' | 'neutro'
+  }[] = [
+    {
+      etiqueta: t('vProbada'),
+      valor: plata(ctx, r.probada.revenue, r.probada.currency ?? r.moneda),
+      delta: `${numero(ctx, r.probada.orders)} ${pedidos}`,
+      tono: 'neutro',
+    },
+    {
+      etiqueta: t('vInfluida'),
+      valor: plata(ctx, r.influida?.revenue ?? 0, r.influida?.currency ?? r.moneda),
+      delta: `${numero(ctx, r.influida?.orders ?? 0)} ${pedidos}`,
+      tono: 'neutro',
+    },
+    {
+      etiqueta: t('vVentaTotal'),
+      valor: plata(ctx, r.venta_total, r.moneda),
+      delta: `${numero(ctx, r.pedidos_totales)} ${pedidos}`,
+      tono: 'neutro',
+    },
+  ]
+
+  const cerro = (r.quien_lo_cerro ?? {}) as Record<string, { orders: number; revenue: number }>
+  for (const [quien, clave] of [
+    ['ai', 'vCerroIa'],
+    ['human', 'vCerroPersona'],
+  ] as const) {
+    const d = cerro[quien]
+    if (!d) continue
+    tiles.push({
+      etiqueta: t(clave),
+      valor: plata(ctx, d.revenue, r.probada.currency ?? r.moneda),
+      delta: `${numero(ctx, d.orders)} ${pedidos}`,
+      tono: 'neutro',
+    })
+  }
+
+  return cifras({
+    titulo: t('vTitAtribucion'),
+    bajada: translate(loc(ctx), 'operation.vUltimosDias', { dias: r.periodo.dias }),
+    tiles,
+  })
+}
+
+/**
+ * Quién atendió.
+ *
+ * El tiempo de respuesta lleva `mejorEsMas` al revés: es la única cifra del
+ * panel donde crecer es una mala noticia, y pintarla de verde por subir era
+ * decir lo contrario de lo que pasó.
+ */
+function vistaCortes(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof cortes>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'periodo', 'ia', 'primera_respuesta', 'fuera_de_horario', 'escalaciones')) {
+    return null
+  }
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const tiles: {
+    etiqueta: string
+    valor: string
+    delta?: string
+    tono?: 'bueno' | 'malo' | 'neutro'
+  }[] = []
+
+  if (r.ia.tasa !== null) {
+    tiles.push({
+      ...tile(ctx, t('vResolvioIa'), Math.round(r.ia.tasa), r.ia.tasa_anterior ?? undefined),
+      valor: `${Math.round(r.ia.tasa)} %`,
+    })
+  }
+  if (r.primera_respuesta.ia !== null) {
+    tiles.push({
+      etiqueta: t('vPrimeraRespuesta'),
+      valor: duracion(r.primera_respuesta.ia),
+      tono: 'neutro',
+    })
+  }
+  tiles.push(tile(ctx, t('vFueraDeHorario'), r.fuera_de_horario.atendidas))
+  tiles.push(tile(ctx, t('vSeAbstuvo'), r.escalaciones.total, undefined, false))
+
+  return cifras({
+    titulo: t('vTitCortes'),
+    bajada: translate(loc(ctx), 'operation.vUltimosDias', { dias: r.periodo.dias }),
+    tiles,
+    serie: lista<{ canal: string; conversaciones: number }>(r, 'por_canal').map((c) => ({
+      etiqueta: c.canal,
+      valor: c.conversaciones,
+    })),
+  })
+}
+
+/** Segundos, en la unidad que se lee sin dividir mentalmente. */
+function duracion(segundos: number): string {
+  if (segundos < 60) return `${Math.round(segundos)} s`
+  if (segundos < 3600) return `${Math.round(segundos / 60)} min`
+  return `${(segundos / 3600).toFixed(1)} h`
+}
 export const METRICS_CAPABILITIES: Capability[] = [
   {
     key: 'metricas.atribucion',
@@ -228,6 +390,7 @@ export const METRICS_CAPABILITIES: Capability[] = [
       },
     },
     run: atribucion,
+    vista: (ctx, _args, r) => vistaAtribucion(ctx, r as Awaited<ReturnType<typeof atribucion>>),
   },
   {
     key: 'metricas.cortes',
@@ -241,6 +404,7 @@ export const METRICS_CAPABILITIES: Capability[] = [
       properties: { dias: { type: 'number', description: 'Ventana en días. Por defecto 7.' } },
     },
     run: cortes,
+    vista: (ctx, _args, r) => vistaCortes(ctx, r as Awaited<ReturnType<typeof cortes>>),
   },
   {
     key: 'metricas.resumen',
@@ -256,5 +420,6 @@ export const METRICS_CAPABILITIES: Capability[] = [
       },
     },
     run: resumen,
+    vista: (ctx, _args, r) => vistaResumen(ctx, r as Awaited<ReturnType<typeof resumen>>),
   },
 ]

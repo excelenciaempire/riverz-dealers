@@ -27,7 +27,7 @@ import {
 } from '@/lib/capabilities/registry'
 import type { Capability, CapabilityContext } from '@/lib/capabilities/types'
 import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities'
-import { construir, proponer } from './escribir'
+import { construir, proponer, vistaDe } from './escribir'
 import { etiquetaDe } from './etiquetas'
 import { systemPrompt } from './prompt'
 import { translate } from '@/lib/i18n/translate'
@@ -283,7 +283,16 @@ export async function runOperator(args: {
       if (cap.risk === 'lectura') {
         const salida = await cap.run(ctx, toolArgs)
         const texto = JSON.stringify(salida).slice(0, 20_000)
-        emit({ t: 'tool_done', id: block.id, key, ok: true, resumen: resumirSalida(salida) })
+        emit({
+          t: 'tool_done',
+          id: block.id,
+          key,
+          ok: true,
+          resumen: resumirSalida(salida),
+          lectura: true,
+          // Lo leído, dibujado. El panel lo muestra al terminar el turno.
+          vista: vistaDe(cap, ctx, toolArgs, salida) ?? undefined,
+        })
         return { type: 'tool_result', tool_use_id: block.id, content: texto }
       }
 

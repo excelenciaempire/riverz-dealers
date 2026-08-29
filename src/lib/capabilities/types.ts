@@ -111,6 +111,27 @@ export interface Capability<A = Record<string, unknown>, R = unknown> {
    */
   artifact?(ctx: CapabilityContext, args: A, result?: R): Artefacto | null
   /**
+   * Lo que devolvió una LECTURA, dibujado.
+   *
+   * No es `artifact`. Aquél se calcula desde los ARGUMENTOS porque tiene que
+   * verse ANTES de ejecutar —es lo que se aprueba—, pasa por el diff y queda
+   * guardado en `operator_actions`. Acá ya se ejecutó y no hay nada que
+   * aprobar: se dibuja el resultado, y punto.
+   *
+   * Existe porque el panel del Operador dibujaba sólo lo que se construía. Una
+   * cuenta entera de lecturas —métricas, pedidos, contactos, conversaciones,
+   * llamadas, integraciones— contestaba un párrafo y dejaba el panel vacío, que
+   * es la mitad de lo que se le pide al Operador todos los días.
+   *
+   * Lo escribe el SERVIDOR, igual que el `preview` y que el artefacto: lo que
+   * se muestra tiene que ser lo que de verdad se leyó, no lo que el modelo diga
+   * que leyó.
+   *
+   * Devolver `null` es válido y significa "esto no se dibuja": una lectura que
+   * el modelo usa para decidir y que a una persona no le dice nada.
+   */
+  vista?(ctx: CapabilityContext, args: A, result: R): Artefacto | null
+  /**
    * Cómo está la cosa HOY, antes de aplicar estos argumentos.
    *
    * Existe sólo para el diff. "Actualizá el carrito abandonado" es un pedido de

@@ -18,6 +18,7 @@ import { resolveSegment } from '@/lib/segments/resolve'
 import type { SegmentMatchMode, SegmentRule } from '@/lib/segments/types'
 import { applyTags, ensureTag } from '@/lib/contacts/tags'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import { corto, fecha, ficha, filasDe, lista, numero, plata, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántos contactos como mucho devuelve una búsqueda. */
@@ -919,6 +920,89 @@ async function borrarEtiqueta(ctx: CapabilityContext, args: Record<string, unkno
 
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Un contacto, en ficha.
+ *
+ * Lo que hace falta para seguir hablando con esa persona sin cambiar de
+ * pestaña: quién es, por dónde escribe, qué compró y —lo primero de todo— si se
+ * dio de baja, porque eso explica que no le llegue nada.
+ *
+ * Los campos vacíos los saca `ficha()`: una lista de ocho renglones donde seis
+ * dicen "—" no informa, esconde.
+ */
+function vistaContacto(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof detalle>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'id')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const chips = lista<string>(r, 'etiquetas').slice()
+  if (r.dado_de_baja) chips.unshift(t('vDadoDeBaja'))
+  if (r.cliente_de_la_tienda) chips.push(t('vClienteDeLaTienda'))
+
+  return ficha({
+    titulo: r.nombre || r.telefono || r.email || t('vSinNombre'),
+    subtitulo: [r.canal, r.empresa].filter(Boolean).join(' · ') || undefined,
+    chips,
+    campos: [
+      { etiqueta: t('vColTelefono'), valor: r.telefono ?? '' },
+      { etiqueta: t('vColEmail'), valor: r.email ?? '' },
+      { etiqueta: t('vColDonde'), valor: [r.ciudad, r.pais].filter(Boolean).join(', ') },
+      { etiqueta: t('vPedidos'), valor: r.pedidos != null ? numero(ctx, r.pedidos) : '' },
+      {
+        etiqueta: t('vGastado'),
+        valor: r.gastado != null ? plata(ctx, r.gastado, r.moneda) : '',
+      },
+      { etiqueta: t('vUltimaCompra'), valor: r.ultima_compra ? fecha(ctx, r.ultima_compra) : '' },
+      {
+        etiqueta: t('vUltimoMensajeSuyo'),
+        valor: r.ultimo_mensaje_suyo ? fecha(ctx, r.ultimo_mensaje_suyo) : '',
+      },
+      { etiqueta: t('vUltimoProducto'), valor: corto(r.ultimo_producto, 40) },
+      { etiqueta: t('vDesde'), valor: fecha(ctx, r.desde) },
+    ],
+    // La baja se repite como nota porque es la única línea que cambia lo que se
+    // puede hacer con este contacto, y un chip se pasa por alto.
+    nota: r.dado_de_baja ? r.motivo_baja || t('vDadoDeBajaNota') : undefined,
+  })
+}
+
+/**
+ * Los contactos, en tabla.
+ *
+ * Se muestra el canal y no el id: quien mira está decidiendo a quién escribirle,
+ * y un uuid no ayuda a decidir nada.
+ */
+function vistaContactos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = filasDe(r, 'contactos') as {
+    id?: string
+    nombre?: string | null
+    name?: string | null
+    telefono?: string | null
+    phone?: string | null
+    email?: string | null
+    canal?: string | null
+    channel?: string | null
+    etiquetas?: string[]
+  }[]
+  return tabla({
+    titulo: tt(ctx, 'operation.subContactos'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'telefono', titulo: tt(ctx, 'operation.vColTelefono') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'etiquetas', titulo: tt(ctx, 'operation.vColEtiquetas') },
+    ],
+    filas: filas.map((c) => ({
+      nombre: corto(c.nombre ?? c.name, 28),
+      telefono: c.telefono ?? c.phone ?? '—',
+      canal: c.canal ?? c.channel ?? '—',
+      etiquetas: corto((c.etiquetas ?? []).join(', '), 30),
+    })),
+    vacio: tt(ctx, 'operation.vSinContactos'),
+  })
+}
 export const CONTACT_CAPABILITIES: Capability[] = [
   {
     key: 'contactos.anotar',
@@ -965,6 +1049,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       },
     },
     run: buscar,
+    vista: (ctx, _args, r) => vistaContactos(ctx, r),
   },
   {
     key: 'contactos.detalle',
@@ -981,6 +1066,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       required: ['contacto_id'],
     },
     run: detalle,
+    vista: (ctx, _args, r) => vistaContacto(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
   {
     key: 'etiquetas.listar',

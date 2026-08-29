@@ -173,3 +173,156 @@ describe('las piezas que el banco sabe dibujar', () => {
     expect(sinProductor).toEqual([])
   })
 })
+
+/**
+ * Las que todavía no dibujan nada.
+ *
+ * El panel del Operador mostraba ocho de ciento diez capacidades: todo lo demás
+ * contestaba un párrafo y dejaba el lienzo vacío. La lista de abajo es lo que
+ * falta, y está para achicarse: cada vez que una capacidad aprende a dibujarse,
+ * su clave sale de acá.
+ *
+ * Es una lista explícita y no un `.skip` a propósito. Un test salteado se
+ * olvida; una lista que hay que editar para agregar una capacidad nueva obliga
+ * a decidir, en ese momento, qué muestra el panel cuando alguien la llame.
+ */
+const SIN_DIBUJO = new Set<string>([
+  'agentes.reglas',
+  'agentes.crear_regla',
+  'etiquetas.crear',
+  'agentes.activar_regla',
+  'agentes.descuentos',
+  'agentes.listar',
+  'agentes.activar',
+  'agentes.detalle',
+  'aprobaciones.pendientes',
+  'aprobaciones.decidir',
+  'automatizaciones.en_cola',
+  'automatizaciones.cancelar_espera',
+  'automatizaciones.listar',
+  'automatizaciones.ver',
+  'automatizaciones.recetas',
+  'automatizaciones.activar',
+  'bandeja.decidir_devolucion',
+  'bandeja.reclamos',
+  'bandeja.devoluciones',
+  'bandeja.huecos',
+  'bandeja.atajos',
+  'bandeja.crear_atajo',
+  'bandeja.filtros',
+  'bandeja.reparto',
+  'bandeja.activar_reparto',
+  'campanas.enlaces',
+  'campanas.lanzar',
+  'campanas.detalle',
+  'campanas.estado',
+  'comentarios.publicaciones',
+  'comentarios.ajustes',
+  'comentarios.configurar',
+  'comentarios.listar',
+  'comentarios.moderar',
+  'comentarios.pendientes',
+  'comentarios.reglas',
+  'comentarios.activar_regla',
+  'contactos.anotar',
+  'contactos.buscar',
+  'contactos.etiquetar',
+  'etiquetas.listar',
+  'etiquetas.borrar',
+  'segmentos.listar',
+  'segmentos.reglas',
+  'segmentos.calcular',
+  'flujos.corridas',
+  'flujos.listar',
+  'flujos.detalle',
+  'flujos.activar',
+  'conversaciones.detalle',
+  'conversaciones.asignar',
+  'conversaciones.cerrar',
+  'conversaciones.ia',
+  'conversaciones.aprobar_borrador',
+  'conversaciones.pendientes',
+  'integraciones.desconectar',
+  'mensajes.diagnostico',
+  'mensajes.enviar',
+  'pedidos.entregas',
+  'pedidos.carritos',
+  'pedidos.pagos_rechazados',
+  'pedidos.registrar_pago',
+  'plantillas.estado',
+  'plantillas.detalle',
+  'productos.responder_hueco',
+  'productos.listar',
+  'productos.detalle',
+  'productos.editar',
+  'prospeccion.campanas',
+  'prospeccion.audiencia',
+  'prospeccion.crear_campana',
+  'prospeccion.lanzar',
+  'voz.detalle',
+  'voz.listar',
+  'voz.campanas',
+  'voz.llamar',
+  'ajustes.saldo',
+  'ajustes.plan',
+  'ajustes.cuenta',
+  'ajustes.zona_horaria',
+  'ajustes.renombrar',
+  'ajustes.invitar',
+])
+
+describe('lo que el panel del Operador puede mostrar', () => {
+  it('toda capacidad dibuja algo, o está declarada como pendiente', () => {
+    const mudas = ALL_CAPABILITIES.filter((c) => {
+      // Una LECTURA se dibuja desde su resultado (`vista`); lo que ESCRIBE se
+      // dibuja desde sus argumentos (`artifact`), porque tiene que verse antes
+      // de aprobarlo. No son intercambiables.
+      const dibuja = c.risk === 'lectura' ? Boolean(c.vista) : Boolean(c.artifact)
+      return !dibuja && !SIN_DIBUJO.has(c.key)
+    }).map((c) => c.key)
+    expect(mudas).toEqual([])
+  })
+
+  it('la lista de pendientes no tiene claves que ya no existen', () => {
+    // Sin esto la lista sólo crece: una capacidad renombrada deja su clave
+    // vieja adentro y tapa para siempre a la nueva.
+    const claves = new Set(ALL_CAPABILITIES.map((c) => c.key))
+    const fantasmas = [...SIN_DIBUJO].filter((k) => !claves.has(k))
+    expect(fantasmas).toEqual([])
+  })
+
+  it('la lista de pendientes no tapa a una que ya dibuja', () => {
+    const yaDibujan = ALL_CAPABILITIES.filter(
+      (c) => SIN_DIBUJO.has(c.key) && (c.risk === 'lectura' ? c.vista : c.artifact),
+    ).map((c) => c.key)
+    expect(yaDibujan).toEqual([])
+  })
+})
+
+describe('una vista no puede romperse con lo que le llegue', () => {
+  /**
+   * El modo real de romper el panel.
+   *
+   * `vistaDe` traga la excepción, así que una vista que revienta no se ve como
+   * un error: se ve como un panel vacío, que es indistinguible de "no había
+   * nada". Una cuenta sin pedidos, una consulta sin resultados y una tabla que
+   * volvió `null` tienen que dibujar algo o devolver `null` a propósito.
+   */
+  const VACIOS: unknown[] = [null, undefined, {}, [], { filas: null }, { datos: [] }]
+
+  it('sobrevive a un resultado vacío', () => {
+    const ctx = { db: null, workspaceId: 'w', actor: { type: 'operator' as const }, locale: 'es' as const }
+    const rotas: string[] = []
+    for (const cap of ALL_CAPABILITIES) {
+      if (!cap.vista) continue
+      for (const v of VACIOS) {
+        try {
+          cap.vista(ctx as never, {}, v)
+        } catch {
+          rotas.push(`${cap.key} ← ${JSON.stringify(v) ?? 'undefined'}`)
+        }
+      }
+    }
+    expect(rotas).toEqual([])
+  })
+})

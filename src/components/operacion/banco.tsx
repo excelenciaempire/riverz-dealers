@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { WhatsappPreview } from '@/components/templates/whatsapp-preview'
 import type { TemplateButtonInput } from '@/lib/whatsapp/template-components'
 import { VistaArtefacto } from './artefacto'
+import { VISTAS_ANCHAS } from './vistas'
 import { LienzoAutomatizacion } from './lienzo-automatizacion'
 import {
   useMesa,
@@ -45,13 +46,12 @@ export function Banco({ className }: { className?: string }) {
   const m = useMesa()
   const aLaMesa = useMesaDispatch()
   const t = useT()
-
   const fijado = m.fijado
   // Traer una pieza desde un paso es pedir ESA: mientras esté fijada, el banco
   // muestra sólo ella y con su salida a la pantalla de siempre.
-  const piezas: Artefacto[] = fijado
-    ? [fijado.artefacto]
-    : m.lienzos.map((l) => l.artefacto)
+  const piezas: LienzoEnMesa[] = fijado
+    ? [{ key: fijado.capabilityKey, artefacto: fijado.artefacto }]
+    : m.lienzos
 
   if (piezas.length === 0) {
     return (
@@ -65,7 +65,7 @@ export function Banco({ className }: { className?: string }) {
   // Un lienzo solo se queda con la pantalla entera: es lo que más se gana con
   // alto, y dibujar un árbol de nueve pasos dentro de una franja de 380px es
   // volver a la miniatura de la que veníamos.
-  const soloLienzo = piezas.length === 1 && piezas[0].kind === 'automatizacion'
+  const soloLienzo = piezas.length === 1 && piezas[0].artefacto.kind === 'automatizacion'
 
   return (
     <section
@@ -114,11 +114,11 @@ export function Banco({ className }: { className?: string }) {
 
       {soloLienzo ? (
         <div className="relative z-10 min-h-0 flex-1">
-          <Lienzo pieza={piezas[0]} />
+          <Lienzo pieza={piezas[0].artefacto} />
         </div>
       ) : (
         <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">
-          <Reparto piezas={piezas} lienzos={fijado ? [] : m.lienzos} />
+          <Reparto lienzos={piezas} />
         </div>
       )}
     </section>
@@ -126,59 +126,66 @@ export function Banco({ className }: { className?: string }) {
 }
 
 /**
- * Las piezas repartidas: los árboles a lo ancho, los mensajes en fila.
+ * Las piezas repartidas: lo ancho a lo ancho, lo angosto en fila.
  *
  * Un árbol y un mensaje no piden el mismo espacio. Meterlos en la misma grilla
  * deja a la automatización apretada y a los teléfonos estirados; separarlos por
  * forma es lo único que hace que las cuatro se lean.
+ *
+ * Desde que el panel también muestra LECTURAS, la lista se estira: una tabla de
+ * pedidos y un tablero de integraciones piden ancho por lo mismo que un árbol,
+ * y una ficha o un recibo entran en una columna como entra un teléfono.
+ *
+ * Se recorre `lienzos` y no una lista suelta de artefactos porque cada uno trae
+ * de dónde salió, y eso es lo que titula el grupo. Antes se recorrían dos
+ * listas en paralelo y el índice de una se usaba contra la otra: la segunda
+ * pieza ancha se titulaba con el agente de la segunda pieza de la mesa, que
+ * casi nunca era la misma.
  */
-function Reparto({ piezas, lienzos }: { piezas: Artefacto[]; lienzos: LienzoEnMesa[] }) {
-  const t = useT()
-  const anchas = piezas.filter((p) => p.kind === 'automatizacion' || p.kind === 'flujo')
-  const angostas = piezas.filter((p) => p.kind !== 'automatizacion' && p.kind !== 'flujo')
+function Reparto({ lienzos }: { lienzos: LienzoEnMesa[] }) {
+  const anchas = lienzos.filter((l) => esAncha(l.artefacto.kind))
+  const angostas = lienzos.filter((l) => !esAncha(l.artefacto.kind))
 
   return (
     <div className="flex flex-col gap-6 p-5">
-      {anchas.map((p, i) => (
+      {anchas.map((l, i) => (
         <section key={`ancha-${i}`} className="min-w-0">
-          <h3 className="app-eyebrow mb-2 text-muted-foreground">
-            {nombreDe(p) || t(`operation.sub${cap(lienzos[i]?.agente ?? 'automatizaciones')}`)}
-          </h3>
-          {p.kind === 'automatizacion' ? (
+          <Titulo lienzo={l} />
+          {l.artefacto.kind === 'automatizacion' ? (
             // Alto acotado y con su propio zoom: dentro de una columna que ya
             // hace scroll, un lienzo que crece sin techo empuja todo lo demás
             // fuera de la pantalla.
             <div className="h-[360px] overflow-hidden rounded-xl border border-border">
-              <Lienzo pieza={p} />
+              <Lienzo pieza={l.artefacto} />
             </div>
           ) : (
-            <VistaArtefacto artefacto={p} />
+            <VistaArtefacto artefacto={l.artefacto} />
           )}
         </section>
       ))}
 
       {angostas.length > 0 && (
         <div className="flex flex-wrap items-start justify-center gap-6">
-          {angostas.map((p, i) => (
+          {angostas.map((l, i) => (
             <div key={`angosta-${i}`} className="w-full max-w-[320px] shrink-0">
-              {p.kind === 'plantilla' ? (
+              {l.artefacto.kind === 'plantilla' ? (
                 <>
                   {/* Aprobar un mensaje es mirar el mensaje. Es el mismo
                       teléfono que usa el editor de plantillas, así que los dos
                       no se pueden separar. */}
                   <p className="app-eyebrow mb-2 truncate text-center text-muted-foreground">
-                    {p.nombre}
+                    {l.artefacto.nombre}
                   </p>
                   <WhatsappPreview
-                    headerType={p.encabezado ? 'text' : 'none'}
-                    headerText={p.encabezado ?? undefined}
-                    bodyText={p.cuerpo}
-                    footerText={p.pie ?? undefined}
-                    buttons={(p.botones ?? []).map(aBoton)}
+                    headerType={l.artefacto.encabezado ? 'text' : 'none'}
+                    headerText={l.artefacto.encabezado ?? undefined}
+                    bodyText={l.artefacto.cuerpo}
+                    footerText={l.artefacto.pie ?? undefined}
+                    buttons={(l.artefacto.botones ?? []).map(aBoton)}
                   />
                 </>
               ) : (
-                <VistaArtefacto artefacto={p} />
+                <VistaArtefacto artefacto={l.artefacto} />
               )}
             </div>
           ))}
@@ -186,6 +193,29 @@ function Reparto({ piezas, lienzos }: { piezas: Artefacto[]; lienzos: LienzoEnMe
       )}
     </div>
   )
+}
+
+/**
+ * De dónde salió esta pieza.
+ *
+ * El nombre propio gana siempre. Cuando no lo hay —una tabla se llama por su
+ * título, y algunas vistas por nada— se cae al especialista que la armó, y si
+ * tampoco hay equipo, al dominio de la capacidad: `pedidos.listar` es
+ * «Pedidos». Sin eso, una lectura sin equipo quedaba bajo el encabezado
+ * «Automatizaciones», que era el que estaba escrito a mano.
+ */
+function Titulo({ lienzo }: { lienzo: LienzoEnMesa }) {
+  const t = useT()
+  const propio = nombreDe(lienzo.artefacto)
+  const dominio = lienzo.agente ?? lienzo.key?.split('.')[0]
+  const texto = propio || (dominio ? t(`operation.sub${cap(dominio)}`) : '')
+  if (!texto) return null
+  return <h3 className="app-eyebrow mb-2 text-muted-foreground">{texto}</h3>
+}
+
+/** Las que piden una franja entera: un árbol, una tabla, un ida y vuelta. */
+function esAncha(kind: Artefacto['kind']): boolean {
+  return kind === 'automatizacion' || kind === 'flujo' || VISTAS_ANCHAS.has(kind)
 }
 
 function Lienzo({ pieza }: { pieza: Artefacto }) {
@@ -249,6 +279,8 @@ const PANTALLA: Record<string, (id: string) => string> = {
   // El menú se pide por su id entero: su pantalla lo busca por la API y no
   // por columna, así que el id corto no resolvería.
   'flujos.': (id) => `/menus/${id}`,
+  // El producto resuelve por id entero o por handle, no por id corto.
+  'productos.': (id) => `/productos/${id}`,
 }
 
 function pantallaDe(f: FijadoEnMesa): string | null {

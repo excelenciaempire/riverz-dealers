@@ -88,6 +88,10 @@ export function aplicarEvento(bloques: Bloque[], e: OperatorEvent): Bloque[] {
         estado: e.ok ? 'ok' : 'error',
         detalle: e.ok ? undefined : e.resumen,
         lectura: e.lectura,
+        // La vista de una lectura se guarda en el paso, igual que el artefacto
+        // de una escritura: es lo que hace que al reabrir la conversación el
+        // panel vuelva con lo que se había mirado.
+        artefacto: e.vista,
       })
     case 'proposed':
       return conPaso(bloques, e.id, {

@@ -262,7 +262,7 @@ export function OperatorChat({
           .flatMap((m) => m.bloques ?? [])
           .flatMap((b) =>
             b.k === 'paso' && b.artefacto
-              ? [{ agente: 'automatizaciones' as const, artefacto: b.artefacto }]
+              ? [{ key: b.key, artefacto: b.artefacto }]
               : [],
           ),
       })

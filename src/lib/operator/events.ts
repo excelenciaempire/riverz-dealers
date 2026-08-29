@@ -59,6 +59,15 @@ export type OperatorEvent =
        * permanente sobre algo que no falló.
        */
       lectura?: boolean
+      /**
+       * Lo que se leyó, dibujable.
+       *
+       * Es el gemelo del `artefacto` de `proposed`/`built` para el otro lado
+       * del Operador: las lecturas. Viaja acá y no en un evento propio porque
+       * así queda pegado al paso que lo produjo — el hilo lo guarda en el
+       * bloque y al reabrir la conversación el panel se rearma solo.
+       */
+      vista?: Artefacto
       agente?: SubagentId
     }
   /** Dejó algo propuesto: espera un click. */

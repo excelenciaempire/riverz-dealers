@@ -25,7 +25,19 @@ import {
   setIaConversacion,
   type MiembroDelEquipo,
 } from '@/lib/inbox/conversaciones'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import { hoursWaiting, looksLikePhone, phoneTail } from './predicates'
+import {
+  conversacion,
+  corto,
+  fecha,
+  filasDe,
+  lista,
+  numero,
+  tabla,
+  tieneCampos,
+  tt,
+} from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántas conversaciones como mucho devuelve una búsqueda. */
@@ -596,6 +608,108 @@ const ID_CONVERSACION = {
   description: 'El conversation_id que devuelve conversaciones.buscar.',
 } as const
 
+
+/**
+ * La conversación, como se leyó.
+ *
+ * Que el Operador diga «el cliente está molesto» no es lo mismo que ver lo que
+ * escribió. Esto es lo que convierte una lectura de la bandeja en algo que se
+ * puede juzgar: las burbujas del cliente a la izquierda, las del negocio a la
+ * derecha, y en el medio las notas internas —que no las leyó nadie de afuera y
+ * no pueden parecer parte del ida y vuelta.
+ *
+ * Un audio se dibuja por su transcripción: es lo que se contesta.
+ */
+function vistaConversacion(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof mensajes>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'mensajes')) return null
+  return conversacion({
+    titulo: r.contacto || tt(ctx, 'operation.vSinNombre'),
+    canal: r.canal ?? undefined,
+    mensajes: lista<{
+      quien: string
+      texto: string | null
+      transcripcion: string | null
+      asunto: string | null
+      adjunto: { tipo: string | null } | null
+      oculto: boolean
+      cuando: string
+    }>(r, 'mensajes')
+      .filter((m) => !m.oculto)
+      .map((m) => ({
+        de: m.quien === 'customer' ? ('cliente' as const) : ('negocio' as const),
+        texto:
+          m.texto ||
+          m.transcripcion ||
+          m.asunto ||
+          (m.adjunto ? `[${m.adjunto.tipo ?? 'adjunto'}]` : '—'),
+        cuando: fecha(ctx, m.cuando),
+      })),
+  })
+}
+
+/**
+ * Los borradores que esperan un click.
+ *
+ * Es una conversación y no una tabla porque lo que hay que decidir es si ESE
+ * texto se manda, y un texto recortado en una celda no se puede aprobar. Cada
+ * uno viene con de quién es, arriba, como nota.
+ */
+function vistaBorradores(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof borradores>>,
+): Artefacto {
+  const filas = lista<{
+    contacto: string | null
+    canal: string | null
+    texto: string
+    agente: string | null
+  }>(r, 'borradores')
+  return conversacion({
+    titulo: tt(ctx, 'operation.vTitBorradores'),
+    mensajes: filas.flatMap((b) => [
+      {
+        de: 'nota' as const,
+        texto: [b.contacto, b.canal, b.agente].filter(Boolean).join(' · '),
+      },
+      { de: 'negocio' as const, texto: b.texto },
+    ]),
+  })
+}
+
+/**
+ * Las conversaciones, en tabla.
+ *
+ * Lo que se busca acá es cuál abrir, así que las dos columnas que importan son
+ * la última línea y cuánto hace que esa persona espera. Sin ellas son veinte
+ * nombres iguales.
+ */
+function vistaConversaciones(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = filasDe(r, 'conversaciones', 'escalaciones') as {
+    contacto?: string | null
+    canal?: string | null
+    ultimo_mensaje?: string | null
+    horas_esperando?: number | null
+  }[]
+  return tabla({
+    titulo: tt(ctx, 'operation.subBandeja'),
+    columnas: [
+      { clave: 'contacto', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'ultimo', titulo: tt(ctx, 'operation.vColUltimoMensaje') },
+      { clave: 'espera', titulo: tt(ctx, 'operation.vColEsperando'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      contacto: corto(c.contacto, 24),
+      canal: c.canal ?? '—',
+      ultimo: corto(c.ultimo_mensaje, 50),
+      espera: c.horas_esperando != null ? `${numero(ctx, Math.round(c.horas_esperando))} h` : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinConversaciones'),
+  })
+}
 export const INBOX_CAPABILITIES: Capability[] = [
   {
     key: 'conversaciones.escalaciones',
@@ -612,6 +726,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       },
     },
     run: escalaciones,
+    vista: (ctx, _args, r) => vistaConversaciones(ctx, r),
   },
   {
     key: 'conversaciones.buscar',
@@ -630,6 +745,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       },
     },
     run: buscar,
+    vista: (ctx, _args, r) => vistaConversaciones(ctx, r),
   },
 
   {
@@ -663,6 +779,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       required: ['conversacion_id'],
     },
     run: mensajes,
+    vista: (ctx, _args, r) => vistaConversacion(ctx, r as Awaited<ReturnType<typeof mensajes>>),
   },
 
   {
@@ -677,6 +794,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       properties: { limite: { type: 'number', description: 'Por defecto 20, máximo 50.' } },
     },
     run: borradores,
+    vista: (ctx, _args, r) => vistaBorradores(ctx, r as Awaited<ReturnType<typeof borradores>>),
   },
 
   {

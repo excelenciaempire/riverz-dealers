@@ -15,8 +15,10 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useT } from '@/hooks/use-locale'
-import type { Artefacto, Cambio, PasoArtefacto } from '@/lib/operator/artifacts'
+import type { Artefacto, PasoArtefacto } from '@/lib/operator/artifacts'
 import { cn } from '@/lib/utils'
+import { Fichas, Marco, TONO } from './marco'
+import { VistaDeDatos } from './vistas'
 
 /**
  * Lo que el equipo armó, dibujado.
@@ -49,21 +51,6 @@ const ICONO: Record<string, typeof Clock> = {
   send_webhook: Webhook,
   voice_call: PhoneCall,
 }
-
-/**
- * Los tonos del cambio.
- *
- * Sin verde ni rojo puestos a mano: todo sale de los tokens del tema, así que
- * el dibujo se ve igual de bien en claro y en oscuro. Lo acentuado usa
- * `accent-ink` y nunca `primary`, que como texto es invisible sobre fondo claro.
- */
-const TONO: Record<Cambio, string> = {
-  igual: 'border-border/70 bg-background opacity-60',
-  nuevo: 'border-accent-ink/30 bg-primary/10',
-  editado: 'border-accent-ink/30 bg-primary/10',
-  quitado: 'border-dashed border-border bg-background opacity-50 line-through',
-}
-
 export function VistaArtefacto({ artefacto }: { artefacto: Artefacto }) {
   switch (artefacto.kind) {
     case 'automatizacion':
@@ -197,45 +184,23 @@ export function VistaArtefacto({ artefacto }: { artefacto: Artefacto }) {
           </ul>
         </Marco>
       )
+
+    // Lo que se LEYÓ, que ahora también se dibuja.
+    //
+    // Viven en `vistas.tsx` y no acá porque son otra cosa: éstas de arriba son
+    // piezas que alguien va a aprobar, aquéllas son datos que alguien va a
+    // mirar. Comparten el marco y nada más.
+    case 'tabla':
+    case 'cifras':
+    case 'ficha':
+    case 'conversacion':
+    case 'tablero':
+    case 'pedido':
+    case 'cambio':
+      return <VistaDeDatos vista={artefacto} />
   }
 }
 
-function Marco({
-  titulo,
-  bajada,
-  base,
-  children,
-}: {
-  titulo: string
-  bajada?: string
-  base?: { id: string; nombre: string }
-  children: React.ReactNode
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-sm font-medium text-foreground">{titulo}</p>
-      {bajada && <p className="text-xs text-muted-foreground">{bajada}</p>}
-      {/* Decir sobre qué se está trabajando importa: sin esto, un cambio se lee
-          como una creación y nadie busca qué se movió. */}
-      {base && (
-        <p className="mt-0.5 text-[11px] text-accent-ink">Cambios sobre {base.nombre}</p>
-      )}
-      <div className="mt-3">{children}</div>
-    </div>
-  )
-}
-
-function Fichas({ items }: { items: string[] }) {
-  return (
-    <ul className="mt-2 flex flex-wrap gap-1.5">
-      {items.map((x) => (
-        <li key={x} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-accent-ink">
-          {x}
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 function Rama({ pasos, nivel = 0 }: { pasos: PasoArtefacto[]; nivel?: number }) {
   // El otro dibujo del mismo árbol ya los traduce (`lienzo-automatizacion`).

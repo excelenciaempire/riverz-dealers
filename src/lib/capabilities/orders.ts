@@ -43,7 +43,9 @@ import type {
 } from '@/lib/shopify/create-order'
 import type { ShopifyToolContext } from '@/lib/ai/tools'
 import type { Contact } from '@/types'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import { since, windowDays } from './predicates'
+import { cambio, corto, fecha, lista, plata, tabla, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
@@ -549,6 +551,95 @@ async function entregas(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+
+/**
+ * Los pedidos, dibujados.
+ *
+ * Dos formas, y la diferencia importa: una LISTA de pedidos es una tabla —lo
+ * que se busca ahí es encontrar uno—, y UN pedido es un recibo —lo que se mira
+ * ahí es si los artículos y la plata están bien antes de aprobarlo—. Meter el
+ * segundo en la forma del primero era pedir que se apruebe un cobro leyendo una
+ * fila.
+ */
+function vistaPedidos(ctx: CapabilityContext, r: Awaited<ReturnType<typeof listar>>): Artefacto {
+  const filas = lista<{
+    order_number: string | null
+    customer_name: string | null
+    total_price: number | string | null
+    currency: string | null
+    financial_status: string | null
+    shipping_status: string | null
+    created_at: string
+  }>(r, 'pedidos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitPedidos'),
+    columnas: [
+      { clave: 'numero', titulo: tt(ctx, 'operation.vColPedido') },
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'total', titulo: tt(ctx, 'operation.vColTotal'), alineado: 'der' },
+    ],
+    filas: filas.map((p) => ({
+      numero: p.order_number ?? '—',
+      cliente: corto(p.customer_name, 24),
+      estado: [p.financial_status, p.shipping_status].filter(Boolean).join(' · ') || '—',
+      cuando: fecha(ctx, p.created_at),
+      total: plata(ctx, p.total_price, p.currency),
+    })),
+    vacio: tt(ctx, 'operation.vSinPedidos'),
+  })
+}
+
+/**
+ * Lo que se va a comprar, antes y después.
+ *
+ * Antes de aprobar no hay precio: cotizar es una llamada a la tienda y esto se
+ * calcula sin `await`. Así que se dibuja lo que SÍ se sabe —para quién, qué y
+ * cuánto— y se dice que el precio sale de la tienda. Mostrar un total inventado
+ * en la tarjeta que se aprueba sería exactamente lo que esta capa evita.
+ *
+ * Después, con el pedido hecho, ya hay número y total: ahí sí es un recibo.
+ */
+function vistaCompra(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  result: unknown,
+  esLink: boolean,
+): Artefacto {
+  const r = (result ?? null) as {
+    pedido?: string | null
+    contacto?: string
+    total?: string | null
+    link?: string
+    que_lleva?: string
+    seguimiento?: string | null
+    estado_pago?: string
+  } | null
+
+  const cantidad = typeof args.cantidad === 'number' ? args.cantidad : 1
+  const oferta = typeof args.oferta === 'string' ? args.oferta : ''
+
+  if (!r) {
+    return cambio({
+      titulo: tt(ctx, esLink ? 'operation.vTitLinkPago' : 'operation.vTitCrearPedido'),
+      que: [oferta || tt(ctx, 'operation.vLoQuePidio'), cantidad > 1 ? `× ${cantidad}` : '']
+        .filter(Boolean)
+        .join(' '),
+      aviso: tt(ctx, 'operation.vPrecioDeLaTienda'),
+    })
+  }
+
+  return {
+    kind: 'pedido',
+    nombre: r.pedido ?? undefined,
+    cliente: r.contacto,
+    items: [{ que: r.que_lleva || oferta || '—', cantidad, precio: r.total ?? '—' }],
+    total: r.total ?? '—',
+    estado: r.estado_pago,
+    enlace: r.link ?? r.seguimiento ?? undefined,
+  }
+}
 export const ORDER_CAPABILITIES: Capability[] = [
   {
     key: 'pedidos.entregas',
@@ -617,6 +708,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       },
     },
     run: listar,
+    vista: (ctx, _args, r) => vistaPedidos(ctx, r as Awaited<ReturnType<typeof listar>>),
   },
 
   {
@@ -642,6 +734,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       return `Armaría el link de pago de ${link.offer_label}${total} para ${nombre}. El link no se envía solo.`
     },
     run: checkout,
+    artifact: (ctx, args, result) => vistaCompra(ctx, args, result, true),
   },
 
   {
@@ -694,6 +787,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       return `Crearía el pedido real de ${cotizacion.offer_label}${total} a nombre de ${nombre}${envio}. Descuenta stock y queda con el pago pendiente.`
     },
     run: crear,
+    artifact: (ctx, args, result) => vistaCompra(ctx, args, result, false),
   },
 
   {

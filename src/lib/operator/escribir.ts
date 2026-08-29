@@ -71,6 +71,29 @@ export async function artefactoDe(
 }
 
 /**
+ * El dibujo de lo que se LEYÓ, si la capacidad sabe producirlo.
+ *
+ * Hermana de `artefactoDe`, y separada a propósito: aquélla dibuja desde los
+ * argumentos y compara contra lo que había; ésta dibuja un resultado que ya
+ * existe y no se compara con nada.
+ *
+ * Nunca puede tumbar la lectura. Un `vista()` que se rompe con una fila rara
+ * dejaría al modelo sin el dato que fue a buscar por un problema de pantalla.
+ */
+export function vistaDe(
+  cap: ReturnType<typeof findCapability>,
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+  result: unknown,
+): Artefacto | null {
+  try {
+    return cap?.vista?.(ctx, args, result) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Anota una acción que cambia algo y devuelve qué contestarle al modelo.
  *
  * El `preview` se calcula en el servidor y no lo escribe el modelo: es lo que

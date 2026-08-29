@@ -24,7 +24,9 @@ import {
   desconectarCanal,
   listarConexionesDeCanal,
 } from '@/lib/integrations/disconnect'
+import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Channel } from '@/types'
+import { corto, fecha, lista, tabla, tablero, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /**
@@ -235,6 +237,91 @@ async function historial(ctx: CapabilityContext, args: Record<string, unknown>) 
   }
 }
 
+
+/**
+ * Lo conectado, en un tablero.
+ *
+ * La respuesta útil a "¿por qué no me llegan los mensajes?" es una línea por
+ * canal con su punto: verde el que anda, amarillo el que tiene el token
+ * vencido, rojo el que está en error, gris el que se desconectó. Las tiendas
+ * van en la misma lista porque desde el otro lado de la pregunta son lo mismo:
+ * algo que está o no está conectado.
+ */
+function vistaEstadoIntegraciones(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof estado>>,
+): Artefacto {
+  const filas: { que: string; estado: 'ok' | 'atencion' | 'roto' | 'apagado'; detalle?: string }[] =
+    lista<{
+      nombre: string
+      estado: string
+      vencido: boolean
+      ultimo_error: string | null
+      cuenta: string | null
+    }>(r, 'canales').map((c) => ({
+      que: c.nombre,
+      estado:
+        c.estado === 'error'
+          ? 'roto'
+          : c.estado === 'disconnected'
+            ? 'apagado'
+            : // Un token vencido con el canal en verde es la caída que todavía
+              // no se nota: los mensajes dejan de entrar en silencio.
+              c.vencido
+              ? 'atencion'
+              : 'ok',
+      detalle: c.ultimo_error ?? c.cuenta ?? undefined,
+    }))
+
+  for (const t of lista<{
+    plataforma: string
+    tienda: string | null
+    dominio: string | null
+    estado: string
+  }>(r, 'tiendas')) {
+    filas.push({
+      que: t.tienda ?? t.plataforma,
+      estado: t.estado === 'active' ? 'ok' : t.estado === 'error' ? 'roto' : 'atencion',
+      detalle: t.dominio ?? t.plataforma,
+    })
+  }
+
+  return tablero({ titulo: tt(ctx, 'operation.vTitIntegraciones'), filas })
+}
+
+/**
+ * Las caídas, en orden.
+ *
+ * Es una tabla y no un tablero: lo que se está mirando acá es CUÁNDO, y una
+ * columna de fechas es lo único que contesta "se cayó justo cuando dejaron de
+ * entrar los mensajes".
+ */
+function vistaHistorial(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof historial>>,
+): Artefacto {
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitHistorialConexion'),
+    columnas: [
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'paso', titulo: tt(ctx, 'operation.vColPaso') },
+      { clave: 'error', titulo: tt(ctx, 'operation.vColMotivo') },
+    ],
+    filas: lista<{
+      cuando: string
+      canal: string | null
+      paso_de: string | null
+      paso_a: string | null
+      error: string | null
+    }>(r, 'eventos').map((e) => ({
+      cuando: fecha(ctx, e.cuando),
+      canal: e.canal ?? '—',
+      paso: `${e.paso_de ?? '—'} → ${e.paso_a ?? '—'}`,
+      error: corto(e.error, 40),
+    })),
+  })
+}
 export const INTEGRATION_CAPABILITIES: Capability[] = [
   {
     key: 'integraciones.historial',
@@ -251,6 +338,7 @@ export const INTEGRATION_CAPABILITIES: Capability[] = [
       },
     },
     run: historial,
+    vista: (ctx, _args, r) => vistaHistorial(ctx, r as Awaited<ReturnType<typeof historial>>),
   },
   {
     key: 'integraciones.estado',
@@ -261,6 +349,8 @@ export const INTEGRATION_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: estado,
+    vista: (ctx, _args, r) =>
+      vistaEstadoIntegraciones(ctx, r as Awaited<ReturnType<typeof estado>>),
   },
 
   {

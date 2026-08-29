@@ -120,6 +120,143 @@ export type Artefacto =
       nodos: { clave: string; tipo: string; resumen: string; cambio?: Cambio }[]
       base?: BaseArtefacto
     }
+  /**
+   * Una lista, dibujada.
+   *
+   * Es la forma más común de todas: la mitad de las lecturas de Riverz
+   * devuelven filas —pedidos, productos, contactos, conversaciones, llamadas,
+   * comentarios—. Sin esto, "mostrame los últimos diez pedidos" contestaba un
+   * párrafo y el panel quedaba vacío.
+   *
+   * Las columnas las elige el servidor, no el modelo: una tabla con las trece
+   * columnas de la base no se lee, y dejar que el modelo elija cuáles importan
+   * es dejar que cada vez sean otras.
+   */
+  | {
+      kind: 'tabla'
+      titulo: string
+      columnas: { clave: string; titulo: string; alineado?: 'izq' | 'der' }[]
+      /** Cada fila ya en texto: el formato de fecha y de plata se hace en el servidor. */
+      filas: Record<string, string>[]
+      /** Cuántas hay en total, cuando se mostró sólo una parte. */
+      total?: number
+      /** Qué decir cuando no hay ninguna. Sin esto una tabla vacía no dice nada. */
+      vacio?: string
+    }
+  /**
+   * Números grandes, y la serie si la hay.
+   *
+   * Para métricas, atribución, saldo y plan. El `delta` es contra el período
+   * anterior y viene ya calculado y en texto («+12 %»), por lo mismo que las
+   * filas de la tabla.
+   */
+  | {
+      kind: 'cifras'
+      titulo: string
+      /** El período o el recorte, en palabras. */
+      bajada?: string
+      tiles: {
+        etiqueta: string
+        valor: string
+        delta?: string
+        tono?: 'bueno' | 'malo' | 'neutro'
+      }[]
+      /** Una serie chica para dibujar barras. Vacía o ausente = sin gráfico. */
+      serie?: { etiqueta: string; valor: number }[]
+    }
+  /**
+   * La ficha de UNA cosa: un contacto, un producto, un agente, una plantilla.
+   *
+   * No reemplaza a la pantalla de siempre —de ahí el enlace del encabezado del
+   * banco—; alcanza con lo que hace falta para seguir la conversación sin
+   * cambiar de pestaña.
+   */
+  | {
+      kind: 'ficha'
+      titulo: string
+      subtitulo?: string
+      /** Etiquetas cortas: estado, canal, etiquetas del contacto. */
+      chips?: string[]
+      campos: { etiqueta: string; valor: string }[]
+      nota?: string
+    }
+  /**
+   * Un ida y vuelta, como se leyó.
+   *
+   * Mensajes de una conversación, borradores esperando, la transcripción de una
+   * llamada, un comentario con su respuesta. Que el Operador diga «el cliente
+   * está molesto» no es lo mismo que ver lo que escribió.
+   */
+  | {
+      kind: 'conversacion'
+      titulo: string
+      /** whatsapp, instagram, email, telefono… Decide el color de la burbuja. */
+      canal?: string
+      mensajes: {
+        de: 'cliente' | 'negocio' | 'nota'
+        texto: string
+        /** Ya formateado en el idioma del comercio. */
+        cuando?: string
+      }[]
+    }
+  /**
+   * Cómo viene cada cosa: verde, amarillo, rojo o apagado.
+   *
+   * Salud de la operación, integraciones, diagnóstico de un mensaje que no
+   * llegó, huecos de la bandeja. Un párrafo con seis estados adentro se lee
+   * dos veces; seis renglones con su punto, ninguna.
+   */
+  | {
+      kind: 'tablero'
+      titulo: string
+      filas: {
+        que: string
+        estado: 'ok' | 'atencion' | 'roto' | 'apagado'
+        detalle?: string
+      }[]
+    }
+  /**
+   * Un pedido con sus renglones y su total.
+   *
+   * Es un recibo y no una tabla: lo que se está mirando antes de aprobar un
+   * `pedidos.crear` es si los artículos y la plata están bien, y eso se lee
+   * distinto de una lista.
+   */
+  | {
+      kind: 'pedido'
+      /** El número del pedido, cuando ya existe. */
+      nombre?: string
+      cliente?: string
+      items: { que: string; cantidad: number; precio: string }[]
+      total: string
+      envio?: string
+      estado?: string
+      /** El enlace de pago, cuando lo hay. Se muestra, no se abre solo. */
+      enlace?: string
+      base?: BaseArtefacto
+    }
+  /**
+   * Lo que va a pasar, cuando no hay una forma mejor de dibujarlo.
+   *
+   * Es el respaldo de toda escritura sin dibujo propio: renombrar, invitar,
+   * desconectar, etiquetar, asignar, cerrar, moderar, prender. No es un
+   * comodín perezoso — el `preview` ya dice la frase, y lo que agrega esto es
+   * el antes y el después uno al lado del otro, que es lo que hace falta para
+   * aprobar mirando.
+   *
+   * `aviso` es para lo que no vuelve: un mensaje enviado, una llamada hecha.
+   */
+  | {
+      kind: 'cambio'
+      titulo: string
+      /** Qué se hace, en una línea. */
+      que: string
+      /** A cuánta gente o a cuántas cosas alcanza, en palabras. */
+      alcance?: string
+      campos?: { etiqueta: string; antes?: string; despues: string }[]
+      aviso?: string
+      base?: BaseArtefacto
+    }
 
 export type KindArtefacto = Artefacto['kind']
 
@@ -138,6 +275,13 @@ export const KINDS_ARTEFACTO = [
   'segmento',
   'campana',
   'flujo',
+  'tabla',
+  'cifras',
+  'ficha',
+  'conversacion',
+  'tablero',
+  'pedido',
+  'cambio',
 ] as const satisfies readonly KindArtefacto[]
 
 const CONOCIDOS: ReadonlySet<string> = new Set(KINDS_ARTEFACTO)

@@ -26,7 +26,7 @@ import {
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import { etiquetaDe } from '../etiquetas'
 import type { EmitFn } from '../events'
-import { construir, proponer, recortarResultado } from '../escribir'
+import { construir, proponer, recortarResultado, vistaDe } from '../escribir'
 import type { Presupuesto } from './budget'
 import { armarHecho, refsDeVarias } from './hechos'
 import { encargoComoTexto, promptSubagente } from './prompts'
@@ -176,16 +176,18 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
               agente: e.agente,
             })
             try {
-              const salida = await findCapability(key)!.run(
-                e.ctx,
-                (uso.input ?? {}) as Record<string, unknown>,
-              )
+              const argsLectura = (uso.input ?? {}) as Record<string, unknown>
+              const capLectura = findCapability(key)!
+              const salida = await capLectura.run(e.ctx, argsLectura)
               e.emit({
                 t: 'tool_done',
                 id: uso.id,
                 key,
                 ok: true,
                 resumen: 'ok',
+                lectura: true,
+                // Igual que en el camino de un solo agente: lo leído, dibujado.
+                vista: vistaDe(capLectura, e.ctx, argsLectura, salida) ?? undefined,
                 agente: e.agente,
               })
               return {

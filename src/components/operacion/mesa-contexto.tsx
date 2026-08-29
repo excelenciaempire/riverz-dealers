@@ -37,8 +37,23 @@ export interface AgenteEnMesa {
 }
 
 export interface LienzoEnMesa {
-  agente: SubagentId
+  /**
+   * Quién lo armó, cuando lo armó alguien del equipo.
+   *
+   * Opcional desde que el panel también muestra LECTURAS: sin equipo no hay
+   * subagente, y ponerle uno inventado hacía que el encabezado del grupo
+   * dijera «Automatizaciones» encima de una tabla de pedidos.
+   */
+  agente?: SubagentId
   paso?: number
+  /**
+   * La capacidad que lo produjo: `pedidos.listar`, `metricas.resumen`.
+   *
+   * Es lo que da el título del grupo cuando no hay agente, y lo que deduplica:
+   * dos lecturas de `pedidos.listar` en el mismo turno son una sola tarjeta con
+   * lo último, no dos tablas iguales una debajo de la otra.
+   */
+  key?: string
   artefacto: Artefacto
 }
 
@@ -88,6 +103,41 @@ type Accion =
   | { tipo: 'fijar'; fijado: FijadoEnMesa | null }
   | { tipo: 'restaurar'; lienzos: LienzoEnMesa[] }
   | { tipo: 'limpiar' }
+
+/**
+ * Cómo se llama esta pieza, para poder reconocerla.
+ *
+ * Las construidas traen `nombre`; las vistas de una lectura traen `titulo`.
+ * Sin mirar los dos, dos tablas distintas se pisaban entre sí.
+ */
+function etiquetaDe(a: Artefacto): string {
+  const o = a as { nombre?: unknown; titulo?: unknown }
+  if (typeof o.nombre === 'string') return o.nombre
+  if (typeof o.titulo === 'string') return o.titulo
+  return ''
+}
+
+/**
+ * Una pieza por NOMBRE, no por paso.
+ *
+ * La clave era agente+paso, y el de plantillas escribe las tres en el mismo
+ * paso: la segunda pisaba a la primera y la tercera a la segunda, así que de
+ * tres mensajes se veía uno. Con el nombre adentro, redibujar la misma pieza la
+ * reemplaza y dos piezas distintas conviven.
+ *
+ * La capacidad entra en la clave por lo mismo del otro lado: el modelo consulta
+ * `pedidos.listar` tres veces mientras afina el filtro, y las tres tablas se
+ * llaman igual. Lo que hay que ver es la última, no las tres.
+ */
+function conLienzo(s: EstadoMesa, nuevo: LienzoEnMesa): EstadoMesa {
+  const clave = (l: LienzoEnMesa) =>
+    `${l.key ?? l.agente ?? ''}-${l.paso ?? 'x'}-${l.artefacto.kind}-${etiquetaDe(l.artefacto)}`
+  const i = s.lienzos.findIndex((l) => clave(l) === clave(nuevo))
+  return {
+    ...s,
+    lienzos: i >= 0 ? s.lienzos.map((l, n) => (n === i ? nuevo : l)) : [...s.lienzos, nuevo],
+  }
+}
 
 function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
   if (a.tipo === 'limpiar') return VACIA
@@ -174,26 +224,25 @@ function reducir(s: EstadoMesa, a: Accion): EstadoMesa {
     case 'agente_pide':
       return conAgente(e.agente, { pidiendoA: e.a })
 
-    case 'lienzo': {
-      // Una pieza por NOMBRE, no por paso.
-      //
-      // La clave era agente+paso, y el de plantillas escribe las tres en el
-      // mismo paso: la segunda pisaba a la primera y la tercera a la segunda,
-      // así que de tres mensajes se veía uno. Con el nombre adentro, redibujar
-      // la misma pieza la reemplaza y dos piezas distintas conviven.
-      const nombreDe = (l: LienzoEnMesa) =>
-        'nombre' in l.artefacto && typeof l.artefacto.nombre === 'string'
-          ? l.artefacto.nombre
-          : ''
-      const clave = (l: LienzoEnMesa) =>
-        `${l.agente}-${l.paso ?? 'x'}-${l.artefacto.kind}-${nombreDe(l)}`
-      const nuevo: LienzoEnMesa = { agente: e.agente, paso: e.paso, artefacto: e.artefacto }
-      const i = s.lienzos.findIndex((l) => clave(l) === clave(nuevo))
-      return {
-        ...s,
-        lienzos: i >= 0 ? s.lienzos.map((l, n) => (n === i ? nuevo : l)) : [...s.lienzos, nuevo],
-      }
+    // Una consulta también deja algo que mirar.
+    //
+    // El panel dibujaba sólo lo que se CONSTRUÍA, así que la mitad del
+    // Operador —métricas, pedidos, contactos, conversaciones, integraciones—
+    // contestaba un párrafo y dejaba el lienzo vacío. La vista viaja pegada al
+    // paso que la produjo y entra al mismo banco que las piezas construidas.
+    case 'tool_start':
+      return { ...s, activo: true }
+
+    case 'tool_done': {
+      if (!e.vista) return s
+      return conLienzo(s, { agente: e.agente, key: e.key, artefacto: e.vista })
     }
+
+    case 'step':
+      return { ...s, activo: true }
+
+    case 'lienzo':
+      return conLienzo(s, { agente: e.agente, paso: e.paso, artefacto: e.artefacto })
 
     case 'gasto':
       return {
