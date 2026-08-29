@@ -26,7 +26,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import type { Contact } from '@/types';
 import { decrypt } from '@/lib/whatsapp/encryption';
-import { linkUnifiedContact } from '@/lib/contacts/dedupe';
 import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('webchat.whatsapp');
@@ -69,13 +68,24 @@ export function codigoEnTexto(texto: string | null | undefined): string | null {
  */
 const cacheNumero = new Map<string, { at: number; numero: string | null }>();
 const CACHE_MS = 60 * 60_000;
+/**
+ * Un "todavía no" se olvida rápido.
+ *
+ * Un comercio que acaba de conectar WhatsApp —o que acaba de renovar un token
+ * vencido— no puede esperar una hora para que el botón funcione: en ese rato
+ * mira la pantalla, ve que no anda y concluye que el producto está roto. El
+ * resultado bueno sí se cachea largo: un número no cambia.
+ */
+const CACHE_NEGATIVO_MS = 60_000;
 
 export async function numeroDelComercio(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<string | null> {
   const hit = cacheNumero.get(workspaceId);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.numero;
+  if (hit && Date.now() - hit.at < (hit.numero ? CACHE_MS : CACHE_NEGATIVO_MS)) {
+    return hit.numero;
+  }
 
   let numero: string | null = null;
   try {
@@ -89,7 +99,7 @@ export async function numeroDelComercio(
       access_token?: string;
       status?: string;
     } | null;
-    if (cfg?.phone_number_id && cfg.access_token) {
+    if (cfg?.phone_number_id && cfg.access_token && cfg.status !== 'disconnected') {
       const token = decrypt(cfg.access_token);
       const r = await fetch(
         `https://graph.facebook.com/v21.0/${cfg.phone_number_id}?fields=display_phone_number`,
@@ -123,13 +133,20 @@ export async function tieneWhatsApp(
   workspaceId: string,
 ): Promise<boolean> {
   const hit = cacheTiene.get(workspaceId);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.tiene;
+  if (hit && Date.now() - hit.at < (hit.tiene ? CACHE_MS : CACHE_NEGATIVO_MS)) {
+    return hit.tiene;
+  }
   const { data } = await db
     .from('whatsapp_config')
-    .select('phone_number_id')
+    .select('phone_number_id, status')
     .eq('workspace_id', workspaceId)
     .maybeSingle();
-  const tiene = !!(data as { phone_number_id?: string } | null)?.phone_number_id;
+  // Desconectado cuenta como no tener: el webhook de Meta descarta TODO lo
+  // entrante en silencio, así que la persona escribiría a un número donde
+  // nadie la lee. Un `status` nulo es de antes de que existiera la columna y
+  // se toma como conectado — es lo que hace el resto del sistema.
+  const cfg = data as { phone_number_id?: string; status?: string } | null;
+  const tiene = !!cfg?.phone_number_id && cfg.status !== 'disconnected';
   cacheTiene.set(workspaceId, { at: Date.now(), tiene });
   return tiene;
 }
@@ -160,17 +177,25 @@ export async function crearTraspaso(
   const numero = await numeroDelComercio(db, args.workspaceId);
   if (!numero) return null;
 
-  const codigo = nuevoCodigo();
-  const { error } = await db.from('webchat_handoffs').insert({
-    code: codigo,
-    workspace_id: args.workspaceId,
-    contact_id: args.contactId,
-    conversation_id: args.conversationId,
-  });
-  if (error) {
-    log.captureException(error, { workspaceId: args.workspaceId });
-    return null;
+  // Dos intentos: 31^10 hace que dos códigos iguales sean casi imposible, pero
+  // "casi" acá significa que la persona toca el botón y no pasa nada. Un
+  // reintento cuesta una consulta y elimina el caso.
+  let codigo = '';
+  for (let i = 0; i < 2 && !codigo; i++) {
+    const intento = nuevoCodigo();
+    const { error } = await db.from('webchat_handoffs').insert({
+      code: intento,
+      workspace_id: args.workspaceId,
+      contact_id: args.contactId,
+      conversation_id: args.conversationId,
+    });
+    if (!error) codigo = intento;
+    else if ((error as { code?: string }).code !== '23505') {
+      log.captureException(error, { workspaceId: args.workspaceId });
+      return null;
+    }
   }
+  if (!codigo) return null;
 
   const texto = `${args.saludo} [RZ-${codigo}]`;
   return {
@@ -222,8 +247,40 @@ export async function reclamarTraspaso(
     if (fila.claimed_at) return false;
     if (Date.now() - new Date(fila.created_at).getTime() > VENCE_MS) return false;
 
-    // Se marca reclamado ANTES de unir, y sólo si seguía sin reclamar: dos
-    // entregas del mismo evento no pueden unir dos veces.
+    // ── Todo lo que puede decir que NO, ANTES de quemar el código ──
+    //
+    // Marcar reclamado es irreversible: el código sirve una sola vez. Si se
+    // marcaba primero y después algo no daba —el contacto sin teléfono, una
+    // ficha que alguien separó a mano— quedaba un código quemado que no unió
+    // nada, y la persona no tenía forma de reintentar salvo volver a la web.
+    const probado = args.contactoWhatsapp.phone ?? null;
+    if (!probado) return false;
+
+    const { data: visitanteRow } = await db
+      .from('contacts')
+      .select('*')
+      .eq('id', fila.contact_id)
+      .maybeSingle();
+    const visitante = visitanteRow as
+      | (Contact & { phone_origen?: string | null; union_bloqueada?: boolean | null })
+      | null;
+    if (!visitante) return false;
+
+    // Una separación hecha a mano gana sobre cualquier prueba. Alguien del
+    // comercio miró esas dos fichas y dijo que no son la misma persona.
+    const wa = args.contactoWhatsapp as Contact & { union_bloqueada?: boolean | null };
+    if (visitante.union_bloqueada || wa.union_bloqueada) return false;
+
+    // Se pisa el teléfono que escribió a mano, no el que ya venía respaldado.
+    // Uno tipeado en un chat vale menos que el número desde el que efectivamente
+    // escribió; pero uno que salió de un pedido o de la tienda ya sostiene otras
+    // uniones, y romperlas desde acá sería peor. Ante la duda, no se une.
+    const pisable = !visitante.phone || visitante.phone_origen === 'afirmado';
+    if (!pisable && !mismoTelefono(visitante.phone, probado)) return false;
+
+    // ── Recién ahora se quema el código ──
+    //
+    // Condicional: dos entregas del mismo evento no pueden unir dos veces.
     const { data: tomado } = await db
       .from('webchat_handoffs')
       .update({
@@ -237,30 +294,7 @@ export async function reclamarTraspaso(
 
     // El teléfono del visitante ya no es una afirmación: escribió DESDE ese
     // número. Es identidad del canal, igual que la de cualquier contacto de
-    // WhatsApp, y por eso sí habilita unir (`identidad-probada.ts`).
-    const probado = args.contactoWhatsapp.phone ?? null;
-    if (!probado) return false;
-
-    const { data: visitanteRow } = await db
-      .from('contacts')
-      .select('*')
-      .eq('id', fila.contact_id)
-      .maybeSingle();
-    const visitante = visitanteRow as
-      | (Contact & { phone_origen?: string | null })
-      | null;
-    if (!visitante) return false;
-
-    // Se pisa el que escribió a mano, no el que ya venía respaldado. Un
-    // teléfono tipeado en un chat vale menos que el número desde el que
-    // efectivamente escribió; pero uno que salió de un pedido o de la tienda
-    // ya sostiene otras uniones, y romperlas desde acá sería peor.
-    const pisable = !visitante.phone || visitante.phone_origen === 'afirmado';
-    if (!pisable && visitante.phone !== probado) {
-      // Fichas distintas de verdad. No se une nada: ante la duda, no se une.
-      return false;
-    }
-
+    // WhatsApp (`identidad-probada.ts`).
     if (visitante.phone !== probado || visitante.phone_origen !== 'canal') {
       await db
         .from('contacts')
@@ -269,14 +303,81 @@ export async function reclamarTraspaso(
     }
 
     // Unir: a partir de acá el agente ve los dos hilos como una sola persona.
-    await linkUnifiedContact(db, {
-      ...visitante,
-      phone: probado,
-      phone_origen: 'canal',
-    } as Contact);
+    await unirProbado(db, visitante.id, args.contactoWhatsapp.id);
     return true;
   } catch (e) {
     log.captureException(e, { workspaceId: args.workspaceId });
     return false;
   }
+}
+
+/** Dos teléfonos escritos distinto que son el mismo número. */
+function mismoTelefono(a: string | null | undefined, b: string | null | undefined): boolean {
+  const da = (a ?? '').replace(/\D/g, '');
+  const db_ = (b ?? '').replace(/\D/g, '');
+  if (!da || !db_) return false;
+  // Por la cola: el "9" argentino y el prefijo de país se escriben de varias
+  // formas para el mismo celular (ver el dedup de contactos de WhatsApp).
+  const n = Math.min(8, da.length, db_.length);
+  return da.slice(-n) === db_.slice(-n);
+}
+
+/**
+ * Unir dos fichas cuando la identidad está PROBADA.
+ *
+ * No pasa por `linkUnifiedContact` a propósito. Esa función busca duplicados
+ * por coincidencia de teléfono o correo y desconfía cuando los datos se
+ * contradicen —dos correos distintos son un teléfono de familia, no una
+ * persona—. Es la regla correcta cuando lo único que hay es una coincidencia.
+ *
+ * Acá no hay coincidencia: hay una prueba. La persona tenía esa sesión del chat
+ * abierta y escribió desde su WhatsApp. Un correo distinto entre las dos fichas
+ * —el que tipeó en la web y el de su cuenta de la tienda— no vuelve dudosa esa
+ * prueba, y con la regla general la unión se caía justo ahí.
+ *
+ * Lo único que sigue ganando es una separación hecha a mano, que se comprueba
+ * antes de llamar acá.
+ */
+async function unirProbado(
+  db: SupabaseClient,
+  visitanteId: string,
+  whatsappId: string,
+): Promise<void> {
+  const { data } = await db
+    .from('contacts')
+    .select('id, unified_contact_id, created_at')
+    .in('id', [visitanteId, whatsappId]);
+  const filas = (data ?? []) as {
+    id: string;
+    unified_contact_id: string | null;
+    created_at: string | null;
+  }[];
+  if (filas.length < 2) return;
+
+  // La raíz de cada uno: si ya está colgado de un primario, es ése el que se
+  // une, no la hoja. Unir hojas dejaría dos árboles apuntando cruzado.
+  const raices = filas.map((f) => f.unified_contact_id ?? f.id);
+  const [ra, rb] = raices;
+  if (ra === rb) return; // ya eran la misma persona
+
+  const { data: rootRows } = await db
+    .from('contacts')
+    .select('id, created_at')
+    .in('id', [ra, rb]);
+  const roots = ((rootRows ?? []) as { id: string; created_at: string | null }[]).sort(
+    (x, y) =>
+      new Date(x.created_at ?? 0).getTime() - new Date(y.created_at ?? 0).getTime(),
+  );
+  if (roots.length < 2) return;
+
+  // El primario es el más viejo, como en todo el resto del sistema.
+  const primario = roots[0].id;
+  const otro = roots[1].id;
+
+  // Todo lo que colgaba del otro árbol pasa a colgar del primario, y el otro
+  // deja de ser raíz. Sin esto, las fichas hermanas quedaban apuntando a un
+  // contacto que ya no es primario y el historial salía partido.
+  await db.from('contacts').update({ unified_contact_id: primario }).eq('unified_contact_id', otro);
+  await db.from('contacts').update({ unified_contact_id: primario }).eq('id', otro);
+  await db.from('contacts').update({ unified_contact_id: null }).eq('id', primario);
 }

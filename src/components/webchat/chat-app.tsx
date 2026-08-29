@@ -664,6 +664,10 @@ export function ChatApp() {
    * las dos fichas del otro lado.
    */
   const [yendoAWhatsApp, setYendoAWhatsApp] = useState(false);
+  /** El servidor dijo que no hay a dónde ir (WhatsApp caído o desconectado
+   *  desde que cargó el chat). Se esconde el botón en vez de dejar uno que no
+   *  hace nada, que es lo que la persona lee como "esto está roto". */
+  const [sinWhatsApp, setSinWhatsApp] = useState(false);
   const seguirEnWhatsApp = useCallback(async () => {
     if (!session || yendoAWhatsApp) return;
     setYendoAWhatsApp(true);
@@ -673,11 +677,24 @@ export function ChatApp() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
         body: JSON.stringify({ saludo: T.waSaludo }),
       });
+      if (res.status === 404) {
+        setSinWhatsApp(true);
+        return;
+      }
       const json = (await res.json().catch(() => null)) as { url?: string } | null;
-      // Se abre en la ventana de la TIENDA, no en el iframe: adentro de un
-      // iframe de otro dominio el navegador bloquea la navegación a wa.me y no
-      // pasa nada de nada.
-      if (json?.url) window.parent?.postMessage({ type: 'riverz:abrir', url: json.url }, '*');
+      if (!json?.url) return;
+      // Primero desde acá: el iframe no está en sandbox y el clic es un gesto
+      // de la persona, así que abrir una pestaña funciona. Si el navegador lo
+      // bloquea igual, lo abre la página de la tienda por el puente del
+      // cargador — que además es el único camino en un navegador que no deja
+      // abrir pestañas desde un iframe de otro dominio.
+      let abierta: Window | null = null;
+      try {
+        abierta = window.open(json.url, '_blank', 'noopener,noreferrer');
+      } catch {
+        abierta = null;
+      }
+      if (!abierta) window.parent?.postMessage({ type: 'riverz:abrir', url: json.url }, '*');
     } finally {
       setYendoAWhatsApp(false);
     }
@@ -865,7 +882,7 @@ export function ChatApp() {
               {/* Llevarse la conversación. Al lado de "hablar con una persona"
                   porque resuelven lo mismo desde dos lados: seguir en otro
                   lado en vez de terminar acá. */}
-              {settings?.whatsapp_handoff ? (
+              {settings?.whatsapp_handoff && !sinWhatsApp ? (
                 <button
                   type="button"
                   onClick={seguirEnWhatsApp}
@@ -924,6 +941,11 @@ export function ChatApp() {
             <input
               type="tel"
               required
+              inputMode="tel"
+              // Ocho dígitos como mínimo, escritos como la persona quiera. Sin
+              // esto `type="tel"` acepta cualquier cosa y lo que queda guardado
+              // es un teléfono que no sirve para llamar ni para unir nada.
+              pattern="(?:[^0-9]*[0-9]){8,}[^0-9]*"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
               placeholder={T.telefono}

@@ -49,7 +49,11 @@ export async function POST(request: Request) {
   if (email && !/^[a-z0-9._+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(email)) {
     return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
   }
-  if (!email && !name && !phone) {
+  // Un teléfono con menos de ocho dígitos no sirve para llamar ni para unir
+  // nada: es "1234" o el campo tocado sin querer. Se descarta y se sigue con
+  // el resto — identificarse a medias es mejor que no identificarse.
+  const phoneOk = phone.replace(/\D/g, '').length >= 8 ? phone : '';
+  if (!email && !name && !phoneOk) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
 
@@ -77,8 +81,8 @@ export async function POST(request: Request) {
     patch.email_origen = 'afirmado';
   }
   if (name && !contact.name) patch.name = name;
-  if (phone && !contact.phone) {
-    patch.phone = phone;
+  if (phoneOk && !contact.phone) {
+    patch.phone = phoneOk;
     patch.phone_origen = 'afirmado';
   }
 
