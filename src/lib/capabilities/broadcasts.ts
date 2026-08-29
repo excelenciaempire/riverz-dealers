@@ -33,6 +33,7 @@ import { idColumn } from '@/lib/short-id'
 import { isValidE164, sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, cifras, corto, fecha, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Filas por INSERT: una lista larga de destinatarios no entra en un solo pedido. */
@@ -651,6 +652,94 @@ async function enlaces(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+
+/**
+ * Una campaña, en el embudo que de verdad importa.
+ *
+ * Entregado y leído dicen que el mensaje llegó; respondieron dice que sirvió.
+ * Los fallados van con su motivo AGRUPADO abajo y no como lista: cien
+ * destinatarios fallados casi siempre son el mismo problema repetido, y esa es
+ * la única línea que hay que leer.
+ */
+function vistaDetalleCampana(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof detalle>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'nombre', 'destinatarios')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cifras({
+    titulo: String(r.nombre),
+    bajada: [r.estado, r.plantilla].filter(Boolean).map(String).join(' · '),
+    tiles: [
+      { etiqueta: t('vColDestinatarios'), valor: numero(ctx, r.destinatarios), tono: 'neutro' },
+      { etiqueta: t('vColEnviados'), valor: numero(ctx, r.enviados), tono: 'neutro' },
+      { etiqueta: t('vEntregados'), valor: numero(ctx, r.entregados), tono: 'neutro' },
+      { etiqueta: t('vLeidos'), valor: numero(ctx, r.leidos), tono: 'neutro' },
+      {
+        etiqueta: t('vColRespuestas'),
+        valor: numero(ctx, r.respondieron),
+        tono: 'bueno',
+      },
+      {
+        etiqueta: t('vColFallidos'),
+        valor: numero(ctx, r.fallaron),
+        // El motivo más repetido al lado del número: sin él, "43 fallaron" no
+        // dice qué arreglar.
+        delta: corto(
+          lista<{ motivo?: string; cuantos?: number }>(r, 'motivos_de_falla')[0]?.motivo,
+          30,
+        ),
+        tono: Number(r.fallaron) > 0 ? 'malo' : 'neutro',
+      },
+    ],
+  })
+}
+
+/**
+ * Los enlaces mandados y sus clicks.
+ *
+ * El click es la única medida que no depende de que el cliente conteste, y por
+ * eso es la columna ordenadora.
+ */
+function vistaEnlaces(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    enlace: string
+    a_donde: string
+    cliente: string | null
+    clicks: number
+    ultimo_click: string | null
+  }>(r, 'enlaces')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitEnlaces'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'donde', titulo: tt(ctx, 'operation.vColADonde') },
+      { clave: 'ultimo', titulo: tt(ctx, 'operation.vColUltimoClick') },
+      { clave: 'clicks', titulo: tt(ctx, 'operation.vColClicks'), alineado: 'der' },
+    ],
+    filas: filas.map((l) => ({
+      cliente: corto(l.cliente, 22),
+      donde: corto(l.a_donde, 42),
+      ultimo: l.ultimo_click ? fecha(ctx, l.ultimo_click) : '—',
+      clicks: numero(ctx, l.clicks),
+    })),
+    vacio: tt(ctx, 'operation.vSinEnlaces'),
+  })
+}
+
+/**
+ * Lanzar una campaña.
+ *
+ * Es lo más caro de deshacer del producto: sale a miles de teléfonos de una vez
+ * y no hay botón de vuelta. La tarjeta lo dice con todas las letras.
+ */
+function vistaLanzar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  return cambio({
+    titulo: corto(args.campana ?? args.nombre, 40),
+    que: tt(ctx, 'operation.vQueLanzar'),
+    aviso: tt(ctx, 'operation.vLanzarAviso'),
+  })
+}
 export const BROADCAST_CAPABILITIES: Capability[] = [
   {
     key: 'campanas.enlaces',
@@ -667,6 +756,7 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
       },
     },
     run: enlaces,
+    vista: (ctx, _args, r) => vistaEnlaces(ctx, r),
   },
   {
     key: 'campanas.crear',
@@ -768,6 +858,7 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
       }, ${momento}. Es un envío real de WhatsApp y no se puede deshacer.${aviso}`
     },
     run: lanzar,
+    artifact: (ctx, args) => vistaLanzar(ctx, args),
   },
 
   {
@@ -785,5 +876,6 @@ export const BROADCAST_CAPABILITIES: Capability[] = [
       required: ['campana_id'],
     },
     run: detalle,
+    vista: (ctx, _args, r) => vistaDetalleCampana(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
 ]

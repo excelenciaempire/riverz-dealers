@@ -26,7 +26,7 @@ import {
 } from '@/lib/integrations/disconnect'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Channel } from '@/types'
-import { corto, fecha, lista, tabla, tablero, tt } from './vistas'
+import { cambio, corto, fecha, lista, tabla, tablero, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /**
@@ -391,5 +391,14 @@ export const INTEGRATION_CAPABILITIES: Capability[] = [
       )
     },
     run: desconectar,
+    // Corta el canal para TODA la cuenta y volver exige el navegador y una
+    // persona: la tarjeta tiene que decirlo, porque «desconectar» se lee como
+    // algo que se vuelve a apretar.
+    artifact: (ctx, args) =>
+      cambio({
+        titulo: nombresDelGrupo(leerCanal(args.canal)),
+        que: tt(ctx, 'operation.vQueDesconectar'),
+        aviso: tt(ctx, 'operation.vDesconectarAviso'),
+      }),
   },
 ]

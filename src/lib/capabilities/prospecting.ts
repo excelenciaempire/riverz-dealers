@@ -23,6 +23,8 @@ import { createCampaignDraft } from '@/lib/instagram-agent/create-campaign'
 import { launchCampaign } from '@/lib/instagram-agent/launch-campaign'
 import { featureEnabled, proactiveGate } from '@/lib/instagram-agent/controls'
 import { coercePlan, type InstagramPlan } from '@/lib/instagram-agent/types'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, cifras, corto, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Campañas por consulta. Alcanza para la vista de una cuenta real. */
@@ -425,6 +427,103 @@ async function lanzar(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+
+/**
+ * Las campañas de prospección, dibujadas.
+ *
+ * El alcance estimado y el control van juntos: una campaña con 20 % de control
+ * le escribe al 80 %, y comparar contra ese 20 % es lo único que después dice
+ * si sirvió. Sin la columna, el número de arriba se lee como si fuera todo.
+ */
+function vistaCampanasProspeccion(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre: string
+    estado: string
+    a_quien: string | null
+    alcance_estimado: number
+    control_pct: number
+  }>(r, 'campanas')
+  return tabla({
+    titulo: tt(ctx, 'operation.subProspeccion'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColCampana') },
+      { clave: 'aquien', titulo: tt(ctx, 'operation.vColAQuien') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'alcance', titulo: tt(ctx, 'operation.vColAlcance'), alineado: 'der' },
+      { clave: 'control', titulo: tt(ctx, 'operation.vColControl'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      nombre: corto(c.nombre, 26),
+      aquien: corto(c.a_quien, 34),
+      estado: c.estado,
+      alcance: numero(ctx, c.alcance_estimado),
+      control: `${c.control_pct} %`,
+    })),
+    vacio: tt(ctx, 'operation.vSinCampanas'),
+  })
+}
+
+/**
+ * A cuánta gente se le puede escribir HOY.
+ *
+ * El freno va primero y como bajada: de nada sirve el alcance si el envío está
+ * frenado, y esa es la causa más común de una campaña activa que no manda nada.
+ */
+function vistaAudiencia(ctx: CapabilityContext, r: unknown): Artefacto | null {
+  if (!tieneCampos(r, 'alcanzables_ahora')) return null
+  const o = r as {
+    alcanzables_ahora: number
+    suscriptores: number
+    comentaristas_7d: number
+    dm_24h: number
+    envio_habilitado: boolean
+    freno: string | null
+  }
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cifras({
+    titulo: t('vTitAudiencia'),
+    bajada: o.envio_habilitado ? undefined : (o.freno ?? t('vEnvioFrenado')),
+    tiles: [
+      { etiqueta: t('vAlcanzables'), valor: numero(ctx, o.alcanzables_ahora), tono: 'neutro' },
+      { etiqueta: t('vSuscriptores'), valor: numero(ctx, o.suscriptores), tono: 'neutro' },
+      { etiqueta: t('vComentaristas'), valor: numero(ctx, o.comentaristas_7d), tono: 'neutro' },
+      { etiqueta: t('vDm24h'), valor: numero(ctx, o.dm_24h), tono: 'neutro' },
+    ],
+  })
+}
+
+/**
+ * La campaña que se va a crear, con el mensaje entero.
+ *
+ * El DM es lo que le va a llegar a cada persona: aprobarlo leyendo un resumen
+ * es aprobar un texto que no se leyó.
+ */
+function vistaCrearCampanaProspeccion(
+  ctx: CapabilityContext,
+  args: Record<string, unknown>,
+): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const oferta = (args.oferta ?? null) as { codigo?: unknown } | null
+  return cambio({
+    titulo: corto(args.nombre, 40),
+    que: corto(args.audiencia, 120),
+    alcance: args.alcance != null ? numero(ctx, args.alcance) : undefined,
+    campos: [
+      { etiqueta: t('vColMensaje'), despues: String(args.mensaje ?? '') },
+      ...(oferta?.codigo ? [{ etiqueta: t('vColOferta'), despues: String(oferta.codigo) }] : []),
+    ],
+    aviso: t('vCampanaNaceApagada'),
+  })
+}
+
+/** Lanzar: los DMs empiezan a salir a gente real. */
+function vistaLanzarProspeccion(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  return cambio({
+    titulo: corto(args.campana ?? args.nombre, 40),
+    que: tt(ctx, 'operation.vQueLanzarProspeccion'),
+    aviso: tt(ctx, 'operation.vLanzarAviso'),
+  })
+}
 export const PROSPECTING_CAPABILITIES: Capability[] = [
   {
     key: 'prospeccion.campanas',
@@ -444,6 +543,7 @@ export const PROSPECTING_CAPABILITIES: Capability[] = [
       },
     },
     run: campanas,
+    vista: (ctx, _args, r) => vistaCampanasProspeccion(ctx, r),
   },
 
   {
@@ -463,6 +563,7 @@ export const PROSPECTING_CAPABILITIES: Capability[] = [
       },
     },
     run: audiencia,
+    vista: (ctx, _args, r) => vistaAudiencia(ctx, r),
   },
 
   {
@@ -524,6 +625,7 @@ export const PROSPECTING_CAPABILITIES: Capability[] = [
       return `Guardaría la campaña «${plan.campaign_name}» en borrador, con tope de ${tope} persona(s) y este mensaje: «${recorte(plan.message.text)}». No le escribe a nadie hasta que se lance.`
     },
     run: crearCampana,
+    artifact: (ctx, args) => vistaCrearCampanaProspeccion(ctx, args),
   },
 
   {
@@ -542,5 +644,6 @@ export const PROSPECTING_CAPABILITIES: Capability[] = [
     },
     preview: previewLanzar,
     run: lanzar,
+    artifact: (ctx, args) => vistaLanzarProspeccion(ctx, args),
   },
 ]

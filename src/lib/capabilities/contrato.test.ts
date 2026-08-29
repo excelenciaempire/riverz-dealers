@@ -174,84 +174,34 @@ describe('las piezas que el banco sabe dibujar', () => {
   })
 })
 
-/**
- * Las que todavía no dibujan nada.
- *
- * El panel del Operador mostraba ocho de ciento diez capacidades: todo lo demás
- * contestaba un párrafo y dejaba el lienzo vacío. La lista de abajo es lo que
- * falta, y está para achicarse: cada vez que una capacidad aprende a dibujarse,
- * su clave sale de acá.
- *
- * Es una lista explícita y no un `.skip` a propósito. Un test salteado se
- * olvida; una lista que hay que editar para agregar una capacidad nueva obliga
- * a decidir, en ese momento, qué muestra el panel cuando alguien la llame.
- */
-const SIN_DIBUJO = new Set<string>([
-  'aprobaciones.pendientes',
-  'aprobaciones.decidir',
-  'bandeja.decidir_devolucion',
-  'bandeja.reclamos',
-  'bandeja.devoluciones',
-  'bandeja.huecos',
-  'bandeja.atajos',
-  'bandeja.crear_atajo',
-  'bandeja.filtros',
-  'bandeja.reparto',
-  'bandeja.activar_reparto',
-  'campanas.enlaces',
-  'campanas.lanzar',
-  'campanas.detalle',
-  'comentarios.activar_regla',
-  'contactos.buscar',
-  'flujos.corridas',
-  'flujos.listar',
-  'flujos.detalle',
-  'flujos.activar',
-  'conversaciones.detalle',
-  'conversaciones.asignar',
-  'conversaciones.cerrar',
-  'conversaciones.ia',
-  'conversaciones.aprobar_borrador',
-  'conversaciones.pendientes',
-  'integraciones.desconectar',
-  'mensajes.diagnostico',
-  'mensajes.enviar',
-  'pedidos.entregas',
-  'pedidos.carritos',
-  'pedidos.pagos_rechazados',
-  'pedidos.registrar_pago',
-  'productos.responder_hueco',
-  'prospeccion.campanas',
-  'prospeccion.audiencia',
-  'prospeccion.crear_campana',
-  'prospeccion.lanzar',
-])
-
 describe('lo que el panel del Operador puede mostrar', () => {
-  it('toda capacidad dibuja algo, o está declarada como pendiente', () => {
+  /**
+   * TODA capacidad dibuja algo.
+   *
+   * El panel mostraba ocho de ciento diez: el resto contestaba un párrafo y
+   * dejaba el lienzo vacío. Esto es lo que impide que vuelva a pasar — una
+   * capacidad nueva sin dibujo rompe la prueba, y ahí es cuando hay que
+   * decidir qué muestra el panel cuando alguien la llame, no seis meses
+   * después cuando alguien nota que no muestra nada.
+   */
+  it('toda capacidad dibuja algo', () => {
     const mudas = ALL_CAPABILITIES.filter((c) => {
       // Una LECTURA se dibuja desde su resultado (`vista`); lo que ESCRIBE se
       // dibuja desde sus argumentos (`artifact`), porque tiene que verse antes
       // de aprobarlo. No son intercambiables.
-      const dibuja = c.risk === 'lectura' ? Boolean(c.vista) : Boolean(c.artifact)
-      return !dibuja && !SIN_DIBUJO.has(c.key)
+      const dibuja = c.risk === 'lectura' ? c.vista : c.artifact
+      return !dibuja
     }).map((c) => c.key)
     expect(mudas).toEqual([])
   })
 
-  it('la lista de pendientes no tiene claves que ya no existen', () => {
-    // Sin esto la lista sólo crece: una capacidad renombrada deja su clave
-    // vieja adentro y tapa para siempre a la nueva.
-    const claves = new Set(ALL_CAPABILITIES.map((c) => c.key))
-    const fantasmas = [...SIN_DIBUJO].filter((k) => !claves.has(k))
-    expect(fantasmas).toEqual([])
-  })
-
-  it('la lista de pendientes no tapa a una que ya dibuja', () => {
-    const yaDibujan = ALL_CAPABILITIES.filter(
-      (c) => SIN_DIBUJO.has(c.key) && (c.risk === 'lectura' ? c.vista : c.artifact),
+  it('una lectura no dibuja con `artifact`, y al revés', () => {
+    // Los dos hooks reciben cosas distintas: `artifact` los argumentos, `vista`
+    // el resultado. Cruzarlos compila y devuelve un dibujo vacío.
+    const cruzadas = ALL_CAPABILITIES.filter((c) =>
+      c.risk === 'lectura' ? Boolean(c.artifact) : Boolean(c.vista),
     ).map((c) => c.key)
-    expect(yaDibujan).toEqual([])
+    expect(cruzadas).toEqual([])
   })
 })
 

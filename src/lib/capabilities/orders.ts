@@ -640,6 +640,133 @@ function vistaCompra(
     enlace: r.link ?? r.seguimiento ?? undefined,
   }
 }
+
+/**
+ * Los carritos abandonados.
+ *
+ * La columna que decide qué hacer no es el monto: es si ya se le escribió. Sin
+ * ella la lista invita a escribirle de nuevo a alguien a quien Riverz ya le
+ * mandó tres mensajes.
+ */
+function vistaCarritos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    cliente: string
+    monto: number | string | null
+    moneda: string | null
+    cuando: string
+    se_le_escribio: string | null
+    intentos: number
+    comprado_el: string | null
+  }>(r, 'carritos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitCarritos'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'escrito', titulo: tt(ctx, 'operation.vColSeLeEscribio') },
+      { clave: 'monto', titulo: tt(ctx, 'operation.vColTotal'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      cliente: corto(c.cliente, 24),
+      cuando: fecha(ctx, c.cuando),
+      escrito: c.comprado_el
+        ? tt(ctx, 'operation.vCompro')
+        : c.se_le_escribio
+          ? `${tt(ctx, 'operation.vSi')} · ${c.intentos}`
+          : tt(ctx, 'operation.vNo'),
+      monto: plata(ctx, c.monto, c.moneda),
+    })),
+    vacio: tt(ctx, 'operation.vSinCarritos'),
+  })
+}
+
+/**
+ * Los pagos rechazados.
+ *
+ * Dos columnas y ninguna es el monto: por qué lo rechazaron —el banco, la
+ * tarjeta, el saldo— y por qué NO se le escribió. La segunda es la mitad de la
+ * respuesta a "¿por qué no se recupera nada?": casi siempre es sospecha de
+ * fraude o que la persona no dejó teléfono.
+ */
+function vistaPagosRechazados(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    cliente: string
+    monto: number | string | null
+    moneda: string | null
+    cuando: string
+    por_que: string | null
+    se_le_escribio: string | null
+    no_se_le_escribio_porque: string | null
+    recuperado_el: string | null
+  }>(r, 'pagos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitPagosRechazados'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'porque', titulo: tt(ctx, 'operation.vColPorQue') },
+      { clave: 'escrito', titulo: tt(ctx, 'operation.vColSeLeEscribio') },
+      { clave: 'monto', titulo: tt(ctx, 'operation.vColTotal'), alineado: 'der' },
+    ],
+    filas: filas.map((p) => ({
+      cliente: corto(p.cliente, 22),
+      porque: corto(p.por_que, 28),
+      escrito: p.recuperado_el
+        ? tt(ctx, 'operation.vRecuperado')
+        : p.se_le_escribio
+          ? tt(ctx, 'operation.vSi')
+          : corto(p.no_se_le_escribio_porque, 26),
+      monto: plata(ctx, p.monto, p.moneda),
+    })),
+    vacio: tt(ctx, 'operation.vSinPagosRechazados'),
+  })
+}
+
+/**
+ * Qué llegó, y a quién se le preguntó cómo le fue.
+ *
+ * El post-venta vive sólo acá. La columna que lo hace útil es la última: sin
+ * ella no se sabe a quién se le escribió y a quién falta.
+ */
+function vistaEntregas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    pedido: number | string
+    cliente: string | null
+    estado_del_paquete: string | null
+    estado_de_envio: string | null
+    entregado_el: string | null
+    le_pedimos_opinion_el: string | null
+  }>(r, 'entregas')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitEntregas'),
+    columnas: [
+      { clave: 'pedido', titulo: tt(ctx, 'operation.vColPedido') },
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'entregado', titulo: tt(ctx, 'operation.vColEntregado') },
+      { clave: 'opinion', titulo: tt(ctx, 'operation.vColOpinion') },
+    ],
+    filas: filas.map((e) => ({
+      pedido: corto(String(e.pedido), 16),
+      cliente: corto(e.cliente, 20),
+      estado: corto(e.estado_del_paquete ?? e.estado_de_envio, 20),
+      entregado: e.entregado_el ? fecha(ctx, e.entregado_el) : '—',
+      opinion: e.le_pedimos_opinion_el
+        ? fecha(ctx, e.le_pedimos_opinion_el)
+        : tt(ctx, 'operation.vNo'),
+    })),
+    vacio: tt(ctx, 'operation.vSinEntregas'),
+  })
+}
+
+/** Dar un pedido por cobrado: es plata que se marca como entrada. */
+function vistaRegistrarPago(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitRegistrarPago'),
+    que: tt(ctx, 'operation.vQueRegistrarPago'),
+    alcance: args.monto != null ? String(args.monto) : undefined,
+    aviso: tt(ctx, 'operation.vRegistrarPagoAviso'),
+  })
+}
 export const ORDER_CAPABILITIES: Capability[] = [
   {
     key: 'pedidos.entregas',
@@ -656,6 +783,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       },
     },
     run: entregas,
+    vista: (ctx, _args, r) => vistaEntregas(ctx, r),
   },
   {
     key: 'pedidos.carritos',
@@ -672,6 +800,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       },
     },
     run: carritos,
+    vista: (ctx, _args, r) => vistaCarritos(ctx, r),
   },
 
   {
@@ -689,6 +818,7 @@ export const ORDER_CAPABILITIES: Capability[] = [
       },
     },
     run: pagosRechazados,
+    vista: (ctx, _args, r) => vistaPagosRechazados(ctx, r),
   },
   {
     key: 'pedidos.listar',
@@ -839,5 +969,6 @@ export const ORDER_CAPABILITIES: Capability[] = [
       return `Dejaría de mandarle recordatorios por ${suyo}, pero NO lo daría por cobrado (${porque}): te preguntaría por WhatsApp antes.`
     },
     run: registrarPago,
+    artifact: (ctx, args) => vistaRegistrarPago(ctx, args),
   },
 ]

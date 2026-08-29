@@ -31,6 +31,8 @@ import {
   conversacion,
   corto,
   fecha,
+  cambio,
+  ficha,
   filasDe,
   lista,
   numero,
@@ -710,6 +712,82 @@ function vistaConversaciones(ctx: CapabilityContext, r: unknown): Artefacto {
     vacio: tt(ctx, 'operation.vSinConversaciones'),
   })
 }
+
+/**
+ * Una conversación, en ficha.
+ *
+ * No son sus mensajes —para eso está `conversaciones.mensajes`— sino su estado:
+ * de qué va, quién la tiene, si la IA está prendida y por qué no contestó la
+ * última vez. Esa última línea es la que se busca casi siempre.
+ */
+function vistaDetalleConversacion(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof detalle>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'conversation_id', 'contacto')) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  const chips = [String(r.canal), String(r.estado)]
+  if (r.contacto.dado_de_baja) chips.push(t('vDadoDeBaja'))
+  if (!r.ia) chips.push(t('vIaApagada'))
+  if (r.vino_de_anuncio) chips.push(t('vDeAnuncio'))
+
+  const ultima = r.ultima_pasada_de_la_ia as { no_contesto_porque?: string | null } | null
+
+  return ficha({
+    titulo: r.contacto.nombre || r.contacto.telefono || t('vSinNombre'),
+    subtitulo: r.asignada_a ? `${t('vAsignadaA')} ${r.asignada_a}` : undefined,
+    chips,
+    campos: [
+      { etiqueta: t('vColResumen'), valor: corto(r.resumen, 200) },
+      { etiqueta: t('vColUltimoMensaje'), valor: corto(r.ultimo_mensaje, 120) },
+      {
+        etiqueta: t('vColEsperando'),
+        valor: r.horas_esperando != null ? `${numero(ctx, Math.round(r.horas_esperando))} h` : '',
+      },
+      { etiqueta: t('vColPidioHumano'), valor: corto(r.pidio_humano, 80) },
+      // Por qué la IA no contestó la última vez: es lo que se viene a buscar.
+      { etiqueta: t('vColNoContestoPorque'), valor: corto(ultima?.no_contesto_porque, 80) },
+      {
+        etiqueta: t('vColCheckoutPendiente'),
+        valor: r.checkout_pendiente ? String(r.checkout_pendiente.url) : '',
+      },
+      { etiqueta: t('vColSatisfaccion'), valor: r.satisfaccion != null ? String(r.satisfaccion) : '' },
+    ],
+  })
+}
+
+/** Asignar la conversación a alguien del equipo, o soltarla. */
+function vistaAsignar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const a = typeof args.miembro === 'string' ? args.miembro.trim() : ''
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitAsignar'),
+    que: a || tt(ctx, 'operation.vDesasignar'),
+  })
+}
+
+/** Cerrar o reabrir una conversación. */
+function vistaCerrar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const reabrir = args.reabrir === true
+  return cambio({
+    titulo: tt(ctx, reabrir ? 'operation.vTitReabrir' : 'operation.vTitCerrar'),
+    que: tt(ctx, reabrir ? 'operation.vQueReabrir' : 'operation.vQueCerrar'),
+  })
+}
+
+/**
+ * Prender o apagar la IA en UNA conversación.
+ *
+ * Apagarla deja el hilo entero en manos de una persona: si nadie lo mira, ese
+ * cliente no recibe nada. Se dice.
+ */
+function vistaIaEnConversacion(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = args.activa === true || args.ia === true
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitIaConversacion'),
+    que: tt(ctx, prende ? 'operation.vQuePrenderIaConv' : 'operation.vQueApagarIaConv'),
+    aviso: prende ? undefined : tt(ctx, 'operation.vApagarIaConvAviso'),
+  })
+}
 export const INBOX_CAPABILITIES: Capability[] = [
   {
     key: 'conversaciones.escalaciones',
@@ -761,6 +839,8 @@ export const INBOX_CAPABILITIES: Capability[] = [
       required: ['conversacion_id'],
     },
     run: detalle,
+    vista: (ctx, _args, r) =>
+      vistaDetalleConversacion(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
 
   {
@@ -828,6 +908,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       }
     },
     run: asignar,
+    artifact: (ctx, args) => vistaAsignar(ctx, args),
   },
 
   {
@@ -857,6 +938,7 @@ export const INBOX_CAPABILITIES: Capability[] = [
       }
     },
     run: cerrar,
+    artifact: (ctx, args) => vistaCerrar(ctx, args),
   },
 
   {
@@ -889,5 +971,6 @@ export const INBOX_CAPABILITIES: Capability[] = [
       }
     },
     run: ia,
+    artifact: (ctx, args) => vistaIaEnConversacion(ctx, args),
   },
 ]

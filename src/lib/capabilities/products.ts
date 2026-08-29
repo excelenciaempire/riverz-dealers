@@ -496,6 +496,16 @@ export const PRODUCT_CAPABILITIES: Capability[] = [
       return `En ${titulo} guardaría: «${args.pregunta}» → «${args.respuesta}». El agente lo repite tal cual ante un cliente.`
     },
     run: responderHueco,
+    // Va a las preguntas frecuentes del producto: desde la próxima respuesta,
+    // el agente cita ESTO. Se muestra entero porque es lo que va a decir.
+    artifact: (ctx, args) =>
+      cambio({
+        titulo: corto(args.pregunta, 60),
+        que: tt(ctx, 'operation.vQueResponderHueco'),
+        campos: [
+          { etiqueta: tt(ctx, 'operation.vColRespuesta'), despues: String(args.respuesta ?? '') },
+        ],
+      }),
   },
   {
     key: 'productos.listar',

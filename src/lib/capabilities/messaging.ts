@@ -19,6 +19,20 @@ import {
   since,
   windowDays,
 } from './predicates'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import {
+  cambio,
+  conversacion,
+  corto,
+  fecha,
+  filasDe,
+  lista,
+  numero,
+  tabla,
+  tablero,
+  tieneCampos,
+  tt,
+} from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function pendientes(ctx: CapabilityContext, args: Record<string, unknown>) {
@@ -241,6 +255,145 @@ async function decidirBorrador(ctx: CapabilityContext, args: Record<string, unkn
   return { conversation_id: conv.id, enviado: true, ...enviado }
 }
 
+
+/**
+ * Por qué no le llegó, en un tablero.
+ *
+ * La respuesta a "no le llega nada" son tres cosas, en este orden: si pidió la
+ * baja —eso explica todo lo demás y va primero—, qué automatizaciones corrieron
+ * y qué pasó con cada mensaje que salió. Un párrafo con eso adentro se lee dos
+ * veces; una línea por intento, con su punto, ninguna.
+ */
+function vistaDiagnostico(ctx: CapabilityContext, r: unknown): Artefacto | null {
+  if (!tieneCampos(r, 'encontrado')) return null
+  const o = r as { encontrado: boolean; dado_de_baja?: boolean }
+  if (!o.encontrado) return null
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+
+  const filas: { que: string; estado: 'ok' | 'atencion' | 'roto' | 'apagado'; detalle?: string }[] =
+    []
+
+  // La baja primero: si pidió no recibir nada, el resto de la lista es ruido.
+  if (o.dado_de_baja) {
+    filas.push({ que: t('vDadoDeBaja'), estado: 'roto', detalle: t('vDadoDeBajaNota') })
+  }
+
+  for (const m of lista<{
+    created_at: string
+    template_name: string | null
+    status: string | null
+    error_reason: string | null
+    origin_name: string | null
+  }>(r, 'mensajes')) {
+    const fallo = m.status === 'failed' || Boolean(m.error_reason)
+    filas.push({
+      que: `${fecha(ctx, m.created_at)} · ${m.template_name ?? m.origin_name ?? t('vMensaje')}`,
+      estado: fallo ? 'roto' : m.status === 'sent' || m.status === 'delivered' ? 'ok' : 'atencion',
+      detalle: m.error_reason ?? m.status ?? undefined,
+    })
+  }
+
+  for (const c of lista<{ created_at: string; trigger_event: string | null; status: string; error_message: string | null }>(
+    r,
+    'corridas',
+  )) {
+    filas.push({
+      que: `${fecha(ctx, c.created_at)} · ${c.trigger_event ?? t('vCorrida')}`,
+      estado: c.status === 'success' ? 'ok' : c.status === 'failed' ? 'roto' : 'atencion',
+      detalle: c.error_message ?? c.status,
+    })
+  }
+
+  return tablero({ titulo: t('vTitDiagnostico'), filas })
+}
+
+/** Las conversaciones que esperan respuesta, con quién espera hace más. */
+function vistaPendientesBandeja(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    contacto: string
+    canal: string
+    horas_esperando: number | null
+    pidio_humano: string | null
+  }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitEsperandoRespuesta'),
+    columnas: [
+      { clave: 'contacto', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'motivo', titulo: tt(ctx, 'operation.vColMotivo') },
+      { clave: 'espera', titulo: tt(ctx, 'operation.vColEsperando'), alineado: 'der' },
+    ],
+    filas: filas.map((c) => ({
+      contacto: corto(c.contacto, 24),
+      canal: c.canal,
+      motivo: corto(c.pidio_humano, 34),
+      espera: c.horas_esperando != null ? `${numero(ctx, Math.round(c.horas_esperando))} h` : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinPendientesBandeja'),
+  })
+}
+
+/** Los contactos que coinciden con una búsqueda. */
+function vistaBuscarContacto(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = filasDe(r, 'contactos') as {
+    nombre?: string | null
+    name?: string | null
+    telefono?: string | null
+    phone?: string | null
+    canal?: string | null
+  }[]
+  return tabla({
+    titulo: tt(ctx, 'operation.subContactos'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'telefono', titulo: tt(ctx, 'operation.vColTelefono') },
+      { clave: 'canal', titulo: tt(ctx, 'operation.vColCanal') },
+    ],
+    filas: filas.map((c) => ({
+      nombre: corto(c.nombre ?? c.name, 28),
+      telefono: c.telefono ?? c.phone ?? '—',
+      canal: c.canal ?? '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinContactos'),
+  })
+}
+
+/**
+ * El mensaje que se le va a mandar a alguien, como lo va a leer.
+ *
+ * Es lo más irreversible que hace Riverz: un mensaje enviado no vuelve. Lo que
+ * se aprueba tiene que ser el TEXTO, entero, y no una frase que lo resuma.
+ */
+function vistaEnviar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const texto = typeof args.texto === 'string' ? args.texto : String(args.mensaje ?? '')
+  return conversacion({
+    titulo: tt(ctx, 'operation.vTitEnviar'),
+    canal: typeof args.canal === 'string' ? args.canal : undefined,
+    mensajes: [
+      { de: 'negocio', texto },
+      { de: 'nota', texto: tt(ctx, 'operation.vEnviarAviso') },
+    ],
+  })
+}
+
+/** Aprobar o descartar el borrador que escribió la IA: se muestra el texto. */
+function vistaDecidirBorrador(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const manda = args.aprobar !== false && args.descartar !== true
+  const texto = typeof args.texto === 'string' && args.texto ? args.texto : null
+  if (!manda || !texto) {
+    return cambio({
+      titulo: tt(ctx, 'operation.vTitBorradores'),
+      que: tt(ctx, manda ? 'operation.vQueAprobarBorrador' : 'operation.vQueDescartarBorrador'),
+    })
+  }
+  return conversacion({
+    titulo: tt(ctx, 'operation.vTitBorradores'),
+    mensajes: [
+      { de: 'negocio', texto },
+      { de: 'nota', texto: tt(ctx, 'operation.vEnviarAviso') },
+    ],
+  })
+}
 export const MESSAGING_CAPABILITIES: Capability[] = [
   {
     key: 'conversaciones.aprobar_borrador',
@@ -279,6 +432,7 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
       return `Le mandaría a ${`${conv.contacto ?? 'sin nombre'} (${conv.channel})`}: "${texto}"`
     },
     run: decidirBorrador,
+    artifact: (ctx, args) => vistaDecidirBorrador(ctx, args),
   },
 
   {
@@ -295,6 +449,7 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
       },
     },
     run: pendientes,
+    vista: (ctx, _args, r) => vistaPendientesBandeja(ctx, r),
   },
 
   {
@@ -312,6 +467,7 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
       required: ['busqueda'],
     },
     run: buscarContacto,
+    vista: (ctx, _args, r) => vistaBuscarContacto(ctx, r),
   },
 
   {
@@ -333,6 +489,7 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
       required: ['telefono'],
     },
     run: diagnostico,
+    vista: (ctx, _args, r) => vistaDiagnostico(ctx, r),
   },
 
   {
@@ -375,5 +532,6 @@ export const MESSAGING_CAPABILITIES: Capability[] = [
         reason: 'asistente',
       })
     },
+    artifact: (ctx, args) => vistaEnviar(ctx, args),
   },
 ]

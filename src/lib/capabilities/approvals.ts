@@ -8,6 +8,8 @@
  */
 import { decidir } from '@/lib/approvals/resolve'
 import type { Capability, CapabilityContext } from './types'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, corto, fecha, lista, tabla, tt } from './vistas'
 
 async function pendientes(ctx: CapabilityContext) {
   const { data } = await ctx.db
@@ -20,6 +22,46 @@ async function pendientes(ctx: CapabilityContext) {
   return data ?? []
 }
 
+/**
+ * Lo que espera una decisión.
+ *
+ * Cada fila es algo que no va a pasar hasta que alguien apriete un botón. Lo
+ * que hace falta ver es qué es y desde cuándo espera — un pedido esperando
+ * aprobación desde hace tres días es un cliente que no recibió nada.
+ */
+function vistaPendientesAprobacion(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{ kind: string; title: string | null; created_at: string }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.vEsperandoAprobacion'),
+    columnas: [
+      { clave: 'que', titulo: tt(ctx, 'operation.vColQue') },
+      { clave: 'tipo', titulo: tt(ctx, 'operation.vColTipo') },
+      { clave: 'desde', titulo: tt(ctx, 'operation.vColCuando') },
+    ],
+    filas: filas.map((a) => ({
+      que: corto(a.title, 50),
+      tipo: corto(a.kind, 20),
+      desde: fecha(ctx, a.created_at),
+    })),
+    vacio: tt(ctx, 'operation.vSinAprobaciones'),
+  })
+}
+
+/**
+ * Decidir lo que estaba esperando.
+ *
+ * Aprobar EJECUTA lo que estaba pendiente, y eso puede cobrar un pedido. La
+ * tarjeta lo dice, porque «aprobar» a secas se lee como un trámite.
+ */
+function vistaDecidir(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const aprueba = args.aprobar === true || args.decision === 'aprobar'
+  return cambio({
+    titulo: tt(ctx, 'operation.vEsperandoAprobacion'),
+    que: tt(ctx, aprueba ? 'operation.vQueAprobar' : 'operation.vQueRechazar'),
+    aviso: aprueba ? tt(ctx, 'operation.vAprobarAviso') : undefined,
+  })
+}
+
 export const APPROVAL_CAPABILITIES: Capability[] = [
   {
     key: 'aprobaciones.pendientes',
@@ -30,6 +72,7 @@ export const APPROVAL_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: pendientes,
+    vista: (ctx, _args, r) => vistaPendientesAprobacion(ctx, r),
   },
 
   {
@@ -73,5 +116,6 @@ export const APPROVAL_CAPABILITIES: Capability[] = [
         workspaceId: ctx.workspaceId,
       })
     },
+    artifact: (ctx, args) => vistaDecidir(ctx, args),
   },
 ]

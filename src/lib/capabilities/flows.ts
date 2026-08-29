@@ -25,6 +25,7 @@ import {
 import { validateFlowForActivation } from '@/lib/flows/validate'
 import { aplicarPatches, cambiarEstado, leerFlujo } from '@/lib/flows/write'
 import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, cifras, corto, fecha, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuánto texto de un mensaje entra en el resumen de un paso. */
@@ -440,6 +441,107 @@ async function corridas(ctx: CapabilityContext, args: Record<string, unknown>) {
   }
 }
 
+
+/**
+ * Los menús, dibujados.
+ *
+ * El detalle reusa el kind `flujo` que el banco ya dibuja al editarlo: mirar el
+ * que existe y aprobar el que se está armando tienen que verse igual.
+ */
+function vistaFlujo(ctx: CapabilityContext, r: Awaited<ReturnType<typeof detalle>>): Artefacto | null {
+  if (!tieneCampos(r, 'nombre', 'nodos')) return null
+  return {
+    kind: 'flujo',
+    nombre: String(r.nombre),
+    nodos: lista<{ clave: string; tipo: string; resumen: string }>(r, 'nodos').map((n) => ({
+      clave: String(n.clave),
+      tipo: String(n.tipo),
+      resumen: String(n.resumen),
+    })),
+  }
+}
+
+function vistaFlujos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    name: string
+    status: string
+    cuando: string
+    execution_count: number | null
+    last_executed_at: string | null
+  }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.subFlujos'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColDispara') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'corridas', titulo: tt(ctx, 'operation.vColCorridas'), alineado: 'der' },
+    ],
+    filas: filas.map((f) => ({
+      nombre: corto(f.name, 28),
+      cuando: corto(f.cuando, 30),
+      estado: f.status,
+      corridas: numero(ctx, f.execution_count ?? 0),
+    })),
+    vacio: tt(ctx, 'operation.vSinFlujos'),
+  })
+}
+
+/**
+ * Dónde se traba la gente.
+ *
+ * La lista de corridas sola no dice qué arreglar: doscientas filas con un paso
+ * distinto cada una. Agrupado por paso sí — el paso con más gente trabada es el
+ * que no se entiende. Por eso arriba va el agrupado y no el detalle.
+ */
+function vistaCorridas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const trabadas = lista<{ paso: string; cuantas: number }>(r, 'trabadas_en')
+  if (trabadas.length > 0) {
+    return cifras({
+      titulo: tt(ctx, 'operation.vTitTrabadas'),
+      tiles: trabadas.slice(0, 6).map((t) => ({
+        etiqueta: t.paso,
+        valor: numero(ctx, t.cuantas),
+        tono: 'neutro' as const,
+      })),
+      serie: trabadas.map((t) => ({ etiqueta: t.paso, valor: t.cuantas })),
+    })
+  }
+  const filas = lista<{
+    menu: string
+    cliente: string
+    estado: string
+    paso_actual: string | null
+    empezo: string
+  }>(r, 'corridas')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitCorridas'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'menu', titulo: tt(ctx, 'operation.subFlujos') },
+      { clave: 'paso', titulo: tt(ctx, 'operation.vColPasoActual') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+    ],
+    filas: filas.map((c) => ({
+      cliente: corto(c.cliente, 22),
+      menu: corto(c.menu, 24),
+      paso: corto(c.paso_actual, 20),
+      estado: c.estado,
+      cuando: fecha(ctx, c.empezo),
+    })),
+    vacio: tt(ctx, 'operation.vSinCorridas'),
+  })
+}
+
+/** Prender o pausar un menú. */
+function vistaActivarFlujo(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = args.activo === true || args.activa === true
+  return cambio({
+    titulo: tt(ctx, 'operation.subFlujos'),
+    que: tt(ctx, prende ? 'operation.vQuePrenderFlujo' : 'operation.vQuePausarFlujo'),
+  })
+}
 export const FLOW_CAPABILITIES: Capability[] = [
   {
     key: 'flujos.corridas',
@@ -457,6 +559,7 @@ export const FLOW_CAPABILITIES: Capability[] = [
       },
     },
     run: corridas,
+    vista: (ctx, _args, r) => vistaCorridas(ctx, r),
   },
   {
     key: 'flujos.listar',
@@ -467,6 +570,7 @@ export const FLOW_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listar,
+    vista: (ctx, _args, r) => vistaFlujos(ctx, r),
   },
 
   {
@@ -484,6 +588,7 @@ export const FLOW_CAPABILITIES: Capability[] = [
       required: ['flujo_id'],
     },
     run: detalle,
+    vista: (ctx, _args, r) => vistaFlujo(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
 
   {
@@ -668,5 +773,6 @@ ${PUERTOS_Y_CABLEADO}`,
       )}, y desde ese momento contesta el menú antes que cualquier agente.`
     },
     run: activar,
+    artifact: (ctx, args) => vistaActivarFlujo(ctx, args),
   },
 ]

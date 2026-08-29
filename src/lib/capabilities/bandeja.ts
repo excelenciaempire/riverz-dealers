@@ -13,6 +13,8 @@
  * Se tapa cargando el dato una vez.
  */
 import { hoursWaiting } from './predicates'
+import type { Artefacto } from '@/lib/operator/artifacts'
+import { cambio, corto, fecha, lista, tabla, tablero, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 const TOPE = 50
@@ -331,6 +333,197 @@ async function decidirDevolucion(ctx: CapabilityContext, args: Record<string, un
   return { devolucion_id: dev.id, pedido: dev.order_number, estado }
 }
 
+
+/**
+ * Lo que la bandeja sabe, dibujado.
+ *
+ * Cinco listas distintas y una regla en común: la columna que decide qué hacer
+ * va antes que el identificador. En los reclamos es el vencimiento —Mercado
+ * Libre falla a favor del comprador si nadie contesta a tiempo—; en los huecos,
+ * qué le faltó saber a la IA; en el reparto, si la regla está prendida.
+ */
+function vistaReclamos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    pedido: string | null
+    comprador: string
+    etapa: string | null
+    motivo: string | null
+    abierto_hace_horas: number | null
+    vence: string | null
+  }>(r, 'reclamos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitReclamos'),
+    columnas: [
+      { clave: 'comprador', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'pedido', titulo: tt(ctx, 'operation.vColPedido') },
+      { clave: 'motivo', titulo: tt(ctx, 'operation.vColMotivo') },
+      { clave: 'etapa', titulo: tt(ctx, 'operation.vColEtapa') },
+      { clave: 'vence', titulo: tt(ctx, 'operation.vColVence') },
+    ],
+    filas: filas.map((c) => ({
+      comprador: corto(c.comprador, 22),
+      pedido: corto(c.pedido, 16),
+      motivo: corto(c.motivo, 34),
+      etapa: corto(c.etapa, 16),
+      // El plazo es lo único que urge: pasado el vencimiento la plataforma
+      // decide sola y a favor del comprador.
+      vence: c.vence ? fecha(ctx, c.vence) : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinReclamos'),
+  })
+}
+
+function vistaDevoluciones(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    pedido: string | null
+    cliente: string
+    tipo: string | null
+    motivo: string | null
+    estado: string | null
+    pedida_el: string
+  }>(r, 'devoluciones')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitDevoluciones'),
+    columnas: [
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'pedido', titulo: tt(ctx, 'operation.vColPedido') },
+      { clave: 'motivo', titulo: tt(ctx, 'operation.vColMotivo') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+    ],
+    filas: filas.map((d) => ({
+      cliente: corto(d.cliente, 22),
+      pedido: corto(d.pedido, 16),
+      motivo: corto(d.motivo, 34),
+      estado: [d.tipo, d.estado].filter(Boolean).join(' · ') || '—',
+      cuando: fecha(ctx, d.pedida_el),
+    })),
+    vacio: tt(ctx, 'operation.vSinDevoluciones'),
+  })
+}
+
+/**
+ * Lo que la IA no supo contestar.
+ *
+ * La columna que convierte esta lista de un reproche en una tarea es «qué
+ * falta»: dice qué dato hay que cargar para que la próxima vez sí sepa.
+ */
+function vistaHuecos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    pregunta: string
+    que_falta: string | null
+    canal: string | null
+    cuando: string
+    resuelto_el: string | null
+  }>(r, 'huecos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitHuecos'),
+    columnas: [
+      { clave: 'pregunta', titulo: tt(ctx, 'operation.vColPregunta') },
+      { clave: 'falta', titulo: tt(ctx, 'operation.vColQueFalta') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+    ],
+    filas: filas.map((h) => ({
+      pregunta: corto(h.pregunta, 44),
+      falta: corto(h.que_falta, 34),
+      cuando: fecha(ctx, h.cuando),
+      estado: h.resuelto_el
+        ? tt(ctx, 'operation.vResuelto')
+        : tt(ctx, 'operation.vSinResolver'),
+    })),
+    vacio: tt(ctx, 'operation.vSinHuecos'),
+  })
+}
+
+function vistaAtajos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{ atajo: string; titulo: string | null; texto: string; oculto: boolean }>(
+    r,
+    'atajos',
+  )
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitAtajos'),
+    columnas: [
+      { clave: 'atajo', titulo: tt(ctx, 'operation.vColAtajo') },
+      { clave: 'texto', titulo: tt(ctx, 'operation.vColTexto') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+    ],
+    filas: filas.map((a) => ({
+      atajo: corto(a.atajo, 18),
+      texto: corto(a.titulo ?? a.texto, 56),
+      estado: a.oculto ? tt(ctx, 'operation.vOculto') : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinAtajos'),
+  })
+}
+
+function vistaFiltros(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{ nombre: string }>(r, 'filtros')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitFiltros'),
+    columnas: [{ clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') }],
+    filas: filas.map((f) => ({ nombre: corto(f.nombre, 40) })),
+    vacio: tt(ctx, 'operation.vSinFiltros'),
+  })
+}
+
+/**
+ * A quién le toca cada conversación.
+ *
+ * Va en tablero: la pregunta es si la regla está prendida, y gana la de número
+ * más bajo — por eso se lee en orden y con las apagadas a la vista.
+ */
+function vistaReparto(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre: string
+    activa: boolean
+    prioridad: number | null
+    reparte: string | null
+    canal: string | null
+  }>(r, 'reglas')
+  return tablero({
+    titulo: tt(ctx, 'operation.vTitReparto'),
+    filas: filas.map((g) => ({
+      que: g.nombre,
+      estado: g.activa ? ('ok' as const) : ('apagado' as const),
+      detalle: [g.reparte, g.canal].filter(Boolean).join(' · ') || undefined,
+    })),
+  })
+}
+
+/** Prender o apagar una regla de reparto. */
+function vistaActivarReparto(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = args.activa === true
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitReparto'),
+    que: tt(ctx, prende ? 'operation.vQuePrenderReparto' : 'operation.vQueApagarReparto'),
+  })
+}
+
+/** Un atajo nuevo, con el texto entero: es lo que alguien va a mandar de verdad. */
+function vistaCrearAtajo(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cambio({
+    titulo: `/${String(args.atajo ?? '').replace(/^\//, '')}`,
+    que: t('vQueCrearAtajo'),
+    campos: [{ etiqueta: t('vColTexto'), despues: String(args.texto ?? '') }],
+  })
+}
+
+/**
+ * Decidir una devolución.
+ *
+ * Le llega al cliente: aceptar una devolución es plata que vuelve y rechazarla
+ * es una conversación que se pone difícil. La tarjeta dice cuál de las dos es.
+ */
+function vistaDecidirDevolucion(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const estado = String(args.decision ?? args.estado ?? '')
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitDecidirDevolucion'),
+    que: estado,
+    aviso: tt(ctx, 'operation.vDecidirDevolucionAviso'),
+  })
+}
 export const BANDEJA_CAPABILITIES: Capability[] = [
   {
     key: 'bandeja.decidir_devolucion',
@@ -356,6 +549,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
       return `Sobre la devolución de ${quien}${pedido} (hoy «${dev.status}»): ${que}.`
     },
     run: decidirDevolucion,
+    artifact: (ctx, args) => vistaDecidirDevolucion(ctx, args),
   },
   {
     key: 'bandeja.reclamos',
@@ -372,6 +566,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
       },
     },
     run: reclamos,
+    vista: (ctx, _args, r) => vistaReclamos(ctx, r),
   },
 
   {
@@ -389,6 +584,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
       },
     },
     run: devoluciones,
+    vista: (ctx, _args, r) => vistaDevoluciones(ctx, r),
   },
 
   {
@@ -406,6 +602,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
       },
     },
     run: huecos,
+    vista: (ctx, _args, r) => vistaHuecos(ctx, r),
   },
 
   {
@@ -417,6 +614,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: atajos,
+    vista: (ctx, _args, r) => vistaAtajos(ctx, r),
   },
 
   {
@@ -442,6 +640,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
       return `Guardaría el atajo /${atajo}: "${String(args.texto ?? '')}"`
     },
     run: crearAtajo,
+    artifact: (ctx, args) => vistaCrearAtajo(ctx, args),
   },
 
   {
@@ -453,6 +652,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: filtros,
+    vista: (ctx, _args, r) => vistaFiltros(ctx, r),
   },
 
   {
@@ -464,6 +664,7 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: reparto,
+    vista: (ctx, _args, r) => vistaReparto(ctx, r),
   },
 
   {
@@ -494,5 +695,6 @@ export const BANDEJA_CAPABILITIES: Capability[] = [
         : `Apagaría la regla de reparto «${nombre}». Lo que entre queda sin dueño.`
     },
     run: activarReparto,
+    artifact: (ctx, args) => vistaActivarReparto(ctx, args),
   },
 ]

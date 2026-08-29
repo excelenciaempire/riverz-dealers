@@ -1296,5 +1296,15 @@ export const COMMENT_CAPABILITIES: Capability[] = [
     },
     preview: previewActivar,
     run: activarRegla,
+    artifact: (ctx, args) =>
+      cambio({
+        titulo: tt(ctx, 'operation.vTitReglasComentarios'),
+        que: tt(
+          ctx,
+          args.activa === true
+            ? 'operation.vQuePrenderReglaComentario'
+            : 'operation.vQueApagarReglaComentario',
+        ),
+      }),
   },
 ]
