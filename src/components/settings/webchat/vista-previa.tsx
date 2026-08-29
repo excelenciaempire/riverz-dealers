@@ -226,7 +226,20 @@ function Probar({ habilitado }: { habilitado: boolean }) {
     if (!abierto) return;
     const onMessage = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
-      if ((e.data as { type?: string } | null)?.type === 'riverz:close') setAbierto(false);
+      const tipo = (e.data as { type?: string } | null)?.type;
+      if (tipo === 'riverz:close') setAbierto(false);
+      // La tarjeta le pide al CARGADOR que agregue al carrito, y el cargador
+      // corre en la tienda, no acá. Sin respuesta, el botón se queda tres
+      // segundos pensando y recién ahí cae a abrir la ficha: en la única
+      // pantalla donde el comercio prueba su chat, eso se lee como que el
+      // botón no anda. Se contesta que no, y la tarjeta abre la ficha al toque
+      // — que es lo honesto: acá no hay carrito que cargar.
+      if (tipo === 'riverz:add_to_cart' || tipo === 'riverz:go_checkout') {
+        (e.source as Window | null)?.postMessage(
+          { type: 'riverz:cart_result', ok: false },
+          '*',
+        );
+      }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
