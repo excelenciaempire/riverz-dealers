@@ -50,6 +50,8 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'followup_max_count',
   'proactive_send_mode',
   'puede_crear_pedidos',
+  // Cómo cierra la venta (migración 219)
+  'cobro_modo',
   // Rol y permisos por acción (migración 164)
   'role',
   'permissions',
@@ -109,6 +111,13 @@ export function pickAgentPatch(
   // cliente que no controlamos, y un modo inventado —o una clave que ya no
   // existe— no puede terminar mandando sobre plata que sale.
   if ('tools' in patch) patch.tools = sanitizeTools(patch.tools)
+  // Un modo inventado dejaría al agente sin ninguna instrucción de cobro: la
+  // restricción de la tabla lo rechazaría con un error feo en vez de guardar.
+  if ('cobro_modo' in patch) {
+    const v = patch.cobro_modo
+    patch.cobro_modo =
+      v === 'checkout' || v === 'chat' || v === 'segun_pago' ? v : 'segun_pago'
+  }
   // El tope de ráfaga se acota acá además de en la base: la restricción de la
   // tabla rechazaría un 5000 con un error de Postgres feo, y lo que hay que
   // hacer con un número fuera de rango es recortarlo, no romper el guardado.

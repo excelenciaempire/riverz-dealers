@@ -403,6 +403,12 @@ export function AgentEditor({
   const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
     agent?.puede_crear_pedidos ?? false,
   );
+  // Cómo cierra la venta (migración 219). Elige entre lo que la pizarra ya
+  // permite: con una sola de las dos herramientas prendida no hay nada que
+  // elegir y el control no se muestra.
+  const [cobroModo, setCobroModo] = useState<'checkout' | 'chat' | 'segun_pago'>(
+    agent?.cobro_modo ?? 'segun_pago',
+  );
   // Rol y permisos por acción (migración 164). `permissions` en null significa
   // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
   // alguien toque uno de estos interruptores.
@@ -928,6 +934,7 @@ export function AgentEditor({
       followup_delay_hours: followupDelayHours,
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
+      cobro_modo: cobroModo,
       role,
       permissions,
       tools,
@@ -1645,6 +1652,35 @@ export function AgentEditor({
                     onTope={guardarTope}
                   />
                 </SectionCard>
+
+                {/* Cómo se cobra. Va debajo de la pizarra porque depende de
+                    ella: sólo hay algo que elegir cuando el agente puede
+                    tanto mandar a la caja como tomar el pedido. Con una sola
+                    de las dos, la decisión ya está tomada. */}
+                {(tools?.crear_checkout ?? 'auto') !== 'off' && puedeCrearPedidos ? (
+                  <SectionCard
+                    title={t('operation.cobroTitle')}
+                    hint={t('operation.cobroHint')}
+                  >
+                    <Select
+                      value={cobroModo}
+                      onValueChange={(v) =>
+                        setCobroModo((v as typeof cobroModo) ?? 'segun_pago')
+                      }
+                    >
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="segun_pago">
+                          {t('operation.cobroSegunPago')}
+                        </SelectItem>
+                        <SelectItem value="chat">{t('operation.cobroChat')}</SelectItem>
+                        <SelectItem value="checkout">{t('operation.cobroCheckout')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SectionCard>
+                ) : null}
 
                 {/* El rol va acá al lado: no habilita nada, decide a quién le
                     toca el mensaje cuando hay varios agentes en un canal. */}

@@ -151,6 +151,17 @@ export interface AiAgent {
    *  cuenta; deja el cierre a una persona del equipo. Migration 080.
    *  Requiere el scope write_orders (reconectar Shopify). */
   puede_crear_pedidos: boolean;
+  /**
+   * Cómo cierra la venta (migración 219).
+   *
+   *   checkout    — siempre a la caja de la tienda.
+   *   chat        — siempre toma el pedido en la conversación.
+   *   segun_pago  — contra-entrega en el chat, tarjeta a la caja.
+   *
+   * Elige entre lo que la pizarra de herramientas ya permite; nunca amplía
+   * permisos. Con `crear_pedido` apagado manda a la caja diga lo que diga.
+   */
+  cobro_modo?: 'checkout' | 'chat' | 'segun_pago' | null;
 
   provider: AiProvider;
   model: string;

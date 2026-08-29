@@ -18,6 +18,8 @@ import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { detectarEscalada, type Escalada } from './escalada';
 import { avisarEscalada } from './aviso-escalada';
+import { prometeAveriguar } from './salida';
+import { registrarHueco } from './answer-gaps';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
@@ -570,6 +572,55 @@ export async function runAiAgent(
         });
         return;
       }
+    }
+
+    // SI NO SABE, NO CONTESTA: ENTRA UNA PERSONA.
+    //
+    // "Lo confirmo y te lo digo acá mismo" salió por Instagram el 2026-08-28 y
+    // trece horas después no había vuelto nadie. Prometer que vuelve es lo peor
+    // de los dos mundos: la clienta se queda esperando Y encima cree que
+    // alguien está trabajando en su pregunta.
+    //
+    // Así que el mensaje NO sale. El hilo queda para una persona, sale el aviso
+    // por WhatsApp y la pregunta se anota como hueco de conocimiento. Lo que la
+    // clienta ve es que nadie le contestó todavía, que es la verdad, en vez de
+    // una promesa que nadie iba a cumplir.
+    //
+    // El detector es angosto a propósito (ver `prometeAveriguar`): un falso
+    // positivo silencia una respuesta buena, así que ante la duda se contesta.
+    if (prometeAveriguar(replyText)) {
+      // El hueco de conocimiento, anotado. La herramienta para hacerlo existe
+      // y el prompt se la pide, pero el modelo no la llamó: en todo el
+      // historial hay UN solo hueco registrado. Acá se anota igual, que es la
+      // única forma de que la pregunta que hoy no sabe contestar se cargue
+      // mañana en vez de repetirse todas las semanas.
+      await registrarHueco(
+        {
+          db,
+          workspaceId: args.conversation.workspace_id,
+          contactId: args.contact.id,
+          conversationId: args.conversation.id,
+          agentId: agent.id,
+          channel: args.channel,
+        },
+        {
+          pregunta: textoEntrante.slice(0, 500),
+          falta: 'La IA prometió averiguarlo y volver, y no tiene el dato cargado.',
+        },
+      ).catch(() => {});
+      await flagNeedsHuman(db, args.conversation, 'answer_gap', {
+        pidio: textoEntrante,
+      }).catch(() => {});
+      await avisarDelCaso(db, args, {
+        clase: 'otro',
+        urgencia: 'hoy',
+        porQue: 'Preguntó algo que la IA no sabe: nadie le contestó todavía',
+      }).catch(() => {});
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'answer_gap',
+      });
+      return;
     }
 
     // Second guard window: between debounce-end and the actual send we
@@ -2642,6 +2693,45 @@ export function buildSystemPrompt(
     lines.push(
       'Política de precios (estricta): cotiza únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasa la cantidad al generar el checkout. Si pide un descuento que no existe, dile con cortesía que no puedes aplicarlo y ofrece escalar a un humano.',
     );
+  }
+
+  // ── Cómo se cobra (migración 219) ──
+  //
+  // El agente sabe hacer las dos cosas: mandar a la caja y tomar el pedido en
+  // la conversación. Cuál hacía no lo decidía nadie — salía de qué
+  // herramientas estuvieran prendidas, y con las dos prendidas elegía el
+  // modelo, mensaje a mensaje. Un comercio de contra-entrega que manda a la
+  // caja pierde a quien no tiene tarjeta; uno de tarjeta que pide la dirección
+  // por chat le agrega diez mensajes a una compra de un clic.
+  //
+  // Esto NO amplía permisos: sólo elige entre lo que la pizarra ya habilita.
+  // Sin una de las dos herramientas no hay nada que elegir y no se dice nada,
+  // que es mejor que darle al modelo una instrucción que no puede cumplir.
+  {
+    // Cuál es "la caja" depende de la tienda, igual que en
+    // `construirHerramientas`: con Shopify cobra su checkout; sin Shopify, el
+    // link de pago. Mirar las dos acá diría "podés mandar a la caja" a un
+    // agente que no tiene ninguna.
+    const puedeCaja = shopify
+      ? toolEnabled(agent, 'crear_checkout')
+      : toolEnabled(agent, 'crear_checkout') || toolEnabled(agent, 'crear_link_de_pago');
+    const puedePedido = toolEnabled(agent, 'crear_pedido') && shopify?.canCreateOrders !== false;
+    if (puedeCaja && puedePedido) {
+      const modo = agent.cobro_modo ?? 'segun_pago';
+      if (modo === 'checkout') {
+        lines.push(
+          'Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja.',
+        );
+      } else if (modo === 'chat') {
+        lines.push(
+          'Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda.',
+        );
+      } else {
+        lines.push(
+          'Cómo se cobra, según cómo quiera pagar: si paga contra entrega (al recibir), toma el pedido aquí mismo, pídele nombre, dirección completa y confirmación, y créalo tú. Si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat: esos datos los toma la caja. Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.',
+        );
+      }
+    }
   }
 
   // ── Política de creación de pedidos (toggle por agente) ──
