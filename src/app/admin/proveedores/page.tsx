@@ -66,13 +66,23 @@ export default function AdminProveedoresPage() {
 
   const usd = (n: number) => format.currency(n, "USD", { maximumFractionDigits: 0 });
 
-  /** El número del proveedor, en la unidad que devuelva. */
+  /**
+   * El número del proveedor, en la unidad que devuelva.
+   *
+   * La unidad viene de una API de terceros, así que se comprueba que sea un
+   * código de moneda antes de pasársela a `Intl`: con uno inválido tira
+   * `RangeError` y, en un componente de cliente, eso es la pantalla entera en
+   * blanco por el saldo de un proveedor.
+   */
   const monto = (p: Proveedor): string => {
     if (p.saldo === null) return "—";
     if (p.unidad === "chars")
       return t("admin.providersChars", { n: format.number(p.saldo) });
-    if (p.unidad && p.unidad.startsWith("/")) return `${format.number(p.saldo)}${p.unidad}`;
-    return format.currency(p.saldo, p.unidad ?? "USD");
+    if (p.unidad?.startsWith("/")) return `${format.number(p.saldo)}${p.unidad}`;
+    const moneda = p.unidad ?? "USD";
+    if (!/^[A-Za-z]{3}$/.test(moneda))
+      return `${format.number(p.saldo)} ${moneda}`.trim();
+    return format.currency(p.saldo, moneda.toUpperCase());
   };
 
   return (
