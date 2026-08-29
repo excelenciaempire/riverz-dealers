@@ -67,7 +67,7 @@ export function SaldoChip({
       onClick={onNavigate}
       aria-label={`${t("nav.balance")}: ${monto}`}
       className={cn(
-        "app-sidebar-link",
+        "app-sidebar-link relative",
         "min-h-[44px] lg:min-h-0",
         collapsed && "lg:justify-center lg:px-0",
       )}
@@ -90,6 +90,19 @@ export function SaldoChip({
       >
         {monto}
       </span>
+      {/* En el riel contraído no entra el número: queda el punto, que es lo
+          único que hay que decidir de un vistazo —si urge recargar o no— y el
+          monto exacto a un hover de distancia. Mismo lugar y tamaño que el
+          contador de la Bandeja, para que se lean como la misma señal. */}
+      {collapsed && (enCero || porCaer) && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute right-1.5 top-1.5 hidden size-2 rounded-full lg:block",
+            enCero ? "bg-destructive" : "bg-amber-500",
+          )}
+        />
+      )}
     </Link>
   );
 
