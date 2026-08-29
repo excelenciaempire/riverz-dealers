@@ -266,6 +266,75 @@ export const health: Namespace = {
     es: "se quedó sin pasos",
     en: "ran out of steps",
   },
+
+  // Comentarios. Ese camino no pasa por el runner y hasta la migración 221 no
+  // registraba nada: un comentario sin respuesta no se distinguía de un fallo.
+  skip_comment_apagado: {
+    es: "Comentarios está apagado",
+    en: "Comments is switched off",
+  },
+  skip_comment_sin_saldo: { es: "sin saldo", en: "out of balance" },
+  skip_comment_sin_destinatario: {
+    es: "no se puede escribir a quien comentó",
+    en: "the commenter is not reachable",
+  },
+  skip_comment_sin_llave: { es: "sin clave del modelo", en: "no model key" },
+  skip_comment_sin_texto: {
+    es: "el comentario no tenía texto",
+    en: "the comment had no text",
+  },
+  skip_comment_ya_oculto: {
+    es: "el comentario estaba oculto",
+    en: "the comment was hidden",
+  },
+  skip_comment_spam: { es: "era spam y se ocultó", en: "spam, hidden" },
+  skip_comment_critica: {
+    es: "era una crítica y se ocultó",
+    en: "criticism, hidden",
+  },
+  skip_comment_sin_intencion: {
+    es: "no mostraba intención de compra",
+    en: "no buying intent",
+  },
+  skip_comment_sin_clasificar: {
+    es: "no se pudo clasificar",
+    en: "could not be classified",
+  },
+  skip_comment_clasificador_fallo: {
+    es: "falló el clasificador",
+    en: "the classifier failed",
+  },
+  skip_comment_pide_humano: {
+    es: "pedía hablar con una persona",
+    en: "asked for a person",
+  },
+  skip_comment_puerta_proactiva: {
+    es: "por el freno de envíos proactivos",
+    en: "proactive sending is on hold",
+  },
+  skip_comment_sin_conexion: {
+    es: "la red no está conectada",
+    en: "the network is not connected",
+  },
+  skip_comment_tope_del_hilo: {
+    es: "por cupo de respuestas del hilo",
+    en: "thread reply cap reached",
+  },
+  skip_comment_tope_por_minuto: {
+    es: "por ráfaga de comentarios",
+    en: "comment burst",
+  },
+  skip_comment_respuesta_vacia: { es: "no tenía nada que decir", en: "nothing to say" },
+  skip_comment_afirma_lo_que_no_sabe: {
+    es: "la respuesta afirmaba lo que no le consta",
+    en: "the reply claimed something unverified",
+  },
+  skip_comment_prometia_averiguar: {
+    es: "la respuesta prometía averiguar y volver",
+    en: "the reply promised to check back",
+  },
+  skip_comment_error: { es: "falló al contestar", en: "failed while replying" },
+
   skipOther: { es: "otro motivo", en: "another reason" },
 
   revenueDisclaimer: {

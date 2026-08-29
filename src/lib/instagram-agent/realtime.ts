@@ -644,6 +644,45 @@ async function generateCloserReply(input: {
  * respuesta privada por comentario, y baja del contacto respetada.
  */
 /**
+ * Deja constancia de por qué este comentario no se contestó.
+ *
+ * Escribe en `ai_replies`, la misma tabla que el runner, para que la pregunta
+ * "¿por qué no le contestó a esta persona?" se responda con UNA consulta y sin
+ * importar el canal. `agent_id` va nulo a propósito: Comentarios se gobierna
+ * solo y contesta con la marca y el catálogo aunque no haya ningún asistente
+ * configurado, así que atarlo a un agente sería mentir.
+ *
+ * Best-effort: la telemetría no puede tumbar el camino que observa.
+ */
+async function registrarSkipComentario(
+  db: SupabaseClient,
+  opts: OpcionesComentario,
+  motivo: string,
+): Promise<void> {
+  try {
+    const { data } = await db
+      .from('conversations')
+      .select('id')
+      .eq('workspace_id', opts.workspaceId)
+      .eq('contact_id', opts.contact.id)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const conversationId = (data as { id?: string } | null)?.id ?? null;
+    if (!conversationId) return;
+    await db.from('ai_replies').insert({
+      workspace_id: opts.workspaceId,
+      conversation_id: conversationId,
+      agent_id: null,
+      status: 'skipped',
+      skip_reason: motivo,
+    });
+  } catch (err) {
+    console.error('[comentarios] no se pudo registrar el motivo:', motivo, err);
+  }
+}
+
+/**
  * ¿Este comentario está oculto?
  *
  * La fila de la bandeja guarda el id de Meta en `message_id`, que es el mismo
@@ -665,28 +704,55 @@ async function estaOculto(
   return Boolean((data as { is_hidden?: boolean | null } | null)?.is_hidden);
 }
 
+/** Lo que decidió el piso autónomo para un comentario. */
+interface OpcionesComentario {
+  workspaceId: string;
+  contact: ContactLite;
+  commentId?: string | null;
+  sourcePostId?: string | null;
+  connection?: ChannelConnection | null;
+  engagementText: string | null;
+  /** De qué red viene el comentario. Por defecto Instagram, que era el único
+   *  canal que llegaba aquí antes de que Facebook se habilitara. */
+  commentChannel?: CommentChannel;
+}
+
+/**
+ * Por qué un comentario no se contestó.
+ *
+ * Este camino no pasa por el runner y por lo tanto no escribía NADA en
+ * `ai_replies`: un comentario sin respuesta era indistinguible de un fallo, y
+ * no había forma de contestar "¿por qué no le contestó a esta persona?" salvo
+ * leyendo el código y adivinando. El 2026-08-29, de 16 comentarios en 48 h,
+ * nueve quedaron sin responder y ninguno dejó una sola fila.
+ *
+ * Los motivos son propios del canal y llevan prefijo `comment_` para no
+ * confundirse con los del runner (`ai/runner.ts`).
+ */
 async function autonomousCommentReply(
   db: SupabaseClient,
-  opts: {
-    workspaceId: string;
-    contact: ContactLite;
-    commentId?: string | null;
-    sourcePostId?: string | null;
-    connection?: ChannelConnection | null;
-    engagementText: string | null;
-    /** De qué red viene el comentario. Por defecto Instagram, que era el único
-     *  canal que llegaba aquí antes de que Facebook se habilitara. */
-    commentChannel?: CommentChannel;
-  },
+  opts: OpcionesComentario,
 ): Promise<void> {
+  const motivo = await decidirComentario(db, opts);
+  if (motivo) await registrarSkipComentario(db, opts, motivo);
+}
+
+async function decidirComentario(
+  db: SupabaseClient,
+  opts: OpcionesComentario,
+): Promise<string | null> {
   // Solo aplica al camino comentario → DM privado: sin id de comentario no hay
   // ruta permitida por Meta para escribirle.
-  if (!opts.commentId) return;
-  if (!opts.contact.external_id && !isTikTokChannel(opts.commentChannel)) return;
-  if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) return;
+  if (!opts.commentId) return null;
+  if (!opts.contact.external_id && !isTikTokChannel(opts.commentChannel)) {
+    return 'comment_sin_destinatario';
+  }
+  if (!(await autoReplyCommentsEnabled(db, opts.workspaceId))) {
+    return 'comment_apagado';
+  }
   // Sin saldo o con la suscripcion vencida, la IA no contesta comentarios
   // tampoco: es la misma clave de Riverz pagando la misma llamada al modelo.
-  if (!(await puedeUsarIa(db, opts.workspaceId))) return;
+  if (!(await puedeUsarIa(db, opts.workspaceId))) return 'comment_sin_saldo';
 
   // Instagram ↔ Messenger: mismo camino, distinta red. El comentario se
   // contesta por el DM de SU plataforma — un comentario de Facebook no se
@@ -701,11 +767,11 @@ async function autonomousCommentReply(
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
-  if (!hasLlm(apiKey)) return;
+  if (!hasLlm(apiKey)) return 'comment_sin_llave';
 
   // Un comentario sin texto (un emoji, una mención) no dice nada que responder.
   const engagement = (opts.engagementText ?? '').trim();
-  if (engagement.length < 3) return;
+  if (engagement.length < 3) return 'comment_sin_texto';
 
   // UN COMENTARIO OCULTO NO SE CONTESTA.
   //
@@ -717,7 +783,7 @@ async function autonomousCommentReply(
   //
   // Da igual quién lo ocultó —el comercio a mano, el agente por spam, o la
   // propia red—: la fila lo dice y con eso alcanza.
-  if (await estaOculto(db, opts.commentId)) return;
+  if (await estaOculto(db, opts.commentId)) return 'comment_ya_oculto';
 
   // No abrir la puerta a fan-out: el mismo tope por minuto que el alcance de
   // campaña, para que un post viral no dispare cientos de llamadas.
@@ -725,7 +791,7 @@ async function autonomousCommentReply(
     limit: 60,
     windowMs: 60_000,
   });
-  if (!burst.success) return;
+  if (!burst.success) return 'comment_tope_por_minuto';
 
   // "¿Dónde está mi pedido?" NO es intención de compra y el filtro de abajo la
   // habría descartado — justo la pregunta que más urge contestar. Se resuelve
@@ -755,7 +821,7 @@ async function autonomousCommentReply(
   let score: LeadScore = 'medium';
   try {
     const [s] = await scoreLeads(apiKey, [engagement]);
-    if (!s) return;
+    if (!s) return 'comment_sin_clasificar';
     // El spam se oculta y se calla. DECISIÓN DEL COMERCIO, 2026-08-28.
     //
     // Estuvo un rato al revés: `mereceRespuesta` mandaba sobre el clasificador,
@@ -794,7 +860,7 @@ async function autonomousCommentReply(
             s.spam ? 'spam' : 'critica',
           );
       }
-      return;
+      return s.spam ? 'comment_spam' : 'comment_critica';
     }
     // El desinterés sólo descarta cuando no hay nada más que atender: ni una
     // duda de post-venta, ni una crítica, ni una pregunta. "Solo a quien
@@ -806,13 +872,13 @@ async function autonomousCommentReply(
       !orderStatus &&
       !motivo
     ) {
-      return;
+      return 'comment_sin_intencion';
     }
     score = s.score;
   } catch {
     // Sin clasificar no arriesgamos un DM no pedido… salvo que el comercio haya
     // pedido explícitamente contestar a todos.
-    if (!orderStatus && commentCfg.audience === 'intent') return;
+    if (!orderStatus && commentCfg.audience === 'intent') return 'comment_clasificador_fallo';
   }
 
   // Del agente se toma la VOZ, nunca el permiso: Asistentes IA gobierna las
@@ -821,10 +887,10 @@ async function autonomousCommentReply(
   // catálogo, solo que sin herramientas.
   const agent = await resolveIgAgent(db, opts.workspaceId, null);
   // Lo único que se respeta del agente aquí: que la persona pida un humano.
-  if (!commentAgentCanReply(agent, engagement)) return;
+  if (!commentAgentCanReply(agent, engagement)) return 'comment_pide_humano';
 
   const trust = await proactiveGate(db, opts.workspaceId);
-  if (!trust.ok) return;
+  if (!trust.ok) return 'comment_puerta_proactiva';
 
   // El candado de "una sola respuesta privada por comentario" se pide MÁS
   // ABAJO, justo antes de mandar el DM: en los modos que sólo publican en el
@@ -838,7 +904,9 @@ async function autonomousCommentReply(
     : await dmConnectionFor(db, opts.workspaceId, opts.connection, dmChannel);
   // Sin conexión de DM sólo se cae el camino privado: el modo "Solo en el
   // comentario" publica igual, que es justo lo que el comercio pidió.
-  if (!connection && !isTikTok && commentCfg.replyMode !== 'public') return;
+  if (!connection && !isTikTok && commentCfg.replyMode !== 'public') {
+    return 'comment_sin_conexion';
+  }
 
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
@@ -862,7 +930,7 @@ async function autonomousCommentReply(
     commentCfg.maxThreadReplies > 0 &&
     (thread?.ourReplies ?? 0) >= commentCfg.maxThreadReplies
   ) {
-    return;
+    return 'comment_tope_del_hilo';
   }
 
   const segment = resolveIgSegment({
@@ -940,7 +1008,7 @@ async function autonomousCommentReply(
       segment,
     });
   }
-  if (!text.trim()) return;
+  if (!text.trim()) return 'comment_respuesta_vacia';
 
   // Última puerta antes de publicar: que no afirme lo que no le consta. La
   // prohibición está en el prompt y aun así se cuela —el modelo de los agentes
@@ -953,7 +1021,7 @@ async function autonomousCommentReply(
       '[ig-agent] respuesta descartada, afirmaba lo que no le consta:',
       text.slice(0, 160),
     );
-    return;
+    return 'comment_afirma_lo_que_no_sabe';
   }
 
   // Y la otra mitad de lo mismo: si no sabe, no contesta. Prometer en público
@@ -966,7 +1034,7 @@ async function autonomousCommentReply(
       text.slice(0, 160),
     );
     await marcarParaUnaPersona(db, opts.contact.id, engagement);
-    return;
+    return 'comment_prometia_averiguar';
   }
 
   // ¿Además del comentario, hace falta abrir el privado? Lo decide el modo que
@@ -1141,7 +1209,10 @@ async function autonomousCommentReply(
     }
   } catch (err) {
     console.error('[ig-agent] respuesta autónoma falló:', err);
+    return 'comment_error';
   }
+  // Contestado: nada que explicar.
+  return null;
 }
 
 /**
