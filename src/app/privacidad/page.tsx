@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { getT } from "@/lib/i18n/server";
+import Link from "@/components/i18n/locale-link";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { formatDate } from "@/lib/i18n/format";
+import { localizePath } from "@/lib/i18n/routes";
+import { LEGAL_VERSION } from "@/lib/legal/version";
+import { LegalLangSwitch } from "@/components/legal/lang-switch";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
@@ -12,21 +16,30 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const UPDATED = "29 de agosto de 2026";
 const CONTACT = "info@riverzai.com";
 
 export default async function PrivacidadPage() {
   const t = await getT();
+  const locale = await getLocale();
+  const updated = formatDate(`${LEGAL_VERSION}T00:00:00Z`, locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
   return (
     <main className="mx-auto max-w-2xl px-5 py-12 sm:py-16">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("legal.brand")}
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t("legal.brand")}
+        </p>
+        <LegalLangSwitch />
+      </div>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
         {t("legal.privacyTitle")}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {t("legal.updatedLabel", { date: UPDATED })}
+        {t("legal.updatedLabel", { date: updated })}
       </p>
 
       {/* TODO (legal): las secciones de transferencias internacionales, RGPD y
@@ -105,7 +118,7 @@ export default async function PrivacidadPage() {
           <p className="mt-2">
             {t("legal.privacy7Body2Pre")}
             <Link href="/eliminar-datos" className="underline">
-              riverz.co/eliminar-datos
+              riverz.co{localizePath("/eliminar-datos", locale)}
             </Link>
             {t("legal.privacy7Body2End")}
           </p>

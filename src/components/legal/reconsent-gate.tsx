@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { createClient } from "@/lib/supabase/client";

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/locale-link";
+import { LegalLangSwitch } from "@/components/legal/lang-switch";
 import { getT } from "@/lib/i18n/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,9 +25,12 @@ export default async function EliminarDatosPage({
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-12 sm:py-16">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("legal.brand")}
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t("legal.brand")}
+        </p>
+        <LegalLangSwitch />
+      </div>
       <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
         {t("legal.deleteTitle")}
       </h1>
