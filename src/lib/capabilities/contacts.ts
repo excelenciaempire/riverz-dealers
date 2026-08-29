@@ -18,7 +18,20 @@ import { resolveSegment } from '@/lib/segments/resolve'
 import type { SegmentMatchMode, SegmentRule } from '@/lib/segments/types'
 import { applyTags, ensureTag } from '@/lib/contacts/tags'
 import type { Artefacto } from '@/lib/operator/artifacts'
-import { corto, fecha, ficha, filasDe, lista, numero, plata, tabla, tieneCampos, tt } from './vistas'
+import {
+  cambio,
+  cifras,
+  corto,
+  fecha,
+  ficha,
+  filasDe,
+  lista,
+  numero,
+  plata,
+  tabla,
+  tieneCampos,
+  tt,
+} from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 /** Cuántos contactos como mucho devuelve una búsqueda. */
@@ -1003,6 +1016,115 @@ function vistaContactos(ctx: CapabilityContext, r: unknown): Artefacto {
     vacio: tt(ctx, 'operation.vSinContactos'),
   })
 }
+
+function vistaEtiquetas(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{ name: string }>(r, 'etiquetas')
+  return tabla({
+    titulo: tt(ctx, 'operation.vColEtiquetas'),
+    columnas: [{ clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') }],
+    filas: filas.map((e) => ({ nombre: corto(e.name, 40) })),
+    vacio: tt(ctx, 'operation.vSinEtiquetas'),
+  })
+}
+
+function vistaSegmentos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    nombre: string
+    descripcion: string | null
+    criterios: number
+    actualizado: string
+  }>(r, 'segmentos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitSegmentos'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'descripcion', titulo: tt(ctx, 'operation.vColDescripcion') },
+      { clave: 'criterios', titulo: tt(ctx, 'operation.vColCriterios'), alineado: 'der' },
+      { clave: 'actualizado', titulo: tt(ctx, 'operation.vColUltima') },
+    ],
+    filas: filas.map((s) => ({
+      nombre: corto(s.nombre, 28),
+      descripcion: corto(s.descripcion, 40),
+      criterios: numero(ctx, s.criterios),
+      actualizado: fecha(ctx, s.actualizado),
+    })),
+    vacio: tt(ctx, 'operation.vSinSegmentos'),
+  })
+}
+
+/**
+ * Las reglas de un segmento, dibujadas.
+ *
+ * Reusa el kind `segmento` que el banco ya dibuja al crearlo o editarlo: mirar
+ * uno que existe y aprobar uno que se está armando tienen que verse igual.
+ */
+function vistaReglasSegmento(
+  ctx: CapabilityContext,
+  r: Awaited<ReturnType<typeof reglasDeSegmento>>,
+): Artefacto | null {
+  if (!tieneCampos(r, 'nombre', 'reglas')) return null
+  return {
+    kind: 'segmento',
+    nombre: String(r.nombre),
+    reglas: lista<{ field?: string; campo?: string; op?: string; operator?: string; value?: unknown; valor?: unknown }>(
+      r,
+      'reglas',
+    ).map((g) => ({
+      campo: String(g.campo ?? g.field ?? ''),
+      op: String(g.op ?? g.operator ?? ''),
+      valor: corto(g.valor ?? g.value, 40),
+    })),
+  }
+}
+
+/**
+ * A cuánta gente alcanza, y nada más.
+ *
+ * Es un solo número, así que va en cifras y no en tabla: lo que se está por
+ * decidir con esto es si una campaña sale a doscientas personas o a doce mil.
+ */
+function vistaCuantos(ctx: CapabilityContext, r: unknown): Artefacto | null {
+  if (!tieneCampos(r, 'cuantos')) return null
+  const o = r as { cuantos: number; de?: string }
+  return cifras({
+    titulo: tt(ctx, 'operation.vTitAlcance'),
+    bajada: o.de ? String(o.de) : undefined,
+    tiles: [{ etiqueta: tt(ctx, 'operation.subContactos'), valor: numero(ctx, o.cuantos) }],
+  })
+}
+
+/**
+ * Etiquetar (o desetiquetar) a mucha gente de una vez.
+ *
+ * El número es todo: «poner "vip" a 4.300 contactos» y «a 12» son dos
+ * decisiones distintas, y el `preview` la cuenta en una frase que se lee
+ * rápido. Acá el alcance va grande, que es como se mira antes de aprobar.
+ */
+function vistaEtiquetar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const quitar = args.quitar === true
+  return cambio({
+    titulo: corto(args.etiqueta, 40),
+    que: tt(ctx, quitar ? 'operation.vQueQuitarEtiqueta' : 'operation.vQuePonerEtiqueta'),
+  })
+}
+
+/** Una nota queda en la ficha del contacto: la lee el equipo, no el cliente. */
+function vistaAnotar(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitNota'),
+    que: tt(ctx, 'operation.vQueNota'),
+    campos: [{ etiqueta: tt(ctx, 'operation.vColNotas'), despues: String(args.nota ?? '') }],
+  })
+}
+
+/** Borrar una etiqueta la saca de TODOS los contactos que la tenían. */
+function vistaBorrarEtiqueta(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  return cambio({
+    titulo: corto(args.etiqueta ?? args.nombre, 40),
+    que: tt(ctx, 'operation.vQueBorrarEtiqueta'),
+    aviso: tt(ctx, 'operation.vBorrarEtiquetaAviso'),
+  })
+}
 export const CONTACT_CAPABILITIES: Capability[] = [
   {
     key: 'contactos.anotar',
@@ -1033,6 +1155,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       return `Anotaría en la ficha de ${c.name ?? c.phone ?? 'ese contacto'}: "${String(args.nota ?? '')}". No le llega a la persona.`
     },
     run: anotar,
+    artifact: (ctx, args) => vistaAnotar(ctx, args),
   },
   {
     key: 'contactos.listar',
@@ -1077,6 +1200,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listarEtiquetas,
+    vista: (ctx, _args, r) => vistaEtiquetas(ctx, r),
   },
   {
     key: 'segmentos.listar',
@@ -1087,6 +1211,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listarSegmentos,
+    vista: (ctx, _args, r) => vistaSegmentos(ctx, r),
   },
   {
     key: 'segmentos.reglas',
@@ -1103,6 +1228,8 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       required: ['segmento_id'],
     },
     run: reglasDeSegmento,
+    vista: (ctx, _args, r) =>
+      vistaReglasSegmento(ctx, r as Awaited<ReturnType<typeof reglasDeSegmento>>),
   },
   {
     key: 'segmentos.calcular',
@@ -1113,6 +1240,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: { ...ESQUEMA_PUBLICO } },
     run: contar,
+    vista: (ctx, _args, r) => vistaCuantos(ctx, r),
   },
   {
     key: 'contactos.etiquetar',
@@ -1147,6 +1275,7 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       }
     },
     run: etiquetar,
+    artifact: (ctx, args) => vistaEtiquetar(ctx, args),
   },
   {
     key: 'segmentos.crear',
@@ -1288,6 +1417,11 @@ export const CONTACT_CAPABILITIES: Capability[] = [
         : `Crear la etiqueta «${nombre}», sin contactos adentro.`
     },
     run: crearEtiqueta,
+    artifact: (ctx, args) =>
+      cambio({
+        titulo: corto(args.nombre, 40),
+        que: tt(ctx, 'operation.vQueCrearEtiqueta'),
+      }),
   },
   {
     key: 'etiquetas.borrar',
@@ -1334,5 +1468,6 @@ export const CONTACT_CAPABILITIES: Capability[] = [
       return partes.join(' ')
     },
     run: borrarEtiqueta,
+    artifact: (ctx, args) => vistaBorrarEtiqueta(ctx, args),
   },
 ]

@@ -31,6 +31,7 @@ import {
 import type { AiTone, BusinessHours } from '@/lib/ai/types'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { MAX_REGLAS } from '@/lib/ai/guidance'
+import { cambio, corto, fecha, lista, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function listar(ctx: CapabilityContext) {
@@ -787,6 +788,155 @@ async function descuentos(ctx: CapabilityContext, args: Record<string, unknown>)
   }
 }
 
+
+/**
+ * Los agentes y sus reglas, dibujados.
+ *
+ * El detalle de un agente reusa el kind `agente` que el banco ya dibuja al
+ * crearlo: mirar el que existe y aprobar el que se está armando tienen que
+ * verse igual, o compararlos obliga a traducir entre dos formas.
+ */
+function vistaAgente(ctx: CapabilityContext, r: Awaited<ReturnType<typeof detalle>>): Artefacto | null {
+  if (!tieneCampos(r, 'nombre', 'puede')) return null
+  return {
+    kind: 'agente',
+    nombre: String(r.nombre),
+    rol: [r.trabajo, r.estado].filter(Boolean).map(String).join(' · '),
+    puede: lista<string>(r, 'puede'),
+    escala: lista<string>(r, 'escala_si_dicen'),
+  }
+}
+
+function vistaAgentes(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    name: string
+    is_active: boolean
+    scope: string
+    canales: string | string[]
+    priority?: number
+  }>(r)
+  return tabla({
+    titulo: tt(ctx, 'operation.subAgentes'),
+    columnas: [
+      { clave: 'nombre', titulo: tt(ctx, 'operation.vColNombre') },
+      { clave: 'canales', titulo: tt(ctx, 'operation.vColCanal') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+    ],
+    filas: filas.map((a) => ({
+      nombre: corto(a.name, 30),
+      canales: Array.isArray(a.canales) ? corto(a.canales.join(', '), 30) : String(a.canales),
+      estado: a.is_active ? tt(ctx, 'operation.vAtendiendo') : tt(ctx, 'operation.vPausado'),
+    })),
+    vacio: tt(ctx, 'operation.vSinAgentes'),
+  })
+}
+
+/**
+ * Las reglas del negocio.
+ *
+ * Sólo las primeras entran al prompt, así que la lista se lee EN ORDEN: pasado
+ * el tope, una regla más no cambia nada y hay que apagar otra. Por eso el
+ * encabezado dice cuántas entran y las apagadas no se esconden.
+ */
+function vistaReglasNegocio(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    titulo: string
+    cuando: string | null
+    hacer: string
+    activa: boolean
+    para: string
+  }>(r, 'reglas')
+  const entran = (r as { entran_al_prompt?: number } | null)?.entran_al_prompt
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitReglasNegocio'),
+    columnas: [
+      { clave: 'titulo', titulo: tt(ctx, 'operation.vColRegla') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuandoAplica') },
+      { clave: 'hacer', titulo: tt(ctx, 'operation.vColQueHace') },
+      { clave: 'para', titulo: tt(ctx, 'operation.vColPara') },
+      { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
+    ],
+    filas: filas.map((g) => ({
+      titulo: corto(g.titulo, 26),
+      cuando: corto(g.cuando, 34),
+      hacer: corto(g.hacer, 40),
+      para: corto(g.para, 18),
+      estado: g.activa ? tt(ctx, 'operation.vEncendida') : tt(ctx, 'operation.vApagada'),
+    })),
+    total: entran != null && filas.length > entran ? filas.length : undefined,
+    vacio: tt(ctx, 'operation.vSinReglas'),
+  })
+}
+
+/**
+ * Los descuentos que dio la IA.
+ *
+ * Es plata regalada con permiso. La columna que cierra la cuenta es si lo
+ * usaron: un cupón dado y no usado no costó nada, y sin esa columna la lista
+ * asusta el doble de lo que corresponde.
+ */
+function vistaDescuentos(ctx: CapabilityContext, r: unknown): Artefacto {
+  const filas = lista<{
+    codigo: string
+    porcentaje: number | null
+    cliente: string
+    cuando: string
+    usado_el: string | null
+  }>(r, 'descuentos')
+  return tabla({
+    titulo: tt(ctx, 'operation.vTitDescuentos'),
+    columnas: [
+      { clave: 'codigo', titulo: tt(ctx, 'operation.vColCodigo') },
+      { clave: 'cliente', titulo: tt(ctx, 'operation.vColCliente') },
+      { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
+      { clave: 'usado', titulo: tt(ctx, 'operation.vColUsado') },
+      { clave: 'porcentaje', titulo: tt(ctx, 'operation.vColDescuento'), alineado: 'der' },
+    ],
+    filas: filas.map((d) => ({
+      codigo: corto(d.codigo, 18),
+      cliente: corto(d.cliente, 22),
+      cuando: fecha(ctx, d.cuando),
+      usado: d.usado_el ? fecha(ctx, d.usado_el) : tt(ctx, 'operation.vNo'),
+      porcentaje: d.porcentaje != null ? `${d.porcentaje} %` : '—',
+    })),
+    vacio: tt(ctx, 'operation.vSinDescuentos'),
+  })
+}
+
+/** Prender o pausar un agente: es cuándo empieza o deja de contestarle a gente. */
+function vistaActivarAgente(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = args.activa === true
+  return cambio({
+    titulo: tt(ctx, prende ? 'operation.vTitPrenderAgente' : 'operation.vTitPausarAgente'),
+    que: tt(ctx, prende ? 'operation.vQuePrenderAgente' : 'operation.vQuePausarAgente'),
+  })
+}
+
+/** Una regla nueva, con su texto entero: es lo que la IA va a obedecer. */
+function vistaCrearRegla(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const t = (k: string) => tt(ctx, `operation.${k}`)
+  return cambio({
+    titulo: corto(args.titulo, 60),
+    que: t('vQueCrearRegla'),
+    campos: [
+      ...(typeof args.cuando === 'string' && args.cuando
+        ? [{ etiqueta: t('vColCuandoAplica'), despues: String(args.cuando) }]
+        : []),
+      { etiqueta: t('vColQueHace'), despues: String(args.hacer ?? '') },
+    ],
+    // Nace apagada: decirlo evita que alguien apruebe creyendo que ya rige.
+    aviso: t('vReglaNaceApagada'),
+  })
+}
+
+/** Prender o apagar una regla: cambia lo que la IA contesta en el próximo mensaje. */
+function vistaActivarRegla(ctx: CapabilityContext, args: Record<string, unknown>): Artefacto {
+  const prende = args.activa === true
+  return cambio({
+    titulo: tt(ctx, 'operation.vTitReglasNegocio'),
+    que: tt(ctx, prende ? 'operation.vQuePrenderRegla' : 'operation.vQueApagarRegla'),
+  })
+}
 export const AGENT_CAPABILITIES: Capability[] = [
   {
     key: 'agentes.reglas',
@@ -800,6 +950,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
       properties: { solo_activas: { type: 'boolean' } },
     },
     run: reglas,
+    vista: (ctx, _args, r) => vistaReglasNegocio(ctx, r),
   },
 
   {
@@ -826,6 +977,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
       return `Guardaría la regla «${args.titulo}», apagada.${cuando} Al prenderla, la IA hará: ${args.hacer}`
     },
     run: crearRegla,
+    artifact: (ctx, args) => vistaCrearRegla(ctx, args),
   },
 
   {
@@ -850,6 +1002,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
         : `Apagaría la regla «${regla.titulo}». La IA deja de tenerla en cuenta.`
     },
     run: activarRegla,
+    artifact: (ctx, args) => vistaActivarRegla(ctx, args),
   },
 
   {
@@ -864,6 +1017,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
       properties: { limite: { type: 'number', description: 'Por defecto 30, máximo 100.' } },
     },
     run: descuentos,
+    vista: (ctx, _args, r) => vistaDescuentos(ctx, r),
   },
   {
     key: 'agentes.listar',
@@ -874,6 +1028,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: listar,
+    vista: (ctx, _args, r) => vistaAgentes(ctx, r),
   },
 
   {
@@ -980,6 +1135,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
         : `Pausaría «${nombre}». Deja de contestar hasta que lo prendas.`
     },
     run: activarAgente,
+    artifact: (ctx, args) => vistaActivarAgente(ctx, args),
   },
 
   {
@@ -995,6 +1151,7 @@ export const AGENT_CAPABILITIES: Capability[] = [
       required: ['agent_id'],
     },
     run: detalle,
+    vista: (ctx, _args, r) => vistaAgente(ctx, r as Awaited<ReturnType<typeof detalle>>),
   },
 
   {
