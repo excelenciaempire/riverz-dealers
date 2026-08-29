@@ -18,6 +18,15 @@ import { cn } from '@/lib/utils';
  * gratis— ve que está sin cargo y no ve ningún botón de pagar. Es lo honesto:
  * ofrecerle poner una tarjeta a alguien que no la necesita es pedirle plata sin
  * decirlo.
+ *
+ * **No hay cupo de conversaciones.** Había una barra de "8 de 2000" que no
+ * limitaba nada: pasarse no cortaba el servicio ni cobraba un peso, porque el
+ * uso se paga del saldo. Un medidor que no mide nada sólo enseña a desconfiar
+ * del resto de la pantalla.
+ *
+ * **La baja se hace en Stripe**, con el botón Administrar. Tener además un
+ * "cancelar" propio significaba dos caminos para lo mismo, y el nuestro no
+ * sabía de facturas pendientes ni de reembolsos. Uno solo, el que manda.
  */
 
 interface Estado {
@@ -38,7 +47,6 @@ interface Estado {
   precioCentavos: number;
   /** Cuándo se cobra de nuevo. Null mientras no haya suscripción viva. */
   periodoHasta: string | null;
-  puedeCancelar: boolean;
   puedeSuscribirse: boolean;
   tienePortal: boolean;
   cancelarAlFinal: boolean;
@@ -92,28 +100,6 @@ export function BillingPanel() {
     [fetchWithCsrf],
   );
 
-  const cancelar = async (valor: boolean) => {
-    setYendo(true);
-    try {
-      const res = await fetchWithCsrf('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancelar: valor }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!json.ok) {
-        toast.error(json.error ?? 'No se pudo.');
-        return;
-      }
-      const nuevo = await fetch('/api/billing/estado', { cache: 'no-store' });
-      if (nuevo.ok) setE((await nuevo.json()) as Estado);
-    } catch {
-      toast.error('No se pudo.');
-    } finally {
-      setYendo(false);
-    }
-  };
-
   if (cargando) {
     return (
       <div className="flex justify-center py-10">
@@ -144,10 +130,6 @@ export function BillingPanel() {
                   : t('settings.billingTrial', { n: dias });
 
   const { cuenta } = e;
-  const usado = cuenta.incluidas > 0
-    ? Math.min(100, Math.round((cuenta.uso.conversaciones / cuenta.incluidas) * 100))
-    : 0;
-
   return (
     <div className="max-w-xl space-y-5 rounded-xl border border-border p-5">
       <div className="flex items-start justify-between gap-4">
@@ -184,32 +166,6 @@ export function BillingPanel() {
         )}
       </div>
 
-      <div>
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-muted-foreground">{t('settings.billingThisPeriod')}</span>
-          <span className="tabular-nums text-foreground">
-            {t('settings.billingConversations', {
-              n: cuenta.uso.conversaciones,
-              total: cuenta.incluidas,
-            })}
-          </span>
-        </div>
-        <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-muted">
-          <span
-            className={cn(
-              'block h-full rounded-full',
-              cuenta.excedidas > 0 ? 'bg-amber-500' : 'bg-primary',
-            )}
-            style={{ width: `${cuenta.excedidas > 0 ? 100 : usado}%` }}
-          />
-        </span>
-        {cuenta.excedidas > 0 && (
-          <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
-            {t('settings.billingOver', { n: cuenta.excedidas })}
-          </p>
-        )}
-      </div>
-
       {e.estado !== 'cortesia' && (
         <div className="space-y-2 border-t border-border pt-3 text-sm">
           <div className="flex items-baseline justify-between">
@@ -229,36 +185,6 @@ export function BillingPanel() {
                 {new Date(e.periodoHasta).toLocaleDateString()}
               </span>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Cancelar. Al final del período y no al instante: el mes ya está
-          pagado, y cortarlo el mismo día seria quedarse con plata suya. Y se
-          puede volver atrás mientras no termine — arrepentirse tiene que costar
-          un clic, igual que cancelar. */}
-      {e.puedeCancelar && (
-        <div className="border-t border-border pt-3">
-          {e.cancelarAlFinal ? (
-            <button
-              type="button"
-              disabled={yendo}
-              onClick={() => void cancelar(false)}
-              className="text-xs font-medium text-foreground hover:underline disabled:opacity-50"
-            >
-              {t('settings.billingResume')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={yendo}
-              onClick={() => {
-                if (confirm(t('settings.billingCancelConfirm'))) void cancelar(true);
-              }}
-              className="text-xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
-            >
-              {t('settings.billingCancel')}
-            </button>
           )}
         </div>
       )}
