@@ -14,6 +14,7 @@
  * lo que haga falta. Cortarle el acceso a sus propias conversaciones porque nos
  * debe plata sería tomarle de rehén a sus clientes, que no deben nada.
  */
+import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { acceso, leerSuscripcion } from '@/lib/billing/plan'
 import { puedeGastar, leerBilletera, type Billetera } from './saldo'
@@ -216,4 +217,27 @@ export async function estadoDeCobro(
       vistazo: VISTAZO_VACIO,
     }
   }
+}
+
+/**
+ * La puerta, para lo que pide una persona con el dedo.
+ *
+ * Lo automático —la bandeja, los comentarios, las llamadas— se calla sin decir
+ * nada: no hay nadie mirando y el cliente del comercio no tiene por qué
+ * enterarse de que su proveedor se quedó sin saldo. Lo MANUAL es al revés: hay
+ * alguien esperando una respuesta, y merece saber por qué no llega y qué hacer.
+ *
+ * Devuelve un 402 con el motivo, que es lo que la pantalla convierte en el
+ * cartel con el botón de recargar. Null cuando puede seguir.
+ */
+export async function exigirSaldo(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<NextResponse | null> {
+  const puerta = await puertaDeIa(db, workspaceId)
+  if (puerta.puede) return null
+  return NextResponse.json(
+    { error: puerta.motivo ?? 'sin_saldo', saldoCentavos: puerta.saldoCentavos },
+    { status: 402 },
+  )
 }

@@ -68,6 +68,23 @@ export function useFetchWithCsrf(): FetchWithCsrf {
           });
         }
       }
+      // Sin saldo: la pantalla tiene que decirlo, no fallar en silencio.
+      //
+      // El aviso se dispara desde acá —el único lugar por donde pasan todas las
+      // acciones que gastan IA— y no en cada botón: así no hay que acordarse en
+      // el próximo. Quien llamó igual recibe su 402 y decide si además muestra
+      // algo suyo.
+      if (res.status === 402) {
+        const cuerpo = await res
+          .clone()
+          .json()
+          .catch(() => null);
+        const motivo = (cuerpo as { error?: string } | null)?.error ?? "sin_saldo";
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("riverz:sin-saldo", { detail: motivo }));
+        }
+      }
+
       return res;
     },
     [token, refresh],

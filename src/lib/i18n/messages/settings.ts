@@ -1053,6 +1053,21 @@ export const settings = {
   walletEstimate: { es: "estimado", en: "estimate" },
   walletNoCharge: { es: "Sin cargo", en: "No charge" },
 
+  // ── El cartel cuando alguien pide IA y no hay saldo ──
+  sinSaldoTitulo: { es: "Te quedaste sin saldo", en: "You're out of balance" },
+  sinSaldoCuerpo: {
+    es: "La IA se pausó hasta que recargues. La bandeja sigue abierta para contestar a mano.",
+    en: "The AI is paused until you top up. The inbox is still open to answer manually.",
+  },
+  sinSaldoCta: { es: "Recargar saldo", en: "Top up" },
+  sinSaldoCerrar: { es: "Ahora no", en: "Not now" },
+  sinSaldoPlanTitulo: { es: "Tu plan necesita atención", en: "Your plan needs attention" },
+  sinSaldoPlanCuerpo: {
+    es: "El cobro del plan no entró, así que la IA está pausada. Actualiza el pago y vuelve todo.",
+    en: "The plan charge didn't go through, so the AI is paused. Update your payment and it all comes back.",
+  },
+  sinSaldoPlanCta: { es: "Actualizar pago", en: "Update payment" },
+
   // ── Lo que sale FUERA de la app: el checkout de Stripe y los avisos por
   //    WhatsApp. Van acá y no en el componente porque los escribe el servidor,
   //    a veces desde un cron donde no hay pantalla ni cookie de idioma.

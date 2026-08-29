@@ -10,6 +10,7 @@ import { StoreClaimGuard } from "@/components/settings/store-claim-guard";
 import { SectionGuard } from "@/components/layout/section-guard";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { FeatureFlagsProvider } from "@/hooks/use-feature-flags";
+import { SinSaldoDialog } from "@/components/billing/sin-saldo-dialog";
 import type { FeatureFlags } from "@/lib/admin/feature-flags";
 import { useT } from "@/hooks/use-locale";
 import { SaldoProvider } from "@/hooks/use-saldo";
@@ -120,6 +121,7 @@ function DashboardShellInner({
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
+      <SinSaldoDialog />
       <StoreClaimGuard />
       <SectionGuard />
     </div>

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { limitByKey, rateLimitResponse } from '@/lib/rate-limit';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { exigirSaldo } from '@/lib/wallet/puerta';
 
 /**
  * Techo de uso para las rutas que llaman al modelo.
@@ -28,8 +30,8 @@ export const AI_RATE_LIMITS = {
 export type AiBudget = keyof typeof AI_RATE_LIMITS;
 
 /**
- * Devuelve una respuesta 429 si el workspace agotó su cupo, o null si puede
- * seguir. Se usa igual que `csrfGuard`:
+ * Devuelve 429 si el workspace agotó su cupo, 402 si se quedó sin saldo, o null
+ * si puede seguir. Se usa igual que `csrfGuard`:
  *
  *   const over = await aiBudgetGuard(workspaceId, 'heavy');
  *   if (over) return over;
@@ -46,5 +48,16 @@ export async function aiBudgetGuard(
     `ai:${budget}:${workspaceId}`,
     AI_RATE_LIMITS[budget],
   );
-  return result.success ? null : rateLimitResponse(result);
+  if (!result.success) return rateLimitResponse(result);
+
+  // Y el saldo.
+  //
+  // Va acá y no en cada ruta porque es exactamente el mismo conjunto: las siete
+  // rutas que llaman al modelo a pedido de una persona ya pasan por esta
+  // guardia. Poner el cheque en cada una era garantizar que la octava se
+  // olvidara — y esa octava seria IA gratis que paga Riverz.
+  //
+  // Devuelve 402 con el motivo, que la pantalla convierte en el cartel con el
+  // boton de recargar. Lo automatico no pasa por acá: eso se calla y ya está.
+  return await exigirSaldo(supabaseAdmin(), workspaceId);
 }
