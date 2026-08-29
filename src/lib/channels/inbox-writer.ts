@@ -28,6 +28,7 @@ import {
   markOptedIn,
 } from "@/lib/whatsapp/opt-out";
 import { getAdapter } from "./registry";
+import { reclamarTraspaso } from "./webchat/seguir-en-whatsapp";
 import { originFromProactiveKind } from "@/lib/inbox/message-origin";
 
 /**
@@ -509,6 +510,28 @@ export async function ingestInboundEvent(
   // gate a instagram para no cambiar el comportamiento de otros canales (un
   // email solo-asunto o una ubicación de Messenger SÍ deben responderse; sus
   // adapters además emiten texto de fallback, así que no aplica).
+  // ── ¿Viene del chat de la web? ──
+  //
+  // El mensaje trae el código que emitió el widget cuando la persona tocó
+  // "Seguir por WhatsApp". Une las dos fichas, así que el agente sigue la
+  // conversación con todo lo que ya se habló en vez de hacerle repetir todo.
+  //
+  // Va ACÁ, antes de automatizaciones/flujos/IA, porque lo que se gana es
+  // justamente el contexto con el que el agente arma la respuesta.
+  //
+  // Está también en el webhook legacy de WhatsApp: los dos caminos ingestan
+  // mensajes de WhatsApp según cómo esté conectado el comercio, y el que no lo
+  // tuviera dejaba el traspaso mudo sin ningún síntoma. Reclamar dos veces es
+  // imposible —la marca es condicional—, así que tenerlo en los dos no duplica
+  // nada.
+  if (!event.outbound && !event.historical && event.text?.trim()) {
+    await reclamarTraspaso(db, {
+      workspaceId,
+      texto: event.text,
+      contactoWhatsapp: contact,
+    }).catch((e) => console.warn("[inbox] traspaso desde el chat web falló:", e));
+  }
+
   // ── Baja / alta por palabra clave, en TODOS los canales de mensajería ──
   // Antes esto solo existía en el webhook de WhatsApp: un "no me escribas más"
   // por Instagram o Messenger no daba de baja a nadie y el agente proactivo
