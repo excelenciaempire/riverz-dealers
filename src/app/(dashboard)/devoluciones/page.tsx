@@ -32,8 +32,18 @@ interface Devolucion {
   status: Estado;
   resolution: string | null;
   created_at: string;
+  /** Plataforma donde nació. NULL = la abrió el agente desde el chat. */
+  platform: string | null;
+  external_url: string | null;
   contacts?: { name: string | null; email: string | null; phone: string | null } | null;
 }
+
+/** Cómo se llama cada plataforma en pantalla. */
+const PLATAFORMA: Record<string, string> = {
+  mercadolibre: 'Mercado Libre',
+  shopify: 'Shopify',
+  tiendanube: 'Tiendanube',
+};
 
 /** Qué se puede hacer desde cada estado. Un caso rechazado o resuelto está
  *  cerrado: reabrirlo se hace abriendo otro, no volviendo atrás. */
@@ -124,6 +134,18 @@ export default function DevolucionesPage() {
                 {t(d.kind === 'cambio' ? 'returns.kindExchange' : 'returns.kindReturn')}
                 {d.order_number ? ` · #${d.order_number}` : ''}
               </span>
+              {/* Nacida en la plataforma: se decide allá, no acá. El enlace
+                  evita tener que buscarla a mano entre los reclamos. */}
+              {d.platform ? (
+                <a
+                  href={d.external_url ?? '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {PLATAFORMA[d.platform] ?? d.platform}
+                </a>
+              ) : null}
               <span className="ml-auto text-xs text-muted-foreground">
                 {format.date(d.created_at)}
               </span>
@@ -163,7 +185,10 @@ export default function DevolucionesPage() {
               <p className="mt-2 text-xs text-muted-foreground">{d.resolution}</p>
             ) : null}
 
-            {SIGUIENTES[d.status].length > 0 ? (
+            {/* Sin botones para las de la plataforma: el estado lo manda ella
+                (aprobar, reembolsar y mandar la etiqueta ocurre allá), y
+                cambiarlo acá sólo lograría que las dos versiones no coincidan. */}
+            {!d.platform && SIGUIENTES[d.status].length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {SIGUIENTES[d.status].map((s) => (
                   <Button

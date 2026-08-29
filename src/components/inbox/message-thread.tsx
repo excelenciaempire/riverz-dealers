@@ -386,6 +386,35 @@ export function MessageThread({
     };
   }, []);
 
+  // ¿El reclamo sigue abierto? Mercado Libre sólo acepta el descargo mientras
+  // la mediación está en curso; con el expediente cerrado el compositor sería
+  // una promesa que al enviar falla. `null` = todavía no se sabe.
+  const [claimOpen, setClaimOpen] = useState<boolean | null>(null);
+  useEffect(() => {
+    setClaimOpen(null);
+    const thread = conversation?.thread_external_id ?? "";
+    if (
+      mlThreadKind(conversation?.channel ?? "whatsapp", thread) !== "claim" ||
+      !conversation?.workspace_id
+    )
+      return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await createClient()
+        .from("ml_claims")
+        .select("status")
+        .eq("workspace_id", conversation.workspace_id)
+        .eq("claim_id", thread.slice("claim:".length))
+        .maybeSingle();
+      if (!cancelled) {
+        setClaimOpen((data as { status?: string } | null)?.status !== "closed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.thread_external_id, conversation?.channel, conversation?.workspace_id]);
+
   // Resolve the publication a comment thread is about (thumbnail +
   // caption + permalink) so the agent sees which ad/post it's on.
   useEffect(() => {
@@ -1861,12 +1890,11 @@ export function MessageThread({
           {t("inbox.mlReviewNoReply")}
         </div>
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
-        "claim" ? (
-        /* El reclamo se LEE acá —incluido lo que el vendedor haya contestado
-           desde Mercado Libre— pero el descargo se presenta allá: la mediación
-           tiene formulario, plazos y adjuntos propios. */
+          "claim" && claimOpen === false ? (
+        /* Mediación cerrada: ya no se puede escribir en ella. Mercado Libre
+           rechaza el envío, así que se dice antes de que lo escriba. */
         <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
-          {t("inbox.mlClaimNoReply")}
+          {t("inbox.mlClaimClosed")}
         </div>
       ) : (
         /* Composer — the 24h session-window check only applies to

@@ -2,8 +2,6 @@
 
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { BadgeCheck } from "lucide-react";
-import { useT } from "@/hooks/use-locale";
 
 /**
  * Obra a sangre, una por pantalla.
@@ -41,12 +39,10 @@ export type Arte = (typeof ARTE)[keyof typeof ARTE];
  * que tienen diez mil aplicaciones, y la primera que ve alguien que todavía no
  * decidió si nos va a confiar su WhatsApp.
  *
- * Ahora es una pantalla partida. A la izquierda el fondo noche de la portada
- * con una pieza del producto flotando encima; a la derecha el formulario y
- * nada más. Debajo de la ilustración van las credenciales: la duda de quien
- * vende por WhatsApp es que el número se le caiga, y éste es el momento exacto
- * en que la tiene — decirlo acá vale más que decirlo en una portada que ya
- * leyó hace rato.
+ * Ahora es una pantalla partida. A la izquierda la obra, entera y sin nada
+ * encima salvo el nombre; a la derecha el formulario y nada más. Hubo un
+ * titular con tres credenciales sobre la obra y se fueron: quien llega acá ya
+ * leyó la portada, y una imagen que vale por sí sola no necesita pie de foto.
  *
  * Por debajo de `lg` la tira desaparece entera y queda el formulario con la
  * marca arriba: en un teléfono, media pantalla de adorno es media pantalla
@@ -60,54 +56,27 @@ export function MarcoAuth({
   /** La pieza que acompaña a ESTA pantalla. */
   arte?: Arte;
 }) {
-  const t = useT();
-  const credenciales = [
-    t("auth.trustOfficialApi"),
-    t("auth.trustReviewed"),
-    t("auth.trustYourNumber"),
-  ];
-
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       {/* ── La tira ── */}
       <aside className="relative hidden overflow-hidden lg:block">
         <Image src={arte} alt="" fill sizes="50vw" priority className="object-cover" />
-        {/* Un velo que sube desde abajo y nada más. La obra ya está compuesta
-            con el pie oscuro, así que no hace falta una cortina sobre todo. */}
+        {/* Un velo corto desde arriba, y solo por la marca. La obra cambia de
+            pantalla en pantalla y en una de ellas la corriente pasa justo por
+            donde va el nombre; sin este piso, «riverz» se pierde contra la
+            parte encendida. El resto del cuadro queda limpio. */}
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="absolute inset-x-0 top-0 h-44"
           style={{
             background:
-              "linear-gradient(to top, rgba(6,12,11,0.94) 0%, rgba(6,12,11,0.6) 32%, rgba(6,12,11,0) 62%)",
+              "linear-gradient(to bottom, rgba(6,12,11,0.72) 0%, rgba(6,12,11,0.34) 45%, rgba(6,12,11,0) 100%)",
           }}
         />
 
         <span className="absolute left-12 top-12 text-[26px] font-semibold lowercase leading-none tracking-[0.04em] text-sidebar-primary xl:left-16 xl:top-14">
           riverz
         </span>
-
-        <div className="absolute inset-x-12 bottom-12 xl:inset-x-16 xl:bottom-14">
-          <p className="max-w-[15ch] text-[34px] font-medium leading-[1.06] tracking-[-0.03em] text-sidebar-foreground xl:text-[38px]">
-            {t("auth.frameTitle")}
-          </p>
-
-          <ul className="mt-7 flex flex-col gap-2.5">
-            {credenciales.map((c) => (
-              <li
-                key={c}
-                className="flex items-center gap-2.5 text-[13.5px] text-sidebar-foreground/75"
-              >
-                <BadgeCheck
-                  aria-hidden
-                  strokeWidth={1.75}
-                  className="size-[17px] shrink-0 text-sidebar-primary"
-                />
-                {c}
-              </li>
-            ))}
-          </ul>
-        </div>
       </aside>
 
       {/* ── El formulario ── */}

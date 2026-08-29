@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   let q = ctx.admin
     .from('returns')
     .select(
-      'id, order_number, kind, reason, customer_note, photos, status, resolution, created_at, decided_at, contact_id, conversation_id, contacts(name, email, phone)',
+      'id, order_number, kind, reason, customer_note, photos, status, resolution, created_at, decided_at, contact_id, conversation_id, platform, external_url, contacts(name, email, phone)',
     )
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
@@ -86,7 +86,11 @@ export async function PATCH(request: Request) {
     .eq('id', id)
     // El recorte de cuenta: sin esto un id suelto movía la devolución de otro
     // comercio, y esta ruta corre con llave de servicio.
-    .eq('workspace_id', ctx.workspaceId);
+    .eq('workspace_id', ctx.workspaceId)
+    // Las espejadas de una plataforma no se deciden acá: su estado lo escribe
+    // el sincronizador y la próxima corrida pisaría el cambio, dejando a la
+    // pantalla diciendo una cosa y a Mercado Libre otra.
+    .is('platform', null);
   if (error) return NextResponse.json({ error: 'update_failed' }, { status: 502 });
 
   return NextResponse.json({ ok: true });

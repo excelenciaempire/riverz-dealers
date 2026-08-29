@@ -149,6 +149,28 @@ export async function POST(
     // pagos alcanza con tildar `payment` en la consola — no hay que
     // reemplazar ninguna URL.
     if (channel === "mercadolibre") {
+      // Reenvío a la otra aplicación del comercio.
+      //
+      // Mercado Libre tiene UNA sola `notifications_callback_url` por
+      // aplicación, y la de este comercio apuntaba a su sistema de
+      // contabilidad: Riverz no recibía un solo aviso y todo entraba por el
+      // sondeo, con hasta cinco minutos de retraso. Cambiar la URL a Riverz
+      // dejaría a la contabilidad sin avisos, así que Riverz los recibe y los
+      // repite tal cual al destino anterior. Sin `MERCADOLIBRE_NOTIFY_MIRROR_URL`
+      // no hace nada.
+      const mirror = process.env.MERCADOLIBRE_NOTIFY_MIRROR_URL;
+      if (mirror && rawBody.length > 0) {
+        void fetch(mirror, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: rawBody,
+        }).catch((err) =>
+          log.warn("no se pudo repetir el aviso de Mercado Libre", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+
       const note = payload as { topic?: string; type?: string; user_id?: unknown } | null;
       if (isPaymentTopic(note?.topic ?? note?.type)) {
         const sellerId = String(note?.user_id ?? "").trim();

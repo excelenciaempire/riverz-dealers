@@ -571,9 +571,9 @@ export const inbox = {
     en: "Mercado Libre does not allow replying to reviews",
   },
   mlClaimMediation: { es: "Reclamo en mediación", en: "Claim under mediation" },
-  mlClaimNoReply: {
-    es: "El descargo del reclamo se presenta en Mercado Libre",
-    en: "Claim responses are submitted on Mercado Libre",
+  mlClaimClosed: {
+    es: "Reclamo cerrado: Mercado Libre ya no acepta mensajes",
+    en: "Claim closed: Mercado Libre no longer accepts messages",
   },
   mlQuestionPublic: { es: "Pregunta pública", en: "Public question" },
   mlMessagePostSale: { es: "Mensaje post-venta", en: "Post-sale message" },

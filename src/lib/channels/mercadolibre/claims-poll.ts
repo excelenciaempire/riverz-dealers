@@ -44,6 +44,7 @@ interface MlClaim {
   date_created?: string;
   last_updated?: string;
   players?: Array<{ role?: string; user_id?: number | string }>;
+  resolution?: { reason?: string } | null;
 }
 
 interface MlClaimMessage {
@@ -163,9 +164,17 @@ export async function syncClaimsForConnection(
   }
 
   const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
+  const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
   let claims = 0;
   let ingested = 0;
   for (const [claimId, claim] of found) {
+    // Sólo los reclamos que le hacen AL comercio. `claims/search` devuelve
+    // también aquellos en los que el comercio es quien reclama —una compra
+    // suya, una cancelación contra el correo— y esos no son atención al
+    // cliente. Peor: ahí los roles se invierten, así que sin este filtro los
+    // mensajes propios entrarían como si los hubiera escrito un cliente.
+    if (ourRole(claim, sellerId) !== "respondent") continue;
+
     const open = claim.status !== "closed";
     const changed = !previous.has(claimId) || previous.get(claimId) !== String(claim.last_updated ?? "");
 
@@ -199,8 +208,73 @@ export async function syncClaimsForConnection(
       { onConflict: "workspace_id,claim_id" },
     );
     if (!error) claims++;
+
+    // Una devolución no se atiende en la bandeja: se decide en /devoluciones,
+    // junto a las que abre el agente desde el chat.
+    if (claim.type === "returns") await mirrorReturn(db, conn, claim);
   }
   return { claims, ingested };
+}
+
+/** Qué papel juega el comercio en este reclamo: quien reclama o quien responde. */
+function ourRole(claim: MlClaim, sellerId: string): string | null {
+  if (!sellerId) return null;
+  const me = claim.players?.find((p) => String(p.user_id ?? "") === sellerId);
+  return me?.role ?? null;
+}
+
+/**
+ * La devolución de Mercado Libre, en la lista de devoluciones de Riverz.
+ *
+ * Es un ESPEJO: se aprueba, se reembolsa y se manda la etiqueta en Mercado
+ * Libre, que es donde la plataforma la tramita. Lo que aporta la fila es que
+ * el comercio la vea junto a las que abre el agente por chat, en vez de tener
+ * que acordarse de mirar dos sitios.
+ */
+async function mirrorReturn(
+  db: SupabaseClient,
+  conn: ChannelConnection,
+  claim: MlClaim,
+): Promise<void> {
+  const claimId = String(claim.id ?? "");
+  if (!claimId) return;
+  const orderId = claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null;
+
+  // El pedido espejado, si está: la fila queda enlazada al pedido y no suelta.
+  let orderRowId: string | null = null;
+  let contactId: string | null = null;
+  if (orderId) {
+    const { data } = await db
+      .from("orders")
+      .select("id, contact_id")
+      .eq("workspace_id", conn.workspace_id)
+      .eq("shop_domain", `mercadolibre:${(conn.config as Record<string, unknown> | null)?.seller_id}`)
+      .eq("shopify_order_id", orderId)
+      .maybeSingle();
+    const row = data as { id?: string; contact_id?: string | null } | null;
+    orderRowId = row?.id ?? null;
+    contactId = row?.contact_id ?? null;
+  }
+
+  await db.from("returns").upsert(
+    {
+      workspace_id: conn.workspace_id,
+      platform: "mercadolibre",
+      external_id: claimId,
+      external_url: `https://www.mercadolibre.com.ar/reclamos/${claimId}`,
+      order_id: orderRowId,
+      contact_id: contactId,
+      order_number: orderId,
+      kind: "devolucion",
+      reason: claim.reason_id ?? null,
+      // El estado lo manda la plataforma: en Riverz esta fila no se decide.
+      status: claim.status === "closed" ? "resuelta" : "abierta",
+      resolution: claim.status === "closed" ? (claim.resolution?.reason ?? null) : null,
+      created_by: "sync",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "workspace_id,platform,external_id" },
+  );
 }
 
 /** Reclamos por estado. `sort=date_desc` es el ÚNICO orden que respeta. */

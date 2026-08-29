@@ -13,6 +13,7 @@ import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
+import type { Locale } from "@/lib/i18n/config";
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -146,7 +147,34 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       return { externalMessageId: externalId ?? undefined, status: "sent" };
     }
 
-    throw new Error("[mercadolibre] no resolvable target (question/pack) for this reply");
+    if (target.startsWith("claim:")) {
+      // Descargo dentro de la mediación. Mercado Libre sólo lo acepta mientras
+      // el reclamo está abierto; cerrado devuelve 4xx y su motivo se muestra
+      // tal cual, que es más útil que un "no se pudo enviar".
+      const claimId = target.slice(6);
+      const res = await fetch(
+        `${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`,
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            receiver_role: "complainant",
+            message: input.text.slice(0, 2000),
+          }),
+        },
+      );
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`[mercadolibre] claim message failed (${res.status}): ${detail}`);
+      }
+      await res.json().catch(() => ({}));
+      return {
+        externalMessageId: await newestClaimMessageHash(claimId, token),
+        status: "sent",
+      };
+    }
+
+    throw new Error("[mercadolibre] no resolvable target (question/pack/claim) for this reply");
   },
 
   /**
@@ -166,6 +194,12 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       (input.conversation as { thread_external_id?: string })?.thread_external_id ??
       input.replyToExternalId ??
       "";
+    // La mediación tiene su propio almacén de adjuntos: la foto se sube al
+    // expediente del reclamo y viaja con el descargo. Es justo donde más falta
+    // hace —el comprobante de despacho es la prueba del vendedor.
+    if (target.startsWith("claim:")) {
+      return sendClaimMedia(target.slice(6), input, token, locale);
+    }
     if (!target.startsWith("pack:")) {
       throw new Error(translate(locale, "errInbox.attachmentQuestionUnsupported"));
     }
@@ -568,6 +602,93 @@ export async function resolveMlNickname(
     if (!r.ok) return undefined;
     const u = (await r.json()) as { nickname?: string };
     return u.nickname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Descargo con archivo dentro de un reclamo.
+ *
+ * Dos pasos, como en el resto de Mercado Libre: primero el archivo al
+ * expediente (`/attachments`, multipart), después el mensaje citando el nombre
+ * que devolvió. Un adjunto que no sube corta el envío en vez de mandar el
+ * texto solo: en una mediación la foto ES el argumento.
+ */
+async function sendClaimMedia(
+  claimId: string,
+  input: OutboundMedia,
+  token: string,
+  locale: Locale,
+): Promise<SendResult> {
+  const file = await fetchAttachmentBytes(input.mediaUrl);
+  if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
+  const filename = input.filename || attachmentFilename(input.mediaUrl, file.mime);
+
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(file.buffer)], { type: file.mime }), filename);
+  const upRes = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/attachments`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!upRes.ok) {
+    const detail = await upRes.text().catch(() => "");
+    throw new Error(`[mercadolibre] claim attachment failed (${upRes.status}): ${detail}`);
+  }
+  const uploaded = (await upRes.json().catch(() => ({}))) as {
+    filename?: string;
+    id?: string;
+  };
+  const attachmentId = uploaded.filename ?? uploaded.id;
+  if (!attachmentId) throw new Error("[mercadolibre] claim attachment returned no id");
+
+  const res = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      receiver_role: "complainant",
+      message: (input.caption ?? "").slice(0, 2000),
+      attachments: [attachmentId],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`[mercadolibre] claim message failed (${res.status}): ${detail}`);
+  }
+  await res.json().catch(() => ({}));
+  return { externalMessageId: await newestClaimMessageHash(claimId, token), status: "sent" };
+}
+
+/**
+ * El `hash` del último mensaje propio dentro del reclamo.
+ *
+ * El POST del descargo no devuelve ese hash, y el hash es justo la clave con
+ * la que el sondeo de reclamos deduplica: sin releerlo, el mensaje enviado
+ * desde Riverz volvería a entrar como una fila nueva en la corrida siguiente y
+ * el hilo mostraría el descargo dos veces.
+ */
+async function newestClaimMessageHash(
+  claimId: string,
+  token: string,
+): Promise<string | undefined> {
+  try {
+    const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return undefined;
+    const raw = (await r.json()) as
+      | Array<{ sender_role?: string; hash?: string; message_date?: string; date_created?: string }>
+      | { data?: Array<{ sender_role?: string; hash?: string; message_date?: string; date_created?: string }> };
+    const list = Array.isArray(raw) ? raw : (raw.data ?? []);
+    const mine = list.filter((m) => m.sender_role === "respondent" && m.hash);
+    let newest: (typeof mine)[number] | undefined;
+    for (const m of mine) {
+      const tb = Date.parse(m.message_date ?? m.date_created ?? "") || 0;
+      const ta = newest ? Date.parse(newest.message_date ?? newest.date_created ?? "") || 0 : -1;
+      if (tb >= ta) newest = m;
+    }
+    return newest?.hash;
   } catch {
     return undefined;
   }
