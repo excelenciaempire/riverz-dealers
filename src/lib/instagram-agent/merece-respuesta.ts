@@ -132,6 +132,35 @@ const HOSTILIDAD = [
   'mentir', 'mentiras', 'trucha', 'truchas', 'trucho', 'truchos',
   'chanta', 'chantas', 'verguenza', 'vergüenza', 'basura', 'porqueria',
   'porquería', 'no le crean', 'no compren',
+  // Insultos al contenido o a la marca. Estaban afuera y no deberían: el
+  // 2026-08-28 "Qué video tan boludo!!!!!" pasó el filtro y quedó a la vista
+  // debajo de la publicación. No discute ningún dato, así que no hay nada
+  // que contestarle. Van con y sin tilde porque `normalizar` no las saca y
+  // la gente escribe de las dos formas.
+  'boludo', 'boluda', 'pelotudo', 'pelotuda', 'idiota',
+  'estupido', 'estupida', 'estúpido', 'estúpida',
+  'ridiculo', 'ridicula', 'ridículo', 'ridícula',
+  'pesimo', 'pesima', 'pésimo', 'pésima',
+  'estafa', 'estafan', 'estafador', 'estafadores',
+  'chamuyo', 'chamuyeros',
+];
+
+/**
+ * El reproche por la CONDUCTA de la marca, que no usa ninguna palabra
+ * hostil y por eso se colaba entero.
+ *
+ * Tres comentarios en dos días sobre la misma publicación decían la misma
+ * cosa —"no deberías hablar mal de otras marcas"— y a dos de ellos se les
+ * contestó en público, que es justo lo que sube el hilo al principio.
+ *
+ * `horrible`, `asco` y `mala` quedan deliberadamente afuera de todas estas
+ * listas: "tengo la piel horrible" es una clienta contando su problema, no
+ * una crítica, y ocultarla sería perder la venta y taparle la boca.
+ */
+const REPROCHE = [
+  'hablar mal', 'habla mal', 'hablan mal', 'hablas mal',
+  'no deberia', 'no debería', 'no deberian', 'no deberían',
+  'no deberias', 'no deberías',
 ];
 
 const INTERROGATIVOS = [
@@ -176,6 +205,7 @@ export function esCriticaPublica(texto: string): boolean {
     contiene(t, DUDA) ||
     contiene(t, LEGAL) ||
     contiene(t, HOSTILIDAD) ||
+    contiene(t, REPROCHE) ||
     IA_SUELTA.test(t)
   );
 }
