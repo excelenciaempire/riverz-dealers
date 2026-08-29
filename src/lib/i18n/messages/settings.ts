@@ -252,6 +252,10 @@ export const settings = {
     es: "A este número te preguntamos lo que la IA no decide sola, como un pago informado que no cierra.",
     en: "We message this number when the AI can't decide on its own — like a reported payment that doesn't add up.",
   },
+  phoneMoreNumbers: {
+    es: "¿Avisar a más de un número?",
+    en: "Notify more than one number?",
+  },
   phoneInvalid: {
     es: "Ese número no parece válido. Incluye el código de país.",
     en: "That number doesn't look valid. Include the country code.",

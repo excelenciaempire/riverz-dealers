@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { CampoTelefono } from '@/components/ui/campo-telefono';
+import Link from '@/components/i18n/locale-link';
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -358,7 +359,18 @@ export function ProfileForm() {
               onChange={setPhone}
               disabled={saving}
             />
-            <p className="text-xs text-muted-foreground">{t('settings.phoneHint')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('settings.phoneHint')}{' '}
+              {/* Los números extra son del EQUIPO, no de este perfil: viven en
+                  la otra pestaña. Sin este puntero, quien quiere avisar a dos
+                  personas los busca acá y concluye que no se puede. */}
+              <Link
+                href="/ajustes?tab=workspace"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                {t('settings.phoneMoreNumbers')}
+              </Link>
+            </p>
           </div>
 
           {/* Read-only block */}
