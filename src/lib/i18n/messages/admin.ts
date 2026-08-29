@@ -689,6 +689,12 @@ export const admin = {
   statusError: { es: "Con error", en: "Error" },
   statusPending: { es: "Pendiente", en: "Pending" },
   statusExpired: { es: "Vencido", en: "Expired" },
+  // Las tiendas (`shopify_connections`) no usan los mismos estados que los
+  // canales de mensajería: su CHECK admite active/uninstalled/expired/error.
+  // Sin estas dos, la tabla imprimía la clave cruda — `admin.statusActive` —
+  // en cada fila de Shopify y Tiendanube.
+  statusActive: { es: "Conectada", en: "Connected" },
+  statusUninstalled: { es: "Desinstalada", en: "Uninstalled" },
 
   // ── Auditoría ──
   auditTitle: { es: "Auditoría", en: "Audit" },

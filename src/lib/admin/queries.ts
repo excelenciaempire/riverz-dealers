@@ -581,7 +581,7 @@ export interface ChannelRow {
 export async function listChannels(opts: {
   channel?: string;
   status?: string;
-}): Promise<{ rows: ChannelRow[]; channels: string[] }> {
+}): Promise<{ rows: ChannelRow[]; channels: string[]; statuses: string[] }> {
   // `config` trae `health_status`, que es lo único de ese jsonb que mira el
   // panel. No es un secreto (los secretos viven en `secrets`, que la barrera
   // bloquea), pero se recorta acá para no arrastrar el resto al navegador.
@@ -613,17 +613,27 @@ export async function listChannels(opts: {
   // leer la primera de esas tablas.
   const comercio = await listCommerceConnections();
 
-  // El catálogo de tipos se arma SIN el filtro de canal: si no, elegir uno
-  // dejaría la lista con una sola opción y sin forma de volver.
-  const { data: tipos } = await safeSelect(db(), 'channel_connections', 'channel').limit(
-    2000,
-  );
+  // Los catálogos se arman SIN los filtros: si no, elegir un canal dejaría la
+  // lista con una sola opción y sin forma de volver.
+  const { data: tipos } = await safeSelect(
+    db(),
+    'channel_connections',
+    'channel, status',
+  ).limit(2000);
+  const crudos = (tipos ?? []) as unknown as { channel: string; status: string }[];
+
   const channels = [
-    ...new Set([
-      ...((tipos ?? []) as unknown as { channel: string }[]).map((r) => r.channel),
-      ...comercio.map((r) => r.channel),
-    ]),
+    ...new Set([...crudos.map((r) => r.channel), ...comercio.map((r) => r.channel)]),
   ].sort();
+
+  // Los estados también salen de los datos. Las tiendas no usan los mismos que
+  // los canales de mensajería —su CHECK admite `active` y `uninstalled`— así
+  // que la lista escrita a mano no los ofrecía y no había forma de filtrarlos.
+  const statuses = [
+    ...new Set([...crudos.map((r) => r.status), ...comercio.map((r) => r.status)]),
+  ]
+    .filter(Boolean)
+    .sort();
 
   const filtradas = comercio.filter(
     (f) =>
@@ -639,6 +649,7 @@ export async function listChannels(opts: {
       workspace_name: names.get(r.workspace_id) ?? null,
     })),
     channels,
+    statuses,
   };
 }
 

@@ -36,7 +36,6 @@ import { Choice, RefreshButton } from "../_components/filters";
  * La lista de tipos la arma el servidor a partir de los datos. Escrita a mano
  * acá se quedó atrás sin que nada fallara: le faltaba `webchat`.
  */
-const STATUSES = ["connected", "disconnected", "error", "pending", "expired"];
 
 /** Salud de todas las conexiones de la plataforma. */
 export default function AdminChannelsPage() {
@@ -49,6 +48,7 @@ export default function AdminChannelsPage() {
   const { data, loading, error, reload, live } = useAdminData<{
     rows: ChannelRow[];
     channels: string[];
+    statuses: string[];
   }>(url);
 
   const rows = data?.rows ?? [];
@@ -56,10 +56,11 @@ export default function AdminChannelsPage() {
   // había ya no incluía `webchat`, así que esas filas se veían pero no se
   // podían filtrar y nada fallaba para avisarlo.
   const channels = data?.channels ?? [];
+  const statuses = data?.statuses ?? [];
   const broken = rows.filter(
     (r) => r.status === "error" || r.status === "expired",
   ).length;
-  const connected = rows.filter((r) => r.status === "connected").length;
+  const connected = rows.filter((r) => CONECTADO.has(r.status)).length;
 
   const columns = useMemo<Column<ChannelRow>[]>(
     () => [
@@ -180,7 +181,7 @@ export default function AdminChannelsPage() {
               onChange={setStatus}
               options={[
                 { value: "", label: t("admin.all") },
-                ...STATUSES.map((s) => ({
+                ...statuses.map((s) => ({
                   value: s,
                   label: t(`admin.status${capitalize(s)}`),
                 })),
@@ -232,8 +233,18 @@ export default function AdminChannelsPage() {
   );
 }
 
+/**
+ * Los dos vocabularios de estado.
+ *
+ * Los canales de mensajería dicen `connected`; las tiendas, `active`. Es la
+ * misma cosa para quien mira esta pantalla, así que se pintan igual — y se
+ * cuentan igual en el contador de arriba, que antes dejaba afuera a todas las
+ * tiendas conectadas.
+ */
+const CONECTADO = new Set(["connected", "active"]);
+
 function tone(status: string): Tone {
-  if (status === "connected") return "ok";
+  if (CONECTADO.has(status)) return "ok";
   if (status === "error" || status === "expired") return "error";
   if (status === "pending") return "warn";
   return "muted";
