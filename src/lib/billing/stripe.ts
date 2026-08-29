@@ -160,52 +160,50 @@ async function darLaBienvenida(
     .from('wallet_accounts')
     .upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' })
 
-  const [{ sendPlatformAlert }, { aQuienAvisar }, { enviarCorreo }] = await Promise.all([
-    import('@/lib/admin/platform-whatsapp'),
-    import('@/lib/ai/aviso-escalada'),
+  const [{ destinosDeAviso, avisarATodos }, { enviarCorreo }] = await Promise.all([
+    import('@/lib/avisos/destinos'),
     import('@/lib/admin/correo'),
   ])
 
-  const { data: fila } = await db
+  // Los mismos destinos que cualquier aviso de plata: los números que el
+  // comercio cargó y el de quien puso la tarjeta. Antes la bienvenida elegía
+  // UNO —el de Stripe si existía, y si no el del perfil— así que el equipo que
+  // había cargado tres números no se enteraba de que la cuenta ya estaba
+  // activa.
+  const telefonos = await destinosDeAviso(db, workspaceId, 'plata')
+
+  // El correo: el de quien pagó, y si no el del dueño de la cuenta.
+  let correo: string | null = null
+  const { data: sus } = await db
     .from('workspace_subscriptions')
     .select('stripe_customer_id')
     .eq('workspace_id', workspaceId)
     .maybeSingle()
-  const customerId = (fila as { stripe_customer_id?: string | null } | null)
+  const customerId = (sus as { stripe_customer_id?: string | null } | null)
     ?.stripe_customer_id
-
-  // Los datos que dejó QUIEN PAGÓ, que es a quien hay que escribirle. El perfil
-  // de la app puede ser de otra persona —quien instaló la cuenta, un socio— y
-  // el aviso terminaba en un teléfono que no era el suyo, o en ninguno.
-  let telefonoStripe: string | null = null
-  let correoStripe: string | null = null
   if (customerId) {
     try {
       const cliente = await stripe().customers.retrieve(customerId)
-      if (!('deleted' in cliente && cliente.deleted)) {
-        telefonoStripe = cliente.phone ?? null
-        correoStripe = cliente.email ?? null
-      }
+      if (!('deleted' in cliente && cliente.deleted)) correo = cliente.email ?? null
     } catch (e) {
       console.error('[billing] no se pudo leer el cliente de Stripe', e)
     }
   }
-
-  const telefono = telefonoStripe ?? (await aQuienAvisar(db, workspaceId))
-  const { data: perfil } = await db
-    .from('workspaces')
-    .select('owner_id')
-    .eq('id', workspaceId)
-    .maybeSingle()
-  const ownerId = (perfil as { owner_id?: string | null } | null)?.owner_id ?? null
-  let correo = correoStripe
-  if (!correo && ownerId) {
-    const { data: p } = await db
-      .from('profiles')
-      .select('email')
-      .eq('user_id', ownerId)
+  if (!correo) {
+    const { data: ws } = await db
+      .from('workspaces')
+      .select('owner_id')
+      .eq('id', workspaceId)
       .maybeSingle()
-    correo = (p as { email?: string | null } | null)?.email ?? null
+    const ownerId = (ws as { owner_id?: string | null } | null)?.owner_id ?? null
+    if (ownerId) {
+      const { data: p } = await db
+        .from('profiles')
+        .select('email')
+        .eq('user_id', ownerId)
+        .maybeSingle()
+      correo = (p as { email?: string | null } | null)?.email ?? null
+    }
   }
 
   const { data } = await db
@@ -221,14 +219,14 @@ async function darLaBienvenida(
     saldo: `US$${(saldo / 100).toFixed(2)}`,
   })
 
-  // Los dos salen si los dos se pueden. Un aviso duplicado molesta; uno que no
-  // sale, no se nota — y este es el que le confirma a alguien que su plata
+  // Los dos canales, si los dos se pueden. Un aviso duplicado molesta; uno que
+  // no sale, no se nota — y este es el que le confirma a alguien que su plata
   // llegó a algún lado.
   const via: string[] = []
-  if (telefono) {
-    const r = await sendPlatformAlert({ to: telefono, title: titulo, body: cuerpo })
-    if (r.ok) via.push('whatsapp')
-    else console.error('[billing] bienvenida por whatsapp falló:', r.error)
+  const porWhatsapp = await avisarATodos(telefonos, { title: titulo, body: cuerpo })
+  if (porWhatsapp.ok) via.push(`whatsapp x${porWhatsapp.enviados}`)
+  else if (telefonos.length > 0) {
+    console.error('[billing] bienvenida por whatsapp falló:', porWhatsapp.error)
   }
   if (correo && (await enviarCorreo(correo, `Riverz · ${titulo}`, cuerpo))) {
     via.push('correo')
@@ -236,7 +234,7 @@ async function darLaBienvenida(
   if (via.length === 0) {
     console.error('[billing] no se pudo dar la bienvenida', {
       workspaceId,
-      telefono: Boolean(telefono),
+      telefonos: telefonos.length,
       correo: Boolean(correo),
     })
   }

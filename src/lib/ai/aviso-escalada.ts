@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Channel } from '@/types';
-import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp';
 import type { Escalada } from './escalada';
 
 /**
@@ -237,7 +236,9 @@ export async function avisarEscalada(
         .eq('id', d.conversationId);
     };
 
-    const telefono = await aQuienAvisar(db, d.workspaceId);
+    const { destinosDeAviso, avisarATodos } = await import('@/lib/avisos/destinos');
+    const telefonos = await destinosDeAviso(db, d.workspaceId, 'operacion');
+    const telefono = telefonos[0] ?? null;
     if (!telefono) {
       console.warn(
         '[escalada] hay un caso para una persona y no hay a quién avisarle:',
@@ -248,7 +249,9 @@ export async function avisarEscalada(
     }
 
     const { titulo, cuerpo } = textoDelAviso(d);
-    const res = await sendPlatformAlert({ to: telefono, title: titulo, body: cuerpo });
+    // A todos los que el comercio cargó: en un turno de noche el que puede
+    // meterse en el caso no es siempre el mismo.
+    const res = await avisarATodos(telefonos, { title: titulo, body: cuerpo });
     if (!res.ok) {
       console.warn('[escalada] no se pudo avisar por WhatsApp:', res.error);
       await soltar();

@@ -20,11 +20,9 @@
  *    aviso llegaría un día tarde o no llegaría.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
-import { telefonosDeAviso } from '@/lib/ai/aviso-escalada'
+import { destinosDeAviso, avisarATodos } from '@/lib/avisos/destinos'
 import { acceso, aSuscripcion } from '@/lib/billing/plan'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
-import { stripe, stripeDisponible } from '@/lib/billing/stripe'
 import { translate } from '@/lib/i18n/translate'
 
 /** Saldo por debajo del cual se avisa, si la cuenta no fijó su propio umbral. */
@@ -48,52 +46,6 @@ const HACE = (horas: number) =>
   new Date(Date.now() - horas * 60 * 60 * 1000).toISOString()
 
 const usd = (centavos: number) => `US$${(centavos / 100).toFixed(2)}`
-
-/**
- * A qué teléfonos se le avisa a un comercio.
- *
- * Dos, y por buenas razones distintas: el **del comercio** —el que cargó en la
- * app para lo que la IA no decide sola— y el **de quien paga**, que quedó en
- * Stripe. Muchas veces no son la misma persona: en el primer cliente, la cuenta
- * es de un correo y el que puso la tarjeta es otro. Avisarle sólo al primero es
- * contarle el problema a quien no puede resolverlo.
- *
- * Si son el mismo número, sale un solo mensaje: se comparan por dígitos, así
- * que «+54 9 11…» y «5491161047646» cuentan como uno.
- */
-async function aQuienesAvisar(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<string[]> {
-  const digitos = (t: string) => t.replace(/\D/g, '')
-  const salida = new Map<string, string>()
-
-  // Todos los del comercio: el principal y los que haya cargado de más.
-  const delComercio = await telefonosDeAviso(db, workspaceId).catch(() => [])
-  for (const t of delComercio) {
-    if (digitos(t)) salida.set(digitos(t), t)
-  }
-
-  try {
-    const { data } = await db
-      .from('workspace_subscriptions')
-      .select('stripe_customer_id')
-      .eq('workspace_id', workspaceId)
-      .maybeSingle()
-    const id = (data as { stripe_customer_id?: string | null } | null)?.stripe_customer_id
-    if (id && stripeDisponible()) {
-      const cliente = await stripe().customers.retrieve(id)
-      const tel =
-        !('deleted' in cliente && cliente.deleted) && cliente.phone ? cliente.phone : null
-      if (tel && digitos(tel)) salida.set(digitos(tel), tel)
-    }
-  } catch (e) {
-    // Que Stripe no conteste no puede dejar sin aviso al número del comercio.
-    console.error('[wallet/avisos] no se pudo leer el teléfono de Stripe', e)
-  }
-
-  return [...salida.values()]
-}
 
 export interface Avisados {
   saldo: number
@@ -159,7 +111,7 @@ async function avisarSaldo(db: SupabaseClient): Promise<{ n: number; detalle: st
       .maybeSingle()
     if ((sus as { estado?: string } | null)?.estado === 'cortesia') continue
 
-    const telefonos = await aQuienesAvisar(db, f.workspace_id)
+    const telefonos = await destinosDeAviso(db, f.workspace_id, 'plata')
     if (telefonos.length === 0) {
       detalle.push(`${f.workspace_id}: sin número cargado`)
       continue
@@ -177,13 +129,7 @@ async function avisarSaldo(db: SupabaseClient): Promise<{ n: number; detalle: st
     const cuerpo = vacio
       ? translate(locale, 'settings.avisoSinSaldoCuerpo')
       : translate(locale, 'settings.avisoSaldoBajoCuerpo', { saldo: usd(saldo) })
-    const envios = await Promise.all(
-      telefonos.map((to) => sendPlatformAlert({ to, title: titulo, body: cuerpo })),
-    )
-    const r = {
-      ok: envios.some((e) => e.ok),
-      error: envios.find((e) => !e.ok)?.error,
-    }
+    const r = await avisarATodos(telefonos, { title: titulo, body: cuerpo })
     await db
       .from('wallet_accounts')
       .update({ avisado_en: new Date().toISOString() })
@@ -228,7 +174,7 @@ async function avisarPlan(db: SupabaseClient): Promise<{ n: number; detalle: str
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s = aSuscripcion(cruda as any)
     const a = acceso(s)
-    const telefonos = await aQuienesAvisar(db, s.workspaceId)
+    const telefonos = await destinosDeAviso(db, s.workspaceId, 'plata')
     if (telefonos.length === 0) {
       detalle.push(`${s.workspaceId}: sin número cargado`)
       continue
@@ -242,13 +188,7 @@ async function avisarPlan(db: SupabaseClient): Promise<{ n: number; detalle: str
     const cuerpo = a.puede
       ? translate(locale, 'settings.avisoPlanFalloCuerpo', { horas: a.horasDeGracia ?? 48 })
       : translate(locale, 'settings.avisoPlanPausadaCuerpo')
-    const envios = await Promise.all(
-      telefonos.map((to) => sendPlatformAlert({ to, title: titulo, body: cuerpo })),
-    )
-    const r = {
-      ok: envios.some((e) => e.ok),
-      error: envios.find((e) => !e.ok)?.error,
-    }
+    const r = await avisarATodos(telefonos, { title: titulo, body: cuerpo })
     await db
       .from('workspace_subscriptions')
       .update({ aviso_plan_en: new Date().toISOString() })
