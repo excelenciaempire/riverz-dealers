@@ -80,6 +80,60 @@ export function sinRestosDelModelo(texto: string): string {
 }
 
 /**
+ * ¿ESTE MENSAJE PROMETE AVERIGUAR Y VOLVER?
+ *
+ * El 2026-08-28 alguien preguntó por Instagram si el sérum era argentino y la
+ * respuesta fue:
+ *
+ *     "El dato del país de fabricación no lo tengo a mano, así que no te lo
+ *      quiero afirmar de memoria. Lo confirmo y te lo digo acá mismo."
+ *
+ * Trece horas después no había vuelto nadie. No existía nada que cumpliera esa
+ * promesa: ni recordatorio, ni cola, ni aviso. La persona quedó esperando algo
+ * que el sistema no podía dar, en el medio de una compra.
+ *
+ * La regla del dueño: la IA contesta con lo que sabe, y si no sabe **no dice
+ * nada** y entra una persona. Prometer que vuelve es lo peor de los dos
+ * mundos: la clienta se queda esperando y además cree que alguien está
+ * trabajando en su pregunta.
+ *
+ * Por eso donde esto da verdadero el mensaje NO SALE: el hilo queda marcado
+ * para una persona, sale el aviso por WhatsApp y la pregunta se anota como
+ * hueco de conocimiento.
+ *
+ * **La precisión importa más que la cobertura.** Un falso positivo silencia
+ * una respuesta buena y llama a una persona al pedo, así que sólo entran dos
+ * cosas que no admiten otra lectura: que admita no saber, y que aplace
+ * explícitamente. Queda AFUERA "voy a verificar tu pedido", que muchas veces
+ * lo verifica y contesta en el mismo mensaje; y "te confirmo cuando salga el
+ * envío", que es una promesa que el sistema cumple solo.
+ */
+const PROMESAS_DE_VOLVER: RegExp[] = [
+  // 1. ADMITE QUE NO SABE. Es la señal más limpia que existe: nadie escribe
+  //    "no tengo ese dato" cuando lo tiene.
+  //    "no lo tengo a mano", "no tengo ese dato", "no lo sé con certeza"
+  /\bno\s+(lo\s+|la\s+|te\s+lo\s+)?(tengo|s[ée]|se|puedo\s+confirmar(te)?)\b[^.!?]{0,25}\b(a mano|ese dato|el dato|esa informaci[óo]n|con certeza|con exactitud|de memoria|con seguridad)\b/i,
+  // "no te lo quiero afirmar", "prefiero no afirmarte"
+  /\b(no\s+te\s+lo\s+quiero|prefiero\s+no)\s+(afirmar|asegurar|confirmar|decir)/i,
+
+  // 2. LO DEJA PARA DESPUÉS, explícitamente. Ojo: acá NO entra "voy a
+  //    verificar tu pedido", que muchas veces lo verifica y contesta en el
+  //    mismo mensaje. Sólo lo que aplaza sin lugar a dudas.
+  //    "lo confirmo y te lo digo", "eso lo averiguo y te aviso"
+  /\b(lo|te lo|eso|esto)\s+(consulto|verifico|chequeo|confirmo|averiguo|pregunto)\b[^.!?]{0,40}\b(te\s+)?(aviso|digo|confirmo|respondo|comento|escribo|paso)\b/i,
+  // "estoy averiguando", "me estoy fijando"
+  /\b(estoy|me estoy)\s+(consultando|averiguando|verificando|chequeando|fij[áa]ndome)\b/i,
+  // "te vuelvo a escribir con el dato"
+  /\bte\s+(vuelvo a escribir|escribo de nuevo|contesto)\b[^.!?]{0,25}\b(con|apenas|cuando)\b[^.!?]{0,25}\b(dato|informaci[óo]n|respuesta|confirmaci[óo]n)\b/i,
+];
+
+export function prometeAveriguar(texto: string | null | undefined): boolean {
+  const t = (texto ?? '').normalize('NFC');
+  if (!t.trim()) return false;
+  return PROMESAS_DE_VOLVER.some((re) => re.test(t));
+}
+
+/**
  * Alfabetos que no tienen nada que hacer en un mensaje en español: CJK,
  * cirílico y árabe. El resto no se toca: acentos, ñ y emojis son parte de
  * cómo escribe cualquiera.

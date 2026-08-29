@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
-import { salidaParaCliente, recortarSalida } from '@/lib/ai/salida';
+import {
+  salidaParaCliente,
+  recortarSalida,
+  prometeAveriguar,
+} from '@/lib/ai/salida';
 import {
   afirmaLoQueNoSabe,
   instruccionPara,
@@ -125,6 +129,46 @@ async function campaignForContact(
     return { ...row, plan };
   }
   return null;
+}
+
+/**
+ * El comentario queda esperando a una persona.
+ *
+ * Se usa cuando la IA no sabe la respuesta: no se publica nada y el hilo se
+ * marca, así aparece en el filtro "Necesita humano" de la bandeja en vez de
+ * quedar mezclado con todo lo demás. Sin esto, "no contestar" y "nadie se
+ * entera" son lo mismo.
+ *
+ * Best-effort de punta a punta: lo importante —no publicar una promesa vacía—
+ * ya pasó antes de llegar acá.
+ */
+async function marcarParaUnaPersona(
+  db: SupabaseClient,
+  contactId: string,
+  pregunta: string,
+): Promise<void> {
+  try {
+    const { data } = await db
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contactId)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const convId = (data as { id: string } | null)?.id;
+    if (!convId) return;
+    await db
+      .from('conversations')
+      .update({
+        needs_human_at: new Date().toISOString(),
+        needs_human_reason: 'answer_gap',
+        needs_human_summary: `Preguntó: "${pregunta.slice(0, 200)}". La IA no sabe la respuesta.`,
+      })
+      .eq('id', convId)
+      .is('needs_human_at', null);
+  } catch (err) {
+    console.error('[ig-agent] no se pudo marcar para una persona:', err);
+  }
 }
 
 /** Has this contact asked to stop receiving messages? (compliance gate) */
@@ -908,6 +952,19 @@ async function autonomousCommentReply(
       '[ig-agent] respuesta descartada, afirmaba lo que no le consta:',
       text.slice(0, 160),
     );
+    return;
+  }
+
+  // Y la otra mitad de lo mismo: si no sabe, no contesta. Prometer en público
+  // que va a averiguar y volver es peor que callarse — queda escrito debajo de
+  // la publicación, lo lee cualquiera que pase, y nadie vuelve. Sin respuesta,
+  // el comentario queda para una persona.
+  if (prometeAveriguar(text)) {
+    console.warn(
+      '[ig-agent] respuesta descartada, prometía averiguar y volver:',
+      text.slice(0, 160),
+    );
+    await marcarParaUnaPersona(db, opts.contact.id, engagement);
     return;
   }
 
