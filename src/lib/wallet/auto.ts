@@ -129,17 +129,66 @@ export async function guardarTarjetaDesdeEvento(
       : (setup.payment_method?.id ?? null)
   if (!metodo) return 'setup_intent sin método de pago'
 
+  // La marca y los últimos cuatro, para que la pantalla pueda decir CUÁL
+  // tarjeta quedó. "Hay una tarjeta" no le sirve a quien tiene tres.
+  let marca: string | null = null
+  let ultimos4: string | null = null
+  try {
+    const pm = await stripe().paymentMethods.retrieve(metodo)
+    marca = pm.card?.brand ?? null
+    ultimos4 = pm.card?.last4 ?? null
+  } catch (e) {
+    console.error('[wallet] no se pudo leer la tarjeta', e)
+  }
+
+  const { data: antes } = await db
+    .from('wallet_accounts')
+    .select('stripe_payment_method_id')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  const anterior = (antes as { stripe_payment_method_id?: string | null } | null)
+    ?.stripe_payment_method_id ?? null
+
   await db.from('wallet_accounts').upsert(
     {
       workspace_id: workspaceId,
       stripe_payment_method_id: metodo,
+      tarjeta_marca: marca,
+      tarjeta_ultimos4: ultimos4,
       auto_fallos: 0,
       auto_ultimo_error: null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'workspace_id' },
   )
-  return `${workspaceId}: tarjeta guardada`
+
+  // Cambiar la tarjeta tiene que cambiarla EN TODO.
+  //
+  // Sin esto, la nueva sólo servía para las recargas automáticas: la
+  // mensualidad seguía cobrándose a la vieja, que es justo la que la persona
+  // acaba de dejar de usar — y el cobro rebotaba igual, sin que se entendiera
+  // por qué. Se pone como predeterminada del cliente y se despega la anterior,
+  // para que no quede una tarjeta muerta guardada en Stripe.
+  const cliente =
+    typeof sesion.customer === 'string' ? sesion.customer : (sesion.customer?.id ?? null)
+  if (cliente) {
+    try {
+      await stripe().customers.update(cliente, {
+        invoice_settings: { default_payment_method: metodo },
+      })
+    } catch (e) {
+      console.error('[wallet] no se pudo dejar la tarjeta como predeterminada', e)
+    }
+  }
+  if (anterior && anterior !== metodo) {
+    try {
+      await stripe().paymentMethods.detach(anterior)
+    } catch (e) {
+      console.error('[wallet] no se pudo despegar la tarjeta anterior', e)
+    }
+  }
+
+  return `${workspaceId}: tarjeta guardada${ultimos4 ? ` ····${ultimos4}` : ''}`
 }
 
 export interface ConfigAuto {

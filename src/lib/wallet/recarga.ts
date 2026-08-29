@@ -22,16 +22,22 @@ import { localeDeCuenta } from '@/lib/i18n/cuenta'
 /**
  * Lo mínimo y lo máximo que se puede cargar de una vez, en centavos.
  *
- * El mínimo era 10 USD y sobraba: alguien escribía 5 —un monto perfectamente
- * razonable— y le salía "no se pudo abrir la recarga", que además no decía por
- * qué. Cinco dólares dan para 250 respuestas de la IA; que la plataforma decida
- * que es poco es decidir por el comercio con su plata.
+ * Tres dólares. La plataforma no tiene por qué opinar sobre cuánto es "poco":
+ * quien quiere probar con lo justo antes de confiarnos su operación está
+ * haciendo exactamente lo que haría cualquiera. Un mínimo alto no protege a
+ * nadie — sólo frena al que todavía no confía.
  */
-export const MINIMO_CENTAVOS = 500
+export const MINIMO_CENTAVOS = 300
 export const MAXIMO_CENTAVOS = 500_000
 
-/** Los montos que ofrece el panel. El comercio igual puede escribir otro. */
-export const SUGERIDOS_CENTAVOS = [2500, 5000, 10_000, 20_000]
+/**
+ * Los montos que ofrece el panel. El comercio igual puede escribir otro.
+ *
+ * Arrancan en 10 y no en 25: el primero de la fila es el que dice "esto se
+ * puede probar con poco", y a 5,5 centavos la respuesta, diez dólares son casi
+ * doscientas conversaciones atendidas.
+ */
+export const SUGERIDOS_CENTAVOS = [1000, 2500, 5000, 10_000]
 
 function volverA(path: string): string {
   const base =

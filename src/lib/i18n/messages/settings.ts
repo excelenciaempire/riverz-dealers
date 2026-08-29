@@ -1016,7 +1016,7 @@ export const settings = {
     en: "Couldn't open the top-up.",
   },
   walletOther: { es: "Otro", en: "Other" },
-  walletMin: { es: "Mínimo US$5", en: "Minimum US$5" },
+  walletMin: { es: "Mínimo US$3", en: "Minimum US$3" },
   walletEmpty: {
     es: "Te quedaste sin saldo. La cuenta sigue funcionando, pero conviene recargar.",
     en: "You're out of balance. The account still works, but it's worth topping up.",

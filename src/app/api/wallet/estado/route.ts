@@ -65,6 +65,8 @@ export async function GET(request: Request) {
       // La recarga automática, tal como la ve el comercio.
       auto: {
         tieneTarjeta: billetera.tieneTarjeta,
+        marca: billetera.tarjetaMarca,
+        ultimos4: billetera.tarjetaUltimos4,
         recargaCentavos: billetera.autoRecargaCentavos,
         umbralCentavos: billetera.autoUmbralCentavos,
         fallos: billetera.autoFallos,

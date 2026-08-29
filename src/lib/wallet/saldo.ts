@@ -34,6 +34,10 @@ export interface Billetera {
   autoUmbralCentavos: number | null
   /** Si hay una tarjeta guardada en Stripe para cobrar sin que nadie mire. */
   tieneTarjeta: boolean
+  /** La marca, para el logo. Null si se guardó antes de que se registrara. */
+  tarjetaMarca: string | null
+  /** Los últimos cuatro: lo único que hace falta para reconocerla. */
+  tarjetaUltimos4: string | null
   /**
    * El consumo se descuenta a lo que costó, sin margen. Para los primeros
    * clientes, mientras el precio todavía se está descubriendo.
@@ -54,13 +58,15 @@ interface FilaCuenta {
   auto_recarga_centavos: number | null
   auto_umbral_centavos: number | null
   stripe_payment_method_id: string | null
+  tarjeta_marca: string | null
+  tarjeta_ultimos4: string | null
   cobrar_a_costo: boolean | null
   auto_fallos: number | null
   auto_ultimo_error: string | null
 }
 
 const COLUMNAS =
-  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos, stripe_payment_method_id, cobrar_a_costo, auto_fallos, auto_ultimo_error'
+  'workspace_id, saldo_centavos, moneda, descubierto_centavos, bloquear_sin_saldo, auto_recarga_centavos, auto_umbral_centavos, stripe_payment_method_id, tarjeta_marca, tarjeta_ultimos4, cobrar_a_costo, auto_fallos, auto_ultimo_error'
 
 function aBilletera(f: FilaCuenta): Billetera {
   return {
@@ -72,6 +78,8 @@ function aBilletera(f: FilaCuenta): Billetera {
     autoRecargaCentavos: f.auto_recarga_centavos,
     autoUmbralCentavos: f.auto_umbral_centavos,
     tieneTarjeta: Boolean(f.stripe_payment_method_id),
+    tarjetaMarca: f.tarjeta_marca ?? null,
+    tarjetaUltimos4: f.tarjeta_ultimos4 ?? null,
     cobrarACosto: f.cobrar_a_costo === true,
     autoFallos: f.auto_fallos ?? 0,
     autoUltimoError: f.auto_ultimo_error ?? null,
@@ -115,6 +123,8 @@ export async function leerBilletera(
         autoRecargaCentavos: null,
         autoUmbralCentavos: null,
         tieneTarjeta: false,
+        tarjetaMarca: null,
+        tarjetaUltimos4: null,
         cobrarACosto: false,
         autoFallos: 0,
         autoUltimoError: null,

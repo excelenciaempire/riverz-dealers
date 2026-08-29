@@ -10,6 +10,7 @@ import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
 
 /**
  * El saldo, y en qué se fue.
@@ -72,6 +73,8 @@ interface Estado {
   sugeridos: number[];
   auto: {
     tieneTarjeta: boolean;
+    marca: string | null;
+    ultimos4: string | null;
     recargaCentavos: number | null;
     umbralCentavos: number | null;
     fallos: number;
@@ -328,14 +331,21 @@ export function WalletPanel() {
                 </Button>
               ))}
               <div className="flex items-center gap-1">
-                <Input
-                  value={otro}
-                  onChange={(ev) => setOtro(ev.target.value.replace(/[^\d]/g, ''))}
-                  placeholder={t('settings.walletOther')}
-                  title={t('settings.walletMin')}
-                  inputMode="numeric"
-                  className="h-9 w-24"
-                />
+                {/* El signo adentro del campo: sin él, «10» al lado de botones
+                    que dicen «10,00 US$» se lee como otra cosa. */}
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    value={otro}
+                    onChange={(ev) => setOtro(ev.target.value.replace(/[^\d]/g, ''))}
+                    placeholder={t('settings.walletOther')}
+                    title={t('settings.walletMin')}
+                    inputMode="numeric"
+                    className="h-9 w-24 pl-6"
+                  />
+                </div>
                 <Button
                   size="sm"
                   disabled={yendo || !otro}
@@ -377,12 +387,28 @@ export function WalletPanel() {
                   : t('settings.walletAutoOff')}
               </p>
             </div>
-            <Button variant="outline" size="sm" disabled={yendo} onClick={() => void irPorTarjeta()}>
-              <CreditCard className="size-4" />
-              {auto.tieneTarjeta
-                ? t('settings.walletCardChange')
-                : t('settings.walletCardAdd')}
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
+                  tiene tres: sin la marca y los últimos cuatro, ante la duda la
+                  cambia — o no la cambia porque no sabe si hace falta. */}
+              {auto.tieneTarjeta && auto.ultimos4 && (
+                <span className="flex items-center gap-2 text-sm text-foreground">
+                  <LogoTarjeta marca={auto.marca} />
+                  <span className="tabular-nums">···· {auto.ultimos4}</span>
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={yendo}
+                onClick={() => void irPorTarjeta()}
+              >
+                <CreditCard className="size-4" />
+                {auto.tieneTarjeta
+                  ? t('settings.walletCardChange')
+                  : t('settings.walletCardAdd')}
+              </Button>
+            </div>
           </div>
 
           {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
@@ -399,7 +425,7 @@ export function WalletPanel() {
                   placeholder={
                     auto.recargaCentavos !== null
                       ? String(auto.recargaCentavos / 100)
-                      : '50'
+                      : '10'
                   }
                   inputMode="numeric"
                   className="mt-1 h-9 w-28"
@@ -415,7 +441,7 @@ export function WalletPanel() {
                   placeholder={
                     auto.umbralCentavos !== null
                       ? String(auto.umbralCentavos / 100)
-                      : '10'
+                      : '1'
                   }
                   inputMode="numeric"
                   className="mt-1 h-9 w-28"
