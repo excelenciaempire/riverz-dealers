@@ -336,22 +336,56 @@ async function sondaOpenAICompat(
 ): Promise<Proveedor> {
   const p = base({ id, nombre, categoria: 'llm', recargable: true, url, detalleKey })
   if (!key) return sinLlave(p, llave)
-  try {
-    const r = await pedir(`${baseUrl}/chat/completions`, {
+
+  const cabeceras = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
+  const tirar = (m: string) =>
+    pedir(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: cabeceras,
       body: JSON.stringify({
-        model: modelo,
+        model: m,
         max_tokens: 1,
         messages: [{ role: 'user', content: 'hi' }],
       }),
     })
+
+  try {
+    let r = await tirar(modelo)
+
+    // El modelo de la sonda se pudre solo: Groq retiró `llama-3.1-8b-instant` y
+    // desde entonces contestaba 404, que el panel mostraba como «respondió con
+    // error» — indistinguible de una cuenta sin saldo, sobre una llave sana.
+    //
+    // Cuando el modelo no existe se pregunta cuáles hay y se reintenta con el
+    // primero. Cuesta una llamada más sólo el día que el catálogo cambia, y a
+    // cambio la sonda no vuelve a envejecer.
+    if (r.status === 404) {
+      const otro = await primerModelo(baseUrl, cabeceras)
+      if (otro) r = await tirar(otro)
+    }
+
     if (r.status === 200) return { ...p, estado: 'ok' }
     if (r.status === 402) return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
     if (r.status === 429) return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
     return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
   } catch {
     return sinRespuesta(p)
+  }
+}
+
+/** Un modelo que el proveedor tenga hoy, para reintentar la sonda. */
+async function primerModelo(
+  baseUrl: string,
+  cabeceras: Record<string, string>,
+): Promise<string | null> {
+  try {
+    const r = await pedir(`${baseUrl}/models`, { headers: cabeceras })
+    if (!r.ok) return null
+    const j = (await r.json()) as { data?: { id?: string; active?: boolean }[] }
+    const vivo = (j.data ?? []).find((m) => m.id && m.active !== false)
+    return vivo?.id ?? null
+  } catch {
+    return null
   }
 }
 
@@ -644,7 +678,7 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
         'Groq',
         'https://api.groq.com/openai/v1',
         process.env.GROQ_API_KEY,
-        'llama-3.1-8b-instant',
+        'openai/gpt-oss-20b',
         'admin.svcBackupLlm',
         'https://console.groq.com/settings/billing',
         'GROQ_API_KEY',
