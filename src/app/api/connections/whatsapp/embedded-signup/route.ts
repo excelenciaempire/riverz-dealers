@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { asegurarPlantillasBase } from "@/lib/whatsapp/plantillas-base";
 import {
   upsertSingleWhatsAppConnection,
   syncLegacyWhatsAppConfig,
@@ -277,6 +278,33 @@ export async function POST(req: Request): Promise<Response> {
     } catch (err) {
       console.warn("[whatsapp/embedded-signup] template purge failed:", err);
     }
+
+    // Las plantillas que el comercio va a necesitar, mandadas a aprobar ahora.
+    //
+    // Meta no deja escribirle a nadie fuera de las 24 horas sin una plantilla
+    // aprobada, y la aprobación tarda horas. Sin esto, el comercio conecta,
+    // arma el carrito abandonado, y descubre recién ahí que no puede activarlo
+    // porque no hay ninguna plantilla que elegir. Mandarlas al conectar es la
+    // diferencia entre esperar una tarde y esperar mientras trabaja.
+    //
+    // No se espera y no puede tumbar la conexión: recibir mensajes funciona
+    // desde el primer segundo, y las plantillas son para después.
+    void asegurarPlantillasBase(admin, {
+      workspaceId: body.workspace_id,
+      userId: user.id,
+    })
+      .then((r) => {
+        if (r.creadas.length > 0 || r.fallaron.length > 0) {
+          console.log("[whatsapp/embedded-signup] plantillas base:", {
+            creadas: r.creadas.length,
+            yaEstaban: r.yaEstaban.length,
+            fallaron: r.fallaron,
+          });
+        }
+      })
+      .catch((err) =>
+        console.warn("[whatsapp/embedded-signup] plantillas base fallaron:", err),
+      );
 
     // 6. Comprobar que la cuenta PUEDA enviar antes de decir que quedó lista.
     //    Se lee después de conectar a propósito: asignar nuestra app como
