@@ -24,6 +24,7 @@ import { fmtMoney } from '@/lib/shopify/create-checkout'
 import { resolveOfferChosen } from '@/lib/shopify/offers'
 import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
 import { marcarCuponesUsados } from '@/lib/shopify/discounts'
+import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido'
 import type {
   AutomationTriggerType,
   Channel,
@@ -101,13 +102,17 @@ export async function POST(request: Request) {
     const incomingFulfillment =
       (order.fulfillment_status as string | null | undefined) ?? null
 
-    // Reconciliar el espejo en Riverz (tabla orders, migración 080). Sólo
-    // afecta a pedidos creados por la IA — en cualquier otro pedido el
-    // update no matchea ninguna fila y es un no-op. Best-effort.
+    // El espejo en Riverz (tabla `orders`, migración 080). Antes esto era un
+    // UPDATE: sólo tocaba los pedidos que había creado la IA, y una venta
+    // hecha por una persona sola en la tienda no matcheaba ninguna fila y no
+    // quedaba registrada en ningún lado. Ahora la fila se crea si no existe.
+    // Best-effort: el pedido ya está hecho, esto no puede tumbar el webhook.
     if (orderId > 0) {
-      await reconcileRiverzOrder(admin, shopDomain, order, orderId).catch((err) =>
-        console.error('[shopify] reconcile riverz order failed:', err),
-      )
+      await espejarPedidoDeShopify(admin, {
+        workspaceId,
+        shopDomain,
+        order,
+      }).catch((err) => console.error('[shopify] espejo del pedido falló:', err))
     }
 
     // Historial de compras del contacto (migración 172). Va ANTES de decidir
@@ -423,67 +428,6 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ ok: true })
   }
-}
-
-/**
- * Mantiene en sync la fila de `orders` (Riverz) que la IA creó para este
- * pedido de Shopify. Matchea por (shop_domain, shopify_order_id); si el
- * pedido no lo creó la IA, no hay fila y el update no hace nada.
- *
- * `status` sólo AVANZA (cancelled > fulfilled > paid) para no degradar una
- * fila ya marcada como pagada/enviada en un update no relacionado.
- */
-async function reconcileRiverzOrder(
-  admin: ReturnType<typeof supabaseAdmin>,
-  shopDomain: string,
-  order: Record<string, unknown>,
-  orderId: number,
-): Promise<void> {
-  const financial = (order.financial_status as string | null) ?? null
-  const fulfillment = (order.fulfillment_status as string | null) ?? null
-  const cancelled = !!order.cancelled_at
-
-  const update: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  }
-  if (financial) update.financial_status = financial
-  if (fulfillment) update.fulfillment_status = fulfillment
-  if (order.order_status_url) update.order_status_url = order.order_status_url
-  // Token del checkout que cerró este pedido (migración 128). Es la clave de
-  // `shopify_checkouts`, así que deja el pedido y su carrito unívocamente
-  // emparejados para la atribución. Los pedidos que crea la IA vía Admin API
-  // no nacen de un checkout y quedan sin token, que es lo correcto.
-  const checkoutToken = String(order.checkout_token ?? order.cart_token ?? '').trim()
-  if (checkoutToken) update.checkout_token = checkoutToken
-  if (order.total_price != null) {
-    const t =
-      typeof order.total_price === 'number'
-        ? order.total_price
-        : parseFloat(String(order.total_price))
-    if (!Number.isNaN(t)) update.total_price = t
-  }
-  if (cancelled) update.status = 'cancelled'
-  // 'cancelled' y no 'refunded': `orders_status_check` no admite ese valor y
-  // el UPDATE entero fallaba, así que un pedido devuelto en Shopify se
-  // quedaba figurando como pagado en Riverz —y sumando a los ingresos— para
-  // siempre. Es además como ya lo guardan Mercado Libre y Tiendanube.
-  //
-  // El reembolso PARCIAL no entra acá. Devolver $5 de envío de un pedido de
-  // $100 no cancela nada, y darlo por cancelado le sacaba al comercio los $95
-  // enteros del ingreso y escondía el pedido del agente —la consulta de
-  // posventa descarta los cancelados—, así que la clienta que llamaba por ese
-  // mismo envío escuchaba "no encontré ningún pedido activo". Lo único que se
-  // mueve es `financial_status`, que ya se guardó arriba.
-  else if (financial === 'refunded' || financial === 'voided')
-    update.status = 'cancelled'
-  else if (fulfillment === 'fulfilled') update.status = 'fulfilled'
-  else if (financial === 'paid') update.status = 'paid'
-
-  await admin
-    .from('orders')
-    .update(update)
-    .eq('shop_domain', shopDomain)
-    .eq('shopify_order_id', String(orderId))
 }
 
 /** ¿El pedido lo originó el asistente? Link con riverz_origin=ai

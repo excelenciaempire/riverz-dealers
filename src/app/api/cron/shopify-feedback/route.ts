@@ -6,6 +6,7 @@ import { runAutomationById } from '@/lib/automations/engine'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { withCronRun } from "@/lib/cron/heartbeat";
+import { sincronizarPedidosDeShopify } from '@/lib/shopify/sincronizar-pedidos'
 
 /**
  * Cron de feedback post-entrega (Pilar).
@@ -53,6 +54,21 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin()
+
+  // El espejo de pedidos, de paso. Va acá y no en un cron propio porque
+  // Render cobra un mínimo mensual POR cron y este ya corre cada hora sobre
+  // las mismas tiendas: un servicio nuevo sería otro mínimo para mover los
+  // mismos datos.
+  //
+  // El webhook ya deja cada pedido nuevo en `orders`; esto recupera los que
+  // se perdió (Shopify reintenta 48 h y después abandona) y rellena los que
+  // son anteriores al espejo. Best-effort: que falle no puede dejar sin
+  // correr el feedback post-entrega, que es lo que este cron vino a hacer.
+  const espejo = await sincronizarPedidosDeShopify(admin).catch((err) => {
+    console.error('[shopify] espejo de pedidos falló:', err)
+    return []
+  })
+
   const threeDaysAgo = new Date(
     Date.now() - DEFAULT_DAYS_AFTER * 24 * 60 * 60 * 1000,
   ).toISOString()
@@ -67,7 +83,7 @@ async function cronHandler(request: Request) {
     .limit(50)
 
   if (error) return serverError(error)
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
+  if (!due || due.length === 0) return NextResponse.json({ processed: 0, espejo })
 
   let dispatched = 0
   let skipped = 0
@@ -207,7 +223,7 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed: due.length, dispatched, skipped })
+  return NextResponse.json({ processed: due.length, dispatched, skipped, espejo })
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */
