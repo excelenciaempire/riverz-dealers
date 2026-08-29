@@ -22,9 +22,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
  *   por caer    — por debajo del umbral. Ámbar, para que se note sin asustar.
  *   en cero     — ya apaga o está por apagar. Rojo.
  *
- * La cuenta de **cortesía no ve nada**: no gasta saldo, y mostrarle un número
- * que no significa nada sería enseñarle a ignorar el lugar donde algún día sí
- * va a importar.
+ * La cuenta de **cortesía** ve el número pero nunca lo ve en rojo ni en ámbar:
+ * tiene saldo y lo gasta, así que esconderlo sería mentirle, pero a ella no se
+ * le apaga nada al llegar a cero y pintarle una alarma sería un susto inventado.
+ * Si además nunca cargó nada, no se muestra: cero sin nada que decir es ruido.
  */
 export function SaldoChip({
   collapsed = false,
@@ -37,13 +38,17 @@ export function SaldoChip({
   const fmt = useFormat();
   const { saldo } = useSaldo();
 
-  if (!saldo || saldo.exenta) return null;
+  if (!saldo) return null;
+  if (saldo.exenta && saldo.centavos <= 0) return null;
 
-  const enCero = saldo.centavos <= 0;
+  const enCero = !saldo.exenta && saldo.centavos <= 0;
   // Con tarjeta y recarga automática el saldo se repone solo antes de llegar
   // al umbral: pintar de ámbar algo que ya está resuelto es ruido.
   const porCaer =
-    !enCero && !saldo.autoConTarjeta && saldo.centavos < saldo.umbralCentavos;
+    !saldo.exenta &&
+    !enCero &&
+    !saldo.autoConTarjeta &&
+    saldo.centavos < saldo.umbralCentavos;
 
   const monto = fmt.currency(
     saldo.centavos / 100,
