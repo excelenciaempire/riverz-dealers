@@ -25,6 +25,8 @@
  */
 
 import { leerCostosFijos, type Fijos } from './costos-fijos'
+import { listUsage } from './queries'
+import { estimateAiCostUsd } from './cost'
 
 export type EstadoProveedor =
   | 'ok'
@@ -58,6 +60,19 @@ export interface Proveedor {
   detalle: string | null
   /** Su tablero: dónde se recarga o se mira. */
   url: string | null
+  /**
+   * Lo que Riverz le consumió este mes, cuando se puede saber.
+   *
+   * Los modelos de lenguaje no publican saldo por API — ninguno de los cinco.
+   * Pero el gasto sí se conoce, porque lo generamos nosotros: cada despacho
+   * guarda sus tokens en `ai_replies` desde la migración 024. Un guion en la
+   * columna del saldo no dice nada; «1,2 M tokens · US$ 34 este mes» dice
+   * exactamente cuánto se está quemando y a qué ritmo.
+   *
+   * Sólo la parte que paga la plataforma: lo que un comercio gasta con SU
+   * propia llave no toca nuestro saldo.
+   */
+  consumo?: { tokens: number; usdMes: number } | null
 }
 
 export interface EstadoDeProveedores {
@@ -71,11 +86,31 @@ export interface EstadoDeProveedores {
 /** Corte por proveedor. Ninguno vale la espera de una pantalla trabada. */
 const TIMEOUT_MS = 8000
 
+/**
+ * Un User-Agent de navegador, o Cloudflare contesta 403.
+ *
+ * Groq, Cerebras y Resend están detrás de Cloudflare, que rechaza el
+ * User-Agent por defecto de `fetch` con **HTTP 403 y el cuerpo
+ * `error code: 1010`**. Eso no se parece en nada a un problema de saldo, así
+ * que el panel los pintaba «No respondió» y «Sin saldo» mientras las tres
+ * llaves andaban perfectamente — verificado el 2026-08-28 pidiendo lo mismo con
+ * y sin esta cabecera: 403 sin ella, 200 con ella.
+ *
+ * No es un truco nuevo en esta base: `costos-fijos.ts` ya se lo pone a Supabase
+ * por exactamente el mismo motivo.
+ */
+const UA = 'Mozilla/5.0'
+
 async function pedir(url: string, init: RequestInit = {}): Promise<Response> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal, cache: 'no-store' })
+    return await fetch(url, {
+      ...init,
+      headers: { 'user-agent': UA, ...(init.headers as Record<string, string>) },
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
   } finally {
     clearTimeout(t)
   }
@@ -488,6 +523,16 @@ async function resend(): Promise<Proveedor> {
       headers: { Authorization: `Bearer ${key}` },
     })
     if (r.ok) return { ...p, estado: 'ok' }
+    // Una llave restringida a enviar es una llave SANA: enviar es lo único que
+    // Riverz le pide. `/domains` pide alcance completo y contesta 401
+    // `restricted_api_key` — pintarlo en rojo era decir que el correo estaba
+    // caído cuando salía perfecto.
+    if (r.status === 401) {
+      const cuerpo = await r.text().catch(() => '')
+      if (/restricted_api_key/i.test(cuerpo)) {
+        return { ...p, estado: 'ok', detalleKey: 'admin.svcEmailSendOnly' }
+      }
+    }
     return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
   } catch {
     return sinRespuesta(p)
@@ -517,6 +562,53 @@ async function whatsappDeRiverz(): Promise<Proveedor> {
   }
 }
 
+// ──────────────────────── Lo que consumimos nosotros ─────────────────────────
+
+/**
+ * Los tokens y el gasto del mes que la PLATAFORMA le puso a Anthropic.
+ *
+ * Es el único proveedor de modelos del que se sabe el consumo real, porque el
+ * runner guarda los tokens de cada despacho desde la migración 024. Ninguno de
+ * los cinco publica saldo por API, así que sin esto la columna quedaba en un
+ * guion — y un guion no dice si se están quemando mil tokens por mes o diez
+ * millones.
+ *
+ * Se separa `platform` de las llaves propias de cada comercio con el mismo
+ * criterio que /admin/ia: lo que un comercio paga con SU llave no sale de
+ * nuestro saldo, así que sumarlo acá inflaría el número justo en la pantalla
+ * que existe para saber cuánto hay que recargar.
+ *
+ * El USD es una estimación a precio de lista (ver `cost.ts`, sin descuento de
+ * caché); los tokens son exactos.
+ */
+async function consumoDeAnthropic(): Promise<{ tokens: number; usdMes: number } | null> {
+  try {
+    const ahora = new Date()
+    const desde = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1))
+    const filas = await listUsage(desde, ahora)
+
+    let tokens = 0
+    let usd = 0
+    for (const f of filas) {
+      const total = estimateAiCostUsd(f.prompt_tokens, f.completion_tokens, f.tokens_by_model)
+      const porFuente = f.tokens_by_source ?? {}
+      const suma = (v?: { prompt?: number; completion?: number }) =>
+        (v?.prompt ?? 0) + (v?.completion ?? 0)
+      const todos = Object.values(porFuente).reduce((a, v) => a + suma(v), 0)
+      const plataforma = suma(porFuente['platform'])
+      tokens += plataforma
+      // El costo se reparte en proporción a los tokens de cada fuente: la
+      // tarifa por modelo ya está adentro de `total`.
+      usd += todos > 0 ? (total * plataforma) / todos : 0
+    }
+    return { tokens, usdMes: Number(usd.toFixed(2)) }
+  } catch {
+    // El consumo es un extra: si la consulta falla, la pantalla sigue
+    // contestando lo que de verdad vino a contestar.
+    return null
+  }
+}
+
 // ────────────────────────────────── La ronda ─────────────────────────────────
 
 /** Qué estados significan «esto necesita plata ahora». */
@@ -533,7 +625,7 @@ export function cuantosEnRojo(proveedores: Proveedor[]): number {
  * en error por un proveedor.
  */
 export async function leerProveedores(): Promise<EstadoDeProveedores> {
-  const [sondas, fijos] = await Promise.all([
+  const [sondas, fijos, consumoAnthropic] = await Promise.all([
     Promise.allSettled([
       // Modelos
       anthropic(),
@@ -584,11 +676,15 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
       stripe(),
     ]),
     leerCostosFijos(),
+    consumoDeAnthropic(),
   ])
 
   const proveedores = sondas
     .filter((r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled')
     .map((r) => r.value)
+    .map((p) =>
+      p.id === 'anthropic' && consumoAnthropic ? { ...p, consumo: consumoAnthropic } : p,
+    )
 
   return {
     proveedores,

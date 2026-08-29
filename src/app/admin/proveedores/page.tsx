@@ -153,6 +153,7 @@ function Fila({
   accion: string;
 }) {
   const t = useT();
+  const format = useFormat();
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
@@ -160,6 +161,16 @@ function Fila({
         <Muted>
           {p.detalleKey ? t(p.detalleKey, { v: p.detalle ?? "" }) : p.detalle}
         </Muted>
+        {/* Los modelos no publican saldo, pero el gasto lo generamos nosotros:
+            los tokens salen de `ai_replies` y el USD de la tarifa por modelo. */}
+        {p.consumo && (
+          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+            {t("admin.providersSpent", {
+              tokens: format.number(p.consumo.tokens, { notation: "compact" }),
+              usd: format.currency(p.consumo.usdMes, "USD"),
+            })}
+          </p>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span className="tabular-nums text-foreground">{monto}</span>

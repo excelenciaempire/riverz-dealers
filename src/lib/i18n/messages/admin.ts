@@ -533,6 +533,16 @@ export const admin = {
     es: "No publica saldo por API — hay que mirar su tablero",
     en: "No balance over the API — check its dashboard",
   },
+  svcEmailSendOnly: {
+    es: "Lista de espera y avisos · la llave sólo puede enviar",
+    en: "Waitlist and alerts · the key can only send",
+  },
+  // Lo que Riverz le consumió al proveedor en el mes. Va donde los modelos no
+  // publican saldo: un guion no dice si se queman mil tokens o diez millones.
+  providersSpent: {
+    es: "{tokens} tokens · {usd} este mes",
+    en: "{tokens} tokens · {usd} this month",
+  },
   // Costos fijos
   fixedMissingEnv: { es: "Falta {v}", en: "Missing {v}" },
   fixedNoAnswer: { es: "No respondió", en: "No answer" },
