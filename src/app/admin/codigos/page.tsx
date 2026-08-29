@@ -294,7 +294,7 @@ export default function AdminSignupCodesPage() {
 
       <Panel>
         {loading ? (
-          <Loading forma="table" />
+          <Loading forma="filas" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (

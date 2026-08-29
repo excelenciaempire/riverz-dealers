@@ -113,7 +113,7 @@ export default function AdminUsersPage() {
 
       <Panel>
         {loading ? (
-          <Loading forma="table" />
+          <Loading forma="filas" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (

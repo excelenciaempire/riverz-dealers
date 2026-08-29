@@ -203,7 +203,7 @@ export default function AdminChannelsPage() {
 
       <Panel>
         {loading ? (
-          <Loading forma="table" />
+          <Loading forma="filas" />
         ) : error ? (
           <LoadError onRetry={reload} />
         ) : (

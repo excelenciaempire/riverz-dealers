@@ -7,6 +7,7 @@ import Link from "@/components/i18n/locale-link";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { LocaleToggleButton, ThemeToggleButton } from "@/components/settings/toggles";
 import { useT } from "@/hooks/use-locale";
+import { limpiarCacheAdmin } from "./_components/admin-ui";
 
 /**
  * Shell del panel de plataforma.
@@ -124,6 +125,9 @@ function LockButton() {
             method: "DELETE",
             credentials: "same-origin",
           });
+          // Cerrar el panel vuelve a pedir la contraseña: lo que se había
+          // guardado para pintar rápido no puede sobrevivir a eso.
+          limpiarCacheAdmin();
           window.location.reload();
         } catch {
           setBusy(false);

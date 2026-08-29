@@ -70,6 +70,23 @@ function guardarCache(url: string, valor: unknown): void {
 }
 
 /**
+ * Vaciar lo guardado al cerrar el panel.
+ *
+ * Cerrarlo vuelve a pedir la contraseña, y sería raro que después de eso
+ * quedaran los datos de todos los comercios en la pestaña esperando a que
+ * alguien abra las herramientas del navegador.
+ */
+export function limpiarCacheAdmin(): void {
+  try {
+    for (const k of Object.keys(sessionStorage)) {
+      if (k.startsWith(CACHE_PREFIJO)) sessionStorage.removeItem(k);
+    }
+  } catch {
+    // Nada que limpiar si no hay storage.
+  }
+}
+
+/**
  * GET a una ruta de admin, con refresco automático, recarga manual y
  * cancelación al desmontar.
  *
@@ -267,12 +284,30 @@ export function Loading({
   filas = 6,
   cajas = 4,
 }: {
-  forma?: "stats" | "table" | "panel" | "stats+table";
+  /**
+   * `filas` es el esqueleto SIN caja, para cuando ya se está dentro de un
+   * `Panel` — si no, quedan dos bordes redondeados uno adentro del otro.
+   */
+  forma?: "stats" | "table" | "filas" | "panel" | "stats+table";
   /** Filas del esqueleto de tabla. */
   filas?: number;
   /** Cajas del esqueleto de números. */
   cajas?: number;
 }) {
+  if (forma === "filas") {
+    return (
+      <div className="divide-y divide-border" aria-busy="true" aria-live="polite">
+        {Array.from({ length: filas }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3">
+            <Hueso className="h-3.5 flex-1" />
+            <Hueso className="hidden h-3.5 w-24 sm:block" />
+            <Hueso className="h-3.5 w-16" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3" aria-busy="true" aria-live="polite">
       {(forma === "stats" || forma === "stats+table") && (
