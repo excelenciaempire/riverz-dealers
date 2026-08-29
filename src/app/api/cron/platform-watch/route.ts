@@ -6,6 +6,7 @@ import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectPlatformIssues, type Issue } from '@/lib/health/issues'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
 import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
+import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
 
 const log = getLogger('cron.platform-watch')
@@ -19,8 +20,8 @@ const log = getLogger('cron.platform-watch')
  * los problemas de todos los comercios, y si apareció algo NUEVO **de la
  * plataforma** manda un WhatsApp por el número de Riverz.
  *
- * Qué es "de la plataforma" y qué no: un trabajo de fondo detenido, o un mismo
- * problema en varios comercios a la vez. Un comercio con un envío fallado NO lo
+ * Qué es "de la plataforma" y qué no: un proveedor sin saldo, un trabajo de
+ * fondo detenido, o un mismo problema en varios comercios a la vez. Un comercio con un envío fallado NO lo
  * es —por más que el mensaje se pueda armar igual— y avisarlo cada 15 minutos
  * era lo que ahogaba a los avisos que sí importan: llegaban "Pilar: 4 mensajes
  * sin entregar (Image is invalid…)" mezclados con "Trabajo detenido:
@@ -152,6 +153,38 @@ async function cronHandler(request: Request) {
     for (const name of cronsRotos) {
       actuales.set(`cron:${name}`, `· Trabajo detenido: ${name}`)
     }
+  }
+
+  // El saldo de los proveedores. Es el aviso que más falta hacía: cuando
+  // Anthropic o Telnyx llegan a cero, la plataforma no devuelve un error —
+  // devuelve silencio, y se descubre por un comercio que reclama. Entra a la
+  // misma lista para que herede lo que ya funciona: una sola vez por problema,
+  // y nada de repetir lo que ya se dijo.
+  //
+  // Fail-soft: si un proveedor no contesta, ese proveedor no opina. Un timeout
+  // no puede convertirse en "quedate tranquilo" ni en una alarma falsa.
+  try {
+    const { proveedores } = await leerProveedores()
+    for (const p of proveedores) {
+      // Sólo los que se recargan: que Supabase no publique saldo no es una
+      // alarma, es que no tiene saldo que publicar.
+      if (!p.recargable) continue
+      if (p.estado !== 'sin_saldo' && p.estado !== 'bajo') continue
+      const cuanto =
+        p.saldo === null
+          ? ''
+          : ` (quedan ${p.saldo.toFixed(2)} ${p.unidad ?? ''})`.replace(/ +\)/, ')')
+      actuales.set(
+        `saldo:${p.id}`,
+        p.estado === 'sin_saldo'
+          ? `· ${p.nombre} SIN SALDO — recargar ya: ${p.url}`
+          : `· ${p.nombre} con poco saldo${cuanto} — recargar: ${p.url}`,
+      )
+    }
+  } catch (err) {
+    log.warn('no se pudo leer el saldo de los proveedores', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 
   const fingerprint = [...actuales.keys()].sort().join('|')
