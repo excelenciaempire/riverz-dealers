@@ -106,6 +106,10 @@ const LEGACY_REDIRECTS: { from: string; to: string }[] = [
   // la ruta vieja daba 404.
   { from: "/campanas/voz", to: "/voz/campanas" },
   { from: "/broadcasts/voz", to: "/voz/campanas" },
+  // Saldos e Infraestructura se fusionaron en Proveedores: sondeaban los
+  // mismos cinco proveedores y podían mostrar números distintos.
+  { from: "/admin/saldos", to: "/admin/proveedores" },
+  { from: "/admin/infra", to: "/admin/proveedores" },
 ];
 
 const nextConfig: NextConfig = {

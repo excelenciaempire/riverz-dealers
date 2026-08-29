@@ -58,10 +58,14 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionConversationsDesc",
     group: "comercios",
   },
+  // Antes eran dos —Saldos e Infraestructura—, que sondeaban los mismos cinco
+  // proveedores por caminos distintos y podían contradecirse. Va en «la plata»
+  // y no en «qué está pasando» porque contesta cuánto hay que pagar, no qué se
+  // rompió: eso ya lo dice el bloque de avisos del índice.
   {
-    href: "/admin/saldos",
-    label: "admin.sectionBalances",
-    description: "admin.sectionBalancesDesc",
+    href: "/admin/proveedores",
+    label: "admin.sectionProviders",
+    description: "admin.sectionProvidersDesc",
     group: "plata",
   },
   {
@@ -106,12 +110,6 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/operacion",
     label: "admin.sectionOps",
     description: "admin.sectionOpsDesc",
-    group: "observabilidad",
-  },
-  {
-    href: "/admin/infra",
-    label: "admin.infraTitle",
-    description: "admin.infraDesc",
     group: "observabilidad",
   },
   {

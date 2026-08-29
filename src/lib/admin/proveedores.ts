@@ -1,0 +1,599 @@
+/**
+ * Todo lo que hay que pagar para que Riverz siga prendido, en un solo lugar.
+ *
+ * Antes eran dos: `/admin/saldos` («cuánto le queda a cada proveedor») y
+ * `/admin/infra` («saldo y estado en vivo de cada API conectada»). Sondeaban
+ * los MISMOS cinco proveedores —Anthropic, Telnyx, Deepgram, Fish, ElevenLabs—
+ * con dos capas de código distintas, así que podían mostrar números distintos
+ * el mismo día, y cada pantalla abierta disparaba su propia ronda de sondas
+ * facturables. Ahora la ronda es una.
+ *
+ * Tres reglas, heredadas de la capa de saldos porque son las que importan:
+ *
+ * 1. **Nadie puede tumbar la pantalla.** Cada proveedor se consulta aparte, con
+ *    su propio corte de tiempo, y un fallo se muestra como fallo de ESE
+ *    proveedor. Un timeout de Telnyx no puede esconder el saldo de Anthropic.
+ * 2. **No saber no es estar bien.** El que no tiene forma de consultar saldo
+ *    dice `desconocido`, no `ok`. Un tablero que pinta verde lo que no midió es
+ *    peor que no tener tablero.
+ * 3. **Las llaves nunca salen de acá.** Se usan para preguntar; lo que vuelve al
+ *    navegador es un número y un estado.
+ *
+ * Y una cuarta, de la capa de infraestructura: **el texto viaja como clave**.
+ * Esta pantalla se ve en español y en inglés, así que un literal acá sería un
+ * literal en el idioma equivocado allá.
+ */
+
+import { leerCostosFijos, type Fijos } from './costos-fijos'
+
+export type EstadoProveedor =
+  | 'ok'
+  | 'bajo'
+  | 'sin_saldo'
+  | 'desconocido'
+  | 'sin_llave'
+  | 'error'
+
+export type CategoriaProveedor = 'llm' | 'voz' | 'mensajeria' | 'infra' | 'ingresos'
+
+export interface Proveedor {
+  /** Identificador estable, para el orden y las claves de React. */
+  id: string
+  /** Nombre comercial. No se traduce: es un nombre propio. */
+  nombre: string
+  categoria: CategoriaProveedor
+  /**
+   * Se le carga plata (va en «¿me alcanza para hoy?») o sólo se mira si está en
+   * pie (va en «¿está todo funcionando?»).
+   */
+  recargable: boolean
+  estado: EstadoProveedor
+  /** El número, cuando el proveedor lo publica. */
+  saldo: number | null
+  /** 'USD', 'chars', o lo que devuelva el proveedor. */
+  unidad: string | null
+  /** Clave i18n: para qué sirve, o qué pasó. */
+  detalleKey: string | null
+  /** Dato crudo que no se traduce: un HTTP, un monto en camino. */
+  detalle: string | null
+  /** Su tablero: dónde se recarga o se mira. */
+  url: string | null
+}
+
+export interface EstadoDeProveedores {
+  proveedores: Proveedor[]
+  fijos: Fijos
+  /** Cuántos necesitan plata ahora. Es el titular de la pantalla. */
+  enRojo: number
+  consultadoAt: string
+}
+
+/** Corte por proveedor. Ninguno vale la espera de una pantalla trabada. */
+const TIMEOUT_MS = 8000
+
+async function pedir(url: string, init: RequestInit = {}): Promise<Response> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal, cache: 'no-store' })
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/** Base común: todo proveedor nace en error y cada sonda lo mejora. */
+function base(
+  p: Pick<Proveedor, 'id' | 'nombre' | 'categoria' | 'recargable' | 'url'> & {
+    detalleKey?: string
+  },
+): Proveedor {
+  return {
+    ...p,
+    estado: 'error',
+    saldo: null,
+    unidad: null,
+    detalleKey: p.detalleKey ?? null,
+    detalle: null,
+  }
+}
+
+/**
+ * Sin llave el detalle deja de ser «para qué sirve» y pasa a ser qué falta: es
+ * lo único accionable, y nombrar la variable ahorra el viaje a Render a
+ * adivinar cuál era.
+ */
+const sinLlave = (p: Proveedor, llave: string): Proveedor => ({
+  ...p,
+  estado: 'sin_llave',
+  detalleKey: 'admin.fixedMissingEnv',
+  detalle: llave,
+})
+
+const sinRespuesta = (p: Proveedor): Proveedor => ({
+  ...p,
+  estado: 'error',
+  detalleKey: 'admin.svcNoAnswer',
+})
+
+/** Cero es vacío; por debajo del umbral, bajo. */
+function porUmbral(saldo: number, bajo: number): EstadoProveedor {
+  if (saldo <= 0) return 'sin_saldo'
+  return saldo < bajo ? 'bajo' : 'ok'
+}
+
+// ──────────────────────────── Los que dan un número ───────────────────────────
+
+async function telnyx(): Promise<Proveedor> {
+  const p = base({
+    id: 'telnyx',
+    nombre: 'Telnyx',
+    categoria: 'voz',
+    recargable: true,
+    url: 'https://portal.telnyx.com/#/app/billing/payments',
+    detalleKey: 'admin.svcTelephony',
+  })
+  const key = process.env.TELNYX_API_KEY
+  if (!key) return sinLlave(p, 'TELNYX_API_KEY')
+  try {
+    const r = await pedir('https://api.telnyx.com/v2/balance', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    const j = await r.json()
+    const b = j?.data
+    if (!b) return { ...p, detalleKey: 'admin.svcNoData' }
+    const credito = Number(b.available_credit ?? b.balance ?? 0)
+    return {
+      ...p,
+      estado: porUmbral(credito, 10),
+      saldo: credito,
+      unidad: b.currency || 'USD',
+    }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function deepgram(): Promise<Proveedor> {
+  const p = base({
+    id: 'deepgram',
+    nombre: 'Deepgram',
+    categoria: 'voz',
+    recargable: true,
+    url: 'https://console.deepgram.com/',
+    detalleKey: 'admin.svcStt',
+  })
+  const key = process.env.DEEPGRAM_API_KEY
+  if (!key) return sinLlave(p, 'DEEPGRAM_API_KEY')
+  try {
+    const pr = await pedir('https://api.deepgram.com/v1/projects', {
+      headers: { Authorization: `Token ${key}` },
+    })
+    const pj = await pr.json()
+    const pid = pj?.projects?.[0]?.project_id
+    if (!pid) return { ...p, detalleKey: 'admin.svcNoProject' }
+    const br = await pedir(`https://api.deepgram.com/v1/projects/${pid}/balances`, {
+      headers: { Authorization: `Token ${key}` },
+    })
+    const bj = await br.json()
+    const monto = Number(bj?.balances?.[0]?.amount ?? 0)
+    return { ...p, estado: porUmbral(monto, 15), saldo: monto, unidad: 'USD' }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function fishAudio(): Promise<Proveedor> {
+  const p = base({
+    id: 'fish',
+    nombre: 'Fish Audio',
+    categoria: 'voz',
+    recargable: true,
+    url: 'https://fish.audio/go-api/',
+    detalleKey: 'admin.svcTts',
+  })
+  const key = process.env.FISH_API_KEY
+  if (!key) return sinLlave(p, 'FISH_API_KEY')
+  try {
+    const r = await pedir('https://api.fish.audio/wallet/self/api-credit', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    const j = await r.json()
+    // `credit` viene como string en la API de Fish.
+    const credito = Number(j?.credit ?? 0)
+    return {
+      ...p,
+      estado: porUmbral(credito, 5),
+      saldo: credito,
+      unidad: 'USD',
+      // Sin saldo Fish NO queda muerto: s2.1-pro-free sigue sintetizando (sin
+      // garantías de latencia). Los modelos pagos sí devuelven 402.
+      detalleKey: credito <= 0 ? 'admin.svcTtsFree' : 'admin.svcTts',
+    }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function elevenlabs(): Promise<Proveedor> {
+  const p = base({
+    id: 'elevenlabs',
+    nombre: 'ElevenLabs',
+    categoria: 'voz',
+    recargable: true,
+    url: 'https://elevenlabs.io/app/subscription',
+    detalleKey: 'admin.svcTtsPremium',
+  })
+  const key = process.env.ELEVENLABS_API_KEY
+  if (!key) return sinLlave(p, 'ELEVENLABS_API_KEY')
+  try {
+    const r = await pedir('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: { 'xi-api-key': key },
+    })
+    const j = await r.json()
+    const quedan = Number(j?.character_limit ?? 0) - Number(j?.character_count ?? 0)
+    return { ...p, estado: porUmbral(quedan, 5000), saldo: quedan, unidad: 'chars' }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+/**
+ * Stripe no es un proveedor que se recargue: es el que trae la plata.
+ *
+ * Va en la misma pantalla igual porque la pregunta que trae a alguien acá
+ * —«¿me alcanza para que esto siga andando?»— se contesta mirando las dos
+ * mitades.
+ */
+async function stripe(): Promise<Proveedor> {
+  const p = base({
+    id: 'stripe',
+    nombre: 'Stripe',
+    categoria: 'ingresos',
+    recargable: false,
+    url: 'https://dashboard.stripe.com/balance/overview',
+    detalleKey: 'admin.svcIncome',
+  })
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) return sinLlave(p, 'STRIPE_SECRET_KEY')
+  try {
+    const r = await pedir('https://api.stripe.com/v1/balance', {
+      headers: { authorization: `Bearer ${key}` },
+    })
+    const d = (await r.json()) as {
+      available?: { amount: number; currency: string }[]
+      pending?: { amount: number }[]
+    } | null
+    const disponible = d?.available?.[0]
+    if (!r.ok || !disponible) return { ...p, detalle: `HTTP ${r.status}` }
+    const pendiente = (d?.pending ?? []).reduce((n, x) => n + (x.amount ?? 0), 0)
+    return {
+      ...p,
+      // Cero acá no es una alarma: significa que ya se transfirió.
+      estado: 'ok',
+      saldo: disponible.amount / 100,
+      unidad: (disponible.currency ?? 'usd').toUpperCase(),
+      detalle: pendiente > 0 ? `+${(pendiente / 100).toFixed(2)}` : null,
+      detalleKey: pendiente > 0 ? 'admin.svcIncomePending' : 'admin.svcIncome',
+    }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+// ─────────────────────────── Los que sólo dicen si andan ──────────────────────
+
+/**
+ * Sonda mínima OpenAI-compatible: una completion de un token.
+ *
+ * Cuesta una fracción de centavo y es la única señal fiable: 200 significa que
+ * la cuenta puede facturar Y responder, que es justo lo que hay que saber. 402
+ * es sin saldo; 429, al límite.
+ */
+async function sondaOpenAICompat(
+  id: string,
+  nombre: string,
+  baseUrl: string,
+  key: string | undefined,
+  modelo: string,
+  detalleKey: string,
+  url: string,
+  llave: string,
+): Promise<Proveedor> {
+  const p = base({ id, nombre, categoria: 'llm', recargable: true, url, detalleKey })
+  if (!key) return sinLlave(p, llave)
+  try {
+    const r = await pedir(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelo,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    })
+    if (r.status === 200) return { ...p, estado: 'ok' }
+    if (r.status === 402) return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
+    if (r.status === 429) return { ...p, estado: 'bajo', detalleKey: 'admin.svcRateLimited' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+/**
+ * Anthropic no publica el saldo.
+ *
+ * Lo que sí se puede es preguntarle si cobraría: una llamada de un token. Sin
+ * crédito responde 400 con `credit balance is too low`, que es exactamente el
+ * estado que hay que ver acá.
+ */
+async function anthropic(): Promise<Proveedor> {
+  const p = base({
+    id: 'anthropic',
+    nombre: 'Anthropic',
+    categoria: 'llm',
+    recargable: true,
+    url: 'https://console.anthropic.com/settings/billing',
+    detalleKey: 'admin.svcTextBot',
+  })
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key) return sinLlave(p, 'ANTHROPIC_API_KEY')
+  try {
+    const r = await pedir('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    })
+    if (r.status === 200) return { ...p, estado: 'ok' }
+    const j = await r.json().catch(() => null)
+    const msg = String(j?.error?.message || '')
+    if (/credit balance/i.test(msg))
+      return { ...p, estado: 'sin_saldo', detalleKey: 'admin.svcNoCredit' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+/**
+ * Gemini: la lista de modelos es gratis, así que un 200 dice que la llave sirve
+ * y NO dice que haya crédito. Por la regla 2, eso es `desconocido`.
+ */
+async function gemini(): Promise<Proveedor> {
+  const p = base({
+    id: 'gemini',
+    nombre: 'Google Gemini',
+    categoria: 'llm',
+    recargable: true,
+    url: 'https://aistudio.google.com/app/billing',
+    detalleKey: 'admin.svcNoBalanceApi',
+  })
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+  if (!key) return sinLlave(p, 'GEMINI_API_KEY')
+  try {
+    const r = await pedir(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
+    )
+    if (r.status === 200) return { ...p, estado: 'desconocido' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function render(): Promise<Proveedor> {
+  const p = base({
+    id: 'render',
+    nombre: 'Render',
+    categoria: 'infra',
+    recargable: false,
+    url: 'https://dashboard.render.com/',
+    detalleKey: 'admin.svcAllUp',
+  })
+  const key = process.env.RENDER_API_KEY
+  if (!key) return sinLlave(p, 'RENDER_API_KEY')
+  try {
+    const r = await pedir('https://api.render.com/v1/services?limit=100', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    const a = (await r.json()) as Array<
+      { service?: { suspended?: string } } & { suspended?: string }
+    >
+    const svcs = a.map((x) => x.service || x)
+    const total = svcs.length
+    const suspendidos = svcs.filter(
+      (s) => (s as { suspended?: string }).suspended === 'suspended',
+    ).length
+    return {
+      ...p,
+      estado: suspendidos > 0 ? 'bajo' : 'ok',
+      saldo: total - suspendidos,
+      unidad: `/${total}`,
+      detalleKey: suspendidos > 0 ? 'admin.svcSuspended' : 'admin.svcAllUp',
+    }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function supabase(): Promise<Proveedor> {
+  const p = base({
+    id: 'supabase',
+    nombre: 'Supabase',
+    categoria: 'infra',
+    recargable: false,
+    url: 'https://supabase.com/dashboard',
+    detalleKey: 'admin.svcOperational',
+  })
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return sinLlave(p, 'SUPABASE_SERVICE_ROLE_KEY')
+  try {
+    const r = await pedir(`${url}/rest/v1/`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+    if (r.ok) return { ...p, estado: 'ok' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+async function livekit(): Promise<Proveedor> {
+  const p = base({
+    id: 'livekit',
+    nombre: 'LiveKit',
+    categoria: 'infra',
+    recargable: false,
+    url: 'https://cloud.livekit.io/',
+    detalleKey: 'admin.svcCallOrchestration',
+  })
+  const listo =
+    process.env.LIVEKIT_URL &&
+    process.env.LIVEKIT_API_KEY &&
+    process.env.LIVEKIT_API_SECRET
+  // El SDK de servidor firma los tokens localmente: con las tres variables
+  // puestas está operativo, no hay a quién preguntarle.
+  if (!listo) return sinLlave(p, 'LIVEKIT_API_KEY')
+  return { ...p, estado: 'ok' }
+}
+
+/**
+ * Resend: por acá salen la lista de espera y el aviso diario de «esto se rompió
+ * en tu cuenta». Es de los pocos servicios cuya caída no se nota por ningún
+ * otro lado — un correo que no sale no deja rastro.
+ */
+async function resend(): Promise<Proveedor> {
+  const p = base({
+    id: 'resend',
+    nombre: 'Resend',
+    categoria: 'mensajeria',
+    recargable: false,
+    url: 'https://resend.com/domains',
+    detalleKey: 'admin.svcEmail',
+  })
+  const key = process.env.RESEND_API_KEY
+  if (!key) return sinLlave(p, 'RESEND_API_KEY')
+  try {
+    const r = await pedir('https://api.resend.com/domains', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    if (r.ok) return { ...p, estado: 'ok' }
+    return { ...p, detalleKey: 'admin.svcHttpError', detalle: `HTTP ${r.status}` }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+/**
+ * El WhatsApp de la plataforma — el número por el que Riverz pregunta lo que la
+ * IA no decide sola. Si no está configurado, esas preguntas no salen.
+ */
+async function whatsappDeRiverz(): Promise<Proveedor> {
+  const p = base({
+    id: 'platform-whatsapp',
+    nombre: 'WhatsApp de Riverz',
+    categoria: 'mensajeria',
+    recargable: false,
+    url: 'https://business.facebook.com/billing_hub/accounts',
+    detalleKey: 'admin.svcPlatformWa',
+  })
+  try {
+    const { platformWhatsAppStatus } = await import('./platform-whatsapp')
+    const st = await platformWhatsAppStatus()
+    if (!st.configured) return sinLlave(p, 'PLATFORM_WHATSAPP_TOKEN')
+    return { ...p, estado: st.active ? 'ok' : 'bajo' }
+  } catch {
+    return sinRespuesta(p)
+  }
+}
+
+// ────────────────────────────────── La ronda ─────────────────────────────────
+
+/** Qué estados significan «esto necesita plata ahora». */
+const EN_ROJO: EstadoProveedor[] = ['sin_saldo', 'bajo']
+
+export function cuantosEnRojo(proveedores: Proveedor[]): number {
+  return proveedores.filter((p) => EN_ROJO.includes(p.estado)).length
+}
+
+/**
+ * Todos, en paralelo, más los costos fijos. Ninguno puede tumbar al resto.
+ *
+ * `allSettled` y no `all`: una promesa rechazada acá dejaba la pantalla entera
+ * en error por un proveedor.
+ */
+export async function leerProveedores(): Promise<EstadoDeProveedores> {
+  const [sondas, fijos] = await Promise.all([
+    Promise.allSettled([
+      // Modelos
+      anthropic(),
+      sondaOpenAICompat(
+        'cerebras',
+        'Cerebras',
+        'https://api.cerebras.ai/v1',
+        process.env.CEREBRAS_API_KEY,
+        'gpt-oss-120b',
+        'admin.svcVoiceLlm',
+        'https://cloud.cerebras.ai/',
+        'CEREBRAS_API_KEY',
+      ),
+      sondaOpenAICompat(
+        'groq',
+        'Groq',
+        'https://api.groq.com/openai/v1',
+        process.env.GROQ_API_KEY,
+        'llama-3.1-8b-instant',
+        'admin.svcBackupLlm',
+        'https://console.groq.com/settings/billing',
+        'GROQ_API_KEY',
+      ),
+      sondaOpenAICompat(
+        'openai',
+        'OpenAI',
+        'https://api.openai.com/v1',
+        process.env.OPENAI_API_KEY,
+        'gpt-4o-mini',
+        'admin.svcGpt',
+        'https://platform.openai.com/settings/organization/billing',
+        'OPENAI_API_KEY',
+      ),
+      gemini(),
+      // Voz y telefonía
+      telnyx(),
+      deepgram(),
+      fishAudio(),
+      elevenlabs(),
+      // Mensajería de la plataforma
+      resend(),
+      whatsappDeRiverz(),
+      // Infraestructura
+      render(),
+      supabase(),
+      livekit(),
+      // Lo que entra
+      stripe(),
+    ]),
+    leerCostosFijos(),
+  ])
+
+  const proveedores = sondas
+    .filter((r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled')
+    .map((r) => r.value)
+
+  return {
+    proveedores,
+    fijos,
+    enRojo: cuantosEnRojo(proveedores),
+    consultadoAt: new Date().toISOString(),
+  }
+}

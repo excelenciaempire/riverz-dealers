@@ -500,6 +500,69 @@ export const admin = {
     en: "Tops up wallets that fell below their threshold and have a card",
   },
   // ── Saldos de proveedores ──
+  // Proveedores — la fusión de las viejas Saldos e Infraestructura.
+  sectionProviders: { es: "Proveedores", en: "Providers" },
+  sectionProvidersDesc: {
+    es: "Cuánto queda, qué está en pie y cuánto sale el mes.",
+    en: "What's left, what's up and what the month costs.",
+  },
+  providersMoneyBlock: {
+    es: "¿Me alcanza para hoy?",
+    en: "Is there enough for today?",
+  },
+  providersUpBlock: {
+    es: "¿Está todo funcionando?",
+    en: "Is everything up?",
+  },
+  providersMonthBlock: {
+    es: "¿Cuánto sale el mes?",
+    en: "What does the month cost?",
+  },
+  providersChecked: { es: "Consultado", en: "Checked" },
+  providersChars: { es: "{n} caracteres", en: "{n} characters" },
+  // Detalles nuevos de esta pantalla.
+  svcIncome: {
+    es: "Lo que entra: suscripciones y recargas",
+    en: "What comes in: subscriptions and top-ups",
+  },
+  svcIncomePending: {
+    es: "Suscripciones y recargas · +{v} en camino",
+    en: "Subscriptions and top-ups · +{v} on the way",
+  },
+  svcNoBalanceApi: {
+    es: "No publica saldo por API — hay que mirar su tablero",
+    en: "No balance over the API — check its dashboard",
+  },
+  // Costos fijos
+  fixedMissingEnv: { es: "Falta {v}", en: "Missing {v}" },
+  fixedNoAnswer: { es: "No respondió", en: "No answer" },
+  fixedNoAnswerHttp: { es: "No respondió (HTTP {v})", en: "No answer (HTTP {v})" },
+  fixedRenderPlan: { es: "Render · {v}", en: "Render · {v}" },
+  fixedRenderSuspended: {
+    es: "Render · {v} · suspendido",
+    en: "Render · {v} · suspended",
+  },
+  fixedSupabase: {
+    es: "La base de datos de todos los comercios",
+    en: "The database behind every merchant",
+  },
+  fixedSupabasePlan: {
+    es: "La base de datos de todos los comercios · plan {v}",
+    en: "The database behind every merchant · {v} plan",
+  },
+  fixedPhoneNumbers: {
+    es: "{v} números alquilados · cada cuenta compra el suyo",
+    en: "{v} rented numbers · each account buys its own",
+  },
+  fixedDomains: {
+    es: "Se pagan por año",
+    en: "Billed yearly",
+  },
+  fixedWhatsapp: {
+    es: "Por mensaje de plantilla; la atención dentro de 24 h no cuesta",
+    en: "Per template message; replies inside 24 h are free",
+  },
+
   sectionBalances: { es: "Saldos", en: "Balances" },
   sectionBalancesDesc: {
     es: "Cuánto le queda a cada proveedor que hay que recargar",

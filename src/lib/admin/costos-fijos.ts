@@ -1,21 +1,28 @@
 /**
  * Lo que se paga todos los meses aunque nadie use nada.
  *
- * El saldo de los proveedores contesta "¿me alcanza para hoy?". Esta es la otra
+ * El saldo de los proveedores contesta «¿me alcanza para hoy?». Esta es la otra
  * mitad: cuánto cuesta que la plataforma exista. Sin ella, la única forma de
  * saber cuánto sale mantener Riverz prendido era abrir cuatro tableros y sumar
  * a mano — y eso no se hace, así que nadie sabe el número.
  *
- * Se lee de la API de Render, que es la que factura de verdad, y no de una
- * lista escrita a mano: un servicio nuevo, un plan que cambia o algo que se
- * suspende se reflejan solos. Lo que ninguna API dice se lista igual, con su
- * enlace y sin número inventado.
+ * Se lee de las APIs que facturan de verdad, y no de una lista escrita a mano:
+ * un servicio nuevo, un plan que cambia o algo que se suspende se reflejan
+ * solos. Lo que ninguna API dice se lista igual, con su enlace y sin número
+ * inventado.
+ *
+ * El texto viaja como CLAVE i18n, no como frase: esta pantalla se ve en español
+ * y en inglés.
  */
 
 export interface CostoFijo {
   id: string
+  /** Nombre del servicio. No se traduce: es un nombre propio. */
   nombre: string
-  detalle: string
+  /** Clave i18n de la explicación. */
+  detalleKey: string
+  /** El dato crudo que la clave interpola: un plan, un HTTP, una variable. */
+  detalleExtra: string | null
   /** USD por mes. Null cuando no se puede saber. */
   usdMes: number | null
   /** Suspendido o apagado: aparece, y no suma. */
@@ -53,18 +60,10 @@ interface ServicioRender {
 async function deRender(): Promise<CostoFijo[]> {
   const key = process.env.RENDER_API_KEY
   const url = 'https://dashboard.render.com/billing'
-  if (!key) {
-    return [
-      {
-        id: 'render',
-        nombre: 'Render',
-        detalle: 'Falta RENDER_API_KEY',
-        usdMes: null,
-        activo: true,
-        url,
-      },
-    ]
-  }
+  const caido = (detalleKey: string, detalleExtra: string | null): CostoFijo[] => [
+    { id: 'render', nombre: 'Render', detalleKey, detalleExtra, usdMes: null, activo: true, url },
+  ]
+  if (!key) return caido('admin.fixedMissingEnv', 'RENDER_API_KEY')
 
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
@@ -74,18 +73,7 @@ async function deRender(): Promise<CostoFijo[]> {
       signal: ctrl.signal,
       cache: 'no-store',
     })
-    if (!res.ok) {
-      return [
-        {
-          id: 'render',
-          nombre: 'Render',
-          detalle: `No respondió (HTTP ${res.status})`,
-          usdMes: null,
-          activo: true,
-          url,
-        },
-      ]
-    }
+    if (!res.ok) return caido('admin.fixedNoAnswerHttp', String(res.status))
     const filas = (await res.json()) as { service: ServicioRender }[]
     return filas
       .map(({ service }) => {
@@ -101,9 +89,8 @@ async function deRender(): Promise<CostoFijo[]> {
         return {
           id: `render-${service.id}`,
           nombre: service.name,
-          detalle: suspendido
-            ? `Render · ${plan || service.type} · suspendido`
-            : `Render · ${plan || service.type}`,
+          detalleKey: suspendido ? 'admin.fixedRenderSuspended' : 'admin.fixedRenderPlan',
+          detalleExtra: plan || service.type,
           usdMes: suspendido ? 0 : usd,
           activo: !suspendido,
           url,
@@ -111,16 +98,7 @@ async function deRender(): Promise<CostoFijo[]> {
       })
       .sort((a, b) => (b.usdMes ?? 0) - (a.usdMes ?? 0))
   } catch {
-    return [
-      {
-        id: 'render',
-        nombre: 'Render',
-        detalle: 'No respondió',
-        usdMes: null,
-        activo: true,
-        url,
-      },
-    ]
+    return caido('admin.fixedNoAnswer', null)
   } finally {
     clearTimeout(t)
   }
@@ -146,14 +124,20 @@ async function deSupabase(): Promise<CostoFijo> {
   const base = {
     id: 'supabase',
     nombre: 'Supabase',
-    detalle: 'La base de datos de todos los comercios',
+    detalleKey: 'admin.fixedSupabase',
+    detalleExtra: null as string | null,
     activo: true,
     url,
   }
   const token = process.env.SUPABASE_ACCESS_TOKEN
   const ref = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1]
   if (!token || !ref) {
-    return { ...base, detalle: `${base.detalle} — falta SUPABASE_ACCESS_TOKEN`, usdMes: null }
+    return {
+      ...base,
+      detalleKey: 'admin.fixedMissingEnv',
+      detalleExtra: 'SUPABASE_ACCESS_TOKEN',
+      usdMes: null,
+    }
   }
 
   const ctrl = new AbortController()
@@ -173,20 +157,76 @@ async function deSupabase(): Promise<CostoFijo> {
     const org = (await proy.json()) as { organization_id?: string }
     if (!org.organization_id) return { ...base, usdMes: null }
 
-    const res = await fetch(`https://api.supabase.com/v1/organizations/${org.organization_id}`, {
-      headers: cabeceras,
-      signal: ctrl.signal,
-      cache: 'no-store',
-    })
+    const res = await fetch(
+      `https://api.supabase.com/v1/organizations/${org.organization_id}`,
+      { headers: cabeceras, signal: ctrl.signal, cache: 'no-store' },
+    )
     if (!res.ok) return { ...base, usdMes: null }
     const plan = ((await res.json()) as { plan?: string }).plan ?? ''
     return {
       ...base,
-      detalle: `${base.detalle} · plan ${plan || 'desconocido'}`,
+      detalleKey: plan ? 'admin.fixedSupabasePlan' : 'admin.fixedSupabase',
+      detalleExtra: plan || null,
       usdMes: SUPABASE_USD[plan] ?? null,
     }
   } catch {
     return { ...base, usdMes: null }
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+/**
+ * Los números de teléfono alquilados en Telnyx.
+ *
+ * Faltaban, y son el único fijo que CRECE sin que nadie lo decida: cada cuenta
+ * se compra el suyo desde /voz, así que el mes que viene puede costar más que
+ * este sin que se haya tocado nada. Un dólar por número es el piso de Telnyx —
+ * los internacionales y los toll-free salen más, así que este total es un
+ * mínimo, igual que el resto de la pantalla.
+ */
+async function deTelnyx(): Promise<CostoFijo> {
+  const url = 'https://portal.telnyx.com/#/app/numbers/my-numbers'
+  const base = {
+    id: 'telnyx-numeros',
+    nombre: 'Telnyx',
+    detalleKey: 'admin.fixedPhoneNumbers',
+    detalleExtra: null as string | null,
+    activo: true,
+    url,
+  }
+  const key = process.env.TELNYX_API_KEY
+  if (!key) {
+    return {
+      ...base,
+      detalleKey: 'admin.fixedMissingEnv',
+      detalleExtra: 'TELNYX_API_KEY',
+      usdMes: null,
+    }
+  }
+
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  try {
+    // `page[size]=1`: sólo interesa el total, que Telnyx devuelve en `meta`.
+    const res = await fetch('https://api.telnyx.com/v2/phone_numbers?page[size]=1', {
+      headers: { authorization: `Bearer ${key}` },
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      return {
+        ...base,
+        detalleKey: 'admin.fixedNoAnswerHttp',
+        detalleExtra: String(res.status),
+        usdMes: null,
+      }
+    }
+    const j = (await res.json()) as { meta?: { total_results?: number } }
+    const total = Number(j?.meta?.total_results ?? 0)
+    return { ...base, detalleExtra: String(total), usdMes: total }
+  } catch {
+    return { ...base, detalleKey: 'admin.fixedNoAnswer', usdMes: null }
   } finally {
     clearTimeout(t)
   }
@@ -202,8 +242,9 @@ function sinApi(): CostoFijo[] {
   return [
     {
       id: 'dominios',
-      nombre: 'Dominios',
-      detalle: 'riverz.co y riverzai.com — se pagan por año',
+      nombre: 'riverz.co · riverzai.com',
+      detalleKey: 'admin.fixedDomains',
+      detalleExtra: null,
       usdMes: null,
       activo: true,
       url: 'https://www.spaceship.com/application/domain-list/',
@@ -211,7 +252,8 @@ function sinApi(): CostoFijo[] {
     {
       id: 'meta',
       nombre: 'WhatsApp (Meta)',
-      detalle: 'Por mensaje de plantilla; la atención dentro de 24 h no cuesta',
+      detalleKey: 'admin.fixedWhatsapp',
+      detalleExtra: null,
       usdMes: null,
       activo: true,
       url: 'https://business.facebook.com/billing_hub/accounts',
@@ -228,8 +270,12 @@ export interface Fijos {
 }
 
 export async function leerCostosFijos(): Promise<Fijos> {
-  const [render, supabase] = await Promise.all([deRender(), deSupabase()])
-  const items = [...render, supabase, ...sinApi()]
+  const [render, supabase, telnyx] = await Promise.all([
+    deRender(),
+    deSupabase(),
+    deTelnyx(),
+  ])
+  const items = [...render, supabase, telnyx, ...sinApi()]
   return {
     items,
     totalUsdMes: items.reduce((n, i) => n + (i.activo ? (i.usdMes ?? 0) : 0), 0),
