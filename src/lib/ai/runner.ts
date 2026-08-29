@@ -478,11 +478,17 @@ export async function runAiAgent(
         genErr && typeof genErr === 'object' && 'status' in genErr
           ? Number((genErr as { status?: number }).status)
           : undefined;
+      // `claveRechazada` y no sólo el status HTTP: Anthropic manda el saldo
+      // agotado como **400** con `invalid_request_error: credit balance is too
+      // low`, no como 402. Mirando sólo el número, quedarse sin plata se
+      // archivaba como "ai_error" —error genérico del modelo— y el tablero
+      // mandaba a buscar un bug donde sólo había que recargar. Es el
+      // diagnóstico que costó encontrar en agosto de 2026.
       const category =
-        httpStatus === 401 || httpStatus === 402
-          ? 'ai_no_credit'
-          : httpStatus === 429
-            ? 'ai_rate_limited'
+        httpStatus === 429
+          ? 'ai_rate_limited'
+          : claveRechazada(genErr)
+            ? 'ai_no_credit'
             : httpStatus && httpStatus >= 500
               ? 'ai_upstream'
               : 'ai_error';

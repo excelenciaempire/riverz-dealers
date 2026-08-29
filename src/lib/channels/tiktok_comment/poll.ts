@@ -512,29 +512,45 @@ async function convergeState(
   // comentarios y 288 corridas por día eso solo es ruido.
   const { data } = await db
     .from("messages")
-    .select("id, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)")
+    .select(
+      "id, sender_type, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)",
+    )
     .eq("channel", "tiktok_comment")
     .eq("message_id", commentId)
     .eq("conversations.workspace_id", conn.workspace_id);
-  for (const row of (data ?? []) as unknown as CommentRow[]) {
+  for (const row of (data ?? []) as unknown as Array<CommentRow & { sender_type: string | null }>) {
+    // NUESTRA propia respuesta publicada no se tacha por un `status` que no
+    // entendemos.
+    //
+    // `is_hidden` significa "el público no lo ve". Para un comentario ajeno,
+    // deducirlo de `status !== PUBLIC` es razonable; para una respuesta que
+    // publicó el comercio, no: TikTok usa ese campo también para estados que
+    // no son "lo escondí" (revisión, por ejemplo). Medido el 2026-08-29: 265
+    // de las 286 filas ocultas del canal eran respuestas propias, todas con
+    // `hidden_at` nulo —o sea, nadie las ocultó a propósito— y en TikTok
+    // seguían publicadas. Ocultar a mano sí funciona: ese camino sella
+    // `hidden_by` y `hidden_at`.
+    const propio = row.sender_type !== null && row.sender_type !== "customer";
+    const visibilidad =
+      status === null || (propio && status !== "PUBLIC")
+        ? {}
+        : (patchFor(row, status === "PUBLIC" ? "unhide" : "hide") ?? {});
     const patch = {
-      ...(status === null ? {} : (patchFor(row, status === "PUBLIC" ? "unhide" : "hide") ?? {})),
+      ...visibilidad,
       ...(liked === null ? {} : (patchFor(row, liked ? "like" : "unlike") ?? {})),
     };
-    if (Object.keys(patch).length === 0) continue;
-    // Con QUÉ palabra lo ocultó TikTok.
+    // Con QUÉ palabra lo dijo TikTok.
     //
-    // Acá se trata como oculto cualquier `status` que no sea PUBLIC, y eso es
-    // una suposición: TikTok también usa estados que no significan "lo
-    // escondí" (uno en revisión, por ejemplo). Sin guardar el valor, un hilo
-    // que aparece tachado en la bandeja no se puede explicar — el 2026-08-28
-    // el 74% de las respuestas que el comercio escribió A MANO figuraban
-    // ocultas y no hubo forma de saber por qué. Cuesta una columna que ya
-    // existe.
-    const conMotivo =
-      status !== null && status !== "PUBLIC"
-        ? { ...patch, meta_status_raw: { tiktok_status: status } }
-        : patch;
+    // Se guarda SIEMPRE que el estado no sea PUBLIC, incluso cuando no se
+    // toca la visibilidad: es la única forma de aprender el vocabulario real
+    // de TikTok y saber cuáles de esos estados significan de verdad "lo
+    // escondí". Sin esto, un hilo tachado en la bandeja no se podía explicar
+    // — el 2026-08-28 el 74% de las respuestas que el comercio escribió A MANO
+    // figuraban ocultas y no hubo forma de saber por qué. Cuesta una columna
+    // que ya existe.
+    const raro = status !== null && status !== "PUBLIC";
+    if (Object.keys(patch).length === 0 && !raro) continue;
+    const conMotivo = raro ? { ...patch, meta_status_raw: { tiktok_status: status } } : patch;
     await db.from("messages").update(conMotivo).eq("id", row.id);
   }
 }

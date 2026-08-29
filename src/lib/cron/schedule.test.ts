@@ -166,10 +166,12 @@ describe("isStale", () => {
     }
   });
 
-  it("los trabajos caros no corren seguido", () => {
-    // meta-dm-backfill tarda ~22 min por corrida (medido en prod 2026-08-04).
-    // Con schedule horario se apilaba encima de sí mismo y se comía el ancho
-    // de banda del servicio; tiene que quedar en una sola corrida diaria.
+  it("el backfill de DMs corre por tramos, sin apilarse", () => {
+    // Barría todos los contactos de una vez (~22 min medidos en prod el
+    // 2026-08-04) y con schedule horario se apilaba encima de sí mismo. Ahora
+    // el handler procesa un lote fijo por conexión y guarda cursor, así que
+    // puede correr seguido — pero nunca tan seguido como para pisarse: el
+    // techo de reloj del handler es de 8 min.
     const backfill = SCHEDULED_JOBS.find((j) => j.name === "meta-dm-backfill");
     expect(backfill).toBeDefined();
     const veces = Array.from({ length: 24 }, (_, h) =>
@@ -177,8 +179,11 @@ describe("isStale", () => {
     )
       .flat()
       .filter(Boolean).length;
-    expect(veces).toBe(1);
-    expect(backfill!.timeoutMs).toBeGreaterThan(22 * 60 * 1000);
+    expect(veces).toBeGreaterThan(1);
+    expect(veces).toBeLessThanOrEqual(24);
+    // Holgura sobre el techo de 8 min del handler: tiene que poder terminar y
+    // dejar su fila en cron_runs en vez de que el reloj le corte el fetch.
+    expect(backfill!.timeoutMs).toBeGreaterThan(8 * 60 * 1000);
   });
 
   it("las rutas cuelgan de /api", () => {

@@ -155,18 +155,26 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "gmail-watch", whatKey: "admin.cronGmailWatch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
   { name: "outlook-watch", whatKey: "admin.cronOutlookWatch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
 
-  // --- diarios ---
-  // Diario y no horario: medido en prod 2026-08-04, cada corrida tarda ~22 min
-  // y mueve la mayor parte del ancho de banda del servicio. Con schedule
-  // horario se apilaba encima de sí mismo (48 corridas = 17,6 h de trabajo en
-  // una ventana de 17,7 h). Es un backfill de respaldo — los DMs nuevos entran
-  // por webhook, esto sólo recupera lo que Meta no entregó.
+  // Cada 2 h, en tramos. Antes era diario y de una sola pasada porque cada
+  // corrida barría TODOS los contactos de TODAS las cuentas (~22 min medidos
+  // el 2026-08-04) y con schedule horario se apilaba encima de sí mismo. Peor:
+  // pasado el timeout, el reloj corta el `fetch`, `withCronRun` no llega a
+  // escribir la fila y el trabajo se apaga sin dejar rastro — así estuvo mudo
+  // del 2026-08-26 al 2026-08-29 sin un solo error registrado.
+  //
+  // Ahora el handler procesa un lote fijo por conexión y guarda un cursor, así
+  // que una corrida vale lo mismo con una cuenta que con doscientas. Doce
+  // tramos por día cubren más que una pasada diaria que no termina. Es un
+  // backfill de respaldo: los DMs nuevos entran por webhook, esto recupera lo
+  // que Meta no entregó.
   {
     name: "meta-dm-backfill", whatKey: "admin.cronMetaDmBackfill",
     path: "/api/cron/meta-dm-backfill",
-    schedule: "0 5 * * *",
-    timeoutMs: 1_800_000,
+    schedule: "0 */2 * * *",
+    timeoutMs: 900_000,
   },
+
+  // --- diarios ---
   { name: "pii-purge", whatKey: "admin.cronPiiPurge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
   // Acumula lo que consumio cada cuenta: conversaciones atendidas por IA,
   // respuestas, tokens y lo que nos costo. Corre sobre AYER —que ya cerro, asi

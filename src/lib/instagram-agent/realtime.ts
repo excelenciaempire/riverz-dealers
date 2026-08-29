@@ -508,7 +508,7 @@ export async function maybeInstantOutreach(
   });
 
   try {
-    await instagramAdapter.sendText({
+    const dmRes = await instagramAdapter.sendText({
       channel: 'instagram',
       connection,
       conversation: { id: '' } as unknown as Conversation,
@@ -527,6 +527,7 @@ export async function maybeInstantOutreach(
       externalId: opts.contact.external_id,
       connection,
       text,
+      dmMessageId: dmRes?.externalMessageId ?? null,
       commentContactId: opts.commentId ? opts.contact.id : null,
       origin: 'ig_outreach',
       originName: campaign.plan.campaign_name ?? null,
@@ -1007,7 +1008,7 @@ async function autonomousCommentReply(
   let dmSent = false;
   try {
     if (wonPrivateReply && connection) {
-      await adapter.sendText({
+      const dmRes = await adapter.sendText({
         channel: dmChannel,
         connection,
         conversation: { id: '' } as unknown as Conversation,
@@ -1027,6 +1028,7 @@ async function autonomousCommentReply(
         commentChannel,
         connection,
         text,
+        dmMessageId: dmRes?.externalMessageId ?? null,
         commentContactId: willPublish ? null : opts.contact.id,
         // Para que el hilo privado no se abra con nuestro mensaje a secas.
         commentText: engagement,
@@ -1159,6 +1161,30 @@ function isTikTokChannel(channel?: CommentChannel): boolean {
   return channel === 'tiktok_comment';
 }
 
+/**
+ * Oraciones completas de `texto` que entran en `tope` caracteres.
+ *
+ * `recortarSalida` sirve para un mensaje privado, donde llenar el presupuesto
+ * importa: si la primera oración ocupa menos de la mitad del tope, corta por
+ * palabra y pega un `…`. Bajo una foto eso se lee mal, y salió así en público
+ * el 2026-08-29:
+ *
+ *   «…la zona de la papada, de abajo hacia… 💬 Te escribí por privado.»
+ *
+ * Acá se prefiere una oración corta y entera a una larga cortada. Devuelve ''
+ * si no entra ni la primera.
+ */
+function oracionesQueEntran(texto: string, tope: number): string {
+  const partes = texto.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) ?? [];
+  let salida = '';
+  for (const parte of partes) {
+    const siguiente = salida + parte;
+    if (siguiente.trimEnd().length > tope) break;
+    salida = siguiente;
+  }
+  return salida.trim();
+}
+
 export function publicReplyFrom(dmText: string, dmSent = true): string {
   const clean = dmText.trim();
   if (!dmSent) {
@@ -1166,7 +1192,7 @@ export function publicReplyFrom(dmText: string, dmSent = true): string {
     return recortarSalida(clean, 480);
   }
   const first = clean.split('\n')[0]?.trim() ?? '';
-  const short = recortarSalida(first, 120);
+  const short = oracionesQueEntran(first, 120);
   return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
 }
 
@@ -1398,8 +1424,9 @@ export async function maybeRunCloser(
   }
   if (await newerAnswerableInbound()) return true;
 
+  let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null = null;
   try {
-    await instagramAdapter.sendText({
+    closerRes = await instagramAdapter.sendText({
       channel: 'instagram',
       connection: opts.connection,
       conversation: { id: '' } as unknown as Conversation,
@@ -1430,6 +1457,7 @@ export async function maybeRunCloser(
     externalId: opts.contact.external_id,
     connection: opts.connection,
     text: reply,
+    dmMessageId: closerRes?.externalMessageId ?? null,
     origin: 'ig_outreach',
     originName: plan.campaign_name ?? null,
   });

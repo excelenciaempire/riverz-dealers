@@ -7,6 +7,7 @@ import {
   collectGmailAttachments,
   fetchGmailAttachments,
 } from "@/lib/channels/gmail/poll";
+import { detectAutomatedSender } from "@/lib/channels/email/automated-sender";
 import { htmlToText } from "@/lib/channels/html-to-text";
 import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "@/lib/channels/types";
@@ -257,11 +258,30 @@ async function fetchAndBuild(
       )
     : [];
 
+  // El mismo portero que el poll (gmail/poll.ts) y que Outlook: rebotes,
+  // autorespuestas y boletines se guardan y se ven, pero no despiertan al
+  // agente. Push es tiempo real y le gana al poll de 5 min, así que sin esto
+  // el filtro no sirve de nada: el aviso de Shopify entra por acá primero.
+  // Sin el filtro, un fallo del proveedor de IA contesta cada notificación con
+  // el mensaje de cortesía — 500 correos en un día, medido el 2026-08-21.
+  const machine = detectAutomatedSender({
+    from: fromHeader,
+    subject,
+    headers,
+    contentType: msg.payload?.mimeType,
+  });
+  if (machine.automated) {
+    console.info(
+      `[gmail-push] remitente automático (${machine.reason}), no se responde solo: ${fromEmail}`,
+    );
+  }
+
   return {
     channel: "gmail",
     connection,
     externalContactId: fromEmail,
     contactName: parseName(fromHeader),
+    suppressAutoReply: machine.automated || undefined,
     externalMessageId: messageIdHeader || msg.id,
     externalThreadId: msg.threadId,
     subject,

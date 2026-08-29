@@ -3,15 +3,46 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 const OPT_OUT_KEYWORDS = ['STOP', 'BAJA', 'CANCELAR', 'UNSUBSCRIBE', 'CANCEL', 'SAIR']
 const OPT_IN_KEYWORDS = ['SUSCRIBIR', 'SUBSCRIBE', 'ALTA', 'START']
 
+/** Marcas diacríticas que deja `NFD` al descomponer las tildes y la ñ. */
+const DIACRITICOS = /[̀-ͯ]/g
+
+/**
+ * Cortesías y muletillas que rodean a la palabra clave sin cambiar la
+ * intención: "baja por favor", "hola, dar de baja", "quiero alta gracias".
+ */
+const RELLENO = new Set([
+  'HOLA', 'BUEN', 'BUENOS', 'BUENAS', 'DIA', 'DIAS', 'TARDE', 'TARDES',
+  'NOCHE', 'NOCHES', 'POR', 'FAVOR', 'PORFA', 'PORFAVOR', 'GRACIAS', 'QUIERO',
+  'QUISIERA', 'DESEO', 'ME', 'DOY', 'DAR', 'DARME', 'DE', 'PLEASE', 'THANKS',
+])
+
+/**
+ * Mayúsculas, sin tildes, sin signos ni emojis, palabras separadas por un
+ * espacio. `¡Baja, por favor!` → `BAJA POR FAVOR`.
+ */
 function normalize(text: string): string {
-  return text.trim().toUpperCase()
+  return text
+    .normalize('NFD')
+    .replace(DIACRITICOS, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
 }
 
+/**
+ * La palabra clave tiene que ser el mensaje ENTERO, no aparecer dentro de él.
+ *
+ * Buscarla en cualquier parte de la frase silenciaba a quien escribía "quiero
+ * cancelar el envío" o "me dieron de baja en la obra social", y respondía un
+ * acuse de suscripción a "Alta mancha en la ropa deja el serum" (caso real,
+ * Instagram, 2026-08-29) en vez de contestar la consulta: el handler de
+ * opt-in/opt-out corta el turno y la IA nunca llega a ver el mensaje.
+ */
 function matchesAny(text: string, words: string[]): boolean {
-  const t = normalize(text)
-  if (!t) return false
-  const pattern = new RegExp(`\\b(${words.join('|')})\\b`)
-  return pattern.test(t)
+  const palabras = normalize(text).split(' ').filter(Boolean)
+  const nucleo = palabras.filter((p) => !RELLENO.has(p))
+  return nucleo.length === 1 && words.includes(nucleo[0])
 }
 
 export function isOptOutKeyword(text: string): boolean {

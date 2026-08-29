@@ -54,6 +54,17 @@ export async function recordProactiveDm(
     connection: ChannelConnection;
     text: string;
     /**
+     * El id que devolvió Meta al enviar el DM, si lo tenemos.
+     *
+     * Es lo que cierra la carrera contra el eco (bug 2026-08-29, conv
+     * a156305e: dos filas idénticas a 1,27 s). La comprobación por texto de más
+     * abajo no alcanza porque el eco se FECHA con `receivedAt` —más viejo— pero
+     * se INSERTA después: al momento de mirar, la fila todavía no existía.
+     * Guardando el id real, el eco choca contra la idempotencia global por
+     * `message_id` del inbox-writer y contra `uniq_msg_per_conv`, y no entra.
+     */
+    dmMessageId?: string | null;
+    /**
      * Si el DM responde a un COMENTARIO, el id del contacto del comentario.
      * Refleja la respuesta también en el hilo del comentario para que se vea
      * en la pestaña Comentarios.
@@ -154,7 +165,9 @@ export async function recordProactiveDm(
     }
 
     // 2. ¿Ya está? (el eco pudo ganarnos la carrera). Mismo hilo + mismo texto
-    //    en los últimos minutos = el mismo mensaje.
+    //    en los últimos minutos = el mismo mensaje. Red de respaldo: el candado
+    //    de verdad es `message_id` (ver `dmMessageId`), que esta consulta no
+    //    puede dar porque el eco se fecha viejo y se inserta tarde.
     const since = new Date(Date.now() - 10 * 60_000).toISOString();
     const { data: dupe } = await db
       .from('messages')
@@ -172,6 +185,7 @@ export async function recordProactiveDm(
         content_type: 'text',
         content_text: input.text,
         status: 'sent',
+        message_id: input.dmMessageId ?? null,
         origin: input.origin ?? null,
         origin_name: input.originName ?? null,
       });

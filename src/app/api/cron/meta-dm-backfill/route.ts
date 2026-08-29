@@ -22,13 +22,44 @@ const GRAPH = "https://graph.facebook.com/v22.0";
 const BACKFILL_WINDOW_DAYS = 30;
 
 /**
+ * Contactos por conexión y por corrida.
+ *
+ * El barrido era completo: TODOS los contactos de TODAS las conexiones, dos
+ * llamadas a Graph cada uno, sin tope. Medido en ~22 min con una sola cuenta;
+ * con varias cuentas eso sólo crece, y el reloj corta el `fetch` a los 30 min
+ * (`scheduler.ts`) — cuando eso pasa, `withCronRun` nunca llega a escribir la
+ * fila y el trabajo desaparece sin dejar ni un error. Fue exactamente lo que
+ * pasó: última corrida registrada el 2026-08-26, tres días mudo.
+ *
+ * Con un lote fijo, el costo de una corrida no depende de cuántos comercios
+ * haya: cada conexión avanza su tramo y la siguiente corrida sigue donde
+ * quedó.
+ */
+const LOTE_CONTACTOS = 150;
+
+/**
+ * Techo de reloj de la corrida entera. Por debajo del timeout del reloj, para
+ * terminar siempre por decisión propia y dejar la fila escrita en `cron_runs`.
+ */
+const PRESUPUESTO_MS = 8 * 60_000;
+
+/** Dónde quedó el barrido de esta conexión, dentro de `config`. */
+const CURSOR = "dm_backfill_cursor";
+
+/**
  * GET /api/cron/meta-dm-backfill
  *
- * Recorre cada contacto de Messenger e Instagram, pide el historial del hilo a
+ * Recorre los contactos de Messenger e Instagram, pide el historial del hilo a
  * la Graph API y re-ingiere lo que falte EN AMBOS SENTIDOS: las respuestas que
  * el equipo mandó desde la app de Meta y los mensajes del cliente que nunca
  * llegaron por webhook (caída, permiso faltante, o previos a la conexión).
  * Idempotente: el índice único por `message_id` vuelve no-op lo ya guardado.
+ *
+ * REANUDABLE: cada conexión procesa `LOTE_CONTACTOS` por corrida y guarda en
+ * `config.dm_backfill_cursor` el último contacto visto. Al terminar la vuelta
+ * el cursor se borra y el ciclo vuelve a empezar. Así una corrida cortada no
+ * pierde el trabajo hecho y el tiempo de cada corrida no crece con la cantidad
+ * de comercios conectados.
  *
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET.
  */
@@ -54,10 +85,21 @@ async function cronHandler(request: Request) {
     connection_id: string;
     channel: string;
     ingested: number;
+    /** Contactos mirados en ESTA corrida. */
+    revisados?: number;
+    /** La conexión completó una vuelta entera y el cursor volvió al principio. */
+    vuelta_completa?: boolean;
     error?: string;
   }> = [];
 
+  const limite = Date.now() + PRESUPUESTO_MS;
+  let sinTiempo = false;
+
   for (const c of connections as ChannelConnection[]) {
+    if (Date.now() > limite) {
+      sinTiempo = true;
+      break;
+    }
     const cfg = (c.config ?? {}) as Record<string, unknown>;
     const secrets = (c.secrets ?? {}) as Record<string, unknown>;
     const enc = String(secrets.access_token ?? "");
@@ -80,14 +122,37 @@ async function cronHandler(request: Request) {
       continue;
     }
 
-    const { data: contacts } = await admin
+    // El tramo que le toca a esta conexión. Orden por `id` —estable y con
+    // índice— para que el cursor signifique siempre lo mismo aunque entren
+    // contactos nuevos en el medio.
+    const desde = typeof cfg[CURSOR] === "string" ? (cfg[CURSOR] as string) : null;
+    let q = admin
       .from("contacts")
       .select("*")
       .eq("workspace_id", c.workspace_id)
-      .eq("channel", c.channel);
+      .eq("channel", c.channel)
+      .order("id", { ascending: true })
+      .limit(LOTE_CONTACTOS);
+    if (desde) q = q.gt("id", desde);
+    const { data: contacts } = await q;
+    const lote = (contacts ?? []) as Contact[];
+    // Vino menos de un lote: no queda nadie después de éstos, la vuelta
+    // terminó y la próxima corrida arranca de cero.
+    const vueltaCompleta = lote.length < LOTE_CONTACTOS;
 
     let ingested = 0;
-    for (const contact of (contacts ?? []) as Contact[]) {
+    let revisados = 0;
+    // El cursor sólo puede avanzar hasta lo que REALMENTE se miró: si la
+    // corrida se corta por tiempo a mitad del lote, guardar el último del lote
+    // saltearía a los que quedaron sin revisar.
+    let ultimoVisto: string | null = null;
+    for (const contact of lote) {
+      if (Date.now() > limite) {
+        sinTiempo = true;
+        break;
+      }
+      revisados++;
+      ultimoVisto = contact.id;
       try {
         const externalId = contact.external_id;
         if (!externalId) continue;
@@ -117,19 +182,49 @@ async function cronHandler(request: Request) {
     // escribió), invisibles para el loop de contactos porque aún no existen en
     // Riverz. Solo se crean si el participante NO tiene contacto todavía, así
     // no revive conversaciones borradas (esas conservan su contacto).
-    try {
-      ingested += await discoverNewThreads({ token, pageId, selfId, platform, connection: c });
-    } catch (err) {
-      console.warn(
-        `[meta-dm-backfill] ${c.channel} discover new threads failed:`,
-        err instanceof Error ? err.message : err,
-      );
+    //
+    // Va al cerrar la vuelta y no en cada corrida: es una lista de
+    // conversaciones de la página entera, así que repetirla en cada tramo del
+    // barrido gasta cuota de Graph sin traer nada nuevo.
+    const cerroVuelta = vueltaCompleta && !sinTiempo;
+    if (cerroVuelta) {
+      try {
+        ingested += await discoverNewThreads({ token, pageId, selfId, platform, connection: c });
+      } catch (err) {
+        console.warn(
+          `[meta-dm-backfill] ${c.channel} discover new threads failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
     }
 
-    results.push({ connection_id: c.id, channel: c.channel, ingested });
+    // Guardar dónde quedó. Al cerrar la vuelta el cursor se borra y el ciclo
+    // vuelve a empezar por el principio.
+    const nuevoCursor = cerroVuelta ? null : (ultimoVisto ?? desde);
+    if (nuevoCursor !== desde) {
+      await admin
+        .from("channel_connections")
+        .update({ config: { ...cfg, [CURSOR]: nuevoCursor } })
+        .eq("id", c.id);
+    }
+
+    results.push({
+      connection_id: c.id,
+      channel: c.channel,
+      ingested,
+      revisados,
+      vuelta_completa: cerroVuelta,
+    });
+    if (sinTiempo) break;
   }
 
-  return NextResponse.json({ ok: true, results });
+  // 207 y no 200 cuando la corrida no llegó a mirarlo todo: `withCronRun` lo
+  // registra como fallo parcial y el panel lo dice, en vez de mostrar verde un
+  // barrido que se quedó a mitad de camino.
+  return NextResponse.json(
+    { ok: !sinTiempo, truncado: sinTiempo, results },
+    { status: sinTiempo ? 207 : 200 },
+  );
 }
 
 interface DiscoverArgs {

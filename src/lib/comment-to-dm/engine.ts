@@ -267,8 +267,8 @@ export async function processCommentForDmRules(
       // Que se VEA en la bandeja, en el acto y en los dos hilos (el privado y
       // el del comentario). Antes dependía del eco de Meta: el comercio veía el
       // comentario del cliente y ninguna respuesta, aunque la regla hubiera
-      // mandado el DM. Best-effort y con dedup por texto, así que el eco no
-      // duplica nada.
+      // mandado el DM. Best-effort y con el id real del envío, así que el eco
+      // no duplica nada.
       await recordProactiveDm(db, {
         workspaceId: ev.workspaceId,
         contactId: ev.contact.id,
@@ -277,6 +277,7 @@ export async function processCommentForDmRules(
         commentChannel: ev.channel,
         connection: ev.connection,
         text: dmText,
+        dmMessageId: dmExternalId,
         // Con respuesta pública publicada, el hilo del comentario ya la
         // muestra: espejar encima el DM dejaba dos mensajes casi iguales.
         commentContactId: publicReplyStatus === 'sent' ? null : ev.contact.id,

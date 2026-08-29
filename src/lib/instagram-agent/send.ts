@@ -362,6 +362,7 @@ export async function sendCampaignBatch(
 
     try {
       const conn = connByContact.get(p.contact.id) ?? connection;
+      let dmExternalId: string | null = null;
       if (p.subscription) {
         // Sin ventana abierta: se escribe contra el token de Marketing
         // Messages. `sendToSubscriber` aplica el tope de 48 h y marca el
@@ -377,7 +378,7 @@ export async function sendCampaignBatch(
         });
         if (!res.ok) throw new Error(res.reason ?? 'marketing_send_failed');
       } else {
-        await instagramAdapter.sendText({
+        const dmRes = await instagramAdapter.sendText({
           channel: 'instagram',
           connection: conn,
           // El adapter de Instagram no usa `conversation` para enviar; basta
@@ -392,6 +393,7 @@ export async function sendCampaignBatch(
           commentId: p.commentId,
           text: p.text,
         } satisfies OutboundText);
+        dmExternalId = dmRes?.externalMessageId ?? null;
       }
 
       sent += 1;
@@ -403,6 +405,7 @@ export async function sendCampaignBatch(
         externalId: p.contact.external_id,
         connection: connByContact.get(p.contact.id) ?? connection,
         text: p.text,
+        dmMessageId: dmExternalId,
         origin: 'ig_outreach',
         originName: campaign.plan?.campaign_name ?? null,
       });

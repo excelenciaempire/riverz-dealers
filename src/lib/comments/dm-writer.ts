@@ -126,12 +126,14 @@ export async function sendCommentDm(
 
   let via: CommentDmResult['via'] = 'private_reply';
   let firstError: unknown = null;
+  let dmExternalId: string | null = null;
   if (commentExternalId) {
     try {
-      await adapter.sendText({
+      const res = await adapter.sendText({
         ...base,
         commentId: commentExternalId,
       } satisfies OutboundText);
+      dmExternalId = res.externalMessageId ?? null;
       // Ya se usó la única respuesta privada de este comentario: que la IA no
       // intente gastarla después.
       await claimCommentPrivateReply(
@@ -152,7 +154,11 @@ export async function sendCommentDm(
     }
     // Segundo intento: DM normal. `humanAgent` deja que el adapter reintente
     // con la etiqueta de agente humano si la ventana de 24 h está cerrada.
-    await adapter.sendText({ ...base, humanAgent: true } satisfies OutboundText);
+    const res = await adapter.sendText({
+      ...base,
+      humanAgent: true,
+    } satisfies OutboundText);
+    dmExternalId = res.externalMessageId ?? null;
     via = 'dm';
   }
 
@@ -164,6 +170,7 @@ export async function sendCommentDm(
     commentChannel,
     connection,
     text,
+    dmMessageId: dmExternalId,
     // Refleja el mensaje también bajo el comentario: ahí es donde el equipo
     // está mirando cuando decide escribir.
     commentContactId: contact.id,
