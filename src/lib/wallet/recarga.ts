@@ -67,11 +67,9 @@ export async function urlDeRecarga(
   centavos: number,
   quien: { email: string | null; nombre: string | null },
 ): Promise<string> {
-  if (!montoValido(centavos)) {
-    throw new Error(
-      `El monto tiene que estar entre US$${MINIMO_CENTAVOS / 100} y US$${MAXIMO_CENTAVOS / 100}.`,
-    )
-  }
+  // Un código, no una frase: quien lo muestra sabe en qué idioma está mirando
+  // esa persona; esta función, no.
+  if (!montoValido(centavos)) throw new Error('monto_fuera_de_rango')
 
   const { data: sus } = await db
     .from('workspace_subscriptions')

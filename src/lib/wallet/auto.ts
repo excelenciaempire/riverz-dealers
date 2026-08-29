@@ -191,6 +191,54 @@ export async function guardarTarjetaDesdeEvento(
   return `${workspaceId}: tarjeta guardada${ultimos4 ? ` ····${ultimos4}` : ''}`
 }
 
+/**
+ * Quitar la tarjeta.
+ *
+ * Es lo mismo que apagar la recarga automática, y por eso apaga las dos cosas:
+ * dejar la configuración prendida sin tarjeta sería prometer un cobro que no se
+ * puede hacer, y el comercio se enteraría el día que se queda sin saldo.
+ *
+ * Se despega también de Stripe. Guardar una tarjeta que ya nadie va a usar es
+ * quedarse con un dato de alguien sin motivo.
+ */
+export async function quitarTarjeta(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<void> {
+  const { data } = await db
+    .from('wallet_accounts')
+    .select('stripe_payment_method_id')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  const metodo = (data as { stripe_payment_method_id?: string | null } | null)
+    ?.stripe_payment_method_id
+
+  await db.from('wallet_accounts').upsert(
+    {
+      workspace_id: workspaceId,
+      stripe_payment_method_id: null,
+      tarjeta_marca: null,
+      tarjeta_ultimos4: null,
+      auto_recarga_centavos: null,
+      auto_umbral_centavos: null,
+      auto_fallos: 0,
+      auto_ultimo_error: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'workspace_id' },
+  )
+
+  if (metodo) {
+    try {
+      await stripe().paymentMethods.detach(metodo)
+    } catch (e) {
+      // Que Stripe no la pueda despegar no puede dejar la tarjeta prendida acá:
+      // lo que manda para cobrar es nuestra fila, y ya quedó vacía.
+      console.error('[wallet] no se pudo despegar la tarjeta', e)
+    }
+  }
+}
+
 export interface ConfigAuto {
   recargaCentavos: number | null
   umbralCentavos: number | null
@@ -221,12 +269,12 @@ export async function guardarConfigAuto(
   const recarga = Math.round(cfg.recargaCentavos)
   const umbral = Math.round(cfg.umbralCentavos)
   if (recarga < MINIMO_CENTAVOS || recarga > MAXIMO_CENTAVOS) {
-    throw new Error('El monto de la recarga está fuera de lo permitido.')
+    throw new Error('monto_fuera_de_rango')
   }
   if (umbral < UMBRAL_MINIMO_CENTAVOS || umbral >= recarga) {
     // El umbral tiene que ser menor que la recarga: si no, la primera recarga
     // deja el saldo por debajo del umbral otra vez y el cron cobraría en bucle.
-    throw new Error('El umbral tiene que ser menor que el monto de la recarga.')
+    throw new Error('umbral_mayor_que_recarga')
   }
 
   await db.from('wallet_accounts').upsert(

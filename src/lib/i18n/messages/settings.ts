@@ -1017,6 +1017,25 @@ export const settings = {
   },
   walletOther: { es: "Otro", en: "Other" },
   walletMin: { es: "Mínimo US$3", en: "Minimum US$3" },
+  // Errores del servidor. Van acá y no como texto suelto en la ruta porque el
+  // toast que los muestra es el mismo que ve un comercio en inglés.
+  walletAmountRange: {
+    es: "El monto tiene que estar entre {min} y {max}.",
+    en: "The amount has to be between {min} and {max}.",
+  },
+  walletThresholdBelow: {
+    es: "El umbral tiene que ser menor que el monto de la recarga.",
+    en: "The threshold has to be lower than the top-up amount.",
+  },
+  walletCardRemove: { es: "Quitar tarjeta", en: "Remove card" },
+  walletCardRemoved: {
+    es: "Tarjeta quitada. La recarga automática queda apagada.",
+    en: "Card removed. Auto top-up is now off.",
+  },
+  walletCardRemoveConfirm: {
+    es: "Se quita la tarjeta y se apaga la recarga automática. Cuando el saldo llegue a cero, la IA se pausa.",
+    en: "This removes the card and turns off auto top-up. When the balance hits zero, the AI pauses.",
+  },
   walletEmpty: {
     es: "Te quedaste sin saldo. La cuenta sigue funcionando, pero conviene recargar.",
     en: "You're out of balance. The account still works, but it's worth topping up.",

@@ -9,7 +9,11 @@ import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { CampoTelefono } from '@/components/ui/campo-telefono';
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import {
+  sanitizePhoneForMeta,
+  isValidE164,
+  normalizeToWhatsApp,
+} from '@/lib/whatsapp/phone-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -179,9 +183,10 @@ export function ProfileForm() {
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
-          // Se guarda ya normalizado a dígitos: es lo que compara Meta cuando
-          // vuelve la respuesta por WhatsApp.
-          phone: trimmedPhone ? sanitizePhoneForMeta(trimmedPhone) : null,
+          // Normalizado al formato que marca WhatsApp, no a dígitos pelados:
+          // en Argentina un móvil sin el `9` es inalcanzable, y el campo deja
+          // escribirlo de las dos formas porque las dos se ven bien.
+          phone: trimmedPhone ? normalizeToWhatsApp(trimmedPhone) : null,
         })
         .eq('user_id', user.id);
       if (updateError) {
@@ -232,7 +237,13 @@ export function ProfileForm() {
     !!profile &&
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
-      phone.trim() !== (profile.phone ?? '') ||
+      // Por dígitos, no por texto.
+      //
+      // El campo emite «+5491161047646» y la base guarda «5491161047646»: son
+      // el mismo número y la comparación cruda decía que no. El botón quedaba
+      // gris para quien SÍ había cambiado algo —o encendido para siempre para
+      // quien no— según de qué lado estuviera el `+`.
+      sanitizePhoneForMeta(phone) !== sanitizePhoneForMeta(profile.phone ?? '') ||
       pendingAvatar !== null ||
       removeAvatar);
 

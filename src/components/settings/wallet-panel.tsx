@@ -327,7 +327,11 @@ export function WalletPanel() {
                   disabled={yendo}
                   onClick={() => void recargar(c)}
                 >
-                  {plata(c)}
+                  {/* Sin decimales: son montos redondos y el ",00" de cada uno
+                      sólo alarga cuatro botones que se leen de un vistazo. */}
+                  {fmt.currency(c / 100, (e.moneda ?? 'usd').toUpperCase(), {
+                    maximumFractionDigits: 0,
+                  })}
                 </Button>
               ))}
               <div className="flex items-center gap-1">
@@ -408,6 +412,20 @@ export function WalletPanel() {
                   ? t('settings.walletCardChange')
                   : t('settings.walletCardAdd')}
               </Button>
+              {auto.tieneTarjeta && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={yendo}
+                  onClick={() => {
+                    if (confirm(t('settings.walletCardRemoveConfirm'))) {
+                      void guardarAuto({ borrarTarjeta: true });
+                    }
+                  }}
+                >
+                  {t('settings.walletCardRemove')}
+                </Button>
+              )}
             </div>
           </div>
 

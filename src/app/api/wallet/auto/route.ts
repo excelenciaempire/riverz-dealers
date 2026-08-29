@@ -4,7 +4,10 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { guardarConfigAuto, urlDeTarjeta } from '@/lib/wallet/auto'
+import { guardarConfigAuto, quitarTarjeta, urlDeTarjeta } from '@/lib/wallet/auto'
+import { MAXIMO_CENTAVOS, MINIMO_CENTAVOS } from '@/lib/wallet/recarga'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * La recarga automática: guardar la tarjeta y decir cuándo cobrarla.
@@ -35,6 +38,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     tarjeta?: boolean
+    borrarTarjeta?: boolean
     apagar?: boolean
     recargaCentavos?: number
     umbralCentavos?: number
@@ -54,6 +58,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ url })
     }
 
+    // Quitar la tarjeta apaga la recarga automática: dejar la configuración
+    // prendida sin tarjeta sería prometer un cobro que no se puede hacer.
+    if (body?.borrarTarjeta) {
+      await quitarTarjeta(admin, workspaceId)
+      return NextResponse.json({ ok: true })
+    }
+
     if (body?.apagar) {
       await guardarConfigAuto(admin, workspaceId, {
         recargaCentavos: null,
@@ -68,9 +79,17 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'no se pudo' },
-      { status: 400 },
-    )
+    const codigo = e instanceof Error ? e.message : ''
+    const locale = await getLocale()
+    const mensaje =
+      codigo === 'monto_fuera_de_rango'
+        ? translate(locale, 'settings.walletAmountRange', {
+            min: `US$${MINIMO_CENTAVOS / 100}`,
+            max: `US$${MAXIMO_CENTAVOS / 100}`,
+          })
+        : codigo === 'umbral_mayor_que_recarga'
+          ? translate(locale, 'settings.walletThresholdBelow')
+          : codigo || 'no se pudo'
+    return NextResponse.json({ error: mensaje }, { status: 400 })
   }
 }

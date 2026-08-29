@@ -5,6 +5,8 @@ import { csrfGuard } from '@/lib/csrf'
 import { createClient } from '@/lib/supabase/server'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { MAXIMO_CENTAVOS, MINIMO_CENTAVOS, montoValido, urlDeRecarga } from '@/lib/wallet/recarga'
+import { getLocale } from '@/lib/i18n/server'
+import { translate } from '@/lib/i18n/translate'
 
 /**
  * Lleva a cargar saldo.
@@ -34,11 +36,15 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { centavos?: number } | null
   const centavos = Math.round(Number(body?.centavos ?? 0))
   if (!montoValido(centavos)) {
-    // El motivo, no un código: el panel lo muestra tal cual, y "monto_invalido"
-    // no le dice a nadie que el mínimo son cinco dólares.
+    // El motivo, y en su idioma. Un código como "monto_invalido" no le dice a
+    // nadie cuál es el mínimo, y una frase en español no le sirve a un comercio
+    // que eligió inglés — el toast lo escribe el servidor, no la pantalla.
     return NextResponse.json(
       {
-        error: `El monto tiene que estar entre US$${MINIMO_CENTAVOS / 100} y US$${MAXIMO_CENTAVOS / 100}.`,
+        error: translate(await getLocale(), 'settings.walletAmountRange', {
+          min: `US$${MINIMO_CENTAVOS / 100}`,
+          max: `US$${MAXIMO_CENTAVOS / 100}`,
+        }),
       },
       { status: 400 },
     )
@@ -56,9 +62,27 @@ export async function POST(request: Request) {
     })
     return NextResponse.json({ url })
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'no se pudo' },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: await enEspanolDelUsuario(e) }, { status: 400 })
   }
+}
+
+/**
+ * El error de la capa de abajo, en el idioma de quien lo va a leer.
+ *
+ * Las funciones de la billetera lanzan CÓDIGOS —`monto_fuera_de_rango`— porque
+ * no saben en qué idioma está mirando esa persona. Acá sí se sabe.
+ */
+async function enEspanolDelUsuario(e: unknown): Promise<string> {
+  const codigo = e instanceof Error ? e.message : ''
+  const locale = await getLocale()
+  if (codigo === 'monto_fuera_de_rango') {
+    return translate(locale, 'settings.walletAmountRange', {
+      min: `US$${MINIMO_CENTAVOS / 100}`,
+      max: `US$${MAXIMO_CENTAVOS / 100}`,
+    })
+  }
+  if (codigo === 'umbral_mayor_que_recarga') {
+    return translate(locale, 'settings.walletThresholdBelow')
+  }
+  return codigo || 'no se pudo'
 }

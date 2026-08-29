@@ -147,14 +147,16 @@ export async function sendPlatformAlert(args: {
     return { ok: false, error: 'el WhatsApp de Riverz no está configurado' };
   }
 
-  // El número, sin `+`, sin espacios y sin guiones.
+  // El número, en el formato que marca WhatsApp.
   //
-  // `profiles.phone` guarda lo que la persona escribió —«+54 9 11 6104-7646»— y
-  // Meta quiere sólo dígitos. El aviso de bienvenida del primer cliente no
-  // salió por esto: el número estaba bien, el formato no. Se normaliza en el
-  // único lugar por donde pasan todos los avisos, para que no haya que
-  // acordarse en cada uno.
-  const destino = args.to.replace(/\D/g, '');
+  // No alcanza con sacarle el `+`: en Argentina un móvil escrito sin el `9`
+  // —«+54 11 6104-7646»— es un número perfectamente válido que Meta no entrega.
+  // `normalizeToWhatsApp` es la misma función que usa el resto del sistema para
+  // hablarle a un cliente, así que un aviso de plataforma llega exactamente a
+  // donde llegaría un mensaje del agente. Se hace en el ÚNICO lugar por donde
+  // pasan todos los avisos, para no tener que acordarse en cada uno.
+  const { normalizeToWhatsApp } = await import('@/lib/whatsapp/phone-utils');
+  const destino = normalizeToWhatsApp(args.to);
   if (!destino) return { ok: false, error: 'el número está vacío' };
 
   const { sendTemplateMessage, sendTextMessage } = await import('@/lib/whatsapp/meta-api');
