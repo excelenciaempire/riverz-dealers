@@ -30,7 +30,7 @@ import { cargarMapa, mapaComoTexto } from '../account-map'
 import { pliegoDeLaCuenta } from '@/lib/operacion/contexto'
 import { DEFAULT_LOCALE } from '@/lib/i18n/config'
 import type { EmitFn } from '../events'
-import { recortarResultado } from '../escribir'
+import { recortarResultado, vistaDe } from '../escribir'
 import { OPERATOR_CAPABILITIES } from '../capabilities'
 import { crearSemaforo, type Presupuesto } from './budget'
 import { ejecutarPlan } from './ejecutar-plan'
@@ -193,11 +193,21 @@ export async function runOrquestador(args: {
           const suya = findCapability(key)!
           emit({ t: 'tool_start', id: uso.id, key, label: etiquetaDe(suya, ctx.locale) })
           try {
-            const salida = await suya.run(
-              ctx,
-              (uso.input ?? {}) as Record<string, unknown>,
-            )
-            emit({ t: 'tool_done', id: uso.id, key, ok: true, resumen: 'ok' })
+            const argsLectura = (uso.input ?? {}) as Record<string, unknown>
+            const salida = await suya.run(ctx, argsLectura)
+            emit({
+              t: 'tool_done',
+              id: uso.id,
+              key,
+              ok: true,
+              resumen: 'ok',
+              lectura: true,
+              // El orquestador tiene sus PROPIAS lecturas: las que miran la
+              // cuenta entera y no un dominio (métricas, salud). Sin esto,
+              // justo las tres preguntas más comunes —«¿cómo vamos?», «¿cuánto
+              // vendimos?», «¿qué está roto?»— dejaban el panel vacío.
+              vista: vistaDe(suya, ctx, argsLectura, salida) ?? undefined,
+            })
             return {
               type: 'tool_result' as const,
               tool_use_id: uso.id,
