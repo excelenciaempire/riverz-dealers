@@ -52,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SaldoChip } from "@/components/layout/saldo-chip";
 
 interface NavItem {
   href: string;
@@ -338,6 +339,12 @@ export function Sidebar({
           {/* En el teléfono, el pie deja de ser pie: estas dos entran a la
               lista y se desplazan con el resto. */}
           <ul className="mt-1 flex flex-col gap-0.5 border-t border-sidebar-border pt-2 lg:hidden">
+            {/* El saldo arriba de Integraciones y Ajustes: en el teléfono el
+                pie del menú se desplaza, y el saldo tiene que verse sin
+                buscarlo. */}
+            <li>
+              <SaldoChip onNavigate={onClose} />
+            </li>
             {itemsDePie.map((item) => (
               <NavLink
                 key={`movil-${item.href}`}
@@ -364,6 +371,7 @@ export function Sidebar({
             collapsed ? "lg:px-2" : "px-3",
           )}
         >
+          <SaldoChip collapsed={collapsed} />
           {itemsDePie.map((item) => (
             <NavLink
               key={item.href}

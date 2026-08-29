@@ -12,6 +12,8 @@ import { CsrfProvider } from "@/components/auth/csrf-provider";
 import { FeatureFlagsProvider } from "@/hooks/use-feature-flags";
 import type { FeatureFlags } from "@/lib/admin/feature-flags";
 import { useT } from "@/hooks/use-locale";
+import { SaldoProvider } from "@/hooks/use-saldo";
+import type { Vistazo } from "@/lib/wallet/puerta";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -129,17 +131,22 @@ export function DashboardShell({
   flags = {},
   isPlatformAdmin = false,
   aviso,
+  saldo = null,
 }: {
   children: React.ReactNode;
   flags?: FeatureFlags;
   isPlatformAdmin?: boolean;
   aviso?: React.ReactNode;
+  /** El saldo que ya leyó el layout, para pintarlo en el primer render. */
+  saldo?: Vistazo | null;
 }) {
   return (
     <AuthProvider>
       <CsrfProvider>
         <FeatureFlagsProvider value={{ flags, isPlatformAdmin }}>
-          <DashboardShellInner aviso={aviso}>{children}</DashboardShellInner>
+          <SaldoProvider inicial={saldo}>
+            <DashboardShellInner aviso={aviso}>{children}</DashboardShellInner>
+          </SaldoProvider>
         </FeatureFlagsProvider>
       </CsrfProvider>
     </AuthProvider>

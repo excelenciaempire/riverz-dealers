@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -158,6 +159,9 @@ export function WalletPanel() {
         const q = new URLSearchParams({ desde: rango.desde, hasta: rango.hasta });
         const res = await fetch(`/api/wallet/estado?${q}`, { cache: 'no-store' });
         if (vivo) setE(res.ok ? ((await res.json()) as Estado) : null);
+        // El número del menú viene de otra lectura: al volver de Stripe esta
+        // pantalla ya muestra el saldo nuevo y el menú seguiría con el viejo.
+        if (vivo && res.ok) avisarSaldoCambio();
       } catch {
         if (vivo) setE(null);
       } finally {

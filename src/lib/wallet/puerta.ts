@@ -16,7 +16,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { acceso, leerSuscripcion } from '@/lib/billing/plan'
-import { puedeGastar, leerBilletera } from './saldo'
+import { puedeGastar, leerBilletera, type Billetera } from './saldo'
 
 export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | null
 
@@ -80,6 +80,32 @@ export async function puedeUsarIa(
 
 export type Aviso = 'gracia' | 'sin_saldo' | null
 
+/**
+ * El saldo tal como se muestra de un vistazo, en cualquier pantalla.
+ *
+ * Es lo mínimo para pintar un número y decidir su color, sin arrastrar la
+ * billetera entera al cliente: cuánto queda, si esta cuenta paga saldo y a
+ * partir de cuánto conviene avisar. El umbral sale de acá y no del componente
+ * porque es el MISMO que usa el aviso por WhatsApp: dos umbrales distintos
+ * serían un cartel amarillo que no coincide con el mensaje que llega al
+ * teléfono.
+ */
+export interface Vistazo {
+  centavos: number
+  moneda: string
+  /** Cuenta de cortesía: no gasta saldo, no se le muestra ninguno. */
+  exenta: boolean
+  /** Si llegar a cero apaga la IA. */
+  bloquea: boolean
+  /** Por debajo de esto, el número se pinta como advertencia. */
+  umbralCentavos: number
+  /** Con tarjeta y recarga automática no hace falta advertir: se repone solo. */
+  autoConTarjeta: boolean
+}
+
+/** El mismo piso que usa el aviso por WhatsApp cuando la cuenta no fijó el suyo. */
+export const UMBRAL_VISTAZO_CENTAVOS = 500
+
 export interface EstadoDeCobro {
   /** La cuenta se cerró: pasaron las 48 horas y sigue sin pagar. */
   bloqueado: boolean
@@ -88,6 +114,28 @@ export interface EstadoDeCobro {
   /** Horas que quedan de gracia, cuando el aviso es de gracia. */
   horas: number | null
   saldoCentavos: number
+  /** El saldo para mostrarlo siempre a la vista, no sólo cuando duele. */
+  vistazo: Vistazo
+}
+
+function vistazoDe(b: Billetera, exenta: boolean): Vistazo {
+  return {
+    centavos: b.saldoCentavos,
+    moneda: b.moneda,
+    exenta,
+    bloquea: b.bloquearSinSaldo && !exenta,
+    umbralCentavos: b.autoUmbralCentavos ?? UMBRAL_VISTAZO_CENTAVOS,
+    autoConTarjeta: b.tieneTarjeta && (b.autoRecargaCentavos ?? 0) > 0,
+  }
+}
+
+const VISTAZO_VACIO: Vistazo = {
+  centavos: 0,
+  moneda: 'usd',
+  exenta: true,
+  bloquea: false,
+  umbralCentavos: UMBRAL_VISTAZO_CENTAVOS,
+  autoConTarjeta: false,
 }
 
 /**
@@ -109,12 +157,15 @@ export async function estadoDeCobro(
       leerBilletera(db, workspaceId),
     ])
 
+    const vistazo = vistazoDe(billetera, sus?.estado === 'cortesia')
+
     if (sus?.estado === 'cortesia') {
       return {
         bloqueado: false,
         aviso: null,
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
+        vistazo,
       }
     }
 
@@ -125,6 +176,7 @@ export async function estadoDeCobro(
         aviso: null,
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
+        vistazo,
       }
     }
     if (a.estado === 'vencida' && a.horasDeGracia !== null) {
@@ -133,6 +185,7 @@ export async function estadoDeCobro(
         aviso: 'gracia',
         horas: a.horasDeGracia,
         saldoCentavos: billetera.saldoCentavos,
+        vistazo,
       }
     }
     if (!puedeGastar(billetera)) {
@@ -141,6 +194,7 @@ export async function estadoDeCobro(
         aviso: 'sin_saldo',
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
+        vistazo,
       }
     }
     return {
@@ -148,10 +202,18 @@ export async function estadoDeCobro(
       aviso: null,
       horas: null,
       saldoCentavos: billetera.saldoCentavos,
+      vistazo,
     }
   } catch (e) {
-    // Un error de lectura no puede cerrarle la cuenta a nadie.
+    // Un error de lectura no puede cerrarle la cuenta a nadie. Sin dato, el
+    // vistazo se calla: un "US$0" inventado asusta peor que no mostrar nada.
     console.error('[wallet] no se pudo leer el estado de cobro', e)
-    return { bloqueado: false, aviso: null, horas: null, saldoCentavos: 0 }
+    return {
+      bloqueado: false,
+      aviso: null,
+      horas: null,
+      saldoCentavos: 0,
+      vistazo: VISTAZO_VACIO,
+    }
   }
 }

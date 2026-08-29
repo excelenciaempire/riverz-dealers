@@ -11,7 +11,7 @@ import { isWorkspaceSuspended } from "@/lib/workspaces/suspension";
 import { SuspendedGate } from "@/components/layout/suspended-gate";
 import { ImpagoGate } from "@/components/billing/impago-gate";
 import { AvisoDeCobro } from "@/components/billing/aviso-cobro";
-import { estadoDeCobro, type Aviso } from "@/lib/wallet/puerta";
+import { estadoDeCobro, type Aviso, type Vistazo } from "@/lib/wallet/puerta";
 
 // Force dynamic rendering per-request so the CSP nonce minted by the
 // proxy (forwarded via the x-nonce header) is available to inject into
@@ -56,6 +56,7 @@ export default async function DashboardLayout({
   let impago = false;
   let aviso: Aviso = null;
   let horasDeGracia: number | null = null;
+  let saldo: Vistazo | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -90,11 +91,19 @@ export default async function DashboardLayout({
       // gracia. Antes de eso se avisa y se sigue trabajando. Un admin de
       // plataforma que entra a mirar una cuenta impaga no ve la pared: la
       // necesita abierta justamente para ayudar a destrabarla.
-      if (!platformAdmin && workspaceId) {
+      //
+      // El saldo del menú, en cambio, SÍ lo ve: es el mismo número que ve el
+      // comercio y sin él la pieza no se puede probar con la cuenta del
+      // dueño, que es admin de plataforma. Sale de esta misma lectura, así
+      // que mostrarlo no cuesta una consulta más.
+      if (workspaceId) {
         const cobro = await estadoDeCobro(supabaseAdmin(), workspaceId);
-        impago = cobro.bloqueado;
-        aviso = cobro.aviso;
-        horasDeGracia = cobro.horas;
+        saldo = cobro.vistazo;
+        if (!platformAdmin) {
+          impago = cobro.bloqueado;
+          aviso = cobro.aviso;
+          horasDeGracia = cobro.horas;
+        }
       }
       // Re-consent gate: if the Terms/Privacy changed since this user last
       // accepted (LEGAL_VERSION bumped), block the app until they accept the
@@ -123,6 +132,7 @@ export default async function DashboardLayout({
         flags={flags}
         isPlatformAdmin={platformAdmin}
         aviso={<AvisoDeCobro aviso={aviso} horas={horasDeGracia} />}
+        saldo={saldo}
       >
         {children}
       </DashboardShell>

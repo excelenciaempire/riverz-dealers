@@ -38,6 +38,11 @@ export const nav = {
   integrations: { es: "Integraciones", en: "Integrations" },
   settings: { es: "Ajustes", en: "Settings" },
 
+  // El saldo en el pie del menú. Mismo nombre que la pestaña de Ajustes a la
+  // que lleva: dos palabras distintas para el mismo lugar es una pregunta de
+  // más para el que busca dónde recargar.
+  balance: { es: "Saldo", en: "Balance" },
+
   // User menu + footer
   profile: { es: "Perfil", en: "Profile" },
   signOut: { es: "Cerrar sesión", en: "Sign out" },
