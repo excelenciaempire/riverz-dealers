@@ -5,7 +5,7 @@ import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale, type Locale } from '@/l
 import { detectLocale, detectLocaleWithIp } from '@/lib/i18n/detect'
 import { canonicalizePath, localizePath } from '@/lib/i18n/routes'
 import { signupsOpenForInstall } from '@/lib/auth/signups'
-import { adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
+import { adminLegacyRedirect, adminRewrite, isAdminHost, subdomainOnly } from '@/lib/admin/host'
 import { docsHost, docsRedirect, docsRewrite, isDocsHost } from '@/lib/docs/host'
 
 // Per-request CSP nonce. Next.js 16 reads the `'nonce-…'` value out of
@@ -127,6 +127,15 @@ export async function proxy(request: NextRequest) {
     }
   }
   if (isAdminHost(host)) {
+    // Una seccion retirada se redirige de verdad. Sin esto cae en el reescritor
+    // de abajo, que manda al home lo que no reconoce: un enlace viejo aterrizaba
+    // en el indice como si hubiera funcionado.
+    const legacy = adminLegacyRedirect(request.nextUrl.pathname)
+    if (legacy) {
+      const url = request.nextUrl.clone()
+      url.pathname = legacy
+      return NextResponse.redirect(url, 308)
+    }
     const target = adminRewrite(request.nextUrl.pathname)
     if (target) {
       const url = request.nextUrl.clone()

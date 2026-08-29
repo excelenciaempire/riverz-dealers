@@ -138,3 +138,19 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
 export const ADMIN_SLUGS: ReadonlySet<string> = new Set(
   ADMIN_SECTION_LIST.map((s) => s.href.replace(/^\/admin\//, "")),
 );
+
+/**
+ * Secciones retiradas, y a dónde fueron.
+ *
+ * Hace falta porque el reescritor del subdominio manda al home todo lo que no
+ * reconoce: un enlace guardado a una sección que ya no existe no falla, aterriza
+ * en el índice — que se lee como "funcionó" y es peor que un error. Acá se dice
+ * a dónde fue cada una, y lo usan tanto `host.ts` (admin.riverz.co/saldos) como
+ * `next.config.ts` (riverz.co/admin/saldos).
+ */
+export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
+  // Fusionadas en Proveedores: sondeaban los mismos proveedores por caminos
+  // distintos y podían mostrar números distintos.
+  saldos: "proveedores",
+  infra: "proveedores",
+};

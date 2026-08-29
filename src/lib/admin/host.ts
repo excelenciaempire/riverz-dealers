@@ -17,7 +17,7 @@
  * equipo sin panel hasta que propague el DNS.
  */
 
-import { ADMIN_SLUGS } from '@/app/admin/sections-list';
+import { ADMIN_SLUGS, ADMIN_SLUGS_RETIRADOS } from '@/app/admin/sections-list';
 
 /** Host del panel. Configurable para poder probarlo en otro dominio. */
 export function adminHost(): string {
@@ -72,6 +72,21 @@ const SECTIONS = ADMIN_SLUGS;
  * ciegas: el login termina mandando a `/panel` (la ruta del producto) y sin
  * esto el equipo aterrizaba en un 404 justo después de entrar.
  */
+/**
+ * Una sección retirada, y a dónde hay que mandar a quien la pida.
+ *
+ * Va ANTES de reescribir, porque `adminRewrite` manda al home todo lo que no
+ * reconoce: sin esto, `admin.riverz.co/saldos` aterrizaba en el índice como si
+ * hubiera funcionado. Se devuelve para redirigir de verdad —no para reescribir—
+ * así el enlace guardado se corrige solo en la barra de direcciones.
+ */
+export function adminLegacyRedirect(pathname: string): string | null {
+  if (passthrough(pathname)) return null;
+  const first = (pathname.split('/')[1] ?? '').toLowerCase();
+  const destino = ADMIN_SLUGS_RETIRADOS[first];
+  return destino ? `/${destino}` : null;
+}
+
 export function adminRewrite(pathname: string): string | null {
   if (passthrough(pathname)) return null;
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return null;

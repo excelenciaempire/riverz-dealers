@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { ROUTE_SLUGS_EN, ROUTE_ALIASES } from "./src/lib/i18n/routes";
+import { ADMIN_SLUGS_RETIRADOS } from "./src/app/admin/sections-list";
 
 /**
  * Baseline security headers applied to every response.
@@ -106,10 +107,14 @@ const LEGACY_REDIRECTS: { from: string; to: string }[] = [
   // la ruta vieja daba 404.
   { from: "/campanas/voz", to: "/voz/campanas" },
   { from: "/broadcasts/voz", to: "/voz/campanas" },
-  // Saldos e Infraestructura se fusionaron en Proveedores: sondeaban los
-  // mismos cinco proveedores y podían mostrar números distintos.
-  { from: "/admin/saldos", to: "/admin/proveedores" },
-  { from: "/admin/infra", to: "/admin/proveedores" },
+  // Las secciones retiradas del panel salen de una sola lista, la misma que usa
+  // el reescritor del subdominio (`src/lib/admin/host.ts`). Escribirlas dos
+  // veces terminaría con `riverz.co/admin/saldos` redirigiendo y
+  // `admin.riverz.co/saldos` cayendo en el índice, que es como estaba.
+  ...Object.entries(ADMIN_SLUGS_RETIRADOS).map(([viejo, nuevo]) => ({
+    from: `/admin/${viejo}`,
+    to: `/admin/${nuevo}`,
+  })),
 ];
 
 const nextConfig: NextConfig = {
