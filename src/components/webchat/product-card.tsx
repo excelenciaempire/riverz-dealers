@@ -36,12 +36,18 @@ interface Producto {
   price: number | null;
   currency: string | null;
   variants?: Variante[];
+  /** Sólo cuando se resolvió por ficha: con qué variante y con qué enlace
+   *  comprar. Sin esto la tarjeta de una recomendación no tendría con qué
+   *  agregar nada. */
+  variant?: string | null;
+  cart_url?: string | null;
 }
 
 export function ProductCard({
   path,
   href,
   variantId,
+  fichaUrl,
   lineas = 1,
   unidades = 1,
   session,
@@ -51,7 +57,11 @@ export function ProductCard({
 }: {
   path: string;
   href: string;
+  /** Vacío cuando el enlace es la FICHA del producto: ahí la variante la
+   *  resuelve el servidor. */
   variantId: string;
+  /** La ficha, cuando el agente recomendó sin cerrar la venta. */
+  fichaUrl?: string;
   /** Cuántos productos distintos trae el carrito. */
   lineas?: number;
   /** Cuántas unidades en total. Con más de una, el unitario no es el total. */
@@ -73,26 +83,48 @@ export function ProductCard({
   useEffect(() => {
     if (!session) return;
     let vivo = true;
-    fetch(`/api/widget/product?variant=${encodeURIComponent(variante)}`, {
+    // Por variante cuando el enlace es un carrito; por ficha cuando el agente
+    // recomendó el producto sin cerrar la venta.
+    const pregunta = variante
+      ? `variant=${encodeURIComponent(variante)}`
+      : `url=${encodeURIComponent(fichaUrl ?? href)}`;
+    fetch(`/api/widget/product?${pregunta}`, {
       headers: { Authorization: `Bearer ${session}` },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (vivo && d?.title) setProd(d);
+        if (!vivo || !d?.title) return;
+        setProd(d);
+        // Resuelto por ficha: recién ahora se sabe qué variante ofrecer. Al
+        // fijarla, este efecto vuelve a correr por variante y el resto de la
+        // tarjeta funciona igual que la de un carrito.
+        if (!variante && d.variant) setVariante(String(d.variant));
       })
       .catch(() => {});
     return () => {
       vivo = false;
     };
-  }, [variante, session]);
+  }, [variante, session, fichaUrl, href]);
 
   // El enlace que se va a usar: el que armó el agente, con la variante y la
   // cantidad que la persona eligió en la tarjeta. Si el enlace trae varios
   // productos no se toca —ahí "la cantidad" no significa nada— y se usa el
   // original.
-  const elegido = rearmar(href, { variantId: variante, cantidad: cuantos });
-  const rutaViva = elegido?.path ?? path;
-  const hrefVivo = elegido?.href ?? href;
+  // Con una ficha, el enlace que compra no es el que mandó el agente: lo arma
+  // el servidor con la variante por defecto. Recién con ese enlace la tarjeta
+  // puede agregar al carrito en vez de sólo abrir la página.
+  const base = prod?.cart_url || href;
+  const rutaBase = (() => {
+    try {
+      const u = new URL(base);
+      return u.pathname + u.search;
+    } catch {
+      return path;
+    }
+  })();
+  const elegido = rearmar(base, { variantId: variante, cantidad: cuantos });
+  const rutaViva = elegido?.path ?? rutaBase;
+  const hrefVivo = elegido?.href ?? base;
   const ajustable = !!elegido && lineas === 1;
 
   /** Le pide al cargador —que corre en el dominio de la tienda— que agregue.

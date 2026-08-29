@@ -71,6 +71,32 @@ function parseCartLink(
   }
 }
 
+/**
+ * ¿Este enlace es la FICHA de un producto de la tienda?
+ *
+ * El agente manda dos clases de enlace: el de carrito, cuando cierra la venta,
+ * y el de la ficha, cuando recomienda algo ("el Serum Pilar sale $39.990"). El
+ * primero ya se dibujaba como tarjeta; el segundo salía como un enlace azul
+ * con sus UTM a la vista y sacaba a la persona del chat — que es justo lo que
+ * la tarjeta viene a evitar.
+ *
+ * Se reconoce por la forma del camino, que es igual en las tres plataformas:
+ * la palabra de la sección y después el nombre del producto.
+ */
+function esFichaDeProducto(href: string, storeOrigin: string | null): boolean {
+  if (!storeOrigin) return false;
+  try {
+    const url = new URL(href);
+    if (url.origin !== storeOrigin) return false;
+    const tramos = url.pathname.split('/').filter(Boolean);
+    if (tramos.length < 2) return false;
+    const seccion = tramos[tramos.length - 2].toLowerCase();
+    return ['products', 'productos', 'product', 'producto'].includes(seccion);
+  } catch {
+    return false;
+  }
+}
+
 export function MessageText({
   text,
   storeOrigin,
@@ -92,6 +118,21 @@ export function MessageText({
     <TextoRico
       text={text}
       enlace={(href, k) => {
+        if (esFichaDeProducto(href, storeOrigin)) {
+          return (
+            <ProductCard
+              key={k}
+              path={new URL(href).pathname}
+              href={href}
+              fichaUrl={href}
+              variantId=""
+              session={session}
+              color={color}
+              ink={ink}
+              T={T}
+            />
+          );
+        }
         const cart = parseCartLink(href, storeOrigin);
         if (cart) {
           return (
