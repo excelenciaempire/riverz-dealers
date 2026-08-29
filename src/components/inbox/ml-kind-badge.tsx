@@ -1,7 +1,7 @@
 "use client";
 
 import type { Channel } from "@/types";
-import { Globe, Star } from "lucide-react";
+import { Globe, ShieldAlert, Star } from "lucide-react";
 import { mlThreadKind, type MlThreadKind } from "@/lib/channels/display";
 import { useT } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
  *   Mensaje  — post-venta, privado y atado a un pedido.
  *   Opinión  — ya compró y ya opinó. NO se puede contestar: Mercado Libre no
  *              expone endpoint para hacerlo. Se lee.
+ *   Reclamo  — mediación abierta. Se lee entera (incluido lo que el vendedor
+ *              contestó desde Mercado Libre), pero el descargo se presenta allá.
  *
  * No renderiza nada fuera de Mercado Libre. `variant="header"` usa la etiqueta
  * larga dentro del hilo abierto —donde se responde y el matiz público/privado
@@ -26,12 +28,15 @@ const LABELS: Record<MlThreadKind, { row: string; header: string }> = {
   question: { row: "inbox.mlQuestion", header: "inbox.mlQuestionPublic" },
   message: { row: "inbox.mlMessage", header: "inbox.mlMessagePostSale" },
   review: { row: "inbox.mlReview", header: "inbox.mlReviewPublic" },
+  claim: { row: "inbox.mlClaim", header: "inbox.mlClaimMediation" },
 };
 
 const TONES: Record<MlThreadKind, string> = {
   question: "bg-sky-400/10 text-sky-700 dark:text-sky-300 ring-1 ring-sky-400/30",
   message: "bg-amber-400/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400/30",
   review: "bg-violet-400/10 text-violet-700 dark:text-violet-300 ring-1 ring-violet-400/30",
+  // Rojo y no ámbar: un reclamo no es un mensaje urgente, es plata en disputa.
+  claim: "bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30",
 };
 
 export function MlKindBadge({
@@ -62,6 +67,7 @@ export function MlKindBadge({
     >
       {kind === "question" && <Globe className="h-2.5 w-2.5" />}
       {kind === "review" && <Star className="h-2.5 w-2.5" />}
+      {kind === "claim" && <ShieldAlert className="h-2.5 w-2.5" />}
       {label}
     </span>
   );

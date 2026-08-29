@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshMLToken } from "./adapter";
+import { syncClaimsForConnection } from "./claims-poll";
 import { upsertContact } from "../inbox-writer";
 import { recordPurchases } from "@/lib/contacts/purchases";
 import { getLogger } from "@/lib/log/logger";
@@ -153,12 +154,15 @@ async function syncOneSeller(
     if (offset >= Math.min(page.paging?.total ?? 0, 1000)) break;
   }
 
-  const claims = await syncClaims(db, conn, auth);
-
+  // El cursor se escribe ANTES de los reclamos: `cfg` es una copia leída al
+  // entrar, y guardarla después pisaría cualquier cosa que la sincronización de
+  // reclamos —o un refresco de token— haya dejado en `config` mientras tanto.
   await db
     .from("channel_connections")
     .update({ config: { ...cfg, orders_cursor: newest } })
     .eq("id", conn.id);
+
+  const { claims } = await syncClaimsForConnection(db, conn, token);
 
   return { orders: count, claims };
 }
@@ -322,53 +326,3 @@ function mlDate(iso: string): string {
   return d.toISOString().replace("Z", "-00:00");
 }
 
-/**
- * Reclamos abiertos. En Mercado Libre un reclamo sin atender pega directo en
- * la reputación del vendedor y corre contra reloj, así que vale traerlos
- * aunque todavía no haya una pantalla dedicada: primero existir, después
- * mostrarse.
- */
-async function syncClaims(
-  db: SupabaseClient,
-  conn: ChannelConnection,
-  auth: Record<string, string>,
-): Promise<number> {
-  try {
-    const r = await fetch(`${ML}/post-purchase/v1/claims/search?status=opened&limit=50`, {
-      headers: auth,
-    });
-    if (!r.ok) return 0;
-    const j = (await r.json()) as {
-      data?: Array<Record<string, unknown>>;
-      results?: Array<Record<string, unknown>>;
-    };
-    const rows = j.data ?? j.results ?? [];
-    let n = 0;
-    for (const c of rows) {
-      const claimId = String(c.id ?? "");
-      if (!claimId) continue;
-      const { error: claimErr } = await db.from("ml_claims").upsert(
-        {
-          workspace_id: conn.workspace_id,
-          connection_id: conn.id,
-          claim_id: claimId,
-          resource_id: c.resource_id != null ? String(c.resource_id) : null,
-          order_id: c.resource === "order" && c.resource_id ? String(c.resource_id) : null,
-          stage: c.stage != null ? String(c.stage) : null,
-          status: c.status != null ? String(c.status) : null,
-          type: c.type != null ? String(c.type) : null,
-          reason: c.reason_id != null ? String(c.reason_id) : null,
-          opened_at: c.date_created != null ? String(c.date_created) : null,
-          raw: c,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "workspace_id,claim_id" },
-      );
-      if (claimErr) continue;
-      n++;
-    }
-    return n;
-  } catch {
-    return 0;
-  }
-}

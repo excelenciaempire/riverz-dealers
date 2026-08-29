@@ -5,6 +5,7 @@ import { pollAllMercadoLibreMessages } from "@/lib/channels/mercadolibre/message
 import { syncAllMercadoLibreOrders } from "@/lib/channels/mercadolibre/orders";
 import { syncAllMercadoLibreCatalogs } from "@/lib/channels/mercadolibre/catalog";
 import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews";
+import { pollAllMercadoLibreClaims } from "@/lib/channels/mercadolibre/claims-poll";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun, pingCron } from "@/lib/cron/heartbeat";
 
@@ -30,16 +31,24 @@ import { withCronRun, pingCron } from "@/lib/cron/heartbeat";
  *                webhook (orders_v2 / shipments / claims) adelanta lo urgente.
  *   catálogo   — cada ~60 min. Precio y stock no cambian por minuto.
  *   opiniones  — cada ~60 min. Una petición de conteo por publicación.
+ *   reclamos   — cada ~10 min. La mediación corre contra reloj: se traen el
+ *                expediente Y los mensajes, incluidas las respuestas que el
+ *                vendedor dio desde Mercado Libre.
  */
 
 const JOB_ORDERS = "mercadolibre-orders";
 const JOB_CATALOG = "mercadolibre-catalog";
 const JOB_REVIEWS = "ml-reviews";
+const JOB_CLAIMS = "mercadolibre-claims";
 
 // Umbrales por debajo del intervalo nominal: con el cron cada 5 minutos, un
 // umbral de exactamente 15 se pasaría de largo hasta la corrida siguiente.
 const EVERY_ORDERS_MS = 14 * 60_000;
 const EVERY_SLOW_MS = 58 * 60_000;
+// Los reclamos, cada ~10 min: más seguido que los pedidos porque acá cada
+// respuesta cuenta, y menos que las preguntas porque son dos búsquedas por
+// vendedor contra una cuota que comparten todos los comercios.
+const EVERY_CLAIMS_MS = 9 * 60_000;
 
 async function cronHandler(request: Request) {
   try {
@@ -70,6 +79,19 @@ async function cronHandler(request: Request) {
     // con derecho si la primera tarda.
     await pingCron(JOB_ORDERS);
     out.orders = await syncAllMercadoLibreOrders().catch((err) => ({
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
+
+  // ── Reclamos ──
+  //
+  // Fuera del bloque de pedidos y a su propio ritmo: una mediación corre contra
+  // reloj y lo que se diga ahí decide si se devuelve la plata, así que no puede
+  // esperar a la corrida de pedidos. Cuesta dos búsquedas por vendedor más los
+  // mensajes de los que cambiaron.
+  if (await isDue(db, JOB_CLAIMS, EVERY_CLAIMS_MS)) {
+    await pingCron(JOB_CLAIMS);
+    out.claims = await pollAllMercadoLibreClaims().catch((err) => ({
       error: err instanceof Error ? err.message : String(err),
     }));
   }

@@ -558,7 +558,7 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
  * name). Best-effort: returns undefined on any failure so ingest still works
  * and the UI falls back to "Cliente Mercado Libre · …id".
  */
-async function resolveMlNickname(
+export async function resolveMlNickname(
   userId: string,
   auth: Record<string, string>,
 ): Promise<string | undefined> {

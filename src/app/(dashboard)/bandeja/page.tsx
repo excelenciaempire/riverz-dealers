@@ -740,14 +740,8 @@ export default function InboxPage() {
     if (channelFilter) {
       list = list.filter((c) => c.channel === channelFilter);
     }
-    // Filtro terciario, sólo bajo Mercado Libre. "claim" queda fuera a
-    // propósito: un reclamo no es una conversación, así que no filtra esta
-    // lista — la sustituye por su propio panel (ver más abajo).
-    if (
-      channelFilter === "mercadolibre" &&
-      mlKindFilter !== "all" &&
-      mlKindFilter !== "claim"
-    ) {
+    // Filtro terciario, sólo bajo Mercado Libre.
+    if (channelFilter === "mercadolibre" && mlKindFilter !== "all") {
       list = list.filter(
         (c) => mlThreadKind(c.channel, c.thread_external_id) === mlKindFilter,
       );
@@ -773,34 +767,47 @@ export default function InboxPage() {
     let question = 0;
     let message = 0;
     let review = 0;
+    const claimThreads = new Set<string>();
     for (const c of conversations) {
       const kind = mlThreadKind(c.channel, c.thread_external_id);
       if (kind === "question") question++;
       else if (kind === "message") message++;
       else if (kind === "review") review++;
+      else if (kind === "claim") {
+        claimThreads.add((c.thread_external_id ?? "").slice("claim:".length));
+      }
     }
-    return { question, message, review };
+    return { question, message, review, claimThreads };
   }, [conversations]);
 
-  // Reclamos ABIERTOS del workspace. Se cuentan aparte de las conversaciones
-  // porque no viven en `conversations`: son expedientes, no hilos.
-  const [mlClaimCount, setMlClaimCount] = useState(0);
+  // Reclamos ABIERTOS del workspace: los expedientes, que no son hilos y por
+  // eso no viven en `conversations`. Se guardan los ids —y no sólo el total—
+  // para no contar dos veces el reclamo que además tiene conversación.
+  const [openClaimIds, setOpenClaimIds] = useState<string[]>([]);
   useEffect(() => {
     const wsId = workspace?.id;
     if (!wsId) return;
     let cancelled = false;
     void (async () => {
-      const { count } = await createClient()
+      const { data } = await createClient()
         .from("ml_claims")
-        .select("id", { count: "exact", head: true })
+        .select("claim_id")
         .eq("workspace_id", wsId)
         .neq("status", "closed");
-      if (!cancelled) setMlClaimCount(count ?? 0);
+      if (!cancelled) {
+        setOpenClaimIds(((data ?? []) as Array<{ claim_id: string }>).map((r) => r.claim_id));
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [workspace?.id]);
+
+  // Un reclamo cuenta UNA vez, tenga expediente abierto, conversación, o las dos.
+  const mlClaimCount = useMemo(
+    () => new Set([...openClaimIds, ...mlCounts.claimThreads]).size,
+    [openClaimIds, mlCounts.claimThreads],
+  );
 
   // Switching the channel chip resets the ML sub-filter so a stale
   // "solo preguntas" doesn't hide everything under another channel.
@@ -891,7 +898,12 @@ export default function InboxPage() {
               <MlSubFilter
                 value={mlKindFilter}
                 onChange={setMlKindFilter}
-                counts={{ ...mlCounts, claim: mlClaimCount }}
+                counts={{
+                  question: mlCounts.question,
+                  message: mlCounts.message,
+                  review: mlCounts.review,
+                  claim: mlClaimCount,
+                }}
               />
             )}
             {/* Sólo aparece si hay algo que atender: un filtro permanentemente
@@ -915,14 +927,14 @@ export default function InboxPage() {
               </button>
             )}
             <div className="flex-1 overflow-hidden">
-              {channelFilter === "mercadolibre" && mlKindFilter === "claim" ? (
-                <MlClaimsPanel workspaceId={workspace?.id ?? null} />
-              ) : (
               <div className="flex h-full flex-col">
-              {/* En "Todas" los reclamos van arriba de las conversaciones: no
-                  son hilos, pero son lo más urgente del canal y quedaban
-                  invisibles hasta entrar a su propia pastilla. */}
-              {channelFilter === "mercadolibre" && mlKindFilter === "all" && (
+              {/* Los expedientes de reclamo van arriba de las conversaciones:
+                  no son hilos —son el estado, el motivo y el reloj, con enlace
+                  a Mercado Libre— pero son lo más urgente del canal y quedaban
+                  invisibles hasta entrar a su propia pastilla. La conversación
+                  del reclamo, en cambio, sí está en la lista de abajo. */}
+              {channelFilter === "mercadolibre" &&
+                (mlKindFilter === "all" || mlKindFilter === "claim") && (
                 <div className="max-h-48 shrink-0 overflow-y-auto border-b border-border">
                   <MlClaimsPanel workspaceId={workspace?.id ?? null} compact />
                 </div>
@@ -944,7 +956,6 @@ export default function InboxPage() {
               />
               </div>
               </div>
-              )}
             </div>
           </div>
         </ResizablePane>

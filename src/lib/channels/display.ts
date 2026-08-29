@@ -167,8 +167,11 @@ export function mediaPreviewToken(mime?: string | null): string {
  *   message  — mensaje post-venta. Privado, atado a un pedido.
  *   review   — opinión de quien compró. Pública, anónima y SIN respuesta
  *              posible: Mercado Libre no expone endpoint para contestarla.
+ *   claim    — mediación por un reclamo. Se lee en Riverz (incluida la
+ *              respuesta que el vendedor dio desde Mercado Libre), pero el
+ *              descargo se presenta allá.
  */
-export type MlThreadKind = "question" | "message" | "review";
+export type MlThreadKind = "question" | "message" | "review" | "claim";
 
 /**
  * Derive the ML sub-kind from a conversation's thread_external_id. ML encodes
@@ -185,6 +188,7 @@ export function mlThreadKind(
   if (threadExternalId.startsWith("q:")) return "question";
   if (threadExternalId.startsWith("pack:")) return "message";
   if (threadExternalId.startsWith("rev:")) return "review";
+  if (threadExternalId.startsWith("claim:")) return "claim";
   return null;
 }
 

@@ -185,6 +185,17 @@ export const operation = {
 
   // La pizarra: qué hace el agente y cuándo entra una persona
   toolsTitle: { es: "Herramientas", en: "Tools" },
+  cobroTitle: { es: "Cómo se cobra", en: "How it charges" },
+  cobroHint: {
+    es: "Con qué cierra la venta cuando puede hacer las dos cosas.",
+    en: "How it closes the sale when it can do both.",
+  },
+  cobroSegunPago: {
+    es: "Contra entrega en el chat, tarjeta a la caja",
+    en: "Cash on delivery in chat, card to checkout",
+  },
+  cobroChat: { es: "Siempre toma el pedido en el chat", en: "Always take the order in chat" },
+  cobroCheckout: { es: "Siempre manda a la caja", en: "Always send to checkout" },
   toolsHint: {
     es: "Elige qué hace solo y qué te consulta antes. Lo que apagues, lo deriva a tu equipo.",
     en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",

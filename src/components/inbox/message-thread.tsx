@@ -1860,6 +1860,14 @@ export function MessageThread({
         <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
           {t("inbox.mlReviewNoReply")}
         </div>
+      ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
+        "claim" ? (
+        /* El reclamo se LEE acá —incluido lo que el vendedor haya contestado
+           desde Mercado Libre— pero el descargo se presenta allá: la mediación
+           tiene formulario, plazos y adjuntos propios. */
+        <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+          {t("inbox.mlClaimNoReply")}
+        </div>
       ) : (
         /* Composer — the 24h session-window check only applies to
            WhatsApp; for every other channel the agent can reply any
