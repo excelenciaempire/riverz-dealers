@@ -24,8 +24,6 @@ const T = {
   empezar: 'Empezar',
   correo: 'tu@correo.com',
   telefono: 'Tu teléfono',
-  seguirWa: 'Seguir por WhatsApp',
-  waSaludo: 'Hola, vengo del chat de la web.',
   agregar: 'Agregar',
   agregado: 'Agregado',
   agregando: 'Agregando…',
