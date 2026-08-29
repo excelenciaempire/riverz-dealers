@@ -775,22 +775,6 @@
       } catch (e) {
         /* el píxel de la tienda no puede romper el chat */
       }
-    } else if (data.type === 'riverz:abrir') {
-      // "Seguir por WhatsApp". El link tiene que abrirse desde ESTA página: el
-      // iframe es de otro dominio y el navegador le bloquea la navegación de
-      // nivel superior, así que desde adentro no pasaba absolutamente nada.
-      //
-      // Sólo wa.me, y sólo https: este puente recibe mensajes de un iframe, y
-      // aceptar cualquier URL lo convertiría en un redirector abierto dentro de
-      // la tienda del comercio.
-      try {
-        var destino = String(data.url || '');
-        if (/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(destino)) {
-          window.open(destino, '_blank', 'noopener,noreferrer');
-        }
-      } catch (e) {
-        /* que no se abra no puede romper el chat */
-      }
     } else if (data.type === 'riverz:resume') {
       // El token del chat caduca a las 24 h. Recargar el iframe no lo renueva:
       // el token viaja en el fragmento y el chat lo borra apenas lo lee, así

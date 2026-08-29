@@ -56,8 +56,6 @@ const TEXTOS = {
     empezar: 'Empezar',
     correo: 'tu@correo.com',
     telefono: 'Tu teléfono',
-    seguirWa: 'Seguir por WhatsApp',
-    waSaludo: 'Hola, vengo del chat de la web.',
     agregar: 'Agregar',
     agregado: 'Agregado',
     agregando: 'Agregando…',
@@ -90,8 +88,6 @@ const TEXTOS = {
     empezar: 'Start',
     correo: 'you@email.com',
     telefono: 'Your phone number',
-    seguirWa: 'Continue on WhatsApp',
-    waSaludo: 'Hi, I was chatting on your website.',
     agregar: 'Add',
     agregado: 'Added',
     agregando: 'Adding…',
@@ -655,52 +651,6 @@ export function ChatApp() {
   const needsEmail = (pideCorreo || pideTelefono) && !identified && messages.length === 0;
 
   /**
-   * Seguir por WhatsApp.
-   *
-   * El chat web era el único canal sin salida al de al lado: quien escribía acá
-   * cerraba la pestaña y la conversación se terminaba. Lo abre la persona
-   * —wa.me con el mensaje ya escrito— así que no hace falta ninguna plantilla y
-   * la ventana de 24 h de Meta se abre sola. El código que va en el mensaje une
-   * las dos fichas del otro lado.
-   */
-  const [yendoAWhatsApp, setYendoAWhatsApp] = useState(false);
-  /** El servidor dijo que no hay a dónde ir (WhatsApp caído o desconectado
-   *  desde que cargó el chat). Se esconde el botón en vez de dejar uno que no
-   *  hace nada, que es lo que la persona lee como "esto está roto". */
-  const [sinWhatsApp, setSinWhatsApp] = useState(false);
-  const seguirEnWhatsApp = useCallback(async () => {
-    if (!session || yendoAWhatsApp) return;
-    setYendoAWhatsApp(true);
-    try {
-      const res = await fetch('/api/widget/whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
-        body: JSON.stringify({ saludo: T.waSaludo }),
-      });
-      if (res.status === 404) {
-        setSinWhatsApp(true);
-        return;
-      }
-      const json = (await res.json().catch(() => null)) as { url?: string } | null;
-      if (!json?.url) return;
-      // Primero desde acá: el iframe no está en sandbox y el clic es un gesto
-      // de la persona, así que abrir una pestaña funciona. Si el navegador lo
-      // bloquea igual, lo abre la página de la tienda por el puente del
-      // cargador — que además es el único camino en un navegador que no deja
-      // abrir pestañas desde un iframe de otro dominio.
-      let abierta: Window | null = null;
-      try {
-        abierta = window.open(json.url, '_blank', 'noopener,noreferrer');
-      } catch {
-        abierta = null;
-      }
-      if (!abierta) window.parent?.postMessage({ type: 'riverz:abrir', url: json.url }, '*');
-    } finally {
-      setYendoAWhatsApp(false);
-    }
-  }, [session, yendoAWhatsApp, T]);
-
-  /**
    * Quién firma un mensaje entrante.
    *
    * El cable ya traía `sender: 'bot'|'agent'` y `agent_name`, y el chat los
@@ -871,7 +821,7 @@ export function ChatApp() {
           estado === 'pending' || pidiendoPersona ? (
             <p className="mt-3 text-center text-[11px] text-neutral-500">{T.avisamos}</p>
           ) : (
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <div className="mt-3 flex justify-center">
               <button
                 type="button"
                 onClick={pedirPersona}
@@ -879,19 +829,6 @@ export function ChatApp() {
               >
                 {T.hablarPersona}
               </button>
-              {/* Llevarse la conversación. Al lado de "hablar con una persona"
-                  porque resuelven lo mismo desde dos lados: seguir en otro
-                  lado en vez de terminar acá. */}
-              {settings?.whatsapp_handoff && !sinWhatsApp ? (
-                <button
-                  type="button"
-                  onClick={seguirEnWhatsApp}
-                  disabled={yendoAWhatsApp}
-                  className="rounded-md border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:bg-neutral-50 disabled:opacity-50"
-                >
-                  {T.seguirWa}
-                </button>
-              ) : null}
             </div>
           )
         ) : null}

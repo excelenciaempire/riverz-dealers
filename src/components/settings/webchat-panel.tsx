@@ -119,8 +119,6 @@ export function WebchatPanel() {
   const [cfg, setCfg] = useState<WebchatConfig>({});
   const [snippet, setSnippet] = useState('');
   const [agents, setAgents] = useState<Agente[]>([]);
-  /** ¿Hay WhatsApp conectado? Decide si "Seguir por WhatsApp" se puede activar. */
-  const [hasWhatsApp, setHasWhatsApp] = useState(false);
   const [instalado, setInstalado] = useState<boolean | null>(null);
   const [motivoInstalar, setMotivoInstalar] = useState<string | null>(null);
   const [instalando, setInstalando] = useState(false);
@@ -145,7 +143,6 @@ export function WebchatPanel() {
           setSnippet(json.snippet ?? '');
           setSuggested(json.suggested_domains ?? []);
           setAgents(json.agents ?? []);
-          setHasWhatsApp(json.has_whatsapp === true);
         }
         if (statsRes.ok) setStats(await statsRes.json());
         if (saberRes.ok) setSaber(await saberRes.json());
@@ -654,19 +651,6 @@ export function WebchatPanel() {
                     <option value="both">{t('webchat.pedirAmbos')}</option>
                   </select>
                 </Field>
-                {/* Seguir por WhatsApp. Sin WhatsApp conectado se muestra apagado
-                    y se dice por qué: un interruptor que se apaga solo al
-                    guardar parece un error del producto. */}
-                <Toggle
-                  label={t('webchat.seguirWhatsapp')}
-                  hint={
-                    hasWhatsApp
-                      ? t('webchat.seguirWhatsappHint')
-                      : t('webchat.seguirWhatsappSinCuenta')
-                  }
-                  checked={cfg.whatsapp_handoff === true && hasWhatsApp}
-                  onChange={(c) => hasWhatsApp && save({ whatsapp_handoff: c })}
-                />
                 <Toggle
                   label={t('webchat.uploads')}
                   checked={cfg.allow_uploads !== false}

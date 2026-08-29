@@ -52,9 +52,6 @@ export interface WebchatSettings {
   require_email: boolean;
   /** Qué se pide antes de escribir: nada, correo, teléfono o los dos. */
   require_contact: DatosPedidos;
-  /** Ofrecer "Seguir por WhatsApp". Sólo llega en true si además hay WhatsApp
-   *  conectado: un botón que no lleva a ningún lado es peor que no tenerlo. */
-  whatsapp_handoff: boolean;
   auto_open_seconds: number;
   allow_uploads: boolean;
   ask_rating: boolean;
@@ -135,8 +132,6 @@ export function widgetSettings(
     locale?: string | null;
     offline?: boolean;
     visitorLocale?: string | null;
-    /** ¿El comercio tiene WhatsApp conectado? Lo resuelve quien llama. */
-    hasWhatsApp?: boolean;
   },
 ): WebchatSettings {
   return {
@@ -147,9 +142,6 @@ export function widgetSettings(
     avatar_url: config.avatar_url || null,
     require_email: config.require_email ?? WEBCHAT_DEFAULTS.require_email,
     require_contact: datosPedidos(config),
-    // El botón sólo existe si hay a dónde ir. Ofrecer "Seguir por WhatsApp" sin
-    // WhatsApp conectado es prometer un canal que no contesta.
-    whatsapp_handoff: config.whatsapp_handoff === true && extra?.hasWhatsApp === true,
     auto_open_seconds: segundosDeApertura(config.auto_open_seconds),
     allow_uploads: config.allow_uploads ?? WEBCHAT_DEFAULTS.allow_uploads,
     ask_rating: config.ask_rating ?? WEBCHAT_DEFAULTS.ask_rating,

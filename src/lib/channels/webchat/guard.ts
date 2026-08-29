@@ -33,8 +33,6 @@ export const WEBCHAT_LIMITS = {
   /** Sondear mensajes nuevos: uno cada 2,5 s por pestaña, más margen. */
   poll: { limit: 120, windowMs: 60_000 },
   identify: { limit: 10, windowMs: 60_000 },
-  /** Pasarse a WhatsApp. Cada uno emite un código: se toca una vez, no diez. */
-  whatsapp: { limit: 5, windowMs: 60_000 },
 } as const;
 
 export interface WebchatContext {

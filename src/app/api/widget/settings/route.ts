@@ -3,7 +3,6 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { widgetSettings } from '@/lib/channels/webchat/config';
 import { agenteDelChat } from '@/lib/channels/webchat/connection-store';
 import { requireSession } from '@/lib/channels/webchat/guard';
-import { tieneWhatsApp } from '@/lib/channels/webchat/seguir-en-whatsapp';
 
 /**
  * GET /api/widget/settings — cómo dibujarse.
@@ -34,7 +33,6 @@ export async function GET(request: Request) {
         // El idioma del navegador viaja en el token: acá adentro ya no se ve,
         // porque el iframe es nuestro y no de la tienda.
         visitorLocale: guard.session.lc ?? null,
-        hasWhatsApp: await tieneWhatsApp(supabaseAdmin(), guard.session.workspaceId),
       },
     ),
   });

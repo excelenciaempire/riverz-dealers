@@ -1233,14 +1233,6 @@ export interface WebchatConfig {
    */
   require_contact?: 'off' | 'email' | 'phone' | 'both';
   /**
-   * Ofrecer "Seguir por WhatsApp".
-   *
-   * Cada canal tiene una salida al de al lado cuando el suyo se queda corto: la
-   * llamada manda un WhatsApp con el link que no se puede dictar, el comentario
-   * público sigue por DM. Ésta es la del chat web. Requiere WhatsApp conectado.
-   */
-  whatsapp_handoff?: boolean;
-  /**
    * Segundos hasta que el chat se abre solo. 0 = nunca.
    *
    * Abre UNA vez por visita y sólo si la persona no lo cerró antes: un chat

@@ -200,15 +200,6 @@ export const webchat = {
   pedirCorreo: { es: "Correo", en: "Email" },
   pedirTelefono: { es: "Teléfono", en: "Phone" },
   pedirAmbos: { es: "Correo y teléfono", en: "Email and phone" },
-  seguirWhatsapp: { es: "Ofrecer seguir por WhatsApp", en: "Offer to continue on WhatsApp" },
-  seguirWhatsappHint: {
-    es: "Quien cierra la pestaña deja de ser inalcanzable: la conversación sigue en el mismo hilo.",
-    en: "Closing the tab no longer ends it: the conversation continues in the same thread.",
-  },
-  seguirWhatsappSinCuenta: {
-    es: "Requiere WhatsApp conectado.",
-    en: "Requires a connected WhatsApp account.",
-  },
   uploads: { es: "Recibir fotos y archivos", en: "Accept photos and files" },
   askRating: { es: "Preguntar si sirvió", en: "Ask if it helped" },
   askRatingHint: {

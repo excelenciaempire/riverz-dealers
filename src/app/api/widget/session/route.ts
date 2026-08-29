@@ -9,7 +9,6 @@ import {
   VISITOR_ID_RE,
 } from '@/lib/channels/webchat/token';
 import { originAllowed, normalizeOrigin, widgetSettings } from '@/lib/channels/webchat/config';
-import { tieneWhatsApp } from '@/lib/channels/webchat/seguir-en-whatsapp';
 import { agenteDelChat } from '@/lib/channels/webchat/connection-store';
 import { checkIpLimit, loadWebchat } from '@/lib/channels/webchat/guard';
 
@@ -186,7 +185,6 @@ export async function POST(request: Request) {
         {
           ...(await agenteDelChat(workspaceId, config.agent_id ?? null)),
           visitorLocale,
-          hasWhatsApp: await tieneWhatsApp(supabaseAdmin(), workspaceId),
         },
       ),
     },
