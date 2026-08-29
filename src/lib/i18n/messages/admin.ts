@@ -545,6 +545,29 @@ export const admin = {
   },
   // Administrar las llaves globales: las que Riverz pone y con las que
   // trabajan todos los comercios.
+  sectionKeys: { es: "Llaves", en: "Keys" },
+  sectionKeysDesc: {
+    es: "Las llaves de IA y voz con las que trabajan todos los comercios.",
+    en: "The AI and voice keys every merchant works with.",
+  },
+  keysBlock: { es: "Una por proveedor", en: "One per provider" },
+  keysMissing: { es: "Sin llave", en: "Missing" },
+  keysMissingHint: {
+    es: "Hay tarifas que hoy no se pueden cobrar",
+    en: "Some rates can't be billed today",
+  },
+  keysAllSet: { es: "Todas cargadas", en: "All set" },
+  keysFromPanel: { es: "Desde el panel", en: "From the panel" },
+  keysFromPanelHint: {
+    es: "El resto sale de Render y cambiarla pide un deploy",
+    en: "The rest come from Render and changing one needs a deploy",
+  },
+  keysProviders: { es: "Proveedores", en: "Providers" },
+  // Etiqueta corta para la pastilla. `keyOrigin_*` se interpola dentro de una
+  // frase ("La que esta activa sale de Render") y suelta se lee raro.
+  keyState_panel: { es: "En el panel", en: "In the panel" },
+  keyState_render: { es: "En Render", en: "In Render" },
+  keyState_falta: { es: "Falta", en: "Missing" },
   keyEdit: { es: "Cambiar llave", en: "Change key" },
   keyMissing: { es: "Sin llave", en: "No key" },
   keySave: { es: "Guardar", en: "Save" },
@@ -575,6 +598,7 @@ export const admin = {
   fixedNoAnswer: { es: "No respondió", en: "No answer" },
   fixedNoAnswerHttp: { es: "No respondió (HTTP {v})", en: "No answer (HTTP {v})" },
   fixedRenderPlan: { es: "Render · {v}", en: "Render · {v}" },
+  fixedRenderPlanDisk: { es: "Render · {v} de disco", en: "Render · {v} disk" },
   fixedRenderSuspended: {
     es: "Render · {v} · suspendido",
     en: "Render · {v} · suspended",
@@ -587,6 +611,28 @@ export const admin = {
     es: "La base de datos de todos los comercios · plan {v}",
     en: "The database behind every merchant · {v} plan",
   },
+  // El plan de Supabase es de la cuenta entera y ya viene con el crédito de
+  // compute descontado: sin decirlo, el número no coincide con la factura.
+  fixedSupabasePlanNet: {
+    es: "Plan {v} de la cuenta, menos el crédito de compute",
+    en: "Account {v} plan, minus the compute credit",
+  },
+  fixedSupabaseCompute: {
+    es: "Supabase · instancia {v}",
+    en: "Supabase · {v} instance",
+  },
+  // Los dos grupos que no son un repo ni una base con nombre propio.
+  fixedProjectCrm: { es: "Riverz CRM", en: "Riverz CRM" },
+  fixedProjectShared: {
+    es: "De la cuenta, sin repartir",
+    en: "Account-wide, unallocated",
+  },
+  fixedCrmMonthly: { es: "El CRM al mes", en: "The CRM per month" },
+  fixedCrmMonthlyHint: {
+    es: "Sólo el producto que se vende",
+    en: "Only the product being sold",
+  },
+  fixedOthersMonthly: { es: "Otros proyectos", en: "Other projects" },
   fixedPhoneNumbers: {
     es: "{v} números alquilados · cada cuenta compra el suyo",
     en: "{v} rented numbers · each account buys its own",
@@ -625,7 +671,7 @@ export const admin = {
   },
   balancesToTopUp: { es: "Para recargar", en: "To top up" },
   balancesProviders: { es: "Servicios conectados", en: "Connected services" },
-  fixedMonthly: { es: "Fijo del mes", en: "Fixed monthly" },
+  fixedMonthly: { es: "Total del mes", en: "Total per month" },
   fixedUnmeasured: {
     es: "{n} sin medir: es un piso, no el total",
     en: "{n} not measured: this is a floor, not the total",

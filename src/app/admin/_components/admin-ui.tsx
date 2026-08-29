@@ -248,10 +248,13 @@ export function LiveDot() {
 
 export function Panel({
   title,
+  actions,
   children,
   className,
 }: {
   title?: string;
+  /** Al ras del título, a la derecha. Para el total de lo que hay debajo. */
+  actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -260,9 +263,10 @@ export function Panel({
       className={cn("rounded-xl border border-border bg-card", className)}
     >
       {title && (
-        <h2 className="border-b border-border px-4 py-3 text-sm font-medium text-foreground">
-          {title}
-        </h2>
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          {actions}
+        </div>
       )}
       {children}
     </section>

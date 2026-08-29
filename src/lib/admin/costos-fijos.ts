@@ -11,9 +11,21 @@
  * solos. Lo que ninguna API dice se lista igual, con su enlace y sin número
  * inventado.
  *
+ * **Todo se agrupa por proyecto.** La misma cuenta de Render y la misma
+ * organización de Supabase pagan cosas que no son el CRM: la suite de
+ * riverzai.com, la contaduría, un radar. Sumados en un solo total, el panel
+ * contestaba «Riverz cuesta 176» cuando el CRM cuesta 43 — y esa cifra es la
+ * que decide si el precio de un plan cierra. Cada fila declara a qué proyecto
+ * se le carga, y el CRM va aparte de todo lo demás.
+ *
  * El texto viaja como CLAVE i18n, no como frase: esta pantalla se ve en español
  * y en inglés.
  */
+
+/** El CRM: el producto que se vende. Va aparte de todo lo demás. */
+export const PROYECTO_CRM = 'crm'
+/** Lo que factura la cuenta entera y no se le puede cargar a un proyecto. */
+export const PROYECTO_COMPARTIDO = 'compartido'
 
 export interface CostoFijo {
   id: string
@@ -28,6 +40,21 @@ export interface CostoFijo {
   /** Suspendido o apagado: aparece, y no suma. */
   activo: boolean
   url: string
+  /** A qué proyecto se le carga. Es la clave del grupo. */
+  proyecto: string
+}
+
+export interface ProyectoFijo {
+  id: string
+  /** Nombre para mostrar cuando sale de una API (un repo, una base). */
+  nombre: string
+  /** Clave i18n, para los dos grupos que no tienen nombre propio. */
+  nombreKey: string | null
+  /** El CRM va primero y aparte: es el producto que se vende. */
+  esCrm: boolean
+  usdMes: number
+  sinMedir: number
+  items: CostoFijo[]
 }
 
 /**
@@ -46,72 +73,143 @@ const PLAN_USD: Record<string, number> = {
   pro_ultra: 450,
 }
 
+/** Disco persistente de Render, por GB al mes. */
+const RENDER_DISCO_USD_GB = 0.25
+
 const TIMEOUT_MS = 8000
+
+/** Un mes de facturación, en horas: es como cotizan Render y Supabase. */
+const HORAS_MES = 730
+
+function conTimeout(): { signal: AbortSignal; done: () => void } {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  return { signal: ctrl.signal, done: () => clearTimeout(t) }
+}
 
 interface ServicioRender {
   id: string
   name: string
   type: string
+  repo?: string
   suspended?: string
   serviceDetails?: { plan?: string; instanceType?: string }
 }
 
-/** Los servicios de Render, con lo que cuesta cada uno. */
+interface DiscoRender {
+  id: string
+  sizeGB: number
+  serviceId: string
+}
+
+/**
+ * De qué proyecto es un servicio de Render: de su repo.
+ *
+ * No hay lista escrita a mano. El repo es el dato que ya distingue al CRM de
+ * todo lo demás, y un servicio nuevo cae solo en el grupo correcto.
+ */
+function proyectoDeRepo(repo: string | undefined): string {
+  const nombre = (repo ?? '').replace(/\.git$/, '').split('/').filter(Boolean).pop() ?? ''
+  if (!nombre) return PROYECTO_COMPARTIDO
+  return nombre === 'riverz-crm' ? PROYECTO_CRM : nombre
+}
+
+/** Los servicios de Render, con lo que cuesta cada uno y su disco. */
 async function deRender(): Promise<CostoFijo[]> {
   const key = process.env.RENDER_API_KEY
   const url = 'https://dashboard.render.com/billing'
   const caido = (detalleKey: string, detalleExtra: string | null): CostoFijo[] => [
-    { id: 'render', nombre: 'Render', detalleKey, detalleExtra, usdMes: null, activo: true, url },
+    {
+      id: 'render',
+      nombre: 'Render',
+      detalleKey,
+      detalleExtra,
+      usdMes: null,
+      activo: true,
+      url,
+      proyecto: PROYECTO_COMPARTIDO,
+    },
   ]
   if (!key) return caido('admin.fixedMissingEnv', 'RENDER_API_KEY')
 
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const { signal, done } = conTimeout()
   try {
-    const res = await fetch('https://api.render.com/v1/services?limit=50', {
-      headers: { authorization: `Bearer ${key}` },
-      signal: ctrl.signal,
-      cache: 'no-store',
-    })
+    const headers = { authorization: `Bearer ${key}` }
+    // Los discos van en su propia llamada: se cobran aparte del plan y sin
+    // ellos el total de Render queda corto sin que nada lo diga.
+    const [res, resDiscos] = await Promise.all([
+      fetch('https://api.render.com/v1/services?limit=50', { headers, signal, cache: 'no-store' }),
+      fetch('https://api.render.com/v1/disks?limit=100', {
+        headers,
+        signal,
+        cache: 'no-store',
+      }).catch(() => null),
+    ])
     if (!res.ok) return caido('admin.fixedNoAnswerHttp', String(res.status))
+
+    const discos = new Map<string, number>()
+    if (resDiscos?.ok) {
+      const filas = (await resDiscos.json()) as { disk: DiscoRender }[]
+      for (const { disk } of filas) {
+        discos.set(disk.serviceId, (discos.get(disk.serviceId) ?? 0) + (disk.sizeGB ?? 0))
+      }
+    }
+
     const filas = (await res.json()) as { service: ServicioRender }[]
     return filas
       .map(({ service }) => {
         const plan = (service.serviceDetails?.plan ?? '').toLowerCase()
         const suspendido = service.suspended === 'suspended'
         // Un sitio estático no cuesta nada; el resto sale del plan.
-        const usd =
+        const base =
           service.type === 'static_site'
             ? 0
             : service.type === 'cron_job'
               ? 1
               : (PLAN_USD[plan] ?? null)
+        const gb = discos.get(service.id) ?? 0
+        const usd = base === null ? null : base + gb * RENDER_DISCO_USD_GB
         return {
           id: `render-${service.id}`,
           nombre: service.name,
-          detalleKey: suspendido ? 'admin.fixedRenderSuspended' : 'admin.fixedRenderPlan',
-          detalleExtra: plan || service.type,
+          detalleKey: suspendido
+            ? 'admin.fixedRenderSuspended'
+            : gb > 0
+              ? 'admin.fixedRenderPlanDisk'
+              : 'admin.fixedRenderPlan',
+          detalleExtra:
+            gb > 0 && !suspendido
+              ? `${plan || service.type} · ${gb} GB`
+              : plan || service.type,
           usdMes: suspendido ? 0 : usd,
           activo: !suspendido,
           url,
+          proyecto: proyectoDeRepo(service.repo),
         }
       })
       .sort((a, b) => (b.usdMes ?? 0) - (a.usdMes ?? 0))
   } catch {
     return caido('admin.fixedNoAnswer', null)
   } finally {
-    clearTimeout(t)
+    done()
   }
 }
 
 /**
- * El plan de Supabase, que sí se puede preguntar.
+ * Lo que cuesta cada tamaño de instancia de Supabase, por hora.
  *
- * La API de la organización devuelve el plan; el precio de lista de cada uno es
- * público y estable. Se pregunta en vez de escribirlo a mano porque el día que
- * el plan cambie, este número tiene que cambiar solo — un costo fijo escrito a
- * mano envejece en silencio.
+ * Es la misma lista que devuelve `/projects/{ref}/billing/addons`. Se deja acá
+ * porque el precio por tamaño es público y estable, y pedirlo obligaría a una
+ * llamada más por cada carga de una pantalla que ya consulta once APIs.
  */
+const COMPUTE_USD_HORA: Record<string, number> = {
+  micro: 0.01344,
+  small: 0.0206,
+  medium: 0.0822,
+  large: 0.1517,
+  xlarge: 0.2877,
+}
+
 const SUPABASE_USD: Record<string, number | null> = {
   free: 0,
   pro: 25,
@@ -119,7 +217,25 @@ const SUPABASE_USD: Record<string, number | null> = {
   enterprise: null,
 }
 
-async function deSupabase(): Promise<CostoFijo> {
+/** Crédito de compute incluido en el plan. Alcanza para una Micro. */
+const SUPABASE_CREDITO_USD: Record<string, number> = { pro: 10, team: 10 }
+
+interface ProyectoSupabase {
+  name: string
+  ref: string
+  databases?: { infra_compute_size?: string }[]
+}
+
+/**
+ * Supabase: el plan de la organización MÁS el compute de cada proyecto.
+ *
+ * Antes acá había una sola fila con el precio de lista del plan. Eso mentía por
+ * la mitad: el Pro son 25 USD, pero la factura de agosto de 2026 fue 48,51 —
+ * cada proyecto paga su propia instancia (Micro 10, Small 15) y el plan sólo
+ * regala 10 de crédito. Con tres proyectos en la misma organización, lo que no
+ * se veía era más que lo que se veía.
+ */
+async function deSupabase(): Promise<CostoFijo[]> {
   const url = 'https://supabase.com/dashboard/org/_/billing'
   const base = {
     id: 'supabase',
@@ -128,62 +244,95 @@ async function deSupabase(): Promise<CostoFijo> {
     detalleExtra: null as string | null,
     activo: true,
     url,
+    proyecto: PROYECTO_COMPARTIDO,
   }
   const token = process.env.SUPABASE_ACCESS_TOKEN
   const ref = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1]
   if (!token || !ref) {
-    return {
-      ...base,
-      detalleKey: 'admin.fixedMissingEnv',
-      detalleExtra: 'SUPABASE_ACCESS_TOKEN',
-      usdMes: null,
-    }
+    return [
+      {
+        ...base,
+        detalleKey: 'admin.fixedMissingEnv',
+        detalleExtra: 'SUPABASE_ACCESS_TOKEN',
+        usdMes: null,
+      },
+    ]
   }
 
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const { signal, done } = conTimeout()
   try {
     const cabeceras = {
       authorization: `Bearer ${token}`,
       // Cloudflare rechaza el User-Agent por defecto de fetch en este host.
       'user-agent': 'Mozilla/5.0',
     }
-    const proy = await fetch(`https://api.supabase.com/v1/projects/${ref}`, {
-      headers: cabeceras,
-      signal: ctrl.signal,
-      cache: 'no-store',
-    })
-    if (!proy.ok) return { ...base, usdMes: null }
-    const org = (await proy.json()) as { organization_id?: string }
-    if (!org.organization_id) return { ...base, usdMes: null }
-
-    const res = await fetch(
-      `https://api.supabase.com/v1/organizations/${org.organization_id}`,
-      { headers: cabeceras, signal: ctrl.signal, cache: 'no-store' },
-    )
-    if (!res.ok) return { ...base, usdMes: null }
-    const plan = ((await res.json()) as { plan?: string }).plan ?? ''
-    return {
-      ...base,
-      detalleKey: plan ? 'admin.fixedSupabasePlan' : 'admin.fixedSupabase',
-      detalleExtra: plan || null,
-      usdMes: SUPABASE_USD[plan] ?? null,
+    const pedir = async (ruta: string) => {
+      const r = await fetch(`https://api.supabase.com/v1${ruta}`, {
+        headers: cabeceras,
+        signal,
+        cache: 'no-store',
+      })
+      return r.ok ? r.json() : null
     }
+
+    const proy = (await pedir(`/projects/${ref}`)) as { organization_id?: string } | null
+    const orgId = proy?.organization_id
+    if (!orgId) return [{ ...base, usdMes: null }]
+
+    const [org, lista] = (await Promise.all([
+      pedir(`/organizations/${orgId}`),
+      pedir(`/organizations/${orgId}/projects`),
+    ])) as [{ plan?: string } | null, { projects?: ProyectoSupabase[] } | null]
+
+    const plan = org?.plan ?? ''
+    const credito = SUPABASE_CREDITO_USD[plan] ?? 0
+    const planUsd = SUPABASE_USD[plan] ?? null
+
+    // El plan y su crédito son de la cuenta entera: no se le pueden cargar a un
+    // proyecto sin inventar un reparto. Van a «compartido», ya netos.
+    const filas: CostoFijo[] = [
+      {
+        ...base,
+        detalleKey: plan ? 'admin.fixedSupabasePlanNet' : 'admin.fixedSupabase',
+        detalleExtra: plan || null,
+        usdMes: planUsd === null ? null : planUsd - credito,
+      },
+    ]
+
+    for (const p of lista?.projects ?? []) {
+      const tam = (p.databases?.[0]?.infra_compute_size ?? '').toLowerCase()
+      // `nano` es el tamaño gratis. En un plan pago Supabase lo factura como
+      // Micro —la factura de agosto lo dice: «unified-inbox (Micro Compute)»—
+      // aunque la API siga reportando el hardware viejo hasta un reinicio.
+      const facturado = tam === 'nano' ? 'micro' : tam
+      const tarifa = plan === 'free' ? 0 : (COMPUTE_USD_HORA[facturado] ?? null)
+      filas.push({
+        id: `supabase-${p.ref}`,
+        nombre: p.name,
+        detalleKey: 'admin.fixedSupabaseCompute',
+        detalleExtra: facturado || '—',
+        usdMes: tarifa === null ? null : Math.round(tarifa * HORAS_MES * 100) / 100,
+        activo: true,
+        url: `https://supabase.com/dashboard/project/${p.ref}/settings/compute-and-disk`,
+        proyecto: p.ref === ref ? PROYECTO_CRM : p.name,
+      })
+    }
+    return filas
   } catch {
-    return { ...base, usdMes: null }
+    return [{ ...base, usdMes: null }]
   } finally {
-    clearTimeout(t)
+    done()
   }
 }
 
 /**
  * Los números de teléfono alquilados en Telnyx.
  *
- * Faltaban, y son el único fijo que CRECE sin que nadie lo decida: cada cuenta
- * se compra el suyo desde /voz, así que el mes que viene puede costar más que
- * este sin que se haya tocado nada. Un dólar por número es el piso de Telnyx —
- * los internacionales y los toll-free salen más, así que este total es un
- * mínimo, igual que el resto de la pantalla.
+ * Son el único fijo que CRECE sin que nadie lo decida: cada cuenta se compra el
+ * suyo desde /voz, así que el mes que viene puede costar más que este sin que
+ * se haya tocado nada. Un dólar por número es el piso de Telnyx — los
+ * internacionales y los toll-free salen más, así que este total es un mínimo,
+ * igual que el resto de la pantalla.
  */
 async function deTelnyx(): Promise<CostoFijo> {
   const url = 'https://portal.telnyx.com/#/app/numbers/my-numbers'
@@ -194,6 +343,8 @@ async function deTelnyx(): Promise<CostoFijo> {
     detalleExtra: null as string | null,
     activo: true,
     url,
+    // Los números son del CRM: los compran los comercios para las llamadas.
+    proyecto: PROYECTO_CRM,
   }
   const key = process.env.TELNYX_API_KEY
   if (!key) {
@@ -205,13 +356,12 @@ async function deTelnyx(): Promise<CostoFijo> {
     }
   }
 
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const { signal, done } = conTimeout()
   try {
     // `page[size]=1`: sólo interesa el total, que Telnyx devuelve en `meta`.
     const res = await fetch('https://api.telnyx.com/v2/phone_numbers?page[size]=1', {
       headers: { authorization: `Bearer ${key}` },
-      signal: ctrl.signal,
+      signal,
       cache: 'no-store',
     })
     if (!res.ok) {
@@ -228,7 +378,7 @@ async function deTelnyx(): Promise<CostoFijo> {
   } catch {
     return { ...base, detalleKey: 'admin.fixedNoAnswer', usdMes: null }
   } finally {
-    clearTimeout(t)
+    done()
   }
 }
 
@@ -241,13 +391,24 @@ async function deTelnyx(): Promise<CostoFijo> {
 function sinApi(): CostoFijo[] {
   return [
     {
-      id: 'dominios',
-      nombre: 'riverz.co · riverzai.com',
+      id: 'dominio-crm',
+      nombre: 'riverz.co',
       detalleKey: 'admin.fixedDomains',
       detalleExtra: null,
       usdMes: null,
       activo: true,
       url: 'https://www.spaceship.com/application/domain-list/',
+      proyecto: PROYECTO_CRM,
+    },
+    {
+      id: 'dominio-editorial',
+      nombre: 'riverzai.com',
+      detalleKey: 'admin.fixedDomains',
+      detalleExtra: null,
+      usdMes: null,
+      activo: true,
+      url: 'https://www.spaceship.com/application/domain-list/',
+      proyecto: 'riverz',
     },
     {
       id: 'meta',
@@ -257,12 +418,19 @@ function sinApi(): CostoFijo[] {
       usdMes: null,
       activo: true,
       url: 'https://business.facebook.com/billing_hub/accounts',
+      proyecto: PROYECTO_CRM,
     },
   ]
 }
 
 export interface Fijos {
   items: CostoFijo[]
+  /** Agrupado por proyecto. El CRM primero, después el resto por costo. */
+  proyectos: ProyectoFijo[]
+  /** Lo que cuesta sólo el CRM: el producto que se vende. */
+  crmUsdMes: number
+  /** Todo lo demás que factura la misma cuenta. */
+  otrosUsdMes: number
   /** La suma de lo que sí se pudo medir. */
   totalUsdMes: number
   /** Cuántos no se pudieron medir: el total es un piso, no la verdad. */
@@ -275,10 +443,58 @@ export async function leerCostosFijos(): Promise<Fijos> {
     deSupabase(),
     deTelnyx(),
   ])
-  const items = [...render, supabase, telnyx, ...sinApi()]
+  // Una base de Supabase y los servicios que la usan son el mismo proyecto,
+  // pero cada API los nombra distinto: Render por su repo, Supabase por el
+  // nombre de la base. Cuando coinciden —la base `contaduria` y el servicio
+  // `contaduria`— se juntan; si no, la base queda como su propio grupo, que es
+  // preferible a inventar un reparto. Renombrar la base en Supabase para que
+  // coincida con el repo es lo que las une.
+  const grupoDeServicio = new Map(render.map((r) => [r.nombre.toLowerCase(), r.proyecto]))
+  const items = [...render, ...supabase, telnyx, ...sinApi()].map((i) => {
+    if (i.proyecto === PROYECTO_CRM || i.proyecto === PROYECTO_COMPARTIDO) return i
+    const g = grupoDeServicio.get(i.proyecto.toLowerCase())
+    return g && g !== i.proyecto ? { ...i, proyecto: g } : i
+  })
+
+  const porId = new Map<string, ProyectoFijo>()
+  for (const i of items) {
+    let g = porId.get(i.proyecto)
+    if (!g) {
+      g = {
+        id: i.proyecto,
+        nombre: i.proyecto,
+        nombreKey:
+          i.proyecto === PROYECTO_CRM
+            ? 'admin.fixedProjectCrm'
+            : i.proyecto === PROYECTO_COMPARTIDO
+              ? 'admin.fixedProjectShared'
+              : null,
+        esCrm: i.proyecto === PROYECTO_CRM,
+        usdMes: 0,
+        sinMedir: 0,
+        items: [],
+      }
+      porId.set(i.proyecto, g)
+    }
+    g.items.push(i)
+    if (i.activo) g.usdMes += i.usdMes ?? 0
+    if (i.usdMes === null) g.sinMedir += 1
+  }
+
+  const proyectos = [...porId.values()]
+    .map((g) => ({ ...g, usdMes: Math.round(g.usdMes * 100) / 100 }))
+    // El CRM arriba de todo; el resto por lo que cuesta.
+    .sort((a, b) => (a.esCrm ? -1 : b.esCrm ? 1 : b.usdMes - a.usdMes))
+
+  const crmUsdMes = proyectos.find((p) => p.esCrm)?.usdMes ?? 0
+  const totalUsdMes = Math.round(proyectos.reduce((n, p) => n + p.usdMes, 0) * 100) / 100
+
   return {
     items,
-    totalUsdMes: items.reduce((n, i) => n + (i.activo ? (i.usdMes ?? 0) : 0), 0),
+    proyectos,
+    crmUsdMes,
+    otrosUsdMes: Math.round((totalUsdMes - crmUsdMes) * 100) / 100,
+    totalUsdMes,
     sinMedir: items.filter((i) => i.usdMes === null).length,
   }
 }

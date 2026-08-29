@@ -7,9 +7,7 @@ import type {
   Proveedor,
   EstadoProveedor,
 } from "@/lib/admin/proveedores";
-import type { CostoFijo } from "@/lib/admin/costos-fijos";
-import type { EstadoDeClave } from "@/lib/admin/claves";
-import { ClaveEditor } from "../_components/clave-editor";
+import type { CostoFijo, ProyectoFijo } from "@/lib/admin/costos-fijos";
 import {
   useAdminData,
   PageHeader,
@@ -29,6 +27,9 @@ import { RefreshButton } from "../_components/filters";
  * Reemplaza a las dos pantallas que había —Saldos e Infraestructura—, que
  * sondeaban los mismos cinco proveedores con dos capas de código distintas y
  * podían mostrar números distintos el mismo día.
+ *
+ * Las llaves se administran en su propia sección (/admin/claves): acá colgaban
+ * de las filas y mezclaban «con qué se trabaja» con «cuánto sale».
  *
  * Tres bloques, en el orden en que se preguntan:
  *
@@ -58,14 +59,6 @@ export default function AdminProveedoresPage() {
     "/api/admin/proveedores",
     0,
   );
-  // Las llaves van por su propia ruta: el saldo se consulta afuera y tarda,
-  // y no hay motivo para que administrar una llave espere a que once APIs
-  // contesten.
-  const { data: llaves, setData: setLlaves } = useAdminData<{
-    claves: EstadoDeClave[];
-  }>("/api/admin/claves", 0);
-  const claveDe = (id: string) => llaves?.claves.find((c) => c.id === id);
-
   if (loading && !data) return <Loading forma="stats+table" cajas={3} />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
@@ -102,13 +95,26 @@ export default function AdminProveedoresPage() {
         actions={<RefreshButton onClick={reload} />}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {/* El CRM primero y solo: es la cifra que decide si el precio de un plan
+          cierra. Pegado al total de la cuenta, se leía cuatro veces más caro de
+          lo que es, porque la misma cuenta paga tres proyectos más. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label={t("admin.balancesToTopUp")}
           value={format.number(enRojo)}
           tone={enRojo === 0 ? "ok" : "warn"}
-          hint={enRojo === 0 ? t("admin.balancesAllGood") : undefined}
+          hint={
+            enRojo === 0
+              ? t("admin.balancesAllGood")
+              : `${t("admin.providersChecked")} ${format.time(consultadoAt)}`
+          }
         />
+        <Stat
+          label={t("admin.fixedCrmMonthly")}
+          value={usd(fijos.crmUsdMes)}
+          hint={t("admin.fixedCrmMonthlyHint")}
+        />
+        <Stat label={t("admin.fixedOthersMonthly")} value={usd(fijos.otrosUsdMes)} />
         <Stat
           label={t("admin.fixedMonthly")}
           value={usd(fijos.totalUsdMes)}
@@ -118,24 +124,12 @@ export default function AdminProveedoresPage() {
               : undefined
           }
         />
-        <Stat
-          label={t("admin.balancesProviders")}
-          value={format.number(proveedores.length)}
-          hint={`${t("admin.providersChecked")} ${format.time(consultadoAt)}`}
-        />
       </div>
 
       <Panel title={t("admin.providersMoneyBlock")}>
         <ul className="divide-y divide-border">
           {conSaldo.map((p) => (
-            <Fila
-              key={p.id}
-              p={p}
-              monto={monto(p)}
-              accion={t("admin.balancesTopUp")}
-              clave={claveDe(p.id)}
-              onClaves={(claves) => setLlaves({ claves })}
-            />
+            <Fila key={p.id} p={p} monto={monto(p)} accion={t("admin.balancesTopUp")} />
           ))}
         </ul>
       </Panel>
@@ -148,14 +142,34 @@ export default function AdminProveedoresPage() {
         </ul>
       </Panel>
 
-      <Panel title={t("admin.providersMonthBlock")}>
-        <ul className="divide-y divide-border">
-          {fijos.items.map((f) => (
-            <FilaFija key={f.id} f={f} usd={usd} />
-          ))}
-        </ul>
-      </Panel>
+      {/* Un bloque por proyecto, con su subtotal en el encabezado. Antes era una
+          sola lista de catorce servicios de cuatro productos distintos: se veía
+          todo y no se podía contestar cuánto cuesta ninguno. */}
+      {fijos.proyectos.map((g) => (
+        <GrupoFijo key={g.id} g={g} usd={usd} />
+      ))}
     </div>
+  );
+}
+
+function GrupoFijo({ g, usd }: { g: ProyectoFijo; usd: (n: number) => string }) {
+  const t = useT();
+  return (
+    <Panel
+      title={`${t("admin.providersMonthBlock")} · ${g.nombreKey ? t(g.nombreKey) : g.nombre}`}
+      actions={
+        <span className="text-sm font-medium tabular-nums text-foreground">
+          {usd(g.usdMes)}
+          {t("admin.perMonth")}
+        </span>
+      }
+    >
+      <ul className="divide-y divide-border">
+        {g.items.map((f) => (
+          <FilaFija key={f.id} f={f} usd={usd} />
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
@@ -163,15 +177,10 @@ function Fila({
   p,
   monto,
   accion,
-  clave,
-  onClaves,
 }: {
   p: Proveedor;
   monto: string;
   accion: string;
-  /** Su llave global, cuando es de los que se administran desde acá. */
-  clave?: EstadoDeClave;
-  onClaves?: (claves: EstadoDeClave[]) => void;
 }) {
   const t = useT();
   const format = useFormat();
@@ -195,10 +204,8 @@ function Fila({
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span className="tabular-nums text-foreground">{monto}</span>
+        {/* Sin llave se ve acá y se carga en Llaves: esta pantalla es la plata. */}
         <StatusPill tone={TONO[p.estado]} label={t(`admin.balanceState_${p.estado}`)} />
-        {/* La llave se administra donde se ve el problema: si dice «Sin llave»,
-            cargarla está acá al lado y no en otro tablero. */}
-        {clave && onClaves && <ClaveEditor clave={clave} onDone={onClaves} />}
         {p.url && (
           <a
             href={p.url}

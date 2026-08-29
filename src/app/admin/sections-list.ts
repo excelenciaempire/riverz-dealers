@@ -74,6 +74,15 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionBusinessDesc",
     group: "plata",
   },
+  // Las llaves salieron de las filas de Proveedores: allá se contesta cuánto
+  // sale y cuánto queda, acá con qué llave trabaja la plataforma. Estaban
+  // mezcladas y ninguna de las dos preguntas se leía de un vistazo.
+  {
+    href: "/admin/claves",
+    label: "admin.sectionKeys",
+    description: "admin.sectionKeysDesc",
+    group: "configuracion",
+  },
   {
     href: "/admin/uso",
     label: "admin.sectionUsage",
