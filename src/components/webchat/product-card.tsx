@@ -48,6 +48,7 @@ export function ProductCard({
   href,
   variantId,
   fichaUrl,
+  storeOrigin,
   lineas = 1,
   unidades = 1,
   session,
@@ -62,6 +63,9 @@ export function ProductCard({
   variantId: string;
   /** La ficha, cuando el agente recomendó sin cerrar la venta. */
   fichaUrl?: string;
+  /** En qué tienda está parada la persona. Con el mismo producto publicado en
+   *  dos plataformas, decide a cuál se la manda a comprar. */
+  storeOrigin?: string | null;
   /** Cuántos productos distintos trae el carrito. */
   lineas?: number;
   /** Cuántas unidades en total. Con más de una, el unitario no es el total. */
@@ -87,7 +91,8 @@ export function ProductCard({
     // recomendó el producto sin cerrar la venta.
     const pregunta = variante
       ? `variant=${encodeURIComponent(variante)}`
-      : `url=${encodeURIComponent(fichaUrl ?? href)}`;
+      : `url=${encodeURIComponent(fichaUrl ?? href)}` +
+        (storeOrigin ? `&origin=${encodeURIComponent(storeOrigin)}` : '');
     fetch(`/api/widget/product?${pregunta}`, {
       headers: { Authorization: `Bearer ${session}` },
     })
@@ -104,7 +109,7 @@ export function ProductCard({
     return () => {
       vivo = false;
     };
-  }, [variante, session, fichaUrl, href]);
+  }, [variante, session, fichaUrl, href, storeOrigin]);
 
   // El enlace que se va a usar: el que armó el agente, con la variante y la
   // cantidad que la persona eligió en la tarjeta. Si el enlace trae varios

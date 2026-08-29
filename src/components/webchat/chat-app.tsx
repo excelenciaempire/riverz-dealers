@@ -638,6 +638,31 @@ export function ChatApp() {
     setIdentified(true);
   }, [email, telefono, session]);
 
+  /**
+   * Que Meta se entere de que arrancó el pago desde un enlace del mensaje.
+   *
+   * La tarjeta cuenta lo suyo por su cuenta; esto cubre el otro camino — el
+   * agente manda la dirección de la caja y la persona toca. Sin esto, la mitad
+   * de los "arrancó a pagar" no existía para la campaña.
+   */
+  const contarPago = useCallback(() => {
+    if (!session) return;
+    void fetch('/api/widget/evento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+      body: JSON.stringify({ paso: 'InitiateCheckout' }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.event_id) return;
+        window.parent?.postMessage(
+          { type: 'riverz:pixel', event: 'InitiateCheckout', eventId: d.event_id },
+          '*',
+        );
+      })
+      .catch(() => {});
+  }, [session]);
+
   const color = settings?.primary_color ?? '#A3E635';
   const ink = useMemo(() => contrast(color), [color]);
 
@@ -781,6 +806,7 @@ export function ChatApp() {
                     ink={ink}
                     session={session}
                     T={T}
+                    onIrAPagar={contarPago}
                   />
                 ) : null}
                 {'media' in m && m.media ? <MessageMedia media={m.media} /> : null}

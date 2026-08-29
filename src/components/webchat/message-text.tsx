@@ -1,6 +1,7 @@
 'use client';
 
 import { ProductCard } from './product-card';
+import { BotonDePago, esEnlaceDePago } from './boton-de-pago';
 import type { TextosChat } from './chat-app';
 import { TextoRico } from '@/components/ui/texto-rico';
 
@@ -104,6 +105,7 @@ export function MessageText({
   ink,
   session,
   T,
+  onIrAPagar,
 }: {
   text: string;
   storeOrigin: string | null;
@@ -113,11 +115,28 @@ export function MessageText({
   session?: string | null;
   /** El marco en el idioma del agente, para los botones de la tarjeta. */
   T: TextosChat;
+  /** Que Meta se entere de que arrancó el pago. */
+  onIrAPagar?: () => void;
 }) {
   return (
     <TextoRico
       text={text}
       enlace={(href, k) => {
+        // La caja va primero: el checkout de Woo lleva `add-to-cart` en la
+        // dirección, así que si se mirara antes el carrito, el último clic de
+        // la venta se dibujaría como una tarjeta para volver a elegir.
+        if (esEnlaceDePago(href, storeOrigin)) {
+          return (
+            <BotonDePago
+              key={k}
+              href={href}
+              color={color}
+              ink={ink}
+              T={T}
+              onIr={onIrAPagar}
+            />
+          );
+        }
         if (esFichaDeProducto(href, storeOrigin)) {
           return (
             <ProductCard
@@ -125,6 +144,7 @@ export function MessageText({
               path={new URL(href).pathname}
               href={href}
               fichaUrl={href}
+              storeOrigin={storeOrigin}
               variantId=""
               session={session}
               color={color}

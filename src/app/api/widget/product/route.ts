@@ -60,13 +60,19 @@ export async function GET(request: Request) {
     // es otro producto.
     const handle = handleDeLaFicha(fichaUrl);
     if (!handle) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
-    ({ data } = await db
+    const { data: candidatos } = await db
       .from('shopify_products')
-      .select(columnas)
+      .select(columnas + ', id, master_id')
       .eq('workspace_id', guard.session.workspaceId)
       .eq('handle', handle)
-      .limit(1)
-      .maybeSingle());
+      .limit(8);
+    data = elegirPublicacion(
+      (candidatos ?? []) as unknown as Publicacion[],
+      // Dónde está parada la persona. Lo manda el chat, que lo sabe por el
+      // cargador; se comprueba contra el `url` guardado, así que un origen
+      // inventado no elige nada que no fuera del comercio.
+      params.get('origin')?.trim() ?? '',
+    );
   } else {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
@@ -174,6 +180,47 @@ function etiquetaDeVariante(v: {
   const t = (v.title ?? '').trim();
   // Shopify le pone este título a los productos SIN variantes.
   return t && t.toLowerCase() !== 'default title' ? t : '';
+}
+
+interface Publicacion {
+  id?: string;
+  master_id?: string | null;
+  platform?: string | null;
+  url?: string | null;
+  [k: string]: unknown;
+}
+
+/**
+ * El mismo producto puede estar en dos tiendas. ¿A cuál se manda a comprar?
+ *
+ * Un comercio con Shopify y Tiendanube tiene el serum en las dos, con precios
+ * distintos —las comisiones de cada canal son distintas— y las dos son
+ * ciertas en su lugar. Elegir mal no es un detalle: manda a la persona a una
+ * tienda donde su carrito está vacío, con otro precio y otra caja.
+ *
+ * La regla es una sola: **la tienda donde la persona ya está**. El widget
+ * corre en un dominio concreto; ahí tiene su sesión, su carrito y su moneda.
+ * Sólo si el producto no existe en esa tienda se cae a la publicación
+ * principal, que es la que el comercio marcó como la que manda.
+ */
+function elegirPublicacion(filas: Publicacion[], origen: string): Publicacion | null {
+  if (filas.length === 0) return null;
+  if (filas.length === 1) return filas[0];
+
+  const host = (v: string) => {
+    try {
+      return new URL(v.includes('://') ? v : `https://${v}`).hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  };
+  const aqui = host(origen);
+  if (aqui) {
+    const mismo = filas.find((f) => host(String(f.url ?? '')) === aqui);
+    if (mismo) return mismo;
+  }
+  // La principal: la que no cuelga de ninguna otra.
+  return filas.find((f) => !f.master_id) ?? filas[0];
 }
 
 /**
