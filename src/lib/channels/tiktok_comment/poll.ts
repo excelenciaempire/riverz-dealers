@@ -20,11 +20,25 @@ const VIDEOS_PER_PAGE = 20; // barrido profundo: máximo que acepta video/list
 const MAX_VIDEO_PAGES = 15; // techo de seguridad (~300 videos por cuenta)
 const COMMENTS_PER_VIDEO = 30; // TikTok cap: comment/list max_count must be <= 30
 const MAX_COMMENT_PAGES = 20; // hasta 600 comentarios por video
-/** Un comentario que descubrimos con más de estas horas encima ya pasó su
- *  momento: se guarda y se ve, pero nadie lo contesta solo. El poll corre cada
- *  5 minutos, así que lo vivo entra fresco; esto sólo frena al barrido
- *  profundo y a los rescates de videos viejos. */
-const STALE_COMMENT_MS = 2 * 60 * 60 * 1000;
+/**
+ * HASTA CUÁNDO SE CONTESTA SOLO UN COMENTARIO.
+ *
+ * Eran 2 horas y castigaba al cliente por una demora nuestra. El sondeo de 5
+ * minutos mira los 10 videos más nuevos más 8 con actividad; un comentario en
+ * cualquier otro video aparece recién en el barrido profundo, 6 horas después.
+ * Para entonces ya pasó de las 2 horas y quedaba descartado para siempre, en
+ * silencio.
+ *
+ * Medido el 2026-08-28 en la cuenta piloto: 63 comentarios de clientes en 7
+ * días y 2 corridas del agente en 14. Entre lo que nadie contestó estaban
+ * "yo lo quiero como lo consigo?" y "Lo quiero", cuatro días parados.
+ *
+ * 48 horas: alguien que escribió "lo quiero" ayer sigue queriéndolo, y
+ * contestarle tarde es infinitamente mejor que no contestarle. Lo que esta
+ * ventana sigue frenando es el rescate de verdad — ver por primera vez un
+ * video con años de comentarios encima, que es el caso de `VIDEO_NUEVO`.
+ */
+const VENTANA_RESPUESTA_MS = 48 * 60 * 60 * 1000;
 /** Centinela ya conocido por la bandeja para "la plataforma no entrega esto":
  *  la burbuja lo muestra traducido (isUnsupportedSnippet). */
 const UNSUPPORTED_TEXT = "[unsupported]";
@@ -69,6 +83,11 @@ export async function pollAllTikTokConnections(
       const token = await getFreshTikTokToken(conn);
 
       const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
+      // Cuáles de estos videos vemos por PRIMERA vez. Se pregunta antes de
+      // guardarlos, que es la única forma de saberlo: después del upsert todos
+      // figuran conocidos. Sus comentarios son historia —un video puede llegar
+      // con cientos de meses atrás— y no se contestan solos.
+      const yaConocidos = await videosYaIndexados(db, conn, nuevos);
       // Los videos, guardados: de ahí sale el contexto que necesita quien
       // contesta un comentario (el texto del video y, después, lo que se dice
       // en él). Best-effort: si falla, el poll sigue igual que siempre.
@@ -90,6 +109,7 @@ export async function pollAllTikTokConnections(
           // Marcar borrados sólo en el barrido profundo: es el único que lee el
           // video entero, y sin la lista completa "no vino" no prueba nada.
           reconcile: Boolean(opts.deep),
+          videoNuevo: !yaConocidos.has(videoId),
         });
       }
     } catch (err) {
@@ -97,6 +117,38 @@ export async function pollAllTikTokConnections(
     }
   }
   return { total: conns.length, ingested, videos };
+}
+
+/**
+ * Cuáles de estos videos ya estaban indexados.
+ *
+ * Es lo que separa "esto es historia" de "esto es una conversación en curso
+ * que tardamos en ver". Un video que aparece por primera vez puede traer
+ * meses de comentarios de una sola vez: contestarlos todos ahora sería una
+ * avalancha sobre gente que preguntó en marzo. Uno que ya seguíamos, no.
+ *
+ * Ante un error de consulta se responde que TODOS son conocidos: el riesgo
+ * de callarse con quien está preguntando ahora es peor que el de contestar
+ * un comentario viejo de más.
+ */
+async function videosYaIndexados(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  videos: Array<Record<string, unknown>>,
+): Promise<Set<string>> {
+  const ids = videos
+    .map((v) => String(v.item_id ?? v.video_id ?? ""))
+    .filter(Boolean);
+  if (ids.length === 0) return new Set();
+  const { data, error } = await db
+    .from("tiktok_videos")
+    .select("video_id")
+    .eq("workspace_id", conn.workspace_id)
+    .in("video_id", ids);
+  if (error) return new Set(ids);
+  return new Set(
+    ((data ?? []) as Array<{ video_id: string }>).map((r) => r.video_id),
+  );
 }
 
 /**
@@ -202,7 +254,7 @@ export async function ingestVideoComments(
   token: string,
   videoId: string,
   caption?: string,
-  opts: { reconcile?: boolean } = {},
+  opts: { reconcile?: boolean; videoNuevo?: boolean } = {},
 ): Promise<number> {
   let ingested = 0;
   let cursor: string | number | undefined;
@@ -241,7 +293,14 @@ export async function ingestVideoComments(
       // El comentario de arriba es del cliente; el del propio comercio en su
       // video no le responde a nadie, así que no abre hilo.
       if (!isOwn(c, businessId)) {
-        if (await ingestOne(db, conn, c, { videoId, caption, topId: commentId })) {
+        if (
+          await ingestOne(db, conn, c, {
+            videoId,
+            caption,
+            topId: commentId,
+            videoNuevo: opts.videoNuevo,
+          })
+        ) {
           ingested++;
         }
       }
@@ -263,6 +322,7 @@ export async function ingestVideoComments(
           // comentó: el contacto sigue siendo el cliente, no nosotros.
           outbound: isOwn(r, businessId),
           contactIdOverride: String(c.user_id ?? ""),
+          videoNuevo: opts.videoNuevo,
         });
         if (wrote) ingested++;
         await convergeState(db, conn, r);
@@ -312,6 +372,9 @@ async function ingestOne(
     outbound?: boolean;
     /** Para las respuestas: el hilo es del cliente, no de quien responde. */
     contactIdOverride?: string;
+    /** Primera vez que indexamos este video: lo que traiga es historia, no
+     *  conversación en curso. Ver `VENTANA_RESPUESTA_MS`. */
+    videoNuevo?: boolean;
   },
 ): Promise<boolean> {
   const commentId = String(c.comment_id ?? c.id ?? "");
@@ -350,8 +413,16 @@ async function ingestOne(
       receivedAt: new Date(createdMs).toISOString(),
       outbound: ctx.outbound,
       // Rescate: entra a la bandeja y suma no leído, pero el agente no
-      // contesta en diferido algo de hace días.
-      suppressAutoReply: Date.now() - createdMs > STALE_COMMENT_MS,
+      // contesta solo.
+      //
+      // Son DOS casos distintos y antes se trataban igual. El video que
+      // indexamos por primera vez trae años de comentarios de una: contestarlos
+      // todos ahora sería una avalancha sobre gente que preguntó en marzo. Ese
+      // se calla siempre. El otro es un comentario de un video que ya seguimos
+      // y que tardamos en ver por nuestra propia demora: a ese se le contesta,
+      // hasta las 48 horas.
+      suppressAutoReply:
+        ctx.videoNuevo || Date.now() - createdMs > VENTANA_RESPUESTA_MS,
       raw: c,
     }),
   );
