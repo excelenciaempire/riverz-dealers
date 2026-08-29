@@ -918,6 +918,16 @@ export default function InboxPage() {
               {channelFilter === "mercadolibre" && mlKindFilter === "claim" ? (
                 <MlClaimsPanel workspaceId={workspace?.id ?? null} />
               ) : (
+              <div className="flex h-full flex-col">
+              {/* En "Todas" los reclamos van arriba de las conversaciones: no
+                  son hilos, pero son lo más urgente del canal y quedaban
+                  invisibles hasta entrar a su propia pastilla. */}
+              {channelFilter === "mercadolibre" && mlKindFilter === "all" && (
+                <div className="max-h-48 shrink-0 overflow-y-auto border-b border-border">
+                  <MlClaimsPanel workspaceId={workspace?.id ?? null} compact />
+                </div>
+              )}
+              <div className="min-h-0 flex-1">
               <ConversationList
                 activeConversationId={activeConversation?.id ?? null}
                 onSelect={handleSelectConversation}
@@ -932,6 +942,8 @@ export default function InboxPage() {
                 searchActive={search.active}
                 searchLoading={search.loading}
               />
+              </div>
+              </div>
               )}
             </div>
           </div>

@@ -30,7 +30,16 @@ interface Claim {
   opened_at: string | null;
 }
 
-export function MlClaimsPanel({ workspaceId }: { workspaceId: string | null }) {
+export function MlClaimsPanel({
+  workspaceId,
+  compact = false,
+}: {
+  workspaceId: string | null;
+  /** Encabezado de la lista: cuando el filtro es "Todas" los reclamos van
+   *  arriba de las conversaciones, así que sin reclamos no se dibuja nada en
+   *  vez de ocupar sitio con un estado vacío. */
+  compact?: boolean;
+}) {
   const t = useT();
   const format = useFormat();
   const [claims, setClaims] = useState<Claim[] | null>(null);
@@ -61,6 +70,7 @@ export function MlClaimsPanel({ workspaceId }: { workspaceId: string | null }) {
   }, [workspaceId]);
 
   if (claims === null) {
+    if (compact) return null;
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -69,6 +79,7 @@ export function MlClaimsPanel({ workspaceId }: { workspaceId: string | null }) {
   }
 
   if (claims.length === 0) {
+    if (compact) return null;
     // Cero reclamos es una BUENA noticia, no un vacío que arreglar. Se dice
     // así, en vez del "no hay nada por aquí" que usa una lista sin resultados.
     return (

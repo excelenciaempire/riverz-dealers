@@ -45,7 +45,8 @@ export function MlSubFilter({
     {
       key: "all",
       label: t("inbox.mlFilterAll"),
-      count: counts.question + counts.message + counts.review,
+      count:
+        counts.question + counts.message + counts.review + counts.claim,
     },
     { key: "question", label: t("inbox.mlFilterQuestions"), count: counts.question },
     { key: "message", label: t("inbox.mlFilterMessages"), count: counts.message },
