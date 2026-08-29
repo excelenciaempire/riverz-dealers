@@ -770,7 +770,21 @@
       // Si la tienda no tiene píxel, no pasa nada: `fbq` no existe y se ignora.
       try {
         if (typeof window.fbq === 'function' && data.event) {
-          window.fbq('track', String(data.event), {}, { eventID: String(data.eventId || '') });
+          // Los pasos del embudo llevan valor y producto: sin eso Meta cuenta
+          // el evento pero no puede optimizar por importe, que es la mitad de
+          // para qué sirve mandarlo.
+          var datos = {};
+          if (typeof data.value === 'number') datos.value = data.value;
+          if (data.currency) datos.currency = String(data.currency);
+          if (data.contentId) {
+            datos.content_type = 'product';
+            datos.contents = [
+              { id: String(data.contentId), quantity: Number(data.quantity) || 1 },
+            ];
+          }
+          window.fbq('track', String(data.event), datos, {
+            eventID: String(data.eventId || ''),
+          });
         }
       } catch (e) {
         /* el píxel de la tienda no puede romper el chat */

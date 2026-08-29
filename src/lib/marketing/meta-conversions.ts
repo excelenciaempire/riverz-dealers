@@ -433,3 +433,126 @@ export async function contarContactoEnMeta(
 
   return { nuevo: true }
 }
+
+/**
+ * Los dos pasos del medio: agregar al carrito y arrancar el pago.
+ *
+ * Meta ya se enteraba de los dos extremos —`Contact` cuando alguien abre la
+ * conversación y `Purchase` cuando compra— y de nada en el medio. Para el
+ * algoritmo, una persona que eligió su producto y tocó "ir a pagar" era
+ * idéntica a una que preguntó el horario y se fue. Con contra-entrega eso pesa
+ * doble: la venta se confirma días después, así que sin señales intermedias la
+ * campaña pasa esos días optimizando a ciegas.
+ *
+ * `AddToCart` e `InitiateCheckout` son eventos estándar: no hay que declararlos.
+ *
+ * El id lo arma el servidor y se lo devuelve al chat, que dispara el píxel del
+ * navegador con EL MISMO id. Meta descarta el duplicado y cuenta uno solo — la
+ * misma mecánica que ya usan `Contact` y `Purchase`.
+ */
+export type PasoDelEmbudo = 'AddToCart' | 'InitiateCheckout'
+
+export interface PasoParaMeta {
+  workspaceId: string
+  conversationId: string
+  paso: PasoDelEmbudo
+  /** La variante que eligió. Entra en el id: agregar dos productos distintos
+   *  son dos eventos, no uno repetido. */
+  variantId?: string | null
+  cantidad?: number | null
+  value?: number | null
+  currency?: string | null
+  cliente?: { email?: string | null; phone?: string | null } | null
+  senales?: SenalesDelNavegador | null
+}
+
+/** El id que comparten el evento del navegador y el del servidor. */
+export function idDePaso(p: {
+  paso: PasoDelEmbudo
+  conversationId: string
+  variantId?: string | null
+}): string {
+  const corto = p.paso === 'AddToCart' ? 'atc' : 'ic'
+  const v = (p.variantId ?? '').replace(/\W/g, '').slice(0, 24)
+  return `wc_${corto}_${p.conversationId}${v ? `_${v}` : ''}`
+}
+
+export function armarPaso(p: PasoParaMeta, ahora = Date.now()) {
+  const s = p.senales ?? {}
+  const user: Record<string, unknown> = {}
+  const em = correoNormalizado(p.cliente?.email)
+  const ph = telefonoNormalizado(p.cliente?.phone)
+  if (em) user.em = [em]
+  if (ph) user.ph = [ph]
+  if (s.fbp) user.fbp = s.fbp
+  if (s.fbc) user.fbc = s.fbc
+  if (s.ip) user.client_ip_address = s.ip
+  if (s.userAgent) user.client_user_agent = s.userAgent
+
+  const custom: Record<string, unknown> = {}
+  if (p.currency) custom.currency = p.currency.toUpperCase()
+  if (p.value != null && Number.isFinite(Number(p.value))) custom.value = Number(p.value)
+  if (p.variantId) {
+    custom.contents = [{ id: String(p.variantId), quantity: Math.max(1, Number(p.cantidad) || 1) }]
+    custom.content_type = 'product'
+  }
+
+  return {
+    data: [
+      {
+        event_name: p.paso,
+        event_time: Math.floor(ahora / 1000),
+        event_id: idDePaso(p),
+        // La persona está en la tienda, dentro del widget: es la web, no un
+        // chat de otra plataforma. `action_source` mal puesto le baja a Meta la
+        // calidad del emparejamiento.
+        action_source: 'website',
+        ...(s.url ? { event_source_url: s.url } : {}),
+        user_data: user,
+        ...(Object.keys(custom).length ? { custom_data: custom } : {}),
+      },
+    ],
+  }
+}
+
+/**
+ * Reserva el paso y lo despacha sin esperar.
+ *
+ * Devuelve el `eventId` cuando es nuevo, y `null` cuando ya se había contado —
+ * así el chat sabe si además tiene que disparar el píxel del navegador. Que
+ * alguien toque "agregar" dos veces no son dos eventos.
+ */
+export async function contarPasoEnMeta(
+  db: SupabaseClient,
+  p: PasoParaMeta,
+): Promise<{ eventId: string | null }> {
+  const config = await configDeMeta(db, p.workspaceId)
+  if (!config) return { eventId: null }
+
+  const eventId = idDePaso(p)
+  const cuerpo = armarPaso(p)
+
+  const { error: choque } = await db.from('conversion_events').insert({
+    workspace_id: p.workspaceId,
+    destino: 'meta',
+    event_name: p.paso,
+    event_id: eventId,
+    conversation_id: p.conversationId,
+    status: 'pendiente',
+    payload: cuerpo,
+    intentos: 1,
+  })
+  // 23505 = ya contado. Tocar dos veces el mismo botón no son dos eventos.
+  if (choque) return { eventId: null }
+
+  void despachar(db, {
+    workspaceId: p.workspaceId,
+    eventName: p.paso,
+    eventId,
+    config,
+    cuerpo,
+    intentos: 1,
+  }).catch(() => {})
+
+  return { eventId }
+}

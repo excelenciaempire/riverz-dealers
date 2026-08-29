@@ -127,6 +127,48 @@ export function ProductCard({
   const hrefVivo = elegido?.href ?? base;
   const ajustable = !!elegido && lineas === 1;
 
+  /**
+   * Que Meta se entere del paso.
+   *
+   * El id lo arma el servidor y lo devuelve sólo si el evento es nuevo; con ese
+   * mismo id se dispara el píxel de la tienda, así que Meta descarta el
+   * duplicado y cuenta uno. Si el evento ya estaba contado —tocó dos veces— no
+   * vuelve `event_id` y acá no se dispara nada.
+   *
+   * Nunca bloquea el botón: la compra no puede esperar a que Meta conteste.
+   */
+  const contarPaso = (paso: 'AddToCart' | 'InitiateCheckout') => {
+    if (!session) return;
+    void fetch('/api/widget/evento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session}` },
+      body: JSON.stringify({
+        paso,
+        variant: variante,
+        cantidad: cuantos,
+        valor: prod?.price != null ? prod.price * Math.max(1, cuantos) : null,
+        moneda: prod?.currency ?? null,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.event_id) return;
+        window.parent?.postMessage(
+          {
+            type: 'riverz:pixel',
+            event: paso,
+            eventId: d.event_id,
+            value: prod?.price != null ? prod.price * Math.max(1, cuantos) : undefined,
+            currency: prod?.currency ?? undefined,
+            contentId: variante || undefined,
+            quantity: Math.max(1, cuantos),
+          },
+          '*',
+        );
+      })
+      .catch(() => {});
+  };
+
   /** Le pide al cargador —que corre en el dominio de la tienda— que agregue.
    *  `after` decide si además lo lleva al checkout. */
   const pedir = (after: 'stay' | 'checkout') => {
@@ -137,7 +179,10 @@ export function ProductCard({
     // Antes esto no llegaba a pasar por otro motivo peor — el botón quedaba
     // vivo a la vista y no hacía nada, que es el último clic del embudo.
     if (estado === 'added') {
-      if (after === 'checkout') window.parent?.postMessage({ type: 'riverz:go_checkout', path: rutaViva }, '*');
+      if (after === 'checkout') {
+        contarPaso('InitiateCheckout');
+        window.parent?.postMessage({ type: 'riverz:go_checkout', path: rutaViva }, '*');
+      }
       return;
     }
 
@@ -155,7 +200,12 @@ export function ProductCard({
       if (event.data?.type !== 'riverz:cart_result') return;
       clearTimeout(timer);
       window.removeEventListener('message', onReply);
-      if (event.data.ok) setEstado(after === 'checkout' ? 'idle' : 'added');
+      if (event.data.ok) {
+        // Recién acá: el evento se cuenta cuando el producto ENTRÓ al carrito,
+        // no cuando alguien apretó. Un botón que falla no es un AddToCart.
+        contarPaso(after === 'checkout' ? 'InitiateCheckout' : 'AddToCart');
+        setEstado(after === 'checkout' ? 'idle' : 'added');
+      }
       else {
         setEstado('idle');
         window.open(hrefVivo, '_blank', 'noopener');
