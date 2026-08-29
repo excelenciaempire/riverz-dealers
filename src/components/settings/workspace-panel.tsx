@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Building2,
@@ -25,10 +25,12 @@ import { useWorkspace } from "@/hooks/use-workspace";
 import { cacheWorkspaceTimezone } from "@/hooks/use-timezone";
 import { DEFAULT_TIMEZONE, listTimeZones } from "@/lib/timezones";
 import {
+  countryOfPhone,
   isValidE164,
   normalizeToWhatsApp,
   sanitizePhoneForMeta,
 } from "@/lib/whatsapp/phone-utils";
+import type { CountryCode } from "libphonenumber-js";
 import { CampoTelefono } from "@/components/ui/campo-telefono";
 import { GATEABLE_SECTIONS } from "@/lib/rbac/sections";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -172,6 +174,13 @@ export function WorkspacePanel() {
     const guardados = [w.alert_phone ?? '', ...(w.alert_phones ?? [])];
     setAvisos([0, 1, 2].map((i) => guardados[i] ?? ''));
   }, [workspace]);
+
+  /** El país del primer número cargado; Colombia si todavía no hay ninguno. */
+  const paisDeAvisos = useMemo(() => {
+    const primero = avisos.find((x) => x.trim());
+    const iso = primero ? countryOfPhone(primero) : null;
+    return (iso as CountryCode | null) ?? 'CO';
+  }, [avisos]);
 
   const handleSaveAvisos = useCallback(async () => {
     if (!workspace) return;
@@ -424,6 +433,11 @@ export function WorkspacePanel() {
                 onChange={(v) =>
                   setAvisos((prev) => prev.map((x, j) => (j === i ? v : x)))
                 }
+                // El país del primer número que ya exista. Los tres son del
+                // mismo comercio: hacerle elegir Argentina tres veces —o peor,
+                // dejar Colombia puesta y que el aviso no llegue— es trabajo
+                // que la pantalla ya tiene cómo evitar.
+                paisPorDefecto={paisDeAvisos}
                 disabled={!isAdmin || savingAvisos}
               />
             ))}
