@@ -373,6 +373,8 @@ export const voice = {
 
   // ── Admin · global model stack ──
   adminTitle: { es: "Modelo de voz (global)", en: "Voice model (global)" },
+  /** Encabeza el resumen del stack que corre en las llamadas ahora mismo. */
+  adminActive: { es: "Activo", en: "Active" },
   adminDesc: {
     es: "Stack de modelos que usan TODAS las cuentas. Solo el equipo de Riverz lo cambia; los merchants no lo ven.",
     en: "Model stack used by ALL accounts. Only the Riverz team changes it; merchants never see it.",

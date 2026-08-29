@@ -167,7 +167,7 @@ export default function AdminVoiceModelPage() {
 
       {/* Resumen del stack ACTIVO (lo que corre en las llamadas ahora) */}
       <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Activo: </span>
+        <span className="font-medium text-foreground">{t('voice.adminActive')}: </span>
         {config.mode === 'realtime'
           ? `realtime · ${config.realtime_provider ?? '—'} / ${config.realtime_model ?? '—'}`
           : `pipeline · STT ${config.stt_provider}/${config.stt_model} · LLM ${config.llm_provider}/${config.llm_model} · TTS ${config.tts_provider}/${config.tts_model}`}

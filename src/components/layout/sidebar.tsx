@@ -7,8 +7,8 @@ import { useEffect, type ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
-import { useTheme } from "@/hooks/use-theme";
 import { useT } from "@/hooks/use-locale";
+import { ThemeToggleButton } from "@/components/settings/toggles";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { canAccessSection } from "@/lib/rbac/sections";
 import { featureForPath, isFeatureEnabled } from "@/lib/admin/feature-flags";
@@ -34,8 +34,6 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
-  Moon,
-  Sun,
   PhoneCall,
   MessageSquareReply,
   MessagesSquare,
@@ -158,7 +156,6 @@ export function Sidebar({
   const { profile, signOut } = useAuth();
   const { membership } = useWorkspace();
   const totalUnread = useTotalUnread();
-  const { theme, setTheme } = useTheme();
   const t = useT();
 
   // RBAC: which sidebar sections this member may see. Admins/owners (and legacy
@@ -456,22 +453,9 @@ export function Sidebar({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Light / dark toggle — mirrors Riverz's sidebar control. */}
-          <button
-            type="button"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            aria-label={
-              theme === "dark" ? t("nav.switchToLight") : t("nav.switchToDark")
-            }
-            title={theme === "dark" ? t("nav.lightTheme") : t("nav.darkTheme")}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sidebar-border text-sidebar-foreground/60 transition-colors hover:border-sidebar-primary hover:text-sidebar-primary"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </button>
+          {/* Light / dark toggle — la misma pieza que usa el panel de
+              plataforma, repintada con los tokens del sidebar. */}
+          <ThemeToggleButton className="border-sidebar-border text-sidebar-foreground/60 hover:border-sidebar-primary hover:text-sidebar-primary" />
         </div>
       </aside>
     </>

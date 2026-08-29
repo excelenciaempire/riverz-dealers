@@ -13,12 +13,19 @@ import { MESSAGES } from './messages/registry'
  * que lo ve un cliente. Pasó esta semana, en las dos direcciones — una sesión
  * borró la clave, otra empezó a usarla.
  *
- * Se limita al Operador a propósito. Una barrida de todo `src` trae falsos
- * positivos que no se pueden distinguir estáticamente: nombres de columnas que
- * parecen claves (`contacts.phone`), y la portada, que remapea el namespace en
- * tiempo de ejecución según qué redacción esté mostrando.
+ * Se limita a las carpetas de abajo a propósito. Una barrida de todo `src` trae
+ * falsos positivos que no se pueden distinguir estáticamente: nombres de
+ * columnas que parecen claves (`contacts.phone`), y la portada, que remapea el
+ * namespace en tiempo de ejecución según qué redacción esté mostrando.
+ *
+ * El panel de plataforma entró acá por la misma razón que el Operador: son 516
+ * claves que sólo mira el equipo, así que una que se caiga puede quedar meses
+ * imprimiendo `admin.sectionCodesDesc` sin que nadie lo note.
  */
-const CARPETAS = ['src/components/operacion', 'src/lib/operator']
+const VIGILADOS: { prefijo: string; carpetas: string[] }[] = [
+  { prefijo: 'operation', carpetas: ['src/components/operacion', 'src/lib/operator'] },
+  { prefijo: 'admin', carpetas: ['src/app/admin'] },
+]
 
 function archivos(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
@@ -28,13 +35,14 @@ function archivos(dir: string): string[] {
   })
 }
 
-describe('las claves que pide el Operador', () => {
+describe.each(VIGILADOS)('las claves de $prefijo', ({ prefijo, carpetas }) => {
   it('existen todas en el catálogo', () => {
+    const pide = new RegExp(`['"\`](${prefijo}\\.[a-zA-Z0-9_]+)['"\`]`, 'g')
     const faltan: string[] = []
-    for (const carpeta of CARPETAS) {
+    for (const carpeta of carpetas) {
       for (const f of archivos(carpeta)) {
         const src = readFileSync(f, 'utf8')
-        for (const [, clave] of src.matchAll(/['"`](operation\.[a-zA-Z0-9_]+)['"`]/g)) {
+        for (const [, clave] of src.matchAll(pide)) {
           if (!MESSAGES[clave]) faltan.push(`${clave} (${f})`)
         }
       }
@@ -44,7 +52,7 @@ describe('las claves que pide el Operador', () => {
 
   it('las que existen están en los dos idiomas', () => {
     const mancas = Object.entries(MESSAGES)
-      .filter(([k]) => k.startsWith('operation.'))
+      .filter(([k]) => k.startsWith(`${prefijo}.`))
       .filter(([, v]) => !v.es?.trim() || !v.en?.trim())
       .map(([k]) => k)
     expect(mancas).toEqual([])

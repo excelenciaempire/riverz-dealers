@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, ChevronLeft, Lock } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
 import { CsrfProvider } from "@/components/auth/csrf-provider";
+import { LocaleToggleButton, ThemeToggleButton } from "@/components/settings/toggles";
 import { useT } from "@/hooks/use-locale";
 
 /**
@@ -46,6 +47,12 @@ export function AdminShell({
             <div className="flex-1" />
 
             <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
+            {/* El panel vive en admin.riverz.co, que es OTRO origen: ni la
+                cookie del idioma (host-only) ni el localStorage del tema viajan
+                desde la app. Sin estos dos botones, acá no había forma de
+                cambiar ninguno de los dos. */}
+            <LocaleToggleButton />
+            <ThemeToggleButton />
             <LockButton />
             {/* URL absoluta y <a> pelado: el panel vive en admin.riverz.co, asi
                 que un href relativo se queda en el subdominio y no lleva a la
