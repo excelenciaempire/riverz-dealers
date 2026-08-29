@@ -342,7 +342,14 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     }
 
     // ---- Post-sale messages ----
-    if (n.topic === "messages" || n.topic === "marketplace_messages") {
+    //
+    // `messages.created` / `messages.read` son los nombres NUEVOS del mismo
+    // tema: es lo que ofrece hoy el panel de Mercado Libre para suscribirse, y
+    // el `messages` a secas quedó de las apps viejas. Sin aceptar el prefijo,
+    // una aplicación recién creada suscribe el tema correcto y Riverz lo
+    // descarta como "tema no atendido" — el canal entero sin mensajes en vivo,
+    // y el registro diciendo que todo está bien.
+    if (n.topic.startsWith("messages") || n.topic === "marketplace_messages") {
       // The resource may be a pack path or a single message. Normalize to the
       // pack conversation and emit buyer-sent messages only.
       const packId = extractPackId(n.resource);
