@@ -247,6 +247,68 @@ async function listVideos(
  * Pagina: `max_count` topea en 30, y un video con más de 30 comentarios dejaba
  * al resto afuera para siempre.
  */
+/**
+ * EL CAMINO RÁPIDO DEL WEBHOOK: ingiere UN comentario y nada más.
+ *
+ * El webhook de TikTok entrega en menos de un segundo, pero después llamaba a
+ * `ingestVideoComments`, que lee el video ENTERO: hasta 20 páginas, y por cada
+ * comentario una llamada por sus respuestas y otra por su estado. En un video
+ * con 17 comentarios son decenas de llamadas encadenadas ANTES de que el
+ * agente vea el comentario nuevo.
+ *
+ * Medido el 2026-08-27: el comentario entró 22:56:48 y la respuesta salió
+ * 23:00:25. Tres minutos y medio, ninguno de TikTok — todos nuestros.
+ *
+ * Acá se pide una sola página, se busca ese comentario y se ingiere solo. Con
+ * eso el agente arranca de inmediato. La lectura completa del video sigue
+ * corriendo detrás, sin que nadie la espere: es idempotente, así que traer de
+ * nuevo lo que ya entró no duplica nada.
+ *
+ * Devuelve `false` si el comentario no estaba en la primera página —una
+ * respuesta anidada dentro de un hilo largo— y entonces manda el camino
+ * completo, que es el único que las ve.
+ */
+export async function ingestarUnComentario(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  businessId: string,
+  token: string,
+  videoId: string,
+  commentId: string,
+): Promise<boolean> {
+  const url =
+    `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
+    `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
+  const r = await fetch(url, { headers: { "Access-Token": token } });
+  const j = (await r.json().catch(() => ({}))) as {
+    code?: number;
+    data?: { comments?: Array<Record<string, unknown>> };
+  };
+  if (!r.ok || (j.code ?? 0) !== 0) return false;
+
+  const c = (j.data?.comments ?? []).find(
+    (x) => String(x.comment_id ?? x.id ?? "") === commentId,
+  );
+  if (!c) return false;
+
+  // El caption del video sale de lo que ya tenemos guardado: pedírselo a
+  // TikTok sería otra llamada encadenada, que es justo lo que se vino a sacar.
+  const { data: v } = await db
+    .from("tiktok_videos")
+    .select("caption")
+    .eq("workspace_id", conn.workspace_id)
+    .eq("video_id", videoId)
+    .maybeSingle();
+  const caption = String((v as { caption?: string } | null)?.caption ?? "").slice(0, 80);
+
+  await ingestOne(db, conn, c, {
+    videoId,
+    caption: caption || undefined,
+    topId: commentId,
+  });
+  return true;
+}
+
 export async function ingestVideoComments(
   db: ReturnType<typeof supabaseAdmin>,
   conn: ChannelConnection,

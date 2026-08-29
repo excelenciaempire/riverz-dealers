@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
-import { ingestVideoComments } from "@/lib/channels/tiktok_comment/poll";
+import {
+  ingestVideoComments,
+  ingestarUnComentario,
+} from "@/lib/channels/tiktok_comment/poll";
 import { applyCommentLifecycle } from "@/lib/channels/comment-sync";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import type { ChannelConnection } from "@/types";
@@ -187,12 +190,6 @@ async function applyToConnection(
     .maybeSingle();
   if (existing) return;
 
-  // Se ingiere el video entero en vez de buscar el comentario a mano. La
-  // busqueda a mano miraba SOLO la primera pagina de comentarios de arriba:
-  // perdia todo lo que llega anidado dentro de un hilo, descartaba las
-  // respuestas que el comercio escribe desde la app de TikTok y tiraba los
-  // comentarios de solo sticker. Es idempotente por comment_id, asi que
-  // traer de mas no duplica.
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const businessId = String(cfg.business_id ?? "");
   if (!businessId) return;
@@ -202,7 +199,37 @@ async function applyToConnection(
   } catch {
     return; // el poll lo recuperara
   }
-  await ingestVideoComments(db, conn, businessId, token, ev.videoId);
+
+  // PRIMERO el comentario que llegó, y recién después el resto del video.
+  //
+  // Antes esto ingería el video ENTERO y esperaba: hasta 20 páginas, más una
+  // llamada por las respuestas de cada comentario y otra por su estado. En un
+  // video con 17 comentarios son decenas de llamadas encadenadas antes de que
+  // el agente vea el comentario nuevo. Medido el 2026-08-27: el webhook entregó
+  // 22:56:48 y la respuesta salió 23:00:25 — tres minutos y medio, ninguno de
+  // TikTok.
+  //
+  // La lectura completa sigue siendo necesaria (las respuestas anidadas, lo
+  // que el comercio contestó desde la app, los comentarios de solo sticker),
+  // pero nadie tiene que esperarla: es idempotente y corre detrás.
+  const rapido = await ingestarUnComentario(
+    db,
+    conn,
+    businessId,
+    token,
+    ev.videoId,
+    ev.commentId,
+  ).catch(() => false);
+
+  const completo = ingestVideoComments(db, conn, businessId, token, ev.videoId).catch(
+    (err) => {
+      console.error("[tiktok/webhook] ingesta completa falló:", err);
+      return 0;
+    },
+  );
+  // Si el camino rápido no lo encontró —una respuesta anidada dentro de un
+  // hilo largo— hay que esperar al completo, que es el único que las ve.
+  if (!rapido) await completo;
 }
 
 /** Verifica `TikTok-Signature: t=<unix>,s=<hmac>`. HMAC-SHA256 de `${t}.${body}`
