@@ -177,16 +177,12 @@ export const landingV4 = {
   // leído.
   pillarsLabel: { es: "Por qué importa", en: "Why it matters" },
   pillarsTitle: {
-    es: "Tu anuncio sí trajo al cliente",
-    en: "Your ad did bring the customer",
+    es: "Menos caos, más facturación",
+    en: "Less chaos, more revenue",
   },
   pillarsLead: {
-    es: "La venta se perdió después, cuando nadie contestó a tiempo y la conversación se enfrió.",
-    en: "The sale was lost afterwards, when nobody answered in time and the conversation went cold.",
-  },
-  pillarsKicker: {
-    es: "Menos caos, más facturación.",
-    en: "Less chaos, more revenue.",
+    es: "Tu anuncio sí trajo al cliente. La venta se perdió después, cuando nadie contestó a tiempo y la conversación se enfrió.",
+    en: "Your ad did bring the customer. The sale was lost afterwards, when nobody answered in time and the conversation went cold.",
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──

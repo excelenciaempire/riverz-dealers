@@ -288,14 +288,8 @@ function Pillars() {
           style={{ background: "rgba(250,247,241,0.9)" }}
         >
           <Label>{t("landingV4.pillarsLabel")}</Label>
-          <h2 className="sn-h2 mt-5 max-w-[13ch]">{t("landingV4.pillarsTitle")}</h2>
-          <p className="sn-lead mt-6 max-w-[36ch]">{t("landingV4.pillarsLead")}</p>
-          {/* El remate va sobre el amarillo: es la única frase de la sección que
-              habla de plata, y tiene que quedarse. */}
-          <p className="mt-7 inline-block rounded-full px-4 py-2 text-[15px] font-medium"
-             style={{ background: "var(--sn-accent)", color: "var(--sn-ink)" }}>
-            {t("landingV4.pillarsKicker")}
-          </p>
+          <h2 className="sn-h2 mt-5 max-w-[16ch]">{t("landingV4.pillarsTitle")}</h2>
+          <p className="sn-lead mt-6 max-w-[44ch]">{t("landingV4.pillarsLead")}</p>
         </div>
       </div>
     </section>
