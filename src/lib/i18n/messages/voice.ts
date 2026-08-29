@@ -323,7 +323,7 @@ export const voice = {
   },
   agentVoiceNoNumber: {
     es: "Falta comprar un número en Llamadas para que pueda marcar.",
-    en: "A phone number is still missing — buy one under Calls.",
+    en: "A phone number is still missing, buy one under Calls.",
   },
 
   configure: { es: "Configurar", en: "Configure" },

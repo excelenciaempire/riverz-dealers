@@ -82,8 +82,8 @@ export const errWhatsapp = {
 
   // ── Broadcast ──
   provideRecipientsOrPhones: {
-    es: "Indica `recipients` (preferido) o `phone_numbers` — debe ser un arreglo no vacío.",
-    en: "Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array.",
+    es: "Indica `recipients` (preferido) o `phone_numbers`, debe ser un arreglo no vacío.",
+    en: "Provide either `recipients` (preferred) or `phone_numbers`, must be a non-empty array.",
   },
   templateNameFieldRequired: {
     es: "El nombre de la plantilla (template_name) es obligatorio.",

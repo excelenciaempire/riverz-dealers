@@ -530,8 +530,8 @@ export const admin = {
     en: "Subscriptions and top-ups · +{v} on the way",
   },
   svcNoBalanceApi: {
-    es: "No publica saldo por API — hay que mirar su tablero",
-    en: "No balance over the API — check its dashboard",
+    es: "No publica saldo por API, hay que mirar su tablero",
+    en: "No balance over the API, check its dashboard",
   },
   svcEmailSendOnly: {
     es: "Lista de espera y avisos · la llave sólo puede enviar",
@@ -859,8 +859,8 @@ export const admin = {
   waDisplay: { es: "Número, como se muestra", en: "Number, as displayed" },
   waToken: { es: "Token permanente", en: "Permanent token" },
   waTokenSaved: {
-    es: "Ya hay uno guardado — escribe otro sólo si lo cambias",
-    en: "One is already saved — type a new one only to replace it",
+    es: "Ya hay uno guardado: escribe otro sólo si lo cambias",
+    en: "One is already saved: type a new one only to replace it",
   },
   waTokenHint: { es: "Token del System User", en: "System User token" },
   waTemplate: { es: "Plantilla de aviso", en: "Alert template" },
@@ -1029,8 +1029,8 @@ export const admin = {
   motorOffDone: { es: "Motor apagado", en: "Engine off" },
   motorError: { es: "No se pudo cambiar", en: "Couldn't change it" },
   motorHint: {
-    es: "Frena todo lo que sale —respuestas, automatizaciones, difusión y llamadas—; el comercio sigue entrando al panel.",
-    en: "Stops everything outbound — replies, automations, broadcasts and calls. The merchant still gets into the dashboard.",
+    es: "Frena todo lo que sale, respuestas, automatizaciones, difusión y llamadas,; el comercio sigue entrando al panel.",
+    en: "Stops everything outbound: replies, automations, broadcasts and calls. The merchant still gets into the dashboard.",
   },
 
   // ── Códigos de invitación ──

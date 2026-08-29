@@ -324,8 +324,8 @@ export const igAgent = {
   // Campaign detail — revenue by post
   revenueByPost: { es: "Ingresos por post", en: "Revenue by post" },
   revenueByPostNote: {
-    es: "Qué publicación está generando ventas — atribuido al post donde la persona interactuó antes del DM.",
-    en: "Which post is driving sales — attributed to the post where the person engaged before the DM.",
+    es: "Qué publicación está generando ventas, atribuido al post donde la persona interactuó antes del DM.",
+    en: "Which post is driving sales, attributed to the post where the person engaged before the DM.",
   },
   postLabel: { es: "Post …{id}", en: "Post …{id}" },
   salesCountOne: { es: "{n} venta", en: "{n} sale" },

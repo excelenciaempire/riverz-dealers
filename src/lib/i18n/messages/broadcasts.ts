@@ -128,8 +128,8 @@ export const broadcasts = {
   livePreview: { es: "Vista previa en vivo", en: "Live preview" },
   sampleData: { es: "datos de ejemplo", en: "sample data" },
   unmappedWarningPrefix: {
-    es: "Mapea cada variable antes de continuar — aún faltan",
-    en: "Map every variable before continuing — still missing",
+    es: "Mapea cada variable antes de continuar, aún faltan",
+    en: "Map every variable before continuing, still missing",
   },
   unmappedWarningSuffix: {
     es: ". De lo contrario, se enviarán a Meta como cadenas vacías.",
@@ -235,8 +235,8 @@ export const broadcasts = {
   metricReplied: { es: "Respondidos", en: "Replied" },
   metricFailed: { es: "Fallidos", en: "Failed" },
   readReceiptsNote: {
-    es: "“Leídos” cuenta solo a quienes tienen activados los vistos en WhatsApp. Si están desactivados, pueden haber leído sin sumar aquí — “Entregados” y “Respondidos” no se ven afectados.",
-    en: "“Read” counts only people who have read receipts enabled in WhatsApp. If they're off, they may have read it without counting here — “Delivered” and “Replied” are unaffected.",
+    es: "“Leídos” cuenta solo a quienes tienen activados los vistos en WhatsApp. Si están desactivados, pueden haber leído sin sumar aquí, “Entregados” y “Respondidos” no se ven afectados.",
+    en: "“Read” counts only people who have read receipts enabled in WhatsApp. If they're off, they may have read it without counting here, “Delivered” and “Replied” are unaffected.",
   },
   statsCappedNote: {
     es: "Campaña muy grande: la tabla muestra los primeros {n} destinatarios. Los totales de arriba son exactos (del total de la campaña).",

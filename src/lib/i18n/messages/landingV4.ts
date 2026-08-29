@@ -139,7 +139,7 @@ export const landingV4 = {
   loop2Title: { es: "Sabe con quién habla", en: "It knows who it's talking to" },
   loop2Body: {
     es: "Antes de escribir ya sabe qué compró esa persona, qué estuvo mirando y qué hay en stock ahora mismo. No adivina: lee tu tienda.",
-    en: "Before it types, it already knows what that person bought, what they were looking at, and what's in stock right now. It doesn't guess — it reads your store.",
+    en: "Before it types, it already knows what that person bought, what they were looking at, and what's in stock right now. It doesn't guess, it reads your store.",
   },
   loop2P1: { es: "Catálogo, stock y precios en vivo", en: "Live catalog, stock, and prices" },
   loop2P2: { es: "Historial de compras y conversaciones", en: "Purchase and conversation history" },
@@ -293,7 +293,7 @@ export const landingV4 = {
   },
   channelsBody: {
     es: "Siete bandejas, los comentarios de tus anuncios y las llamadas, en una sola pantalla. Y del otro lado, tu tienda y tus pagos.",
-    en: "Seven inboxes, the comments on your ads, and the calls — on one screen. And on the other side, your store and your payments.",
+    en: "Seven inboxes, the comments on your ads, and the calls, on one screen. And on the other side, your store and your payments.",
   },
   channelsInboxes: { es: "Bandejas", en: "Inboxes" },
   channelsStores: { es: "Tiendas y logística", en: "Stores and logistics" },

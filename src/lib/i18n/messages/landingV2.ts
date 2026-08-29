@@ -111,7 +111,7 @@ export const landingV2 = {
   sec04TitleMuted: { es: "Siempre. Aunque sean las 3 a.m.", en: "Always. Even at 3 a.m." },
   sec04Body: {
     es: "Confirma cada pedido, manda el número de guía y responde al instante. También a las tres de la mañana, que es cuando tu competencia no contesta.",
-    en: "It confirms every order, sends the tracking number, and answers instantly. At three in the morning too — which is when your competitor doesn't answer.",
+    en: "It confirms every order, sends the tracking number, and answers instantly. At three in the morning too, which is when your competitor doesn't answer.",
   },
 
   // En vivo / móvil — mirar al agente trabajar y entrar cuando quieras.
@@ -189,7 +189,7 @@ export const landingV2 = {
   sec10TitleMuted: { es: "no cuánto respondió.", en: "not how much it replied." },
   sec10Body: {
     es: "Cada venta queda atribuida al agente, en pesos. Ahí ves lo que devuelve cada peso de pauta que ya estabas gastando, y cuánto de eso se te escapaba en chats sin contestar.",
-    en: "Every sale is attributed to the agent, in money. That's where you see the return on the ad spend you were already making — and how much of it was leaking out through unanswered chats.",
+    en: "Every sale is attributed to the agent, in money. That's where you see the return on the ad spend you were already making, and how much of it was leaking out through unanswered chats.",
   },
 
   // ── Hero inbox preview ──

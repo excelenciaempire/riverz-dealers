@@ -139,8 +139,8 @@ export const automations = {
     en: "Template preview.",
   },
   noWhatsappCantSend: {
-    es: "No hay un WhatsApp conectado — no podrá enviar mensajes.",
-    en: "No WhatsApp connected — it won't be able to send messages.",
+    es: "No hay un WhatsApp conectado, no podrá enviar mensajes.",
+    en: "No WhatsApp connected: it won't be able to send messages.",
   },
 
   // Builder — live preview rail
@@ -532,8 +532,8 @@ export const automations = {
   templateVariables: { es: "Variables de la plantilla", en: "Template variables" },
   chooseVariable: { es: "Elige un dato…", en: "Choose a field…" },
   templateVarsUnmapped: {
-    es: "Falta elegir el dato de algún espacio {{n}} — si lo dejas vacío, sale en blanco.",
-    en: "Some {{n}} slots have no data chosen — left empty they render blank.",
+    es: "Falta elegir el dato de algún espacio {{n}}, si lo dejas vacío, sale en blanco.",
+    en: "Some {{n}} slots have no data chosen, left empty they render blank.",
   },
   varCustomerName: { es: "Nombre del cliente", en: "Customer name" },
   varOrderStatusUrl: { es: "Link de estado del pedido", en: "Order status link" },

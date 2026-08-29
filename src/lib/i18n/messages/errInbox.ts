@@ -40,7 +40,7 @@ export const errInbox = {
   unauthorized: { es: "No autorizado", en: "Unauthorized" },
   notSignedIn: { es: "No has iniciado sesión", en: "Not signed in" },
   forbidden: { es: "No tienes permiso", en: "Forbidden" },
-  forbiddenAdminOnly: { es: "Prohibido — solo administradores", en: "Forbidden — admin only" },
+  forbiddenAdminOnly: { es: "Prohibido: solo administradores", en: "Forbidden: admin only" },
   noWorkspace: { es: "Sin espacio de trabajo", en: "No workspace" },
   adminOnly: { es: "Solo administradores", en: "Admins only" },
   sendFailed: { es: "No se pudo enviar", en: "Couldn't send" },
@@ -127,7 +127,7 @@ export const errInbox = {
   messageNotFound: { es: "Mensaje no encontrado", en: "Message not found" },
   tiktokRepeatedReply: {
     es: "Esta misma respuesta ya salió {veces} veces esta semana. TikTok suele ocultar las repetidas: usa el botón de generar respuesta para que cada una sea distinta.",
-    en: "This same reply already went out {veces} times this week. TikTok tends to hide repeats — use the draft button so each one is different.",
+    en: "This same reply already went out {veces} times this week. TikTok tends to hide repeats, use the draft button so each one is different.",
   },
   moderateOnlyComments: {
     es: "La moderación solo aplica a comentarios de Facebook o Instagram",

@@ -357,16 +357,16 @@ export const assistant = {
     en: "How much of the Instagram outreach (comment→DM and campaigns) goes out on its own. Always within Meta policy.",
   },
   proactiveModeAuto: {
-    es: "Automático — envía solo (con opt-out y ventana de 24 h)",
-    en: "Automatic — send on its own (with opt-out and 24h window)",
+    es: "Automático: envía solo (con opt-out y ventana de 24 h)",
+    en: "Automatic: send on its own (with opt-out and 24h window)",
   },
   proactiveModeHybrid: {
-    es: "Híbrido — auto para alta intención, el resto a revisión",
-    en: "Hybrid — auto for high intent, the rest to review",
+    es: "Híbrido: auto para alta intención, el resto a revisión",
+    en: "Hybrid: auto for high intent, the rest to review",
   },
   proactiveModeApproval: {
-    es: "Aprobación — cada DM espera tu visto bueno",
-    en: "Approval — every DM waits for your go-ahead",
+    es: "Aprobación: cada DM espera tu visto bueno",
+    en: "Approval: every DM waits for your go-ahead",
   },
   proactiveModeFootnote: {
     es: "Los DMs en revisión aparecen en Ventas por Instagram para aprobarlos o editarlos antes de enviar.",

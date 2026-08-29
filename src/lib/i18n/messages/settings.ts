@@ -14,13 +14,13 @@ export const settings = {
   appearance: { es: "Apariencia", en: "Appearance" },
   themeLight: { es: "Claro", en: "Light" },
   themeLightTagline: {
-    es: "Crema editorial — superficies cálidas, tinta carbón, acento lima.",
-    en: "Editorial cream — warm surfaces, charcoal ink, lime accent.",
+    es: "Crema editorial: superficies cálidas, tinta carbón, acento lima.",
+    en: "Editorial cream: warm surfaces, charcoal ink, lime accent.",
   },
   themeDark: { es: "Oscuro", en: "Dark" },
   themeDarkTagline: {
-    es: "Carbón profundo — ideal para sesiones largas y poca luz.",
-    en: "Deep charcoal — built for long sessions and low light.",
+    es: "Carbón profundo: ideal para sesiones largas y poca luz.",
+    en: "Deep charcoal: built for long sessions and low light.",
   },
   useTheme: { es: "Usar el tema {name}", en: "Use the {name} theme" },
   themeId: { es: "ID del tema: {id}", en: "Theme ID: {id}" },
@@ -194,8 +194,8 @@ export const settings = {
   },
   genericError: { es: "Error", en: "Error" },
   savedEmailConfirm: {
-    es: "Guardado — confirma el cambio de correo desde tu bandeja",
-    en: "Saved — confirm the email change from your inbox",
+    es: "Guardado: confirma el cambio de correo desde tu bandeja",
+    en: "Saved: confirm the email change from your inbox",
   },
   avatarAlt: { es: "Avatar", en: "Avatar" },
   changePhoto: { es: "Cambiar foto", en: "Change photo" },
@@ -250,19 +250,17 @@ export const settings = {
   phoneLabel: { es: "WhatsApp", en: "WhatsApp" },
   phoneHint: {
     es: "A este número te preguntamos lo que la IA no decide sola, como un pago informado que no cierra.",
-    en: "We message this number when the AI can't decide on its own — like a reported payment that doesn't add up.",
+    en: "We message this number when the AI can't decide on its own, like a reported payment that doesn't add up.",
   },
-  phoneMoreNumbers: {
-    es: "¿Avisar a más de un número?",
-    en: "Notify more than one number?",
-  },
+  phoneAdd: { es: "Agregar otro número", en: "Add another number" },
+  phoneRemove: { es: "Quitar", en: "Remove" },
   phoneInvalid: {
     es: "Ese número no parece válido. Incluye el código de país.",
     en: "That number doesn't look valid. Include the country code.",
   },
   emailChangePendingNotice: {
-    es: "Revisa la bandeja de {oldEmail} y {newEmail} — ambos deben confirmar antes de que el cambio tenga efecto.",
-    en: "Check the inbox of {oldEmail} and {newEmail} — both must confirm before the change takes effect.",
+    es: "Revisa la bandeja de {oldEmail} y {newEmail}, ambos deben confirmar antes de que el cambio tenga efecto.",
+    en: "Check the inbox of {oldEmail} and {newEmail}, both must confirm before the change takes effect.",
   },
   accountData: { es: "Datos de la cuenta", en: "Account data" },
   roleLabel: { es: "Rol", en: "Role" },
@@ -539,7 +537,7 @@ export const settings = {
   },
   inviteLinkCopied: {
     es: "Invitación creada. Enlace copiado: envíaselo tú.",
-    en: "Invitation created. Link copied — send it yourself.",
+    en: "Invitation created. Link copied: send it yourself.",
   },
   memberRemoved: { es: "Miembro eliminado", en: "Member removed" },
   noWorkspace: {
@@ -1136,8 +1134,8 @@ export const settings = {
   },
   avisoActivoTitulo: { es: "Tu plan quedó activo", en: "Your plan is active" },
   avisoActivoCuerpo: {
-    es: "El pago entró y la cuenta está al día. Tu saldo para la IA es de {saldo} — lo ves y lo recargas en riverz.co/ajustes?tab=saldo",
-    en: "The payment went through and your account is up to date. Your AI balance is {saldo} — check it and top it up at riverz.co/ajustes?tab=saldo",
+    es: "El pago entró y la cuenta está al día. Tu saldo para la IA es de {saldo}, lo ves y lo recargas en riverz.co/ajustes?tab=saldo",
+    en: "The payment went through and your account is up to date. Your AI balance is {saldo}, check it and top it up at riverz.co/ajustes?tab=saldo",
   },
   walletInsideOf: { es: "Dentro de «{linea}»", en: "Inside “{linea}”" },
   walletIncluded: {

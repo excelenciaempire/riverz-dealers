@@ -102,7 +102,7 @@ export const errFlows = {
   },
   activateHasBlockers: {
     es: "No se puede activar el flujo: corrige primero los problemas de abajo.",
-    en: "Cannot activate flow — fix the issues below first.",
+    en: "Cannot activate flow: fix the issues below first.",
   },
 
   // ── flows/[id] (PUT) ──

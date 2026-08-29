@@ -209,7 +209,7 @@ export const webchat = {
   offlineMessage: { es: "Fuera de horario", en: "Outside business hours" },
   offlinePlaceholder: {
     es: "Ahora no estamos, te respondemos apenas abramos.",
-    en: "We are away right now — we will reply as soon as we open.",
+    en: "We are away right now, we will reply as soon as we open.",
   },
   autoOpen: { es: "Abrirse solo", en: "Open by itself" },
   autoOpenNever: { es: "Nunca", en: "Never" },

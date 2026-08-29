@@ -105,7 +105,7 @@ export const errAccount = {
   },
   inviteAdminOnly: {
     es: "Acceso denegado: solo administradores",
-    en: "Forbidden — admin only",
+    en: "Forbidden: admin only",
   },
 
   // Delete workspace

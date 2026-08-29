@@ -290,8 +290,8 @@ export const flows = {
   },
   simWaitDefaultUnit: { es: "minutos", en: "minutes" },
   simShopifyLookup: {
-    es: "Buscar en Shopify ({kind}) — simulado como encontrado. Vars: {prefix}_*",
-    en: "Look up in Shopify ({kind}) — simulated as found. Vars: {prefix}_*",
+    es: "Buscar en Shopify ({kind}): simulado como encontrado. Vars: {prefix}_*",
+    en: "Look up in Shopify ({kind}), simulated as found. Vars: {prefix}_*",
   },
   simAiFallback: {
     es: "IA: se necesita una respuesta para clasificar. Sim usa fallback.",
@@ -523,8 +523,8 @@ export const flows = {
   handoffNotePlaceholder: { es: "Por qué se pasa a un humano…", en: "Why it hands off to a human…" },
   endNodeDesc: { es: "Fin del flujo.", en: "End of flow." },
   customerReplyDesc: {
-    es: "El flujo se pausa hasta que el cliente envíe un mensaje. No se guarda nada — solo se espera.",
-    en: "The flow pauses until the customer sends a message. Nothing is saved — it just waits.",
+    es: "El flujo se pausa hasta que el cliente envíe un mensaje. No se guarda nada, solo se espera.",
+    en: "The flow pauses until the customer sends a message. Nothing is saved, it just waits.",
   },
 
   // Logic outputs
@@ -690,8 +690,8 @@ export const flows = {
     en: "This {noun} connects to {steps} that are only used from here. If you delete it alone, those steps will be left disconnected (and show up as loose steps).",
   },
   cascadeDescWithout: {
-    es: "Este {noun} apunta a un paso que también usan otras ramas, así que solo borraremos el {noun} — los pasos siguientes quedan intactos.",
-    en: "This {noun} points to a step that other branches also use, so we'll only delete the {noun} — the following steps stay intact.",
+    es: "Este {noun} apunta a un paso que también usan otras ramas, así que solo borraremos el {noun}, los pasos siguientes quedan intactos.",
+    en: "This {noun} points to a step that other branches also use, so we'll only delete the {noun}, the following steps stay intact.",
   },
   cascadeOnly: { es: "Sólo el {noun}", en: "Only the {noun}" },
   cascadeDeleteWith: { es: "Borrar el {noun} y los {steps}", en: "Delete the {noun} and the {steps}" },

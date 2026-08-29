@@ -20,7 +20,7 @@ export const landing = {
   },
   ogDescription: {
     es: "Las demás plataformas contestan. Riverz recomienda, recupera el carrito, confirma la compra y sigue el envío, en todos tus canales.",
-    en: "Other platforms reply. Riverz recommends, recovers the cart, confirms the purchase, and follows the shipment — across every channel.",
+    en: "Other platforms reply. Riverz recommends, recovers the cart, confirms the purchase, and follows the shipment, across every channel.",
   },
 
   // ── Header / nav ──
@@ -155,7 +155,7 @@ export const landing = {
   sec07TitleMuted: { es: "sola bandeja.", en: "a single inbox." },
   sec07Body: {
     es: "WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, el chat de tu web y el correo, en una sola pantalla. Tu equipo y el agente trabajan codo a codo y a ningún cliente lo dejan en visto.",
-    en: "WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, your website chat, and email — all on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
+    en: "WhatsApp, Instagram, Messenger, TikTok, Mercado Libre, your website chat, and email, all on one screen. Your team and the agent work side by side, and no customer is ever left on read.",
   },
 
   sec08Title: { es: "Conecta tu tienda", en: "Connect your store" },

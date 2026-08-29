@@ -1,20 +1,22 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, Mail, Copy, Check } from 'lucide-react';
+import { Loader2, Upload, Trash2, Mail, Copy, Check, Plus } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { CampoTelefono } from '@/components/ui/campo-telefono';
-import Link from '@/components/i18n/locale-link';
+import { useWorkspace } from '@/hooks/use-workspace';
 import {
+  countryOfPhone,
   sanitizePhoneForMeta,
   isValidE164,
   normalizeToWhatsApp,
 } from '@/lib/whatsapp/phone-utils';
+import type { CountryCode } from 'libphonenumber-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,6 +45,14 @@ const ALLOWED_MIME = new Set([
 // just want to stop obvious typos before making a network call.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Cuántos números extra se pueden cargar.
+ *
+ * Cuatro más el propio son cinco. Con más que eso el aviso deja de ser un aviso
+ * y pasa a ser una difusión, y lo que se difunde se ignora.
+ */
+const MAX_EXTRA = 4;
+
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
   const supabase = createClient();
@@ -53,12 +63,37 @@ export function ProfileForm() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  /**
+   * Los otros números a los que Riverz avisa.
+   *
+   * Son del ESPACIO DE TRABAJO y no de este perfil —el aviso es de la cuenta,
+   * no de quien la está mirando— pero se editan acá porque acá está el teléfono
+   * que la persona ya conoce. Buscarlos en otra pestaña era encontrarlos por
+   * casualidad.
+   */
+  const [extras, setExtras] = useState<string[]>([]);
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+
+  /** El país del teléfono propio: los extra suelen ser del mismo lugar. */
+  const paisDelPropio = useMemo(() => {
+    const iso = phone.trim() ? countryOfPhone(phone) : null;
+    return (iso as CountryCode | null) ?? 'CO';
+  }, [phone]);
+
+  // Los números extra viven en el espacio de trabajo. Se leen aparte del perfil
+  // porque son de otra tabla, y se escriben con el mismo botón Guardar: para
+  // quien los edita son la misma cosa.
+  const { workspace, isAdmin, reload: reloadWorkspace } = useWorkspace();
+  useEffect(() => {
+    if (!workspace) return;
+    const w = workspace as unknown as { alert_phones?: string[] | null };
+    setExtras([...(w.alert_phones ?? [])]);
+  }, [workspace]);
 
   // Seed form state once the profile loads.
   useEffect(() => {
@@ -149,6 +184,16 @@ export function ProfileForm() {
       toast.error(t('settings.phoneInvalid'));
       return;
     }
+    // Los extra, con la misma vara: uno inválido guardado es un aviso perdido
+    // en silencio, que es justo el modo de falla que se está arreglando.
+    const extraMalo = extras
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .find((x) => !isValidE164(sanitizePhoneForMeta(x)));
+    if (extraMalo) {
+      toast.error(t('settings.phoneInvalid'));
+      return;
+    }
 
     setSaving(true);
     try {
@@ -192,6 +237,24 @@ export function ProfileForm() {
         .eq('user_id', user.id);
       if (updateError) {
         throw new Error(t('settings.saveFailed', { message: updateError.message }));
+      }
+
+      // Y los números extra del espacio de trabajo, si esta persona puede.
+      // Se guardan normalizados igual que el propio: un número con el prefijo
+      // a medias es un aviso que no llega y que nadie va a poder explicar.
+      if (isAdmin && workspace) {
+        const limpios = extras
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .map((x) => normalizeToWhatsApp(x));
+        const { error: wsError } = await supabase
+          .from('workspaces')
+          .update({ alert_phones: limpios, updated_at: new Date().toISOString() })
+          .eq('id', workspace.id);
+        if (wsError) {
+          throw new Error(t('settings.saveFailed', { message: wsError.message }));
+        }
+        reloadWorkspace();
       }
 
       // Email change goes through Supabase Auth, which emails a
@@ -246,7 +309,14 @@ export function ProfileForm() {
       // quien no— según de qué lado estuviera el `+`.
       sanitizePhoneForMeta(phone) !== sanitizePhoneForMeta(profile.phone ?? '') ||
       pendingAvatar !== null ||
-      removeAvatar);
+      removeAvatar ||
+      JSON.stringify(extras.map((x) => sanitizePhoneForMeta(x)).filter(Boolean)) !==
+        JSON.stringify(
+          (
+            (workspace as unknown as { alert_phones?: string[] | null } | null)
+              ?.alert_phones ?? []
+          ).map((x) => sanitizePhoneForMeta(x)),
+        ));
 
   const joined = user?.created_at
     ? fmt.date(user.created_at, {
@@ -359,18 +429,52 @@ export function ProfileForm() {
               onChange={setPhone}
               disabled={saving}
             />
-            <p className="text-xs text-muted-foreground">
-              {t('settings.phoneHint')}{' '}
-              {/* Los números extra son del EQUIPO, no de este perfil: viven en
-                  la otra pestaña. Sin este puntero, quien quiere avisar a dos
-                  personas los busca acá y concluye que no se puede. */}
-              <Link
-                href="/ajustes?tab=workspace"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                {t('settings.phoneMoreNumbers')}
-              </Link>
-            </p>
+            <p className="text-xs text-muted-foreground">{t('settings.phoneHint')}</p>
+
+            {/* Los otros números a los que avisamos.
+                Son del espacio de trabajo y no de este perfil, pero se editan
+                acá porque acá está el teléfono que la persona ya conoce. En
+                otra pestaña se encontraban por casualidad. */}
+            {isAdmin && (
+              <div className="space-y-2 pt-1">
+                {extras.map((numero, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <CampoTelefono
+                      id={`extra-phone-${i}`}
+                      value={numero}
+                      onChange={(v) =>
+                        setExtras((prev) => prev.map((x, j) => (j === i ? v : x)))
+                      }
+                      paisPorDefecto={paisDelPropio}
+                      disabled={saving}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExtras((prev) => prev.filter((_, j) => j !== i))
+                      }
+                      disabled={saving}
+                      className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                      aria-label={t('settings.phoneRemove')}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
+                {extras.length < MAX_EXTRA && (
+                  <button
+                    type="button"
+                    onClick={() => setExtras((prev) => [...prev, ''])}
+                    disabled={saving}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+                  >
+                    <Plus className="size-3.5" />
+                    {t('settings.phoneAdd')}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Read-only block */}

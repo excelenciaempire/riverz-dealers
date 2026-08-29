@@ -76,7 +76,7 @@ export const landingV3 = {
   stageAct3Title: { es: "Cierra", en: "It closes" },
   stageAct3Body: {
     es: "Arma el pedido y lo crea en tu tienda. Con el link marcado, para saber que fue suyo.",
-    en: "It builds the order and creates it in your store — with a tagged link, so you know it was its doing.",
+    en: "It builds the order and creates it in your store, with a tagged link, so you know it was its doing.",
   },
   stageHint: { es: "Desliza para mover la mesa", en: "Drag to move the table" },
 

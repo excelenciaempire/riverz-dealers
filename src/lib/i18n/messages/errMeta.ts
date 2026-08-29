@@ -17,7 +17,7 @@ export const errMeta = {
     en: '{label} can’t message this person yet. Meta requires "advanced access" to messaging, which is granted once your app is approved in Meta App Review. Until then you can only message accounts that have a role in your app (admin/developer/tester).',
   },
   metaPermission: {
-    es: "Esta acción en {label} necesita un permiso de Meta que aún no está habilitado para tu app. Hay que aprobarlo en la revisión de Meta (App Review) — hasta entonces Meta no deja responder/gestionar este contenido.",
+    es: "Esta acción en {label} necesita un permiso de Meta que aún no está habilitado para tu app. Hay que aprobarlo en la revisión de Meta (App Review), hasta entonces Meta no deja responder/gestionar este contenido.",
     en: "This action on {label} needs a Meta permission that isn’t enabled for your app yet. It has to be approved in Meta App Review; until then Meta won’t let you reply to or manage this content.",
   },
   metaOutsideWindow: {

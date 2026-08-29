@@ -264,8 +264,8 @@ export const inbox = {
     en: "Message {phone} on WhatsApp",
   },
   unsupportedMedia: {
-    es: "Nota de voz o contenido que la plataforma no envía — ábrelo en la app",
-    en: "Voice note or content the platform doesn't deliver — open it in the app",
+    es: "Nota de voz o contenido que la plataforma no envía, ábrelo en la app",
+    en: "Voice note or content the platform doesn't deliver, open it in the app",
   },
   noContent: { es: "[sin contenido]", en: "[no content]" },
   email: { es: "Correo", en: "Email" },

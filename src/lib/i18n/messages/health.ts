@@ -184,8 +184,8 @@ export const health: Namespace = {
     en: "closed without a person stepping in",
   },
   soloAfterHours: {
-    es: "fuera de horario — no había nadie para contestarlas",
-    en: "outside business hours — nobody was there to answer",
+    es: "fuera de horario: no había nadie para contestarlas",
+    en: "outside business hours: nobody was there to answer",
   },
   soloNoSchedule: {
     es: "Carga el horario del agente para saber cuántas fueron fuera de hora.",
