@@ -98,7 +98,7 @@ export function limpiarCacheAdmin(): void {
  *
  * **Pausado cuando la pestaña no se ve.** Una pestaña olvidada en segundo plano
  * seguiría preguntando toda la tarde, y algunas de estas rutas cuestan dinero de
- * verdad (`/api/admin/infrastructure` sondea completions facturables). Al volver
+ * verdad (`/api/admin/proveedores` sondea completions facturables). Al volver
  * a la pestaña se refresca una vez, así que lo que se ve nunca es viejo.
  */
 export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
