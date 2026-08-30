@@ -26,6 +26,17 @@ import {
 import { SuspensionSwitch } from "../../_components/suspension-switch";
 import { MotorSwitch } from "../../_components/motor-switch";
 
+/**
+ * Las respuestas posibles a "¿cierras ventas hablando?", mapeadas a su clave.
+ * Escritas a mano y no armadas con un template: una clave compuesta en runtime
+ * se imprime cruda el día que falta y ningún test la agarra.
+ */
+const VENTAS_A_MANO = {
+  seguido: "admin.ventasAManoSeguido",
+  a_veces: "admin.ventasAManoAVeces",
+  casi_nunca: "admin.ventasAManoCasiNunca",
+} as const;
+
 /** Ficha de un comercio: quién es, qué tiene conectado y qué le está fallando. */
 export default function AdminWorkspaceDetailPage({
   params,
@@ -202,6 +213,19 @@ export default function AdminWorkspaceDetailPage({
           </div>
         ))}
       </div>
+
+      {/* Lo que el comercio contestó sobre las ventas que cierra hablando y
+          carga a mano. Es el único dato que dice cuánta venta nuestra no lleva
+          marca —no se puede deducir de los pedidos— y por eso vive acá y no en
+          una métrica: es un dicho, no una medición. Sin respuesta no se
+          muestra nada; inventar un "no" sería peor que el silencio. */}
+      {workspace.ventas_a_mano && (
+        <Panel title={t("admin.ventasAManoTitle")}>
+          <p className="px-4 py-3 text-sm text-foreground">
+            {t(VENTAS_A_MANO[workspace.ventas_a_mano])}
+          </p>
+        </Panel>
+      )}
 
       {/* Conexiones */}
       <Panel title={t("admin.connections")}>

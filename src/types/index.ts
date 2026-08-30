@@ -46,6 +46,12 @@ export interface Workspace {
    * (migración 202). Apagado por defecto: es un mensaje más a cada cliente y en
    * WhatsApp se paga. */
   csat_enabled?: boolean;
+  /** Cuánto vende este comercio cerrando por chat y cargando el pedido a mano
+   * (migración 229). Esas ventas no llevan marca de Riverz, así que no entran
+   * en la cifra de atribución y no hay dato que las delate: sólo lo sabe el
+   * comercio. NULL = no contestó, y no se asume nada. */
+  ventas_a_mano?: 'seguido' | 'a_veces' | 'casi_nunca' | null;
+  ventas_a_mano_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

@@ -3,6 +3,7 @@
 import Link from '@/components/i18n/locale-link'
 import { useT } from '@/hooks/use-locale'
 import { useFormat } from '@/hooks/use-format'
+import { useWorkspace } from '@/hooks/use-workspace'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ export function DetalleAtribucion({
 }) {
   const t = useT()
   const fmt = useFormat()
+  const { workspace } = useWorkspace()
+  const ventasAMano = workspace?.ventas_a_mano ?? null
 
   const pedidos = data?.attributed_orders ?? []
   const probadas = pedidos.filter((p) => p.evidence === 'proven')
@@ -84,6 +87,15 @@ export function DetalleAtribucion({
           <p className="mt-1 text-xs text-muted-foreground">
             {t('dashboard.attrProvenHelp')}
           </p>
+          {/* Lo que la lista NO tiene, dicho por el comercio. Si nos contó que
+              cierra ventas hablando y las carga a mano, esas no llevan marca y
+              no están acá — callarlo deja la cifra pareciendo más chica que la
+              realidad sin explicación. */}
+          {(ventasAMano === 'seguido' || ventasAMano === 'a_veces') && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('dashboard.ventasAManoNota')}
+            </p>
+          )}
           {probadas.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
               {t('dashboard.attrProvenEmpty')}

@@ -82,6 +82,30 @@ export const dashboard = {
     es: "Se muestran los {n} pedidos más grandes. Los totales los cuentan todos.",
     en: "Showing the {n} largest orders. Totals count them all.",
   },
+
+  // La venta que Riverz cierra y no puede probar: se cierra hablando y
+  // alguien la carga a mano en la tienda. No hay dato que la delate, así que
+  // se pregunta.
+  ventasAManoTitle: {
+    es: "¿Cierras ventas hablando?",
+    en: "Do you close sales over chat?",
+  },
+  ventasAManoHelp: {
+    es: "Esta cifra sólo cuenta pedidos con marca de Riverz. Si cierras la venta en el chat y después cargas el pedido a mano, no aparece acá.",
+    en: "This number only counts orders carrying a Riverz stamp. If you close the sale in the chat and then enter the order by hand, it won't show up here.",
+  },
+  ventasAManoSeguido: { es: "Casi todos los días", en: "Most days" },
+  ventasAManoAVeces: { es: "A veces", en: "Sometimes" },
+  ventasAManoCasiNunca: { es: "Casi nunca", en: "Almost never" },
+  ventasAManoLater: { es: "Ahora no", en: "Not now" },
+  ventasAManoThanks: {
+    es: "Gracias. Lo tenemos en cuenta al leer la cifra.",
+    en: "Thanks. We'll keep it in mind when reading the number.",
+  },
+  ventasAManoNota: {
+    es: "Nos dijiste que cierras ventas hablando y las cargas a mano: esas no llevan marca y no están en esta lista.",
+    en: "You told us you close sales over chat and enter them by hand: those carry no stamp and aren't in this list.",
+  },
   roiStoreRevenue: { es: "Ventas de la tienda", en: "Store sales" },
   roiAov: { es: "Ticket promedio", en: "Average order value" },
   roiAiReplies: { es: "Contestó la IA", en: "Answered by AI" },

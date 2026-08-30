@@ -237,6 +237,25 @@ export const admin = {
   notFound: { es: "No existe", en: "Not found" },
   members: { es: "Equipo", en: "Team" },
   connections: { es: "Conexiones", en: "Connections" },
+
+  // Lo que el comercio contestó sobre las ventas que cierra hablando y carga a
+  // mano: las que Riverz causa y no puede probar (migración 229).
+  ventasAManoTitle: {
+    es: "Cierra ventas hablando",
+    en: "Closes sales over chat",
+  },
+  ventasAManoSeguido: {
+    es: "Casi todos los días. Hay venta nuestra que no lleva marca.",
+    en: "Most days. There are sales of ours carrying no stamp.",
+  },
+  ventasAManoAVeces: {
+    es: "A veces. Parte de la venta no lleva marca.",
+    en: "Sometimes. Some sales carry no stamp.",
+  },
+  ventasAManoCasiNunca: {
+    es: "Casi nunca. El cliente compra solo en la tienda.",
+    en: "Almost never. Customers buy on the store by themselves.",
+  },
   agents: { es: "Agentes de IA", en: "AI agents" },
   counts: { es: "Volumen", en: "Volume" },
   countFlows: { es: "Flujos", en: "Flows" },

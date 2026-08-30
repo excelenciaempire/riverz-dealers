@@ -17,6 +17,7 @@ import { SetupChecklist } from '@/components/dashboard/setup-checklist'
 import { NeedsAttention } from '@/components/dashboard/needs-attention'
 import { PendingApprovals } from '@/components/dashboard/pending-approvals'
 import { TarjetasRoi } from '@/components/dashboard/tarjetas-roi'
+import { PreguntaVentasAMano } from '@/components/dashboard/pregunta-ventas-a-mano'
 import { useAtribucion } from '@/lib/dashboard/use-attribution'
 import { useCortes } from '@/lib/dashboard/use-cortes'
 import { useDashboardRealtime } from '@/hooks/use-dashboard-realtime'
@@ -307,6 +308,13 @@ export function PanelDashboard({
           </>
         )}
       </div>
+
+      {/* Debajo de la cifra que le falta explicación, y sólo mientras no haya
+          respuesta: la venta cerrada hablando y cargada a mano no lleva marca,
+          así que no entra en «Ventas por Riverz» y no hay dato que la delate.
+          Sólo aparece con tienda conectada — sin pedidos la pregunta no tiene
+          sentido. */}
+      {roi && atribucion?.not_connected !== true && <PreguntaVentasAMano />}
 
       {/* Channel mix — volume per channel over the selected range, y cuánto de
           cada canal tocó la IA. El corte por canal vivía en una segunda tarjeta

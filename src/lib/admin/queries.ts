@@ -165,6 +165,10 @@ export interface WorkspaceDetail {
     suspended_reason: string | null;
     /** Motor: NULL = anda. Muda hacia afuera pero con panel. Ver lib/workspaces/motor. */
     motor_apagado_at: string | null;
+    /** Lo que el comercio contestó sobre las ventas que cierra hablando y
+     *  carga a mano (migración 229). NULL = no contestó. Es el único dato que
+     *  dice cuánta venta nuestra no lleva marca, porque no se puede deducir. */
+    ventas_a_mano: 'seguido' | 'a_veces' | 'casi_nunca' | null;
   };
   owner: { email: string | null; full_name: string | null } | null;
   members: Array<{
@@ -264,29 +268,26 @@ export async function getWorkspaceDetail(
   // vez al UUID y el resto de las subconsultas (por workspace_id) usan ese.
   const id = await resolveShortId(client, 'workspaces', rawId);
 
-  // `motor_apagado_at` llega con la 196. Render despliega el código al
-  // empujar y las migraciones se aplican a mano después, así que hay una
-  // ventana en la que la columna no existe todavía — y pedirla sin más deja
-  // esta pantalla en 404 justo cuando el equipo la necesita para mirar qué
-  // pasó. Se pide, y si no está se vuelve a pedir sin ella.
+  // Render despliega el código al empujar y las migraciones se aplican a mano
+  // después, así que hay una ventana en la que una columna nueva no existe
+  // todavía — y pedirla sin más deja esta pantalla en 404 justo cuando el
+  // equipo la necesita para mirar qué pasó. Las nuevas van acá, en orden de
+  // llegada, y se van soltando de a una hasta que la consulta entra:
+  // `motor_apagado_at` llegó con la 196 y `ventas_a_mano` con la 229.
   const COLUMNAS =
     'id, name, slug, timezone, created_at, deleted_at, owner_id, suspended_at, suspended_reason';
+  const NUEVAS = ['motor_apagado_at', 'ventas_a_mano'];
   let ws: unknown = null;
-  {
-    const conMotor = await client
+  for (let n = NUEVAS.length; n >= 0; n--) {
+    const res = await client
       .from('workspaces')
-      .select(`${COLUMNAS}, motor_apagado_at`)
+      .select([COLUMNAS, ...NUEVAS.slice(0, n)].join(', '))
       .eq('id', id)
       .maybeSingle();
-    ws = conMotor.error
-      ? (
-          await client
-            .from('workspaces')
-            .select(COLUMNAS)
-            .eq('id', id)
-            .maybeSingle()
-        ).data
-      : conMotor.data;
+    if (!res.error) {
+      ws = res.data;
+      break;
+    }
   }
   if (!ws) return null;
   const workspace = ws as WorkspaceDetail['workspace'];
