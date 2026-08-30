@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { patchFor, type CommentRow } from "./comment-sync";
 import { COMMENT_DELETED_TEXT } from "./display";
@@ -102,5 +104,48 @@ describe("patchFor — edición nuestra vs lectura de Graph", () => {
     expect(patchFor(viejo, "edit", "editado desde Facebook")).toEqual({
       content_text: "editado desde Facebook",
     })
+  })
+})
+
+describe('a quién le toca reconciliar cada comentario', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src', 'lib', 'channels', 'comment-sync.ts'),
+    'utf8',
+  )
+
+  it('el dueño sale de comments_meta, no de la conversación', () => {
+    // Migración 117: la conversación es de la PRIMERA página en la que esa
+    // persona comentó. Filtrando por ahí, la página A consultaba el comentario
+    // de la B con SU token, Graph contestaba "no existe" y un comentario
+    // publicado y visible se marcaba como borrado.
+    expect(src).toContain('comments_meta')
+    expect(src).toContain('connection_id')
+  })
+
+  it('hay cursor: no se re-consultan siempre los mismos 300', () => {
+    // Para Instagram ésta es la ÚNICA vía de enterarse de un borrado o un
+    // ocultado. Sin cursor, todo lo que quedaba abajo de los 300 más recientes
+    // no se volvía a mirar nunca.
+    expect(src).toContain('reconcile_cursor')
+    expect(src).toContain('guardarCursor')
+  })
+
+  it('al llegar al fondo vuelve a empezar por lo más nuevo', () => {
+    // Un cursor que no se reinicia se queda clavado en el pasado y deja de
+    // mirar lo recién publicado, que es lo que más se modera.
+    expect(src).toMatch(/guardarCursor\(db, connection, null\)/)
+  })
+})
+
+describe('qué publicaciones se rastrean', () => {
+  it('el presupuesto se reparte entre recientes y las que ya tienen comentarios', () => {
+    const pull = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'channels', 'comment-pull.ts'),
+      'utf8',
+    )
+    // Llenando el cupo con las recientes primero, una cuenta que publica 40
+    // veces en catorce días no escaneaba NINGUNA creatividad de anuncio — que
+    // es para lo que existe el módulo.
+    expect(pull).toContain('const mitad = Math.ceil(MAX_POSTS_PER_RUN / 2)')
   })
 })

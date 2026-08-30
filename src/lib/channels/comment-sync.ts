@@ -185,20 +185,18 @@ export async function reconcileCommentsForConnection(
   }
 
   const sinceIso = new Date(Date.now() - RECONCILE_WINDOW_MS).toISOString();
-  const { data: rows } = await db
-    .from("messages")
-    .select(
-      "id, message_id, is_hidden, status, content_text, edited_at, conversations!inner(connection_id)",
-    )
-    .eq("channel", channel)
-    .eq("conversations.connection_id", connection.id)
-    .not("message_id", "is", null)
-    .neq("status", "failed") // already-deleted rows need no re-check
-    .gte("created_at", sinceIso)
-    .order("created_at", { ascending: false })
-    .limit(MAX_PER_RUN);
-  const list = (rows ?? []) as unknown as CommentRow[];
-  if (list.length === 0) return { checked: 0, deleted: 0, hiddenChanged: 0, skipped: false };
+  const { list, siguienteCursor } = await candidatosAReconciliar(db, {
+    connection,
+    channel,
+    sinceIso,
+  });
+  if (list.length === 0) {
+    // Se llegó al fondo de la ventana: la próxima corrida vuelve a empezar por
+    // lo más nuevo. Sin esto el cursor se quedaría clavado en el pasado.
+    await guardarCursor(db, connection, null);
+    return { checked: 0, deleted: 0, hiddenChanged: 0, skipped: false };
+  }
+  await guardarCursor(db, connection, siguienteCursor);
 
   // Probe every comment first, THEN decide. If a large share come back
   // "not found" it's almost certainly a token that lost the comment scope, not
@@ -356,4 +354,121 @@ async function mapWithConcurrency<T, R>(
   const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
   await Promise.all(workers);
   return results;
+}
+
+/**
+ * Qué comentarios le tocan a ESTA conexión, y por dónde seguir la próxima vez.
+ *
+ * Dos cosas que la consulta anterior hacía mal, y que van juntas:
+ *
+ * 1. **EL DUEÑO.** Filtraba por `conversations.connection_id`, que desde la
+ *    migración 117 es la conexión de la PRIMERA página en la que esa persona
+ *    comentó, no la del comentario. Un comercio con dos páginas terminaba
+ *    consultando el comentario de la página B con el token de la A: Graph
+ *    contesta "no existe" y el comentario, que está publicado y visible, se
+ *    marcaba como BORRADO. La válvula de pérdida masiva lo tapaba a medias.
+ *    El dueño real está en `comments_meta.connection_id`.
+ *
+ * 2. **EL CURSOR.** Siempre tomaba los 300 más recientes. El comentario del
+ *    código decía "la próxima corrida sigue con el resto" y no era cierto: en
+ *    una cuenta con más de 300 comentarios en catorce días, todo lo que
+ *    quedaba abajo no se volvía a mirar NUNCA. Y para Instagram esta es la
+ *    única vía que existe para enterarse de un borrado o un ocultado.
+ *
+ * Arreglar sólo el cursor habría sido peor: marcharía con confianza sobre
+ * comentarios que además no son suyos.
+ */
+async function candidatosAReconciliar(
+  db: SupabaseClient,
+  args: {
+    connection: ChannelConnection;
+    channel: "fb_comment" | "ig_comment";
+    sinceIso: string;
+  },
+): Promise<{ list: CommentRow[]; siguienteCursor: string | null }> {
+  const cfg = (args.connection.config ?? {}) as Record<string, unknown>;
+  const cursor =
+    typeof cfg.reconcile_cursor === "string" ? cfg.reconcile_cursor : null;
+
+  const base = () => {
+    let q = db
+      .from("messages")
+      .select(
+        "id, message_id, is_hidden, status, content_text, edited_at, created_at, conversations!inner(connection_id)",
+      )
+      .eq("channel", args.channel)
+      .not("message_id", "is", null)
+      .neq("status", "failed") // las ya borradas no hace falta re-consultarlas
+      .gte("created_at", args.sinceIso);
+    // Se avanza de lo más nuevo a lo más viejo; el cursor es dónde quedó.
+    if (cursor) q = q.lt("created_at", cursor);
+    return q.order("created_at", { ascending: false }).limit(MAX_PER_RUN);
+  };
+
+  const { data } = await base().eq("conversations.connection_id", args.connection.id);
+  const porConversacion = (data ?? []) as unknown as Array<
+    CommentRow & { created_at: string }
+  >;
+
+  // Y las que esta conexión posee de verdad, aunque su conversación sea de otra.
+  const { data: propias } = await db
+    .from("comments_meta")
+    .select("message_id")
+    .eq("connection_id", args.connection.id);
+  const idsPropios = new Set(
+    ((propias ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
+  );
+  let porMeta: Array<CommentRow & { created_at: string }> = [];
+  if (idsPropios.size > 0) {
+    const { data: extra } = await base().in("id", [...idsPropios]);
+    porMeta = (extra ?? []) as unknown as Array<CommentRow & { created_at: string }>;
+  }
+
+  // Unión, y fuera los que `comments_meta` dice que son de OTRA conexión: ésos
+  // los reconcilia su dueña, con su token.
+  const { data: ajenos } = await db
+    .from("comments_meta")
+    .select("message_id, connection_id")
+    .neq("connection_id", args.connection.id)
+    .not("connection_id", "is", null);
+  const deOtro = new Set(
+    ((ajenos ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
+  );
+
+  const porId = new Map<string, CommentRow & { created_at: string }>();
+  for (const fila of [...porConversacion, ...porMeta]) {
+    if (deOtro.has(fila.id) && !idsPropios.has(fila.id)) continue;
+    porId.set(fila.id, fila);
+  }
+  const list = [...porId.values()]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, MAX_PER_RUN);
+
+  const siguienteCursor =
+    list.length === MAX_PER_RUN ? (list[list.length - 1]?.created_at ?? null) : null;
+  return { list, siguienteCursor };
+}
+
+/** Dónde quedó la reconciliación. `null` = volver a empezar por lo más nuevo. */
+async function guardarCursor(
+  db: SupabaseClient,
+  connection: ChannelConnection,
+  cursor: string | null,
+): Promise<void> {
+  try {
+    const { data } = await db
+      .from("channel_connections")
+      .select("config")
+      .eq("id", connection.id)
+      .maybeSingle();
+    const cfg = ((data as { config?: Record<string, unknown> } | null)?.config ??
+      {}) as Record<string, unknown>;
+    await db
+      .from("channel_connections")
+      .update({ config: { ...cfg, reconcile_cursor: cursor } })
+      .eq("id", connection.id);
+  } catch {
+    // Sin cursor se vuelve al comportamiento viejo: los 300 más nuevos. Peor,
+    // pero no roto.
+  }
 }

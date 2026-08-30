@@ -421,8 +421,25 @@ async function postsToScan(
   target: string,
   token: string,
 ): Promise<string[]> {
-  const ids = new Set<string>(await recentPostIds(channel, target, token));
-  for (const id of await postIdsWithSavedComments(db, connection, channel)) {
+  // MITAD Y MITAD, no "primero las recientes y si sobra lugar las otras".
+  //
+  // Antes se llenaba el cupo con `recentPostIds` y recién después se sumaban
+  // las publicaciones que ya tenían comentarios guardados — así que una cuenta
+  // que publica cuarenta veces en catorce días no escaneaba NINGUNA creatividad
+  // de anuncio. Y esa es la razón de ser de este módulo: medido el 2026-08-07,
+  // 7 de 8 publicaciones de Instagram con comentarios recientes no aparecen en
+  // `/media`, porque son anuncios. En una cuenta que pauta, la mitad que se
+  // estaba descartando es la que pesa.
+  const mitad = Math.ceil(MAX_POSTS_PER_RUN / 2);
+  const recientes = await recentPostIds(channel, target, token);
+  const conComentarios = await postIdsWithSavedComments(db, connection, channel);
+  const ids = new Set<string>(recientes.slice(0, mitad));
+  for (const id of conComentarios) {
+    if (ids.size >= MAX_POSTS_PER_RUN) break;
+    ids.add(id);
+  }
+  // Si una de las dos fuentes trajo poco, la otra usa lo que sobró.
+  for (const id of recientes) {
     if (ids.size >= MAX_POSTS_PER_RUN) break;
     ids.add(id);
   }
@@ -465,6 +482,16 @@ async function postIdsWithSavedComments(
   channel: CommentChannel,
 ): Promise<string[]> {
   const sinceIso = new Date(Date.now() - WINDOW_MS).toISOString();
+  // Por la conexión DUEÑA del comentario (`comments_meta`), no por la de la
+  // conversación: con dos páginas del mismo comercio, la conversación es de la
+  // primera y la publicación de la segunda no se volvía a escanear nunca.
+  const { data: propios } = await db
+    .from("comments_meta")
+    .select("message_id, post_id")
+    .eq("connection_id", connection.id)
+    .limit(1000);
+  const deMeta = (propios ?? []) as Array<{ message_id: string; post_id: string | null }>;
+
   const { data: msgs } = await db
     .from("messages")
     .select("id, conversations!inner(connection_id)")
@@ -474,13 +501,17 @@ async function postIdsWithSavedComments(
     .order("created_at", { ascending: false })
     .limit(300);
   const messageIds = ((msgs ?? []) as Array<{ id: string }>).map((m) => m.id);
-  if (messageIds.length === 0) return [];
+  if (messageIds.length === 0 && deMeta.length === 0) return [];
 
   const { data: metas } = await db
     .from("comments_meta")
     .select("post_id")
     .in("message_id", messageIds);
   const seen = new Set<string>();
+  for (const m of deMeta) {
+    if (m.post_id) seen.add(m.post_id);
+    if (seen.size >= MAX_POSTS_PER_RUN) break;
+  }
   for (const m of (metas ?? []) as Array<{ post_id: string | null }>) {
     if (m.post_id) seen.add(m.post_id);
     if (seen.size >= MAX_POSTS_PER_RUN) break;
