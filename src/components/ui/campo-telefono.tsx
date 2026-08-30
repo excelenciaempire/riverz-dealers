@@ -113,18 +113,35 @@ export function CampoTelefono({
   const [abierto, setAbierto] = useState(false);
   const [busca, setBusca] = useState("");
   const buscador = useRef<HTMLInputElement>(null);
+  /** Lo último que pasó por acá. Distingue "lo tecleó la persona" de "llegó de afuera". */
+  const [visto, setVisto] = useState<string>(value);
 
   // El valor puede llegar ya cargado (perfil, invitación): se abre el país que
-  // le corresponde en vez de dejar el de por defecto contradiciendo al número.
-  useEffect(() => {
-    if (!value) return;
-    const p = parsePhoneNumberFromString(value);
-    if (!p?.country) return;
-    setPais(p.country);
-    setLocal(p.formatNational());
-    // Solo al montar: después manda lo que se escribe.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // le corresponde y se muestra el número.
+  //
+  // Hay que reaccionar al CAMBIO de `value`, no sólo al montaje. El perfil se
+  // carga después de pintar: antes esto era un efecto con `[]`, al montar
+  // `value` estaba vacío, salía por el `if (!value) return` y no volvía a
+  // correr nunca — así que el campo se veía VACÍO con un número guardado. Quien
+  // entraba a /perfil lo volvía a teclear igual, y entonces no había nada que
+  // guardar —era el mismo número— y el botón quedaba gris: se leía como "no me
+  // deja guardar" (reportado 2026-08-29).
+  //
+  // Se ajusta DURANTE el render y no en un efecto: es el patrón de React para
+  // derivar de una prop que cambia, sin el render de más ni la pintura
+  // intermedia con el valor viejo.
+  if (value !== visto) {
+    setVisto(value);
+    if (!value) {
+      setLocal("");
+    } else {
+      const p = parsePhoneNumberFromString(value);
+      if (p?.country) {
+        setPais(p.country);
+        setLocal(p.formatNational());
+      }
+    }
+  }
 
   useEffect(() => {
     if (abierto) requestAnimationFrame(() => buscador.current?.focus());
@@ -156,9 +173,35 @@ export function CampoTelefono({
     );
   }, [busca, paises]);
 
+  /**
+   * El texto local del país elegido, a E.164.
+   *
+   * Se le pide a la librería que lo INTERPRETE como número nacional en vez de
+   * pegar los dígitos detrás del prefijo. La diferencia es Argentina: el
+   * formato nacional trae el `0` de tronco y el `15` del móvil
+   * (`011 15-6104-7646`), y pegar eso detrás del `+54` daba
+   * `+540111561047646` — un número de quince dígitos que no existe y al que
+   * `isValid()` decía que sí, así que ninguna validación lo frenaba. Bastaba
+   * abrir /perfil y guardar sin tocar nada para romper el teléfono al que van
+   * los avisos (visto el 2026-08-29).
+   *
+   * Si la librería no entiende lo que se está tecleando —a mitad de camino
+   * siempre pasa— se cae al pegado simple, que es lo que había.
+   */
   const emitir = (iso: CountryCode, texto: string) => {
     const digitos = texto.replace(/\D/g, "");
-    onChange(digitos ? `+${getCountryCallingCode(iso)}${digitos}` : "");
+    if (!digitos) {
+      setVisto("");
+      onChange("");
+      return;
+    }
+    const p = parsePhoneNumberFromString(texto, iso);
+    const e164 =
+      p && p.isValid() ? p.number : `+${getCountryCallingCode(iso)}${digitos}`;
+    // Anotado como visto: lo que vuelve por `value` es el eco de esto, y no
+    // tiene que re-formatear el campo mientras se está tecleando.
+    setVisto(e164);
+    onChange(e164);
   };
 
   const alEscribir = (texto: string) => {

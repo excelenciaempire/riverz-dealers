@@ -290,7 +290,12 @@ export type NeedsHumanReason =
   | 'comprobante_sin_pedido'
   /** El visitante del chat web apretó "hablar con una persona" (migración
    *  198). Es el único motivo que nace de un pedido explícito. */
-  | 'visitor_request';
+  | 'visitor_request'
+  /** La persona sigue mandando algo que WhatsApp no nos entrega (ver-una-vez,
+   *  una encuesta, una función nueva): llega el aviso y ningún archivo. Se le
+   *  avisa UNA vez; si insiste, otro mensaje no lo va a resolver y lo mira una
+   *  persona, que sí puede abrirlo en el teléfono. */
+  | 'mensaje_no_recibido';
 
 export interface Conversation {
   id: string;

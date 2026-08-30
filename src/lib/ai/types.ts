@@ -45,6 +45,14 @@ export const WEBCHAT_DEBOUNCE_SECONDS = 2;
 export const BURST_MAX_REPLIES = 20;
 export const BURST_WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * Cuánto hacia atrás se mira para decidir que un mensaje que no nos llegó ya
+ * fue avisado. Media jornada: quien insiste con lo mismo lo hace en el rato, y
+ * quien vuelve al día siguiente merece que se lo digan de nuevo antes de
+ * mandarlo a la cola de una persona.
+ */
+export const NO_RECIBIDO_VENTANA_MS = 12 * 60 * 60 * 1000;
+
 export type AiProvider = 'anthropic' | 'openai';
 export type AiTone = 'friendly' | 'formal' | 'casual' | 'concise';
 export type AiScope = 'workspace' | 'channels';

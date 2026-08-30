@@ -47,8 +47,10 @@ import {
   BURST_MAX_REPLIES,
   BURST_WINDOW_MS,
   MIN_DEBOUNCE_SECONDS,
+  NO_RECIBIDO_VENTANA_MS,
   WEBCHAT_DEBOUNCE_SECONDS,
 } from './types';
+import { isUnsupportedSnippet } from '@/lib/channels/display';
 import {
   withinBusinessHours,
   containsEscalationKeyword as hasEscalationKeyword,
@@ -329,6 +331,43 @@ export async function runAiAgent(
         await logReply(db, agent, args, {
           status: 'skipped',
           skip_reason: 'reply_burst_guard',
+        });
+        return;
+      }
+    }
+
+    // LO QUE NO NOS LLEGÓ NO SE CONTESTA DOS VECES.
+    //
+    // WhatsApp entrega `type: "unsupported"` cuando la persona manda algo que
+    // la Cloud API no reparte —ver-una-vez, una encuesta, una función nueva—.
+    // No hay archivo que bajar: llega el aviso y nada más, y en la bandeja
+    // queda "[No compatible]".
+    //
+    // El modelo, viendo ese texto, se inventaba una explicación distinta cada
+    // vez: «se ve como un archivo que no puedo abrir», «no logro abrir lo que
+    // me enviaste», «no consigo abrir ninguno de los archivos». El 2026-08-29
+    // una clienta mandó cinco —eran comprobantes de transferencia—, cobró tres
+    // disculpas y después silencio: la venta quedó trabada y nadie se enteró.
+    //
+    // Una vez se avisa. A la segunda es una persona: si ya le explicamos y
+    // sigue mandando lo mismo, el problema no lo resuelve otro mensaje.
+    if (isUnsupportedSnippet(args.inboundMessage.content_text)) {
+      const desde = new Date(Date.now() - NO_RECIBIDO_VENTANA_MS).toISOString();
+      const { count: yaAvisamos } = await db
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', args.conversation.id)
+        .eq('sender_type', 'customer')
+        .neq('id', args.inboundMessage.id)
+        .gte('created_at', desde)
+        .ilike('content_text', '[unsupported%');
+      if ((yaAvisamos ?? 0) > 0) {
+        await flagNeedsHuman(db, args.conversation, 'mensaje_no_recibido', {
+          pidio: args.inboundMessage.content_text ?? null,
+        });
+        await logReply(db, agent, args, {
+          status: 'skipped',
+          skip_reason: 'mensaje_no_recibido',
         });
         return;
       }
@@ -2669,6 +2708,18 @@ export function buildSystemPrompt(
   // Que el mensaje no huela a modelo: sin markdown y sin la raya larga. Ver
   // `ai/estilo-humano.ts`, que además limpia lo que el modelo escriba igual.
   lines.push(estiloHumano(agent.language));
+  // Qué decir de un mensaje que NO nos llegó.
+  //
+  // "[No compatible]" en el historial no es un archivo roto ni un adjunto que
+  // se pueda abrir: es el aviso de WhatsApp de que la persona mandó algo que su
+  // API no reparte (ver-una-vez, una encuesta, una función nueva). Sin esta
+  // regla el modelo se inventa una explicación distinta cada vez —«se ve como
+  // un archivo que no puedo abrir»— y encima insiste. Lo que se pide es
+  // concreto y en un solo mensaje; si vuelve a pasar, el runner lo manda a una
+  // persona y el modelo ni se entera.
+  lines.push(
+    'Si en el historial ves "[No compatible]" o "[unsupported…]", ese mensaje NO nos llegó: WhatsApp no lo entrega, no es un archivo que puedas abrir ni algo que se haya roto. No inventes qué era. Dilo una sola vez, corto y sin disculparte de más, y pide lo concreto que necesitas: que lo reenvíe como foto normal, o que te lo escriba. Si ya lo pediste antes en esta conversación, no lo vuelvas a pedir.',
+  );
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
   // Detectada de la tienda Shopify / config / catálogo (resolveWorkspaceCurrency).

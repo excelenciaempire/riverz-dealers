@@ -335,6 +335,15 @@ export const health: Namespace = {
   },
   skip_comment_error: { es: "falló al contestar", en: "failed while replying" },
 
+  skip_mensaje_no_recibido: {
+    es: "WhatsApp no nos entregó lo que mandó, y ya se lo avisamos",
+    en: "WhatsApp didn't deliver what they sent, and we already told them",
+  },
+  reason_mensaje_no_recibido: {
+    es: "por un mensaje que no nos llegó",
+    en: "a message that didn't reach us",
+  },
+
   skipOther: { es: "otro motivo", en: "another reason" },
 
   revenueDisclaimer: {

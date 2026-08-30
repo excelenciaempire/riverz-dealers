@@ -46,6 +46,11 @@ export const inbox = {
     en: "The visitor asked to talk to a person from the web chat.",
   },
 
+  needsHumanNoRecibido: {
+    es: "Sigue mandando algo que WhatsApp no nos entrega. Ábrelo en el teléfono: ahí sí se ve.",
+    en: "They keep sending something WhatsApp doesn't deliver to us. Open it on the phone, it shows there.",
+  },
+
   // Status filter (conversation list)
   filterAll: { es: "Todas", en: "All" },
   filterOpen: { es: "Abiertas", en: "Open" },
@@ -258,7 +263,17 @@ export const inbox = {
   sharedLocation: { es: "Ubicación compartida", en: "Shared location" },
   buttonReply: { es: "Respuesta de botón", en: "Button reply" },
   interactiveReply: { es: "[Respuesta interactiva]", en: "[Interactive reply]" },
-  unsupported: { es: "[No compatible]", en: "[Unsupported]" },
+  // Qué es y qué hacer, en vez de un rótulo que parece un error nuestro.
+  //
+  // Decía "[No compatible]" y nadie —ni el comercio ni la IA— podía saber qué
+  // había pasado: se leía como si Riverz hubiera roto algo. Es WhatsApp: la
+  // persona mandó algo que su API no reparte (ver-una-vez, una encuesta, una
+  // función nueva) y llega el aviso sin archivo. En el teléfono del comercio sí
+  // se ve, y eso es lo único accionable.
+  unsupported: {
+    es: "WhatsApp no entrega este mensaje · ábrelo en el teléfono",
+    en: "WhatsApp doesn't deliver this message · open it on the phone",
+  },
   writeOnWhatsapp: {
     es: "Escribir a {phone} por WhatsApp",
     en: "Message {phone} on WhatsApp",

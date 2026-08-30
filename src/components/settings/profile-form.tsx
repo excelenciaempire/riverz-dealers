@@ -290,8 +290,15 @@ export function ProfileForm() {
           : t('common.saved'),
       );
     } catch (err) {
-      const msg = t('settings.genericError');
-      toast.error(msg);
+      // El motivo REAL, no un genérico.
+      //
+      // `err` se atrapaba y se descartaba: todo fallo —RLS, columna, red— salía
+      // como "Ocurrió un error", y arriba se construyen mensajes concretos
+      // (`settings.saveFailed` con el texto de la base) que nunca llegaban a
+      // verse. Con eso, "no me deja guardar" no se podía diagnosticar ni
+      // mirando la pantalla (2026-08-29).
+      toast.error(err instanceof Error ? err.message : t('settings.genericError'));
+      console.error('[perfil] no se pudo guardar:', err);
     } finally {
       setSaving(false);
     }
