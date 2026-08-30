@@ -236,17 +236,38 @@ export function stopScheduler(): void {
 }
 
 /** Estado para `/api/cron/tick`, que es quien evita que la instancia se duerma. */
+/**
+ * Cuánto puede pasar sin un latido antes de dar el reloj por muerto.
+ *
+ * Dos minutos: el tick es cada minuto, así que uno perdido es ruido y dos son
+ * un problema.
+ */
+const LATIDO_VIEJO_MS = 2 * 60_000;
+
 export function schedulerStatus(): {
   started: boolean;
   jobs: number;
   lastTickAt: string | null;
   running: string[];
+  /**
+   * Si el reloj late. Lo decide ACÁ y no cada pantalla.
+   *
+   * La misma regla estaba escrita tres veces —el índice, la pantalla de
+   * operación y esta capa— y en el navegador encima obligaba a llamar a
+   * `Date.now()` durante el render, que React marca como impuro porque el
+   * resultado cambia entre repintados sin que cambien los datos.
+   */
+  alive: boolean;
 } {
   const s = state();
+  const lastTickAt = s.lastTickAt ? s.lastTickAt.toISOString() : null;
+  const started = s.timer !== null && !s.draining;
+  const edadMs = s.lastTickAt ? Date.now() - s.lastTickAt.getTime() : null;
   return {
-    started: s.timer !== null && !s.draining,
+    started,
     jobs: SCHEDULED_JOBS.length,
-    lastTickAt: s.lastTickAt ? s.lastTickAt.toISOString() : null,
+    lastTickAt,
     running: [...s.inFlight].sort(),
+    alive: started && edadMs !== null && edadMs < LATIDO_VIEJO_MS,
   };
 }

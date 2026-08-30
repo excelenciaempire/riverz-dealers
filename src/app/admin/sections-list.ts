@@ -113,12 +113,6 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
 
   // ── Qué está pasando ──
   {
-    href: "/admin/logs",
-    label: "admin.sectionLogs",
-    description: "admin.sectionLogsDesc",
-    group: "que-pasa",
-  },
-  {
     href: "/admin/canales",
     label: "admin.sectionChannels",
     description: "admin.sectionChannelsDesc",
@@ -174,4 +168,7 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // Las dos mitades del embudo de alta, ahora en una seccion con pestanas.
   codigos: "alta",
   "lista-espera": "alta",
+  // El historial es una pestaña de Operación: la misma pregunta a dos
+  // distancias, y los webhooks sin procesar se listaban en las dos.
+  logs: "operacion",
 };

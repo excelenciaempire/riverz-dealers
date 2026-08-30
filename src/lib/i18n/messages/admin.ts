@@ -65,9 +65,12 @@ export const admin = {
   },
   sectionOps: { es: "Operación", en: "Operations" },
   sectionOpsDesc: {
-    es: "Trabajos de fondo: cuándo corrió cada uno y cuáles fallaron.",
-    en: "Background jobs: when each ran and which ones failed.",
+    es: "El reloj, los trabajos de fondo y el historial de todo lo que corrió.",
+    en: "The clock, the background jobs and the history of everything that ran.",
   },
+  // Las dos distancias del mismo tema: qué está corriendo, y qué corrió.
+  opsTabNow: { es: "Ahora", en: "Now" },
+  opsTabHistory: { es: "Historial", en: "History" },
   sectionAudit: { es: "Auditoría", en: "Audit" },
   sectionAuditDesc: {
     es: "Qué miró y qué cambió cada miembro del equipo.",

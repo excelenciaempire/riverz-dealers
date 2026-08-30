@@ -10,7 +10,6 @@ import { schedulerStatus } from '@/lib/cron/scheduler';
 export const dynamic = 'force-dynamic';
 
 /** Dos minutos sin latir ya no es un retraso normal (ver /admin/operacion). */
-const BEAT_STALE_MS = 2 * 60_000;
 
 /**
  * Resumen de plataforma + serie diaria para las sparklines de /admin.
@@ -50,15 +49,13 @@ export async function GET(request: Request) {
       }).length;
 
       const beat = schedulerStatus();
-      const beatAgeMs = beat.lastTickAt ? Date.now() - Date.parse(beat.lastTickAt) : null;
 
       return {
         overview,
         series,
         ops: {
           cronsBroken,
-          schedulerAlive:
-            beat.started && beatAgeMs !== null && beatAgeMs < BEAT_STALE_MS,
+          schedulerAlive: beat.alive,
           schedulerLastTickAt: beat.lastTickAt,
         },
         from: from.toISOString(),
