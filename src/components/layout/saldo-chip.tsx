@@ -54,7 +54,7 @@ export function SaldoChip({
   const monto = fmt.currency(
     saldo.centavos / 100,
     (saldo.moneda || "usd").toUpperCase(),
-    { minimumFractionDigits: 0 },
+    { minimumFractionDigits: saldo.centavos % 100 === 0 ? 0 : 2 },
   );
 
   const color = enCero

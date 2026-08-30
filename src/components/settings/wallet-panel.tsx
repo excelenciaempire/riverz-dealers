@@ -280,7 +280,9 @@ export function WalletPanel() {
   const plata = useCallback(
     (centavos: number) =>
       fmt.currency(centavos / 100, (e?.moneda ?? 'usd').toUpperCase(), {
-        minimumFractionDigits: 0,
+        // Entero: sin decimales. Con centavos: los dos, nunca uno —«0,1 US$»
+        // se lee como un número roto, no como diez centavos.
+        minimumFractionDigits: centavos % 100 === 0 ? 0 : 2,
       }),
     [fmt, e?.moneda],
   );
