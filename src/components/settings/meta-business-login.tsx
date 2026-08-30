@@ -46,6 +46,7 @@ export function MetaBusinessLogin({
   channel,
   anyConnected,
   logoChannel,
+  logoSrc,
   onConnected,
 }: {
   workspaceId: string;
@@ -53,6 +54,15 @@ export function MetaBusinessLogin({
   channel: "messenger" | "instagram";
   anyConnected: boolean;
   logoChannel: "messenger" | "instagram";
+  /**
+   * El logo de la TARJETA, cuando no es el del canal.
+   *
+   * La tarjeta de Meta se llama "Meta" y lleva el logo de Meta, pero el botón
+   * y el selector de cuentas usaban el de Messenger: la misma tarjeta mostraba
+   * dos marcas distintas para una sola conexión. Instagram no manda ninguno y
+   * se queda con el suyo, que ahí sí coincide.
+   */
+  logoSrc?: string;
   onConnected: () => void;
 }) {
   const [sdkReady, setSdkReady] = useState(false);
@@ -236,7 +246,7 @@ export function MetaBusinessLogin({
         {busy ? (
           <Loader2 className="size-4 animate-spin" />
         ) : (
-          <ChannelLogo channel={logoChannel} size={16} />
+          <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
         )}
         {anyConnected ? t("settings.addAnotherAccount") : t("common.connect")}
       </button>
@@ -265,7 +275,7 @@ export function MetaBusinessLogin({
                     onChange={() => toggle(a.id)}
                   />
                   <span className="flex items-center gap-2 text-sm">
-                    <ChannelLogo channel={logoChannel} size={16} />
+                    <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
                     {a.label}
                   </span>
                 </label>

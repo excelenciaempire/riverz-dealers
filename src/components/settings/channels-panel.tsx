@@ -561,6 +561,9 @@ export function ChannelsPanel() {
                       channel={g.connectChannel as "messenger" | "instagram"}
                       anyConnected={anyConnected}
                       logoChannel={g.logoChannel as "messenger" | "instagram"}
+                      // El mismo logo que la tarjeta: la de Meta llevaba el
+                      // logo de Meta arriba y el de Messenger en el botón.
+                      logoSrc={g.logoSrc}
                       onConnected={() => void fetchConnections()}
                     />
                   ) : g.connectChannel === "mercadolibre" ? (
