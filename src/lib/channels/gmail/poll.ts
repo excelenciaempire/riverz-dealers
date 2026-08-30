@@ -80,7 +80,7 @@ async function pollOne(
   // last_synced_at (has the POLLER ever run?) — NOT on history_id, which
   // startGmailWatch writes at connect time, so keying on it defeated the 7d
   // backlog on the very first poll.
-  const window = connection.last_synced_at ? "newer_than:1d" : "newer_than:7d";
+  const window = ventanaDeBusqueda(connection.last_synced_at);
   const inboxIds = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
   // Also pull recently-sent mail so the agent's own replies (including
   // ones sent straight from Gmail, outside this app) show in the thread.
@@ -478,4 +478,32 @@ function decodeBody(data: string): string {
   const padded = data.replace(/-/g, "+").replace(/_/g, "/");
   const pad = padded.length % 4 ? padded + "=".repeat(4 - (padded.length % 4)) : padded;
   return Buffer.from(pad, "base64").toString("utf8");
+}
+
+/**
+ * Hasta dónde hacia atrás se pide el correo.
+ *
+ * Era `newer_than:1d` fijo, y ese "1d" era una apuesta a que el recorrido no
+ * falla nunca. Una caída de más de 24 horas —el servicio caído, el buzón en
+ * error, la conexión sin token— hacía que el correo de esas horas quedara
+ * afuera para siempre: nada lo volvía a pedir, porque la siguiente corrida
+ * también miraba un solo día.
+ *
+ * Ahora la ventana sale de cuándo se recorrió por última vez, redondeada hacia
+ * arriba y con un día de gracia por si los relojes no coinciden. Se topea en 30
+ * días: más atrás Gmail se pone lento y ese correo ya lo atendió una persona.
+ *
+ * Sin `last_synced_at` es un buzón recién conectado: 7 días, para que el
+ * comercio vea un historial de verdad y no una bandeja vacía el primer día.
+ */
+export function ventanaDeBusqueda(lastSyncedAt: string | null | undefined): string {
+  if (!lastSyncedAt) return "newer_than:7d";
+  const desde = Date.parse(lastSyncedAt);
+  if (!Number.isFinite(desde)) return "newer_than:1d";
+  const hueco = Date.now() - desde;
+  const dias = Math.max(1, Math.ceil(hueco / 86_400_000));
+  // El día de gracia sólo cuando de verdad hubo un hueco: en el ritmo normal
+  // —cada pocos minutos— pedir dos días sería traer el doble por nada.
+  const gracia = hueco > 86_400_000 ? 1 : 0;
+  return `newer_than:${Math.min(dias + gracia, 30)}d`;
 }
