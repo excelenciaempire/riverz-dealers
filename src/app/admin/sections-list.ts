@@ -11,9 +11,10 @@
  * Ahora la lista vive una sola vez, acá, y los dos la importan.
  */
 export type AdminGroup =
-  | "comercios"
   | "plata"
-  | "observabilidad"
+  | "apis"
+  | "comercios"
+  | "que-pasa"
   | "configuracion";
 
 export interface AdminSectionMeta {
@@ -30,7 +31,7 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/ia",
     label: "admin.sectionAiKey",
     description: "admin.sectionAiKeyDesc",
-    group: "configuracion",
+    group: "apis",
   },
   {
     href: "/admin/whatsapp",
@@ -66,7 +67,7 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/proveedores",
     label: "admin.sectionProviders",
     description: "admin.sectionProvidersDesc",
-    group: "plata",
+    group: "apis",
   },
   {
     href: "/admin/negocio",
@@ -92,7 +93,7 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/claves",
     label: "admin.sectionKeys",
     description: "admin.sectionKeysDesc",
-    group: "configuracion",
+    group: "apis",
   },
   {
     href: "/admin/uso",
@@ -118,25 +119,25 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/logs",
     label: "admin.sectionLogs",
     description: "admin.sectionLogsDesc",
-    group: "observabilidad",
+    group: "que-pasa",
   },
   {
     href: "/admin/canales",
     label: "admin.sectionChannels",
     description: "admin.sectionChannelsDesc",
-    group: "observabilidad",
+    group: "que-pasa",
   },
   {
     href: "/admin/operacion",
     label: "admin.sectionOps",
     description: "admin.sectionOpsDesc",
-    group: "observabilidad",
+    group: "que-pasa",
   },
   {
     href: "/admin/auditoria",
     label: "admin.sectionAudit",
     description: "admin.sectionAuditDesc",
-    group: "observabilidad",
+    group: "que-pasa",
   },
 
   // ── Configuración de plataforma (lo único que se escribe) ──
@@ -150,7 +151,7 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     href: "/admin/voz",
     label: "admin.sectionVoice",
     description: "admin.sectionVoiceDesc",
-    group: "configuracion",
+    group: "apis",
   },
 ];
 

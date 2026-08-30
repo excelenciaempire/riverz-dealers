@@ -9,6 +9,7 @@ export const admin = {
   // Grupos del índice
   groupWorkspaces: { es: "Comercios", en: "Merchants" },
   groupMoney: { es: "La plata", en: "Money" },
+  groupApis: { es: "Las APIs", en: "APIs" },
   groupObservability: { es: "Qué está pasando", en: "What's happening" },
   groupConfig: { es: "Configuración", en: "Configuration" },
   // Secciones

@@ -69,11 +69,15 @@ export const ADMIN_SECTIONS: AdminSection[] = ADMIN_SECTION_LIST.map((s) => ({
 }));
 
 export const ADMIN_GROUPS: { key: AdminGroup; label: string }[] = [
-  { key: "comercios", label: "admin.groupWorkspaces" },
-  // La plata va en su propio grupo: cuanto entra, cuanto se consume y cuanto
-  // hay que pagar para que esto siga prendido son la misma pregunta, y estaban
-  // repartidas entre "comercios" y "que esta pasando".
+  // El orden es el de las preguntas que se hacen al abrir el panel, y la
+  // primera siempre es la plata: cuanto hay, cuanto entra y cuanto se debe.
   { key: "plata", label: "admin.groupMoney" },
-  { key: "observabilidad", label: "admin.groupObservability" },
+  // Las APIs con las que Riverz trabaja: su saldo, su llave y su estado. Antes
+  // estaban repartidas entre "la plata" (Proveedores) y "configuracion"
+  // (Claves, IA, Voz), asi que responder "que APIs uso y como andan" pedia
+  // abrir dos grupos.
+  { key: "apis", label: "admin.groupApis" },
+  { key: "comercios", label: "admin.groupWorkspaces" },
+  { key: "que-pasa", label: "admin.groupObservability" },
   { key: "configuracion", label: "admin.groupConfig" },
 ];
