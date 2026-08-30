@@ -58,6 +58,7 @@ import {
 } from './types';
 import { isUnsupportedSnippet } from '@/lib/channels/display';
 import { aplicarDesenlace } from './desenlace';
+import { marcarPresencia, soportaPresencia } from '@/lib/channels/meta-presencia';
 import {
   withinBusinessHours,
   containsEscalationKeyword as hasEscalationKeyword,
@@ -542,6 +543,20 @@ export async function runAiAgent(
       shopify.visitorId =
         args.channel === 'webchat' ? (args.contact.external_id ?? null) : null;
     }
+    // «Visto» y «escribiendo…», ahora que ya se sabe que SÍ se va a contestar.
+    //
+    // Va acá y no arriba a propósito: marcar "visto" sobre un mensaje que la
+    // IA va a saltear —fuera de horario, el hilo asignado a alguien que
+    // todavía no lo abrió— sería decirle al cliente que alguien lo leyó cuando
+    // no lo leyó nadie. Eso es peor que el silencio, que no promete nada.
+    //
+    // Sin await: es un adorno con fecha de vencimiento y la respuesta importa
+    // más. Sólo Messenger e Instagram lo admiten.
+    if (soportaPresencia(args.channel)) {
+      void marcarPresencia(args.connection, args.contact.external_id, 'mark_seen');
+      void marcarPresencia(args.connection, args.contact.external_id, 'typing_on');
+    }
+
     let reply: Awaited<ReturnType<typeof generateReply>>;
     try {
       reply = await generateReply(

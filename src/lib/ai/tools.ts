@@ -62,6 +62,15 @@ import {
  */
 export const AGENTIC_LOOP_MAX_ITERS = 6
 
+/**
+ * Cuántas pausas de servidor se toleran, aparte de las vueltas.
+ *
+ * Cuatro: la búsqueda web admite hasta tres por respuesta y cada una puede
+ * pausar, más una de aire. Pasado eso se corta igual que antes — un bucle de
+ * pausas sin freno es una llamada que no termina nunca.
+ */
+export const MAX_PAUSAS = 4
+
 /** Context the chat agent needs to escalate a conversation to a phone call. */
 export interface VoiceEscalationContext {
   workspaceId: string
@@ -1993,8 +2002,20 @@ export async function runWithTools(
       ? [{ type: 'text', text: args.system, cache_control: { type: 'ephemeral' } }]
       : args.system
 
-  while (iter < AGENTIC_LOOP_MAX_ITERS) {
-    iter += 1
+  // Las pausas NO gastan vuelta.
+  //
+  // `pause_turn` no es el modelo pidiendo otra herramienta: es Anthropic
+  // diciendo "me detuve a mitad de la búsqueda, seguí". Contarla contra el
+  // presupuesto significaba que con la búsqueda en internet prendida —hasta
+  // tres por respuesta— tres pausas se comían la mitad de las seis vueltas, y
+  // el turno terminaba en la llamada forzada sin herramientas: al cliente le
+  // salía el "no pude completar la consulta" genérico habiendo tenido la
+  // respuesta a mano.
+  //
+  // Igual tienen tope propio, porque un bucle de pausas sin freno sería una
+  // llamada infinita.
+  let pausas = 0
+  while (iter < AGENTIC_LOOP_MAX_ITERS && pausas <= MAX_PAUSAS) {
     let response: Anthropic.Message
     try {
       response = await client.messages.create({
@@ -2050,6 +2071,9 @@ export async function runWithTools(
     if (response.stop_reason === 'pause_turn') {
       anotarDeServidor(response.content, herramientas)
       messages = [...messages, { role: 'assistant', content: response.content }]
+      pausas += 1
+      // Devuelve la vuelta: la pausa no era del modelo pidiendo trabajo.
+      iter -= 1
       continue
     }
 
