@@ -46,10 +46,13 @@ export const fbCommentAdapter: ChannelAdapter = {
     if (!encrypted) throw new Error("[fb_comment] connection missing access_token");
     const accessToken = decrypt(encrypted);
 
-    // Reply target is the original comment id, which we stash in
-    // conversation.thread_external_id when the inbound event creates
-    // the conversation row.
-    const targetId = input.replyToExternalId ?? input.conversation.thread_external_id;
+    // El destino es el id del COMENTARIO y tiene que venir resuelto por
+    // `resolveCommentReplyTarget`. Antes había un respaldo a
+    // `conversation.thread_external_id`, que es el id del POST — y como los
+    // comentarios se agrupan por contacto, era el post del PRIMER comentario
+    // que esa persona dejó alguna vez. Quien no pasaba el destino publicaba un
+    // comentario suelto bajo una publicación vieja. Mejor fallar acá.
+    const targetId = input.replyToExternalId;
     if (!targetId) {
       throw new Error("[fb_comment] missing comment id to reply to");
     }

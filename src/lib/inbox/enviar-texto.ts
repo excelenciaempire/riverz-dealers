@@ -13,6 +13,11 @@
  * ser.
  */
 import { getAdapter } from '@/lib/channels/registry'
+import {
+  esCanalDeComentarios,
+  esError,
+  resolveCommentReplyTarget,
+} from '@/lib/channels/comment-reply-target'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChannelConnection, Contact, Conversation, Message } from '@/types'
 
@@ -59,13 +64,36 @@ export async function enviarTextoEnConversacion(
   if (!contactRow) throw new Error('Esa conversación no tiene contacto.')
   const contact = contactRow as Contact
 
-  const { data: connRow } = await db
-    .from('channel_connections')
-    .select('*')
-    .eq('id', conversation.connection_id ?? '')
-    .maybeSingle()
-  if (!connRow) throw new Error('El canal de esa conversación no está conectado.')
-  const connection = connRow as ChannelConnection
+  // Un comentario no se contesta como un DM: hay que apuntarle al COMENTARIO
+  // (no al post) y con la conexión DUEÑA de ese comentario (no la de la
+  // conversación, que puede ser de otra cuenta del mismo comercio). Este
+  // camino no hacía ninguna de las dos cosas, así que un borrador aprobado
+  // sobre un comentario publicaba en el post equivocado, o fallaba con 400.
+  let connection: ChannelConnection
+  let replyToExternalId: string | undefined
+  if (esCanalDeComentarios(conversation.channel)) {
+    const destino = await resolveCommentReplyTarget(db, {
+      workspaceId: input.workspaceId,
+      conversation,
+    })
+    if (esError(destino)) {
+      throw new Error(
+        destino.error === 'sin_conexion'
+          ? 'El canal de ese comentario no está conectado.'
+          : 'No encontré el comentario al que responder.',
+      )
+    }
+    connection = destino.connection
+    replyToExternalId = destino.externalId
+  } else {
+    const { data: connRow } = await db
+      .from('channel_connections')
+      .select('*')
+      .eq('id', conversation.connection_id ?? '')
+      .maybeSingle()
+    if (!connRow) throw new Error('El canal de esa conversación no está conectado.')
+    connection = connRow as ChannelConnection
+  }
 
   const adapter = getAdapter(conversation.channel)
   let result: { externalMessageId?: string; status?: string }
@@ -76,6 +104,7 @@ export async function enviarTextoEnConversacion(
       conversation,
       contact,
       text: texto,
+      replyToExternalId,
       // Lo aprobó una persona: en Messenger e Instagram eso habilita el
       // reintento con la etiqueta HUMAN_AGENT cuando la ventana de 24 h ya
       // cerró. Sin esto, aprobar una respuesta al día siguiente fallaba.

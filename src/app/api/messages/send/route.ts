@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdapter } from "@/lib/channels/registry";
+import {
+  esCanalDeComentarios,
+  esError,
+  resolveCommentReplyTarget,
+} from "@/lib/channels/comment-reply-target";
 import { marcarParaCanal } from "@/lib/marketing/enlaces";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
@@ -143,7 +148,7 @@ export async function POST(req: Request): Promise<Response> {
       { status: 409 },
     );
   }
-  const { data: connection } = await admin
+  let { data: connection } = await admin
     .from("channel_connections")
     .select("*")
     .eq("id", connectionId)
@@ -185,33 +190,31 @@ export async function POST(req: Request): Promise<Response> {
   // Resolve the reply target to the specific comment the agent picked,
   // or fall back to the most recent inbound comment in the thread.
   let replyToExternalId = body.reply_to_external_id;
-  if (
-    channel === "fb_comment" ||
-    channel === "ig_comment" ||
-    channel === "tiktok_comment"
-  ) {
-    let target: string | undefined;
-    if (body.reply_to_external_id) {
-      const { data: picked } = await admin
-        .from("messages")
-        .select("message_id")
-        .eq("id", body.reply_to_external_id)
-        .maybeSingle();
-      target = picked?.message_id ?? undefined;
+  if (esCanalDeComentarios(channel)) {
+    const destino = await resolveCommentReplyTarget(admin, {
+      workspaceId: (conversation as Conversation).workspace_id,
+      conversation: conversation as Conversation,
+      pickedMessageId: body.reply_to_external_id,
+    });
+    if (esError(destino)) {
+      return NextResponse.json(
+        {
+          error: translate(
+            locale,
+            destino.error === "sin_conexion"
+              ? "errInbox.connectionNotFound"
+              : "errInbox.commentNoExternalId",
+          ),
+        },
+        { status: 409 },
+      );
     }
-    if (!target) {
-      const { data: lastInbound } = await admin
-        .from("messages")
-        .select("message_id")
-        .eq("conversation_id", (conversation as Conversation).id)
-        .eq("sender_type", "customer")
-        .not("message_id", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      target = lastInbound?.message_id ?? undefined;
-    }
-    replyToExternalId = target;
+    replyToExternalId = destino.externalId;
+    // La conexión DUEÑA del comentario, no la de la conversación: migración
+    // 117. Quien comenta en dos cuentas del mismo comercio colapsa en un solo
+    // hilo, que es de la primera — y su token no puede tocar el comentario de
+    // la otra. `/moderate` y la edición ya lo hacían así; el envío no.
+    connection = destino.connection;
   }
 
   // Send through the channel adapter. On failure we still persist the

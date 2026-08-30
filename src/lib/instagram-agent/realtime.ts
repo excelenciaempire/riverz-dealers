@@ -1170,8 +1170,7 @@ async function decidirComentario(
           connection: publicConnection,
           conversation: {
             id: '',
-            // TikTok necesita además el video, y su adapter lo lee de aquí con
-            // la forma "video:<id>|comment:<id>" que arma el poll.
+            // TikTok necesita además el VIDEO, y su adapter lo saca de acá.
             thread_external_id: isTikTok
               ? `video:${opts.sourcePostId ?? ''}|comment:${opts.commentId}`
               : opts.commentId,

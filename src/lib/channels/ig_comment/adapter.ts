@@ -43,7 +43,9 @@ export const igCommentAdapter: ChannelAdapter = {
     if (!encrypted) throw new Error("[ig_comment] connection missing access_token");
     const accessToken = decrypt(encrypted);
 
-    const targetId = input.replyToExternalId ?? input.conversation.thread_external_id;
+    // Sin respaldo a `thread_external_id`: ahí vive el id del MEDIA, y
+    // `POST /{media_id}/replies` devuelve 400. Ver fb_comment/adapter.ts.
+    const targetId = input.replyToExternalId;
     if (!targetId) {
       throw new Error("[ig_comment] missing comment id to reply to");
     }
