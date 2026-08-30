@@ -1028,7 +1028,9 @@ export const admin = {
     es: "Con qué modelo trabaja Riverz, y quién paga la IA de cada cuenta.",
     en: "Which model Riverz runs on, and who pays for each account's AI.",
   },
-  aiKeyTitle: { es: "Clave de IA", en: "AI key" },
+  // El título de la pestaña de texto. Decía «Clave de IA» y ya no se carga
+  // ninguna clave acá: se carga en Proveedores → Llaves.
+  aiKeyTitle: { es: "Quién paga la IA", en: "Who pays for the AI" },
   aiKeySubtitle: {
     es: "Riverz pone la clave y decide a qué cuentas cubre. Las demás traen la suya.",
     en: "Riverz supplies the key and decides which accounts it covers. The rest bring their own.",
