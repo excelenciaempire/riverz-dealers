@@ -47,8 +47,12 @@ export const inbox = {
   },
 
   needsHumanNoRecibido: {
-    es: "Sigue mandando algo que WhatsApp no nos entrega. Ábrelo en el teléfono: ahí sí se ve.",
-    en: "They keep sending something WhatsApp doesn't deliver to us. Open it on the phone, it shows there.",
+    es: "Sigue mandando algo que {channel} no nos entrega. Ábrelo en la app: ahí sí se ve.",
+    en: "They keep sending something {channel} doesn't deliver to us. Open it in the app, it shows there.",
+  },
+  needsHumanProblema: {
+    es: "Hay un problema en curso que el asistente no puede resolver.",
+    en: "There's an ongoing problem the assistant can't resolve.",
   },
 
   needsHumanSinRespuesta: {
@@ -283,21 +287,25 @@ export const inbox = {
   // Qué es y qué hacer, en vez de un rótulo que parece un error nuestro.
   //
   // Decía "[No compatible]" y nadie —ni el comercio ni la IA— podía saber qué
-  // había pasado: se leía como si Riverz hubiera roto algo. Es WhatsApp: la
-  // persona mandó algo que su API no reparte (ver-una-vez, una encuesta, una
-  // función nueva) y llega el aviso sin archivo. En el teléfono del comercio sí
-  // se ve, y eso es lo único accionable.
+  // había pasado: se leía como si Riverz hubiera roto algo. Es la plataforma: la
+  // persona mandó algo que su API no reparte (ver-una-vez, modo temporal, una
+  // encuesta, una función nueva) y llega el aviso sin archivo. En la app del
+  // comercio sí se ve, y eso es lo único accionable.
+  //
+  // El canal se nombra en vez de darlo por sentado: decía "WhatsApp" a mano y
+  // se mostraba encima de mensajes de Instagram, Messenger, Mercado Libre y
+  // comentarios de TikTok.
   unsupported: {
-    es: "WhatsApp no entrega este mensaje · ábrelo en el teléfono",
-    en: "WhatsApp doesn't deliver this message · open it on the phone",
+    es: "{channel} no entrega este mensaje · ábrelo en la app",
+    en: "{channel} doesn't deliver this message · open it in the app",
   },
   writeOnWhatsapp: {
     es: "Escribir a {phone} por WhatsApp",
     en: "Message {phone} on WhatsApp",
   },
   unsupportedMedia: {
-    es: "Nota de voz o contenido que la plataforma no envía, ábrelo en la app",
-    en: "Voice note or content the platform doesn't deliver, open it in the app",
+    es: "{channel} no entrega este contenido · ábrelo en la app",
+    en: "{channel} doesn't deliver this content · open it in the app",
   },
   noContent: { es: "[sin contenido]", en: "[no content]" },
   email: { es: "Correo", en: "Email" },

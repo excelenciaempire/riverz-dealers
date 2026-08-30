@@ -13,6 +13,7 @@ import type { OrigenDelDato } from "@/lib/contacts/identidad-probada";
 import { resolveAssignmentForConversation } from "@/lib/inbox/assignment-rules";
 import { mimeToCategory } from "./media-ingest";
 import { mediaPreviewToken } from "./display";
+import { isStoryMentionOrShareOnly } from "./meta-attachments";
 import {
   maybeRunCloser,
   markCampaignReply,
@@ -541,16 +542,24 @@ export async function ingestInboundEvent(
   }
 
   // Un DM de Instagram que es SOLO una mención en historia o una publicación
-  // compartida (texto = un marcador entre corchetes) se guarda para que la
-  // conversación se vea completa, pero no le pide nada al agente: no hay
-  // pregunta que responder.
+  // compartida se guarda para que la conversación se vea completa, pero no le
+  // pide nada al agente: no hay pregunta que responder.
+  //
+  // El criterio es el SIGNIFICADO del marcador, no su forma. Hasta el
+  // 2026-08-30 esto era `/^\[[^\]]+\]$/` —"cualquier cosa entre corchetes"— y
+  // se comía también `[unsupported]`, o sea todo lo que Instagram no nos
+  // entrega. El agente no se enteraba: ni respuesta, ni fila `skipped` en
+  // `ai_replies`, ni escalada. Una clienta mandó tres fotos en ver-una-vez
+  // después de que el agente le pidiera una foto, y el sistema quedó mudo.
+  // Ese caso lo atiende el runner (`runner.ts`, "lo que no nos llega no se
+  // contesta dos veces"), y para atenderlo tiene que llegarle.
   const igEmptyDm =
     channel === "instagram" &&
     (!(
       Boolean(event.text && event.text.trim()) ||
       Boolean(event.attachments && event.attachments.length)
     ) ||
-      /^\[[^\]]+\]$/.test((event.text ?? "").trim()));
+      isStoryMentionOrShareOnly(event.text));
   if (
     !event.outbound &&
     !event.historical &&

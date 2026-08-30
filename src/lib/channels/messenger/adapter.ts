@@ -340,7 +340,7 @@ export const messengerAdapter: ChannelAdapter = {
               message.text,
               echo.descriptions,
               echo.media.length > 0,
-              Boolean(message.is_unsupported),
+              Boolean(message.is_unsupported) || echo.unsupported,
             ),
             attachments: echo.media.length ? echo.media : undefined,
             receivedAt: new Date(Number(m.timestamp ?? Date.now())).toISOString(),
@@ -370,7 +370,7 @@ export const messengerAdapter: ChannelAdapter = {
           message.text,
           parsed.descriptions,
           parsed.media.length > 0,
-          Boolean(message.is_unsupported),
+          Boolean(message.is_unsupported) || parsed.unsupported,
         );
         if (isMetaUnsupportedText(msText)) logUnrenderableMetaMessage("messenger", m);
         // Respuesta a una historia NUESTRA de la página, o mención de la marca

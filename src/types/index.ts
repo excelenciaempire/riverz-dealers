@@ -311,10 +311,11 @@ export const NEEDS_HUMAN_REASONS = [
   /** El visitante del chat web apretó "hablar con una persona" (migración
    *  198). Es el único motivo que nace de un pedido explícito. */
   'visitor_request',
-  /** La persona sigue mandando algo que WhatsApp no nos entrega (ver-una-vez,
-   *  una encuesta, una función nueva): llega el aviso y ningún archivo. Se le
-   *  avisa UNA vez; si insiste, otro mensaje no lo va a resolver y lo mira una
-   *  persona, que sí puede abrirlo en el teléfono. */
+  /** La persona sigue mandando algo que el canal no nos entrega (el ver-una-vez
+   *  y el modo temporal de Instagram, una nota de voz de IG, una encuesta de
+   *  WhatsApp, una función nueva): llega el aviso y ningún archivo. Se le avisa
+   *  UNA vez; si insiste, otro mensaje no lo va a resolver y lo mira una
+   *  persona, que sí puede abrirlo en la app. */
   'mensaje_no_recibido',
   /** Meta rechazó ocultar o publicar en un comentario —típicamente por un
    *  permiso que le falta a la cuenta—, así que el comentario sigue a la vista
@@ -329,6 +330,14 @@ export const NEEDS_HUMAN_REASONS = [
    *  le mandó "en un momento te responde una persona". Esa promesa la tiene
    *  que cumplir alguien. Tampoco apaga la IA: la caída es pasajera. */
   'ia_caida',
+  /** El triaje de escalada (`ai/escalada.ts`) vio un problema REAL en curso —el
+   *  envío va a otra ciudad, llegó roto o distinto, pagó y no figura el pedido—
+   *  sin que nadie pidiera hablar con alguien. Se separó de
+   *  `escalation_keyword` porque ese motivo significa UNA cosa y la bandeja la
+   *  imprime literal: "El cliente pidió hablar con una persona". El 2026-08-30
+   *  un reclamo por un producto que parecía falso salió marcado como un pedido
+   *  de persona que nunca existió. */
+  'problema_detectado',
 ] as const;
 
 export type NeedsHumanReason = (typeof NEEDS_HUMAN_REASONS)[number];

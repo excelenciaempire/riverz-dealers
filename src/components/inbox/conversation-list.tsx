@@ -9,6 +9,7 @@ import type { Channel, Conversation, ConversationStatus, MessageStatus } from "@
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { MlKindBadge } from "@/components/inbox/ml-kind-badge";
 import {
+  channelLabel,
   isUnsupportedSnippet,
   localizeContentToken,
   stripLeadingMentions,
@@ -729,7 +730,7 @@ const ConversationItem = memo(function ConversationItem({
                 <span className="font-medium text-foreground">{conversation.subject} · </span>
               ) : null}
               {isUnsupportedSnippet(conversation.last_message_text)
-                ? t("inbox.unsupported")
+                ? t("inbox.unsupported", { channel: channelLabel(conversation.channel, t) })
                 : // Mismo criterio que la burbuja: el "@usuario" que IG/FB
                   // anteponen a cada respuesta no se muestra. Sólo en los
                   // canales de comentarios — en un chat, un texto que arranca

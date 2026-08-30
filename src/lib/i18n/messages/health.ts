@@ -430,12 +430,20 @@ export const health: Namespace = {
   skip_failed: { es: "se rompió sin llegar a contestar", en: "broke before replying" },
 
   skip_mensaje_no_recibido: {
-    es: "WhatsApp no nos entregó lo que mandó, y ya se lo avisamos",
-    en: "WhatsApp didn't deliver what they sent, and we already told them",
+    es: "el canal no nos entregó lo que mandó, y ya se lo avisamos",
+    en: "the channel didn't deliver what they sent, and we already told them",
   },
   reason_mensaje_no_recibido: {
     es: "por un mensaje que no nos llegó",
     en: "a message that didn't reach us",
+  },
+  skip_problema_detectado: {
+    es: "había un problema en curso que necesitaba una persona",
+    en: "there was an ongoing problem that needed a person",
+  },
+  reason_problema_detectado: {
+    es: "por un problema en curso",
+    en: "an ongoing problem",
   },
 
   skipOther: { es: "otro motivo", en: "another reason" },

@@ -103,6 +103,7 @@ export const POLITICA = {
   reply_burst_guard: ESCALA('reply_burst_guard', 'demasiadas respuestas: parece un lazo'),
   answer_gap: ESCALA('answer_gap', 'no sabía la respuesta y no la inventó'),
   mensaje_no_recibido: ESCALA('mensaje_no_recibido', 'insiste con algo que no nos llega'),
+  problema_detectado: ESCALA('problema_detectado', 'el triaje vio un problema real en curso'),
 
   // ── Nadie contestó, y hay que decirlo ───────────────────────────────────
   // No apagan la IA: el hilo tiene que poder recuperarse solo en el próximo

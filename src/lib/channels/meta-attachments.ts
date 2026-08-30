@@ -19,6 +19,19 @@ import { ingestMetaAttachment } from "./media-ingest";
 export interface MetaAttachmentsResult {
   media: MessageAttachment[];
   descriptions: string[];
+  /**
+   * Meta anunció un adjunto y no mandó con qué mostrarlo.
+   *
+   * El caso real es `type: "ephemeral"`: el ver-una-vez y el modo temporal de
+   * Instagram. El webhook trae el tipo y NADA más —ni `payload`, ni URL— y la
+   * Conversations API tampoco lo tiene: verificado el 2026-08-30 pidiendo ese
+   * mismo `mid` a Graph, que devolvió 200 con `message: ""` y sin la arista
+   * `attachments`. No hay nada que bajar, ni ahora ni después.
+   *
+   * Se distingue del "no quedó nada que mostrar" genérico para que la burbuja
+   * diga qué pasó y el agente no lo confunda con un archivo roto.
+   */
+  unsupported: boolean;
 }
 
 /** Adjuntos que SON un archivo descargable del CDN de Meta. `story_mention` y
@@ -36,8 +49,8 @@ const MEDIA_TYPES = new Set([
 
 /** Marcadores entre corchetes: la burbuja los oculta cuando ya se ve el archivo
  *  (isTypePlaceholder) y el preview de la lista los muestra localizados. */
-const STORY_MENTION_LABEL = "[Mención en historia]";
-const SHARED_POST_LABEL = "[Publicación compartida]";
+export const STORY_MENTION_LABEL = "[Mención en historia]";
+export const SHARED_POST_LABEL = "[Publicación compartida]";
 const LOCATION_LABEL = "[Ubicación]";
 const MEDIA_UNAVAILABLE_LABEL = "[Archivo no disponible]";
 /** Sentinela que `isUnsupportedSnippet` ya reconoce y la UI localiza. */
@@ -54,6 +67,33 @@ export const META_UNSUPPORTED_MEDIA_LABEL = "[unsupported media]";
  *  mensaje entró sin nada que mostrar. */
 export function isMetaUnsupportedText(text: string): boolean {
   return text === META_UNSUPPORTED_LABEL || text === META_UNSUPPORTED_MEDIA_LABEL;
+}
+
+/**
+ * El mensaje es SÓLO una mención en historia o una publicación compartida: no
+ * hay pregunta que contestar, y por eso el despacho de Instagram lo deja pasar
+ * sin molestar al agente.
+ *
+ * Se compara contra los dos rótulos exactos a propósito. Antes esto era un
+ * regex de forma —`/^\[[^\]]+\]$/`, "cualquier cosa entre corchetes"— y se
+ * comía además los dos sentinelas de "no nos llegó", `[Ubicación]` y
+ * `[Archivo no disponible]`. Un mensaje que el agente TIENE que ver quedaba sin
+ * turno: ni respuesta, ni fila en `ai_replies`, ni escalada. Verificado el
+ * 2026-08-30 en la cuenta Pilar: seis mensajes de Instagram, invisibles.
+ *
+ * Se mira línea por línea porque dos adjuntos de vitrina en el mismo DM llegan
+ * como dos rótulos separados por un salto.
+ */
+const SOLO_VITRINA = new Set(
+  [STORY_MENTION_LABEL, SHARED_POST_LABEL].map((l) => l.toLowerCase()),
+);
+
+export function isStoryMentionOrShareOnly(text?: string | null): boolean {
+  const lineas = String(text ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lineas.length > 0 && lineas.every((l) => SOLO_VITRINA.has(l.toLowerCase()));
 }
 
 /**
@@ -139,6 +179,7 @@ export async function ingestMetaAttachments(input: {
   const list = Array.isArray(input.attachments) ? input.attachments : [];
   const media: MessageAttachment[] = [];
   const descriptions: string[] = [];
+  let unsupported = false;
   let slot = 0;
 
   /** Baja el archivo a Storage. `requireMedia` descarta lo que resulte no ser
@@ -177,6 +218,14 @@ export async function ingestMetaAttachments(input: {
     const payload = (a.payload ?? {}) as Record<string, unknown>;
     const url = str(payload.url);
     const title = str(a.title, payload.title);
+
+    // Ver-una-vez y modo temporal de Instagram. Meta manda `{type:"ephemeral"}`
+    // pelado: no hay URL que pedir. Sin este caso caía al `else` del final y
+    // salía como el sentinela genérico, que se lee como un error nuestro.
+    if (type === "ephemeral") {
+      unsupported = true;
+      continue;
+    }
 
     if (MEDIA_TYPES.has(type)) {
       if (url && (await download(url, hintFor(type)))) {
@@ -234,7 +283,7 @@ export async function ingestMetaAttachments(input: {
     descriptions.push(describeLink(title, link) || META_UNSUPPORTED_LABEL);
   }
 
-  return { media, descriptions };
+  return { media, descriptions, unsupported };
 }
 
 /**

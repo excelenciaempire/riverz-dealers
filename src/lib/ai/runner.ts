@@ -275,14 +275,37 @@ export async function runAiAgent(
       agentKeyEncrypted: agent.api_key_encrypted,
     }).catch(() => null);
     if (escalada) {
-      await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
-        pidio: textoEntrante,
-      });
+      // Sólo `pide_persona` conserva `escalation_keyword`: ese motivo dice "el
+      // cliente pidió hablar con alguien" y la bandeja lo imprime literal. Todo
+      // lo demás que ve el triaje —un envío mal, un producto distinto, un
+      // cobro— es un problema, no un pedido, y decirlo mal le cuesta a quien
+      // atiende los primeros treinta segundos del caso.
+      const pidioPersona = escalada.clase === 'pide_persona';
+      await flagNeedsHuman(
+        db,
+        args.conversation,
+        pidioPersona ? 'escalation_keyword' : 'problema_detectado',
+        {
+          pidio: textoEntrante,
+          // Lo que vio el clasificador, en una línea. Es el dato más útil del
+          // traspaso y hasta acá se tiraba: viajaba sólo en el aviso de
+          // WhatsApp y no quedaba en ningún lado.
+          porQue: escalada.porQue,
+        },
+      );
       await avisarDelCaso(db, args, escalada);
-      await logReply(db, agent, args, {
-        status: 'skipped',
-        skip_reason: 'escalation_keyword',
-      });
+      // Los dos literales van escritos: `desenlace.test.ts` busca
+      // `skip_reason: '…'` con un grep sobre este archivo para exigir que cada
+      // uno tenga política en la tabla y texto en el panel. Con una variable,
+      // los dos se caen de esa red.
+      await logReply(
+        db,
+        agent,
+        args,
+        pidioPersona
+          ? { status: 'skipped', skip_reason: 'escalation_keyword' }
+          : { status: 'skipped', skip_reason: 'problema_detectado' },
+      );
       return;
     }
 
@@ -1296,10 +1319,18 @@ function shouldSkip(
 function resumenDeTraspaso(detalle?: {
   pidio?: string | null;
   herramientas?: string[];
+  /** El diagnóstico de quien escaló (`Escalada.porQue`). Va PRIMERO: quien abre
+   *  el hilo necesita saber QUÉ pasa antes que qué se dijo. */
+  porQue?: string | null;
 }): string | null {
   const partes: string[] = [];
+  const porQue = (detalle?.porQue ?? '').replace(/\s+/g, ' ').trim();
+  if (porQue) partes.push(porQue.slice(0, 160));
   const pidio = (detalle?.pidio ?? '').replace(/\s+/g, ' ').trim();
-  if (pidio) partes.push(`Pidió: "${pidio.slice(0, 240)}"`);
+  // "Pidió:" era la segunda mentira del cartel: en casi todos los caminos que
+  // escalan esto no es lo que la persona pidió, sino lo último que escribió —una
+  // dirección, un "ok", una foto—. Es el mismo dato, nombrado por lo que es.
+  if (pidio) partes.push(`Último mensaje: "${pidio.slice(0, 240)}"`);
   const usadas = Array.from(new Set(detalle?.herramientas ?? []));
   if (usadas.length) partes.push(`Consultó: ${usadas.join(', ')}`);
   return partes.length ? partes.join('\n') : null;
@@ -1310,7 +1341,7 @@ async function flagNeedsHuman(
   conversation: Conversation,
   reason?: NeedsHumanReason,
   /** Lo que se le cuenta a quien recibe el hilo. */
-  detalle?: { pidio?: string | null; herramientas?: string[] },
+  detalle?: { pidio?: string | null; herramientas?: string[]; porQue?: string | null },
 ): Promise<void> {
   try {
     const resumen = resumenDeTraspaso(detalle);
@@ -2828,14 +2859,15 @@ export function buildSystemPrompt(
   // Qué decir de un mensaje que NO nos llegó.
   //
   // "[No compatible]" en el historial no es un archivo roto ni un adjunto que
-  // se pueda abrir: es el aviso de WhatsApp de que la persona mandó algo que su
-  // API no reparte (ver-una-vez, una encuesta, una función nueva). Sin esta
+  // se pueda abrir: es el aviso del canal de que la persona mandó algo que su
+  // API no reparte (el ver-una-vez y el modo temporal de Instagram, una nota de
+  // voz de IG, una encuesta de WhatsApp, una función nueva). Sin esta
   // regla el modelo se inventa una explicación distinta cada vez —«se ve como
   // un archivo que no puedo abrir»— y encima insiste. Lo que se pide es
   // concreto y en un solo mensaje; si vuelve a pasar, el runner lo manda a una
   // persona y el modelo ni se entera.
   lines.push(
-    'Si en el historial ves "[No compatible]" o "[unsupported…]", ese mensaje NO nos llegó: WhatsApp no lo entrega, no es un archivo que puedas abrir ni algo que se haya roto. No inventes qué era. Dilo una sola vez, corto y sin disculparte de más, y pide lo concreto que necesitas: que lo reenvíe como foto normal, o que te lo escriba. Si ya lo pediste antes en esta conversación, no lo vuelvas a pedir.',
+    'Si en el historial ves "[No compatible]", "[unsupported…]" o "[Archivo no disponible]", ese mensaje NO nos llegó: la plataforma no lo entrega, no es un archivo que puedas abrir ni algo que se haya roto. No inventes qué era. Dilo una sola vez, corto y sin disculparte de más, y pide lo concreto que necesitas: que lo reenvíe como foto normal (no como "ver una vez"), o que te lo escriba. Si ya lo pediste antes en esta conversación, no lo vuelvas a pedir.',
   );
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.

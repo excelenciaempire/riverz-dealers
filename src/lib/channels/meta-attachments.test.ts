@@ -23,6 +23,7 @@ import {
   ingestMetaAttachments,
   META_UNSUPPORTED_LABEL,
   META_UNSUPPORTED_MEDIA_LABEL,
+  isStoryMentionOrShareOnly,
   unwrapMetaLink,
 } from "./meta-attachments";
 
@@ -161,5 +162,48 @@ describe("composeMetaText", () => {
     // Con texto o archivo, la bandera no cambia nada.
     expect(composeMetaText("hola", [], false, true)).toBe("hola");
     expect(composeMetaText("", [], true, true)).toBe("");
+  });
+});
+
+describe("ver-una-vez de Instagram (`ephemeral`)", () => {
+  it("no deja descripción: deja la bandera, y el texto sale como retenido", async () => {
+    const r = await ingestMetaAttachments({ ...BASE, attachments: [{ type: "ephemeral" }] });
+    expect(r.media).toEqual([]);
+    // Si dejara una descripción, `composeMetaText` la devolvería tal cual y
+    // nunca miraría la bandera: por eso la rama corta antes de describir.
+    expect(r.descriptions).toEqual([]);
+    expect(r.unsupported).toBe(true);
+    expect(composeMetaText("", r.descriptions, false, r.unsupported)).toBe(
+      META_UNSUPPORTED_MEDIA_LABEL,
+    );
+  });
+
+  it("un tipo desconocido sigue siendo el sentinela genérico", async () => {
+    const r = await ingestMetaAttachments({ ...BASE, attachments: [{ type: "algo_nuevo" }] });
+    expect(r.descriptions).toEqual([META_UNSUPPORTED_LABEL]);
+    expect(r.unsupported).toBe(false);
+  });
+});
+
+describe("isStoryMentionOrShareOnly", () => {
+  it("es vitrina cuando el DM es sólo la mención o el post compartido", () => {
+    expect(isStoryMentionOrShareOnly("[Mención en historia]")).toBe(true);
+    expect(isStoryMentionOrShareOnly("[Publicación compartida]")).toBe(true);
+    expect(isStoryMentionOrShareOnly("[Mención en historia]\n[Publicación compartida]")).toBe(
+      true,
+    );
+  });
+
+  it("NO es vitrina nada de lo que hay que contestar", () => {
+    // Los cuatro que el gate viejo silenciaba en Instagram, y por los que una
+    // clienta se quedó sin respuesta el 2026-08-30.
+    expect(isStoryMentionOrShareOnly(META_UNSUPPORTED_LABEL)).toBe(false);
+    expect(isStoryMentionOrShareOnly(META_UNSUPPORTED_MEDIA_LABEL)).toBe(false);
+    expect(isStoryMentionOrShareOnly("[Ubicación]")).toBe(false);
+    expect(isStoryMentionOrShareOnly("[Archivo no disponible]")).toBe(false);
+    expect(isStoryMentionOrShareOnly("[Mención en historia]\n¿tienen stock?")).toBe(false);
+    expect(isStoryMentionOrShareOnly("hola")).toBe(false);
+    expect(isStoryMentionOrShareOnly("")).toBe(false);
+    expect(isStoryMentionOrShareOnly(null)).toBe(false);
   });
 });

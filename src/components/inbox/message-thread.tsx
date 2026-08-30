@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { mlThreadKind } from "@/lib/channels/display";
+import { channelLabel, mlThreadKind } from "@/lib/channels/display";
 import { formatPhoneDisplay } from "@/lib/whatsapp/phone-utils";
 import type {
   Conversation,
@@ -186,6 +186,7 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   answer_gap: "inbox.needsHumanUnknown",
   visitor_request: "inbox.needsHumanAsked",
   mensaje_no_recibido: "inbox.needsHumanNoRecibido",
+  problema_detectado: "inbox.needsHumanProblema",
   comment_sin_moderar: "inbox.needsHumanSinModerar",
   ia_sin_respuesta: "inbox.needsHumanSinRespuesta",
   ia_caida: "inbox.needsHumanIaCaida",
@@ -1665,7 +1666,9 @@ export function MessageThread({
           <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="min-w-0 flex-1">
             <p className="text-xs text-amber-700 dark:text-amber-300">
-              {t(NEEDS_HUMAN_REASON_KEY[conversation.needs_human_reason])}
+              {t(NEEDS_HUMAN_REASON_KEY[conversation.needs_human_reason], {
+                channel: channelLabel(conversation.channel, t),
+              })}
             </p>
             {/* Qué pasó hasta acá, en dos líneas.
                 El resumen rodante ya existía y no se mostraba en ningún lado:

@@ -34,6 +34,7 @@ import { useT } from "@/hooks/use-locale";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
   COMMENT_DELETED_TEXT,
+  channelLabel,
   isUnsupportedSnippet,
   isUnsupportedMediaSnippet,
   isCommentDeleted,
@@ -179,16 +180,16 @@ function MediaUnavailable({ label }: { label: string }) {
   );
 }
 
-/** Meta marcó el mensaje como `is_unsupported`: la persona mandó una nota de
- *  voz (o un GIF, o algo de una cuenta privada) y la plataforma no entrega el
- *  archivo por API. Se dice explícito para que el agente sepa que hay un
- *  mensaje real y lo abra en la app. */
-function UnsupportedMedia() {
+/** La plataforma avisó que hay contenido y no lo entrega: el ver-una-vez y el
+ *  modo temporal de Instagram, una nota de voz de IG, un GIF, algo de una cuenta
+ *  privada. Se dice explícito —y con el nombre del canal— para que el agente
+ *  sepa que hay un mensaje real y lo abra ahí. */
+function UnsupportedMedia({ channel }: { channel: Message["channel"] }) {
   const t = useT();
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Mic className="h-4 w-4 shrink-0" />
-      <span>{t("inbox.unsupportedMedia")}</span>
+      <span>{t("inbox.unsupportedMedia", { channel: channelLabel(channel, t) })}</span>
     </div>
   );
 }
@@ -650,14 +651,14 @@ function MessageContent({
       // deja leer) va el rótulo — nunca una burbuja en blanco: en la bandeja
       // todo mensaje se ve.
       const body = message.content_text?.trim();
-      if (isUnsupportedMediaSnippet(body)) return <UnsupportedMedia />;
+      if (isUnsupportedMediaSnippet(body)) return <UnsupportedMedia channel={message.channel} />;
       const readable = body && !isUnsupportedSnippet(body);
       return (
         <div>
           <p className="whitespace-pre-wrap break-words text-sm">
             {readable
               ? linkifyNodes(localizeContentToken(message.content_text, t))
-              : t("inbox.unsupported")}
+              : t("inbox.unsupported", { channel: channelLabel(message.channel, t) })}
           </p>
           {readable && phoneActions}
         </div>
@@ -772,7 +773,7 @@ function MessageContent({
     }
 
     default: {
-      if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia />;
+      if (isUnsupportedMediaSnippet(message.content_text)) return <UnsupportedMedia channel={message.channel} />;
       // Acá caen, entre otros, los comentarios de Facebook/Instagram: dejar
       // el teléfono en un comentario es de lo más común para pedir precio.
       // El "@usuario" con el que IG/FB encabezan cada respuesta de un hilo no
@@ -786,10 +787,13 @@ function MessageContent({
         <div>
           <p className="whitespace-pre-wrap break-words text-sm">
             {isUnsupportedSnippet(message.content_text)
-              ? t("inbox.unsupported")
+              ? t("inbox.unsupported", { channel: channelLabel(message.channel, t) })
               : commentText
                 ? linkifyNodes(commentText)
-                : t("inbox.unsupported")}
+                : // No es que el canal lo haya retenido: la fila entró sin texto
+                  // —un comentario que era sólo una foto o un sticker—. Decir
+                  // "no lo entrega" ahí era inventar un diagnóstico.
+                  t("inbox.noContent")}
           </p>
           {message.content_text && !isUnsupportedSnippet(message.content_text)
             ? phoneActions

@@ -6,6 +6,7 @@ import Link from '@/components/i18n/locale-link';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import { cn } from '@/lib/utils';
+import type { NeedsHumanReason } from '@/types';
 
 /**
  * Los casos que el asistente dejó en manos de una persona.
@@ -29,15 +30,30 @@ interface Caso {
   resumen: string | null;
 }
 
-/** Por qué se plantó, en palabras que se entienden sin saber cómo funciona. */
-const MOTIVOS: Record<string, string> = {
+/**
+ * Por qué se plantó, en palabras que se entienden sin saber cómo funciona.
+ *
+ * Tipado contra `NeedsHumanReason` a propósito. Escrito como
+ * `Record<string, string>` se quedó atrás sin que nada fallara: tenía un
+ * `webchat_handoff` que no existe en ningún lado —el chat web escribe
+ * `visitor_request`— y le faltaban seis motivos reales, así que seis clases de
+ * escalada se mostraban como "otro motivo" en el panel que existe justamente
+ * para distinguirlas.
+ */
+const MOTIVOS: Record<NeedsHumanReason, string> = {
   escalation_keyword: 'Pidió una persona',
   escalate_after_messages: 'Se agotaron las respuestas del asistente',
   flow_handoff: 'Lo derivó un flujo',
   reply_burst_guard: 'Demasiadas respuestas seguidas',
   approval_unnotified: 'Una cancelación o reembolso sin avisar',
   answer_gap: 'El asistente no supo la respuesta',
-  webchat_handoff: 'Apretó "hablar con una persona"',
+  comprobante_sin_pedido: 'Mandó el comprobante y no aparece el pedido',
+  visitor_request: 'Apretó "hablar con una persona" en el chat web',
+  mensaje_no_recibido: 'Manda algo que el canal no nos entrega',
+  comment_sin_moderar: 'Meta no dejó responder ni ocultar el comentario',
+  ia_sin_respuesta: 'El asistente no llegó a responder',
+  ia_caida: 'Se prometió una persona y el asistente no pudo',
+  problema_detectado: 'Un problema en curso',
 };
 
 export function EscalacionesPanel() {
@@ -106,7 +122,8 @@ export function EscalacionesPanel() {
                   c.pendiente ? 'text-muted-foreground' : 'text-muted-foreground/70',
                 )}
               >
-                {(c.motivo && MOTIVOS[c.motivo]) || t('assistant.escalacionesOtroMotivo')}
+                {(c.motivo && (MOTIVOS as Record<string, string>)[c.motivo]) ||
+                  t('assistant.escalacionesOtroMotivo')}
                 {c.resumen ? ` · ${c.resumen.replace(/\s+/g, ' ').slice(0, 90)}` : ''}
               </span>
             </span>
