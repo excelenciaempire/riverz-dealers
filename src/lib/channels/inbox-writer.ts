@@ -556,8 +556,19 @@ export async function ingestInboundEvent(
     !event.historical &&
     !event.suppressAutoReply &&
     !igEmptyDm &&
+    // Los tres canales de comentarios los atiende `routeComment`, arriba.
+    // `tiktok_comment` faltaba en esta lista, así que cumplía las DOS ramas: el
+    // piso autónomo publicaba su respuesta y el runner de DM publicaba otra por
+    // el adaptador. Dos comentarios públicos bajo el mismo video, dos llamadas
+    // al modelo y dos cobros. Verificado en producción el 2026-08-30: pasó una
+    // vez (2026-08-27) sobre 485 hilos, porque el runner además necesita un
+    // agente activo cuyo alcance cubra el canal.
+    //
+    // De paso deja de disparar automatizaciones y flujos —pensados para DM—
+    // sobre un comentario público. Ningún `flow_runs` los usaba.
     channel !== "fb_comment" &&
-    channel !== "ig_comment"
+    channel !== "ig_comment" &&
+    channel !== "tiktok_comment"
   ) {
     // Automatizaciones y flujos ANTES que la IA. Vivían sólo en el webhook
     // legacy de WhatsApp, así que por este camino no disparaban nunca — y en

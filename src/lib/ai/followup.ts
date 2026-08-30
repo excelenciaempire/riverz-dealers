@@ -130,6 +130,23 @@ function extractText(resp: { content?: Array<{ type?: string; text?: string }> }
     .trim();
 }
 
+/**
+ * ¿Pidió la baja?
+ *
+ * El cron de reactivación lo chequea desde siempre (`opted_out = false` en su
+ * consulta); el de seguimientos no lo miraba en ningún lado. Un contacto que
+ * escribió "no me escribas más" —marcado en `inbox-writer`— seguía siendo
+ * elegible para un mensaje que sale solo.
+ */
+async function estaDadoDeBaja(db: SupabaseClient, contactId: string): Promise<boolean> {
+  const { data } = await db
+    .from('contacts')
+    .select('opted_out')
+    .eq('id', contactId)
+    .maybeSingle();
+  return (data as { opted_out?: boolean | null } | null)?.opted_out === true;
+}
+
 export async function runFollowUp(
   db: SupabaseClient,
   args: {
@@ -159,6 +176,15 @@ export async function runFollowUp(
     if (!toolEnabled(agent, 'enviar_proactivo')) {
       return { sent: false, reason: 'proactive_not_allowed' };
     }
+    // Quien pidió la baja no recibe un mensaje que sale solo. Faltaba en TODO
+    // este camino —ni el cron ni esta función lo miraban—, así que un contacto
+    // que escribió "no me escribas más" seguía siendo elegible; el cron de
+    // reactivación sí lo chequeaba desde siempre. Va antes de la recuperación
+    // de carrito, que hasta ahora se saltaba también este control y el de
+    // aprobación por ser una rama anterior.
+    if (await estaDadoDeBaja(db, contact.id)) {
+      return { sent: false, reason: 'opted_out' };
+    }
     // 0. Recuperación de pago: si el asistente envió un link de checkout y
     //    el cliente no pagó, este "seguimiento" se convierte en un mensaje
     //    de recuperación con el link (migraciones 081/082). Reusa el timing
@@ -187,6 +213,29 @@ export async function runFollowUp(
           `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`,
         conversation.channel,
       );
+      // "Aprobar cada mensaje" vale también acá. Esta rama estaba ANTES del
+      // chequeo de más abajo, así que un comercio que aprueba todo igual tenía
+      // la recuperación de carrito saliendo sola. Se limpia el pendiente junto
+      // con la propuesta: si no, el cron volvería a proponer lo mismo en cada
+      // corrida.
+      if (agent.requires_approval) {
+        await db.from('ai_pending_replies').upsert(
+          {
+            workspace_id: agent.workspace_id,
+            conversation_id: conversation.id,
+            agent_id: agent.id,
+            agent_name: agent.name ?? null,
+            content_text: text,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: 'conversation_id' },
+        );
+        await db
+          .from('conversations')
+          .update({ pending_checkout_at: null, pending_checkout_url: null })
+          .eq('id', conversation.id);
+        return { sent: false, reason: 'awaiting_approval' };
+      }
       const adapter = getAdapter(conversation.channel);
       const sendResult = await adapter.sendText({
         channel: conversation.channel,
