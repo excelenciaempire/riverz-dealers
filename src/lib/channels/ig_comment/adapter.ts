@@ -95,6 +95,15 @@ export const igCommentAdapter: ChannelAdapter = {
         if (!value) continue;
         const fromObj = value.from as { id?: string; username?: string } | undefined;
         if (!fromObj?.id) continue;
+        // `entry.time` es CUÁNDO LO ENTREGÓ META, no cuándo lo escribió la
+        // persona. Facebook manda además `created_time` y ahí se prefiere ese
+        // (ver fb_comment/adapter.ts); Instagram NO lo manda: el valor del
+        // webhook de `comments` trae id, text, from, media y parent_id, y
+        // nada más. Verificado sobre el payload real.
+        //
+        // Se podría pedirle la hora a Graph por cada comentario, pero eso es
+        // una llamada extra en el camino caliente para corregir unos segundos
+        // — y sólo se nota si Meta reintenta la entrega. No vale el precio.
         const receivedAt = new Date(
           entry.time ? Number(entry.time) * 1000 : Date.now(),
         ).toISOString();

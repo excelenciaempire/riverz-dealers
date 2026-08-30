@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
+import { conFirma } from "../firma-de-correo";
 import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes } from "../media-ingest";
 import { timingSafeStringEqual } from "../verify-webhook";
@@ -56,6 +57,7 @@ export const outlookAdapter: ChannelAdapter = {
       subject: input.conversation.subject ?? "(no subject)",
       convId: input.conversation.thread_external_id ?? null,
       text: input.text,
+      connection: input.connection,
     });
     const enviado = await sendDraft(accessToken, draft.id, draft.internetMessageId);
     return { externalMessageId: enviado, status: "sent" };
@@ -87,6 +89,7 @@ export const outlookAdapter: ChannelAdapter = {
       subject: input.conversation.subject ?? "(no subject)",
       convId: input.conversation.thread_external_id ?? null,
       text: input.caption ?? "",
+      connection: input.connection,
     });
     const attachRes = await fetch(
       `https://graph.microsoft.com/v1.0/me/messages/${draft.id}/attachments`,
@@ -246,8 +249,16 @@ const GRAPH_ATTACHMENT_MAX_BYTES = 3 * 1024 * 1024;
  */
 async function createDraft(
   accessToken: string,
-  args: { to: string; subject: string; convId: string | null; text: string },
+  args: {
+    to: string;
+    subject: string;
+    convId: string | null;
+    text: string;
+    /** El pie del buzón, si el comercio puso uno. */
+    connection?: ChannelConnection;
+  },
 ): Promise<{ id: string; internetMessageId?: string }> {
+  const cuerpo = args.connection ? conFirma(args.text, args.connection) : args.text;
   const originalId = args.convId
     ? await findMessageIdInConversation(accessToken, args.convId)
     : null;
@@ -273,7 +284,7 @@ async function createDraft(
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          body: { contentType: "Text", content: args.text },
+          body: { contentType: "Text", content: cuerpo },
           toRecipients: [{ emailAddress: { address: args.to } }],
         }),
       },
@@ -296,7 +307,7 @@ async function createDraft(
     },
     body: JSON.stringify({
       subject: args.subject,
-      body: { contentType: "Text", content: args.text },
+      body: { contentType: "Text", content: cuerpo },
       toRecipients: [{ emailAddress: { address: args.to } }],
     }),
   });

@@ -1186,4 +1186,16 @@ export const settings = {
     es: "No se pudo abrir el pago. Intenta de nuevo.",
     en: "Couldn't open the payment. Try again.",
   },
+  // El pie del correo. Vacío = sin firma: el correo sale como salía. No se
+  // inventa una con el nombre del negocio — firmar en nombre de alguien es
+  // decisión suya, no nuestra.
+  signaturePlaceholder: {
+    es: "Firma al pie de los correos (opcional)",
+    en: "Signature at the bottom of your emails (optional)",
+  },
+  signatureSaved: { es: "Firma guardada", en: "Signature saved" },
+  signatureFailed: {
+    es: "No se pudo guardar la firma",
+    en: "Couldn't save the signature",
+  },
 } satisfies Namespace;

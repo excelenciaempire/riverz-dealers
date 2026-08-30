@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
+import { conFirma } from "../firma-de-correo";
 import { attachmentFilename, fetchAttachmentBytes } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
@@ -64,7 +65,13 @@ export const gmailAdapter: ChannelAdapter = {
       (await latestInboundMessageId(admin, input.conversation.id));
 
     const subject = withRePrefix(input.conversation.subject ?? "(no subject)");
-    const raw = buildRfc2822({ from, to, subject, body: input.text, inReplyTo: replyId });
+    const raw = buildRfc2822({
+      from,
+      to,
+      subject,
+      body: conFirma(input.text, input.connection),
+      inReplyTo: replyId,
+    });
     const b64 = base64UrlEncode(raw);
 
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
@@ -116,7 +123,7 @@ export const gmailAdapter: ChannelAdapter = {
       from,
       to,
       subject,
-      body: input.caption ?? "",
+      body: conFirma(input.caption ?? "", input.connection),
       inReplyTo: replyId,
       attachment: {
         filename: input.filename || attachmentFilename(input.mediaUrl, file.mime),

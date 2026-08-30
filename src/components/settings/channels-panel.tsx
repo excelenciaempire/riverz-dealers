@@ -513,6 +513,13 @@ export function ChannelsPanel() {
                               {t("settings.configurePaymentMethod")}
                             </a>
                           )}
+                        {/* El pie del correo. Sólo en los buzones: en chat el
+                            nombre está arriba y una firma por mensaje sería
+                            ruido. */}
+                        {(g.connectChannel === "gmail" ||
+                          g.connectChannel === "outlook") &&
+                          primary.status === "connected" &&
+                          isAdmin && <FirmaDeCorreo connection={primary} />}
                       </li>
                     );
                   })}
@@ -952,4 +959,53 @@ function providerForChannel(channel: Channel): string {
   if (channel === "gmail") return "google";
   if (channel === "outlook") return "microsoft";
   return channel;
+}
+
+/**
+ * El pie que se agrega al final de cada correo que sale de ESTE buzón.
+ *
+ * Vacío por defecto y vacío significa "sin firma": el correo sale como salía.
+ * No se inventa una con el nombre del negocio — firmar en nombre de alguien es
+ * decisión suya, no nuestra.
+ */
+function FirmaDeCorreo({ connection }: { connection: ChannelConnection }) {
+  const t = useT();
+  const inicial = String(
+    (connection.config as Record<string, unknown> | null)?.signature ?? "",
+  );
+  const [valor, setValor] = useState(inicial);
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = async () => {
+    if (valor.trim() === inicial.trim()) return;
+    setGuardando(true);
+    try {
+      const res = await fetch("/api/channels/firma", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ connection_id: connection.id, signature: valor }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      toast.success(t("settings.signatureSaved"));
+    } catch {
+      toast.error(t("settings.signatureFailed"));
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="mt-1 pl-6">
+      <textarea
+        className="w-full resize-y rounded-md border border-border bg-background px-2 py-1 text-[11px] leading-snug"
+        rows={2}
+        maxLength={400}
+        value={valor}
+        disabled={guardando}
+        placeholder={t("settings.signaturePlaceholder")}
+        onChange={(e) => setValor(e.target.value)}
+        onBlur={guardar}
+      />
+    </div>
+  );
 }
