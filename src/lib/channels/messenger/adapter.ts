@@ -23,6 +23,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { marcarEntrega } from "../estado-de-entrega";
 import { isMarketingOptin, recordOptIn } from "../marketing-optin";
 
 /**
@@ -220,6 +221,37 @@ export const messengerAdapter: ChannelAdapter = {
             externalContactId: String(sender.id),
             optin: m.optin,
           });
+          continue;
+        }
+
+        // ACUSES DE ENTREGA Y DE LECTURA.
+        //
+        // `message_deliveries` y `message_reads` están suscritos desde
+        // siempre (FB_PAGE_FIELDS) y se TIRABAN: el evento no trae `message`,
+        // así que caía por el `if (!message)` de más abajo y salía por el
+        // `continue` pelado. Resultado: Riverz pagaba ese tráfico y todo lo
+        // saliente de Messenger se quedaba en "enviado" para siempre, mientras
+        // Meta nos estaba diciendo que había llegado y que lo habían leído.
+        //
+        // La entrega puede venir con los ids (`mids`) o sólo con una marca de
+        // tiempo; la lectura viene casi siempre sólo con la marca. Por eso hace
+        // falta resolver la conversación: el `watermark` es por hilo.
+        const entrega = m.delivery as { mids?: string[]; watermark?: number } | undefined;
+        const lectura = m.read as { watermark?: number } | undefined;
+        if (entrega || lectura) {
+          const recipient = m.recipient as { id?: string } | undefined;
+          // En estos eventos el que "manda" es la PERSONA que recibió o leyó,
+          // así que el cliente es `sender`; salvo que sea nuestro propio id.
+          const contacto = selfIds.has(String(sender.id))
+            ? String(recipient?.id ?? "")
+            : String(sender.id);
+          if (contacto) {
+            await aplicarAcuse(connection, contacto, {
+              estado: lectura ? "read" : "delivered",
+              mids: entrega?.mids,
+              watermarkMs: Number(lectura?.watermark ?? entrega?.watermark ?? 0),
+            });
+          }
           continue;
         }
 
@@ -436,5 +468,64 @@ async function backfillMessengerNames(
     }
   } catch (err) {
     console.error("[messenger] background name backfill failed:", err);
+  }
+}
+
+/**
+ * Deja escrito que un mensaje saliente llegó, o que lo leyeron.
+ *
+ * Resuelve el hilo por el contacto porque la marca de tiempo de Meta es POR
+ * CONVERSACIÓN: sin acotar, un acuse de lectura de una persona daría por leídos
+ * los mensajes de todas. Best-effort — un acuse perdido no puede tumbar la
+ * ingesta del mensaje que venía detrás.
+ */
+async function aplicarAcuse(
+  connection: ChannelConnection,
+  externalContactId: string,
+  acuse: { estado: "delivered" | "read"; mids?: string[]; watermarkMs: number },
+): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    // Con ids concretos no hace falta el hilo.
+    if (acuse.mids?.length) {
+      await marcarEntrega(db, {
+        workspaceId: connection.workspace_id,
+        channel: "messenger",
+        estado: acuse.estado,
+        externalMessageIds: acuse.mids,
+      });
+      return;
+    }
+    if (!acuse.watermarkMs) return;
+    const { data: contact } = await db
+      .from("contacts")
+      .select("id")
+      .eq("workspace_id", connection.workspace_id)
+      .eq("channel", "messenger")
+      .eq("external_id", externalContactId)
+      .limit(1)
+      .maybeSingle();
+    const contactId = (contact as { id?: string } | null)?.id;
+    if (!contactId) return;
+    const { data: conv } = await db
+      .from("conversations")
+      .select("id")
+      .eq("workspace_id", connection.workspace_id)
+      .eq("contact_id", contactId)
+      .eq("channel", "messenger")
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const conversationId = (conv as { id?: string } | null)?.id;
+    if (!conversationId) return;
+    await marcarEntrega(db, {
+      workspaceId: connection.workspace_id,
+      channel: "messenger",
+      estado: acuse.estado,
+      watermarkMs: acuse.watermarkMs,
+      conversationId,
+    });
+  } catch (err) {
+    console.warn("[messenger] no se pudo anotar el acuse:", err);
   }
 }

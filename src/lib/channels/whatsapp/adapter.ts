@@ -25,6 +25,7 @@ import {
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { findMessageByExternalId, findMessagesByExternalIds } from "../message-lookup";
+import { desdeDonde } from "../estado-de-entrega";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
 import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
 import {
@@ -522,10 +523,6 @@ function onlyDigits(s: string): string {
 
 /** Message-status ladder — never regress a recipient back down it. `failed`
  *  is a terminal side branch valid only from the early states. */
-const WA_STATUS_LADDER = ["sent", "delivered", "read"];
-function statusRank(s: string): number {
-  return WA_STATUS_LADDER.indexOf(s);
-}
 
 /**
  * Apply WhatsApp delivery/read/FAILED status updates to our outbound messages
@@ -577,12 +574,12 @@ async function handleWhatsappStatuses(
         .in("status", ["sending", "sent"]);
       continue;
     }
-    // Forward-only: only advance sent→delivered→read, never regress.
-    const rank = statusRank(s.status);
-    if (rank < 0) continue;
-    // "pending" no existe en el CHECK de messages.status (migración 001):
-    // el estado previo real es "sending", el optimista del composer.
-    const behind = WA_STATUS_LADDER.slice(0, rank);
+    // Sólo hacia adelante: el escalón vive en `estado-de-entrega`, compartido
+    // con Messenger. "pending" no existe en el CHECK de messages.status
+    // (migración 001): el peldaño cero real es "sending", el optimista del
+    // compositor.
+    const anteriores = desdeDonde(s.status);
+    if (anteriores.length === 0) continue;
     const patch: Record<string, unknown> = { status: s.status };
     if (s.status === "delivered" || s.status === "read") {
       // Entrega confirmada: limpiar marcas de "no confirmada" / retención.
@@ -593,7 +590,7 @@ async function handleWhatsappStatuses(
       .from("messages")
       .update(patch)
       .eq("id", fila.id)
-      .in("status", ["sending", ...behind]);
+      .in("status", anteriores);
   }
 }
 

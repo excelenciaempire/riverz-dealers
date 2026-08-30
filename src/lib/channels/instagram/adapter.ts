@@ -23,6 +23,7 @@ import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { marcarEntrega } from "../estado-de-entrega";
 import { isMarketingOptin, recordOptIn } from "../marketing-optin";
 import { mapMetaAdReferral } from "../messenger/adapter";
 
@@ -231,6 +232,28 @@ export const instagramAdapter: ChannelAdapter = {
           continue;
         }
         if (!message) {
+          // Acuse de LECTURA (`messaging_seen`) y de entrega. Instagram los
+          // manda con una marca de tiempo y sin ids: "todo lo que te mandé
+          // antes de esto, lo vio". Se procesa acá para que el día que se
+          // suscriba el campo funcione sin tocar nada más — hoy no llega
+          // porque agregarlo a la suscripción puede tumbar los DM enteros
+          // (ver la nota en meta-graph.ts).
+          const igLectura = m.read as { watermark?: number } | undefined;
+          const igEntrega = m.delivery as { mids?: string[]; watermark?: number } | undefined;
+          if (igLectura || igEntrega) {
+            const recipient = m.recipient as { id?: string } | undefined;
+            const contacto = selfIds.has(String(sender.id))
+              ? String(recipient?.id ?? "")
+              : String(sender.id);
+            if (contacto) {
+              await anotarAcuseIg(connection, contacto, {
+                estado: igLectura ? "read" : "delivered",
+                mids: igEntrega?.mids,
+                watermarkMs: Number(igLectura?.watermark ?? igEntrega?.watermark ?? 0),
+              });
+            }
+            continue;
+          }
           // Sin `message` el evento antes se tiraba entero. Un botón tocado
           // (postback) SÍ es una respuesta de la persona y va al hilo; un
           // `referral` suelto sólo sella de qué anuncio vino la conversación.
@@ -456,5 +479,62 @@ async function backfillInstagramNames(
     }
   } catch (err) {
     console.error("[instagram] background name backfill failed:", err);
+  }
+}
+
+/**
+ * El mismo acuse que Messenger, para Instagram.
+ *
+ * Vive aparte porque el hilo se resuelve por el contacto de ESTE canal: la
+ * misma persona puede tener un DM de Instagram y uno de Messenger, y la marca
+ * de tiempo de Meta es por conversación.
+ */
+async function anotarAcuseIg(
+  connection: ChannelConnection,
+  externalContactId: string,
+  acuse: { estado: "delivered" | "read"; mids?: string[]; watermarkMs: number },
+): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    if (acuse.mids?.length) {
+      await marcarEntrega(db, {
+        workspaceId: connection.workspace_id,
+        channel: "instagram",
+        estado: acuse.estado,
+        externalMessageIds: acuse.mids,
+      });
+      return;
+    }
+    if (!acuse.watermarkMs) return;
+    const { data: contact } = await db
+      .from("contacts")
+      .select("id")
+      .eq("workspace_id", connection.workspace_id)
+      .eq("channel", "instagram")
+      .eq("external_id", externalContactId)
+      .limit(1)
+      .maybeSingle();
+    const contactId = (contact as { id?: string } | null)?.id;
+    if (!contactId) return;
+    const { data: conv } = await db
+      .from("conversations")
+      .select("id")
+      .eq("workspace_id", connection.workspace_id)
+      .eq("contact_id", contactId)
+      .eq("channel", "instagram")
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const conversationId = (conv as { id?: string } | null)?.id;
+    if (!conversationId) return;
+    await marcarEntrega(db, {
+      workspaceId: connection.workspace_id,
+      channel: "instagram",
+      estado: acuse.estado,
+      watermarkMs: acuse.watermarkMs,
+      conversationId,
+    });
+  } catch (err) {
+    console.warn("[instagram] no se pudo anotar el acuse:", err);
   }
 }

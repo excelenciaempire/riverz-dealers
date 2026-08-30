@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { listConnections } from '@/lib/channels/connections';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 
 /**
@@ -151,11 +152,14 @@ async function esLineaDeApi(
   const { normalizeToWhatsApp } = await import('@/lib/whatsapp/phone-utils');
   if (propio && normalizeToWhatsApp(propio) === destino) return true;
   try {
-    const { data } = await supabaseAdmin()
-      .from('channel_connections')
-      .select('config')
-      .eq('channel', 'whatsapp');
-    for (const fila of (data ?? []) as Array<{ config: Record<string, unknown> | null }>) {
+    // Paginada: PostgREST corta en 1000 sin avisar, y acá el corte se leería
+    // como "ese número no es de la API" — o sea, un aviso mandado a una línea
+    // que sí es nuestra.
+    const filas = await listConnections(supabaseAdmin(), {
+      channel: 'whatsapp',
+      select: 'id, config',
+    });
+    for (const fila of filas) {
       const numero = (fila.config?.display_phone_number as string | undefined) ?? '';
       if (numero && normalizeToWhatsApp(numero) === destino) return true;
     }

@@ -480,6 +480,13 @@ const FB_PAGE_FIELDS = [
 // porque la suscripción se lee y se une en cada reconexión: si sólo se
 // activara a mano en el panel de Meta, la próxima reconexión de la cuenta lo
 // borraría sin que nadie lo note.
+// NOTA sobre los acuses de LECTURA de Instagram: el campo se llama
+// `messaging_seen`, no `message_reads` como en la Página. NO se agrega acá
+// todavía a propósito: un campo que el objeto no admite hace fallar el POST
+// ENTERO de `subscribed_apps` —pasó con `comments`— y con él se caería
+// también la suscripción a `messages`, o sea todos los DM de Instagram. El
+// adaptador ya sabe procesarlo (ver `instagram/adapter.ts`), así que el día
+// que se agregue hay que hacerlo con un reintento campo por campo.
 const IG_PAGE_FIELDS = [
   "messages",
   "messaging_postbacks",
