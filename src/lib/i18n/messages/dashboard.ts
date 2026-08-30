@@ -87,7 +87,7 @@ export const dashboard = {
     en: "Do you close sales over chat?",
   },
   ventasAManoHelp: {
-    es: "Esta cifra cuenta las ventas donde Riverz habló con la persona. Si cierras la venta hablando y cargas el pedido en otro sistema, no aparece acá.",
+    es: "Esta cifra cuenta las ventas donde Riverz habló con la persona. Si cierras la venta hablando y cargas el pedido en otro sistema, no aparece aquí.",
     en: "This number counts sales where Riverz talked to the customer. If you close the sale over chat and enter the order in another system, it won't show up here.",
   },
   ventasAManoSeguido: { es: "Casi todos los días", en: "Most days" },

@@ -39,12 +39,21 @@ export const gaps = {
   times: { es: "Preguntada {n} veces", en: "Asked {n} times" },
   markDone: { es: "Ya la cargué", en: "Added" },
   answer: { es: "Responder", en: "Answer" },
+  // Dónde va la respuesta. No todo es del producto: "¿puedo retirar en
+  // sucursal?" o "¿hacen factura A?" son políticas del negocio, y meterlas en
+  // la ficha de UN producto las hace desaparecer cuando preguntan por otro.
+  destProduct: { es: "Es de un producto", en: "It's about a product" },
+  destRule: { es: "Es una regla del negocio", en: "It's a business rule" },
+  destRuleHint: {
+    es: "Vale para toda la cuenta, sin importar el producto.",
+    en: "Applies account-wide, whatever the product.",
+  },
   pickProduct: { es: "¿De qué producto es?", en: "Which product is it about?" },
   answerPlaceholder: {
     es: "La respuesta, como se la darías a un cliente.",
     en: "The answer, the way you would give it to a customer.",
   },
-  saveAnswer: { es: "Guardar en el producto", en: "Save to the product" },
+  saveAnswer: { es: "Guardar", en: "Save" },
   answered: {
     es: "Listo. El agente ya sabe contestarla.",
     en: "Done. The agent can answer it now.",

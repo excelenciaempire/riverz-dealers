@@ -38,6 +38,11 @@ export function AnswerGapsPanel() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [productos, setProductos] = useState<Array<{ id: string; title: string }>>([]);
   const [productoId, setProductoId] = useState('');
+  // Dónde va la respuesta. No todo es del producto: "¿puedo retirar en
+  // sucursal?", "¿hacen factura A?", "¿cuánto tarda el envío?" son políticas
+  // del negocio, y meterlas en la ficha de UN producto las hace desaparecer
+  // cuando el cliente pregunta por otro.
+  const [destino, setDestino] = useState<'producto' | 'regla'>('producto');
   const [respuesta, setRespuesta] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -88,7 +93,8 @@ export function AnswerGapsPanel() {
   };
 
   const responder = async (g: Hueco) => {
-    if (!productoId || respuesta.trim().length < 2) return;
+    if (respuesta.trim().length < 2) return;
+    if (destino === 'producto' && !productoId) return;
     setEnviando(true);
     try {
       const res = await fetchWithCsrf('/api/huecos/responder', {
@@ -96,6 +102,7 @@ export function AnswerGapsPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key: g.key,
+          destino,
           product_id: productoId,
           question: g.question,
           answer: respuesta.trim(),
@@ -180,17 +187,33 @@ export function AnswerGapsPanel() {
           {abierto === g.key ? (
             <div className="mt-2 space-y-2 border-t border-border pt-2">
               <select
-                value={productoId}
-                onChange={(e) => setProductoId(e.target.value)}
+                value={destino}
+                onChange={(e) =>
+                  setDestino(e.target.value === 'regla' ? 'regla' : 'producto')
+                }
                 className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground"
               >
-                <option value="">{t('gaps.pickProduct')}</option>
-                {productos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
+                <option value="producto">{t('gaps.destProduct')}</option>
+                <option value="regla">{t('gaps.destRule')}</option>
               </select>
+              {destino === 'producto' ? (
+                <select
+                  value={productoId}
+                  onChange={(e) => setProductoId(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                >
+                  <option value="">{t('gaps.pickProduct')}</option>
+                  {productos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('gaps.destRuleHint')}
+                </p>
+              )}
               <textarea
                 value={respuesta}
                 onChange={(e) => setRespuesta(e.target.value)}
@@ -202,7 +225,11 @@ export function AnswerGapsPanel() {
                 <Button
                   type="button"
                   size="sm"
-                  disabled={enviando || !productoId || respuesta.trim().length < 2}
+                  disabled={
+                    enviando ||
+                    respuesta.trim().length < 2 ||
+                    (destino === 'producto' && !productoId)
+                  }
                   onClick={() => responder(g)}
                 >
                   {t('gaps.saveAnswer')}

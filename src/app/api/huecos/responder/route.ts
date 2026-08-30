@@ -20,6 +20,14 @@ import { getLocale } from '@/lib/i18n/server';
  * Va a `custom_faqs` del producto y no a una tabla nueva: ahí ya vive lo que el
  * comercio agrega a mano, `buildTrainingMaterial` lo compila y el agente lo lee
  * verbatim. Una tabla aparte sería un segundo lugar donde buscar lo mismo.
+ *
+ * PERO NO TODO ES DEL PRODUCTO. "¿Puedo retirar en sucursal?", "¿hacen factura
+ * A?", "¿cuánto tarda el envío?" son políticas del NEGOCIO: no cambian de un
+ * producto a otro, y meterlas en la ficha de uno las hace desaparecer cuando el
+ * cliente pregunta por otro. El comercio quedaba obligado a elegir un producto
+ * al azar o a irse a otra pantalla a escribir una regla a mano — y la mitad no
+ * lo hacía. Ahora el mismo formulario ofrece los dos destinos, y la regla
+ * (`agent_guidance`) vale para toda la cuenta.
  */
 export const dynamic = 'force-dynamic';
 
@@ -42,14 +50,56 @@ export async function POST(request: Request) {
     product_id?: unknown;
     question?: unknown;
     answer?: unknown;
+    destino?: unknown;
   } | null;
 
   const key = typeof body?.key === 'string' ? body.key : '';
   const productId = typeof body?.product_id === 'string' ? body.product_id : '';
   const question = typeof body?.question === 'string' ? body.question.trim().slice(0, 300) : '';
   const answer = typeof body?.answer === 'string' ? body.answer.trim().slice(0, 2000) : '';
-  if (!key || !productId || !question || !answer) {
+  // Sin `destino` se comporta como antes: la pregunta va al producto. Es lo
+  // que hacía la única versión que existía, y romper eso al agregar la otra
+  // opción sería cambiarle el significado a las llamadas que ya andan.
+  const destino = body?.destino === 'regla' ? 'regla' : 'producto';
+  if (!key || !question || !answer || (destino === 'producto' && !productId)) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
+
+  /** Marca el hueco cerrado. Recién después de guardar: si el guardado falla,
+   *  la pregunta sigue en la lista en vez de perderse en silencio. */
+  const cerrarHueco = async () => {
+    await admin
+      .from('answer_gaps')
+      .update({ resolved_at: new Date().toISOString(), resolved_by: user.id })
+      .eq('workspace_id', workspaceId)
+      .eq('question_key', key)
+      .is('resolved_at', null);
+  };
+
+  // ── La respuesta es una política del negocio ────────────────────────────
+  //
+  // Vale para toda la cuenta, no para un producto. `clave` la ata a ESTA
+  // pregunta, así que responder dos veces la misma corrige la regla en vez de
+  // acumular dos versiones que se contradicen.
+  if (destino === 'regla') {
+    const { error } = await admin.from('agent_guidance').upsert(
+      {
+        workspace_id: workspaceId,
+        agent_id: null,
+        titulo: question.slice(0, 120),
+        cuando: `Preguntan: "${question}"`,
+        hacer: answer,
+        activa: true,
+        origen: 'hueco',
+        clave: `hueco_${key}`.slice(0, 200),
+      },
+      { onConflict: 'workspace_id,clave' },
+    );
+    if (error) {
+      return NextResponse.json({ error: 'update_failed' }, { status: 502 });
+    }
+    await cerrarHueco();
+    return NextResponse.json({ ok: true, destino: 'regla' });
   }
 
   const { data: producto } = await admin
@@ -79,12 +129,7 @@ export async function POST(request: Request) {
 
   // Recién ahora se marca resuelto: si el guardado falla, el hueco sigue en la
   // lista. Al revés se perdería la pregunta y nadie sabría que falta.
-  await admin
-    .from('answer_gaps')
-    .update({ resolved_at: new Date().toISOString(), resolved_by: user.id })
-    .eq('workspace_id', workspaceId)
-    .eq('question_key', key)
-    .is('resolved_at', null);
+  await cerrarHueco();
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, destino: 'producto' });
 }
