@@ -162,6 +162,15 @@ export function issueDetailText(
 
   if (kind === 'connection_error') return connectionDetail(raw, t);
 
+  // La IA caída viaja con el motivo técnico (`ai_no_credit`, `ai_upstream`…).
+  // Al comercio se le dice qué pasó y qué puede hacer; el crudo sigue viajando
+  // para el panel de plataforma, que es quien mira los otros cuatro.
+  if (kind === 'ai_down' && !paraPlataforma) {
+    return raw === 'ai_no_credit'
+      ? t('health.detailAiSinSaldo')
+      : t('health.detailAiProveedor');
+  }
+
   // `channel_silent` viaja como `canal|horas_callado|horas_normales`, porque el
   // aviso sin las horas no se puede juzgar: quien lo lee necesita saber si es
   // mucho PARA ESE CANAL. Si el formato no es el esperado se muestra el crudo,

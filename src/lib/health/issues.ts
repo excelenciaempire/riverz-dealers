@@ -54,7 +54,18 @@ export type IssueKind =
    * mes y nadie lo noto. No mira la causa —callback caido, suscripcion
    * perdida, token revocado—: mira el silencio, que es comun a todas.
    */
-  | 'channel_silent';
+  | 'channel_silent'
+  /**
+   * La IA se apagó sola.
+   *
+   * Cinco motivos de ai_replies dicen que el turno no salió por culpa
+   * NUESTRA o del proveedor: sin saldo en Anthropic, el proveedor frenando, el
+   * proveedor fallando, un error del modelo, o el turno roto antes de
+   * contestar. En los cinco el cliente recibe «en un momento te responde una
+   * persona» y la IA deja de contestar — y eso no llegaba a ningún lado. El
+   * comercio se enteraba mirando las etiquetas de la bandeja una por una.
+   */
+  | 'ai_down';
 
 /**
  * Quién puede arreglarlo.
@@ -105,7 +116,9 @@ export interface IssueRow {
  * rompió; lo que no sabe es cuál, y hacérselo buscar en una lista de cien
  * filas es la diferencia entre arreglarlo y cerrar la pestaña.
  */
-function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id' | 'ref_child' | 'last_at'>): string {
+function hrefFor(
+  row: Pick<IssueRow, 'kind' | 'ref_id' | 'ref_child' | 'last_at' | 'detail'>,
+): string {
   switch (row.kind) {
     // A la corrida que falló, ya abierta, dentro del historial de esa
     // automatización: ahí está el paso exacto y el error de Meta.
@@ -139,6 +152,10 @@ function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id' | 'ref_child' | 'last_at'
       const ancla = anchorDeCanal(row.ref_id);
       return ancla ? `/integraciones#${ancla}` : '/integraciones';
     }
+    // Sin saldo se arregla recargando; el resto se mira desde los asistentes,
+    // que es donde el comercio ve si están contestando.
+    case 'ai_down':
+      return row.detail === 'ai_no_credit' ? '/ajustes#saldo' : '/asistentes';
   }
 }
 
@@ -221,6 +238,11 @@ function audienceFor(row: Pick<IssueRow, 'kind' | 'detail'>): IssueAudience {
     // unico que puede salir a contestar a mano lo que no esta llegando.
     case 'channel_silent':
       return 'comercio';
+    // Sin saldo lo resuelve el comercio, y es lo único que puede resolver.
+    // Que el proveedor frene o falle es nuestro: avisarle no le da nada que
+    // hacer, y una alarma que no se puede atender deja de leerse.
+    case 'ai_down':
+      return row.detail === 'ai_no_credit' ? 'comercio' : 'plataforma';
   }
 }
 

@@ -85,6 +85,8 @@ function nombreProblema(kind: Issue['kind']): string {
       return 'campañas trabadas'
     case 'channel_silent':
       return 'canales que dejaron de recibir'
+    case 'ai_down':
+      return 'asistentes que dejaron de contestar'
   }
 }
 

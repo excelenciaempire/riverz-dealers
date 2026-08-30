@@ -51,6 +51,21 @@ export const health: Namespace = {
     es: "Un canal conectado dejó de recibir mensajes",
     en: "A connected channel stopped receiving messages",
   },
+  // No dice "la IA está rota": dice lo que el comercio observa, que es que
+  // dejó de contestar. El motivo va en el detalle, porque lo que hay que hacer
+  // cambia: sin saldo se recarga, lo demás lo miramos nosotros.
+  ai_down: {
+    es: "El asistente dejó de contestar {n} vez/veces en la última hora",
+    en: "The assistant stopped replying {n} time(s) in the last hour",
+  },
+  detailAiSinSaldo: {
+    es: "Se acabó el saldo del modelo. Al cliente le llegó «en un momento te responde una persona».",
+    en: "The model ran out of credit. The customer was told a person would reply shortly.",
+  },
+  detailAiProveedor: {
+    es: "El proveedor del modelo falló o frenó los pedidos. Suele recuperarse solo.",
+    en: "The model provider failed or throttled the requests. It usually recovers on its own.",
+  },
   // El detalle del silencio. Las dos cifras van juntas porque una sola no
   // significa nada: 18 h sin recibir es alarma en WhatsApp y un martes normal
   // en Mercado Libre.
