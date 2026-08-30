@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
-import { cn } from "@/lib/utils";
 import { toShortId } from "@/lib/short-id";
 import type { AuditRow, PlatformAuditRow } from "@/lib/admin/queries";
 import type { Llave } from "@/lib/admin/llaves";
 import {
   useAdminData,
+  useTabParam,
+  Tabs,
   PageHeader,
   Panel,
   Loading,
@@ -22,7 +23,8 @@ import {
 } from "../_components/admin-ui";
 import { RefreshButton, SearchInput } from "../_components/filters";
 
-type Source = "panel" | "agente" | "llaves";
+const SOURCES = ["panel", "agente", "llaves"] as const;
+type Source = (typeof SOURCES)[number];
 
 /**
  * Qué se hizo sobre las cuentas, desde los dos lados.
@@ -41,7 +43,7 @@ type Source = "panel" | "agente" | "llaves";
 export default function AdminAuditPage() {
   const t = useT();
   const format = useFormat();
-  const [source, setSource] = useState<Source>("panel");
+  const [source, setSource] = useTabParam<Source>("tab", SOURCES, "panel");
   const [actor, setActor] = useState("");
 
   // Las llaves salen de su propia ruta: no son un libro de actas filtrable por
@@ -248,10 +250,10 @@ export default function AdminAuditPage() {
     [t, format],
   );
 
-  const tabs: { key: Source; label: string }[] = [
-    { key: "panel", label: t("admin.auditSourcePanel") },
-    { key: "agente", label: t("admin.auditSourceAgent") },
-    { key: "llaves", label: t("admin.auditSourceKeys") },
+  const tabs: { value: Source; label: string }[] = [
+    { value: "panel", label: t("admin.auditSourcePanel") },
+    { value: "agente", label: t("admin.auditSourceAgent") },
+    { value: "llaves", label: t("admin.auditSourceKeys") },
   ];
 
   return (
@@ -276,22 +278,7 @@ export default function AdminAuditPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-1.5">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setSource(tab.key)}
-            className={cn(
-              "h-8 rounded-md px-3 text-sm transition-colors",
-              source === tab.key
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={source} onChange={setSource} options={tabs} />
 
       <Panel>
         {loading ? (

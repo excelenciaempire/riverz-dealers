@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
@@ -195,6 +196,94 @@ export function useAdminData<T>(url: string, intervalMs = LIVE_MS): Fetched<T> {
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
   return { data, loading, error, reload, live, setData };
+}
+
+// ────────────────────────────────────────────────────────────────
+// Pestañas
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Qué pestaña se está mirando, guardado en la URL.
+ *
+ * En la URL y no en un `useState` por tres razones, y las tres se pagan si se
+ * hace al revés: el índice y los avisos pueden enlazar directo a la pestaña que
+ * corresponde; `useAdminData` cachea por URL, así que la pestaña forma parte de
+ * la identidad de lo que se está mirando; y recargar no devuelve a la primera
+ * pestaña, que en una sección de tres es lo más molesto que hay.
+ *
+ * `replace` y no `push`: con `push`, salir de una sección después de mirar
+ * cuatro pestañas son cuatro veces el botón de atrás.
+ *
+ * El destino se arma con `usePathname()` y **nunca** con un `/admin/...`
+ * literal. En `admin.riverz.co` el proxy reescribe `/proveedores` →
+ * `/admin/proveedores`, así que `usePathname()` devuelve `/proveedores`: un
+ * literal anda en local y en el subdominio te saca de la sección.
+ */
+export function useTabParam<T extends string>(
+  param: string,
+  valores: readonly T[],
+  defecto: T,
+): [T, (v: T) => void] {
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+
+  const crudo = search.get(param);
+  // Un valor inventado en la URL cae al defecto en vez de dejar la sección en
+  // blanco: la barra de direcciones la escribe cualquiera.
+  const actual = valores.includes(crudo as T) ? (crudo as T) : defecto;
+
+  const cambiar = useCallback(
+    (v: T) => {
+      const params = new URLSearchParams(search.toString());
+      // La pestaña por defecto no ensucia la URL.
+      if (v === defecto) params.delete(param);
+      else params.set(param, v);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname, search, param, defecto],
+  );
+
+  return [actual, cambiar];
+}
+
+/**
+ * La fila de pestañas.
+ *
+ * El marcado es el que ya tenía el visor de registros, la única pantalla del
+ * panel con pestañas de verdad: plano, sin caja y sin subrayado. Traerlo tal
+ * cual hace que ese refactor no cambie ni un píxel, y le da al resto del panel
+ * un lenguaje que ya estaba probado.
+ */
+export function Tabs<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <nav className="flex flex-wrap gap-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          aria-current={o.value === value ? "page" : undefined}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-sm transition-colors",
+            o.value === value
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </nav>
+  );
 }
 
 // ────────────────────────────────────────────────────────────────

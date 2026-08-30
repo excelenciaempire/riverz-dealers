@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { toShortId } from '@/lib/short-id';
 import Link from "@/components/i18n/locale-link";
-import { cn } from "@/lib/utils";
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
 import { LOG_KINDS, type LogEntry, type LogKind } from "@/lib/admin/log-kinds";
 import {
   useAdminData,
+  useTabParam,
+  Tabs,
   PageHeader,
   Panel,
   Loading,
@@ -74,7 +75,7 @@ const STATUS_OPTIONS: Record<LogKind, string[]> = {
 export default function AdminLogsPage() {
   const t = useT();
   const format = useFormat();
-  const [kind, setKind] = useState<LogKind>("ai");
+  const [kind, setKind] = useTabParam<LogKind>("kind", LOG_KINDS, "ai");
   const [days, setDays] = useState(7);
   // La API acepta estos dos filtros desde el primer día y la pantalla no los
   // exponía: había que editar la URL a mano para acotar por comercio.
@@ -171,22 +172,11 @@ export default function AdminLogsPage() {
         }
       />
 
-      <nav className="flex flex-wrap gap-1">
-        {LOG_KINDS.map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            className={cn(
-              "rounded-md px-2.5 py-1.5 text-sm transition-colors",
-              k === kind
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(KIND_LABEL[k])}
-          </button>
-        ))}
-      </nav>
+      <Tabs
+        value={kind}
+        onChange={setKind}
+        options={LOG_KINDS.map((k) => ({ value: k, label: t(KIND_LABEL[k]) }))}
+      />
 
       <Panel>
         {loading ? (

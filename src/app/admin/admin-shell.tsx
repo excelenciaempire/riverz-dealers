@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, ChevronLeft, Lock } from "lucide-react";
 import Link from "@/components/i18n/locale-link";
@@ -68,7 +68,13 @@ export function AdminShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>
+        {/* El límite de Suspense es del shell y no de cada sección: las
+            pantallas con pestañas leen `useSearchParams`, y sin un límite
+            arriba Next obliga a poner uno en cada una. Una vez acá lo cubre
+            para todo el panel. */}
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+          <Suspense fallback={null}>{children}</Suspense>
+        </main>
       </div>
     </CsrfProvider>
   );
