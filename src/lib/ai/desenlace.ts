@@ -113,6 +113,11 @@ export const POLITICA = {
   comment_sin_destinatario: NO_ESCALA('no se puede escribir a quien comentó'),
   comment_sin_texto: NO_ESCALA('el comentario no tenía texto'),
   comment_ya_oculto: NO_ESCALA('ya estaba oculto: contestarlo lo revive'),
+  // El interruptor del hilo. No escalan: el comercio ya decidió que ese hilo
+  // lo lleva él, y volver a marcarlo sería discutirle.
+  comment_ia_apagada_en_el_hilo: NO_ESCALA('el comercio apagó la IA en ese hilo'),
+  comment_asignado_a_persona: NO_ESCALA('ya lo atiende una persona'),
+  comment_hilo_cerrado: NO_ESCALA('el hilo estaba cerrado'),
   comment_spam: NO_ESCALA('spam: se ocultó y se calla'),
   comment_critica: NO_ESCALA('crítica: se oculta y no se contesta, por decisión del comercio'),
   comment_sin_intencion: NO_ESCALA('no mostraba intención de compra'),

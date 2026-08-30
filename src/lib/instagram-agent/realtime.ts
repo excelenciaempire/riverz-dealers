@@ -36,6 +36,7 @@ import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { findMessageByExternalId } from '@/lib/channels/message-lookup';
+import { loadCommentConversation } from '@/lib/comments/hilo';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
@@ -151,6 +152,8 @@ async function campaignForContact(
  */
 async function marcarParaUnaPersona(
   db: SupabaseClient,
+  workspaceId: string,
+  channel: CommentChannel,
   contactId: string,
   pregunta: string,
   /** Por qué escala. Por defecto, el caso original: la IA no supo contestar. */
@@ -158,14 +161,12 @@ async function marcarParaUnaPersona(
   resumen?: string,
 ): Promise<void> {
   try {
-    const { data } = await db
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contactId)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const convId = (data as { id: string } | null)?.id;
+    // El hilo de COMENTARIOS de esa red. Antes tomaba "la conversación más
+    // reciente de este contacto, cualquier canal" y sin filtrar workspace: un
+    // "quiero hablar con una persona" bajo un post de Instagram escalaba —y
+    // con POLITICA.comment_pide_humano, APAGABA— el chat de WhatsApp.
+    const hilo = await loadCommentConversation(db, { workspaceId, contactId, channel });
+    const convId = hilo?.id;
     if (!convId) return;
     await db
       .from('conversations')
@@ -683,15 +684,14 @@ async function registrarSkipComentario(
   motivo: string,
 ): Promise<void> {
   try {
-    const { data } = await db
-      .from('conversations')
-      .select('id')
-      .eq('workspace_id', opts.workspaceId)
-      .eq('contact_id', opts.contact.id)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const conversationId = (data as { id?: string } | null)?.id ?? null;
+    // El hilo de comentarios de ESA red: el motivo y el desenlace tienen que
+    // caer donde pasó la cosa, no sobre el chat de la misma persona.
+    const hilo = await loadCommentConversation(db, {
+      workspaceId: opts.workspaceId,
+      contactId: opts.contact.id,
+      channel: opts.commentChannel ?? 'ig_comment',
+    });
+    const conversationId = hilo?.id ?? null;
     if (!conversationId) return;
     await db.from('ai_replies').insert({
       workspace_id: opts.workspaceId,
@@ -817,6 +817,30 @@ async function decidirComentario(
   if (await estaOculto(db, opts.workspaceId, commentChannel, opts.commentId))
     return 'comment_ya_oculto';
 
+  // EL INTERRUPTOR DEL HILO, que en comentarios no existía.
+  //
+  // El comercio podía apagar la IA en un hilo de comentarios desde la bandeja,
+  // asignárselo a alguien o cerrarlo, y el siguiente comentario se contestaba
+  // igual: este camino nunca leía esas tres columnas. Peor todavía con el
+  // escalado: `aplicarDesenlace` apaga `ai_enabled` y nadie lo leía de vuelta,
+  // así que escalar no frenaba nada.
+  //
+  // Esto NO toca lo que gobierna al agente —encendido, alcance por canal,
+  // horario—: eso sigue siendo del chat. Comentarios se rige por su propia
+  // pantalla. Acá sólo se respeta lo que el comercio decidió SOBRE ESTE HILO.
+  //
+  // Va antes de gastar un centavo de modelo: son tres columnas de una fila.
+  const hilo = await loadCommentConversation(db, {
+    workspaceId: opts.workspaceId,
+    contactId: opts.contact.id,
+    channel: commentChannel,
+  });
+  if (hilo) {
+    if (hilo.ai_enabled === false) return 'comment_ia_apagada_en_el_hilo';
+    if (hilo.assigned_agent_id) return 'comment_asignado_a_persona';
+    if (hilo.status === 'closed') return 'comment_hilo_cerrado';
+  }
+
   // No abrir la puerta a fan-out: el mismo tope por minuto que el alcance de
   // campaña, para que un post viral no dispare cientos de llamadas.
   const burst = await limitByKey(`ig-auto:${opts.workspaceId}`, {
@@ -904,6 +928,8 @@ async function decidirComentario(
         if (!oculto) {
           await marcarParaUnaPersona(
             db,
+            opts.workspaceId,
+            commentChannel,
             opts.contact.id,
             engagement,
             'comment_sin_moderar',
@@ -1085,7 +1111,13 @@ async function decidirComentario(
       '[ig-agent] respuesta descartada, prometía averiguar y volver:',
       text.slice(0, 160),
     );
-    await marcarParaUnaPersona(db, opts.contact.id, engagement);
+    await marcarParaUnaPersona(
+      db,
+      opts.workspaceId,
+      commentChannel,
+      opts.contact.id,
+      engagement,
+    );
     return 'comment_prometia_averiguar';
   }
 
@@ -1244,6 +1276,8 @@ async function decidirComentario(
           // de que el comentario se pierda en silencio.
           await marcarParaUnaPersona(
             db,
+            opts.workspaceId,
+            commentChannel,
             opts.contact.id,
             engagement,
             'comment_sin_moderar',

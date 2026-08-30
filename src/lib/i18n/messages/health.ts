@@ -304,6 +304,18 @@ export const health: Namespace = {
     es: "el comentario estaba oculto",
     en: "the comment was hidden",
   },
+  skip_comment_ia_apagada_en_el_hilo: {
+    es: "la IA está apagada en ese hilo",
+    en: "AI is off for that thread",
+  },
+  skip_comment_asignado_a_persona: {
+    es: "ya lo atiende una persona",
+    en: "a person is already handling it",
+  },
+  skip_comment_hilo_cerrado: {
+    es: "el hilo estaba cerrado",
+    en: "the thread was closed",
+  },
   skip_comment_spam: { es: "era spam y se ocultó", en: "spam, hidden" },
   skip_comment_critica: {
     es: "era una crítica y se ocultó",
