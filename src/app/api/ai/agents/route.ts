@@ -1,3 +1,4 @@
+import { sembrarReglasPorDefecto } from '@/lib/ai/reglas-por-defecto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
@@ -261,6 +262,14 @@ export async function POST(request: Request) {
       await admin.from('ai_agent_products').insert(rows);
     }
   }
+
+  // El piso de reglas. Un asistente nacía con CERO, y las reglas son justo lo
+  // que impide que invente: en una semana de producción, sin ellas, prometió
+  // pago contra entrega donde no existe, opinó sobre una condición de la piel
+  // y repitió como cierta una condición de venta porque la dijo el cliente.
+  // Sólo si la cuenta no tiene ninguna: devolvérselas a quien las borró sería
+  // discutirle una decisión suya.
+  await sembrarReglasPorDefecto(admin, body.workspace_id);
 
   // Re-read with relations so the client can drop it into its grid
   // optimistically.

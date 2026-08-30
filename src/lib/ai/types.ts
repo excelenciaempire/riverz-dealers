@@ -171,18 +171,18 @@ export interface AiAgent {
    */
   cobro_modo?: 'checkout' | 'chat' | 'segun_pago' | null;
   /**
-   * ¿El comercio cobra al recibir? (migración 225)
+   * Con qué se puede pagar (migración 228). Claves de `MEDIOS_PAGO`.
    *
-   *   true   — sí: el agente puede tomar el pedido contra entrega.
-   *   false  — no: lo dice y sigue con los otros medios.
-   *   null   — no lo declaró: no lo ofrece ni lo confirma, pasa a una persona.
+   * `null` NO es la lista vacía: significa que el comercio todavía no lo
+   * declaró, y con eso el agente no nombra ningún medio y no confirma contra
+   * entrega — pasa a una persona. Es donde arranca todo asistente nuevo, y es
+   * el lado seguro: suponerlo fue el error del 2026-08-29, cuando la IA le
+   * prometió contra entrega a la clienta de un comercio que no lo acepta.
    *
-   * Es un dato del negocio, no un modo de cobro: quien vende a la caja Y
-   * acepta contra entrega existe, así que va aparte de `cobro_modo`. Nace en
-   * null porque suponerlo fue exactamente el error del 2026-08-29: la IA le
-   * confirmó contra entrega a la clienta de un comercio que no lo acepta.
+   * El contra entrega es UNO de la lista y no un campo aparte: son la misma
+   * pregunta, y separarlos daba dos lugares donde decir lo mismo.
    */
-  acepta_contraentrega?: boolean | null;
+  medios_pago?: string[] | null;
 
   provider: AiProvider;
   model: string;

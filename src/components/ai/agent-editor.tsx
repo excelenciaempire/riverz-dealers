@@ -33,6 +33,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
+  MEDIOS_PAGO,
+  mediosDeclarados,
+  type MedioDePago,
+} from '@/lib/ai/medios-pago';
+import {
   Dialog,
   DialogContent,
   DialogTitle,
@@ -413,10 +418,11 @@ export function AgentEditor({
   const [cobroModo, setCobroModo] = useState<'checkout' | 'chat' | 'segun_pago'>(
     agent?.cobro_modo ?? 'segun_pago',
   );
-  // Tres estados y no dos: "no lo dijo" (null) no es lo mismo que "no lo
-  // acepta". Con null el agente no lo ofrece ni lo niega, pasa a una persona.
-  const [contraentrega, setContraentrega] = useState<boolean | null>(
-    agent?.acepta_contraentrega ?? null,
+  // `null` no es la lista vacía: es "todavía no lo declaró". Con null el
+  // agente no nombra ningún medio y no confirma contra entrega — pasa a una
+  // persona. Es donde arranca todo asistente nuevo, y es el lado seguro.
+  const [medios, setMedios] = useState<MedioDePago[] | null>(
+    mediosDeclarados(agent?.medios_pago),
   );
   // Rol y permisos por acción (migración 164). `permissions` en null significa
   // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
@@ -564,11 +570,6 @@ export function AgentEditor({
     segun_pago: t('operation.cobroSegunPago'),
     chat: t('operation.cobroChat'),
     checkout: t('operation.cobroCheckout'),
-  };
-  const CONTRAENTREGA_LABELS = {
-    true: t('operation.contraentregaSi'),
-    false: t('operation.contraentregaNo'),
-    sin_decir: t('operation.contraentregaSinDecir'),
   };
   const ROLE_LABELS = Object.fromEntries(
     AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)]),
@@ -1007,7 +1008,7 @@ export function AgentEditor({
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
       cobro_modo: cobroModo,
-      acepta_contraentrega: contraentrega,
+      medios_pago: medios,
       role,
       permissions,
       tools,
@@ -1760,38 +1761,51 @@ export function AgentEditor({
                   </SectionCard>
                 ) : null}
 
-                {/* Contra entrega. Va acá y no adentro del bloque de arriba
-                    porque no depende de la caja: hay comercios que cobran a la
-                    caja Y aceptan pago al recibir. Y va con TRES estados: sin
-                    "todavía no lo dije", el editor tendría que elegir uno por
-                    el comercio, y elegir "sí" fue exactamente el error que
-                    hizo que la IA prometiera contra entrega donde no existe. */}
+                {/* Con qué se puede pagar. Va acá y no adentro del bloque de
+                    arriba porque no depende de la caja: hay comercios que
+                    cobran a la caja Y aceptan pago al recibir.
+
+                    Sin marcar nada NO significa "ninguno": significa que
+                    todavía no lo dijo, y ahí el asistente calla y pasa a una
+                    persona. Forzar una respuesta al crear el asistente sería
+                    peor — el que apura marca cualquier cosa, y prometer un
+                    medio de pago que no existe es exactamente el error que
+                    esto vino a arreglar. */}
                 {puedeCrearPedidos ? (
                   <SectionCard
-                    title={t('operation.contraentregaTitle')}
-                    hint={t('operation.contraentregaHint')}
+                    title={t('operation.mediosTitle')}
+                    hint={t('operation.mediosHint')}
                   >
-                    <Select
-                      value={contraentrega === null ? 'sin_decir' : String(contraentrega)}
-                      onValueChange={(v) =>
-                        setContraentrega(v === 'sin_decir' ? null : v === 'true')
-                      }
-                    >
-                      <SelectTrigger className="w-full bg-background">
-                        <SelectValue labels={CONTRAENTREGA_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="true">
-                          {t('operation.contraentregaSi')}
-                        </SelectItem>
-                        <SelectItem value="false">
-                          {t('operation.contraentregaNo')}
-                        </SelectItem>
-                        <SelectItem value="sin_decir">
-                          {t('operation.contraentregaSinDecir')}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {MEDIOS_PAGO.map((m) => {
+                        const puesto = medios?.includes(m) ?? false;
+                        return (
+                          <label
+                            key={m}
+                            className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
+                          >
+                            <Switch
+                              checked={puesto}
+                              onCheckedChange={(v) =>
+                                setMedios((prev) => {
+                                  const base = prev ?? [];
+                                  return v
+                                    ? MEDIOS_PAGO.filter(
+                                        (k) => k === m || base.includes(k),
+                                      )
+                                    : base.filter((k) => k !== m);
+                                })
+                              }
+                            />
+                            <span>
+                              {t(
+                                `operation.medio${m.charAt(0).toUpperCase()}${m.slice(1)}`,
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </SectionCard>
                 ) : null}
 

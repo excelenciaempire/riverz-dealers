@@ -131,17 +131,65 @@ describe('la caja y el cierre dicen lo mismo', () => {
 });
 
 /**
- * "Con que puedo pagar" no puede terminar en una persona.
+ * Con que se puede pagar, y el contra entrega adentro de esa lista.
  *
  * Era la pregunta mas comun sin respuesta: el prompt sabia mandar a la caja
- * pero no sabia decir con que se paga en ella, asi que escalaba.
+ * pero no sabia decir con QUE se paga en ella. Y el 2026-08-29 la IA le
+ * confirmo "pago contra entrega" a la clienta de un comercio que no lo acepta,
+ * en publico bajo el anuncio, y le pidio la direccion.
+ *
+ * Ahora se declara al crear el asistente, una vez, y `null` —no declarado— es
+ * un estado distinto de la lista vacia.
  */
-describe('con que se puede pagar', () => {
-  it('en modo caja se dice de donde sale la respuesta', () => {
-    const p = prompt(agente({ cobro_modo: 'checkout' } as Partial<AiAgent>));
-    expect(p).toContain('nunca inventes uno');
+describe('medios de pago', () => {
+  const con = (
+    modo: 'segun_pago' | 'chat' | 'checkout',
+    medios: string[] | null,
+  ) => prompt(agente({ cobro_modo: modo, medios_pago: medios } as Partial<AiAgent>));
+
+  it('sin declarar: no nombra ninguno y pasa a una persona', () => {
+    const p = con('segun_pago', null);
+    expect(p).toContain('no nombres ningún medio por tu cuenta');
+    // Y el contra entrega, que es uno de la lista, tampoco se confirma.
+    expect(p).toContain('NO lo ofrezcas tú nunca');
   });
-})
+
+  it('declarados: los nombra, y solo esos', () => {
+    const p = con('checkout', ['tarjeta', 'mercadopago', 'transferencia']);
+    expect(p).toContain(
+      'tarjeta de crédito o débito, transferencia bancaria y Mercado Pago',
+    );
+    expect(p).toContain('nombra ÉSOS y ninguno más');
+  });
+
+  it('el orden es el del catalogo, no el que llego', () => {
+    // Dos comercios con los mismos medios tienen que leer la misma frase: sin
+    // orden estable, el prompt cambia solo y con el cambia el cache.
+    const a = con('checkout', ['mercadopago', 'tarjeta']);
+    const b = con('checkout', ['tarjeta', 'mercadopago']);
+    expect(a).toContain('tarjeta de crédito o débito y Mercado Pago');
+    expect(a.includes('tarjeta de crédito o débito y Mercado Pago')).toBe(
+      b.includes('tarjeta de crédito o débito y Mercado Pago'),
+    );
+  });
+
+  it('un medio inventado se descarta', () => {
+    // La columna es jsonb: cualquiera puede escribirle cualquier cosa, y un
+    // medio que el prompt no conoce es una promesa que nadie puede cumplir.
+    const p = con('checkout', ['tarjeta', 'cripto', 'trueque']);
+    expect(p).toContain('tarjeta de crédito o débito');
+    expect(p).not.toContain('cripto');
+    expect(p).not.toContain('trueque');
+  });
+
+  it('la lista vacia NO es lo mismo que no declarada', () => {
+    // Vacia = "ya lo mire y no hay ninguno". Ahi el contra entrega es un NO
+    // firme, no una duda.
+    const p = con('segun_pago', []);
+    expect(p).toContain('NO hay pago al recibir');
+    expect(p).not.toContain('NO lo ofrezcas tú nunca');
+  });
+});
 
 /**
  * El contra entrega es un DATO, no una deduccion.
@@ -155,7 +203,12 @@ describe('con que se puede pagar', () => {
 describe('pago al recibir', () => {
   const conModo = (modo: 'segun_pago' | 'chat', acepta: boolean | null) =>
     prompt(
-      agente({ cobro_modo: modo, acepta_contraentrega: acepta } as Partial<AiAgent>),
+      agente({
+        cobro_modo: modo,
+        // El contra entrega vive DENTRO de la lista de medios: `null` es no
+        // declarado, `[]` es "no hay", y estar en la lista es que sí.
+        medios_pago: acepta === null ? null : acepta ? ['contraentrega'] : [],
+      } as Partial<AiAgent>),
     );
 
   it('sin declarar: no lo ofrece ni lo confirma, pasa a una persona', () => {
@@ -182,9 +235,11 @@ describe('pago al recibir', () => {
    * decia como TOMAR el pedido pero no si ese medio existe.
    */
   it('en modo chat tambien se entera', () => {
-    expect(conModo('chat', true)).toContain('está disponible');
-    expect(conModo('chat', false)).toContain('No hay pago al recibir');
-    // Sin declarar, el modo chat no inventa nada.
-    expect(conModo('chat', null)).not.toContain('pago al recibir');
+    // El comercio que vive del contra entrega usa este modo, y el prompt
+    // decia como TOMAR el pedido pero no si ese medio de pago existe.
+    expect(conModo('chat', true)).toContain('sí trabajas con pago al recibir');
+    expect(conModo('chat', false)).toContain('NO hay pago al recibir');
+    // Sin declarar no lo afirma ni lo niega: lo pasa a una persona.
+    expect(conModo('chat', null)).toContain('NO lo ofrezcas tú nunca');
   });
 })

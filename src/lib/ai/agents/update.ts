@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { findChannelConflict } from '../channel-conflict'
 import { encrypt } from '@/lib/whatsapp/encryption'
 import type { AiAgent } from '../types'
+import { mediosDeclarados } from '@/lib/ai/medios-pago'
 import { sanitizeTools } from '../toolbox'
 
 /**
@@ -52,8 +53,8 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'puede_crear_pedidos',
   // Cómo cierra la venta (migración 219)
   'cobro_modo',
-  // Si el comercio cobra al recibir (migración 225)
-  'acepta_contraentrega',
+  // Con qué se puede pagar (migración 228)
+  'medios_pago',
   // Rol y permisos por acción (migración 164)
   'role',
   'permissions',
@@ -120,13 +121,14 @@ export function pickAgentPatch(
     patch.cobro_modo =
       v === 'checkout' || v === 'chat' || v === 'segun_pago' ? v : 'segun_pago'
   }
-  // Tres estados, y el tercero NO es "false". Cualquier cosa que no sea un
-  // booleano vuelve a null —"no lo declaró"—, que es el lado seguro: con null
-  // el agente no ofrece ni niega el contra entrega, pasa a una persona.
-  // Colapsarlo a false le haría decir "no aceptamos" a un comercio que sí.
-  if ('acepta_contraentrega' in patch) {
-    const v = patch.acepta_contraentrega
-    patch.acepta_contraentrega = typeof v === 'boolean' ? v : null
+  // `null` es un estado, no un error: significa "todavía no lo declaró", y con
+  // eso el agente no nombra ningún medio ni confirma contra entrega. Se
+  // conserva. Lo que sí se limpia es lo inventado: la columna es jsonb y un
+  // medio de pago que el prompt no conoce es una promesa incumplible.
+  if ('medios_pago' in patch) {
+    patch.medios_pago = patch.medios_pago == null
+      ? null
+      : (mediosDeclarados(patch.medios_pago) ?? [])
   }
   // El tope de ráfaga se acota acá además de en la base: la restricción de la
   // tabla rechazaría un 5000 con un error de Postgres feo, y lo que hay que

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import {
@@ -32,7 +33,7 @@ import { registrarHueco } from './answer-gaps';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
 import type { AgentRole } from './roles';
-import { transcribeAudio } from './transcribe';
+import { transcribeAudio, USD_POR_MINUTO } from './transcribe';
 import type {
   Channel,
   ChannelConnection,
@@ -94,6 +95,11 @@ import {
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
+import {
+  aceptaContraentrega,
+  frase as fraseDeMedios,
+  mediosDeclarados,
+} from './medios-pago';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -2364,6 +2370,18 @@ async function generateReply(
         await resolveMediaFetchUrl(msg.media.url),
       );
       if (!result) return;
+      // Whisper cobra por minuto de audio, y esto corría gratis. Es un
+      // proveedor conectado más: se le pasa al comercio.
+      if (result.segundos && result.proveedor) {
+        void cobrarUsoPorUnidad(db, agent.workspace_id, {
+          concepto: 'transcripcion',
+          cantidad: result.segundos / 60,
+          usdPorUnidad: USD_POR_MINUTO[result.proveedor],
+          referenciaTipo: 'conversation',
+          referenciaId: origen.conversationId,
+          detalle: { proveedor: result.proveedor, para: 'nota_de_voz' },
+        });
+      }
       msg.media.transcription = result.text;
       if (msg.messageId) {
         try {
@@ -2836,21 +2854,34 @@ export function buildSystemPrompt(
     const puedePedido = toolEnabled(agent, 'crear_pedido') && shopify?.canCreateOrders !== false;
     if (puedeCaja && puedePedido) {
       const modo = agent.cobro_modo ?? 'segun_pago';
+
+      // CON QUÉ SE PAGA. Era la pregunta más común sin respuesta: el prompt
+      // sabía mandar a la caja pero no sabía decir con qué se paga en ella.
+      // Lo declara el comercio al crear el asistente; `null` es "todavía no lo
+      // dijo" y ahí el agente NO nombra ninguno, que es el lado seguro.
+      const declarados = mediosDeclarados(agent.medios_pago);
+      const idioma = agent.language === 'en' ? 'en' : 'es';
+      const conQuePaga =
+        declarados && declarados.length > 0
+          ? `Con qué se puede pagar: ${fraseDeMedios(declarados, idioma)}. Si te pregunta, nombra ÉSOS y ninguno más, y no prometas cuotas ni promociones bancarias que no estén en las reglas del negocio.`
+          : 'Si te pregunta con qué puede pagar, no nombres ningún medio por tu cuenta: dile que se los confirmas y pasa la conversación a una persona.';
+
+      // EL CONTRA ENTREGA ES UN DATO, NO UNA DEDUCCIÓN. Tres estados, y el
+      // tercero no es "no": suponerlo fue el error del 2026-08-29.
+      const cobraAlRecibir = aceptaContraentrega(agent.medios_pago);
+      const contraEntrega =
+        cobraAlRecibir === true
+          ? 'Y sí trabajas con pago al recibir (contra entrega): si lo pide, tomas el pedido aquí mismo, le pides los datos que falten y lo creas tú.'
+          : cobraAlRecibir === false
+            ? 'Y NO hay pago al recibir (contra entrega): si lo pide, díselo con naturalidad y ofrécele los medios que sí hay, sin disculparte de más.'
+            : 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas tú nunca y no se lo confirmes por tu cuenta. Sólo tomas el pedido aquí si figura en las reglas del negocio o en la ficha del producto; si no figura, dile que lo confirmas y pasa la conversación a una persona.';
       if (modo === 'checkout') {
         lines.push(
-          'Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja. Si te pregunta con qué puede pagar, nombra sólo los medios que figuren en tus datos o en las reglas del negocio; si no figura ninguno, dile que los ve en la caja al terminar la compra, y nunca inventes uno.',
+          `Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja. ${conQuePaga}`,
         );
       } else if (modo === 'chat') {
         lines.push(
-          'Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda.' +
-            // Tomar el pedido acá no dice CÓMO se paga. Sin esta línea, el
-            // comercio que vive del contra entrega tenía que escribirse una
-            // regla a mano para habilitar lo único que hace.
-            (agent.acepta_contraentrega === true
-              ? ' El pago al recibir (contra entrega) está disponible: si lo pide, se lo confirmas.'
-              : agent.acepta_contraentrega === false
-                ? ' No hay pago al recibir (contra entrega): si lo pide, díselo y ofrécele los medios que sí hay.'
-                : ''),
+          `Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda. ${contraEntrega} ${conQuePaga}`,
         );
       } else {
         // EL CONTRA ENTREGA NO SE DA POR SUPUESTO.
@@ -2871,14 +2902,8 @@ export function buildSystemPrompt(
         // El contra entrega es un DATO del comercio, no una deducción del
         // modelo. Los tres casos se dicen enteros y sin ambigüedad: se
         // acepta, no se acepta, o no lo declararon.
-        const contra =
-          agent.acepta_contraentrega === true
-            ? 'Y sí trabajas con pago al recibir (contra entrega): si lo pide, tomas el pedido aquí mismo, le pides los datos que falten y lo creas tú.'
-            : agent.acepta_contraentrega === false
-              ? 'Y NO hay pago al recibir (contra entrega): si lo pide, díselo con naturalidad y ofrécele los medios que sí hay, sin disculparte de más.'
-              : 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas tú nunca y no se lo confirmes por tu cuenta. Sólo tomas el pedido aquí si figura en las reglas del negocio o en la ficha del producto; si no figura, dile que lo confirmas y pasa la conversación a una persona.';
         lines.push(
-          `Cómo se cobra, según cómo quiera pagar: si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat, que esos datos los toma la caja. ${contra} Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.`,
+          `Cómo se cobra, según cómo quiera pagar: si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat, que esos datos los toma la caja. ${contraEntrega} Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino. ${conQuePaga}`,
         );
       }
     }

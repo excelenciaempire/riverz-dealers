@@ -1,3 +1,4 @@
+import { sembrarReglasPorDefecto } from '@/lib/ai/reglas-por-defecto'
 /**
  * Los agentes de IA de la cuenta.
  *
@@ -97,6 +98,13 @@ async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknow
       .from('ai_agent_channels')
       .insert(canales.map((channel) => ({ agent_id: agent.id, channel })))
   }
+
+  // El piso de reglas. Un asistente nacía con CERO, y las reglas son justo lo
+  // que impide que invente: sin ellas prometió pago contra entrega donde no
+  // existe y repitió como cierta una condición de venta porque la dijo el
+  // cliente. Sólo si la cuenta no tiene ninguna: devolvérselas a quien las
+  // borró sería discutirle una decisión suya.
+  await sembrarReglasPorDefecto(ctx.db, ctx.workspaceId)
 
   return { ...agent, nota: 'Queda pausado. Revísalo y actívalo cuando estés listo.' }
 }
