@@ -77,6 +77,57 @@ function interpretar(value: string) {
   return parsePhoneNumberFromString(`+${solo}`);
 }
 
+/**
+ * Lo que la persona escribió, al número que quiso escribir.
+ *
+ * El campo dice "número local del país elegido", pero nadie lee eso: se pega el
+ * número entero copiado de otro lado, con `+` o sin él, con prefijo de país o
+ * sin él. Todas esas formas son el mismo teléfono y todas tienen que llegar al
+ * mismo E.164 — si no, el aviso se pierde en silencio y nadie puede explicar
+ * por qué.
+ *
+ * El orden importa y es el de la certeza:
+ *
+ *   1. Con `+` delante mandó lo internacional: la persona dijo el país, y hasta
+ *      se cambia el selector si no coincide con el elegido.
+ *   2. Como número nacional del país elegido — el caso normal. Acá es donde la
+ *      librería sabe del `0` de tronco y del `15` argentino, que es lo que daba
+ *      `+540111561047646` cuando se pegaban los dígitos a mano.
+ *   3. Como internacional sin `+`: pegó el número completo con prefijo de país.
+ *   4. A medio escribir: pegado simple, para que el campo siga respondiendo
+ *      mientras se teclea.
+ */
+function resolverNumero(
+  iso: CountryCode,
+  texto: string,
+): { e164: string; pais: CountryCode } {
+  const digitos = texto.replace(/\D/g, "");
+  if (!digitos) return { e164: "", pais: iso };
+  const explicito = texto.trim().startsWith("+");
+
+  if (explicito) {
+    const p = parsePhoneNumberFromString(`+${digitos}`);
+    if (p?.isValid()) return { e164: p.number, pais: p.country ?? iso };
+  }
+  const nacional = parsePhoneNumberFromString(texto, iso);
+  if (nacional?.isValid()) return { e164: nacional.number, pais: nacional.country ?? iso };
+  // Sólo si los dígitos EMPIEZAN por el prefijo del país elegido. Sin esa
+  // condición, el móvil mexicano `15512345678` (el formato nacional de
+  // +5215512345678) se lee como `+1 551 234 5678` y se va a Estados Unidos:
+  // un número válido, de otro país, y nadie lo nota hasta que el aviso no llega.
+  if (digitos.startsWith(getCountryCallingCode(iso))) {
+    const internacional = parsePhoneNumberFromString(`+${digitos}`);
+    if (internacional?.isValid()) {
+      return { e164: internacional.number, pais: internacional.country ?? iso };
+    }
+  }
+  return {
+    // Con `+` delante ya trae su prefijo: no se le pega otro encima.
+    e164: explicito ? `+${digitos}` : `+${getCountryCallingCode(iso)}${digitos}`,
+    pais: iso,
+  };
+}
+
 function nombrePais(iso: string, locale: string): string {
   try {
     return new Intl.DisplayNames([locale], { type: "region" }).of(iso) ?? iso;
@@ -196,43 +247,28 @@ export function CampoTelefono({
     );
   }, [busca, paises]);
 
-  /**
-   * El texto local del país elegido, a E.164.
-   *
-   * Se le pide a la librería que lo INTERPRETE como número nacional en vez de
-   * pegar los dígitos detrás del prefijo. La diferencia es Argentina: el
-   * formato nacional trae el `0` de tronco y el `15` del móvil
-   * (`011 15-6104-7646`), y pegar eso detrás del `+54` daba
-   * `+540111561047646` — un número de quince dígitos que no existe y al que
-   * `isValid()` decía que sí, así que ninguna validación lo frenaba. Bastaba
-   * abrir /perfil y guardar sin tocar nada para romper el teléfono al que van
-   * los avisos (visto el 2026-08-29).
-   *
-   * Si la librería no entiende lo que se está tecleando —a mitad de camino
-   * siempre pasa— se cae al pegado simple, que es lo que había.
-   */
   const emitir = (iso: CountryCode, texto: string) => {
-    const digitos = texto.replace(/\D/g, "");
-    if (!digitos) {
-      setVisto("");
-      onChange("");
-      return;
-    }
-    const p = parsePhoneNumberFromString(texto, iso);
-    const e164 =
-      p && p.isValid() ? p.number : `+${getCountryCallingCode(iso)}${digitos}`;
+    const r = resolverNumero(iso, texto);
+    if (r.pais !== iso) setPais(r.pais);
     // Anotado como visto: lo que vuelve por `value` es el eco de esto, y no
     // tiene que re-formatear el campo mientras se está tecleando.
-    setVisto(e164);
-    onChange(e164);
+    setVisto(r.e164);
+    onChange(r.e164);
   };
 
   const alEscribir = (texto: string) => {
-    // `AsYouType` deja de agrupar si el texto trae basura, así que entra solo
-    // lo que es dígito y él decide dónde van los espacios.
-    const formateado = new AsYouType(pais).input(texto.replace(/[^\d\s()-]/g, ""));
-    setLocal(formateado);
-    emitir(pais, formateado);
+    // `AsYouType` deja de agrupar si el texto trae basura, así que entra sólo
+    // lo que es dígito y él decide dónde van los espacios. El `+` SÍ entra: es
+    // lo que distingue "pegué el número entero" de "escribí el local".
+    const limpio = texto.replace(/[^\d\s()+-]/g, "");
+    const conPrefijo = limpio.trim().startsWith("+");
+    // `AsYouType` se come el `+` cuando ya hay país elegido; se repone para que
+    // se vea lo que la persona escribió y para que `resolverNumero` sepa que
+    // venía con prefijo.
+    const agrupado = new AsYouType(pais).input(limpio);
+    const mostrado = conPrefijo ? `+${agrupado.replace(/^\+/, "")}` : agrupado;
+    setLocal(mostrado);
+    emitir(pais, mostrado);
   };
 
   const elegir = (iso: CountryCode) => {

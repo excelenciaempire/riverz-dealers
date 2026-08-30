@@ -13,12 +13,33 @@ import {
  * aritmética de prefijos, no pintura: el ida y vuelta guardado → campo →
  * guardado tiene que devolver el MISMO número, y en Argentina no lo hacía.
  */
-function emitir(iso: CountryCode, texto: string): string {
+function resolverNumero(
+  iso: CountryCode,
+  texto: string,
+): { e164: string; pais: CountryCode } {
   const digitos = texto.replace(/\D/g, '')
-  if (!digitos) return ''
-  const p = parsePhoneNumberFromString(texto, iso)
-  return p && p.isValid() ? p.number : `+${getCountryCallingCode(iso)}${digitos}`
+  if (!digitos) return { e164: '', pais: iso }
+  const explicito = texto.trim().startsWith('+')
+
+  if (explicito) {
+    const p = parsePhoneNumberFromString(`+${digitos}`)
+    if (p?.isValid()) return { e164: p.number, pais: p.country ?? iso }
+  }
+  const nacional = parsePhoneNumberFromString(texto, iso)
+  if (nacional?.isValid()) return { e164: nacional.number, pais: nacional.country ?? iso }
+  if (digitos.startsWith(getCountryCallingCode(iso))) {
+    const internacional = parsePhoneNumberFromString(`+${digitos}`)
+    if (internacional?.isValid()) {
+      return { e164: internacional.number, pais: internacional.country ?? iso }
+    }
+  }
+  return {
+    e164: explicito ? `+${digitos}` : `+${getCountryCallingCode(iso)}${digitos}`,
+    pais: iso,
+  }
 }
+
+const emitir = (iso: CountryCode, texto: string) => resolverNumero(iso, texto).e164
 
 /** Interpreta lo que llega de afuera, con `+` o sin él (así lo guarda la base). */
 function interpretar(value: string) {
@@ -110,5 +131,49 @@ describe('lo que se teclea a mano', () => {
   it('vacío es vacío', () => {
     expect(emitir('AR', '')).toBe('')
     expect(emitir('AR', '   ')).toBe('')
+  })
+})
+
+describe('se escriba como se escriba, sale el mismo número', () => {
+  // Nadie lee "escribe sólo el número local": se pega lo que se tenga a mano.
+  const mismasFormas: Array<[CountryCode, string[], string]> = [
+    ['AR', ['91161047646', '5491161047646', '+5491161047646', '+54 9 11 6104 7646', '011 15-6104-7646'], '+5491161047646'],
+    ['CO', ['3001234567', '573001234567', '+573001234567', '+57 300 123 4567'], '+573001234567'],
+    ['MX', ['5512345678', '525512345678', '+525512345678'], '+525512345678'],
+    ['US', ['2125550147', '12125550147', '+1 212 555 0147', '(212) 555-0147'], '+12125550147'],
+    ['ES', ['612345678', '34612345678', '+34612345678'], '+34612345678'],
+  ]
+  for (const [iso, formas, esperado] of mismasFormas) {
+    for (const forma of formas) {
+      it(`${iso}: ${JSON.stringify(forma)} → ${esperado}`, () => {
+        expect(emitir(iso, forma)).toBe(esperado)
+      })
+    }
+  }
+
+  it('con + de otro país, el selector se corrige solo', () => {
+    // Está en Colombia y pega un número argentino entero: manda lo que pegó.
+    const r = resolverNumero('CO', '+5491161047646')
+    expect(r.e164).toBe('+5491161047646')
+    expect(r.pais).toBe('AR')
+  })
+
+  it('sin +, el país elegido sigue mandando', () => {
+    // "5512345678" es nacional válido en México; no se reinterpreta como +55.
+    expect(resolverNumero('MX', '5512345678').pais).toBe('MX')
+  })
+
+  it('un nacional que parece de otro país no se fuga', () => {
+    // `15512345678` es el formato nacional del móvil mexicano +5215512345678,
+    // y a la vez un +1 551… válido de Estados Unidos. Manda el país elegido.
+    const r = resolverNumero('MX', '15512345678')
+    expect(r.e164).toBe('+5215512345678')
+    expect(r.pais).toBe('MX')
+  })
+
+  it('a medio escribir no revienta ni pega dos prefijos', () => {
+    expect(emitir('CO', '300')).toBe('+57300')
+    expect(emitir('AR', '+54')).toBe('+54')
+    expect(emitir('AR', '11')).toBe('+5411')
   })
 })
