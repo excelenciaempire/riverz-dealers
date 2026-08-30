@@ -22,7 +22,7 @@ import { describeChange, isValidVoice, type CompatChange } from '@/lib/voice/com
  * (STT · LLM · TTS · or a full-duplex S2S engine). Each layer is a
  * provider + model dropdown; merchants never see this.
  */
-export default function AdminVoiceModelPage() {
+export function Voz() {
   const { t, locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const [config, setConfig] = useState<VoiceModelConfig | null>(null);

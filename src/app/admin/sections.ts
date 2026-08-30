@@ -1,6 +1,5 @@
 import {
   Battery,
-  SlidersHorizontal,
   ToggleRight,
   Store,
   Users,
@@ -55,7 +54,6 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/operacion": Activity,
   "/admin/auditoria": ShieldCheck,
   "/admin/funcionalidades": ToggleRight,
-  "/admin/voz": SlidersHorizontal,
 };
 
 export const ADMIN_SECTIONS: AdminSection[] = ADMIN_SECTION_LIST.map((s) => ({

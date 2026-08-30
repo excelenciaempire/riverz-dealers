@@ -3,10 +3,11 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { recordAdminAction } from '@/lib/admin/audit';
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
 import { adminGet } from '@/lib/admin/route';
 import { leerCostoIa } from '@/lib/admin/costo-ia';
+import { pistaDe } from '@/lib/admin/claves';
 import { listUsage } from '@/lib/admin/queries';
 
 /**
@@ -158,7 +159,6 @@ export async function PUT(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     mode?: string;
-    key?: string;
   } | null;
   if (!body) return NextResponse.json({ error: 'body required' }, { status: 400 });
 
@@ -174,19 +174,14 @@ export async function PUT(request: Request) {
     patch.mode = body.mode;
   }
 
-  if (body.key !== undefined) {
-    const key = body.key.trim();
-    // Vacío = quitar la clave. Cualquier otra cosa tiene que parecerse a una
-    // clave de Anthropic: pegar por error un token de otro servicio dejaría la
-    // plataforma sin IA y el fallo aparecería recién en la próxima respuesta.
-    if (key && !key.startsWith('sk-ant-')) {
-      return NextResponse.json(
-        { error: 'la clave de Anthropic empieza por sk-ant-' },
-        { status: 400 },
-      );
-    }
-    patch.anthropic_key_encrypted = key ? encrypt(key) : null;
-  }
+  // Esta ruta ya NO escribe la clave.
+  //
+  // La escribían dos: acá y `PUT /api/admin/claves`, las dos sobre la misma
+  // columna `platform_ai_settings.anthropic_key_encrypted`, y cada pantalla
+  // mostraba una pista distinta de la misma clave —«…7f2a» contra
+  // «sk-ant-…7f2a»— así que parecían dos llaves diferentes. Dos escritores para
+  // un dato es una discusión sobre cuál gana el día que se toquen a la vez.
+  // Queda el de Llaves, que además valida el prefijo y refresca la caché.
 
   const { error } = await supabaseAdmin()
     .from('platform_ai_settings')
@@ -201,18 +196,23 @@ export async function PUT(request: Request) {
     targetType: 'platform_ai_settings',
     targetId: 'singleton',
     // Nunca la clave, ni un fragmento: sólo que se tocó.
-    meta: { mode: body.mode ?? null, key_changed: body.key !== undefined },
+    meta: { mode: body.mode ?? null },
   });
 
   return NextResponse.json({ ok: true });
 }
 
-/** Últimos cuatro caracteres, para reconocer cuál está puesta. */
+/**
+ * La pista de la clave, con el MISMO formato que la pantalla de Llaves.
+ *
+ * Devolvía «…7f2a» mientras Llaves mostraba «sk-ant-…7f2a» de la misma clave,
+ * así que las dos pantallas del mismo panel parecían hablar de dos llaves
+ * distintas. Una sola función, una sola pista.
+ */
 function keyHint(encrypted: string | null): string | null {
   if (!encrypted) return null;
   try {
-    const k = decrypt(encrypted);
-    return k.length > 4 ? `…${k.slice(-4)}` : null;
+    return pistaDe(decrypt(encrypted));
   } catch {
     return null;
   }

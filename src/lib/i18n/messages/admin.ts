@@ -539,6 +539,13 @@ export const admin = {
   },
   // La pestaña que cuesta plata: son sondas facturables. La otra es gratis.
   providersTabBalance: { es: "Saldo y estado", en: "Balance & status" },
+  // La IA que escribe y la que habla.
+  aiTabText: { es: "Texto", en: "Text" },
+  aiTabVoice: { es: "Voz", en: "Voice" },
+  aiKeyManageThere: {
+    es: "Se carga en Proveedores → Llaves",
+    en: "Managed in Providers → Keys",
+  },
   providersMoneyBlock: {
     es: "¿Me alcanza para hoy?",
     en: "Is there enough for today?",
@@ -1004,15 +1011,15 @@ export const admin = {
   colSource: { es: "Origen", en: "Source" },
 
   // ── Clave de IA de la plataforma ──
-  sectionAiKey: { es: "IA", en: "AI" },
+  sectionAiKey: { es: "IA y voz", en: "AI & voice" },
   sectionPlatformWhatsapp: { es: "WhatsApp", en: "WhatsApp" },
   sectionPlatformWhatsappDesc: {
     es: "El número con el que Riverz avisa a los comercios. Aparte del de cada cuenta.",
     en: "The number Riverz uses to alert merchants. Separate from each account's own.",
   },
   sectionAiKeyDesc: {
-    es: "Quién paga la IA de cada cuenta",
-    en: "Who pays for each account's AI",
+    es: "Con qué modelo trabaja Riverz, y quién paga la IA de cada cuenta.",
+    en: "Which model Riverz runs on, and who pays for each account's AI.",
   },
   aiKeyTitle: { es: "Clave de IA", en: "AI key" },
   aiKeySubtitle: {

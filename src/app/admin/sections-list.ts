@@ -129,12 +129,6 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionFeaturesDesc",
     group: "configuracion",
   },
-  {
-    href: "/admin/voz",
-    label: "admin.sectionVoice",
-    description: "admin.sectionVoiceDesc",
-    group: "apis",
-  },
 ];
 
 /** Los slugs, para el reescritor del subdominio. */
@@ -170,4 +164,8 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // los MISMOS nueve proveedores, y para saber por que uno no contesta habia
   // que abrir las dos y cruzarlas a mano.
   claves: "proveedores",
+  // El stack de voz es una pestana de IA: las dos contestan con que modelo y
+  // con que llave trabaja Riverz, y "modelo" aparecia dos veces en el indice
+  // sin que ninguna dijera cual.
+  voz: "ia",
 };
