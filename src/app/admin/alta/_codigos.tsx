@@ -45,7 +45,7 @@ const TONO: Record<SignupCodeStatus, Tone> = {
  * Sin refresco automático — es configuración, y una recarga a mitad de camino
  * haría saltar la tabla justo cuando alguien está copiando un código.
  */
-export default function AdminSignupCodesPage() {
+export function Codigos() {
   const t = useT();
   const format = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();

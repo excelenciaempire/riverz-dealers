@@ -101,16 +101,13 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionUsageDesc",
     group: "plata",
   },
+  // Las dos mitades del mismo embudo: quien dejo su correo antes de que hubiera
+  // producto, y quien tiene con que crear la cuenta. Separadas, habia que
+  // acordarse de mirar las dos para contestar como viene el alta.
   {
-    href: "/admin/codigos",
-    label: "admin.sectionCodes",
-    description: "admin.sectionCodesDesc",
-    group: "comercios",
-  },
-  {
-    href: "/admin/lista-espera",
-    label: "admin.sectionWaitlist",
-    description: "admin.sectionWaitlistDesc",
+    href: "/admin/alta",
+    label: "admin.sectionSignup",
+    description: "admin.sectionSignupDesc",
     group: "comercios",
   },
 
@@ -174,4 +171,7 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // distintos y podían mostrar números distintos.
   saldos: "proveedores",
   infra: "proveedores",
+  // Las dos mitades del embudo de alta, ahora en una seccion con pestanas.
+  codigos: "alta",
+  "lista-espera": "alta",
 };

@@ -10,6 +10,11 @@ export const admin = {
   groupWorkspaces: { es: "Comercios", en: "Merchants" },
   groupMoney: { es: "La plata", en: "Money" },
   groupApis: { es: "Las APIs", en: "APIs" },
+  sectionSignup: { es: "Alta", en: "Sign-up" },
+  sectionSignupDesc: {
+    es: "Los códigos que abren la puerta y quién quedó esperando.",
+    en: "The codes that open the door and who's still waiting.",
+  },
   groupObservability: { es: "Qué está pasando", en: "What's happening" },
   groupConfig: { es: "Configuración", en: "Configuration" },
   // Secciones

@@ -21,7 +21,7 @@ import { RefreshButton } from "../_components/filters";
  * Interesados del prelanzamiento. La tabla existe desde la migración 077 y
  * hasta ahora los leads solo se veían por el correo que dispara el formulario.
  */
-export default function AdminWaitlistPage() {
+export function Espera() {
   const t = useT();
   const format = useFormat();
   const { data, loading, error, reload, live } = useAdminData<{
