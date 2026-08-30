@@ -74,6 +74,17 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionBusinessDesc",
     group: "plata",
   },
+  // Proveedores dice cuánto le queda a cada API y Negocio cuánto factura
+  // Riverz. Ninguna contesta la pregunta que las une —«¿tengo con qué pagar lo
+  // que los comercios van a consumir esta semana?»— porque la plata pasa por
+  // tres plazos distintos: el comercio gasta hoy, Stripe deposita a los dos
+  // días hábiles y el proveedor cobra por adelantado.
+  {
+    href: "/admin/caja",
+    label: "admin.sectionCash",
+    description: "admin.sectionCashDesc",
+    group: "plata",
+  },
   // Las llaves salieron de las filas de Proveedores: allá se contesta cuánto
   // sale y cuánto queda, acá con qué llave trabaja la plataforma. Estaban
   // mezcladas y ninguna de las dos preguntas se leía de un vistazo.

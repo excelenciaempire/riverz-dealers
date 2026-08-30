@@ -16,6 +16,7 @@ import {
   DollarSign,
   MessagesSquare,
   Ticket,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -48,6 +49,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/comercios": Store,
   "/admin/negocio": DollarSign,
   "/admin/proveedores": Battery,
+  "/admin/caja": Wallet,
   "/admin/conversaciones": MessagesSquare,
   "/admin/usuarios": Users,
   "/admin/uso": Gauge,

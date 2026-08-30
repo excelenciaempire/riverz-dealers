@@ -1,5 +1,5 @@
 import { adminGet } from '@/lib/admin/route';
-import { leerProveedores, type EstadoDeProveedores } from '@/lib/admin/proveedores';
+import { leerProveedoresConCache } from '@/lib/admin/proveedores';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,36 +9,10 @@ export const dynamic = 'force-dynamic';
  * Reemplaza a `/api/admin/saldos` y `/api/admin/infrastructure`, que sondeaban
  * los mismos cinco proveedores por separado.
  *
- * **La caché no es una optimización: es plata.** Varias de estas sondas son
- * completions facturables (Anthropic, Cerebras, Groq, OpenAI). Sin esto, dos
- * pestañas abiertas eran dos rondas pagas cada vez, y la ruta vieja de saldos
- * ni siquiera tenía caché aunque su comentario dijera que no se refrescaba
- * sola.
- *
- * `enVuelo` es el otro medio: dos pedidos simultáneos comparten la misma ronda
- * en vez de disparar dos.
+ * La caché está en `lib/admin/proveedores` y no acá: la Caja pide los mismos
+ * saldos, y varias de estas sondas son completions FACTURABLES. Con la caché en
+ * la ruta, abrir las dos pantallas eran dos rondas pagas.
  */
-const TTL_MS = 55_000;
-
-let cache: { at: number; data: EstadoDeProveedores } | null = null;
-let enVuelo: Promise<EstadoDeProveedores> | null = null;
-
-async function leerConCache(): Promise<EstadoDeProveedores> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
-  if (enVuelo) return enVuelo;
-
-  enVuelo = leerProveedores()
-    .then((data) => {
-      cache = { at: Date.now(), data };
-      return data;
-    })
-    .finally(() => {
-      enVuelo = null;
-    });
-
-  return enVuelo;
-}
-
 export async function GET(request: Request) {
-  return adminGet(request, { action: 'view.provider_balances' }, leerConCache);
+  return adminGet(request, { action: 'view.provider_balances' }, leerProveedoresConCache);
 }

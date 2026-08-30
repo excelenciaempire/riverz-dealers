@@ -80,6 +80,10 @@ export type AdminAction =
   // externas— y ademas dispara una llamada cobrada a Anthropic: conviene poder
   // ver quien la pidio si alguien la deja recargando en bucle.
   | 'view.provider_balances'
+  // La caja: lo que hay en Stripe, lo que hay en los proveedores y lo que se
+  // debe. Reusa la ronda cacheada de proveedores, pero además le pregunta a
+  // Stripe por el saldo y las transferencias en camino, así que queda rastro.
+  | 'view.cash'
   | 'update.billing_plan'
   | 'update.billing_subscription'
   // Cargar saldo a mano y prender el corte por saldo. Regalar saldo es regalar

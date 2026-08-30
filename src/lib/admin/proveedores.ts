@@ -727,3 +727,36 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
     consultadoAt: new Date().toISOString(),
   }
 }
+
+/**
+ * La misma ronda, compartida por todo el que la necesite.
+ *
+ * **La caché no es una optimización: es plata.** Varias de estas sondas son
+ * completions FACTURABLES (Anthropic, Cerebras, Groq, OpenAI). Vivía en la ruta
+ * `/api/admin/proveedores`, y funcionó mientras esa ruta era la única que la
+ * llamaba. La Caja necesita los mismos saldos, así que sin mover la caché acá
+ * abrir las dos pantallas eran dos rondas pagas.
+ *
+ * `enVuelo` es el otro medio: dos pedidos simultáneos comparten la misma ronda
+ * en vez de disparar dos.
+ */
+const CACHE_TTL_MS = 55_000
+
+let cache: { at: number; data: EstadoDeProveedores } | null = null
+let enVuelo: Promise<EstadoDeProveedores> | null = null
+
+export async function leerProveedoresConCache(): Promise<EstadoDeProveedores> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data
+  if (enVuelo) return enVuelo
+
+  enVuelo = leerProveedores()
+    .then((data) => {
+      cache = { at: Date.now(), data }
+      return data
+    })
+    .finally(() => {
+      enVuelo = null
+    })
+
+  return enVuelo
+}

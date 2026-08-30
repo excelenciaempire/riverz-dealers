@@ -1103,4 +1103,182 @@ export const admin = {
   codeStatus_revoked: { es: "Revocado", en: "Revoked" },
   codeRevoke: { es: "Revocar", en: "Revoke" },
   codeReactivate: { es: "Reactivar", en: "Reactivate" },
+
+  // ── La caja ──
+  sectionCash: { es: "La caja", en: "Cash" },
+  sectionCashDesc: {
+    es: "Cuánta plata hay, cuántos días aguanta y qué recargar ahora.",
+    en: "How much money there is, how many days it lasts and what to top up now.",
+  },
+  cashTitle: { es: "La caja", en: "Cash" },
+  cashDesc: {
+    es: "Stripe cobra hoy y deposita en dos días hábiles; los proveedores cobran por adelantado. Este es el hueco.",
+    en: "Stripe charges today and deposits in two business days; providers charge upfront. This is the gap.",
+  },
+
+  cashFree: { es: "Caja libre", en: "Free cash" },
+  cashFreeHint: {
+    es: "Stripe más proveedores, menos el saldo que se les debe a los comercios.",
+    en: "Stripe plus providers, minus the balance owed to merchants.",
+  },
+  cashInStripe: { es: "En Stripe", en: "In Stripe" },
+  cashInProviders: { es: "En proveedores", en: "In providers" },
+  cashInProvidersHint: {
+    es: "Prepago cargado: es lo que se gasta cuando un comercio usa la IA.",
+    en: "Prepaid balance: this is what merchants spend when they use the AI.",
+  },
+  cashRunway: { es: "Autonomía", en: "Runway" },
+  cashRunwayDays: { es: "{n} días", en: "{n} days" },
+  cashRunwayHint: {
+    es: "Al ritmo de la última semana: US${usd} por día.",
+    en: "At last week's pace: US${usd} per day.",
+  },
+  cashRunwayUnknown: {
+    es: "Sin consumo medido esta semana.",
+    en: "No consumption measured this week.",
+  },
+  cashUnmeasured: {
+    es: "No publican saldo: {nombres}. El total es un piso.",
+    en: "No balance published: {nombres}. The total is a floor.",
+  },
+  cashDebt: { es: "Saldo que se debe", en: "Balance owed" },
+  cashDebtHint: {
+    es: "Cobrado a comercios y todavía sin consumir. Es deuda, no ingreso.",
+    en: "Charged to merchants and not yet consumed. It's debt, not revenue.",
+  },
+  cashFixed: { es: "Fijo del mes (CRM)", en: "Monthly fixed (CRM)" },
+
+  cashStepsTitle: { es: "Qué hacer ahora", en: "What to do now" },
+  cashAllClear: {
+    es: "Nada por hacer: hay colchón para más de {n} días.",
+    en: "Nothing to do: there's a cushion for more than {n} days.",
+  },
+  cashStepNoStripe: {
+    es: "Falta STRIPE_SECRET_KEY: no se puede ver cuánta plata entró.",
+    en: "STRIPE_SECRET_KEY is missing: there's no way to see money coming in.",
+  },
+  cashStepEmpty: {
+    es: "{nombre} está en cero. Lo que dependa de él no responde.",
+    en: "{nombre} is at zero. Anything depending on it won't respond.",
+  },
+  cashStepLow: {
+    es: "{nombre} queda bajo: {usd}.",
+    en: "{nombre} is running low: {usd}.",
+  },
+  cashStepCushion: {
+    es: "Cargá {usd} en los proveedores para cubrir {dias} días.",
+    en: "Top up {usd} across providers to cover {dias} days.",
+  },
+  cashStepDebt: {
+    es: "El saldo que se debe supera la caja por {usd}: se está gastando plata de los comercios.",
+    en: "Owed balance exceeds cash by {usd}: merchant money is being spent.",
+  },
+  cashStepPayout: {
+    es: "Hay {usd} liquidados en Stripe para transferir.",
+    en: "There's {usd} settled in Stripe to pay out.",
+  },
+
+  cashStripeTitle: { es: "Stripe: lo que entra", en: "Stripe: money in" },
+  cashAvailable: { es: "Disponible", en: "Available" },
+  cashAvailableHint: {
+    es: "Liquidado. Se puede transferir hoy.",
+    en: "Settled. Can be paid out today.",
+  },
+  cashPending: { es: "Retenido", en: "Pending" },
+  cashPendingHint: {
+    es: "Cobrado y esperando los dos días hábiles.",
+    en: "Charged and waiting out the two business days.",
+  },
+  cashInstant: { es: "Instantáneo", en: "Instant" },
+  cashInstantHint: {
+    es: "Llega en 30 minutos y cuesta 1,5% (mínimo US$0,50). Sólo para emergencias.",
+    en: "Arrives in 30 minutes and costs 1.5% (US$0.50 minimum). Emergencies only.",
+  },
+  cashInstantNo: {
+    es: "La cuenta todavía no es elegible.",
+    en: "The account isn't eligible yet.",
+  },
+  cashSchedule: { es: "Agenda", en: "Schedule" },
+  cashScheduleValue: {
+    es: "{intervalo}, {dias} días hábiles",
+    en: "{intervalo}, {dias} business days",
+  },
+  cashOnTheWay: { es: "En camino", en: "On the way" },
+  cashArrives: { es: "Llega {fecha}", en: "Arrives {fecha}" },
+
+  cashProvidersTitle: { es: "Dónde está puesta la plata", en: "Where the money sits" },
+  cashColProvider: { es: "Proveedor", en: "Provider" },
+  cashColBalance: { es: "Saldo", en: "Balance" },
+  cashColDays: { es: "Días", en: "Days" },
+
+  cashCostsTitle: { es: "Lo que cuesta recargar", en: "What topping up costs" },
+  cashCostsDesc: {
+    es: "No es el precio por uso: es la fricción de meterle plata a cada plataforma.",
+    en: "Not the usage price: the friction of putting money into each platform.",
+  },
+  cashColModel: { es: "Cobro", en: "Billing" },
+  cashColFee: { es: "Recargo", en: "Fee" },
+  cashColMin: { es: "Mínimo", en: "Minimum" },
+  cashColExpiry: { es: "Vencimiento", en: "Expiry" },
+  cashModel_prepago: { es: "Prepago", en: "Prepaid" },
+  cashModel_suscripcion: { es: "Suscripción", en: "Subscription" },
+  cashModel_mixto: { es: "Prepago o pospago", en: "Prepaid or postpaid" },
+  cashNoExpiry: { es: "No vencen", en: "Never" },
+  cashExpiryMonths: { es: "{n} meses", en: "{n} months" },
+  cashExpiryCycle: { es: "Al cerrar el ciclo", en: "End of cycle" },
+
+  cashNoteAnthropic: {
+    es: "No compres más de dos meses de consumo por adelantado: vencen.",
+    en: "Don't prepay more than two months of usage: credits expire.",
+  },
+  cashNoteTelnyx: {
+    es: "Pagá por ACH: la tarjeta agrega 3%.",
+    en: "Pay by ACH: card adds 3%.",
+  },
+  cashNoteDeepgram: {
+    es: "Los créditos comprados no vencen. La auto-recarga viene en 100 al bajar de 10.",
+    en: "Purchased credits never expire. Auto-reload defaults to 100 when below 10.",
+  },
+  cashNoteFish: {
+    es: "El saldo prepago define la concurrencia: 5, 15 o 50 pedidos.",
+    en: "Prepaid balance sets concurrency: 5, 15 or 50 requests.",
+  },
+  cashNoteGemini: {
+    es: "En pospago se cobra solo al pasar un umbral; en prepago hay auto-recarga.",
+    en: "Postpaid charges when a threshold is crossed; prepaid has auto-reload.",
+  },
+  cashNoteElevenlabs: {
+    es: "Bajar de plan o cancelar quema lo no usado.",
+    en: "Downgrading or cancelling forfeits unused credits.",
+  },
+  cashNoteFirecrawl: {
+    es: "Los créditos del plan no se acumulan; los de los packs sí.",
+    en: "Plan credits don't roll over; top-up packs do.",
+  },
+  cashNoteApify: {
+    es: "El uso prepago del plan vence al cerrar el ciclo.",
+    en: "The plan's prepaid usage expires at the end of the cycle.",
+  },
+  cashNoteMeta: {
+    es: "Sin método de pago válido bloquea los envíos; recibir sigue funcionando.",
+    en: "Without a valid payment method it blocks sending; receiving still works.",
+  },
+
+  cashFeesTitle: { es: "Lo que cobra Stripe", en: "What Stripe charges" },
+  cashFeeCard: {
+    es: "Tarjeta: 2,9% + US$0,30. Tarjeta extranjera: +1,5%. Conversión de moneda: +1%.",
+    en: "Card: 2.9% + US$0.30. International card: +1.5%. Currency conversion: +1%.",
+  },
+  cashFeeDispute: {
+    es: "Contracargo: US$15 por cada uno, que se devuelven si se gana.",
+    en: "Chargeback: US$15 each, refunded if won.",
+  },
+  cashFeePayout: {
+    es: "Transferencia estándar: gratis, dos días hábiles. Instantánea: 1,5%, mínimo US$0,50, tope US$9.999 y diez por día.",
+    en: "Standard payout: free, two business days. Instant: 1.5%, US$0.50 minimum, US$9,999 cap and ten per day.",
+  },
+  cashFeeWallet: {
+    es: "La recarga acredita el bruto y la comisión la paga Riverz: entre 4,7% y 14,4% según el monto.",
+    en: "A top-up credits the gross amount and Riverz pays the fee: 4.7% to 14.4% depending on size.",
+  },
 } satisfies Namespace;
