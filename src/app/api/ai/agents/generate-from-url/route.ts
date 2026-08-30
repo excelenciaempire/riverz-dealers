@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
@@ -279,8 +280,28 @@ export async function POST(request: Request) {
     workspace_id?: string;
   } | null;
   const rawUrl = body?.url?.trim();
-  const workspaceId = body?.workspace_id?.trim();
-  if (!rawUrl || !workspaceId) {
+  if (!rawUrl) {
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.urlWorkspaceRequired') },
+      { status: 400 },
+    );
+  }
+
+  // LA CUENTA LA RESUELVE EL SERVIDOR, NO EL NAVEGADOR.
+  //
+  // Antes era obligatoria en el cuerpo, y el asistente de alta la mandaba sin
+  // ella: el paso "leé mi marca" —el único atajo que llena la persona y el
+  // conocimiento del agente solo— cortaba con 400 SIEMPRE, y el comercio veía
+  // un error genérico con un botón "omitir" al lado. O sea: todo comercio
+  // nuevo que pasó por ahí terminó con la persona vacía.
+  //
+  // Pedirle al navegador un dato que el servidor ya sabe nunca fue seguridad
+  // —la pertenencia se verifica igual, abajo—: era una forma de romperse.
+  // Sigue aceptándose en el cuerpo para la cuenta que no es la de casa.
+  const admin = supabaseAdmin();
+  const workspaceId =
+    body?.workspace_id?.trim() || (await resolveWorkspaceIdForUser(admin, user.id));
+  if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlWorkspaceRequired') },
       { status: 400 },
@@ -294,14 +315,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = supabaseAdmin();
   const { data: member } = await admin
     .from('workspace_members')
     .select('id')
     .eq('workspace_id', workspaceId)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member)
+  // El dueño cuenta aunque le falte la fila de miembro. Son dos escrituras
+  // distintas del alta y ya se vieron cuentas con una sola; sin esto, quien
+  // creó el espacio se quedaba afuera de su propio espacio.
+  const { data: duenio } = member
+    ? { data: null }
+    : await admin
+        .from('workspaces')
+        .select('id')
+        .eq('id', workspaceId)
+        .eq('owner_id', user.id)
+        .maybeSingle();
+  if (!member && !duenio)
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
       { status: 403 },

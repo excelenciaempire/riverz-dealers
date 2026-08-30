@@ -196,6 +196,14 @@ export const operation = {
   },
   cobroChat: { es: "Siempre toma el pedido en el chat", en: "Always take the order in chat" },
   cobroCheckout: { es: "Siempre manda a la caja", en: "Always send to checkout" },
+  contraentregaTitle: { es: "Pago al recibir", en: "Cash on delivery" },
+  contraentregaHint: {
+    es: "Si no lo dices, el asistente no lo ofrece ni lo niega: pasa la conversación a una persona.",
+    en: "If you don't say, the assistant neither offers nor denies it: it hands the conversation to a person.",
+  },
+  contraentregaSi: { es: "Sí, cobramos al recibir", en: "Yes, we charge on delivery" },
+  contraentregaNo: { es: "No lo aceptamos", en: "We don't accept it" },
+  contraentregaSinDecir: { es: "Todavía no lo digo", en: "I haven't said yet" },
   toolsHint: {
     es: "Elige qué hace solo y qué te consulta antes. Lo que apagues, lo deriva a tu equipo.",
     en: "Choose what it does on its own and what it checks with you first. Whatever you turn off, it hands to your team.",

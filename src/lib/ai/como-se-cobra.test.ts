@@ -142,3 +142,49 @@ describe('con que se puede pagar', () => {
     expect(p).toContain('nunca inventes uno');
   });
 })
+
+/**
+ * El contra entrega es un DATO, no una deduccion.
+ *
+ * El 2026-08-29 la IA le confirmo "pago contra entrega" a la clienta de un
+ * comercio que no lo acepta, en publico bajo el anuncio, y le pidio la
+ * direccion. Se arreglo sacando el supuesto del prompt — pero eso dejo al
+ * comercio que SI cobra al recibir teniendo que escribirse una regla a mano
+ * para habilitar lo unico que hace. Ahora es una casilla con TRES estados.
+ */
+describe('pago al recibir', () => {
+  const conModo = (modo: 'segun_pago' | 'chat', acepta: boolean | null) =>
+    prompt(
+      agente({ cobro_modo: modo, acepta_contraentrega: acepta } as Partial<AiAgent>),
+    );
+
+  it('sin declarar: no lo ofrece ni lo confirma, pasa a una persona', () => {
+    const p = conModo('segun_pago', null);
+    expect(p).toContain('NO lo ofrezcas tú nunca');
+    expect(p).toContain('pasa la conversación a una persona');
+  });
+
+  it('declarado que SI: toma el pedido ahi mismo', () => {
+    const p = conModo('segun_pago', true);
+    expect(p).toContain('sí trabajas con pago al recibir');
+    // Y deja de mandarlo a buscar el permiso en las reglas.
+    expect(p).not.toContain('NO lo ofrezcas tú nunca');
+  });
+
+  it('declarado que NO: lo dice y sigue', () => {
+    const p = conModo('segun_pago', false);
+    expect(p).toContain('NO hay pago al recibir');
+    expect(p).not.toContain('NO lo ofrezcas tú nunca');
+  });
+
+  /**
+   * El comercio que vive del contra entrega usa modo "chat", y ahi el prompt
+   * decia como TOMAR el pedido pero no si ese medio existe.
+   */
+  it('en modo chat tambien se entera', () => {
+    expect(conModo('chat', true)).toContain('está disponible');
+    expect(conModo('chat', false)).toContain('No hay pago al recibir');
+    // Sin declarar, el modo chat no inventa nada.
+    expect(conModo('chat', null)).not.toContain('pago al recibir');
+  });
+})

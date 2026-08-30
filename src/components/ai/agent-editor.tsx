@@ -413,6 +413,11 @@ export function AgentEditor({
   const [cobroModo, setCobroModo] = useState<'checkout' | 'chat' | 'segun_pago'>(
     agent?.cobro_modo ?? 'segun_pago',
   );
+  // Tres estados y no dos: "no lo dijo" (null) no es lo mismo que "no lo
+  // acepta". Con null el agente no lo ofrece ni lo niega, pasa a una persona.
+  const [contraentrega, setContraentrega] = useState<boolean | null>(
+    agent?.acepta_contraentrega ?? null,
+  );
   // Rol y permisos por acción (migración 164). `permissions` en null significa
   // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
   // alguien toque uno de estos interruptores.
@@ -559,6 +564,11 @@ export function AgentEditor({
     segun_pago: t('operation.cobroSegunPago'),
     chat: t('operation.cobroChat'),
     checkout: t('operation.cobroCheckout'),
+  };
+  const CONTRAENTREGA_LABELS = {
+    true: t('operation.contraentregaSi'),
+    false: t('operation.contraentregaNo'),
+    sin_decir: t('operation.contraentregaSinDecir'),
   };
   const ROLE_LABELS = Object.fromEntries(
     AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)]),
@@ -997,6 +1007,7 @@ export function AgentEditor({
       followup_max_count: followupMaxCount,
       puede_crear_pedidos: puedeCrearPedidos,
       cobro_modo: cobroModo,
+      acepta_contraentrega: contraentrega,
       role,
       permissions,
       tools,
@@ -1744,6 +1755,41 @@ export function AgentEditor({
                         </SelectItem>
                         <SelectItem value="chat">{t('operation.cobroChat')}</SelectItem>
                         <SelectItem value="checkout">{t('operation.cobroCheckout')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SectionCard>
+                ) : null}
+
+                {/* Contra entrega. Va acá y no adentro del bloque de arriba
+                    porque no depende de la caja: hay comercios que cobran a la
+                    caja Y aceptan pago al recibir. Y va con TRES estados: sin
+                    "todavía no lo dije", el editor tendría que elegir uno por
+                    el comercio, y elegir "sí" fue exactamente el error que
+                    hizo que la IA prometiera contra entrega donde no existe. */}
+                {puedeCrearPedidos ? (
+                  <SectionCard
+                    title={t('operation.contraentregaTitle')}
+                    hint={t('operation.contraentregaHint')}
+                  >
+                    <Select
+                      value={contraentrega === null ? 'sin_decir' : String(contraentrega)}
+                      onValueChange={(v) =>
+                        setContraentrega(v === 'sin_decir' ? null : v === 'true')
+                      }
+                    >
+                      <SelectTrigger className="w-full bg-background">
+                        <SelectValue labels={CONTRAENTREGA_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">
+                          {t('operation.contraentregaSi')}
+                        </SelectItem>
+                        <SelectItem value="false">
+                          {t('operation.contraentregaNo')}
+                        </SelectItem>
+                        <SelectItem value="sin_decir">
+                          {t('operation.contraentregaSinDecir')}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </SectionCard>

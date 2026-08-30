@@ -170,6 +170,19 @@ export interface AiAgent {
    * permisos. Con `crear_pedido` apagado manda a la caja diga lo que diga.
    */
   cobro_modo?: 'checkout' | 'chat' | 'segun_pago' | null;
+  /**
+   * ¿El comercio cobra al recibir? (migración 225)
+   *
+   *   true   — sí: el agente puede tomar el pedido contra entrega.
+   *   false  — no: lo dice y sigue con los otros medios.
+   *   null   — no lo declaró: no lo ofrece ni lo confirma, pasa a una persona.
+   *
+   * Es un dato del negocio, no un modo de cobro: quien vende a la caja Y
+   * acepta contra entrega existe, así que va aparte de `cobro_modo`. Nace en
+   * null porque suponerlo fue exactamente el error del 2026-08-29: la IA le
+   * confirmó contra entrega a la clienta de un comercio que no lo acepta.
+   */
+  acepta_contraentrega?: boolean | null;
 
   provider: AiProvider;
   model: string;
