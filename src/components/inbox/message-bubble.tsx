@@ -1249,9 +1249,13 @@ export function MessageBubble({
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}
-        {isComment && isCommentDeleted(message) ? (
+        {/* La lápida vale para cualquier canal, no sólo comentarios: desde
+            que WhatsApp e Instagram avisan que borraron un mensaje, un DM
+            eliminado tiene que verse eliminado. La palabra cambia porque un
+            comentario y un mensaje no son lo mismo para quien lee. */}
+        {isCommentDeleted(message) ? (
           <span className="text-sm italic opacity-70">
-            {t("inbox.commentDeleted")}
+            {t(isComment ? "inbox.commentDeleted" : "inbox.messageRemoved")}
           </span>
         ) : (
           <>

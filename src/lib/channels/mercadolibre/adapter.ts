@@ -9,6 +9,7 @@ import type {
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { captureWebhookFailure } from "@/lib/webhooks/capture";
 import { getLogger } from "@/lib/log/logger";
 import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../media-ingest";
 import { safeLocale } from "@/lib/i18n/server";
@@ -268,6 +269,16 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       token = await getFreshMLToken(connection);
     } catch (err) {
       console.error("[mercadolibre] token unavailable for webhook:", err);
+      // El aviso de Mercado Libre NO trae cuerpo: sólo dice "mirá este
+      // recurso". Si el token falla acá, la notificación se pierde entera y
+      // sólo la recupera el sondeo, hasta cinco minutos después. Queda el
+      // rastro para poder distinguir "ML no avisa" de "ML avisó y no pudimos
+      // leerlo".
+      void captureWebhookFailure({
+        provider: "mercadolibre:token",
+        rawBody: JSON.stringify(n).slice(0, 4000),
+        error: err,
+      });
       return [];
     }
     const auth = { authorization: `Bearer ${token}` };

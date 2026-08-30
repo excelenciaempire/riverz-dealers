@@ -264,6 +264,19 @@ async function processChannelsWebhookAsync(
           channel: c,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Y el cuerpo crudo, no sólo la línea de log.
+        //
+        // El catch de AFUERA sí capturaba; éste no, y es el que se dispara en
+        // el caso normal —un adaptador que revienta con un payload que no
+        // esperaba—. Lo que llegó se perdía entero y sin rastro, así que "Meta
+        // no manda nada" y "Meta manda algo que no sabemos leer" se veían
+        // exactamente igual desde afuera.
+        void captureWebhookFailure({
+          provider: `channels:${c}`,
+          rawBody,
+          signature: req.headers.get("x-hub-signature-256"),
+          error: err,
+        });
         continue;
       }
       for (const event of events) {
@@ -273,6 +286,14 @@ async function processChannelsWebhookAsync(
           log.error("ingest failed", {
             channel: c,
             error: err instanceof Error ? err.message : String(err),
+          });
+          // Un mensaje que llegó y no entró: el cliente escribió y para el
+          // comercio no existe. Es el peor caso de todos y era el más callado.
+          void captureWebhookFailure({
+            provider: `channels:${c}:ingest`,
+            rawBody,
+            signature: req.headers.get("x-hub-signature-256"),
+            error: err,
           });
         }
       }

@@ -206,6 +206,9 @@ export const inbox = {
   // Native comment view
   commentLike: { es: "Me gusta", en: "Like" },
   commentDeleted: { es: "Comentario eliminado", en: "Comment deleted" },
+  /** La lápida de la burbuja cuando borraron un MENSAJE (no un comentario).
+   *  `messageDeleted` ya existe y es el aviso corto de "listo, lo borré". */
+  messageRemoved: { es: "Mensaje eliminado", en: "Message deleted" },
   // Qué cambió y qué no: el comentario sigue entero acá, lo que dejó de estar
   // es a la vista del público.
   commentHiddenNotice: {

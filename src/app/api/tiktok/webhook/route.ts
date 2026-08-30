@@ -194,8 +194,15 @@ async function applyToConnection(
   let token: string;
   try {
     token = await getFreshTikTokToken(conn);
-  } catch {
-    return; // el poll lo recuperara
+  } catch (err) {
+    // El poll lo recupera, pero puede tardar hasta cinco minutos. Sin rastro,
+    // "TikTok no entrega" y "TikTok entrega y no podemos leerlo" se ven igual.
+    void captureWebhookFailure({
+      provider: "tiktok:token",
+      rawBody: JSON.stringify({ commentId: ev.commentId, videoId: ev.videoId }),
+      error: err,
+    });
+    return;
   }
 
   // PRIMERO el comentario que llegó, y recién después el resto del video.

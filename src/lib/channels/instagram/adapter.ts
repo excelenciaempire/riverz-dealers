@@ -24,6 +24,8 @@ import { buildParticipantMap } from "../meta-participants";
 import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { marcarEntrega } from "../estado-de-entrega";
+import { findMessageByExternalId } from "../message-lookup";
+import { COMMENT_DELETED_TEXT } from "../display";
 import { isMarketingOptin, recordOptIn } from "../marketing-optin";
 import { mapMetaAdReferral } from "../messenger/adapter";
 
@@ -194,11 +196,23 @@ export const instagramAdapter: ChannelAdapter = {
                *  GIFs ni lo compartido de cuentas privadas: manda el mensaje
                *  con esta bandera y sin adjunto (tampoco aparece vía Graph). */
               is_unsupported?: boolean;
+              /** El DM lo borraron. Instagram lo manda por el MISMO webhook de
+               *  `messages`, con esta bandera y sin texto. */
+              is_deleted?: boolean;
               attachments?: Array<Record<string, unknown>>;
               reply_to?: { story?: { id?: string; url?: string } };
             }
           | undefined;
         if (!sender?.id) continue;
+
+        // BORRARON UN DM. Se descartaba: el mensaje seguía en la bandeja para
+        // siempre, y quien atiende contestaba algo que del otro lado ya no
+        // existe. La fila se conserva —con la lápida— para que el hilo siga
+        // teniendo sentido.
+        if (message?.is_deleted && message.mid) {
+          await marcarDmBorrado(connection, String(message.mid));
+          continue;
+        }
 
         // La persona aceptó recibir novedades fuera de la ventana de 24 h.
         // No es un mensaje —no lleva `message`— así que caía en el hueco de
@@ -536,5 +550,28 @@ async function anotarAcuseIg(
     });
   } catch (err) {
     console.warn("[instagram] no se pudo anotar el acuse:", err);
+  }
+}
+
+/** Un DM que la persona borró en Instagram. Ver el comentario del webhook. */
+async function marcarDmBorrado(
+  connection: ChannelConnection,
+  mid: string,
+): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    const fila = await findMessageByExternalId<{ status: string | null }>(db, {
+      workspaceId: connection.workspace_id,
+      channel: "instagram",
+      externalMessageId: mid,
+      select: "status",
+    });
+    if (!fila || fila.status === "failed") return;
+    await db
+      .from("messages")
+      .update({ status: "failed", content_text: COMMENT_DELETED_TEXT })
+      .eq("id", fila.id);
+  } catch (err) {
+    console.warn("[instagram] no se pudo marcar el DM borrado:", err);
   }
 }

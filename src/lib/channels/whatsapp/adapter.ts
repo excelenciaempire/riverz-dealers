@@ -25,6 +25,7 @@ import {
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { findMessageByExternalId, findMessagesByExternalIds } from "../message-lookup";
+import { COMMENT_DELETED_TEXT } from "../display";
 import { desdeDonde } from "../estado-de-entrega";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
 import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
@@ -351,7 +352,18 @@ export const whatsappAdapter: ChannelAdapter = {
         //     never double-replies to a customer the human already answered. ---
         if (change.field === "smb_message_echoes" && value.message_echoes) {
           for (const e of value.message_echoes) {
-            if (!e.to || !e.id || e.type === "revoke" || e.type === "edit") continue;
+            if (!e.to || !e.id) continue;
+            // BORRADO Y EDICIÓN desde el teléfono del comercio.
+            //
+            // Se descartaban los dos. Un mensaje que el comercio borró para
+            // todos seguía en la bandeja para siempre, y uno editado seguía
+            // mostrando el texto viejo: el hilo decía una cosa y el cliente
+            // había recibido otra, que es exactamente lo que la bandeja existe
+            // para evitar.
+            if (e.type === "revoke" || e.type === "edit") {
+              await aplicarCambioDeMensaje(connection, e);
+              continue;
+            }
             // Una reacción NO es un mensaje: la reacción que el comercio mandó
             // desde el celular va a message_reactions y se muestra SOBRE el
             // mensaje objetivo (como WhatsApp), no como un bubble "[reaction]".
@@ -1059,4 +1071,51 @@ async function ingestInboundMedia(args: {
     size: ingested.mediaSize,
   };
   return [attachment];
+}
+
+/**
+ * El comercio borró o editó un mensaje desde su teléfono.
+ *
+ * Con alcance de workspace y escribiendo por `messages.id`, como todo lo que
+ * toca esta tabla. Best-effort: si el mensaje todavía no está ingerido no hay
+ * nada que cambiar, y el eco no vuelve — es la misma limitación que tienen las
+ * reacciones.
+ */
+async function aplicarCambioDeMensaje(
+  connection: ChannelConnection,
+  e: WhatsAppMessage & { type?: string },
+): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    const fila = await findMessageByExternalId<{
+      status: string | null;
+      content_text: string | null;
+    }>(db, {
+      workspaceId: connection.workspace_id,
+      channel: "whatsapp",
+      externalMessageId: String(e.id),
+      select: "status, content_text",
+    });
+    if (!fila) return;
+    if (e.type === "revoke") {
+      // Misma marca que un comentario borrado: la fila se conserva para que el
+      // hilo siga teniendo sentido y la burbuja muestra la lápida.
+      if (fila.status === "failed" && (fila.content_text ?? "").trim() === COMMENT_DELETED_TEXT) {
+        return;
+      }
+      await db
+        .from("messages")
+        .update({ status: "failed", content_text: COMMENT_DELETED_TEXT })
+        .eq("id", fila.id);
+      return;
+    }
+    const nuevo = extractText(e).trim();
+    if (!nuevo || nuevo === (fila.content_text ?? "")) return;
+    await db
+      .from("messages")
+      .update({ content_text: nuevo, edited_at: new Date().toISOString() })
+      .eq("id", fila.id);
+  } catch (err) {
+    console.warn("[whatsapp] no se pudo aplicar el borrado/edición:", err);
+  }
 }
