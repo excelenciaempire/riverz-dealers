@@ -1,6 +1,7 @@
 import type { ChannelConnection } from '@/types';
 import { decrypt } from './encryption';
 import { withAppsecretProofBody } from './meta-graph';
+import { pistaDeModeracion } from './meta-errors';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -85,6 +86,8 @@ async function anotarFalloDeModeracion(
       const j = JSON.parse(cuerpo) as { error?: { message?: string; code?: number } };
       if (j.error?.message) {
         detalle = `#${j.error.code ?? '?'} ${j.error.message}`;
+        const pista = pistaDeModeracion(channel, j.error.code);
+        if (pista) detalle += ` · ${pista}`;
       } else if (cuerpo.trim()) {
         detalle = cuerpo.trim().slice(0, 300);
       }

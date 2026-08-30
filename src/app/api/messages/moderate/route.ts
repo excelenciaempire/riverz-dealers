@@ -7,7 +7,11 @@ import {
   moderarComentario,
   type AccionComentario,
 } from "@/lib/channels/comment-actions";
-import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
+import {
+  describeMetaSendError,
+  parseMetaError,
+  pistaDeModeracion,
+} from "@/lib/channels/meta-errors";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Conversation, Message } from "@/types";
@@ -148,11 +152,15 @@ export async function POST(req: Request): Promise<Response> {
       .filter(Boolean)
       .join(" ")
       .trim();
-    const messageText =
-      [descrito ?? result.detail ?? translate(locale, "errInbox.graphCallFailed"), crudo]
-        .filter(Boolean)
-        .join(" · ")
-        .slice(0, 500);
+    const messageText = [
+      descrito ?? result.detail ?? translate(locale, "errInbox.graphCallFailed"),
+      crudo,
+      // Lo que Meta se guarda: qué permiso mirar cuando su código no dice nada.
+      pistaDeModeracion(channel, parsed?.error?.code),
+    ]
+      .filter(Boolean)
+      .join(" · ")
+      .slice(0, 500);
     console.error("[moderate] Meta rechazó la moderación", {
       channel,
       action: body.action,

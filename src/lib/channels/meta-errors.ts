@@ -103,6 +103,30 @@ function channelLabel(channel: string, locale: Locale): string {
  * `channel` only tweaks wording ("Instagram"/"Messenger"); the logic is
  * shared. `locale` controls the language of `userMessage`.
  */
+/**
+ * La pista que Meta no da.
+ *
+ * Ocultar un comentario de Facebook necesita DOS permisos:
+ * `pages_manage_engagement` y además `pages_read_user_content`. Cuando falta el
+ * segundo, Graph no lo dice: responde `#1 An unknown error occurred`, el código
+ * más inútil que tiene.
+ *
+ * Medido el 2026-08-30 sobre el mismo comentario y el mismo token:
+ * quitar un me-gusta —que sólo necesita `pages_manage_engagement`— devolvió
+ * 200, y ocultar devolvió #1. Instagram, en cambio, acepta ocultar dos veces
+ * seguidas sin quejarse, así que tampoco era "ya estaba oculto".
+ *
+ * No se afirma como certeza porque Meta no la da: se ofrece como lo primero que
+ * conviene mirar, que es más de lo que había.
+ */
+export function pistaDeModeracion(
+  channel: string,
+  code: number | undefined,
+): string | null {
+  if (channel !== "fb_comment" || code !== 1) return null;
+  return "Revisa que la app tenga pages_read_user_content además de pages_manage_engagement: Facebook pide las dos para ocultar, y cuando falta la primera responde este mismo error sin nombrarla.";
+}
+
 export function describeMetaSendError(
   channel: string,
   status: number,
