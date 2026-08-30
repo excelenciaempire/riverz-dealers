@@ -1,6 +1,7 @@
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { adminGet, rangeFromSearch } from '@/lib/admin/route';
 import { listUsage } from '@/lib/admin/queries';
-import { estimateAiCostUsd } from '@/lib/admin/cost';
+import { leerCostoIa } from '@/lib/admin/costo-ia';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,21 +14,32 @@ export async function GET(request: Request) {
     request,
     { action: 'view.usage', meta: { from: from.toISOString(), to: to.toISOString() } },
     async () => {
-      const rows = await listUsage(from, to);
-      // El costo de IA no está en la DB: se estima aquí a partir de los tokens
-      // que el runner viene guardando desde siempre, modelo por modelo.
+      const [rows, costo] = await Promise.all([
+        listUsage(from, to),
+        // El costo NO se estima acá. Sale de `billing_usage_daily`, que es la
+        // única fuente que cuenta la caché —el 82% de lo que se paga— y que
+        // tarifa con el modelo que de verdad contestó. Lo demás (mensajes,
+        // llamadas, minutos, pedidos, tokens) sigue viniendo del RPC, que para
+        // eso está bien: lo que perdió es la responsabilidad de decir cuánto
+        // cuesta, que era donde mentía.
+        leerCostoIa(supabaseAdmin(), { desde: from, hasta: to }),
+      ]);
       const withCost = rows.map((r) => ({
         ...r,
-        ai_cost_usd: estimateAiCostUsd(
-          r.prompt_tokens,
-          r.completion_tokens,
-          r.tokens_by_model,
-        ),
+        ai_cost_usd: costo.porCuenta.get(r.workspace_id)?.costoUsd ?? 0,
       }));
       return {
         rows: withCost,
         from: from.toISOString(),
         to: to.toISOString(),
+        // El sello de frescura viaja con el número: si el acumulador se paró,
+        // la pantalla lo dice en vez de presentar un costo incompleto como si
+        // fuera el costo.
+        costo: {
+          medidoAt: costo.medidoAt,
+          atrasoMin: costo.atrasoMin,
+          confiable: costo.confiable,
+        },
         totals: {
           messages_out: sum(withCost, 'messages_out'),
           ai_sent: sum(withCost, 'ai_sent'),

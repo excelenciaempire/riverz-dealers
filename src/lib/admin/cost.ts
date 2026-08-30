@@ -88,29 +88,3 @@ export function costForModel(
   );
 }
 
-/** Tokens por modelo tal como los devuelve el RPC `admin_usage_rows`. */
-export type TokensByModel = Record<
-  string,
-  { prompt: number; completion: number }
->;
-
-/**
- * Costo de un comercio sumando modelo por modelo. Si el desglose viene vacío
- * (comercio sin respuestas de IA en el rango), cae a los totales con la tarifa
- * del modelo por defecto para no devolver 0 cuando sí hubo tokens.
- */
-export function estimateAiCostUsd(
-  promptTokens: number,
-  completionTokens: number,
-  byModel?: TokensByModel | null,
-): number {
-  const entries = Object.entries(byModel ?? {});
-  if (!entries.length) {
-    return costForModel(DEFAULT_MODEL, promptTokens, completionTokens);
-  }
-  return entries.reduce(
-    (acc, [model, t]) =>
-      acc + costForModel(model, Number(t?.prompt) || 0, Number(t?.completion) || 0),
-    0,
-  );
-}

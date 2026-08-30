@@ -6,7 +6,7 @@ import { recordAdminAction } from '@/lib/admin/audit';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { invalidatePlatformKeyCache } from '@/lib/ai/platform-key';
 import { adminGet } from '@/lib/admin/route';
-import { estimateAiCostUsd } from '@/lib/admin/cost';
+import { leerCostoIa } from '@/lib/admin/costo-ia';
 import { listUsage } from '@/lib/admin/queries';
 
 /**
@@ -32,7 +32,7 @@ async function aiKeyPayload() {
   const db = supabaseAdmin();
   const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
 
-  const [settingsRes, enabledRes, usage] = await Promise.all([
+  const [settingsRes, enabledRes, usage, costo] = await Promise.all([
     db
       .from('platform_ai_settings')
       .select('mode, anthropic_key_encrypted, updated_at')
@@ -47,6 +47,9 @@ async function aiKeyPayload() {
     // pantallas del mismo panel, y pasadas las 50.000 filas el número quedaba
     // corto sin avisar. Además listaba `workspaces` sin filtrar `deleted_at`.
     listUsage(new Date(since), new Date()),
+    // El gasto por bolsillo sale del desglose guardado, no de una regla de
+    // tres. Ver migración 230.
+    leerCostoIa(db, { desde: new Date(since), hasta: new Date() }),
   ]);
 
   const settings = settingsRes.data as {
@@ -64,28 +67,22 @@ async function aiKeyPayload() {
   const mode = settings?.mode ?? 'selected';
   const encKey = settings?.anthropic_key_encrypted ?? null;
 
-  // Gasto por bolsillo, con la MISMA tarifa por modelo que /admin/uso.
+  // Gasto por bolsillo, del desglose guardado.
   //
-  // El desglose por modelo y el desglose por bolsillo son dos cortes de los
-  // mismos tokens, así que se reparte el costo total del comercio en la
-  // proporción de tokens de cada bolsillo. Es una estimación —igual que todo
-  // este número, que son precios de lista sin descuento por caché— pero es UNA,
-  // y coincide con la otra pantalla.
+  // Antes se repartía el costo total del comercio en la PROPORCIÓN DE TOKENS de
+  // cada bolsillo, y eso no es el costo: entre Haiku (1 USD/M) y Opus (5 USD/M)
+  // la proporción de tokens no es la proporción de plata. Ahora cada respuesta
+  // deja anotado su costo y su `key_source` al acumular el día, así que el
+  // corte es exacto y coincide con /admin/uso porque salen del mismo lugar.
+  //
+  // Las filas anteriores a la migración 230 no traen desglose: ahí `platform`
+  // vale cero y todo el costo aparece como del comercio. Es el sesgo honesto —
+  // no se puede reconstruir quién puso una plata que nadie anotó.
   const workspaces = usage.map((row) => {
-    const total = estimateAiCostUsd(
-      row.prompt_tokens,
-      row.completion_tokens,
-      row.tokens_by_model,
-    );
+    const linea = costo.porCuenta.get(row.workspace_id);
+    const total = linea?.costoUsd ?? 0;
     const bySource = row.tokens_by_source ?? {};
-    const tokensDe = (k: string) =>
-      (bySource[k]?.prompt ?? 0) + (bySource[k]?.completion ?? 0);
-    const tokensTotal = Object.values(bySource).reduce(
-      (a, v) => a + (v?.prompt ?? 0) + (v?.completion ?? 0),
-      0,
-    );
-    const parte = (k: string) =>
-      tokensTotal > 0 ? (total * tokensDe(k)) / tokensTotal : 0;
+    const parte = (k: string) => (k === 'platform' ? (linea?.costoPlataformaUsd ?? 0) : 0);
 
     return {
       id: row.workspace_id,

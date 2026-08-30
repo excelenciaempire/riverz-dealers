@@ -192,11 +192,11 @@ function Fila({
           {p.detalleKey ? t(p.detalleKey, { v: p.detalle ?? "" }) : p.detalle}
         </Muted>
         {/* Los modelos no publican saldo, pero el gasto lo generamos nosotros:
-            los tokens salen de `ai_replies` y el USD de la tarifa por modelo. */}
+            sale del desglose por modelo de `billing_usage_daily`, así que cada
+            fila muestra lo suyo y no el total de todos los proveedores. */}
         {p.consumo && (
           <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
             {t("admin.providersSpent", {
-              tokens: format.number(p.consumo.tokens, { notation: "compact" }),
               usd: format.currency(p.consumo.usdMes, "USD"),
             })}
           </p>

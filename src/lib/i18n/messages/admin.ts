@@ -557,10 +557,15 @@ export const admin = {
     en: "Waitlist and alerts · the key can only send",
   },
   // Lo que Riverz le consumió al proveedor en el mes. Va donde los modelos no
-  // publican saldo: un guion no dice si se queman mil tokens o diez millones.
+  // publican saldo: un guion no dice si se queman diez dólares o mil.
+  //
+  // Sin los tokens: el desglose por modelo (migración 230) guarda el costo, no
+  // el conteo, y un token de Opus no vale lo mismo que uno de Haiku — la cifra
+  // que decide cuánto recargar es la de plata. Los tokens siguen por comercio
+  // en la pestaña de uso.
   providersSpent: {
-    es: "{tokens} tokens · {usd} este mes",
-    en: "{tokens} tokens · {usd} this month",
+    es: "{usd} este mes",
+    en: "{usd} this month",
   },
   // Administrar las llaves globales: las que Riverz pone y con las que
   // trabajan todos los comercios.

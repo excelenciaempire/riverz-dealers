@@ -25,8 +25,8 @@
  */
 
 import { leerCostosFijos, type Fijos } from './costos-fijos'
-import { listUsage } from './queries'
-import { estimateAiCostUsd } from './cost'
+import { leerCostoIa, proveedorDeModelo } from './costo-ia'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
 
 export type EstadoProveedor =
   | 'ok'
@@ -64,15 +64,18 @@ export interface Proveedor {
    * Lo que Riverz le consumió este mes, cuando se puede saber.
    *
    * Los modelos de lenguaje no publican saldo por API — ninguno de los cinco.
-   * Pero el gasto sí se conoce, porque lo generamos nosotros: cada despacho
-   * guarda sus tokens en `ai_replies` desde la migración 024. Un guion en la
-   * columna del saldo no dice nada; «1,2 M tokens · US$ 34 este mes» dice
-   * exactamente cuánto se está quemando y a qué ritmo.
+   * Pero el gasto sí se conoce, porque lo generamos nosotros. Un guion en la
+   * columna del saldo no dice nada; «US$ 34 este mes» dice exactamente cuánto
+   * se está quemando y a qué ritmo.
+   *
+   * Sale del desglose por modelo de la migración 230, así que cada fila muestra
+   * lo suyo: antes la de Anthropic sumaba TODOS los modelos y una caída al
+   * respaldo de Groq aparecía como gasto de Anthropic.
    *
    * Sólo la parte que paga la plataforma: lo que un comercio gasta con SU
    * propia llave no toca nuestro saldo.
    */
-  consumo?: { tokens: number; usdMes: number } | null
+  consumo?: { usdMes: number } | null
 }
 
 export interface EstadoDeProveedores {
@@ -604,43 +607,46 @@ async function whatsappDeRiverz(): Promise<Proveedor> {
  * Es el único proveedor de modelos del que se sabe el consumo real, porque el
  * runner guarda los tokens de cada despacho desde la migración 024. Ninguno de
  * los cinco publica saldo por API, así que sin esto la columna quedaba en un
- * guion — y un guion no dice si se están quemando mil tokens por mes o diez
- * millones.
+ * guion — y un guion no dice si se están quemando diez dólares por mes o mil.
  *
- * Se separa `platform` de las llaves propias de cada comercio con el mismo
- * criterio que /admin/ia: lo que un comercio paga con SU llave no sale de
- * nuestro saldo, así que sumarlo acá inflaría el número justo en la pantalla
- * que existe para saber cuánto hay que recargar.
+ * Dos cosas que este número hacía mal y ahora no:
  *
- * El USD es una estimación a precio de lista (ver `cost.ts`, sin descuento de
- * caché); los tokens son exactos.
+ * 1. **Sumaba todos los modelos bajo la fila de Anthropic.** Una caída al
+ *    respaldo de Groq aparecía como gasto de Anthropic. Ahora el desglose por
+ *    modelo de la migración 230 dice de quién es cada dólar, y cada fila
+ *    muestra lo suyo.
+ * 2. **Prorrateaba por tokens.** Entre Haiku (1 USD/M) y Opus (5 USD/M) la
+ *    proporción de tokens no es la proporción de plata. El corte por bolsillo
+ *    ahora viene guardado, no estimado.
+ *
+ * Sólo la parte que paga la plataforma: lo que un comercio gasta con SU llave
+ * no sale de nuestro saldo, y sumarlo acá inflaría el número justo en la
+ * pantalla que existe para saber cuánto hay que recargar.
  */
-async function consumoDeAnthropic(): Promise<{ tokens: number; usdMes: number } | null> {
+async function consumoPorProveedor(): Promise<Map<string, { usdMes: number }>> {
+  const porProveedor = new Map<string, { usdMes: number }>()
   try {
     const ahora = new Date()
     const desde = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1))
-    const filas = await listUsage(desde, ahora)
+    const costo = await leerCostoIa(supabaseAdmin(), { desde, hasta: ahora })
 
-    let tokens = 0
-    let usd = 0
-    for (const f of filas) {
-      const total = estimateAiCostUsd(f.prompt_tokens, f.completion_tokens, f.tokens_by_model)
-      const porFuente = f.tokens_by_source ?? {}
-      const suma = (v?: { prompt?: number; completion?: number }) =>
-        (v?.prompt ?? 0) + (v?.completion ?? 0)
-      const todos = Object.values(porFuente).reduce((a, v) => a + suma(v), 0)
-      const plataforma = suma(porFuente['platform'])
-      tokens += plataforma
-      // El costo se reparte en proporción a los tokens de cada fuente: la
-      // tarifa por modelo ya está adentro de `total`.
-      usd += todos > 0 ? (total * plataforma) / todos : 0
+    for (const cuenta of costo.porCuenta.values()) {
+      for (const [modelo, linea] of Object.entries(cuenta.porModelo)) {
+        const id = proveedorDeModelo(modelo)
+        if (!id) continue
+        const acc = porProveedor.get(id) ?? { usdMes: 0 }
+        acc.usdMes += linea.plataformaUsd
+        porProveedor.set(id, acc)
+      }
     }
-    return { tokens, usdMes: Number(usd.toFixed(2)) }
+    for (const [id, v] of porProveedor) {
+      porProveedor.set(id, { usdMes: Number(v.usdMes.toFixed(2)) })
+    }
   } catch {
     // El consumo es un extra: si la consulta falla, la pantalla sigue
     // contestando lo que de verdad vino a contestar.
-    return null
   }
+  return porProveedor
 }
 
 // ────────────────────────────────── La ronda ─────────────────────────────────
@@ -659,7 +665,7 @@ export function cuantosEnRojo(proveedores: Proveedor[]): number {
  * en error por un proveedor.
  */
 export async function leerProveedores(): Promise<EstadoDeProveedores> {
-  const [sondas, fijos, consumoAnthropic] = await Promise.all([
+  const [sondas, fijos, consumo] = await Promise.all([
     Promise.allSettled([
       // Modelos
       anthropic(),
@@ -710,15 +716,16 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
       stripe(),
     ]),
     leerCostosFijos(),
-    consumoDeAnthropic(),
+    consumoPorProveedor(),
   ])
 
   const proveedores = sondas
     .filter((r): r is PromiseFulfilledResult<Proveedor> => r.status === 'fulfilled')
     .map((r) => r.value)
-    .map((p) =>
-      p.id === 'anthropic' && consumoAnthropic ? { ...p, consumo: consumoAnthropic } : p,
-    )
+    .map((p) => {
+      const gasto = consumo.get(p.id)
+      return gasto ? { ...p, consumo: gasto } : p
+    })
 
   return {
     proveedores,
