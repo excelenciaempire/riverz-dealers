@@ -15,6 +15,7 @@
 import { decrypt } from './encryption'
 import { appsecretProof, withAppsecretProof } from './meta-graph'
 import { COMMENT_DELETED_TEXT } from './display'
+import { yaEstaAsi } from './comment-moderation'
 import { getFreshTikTokToken } from './tiktok_comment/adapter'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ChannelConnection, Conversation, Message } from '@/types'
@@ -267,7 +268,19 @@ export async function accionEnGraph(
       const proof = appsecretProof(accessToken)
       if (proof) body.set('appsecret_proof', proof)
       const r = await fetch(`${GRAPH}/${commentId}`, { method: 'POST', body })
-      return finish(r)
+      const res = await finish(r)
+      // Pedir lo que ya está no es un fallo.
+      //
+      // Facebook rechaza ocultar un comentario que YA está oculto y devuelve
+      // `#1 An unknown error occurred`, el mismo código que usa para un
+      // permiso que falta. Verificado el 2026-08-30 sobre un comentario real:
+      // `unhide` 200, `hide` 200, y `hide` sobre uno ya oculto, #1. Sin esto,
+      // el botón de la bandeja le decía al comercio que no se pudo ocultar
+      // algo que estaba oculto.
+      if (!res.ok && (await yaEstaAsi(accessToken, channel, commentId, action === 'hide'))) {
+        return { ok: true }
+      }
+      return res
     }
     const url = withAppsecretProof(
       `${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(accessToken)}`,

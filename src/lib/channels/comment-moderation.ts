@@ -47,6 +47,21 @@ export async function setCommentHidden(
       await anotarOculto(commentId, hidden, motivo);
       return true;
     }
+    // ¿Falló, o ya estaba así?
+    //
+    // Facebook rechaza pedirle ocultar un comentario que YA está oculto, y lo
+    // hace con `#1 An unknown error occurred` — el mismo código que usa para
+    // todo lo demás. Verificado el 2026-08-30 sobre un comentario real:
+    // `unhide` 200, `hide` 200, y `hide` sobre uno ya oculto, #1.
+    //
+    // Sin esta comprobación, un estado que YA es el que queríamos se registra
+    // como fallo: escribe `last_error`, escala el comentario a una persona y
+    // manda a revisar permisos que están bien. Se pregunta el estado real en
+    // vez de adivinar qué significa el #1.
+    if (await yaEstaAsi(token, channel, commentId, hidden)) {
+      await anotarOculto(commentId, hidden, motivo);
+      return true;
+    }
     await anotarFalloDeModeracion(connection, channel, res);
     return false;
   } catch (err) {
@@ -56,6 +71,38 @@ export async function setCommentHidden(
       null,
       err instanceof Error ? err.message : String(err),
     );
+    return false;
+  }
+}
+
+/**
+ * ¿El comentario ya está como lo queríamos dejar?
+ *
+ * Se pregunta DESPUÉS de que la escritura falló, para separar "no se pudo" de
+ * "no hacía falta". Facebook las devuelve iguales: un `#1` genérico tanto si
+ * falta un permiso como si el comentario ya estaba oculto.
+ *
+ * Los campos son distintos por red y no son intercambiables: Facebook expone
+ * `is_hidden` e Instagram `hidden`. Ante cualquier duda —la lectura falla, el
+ * campo no viene— devuelve `false`: preferimos avisar de más que dar por hecho
+ * un ocultado que no pasó.
+ */
+export async function yaEstaAsi(
+  token: string,
+  channel: 'ig_comment' | 'fb_comment',
+  commentId: string,
+  deseado: boolean,
+): Promise<boolean> {
+  const campo = channel === 'ig_comment' ? 'hidden' : 'is_hidden';
+  try {
+    const url =
+      `${GRAPH}/${commentId}?fields=${campo}` +
+      `&access_token=${encodeURIComponent(token)}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) return false;
+    const j = (await r.json()) as Record<string, unknown>;
+    return j[campo] === deseado;
+  } catch {
     return false;
   }
 }
