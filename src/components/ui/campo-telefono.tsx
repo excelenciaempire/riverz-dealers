@@ -54,6 +54,29 @@ const CON_BANDERA = new Set([
   "CR", "PA", "DO", "GT", "HN", "SV", "NI", "CA", "GB", "PT", "IT", "FR", "DE",
 ]);
 
+/**
+ * El número que llega de afuera, venga con `+` o sin él.
+ *
+ * El componente emite E.164 con `+`, pero la base guarda SIN: la app normaliza
+ * con `normalizeToWhatsApp`, que es el formato que quiere Meta
+ * (`5491161047646`). Sin el `+`, libphonenumber no puede deducir el país y
+ * devuelve `undefined` — así que el campo se quedaba vacío mostrando el país
+ * por defecto, con el número bien guardado. Ese era el "no me deja guardar":
+ * se veía vacío, se volvía a teclear lo mismo, y entonces no había nada
+ * distinto que guardar (verificado en producción el 2026-08-30).
+ *
+ * Sólo se antepone el `+` cuando lo que hay son puros dígitos: un texto
+ * nacional suelto no se puede interpretar sin país y tiene que seguir dando
+ * `undefined`.
+ */
+function interpretar(value: string) {
+  const directo = parsePhoneNumberFromString(value);
+  if (directo?.country) return directo;
+  const solo = value.trim();
+  if (!/^\d{6,15}$/.test(solo)) return undefined;
+  return parsePhoneNumberFromString(`+${solo}`);
+}
+
 function nombrePais(iso: string, locale: string): string {
   try {
     return new Intl.DisplayNames([locale], { type: "region" }).of(iso) ?? iso;
@@ -135,7 +158,7 @@ export function CampoTelefono({
     if (!value) {
       setLocal("");
     } else {
-      const p = parsePhoneNumberFromString(value);
+      const p = interpretar(value);
       if (p?.country) {
         setPais(p.country);
         setLocal(p.formatNational());

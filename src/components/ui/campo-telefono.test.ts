@@ -20,12 +20,42 @@ function emitir(iso: CountryCode, texto: string): string {
   return p && p.isValid() ? p.number : `+${getCountryCallingCode(iso)}${digitos}`
 }
 
+/** Interpreta lo que llega de afuera, con `+` o sin él (así lo guarda la base). */
+function interpretar(value: string) {
+  const directo = parsePhoneNumberFromString(value)
+  if (directo?.country) return directo
+  const solo = value.trim()
+  if (!/^\d{6,15}$/.test(solo)) return undefined
+  return parsePhoneNumberFromString(`+${solo}`)
+}
+
 /** Lo que el campo muestra cuando le llega un número ya guardado. */
-function enElCampo(e164: string): { pais: CountryCode; texto: string } {
-  const p = parsePhoneNumberFromString(e164)!
+function enElCampo(guardado: string): { pais: CountryCode; texto: string } {
+  const p = interpretar(guardado)!
   const pais = p.country!
   return { pais, texto: new AsYouType(pais).input(p.formatNational().replace(/[^\d\s()-]/g, '')) }
 }
+
+describe('el número guardado se muestra, venga con + o sin él', () => {
+  it('la base guarda SIN el +, y aun así se ve', () => {
+    // `normalizeToWhatsApp` quita el `+` porque es lo que quiere Meta. Sin
+    // esto, libphonenumber no deduce el país y el campo quedaba VACÍO con el
+    // número bien guardado (verificado en producción el 2026-08-30).
+    const p = interpretar('5491161047646')
+    expect(p?.country).toBe('AR')
+    expect(p?.number).toBe('+5491161047646')
+  })
+
+  it('con el + sigue funcionando igual', () => {
+    expect(interpretar('+573001234567')?.country).toBe('CO')
+  })
+
+  it('un texto nacional suelto no se puede adivinar, y no se inventa', () => {
+    expect(interpretar('11 6104-7646')).toBeUndefined()
+    expect(interpretar('')).toBeUndefined()
+    expect(interpretar('no es un teléfono')).toBeUndefined()
+  })
+})
 
 describe('el ida y vuelta no puede cambiar el número', () => {
   const guardados = [
