@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useT } from '@/hooks/use-locale';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -14,7 +15,7 @@ import {
 } from '@/lib/ai/toolbox';
 import {
   REGLAS_POR_DEFECTO,
-  TOLERANCIA_MAXIMA,
+  toleranciaDesdeTexto,
   type ReglasDeCobro,
 } from '@/lib/payments/reglas-de-cobro';
 
@@ -191,6 +192,8 @@ function Fila({
   const conReglas =
     spec.key === 'registrar_pago' && typeof onReglas === 'function' && modo === 'auto';
   const r = reglas ?? REGLAS_POR_DEFECTO;
+  const [tolTexto, setTolTexto] = useState(String(r.toleranciaPct));
+  useEffect(() => setTolTexto(String(r.toleranciaPct)), [r.toleranciaPct]);
   // El descuento es la única que necesita un número además del modo, y ese
   // número no vivía en ninguna pantalla: se leía en tres lugares y no se podía
   // escribir en ninguno, así que la herramienta no se podía encender nunca.
@@ -266,21 +269,20 @@ function Fila({
           <label className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
             {t('operation.pagoTolerancia')}
             <span className="flex items-center gap-1">
+              {/* Sin estado propio no se puede escribir "0,5": cada tecla pasa
+                  por `Number`, el punto recién tipeado no sobrevive y queda 5
+                  —diez veces la tolerancia que se quiso poner—. Se guarda el
+                  texto tal cual y se convierte al salir del campo. */}
               <input
-                type="number"
-                min={0}
-                max={TOLERANCIA_MAXIMA}
-                step={0.1}
-                value={r.toleranciaPct}
-                onChange={(e) =>
-                  onReglas!({
-                    ...r,
-                    toleranciaPct: Math.max(
-                      0,
-                      Math.min(TOLERANCIA_MAXIMA, Number(e.target.value) || 0),
-                    ),
-                  })
-                }
+                type="text"
+                inputMode="decimal"
+                value={tolTexto}
+                onChange={(e) => setTolTexto(e.target.value)}
+                onBlur={() => {
+                  const n = toleranciaDesdeTexto(tolTexto);
+                  setTolTexto(String(n));
+                  if (n !== r.toleranciaPct) onReglas!({ ...r, toleranciaPct: n });
+                }}
                 className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground"
               />
               %

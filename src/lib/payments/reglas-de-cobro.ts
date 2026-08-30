@@ -47,6 +47,19 @@ export function normalizarTolerancia(n: unknown): number {
   return Math.min(TOLERANCIA_MAXIMA, Math.round(v * 100) / 100)
 }
 
+/**
+ * Lo que el comercio escribió en el campo, a número.
+ *
+ * Acepta la coma: en español se escribe "0,5" y `Number` la rechaza. Sin esto
+ * el valor caía a 0 mientras se tipeaba y terminaba en 5 —diez veces la
+ * tolerancia que se quiso poner, sobre la plata que entra—.
+ */
+export function toleranciaDesdeTexto(texto: string): number {
+  const limpio = String(texto ?? '').trim().replace(',', '.')
+  if (limpio === '') return 0
+  return normalizarTolerancia(limpio)
+}
+
 /** La fila tal como viene de la base, a reglas. */
 export function reglasDesdeFila(fila: Record<string, unknown> | null): ReglasDeCobro {
   if (!fila) return REGLAS_POR_DEFECTO
