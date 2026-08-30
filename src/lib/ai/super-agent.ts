@@ -15,6 +15,7 @@ import {
   detectInboundProduct,
   resolveShopifyContext,
   productosPermitidos,
+  resolveOtherStore,
 } from './runner';
 import { runWithTools } from './tools';
 import { toolEnabled, herramientasQueRequierenAprobacion } from './toolbox';
@@ -156,6 +157,12 @@ export async function composeSuperAgentReply(
       contact,
       productMatch,
     );
+    const otherStore = await resolveOtherStore(
+      db,
+      input.workspaceId,
+      Boolean(shopify),
+      primaryContact,
+    );
     if (shopify) {
       // Por `agentCan` y no por la columna suelta: con `permissions` cargado
       // (migración 164) manda ese. Leyendo la columna directo, un agente con
@@ -232,7 +239,10 @@ export async function composeSuperAgentReply(
       agent,
       hayContacto: Boolean(primaryContact.id),
       shopify,
-      otherStore: null,
+      // La tienda que NO es Shopify. Estaba fijo en null, así que un comercio
+      // de Tiendanube o Woo contestaba "¿dónde está mi pedido?" por WhatsApp y
+      // no podía contestarlo debajo de su publicación — donde más lo preguntan.
+      otherStore,
       voiceCtx: null,
       topeDescuento: 0,
       modo: 'comentario',

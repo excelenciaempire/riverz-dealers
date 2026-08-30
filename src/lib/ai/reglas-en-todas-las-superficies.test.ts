@@ -47,3 +47,20 @@ describe('las reglas del comercio llegan a todas las superficies', () => {
     }
   })
 })
+
+describe('"¿dónde está mi pedido?" se contesta en todas las superficies', () => {
+  it('las tres resuelven la tienda que NO es Shopify', () => {
+    // `lookup_order` se ofrece cuando hay Shopify O una tienda "otra"
+    // (Tiendanube, WooCommerce). El comentario y el borrador la tenían fija en
+    // null: un comercio de Tiendanube contestaba por WhatsApp y NO podía
+    // contestar debajo de su publicación, que es donde más lo preguntan.
+    for (const archivo of ['runner.ts', 'super-agent.ts', 'borrador.ts']) {
+      const src = readFileSync(join(RAIZ, archivo), 'utf8')
+      expect(src, `${archivo} no resuelve la otra tienda`).toContain('resolveOtherStore')
+      expect(
+        /otherStore:\s*null/.test(src),
+        `${archivo} volvió a pasar otherStore en null`,
+      ).toBe(false)
+    }
+  })
+})

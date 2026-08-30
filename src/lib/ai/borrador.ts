@@ -18,6 +18,7 @@ import {
   paginaDeLaConversacion,
   pickAgent,
   resolveShopifyContext,
+  resolveOtherStore,
 } from './runner';
 import { runWithTools } from './tools';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
@@ -167,6 +168,15 @@ export async function componerBorrador(
       contact,
       productMatch,
     );
+    // La tienda que no es Shopify: sin esto el botón de borrador no podía
+    // consultar el pedido de un comercio de Tiendanube o Woo, y quien atiende
+    // se quedaba escribiéndolo a mano.
+    const otherStore = await resolveOtherStore(
+      db,
+      input.workspaceId,
+      Boolean(shopify),
+      primaryContact,
+    );
     if (shopify) {
       shopify.canCreateOrders = false;
       shopify.workspaceId = input.workspaceId;
@@ -260,7 +270,7 @@ export async function componerBorrador(
             agent,
             hayContacto: Boolean(primaryContact.id),
             shopify,
-            otherStore: null,
+            otherStore,
             voiceCtx: null,
             topeDescuento: 0,
             modo: 'borrador',

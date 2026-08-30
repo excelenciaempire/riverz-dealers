@@ -502,17 +502,12 @@ export async function runAiAgent(
     // WooCommerce: se resuelve igual para que `lookup_order` pueda contestar
     // "¿dónde está mi pedido?", que es la consulta más frecuente que recibe
     // cualquier comercio.
-    const otherStore = shopify
-      ? null
-      : await (async () => {
-          const t = await resolveStoreForLookup(db, args.workspaceId);
-          if (!t || t.platform === 'shopify') return null;
-          return {
-            ...t,
-            customerEmail: primaryContact.email ?? null,
-            customerPhone: primaryContact.phone ?? null,
-          };
-        })();
+    const otherStore = await resolveOtherStore(
+      db,
+      args.workspaceId,
+      Boolean(shopify),
+      primaryContact,
+    );
 
     // Datos para que la tool create_order pueda (a) decidir si está
     // habilitada para ESTE agente y (b) persistir el pedido en la tabla
@@ -3566,4 +3561,30 @@ async function ultimosTurnos(
         `${m.sender_type === 'customer' ? 'Cliente' : 'Nosotros'}: ${m.content_text}`,
     )
     .filter((l) => l.trim().length > 12);
+}
+
+/**
+ * La tienda del comercio cuando NO es Shopify (Tiendanube, WooCommerce), con
+ * los datos del cliente para poder buscar SU pedido.
+ *
+ * Vive acá y exportada porque las otras dos superficies que componen con
+ * herramientas —la respuesta a un comentario y el borrador— lo tenían fijo en
+ * `null`. Resultado: un comercio de Tiendanube contestaba "¿dónde está mi
+ * pedido?" por WhatsApp y NO podía contestarlo debajo de su publicación, que es
+ * donde más lo preguntan.
+ */
+export async function resolveOtherStore(
+  db: SupabaseClient,
+  workspaceId: string,
+  hayShopify: boolean,
+  primaryContact: Contact,
+): Promise<OtherStoreContext | null> {
+  if (hayShopify) return null;
+  const t = await resolveStoreForLookup(db, workspaceId);
+  if (!t || t.platform === 'shopify') return null;
+  return {
+    ...t,
+    customerEmail: primaryContact.email ?? null,
+    customerPhone: primaryContact.phone ?? null,
+  };
 }
