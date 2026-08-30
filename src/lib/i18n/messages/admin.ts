@@ -585,6 +585,12 @@ export const admin = {
   keyOrigin_falta: { es: "de ningún lado: falta", en: "from nowhere: missing" },
   keyBilling: { es: "Sin ella no se puede cobrar", en: "Without it you can't bill" },
   // Los conceptos de la billetera que dependen de cada llave.
+  billingPayLink: { es: "Link de pago", en: "Payment link" },
+  billingCoupon: { es: "Descuento", en: "Discount" },
+  billingNoCoupon: { es: "Sin descuento", en: "No discount" },
+  billingCopy: { es: "Copiar", en: "Copy" },
+  billingCopied: { es: "Copiado", en: "Copied" },
+
   concepto_ia_respuesta: { es: "Respuestas de la IA", en: "AI replies" },
   concepto_ia_operador: { es: "El Operador", en: "The Operator" },
   concepto_llamada_voz: { es: "Llamadas", en: "Calls" },

@@ -79,6 +79,14 @@ export async function urlDeCheckout(
   workspaceId: string,
   s: Suscripcion,
   quien: { email: string | null; nombre: string | null },
+  /**
+   * Un cupón YA creado en Stripe, para el trato que se cerró por fuera.
+   *
+   * Sólo se **elige** uno existente: crearlo desde el panel sería poder
+   * inventar un descuento con un click. Los cupones se arman en Stripe, que es
+   * donde queda el rastro de quién lo hizo y por qué.
+   */
+  opciones?: { cupon?: string | null },
 ): Promise<string> {
   if (!s.plan?.stripePriceId) {
     throw new Error('Este plan todavía no tiene precio cargado en Stripe.')
@@ -106,6 +114,7 @@ export async function urlDeCheckout(
     // El id de la cuenta viaja con la suscripción: el webhook llega sin sesión
     // y sin esto habría que adivinar de quién es.
     subscription_data: { metadata: { workspace_id: workspaceId } },
+    ...(opciones?.cupon ? { discounts: [{ coupon: opciones.cupon }] } : {}),
     success_url: volverA('/ajustes?facturacion=lista'),
     cancel_url: volverA('/ajustes?facturacion=cancelada'),
   })
@@ -335,4 +344,42 @@ export async function aplicarEvento(
     )
   }
   return `${workspaceId}: ${sub.status}`
+}
+
+/** Un descuento ya armado en Stripe, tal como se muestra en el panel. */
+export interface CuponDeStripe {
+  id: string
+  nombre: string
+  /** Cómo se lee el descuento: «-75%», «-US$300», y por cuánto tiempo. */
+  detalle: string
+}
+
+/**
+ * Los cupones vigentes.
+ *
+ * Se listan en vez de escribirse a mano porque un id tipeado mal no falla al
+ * guardarlo: falla recién cuando el comercio abre el link y ve el precio
+ * entero, que es el peor momento posible para enterarse.
+ */
+export async function cuponesVigentes(): Promise<CuponDeStripe[]> {
+  const { data } = await stripe().coupons.list({ limit: 100 })
+  return data
+    .filter((c) => c.valid)
+    .map((c) => {
+      const cuanto =
+        c.percent_off != null
+          ? `-${c.percent_off}%`
+          : c.amount_off != null
+            ? `-${(c.amount_off / 100).toFixed(2)} ${(c.currency ?? '').toUpperCase()}`
+            : ''
+      const tiempo =
+        c.duration === 'repeating' && c.duration_in_months
+          ? ` · ${c.duration_in_months} meses`
+          : c.duration === 'forever'
+            ? ' · siempre'
+            : c.duration === 'once'
+              ? ' · un mes'
+              : ''
+      return { id: c.id, nombre: c.name ?? c.id, detalle: `${cuanto}${tiempo}` }
+    })
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useT } from "@/hooks/use-locale";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Plan } from "@/lib/billing/plan";
+import type { CuponDeStripe } from "@/lib/billing/stripe";
 import type { CuentaDelNegocio, Negocio } from "@/lib/billing/negocio";
 import type { Tarifa } from "@/lib/wallet/tarifas";
 import {
@@ -755,6 +756,7 @@ function FormularioCuenta({
           />
         </Campo>
       </div>
+      <LinkDePago workspaceId={cuenta.workspaceId} />
       <div className="flex gap-2">
         <button
           type="button"
@@ -888,6 +890,103 @@ function FormularioAlta({
           {t("admin.billingCancel")}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * El link de pago de esta cuenta.
+ *
+ * Existe para que cerrar un cliente no dependa de que alguien con la clave
+ * secreta arme la sesión de Stripe a mano. El descuento se ELIGE de los cupones
+ * que ya están en Stripe: inventarlo acá sería poder regalar plata con un
+ * click, y sin rastro de quién lo hizo.
+ */
+function LinkDePago({ workspaceId }: { workspaceId: string }) {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [cupones, setCupones] = useState<CuponDeStripe[] | null>(null);
+  const [cupon, setCupon] = useState("");
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pidiendo, setPidiendo] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/admin/billing/link")
+      .then((r) => r.json())
+      .then((d) => {
+        if (vivo) setCupones((d.cupones as CuponDeStripe[]) ?? []);
+      })
+      .catch(() => {
+        if (vivo) setCupones([]);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  async function generar() {
+    setPidiendo(true);
+    setError(null);
+    setUrl(null);
+    try {
+      const res = await fetchWithCsrf("/api/admin/billing/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace_id: workspaceId, cupon: cupon || null }),
+      });
+      const d = await res.json();
+      if (!res.ok) setError(d.error ?? "no se pudo");
+      else setUrl(d.url as string);
+    } catch {
+      setError("no se pudo");
+    } finally {
+      setPidiendo(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+      <Campo label={t("admin.billingCoupon")}>
+        <select
+          className={INPUT}
+          value={cupon}
+          onChange={(e) => setCupon(e.target.value)}
+        >
+          <option value="">{t("admin.billingNoCoupon")}</option>
+          {(cupones ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre} {c.detalle}
+            </option>
+          ))}
+        </select>
+      </Campo>
+      <button
+        type="button"
+        disabled={pidiendo}
+        onClick={generar}
+        className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
+      >
+        {t("admin.billingPayLink")}
+      </button>
+      {url && (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <input readOnly value={url} className={`${INPUT} min-w-0 flex-1`} />
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(url);
+              setCopiado(true);
+            }}
+            className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          >
+            {copiado ? t("admin.billingCopied") : t("admin.billingCopy")}
+          </button>
+        </div>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
