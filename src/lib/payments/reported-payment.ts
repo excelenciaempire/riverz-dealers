@@ -60,6 +60,42 @@ export interface ReportedPaymentInput {
   amount?: number | null
   /** Fila de `messages` donde llegó, para poder volver a mirarlo. */
   messageId?: string | null
+  /**
+   * ¿El monto salió de un COMPROBANTE que la persona mandó, o de lo que
+   * escribió? No es lo mismo y hasta ahora daba igual.
+   */
+  desdeComprobante?: boolean | null
+  /** Número de operación del comprobante. Identifica UNA transferencia. */
+  referencia?: string | null
+  /** Lo demás que se leyó: fecha, banco, cuenta destino, titular. */
+  leido?: Record<string, unknown> | null
+}
+
+/** Ventana hacia atrás para buscar el archivo que la persona mandó. */
+const VENTANA_COMPROBANTE_MS = 60 * 60 * 1000
+
+/**
+ * ¿Existe de verdad un comprobante en esta conversación?
+ *
+ * El modelo dice que leyó un monto; esto comprueba que había algo que leer. Sin
+ * esta consulta, "ya te transferí 39990" escrito a mano alcanzaba para marcar
+ * el pedido pagado — y con cuatro montos cubriendo el 79% de los pedidos, el
+ * número correcto lo sabe cualquiera que vio el anuncio.
+ */
+async function hayComprobante(
+  db: SupabaseClient,
+  contactId: string,
+): Promise<boolean> {
+  const desde = new Date(Date.now() - VENTANA_COMPROBANTE_MS).toISOString()
+  const { data } = await db
+    .from('messages')
+    .select('id, conversations!inner(contact_id)')
+    .eq('conversations.contact_id', contactId)
+    .eq('sender_type', 'customer')
+    .in('media_type', ['image', 'document'])
+    .gte('created_at', desde)
+    .limit(1)
+  return ((data ?? []) as unknown[]).length > 0
 }
 
 /**
@@ -73,18 +109,20 @@ export async function registerReportedPayment(
 ): Promise<ReportOutcome> {
   const { db, workspaceId, contactId } = input
 
-  // El pedido pendiente más reciente de esta persona. Si tiene dos, gana el
-  // último: es de lo que están hablando.
-  const { data, error } = await db
+  // Los pedidos pendientes de esta persona. Se piden DOS a propósito: con más
+  // de uno no hay forma de saber cuál pagó, y elegir "el más reciente" es
+  // adivinar con la plata de otro. Ver el corte de ambigüedad más abajo.
+  const { data: pendientes, error } = await db
     .from('orders')
     .select('id, shopify_order_id, order_number, total_price, currency, financial_status')
     .eq('workspace_id', workspaceId)
     .eq('contact_id', contactId)
     .neq('financial_status', 'paid')
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    .limit(2)
   if (error) return { kind: 'error', error: error.message }
+  const varios = ((pendientes ?? []) as unknown[]).length > 1
+  const data = (pendientes ?? [])[0] ?? null
   const order = data as {
     id: string
     shopify_order_id: string | null
@@ -97,12 +135,19 @@ export async function registerReportedPayment(
 
   // Paso 1, siempre: dejar de insistir. Se anota antes de intentar cobrar,
   // porque si Shopify falla la persona igual dejó de deber la conversación.
+  const referencia = (input.referencia ?? '').trim() || null
   await db
     .from('orders')
     .update({
       payment_reported_at: new Date().toISOString(),
       payment_reported_amount: input.amount ?? null,
       payment_report_message_id: input.messageId ?? null,
+      payment_evidence: {
+        desde_comprobante: input.desdeComprobante === true,
+        referencia,
+        leido: input.leido ?? null,
+        anotado_en: new Date().toISOString(),
+      },
     })
     .eq('id', order.id)
 
@@ -115,6 +160,57 @@ export async function registerReportedPayment(
       ? 'no se pudo leer el monto del comprobante'
       : `el comprobante dice ${declarado} y el pedido es de ${esperado}`
     return { kind: 'a_confirmar', reason: motivo }
+  }
+
+  // ── Lo que el monto no alcanza a probar ────────────────────────────────
+  //
+  // El monto coincide, y eso sirve mucho menos de lo que parece: en Pilar,
+  // cuatro montos cubren el 79% de 558 pedidos y el precio está en el anuncio.
+  // Coincidir es casi la norma, no una prueba. Estos tres cortes son lo que
+  // convierte "coincide" en "consta".
+
+  // 1. Que haya un comprobante DE VERDAD. El modelo puede leer el monto del
+  //    mensaje escrito ("ya te transferí 39990") en vez de una imagen: eso es
+  //    una afirmación del cliente, no un comprobante.
+  if (input.desdeComprobante !== true || !(await hayComprobante(db, contactId))) {
+    return {
+      kind: 'a_confirmar',
+      reason: 'dijo el monto pero no hay un comprobante que lo respalde',
+    }
+  }
+
+  // 2. Un solo pedido pendiente. Con dos, el monto no dice cuál pagó —y con
+  //    precios repetidos, menos todavía.
+  if (varios) {
+    return {
+      kind: 'a_confirmar',
+      reason: 'tiene más de un pedido pendiente y no se sabe cuál pagó',
+    }
+  }
+
+  // 3. Ese comprobante no pagó ya otra cosa. Sin la referencia no hay forma de
+  //    saberlo, así que sin referencia tampoco se cobra solo: la misma captura
+  //    reenviada dos veces pagaría dos pedidos.
+  if (!referencia) {
+    return {
+      kind: 'a_confirmar',
+      reason: 'no se pudo leer el número de operación del comprobante',
+    }
+  }
+  const { data: yaUsada } = await db
+    .from('orders')
+    .select('id, order_number')
+    .eq('workspace_id', workspaceId)
+    .eq('payment_reference', referencia)
+    .neq('id', order.id)
+    .limit(1)
+    .maybeSingle()
+  if (yaUsada) {
+    const otra = (yaUsada as { order_number?: string | null }).order_number
+    return {
+      kind: 'a_confirmar',
+      reason: `ese comprobante ya se usó para el pedido ${otra ?? 'anterior'}`,
+    }
   }
 
   if (!order.shopify_order_id) {
@@ -134,6 +230,10 @@ export async function registerReportedPayment(
     .update({
       financial_status: res.financialStatus ?? 'paid',
       payment_report_outcome: 'automatico',
+      // La referencia se sella recién ACÁ, cuando el cobro salió: guardarla
+      // antes quemaría el número en un pedido que no se llegó a cobrar y el
+      // índice único dejaría al cliente sin poder usar su propio comprobante.
+      payment_reference: referencia,
     })
     .eq('id', order.id)
 
@@ -204,6 +304,22 @@ export async function informarPago(
   if (resultado.kind !== 'a_confirmar') return { resultado, pedido: null }
 
   const pedido = await pendingOrderFor(input.db, input.workspaceId, input.contactId)
+  // Con los datos del comprobante EN el aviso.
+  //
+  // Quien aprueba decide sobre plata, y antes recibía "un cliente dice que ya
+  // pagó": para resolverlo había que abrir la conversación, encontrar la
+  // imagen y leerla. Ahora va lo que se leyó y por qué no se cobró solo, que
+  // es exactamente lo que hace falta para decir sí o no.
+  const leido = (input.leido ?? {}) as Record<string, unknown>
+  const detalle = [
+    input.referencia ? `operación ${input.referencia}` : null,
+    leido.fecha ? `del ${String(leido.fecha)}` : null,
+    leido.destino ? `a ${String(leido.destino)}` : null,
+    leido.titular ? `de ${String(leido.titular)}` : null,
+    input.desdeComprobante === true ? 'leído de un comprobante' : 'lo dijo por escrito',
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const aviso = await askForApproval({
     db: input.db,
     workspaceId: input.workspaceId,
@@ -211,11 +327,15 @@ export async function informarPago(
     title: `Pago informado — pedido ${pedido?.orderNumber ?? 's/n'}`,
     body:
       `Un cliente dice que ya pagó ${pedido?.total ?? ''} ${pedido?.currency ?? ''}. ` +
-      `${input.note ?? ''} (${resultado.reason}). ¿Lo marco como pagado en Shopify?`,
+      `${input.note ?? ''} (${resultado.reason}). ${detalle}. ` +
+      `¿Lo marco como pagado en Shopify?`,
     payload: {
       order_id: pedido?.id,
       shopify_order_id: pedido?.shopifyOrderId,
       contact_id: input.contactId,
+      referencia: input.referencia ?? null,
+      desde_comprobante: input.desdeComprobante === true,
+      leido: input.leido ?? null,
     },
   })
 

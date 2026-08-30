@@ -901,7 +901,7 @@ async function pedirPermiso(
 export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
   name: 'registrar_pago',
   description:
-    'Registra que el cliente informó haber pagado su pedido pendiente (transferencia, depósito). Úsala cuando mande un comprobante o diga que ya transfirió. Si el comprobante muestra el monto, pásalo: con el monto exacto el pedido se marca como pagado solo; sin él queda esperando que alguien del negocio lo confirme. En los dos casos dejamos de mandarle recordatorios.',
+    'Registra que el cliente informó haber pagado su pedido pendiente (transferencia, depósito). Úsala cuando mande un comprobante o diga que ya transfirió. Con los datos leídos DEL COMPROBANTE el pedido puede marcarse pagado solo; con lo que la persona escriba, queda esperando que alguien del negocio lo confirme. En los dos casos dejamos de mandarle recordatorios.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -909,6 +909,32 @@ export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
         type: 'number',
         description:
           'Monto que figura en el comprobante, sólo si lo puedes leer con certeza. Sin separadores de miles. Si no se ve claro, no lo inventes: omítelo.',
+      },
+      // La distinción que decide si se cobra solo. El monto por sí solo no
+      // prueba nada: en un catálogo con pocos precios, acertarlo es trivial
+      // para cualquiera que vio el anuncio.
+      desde_comprobante: {
+        type: 'boolean',
+        description:
+          'true SÓLO si leíste el monto de una imagen o PDF que la persona adjuntó. Si lo tomaste de lo que escribió ("ya te transferí 39990"), es false. No es lo mismo y no da igual: con true el pedido se puede marcar pagado solo.',
+      },
+      referencia: {
+        type: 'string',
+        description:
+          'Número de operación / comprobante / transacción que figura en el comprobante, tal cual, sin espacios. Es lo que identifica esa transferencia y evita que la misma captura pague dos pedidos. Si no se ve, omítelo.',
+      },
+      fecha: {
+        type: 'string',
+        description: 'Fecha y hora de la transferencia como figura en el comprobante.',
+      },
+      destino: {
+        type: 'string',
+        description:
+          'A qué cuenta fue: alias, CBU, banco o titular que aparece como destinatario.',
+      },
+      titular: {
+        type: 'string',
+        description: 'Quién transfirió, si el comprobante lo muestra.',
       },
       note: {
         type: 'string',
@@ -1185,13 +1211,28 @@ export async function runTool(
         message: 'No puedo registrar pagos en esta conversación.',
       })
     }
-    const input = (toolInput ?? {}) as { amount?: number; note?: string }
+    const input = (toolInput ?? {}) as {
+      amount?: number
+      note?: string
+      desde_comprobante?: boolean
+      referencia?: string
+      fecha?: string
+      destino?: string
+      titular?: string
+    }
     const { resultado: res } = await informarPago({
       db: localOrders.db,
       workspaceId: localOrders.workspaceId,
       contactId: localOrders.contactId,
       amount: typeof input.amount === 'number' ? input.amount : null,
       note: input.note ?? null,
+      desdeComprobante: input.desde_comprobante === true,
+      referencia: input.referencia ?? null,
+      leido: {
+        fecha: input.fecha ?? null,
+        destino: input.destino ?? null,
+        titular: input.titular ?? null,
+      },
     })
 
     if (res.kind === 'sin_pedido') {
