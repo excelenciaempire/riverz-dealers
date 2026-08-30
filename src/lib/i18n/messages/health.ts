@@ -343,6 +343,23 @@ export const health: Namespace = {
     en: "Meta wouldn't publish the reply",
   },
 
+  // Estos seis existían como código y nunca habían tenido texto: el panel
+  // mostraba el identificador crudo o caía en "otro motivo". Los destapó el
+  // test de `desenlace.ts`, que exige un texto por cada desenlace declarado.
+  skip_awaiting_approval: {
+    es: "esperando que alguien la apruebe",
+    en: "waiting for someone to approve it",
+  },
+  skip_answer_gap: { es: "no sabía la respuesta", en: "didn't know the answer" },
+  skip_ai_no_credit: { es: "sin saldo para responder", en: "no balance to reply" },
+  skip_ai_rate_limited: {
+    es: "el proveedor frenó por volumen",
+    en: "the provider throttled us",
+  },
+  skip_ai_upstream: { es: "se cayó el proveedor del modelo", en: "the model provider went down" },
+  skip_ai_error: { es: "falló el modelo", en: "the model failed" },
+  skip_failed: { es: "se rompió sin llegar a contestar", en: "broke before replying" },
+
   skip_mensaje_no_recibido: {
     es: "WhatsApp no nos entregó lo que mandó, y ya se lo avisamos",
     en: "WhatsApp didn't deliver what they sent, and we already told them",

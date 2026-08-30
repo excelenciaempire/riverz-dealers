@@ -36,6 +36,7 @@ import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import {
   proactiveGate,
@@ -698,6 +699,10 @@ async function registrarSkipComentario(
       status: 'skipped',
       skip_reason: motivo,
     });
+    // La misma tabla que gobierna el chat decide si además espera a una
+    // persona. Los comentarios tenían su propia idea de eso, dispersa en tres
+    // llamadas sueltas: ahora es una sola política para todo (`desenlace.ts`).
+    await aplicarDesenlace(db, conversationId, motivo);
   } catch (err) {
     console.error('[comentarios] no se pudo registrar el motivo:', motivo, err);
   }

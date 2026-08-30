@@ -300,7 +300,15 @@ export type NeedsHumanReason =
    *  permiso que le falta a la cuenta—, así que el comentario sigue a la vista
    *  y sin respuesta. Lo mira una persona, que sí puede hacerlo desde la app
    *  mientras se arregla el permiso. */
-  | 'comment_sin_moderar';
+  | 'comment_sin_moderar'
+  /** El modelo no devolvió nada usable —texto vacío, o una respuesta que las
+   *  guardas descartaron— así que el cliente escribió y no recibió nada. NO
+   *  apaga la IA: el hilo se recupera solo en el próximo mensaje. */
+  | 'ia_sin_respuesta'
+  /** El proveedor del modelo falló (sin saldo, límite, caída) y al cliente se
+   *  le mandó "en un momento te responde una persona". Esa promesa la tiene
+   *  que cumplir alguien. Tampoco apaga la IA: la caída es pasajera. */
+  | 'ia_caida';
 
 export interface Conversation {
   id: string;

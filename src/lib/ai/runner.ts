@@ -51,6 +51,7 @@ import {
   WEBCHAT_DEBOUNCE_SECONDS,
 } from './types';
 import { isUnsupportedSnippet } from '@/lib/channels/display';
+import { aplicarDesenlace } from './desenlace';
 import {
   withinBusinessHours,
   containsEscalationKeyword as hasEscalationKeyword,
@@ -3338,6 +3339,21 @@ async function logReply(
     tools_used: patch.tools_used?.length ? patch.tools_used : null,
     model: patch.model ?? null,
   });
+  // Y lo que ese desenlace obliga a hacer con la conversación.
+  //
+  // Va ACÁ y no en cada guarda a propósito: `logReply` es el embudo por el que
+  // pasan los veintitantos finales posibles de un turno, así que es el único
+  // lugar donde "registrar" y "escalar" no se pueden separar. Cuando eran dos
+  // llamadas sueltas, tres desenlaces se olvidaban de la segunda y el cliente
+  // se quedaba sin respuesta con la conversación en verde (ver `desenlace.ts`).
+  // Las guardas que ya escalan con un resumen mejor siguen mandando: esto no
+  // pisa un escalado existente.
+  await aplicarDesenlace(
+    db,
+    args.conversation.id,
+    patch.skip_reason ?? patch.status,
+    patch.error ?? null,
+  );
 }
 
 /**

@@ -51,6 +51,15 @@ export const inbox = {
     en: "They keep sending something WhatsApp doesn't deliver to us. Open it on the phone, it shows there.",
   },
 
+  needsHumanSinRespuesta: {
+    es: "El asistente no llegó a responder este mensaje. Contéstalo tú.",
+    en: "The assistant couldn't answer this message. Reply yourself.",
+  },
+  needsHumanIaCaida: {
+    es: "Le dijimos que en un momento le responde una persona: el asistente no pudo. Cumple esa promesa.",
+    en: "We told them a person would reply shortly and the assistant couldn't. Make good on it.",
+  },
+
   needsHumanSinModerar: {
     es: "Meta no nos dejó responder ni ocultar este comentario. Sigue publicado: revisa los permisos de la cuenta en Ajustes → Canales.",
     en: "Meta wouldn't let us reply to or hide this comment. It's still public: check the account's permissions in Settings → Channels.",
