@@ -1235,6 +1235,20 @@ export async function runTool(
       },
     })
 
+    if (res.kind === 'ya_pagado') {
+      // La mejor noticia posible, y la teníamos a mano. NO se escala: no hay
+      // nada que revisar. Antes caía en `sin_pedido` y salía "lo estamos
+      // verificando", que le hacía dudar de algo que estaba resuelto.
+      return JSON.stringify({
+        ok: true,
+        estado: 'ya_pagado',
+        pedido: res.orderNumber,
+        total: res.total,
+        moneda: res.currency,
+        message:
+          'Su pedido YA figura pagado. Díselo con el número de pedido y continúa con lo que viene (preparación y despacho). No le digas que lo están verificando: ya está.',
+      })
+    }
     if (res.kind === 'sin_pedido') {
       // Mandó el comprobante y no encontramos su pedido. Casi nunca es que no
       // exista: los pedidos de Shopify no están espejados acá, y quien paga por

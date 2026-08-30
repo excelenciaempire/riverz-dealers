@@ -23,6 +23,9 @@ function db(opts: {
   hayAdjunto?: boolean
   /** La fila de configuración de la cuenta. Sin ella rigen las de siempre. */
   config?: Fila | null
+  /** Un pedido de esta persona que YA está pagado. Es la otra rama de "no hay
+   *  pendiente", y son respuestas opuestas. */
+  pagado?: Fila | null
 }) {
   const escrituras: Fila[] = []
   const pendientes = opts.pendientes ?? []
@@ -43,9 +46,11 @@ function db(opts: {
     // orders
     const q: Record<string, unknown> = {}
     let esBusquedaDeReferencia = false
+    let esBusquedaDePagado = false
     q.select = () => q
-    q.eq = (col: string) => {
+    q.eq = (col: string, val: unknown) => {
       if (col === 'payment_reference') esBusquedaDeReferencia = true
+      if (col === 'financial_status' && val === 'paid') esBusquedaDePagado = true
       return q
     }
     q.neq = () => q
@@ -57,6 +62,9 @@ function db(opts: {
     q.limit = (n: number) => {
       if (esBusquedaDeReferencia) {
         return { maybeSingle: async () => ({ data: opts.referenciaUsadaPor ?? null }) }
+      }
+      if (esBusquedaDePagado) {
+        return { maybeSingle: async () => ({ data: opts.pagado ?? null, error: null }) }
       }
       const r = { data: pendientes.slice(0, n), error: null }
       return Object.assign(Promise.resolve(r), {
@@ -240,5 +248,60 @@ describe('dejar de insistir pasa SIEMPRE', () => {
     expect(ev.referencia).toBe('OP-12345')
     expect(ev.desde_comprobante).toBe(true)
     expect((ev.leido as Record<string, unknown>).destino).toBe('alias.pilar')
+  })
+})
+
+/**
+ * "Ya te transferi" cuando el pedido YA estaba pagado.
+ *
+ * La consulta de pendientes descarta los pagados, asi que esto caia en
+ * `sin_pedido` y de ahi salia "lo estamos verificando y te aviso" — falso, y
+ * encima mandaba a una persona a revisar algo resuelto. Visto en produccion el
+ * 2026-08-30: el pedido figuraba pagado SEIS MINUTOS antes de que la clienta
+ * mandara el comprobante.
+ */
+describe('el pedido ya estaba pagado', () => {
+  const PAGADO = { order_number: '#52733', total_price: '39990', currency: 'ARS' }
+
+  it('lo dice, con el numero de pedido', async () => {
+    const { db: d } = db({ pendientes: [], pagado: PAGADO })
+    const res = await registerReportedPayment({
+      db: d,
+      workspaceId: 'w1',
+      contactId: 'c1',
+      amount: 39990,
+      desdeComprobante: true,
+    })
+    expect(res.kind).toBe('ya_pagado')
+    if (res.kind !== 'ya_pagado') return
+    expect(res.orderNumber).toBe('#52733')
+    expect(res.total).toBe('39990')
+  })
+
+  it('sin ningun pedido sigue siendo sin_pedido', async () => {
+    // La otra mitad: no confundir "ya esta" con "no lo encontramos". El
+    // segundo SI tiene que ir a una persona.
+    const { db: d } = db({ pendientes: [], pagado: null })
+    const res = await registerReportedPayment({
+      db: d,
+      workspaceId: 'w1',
+      contactId: 'c1',
+      amount: 39990,
+      desdeComprobante: true,
+    })
+    expect(res.kind).toBe('sin_pedido')
+  })
+
+  it('con un pendiente NO mira los pagados: se cobra ese', async () => {
+    const { db: d } = db({ pendientes: [PEDIDO], pagado: PAGADO, hayAdjunto: true })
+    const res = await registerReportedPayment({
+      db: d,
+      workspaceId: 'w1',
+      contactId: 'c1',
+      amount: 39990,
+      desdeComprobante: true,
+      referencia: '0001234567',
+    })
+    expect(res.kind).not.toBe('ya_pagado')
   })
 })

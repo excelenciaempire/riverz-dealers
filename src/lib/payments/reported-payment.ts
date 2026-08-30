@@ -56,6 +56,17 @@ export function montoCoincide(
 export type ReportOutcome =
   | { kind: 'cobrado'; amount: string }
   | { kind: 'a_confirmar'; reason: string; approvalId?: string }
+  /**
+   * Mandá el comprobante y su pedido YA estaba pagado.
+   *
+   * Caía en `sin_pedido` —la consulta descarta los pagados— y de ahí salía
+   * "lo estamos verificando y te aviso", que es falso y además manda a una
+   * persona a revisar algo que está resuelto. Visto el 2026-08-30: su pedido
+   * figuraba pagado seis minutos ANTES de que mandara el comprobante.
+   *
+   * Es la respuesta más tranquilizadora que hay y la teníamos a mano.
+   */
+  | { kind: 'ya_pagado'; orderNumber: string | null; total: string | null; currency: string | null }
   | { kind: 'sin_pedido' }
   | { kind: 'error'; error: string }
 
@@ -145,7 +156,33 @@ export async function registerReportedPayment(
     currency: string | null
     financial_status: string | null
   } | null
-  if (!order) return { kind: 'sin_pedido' }
+  if (!order) {
+    // Antes de decir "no encontramos tu pedido": mirar si lo que tiene es un
+    // pedido YA PAGADO. Son dos respuestas opuestas y esto las separaba mal.
+    const { data: pagado } = await db
+      .from('orders')
+      .select('order_number, total_price, currency')
+      .eq('workspace_id', workspaceId)
+      .eq('contact_id', contactId)
+      .eq('financial_status', 'paid')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const fila = pagado as {
+      order_number: string | null
+      total_price: string | null
+      currency: string | null
+    } | null
+    if (fila) {
+      return {
+        kind: 'ya_pagado',
+        orderNumber: fila.order_number,
+        total: fila.total_price,
+        currency: fila.currency,
+      }
+    }
+    return { kind: 'sin_pedido' }
+  }
 
   // Paso 1, siempre: dejar de insistir. Se anota antes de intentar cobrar,
   // porque si Shopify falla la persona igual dejó de deber la conversación.

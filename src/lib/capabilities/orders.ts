@@ -298,6 +298,16 @@ async function registrarPago(ctx: CapabilityContext, args: Record<string, unknow
     note: typeof args.nota === 'string' ? args.nota : null,
   })
 
+  if (resultado.kind === 'ya_pagado') {
+    return {
+      ok: true,
+      estado: 'ya_pagado',
+      pedido: resultado.orderNumber,
+      total: resultado.total,
+      moneda: resultado.currency,
+      nota: 'No hay nada que verificar: ese pedido ya figura pagado.',
+    }
+  }
   if (resultado.kind === 'sin_pedido') {
     return { ok: false, motivo: 'esa persona no tiene ningún pedido pendiente de pago' }
   }
