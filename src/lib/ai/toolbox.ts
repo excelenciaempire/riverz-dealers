@@ -254,6 +254,27 @@ export function toolNeedsApproval(agent: AgentLike, key: string): boolean {
 }
 
 /**
+ * Las herramientas que el comercio puso "con aprobación", en la forma que
+ * espera `localOrders.requiereAprobacion`.
+ *
+ * Cancelar y reembolsar quedan afuera porque ya preguntan por su cuenta
+ * (`proponeSolo`): ponerles el freno encima pediría dos confirmaciones por lo
+ * mismo.
+ *
+ * Vive acá y no en el runner porque la lista tiene que ser IDÉNTICA en todas
+ * las superficies. Cuando estaba escrita en línea dentro del runner, el
+ * compositor de comentarios llamaba a `runWithTools` sin ella y el modo
+ * "aprobación" no existía en la superficie pública: un comercio con
+ * `crear_pedido` en aprobación tenía pedidos reales creados desde un
+ * comentario sin que nadie los aprobara.
+ */
+export function herramientasQueRequierenAprobacion(agent: AgentLike): string[] {
+  return AGENT_TOOLBOX.filter(
+    (t) => !t.proponeSolo && toolMode(agent, t.key) === 'aprobacion',
+  ).map((t) => t.key)
+}
+
+/**
  * Normaliza lo que llega del formulario: descarta claves desconocidas y modos
  * que la herramienta no admite. El cuerpo de un PATCH lo arma un cliente que no
  * controlamos, y esto termina decidiendo si sale plata sola.

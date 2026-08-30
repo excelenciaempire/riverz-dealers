@@ -14,9 +14,10 @@ import {
   loadRecentContactNotes,
   detectInboundProduct,
   resolveShopifyContext,
+  productosPermitidos,
 } from './runner';
 import { runWithTools } from './tools';
-import { toolEnabled } from './toolbox';
+import { toolEnabled, herramientasQueRequierenAprobacion } from './toolbox';
 import { resolverRegistro } from './registro-rioplatense';
 import { cargarReglas, reglasATexto } from './guidance';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
@@ -237,8 +238,40 @@ export async function composeSuperAgentReply(
       modo: 'comentario',
     });
 
+    // La puerta de "con aprobación", que en esta superficie NO EXISTÍA.
+    //
+    // `runWithTools` frena una herramienta y pide permiso mirando
+    // `localOrders.requiereAprobacion`. Acá se llamaba sin `localOrders`, así
+    // que el freno nunca podía dispararse: un comercio con `crear_pedido` en
+    // "aprobación" tenía pedidos reales creados desde un comentario público,
+    // sin que nadie los aprobara. En el chat funcionaba; acá no.
+    //
+    // `canCreateOrders` sigue saliendo de `toolEnabled` (arriba) a propósito:
+    // la herramienta tiene que ANUNCIARSE para que el modelo la llame y choque
+    // contra la puerta. Sacarla del anuncio sería otra respuesta distinta
+    // según por dónde escriba la misma persona.
+    //
+    // `conversationId` es el hilo de COMENTARIOS: la solicitud de aprobación
+    // necesita un hilo donde abrirse. El pedido sigue naciendo sin conversación
+    // (`shopify.conversationId` sin setear, arriba), que es otra decisión.
+    const localOrders = primaryContact.id
+      ? {
+          db,
+          workspaceId: input.workspaceId,
+          contactId: primaryContact.id,
+          conversationId: conversation.id,
+          agentId: agent.id,
+          channel: (input.commentChannel ?? 'ig_comment') as string,
+          // De qué productos puede hablar. Sin esto, `buscar_producto` desde un
+          // comentario ofrecía cosas fuera del catálogo del agente.
+          permitidos: await productosPermitidos(db, agent, input.workspaceId),
+          requiereAprobacion: herramientasQueRequierenAprobacion(agent),
+        }
+      : null;
+
     const maxChars = Math.min(agent.max_response_chars || 500, IG_DM_MAX_CHARS);
     const result = await runWithTools(getAnthropic(apiKey), {
+      localOrders,
       model: agent.model || MODELO_POR_DEFECTO,
       // Lo que el modelo piensa sale del mismo presupuesto que la
       // respuesta: sin aire se queda sin lugar para contestar.

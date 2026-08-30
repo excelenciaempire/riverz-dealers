@@ -62,7 +62,7 @@ import {
   type CandidateProduct,
   type ProductMatch,
 } from './product-routing';
-import { AGENT_TOOLBOX, toolEnabled, toolMode } from './toolbox';
+import { toolEnabled, herramientasQueRequierenAprobacion } from './toolbox';
 import { unidadesDelTitulo } from '@/lib/products/unify';
 import { expandirGrupos } from '@/lib/products/agrupar';
 import {
@@ -2419,12 +2419,9 @@ async function generateReply(
           channel: origen.channel,
           // De qué productos puede hablar: lo usa `buscar_producto`.
           permitidos,
-          // Las que el comercio puso "con aprobación". Cancelar y reembolsar
-          // quedan afuera porque ya preguntan por su cuenta: ponerles el freno
-          // encima pediría dos confirmaciones por lo mismo.
-          requiereAprobacion: AGENT_TOOLBOX.filter(
-            (t) => !t.proponeSolo && toolMode(agent, t.key) === 'aprobacion',
-          ).map((t) => t.key),
+          // Las que el comercio puso "con aprobación". La lista la arma el
+          // toolbox para que sea la MISMA en el chat y en los comentarios.
+          requiereAprobacion: herramientasQueRequierenAprobacion(agent),
         }
       : null,
     model: agent.model || MODELO_POR_DEFECTO,
