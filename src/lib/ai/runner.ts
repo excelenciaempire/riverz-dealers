@@ -2820,8 +2820,23 @@ export function buildSystemPrompt(
           'Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda.',
         );
       } else {
+        // EL CONTRA ENTREGA NO SE DA POR SUPUESTO.
+        //
+        // Este es el modo POR DEFECTO, así que su texto lo hereda todo comercio
+        // que no eligió nada — y decía "si paga contra entrega, toma el pedido
+        // aquí mismo", afirmando que ese medio de pago existe. No existe en
+        // todos: Pilar vende sólo por la web, y el 2026-08-29 la IA le contestó
+        // "¡Perfecto! Un frasco a $39.990, pago contra entrega" a una clienta
+        // que lo dio por hecho, en público bajo el anuncio, y le pidió la
+        // dirección. La IA no lo inventó: lo leyó de acá.
+        //
+        // Ahora el contra entrega sólo se toma si el comercio lo declaró en sus
+        // reglas o en la ficha del producto. Sin ese dato no se ofrece y no se
+        // confirma: se pasa a una persona. Quien SÍ trabaja contra entrega lo
+        // pone en las reglas y funciona igual; quien no, deja de prometer algo
+        // que no puede cumplir.
         lines.push(
-          'Cómo se cobra, según cómo quiera pagar: si paga contra entrega (al recibir), toma el pedido aquí mismo, pídele nombre, dirección completa y confirmación, y créalo tú. Si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat: esos datos los toma la caja. Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.',
+          'Cómo se cobra, según cómo quiera pagar: si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat, que esos datos los toma la caja. Si te dice que quiere pagar al recibir (contra entrega), NO se lo confirmes por tu cuenta y no lo ofrezcas tú nunca: sólo tomas el pedido aquí si el contra entrega figura en las reglas del negocio o en la ficha del producto. Si no figura, dile que lo confirmas y pasa la conversación a una persona. Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.',
         );
       }
     }

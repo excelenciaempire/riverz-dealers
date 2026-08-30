@@ -139,6 +139,13 @@ export const deliveryErrors = {
     es: "WhatsApp no entregó el mensaje y no informó el motivo (posible filtrado o número no alcanzable).",
     en: "WhatsApp didn't deliver the message and gave no reason (possible filtering or an unreachable number).",
   },
+  // El mismo caso fuera de WhatsApp. El de arriba se mostraba en todos los
+  // canales, así que un comentario de Instagram decía "WhatsApp no entregó el
+  // mensaje" — un motivo falso sobre una plataforma que no interviene.
+  noReasonOtro: {
+    es: "No se pudo entregar y la plataforma no informó el motivo.",
+    en: "It couldn't be delivered and the platform gave no reason.",
+  },
   unconfirmed: {
     es: "Enviado, pero WhatsApp no confirmó la entrega. Puede que el número no tenga WhatsApp o su teléfono esté apagado.",
     en: "Sent, but WhatsApp hasn't confirmed delivery. The number may not be on WhatsApp or the phone may be off.",

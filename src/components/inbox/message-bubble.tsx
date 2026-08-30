@@ -33,6 +33,7 @@ import { useTimezone } from "@/hooks/use-timezone";
 import { useT } from "@/hooks/use-locale";
 import { deliveryErrorKey } from "@/lib/whatsapp/delivery-errors";
 import {
+  COMMENT_DELETED_TEXT,
   isUnsupportedSnippet,
   isUnsupportedMediaSnippet,
   isCommentDeleted,
@@ -82,15 +83,28 @@ function deliveryReasonText(
     | "held_for_quality"
     | "delivery_unconfirmed_at"
     | "channel"
+    | "content_text"
   >,
   t: (key: string, params?: Record<string, string | number>) => string,
 ): string | null {
   const confirmed = message.status === "delivered" || message.status === "read";
   if (message.status === "failed") {
+    // BORRADO NO ES FALLIDO.
+    //
+    // `status: 'failed'` + el centinela de texto es como `comment-sync` marca
+    // un comentario borrado (no hay columna propia). Acá se leía como una
+    // entrega que falló, así que un comentario que alguien borró a propósito
+    // salía en rojo — y encima con el motivo de abajo, que habla de WhatsApp.
+    if ((message.content_text ?? "").trim() === COMMENT_DELETED_TEXT) return null;
     const key = deliveryErrorKey(message.error_code);
     if (key) return t(key, { code: message.error_code ?? "" });
     if (message.error_reason) return message.error_reason;
-    return t("deliveryErrors.noReason");
+    // El "no informó el motivo" nombra a WhatsApp, y se mostraba en cualquier
+    // canal: un comentario de Instagram decía "WhatsApp no entregó el mensaje"
+    // (visto el 2026-08-30). Fuera de WhatsApp, algo neutro y cierto.
+    return message.channel === "whatsapp"
+      ? t("deliveryErrors.noReason")
+      : t("deliveryErrors.noReasonOtro");
   }
   if (!confirmed && message.held_for_quality) return t("deliveryErrors.held");
   if (unconfirmedWhatsApp(message)) return t("deliveryErrors.unconfirmed");
