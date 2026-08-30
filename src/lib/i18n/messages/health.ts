@@ -331,6 +331,27 @@ export const health: Namespace = {
     es: "el hilo estaba cerrado",
     en: "the thread was closed",
   },
+  skip_motor_apagado: {
+    es: "la cuenta está suspendida",
+    en: "the account is suspended",
+  },
+  skip_sin_saldo: { es: "sin saldo", en: "out of balance" },
+  skip_suscripcion_vencida: {
+    es: "la suscripción venció",
+    en: "the subscription expired",
+  },
+  skip_csat_capturada: {
+    es: "era la nota de la encuesta",
+    en: "it was the survey rating",
+  },
+  skip_sin_agente: {
+    es: "no hay ningún asistente para ese canal",
+    en: "there's no assistant for that channel",
+  },
+  skip_comment_red_apagada: {
+    es: "esa red está apagada en Comentarios",
+    en: "that network is off in Comments",
+  },
   skip_comment_espera_aprobacion: {
     es: "la respuesta espera tu aprobación",
     en: "the reply is waiting for your approval",

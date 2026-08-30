@@ -78,6 +78,25 @@ export const POLITICA = {
   stale_by_newer_inbound: NO_ESCALA('llegó otro mensaje: lo cubre ese turno'),
   awaiting_approval: NO_ESCALA('la respuesta espera un clic, no una persona'),
 
+  // ── Se fue antes de elegir agente ───────────────────────────────────────
+  // Los cuatro salían con un `return` a secas y no dejaban fila: la pregunta
+  // "¿por qué no contestó?" no tenía respuesta ni mirando la base.
+  //
+  // Ninguno escala. Tres son decisiones del comercio o nuestras —la cuenta
+  // suspendida, el saldo, la encuesta contestada— y marcar "necesita humano"
+  // por cada mensaje que llega con la cuenta apagada llenaría la bandeja de
+  // avisos que no dicen nada nuevo. El aviso de que la IA está callada ya lo
+  // da `estadoDeCobro` arriba de la pantalla, una vez y no por mensaje.
+  motor_apagado: NO_ESCALA('la cuenta está suspendida o sin aprobar'),
+  sin_saldo: NO_ESCALA('sin saldo: lo dice el cartel de arriba, no cada hilo'),
+  suscripcion_vencida: NO_ESCALA('la suscripción venció'),
+  csat_capturada: NO_ESCALA('era la nota de la encuesta, no una consulta'),
+  // Éste sí es configuración que falta: no hay ningún agente para ese canal.
+  // Tampoco escala —no hay nada que una persona tenga que atender en ESE
+  // hilo— pero deja de ser invisible.
+  sin_agente: NO_ESCALA('no hay ningún asistente para ese canal'),
+  comment_red_apagada: NO_ESCALA('esa red está apagada en Comentarios'),
+
   // ── La IA se corre a propósito ──────────────────────────────────────────
   escalation_keyword: ESCALA('escalation_keyword', 'lo pidió el cliente'),
   escalate_after_messages: ESCALA('escalate_after_messages', 'se acabó el cupo de respuestas'),

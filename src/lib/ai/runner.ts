@@ -150,7 +150,10 @@ export async function runAiAgent(
     // Motor apagado —suspendida por cobro, o esperando que el comercio
     // apruebe la instalación—: el asistente no contesta. Antes de elegir
     // agente y antes de gastar la clave de IA, que casi siempre paga Riverz.
-    if (await motorApagado(db, args.workspaceId)) return;
+    if (await motorApagado(db, args.workspaceId)) {
+      await anotarSalida(db, args, 'motor_apagado');
+      return;
+    }
 
     // Sin saldo o con la suscripcion vencida: la IA no habla.
     //
@@ -161,6 +164,7 @@ export async function runAiAgent(
     const puerta = await puertaDeIa(db, args.workspaceId);
     if (!puerta.puede) {
       console.warn('[ai] apagado por', puerta.motivo, args.workspaceId);
+      await anotarSalida(db, args, puerta.motivo ?? 'sin_saldo');
       return;
     }
 
@@ -178,7 +182,10 @@ export async function runAiAgent(
       contactId: args.contact.id,
       texto: args.inboundMessage.content_text ?? '',
     });
-    if (calificada) return;
+    if (calificada) {
+      await anotarSalida(db, args, 'csat_capturada');
+      return;
+    }
 
     // ── Product routing ──
     // 1. Detect which product the customer is talking about. The
@@ -225,7 +232,10 @@ export async function runAiAgent(
           .pending_checkout_at,
       ),
     });
-    if (!agent) return;
+    if (!agent) {
+      await anotarSalida(db, args, 'sin_agente');
+      return;
+    }
 
     const skip = shouldSkip(agent, args);
     if (skip) {
@@ -3616,4 +3626,38 @@ export async function resolveOtherStore(
     customerEmail: primaryContact.email ?? null,
     customerPhone: primaryContact.phone ?? null,
   };
+}
+
+/**
+ * Los cuatro caminos por los que el turno se iba SIN DEJAR NADA.
+ *
+ * `logReply` necesita un agente, y estos cuatro salen antes de elegir uno: el
+ * motor apagado, la puerta del saldo, la respuesta a un "¿te sirvió?" y no
+ * haber ningún agente para ese canal. Los cuatro devolvían `return` a secas,
+ * así que la pregunta más frecuente del comercio —"¿por qué no contestó?"— no
+ * tenía respuesta ni mirando la base: no había fila que mirar.
+ *
+ * `agent_id` va nulo a propósito: en tres de los cuatro todavía no se eligió
+ * ninguno, y en el cuarto el problema es justamente que no hay.
+ *
+ * Best-effort: la telemetría no puede tumbar el camino que observa.
+ */
+async function anotarSalida(
+  db: SupabaseClient,
+  args: { workspaceId: string; conversation: Conversation; inboundMessage: Message },
+  motivo: string,
+): Promise<void> {
+  try {
+    await db.from('ai_replies').insert({
+      agent_id: null,
+      workspace_id: args.workspaceId,
+      conversation_id: args.conversation.id,
+      message_id: args.inboundMessage.id ?? null,
+      status: 'skipped',
+      skip_reason: motivo,
+    });
+    await aplicarDesenlace(db, args.conversation.id, motivo);
+  } catch (err) {
+    console.error('[ai] no se pudo anotar la salida:', motivo, err);
+  }
 }

@@ -4,6 +4,7 @@ import { processCommentForDmRules } from '@/lib/comment-to-dm/engine';
 import { maybeInstantOutreach } from '@/lib/instagram-agent/realtime';
 import { loadCommentSettings } from '@/lib/instagram-agent/controls';
 import { anotarPublicacion } from '@/lib/channels/publicacion-media';
+import { loadCommentConversation, type CommentChannel } from '@/lib/comments/hilo';
 
 /**
  * UN solo portero para cada comentario que entra.
@@ -107,7 +108,13 @@ export async function routeComment(
       : ev.channel === 'tiktok_comment'
         ? cfg.tiktok
         : cfg.instagram;
-  if (!redActiva) return;
+  if (!redActiva) {
+    // Sin fila, "no contesto" no tiene respuesta ni mirando la base. Y este es
+    // el caso mas frecuente: `comment_facebook` nace apagado, asi que un
+    // comercio que espera respuestas en Facebook ve silencio y nada mas.
+    await registrarSkipDeComentario(db, ev, 'comment_red_apagada');
+    return;
+  }
   try {
     await maybeInstantOutreach(db, {
       workspaceId: ev.workspaceId,
@@ -121,5 +128,37 @@ export async function routeComment(
     });
   } catch (err) {
     console.error('[comment-router] agente falló:', err);
+  }
+}
+
+/**
+ * Por qué este comentario no se contestó, cuando la decisión se toma ANTES de
+ * llegar al piso autónomo.
+ *
+ * `registrarSkipComentario` vive dentro de `realtime` y necesita su contexto;
+ * acá alcanza con el hilo de esa persona en esa red. Best-effort: la
+ * telemetría no puede tumbar el camino que observa.
+ */
+async function registrarSkipDeComentario(
+  db: SupabaseClient,
+  ev: { workspaceId: string; channel: CommentChannel; contact: { id: string } },
+  motivo: string,
+): Promise<void> {
+  try {
+    const hilo = await loadCommentConversation(db, {
+      workspaceId: ev.workspaceId,
+      contactId: ev.contact.id,
+      channel: ev.channel,
+    });
+    if (!hilo) return;
+    await db.from('ai_replies').insert({
+      workspace_id: ev.workspaceId,
+      conversation_id: hilo.id,
+      agent_id: null,
+      status: 'skipped',
+      skip_reason: motivo,
+    });
+  } catch (err) {
+    console.error('[comentarios] no se pudo registrar el motivo:', motivo, err);
   }
 }

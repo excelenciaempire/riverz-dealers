@@ -164,3 +164,32 @@ describe('la política dice cosas coherentes', () => {
     }
   })
 })
+
+describe('ningún camino se va sin dejar fila', () => {
+  it('los cuatro que salían antes de elegir agente tienen política', () => {
+    // Salían con un `return` a secas: la pregunta más frecuente del comercio
+    // —«¿por qué no contestó?»— no tenía respuesta ni mirando la base, porque
+    // no había fila que mirar.
+    for (const motivo of [
+      'motor_apagado',
+      'sin_saldo',
+      'suscripcion_vencida',
+      'csat_capturada',
+      'sin_agente',
+      'comment_red_apagada',
+    ]) {
+      expect(POLITICA, `${motivo} sin política`).toHaveProperty(motivo)
+    }
+  })
+
+  it('el runner los escribe, no sólo los declara', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'ai', 'runner.ts'),
+      'utf8',
+    )
+    expect(src).toContain('anotarSalida')
+    for (const motivo of ['motor_apagado', 'csat_capturada', 'sin_agente']) {
+      expect(src, `el runner no anota ${motivo}`).toContain(`'${motivo}'`)
+    }
+  })
+})
