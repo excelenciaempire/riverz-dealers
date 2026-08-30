@@ -42,10 +42,66 @@ export async function setCommentHidden(
       ),
       signal: AbortSignal.timeout(15_000),
     });
-    if (res.ok) await anotarOculto(commentId, hidden, motivo);
-    return res.ok;
-  } catch {
+    if (res.ok) {
+      await anotarOculto(commentId, hidden, motivo);
+      return true;
+    }
+    await anotarFalloDeModeracion(connection, channel, res);
     return false;
+  } catch (err) {
+    await anotarFalloDeModeracion(
+      connection,
+      channel,
+      null,
+      err instanceof Error ? err.message : String(err),
+    );
+    return false;
+  }
+}
+
+/**
+ * QUÉ dijo Meta cuando no dejó moderar.
+ *
+ * Antes esto era un `return false` a secas: si a la cuenta le falta
+ * `pages_manage_engagement`, ocultar falla en TODOS los comentarios, para
+ * siempre, y no queda una sola línea en ningún lado. Facebook llevaba dos meses
+ * así — ni una respuesta ni un ocultado de la IA, y cero errores registrados
+ * (visto el 2026-08-30). Un permiso que falta es un arreglo de dos minutos en
+ * el panel de Meta; lo caro es no enterarse.
+ *
+ * Queda en `channel_connections.last_error`, que es lo que mira el panel de
+ * canales, y en el log con el cuerpo entero de Graph.
+ */
+async function anotarFalloDeModeracion(
+  connection: ChannelConnection,
+  channel: 'ig_comment' | 'fb_comment',
+  res: Response | null,
+  motivo?: string,
+): Promise<void> {
+  let detalle = motivo ?? `HTTP ${res?.status ?? '?'}`;
+  try {
+    if (res) {
+      const cuerpo = await res.text();
+      const j = JSON.parse(cuerpo) as { error?: { message?: string; code?: number } };
+      if (j.error?.message) {
+        detalle = `#${j.error.code ?? '?'} ${j.error.message}`;
+      } else if (cuerpo.trim()) {
+        detalle = cuerpo.trim().slice(0, 300);
+      }
+    }
+  } catch {
+    /* el cuerpo no era JSON: sirve lo que ya se armó */
+  }
+  const texto = `no se pudo moderar el comentario (${channel}): ${detalle}`.slice(0, 500);
+  console.error('[comments]', texto);
+  try {
+    const { supabaseAdmin } = await import('@/lib/automations/admin-client');
+    await supabaseAdmin()
+      .from('channel_connections')
+      .update({ last_error: texto })
+      .eq('id', connection.id);
+  } catch (err) {
+    console.error('[comments] no se pudo anotar el fallo de moderación:', err);
   }
 }
 

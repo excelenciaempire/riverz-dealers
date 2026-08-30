@@ -334,6 +334,14 @@ export const health: Namespace = {
     en: "the reply promised to check back",
   },
   skip_comment_error: { es: "falló al contestar", en: "failed while replying" },
+  skip_comment_no_se_pudo_ocultar: {
+    es: "Meta no dejó ocultarlo",
+    en: "Meta wouldn't hide it",
+  },
+  skip_comment_no_se_pudo_publicar: {
+    es: "Meta no dejó publicar la respuesta",
+    en: "Meta wouldn't publish the reply",
+  },
 
   skip_mensaje_no_recibido: {
     es: "WhatsApp no nos entregó lo que mandó, y ya se lo avisamos",

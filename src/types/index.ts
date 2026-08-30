@@ -295,7 +295,12 @@ export type NeedsHumanReason =
    *  una encuesta, una función nueva): llega el aviso y ningún archivo. Se le
    *  avisa UNA vez; si insiste, otro mensaje no lo va a resolver y lo mira una
    *  persona, que sí puede abrirlo en el teléfono. */
-  | 'mensaje_no_recibido';
+  | 'mensaje_no_recibido'
+  /** Meta rechazó ocultar o publicar en un comentario —típicamente por un
+   *  permiso que le falta a la cuenta—, así que el comentario sigue a la vista
+   *  y sin respuesta. Lo mira una persona, que sí puede hacerlo desde la app
+   *  mientras se arregla el permiso. */
+  | 'comment_sin_moderar';
 
 export interface Conversation {
   id: string;

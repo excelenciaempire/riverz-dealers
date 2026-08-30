@@ -51,6 +51,11 @@ export const inbox = {
     en: "They keep sending something WhatsApp doesn't deliver to us. Open it on the phone, it shows there.",
   },
 
+  needsHumanSinModerar: {
+    es: "Meta no nos dejó responder ni ocultar este comentario. Sigue publicado: revisa los permisos de la cuenta en Ajustes → Canales.",
+    en: "Meta wouldn't let us reply to or hide this comment. It's still public: check the account's permissions in Settings → Channels.",
+  },
+
   // Status filter (conversation list)
   filterAll: { es: "Todas", en: "All" },
   filterOpen: { es: "Abiertas", en: "Open" },

@@ -11,7 +11,12 @@ import {
   mereceRespuesta,
   esCriticaPublica,
 } from './merece-respuesta';
-import type { ChannelConnection, Contact, Conversation } from '@/types';
+import type {
+  ChannelConnection,
+  Contact,
+  Conversation,
+  NeedsHumanReason,
+} from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { messengerAdapter } from '@/lib/channels/messenger/adapter';
@@ -146,6 +151,9 @@ async function marcarParaUnaPersona(
   db: SupabaseClient,
   contactId: string,
   pregunta: string,
+  /** Por qué escala. Por defecto, el caso original: la IA no supo contestar. */
+  motivo: NeedsHumanReason = 'answer_gap',
+  resumen?: string,
 ): Promise<void> {
   try {
     const { data } = await db
@@ -161,8 +169,10 @@ async function marcarParaUnaPersona(
       .from('conversations')
       .update({
         needs_human_at: new Date().toISOString(),
-        needs_human_reason: 'answer_gap',
-        needs_human_summary: `Preguntó: "${pregunta.slice(0, 200)}". La IA no sabe la respuesta.`,
+        needs_human_reason: motivo,
+        needs_human_summary:
+          resumen ??
+          `Preguntó: "${pregunta.slice(0, 200)}". La IA no sabe la respuesta.`,
       })
       .eq('id', convId)
       .is('needs_human_at', null);
@@ -862,14 +872,34 @@ async function decidirComentario(
       if (!isTikTok) {
         const conn =
           opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
-        if (conn)
-          await setCommentHidden(
-            conn,
-            commentChannel,
-            opts.commentId,
-            true,
-            s.spam ? 'spam' : 'critica',
+        const oculto = conn
+          ? await setCommentHidden(
+              conn,
+              commentChannel,
+              opts.commentId,
+              true,
+              s.spam ? 'spam' : 'critica',
+            )
+          : false;
+        // SI NO SE PUDO OCULTAR, NO SE HACE COMO QUE SÍ.
+        //
+        // El plan era "esto no se contesta, se saca de la vista". Cuando Meta
+        // rechaza el ocultado —le falta `pages_manage_engagement` a la cuenta,
+        // por ejemplo— no pasa ninguna de las dos cosas: el comentario sigue
+        // publicado, sin respuesta, y hasta acá no quedaba registro de nada.
+        // Facebook estuvo dos meses en ese estado sin un solo error anotado.
+        // Ahora escala: lo mira una persona, que sí puede ocultarlo desde la
+        // app mientras se arregla el permiso.
+        if (!oculto) {
+          await marcarParaUnaPersona(
+            db,
+            opts.contact.id,
+            engagement,
+            'comment_sin_moderar',
+            `No se pudo ocultar en ${commentChannel}. Sigue publicado y sin respuesta: "${engagement.slice(0, 160)}". Revisa el permiso de la cuenta en Canales.`,
           );
+          return 'comment_no_se_pudo_ocultar';
+        }
       }
       return s.spam ? 'comment_spam' : 'comment_critica';
     }
@@ -1085,6 +1115,8 @@ async function decidirComentario(
   const willPublish = isTikTok || commentCfg.publicReply;
 
   let dmSent = false;
+  /** No salió nada: ni el privado ni la respuesta pública. */
+  let falloAlPublicar = false;
   try {
     if (wonPrivateReply && connection) {
       const dmRes = await adapter.sendText({
@@ -1167,10 +1199,26 @@ async function decidirComentario(
           text: publicText,
         });
       } catch (pubErr) {
+        const detalle = pubErr instanceof Error ? pubErr.message : String(pubErr);
         console.error(
           '[ig-agent] respuesta pública falló (¿permisos de Meta?):',
           pubErr,
         );
+        // Que se sepa desde AFUERA, no sólo en el log.
+        //
+        // Un permiso que falta hace fallar TODAS las publicaciones, siempre, y
+        // esto era un `console.error` y nada más: si además no salió el DM, el
+        // comentario quedaba sin respuesta y sin una sola fila que lo dijera.
+        // Es lo que le pasó a Facebook durante dos meses (2026-08-30).
+        if (publicConnection) {
+          await db
+            .from('channel_connections')
+            .update({
+              last_error: `no se pudo publicar la respuesta (${commentChannel}): ${detalle}`.slice(0, 500),
+            })
+            .eq('id', publicConnection.id)
+            .then(undefined, () => {});
+        }
         // No se publicó, así que el hilo del comentario quedaría vacío: se
         // espeja el DM, que es lo que se hacía antes de intentar publicar.
         if (dmSent) {
@@ -1181,6 +1229,17 @@ async function decidirComentario(
             text,
             origin: 'comment_ai',
           });
+        } else {
+          // Ni público ni privado: nadie contestó. Lo mira una persona en vez
+          // de que el comentario se pierda en silencio.
+          await marcarParaUnaPersona(
+            db,
+            opts.contact.id,
+            engagement,
+            'comment_sin_moderar',
+            `No se pudo contestar en ${commentChannel}: ${detalle.slice(0, 160)}`,
+          );
+          falloAlPublicar = true;
         }
       }
     }
@@ -1222,6 +1281,8 @@ async function decidirComentario(
     console.error('[ig-agent] respuesta autónoma falló:', err);
     return 'comment_error';
   }
+  // Se escribió una respuesta y no salió por ningún lado: eso NO es "contestado".
+  if (falloAlPublicar) return 'comment_no_se_pudo_publicar';
   // Contestado: nada que explicar.
   return null;
 }
