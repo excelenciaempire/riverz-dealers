@@ -48,10 +48,21 @@ function parseSegment(text: string): { label: string; traits: string[] } | null 
  * Uses Haiku (cheap, this runs per-contact on demand). Returns null on any
  * failure so the caller can degrade gracefully.
  */
+const MODELO = 'claude-haiku-4-5-20251001';
+
+/** Lo que consumio la llamada, para que el llamador pueda cobrarla. */
+export interface UsoDelModelo {
+  modelo: string;
+  entrada: number;
+  salida: number;
+  cacheLectura: number;
+  cacheEscritura: number;
+}
+
 export async function generateContactSegment(
   apiKey: string,
   input: { name?: string | null; messages: string[]; purchaseSummary?: string | null },
-): Promise<{ label: string; traits: string[] } | null> {
+): Promise<{ label: string; traits: string[]; uso?: UsoDelModelo } | null> {
   const msgs = input.messages
     .map((m) => m.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
@@ -74,7 +85,7 @@ export async function generateContactSegment(
     const res = await client.messages.create({
       // Sin los parámetros de esfuerzo: Haiku los rechaza con 400 y esto
       // llevaba meses contestando siempre que no se pudo.
-      model: 'claude-haiku-4-5-20251001',
+      model: MODELO,
       max_tokens: 400,
       system: [{ type: 'text', text: SEG_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }],
@@ -83,7 +94,18 @@ export async function generateContactSegment(
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('');
-    return parseSegment(text);
+    const seg = parseSegment(text);
+    if (!seg) return null;
+    return {
+      ...seg,
+      uso: {
+        modelo: MODELO,
+        entrada: res.usage?.input_tokens ?? 0,
+        salida: res.usage?.output_tokens ?? 0,
+        cacheLectura: res.usage?.cache_read_input_tokens ?? 0,
+        cacheEscritura: res.usage?.cache_creation_input_tokens ?? 0,
+      },
+    };
   } catch {
     return null;
   }

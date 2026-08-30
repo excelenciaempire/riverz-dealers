@@ -1138,10 +1138,6 @@ export const settings = {
     en: "The payment went through and your account is up to date. Your AI balance is {saldo}, check it and top it up at riverz.co/ajustes?tab=saldo",
   },
   walletInsideOf: { es: "Dentro de «{linea}»", en: "Inside “{linea}”" },
-  walletIncluded: {
-    es: "Sin cargo: transcribir las notas de voz de tus clientes y el audio de tus videos.",
-    en: "No charge: transcribing your customers' voice notes and your videos' audio.",
-  },
 
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },

@@ -18,7 +18,27 @@ describe('el presupuesto del turno', () => {
     p.sumar('orquestador', { input: 100, output: 20 })
     p.sumar('plantillas', { input: 300, output: 50 })
     p.sumar('automatizaciones', { input: 400, output: 80 })
-    expect(p.total()).toEqual({ promptTokens: 800, completionTokens: 150 })
+    expect(p.total()).toMatchObject({ promptTokens: 800, completionTokens: 150 })
+  })
+
+  it('el costo sale del modelo de cada llamada, no de un promedio', () => {
+    // Un token de Haiku no vale lo que uno del modelo grande: sumar tokens y
+    // multiplicar por un promedio da un número que no se parece a la factura.
+    const caro = crearPresupuesto()
+    caro.sumar('orquestador', { input: 1000, output: 1000 }, 'claude-opus-5')
+    const barato = crearPresupuesto()
+    barato.sumar('plantillas', { input: 1000, output: 1000 }, 'claude-haiku-4-5-20251001')
+    expect(caro.total().costoUsd).toBeGreaterThan(barato.total().costoUsd)
+  })
+
+  it('la caché entra en el costo, que es donde se va la plata', () => {
+    // `input_tokens` NO incluye la caché: sin sumarla, el costo del Operador
+    // es un piso y no una medición.
+    const con = crearPresupuesto()
+    con.sumar('orquestador', { input: 100, cacheRead: 50_000 }, 'claude-opus-5')
+    const sin = crearPresupuesto()
+    sin.sumar('orquestador', { input: 100 }, 'claude-opus-5')
+    expect(con.total().costoUsd).toBeGreaterThan(sin.total().costoUsd)
   })
 
   it('el desglose por agente cuenta también las llamadas', () => {
@@ -39,7 +59,7 @@ describe('el presupuesto del turno', () => {
     const p = crearPresupuesto()
     p.sumar('bandeja', null)
     p.sumar('bandeja', { input: 5 })
-    expect(p.total()).toEqual({ promptTokens: 5, completionTokens: 0 })
+    expect(p.total()).toMatchObject({ promptTokens: 5, completionTokens: 0 })
     expect(p.porAgente().bandeja.llamadas).toBe(2)
   })
 

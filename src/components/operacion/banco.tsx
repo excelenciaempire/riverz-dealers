@@ -200,9 +200,9 @@ function Reparto({ lienzos }: { lienzos: LienzoEnMesa[] }) {
  *
  * El nombre propio gana siempre. Cuando no lo hay se cae al especialista que la
  * armó — pero SÓLO si lo hay, y no al dominio de la capacidad. Eso último se
- * probó y se vio en producción: `operacion.estado` daba `operation.subOperacion`,
- * que no existe en el catálogo, y el encabezado imprimía la clave cruda
- * («OPERATION.SUBOPERACION») sobre el tablero de salud.
+ * probó y se vio en producción: `operacion.estado` armaba una clave con el
+ * dominio adentro que no existe en el catálogo, y el encabezado imprimía la
+ * clave cruda en mayúsculas sobre el tablero de salud.
  *
  * Y no hace falta: una vista de lectura ya lleva su título adentro del marco
  * («Cómo está la operación»), así que el encabezado no agregaba nada.

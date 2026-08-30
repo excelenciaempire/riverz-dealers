@@ -97,6 +97,33 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
+    concepto: 'ia_seguimiento',
+    nombreEs: 'Seguimientos cuando el cliente se calla',
+    nombreEn: 'Follow-ups when the customer goes quiet',
+    centavos: 1.44,
+    unidad: 'seguimiento',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'ia_resumen',
+    nombreEs: 'Memoria de tus conversaciones',
+    nombreEn: 'Conversation memory',
+    centavos: 0.6,
+    unidad: 'resumen',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'ia_clasificacion',
+    nombreEs: 'Entender qué te pidieron',
+    nombreEn: 'Understanding what was asked',
+    centavos: 0.15,
+    unidad: 'consulta',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
     // La búsqueda web de Anthropic: 10 USD cada mil búsquedas.
     concepto: 'busqueda_web',
     nombreEs: 'Búsquedas en internet',
@@ -218,14 +245,63 @@ async function costoPorMinuto(
   return (usd * 100) / minutos
 }
 
+/**
+ * Lo que le salió a ESTA cuenta cada unidad de todo lo demás, leído del libro.
+ *
+ * Las respuestas y los minutos tienen su propia medición porque se calculan
+ * sobre los tokens y los segundos, que son más finos. El resto —el
+ * seguimiento, el resumen, la clasificación, entender una publicación— ya
+ * quedó anotado en `wallet_movimientos` con el costo real de cada evento: no
+ * hace falta volver a medirlo, alcanza con promediar lo que la cuenta ya
+ * gastó. Es la diferencia entre mostrarle su número y mostrarle el nuestro.
+ */
+async function costoPorConcepto(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<Record<string, number>> {
+  // PostgREST corta en 1000 filas sin avisar: se pide de a páginas hasta
+  // juntar un mes o quedarse sin filas.
+  const filas: { concepto: string; costo_centavos: number; cantidad: number | null }[] = []
+  for (let pagina = 0; pagina < 3; pagina++) {
+    const { data } = await db
+      .from('wallet_movimientos')
+      .select('concepto, costo_centavos, cantidad')
+      .eq('workspace_id', workspaceId)
+      .eq('tipo', 'consumo')
+      .gte('creado_en', desde())
+      .order('creado_en', { ascending: false })
+      .range(pagina * 1000, pagina * 1000 + 999)
+    const lote = (data ?? []) as typeof filas
+    filas.push(...lote)
+    if (lote.length < 1000) break
+  }
+
+  const acum = new Map<string, { usd: number; unidades: number }>()
+  for (const f of filas) {
+    const a = acum.get(f.concepto) ?? { usd: 0, unidades: 0 }
+    a.usd += Number(f.costo_centavos ?? 0)
+    a.unidades += Number(f.cantidad ?? 0)
+    acum.set(f.concepto, a)
+  }
+
+  const out: Record<string, number> = {}
+  for (const [concepto, a] of acum) {
+    // Sin costo anotado no hay nada que promediar: mejor la tarifa de lista
+    // que un cero que se leería como "esto es gratis".
+    if (a.unidades > 0 && a.usd > 0) out[concepto] = a.usd / a.unidades
+  }
+  return out
+}
+
 /** El costo real de cada concepto, para esta cuenta. */
 export async function costosReales(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<CostoReal[]> {
-  const [porRespuesta, porMinuto] = await Promise.all([
+  const [porRespuesta, porMinuto, porConcepto] = await Promise.all([
     costoPorRespuesta(db, workspaceId).catch(() => null),
     costoPorMinuto(db, workspaceId).catch(() => null),
+    costoPorConcepto(db, workspaceId).catch(() => ({}) as Record<string, number>),
   ])
 
   return CATALOGO.map((c) => {
@@ -234,7 +310,7 @@ export async function costosReales(
         ? porRespuesta
         : c.concepto === 'llamada_voz'
           ? porMinuto
-          : null
+          : (porConcepto[c.concepto] ?? null)
     return {
       ...c,
       centavos: medidoCentavos ?? c.centavos,

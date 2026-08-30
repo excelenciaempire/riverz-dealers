@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { puertaDeIa } from '@/lib/wallet/puerta'
+import { cobrar } from '@/lib/wallet/saldo'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature-flags'
 import { limitByKey } from '@/lib/rate-limit'
@@ -318,6 +319,21 @@ export async function POST(request: Request) {
         promptTokens: turno.promptTokens,
         completionTokens: turno.completionTokens,
       })
+
+      // ── La billetera ──
+      // El Operador corre siempre con la llave de Riverz: no hay BYOK en este
+      // camino. Se cobra el turno que se ejecuto, con el costo real de todos
+      // los modelos que participaron. `cobrar` nunca lanza.
+      if (turno.costoUsd > 0) {
+        void cobrar(ctx.admin, ctx.workspaceId, {
+          concepto: 'ia_operador',
+          cantidad: 1,
+          costoUsd: turno.costoUsd,
+          referenciaTipo: 'operator_thread',
+          referenciaId: threadId,
+          detalle: { equipo: Boolean(ctx.flota) },
+        })
+      }
 
       if (turno.porAgente) {
         await guardarGasto(ctx.admin, {

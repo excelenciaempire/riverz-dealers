@@ -14,6 +14,9 @@ import { toolEnabled } from './toolbox'
 import { getAdapter } from '@/lib/channels/registry';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import type { AiAgent } from './types';
+import { cobrar } from '@/lib/wallet/saldo';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { costForModel } from '@/lib/admin/cost';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 
 /**
@@ -141,6 +144,13 @@ export async function runFollowUp(
   },
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
+  // Sin saldo no se manda un seguimiento. Es un mensaje que sale SOLO, sin que
+  // nadie lo pida: cobrarselo a Riverz porque el comercio no recargo es
+  // exactamente lo que la puerta existe para evitar.
+  if (!(await puedeUsarIa(db, args.agent.workspace_id))) {
+    return { sent: false, reason: 'sin_saldo' };
+  }
+
   try {
     // El permiso existía, tenía interruptor en la pantalla y entrada en cada
     // preset de rol — y no lo leía nadie: apagarlo no apagaba nada. Un
@@ -280,6 +290,29 @@ export async function runFollowUp(
       messages,
       ...esfuerzo(agent.model || MODELO_POR_DEFECTO, { effort: 'low', pensar: 'adaptive' }),
     });
+    // El seguimiento se cobra aunque el modelo decida no escribir: pensarlo
+    // costo igual, y el comercio recibio el servicio de que alguien mirara la
+    // conversacion y decidiera.
+    const uso = (resp as unknown as { usage?: Record<string, number> }).usage;
+    // Al que trae su clave de Anthropic ya le cobra Anthropic: cobrarle aca
+    // seria cobrarle dos veces.
+    if (resolvedKey.source !== 'agent')
+      void cobrar(db, args.agent.workspace_id, {
+      concepto: 'ia_seguimiento',
+      cantidad: 1,
+      costoUsd: costForModel(
+        args.agent.model || MODELO_POR_DEFECTO,
+        uso?.input_tokens ?? 0,
+        uso?.output_tokens ?? 0,
+        {
+          read: uso?.cache_read_input_tokens ?? 0,
+          write: uso?.cache_creation_input_tokens ?? 0,
+        },
+      ),
+      referenciaTipo: 'conversation',
+      referenciaId: args.conversation.id,
+    });
+
     const text = extractText(
       resp as unknown as { content?: Array<{ type?: string; text?: string }> },
     );

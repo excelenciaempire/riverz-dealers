@@ -31,6 +31,7 @@ import { construir, proponer, vistaDe } from './escribir'
 import { etiquetaDe } from './etiquetas'
 import { systemPrompt } from './prompt'
 import { translate } from '@/lib/i18n/translate'
+import { costForModel } from '@/lib/admin/cost'
 
 /** Techo de vueltas. Un diagnóstico honesto se resuelve en tres o cuatro. */
 const MAX_ITERS = 6
@@ -108,6 +109,14 @@ export interface OperatorTurn {
   text: string
   promptTokens: number
   completionTokens: number
+  /**
+   * Lo que este turno le costo a Riverz, en USD.
+   *
+   * Es lo que se le descuenta al comercio que paga a costo, asi que no puede
+   * ser un promedio: el Operador mezcla modelos —Haiku para los especialistas,
+   * el grande para el orquestador— y cada uno vale distinto por token.
+   */
+  costoUsd: number
   /** Acciones que quedaron esperando aprobación en esta vuelta. */
   proposedIds: string[]
   /** Se acabó el cupo del día: no se llamó al modelo. */
@@ -206,6 +215,7 @@ export async function runOperator(args: {
       text: translate(locale, 'operation.operatorNoKey'),
       promptTokens: 0,
       completionTokens: 0,
+      costoUsd: 0,
       proposedIds: [],
       overBudget: true,
     }
@@ -252,6 +262,7 @@ export async function runOperator(args: {
       text: turno.text,
       promptTokens: turno.promptTokens,
       completionTokens: turno.completionTokens,
+      costoUsd: turno.costoUsd,
       proposedIds: turno.proposedIds,
       porAgente: presupuesto.porAgente(),
       planId: turno.planId,
@@ -266,6 +277,17 @@ export async function runOperator(args: {
   const proposedIds: string[] = []
   let promptTokens = 0
   let completionTokens = 0
+  let costoUsd = 0
+
+  /** El costo de una vuelta, con la cache aparte: Anthropic la cobra distinto. */
+  const sumarCosto = (u: Anthropic.Message['usage'] | undefined) => {
+    costoUsd += costForModel(MODEL, u?.input_tokens ?? 0, u?.output_tokens ?? 0, {
+      read: (u as { cache_read_input_tokens?: number } | undefined)?.cache_read_input_tokens ?? 0,
+      write:
+        (u as { cache_creation_input_tokens?: number } | undefined)
+          ?.cache_creation_input_tokens ?? 0,
+    })
+  }
 
   /**
    * Usar una herramienta ya validada. Nunca tira: un fallo vuelve como
@@ -338,12 +360,14 @@ export async function runOperator(args: {
     const res = await transmitir(client, { messages, tools, system }, emit)
     promptTokens += res.usage?.input_tokens ?? 0
     completionTokens += res.usage?.output_tokens ?? 0
+    sumarCosto(res.usage)
 
     if (res.stop_reason !== 'tool_use') {
       return {
         text: textoDe(res),
         promptTokens,
         completionTokens,
+        costoUsd,
         proposedIds,
       }
     }
@@ -403,7 +427,8 @@ export async function runOperator(args: {
   const cierre = await transmitir(client, { messages, tools: [], system }, emit)
   promptTokens += cierre.usage?.input_tokens ?? 0
   completionTokens += cierre.usage?.output_tokens ?? 0
-  return { text: textoDe(cierre), promptTokens, completionTokens, proposedIds }
+  sumarCosto(cierre.usage)
+  return { text: textoDe(cierre), promptTokens, completionTokens, costoUsd, proposedIds }
 }
 
 function textoDe(res: Anthropic.Message): string {

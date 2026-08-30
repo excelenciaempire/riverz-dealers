@@ -12,6 +12,7 @@
  * tope ya lee sea el correcto.
  */
 import type { Quien } from './types'
+import { costForModel } from '@/lib/admin/cost'
 
 /** Cuántas llamadas al modelo puede hacer un turno, pase lo que pase. */
 export const MAX_LLAMADAS_TURNO = 80
@@ -27,9 +28,19 @@ export interface GastoAgente {
 export interface Presupuesto {
   sumar(
     quien: Quien,
-    u: { input?: number; output?: number; cacheRead?: number } | null | undefined,
+    u: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | null | undefined,
+    /** Con que modelo se hizo la llamada. Sin esto no se puede saber el costo. */
+    modelo?: string,
   ): void
-  total(): { promptTokens: number; completionTokens: number }
+  /**
+   * El total del turno.
+   *
+   * `costoUsd` es lo que esa llamada le costo a Riverz de verdad: cada
+   * subagente corre en un modelo distinto y un token de Haiku no vale lo mismo
+   * que uno de Opus, asi que sumar tokens y multiplicar por un promedio daria
+   * un numero que no se parece a la factura.
+   */
+  total(): { promptTokens: number; completionTokens: number; costoUsd: number }
   porAgente(): Record<string, GastoAgente>
   /** Cuántas llamadas van. */
   llamadas(): number
@@ -48,10 +59,15 @@ export function crearPresupuesto(
 ): Presupuesto {
   const por = new Map<string, GastoAgente>()
   let n = 0
+  let usd = 0
 
   return {
-    sumar(quien, u) {
+    sumar(quien, u, modelo) {
       n++
+      usd += costForModel(modelo ?? null, u?.input ?? 0, u?.output ?? 0, {
+        read: u?.cacheRead ?? 0,
+        write: u?.cacheWrite ?? 0,
+      })
       const g = por.get(quien) ?? { prompt: 0, completion: 0, cache: 0, llamadas: 0 }
       g.prompt += u?.input ?? 0
       g.completion += u?.output ?? 0
@@ -66,7 +82,7 @@ export function crearPresupuesto(
         promptTokens += g.prompt
         completionTokens += g.completion
       }
-      return { promptTokens, completionTokens }
+      return { promptTokens, completionTokens, costoUsd: usd }
     },
     porAgente() {
       return Object.fromEntries(por)

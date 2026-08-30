@@ -54,6 +54,8 @@ export interface TurnoOrquestador {
   text: string
   promptTokens: number
   completionTokens: number
+  /** Lo que le costo a Riverz este turno, en USD. */
+  costoUsd: number
   proposedIds: string[]
   planId?: string
 }
@@ -117,12 +119,18 @@ export async function runOrquestador(args: {
     // así que preguntarlo después daría mudo en la llamada que sí habló.
     const eraMudo = mudo()
     const res = await llamar(args, system, tools, messages, hilo)
-    presupuesto.sumar('orquestador', {
-      input: res.usage?.input_tokens,
-      output: res.usage?.output_tokens,
-      cacheRead: (res.usage as { cache_read_input_tokens?: number } | undefined)
-        ?.cache_read_input_tokens,
-    })
+    presupuesto.sumar(
+      'orquestador',
+      {
+        input: res.usage?.input_tokens,
+        output: res.usage?.output_tokens,
+        cacheRead: (res.usage as { cache_read_input_tokens?: number } | undefined)
+          ?.cache_read_input_tokens,
+        cacheWrite: (res.usage as { cache_creation_input_tokens?: number } | undefined)
+          ?.cache_creation_input_tokens,
+      },
+      MODELOS.orquestador.model,
+    )
 
     const texto = textoDe(res)
     if (texto.trim() && !eraMudo) ultimoTexto = texto.trim()

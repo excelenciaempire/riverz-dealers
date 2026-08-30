@@ -22,6 +22,9 @@ import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import { cobrar } from '@/lib/wallet/saldo';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { costForModel } from '@/lib/admin/cost';
 
 /**
  * SUPER AGENTE — el mismo cerebro del Asistente escribe también el PRIMER
@@ -93,6 +96,10 @@ export async function composeSuperAgentReply(
     const agent = agentRow as AiAgent | null;
     if (!agent) return null;
     if (agent.provider !== 'anthropic') return null;
+
+    // Sin saldo no se piensa con la llave de Riverz. El llamador cae al
+    // redactor de siempre, que no gasta nada.
+    if (!(await puedeUsarIa(db, input.workspaceId))) return null;
 
     const resolvedKey = await resolveAnthropicKey(db, {
       workspaceId: input.workspaceId,
@@ -242,6 +249,24 @@ export async function composeSuperAgentReply(
     // que no vale la pena mandar. Va DENTRO del compositor y no en cada
     // llamador a propósito: cuando era decisión del llamador, la superficie
     // nueva se olvidó y nadie se enteró hasta leer lo que se publicó.
+    // La billetera: se cobra lo que se penso, aunque despues se descarte el
+    // texto. Al que trae su propia clave ya le cobra Anthropic.
+    if (resolvedKey.source !== 'agent') {
+      void cobrar(db, input.workspaceId, {
+        concepto: 'ia_respuesta',
+        cantidad: 1,
+        costoUsd: costForModel(
+          agent.model || MODELO_POR_DEFECTO,
+          result.promptTokens,
+          result.completionTokens,
+          { read: result.cacheReadTokens, write: result.cacheWriteTokens },
+        ),
+        referenciaTipo: 'contact',
+        referenciaId: input.commentContactId,
+        detalle: { canal: input.commentChannel ?? 'ig_comment' },
+      });
+    }
+
     const text = salidaParaCliente(result.text);
     if (!text) return null;
     return text.length > maxChars ? recortarSalida(text, maxChars) : text;

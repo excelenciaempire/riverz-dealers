@@ -106,12 +106,18 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
 
       const res = await llamar(e, perfil, tools, mensajes)
 
-      e.presupuesto.sumar(e.agente, {
-        input: res.usage?.input_tokens,
-        output: res.usage?.output_tokens,
-        cacheRead: (res.usage as { cache_read_input_tokens?: number } | undefined)
-          ?.cache_read_input_tokens,
-      })
+      e.presupuesto.sumar(
+        e.agente,
+        {
+          input: res.usage?.input_tokens,
+          output: res.usage?.output_tokens,
+          cacheRead: (res.usage as { cache_read_input_tokens?: number } | undefined)
+            ?.cache_read_input_tokens,
+          cacheWrite: (res.usage as { cache_creation_input_tokens?: number } | undefined)
+            ?.cache_creation_input_tokens,
+        },
+        perfil.model,
+      )
 
       const texto = textoDe(res)
       if (texto.trim()) ultimoTexto = texto.trim()

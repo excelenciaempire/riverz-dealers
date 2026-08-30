@@ -593,6 +593,13 @@ export const admin = {
   concepto_busqueda_web: { es: "Búsqueda web", en: "Web search" },
   concepto_imagen: { es: "Imágenes", en: "Images" },
   concepto_investigacion: { es: "Investigación", en: "Research" },
+  concepto_ia_seguimiento: { es: "Seguimientos", en: "Follow-ups" },
+  concepto_ia_resumen: { es: "Memoria de conversaciones", en: "Conversation memory" },
+  concepto_ia_clasificacion: { es: "Clasificación", en: "Classification" },
+  concepto_entender_publicacion: {
+    es: "Entender una publicación",
+    en: "Understanding a post",
+  },
   // Costos fijos
   fixedMissingEnv: { es: "Falta {v}", en: "Missing {v}" },
   fixedNoAnswer: { es: "No respondió", en: "No answer" },

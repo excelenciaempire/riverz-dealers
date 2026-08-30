@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropic } from '@/lib/ai/anthropic-client'
 import { resolveAnthropicKey } from '@/lib/ai/platform-key'
 import { supabaseAdmin } from './admin-client'
+import { cobrar } from '@/lib/wallet/saldo'
+import { puedeUsarIa } from '@/lib/wallet/puerta'
+import { costForModel } from '@/lib/admin/cost'
 
 /**
  * Classify a customer's free-text reply into one of the declared intents
@@ -19,6 +22,10 @@ export async function classifyIntent(args: {
 }): Promise<string | null> {
   if (args.intents.length === 0) return null
   const db = supabaseAdmin()
+
+  // Sin saldo no se clasifica: el flujo sale por su rama de respaldo, que es
+  // exactamente lo que hace cuando el modelo no entiende.
+  if (!(await puedeUsarIa(db, args.workspaceId))) return null
 
   const { data: agent } = await db
     .from('ai_agents')
@@ -61,6 +68,25 @@ export async function classifyIntent(args: {
         },
       ],
     })
+    // Se cobra la clasificacion, no el acierto: pensarla costo igual. Al que
+    // trae su clave de Anthropic ya le cobra Anthropic.
+    if (resolved.source !== 'agent') {
+      void cobrar(db, args.workspaceId, {
+        concepto: 'ia_clasificacion',
+        cantidad: 1,
+        costoUsd: costForModel(
+          model,
+          response.usage?.input_tokens ?? 0,
+          response.usage?.output_tokens ?? 0,
+          {
+            read: response.usage?.cache_read_input_tokens ?? 0,
+            write: response.usage?.cache_creation_input_tokens ?? 0,
+          },
+        ),
+        referenciaTipo: 'flow',
+      })
+    }
+
     const raw = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)

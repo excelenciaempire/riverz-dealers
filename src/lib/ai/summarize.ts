@@ -23,10 +23,13 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from './anthropic-client';
-import { resolveAnthropicKey } from './platform-key';
+import { resolveAnthropicKey, type KeySource } from './platform-key';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Conversation, Contact } from '@/types';
 import type { AiAgent } from './types';
+import { cobrar } from '@/lib/wallet/saldo';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { costForModel } from '@/lib/admin/cost';
 
 const SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -41,12 +44,12 @@ const SUMMARIZE_EVERY_N = 30;
 async function getApiKey(
   db: SupabaseClient,
   agent: AiAgent,
-): Promise<string | null> {
+): Promise<{ key: string; source: KeySource } | null> {
   const resolved = await resolveAnthropicKey(db, {
     workspaceId: agent.workspace_id,
     agentKeyEncrypted: agent.api_key_encrypted,
   });
-  return resolved?.key ?? null;
+  return resolved ?? null;
 }
 
 /**
@@ -63,6 +66,11 @@ export async function summarizeConversationIfNeeded(
   agent: AiAgent,
 ): Promise<void> {
   try {
+    // Sin saldo no se resume. Es la llamada más silenciosa de todas: corre
+    // pegada a cada respuesta, no deja rastro en `ai_replies` y por eso su
+    // gasto no aparecía en ningún número del panel. Un comercio sin saldo
+    // seguía pagándonos resúmenes que nadie contaba.
+    if (!(await puedeUsarIa(db, conversation.workspace_id))) return;
     // ── Cuántos mensajes tiene la conversación en total ──
     const { count, error: countErr } = await db
       .from('messages')
@@ -87,8 +95,9 @@ export async function summarizeConversationIfNeeded(
       if ((newer ?? 0) < SUMMARIZE_EVERY_N) return;
     }
 
-    const apiKey = await getApiKey(db, agent);
-    if (!apiKey) return;
+    const clave = await getApiKey(db, agent);
+    if (!clave) return;
+    const apiKey = clave.key;
 
     // ── Cargamos el bloque viejo (todo menos los últimos
     //    RECENT_TAIL_COUNT) ──
@@ -130,6 +139,9 @@ export async function summarizeConversationIfNeeded(
         'Sos un compresor de contexto. Devolvés un único párrafo en español de máximo 200 palabras, sin viñetas.',
       messages: [{ role: 'user', content: prompt }],
     });
+    if (clave.source !== 'agent')
+      cobrarResumen(db, conversation.workspace_id, res, 'conversation', conversation.id);
+
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
@@ -166,6 +178,7 @@ export async function summarizeContactIfNeeded(
   opts?: { force?: boolean },
 ): Promise<void> {
   try {
+    if (!(await puedeUsarIa(db, conversation.workspace_id))) return;
     // Disparamos cada 25 mensajes en la conversación actual (o force).
     if (!opts?.force) {
       const { count } = await db
@@ -175,8 +188,9 @@ export async function summarizeContactIfNeeded(
       if (!count || count < 25 || count % 25 !== 0) return;
     }
 
-    const apiKey = await getApiKey(db, agent);
-    if (!apiKey) return;
+    const clave = await getApiKey(db, agent);
+    if (!clave) return;
+    const apiKey = clave.key;
 
     // Tomamos los últimos 60 mensajes de TODAS las conversaciones del
     // contact (no sólo la actual) — así el resumen captura conducta
@@ -233,6 +247,8 @@ export async function summarizeContactIfNeeded(
         },
       ],
     });
+    if (clave.source !== 'agent')
+      cobrarResumen(db, conversation.workspace_id, res, 'contact', contact.id);
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
@@ -250,4 +266,36 @@ export async function summarizeContactIfNeeded(
   } catch (err) {
     console.error('[ai/summarize] contact summarize failed:', err);
   }
+}
+
+/**
+ * El resumen se cobra como lo que es: una llamada al modelo con la clave de
+ * Riverz.
+ *
+ * Va aparte de la respuesta y no sumado a ella porque son dos cosas distintas y
+ * el comercio tiene derecho a ver cuál le sale cuánto. `cobrar` no lanza nunca:
+ * un error de contabilidad no puede tumbar la memoria de una conversación.
+ */
+function cobrarResumen(
+  db: SupabaseClient,
+  workspaceId: string,
+  res: Anthropic.Message,
+  refTipo: string,
+  refId: string,
+): void {
+  void cobrar(db, workspaceId, {
+    concepto: 'ia_resumen',
+    cantidad: 1,
+    costoUsd: costForModel(
+      SUMMARY_MODEL,
+      res.usage?.input_tokens ?? 0,
+      res.usage?.output_tokens ?? 0,
+      {
+        read: res.usage?.cache_read_input_tokens ?? 0,
+        write: res.usage?.cache_creation_input_tokens ?? 0,
+      },
+    ),
+    referenciaTipo: refTipo,
+    referenciaId: refId,
+  });
 }

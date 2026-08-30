@@ -5,6 +5,12 @@ import {
   isSegmentFresh,
   type ContactSegment,
 } from '@/lib/contacts/segment';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { cobrar } from '@/lib/wallet/saldo';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { costForModel } from '@/lib/admin/cost';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
@@ -93,17 +99,40 @@ export async function GET(
     return NextResponse.json({ segment: c.ai_segment, recent_activity: recentActivity });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    // No model available — return whatever cache exists (possibly null).
-    return NextResponse.json({ segment: c.ai_segment ?? null, recent_activity: recentActivity });
-  }
+  // La clave sale del mismo lugar que el resto de la IA —la del comercio si la
+  // cargó, si no la de la plataforma— en vez de ir directo al entorno. Iba
+  // directo, y eso era gasto de Riverz que ninguna cuenta veía ni pagaba.
+  const admin = supabaseAdmin();
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  const cache = { segment: c.ai_segment ?? null, recent_activity: recentActivity };
+  if (!workspaceId) return NextResponse.json(cache);
 
-  const generated = await generateContactSegment(apiKey, {
+  // Sin saldo se sirve lo que haya en caché: es una etiqueta de apoyo, no algo
+  // por lo que valga la pena frenar la pantalla.
+  if (!(await puedeUsarIa(admin, workspaceId))) return NextResponse.json(cache);
+
+  const resolved = await resolveAnthropicKey(admin, { workspaceId });
+  if (!resolved) return NextResponse.json(cache);
+
+  const generated = await generateContactSegment(resolved.key, {
     name: c.name,
     messages,
     purchaseSummary: c.ai_summary,
   });
+  if (generated?.uso && resolved.source !== 'agent') {
+    void cobrar(admin, workspaceId, {
+      concepto: 'ia_clasificacion',
+      cantidad: 1,
+      costoUsd: costForModel(
+        generated.uso.modelo,
+        generated.uso.entrada,
+        generated.uso.salida,
+        { read: generated.uso.cacheLectura, write: generated.uso.cacheEscritura },
+      ),
+      referenciaTipo: 'contact',
+      referenciaId: id,
+    });
+  }
   if (!generated) {
     return NextResponse.json({ segment: c.ai_segment ?? null, recent_activity: recentActivity });
   }
