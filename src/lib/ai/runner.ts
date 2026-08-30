@@ -2814,20 +2814,25 @@ export function buildSystemPrompt(
   // Esto NO amplía permisos: sólo elige entre lo que la pizarra ya habilita.
   // Sin una de las dos herramientas no hay nada que elegir y no se dice nada,
   // que es mejor que darle al modelo una instrucción que no puede cumplir.
+  // Cuál es "la caja" depende de la tienda, igual que en
+  // `construirHerramientas`: con Shopify cobra su checkout; sin Shopify, el
+  // link de pago. Mirar las dos acá diría "podés mandar a la caja" a un
+  // agente que no tiene ninguna.
+  //
+  // Se calcula acá afuera y no adentro del bloque porque el cierre de pedidos
+  // —más abajo— también lo necesita: `cobro_modo` es una preferencia guardada,
+  // y sin la herramienta prendida no puede mandar a nadie a una caja que no
+  // existe.
+  const puedeCaja = shopify
+    ? toolEnabled(agent, 'crear_checkout')
+    : toolEnabled(agent, 'crear_checkout') || toolEnabled(agent, 'crear_link_de_pago');
   {
-    // Cuál es "la caja" depende de la tienda, igual que en
-    // `construirHerramientas`: con Shopify cobra su checkout; sin Shopify, el
-    // link de pago. Mirar las dos acá diría "podés mandar a la caja" a un
-    // agente que no tiene ninguna.
-    const puedeCaja = shopify
-      ? toolEnabled(agent, 'crear_checkout')
-      : toolEnabled(agent, 'crear_checkout') || toolEnabled(agent, 'crear_link_de_pago');
     const puedePedido = toolEnabled(agent, 'crear_pedido') && shopify?.canCreateOrders !== false;
     if (puedeCaja && puedePedido) {
       const modo = agent.cobro_modo ?? 'segun_pago';
       if (modo === 'checkout') {
         lines.push(
-          'Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja.',
+          'Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja. Si te pregunta con qué puede pagar, nombra sólo los medios que figuren en tus datos o en las reglas del negocio; si no figura ninguno, dile que los ve en la caja al terminar la compra, y nunca inventes uno.',
         );
       } else if (modo === 'chat') {
         lines.push(
@@ -2861,7 +2866,26 @@ export function buildSystemPrompt(
   // Le exigimos reunir datos, mostrar resumen y obtener confirmación
   // explícita antes de llamar la tool. OFF: no cierra pedidos; deriva la
   // confirmación final a una persona (el link de compra sigue disponible).
-  if (shopify?.canCreateOrders) {
+  // EN MODO CAJA, EL PEDIDO NO SE ARMA EN EL CHAT.
+  //
+  // Las dos instrucciones se escribieron por separado y se contradecían: la de
+  // cobro decía "no le pidas la dirección, eso lo pide la caja" y la de cierre,
+  // tres líneas más abajo, decía "reúne la dirección de envío completa y el
+  // método de pago". El modelo resolvía el empate solo, mensaje a mensaje, y a
+  // veces le pedía por chat lo que la caja iba a volver a pedirle.
+  //
+  // Con `cobro_modo = 'checkout'` la venta entra por el enlace y el pedido lo
+  // crea la tienda. Crear uno a mano sigue disponible, pero como excepción
+  // declarada, no como el camino normal.
+  if (
+    shopify?.canCreateOrders &&
+    puedeCaja &&
+    (agent.cobro_modo ?? 'segun_pago') === 'checkout'
+  ) {
+    lines.push(
+      'Cierre de pedidos: la venta se cierra en la caja, no en el chat. Pasa el enlace y deja que la clienta termine ahí; el pedido lo crea la tienda. Sólo creas tú el pedido si ella no puede usar la caja y te lo pide explícitamente: en ese caso reúne los datos que falten, muéstrale un resumen con el total y llama create_order con confirmed=true recién cuando confirme. Si la herramienta devuelve un error, NO digas que el pedido se creó.',
+    );
+  } else if (shopify?.canCreateOrders) {
     lines.push(
       'Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía y ofrece ayuda de una persona del equipo. Ten 100% de certeza de lo que quiere antes de crear el pedido.',
     );

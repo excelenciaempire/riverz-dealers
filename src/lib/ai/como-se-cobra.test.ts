@@ -92,3 +92,53 @@ describe('cómo se cobra', () => {
     expect(p).not.toContain('siempre tomas el pedido aquí');
   });
 });
+
+/**
+ * Las dos instrucciones no pueden pelearse.
+ *
+ * La de cobro decia "no le pidas la direccion, eso lo pide la caja" y la de
+ * cierre, tres lineas mas abajo, decia "reune la direccion de envio completa y
+ * el metodo de pago". El modelo resolvia el empate solo, mensaje a mensaje.
+ */
+describe('la caja y el cierre dicen lo mismo', () => {
+  it('en modo caja, el pedido no se arma en el chat', () => {
+    const p = prompt(agente({ cobro_modo: 'checkout' } as Partial<AiAgent>));
+    expect(p).toContain('la venta se cierra en la caja, no en el chat');
+    // La frase que se contradecia con la de arriba.
+    expect(p).not.toContain('la dirección de envío completa');
+  });
+
+  it('en los otros modos el cierre sigue pidiendo los datos', () => {
+    for (const modo of ['chat', 'segun_pago'] as const) {
+      const p = prompt(agente({ cobro_modo: modo } as Partial<AiAgent>));
+      expect(p, modo).toContain('la dirección de envío completa');
+    }
+  });
+
+  it('sin la caja no hay modo caja que valga: el cierre normal manda', () => {
+    // `cobro_modo` es una preferencia guardada; si la herramienta esta
+    // apagada, la preferencia no puede dejar al agente sin instruccion de
+    // cierre.
+    const p = prompt(
+      agente({
+        cobro_modo: 'checkout',
+        tools: { crear_checkout: 'off', crear_pedido: 'auto' },
+      } as never),
+    );
+    expect(p).toContain('la dirección de envío completa');
+    expect(p).not.toContain('la venta se cierra en la caja');
+  });
+});
+
+/**
+ * "Con que puedo pagar" no puede terminar en una persona.
+ *
+ * Era la pregunta mas comun sin respuesta: el prompt sabia mandar a la caja
+ * pero no sabia decir con que se paga en ella, asi que escalaba.
+ */
+describe('con que se puede pagar', () => {
+  it('en modo caja se dice de donde sale la respuesta', () => {
+    const p = prompt(agente({ cobro_modo: 'checkout' } as Partial<AiAgent>));
+    expect(p).toContain('nunca inventes uno');
+  });
+})
