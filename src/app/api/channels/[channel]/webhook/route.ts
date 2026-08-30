@@ -235,9 +235,20 @@ async function processChannelsWebhookAsync(
   const adapterChannels = relatedChannels(channel);
   const db = supabaseAdmin();
   for (const c of adapterChannels) {
-    const routes = explicitId
-      ? await routesForExplicitId(explicitId, payload)
-      : await routesByPayload(c, payload);
+    // El `?connection_id=` afirma UNA conexión, y esa conexión es de UN canal.
+    // Al correrse los canales hermanos con esa misma fila, el adaptador de
+    // comentarios de Instagram parseaba con la conexión del DM — y la
+    // conversación y su `comments_meta` quedaban con ese `connection_id`. Como
+    // la conciliación y el pull filtran por `conversations.connection_id`, esos
+    // comentarios se volvían invisibles para los dos, para siempre. Cuando el
+    // canal no coincide, se enruta por el contenido como si no hubiera id.
+    const explicito = explicitId ? await routesForExplicitId(explicitId, payload) : null;
+    const routes =
+      explicito === null
+        ? await routesByPayload(c, payload)
+        : explicito.length > 0 && explicito[0].connection.channel === c
+          ? explicito
+          : await routesByPayload(c, payload);
     if (routes.length === 0) continue;
 
     const adapter = getAdapter(c);
