@@ -86,15 +86,15 @@ export async function tarifaDe(
 }
 
 /**
- * Lo que se cobra por `cantidad` unidades, en centavos enteros.
+ * Lo que se cobra por `cantidad` unidades, en **milésimas de centavo**.
  *
- * Redondea al centavo más cercano y nunca cobra menos de 1 centavo por un
- * consumo real: un movimiento de 0 no le dice nada a nadie y ensucia el libro.
- * El redondeo es simétrico, así que sobre miles de eventos no corre para
- * ningún lado.
+ * No en centavos enteros, que es como estaba: el piso de un centavo cobraba
+ * catorce veces lo que vale entender una consulta, y redondear cobraba de menos
+ * un seguimiento siempre en la misma dirección. Lo que sale de acá lo acumula
+ * `wallet_acumular` hasta que llega a un centavo, así que el resto no se pierde
+ * ni se infla (migración 221).
  */
-export function centavosDe(tarifa: Tarifa, cantidad: number): number {
+export function milicentavosDe(tarifa: Tarifa, cantidad: number): number {
   if (!(cantidad > 0)) return 0
-  const milicentavos = tarifa.precioMilicentavos * cantidad
-  return Math.max(1, Math.round(milicentavos / 1000))
+  return Math.round(tarifa.precioMilicentavos * cantidad)
 }

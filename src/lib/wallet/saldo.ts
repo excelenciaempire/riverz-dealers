@@ -20,7 +20,7 @@
  *    después, que para eso el libro admite ajustes.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { centavosDe, tarifaDe } from './tarifas'
+import { milicentavosDe, tarifaDe } from './tarifas'
 
 export interface Billetera {
   workspaceId: string
@@ -222,17 +222,43 @@ export async function cobrar(
     // nada puede salir gratis por no haberlo medido.
     const costoCentavos = (args.costoUsd ?? 0) * 100
     const aCosto = await cobraACosto(db, workspaceId)
-    const centavos =
+
+    // En milésimas de centavo, que es la única unidad en la que esto se puede
+    // sumar sin mentir: entender qué te pidió el cliente sale 0,07 centavos.
+    const milicentavos =
       aCosto && costoCentavos > 0
-        ? Math.max(1, Math.round(costoCentavos))
-        : centavosDe(tarifa, args.cantidad)
+        ? Math.round(costoCentavos * 1000)
+        : milicentavosDe(tarifa, args.cantidad)
+    if (milicentavos <= 0) return null
+
+    // El resto no se tira.
+    //
+    // Un movimiento del libro es un entero de centavos. Redondear cada evento
+    // cobra de más lo barato y de menos lo caro, siempre en la misma dirección
+    // según el concepto. Así que se acumula: cada consumo suma su costo exacto
+    // y recién cuando el contador pasa el centavo sale UN movimiento por lo que
+    // junta. Lo que todavía no llega queda esperando al próximo.
+    const { data: acum, error: errAcum } = await db.rpc('wallet_acumular', {
+      p_workspace: workspaceId,
+      p_concepto: args.concepto,
+      p_milicentavos: milicentavos,
+      p_cantidad: args.cantidad,
+      p_costo_centavos: Math.round((args.costoUsd ?? 0) * 100 * 1e6) / 1e6,
+    })
+    if (errAcum) throw new Error(errAcum.message)
+    const fila = (Array.isArray(acum) ? acum[0] : acum) as
+      | { centavos: number; cantidad: number; costo_centavos: number }
+      | null
+    const centavos = Number(fila?.centavos ?? 0)
+    // Todavía no llega a un centavo: quedó anotado, no perdido.
     if (centavos <= 0) return null
+
     return await mover(db, workspaceId, {
       tipo: 'consumo',
       concepto: args.concepto,
       centavos: -centavos,
-      costoCentavos: Math.round((args.costoUsd ?? 0) * 100 * 1e6) / 1e6,
-      cantidad: args.cantidad,
+      costoCentavos: Number(fila?.costo_centavos ?? 0),
+      cantidad: Number(fila?.cantidad ?? args.cantidad),
       unidad: tarifa.unidad,
       referenciaTipo: args.referenciaTipo ?? null,
       referenciaId: args.referenciaId ?? null,

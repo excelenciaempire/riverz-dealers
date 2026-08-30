@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { centavosDe, type Tarifa } from './tarifas'
+import { milicentavosDe, type Tarifa } from './tarifas'
 import { rangoDe } from './movimientos'
 import { puedeGastar, type Billetera } from './saldo'
 
@@ -31,22 +31,22 @@ const billetera = (over: Partial<Billetera> = {}): Billetera => ({
 })
 
 describe('cuánto se cobra por un consumo', () => {
-  it('una respuesta a 2 centavos son 2 centavos', () => {
-    expect(centavosDe(tarifa(2000), 1)).toBe(2)
+  it('una respuesta a 2 centavos son 2000 milésimas', () => {
+    expect(milicentavosDe(tarifa(2000), 1)).toBe(2000)
   })
 
-  it('2,4 minutos a 20 centavos el minuto son 48', () => {
-    expect(centavosDe(tarifa(20_000, 'minuto'), 2.4)).toBe(48)
+  it('2,4 minutos a 20 centavos el minuto son 48 centavos', () => {
+    expect(milicentavosDe(tarifa(20_000, 'minuto'), 2.4)).toBe(48_000)
   })
 
-  it('un consumo real nunca cuesta cero', () => {
-    // Un movimiento de 0 no le dice nada a nadie y ensucia el libro. El piso es
-    // 1 centavo aunque la tarifa dé menos.
-    expect(centavosDe(tarifa(100), 0.5)).toBe(1)
+  it('lo que no llega a un centavo no se redondea a uno', () => {
+    // Era el piso viejo: 0,05 centavos se cobraban como 1, veinte veces el
+    // trabajo. Ahora sale entero y lo acumula la base hasta que sume.
+    expect(milicentavosDe(tarifa(100), 0.5)).toBe(50)
   })
 
   it('cantidad cero no cobra nada', () => {
-    expect(centavosDe(tarifa(2000), 0)).toBe(0)
+    expect(milicentavosDe(tarifa(2000), 0)).toBe(0)
   })
 })
 
