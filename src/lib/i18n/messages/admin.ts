@@ -491,8 +491,8 @@ export const admin = {
   // El negocio: MRR, costo y qué paga cada comercio.
   sectionBusiness: { es: "Negocio", en: "Business" },
   sectionBusinessDesc: {
-    es: "Cuánto entra, cuánto sale y qué paga cada comercio.",
-    en: "What comes in, what goes out and what each account pays.",
+    es: "Cuánto entra, qué consume cada comercio y qué se le cobra.",
+    en: "What comes in, what each merchant consumes and what they are charged.",
   },
   billingMrr: { es: "MRR", en: "MRR" },
   billingArr: { es: "ARR", en: "ARR" },
@@ -540,6 +540,7 @@ export const admin = {
   // La pestaña que cuesta plata: son sondas facturables. La otra es gratis.
   providersTabBalance: { es: "Saldo y estado", en: "Balance & status" },
   // La IA que escribe y la que habla.
+  businessTabPrices: { es: "Planes y tarifas", en: "Plans & rates" },
   aiTabText: { es: "Texto", en: "Text" },
   aiTabVoice: { es: "Voz", en: "Voice" },
   aiKeyManageThere: {

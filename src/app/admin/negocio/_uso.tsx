@@ -37,7 +37,7 @@ interface Payload {
 }
 
 /** Cuánto consume y cuánto cuesta cada comercio. */
-export default function AdminUsagePage() {
+export function Uso() {
   const t = useT();
   const format = useFormat();
   const router = useRouter();

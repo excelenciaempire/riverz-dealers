@@ -86,12 +86,6 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionCashDesc",
     group: "plata",
   },
-  {
-    href: "/admin/uso",
-    label: "admin.sectionUsage",
-    description: "admin.sectionUsageDesc",
-    group: "plata",
-  },
   // Las dos mitades del mismo embudo: quien dejo su correo antes de que hubiera
   // producto, y quien tiene con que crear la cuenta. Separadas, habia que
   // acordarse de mirar las dos para contestar como viene el alta.
@@ -168,4 +162,8 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // con que llave trabaja Riverz, y "modelo" aparecia dos veces en el indice
   // sin que ninguna dijera cual.
   voz: "ia",
+  // Uso y costos era una tabla por comercio con una columna de costo, igual
+  // que la de Cuentas. Dos tablas parecidas con universos distintos y metricas
+  // que no se pueden comparar; una al lado de la otra, la diferencia se lee.
+  uso: "negocio",
 };
