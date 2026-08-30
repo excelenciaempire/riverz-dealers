@@ -39,6 +39,45 @@ const NECESITA: Record<string, string[]> = {
   whatsapp: ["whatsapp_business_messaging", "whatsapp_business_management"],
 };
 
+/**
+ * ¿ESTA PÁGINA nos manda lo que pasa en ella?
+ *
+ * Son dos suscripciones distintas y hay que tener las DOS: la de la app —qué
+ * campos quiere recibir— y la de la página, que es la que de verdad empuja los
+ * eventos. La segunda se pierde sola: desconectar y volver a conectar la
+ * rehace, pero entre medio la página deja de mandar y no avisa nadie. Es el
+ * modo de falla más caro que tiene esto, porque "no llegan los comentarios" se
+ * ve igual que "no comentó nadie".
+ *
+ * Devuelve los campos que la página tiene suscritos para NUESTRA app, o `null`
+ * si no se pudo preguntar (no aplica a canales que no son de página).
+ */
+async function queRecibe(
+  conn: ChannelConnection,
+  token: string,
+): Promise<{ campos: string[]; suscrita: boolean } | null> {
+  const cfg = (conn.config ?? {}) as Record<string, unknown>;
+  const pageId = String(cfg.page_id ?? "");
+  if (!pageId) return null;
+  try {
+    const r = await fetch(
+      `${GRAPH}/${pageId}/subscribed_apps?access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(12_000) },
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      data?: Array<{ id?: string; subscribed_fields?: string[] }>;
+    };
+    const mia = (j.data ?? []).find((a) => a.id === process.env.META_APP_ID);
+    return {
+      suscrita: Boolean(mia),
+      campos: mia?.subscribed_fields ?? [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request): Promise<Response> {
   const locale = await getLocale();
   const supabase = await createClient();
@@ -60,7 +99,7 @@ export async function GET(req: Request): Promise<Response> {
   const admin = supabaseAdmin();
   const { data: row } = await admin
     .from("channel_connections")
-    .select("id, workspace_id, channel, secrets")
+    .select("id, workspace_id, channel, secrets, config")
     .eq("id", id)
     .maybeSingle();
   const conn = row as ChannelConnection | null;
@@ -121,6 +160,7 @@ export async function GET(req: Request): Promise<Response> {
       tiene,
       necesita: NECESITA[conn.channel] ?? [],
       faltan,
+      recibe: await queRecibe(conn, token),
     });
   } catch (err) {
     return NextResponse.json(
