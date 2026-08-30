@@ -270,8 +270,18 @@ export function WalletPanel() {
     [fetchWithCsrf, rango.desde, rango.hasta, t],
   );
 
+  /**
+   * Los centavos que hagan falta y ni uno más: «10 US$», «3,16 US$».
+   *
+   * Casi toda la plata de la billetera es redonda —las recargas, el umbral, los
+   * botones— y el «,00» de cada una es ruido que le roba peso a la cifra. Los
+   * centavos que SÍ dicen algo (un gasto de 3,16) siguen apareciendo.
+   */
   const plata = useCallback(
-    (centavos: number) => fmt.currency(centavos / 100, (e?.moneda ?? 'usd').toUpperCase()),
+    (centavos: number) =>
+      fmt.currency(centavos / 100, (e?.moneda ?? 'usd').toUpperCase(), {
+        minimumFractionDigits: 0,
+      }),
     [fmt, e?.moneda],
   );
 
