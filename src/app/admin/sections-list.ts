@@ -86,15 +86,6 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
     description: "admin.sectionCashDesc",
     group: "plata",
   },
-  // Las llaves salieron de las filas de Proveedores: allá se contesta cuánto
-  // sale y cuánto queda, acá con qué llave trabaja la plataforma. Estaban
-  // mezcladas y ninguna de las dos preguntas se leía de un vistazo.
-  {
-    href: "/admin/claves",
-    label: "admin.sectionKeys",
-    description: "admin.sectionKeysDesc",
-    group: "apis",
-  },
   {
     href: "/admin/uso",
     label: "admin.sectionUsage",
@@ -175,4 +166,8 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // fila por cuenta conectada de cada comercio, y ahi adentro hay tiendas,
   // pagos y contra reembolso ademas de mensajeria.
   canales: "conexiones",
+  // Las llaves vuelven a Proveedores, como pestana: eran dos secciones sobre
+  // los MISMOS nueve proveedores, y para saber por que uno no contesta habia
+  // que abrir las dos y cruzarlas a mano.
+  claves: "proveedores",
 };

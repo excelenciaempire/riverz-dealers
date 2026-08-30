@@ -42,7 +42,7 @@ const TONO: Record<OrigenDeClave, Tone> = {
 /** Sin llave arriba; después las de Render, que conviene mudar al panel. */
 const ORDEN: Record<OrigenDeClave, number> = { falta: 0, render: 1, panel: 2 };
 
-export default function AdminClavesPage() {
+export function Llaves() {
   const t = useT();
   const format = useFormat();
   const { data, loading, error, reload, setData } = useAdminData<{

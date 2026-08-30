@@ -27,6 +27,7 @@
 import { leerCostosFijos, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
 import { leerSaldoDeStripe } from './stripe-saldo'
+import { leerEstadoDeClaves, type OrigenDeClave } from './claves'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 
 export type EstadoProveedor =
@@ -77,6 +78,16 @@ export interface Proveedor {
    * propia llave no toca nuestro saldo.
    */
   consumo?: { usdMes: number } | null
+  /**
+   * Con qué llave se le habla, cuando es uno de los que la panel administra.
+   *
+   * Va en la misma fila que el saldo porque son la misma pregunta partida en
+   * dos: un proveedor puede estar «sin saldo» y ser en realidad un problema de
+   * llave, y para verlo había que abrir la otra pantalla y cruzar los nombres a
+   * mano. No cuesta nada traerlo: `leerEstadoDeClaves` es una lectura de tabla
+   * y ya corre dentro de esta misma ronda.
+   */
+  llave?: { origen: OrigenDeClave; pista: string | null } | null
 }
 
 export interface EstadoDeProveedores {
@@ -666,7 +677,7 @@ export function cuantosEnRojo(proveedores: Proveedor[]): number {
  * en error por un proveedor.
  */
 export async function leerProveedores(): Promise<EstadoDeProveedores> {
-  const [sondas, fijos, consumo] = await Promise.all([
+  const [sondas, fijos, consumo, llaves] = await Promise.all([
     Promise.allSettled([
       // Modelos
       anthropic(),
@@ -718,6 +729,8 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
     ]),
     leerCostosFijos(),
     consumoPorProveedor(),
+    // Gratis: una lectura de tabla al lado de una ronda de sondas facturables.
+    leerEstadoDeClaves().catch(() => []),
   ])
 
   const proveedores = sondas
@@ -725,7 +738,12 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
     .map((r) => r.value)
     .map((p) => {
       const gasto = consumo.get(p.id)
-      return gasto ? { ...p, consumo: gasto } : p
+      const llave = llaves.find((c) => c.id === p.id)
+      return {
+        ...p,
+        ...(gasto ? { consumo: gasto } : {}),
+        ...(llave ? { llave: { origen: llave.origen, pista: llave.pista } } : {}),
+      }
     })
 
   return {

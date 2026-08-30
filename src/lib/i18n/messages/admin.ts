@@ -534,9 +534,11 @@ export const admin = {
   // Proveedores — la fusión de las viejas Saldos e Infraestructura.
   sectionProviders: { es: "Proveedores", en: "Providers" },
   sectionProvidersDesc: {
-    es: "Cuánto queda, qué está en pie y cuánto sale el mes.",
-    en: "What's left, what's up and what the month costs.",
+    es: "Cuánto le queda a cada API, si está en pie y con qué llave se le habla.",
+    en: "What each API has left, whether it's up, and which key talks to it.",
   },
+  // La pestaña que cuesta plata: son sondas facturables. La otra es gratis.
+  providersTabBalance: { es: "Saldo y estado", en: "Balance & status" },
   providersMoneyBlock: {
     es: "¿Me alcanza para hoy?",
     en: "Is there enough for today?",

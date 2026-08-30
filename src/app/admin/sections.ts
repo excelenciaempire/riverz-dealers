@@ -42,7 +42,6 @@ export interface AdminSection extends AdminSectionMeta {
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/ia": KeyRound,
-  "/admin/claves": KeyRound,
   "/admin/whatsapp": MessageCircle,
   "/admin/comercios": Store,
   "/admin/negocio": DollarSign,
