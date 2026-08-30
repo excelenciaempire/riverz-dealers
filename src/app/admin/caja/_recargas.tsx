@@ -2,16 +2,8 @@
 
 import { useT } from "@/hooks/use-locale";
 import { useFormat } from "@/hooks/use-format";
-import type { Caja, CosteDeRecarga } from "@/lib/admin/caja";
-import {
-  useAdminData,
-  Panel,
-  Loading,
-  LoadError,
-  DataTable,
-  Muted,
-  type Column,
-} from "../_components/admin-ui";
+import { COSTES, type CosteDeRecarga } from "@/lib/admin/costes-de-recarga";
+import { Panel, DataTable, Muted, type Column } from "../_components/admin-ui";
 
 /**
  * Lo que cuesta meterle plata a cada plataforma.
@@ -23,15 +15,14 @@ import {
  *
  * Va en su propia pestaña porque es una tabla de referencia que no cambia:
  * arriba, empujaba hacia abajo lo único que sí hay que mirar todos los días.
+ *
+ * No pide nada: la tabla es una constante y se importa. Cuando venía dentro de
+ * `/api/admin/caja` —que server-side puede disparar la ronda de sondas
+ * FACTURABLES— abrir una tabla que no cambia nunca costaba cuatro completions.
  */
 export function Recargas() {
   const t = useT();
   const format = useFormat();
-  const { data, loading, error, reload } = useAdminData<Caja>("/api/admin/caja", 0);
-
-  if (loading && !data) return <Loading forma="table" />;
-  if (error || !data) return <LoadError onRetry={reload} />;
-
   return (
     <div className="space-y-6">
       <Panel title={t("admin.cashCostsTitle")}>
@@ -40,7 +31,7 @@ export function Recargas() {
         </p>
         <DataTable
           columns={columnasDeCostes(t, format)}
-          rows={data.costes}
+          rows={COSTES}
           rowKey={(c) => c.id}
         />
       </Panel>
