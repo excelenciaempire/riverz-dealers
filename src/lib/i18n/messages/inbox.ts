@@ -495,6 +495,13 @@ export const inbox = {
     es: "En este chat la IA no contesta. Toca para que vuelva a responder.",
     en: "The AI doesn't answer this chat. Tap to let it reply again.",
   },
+  // Por qué no contestó. El motivo se escribía en cada intento y no se leía
+  // en ninguna pantalla: "¿por qué no contestó?" sólo se podía responder
+  // mirando la base.
+  aiSkipped: {
+    es: "No contestó: {motivo}",
+    en: "Didn't reply: {motivo}",
+  },
 
   // Message thread — comment post context banner
   commentOnPost: {

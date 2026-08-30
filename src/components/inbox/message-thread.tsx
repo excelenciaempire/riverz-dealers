@@ -285,6 +285,65 @@ export function MessageThread({
       cancelled = true;
     };
   }, [convChannel]);
+  /**
+   * POR QUÉ NO CONTESTÓ.
+   *
+   * `ai_replies.skip_reason` se escribía en cada intento y no se leía en
+   * ninguna pantalla: la pregunta más frecuente del comercio —"¿por qué no
+   * contestó?"— sólo se podía responder mirando la base. Ocho de las causas
+   * son mudas (asignada, cerrada, fuera de horario, llegó otro mensaje antes,
+   * respuesta vacía, hueco de conocimiento, mensaje no compatible, cupo).
+   *
+   * Sólo se muestra si el salto es POSTERIOR al último mensaje del cliente:
+   * un motivo de anteayer, sobre un chat que después siguió, no explica nada
+   * y ensucia la cabecera.
+   */
+  const [ultimoSalto, setUltimoSalto] = useState<string | null>(null);
+  const convIdSalto = conversation?.id;
+  useEffect(() => {
+    if (!convIdSalto) {
+      setUltimoSalto(null);
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("ai_replies")
+        .select("status, skip_reason, created_at")
+        .eq("conversation_id", convIdSalto)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelado) return;
+      const fila = data as {
+        status: string;
+        skip_reason: string | null;
+        created_at: string;
+      } | null;
+      setUltimoSalto(
+        fila?.status === "skipped" && fila.skip_reason ? fila.skip_reason : null,
+      );
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [convIdSalto, messages.length]);
+
+  /** El motivo dicho para una persona, o null si no hay nada que decir. */
+  const motivoDelSalto = useMemo(() => {
+    if (!ultimoSalto) return null;
+    // El último mensaje tiene que ser del cliente: si después contestó
+    // alguien, ya no hay pregunta que responder.
+    const ultimo = messages[messages.length - 1];
+    if (!ultimo || ultimo.sender_type !== "customer") return null;
+    // Un código sin traducción se calla: "otro motivo" no ayuda a nadie, y
+    // mostrar el identificador crudo es peor que no mostrar nada.
+    const clave = `health.skip_${ultimoSalto}`;
+    const texto = t(clave);
+    return texto === clave ? null : texto;
+  }, [ultimoSalto, messages, t]);
+
   const toggleAi = useCallback(async () => {
     if (!conversation || aiToggling) return;
     const next = !aiEnabled;
@@ -1522,6 +1581,18 @@ export function MessageThread({
                 {aiEnabled ? t("inbox.aiActive") : t("inbox.aiPaused")}
               </span>
             </button>
+          )}
+
+          {/* Por qué no contestó. Una línea, y sólo cuando hay algo que
+              explicar: el motivo se escribía en cada intento y no se leía en
+              ninguna pantalla. */}
+          {motivoDelSalto && (
+            <span
+              className="hidden max-w-[22rem] truncate text-xs text-muted-foreground sm:inline"
+              title={t("inbox.aiSkipped", { motivo: motivoDelSalto })}
+            >
+              {t("inbox.aiSkipped", { motivo: motivoDelSalto })}
+            </span>
           )}
 
           {/* Assign dropdown — only render when there's more than one
