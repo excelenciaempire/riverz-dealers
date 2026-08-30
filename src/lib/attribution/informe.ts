@@ -723,13 +723,29 @@ export async function leerAtribucion(
     const orderTime = new Date(order.created_at).getTime();
     const total = Number(order.total_price ?? '0');
     const currency = order.currency || moneda;
-    // Con qué habló esta persona antes de comprar. NO prueba la venta: es
-    // contexto, y es lo que separa "influida" de "no la tocamos". Sin contacto
-    // emparejado no hay nada que mirar, pero el pedido puede seguir estando
-    // probado por su marca.
-    const fuentes: AttributedOrder['sources'] = cId
-      ? ultimoToquePorLente(toquesPorContacto.get(cId) ?? [], orderTime, lookbackMs)
-      : [];
+    // Con qué habló esta persona antes de comprar. No prueba la venta —para eso
+    // está la marca— pero sí dice que Riverz ayudó a cerrarla.
+    //
+    // La condición es que le HAYAMOS ESCRITO. `automation_logs` y `flow_runs`
+    // registran que la receta CORRIÓ, no que salió un mensaje: la
+    // automatización de carrito arranca, espera 15 minutos, ve que la persona
+    // ya compró y no manda nada — y aun así deja su fila en `success`. Sin este
+    // corte, la misma venta que dejó de estar "probada" volvía a entrar por
+    // esta puerta con la etiqueta "Automatización: Carrito abandonado", que es
+    // lo mismo dicho de otra forma.
+    //
+    // Las otras dos lentes ya miraban envíos reales (`broadcast_recipients.
+    // sent_at`, `ai_replies` en estado `sent`), así que para ellas esto no
+    // cambia nada: si salió el mensaje, la fila en `messages` está.
+    const leHablamos = leEscribimosEntre(
+      cId,
+      new Date(orderTime - lookbackMs).toISOString(),
+      order.created_at,
+    );
+    const fuentes: AttributedOrder['sources'] =
+      cId && leHablamos
+        ? ultimoToquePorLente(toquesPorContacto.get(cId) ?? [], orderTime, lookbackMs)
+        : [];
     for (const f of fuentes) {
       accumulate(bucketDe(f.kind), f.entityId, f.name, total, currency);
     }
