@@ -121,7 +121,7 @@ export async function acumularDia(
   const { data, error } = await db
     .from('ai_replies')
     .select(
-      'workspace_id, conversation_id, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model',
+      'workspace_id, conversation_id, prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model, key_source',
     )
     .eq('status', 'sent')
     .gte('created_at', desde.toISOString())
@@ -129,9 +129,19 @@ export async function acumularDia(
     .limit(100_000)
   if (error) throw new Error(`[billing/uso] ${error.message}`)
 
+  /** Lo del día, abierto por modelo y por bolsillo. Ver migración 230. */
+  type PorModelo = Record<string, { usd: number; plataforma_usd: number }>
+
   const porCuenta = new Map<
     string,
-    { conv: Set<string>; respuestas: number; prompt: number; completion: number; usd: number }
+    {
+      conv: Set<string>
+      respuestas: number
+      prompt: number
+      completion: number
+      usd: number
+      porModelo: PorModelo
+    }
   >()
   for (const r of (data ?? []) as {
     workspace_id: string
@@ -141,10 +151,18 @@ export async function acumularDia(
     cache_read_tokens: number | null
     cache_write_tokens: number | null
     model: string | null
+    key_source: string | null
   }[]) {
     const acc =
       porCuenta.get(r.workspace_id) ??
-      { conv: new Set<string>(), respuestas: 0, prompt: 0, completion: 0, usd: 0 }
+      {
+        conv: new Set<string>(),
+        respuestas: 0,
+        prompt: 0,
+        completion: 0,
+        usd: 0,
+        porModelo: {} as PorModelo,
+      }
     if (r.conversation_id) acc.conv.add(r.conversation_id)
     acc.respuestas += 1
     acc.prompt += r.prompt_tokens ?? 0
@@ -155,10 +173,22 @@ export async function acumularDia(
     // así que en una conversación con historia la lectura de caché es la mayor
     // parte de lo que se paga. Las filas viejas no los tienen y valen cero — no
     // se puede reconstruir lo que la API nunca dijo.
-    acc.usd += costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
+    const usd = costForModel(r.model, r.prompt_tokens ?? 0, r.completion_tokens ?? 0, {
       read: r.cache_read_tokens ?? 0,
       write: r.cache_write_tokens ?? 0,
     })
+    acc.usd += usd
+
+    // El mismo costo, abierto por modelo y por bolsillo. Es el único momento en
+    // que se tiene la fila con su modelo y su `key_source` al lado del costo:
+    // después queda un total del que no se puede volver. `agent` es la llave
+    // del propio comercio; todo lo demás lo puso Riverz.
+    const modelo = (r.model ?? 'desconocido').trim() || 'desconocido'
+    const linea = acc.porModelo[modelo] ?? { usd: 0, plataforma_usd: 0 }
+    linea.usd += usd
+    if (r.key_source !== 'agent') linea.plataforma_usd += usd
+    acc.porModelo[modelo] = linea
+
     porCuenta.set(r.workspace_id, acc)
   }
 
@@ -170,6 +200,12 @@ export async function acumularDia(
     prompt_tokens: a.prompt,
     completion_tokens: a.completion,
     costo_usd: Number(a.usd.toFixed(6)),
+    costo_por_modelo: Object.fromEntries(
+      Object.entries(a.porModelo).map(([m, v]) => [
+        m,
+        { usd: Number(v.usd.toFixed(6)), plataforma_usd: Number(v.plataforma_usd.toFixed(6)) },
+      ]),
+    ),
     actualizado_en: new Date().toISOString(),
   }))
 
