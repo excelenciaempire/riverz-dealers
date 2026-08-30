@@ -2203,7 +2203,12 @@ async function pasarAUnaPersona(
 ): Promise<void> {
   try {
     if (!ctx.conversationId) return
-    await ctx.db
+    // EL ERROR SE MIRA. El cliente de Supabase no lo tira: lo devuelve en el
+    // resultado, así que un `await` suelto lo descarta. Así estuvo cortado este
+    // camino —la CHECK de la base no aceptaba `comprobante_sin_pedido`— desde
+    // que existe y sin una sola línea de log: la IA le decía al cliente "lo
+    // estamos verificando y te aviso" y no había nadie del otro lado.
+    const { error } = await ctx.db
       .from('conversations')
       .update({
         needs_human_reason: 'comprobante_sin_pedido',
@@ -2213,6 +2218,12 @@ async function pasarAUnaPersona(
       })
       .eq('id', ctx.conversationId)
       .is('needs_human_at', null)
+    if (error) {
+      console.error(
+        '[tools] la escalada del comprobante no se pudo escribir:',
+        error.message,
+      )
+    }
 
     const { data: c } = await ctx.db
       .from('conversations')

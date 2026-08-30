@@ -271,44 +271,61 @@ export interface ContactNote {
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
-/** Por qué la IA dejó el hilo a una persona (migración 122). */
-export type NeedsHumanReason =
-  | 'escalation_keyword'
-  | 'escalate_after_messages'
-  | 'flow_handoff'
+/**
+ * Por qué la IA dejó el hilo a una persona (migración 122).
+ *
+ * ES UNA LISTA EN TIEMPO DE EJECUCIÓN, no sólo un tipo. La base tiene la misma
+ * lista en una CHECK, y estuvieron separadas: el tipo llegó a doce valores
+ * mientras la CHECK seguía en siete. Los cinco de más no fallaban ruidosamente
+ * —el cliente de Supabase devuelve el error en el resultado en vez de tirarlo,
+ * y nadie lo miraba— así que cinco caminos de escalada quedaron cortados sin
+ * una sola línea de log. Entre ellos, el del comprobante que no matchea ningún
+ * pedido: la IA le dice al cliente "lo estamos verificando y te aviso" y no
+ * había nadie del otro lado.
+ *
+ * Ahora la lista es una sola, y `escalada-y-base.test.ts` la compara contra la
+ * migración. Un motivo nuevo sin su migración no compila el test.
+ */
+export const NEEDS_HUMAN_REASONS = [
+  'escalation_keyword',
+  'escalate_after_messages',
+  'flow_handoff',
   /** Cortacircuitos: demasiadas respuestas al mismo contacto en poco
    *  tiempo (migración 178). */
-  | 'reply_burst_guard'
+  'reply_burst_guard',
   /** Hay una cancelación o un reembolso pedido que el comercio nunca recibió
    *  por WhatsApp (migración 179). */
-  | 'approval_unnotified'
+  'approval_unnotified',
   /** El agente reconoció que no sabía la respuesta y anotó la pregunta
    *  (migración 182). */
-  | 'answer_gap'
+  'answer_gap',
   /** Mandó el comprobante y no encontramos su pedido. Lo mira una persona:
    *  pedirle el número, o decirle que no figura, suena a "perdimos tu pago". */
-  | 'comprobante_sin_pedido'
+  'comprobante_sin_pedido',
   /** El visitante del chat web apretó "hablar con una persona" (migración
    *  198). Es el único motivo que nace de un pedido explícito. */
-  | 'visitor_request'
+  'visitor_request',
   /** La persona sigue mandando algo que WhatsApp no nos entrega (ver-una-vez,
    *  una encuesta, una función nueva): llega el aviso y ningún archivo. Se le
    *  avisa UNA vez; si insiste, otro mensaje no lo va a resolver y lo mira una
    *  persona, que sí puede abrirlo en el teléfono. */
-  | 'mensaje_no_recibido'
+  'mensaje_no_recibido',
   /** Meta rechazó ocultar o publicar en un comentario —típicamente por un
    *  permiso que le falta a la cuenta—, así que el comentario sigue a la vista
    *  y sin respuesta. Lo mira una persona, que sí puede hacerlo desde la app
    *  mientras se arregla el permiso. */
-  | 'comment_sin_moderar'
+  'comment_sin_moderar',
   /** El modelo no devolvió nada usable —texto vacío, o una respuesta que las
    *  guardas descartaron— así que el cliente escribió y no recibió nada. NO
    *  apaga la IA: el hilo se recupera solo en el próximo mensaje. */
-  | 'ia_sin_respuesta'
+  'ia_sin_respuesta',
   /** El proveedor del modelo falló (sin saldo, límite, caída) y al cliente se
    *  le mandó "en un momento te responde una persona". Esa promesa la tiene
    *  que cumplir alguien. Tampoco apaga la IA: la caída es pasajera. */
-  | 'ia_caida';
+  'ia_caida',
+] as const;
+
+export type NeedsHumanReason = (typeof NEEDS_HUMAN_REASONS)[number];
 
 export interface Conversation {
   id: string;

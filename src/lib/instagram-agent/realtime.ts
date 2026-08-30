@@ -169,7 +169,9 @@ async function marcarParaUnaPersona(
     const hilo = await loadCommentConversation(db, { workspaceId, contactId, channel });
     const convId = hilo?.id;
     if (!convId) return;
-    await db
+    // Mismo cuidado que en `ai/desenlace.ts`: el error viene EN el resultado,
+    // asi que un `await` suelto lo tira a la basura y el catch no lo ve.
+    const { error } = await db
       .from('conversations')
       .update({
         needs_human_at: new Date().toISOString(),
@@ -180,6 +182,9 @@ async function marcarParaUnaPersona(
       })
       .eq('id', convId)
       .is('needs_human_at', null);
+    if (error) {
+      console.error('[ig-agent] la marca para una persona no se escribio:', error.message);
+    }
   } catch (err) {
     console.error('[ig-agent] no se pudo marcar para una persona:', err);
   }

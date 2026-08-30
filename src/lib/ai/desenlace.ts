@@ -174,7 +174,11 @@ export async function aplicarDesenlace(
   const p = politicaDe(desenlace)
   if (!p?.escala || !conversationId) return
   try {
-    await db
+    // El error se MIRA: el cliente de Supabase lo devuelve en el resultado en
+    // vez de tirarlo, asi que un `await` suelto lo descarta y el `catch` de
+    // abajo nunca se entera. Cinco motivos estuvieron rechazados por la CHECK
+    // de la base durante semanas sin una sola linea de log.
+    const { error } = await db
       .from('conversations')
       .update({
         needs_human_reason: p.escala,
@@ -185,6 +189,9 @@ export async function aplicarDesenlace(
       })
       .eq('id', conversationId)
       .is('needs_human_at', null)
+    if (error) {
+      console.error('[ia] el desenlace', desenlace, 'no se escribio:', error.message)
+    }
   } catch (err) {
     console.error('[ia] no se pudo aplicar el desenlace', desenlace, err)
   }
