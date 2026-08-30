@@ -31,17 +31,13 @@ export const dashboard = {
     en: "{orders} orders · {share}% of sales",
   },
   roiRevenueNone: { es: "Todavía sin ventas atribuidas", en: "No attributed sales yet" },
-  roiRevenueOnlyAssisted: {
-    es: "Sin ventas probadas · {orders} influidas",
-    en: "No proven sales · {orders} assisted",
-  },
 
   // La cifra, abierta: qué está probado y qué no.
   attrDetailTitle: { es: "De dónde sale esta cifra", en: "Where this number comes from" },
   attrRange: { es: "Del {desde} al {hasta}", en: "From {desde} to {hasta}" },
   attrModel: {
-    es: "La cifra cuenta sólo los pedidos que traen una marca de Riverz. Lo que apenas pasó cerca va abajo, aparte.",
-    en: "The number counts only orders carrying a Riverz stamp. Anything that merely came close is listed separately below.",
+    es: "La cifra suma lo que Riverz cerró y lo que ayudó a cerrar. Abajo, cada pedido con lo que pasó: entra al chat desde cualquier renglón.",
+    en: "The number adds up what Riverz closed and what it helped close. Below, every order with what happened: open the chat from any row.",
   },
   attrTotalLine: { es: "{total} en {orders} pedidos", en: "{total} across {orders} orders" },
 
@@ -56,8 +52,8 @@ export const dashboard = {
   },
   attrAssistedTitle: { es: "Influidas", en: "Assisted" },
   attrAssistedHelp: {
-    es: "Hablaron con Riverz en las 72 h previas y después compraron. No suma a la cifra de arriba.",
-    en: "They talked to Riverz within 72h and then bought. Not added to the number above.",
+    es: "Riverz les escribió en las 72 h previas y compraron. Ayudó a cerrar, aunque el pedido no traiga marca.",
+    en: "Riverz messaged them within 72h and they bought. It helped close the sale, even with no stamp on the order.",
   },
   attrFromAd: { es: "vino de un anuncio", en: "came from an ad" },
 
@@ -91,8 +87,8 @@ export const dashboard = {
     en: "Do you close sales over chat?",
   },
   ventasAManoHelp: {
-    es: "Esta cifra sólo cuenta pedidos con marca de Riverz. Si cierras la venta en el chat y después cargas el pedido a mano, no aparece acá.",
-    en: "This number only counts orders carrying a Riverz stamp. If you close the sale in the chat and then enter the order by hand, it won't show up here.",
+    es: "Esta cifra cuenta las ventas donde Riverz habló con la persona. Si cierras la venta hablando y cargas el pedido en otro sistema, no aparece acá.",
+    en: "This number counts sales where Riverz talked to the customer. If you close the sale over chat and enter the order in another system, it won't show up here.",
   },
   ventasAManoSeguido: { es: "Casi todos los días", en: "Most days" },
   ventasAManoAVeces: { es: "A veces", en: "Sometimes" },

@@ -51,11 +51,28 @@ export function TarjetasRoi({
   const cargando = atribucion === null || Boolean(atribucion.error)
   const sinTienda = atribucion?.not_connected === true
   const ventasTienda = atribucion?.totals?.revenue.current ?? 0
-  // Sólo lo PROBADO: el pedido trae una marca que puso Riverz. Lo que apenas
-  // pasó cerca de una conversación vive en `assisted` y no entra acá — una
-  // cifra que se cae cuando el comercio la discute no sirve de nada.
-  const porRiverz = atribucion?.attributed
+  // Lo que Riverz cerró Y lo que ayudó a cerrar, en una sola cifra.
+  //
+  // El comercio instala Riverz para automatizar la atención: si le hablamos a
+  // alguien y esa persona compró, eso es retorno aunque el pedido no traiga
+  // marca nuestra. Separarlo en dos números dejaba la mitad del trabajo
+  // invisible.
+  //
+  // Lo que NO entra —y es la línea que no se cruza— es la venta donde no pasó
+  // nada: ni un mensaje, ni una conversación. Esa no la cerramos ni la
+  // ayudamos, y contarla es lo que hace que la cifra se caiga el día que el
+  // comercio la discute. El detalle sigue mostrando las dos mitades por
+  // separado, con su explicación.
+  const probadas = atribucion?.attributed
   const influidas = atribucion?.assisted
+  const porRiverz =
+    probadas || influidas
+      ? {
+          revenue: (probadas?.revenue ?? 0) + (influidas?.revenue ?? 0),
+          orders: (probadas?.orders ?? 0) + (influidas?.orders ?? 0),
+          currency: probadas?.currency || influidas?.currency,
+        }
+      : undefined
 
   const salientes = metrics.messagesSent.current
 
@@ -81,11 +98,7 @@ export function TarjetasRoi({
           icon={Sparkles}
           // Se abre para ver pedido por pedido de dónde sale. Una cifra que no
           // se puede verificar no se termina de creer.
-          onClick={
-            (porRiverz?.orders ?? 0) + (influidas?.orders ?? 0) > 0
-              ? () => setDetalle(true)
-              : undefined
-          }
+          onClick={(porRiverz?.orders ?? 0) > 0 ? () => setDetalle(true) : undefined}
           subtitle={
             cargando
               ? undefined
@@ -97,11 +110,7 @@ export function TarjetasRoi({
                         ? Math.round((porRiverz.revenue / ventasTienda) * 100)
                         : 0,
                   })
-                : // Nada probado, pero hubo charla antes de comprar. Se dice
-                  // dónde quedó esa plata en vez de dejar un cero mudo.
-                  influidas && influidas.orders > 0
-                  ? t('dashboard.roiRevenueOnlyAssisted', { orders: influidas.orders })
-                  : t('dashboard.roiRevenueNone')
+                : t('dashboard.roiRevenueNone')
           }
         />
       )}

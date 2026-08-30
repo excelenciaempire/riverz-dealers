@@ -570,6 +570,101 @@ export async function leerAtribucion(
     const id = contactoDelPedido(o);
     if (id) contactosConPedido.add(id);
   }
+
+  /**
+   * Cuándo le salió a cada comprador un mensaje NUESTRO, y por qué hilo.
+   *
+   * Existe por un agujero que costó caro: `recovery_dispatched_at` no
+   * significa "le mandamos el recordatorio del carrito". Significa "el cron
+   * reclamó esta fila para que otro tick no la mande dos veces", y lo escribe
+   * ANTES de intentar el envío. Después hay seis caminos por los que no sale
+   * nada —ya se le escribió en 24 h, tiene un pago rechazado abierto, un
+   * carrito hermano suyo ya fue reclamado, la automatización esperó 15 minutos
+   * y para entonces la persona ya había comprado— y en los seis la marca queda
+   * puesta.
+   *
+   * Medido en Pilar el 2026-08-30: de 37 pedidos que la cifra daba por
+   * probados por carrito recuperado, **36 no habían recibido ni un mensaje**.
+   * Los carritos vivían 94, 112, 122 segundos: gente comprando normal, que el
+   * cron reclamaba a los 18 segundos de abrir el checkout. La cifra principal
+   * estaba inflada 50 veces.
+   *
+   * La prueba de un carrito recuperado pasa a ser lo que siempre debió ser:
+   * que a esa persona le HAYA SALIDO un mensaje, y que haya comprado después.
+   * Con el mismo mapa se resuelve a qué hilo lleva cada renglón del detalle.
+   */
+  const salidasPorContacto = new Map<string, Array<{ at: string; conv: string }>>();
+  {
+    const convsDeCompradores: string[] = [];
+    for (const cId of contactosConPedido) {
+      convsDeCompradores.push(...(convDeContacto.get(cId) ?? []));
+    }
+    const deConv = new Map<string, string>();
+    for (const cId of contactosConPedido) {
+      for (const convId of convDeContacto.get(cId) ?? []) deConv.set(convId, cId);
+    }
+    if (convsDeCompradores.length > 0) {
+      const salidas = await traerTodo<{
+        conversation_id: string | null;
+        created_at: string;
+      }>((a, b) =>
+        admin
+          .from('messages')
+          .select('conversation_id, created_at')
+          // Todo lo que no escribió el cliente salió de Riverz: la IA, una
+          // plantilla, una persona del equipo desde la bandeja.
+          .neq('sender_type', 'customer')
+          .in('conversation_id', convsDeCompradores.slice(0, 2000))
+          .gte('created_at', new Date(sinceMs - 60 * 86_400_000).toISOString())
+          .order('created_at')
+          .range(a, b),
+      );
+      for (const m of salidas) {
+        const cId = m.conversation_id ? deConv.get(m.conversation_id) : null;
+        if (!cId || !m.conversation_id) continue;
+        const lista = salidasPorContacto.get(cId) ?? [];
+        lista.push({ at: m.created_at, conv: m.conversation_id });
+        salidasPorContacto.set(cId, lista);
+      }
+    }
+  }
+
+  /** ¿A esta persona le salió un mensaje entre `desde` y el pedido? */
+  const leEscribimosEntre = (
+    contactId: string | null,
+    desdeIso: string,
+    hastaIso: string,
+  ): boolean => {
+    if (!contactId) return false;
+    const desde = Date.parse(desdeIso);
+    const hasta = Date.parse(hastaIso);
+    return (salidasPorContacto.get(contactId) ?? []).some((m) => {
+      const t = Date.parse(m.at);
+      return t >= desde && t <= hasta;
+    });
+  };
+
+  /**
+   * A qué hilo lleva el renglón: aquel donde Riverz habló con esta persona
+   * ANTES de que comprara.
+   *
+   * Antes se tomaba la primera conversación de la lista, y esa lista venía
+   * ordenada por el uuid de la conversación — o sea al azar. Con una persona
+   * de un solo hilo acertaba de casualidad; con dos, era una moneda al aire,
+   * y el renglón que decía "carrito abandonado" abría un chat de "nuevo
+   * pedido". 37 de cada 881 contactos tienen más de un hilo.
+   */
+  const hiloDelPedido = (contactId: string | null, hastaIso: string): string | null => {
+    if (!contactId) return null;
+    const hasta = Date.parse(hastaIso);
+    const previas = (salidasPorContacto.get(contactId) ?? []).filter(
+      (m) => Date.parse(m.at) <= hasta,
+    );
+    if (previas.length > 0) return previas[previas.length - 1].conv;
+    // Nunca le escribimos antes de comprar: no hay hilo que explique la venta,
+    // pero sí uno donde seguir la conversación. El primero es mejor que nada.
+    return convDeContacto.get(contactId)?.[0] ?? null;
+  };
   const toquesPorContacto = await prefetchToques(admin, {
     workspaceId,
     locale,
@@ -594,7 +689,7 @@ export async function leerAtribucion(
     // pedido que salió de un link del asistente está probado aunque la persona
     // haya pagado con otro correo y no matchee ningún contacto. Buscarlo
     // primero, como se hacía, tiraba esas ventas a la basura.
-    const proofs = provenBy(
+    const crudas = provenBy(
       order,
       espejoDePedido.get(String(order.id)) ?? null,
       cuponesPropios,
@@ -603,6 +698,27 @@ export async function leerAtribucion(
     );
 
     const cId = contactoDelPedido(order);
+
+    /**
+     * El carrito recuperado sólo prueba si el mensaje SALIÓ.
+     *
+     * `provenBy` es puro y no puede saberlo: la marca del carrito vive en
+     * `shopify_checkouts` y el envío vive en `messages`. El cruce se hace acá,
+     * que es donde están los dos. Ver `salidasPorContacto` arriba para el
+     * agujero que esto tapa.
+     */
+    const proofs = crudas.filter((p) => {
+      if (p.kind !== 'cart_recovery') return true;
+      const token = (
+        order.checkout_token ??
+        order.cart_token ??
+        espejoDePedido.get(String(order.id))?.checkout_token ??
+        ''
+      ).trim();
+      const reclamado = token ? carritosRecordados.get(token) : undefined;
+      if (!reclamado) return false;
+      return leEscribimosEntre(cId, reclamado, order.created_at);
+    });
 
     const orderTime = new Date(order.created_at).getTime();
     const total = Number(order.total_price ?? '0');
@@ -639,10 +755,10 @@ export async function leerAtribucion(
       currency,
       contact: cId ? (nombreDeContacto.get(cId) ?? null) : null,
       contact_id: cId,
-      // El hilo donde hablar con esta persona. Sin esto, el detalle contaba de
-      // dónde salió cada venta y no dejaba ir a verla: había que copiar el
-      // nombre y buscarlo a mano en la bandeja.
-      conversation_id: cId ? (convDeContacto.get(cId)?.[0] ?? null) : null,
+      // El hilo donde Riverz habló con esta persona antes de que comprara.
+      // Sin esto, el detalle contaba de dónde salió cada venta y no dejaba ir a
+      // verla: había que copiar el nombre y buscarlo a mano en la bandeja.
+      conversation_id: hiloDelPedido(cId, order.created_at),
       // Lo más reciente primero: el mensaje que llegó último es el que
       // mejor explica la compra.
       sources: fuentes.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
