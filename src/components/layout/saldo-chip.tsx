@@ -50,9 +50,11 @@ export function SaldoChip({
     !saldo.autoConTarjeta &&
     saldo.centavos < saldo.umbralCentavos;
 
+  // Los centavos que hagan falta y ni uno más: «10 US$», pero «6,92 US$».
   const monto = fmt.currency(
     saldo.centavos / 100,
     (saldo.moneda || "usd").toUpperCase(),
+    { minimumFractionDigits: 0 },
   );
 
   const color = enCero
