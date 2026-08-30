@@ -316,6 +316,10 @@ export const health: Namespace = {
     es: "el hilo estaba cerrado",
     en: "the thread was closed",
   },
+  skip_comment_espera_aprobacion: {
+    es: "la respuesta espera tu aprobación",
+    en: "the reply is waiting for your approval",
+  },
   skip_comment_spam: { es: "era spam y se ocultó", en: "spam, hidden" },
   skip_comment_critica: {
     es: "era una crítica y se ocultó",

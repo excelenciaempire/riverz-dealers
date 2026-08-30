@@ -22,6 +22,16 @@ export interface IgAgentConfig {
   business_hours: BusinessHours | null;
   reply_outside_hours: boolean;
   escalate_keywords: string[];
+  /**
+   * "Aprobar cada mensaje". Es lo ÚNICO del agente que manda sobre los
+   * comentarios además de las palabras de escalado, y no rompe el contrato de
+   * abajo: no dice por dónde puede hablar el agente, dice que este comercio no
+   * deja que la IA hable sola. Ignorarlo en la superficie pública —donde lo
+   * lee cualquiera— sería justo al revés de lo que pidió.
+   */
+  requires_approval: boolean;
+  /** Para firmar la propuesta que queda esperando el clic. */
+  name: string | null;
 }
 
 /** Config vacía: no hay agente. Los comentarios se contestan igual, con la
@@ -34,17 +44,21 @@ const NO_AGENT: IgAgentConfig = {
   business_hours: null,
   reply_outside_hours: true,
   escalate_keywords: [],
+  requires_approval: false,
+  name: null,
 };
 
 /** Columnas mínimas para poder aplicar el MISMO contrato que el runner. */
 const AGENT_BASE =
-  'id, is_active, scope, business_hours, reply_outside_hours, escalate_keywords, priority, created_at';
+  'id, name, is_active, scope, business_hours, reply_outside_hours, escalate_keywords, requires_approval, priority, created_at';
 const AGENT_FIELDS = `${AGENT_BASE}, ai_agent_channels(channel)`;
 /** Variante con inner join: obligatoria para poder filtrar por canal. */
 const AGENT_FIELDS_IG = `${AGENT_BASE}, ai_agent_channels!inner(channel)`;
 
 interface AgentRow {
   id: string;
+  name?: string | null;
+  requires_approval?: boolean | null;
   is_active?: boolean | null;
   scope?: string | null;
   business_hours?: BusinessHours | null;
@@ -62,6 +76,8 @@ function normalize(row: AgentRow): IgAgentConfig {
     business_hours: row.business_hours ?? null,
     reply_outside_hours: row.reply_outside_hours ?? true,
     escalate_keywords: row.escalate_keywords ?? [],
+    requires_approval: row.requires_approval === true,
+    name: row.name ?? null,
   };
 }
 

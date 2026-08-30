@@ -74,3 +74,40 @@ describe('la puerta de "con aprobación"', () => {
     expect(herramientasQueRequierenAprobacion(agent as never)).toEqual([])
   })
 })
+
+describe('"aprobar cada mensaje" también frena la respuesta pública', () => {
+  const realtime = readFileSync(
+    join(process.cwd(), 'src', 'lib', 'instagram-agent', 'realtime.ts'),
+    'utf8',
+  )
+
+  it('el piso autónomo lee requires_approval y deja la propuesta', () => {
+    // Un comercio que aprueba cada mensaje seguía teniendo a la IA publicando
+    // sola bajo sus posts y mandándole DM a desconocidos. `requires_approval`
+    // no dice POR DÓNDE puede hablar el agente —eso sí es del chat— sino que
+    // este comercio no deja que la IA hable sola.
+    expect(realtime).toContain('requires_approval')
+    expect(realtime).toContain('ai_pending_replies')
+    expect(realtime).toContain('comment_espera_aprobacion')
+  })
+
+  it('la propuesta se guarda ANTES de decidir el privado', () => {
+    // No se abre un DM por algo que todavía nadie aprobó.
+    const iAprob = realtime.indexOf('comment_espera_aprobacion')
+    const iDm = realtime.indexOf('decideCommentDm({')
+    expect(iAprob).toBeGreaterThan(0)
+    expect(iDm).toBeGreaterThan(0)
+    expect(iAprob, 'la aprobación quedó después de decidir el privado').toBeLessThan(iDm)
+  })
+
+  it('el agente de comentarios trae la columna que hace falta', () => {
+    const link = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'instagram-agent', 'agent-link.ts'),
+      'utf8',
+    )
+    // Sin la columna en el SELECT, el campo llega undefined y la puerta no
+    // frena nada — el modo de falla más silencioso posible.
+    expect(link).toContain('requires_approval')
+    expect(/const AGENT_BASE =[\s\S]{0,300}requires_approval/.test(link)).toBe(true)
+  })
+})

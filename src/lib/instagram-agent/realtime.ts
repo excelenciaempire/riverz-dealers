@@ -1133,6 +1133,33 @@ async function decidirComentario(
     return 'comment_prometia_averiguar';
   }
 
+  // "APROBAR CADA MENSAJE" TAMBIÉN ACÁ.
+  //
+  // Es lo único del agente que sí manda sobre los comentarios, y por eso no
+  // rompe el contrato de `agent-link` (del agente se toma la voz, nunca el
+  // permiso): `requires_approval` no dice POR DÓNDE puede hablar el agente,
+  // dice que este comercio NO deja que la IA hable sola. La superficie pública
+  // —donde lo lee cualquiera— es el último lugar donde eso se puede ignorar.
+  //
+  // La respuesta queda propuesta en el hilo de comentarios y sale con un clic,
+  // por el mismo camino que un borrador aprobado. Va DESPUÉS de las guardas de
+  // contenido —si la respuesta no servía, no se propone— y ANTES de decidir el
+  // privado, porque no se abre un DM por algo que todavía nadie aprobó.
+  if (agent?.requires_approval && hilo) {
+    await db.from('ai_pending_replies').upsert(
+      {
+        workspace_id: opts.workspaceId,
+        conversation_id: hilo.id,
+        agent_id: agent.id,
+        agent_name: agent.name ?? null,
+        content_text: text,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'conversation_id' },
+    );
+    return 'comment_espera_aprobacion';
+  }
+
   // ¿Además del comentario, hace falta abrir el privado? Lo decide el modo que
   // eligió el comercio (migración 177). En 'public_smart' pregunta al
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en

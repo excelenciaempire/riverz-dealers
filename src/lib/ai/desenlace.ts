@@ -118,6 +118,7 @@ export const POLITICA = {
   comment_ia_apagada_en_el_hilo: NO_ESCALA('el comercio apagó la IA en ese hilo'),
   comment_asignado_a_persona: NO_ESCALA('ya lo atiende una persona'),
   comment_hilo_cerrado: NO_ESCALA('el hilo estaba cerrado'),
+  comment_espera_aprobacion: NO_ESCALA('la respuesta espera un clic, no una persona'),
   comment_spam: NO_ESCALA('spam: se ocultó y se calla'),
   comment_critica: NO_ESCALA('crítica: se oculta y no se contesta, por decisión del comercio'),
   comment_sin_intencion: NO_ESCALA('no mostraba intención de compra'),
