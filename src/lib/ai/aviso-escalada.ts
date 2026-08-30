@@ -113,6 +113,15 @@ function enlaceDelHilo(conversationId: string): string {
  * Primero el dueño de la cuenta; si no cargó el suyo, cualquier miembro que sí.
  * Y `workspaces.alert_phone` gana sobre todo, para el comercio que quiera
  * mandar los avisos a otro lado (el encargado de turno, un grupo de guardia).
+ *
+ * **Nunca la línea conectada del comercio.** Fue el respaldo hasta hoy y era un
+ * pozo: el número de `channel_connections` es una línea de la Cloud API, no un
+ * teléfono. Meta no le entrega el aviso a ninguna persona — lo devuelve por el
+ * webhook como `type: unsupported`, o sea que el aviso entra a la bandeja del
+ * propio comercio como si un cliente hubiera mandado algo ilegible. Medido el
+ * 2026-08-30 en la cuenta Pilar: 9 de 9 escaladas del día terminaron ahí, la IA
+ * le contestó a una y volvió a escalar. El aviso que se manda a uno mismo no es
+ * un aviso.
  */
 export async function aQuienAvisar(
   db: SupabaseClient,
@@ -126,14 +135,6 @@ export async function aQuienAvisar(
   const fila = ws as { alert_phone?: string | null; owner_id?: string | null } | null;
   const propio = soloDigitos(fila?.alert_phone);
   if (propio) return propio;
-
-  // EL NÚMERO CONECTADO DE LA CUENTA. Es el que trabaja: la bandeja de ese
-  // número es donde está la gente que puede meterse en el caso. El teléfono
-  // personal del dueño queda de respaldo para las cuentas que usan Riverz sin
-  // WhatsApp (sólo Instagram, sólo correo), no como primera opción: un aviso
-  // de operación tiene que caer en la línea del negocio.
-  const conectado = await numeroConectado(db, workspaceId);
-  if (conectado) return conectado;
 
   const { data: miembros } = await db
     .from('workspace_members')
@@ -155,41 +156,6 @@ export async function aQuienAvisar(
     if (elegido) return soloDigitos(elegido.phone);
   }
 
-  return null;
-}
-
-/**
- * EL NÚMERO DE WHATSAPP QUE LA CUENTA TIENE CONECTADO.
- *
- * Es el que nunca falta. Un comercio puede no haber cargado su teléfono en el
- * perfil —medido el 2026-08-28: 8 de 10 cuentas no lo tenían, así que sus
- * casos escalados no le llegaban a nadie— pero si usa Riverz para WhatsApp
- * tiene un número conectado sí o sí, y es un número que alguien mira.
- *
- * El aviso sale desde el WhatsApp de la plataforma, no desde el del comercio,
- * así que esto es una conversación normal entre dos números distintos.
- *
- * Se descartan los desconectados: escribirle a un número que el comercio dejó
- * de usar es no avisar, con el agravante de que el registro dice que sí.
- */
-async function numeroConectado(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<string | null> {
-  const { data } = await db
-    .from('channel_connections')
-    .select('config')
-    .eq('workspace_id', workspaceId)
-    .eq('channel', 'whatsapp')
-    .eq('status', 'connected');
-  for (const fila of (data ?? []) as Array<{
-    config: Record<string, unknown> | null;
-  }>) {
-    const numero = soloDigitos(
-      (fila.config?.display_phone_number as string | undefined) ?? null,
-    );
-    if (numero) return numero;
-  }
   return null;
 }
 
@@ -272,46 +238,4 @@ export async function avisarEscalada(
     }
     return { avisado: false, motivo: 'error' };
   }
-}
-
-/**
- * TODOS los teléfonos a los que este comercio quiere que le avisen.
- *
- * Un comercio con turnos no tiene un solo responsable: a las once de la noche
- * el aviso le llega a quien está durmiendo y el que está trabajando no se
- * entera. Por eso hay hasta tres —el dueño, el encargado y un suplente— y por
- * eso no hay más: cuatro deja de ser un aviso y pasa a ser una difusión.
- *
- * Sale sin repetidos: se comparan por dígitos, así que «+54 9 11…» y
- * «5491161047646» cuentan como uno. Si nadie configuró números propios, cae al
- * que ya resuelve `aQuienAvisar` — el de la línea del negocio.
- */
-export async function telefonosDeAviso(
-  db: SupabaseClient,
-  workspaceId: string,
-): Promise<string[]> {
-  const digitos = (t: string) => t.replace(/\D/g, '');
-  const salida = new Map<string, string>();
-
-  const { data: ws } = await db
-    .from('workspaces')
-    .select('alert_phone, alert_phones')
-    .eq('id', workspaceId)
-    .maybeSingle();
-  const fila = ws as {
-    alert_phone?: string | null;
-    alert_phones?: string[] | null;
-  } | null;
-
-  for (const t of [fila?.alert_phone ?? '', ...(fila?.alert_phones ?? [])]) {
-    const limpio = (t ?? '').trim();
-    if (limpio && digitos(limpio)) salida.set(digitos(limpio), limpio);
-  }
-
-  if (salida.size === 0) {
-    const uno = await aQuienAvisar(db, workspaceId);
-    if (uno && digitos(uno)) salida.set(digitos(uno), uno);
-  }
-
-  return [...salida.values()];
 }

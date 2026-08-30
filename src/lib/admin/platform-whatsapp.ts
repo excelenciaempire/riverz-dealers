@@ -134,6 +134,37 @@ function paramSeguro(v: string): string {
   return v.replace(/\s*\n\s*/g, ' · ').replace(/\t/g, ' ').replace(/ {4,}/g, '   ').trim();
 }
 
+/**
+ * ¿Ese número es una línea de WhatsApp de la API —nuestra o de un comercio— en
+ * vez del teléfono de una persona?
+ *
+ * Se comparan dígitos normalizados: la misma línea figura como
+ * «+54 9 11 7678-3848» en la conexión y como `5491176783848` en el destino.
+ *
+ * Si la consulta falla se deja pasar el aviso: un error de base no puede dejar
+ * mudo al sistema de avisos, que es lo contrario de lo que se está arreglando.
+ */
+async function esLineaDeApi(
+  destino: string,
+  propio: string | null,
+): Promise<boolean> {
+  const { normalizeToWhatsApp } = await import('@/lib/whatsapp/phone-utils');
+  if (propio && normalizeToWhatsApp(propio) === destino) return true;
+  try {
+    const { data } = await supabaseAdmin()
+      .from('channel_connections')
+      .select('config')
+      .eq('channel', 'whatsapp');
+    for (const fila of (data ?? []) as Array<{ config: Record<string, unknown> | null }>) {
+      const numero = (fila.config?.display_phone_number as string | undefined) ?? '';
+      if (numero && normalizeToWhatsApp(numero) === destino) return true;
+    }
+  } catch (e) {
+    console.error('[avisos] no se pudo comprobar si el destino es una línea de la API', e);
+  }
+  return false;
+}
+
 export async function sendPlatformAlert(args: {
   /** El número, en cualquier formato. Se normaliza acá. */
   to: string;
@@ -158,6 +189,21 @@ export async function sendPlatformAlert(args: {
   const { normalizeToWhatsApp } = await import('@/lib/whatsapp/phone-utils');
   const destino = normalizeToWhatsApp(args.to);
   if (!destino) return { ok: false, error: 'el número está vacío' };
+
+  // Un aviso a una línea de la Cloud API no lo lee nadie.
+  //
+  // Los números de `channel_connections` no son teléfonos: son líneas de la API
+  // de Meta. Lo que se les manda no aparece en el WhatsApp de ninguna persona —
+  // vuelve por el webhook como `type: unsupported` y aterriza en la bandeja del
+  // propio comercio, como si un cliente hubiera mandado algo ilegible. Peor: la
+  // IA lo contesta y lo escala, y esa escalada dispara otro aviso al mismo
+  // lugar. Verificado en la cuenta Pilar el 2026-08-30 (9 de 9 escaladas del
+  // día). El corte va acá, en el único lugar por donde pasan TODOS los avisos,
+  // para que ningún camino nuevo vuelva a caer en el pozo.
+  if (await esLineaDeApi(destino, plataforma.displayPhoneNumber)) {
+    console.warn('[avisos] destino descartado: es una línea de la API, no un teléfono');
+    return { ok: false, error: 'el destino es una línea de WhatsApp API, no un teléfono' };
+  }
 
   const { sendTemplateMessage, sendTextMessage } = await import('@/lib/whatsapp/meta-api');
   try {

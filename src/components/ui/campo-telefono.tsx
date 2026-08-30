@@ -8,6 +8,7 @@ import {
   getCountryCallingCode,
   parsePhoneNumberFromString,
   type CountryCode,
+  type PhoneNumber,
 } from "libphonenumber-js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLocale, useT } from "@/hooks/use-locale";
@@ -128,6 +129,25 @@ function resolverNumero(
   };
 }
 
+/**
+ * El número guardado, escrito como lo escribiría quien lo dictó.
+ *
+ * `formatNational()` usa el formato interno de cada país, y en Argentina ese
+ * formato es el viejo: `+54 9 11 6104-7646` se dibuja «011 15-6104-7646».
+ * Nadie reconoce su propio número ahí — se lo borra, se lo teclea de nuevo como
+ * `9 11 6104 7646`, y como es EL MISMO número no hay nada que guardar y el
+ * botón queda gris. Eso se leyó tres veces como "no me deja guardar"
+ * (2026-08-30).
+ *
+ * Se muestra entonces el internacional sin el prefijo de país, que es justo lo
+ * que el selector de al lado ya está diciendo: «+54 | 9 11 6104 7646».
+ */
+function comoSeVe(p: PhoneNumber): string {
+  const internacional = p.formatInternational();
+  const sinPrefijo = internacional.replace(`+${p.countryCallingCode}`, "").trim();
+  return sinPrefijo || p.formatNational();
+}
+
 function nombrePais(iso: string, locale: string): string {
   try {
     return new Intl.DisplayNames([locale], { type: "region" }).of(iso) ?? iso;
@@ -212,7 +232,7 @@ export function CampoTelefono({
       const p = interpretar(value);
       if (p?.country) {
         setPais(p.country);
-        setLocal(p.formatNational());
+        setLocal(comoSeVe(p));
       }
     }
   }
