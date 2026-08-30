@@ -30,7 +30,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { leerProveedoresConCache, type Proveedor } from './proveedores'
-import { leerNegocio } from '@/lib/billing/negocio'
+import { leerSaldoDeStripe, type SaldoDeStripe, type PayoutEnCamino } from './stripe-saldo'
 
 /**
  * Días de consumo que hay que tener puestos en los proveedores.
@@ -45,34 +45,15 @@ export const COLCHON_DIAS = 5
  *  que consume distinto y no se puede promediar afuera. */
 const VENTANA_DIAS = 7
 
-const TIMEOUT_MS = 8000
-
 // ────────────────────────────── Lo que se devuelve ─────────────────────────────
 
-export interface PayoutEnCamino {
-  usd: number
-  /** Cuándo lo deposita Stripe. Null si no lo dice. */
-  llegaAt: string | null
-  /** `in_transit` o `pending`. */
-  estado: string
-}
-
-export interface CajaStripe {
-  /** Liquidado: se puede transferir hoy. */
-  disponibleUsd: number | null
-  /** Cobrado y todavía reteniendo (los T+2). */
-  pendienteUsd: number | null
-  /** Lo que aceptaría una transferencia instantánea. 0 = la cuenta no es
-   *  elegible todavía, que es distinto de no tener plata. */
-  instantaneoUsd: number | null
-  enCamino: PayoutEnCamino[]
-  /** `daily` / `weekly` / `manual`, y cuántos días hábiles retiene. */
-  agenda: { intervalo: string; demoraDias: number | null } | null
-  /** Clave i18n del problema, si lo hubo. */
-  errorKey: string | null
-  /** El dato crudo del error: un HTTP, el nombre de la variable que falta. */
-  error: string | null
-}
+/**
+ * El estado de la cuenta de Stripe. El tipo vive en `stripe-saldo` porque lo
+ * comparten esta pantalla y la fila de Proveedores: eran dos lecturas con dos
+ * cálculos distintos del mismo saldo.
+ */
+export type CajaStripe = SaldoDeStripe
+export type { PayoutEnCamino }
 
 export interface Paso {
   id: string
@@ -151,119 +132,6 @@ export interface Caja {
   medidoAt: string
 }
 
-// ─────────────────────────────── Stripe: lo que entra ──────────────────────────
-
-async function pedirStripe(path: string, key: string): Promise<Response> {
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
-  try {
-    return await fetch(`https://api.stripe.com/v1/${path}`, {
-      headers: { authorization: `Bearer ${key}` },
-      signal: ctrl.signal,
-      cache: 'no-store',
-    })
-  } finally {
-    clearTimeout(t)
-  }
-}
-
-const aUsd = (centavos: unknown): number => Number(centavos ?? 0) / 100
-
-const sumar = (xs: { amount?: number }[] | undefined): number =>
-  (xs ?? []).reduce((n, x) => n + Number(x.amount ?? 0), 0) / 100
-
-/**
- * El estado de la cuenta de Stripe: lo liquidado, lo retenido y lo que viaja.
- *
- * Tres llamadas y no una porque son tres preguntas distintas: cuánto hay
- * (`/balance`), qué transferencias están en el aire (`/payouts`) y cada cuánto
- * paga la cuenta (`/account`). Ninguna se cobra.
- *
- * Un fallo en payouts o en la agenda no puede tumbar el saldo: son detalles de
- * una respuesta que ya sirve sin ellos.
- */
-async function leerStripe(): Promise<CajaStripe> {
-  const vacio: CajaStripe = {
-    disponibleUsd: null,
-    pendienteUsd: null,
-    instantaneoUsd: null,
-    enCamino: [],
-    agenda: null,
-    errorKey: null,
-    error: null,
-  }
-
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key) {
-    return { ...vacio, errorKey: 'admin.fixedMissingEnv', error: 'STRIPE_SECRET_KEY' }
-  }
-
-  try {
-    const r = await pedirStripe('balance', key)
-    const d = (await r.json()) as {
-      available?: { amount: number }[]
-      pending?: { amount: number }[]
-      instant_available?: { amount: number }[]
-    } | null
-    if (!r.ok || !d?.available) {
-      return { ...vacio, errorKey: 'admin.svcHttpError', error: `HTTP ${r.status}` }
-    }
-
-    const base: CajaStripe = {
-      ...vacio,
-      disponibleUsd: sumar(d.available),
-      pendienteUsd: sumar(d.pending),
-      // `instant_available` no viene cuando la cuenta todavía no es elegible.
-      // Null y 0 se leen distinto: uno es "no puedo", el otro "no hay".
-      instantaneoUsd: d.instant_available ? sumar(d.instant_available) : null,
-    }
-
-    const [camino, agenda] = await Promise.allSettled([
-      payoutsEnCamino(key),
-      agendaDePagos(key),
-    ])
-
-    return {
-      ...base,
-      enCamino: camino.status === 'fulfilled' ? camino.value : [],
-      agenda: agenda.status === 'fulfilled' ? agenda.value : null,
-    }
-  } catch {
-    return { ...vacio, errorKey: 'admin.svcNoAnswer', error: null }
-  }
-}
-
-/** Las transferencias que ya salieron y todavía no están en el banco. */
-async function payoutsEnCamino(key: string): Promise<PayoutEnCamino[]> {
-  const r = await pedirStripe('payouts?limit=10', key)
-  if (!r.ok) return []
-  const j = (await r.json()) as {
-    data?: { amount?: number; status?: string; arrival_date?: number }[]
-  }
-  return (j.data ?? [])
-    .filter((p) => p.status === 'in_transit' || p.status === 'pending')
-    .map((p) => ({
-      usd: aUsd(p.amount),
-      // Stripe da la fecha en segundos; el resto del panel habla ISO.
-      llegaAt: p.arrival_date ? new Date(p.arrival_date * 1000).toISOString() : null,
-      estado: p.status ?? 'pending',
-    }))
-}
-
-/** Cada cuánto paga la cuenta y cuántos días hábiles retiene. */
-async function agendaDePagos(
-  key: string,
-): Promise<{ intervalo: string; demoraDias: number | null } | null> {
-  const r = await pedirStripe('account', key)
-  if (!r.ok) return null
-  const j = (await r.json()) as {
-    settings?: { payouts?: { schedule?: { interval?: string; delay_days?: number } } }
-  }
-  const s = j.settings?.payouts?.schedule
-  if (!s?.interval) return null
-  return { intervalo: s.interval, demoraDias: s.delay_days ?? null }
-}
-
 // ───────────────────────────── El ritmo de consumo ─────────────────────────────
 
 /**
@@ -301,6 +169,36 @@ async function quemaDiariaUsd(db: SupabaseClient): Promise<number> {
   }
 
   return total / 100 / VENTANA_DIAS
+}
+
+/**
+ * Todo el saldo cobrado a comercios y todavía sin consumir.
+ *
+ * Es **deuda**: servicio pagado y no prestado. Se resta de la caja libre porque
+ * esa plata ya tiene dueño, y mirarla como propia es exactamente como se llega
+ * a fin de mes sin con qué recargar.
+ *
+ * Antes salía de `leerNegocio`, que para dar este único campo corría cinco
+ * consultas —una de ellas un barrido de hasta 100.000 movimientos— cada vez que
+ * alguien abría la Caja. Acá es una sola, paginada porque **PostgREST corta en
+ * 1000 filas sin avisar** y un total truncado se lee igual de razonable que uno
+ * completo.
+ */
+async function saldoQueSeDebe(db: SupabaseClient): Promise<number> {
+  const PAGINA = 1000
+  let centavos = 0
+  for (let pagina = 0; ; pagina++) {
+    const { data, error } = await db
+      .from('wallet_accounts')
+      .select('saldo_centavos')
+      .range(pagina * PAGINA, pagina * PAGINA + PAGINA - 1)
+    if (error || !data?.length) break
+    for (const f of data as { saldo_centavos: number | null }[]) {
+      centavos += Number(f.saldo_centavos ?? 0) || 0
+    }
+    if (data.length < PAGINA) break
+  }
+  return centavos / 100
 }
 
 // ────────────────────────── Qué hacer ahora, y en qué orden ────────────────────
@@ -500,14 +398,11 @@ const COSTES: CosteDeRecarga[] = [
 // ──────────────────────────────── El armado ────────────────────────────────────
 
 export async function leerCaja(db: SupabaseClient): Promise<Caja> {
-  const hasta = new Date()
-  const desde = new Date(hasta.getTime() - 30 * 24 * 60 * 60 * 1000)
-
-  const [estado, stripe, quemaDiaUsd, negocio] = await Promise.all([
+  const [estado, stripe, quemaDiaUsd, deudaUsd] = await Promise.all([
     leerProveedoresConCache(),
-    leerStripe(),
+    leerSaldoDeStripe(),
     quemaDiariaUsd(db),
-    leerNegocio(db, { desde, hasta }),
+    saldoQueSeDebe(db),
   ])
 
   // Sólo los prepagos: lo fijo se paga con tarjeta y no se agota, y lo que no
@@ -516,17 +411,25 @@ export async function leerCaja(db: SupabaseClient): Promise<Caja> {
   const proveedores = recargables.map((p) => ({
     id: p.id,
     nombre: p.nombre,
-    // 'chars' de ElevenLabs no son dólares: sumarlos daría un total falso.
-    usd: p.unidad === 'chars' ? null : p.saldo,
+    // Sólo lo que está en dólares entra al total. Los 'chars' de ElevenLabs no
+    // son plata, y Telnyx devuelve la moneda de SU cuenta: sumar un saldo en
+    // euros como si fueran dólares inventa plata en el único número de la
+    // pantalla que dice si alcanza. Lo que no suma se nombra en `sinMedir`.
+    usd: (p.unidad ?? 'USD').toUpperCase() === 'USD' ? p.saldo : null,
     unidad: p.unidad,
     estado: p.estado,
     url: p.url,
   }))
 
   const enProveedoresUsd = proveedores.reduce((n, p) => n + (p.usd ?? 0), 0)
-  const sinMedir = proveedores.filter((p) => p.usd === null).map((p) => p.nombre)
+  const sinMedir = [
+    ...proveedores.filter((p) => p.usd === null).map((p) => p.nombre),
+    // Un bucket de Stripe en otra moneda no entra en «En Stripe» y por lo tanto
+    // tampoco en la caja libre. Nombrarlo es la diferencia entre un total
+    // incompleto y un total que miente.
+    ...stripe.otrasMonedas.map((m) => `Stripe ${m}`),
+  ]
 
-  const deudaUsd = negocio.saldoTotalCentavos / 100
   const enStripeUsd = (stripe.disponibleUsd ?? 0) + (stripe.pendienteUsd ?? 0)
   const cajaLibreUsd = enStripeUsd + enProveedoresUsd - deudaUsd
 

@@ -26,6 +26,7 @@
 
 import { leerCostosFijos, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
+import { leerSaldoDeStripe } from './stripe-saldo'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 
 export type EstadoProveedor =
@@ -291,30 +292,30 @@ async function stripe(): Promise<Proveedor> {
     url: 'https://dashboard.stripe.com/balance/overview',
     detalleKey: 'admin.svcIncome',
   })
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key) return sinLlave(p, 'STRIPE_SECRET_KEY')
-  try {
-    const r = await pedir('https://api.stripe.com/v1/balance', {
-      headers: { authorization: `Bearer ${key}` },
-    })
-    const d = (await r.json()) as {
-      available?: { amount: number; currency: string }[]
-      pending?: { amount: number }[]
-    } | null
-    const disponible = d?.available?.[0]
-    if (!r.ok || !disponible) return { ...p, detalle: `HTTP ${r.status}` }
-    const pendiente = (d?.pending ?? []).reduce((n, x) => n + (x.amount ?? 0), 0)
-    return {
-      ...p,
-      // Cero acá no es una alarma: significa que ya se transfirió.
-      estado: 'ok',
-      saldo: disponible.amount / 100,
-      unidad: (disponible.currency ?? 'usd').toUpperCase(),
-      detalle: pendiente > 0 ? `+${(pendiente / 100).toFixed(2)}` : null,
-      detalleKey: pendiente > 0 ? 'admin.svcIncomePending' : 'admin.svcIncome',
-    }
-  } catch {
-    return sinRespuesta(p)
+
+  // El saldo lo lee `stripe-saldo`, que es el mismo que usa la Caja.
+  //
+  // Antes esta fila tomaba `available[0]` —sólo el PRIMER bucket de moneda— y
+  // la Caja sumaba todos: con una cuenta multi-moneda las dos pantallas
+  // mostraban números distintos para la misma pregunta. Una sola lectura, una
+  // sola respuesta.
+  const s = await leerSaldoDeStripe()
+  if (s.errorKey === 'admin.fixedMissingEnv') return sinLlave(p, s.error ?? 'STRIPE_SECRET_KEY')
+  if (s.disponibleUsd === null) {
+    return s.errorKey === 'admin.svcNoAnswer'
+      ? sinRespuesta(p)
+      : { ...p, detalle: s.error }
+  }
+
+  const pendiente = s.pendienteUsd ?? 0
+  return {
+    ...p,
+    // Cero acá no es una alarma: significa que ya se transfirió.
+    estado: 'ok',
+    saldo: s.disponibleUsd,
+    unidad: 'USD',
+    detalle: pendiente > 0 ? `+${pendiente.toFixed(2)}` : null,
+    detalleKey: pendiente > 0 ? 'admin.svcIncomePending' : 'admin.svcIncome',
   }
 }
 
