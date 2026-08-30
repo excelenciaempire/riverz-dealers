@@ -173,15 +173,51 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     dentroDeEn: 'AI replies',
   },
   {
-    // Whisper en Groq sale ~0,04 USD la HORA. El piso de un movimiento del
-    // libro es un centavo: cobrarlo sería cobrar catorce veces el trabajo.
-    concepto: 'transcripcion_audio',
-    nombreEs: 'Transcribir notas de voz y el audio de tus videos',
-    nombreEn: 'Transcribing voice notes and your videos audio',
-    centavos: 0,
-    unidad: 'audio',
-    proveedor: 'Groq (Whisper)',
-    cobro: 'sin_cargo',
+    // Se cobra desde 2026-08-30. Whisper sale ~0,04 USD la HORA en Groq, o sea
+    // fracciones de centavo por audio: antes se dejaba gratis porque el piso
+    // del libro era un centavo entero y cobrarlo habría sido cobrar catorce
+    // veces el trabajo. Desde que el acumulador guarda milésimas (migración
+    // 221) eso ya no pasa, y un consumo de un proveedor conectado no tiene por
+    // qué pagarlo Riverz.
+    concepto: 'transcripcion',
+    nombreEs: 'Pasar audio a texto',
+    nombreEn: 'Audio to text',
+    centavos: 0.067,
+    unidad: 'minuto',
+    proveedor: 'Groq / OpenAI (Whisper)',
+    cobro: 'por_uso',
+  },
+  {
+    // Las siete pantallas donde una persona le pide algo a la IA: mejorar un
+    // texto, escribir un borrador, probar el agente, leer una web, redactar
+    // una plantilla, armar un plan. Frenaban sin saldo y no cobraban nada.
+    concepto: 'ia_asistencia',
+    nombreEs: 'Ayuda de la IA en el panel',
+    nombreEn: 'AI help in the app',
+    centavos: 2,
+    unidad: 'uso',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'lectura_de_pagina',
+    nombreEs: 'Leer una página web',
+    nombreEn: 'Reading a web page',
+    centavos: 0.1,
+    unidad: 'página',
+    proveedor: 'Firecrawl',
+    cobro: 'por_uso',
+  },
+  {
+    // Sólo si la consulta salió con la llave de Riverz: el comercio que conecta
+    // su propio Apify en Integraciones le paga directo a Apify.
+    concepto: 'perfil_externo',
+    nombreEs: 'Consultar un perfil público',
+    nombreEn: 'Looking up a public profile',
+    centavos: 0.23,
+    unidad: 'perfil',
+    proveedor: 'Apify',
+    cobro: 'por_uso',
   },
 ]
 
@@ -324,3 +360,14 @@ export async function costosReales(
     }
   })
 }
+
+/**
+ * Los conceptos que la billetera sabe mostrar.
+ *
+ * Existe para el test que impide cobrar algo que el comercio no puede ver: la
+ * pantalla lista `CATALOGO`, así que un concepto cobrado y ausente de acá es
+ * plata descontada a ciegas.
+ */
+export const CONCEPTOS_DEL_CATALOGO: ReadonlySet<string> = new Set(
+  CATALOGO.map((c) => c.concepto),
+)

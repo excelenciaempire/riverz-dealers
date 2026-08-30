@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Contact, Conversation } from '@/types';
@@ -278,6 +279,23 @@ export async function componerBorrador(
       if (claveRechazada(ultimoFallo)) return { text: null, error: 'sin_saldo' };
       throw ultimoFallo ?? new Error('ninguna clave sirvió');
     }
+
+    // A la billetera, a lo que costó. El borrador ya frenaba sin saldo y no
+    // descontaba nada: es una llamada a Sonnet con herramientas, no barata.
+    void cobrarUsoDeIa(db, input.workspaceId, {
+      concepto: 'ia_asistencia',
+      modelo: MODELO_BORRADOR,
+      uso: {
+        prompt: result.promptTokens ?? 0,
+        salida: result.completionTokens ?? 0,
+        cacheLeida: result.cacheReadTokens ?? 0,
+        cacheEscrita: result.cacheWriteTokens ?? 0,
+      },
+      origenDeLaClave: resolvedKey?.source ?? null,
+      referenciaTipo: 'conversation',
+      referenciaId: conversation.id,
+      detalle: { para: 'borrador' },
+    });
 
     const text = humanizarTexto(result.text);
     if (!text) return { text: null, error: 'vacio' };

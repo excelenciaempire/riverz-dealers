@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelConnection } from "@/types";
-import { transcribeBuffer, transcripcionDisponible } from "@/lib/ai/transcribe";
+import {
+  transcribeBuffer,
+  transcripcionDisponible,
+  USD_POR_MINUTO,
+} from "@/lib/ai/transcribe";
+import { cobrarUsoPorUnidad } from "@/lib/wallet/cobrar-uso";
 
 /**
  * QUÉ DICE EL VIDEO.
@@ -132,6 +137,8 @@ export async function transcribirPendientes(
     video_id: string;
     share_url: string;
     transcript_attempts: number;
+    /** De quién es el video: sin esto no se sabe a quién cobrarle el minuto. */
+    workspace_id: string | null;
   }>;
 
   let transcriptos = 0;
@@ -163,6 +170,18 @@ export async function transcribirPendientes(
         filename: `${v.video_id}.mp4`,
         timeoutMs: TIMEOUT_TRANSCRIPCION_MS,
       });
+      // Whisper cobra por minuto: es un proveedor conectado más y se le pasa
+      // al comercio, igual que la nota de voz de un cliente.
+      if (r?.segundos && r.proveedor && v.workspace_id) {
+        void cobrarUsoPorUnidad(db, v.workspace_id, {
+          concepto: "transcripcion",
+          cantidad: r.segundos / 60,
+          usdPorUnidad: USD_POR_MINUTO[r.proveedor],
+          referenciaTipo: "video",
+          referenciaId: v.video_id,
+          detalle: { proveedor: r.proveedor, para: "video_de_tiktok" },
+        });
+      }
       if (!r?.text) {
         // Sin texto puede ser un video sin voz (música y placas) — eso no es
         // un fallo y no se reintenta eternamente.

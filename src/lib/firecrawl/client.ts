@@ -1,3 +1,5 @@
+import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
+import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * Firecrawl client — scrape product URLs to enrich the AI knowledge.
  *
@@ -47,6 +49,14 @@ export class FirecrawlError extends Error {
  * FirecrawlError on non-2xx so the caller can persist the error on
  * shopify_products.scrape_error and surface it in the UI.
  */
+/**
+ * Lo que sale leer UNA página, en USD.
+ *
+ * Firecrawl cobra un crédito por URL; en el plan que usamos eso es ~0,001 USD.
+ * Es un proveedor conectado más, así que el costo se le pasa al comercio.
+ */
+export const USD_POR_PAGINA = 0.001;
+
 export async function firecrawlScrape(
   url: string,
   opts?: {
@@ -56,6 +66,15 @@ export async function firecrawlScrape(
     maxChars?: number;
     /** AbortSignal for caller-side timeout. */
     signal?: AbortSignal;
+    /**
+     * A quién cobrarle la página.
+     *
+     * Va acá y no en cada llamador porque leer una web cuesta plata en los
+     * cuatro sitios que la leen, y dejarlo del lado del llamador es cómo se
+     * olvida. `db` y `workspaceId` juntos o ninguno; sin ellos no se cobra y
+     * queda un aviso, que es mejor que un cobro silencioso a nadie.
+     */
+    cobrarA?: { db: SupabaseClient; workspaceId: string };
   },
 ): Promise<FirecrawlScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
@@ -131,6 +150,18 @@ export async function firecrawlScrape(
   }
   // Keep the raw HTML bounded — we only scan it for embedded offer config.
   const html = json.data?.rawHtml ? json.data.rawHtml.slice(0, 1_500_000) : null;
+  // La página se leyó: se cobra. Sólo cuando salió bien — un error no le dio
+  // nada a nadie.
+  if (opts?.cobrarA) {
+    void cobrarUsoPorUnidad(opts.cobrarA.db, opts.cobrarA.workspaceId, {
+      concepto: 'lectura_de_pagina',
+      cantidad: 1,
+      usdPorUnidad: USD_POR_PAGINA,
+      detalle: { url: url.slice(0, 300) },
+    });
+  } else {
+    console.warn('[firecrawl] página leída sin cuenta a la que cobrarla:', url.slice(0, 120));
+  }
   return {
     markdown,
     html,
@@ -138,4 +169,19 @@ export async function firecrawlScrape(
     description: json.data?.metadata?.description ?? null,
     sourceUrl: json.data?.metadata?.sourceURL ?? url,
   };
+}
+
+/**
+ * De qué comercio es el producto que se está leyendo.
+ *
+ * Los tres caminos que leen fuentes tienen el producto en la mano y el
+ * `workspace_id` viene en la fila. Se resuelve acá para que los tres lo hagan
+ * igual y para que el que agregue un cuarto lo encuentre.
+ */
+export function workspaceDelProducto(
+  db: SupabaseClient,
+  product: Record<string, unknown>,
+): { db: SupabaseClient; workspaceId: string } | undefined {
+  const ws = typeof product.workspace_id === 'string' ? product.workspace_id : '';
+  return ws ? { db, workspaceId: ws } : undefined;
 }

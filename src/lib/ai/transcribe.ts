@@ -38,7 +38,23 @@ export function transcripcionDisponible(): boolean {
 export interface TranscriptionResult {
   text: string;
   language?: string;
+  /** Cuánto duraba el audio. Es lo que cobra Whisper, así que sin esto no se
+   *  le puede pasar el costo al comercio. */
+  segundos?: number;
+  /** Qué proveedor lo hizo: cobran distinto. */
+  proveedor?: "groq" | "openai";
 }
+
+/**
+ * Lo que cobra cada proveedor por minuto de audio.
+ *
+ * Groq (whisper-large-v3): 0,04 USD la hora. OpenAI (whisper-1): 0,006 USD el
+ * minuto. Son los precios de lista, que es lo que se le pasa al comercio.
+ */
+export const USD_POR_MINUTO: Record<"groq" | "openai", number> = {
+  groq: 0.04 / 60,
+  openai: 0.006,
+};
 
 function pickProvider(): Provider | null {
   const groqKey = process.env.GROQ_API_KEY;
@@ -139,6 +155,9 @@ export async function transcribeBuffer(
     // y esto le da al modelo un prior más fuerte para no confundir
     // codeswitch con inglés.
     form.append("language", "es");
+    // Con esto la respuesta trae `duration`, que es lo que cobra Whisper.
+    // Sin el número no hay forma de pasarle el costo al comercio.
+    form.append("response_format", "verbose_json");
 
     const res = await fetch(provider.endpoint, {
       method: "POST",
@@ -154,10 +173,19 @@ export async function transcribeBuffer(
       );
       return null;
     }
-    const json = (await res.json()) as { text?: string; language?: string };
+    const json = (await res.json()) as {
+      text?: string;
+      language?: string;
+      duration?: number;
+    };
     const text = (json.text ?? "").trim();
     if (!text) return null;
-    return { text, language: json.language };
+    return {
+      text,
+      language: json.language,
+      segundos: typeof json.duration === "number" ? json.duration : undefined,
+      proveedor: provider.name,
+    };
   } catch (err) {
     console.warn("[transcribe] excepción:", err);
     return null;

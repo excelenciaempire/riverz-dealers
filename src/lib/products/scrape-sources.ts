@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { firecrawlScrape, FirecrawlError } from '@/lib/firecrawl/client'
+import { firecrawlScrape, FirecrawlError, workspaceDelProducto } from '@/lib/firecrawl/client'
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning'
 import type { Locale } from '@/lib/i18n/config'
@@ -69,7 +69,10 @@ export async function leerFuentes(
     const failures: string[] = []
     for (const site of sites) {
       try {
-        const scraped = await firecrawlScrape(site, { maxChars: perUrl })
+        const scraped = await firecrawlScrape(site, {
+          maxChars: perUrl,
+          cobrarA: workspaceDelProducto(db, product),
+        })
         if (scraped.markdown.trim()) {
           chunks.push(sites.length > 1 ? `## ${site}\n\n${scraped.markdown}` : scraped.markdown)
         }

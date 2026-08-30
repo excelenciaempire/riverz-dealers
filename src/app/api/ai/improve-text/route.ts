@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { claveRechazada, resolveAnthropicKey } from '@/lib/ai/platform-key';
@@ -175,7 +176,10 @@ export async function POST(request: Request): Promise<Response> {
     .not('api_key_encrypted', 'is', null)
     .limit(1)
     .maybeSingle();
+  // Qué clave pagó, para saber si hay que cobrarle al comercio: si la puso él,
+  // ya le cobra Anthropic.
   const keys: string[] = [];
+  const deAgente: boolean[] = [];
   const agentKeyEncrypted =
     (agentRow as { api_key_encrypted?: string | null } | null)
       ?.api_key_encrypted ?? null;
@@ -183,10 +187,16 @@ export async function POST(request: Request): Promise<Response> {
     workspaceId,
     agentKeyEncrypted,
   });
-  if (withAgent?.key) keys.push(withAgent.key);
+  if (withAgent?.key) {
+    keys.push(withAgent.key);
+    deAgente.push(withAgent.source === 'agent');
+  }
   if (withAgent?.source === 'agent') {
     const platform = await resolveAnthropicKey(admin, { workspaceId });
-    if (platform?.key && platform.key !== withAgent.key) keys.push(platform.key);
+    if (platform?.key && platform.key !== withAgent.key) {
+      keys.push(platform.key);
+      deAgente.push(false);
+    }
   }
   if (keys.length === 0) {
     return NextResponse.json(
@@ -223,7 +233,9 @@ export async function POST(request: Request): Promise<Response> {
       ReturnType<ReturnType<typeof getAnthropic>['messages']['create']>
     > | null = null;
     let lastErr: unknown = null;
-    for (const key of keys) {
+    let usada = -1;
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
       try {
         response = await getAnthropic(key).messages.create({
           model: MODEL,
@@ -231,6 +243,7 @@ export async function POST(request: Request): Promise<Response> {
           system: SYSTEM,
           messages: [{ role: 'user', content: prompt }],
         });
+        usada = i;
         break;
       } catch (err) {
         lastErr = err;
@@ -256,6 +269,20 @@ export async function POST(request: Request): Promise<Response> {
         { status: 502 },
       );
     }
+    // A la billetera, a lo que costó. Esta ruta ya frenaba sin saldo —o sea,
+    // ya sabía que cuesta plata— y no descontaba nada.
+    void cobrarUsoDeIa(admin, workspaceId, {
+      concepto: 'ia_asistencia',
+      modelo: MODEL,
+      uso: {
+        prompt: response.usage?.input_tokens ?? 0,
+        salida: response.usage?.output_tokens ?? 0,
+        cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
+        cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
+      },
+      origenDeLaClave: deAgente[usada] ? 'agent' : 'plataforma',
+      detalle: { para: 'mejorar_texto' },
+    });
     return NextResponse.json({ text: improved });
   } catch (err) {
     console.error('[improve-text] fallo', err);

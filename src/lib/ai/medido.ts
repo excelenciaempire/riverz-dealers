@@ -34,7 +34,7 @@ export async function completeTextMedido(
     workspaceId: string
     /** La clave del agente, si la trae. */
     agentKeyEncrypted?: string | null
-    concepto: 'ia_clasificacion' | 'ia_resumen' | 'ia_seguimiento'
+    concepto: 'ia_clasificacion' | 'ia_resumen' | 'ia_seguimiento' | 'ia_asistencia'
     referenciaTipo?: string
     referenciaId?: string | null
     detalle?: Record<string, unknown>

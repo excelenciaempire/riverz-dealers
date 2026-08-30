@@ -48,7 +48,12 @@ describe('todo cobro dice cuánto costó', () => {
         if (!/concepto:/.test(bloque)) continue // no es la de la billetera
         const hasta = bloque.indexOf('})')
         const llamada = hasta > 0 ? bloque.slice(0, hasta) : bloque
-        if (!/costoUsd:/.test(llamada)) culpables.push(`${rel} → ${(/concepto: '?"?([a-z_]+)/.exec(llamada) ?? [])[1] ?? '?'}`)
+        // `costoUsd: …` o el atajo `costoUsd,`.
+        if (!/\bcostoUsd\s*[,:]/.test(llamada)) {
+          culpables.push(
+            `${rel} → ${(/concepto: '?"?([a-z_]+)/.exec(llamada) ?? [])[1] ?? '?'}`,
+          )
+        }
       }
     }
     expect(
@@ -83,5 +88,32 @@ describe('el precio de cada proveedor', () => {
     const haiku = costForModel('claude-haiku-4-5', 10_000, 500)
     const opus = costForModel('claude-opus-5', 10_000, 500)
     expect(opus).toBeGreaterThan(haiku * 4)
+  })
+})
+
+describe('el comercio ve todo lo que se le cobra', () => {
+  it('todo concepto que se cobra está en el catálogo de la billetera', async () => {
+    // La pantalla de la billetera lista `CATALOGO`. Un concepto que se cobra y
+    // no está ahí es plata que se descuenta y que el comercio no puede ver, que
+    // es exactamente lo contrario de lo que se prometió.
+    const { CONCEPTOS_DEL_CATALOGO } = await import('./costos')
+    const cobrados = new Set<string>()
+    for (const ruta of archivosTs(RAIZ)) {
+      const src = readFileSync(ruta, 'utf8')
+      for (const m of src.matchAll(/concepto:\s*['"]([a-z_]+)['"]/g)) {
+        cobrados.add(m[1])
+      }
+    }
+    // Lo que ENTRA no es un consumo: no va en la tabla de "cuánto sale cada
+    // cosa", va en el listado de movimientos.
+    const NO_SON_CONSUMO = new Set(['recarga', 'bono', 'ajuste'])
+    const sinMostrar = [...cobrados].filter(
+      (c) => !CONCEPTOS_DEL_CATALOGO.has(c) && !NO_SON_CONSUMO.has(c),
+    )
+    expect(
+      sinMostrar,
+      `estos se cobran y NO aparecen en la billetera:\n${sinMostrar.join('\n')}\n\n` +
+        `Agregalos a CATALOGO en lib/wallet/costos.ts.`,
+    ).toEqual([])
   })
 })

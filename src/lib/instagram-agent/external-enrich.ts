@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveWorkspaceKey } from '@/lib/integrations/workspace-key';
+import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
+import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
 import {
   completeText,
   describeImage,
@@ -27,6 +28,14 @@ import {
  * TTL-cached. Requires APIFY_TOKEN (scrape) + an LLM key (analysis) — absent
  * either, it degrades to no external hint.
  */
+
+/**
+ * Lo que sale consultar UN perfil público, en USD.
+ *
+ * El actor de Apify cobra ~2,30 USD cada mil perfiles. Es un proveedor
+ * conectado más: el costo se le pasa al comercio.
+ */
+export const USD_POR_PERFIL = 2.3 / 1000;
 
 const APIFY_ACTOR = process.env.APIFY_IG_ACTOR ?? 'apify~instagram-profile-scraper';
 
@@ -249,14 +258,25 @@ export async function enrichExternalProfile(
     if (!uname) return 'skipped';
     // El token que el comercio conectó en Integraciones; la variable de entorno
     // queda solo como respaldo para despliegues de un solo negocio.
-    const token = await resolveWorkspaceKey(
+    const llave = await resolveWorkspaceKeyConOrigen(
       db,
       opts.workspaceId ?? null,
       'apify',
       process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null,
     );
-    if (!token) return 'skipped';
-    const scraped = await scrapeProfile(uname, token);
+    if (!llave) return 'skipped';
+    const scraped = await scrapeProfile(uname, llave.key);
+    // Apify cobra por perfil consultado. Si la llave la puso el comercio ya le
+    // cobra Apify; si salió la de Riverz, se le pasa el costo.
+    if (!llave.propia && opts.workspaceId) {
+      void cobrarUsoPorUnidad(db, opts.workspaceId, {
+        concepto: 'perfil_externo',
+        cantidad: 1,
+        usdPorUnidad: USD_POR_PERFIL,
+        referenciaTipo: 'contact',
+        referenciaId: opts.contactId,
+      });
+    }
     if (!scraped.ok) {
       // Solo un "no existe" cuenta como investigado. Un fallo de transporte se
       // deja sin marcar para que el siguiente pase lo reintente.

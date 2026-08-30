@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Locale } from '@/lib/i18n/config'
-import { firecrawlScrape } from '@/lib/firecrawl/client'
+import { firecrawlScrape, workspaceDelProducto } from '@/lib/firecrawl/client'
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning'
 import { buildResearchPrompt, parseResearchResponse } from './research'
@@ -53,7 +53,10 @@ async function ensureScrapedContent(
   const htmlChunks: string[] = []
   for (const site of valid) {
     try {
-      const s = await firecrawlScrape(site, { maxChars: perUrl })
+      const s = await firecrawlScrape(site, {
+        maxChars: perUrl,
+        cobrarA: workspaceDelProducto(db, product),
+      })
       if (s.markdown.trim()) {
         chunks.push(valid.length > 1 ? `## ${site}\n\n${s.markdown}` : s.markdown)
       }

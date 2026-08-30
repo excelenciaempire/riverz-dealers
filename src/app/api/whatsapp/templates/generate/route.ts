@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso'
 import { aiBudgetGuard } from '@/lib/ai/rate-limit'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
@@ -115,6 +116,18 @@ export async function POST(request: Request) {
         },
       ],
       messages: [{ role: 'user', content: userPrompt }],
+    })
+
+    void cobrarUsoDeIa(supabaseAdmin(), workspaceId ?? '', {
+      concepto: 'ia_asistencia',
+      modelo: 'claude-opus-4-8',
+      uso: {
+        prompt: response.usage?.input_tokens ?? 0,
+        salida: response.usage?.output_tokens ?? 0,
+        cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
+        cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
+      },
+      detalle: { para: 'redactar_plantilla' },
     })
 
     const text = response.content

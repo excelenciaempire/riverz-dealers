@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
+import { completeTextMedido } from '@/lib/ai/medido'
 import { aiBudgetGuard } from '@/lib/ai/rate-limit'
 import Anthropic from '@anthropic-ai/sdk'
-import { completeText, hasLlm } from '@/lib/ai/llm-client'
+import { hasLlm } from '@/lib/ai/llm-client'
 import { createClient } from '@/lib/supabase/server'
 import {
   checkRateLimit,
@@ -239,16 +240,19 @@ export async function POST(request: Request) {
     // respaldo (Groq/OpenRouter/Gemini) para no quedar mudo.
     let text: string
     try {
-      text = (
-        await completeText({
+      text = ((
+        await completeTextMedido(supabase, {
+          workspaceId: workspaceId ?? '',
+          concepto: 'ia_asistencia',
+          detalle: { para: 'plan_de_campana' },
           tier: 'premium',
           system: SYSTEM_PROMPT,
           user: userPrompt,
           maxTokens: 2048,
-          anthropicKey,
           effort: 'medium',
-        })
+        })) ?? ''
       ).trim()
+      if (!text) throw new Error('sin_saldo_o_sin_clave')
     } catch (err) {
       console.error('instagram-agent plan generation failed:', err)
       return NextResponse.json(

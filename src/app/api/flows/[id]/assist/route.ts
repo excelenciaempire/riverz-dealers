@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cobrarUsoDeIa } from "@/lib/wallet/cobrar-uso";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "@/lib/ai/anthropic-client";
 import { ESTILO_HUMANO } from "@/lib/ai/estilo-humano";
@@ -153,6 +154,22 @@ export async function POST(
     const msg = err instanceof Error ? err.message : "Anthropic API failed";
     return NextResponse.json({ error: msg }, { status: 502 });
   }
+
+  // A la billetera, a lo que costó.
+  void cobrarUsoDeIa(supabaseAdmin(), workspaceId, {
+    concepto: "ia_asistencia",
+    modelo: "claude-haiku-4-5-20251001",
+    uso: {
+      prompt: response.usage?.input_tokens ?? 0,
+      salida: response.usage?.output_tokens ?? 0,
+      cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
+      cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
+    },
+    origenDeLaClave: resolved?.source ?? null,
+    referenciaTipo: "flow",
+    referenciaId: (flow as { id: string }).id,
+    detalle: { para: "asistente_de_flujos" },
+  });
 
   // El tool_choice forzado garantiza que viene un tool_use; si no,
   // algo cambió en el lado de Anthropic y devolvemos error claro.

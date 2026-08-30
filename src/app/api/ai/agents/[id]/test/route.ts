@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { createClient } from '@/lib/supabase/server';
@@ -226,6 +227,22 @@ export async function POST(
         permitidos,
         simulacion: true,
       },
+    });
+
+    // Probar cuesta lo mismo que contestar: es el agente entero corriendo.
+    void cobrarUsoDeIa(admin, a.workspace_id, {
+      concepto: 'ia_asistencia',
+      modelo: a.model || 'claude-haiku-4-5-20251001',
+      uso: {
+        prompt: result.promptTokens ?? 0,
+        salida: result.completionTokens ?? 0,
+        cacheLeida: result.cacheReadTokens ?? 0,
+        cacheEscrita: result.cacheWriteTokens ?? 0,
+      },
+      origenDeLaClave: resolvedKey?.source ?? null,
+      referenciaTipo: 'agent',
+      referenciaId: a.id,
+      detalle: { para: 'probar_agente' },
     });
 
     const text = result.text;

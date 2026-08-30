@@ -36,6 +36,18 @@ const RATES: Record<string, Rate> = {
   'claude-opus-4-7': { input: 5, output: 25 },
   'claude-opus-4-6': { input: 5, output: 25 },
   'claude-fable-5': { input: 10, output: 50 },
+
+  // ── Los proveedores de RESPALDO ──────────────────────────────────────────
+  //
+  // `completeText` cae a Groq, OpenRouter o Gemini cuando Anthropic no
+  // responde. Sin sus precios acá, `rateFor` devolvía la tarifa de Haiku para
+  // todos: al comercio se le cobraba entre 2 y 13 veces lo que la llamada
+  // costó de verdad. Cobrar de más es tan malo como cobrar de menos cuando lo
+  // que se prometió es pasar el costo tal cual.
+  'llama-3.3-70b-versatile': { input: 0.59, output: 0.79 },
+  'llama-3.1-8b-instant': { input: 0.05, output: 0.08 },
+  'gemini-2.0-flash': { input: 0.1, output: 0.4 },
+  'google/gemini-2.0-flash-001': { input: 0.1, output: 0.4 },
 };
 
 /** El modelo por defecto de los agentes (migración 024). */

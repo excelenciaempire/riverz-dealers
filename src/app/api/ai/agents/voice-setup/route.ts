@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -46,7 +48,12 @@ export async function POST(request: Request) {
   const overBudget = await aiBudgetGuard(body.workspace_id);
   if (overBudget) return overBudget;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // La clave como en todos lados: la de plataforma antes que el entorno. Un
+  // comercio cubierto por la clave de plataforma veía "no configurado".
+  const resuelta = await resolveAnthropicKey(supabaseAdmin(), {
+    workspaceId: body.workspace_id,
+  });
+  const apiKey = resuelta?.key;
   if (!apiKey) return NextResponse.json({ error: 'ai_not_configured' }, { status: 503 });
 
   const lang = (body.language ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
@@ -70,6 +77,18 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
       max_tokens: 700,
       system,
       messages: [{ role: 'user', content: body.description.trim().slice(0, 2000) }],
+    });
+    void cobrarUsoDeIa(supabaseAdmin(), body.workspace_id, {
+      concepto: 'ia_asistencia',
+      modelo: 'claude-haiku-4-5-20251001',
+      uso: {
+        prompt: resp.usage?.input_tokens ?? 0,
+        salida: resp.usage?.output_tokens ?? 0,
+        cacheLeida: resp.usage?.cache_read_input_tokens ?? 0,
+        cacheEscrita: resp.usage?.cache_creation_input_tokens ?? 0,
+      },
+      origenDeLaClave: resuelta?.source ?? null,
+      detalle: { para: 'configurar_voz' },
     });
     const text = resp.content
       .map((b) => (b.type === 'text' ? b.text : ''))
