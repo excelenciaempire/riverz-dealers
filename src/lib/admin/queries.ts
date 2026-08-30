@@ -166,8 +166,9 @@ export interface WorkspaceDetail {
     /** Motor: NULL = anda. Muda hacia afuera pero con panel. Ver lib/workspaces/motor. */
     motor_apagado_at: string | null;
     /** Lo que el comercio contestó sobre las ventas que cierra hablando y
-     *  carga a mano (migración 229). NULL = no contestó. Es el único dato que
-     *  dice cuánta venta nuestra no lleva marca, porque no se puede deducir. */
+     *  carga a mano (migración 229). NULL = no contestó. El pedido cargado a
+     *  mano en Shopify sí se deduce (`source_name = shopify_draft_order`); esto
+     *  cubre la venta que nunca llega a Shopify — Dropi, planilla, efectivo. */
     ventas_a_mano: 'seguido' | 'a_veces' | 'casi_nunca' | null;
   };
   owner: { email: string | null; full_name: string | null } | null;
