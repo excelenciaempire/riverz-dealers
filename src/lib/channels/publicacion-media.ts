@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { costForModel } from "@/lib/admin/cost";
 import type { ChannelConnection } from "@/types";
 import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
@@ -205,10 +206,12 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
     return false;
   }
 
-  const entendido =
+  const imagen =
     medio.tipo === "video"
-      ? await queSeDiceEnElVideo(medio.url)
+      ? null
       : await queSeVeEnLaImagen(db, fila.workspace_id, medio.url);
+  const entendido =
+    medio.tipo === "video" ? await queSeDiceEnElVideo(medio.url) : (imagen?.texto ?? null);
 
   // Entender la publicación se le cobra al comercio: es una llamada al modelo
   // con la clave de Riverz, igual que una respuesta. Se cobra sólo si salió
@@ -219,6 +222,9 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
     void cobrar(db, fila.workspace_id, {
       concepto: "entender_publicacion",
       cantidad: 1,
+      // El costo real de esa llamada, no la tarifa: es lo que Anthropic le
+      // cobró a Riverz por mirar esa foto.
+      costoUsd: imagen?.costoUsd ?? 0,
       referenciaTipo: "publicacion",
       referenciaId: fila.external_id,
       detalle: { medio: medio.tipo },
@@ -378,7 +384,7 @@ async function queSeVeEnLaImagen(
   db: SupabaseClient,
   workspaceId: string,
   url: string,
-): Promise<string | null> {
+): Promise<{ texto: string; costoUsd: number } | null> {
   const resuelta = await resolveAnthropicKey(db, { workspaceId });
   if (!resuelta) return null;
 
@@ -388,7 +394,7 @@ async function queSeVeEnLaImagen(
   if (buf.byteLength === 0 || buf.byteLength > MAX_IMAGEN_BYTES) return null;
 
   try {
-    const texto = await describeImage({
+    const salida = await describeImage({
       base64: buf.toString("base64"),
       mediaType: toImageMediaType(res.headers.get("content-type")),
       system:
@@ -402,7 +408,19 @@ async function queSeVeEnLaImagen(
       maxTokens: 300,
       anthropicKey: resuelta.key,
     });
-    return limpiar(texto);
+    const limpio = limpiar(salida.text);
+    if (!limpio) return null;
+    // Lo que costó DE VERDAD, para pasárselo tal cual al comercio.
+    return {
+      texto: limpio,
+      costoUsd:
+        resuelta.source === 'agent'
+          ? 0
+          : costForModel(salida.modelo, salida.uso.prompt, salida.uso.salida, {
+              read: salida.uso.cacheLeida,
+              write: salida.uso.cacheEscrita,
+            }),
+    };
   } catch {
     return null;
   }

@@ -166,7 +166,7 @@ async function analyze(p: ApifyProfile): Promise<string | null> {
           maxTokens: 60,
           anthropicKey: key,
         });
-        return clean(out);
+        return clean(out.text);
       }
     }
     // Text-only fallback (works through any provider).

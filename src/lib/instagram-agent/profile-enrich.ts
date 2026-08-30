@@ -65,7 +65,7 @@ async function visionProfilePic(
       maxTokens: 40,
       anthropicKey: key,
     });
-    const clean = out.replace(/^["'“”]|["'“”]$/g, '').trim();
+    const clean = out.text.replace(/^["'“”]|["'“”]$/g, '').trim();
     const hint = !clean || clean.toLowerCase() === 'null' ? null : clean.slice(0, 120);
     return { hint, hash };
   } catch {

@@ -21,6 +21,15 @@ import type Anthropic from '@anthropic-ai/sdk'
  */
 
 /**
+ * Lo que Anthropic cobra por búsqueda: 10 USD cada mil.
+ *
+ * Va aparte de los tokens, así que `costForModel` no la ve y hasta ahora la
+ * búsqueda salía gratis para el comercio y la pagaba Riverz. Es el precio del
+ * proveedor tal cual, que es lo que se le pasa al comercio.
+ */
+export const USD_POR_BUSQUEDA_WEB = 0.01
+
+/**
  * Cuántas búsquedas puede hacer en UNA respuesta.
  *
  * Tres alcanza para contrastar un dato; a partir de ahí el modelo está

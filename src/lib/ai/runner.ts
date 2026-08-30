@@ -12,7 +12,11 @@ import {
   type Registro,
 } from './registro-rioplatense';
 import { cargarReglas, reglasATexto } from './guidance';
-import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
+import {
+  herramientaDeBusqueda,
+  REGLAS_DE_BUSQUEDA,
+  USD_POR_BUSQUEDA_WEB,
+} from './busqueda-web';
 import { limpiarPersona } from './persona-limpia';
 export { limpiarPersona };
 import { registrarCalificacion } from '@/lib/inbox/opinion';
@@ -891,6 +895,8 @@ export async function runAiAgent(
       void cobrar(db, args.workspaceId, {
         concepto: 'busqueda_web',
         cantidad: busquedas,
+        // El precio de Anthropic, tal cual: 10 USD cada mil búsquedas.
+        costoUsd: busquedas * USD_POR_BUSQUEDA_WEB,
         referenciaTipo: 'conversation',
         referenciaId: args.conversation.id,
         detalle: { canal: args.conversation.channel },
@@ -2836,7 +2842,15 @@ export function buildSystemPrompt(
         );
       } else if (modo === 'chat') {
         lines.push(
-          'Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda.',
+          'Cómo se cobra: siempre tomas el pedido aquí, en la conversación. Pídele los datos que falten (nombre, dirección completa si es un producto físico, y cómo va a pagar) y crea el pedido tú. No la mandes a la caja de la tienda.' +
+            // Tomar el pedido acá no dice CÓMO se paga. Sin esta línea, el
+            // comercio que vive del contra entrega tenía que escribirse una
+            // regla a mano para habilitar lo único que hace.
+            (agent.acepta_contraentrega === true
+              ? ' El pago al recibir (contra entrega) está disponible: si lo pide, se lo confirmas.'
+              : agent.acepta_contraentrega === false
+                ? ' No hay pago al recibir (contra entrega): si lo pide, díselo y ofrécele los medios que sí hay.'
+                : ''),
         );
       } else {
         // EL CONTRA ENTREGA NO SE DA POR SUPUESTO.
@@ -2854,8 +2868,17 @@ export function buildSystemPrompt(
         // confirma: se pasa a una persona. Quien SÍ trabaja contra entrega lo
         // pone en las reglas y funciona igual; quien no, deja de prometer algo
         // que no puede cumplir.
+        // El contra entrega es un DATO del comercio, no una deducción del
+        // modelo. Los tres casos se dicen enteros y sin ambigüedad: se
+        // acepta, no se acepta, o no lo declararon.
+        const contra =
+          agent.acepta_contraentrega === true
+            ? 'Y sí trabajas con pago al recibir (contra entrega): si lo pide, tomas el pedido aquí mismo, le pides los datos que falten y lo creas tú.'
+            : agent.acepta_contraentrega === false
+              ? 'Y NO hay pago al recibir (contra entrega): si lo pide, díselo con naturalidad y ofrécele los medios que sí hay, sin disculparte de más.'
+              : 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas tú nunca y no se lo confirmes por tu cuenta. Sólo tomas el pedido aquí si figura en las reglas del negocio o en la ficha del producto; si no figura, dile que lo confirmas y pasa la conversación a una persona.';
         lines.push(
-          'Cómo se cobra, según cómo quiera pagar: si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat, que esos datos los toma la caja. Si te dice que quiere pagar al recibir (contra entrega), NO se lo confirmes por tu cuenta y no lo ofrezcas tú nunca: sólo tomas el pedido aquí si el contra entrega figura en las reglas del negocio o en la ficha del producto. Si no figura, dile que lo confirmas y pasa la conversación a una persona. Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.',
+          `Cómo se cobra, según cómo quiera pagar: si paga con tarjeta o por la caja, genera el enlace de pago y pásaselo, sin pedirle la dirección por el chat, que esos datos los toma la caja. ${contra} Si todavía no dijo cómo quiere pagar, pregúntaselo antes de elegir el camino.`,
         );
       }
     }

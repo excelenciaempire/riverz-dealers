@@ -60,10 +60,15 @@ const VENTANA_DIAS = 30
  */
 const CATALOGO: Omit<CostoReal, 'medido'>[] = [
   {
+    // 6,05 ¢ medido en producción sobre 25 respuestas (2026-08-30), con el
+    // modelo por defecto, que es Opus 5. El número viejo —1,44— era el de
+    // Haiku, y ningún agente nace en Haiku: le mostraba al comercio la cuarta
+    // parte de lo que iba a pagar. Es sólo la semilla: en cuanto la cuenta
+    // tiene historia se le muestra SU costo medido.
     concepto: 'ia_respuesta',
     nombreEs: 'Respuestas de la IA',
     nombreEn: 'AI replies',
-    centavos: 1.44,
+    centavos: 6,
     unidad: 'respuesta',
     proveedor: 'Anthropic',
     cobro: 'por_uso',
@@ -97,10 +102,11 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
+    // Mismo camino y mismo modelo que una respuesta.
     concepto: 'ia_seguimiento',
     nombreEs: 'Seguimientos cuando el cliente se calla',
     nombreEn: 'Follow-ups when the customer goes quiet',
-    centavos: 1.44,
+    centavos: 6,
     unidad: 'seguimiento',
     proveedor: 'Anthropic',
     cobro: 'por_uso',

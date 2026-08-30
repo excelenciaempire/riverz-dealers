@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { completeText, hasLlm, type CompleteTextOptions } from './llm-client'
+import { completeTextConUso, hasLlm, type CompleteTextOptions } from './llm-client'
+import { costForModel } from '@/lib/admin/cost'
 import { resolveAnthropicKey } from './platform-key'
 import { puedeUsarIa } from '@/lib/wallet/puerta'
 import { cobrar } from '@/lib/wallet/saldo'
@@ -20,10 +21,9 @@ import { cobrar } from '@/lib/wallet/saldo'
  * sólo se cobra cuando NO es la del comercio, porque a ese ya le cobra
  * Anthropic.
  *
- * `completeText` sólo devuelve texto, sin uso de tokens, así que se cobra la
- * tarifa de lista del concepto y no el costo medido. Para estas llamadas la
- * tarifa está por encima del costo real (`ia_clasificacion`: 0,3 centavos de
- * tarifa contra 0,1 medido), así que el redondeo no juega en contra.
+ * Se cobra EL COSTO, no una tarifa: lo que el proveedor le cobró a Riverz por
+ * esa llamada, calculado sobre los tokens que devolvió —con la caché aparte,
+ * que se paga a otro precio—. Es el mismo criterio que la respuesta del runner.
  *
  * Devuelve `null` en vez de lanzar: sin saldo, sin clave o con el modelo caído,
  * quien llama ya tiene su camino de respaldo y no puede romperse por esto.
@@ -48,9 +48,9 @@ export async function completeTextMedido(
   const resuelta = await resolveAnthropicKey(db, { workspaceId, agentKeyEncrypted })
   if (!resuelta || !hasLlm(resuelta.key)) return null
 
-  let texto: string
+  let salida: Awaited<ReturnType<typeof completeTextConUso>>
   try {
-    texto = await completeText({ ...opts, anthropicKey: resuelta.key })
+    salida = await completeTextConUso({ ...opts, anthropicKey: resuelta.key })
   } catch {
     return null
   }
@@ -61,11 +61,15 @@ export async function completeTextMedido(
     void cobrar(db, workspaceId, {
       concepto,
       cantidad: 1,
+      costoUsd: costForModel(salida.modelo, salida.uso.prompt, salida.uso.salida, {
+        read: salida.uso.cacheLeida,
+        write: salida.uso.cacheEscrita,
+      }),
       referenciaTipo,
       referenciaId: referenciaId ?? null,
-      detalle,
+      detalle: { ...detalle, modelo: salida.modelo, proveedor: salida.proveedor },
     })
   }
 
-  return texto
+  return salida.text
 }

@@ -80,6 +80,26 @@ export function hasLlm(anthropicKey?: string | null): boolean {
   return Boolean(anthropicKey) || fallbackProviders().length > 0;
 }
 
+/**
+ * Lo que devuelve una llamada al modelo: el texto Y lo que se gastó.
+ *
+ * Los tokens de caché NO vienen dentro de `prompt`: son campos aparte y se
+ * pagan a otro precio (leer, una décima; escribir, un 25% más). Sumarlos al
+ * prompt cobraría de más al que lee de caché y de menos al que la escribe.
+ */
+export interface Completado {
+  text: string;
+  /** 'anthropic', 'groq', … — quién atendió de verdad. */
+  proveedor: string;
+  modelo: string;
+  uso: {
+    prompt: number;
+    salida: number;
+    cacheLeida: number;
+    cacheEscrita: number;
+  };
+}
+
 export interface CompleteTextOptions {
   tier: LlmTier;
   system: string;
@@ -94,7 +114,7 @@ export interface CompleteTextOptions {
 async function completeAnthropic(
   key: string,
   o: CompleteTextOptions,
-): Promise<string> {
+): Promise<Completado> {
   const client = getAnthropic(key);
   const model = ANTHROPIC_MODELS[o.tier];
   const res = await client.messages.create({
@@ -107,17 +127,28 @@ async function completeAnthropic(
     ],
     messages: [{ role: 'user', content: o.user }],
   });
-  return res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
+  const u = res.usage;
+  return {
+    text: res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim(),
+    proveedor: 'anthropic',
+    modelo: model,
+    uso: {
+      prompt: u?.input_tokens ?? 0,
+      salida: u?.output_tokens ?? 0,
+      cacheLeida: u?.cache_read_input_tokens ?? 0,
+      cacheEscrita: u?.cache_creation_input_tokens ?? 0,
+    },
+  };
 }
 
 async function completeOpenAICompat(
   p: OpenAICompatProvider,
   o: CompleteTextOptions,
-): Promise<string> {
+): Promise<Completado> {
   const res = await fetch(`${p.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -140,8 +171,19 @@ async function completeOpenAICompat(
   }
   const json = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
-  return (json.choices?.[0]?.message?.content ?? '').trim();
+  return {
+    text: (json.choices?.[0]?.message?.content ?? '').trim(),
+    proveedor: p.name,
+    modelo: p.model[o.tier],
+    uso: {
+      prompt: json.usage?.prompt_tokens ?? 0,
+      salida: json.usage?.completion_tokens ?? 0,
+      cacheLeida: 0,
+      cacheEscrita: 0,
+    },
+  };
 }
 
 export type ImageMediaType =
@@ -172,7 +214,7 @@ export async function describeImage(o: {
   user: string;
   maxTokens: number;
   anthropicKey: string;
-}): Promise<string> {
+}): Promise<Completado> {
   const client = getAnthropic(o.anthropicKey);
   const res = await client.messages.create({
     model: ANTHROPIC_MODELS.triage,
@@ -192,11 +234,22 @@ export async function describeImage(o: {
       },
     ],
   });
-  return res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
+  const u = res.usage;
+  return {
+    text: res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim(),
+    proveedor: 'anthropic',
+    modelo: ANTHROPIC_MODELS.triage,
+    uso: {
+      prompt: u?.input_tokens ?? 0,
+      salida: u?.output_tokens ?? 0,
+      cacheLeida: u?.cache_read_input_tokens ?? 0,
+      cacheEscrita: u?.cache_creation_input_tokens ?? 0,
+    },
+  };
 }
 
 /**
@@ -206,12 +259,25 @@ export async function describeImage(o: {
  * scores) should catch and use it.
  */
 export async function completeText(o: CompleteTextOptions): Promise<string> {
+  return (await completeTextConUso(o)).text;
+}
+
+/**
+ * Lo mismo, pero diciendo QUÉ SE GASTÓ.
+ *
+ * Sin esto no hay forma de cobrarle al comercio lo que el proveedor le cobró a
+ * Riverz: `completeText` devolvía sólo texto, así que todo lo que pasa por acá
+ * —clasificar si hay que escalar, puntuar un lead, decidir si conviene abrir el
+ * privado— tenía que caer a una tarifa de lista, que es un promedio y no el
+ * gasto. Ahora sale el número exacto.
+ */
+export async function completeTextConUso(o: CompleteTextOptions): Promise<Completado> {
   const errors: string[] = [];
 
   if (o.anthropicKey) {
     try {
-      const text = await completeAnthropic(o.anthropicKey, o);
-      if (text) return text;
+      const r = await completeAnthropic(o.anthropicKey, o);
+      if (r.text) return r;
       errors.push('anthropic: empty response');
     } catch (err) {
       errors.push(`anthropic: ${err instanceof Error ? err.message : 'error'}`);
@@ -220,14 +286,14 @@ export async function completeText(o: CompleteTextOptions): Promise<string> {
 
   for (const p of fallbackProviders()) {
     try {
-      const text = await completeOpenAICompat(p, o);
-      if (text) {
+      const r = await completeOpenAICompat(p, o);
+      if (r.text) {
         if (errors.length) {
           console.warn(
             `[llm] Anthropic unavailable, served by ${p.name}. (${errors.join(' | ')})`,
           );
         }
-        return text;
+        return r;
       }
       errors.push(`${p.name}: empty response`);
     } catch (err) {
