@@ -780,8 +780,25 @@ export function extractText(m: WhatsAppMessage): string {
       // Un tipo nuevo de WhatsApp: si trae texto lo mostramos; si no, la
       // bandeja pone el rótulo localizado de "mensaje no compatible" en vez
       // de un "[order]" crudo.
-      return m.text?.body || `[unsupported message type: ${m.type}]`;
+      //
+      // Se guarda ADEMÁS lo que Meta dice del problema. Su `errors[]` es la
+      // única pista de QUÉ mandó la persona —el código 131051 y su detalle— y
+      // se estaba tirando: quedaba "[No compatible]" y nadie, ni el comercio
+      // ni la IA, podía saber qué había pasado (2026-08-29). La bandeja no lo
+      // muestra: `isUnsupportedSnippet` ancla al principio del texto y lo
+      // reemplaza por el rótulo localizado, así que esto vive en la fila para
+      // cuando haya que explicarlo.
+      return m.text?.body || `[unsupported message type: ${m.type}]${motivoDeMeta(m)}`;
   }
+}
+
+/** Lo que Meta explicó del mensaje que no pudo entregar. Vacío si no dijo nada. */
+function motivoDeMeta(m: WhatsAppMessage): string {
+  const e = m.errors?.[0];
+  if (!e) return "";
+  const detalle = e.error_data?.details || e.details || e.message || e.title || "";
+  const partes = [e.code ? `#${e.code}` : "", detalle].filter(Boolean);
+  return partes.length ? ` (${partes.join(" ")})` : "";
 }
 
 /** Nombre / dirección de la ubicación + enlace al mapa, para poder abrirla. */
@@ -941,6 +958,19 @@ export interface WhatsAppMessage {
   system?: { body?: string };
   /** Emoji reaction to a previously-exchanged message (not a new message). */
   reaction?: { message_id?: string; emoji?: string };
+  /**
+   * Por qué Meta no pudo entregarlo. Viene con `type: "unsupported"`, que es lo
+   * que manda cuando la persona envió algo que la Cloud API no reparte
+   * (ver-una-vez, una encuesta, una función nueva del teléfono): llega este
+   * aviso y ningún archivo.
+   */
+  errors?: Array<{
+    code?: number;
+    title?: string;
+    message?: string;
+    details?: string;
+    error_data?: { details?: string };
+  }>;
   /** Present when the message came from a Click-to-WhatsApp ad. */
   referral?: {
     source_type?: string;

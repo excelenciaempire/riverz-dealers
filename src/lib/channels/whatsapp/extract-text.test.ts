@@ -78,4 +78,31 @@ describe("extractText", () => {
       "[unsupported message type: some_new_type]",
     );
   });
+
+  it("guarda lo que Meta explicó del mensaje que no entregó", () => {
+    // Es la única pista de QUÉ mandó la persona, y se estaba tirando: quedaba
+    // un "[No compatible]" que nadie podía explicar (2026-08-29).
+    expect(
+      extractText(
+        msg({
+          type: "unsupported",
+          errors: [
+            {
+              code: 131051,
+              title: "Unsupported message type",
+              error_data: { details: "Message type is not currently supported" },
+            },
+          ],
+        }),
+      ),
+    ).toBe(
+      "[unsupported message type: unsupported] (#131051 Message type is not currently supported)",
+    );
+  });
+
+  it("sin explicación de Meta, el rótulo queda como estaba", () => {
+    expect(extractText(msg({ type: "unsupported" }))).toBe(
+      "[unsupported message type: unsupported]",
+    );
+  });
 });
