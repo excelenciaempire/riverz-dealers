@@ -21,10 +21,19 @@ function db(opts: {
   pendientes?: Fila[]
   referenciaUsadaPor?: Fila | null
   hayAdjunto?: boolean
+  /** La fila de configuración de la cuenta. Sin ella rigen las de siempre. */
+  config?: Fila | null
 }) {
   const escrituras: Fila[] = []
   const pendientes = opts.pendientes ?? []
   const from = (tabla: string) => {
+    if (tabla === 'workspace_checkout_config') {
+      const q: Record<string, unknown> = {}
+      q.select = () => q
+      q.eq = () => q
+      q.maybeSingle = async () => ({ data: opts.config ?? null })
+      return q
+    }
     if (tabla === 'messages') {
       const q: Record<string, unknown> = {}
       for (const m of ['select', 'eq', 'in', 'gte']) q[m] = () => q
@@ -142,6 +151,73 @@ describe('no se cobra solo sin una prueba de verdad', () => {
     const { db: d } = db({ pendientes: [], hayAdjunto: true })
     const r = await registerReportedPayment({ ...BASE, db: d })
     expect(r.kind).toBe('sin_pedido')
+  })
+})
+
+/**
+ * Las mismas pruebas, pero elegidas por el comercio.
+ *
+ * Un negocio de presupuestos únicos tiene en el monto una prueba de verdad y
+ * puede aflojar el resto; uno de cuatro precios repetidos, no. Lo que no se
+ * afloja nunca es cobrar dos veces con el mismo número de operación: eso no es
+ * una política, es un error.
+ */
+describe('las condiciones las pone la cuenta', () => {
+  const SIN_COMPROBANTE = {
+    pago_exige_comprobante: false,
+    pago_un_solo_pendiente: true,
+    pago_exige_referencia: false,
+    pago_tolerancia_pct: 0.1,
+  }
+
+  it('sin exigir comprobante ni referencia, el monto solo alcanza', async () => {
+    const { db: d } = db({
+      pendientes: [PEDIDO],
+      hayAdjunto: false,
+      config: SIN_COMPROBANTE,
+    })
+    const r = await registerReportedPayment({
+      ...BASE,
+      desdeComprobante: false,
+      referencia: null,
+      db: d,
+    })
+    // Llega hasta el final: lo único que lo frena es que el pedido no está en
+    // ninguna tienda conectada en este doble.
+    expect(r.kind).toBe('a_confirmar')
+    if (r.kind === 'a_confirmar') expect(r.reason).toMatch(/tienda|Shopify/i)
+  })
+
+  it('pero el mismo comprobante sigue sin pagar dos pedidos', async () => {
+    const { db: d } = db({
+      pendientes: [PEDIDO],
+      hayAdjunto: false,
+      config: SIN_COMPROBANTE,
+      referenciaUsadaPor: { id: 'o9', order_number: '#52700' },
+    })
+    const r = await registerReportedPayment({ ...BASE, db: d })
+    expect(r.kind).toBe('a_confirmar')
+    if (r.kind === 'a_confirmar') expect(r.reason).toMatch(/ya se usó/i)
+  })
+
+  it('con más tolerancia, una diferencia de centavos ya no molesta', async () => {
+    const { db: d } = db({
+      pendientes: [PEDIDO],
+      hayAdjunto: true,
+      config: { ...SIN_COMPROBANTE, pago_tolerancia_pct: 1 },
+    })
+    // 39.990 contra 39.800: 0,48% de diferencia.
+    const r = await registerReportedPayment({ ...BASE, amount: 39800, db: d })
+    if (r.kind === 'a_confirmar') expect(r.reason).not.toMatch(/comprobante dice/i)
+    expect(montoCoincide('39990', 39800, 1)).toBe(true)
+    expect(montoCoincide('39990', 39800, 0.1)).toBe(false)
+  })
+
+  it('las reglas quedan anotadas con el pago, para poder auditarlo', async () => {
+    const { db: d, escrituras } = db({ pendientes: [PEDIDO], hayAdjunto: false })
+    await registerReportedPayment({ ...BASE, db: d })
+    const ev = escrituras[0].payment_evidence as Record<string, unknown>
+    expect((ev.reglas as Record<string, unknown>).exigeComprobante).toBe(true)
   })
 })
 

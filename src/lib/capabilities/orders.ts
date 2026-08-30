@@ -31,6 +31,7 @@ import {
   montoCoincide,
   pendingOrderFor,
 } from '@/lib/payments/reported-payment'
+import { leerReglasDeCobro } from '@/lib/payments/reglas-de-cobro'
 import { resolveWorkspaceCurrency } from '@/lib/products/currency'
 import {
   createCheckoutLink,
@@ -957,15 +958,27 @@ export const ORDER_CAPABILITIES: Capability[] = [
         pedido.currency,
       )}`
       const monto = typeof args.monto === 'number' ? args.monto : null
+      const reglas = await leerReglasDeCobro(ctx.db, ctx.workspaceId)
+      // Desde acá no hay imagen ni número de operación: el Operador registra lo
+      // que le contó una persona, no lo que leyó de un comprobante. Si la
+      // cuenta exige alguna de las dos cosas, esto NUNCA cobra solo — y
+      // prometerlo era la diferencia entre "ya está" y "te aviso en un rato".
+      const puedeSinComprobante = !reglas.exigeComprobante && !reglas.exigeReferencia
+      const coincide =
+        monto != null && montoCoincide(pedido.total, monto, reglas.toleranciaPct)
       // Las dos ramas son muy distintas —una cobra en Shopify, la otra sólo
       // pregunta— y quien aprueba tiene que saber cuál le toca.
-      if (monto != null && montoCoincide(pedido.total, monto)) {
-        return `El comprobante de ${fmtMoney(monto, pedido.currency)} coincide: marcaría ${suyo} como PAGADO en la tienda y dejaría de mandarle recordatorios.`
+      if (coincide && puedeSinComprobante) {
+        return `El comprobante de ${fmtMoney(monto!, pedido.currency)} coincide: marcaría ${suyo} como PAGADO en la tienda y dejaría de mandarle recordatorios.`
       }
+      // El motivo más concreto primero: que el monto no cierre es más útil que
+      // "falta el comprobante", porque es lo único que se puede corregir acá.
       const porque =
         monto == null
           ? 'sin monto en el comprobante'
-          : `el comprobante dice ${fmtMoney(monto, pedido.currency)} y no coincide`
+          : !coincide
+            ? `el comprobante dice ${fmtMoney(monto, pedido.currency)} y no coincide`
+            : 'tu cuenta pide ver el comprobante antes de dar algo por cobrado'
       return `Dejaría de mandarle recordatorios por ${suyo}, pero NO lo daría por cobrado (${porque}): te preguntaría por WhatsApp antes.`
     },
     run: registrarPago,

@@ -53,6 +53,10 @@ import {
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
+import {
+  REGLAS_POR_DEFECTO,
+  type ReglasDeCobro,
+} from '@/lib/payments/reglas-de-cobro';
 import { limpiarPersona } from '@/lib/ai/persona-limpia';
 import type { AgentTools } from '@/lib/ai/toolbox';
 import type { TFn } from '@/lib/i18n/translate';
@@ -434,6 +438,8 @@ export function AgentEditor({
   });
   /** Cuánto puede descontar el agente. Vive en la cuenta, no en el agente. */
   const [topeDescuento, setTopeDescuento] = useState(0);
+  /** Con qué pruebas da un pedido por cobrado. También de la cuenta. */
+  const [reglasCobro, setReglasCobro] = useState<ReglasDeCobro>(REGLAS_POR_DEFECTO);
 
   /**
    * Cambiar de rol trae su preset de permisos.
@@ -736,6 +742,55 @@ export function AgentEditor({
           // Cambiar el tope cambia si la herramienta se le ofrece o no al
           // agente, así que la disponibilidad se vuelve a mirar.
           setDisponible((d) => ({ ...d, descuento: n > 0 }));
+        } catch {
+          toast.error(t('assistant.updateError'));
+        }
+      })();
+    },
+    [workspaceId, fetchWithCsrf, t],
+  );
+
+  // Con qué pruebas se da un pedido por cobrado. También de la CUENTA, y por
+  // el mismo motivo que el tope: es la política de cobro del negocio, no la
+  // personalidad de un agente.
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/ai/cobro-comprobante?workspace_id=${encodeURIComponent(workspaceId)}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { reglas?: ReglasDeCobro };
+        if (!cancelled && json.reglas) setReglasCobro(json.reglas);
+      } catch {
+        /* quedan las de siempre, que es lo que hace el servidor igual */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const guardarReglasCobro = useCallback(
+    (r: ReglasDeCobro) => {
+      setReglasCobro(r);
+      if (!workspaceId) return;
+      void (async () => {
+        try {
+          const res = await fetchWithCsrf('/api/ai/cobro-comprobante', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              workspace_id: workspaceId,
+              exige_comprobante: r.exigeComprobante,
+              un_solo_pendiente: r.unSoloPendiente,
+              exige_referencia: r.exigeReferencia,
+              tolerancia_pct: r.toleranciaPct,
+            }),
+          });
+          if (!res.ok) throw new Error();
         } catch {
           toast.error(t('assistant.updateError'));
         }
@@ -1657,6 +1712,8 @@ export function AgentEditor({
                     disponible={disponible}
                     tope={topeDescuento}
                     onTope={guardarTope}
+                    reglas={reglasCobro}
+                    onReglas={guardarReglasCobro}
                   />
                 </SectionCard>
 

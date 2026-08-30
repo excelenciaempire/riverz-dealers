@@ -262,8 +262,22 @@ export const operation = {
   },
   toolRegistrarPago: { es: "Dar por pagado", en: "Mark as paid" },
   toolRegistrarPagoHint: {
-    es: "Registra el comprobante de una transferencia y corta los recordatorios.",
-    en: "Logs a transfer receipt and stops the reminders.",
+    es: "Con el comprobante de la transferencia: corta los recordatorios y marca el pedido pagado en tu tienda.",
+    en: "From the transfer receipt: stops the reminders and marks the order paid in your store.",
+  },
+  pagoExigeComprobante: { es: "Exigir un comprobante", en: "Require a receipt" },
+  pagoUnSoloPendiente: {
+    es: "Un solo pedido pendiente",
+    en: "Only one pending order",
+  },
+  pagoExigeReferencia: {
+    es: "Número de operación sin repetir",
+    en: "Unique transaction number",
+  },
+  pagoTolerancia: { es: "El monto puede diferir", en: "The amount may differ by" },
+  pagoReglasFlojas: {
+    es: "Con menos pruebas, acertar el total alcanza para que un pedido quede pagado.",
+    en: "With fewer checks, guessing the total is enough for an order to end up paid.",
   },
   toolEditarPedido: { es: "Editar un pedido", en: "Edit an order" },
   toolEditarPedidoHint: {

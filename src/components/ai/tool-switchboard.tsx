@@ -1,6 +1,7 @@
 'use client';
 
 import { useT } from '@/hooks/use-locale';
+import { Switch } from '@/components/ui/switch';
 import {
   AGENT_TOOLBOX,
   TOOL_GROUPS,
@@ -11,6 +12,11 @@ import {
   type ToolRequirement,
   type ToolSpec,
 } from '@/lib/ai/toolbox';
+import {
+  REGLAS_POR_DEFECTO,
+  TOLERANCIA_MAXIMA,
+  type ReglasDeCobro,
+} from '@/lib/payments/reglas-de-cobro';
 
 /**
  * Qué hace el agente, y cuándo entra una persona.
@@ -92,6 +98,8 @@ export function ToolSwitchboard({
   disponible,
   tope,
   onTope,
+  reglas,
+  onReglas,
 }: {
   /** El agente que se está editando, para poder heredar de los permisos viejos. */
   agent: { permissions?: unknown; puede_crear_pedidos?: boolean | null };
@@ -101,6 +109,9 @@ export function ToolSwitchboard({
   /** Cuánto puede descontar, en porcentaje. Es de la cuenta, no del agente. */
   tope?: number;
   onTope?: (n: number) => void;
+  /** Con qué pruebas da un pedido por cobrado. También de la cuenta. */
+  reglas?: ReglasDeCobro | null;
+  onReglas?: (r: ReglasDeCobro) => void;
 }) {
   const t = useT();
 
@@ -134,6 +145,8 @@ export function ToolSwitchboard({
                   disponible={disponible}
                   tope={tope}
                   onTope={onTope}
+                  reglas={reglas}
+                  onReglas={onReglas}
                 />
               ))}
             </div>
@@ -156,6 +169,8 @@ function Fila({
   disponible,
   tope,
   onTope,
+  reglas,
+  onReglas,
 }: {
   spec: ToolSpec;
   modo: ToolMode;
@@ -163,9 +178,19 @@ function Fila({
   disponible: Disponibilidad;
   tope?: number;
   onTope?: (n: number) => void;
+  reglas?: ReglasDeCobro | null;
+  onReglas?: (r: ReglasDeCobro) => void;
 }) {
   const t = useT();
   const sufijo = SUFIJO[spec.key] ?? spec.key;
+  // Dar por pagado es la única que decide sobre plata que ya entró, y con qué
+  // pruebas lo decide cambia por negocio: donde se venden cuatro precios
+  // repetidos, acertar el monto no prueba nada; donde cada presupuesto es
+  // único, sí. Sólo se muestran en "solo", que es cuando gobiernan algo: en
+  // "preguntar" decide una persona y las condiciones no se usan.
+  const conReglas =
+    spec.key === 'registrar_pago' && typeof onReglas === 'function' && modo === 'auto';
+  const r = reglas ?? REGLAS_POR_DEFECTO;
   // El descuento es la única que necesita un número además del modo, y ese
   // número no vivía en ninguna pantalla: se leía en tres lugares y no se podía
   // escribir en ninguno, así que la herramienta no se podía encender nunca.
@@ -217,6 +242,58 @@ function Fila({
           />
           %
         </label>
+      )}
+      {conReglas && (
+        <div className="mt-2.5 space-y-2 border-t border-border/60 pt-2.5">
+          {(
+            [
+              ['exigeComprobante', 'pagoExigeComprobante'],
+              ['unSoloPendiente', 'pagoUnSoloPendiente'],
+              ['exigeReferencia', 'pagoExigeReferencia'],
+            ] as const
+          ).map(([campo, clave]) => (
+            <label
+              key={campo}
+              className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground"
+            >
+              {t(`operation.${clave}`)}
+              <Switch
+                checked={r[campo]}
+                onCheckedChange={(v: boolean) => onReglas!({ ...r, [campo]: v })}
+              />
+            </label>
+          ))}
+          <label className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+            {t('operation.pagoTolerancia')}
+            <span className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                max={TOLERANCIA_MAXIMA}
+                step={0.1}
+                value={r.toleranciaPct}
+                onChange={(e) =>
+                  onReglas!({
+                    ...r,
+                    toleranciaPct: Math.max(
+                      0,
+                      Math.min(TOLERANCIA_MAXIMA, Number(e.target.value) || 0),
+                    ),
+                  })
+                }
+                className="w-16 rounded-md border border-border bg-background px-2 py-1 text-right text-[11px] text-foreground"
+              />
+              %
+            </span>
+          </label>
+          {/* Lo que pasa a valer sin esas pruebas. No es una advertencia moral:
+              es la consecuencia exacta, y el comercio decide. */}
+          {(!r.exigeComprobante || !r.unSoloPendiente || !r.exigeReferencia) && (
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {t('operation.pagoReglasFlojas')}
+            </p>
+          )}
+        </div>
       )}
       {/* Con tope 0 la herramienta ni se le ofrece al agente, así que decirlo
           acá —donde está el número— es lo único que cierra el círculo. */}

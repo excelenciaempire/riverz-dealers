@@ -90,10 +90,23 @@ const CONTACTOS: ContactoFalso[] = [
   },
 ]
 
+/**
+ * Las reglas de cobro de la cuenta que ve el doble. `null` = sin fila, que es
+ * lo normal y equivale a las de siempre (exigir comprobante y referencia).
+ */
+let CONFIG_COBRO: Record<string, unknown> | null = null
+
 /** Sólo devuelve el contacto si el filtro trae la cuenta correcta. */
 function fakeDb(contactos = CONTACTOS): SupabaseClient {
   const api = {
-    from() {
+    from(tabla: string) {
+      if (tabla === 'workspace_checkout_config') {
+        const q: Record<string, unknown> = {}
+        q.select = () => q
+        q.eq = () => q
+        q.maybeSingle = async () => ({ data: CONFIG_COBRO })
+        return q
+      }
       const filtros: Record<string, unknown> = {}
       const chain: Record<string, unknown> = {}
       Object.assign(chain, {
@@ -272,12 +285,33 @@ describe('pago informado', () => {
     shopifyOrderId: '5001',
   }
 
-  it('con el monto exacto anticipa que lo va a cobrar', async () => {
+  // Desde el Operador no hay imagen ni número de operación: lo que se registra
+  // es lo que le contó una persona. Con las reglas de siempre eso NO cobra
+  // solo, y prometerlo era la diferencia entre "ya está" y "te aviso".
+  it('con el monto exacto, pero la cuenta pide comprobante: no lo promete', async () => {
+    CONFIG_COBRO = null
     pendingOrderFor.mockResolvedValue(PENDIENTE)
     const texto = await cap('pedidos.registrar_pago').preview!(ctx(), {
       contacto_id: ANA,
       monto: 69900,
     })
+    expect(texto).toContain('NO lo daría por cobrado')
+    expect(texto).toContain('comprobante')
+  })
+
+  it('y si la cuenta no lo pide, ahí sí anticipa el cobro', async () => {
+    CONFIG_COBRO = {
+      pago_exige_comprobante: false,
+      pago_exige_referencia: false,
+      pago_un_solo_pendiente: true,
+      pago_tolerancia_pct: 0.1,
+    }
+    pendingOrderFor.mockResolvedValue(PENDIENTE)
+    const texto = await cap('pedidos.registrar_pago').preview!(ctx(), {
+      contacto_id: ANA,
+      monto: 69900,
+    })
+    CONFIG_COBRO = null
     expect(texto).toContain('PAGADO')
     expect(texto).toContain('$69.900')
   })

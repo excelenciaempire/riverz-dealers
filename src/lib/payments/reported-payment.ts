@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { askForApproval } from '@/lib/approvals/ask'
 import { resolveShopifyAdmin } from '@/lib/shopify/order-tags'
 import { markOrderPaid } from '@/lib/shopify/mark-paid'
+import {
+  leerReglasDeCobro,
+  REGLAS_POR_DEFECTO,
+  type ReglasDeCobro,
+} from './reglas-de-cobro'
 
 /**
  * "Ya te transferí" — qué hacer con eso.
@@ -22,7 +27,7 @@ import { markOrderPaid } from '@/lib/shopify/mark-paid'
  * Lo primero pasa siempre. Lo segundo, sólo con certeza.
  */
 
-/** Cuánto puede diferir el comprobante del pedido y aun así darse por bueno. */
+/** Piso de la tolerancia: un centavo. Menos que esto es un redondeo del banco. */
 const TOLERANCIA = 0.01
 
 /**
@@ -36,13 +41,15 @@ const TOLERANCIA = 0.01
 export function montoCoincide(
   totalDelPedido: string | number | null | undefined,
   montoDeclarado: number | null | undefined,
+  toleranciaPct: number = REGLAS_POR_DEFECTO.toleranciaPct,
 ): boolean {
   const esperado = Number(totalDelPedido ?? '')
   const declarado = Number(montoDeclarado ?? NaN)
   return (
     Number.isFinite(esperado) &&
     Number.isFinite(declarado) &&
-    Math.abs(esperado - declarado) <= Math.max(TOLERANCIA, esperado * 0.001)
+    Math.abs(esperado - declarado) <=
+      Math.max(TOLERANCIA, (esperado * toleranciaPct) / 100)
   )
 }
 
@@ -69,6 +76,12 @@ export interface ReportedPaymentInput {
   referencia?: string | null
   /** Lo demás que se leyó: fecha, banco, cuenta destino, titular. */
   leido?: Record<string, unknown> | null
+  /**
+   * Con qué pruebas se cobra solo en esta cuenta. Si no se pasan, se leen.
+   * Se puede pasar para no volver a consultarlas cuando quien llama ya las
+   * tiene —la pantalla que anticipa la rama, por ejemplo—.
+   */
+  reglas?: ReglasDeCobro | null
 }
 
 /** Ventana hacia atrás para buscar el archivo que la persona mandó. */
@@ -108,6 +121,7 @@ export async function registerReportedPayment(
   input: ReportedPaymentInput,
 ): Promise<ReportOutcome> {
   const { db, workspaceId, contactId } = input
+  const reglas = input.reglas ?? (await leerReglasDeCobro(db, workspaceId))
 
   // Los pedidos pendientes de esta persona. Se piden DOS a propósito: con más
   // de uno no hay forma de saber cuál pagó, y elegir "el más reciente" es
@@ -146,6 +160,9 @@ export async function registerReportedPayment(
         desde_comprobante: input.desdeComprobante === true,
         referencia,
         leido: input.leido ?? null,
+        // Con qué reglas se decidió. Sin esto, auditar un cobro de hace tres
+        // meses obliga a adivinar si en ese momento se exigía comprobante.
+        reglas,
         anotado_en: new Date().toISOString(),
       },
     })
@@ -155,7 +172,7 @@ export async function registerReportedPayment(
   const esperado = Number(order.total_price ?? '')
   const declarado = Number(input.amount ?? NaN)
 
-  if (!montoCoincide(order.total_price, input.amount)) {
+  if (!montoCoincide(order.total_price, input.amount, reglas.toleranciaPct)) {
     const motivo = !Number.isFinite(declarado)
       ? 'no se pudo leer el monto del comprobante'
       : `el comprobante dice ${declarado} y el pedido es de ${esperado}`
@@ -167,12 +184,17 @@ export async function registerReportedPayment(
   // El monto coincide, y eso sirve mucho menos de lo que parece: en Pilar,
   // cuatro montos cubren el 79% de 558 pedidos y el precio está en el anuncio.
   // Coincidir es casi la norma, no una prueba. Estos tres cortes son lo que
-  // convierte "coincide" en "consta".
+  // convierte "coincide" en "consta" — y cuáles se exigen lo decide el comercio
+  // (`reglas-de-cobro.ts`), porque en un negocio de presupuestos únicos el
+  // monto sí identifica la transferencia.
 
   // 1. Que haya un comprobante DE VERDAD. El modelo puede leer el monto del
   //    mensaje escrito ("ya te transferí 39990") en vez de una imagen: eso es
   //    una afirmación del cliente, no un comprobante.
-  if (input.desdeComprobante !== true || !(await hayComprobante(db, contactId))) {
+  if (
+    reglas.exigeComprobante &&
+    (input.desdeComprobante !== true || !(await hayComprobante(db, contactId)))
+  ) {
     return {
       kind: 'a_confirmar',
       reason: 'dijo el monto pero no hay un comprobante que lo respalde',
@@ -181,7 +203,7 @@ export async function registerReportedPayment(
 
   // 2. Un solo pedido pendiente. Con dos, el monto no dice cuál pagó —y con
   //    precios repetidos, menos todavía.
-  if (varios) {
+  if (reglas.unSoloPendiente && varios) {
     return {
       kind: 'a_confirmar',
       reason: 'tiene más de un pedido pendiente y no se sabe cuál pagó',
@@ -191,25 +213,30 @@ export async function registerReportedPayment(
   // 3. Ese comprobante no pagó ya otra cosa. Sin la referencia no hay forma de
   //    saberlo, así que sin referencia tampoco se cobra solo: la misma captura
   //    reenviada dos veces pagaría dos pedidos.
-  if (!referencia) {
+  if (reglas.exigeReferencia && !referencia) {
     return {
       kind: 'a_confirmar',
       reason: 'no se pudo leer el número de operación del comprobante',
     }
   }
-  const { data: yaUsada } = await db
-    .from('orders')
-    .select('id, order_number')
-    .eq('workspace_id', workspaceId)
-    .eq('payment_reference', referencia)
-    .neq('id', order.id)
-    .limit(1)
-    .maybeSingle()
-  if (yaUsada) {
-    const otra = (yaUsada as { order_number?: string | null }).order_number
-    return {
-      kind: 'a_confirmar',
-      reason: `ese comprobante ya se usó para el pedido ${otra ?? 'anterior'}`,
+  // La comprobación de reuso corre SIEMPRE que haya número, la exija el
+  // comercio o no: aflojar el requisito es aceptar cobros sin número, nunca
+  // aceptar dos veces el mismo.
+  if (referencia) {
+    const { data: yaUsada } = await db
+      .from('orders')
+      .select('id, order_number')
+      .eq('workspace_id', workspaceId)
+      .eq('payment_reference', referencia)
+      .neq('id', order.id)
+      .limit(1)
+      .maybeSingle()
+    if (yaUsada) {
+      const otra = (yaUsada as { order_number?: string | null }).order_number
+      return {
+        kind: 'a_confirmar',
+        reason: `ese comprobante ya se usó para el pedido ${otra ?? 'anterior'}`,
+      }
     }
   }
 
