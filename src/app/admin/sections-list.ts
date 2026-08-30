@@ -113,9 +113,9 @@ export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
 
   // ── Qué está pasando ──
   {
-    href: "/admin/canales",
-    label: "admin.sectionChannels",
-    description: "admin.sectionChannelsDesc",
+    href: "/admin/conexiones",
+    label: "admin.sectionConnections",
+    description: "admin.sectionConnectionsDesc",
     group: "que-pasa",
   },
   {
@@ -171,4 +171,8 @@ export const ADMIN_SLUGS_RETIRADOS: Record<string, string> = {
   // El historial es una pestaña de Operación: la misma pregunta a dos
   // distancias, y los webhooks sin procesar se listaban en las dos.
   logs: "operacion",
+  // "Canales" quedaba corto: la tabla no lista canales sino CONEXIONES, una
+  // fila por cuenta conectada de cada comercio, y ahi adentro hay tiendas,
+  // pagos y contra reembolso ademas de mensajeria.
+  canales: "conexiones",
 };

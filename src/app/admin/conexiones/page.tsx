@@ -164,8 +164,8 @@ export default function AdminChannelsPage() {
     <div className="space-y-5">
       <PageHeader
         live={live}
-        title={t("admin.channelsTitle")}
-        description={t("admin.sectionChannelsDesc")}
+        title={t("admin.sectionConnections")}
+        description={t("admin.sectionConnectionsDesc")}
         actions={
           <>
             <Choice

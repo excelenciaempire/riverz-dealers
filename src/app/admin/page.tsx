@@ -74,7 +74,7 @@ export default function AdminHomePage() {
           label: t("admin.alertWorkspacesBroken"),
           href: "/admin/comercios",
         },
-        { n: o.connections_error, label: t("admin.alertConnections"), href: "/admin/canales" },
+        { n: o.connections_error, label: t("admin.alertConnections"), href: "/admin/conexiones" },
         { n: o.webhooks_unprocessed, label: t("admin.alertWebhooks"), href: "/admin/operacion" },
         { n: ops?.cronsBroken ?? o.crons_error, label: t("admin.alertCrons"), href: "/admin/operacion" },
       ].filter((a) => a.n > 0)

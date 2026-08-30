@@ -52,7 +52,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "/admin/usuarios": Users,
   "/admin/uso": Gauge,
   "/admin/alta": Ticket,
-  "/admin/canales": Radio,
+  "/admin/conexiones": Radio,
   "/admin/operacion": Activity,
   "/admin/auditoria": ShieldCheck,
   "/admin/funcionalidades": ToggleRight,

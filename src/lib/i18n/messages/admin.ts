@@ -43,10 +43,13 @@ export const admin = {
     es: "Por qué la IA no respondió, qué envío falló y qué webhook quedó trabado.",
     en: "Why the AI didn't reply, which send failed, which webhook got stuck.",
   },
-  sectionChannels: { es: "Canales", en: "Channels" },
-  sectionChannelsDesc: {
-    es: "Estado de cada conexión de la plataforma y su último error.",
-    en: "Status of every connection on the platform and its last error.",
+  // «Canales» quedaba corto: la tabla no lista canales sino CONEXIONES —una
+  // fila por cuenta conectada de cada comercio— y ahí adentro hay tiendas,
+  // pagos y contra reembolso además de mensajería.
+  sectionConnections: { es: "Conexiones", en: "Connections" },
+  sectionConnectionsDesc: {
+    es: "Cada cuenta que un comercio tiene conectada, y su último error.",
+    en: "Every account a merchant has connected, and its last error.",
   },
 
   // Recursos que el equipo entrega a un comercio
@@ -814,7 +817,6 @@ export const admin = {
   totals: { es: "Total", en: "Total" },
 
   // ── Canales ──
-  channelsTitle: { es: "Canales", en: "Channels" },
   colChannel: { es: "Canal", en: "Channel" },
   colAccount: { es: "Cuenta", en: "Account" },
   statusConnected: { es: "Conectado", en: "Connected" },
