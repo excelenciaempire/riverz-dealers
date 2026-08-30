@@ -84,6 +84,9 @@ export type AdminAction =
   // debe. Reusa la ronda cacheada de proveedores, pero además le pregunta a
   // Stripe por el saldo y las transferencias en camino, así que queda rastro.
   | 'view.cash'
+  // Lo que se paga todos los meses. Sale a preguntarle a los tableros de
+  // Render, Supabase y Telnyx, asi que es una lectura hacia afuera.
+  | 'view.fixed_costs'
   | 'update.billing_plan'
   | 'update.billing_subscription'
   // Cargar saldo a mano y prender el corte por saldo. Regalar saldo es regalar

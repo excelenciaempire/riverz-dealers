@@ -498,3 +498,35 @@ export async function leerCostosFijos(): Promise<Fijos> {
     sinMedir: items.filter((i) => i.usdMes === null).length,
   }
 }
+
+/**
+ * La misma lectura, compartida por la ronda de proveedores y por la Caja.
+ *
+ * Sale a preguntarle a los tableros de Render, Supabase y Telnyx, así que dos
+ * llamadores son dos rondas de consultas a terceros por un dato que cambia una
+ * vez al mes. Es el mismo error que ya se resolvió una vez mudando la caché de
+ * la ruta a la librería en `proveedores.ts`; no se repite.
+ *
+ * Cinco minutos y no cincuenta y cinco segundos: un plan de Render no cambia
+ * mientras alguien mira la pantalla.
+ */
+const CACHE_TTL_MS = 5 * 60_000
+
+let cache: { at: number; data: Fijos } | null = null
+let enVuelo: Promise<Fijos> | null = null
+
+export async function leerCostosFijosConCache(): Promise<Fijos> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data
+  if (enVuelo) return enVuelo
+
+  enVuelo = leerCostosFijos()
+    .then((data) => {
+      cache = { at: Date.now(), data }
+      return data
+    })
+    .finally(() => {
+      enVuelo = null
+    })
+
+  return enVuelo
+}

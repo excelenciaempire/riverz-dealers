@@ -540,6 +540,12 @@ export const admin = {
   // La pestaña que cuesta plata: son sondas facturables. La otra es gratis.
   providersTabBalance: { es: "Saldo y estado", en: "Balance & status" },
   // La IA que escribe y la que habla.
+  featureExceptions: {
+    es: "{n} con excepción",
+    en: "{n} with an exception",
+  },
+  cashTabToday: { es: "Hoy", en: "Today" },
+  cashTabFixed: { es: "Fijo del mes", en: "Monthly fixed" },
   businessTabPrices: { es: "Planes y tarifas", en: "Plans & rates" },
   aiTabText: { es: "Texto", en: "Text" },
   aiTabVoice: { es: "Voz", en: "Voice" },

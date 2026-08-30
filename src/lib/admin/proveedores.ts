@@ -24,7 +24,7 @@
  * literal en el idioma equivocado allá.
  */
 
-import { leerCostosFijos, type Fijos } from './costos-fijos'
+import { leerCostosFijosConCache, type Fijos } from './costos-fijos'
 import { leerCostoIa, proveedorDeModelo } from './costo-ia'
 import { leerSaldoDeStripe } from './stripe-saldo'
 import { leerEstadoDeClaves, type OrigenDeClave } from './claves'
@@ -727,7 +727,7 @@ export async function leerProveedores(): Promise<EstadoDeProveedores> {
       // Lo que entra
       stripe(),
     ]),
-    leerCostosFijos(),
+    leerCostosFijosConCache(),
     consumoPorProveedor(),
     // Gratis: una lectura de tabla al lado de una ronda de sondas facturables.
     leerEstadoDeClaves().catch(() => []),

@@ -7,7 +7,6 @@ import type {
   Proveedor,
   EstadoProveedor,
 } from "@/lib/admin/proveedores";
-import type { CostoFijo, ProyectoFijo } from "@/lib/admin/costos-fijos";
 import {
   useAdminData,
   PageHeader,
@@ -62,11 +61,9 @@ export function Saldo() {
   if (loading && !data) return <Loading forma="stats+table" cajas={3} />;
   if (error || !data) return <LoadError onRetry={reload} />;
 
-  const { proveedores, fijos, enRojo, consultadoAt } = data;
+  const { proveedores, enRojo, consultadoAt } = data;
   const conSaldo = proveedores.filter((p) => p.recargable);
   const enPie = proveedores.filter((p) => !p.recargable);
-
-  const usd = (n: number) => format.currency(n, "USD", { maximumFractionDigits: 0 });
 
   /**
    * El número del proveedor, en la unidad que devuelva.
@@ -109,21 +106,6 @@ export function Saldo() {
               : `${t("admin.providersChecked")} ${format.time(consultadoAt)}`
           }
         />
-        <Stat
-          label={t("admin.fixedCrmMonthly")}
-          value={usd(fijos.crmUsdMes)}
-          hint={t("admin.fixedCrmMonthlyHint")}
-        />
-        <Stat label={t("admin.fixedOthersMonthly")} value={usd(fijos.otrosUsdMes)} />
-        <Stat
-          label={t("admin.fixedMonthly")}
-          value={usd(fijos.totalUsdMes)}
-          hint={
-            fijos.sinMedir > 0
-              ? t("admin.fixedUnmeasured", { n: fijos.sinMedir })
-              : undefined
-          }
-        />
       </div>
 
       <Panel title={t("admin.providersMoneyBlock")}>
@@ -142,34 +124,7 @@ export function Saldo() {
         </ul>
       </Panel>
 
-      {/* Un bloque por proyecto, con su subtotal en el encabezado. Antes era una
-          sola lista de catorce servicios de cuatro productos distintos: se veía
-          todo y no se podía contestar cuánto cuesta ninguno. */}
-      {fijos.proyectos.map((g) => (
-        <GrupoFijo key={g.id} g={g} usd={usd} />
-      ))}
     </div>
-  );
-}
-
-function GrupoFijo({ g, usd }: { g: ProyectoFijo; usd: (n: number) => string }) {
-  const t = useT();
-  return (
-    <Panel
-      title={`${t("admin.providersMonthBlock")} · ${g.nombreKey ? t(g.nombreKey) : g.nombre}`}
-      actions={
-        <span className="text-sm font-medium tabular-nums text-foreground">
-          {usd(g.usdMes)}
-          {t("admin.perMonth")}
-        </span>
-      }
-    >
-      <ul className="divide-y divide-border">
-        {g.items.map((f) => (
-          <FilaFija key={f.id} f={f} usd={usd} />
-        ))}
-      </ul>
-    </Panel>
   );
 }
 
@@ -232,33 +187,3 @@ function Fila({
   );
 }
 
-function FilaFija({ f, usd }: { f: CostoFijo; usd: (n: number) => string }) {
-  const t = useT();
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-      <div className="min-w-0">
-        <p className={f.activo ? "font-medium text-foreground" : "text-muted-foreground"}>
-          {f.nombre}
-        </p>
-        <Muted>{t(f.detalleKey, { v: f.detalleExtra ?? "" })}</Muted>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <span className="tabular-nums text-foreground">
-          {f.usdMes === null
-            ? "—"
-            : f.usdMes === 0
-              ? t("admin.fixedFree")
-              : `${usd(f.usdMes)}${t("admin.perMonth")}`}
-        </span>
-        <a
-          href={f.url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-accent-ink hover:underline"
-        >
-          {t("admin.balancesOpen")}
-        </a>
-      </div>
-    </li>
-  );
-}

@@ -24,11 +24,38 @@ export async function GET(request: Request) {
   // Por `adminGet` como las otras: límite de ritmo, fila de auditoría y
   // `no-store`. Esta ruta y otras tres llamaban a `requireAdmin()` directo y se
   // saltaban los tres pasos.
-  return adminGet(request, { action: 'view.feature_flags' }, async () => ({
-    flags: await getFeatureFlags(supabaseAdmin()),
-    features: FEATURES,
-    optInFeatures: OPT_IN_FEATURES,
-  }));
+  return adminGet(request, { action: 'view.feature_flags' }, async () => {
+    const db = supabaseAdmin();
+    const [flags, excepciones] = await Promise.all([
+      getFeatureFlags(db),
+      contarExcepciones(db),
+    ]);
+    return { flags, features: FEATURES, optInFeatures: OPT_IN_FEATURES, excepciones };
+  });
+}
+
+/**
+ * Cuántos comercios tienen una excepción por funcionalidad.
+ *
+ * Es lo único que esta pantalla puede contestar y la ficha de un comercio no:
+ * allá se ve una cuenta por vez, así que «esta funcionalidad está apagada para
+ * todos menos para tres» no se ve en ningún lado. Sin este número la pantalla
+ * era dos listas de interruptores y ni una sola cifra.
+ */
+async function contarExcepciones(
+  db: ReturnType<typeof supabaseAdmin>,
+): Promise<Record<string, number>> {
+  const cuenta: Record<string, number> = {};
+  try {
+    const { data } = await db.from('workspace_feature_flags').select('key');
+    for (const f of (data ?? []) as { key: string }[]) {
+      cuenta[f.key] = (cuenta[f.key] ?? 0) + 1;
+    }
+  } catch {
+    // Un contador que falla no puede tapar los interruptores, que son lo que
+    // se viene a tocar.
+  }
+  return cuenta;
 }
 
 export async function PUT(request: Request) {

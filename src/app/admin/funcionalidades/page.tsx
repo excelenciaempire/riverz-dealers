@@ -20,6 +20,14 @@ interface Payload {
   /** Experiencias nuevas: acá la ausencia de fila significa "apagada". */
   optInFeatures: FeatureDef[];
   flags: FeatureFlags;
+  /**
+   * Cuántos comercios tienen una excepción, por funcionalidad.
+   *
+   * Es lo único que esta pantalla contesta y la ficha de un comercio no: allá
+   * se ve una cuenta por vez, así que «apagada para todos menos para tres» no
+   * se veía en ningún lado.
+   */
+  excepciones?: Record<string, number>;
 }
 
 /**
@@ -83,7 +91,12 @@ export default function AdminFeaturesPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">{t(f.labelKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{t(f.descKey)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t(f.descKey)}
+                      {(data.excepciones?.[f.key] ?? 0) > 0 && (
+                        <> · {t("admin.featureExceptions", { n: data.excepciones![f.key] })}</>
+                      )}
+                    </p>
                   </div>
                   <Switch
                     checked={data.flags[f.key] !== false}
@@ -115,6 +128,9 @@ export default function AdminFeaturesPage() {
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {t(f.descKey)}
+                        {(data.excepciones?.[f.key] ?? 0) > 0 && (
+                          <> · {t("admin.featureExceptions", { n: data.excepciones![f.key] })}</>
+                        )}
                       </p>
                     </div>
                     <Switch
