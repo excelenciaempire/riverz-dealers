@@ -95,6 +95,7 @@ import {
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
+import { esperaParaEsteTurno } from './ritmo-de-escritura';
 import {
   aceptaContraentrega,
   frase as fraseDeMedios,
@@ -396,11 +397,39 @@ export async function runAiAgent(
     // (those let 20 concurrent runners race on a 20-message burst).
     // Floor at MIN_DEBOUNCE_SECONDS if the agent has it set lower — the
     // editor ofrece ese mismo mínimo, así que UI y runtime coinciden.
-    const debounceMs =
-      (args.conversation.channel === 'webchat'
+    //
+    // Y la espera se ajusta al ritmo de ESA persona. El número fijo funciona
+    // en promedio —en 30 días, en WhatsApp, sólo 2 de 38 mensajes del cliente
+    // llegaron dentro de los 15 s posteriores a nuestra respuesta— pero el
+    // promedio no consuela a quien escribe más lento: de 366 pares de mensajes
+    // seguidos del mismo cliente, el 19% tiene entre 15 y 30 segundos de
+    // separación, y a esa persona la cortamos SIEMPRE. Subir el número para
+    // todos castiga al que escribe rápido y al que manda una sola línea, así
+    // que se mide su propio ritmo y sólo cuando ya está a mitad de una ráfaga.
+    //
+    // El chat web queda afuera: ahí la persona mira el cursor, y esperar de
+    // más parece un widget roto.
+    const base =
+      args.conversation.channel === 'webchat'
         ? WEBCHAT_DEBOUNCE_SECONDS
-        : Math.max(agent.inbound_debounce_seconds, MIN_DEBOUNCE_SECONDS)) * 1000;
-    await sleep(debounceMs);
+        : Math.max(agent.inbound_debounce_seconds, MIN_DEBOUNCE_SECONDS);
+    const ritmo =
+      args.conversation.channel === 'webchat'
+        ? { espera: base, motivo: 'configurado' as const }
+        : await esperaParaEsteTurno(
+            db,
+            args.conversation.id,
+            args.inboundMessage.id,
+            base,
+          );
+    if (ritmo.motivo === 'ritmo_propio') {
+      // Una espera más larga de lo configurado tiene que quedar dicha: sin
+      // esto, "tardó 40 segundos" se investiga como si fuera un cuelgue.
+      console.info(
+        `[ia] espera ${ritmo.espera}s (base ${base}s) por el ritmo de la persona en ${args.conversation.id}`,
+      );
+    }
+    await sleep(ritmo.espera * 1000);
     const inboundId = args.inboundMessage.id;
     const inboundTs = args.inboundMessage.created_at;
     // (created_at, id) tiebreaker — when WhatsApp delivers N messages
