@@ -51,6 +51,7 @@ import type { AiAgent, AiResponseMode, AiTone } from './types';
 import {
   BURST_MAX_REPLIES,
   BURST_WINDOW_MS,
+  CORTESIA_UNA_VEZ_MS,
   MIN_DEBOUNCE_SECONDS,
   NO_RECIBIDO_VENTANA_MS,
   WEBCHAT_DEBOUNCE_SECONDS,
@@ -584,6 +585,34 @@ export async function runAiAgent(
         pt: 'Obrigado pela sua mensagem 🙌 Em instantes uma pessoa da nossa equipe vai te responder.',
       };
       const text = courtesy[lang] ?? courtesy.es;
+      // UNA SOLA VEZ POR CAÍDA.
+      //
+      // La cortesía sale por CADA mensaje entrante, y cuando el proveedor está
+      // caído entran varios: el 2026-08-30, con el saldo agotado, una clienta
+      // recibió "en un momento te responde una persona" DOS VECES en 26
+      // segundos. Repetir la misma disculpa no informa nada nuevo y convierte
+      // una caída en spam — es el mismo mecanismo que el 4 y el 21 de agosto
+      // mandó 995 correos de cortesía cuando se cayó el proveedor de correo.
+      //
+      // Se manda una y se calla. El cliente ya sabe que lo están mirando, y la
+      // conversación ya quedó marcada para una persona por el desenlace.
+      const { data: cortesiaPrevia } = await db
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', args.conversation.id)
+        .eq('content_text', text)
+        .gte(
+          'created_at',
+          new Date(Date.now() - CORTESIA_UNA_VEZ_MS).toISOString(),
+        )
+        .limit(1);
+      if (((cortesiaPrevia ?? []) as unknown[]).length > 0) {
+        console.info(
+          `[ia] cortesía ya enviada hace poco en ${args.conversation.id}: no se repite`,
+        );
+        await logReply(db, agent, args, { status: 'failed', skip_reason: category });
+        return;
+      }
       try {
         const adapter = getAdapter(args.channel);
         const sendResult = await adapter.sendText({

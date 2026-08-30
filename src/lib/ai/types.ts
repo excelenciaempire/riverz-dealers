@@ -31,6 +31,22 @@ export const MIN_DEBOUNCE_SECONDS = 8;
 export const WEBCHAT_DEBOUNCE_SECONDS = 2;
 
 /**
+ * Cada cuánto puede repetirse el mensaje de cortesía de una caída.
+ *
+ * Cuando el modelo falla, al cliente se le manda "en un momento te responde
+ * una persona" para no dejarlo en silencio. Pero eso sale por CADA mensaje
+ * entrante, y en una caída entran varios: el 2026-08-30, con el saldo de
+ * Anthropic agotado, una clienta recibió la misma disculpa DOS VECES en 26
+ * segundos.
+ *
+ * Repetirla no informa nada nuevo y convierte una caída en spam — es el mismo
+ * mecanismo que el 4 y el 21 de agosto mandó 995 correos de cortesía cuando se
+ * cayó el proveedor de correo. Media hora es más que suficiente: si la caída
+ * dura más que eso, el problema no se arregla avisando de nuevo.
+ */
+export const CORTESIA_UNA_VEZ_MS = 30 * 60 * 1000;
+
+/**
  * Cortacircuitos: cuántos mensajes puede mandarle el sistema a UN contacto en
  * `BURST_WINDOW_MS` antes de darse por roto y apagarse.
  *
