@@ -24,6 +24,7 @@ import {
 } from "../meta-auth";
 import { withAppsecretProof } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
+import { findMessageByExternalId, findMessagesByExternalIds } from "../message-lookup";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
 import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
 import {
@@ -306,7 +307,7 @@ export const whatsappAdapter: ChannelAdapter = {
         // "sent" forever AND silently dropped failures — so a message that
         // Meta rejected looked "sent" while the customer never received it.
         if (value.statuses) {
-          await handleWhatsappStatuses(value.statuses);
+          await handleWhatsappStatuses(connection, value.statuses);
           continue;
         }
 
@@ -533,6 +534,7 @@ function statusRank(s: string): number {
  * real cause of a "sent but never delivered" message is visible in the logs.
  */
 async function handleWhatsappStatuses(
+  connection: ChannelConnection,
   statuses: Array<{
     id?: string;
     status?: string;
@@ -542,8 +544,18 @@ async function handleWhatsappStatuses(
   }>,
 ): Promise<void> {
   const db = supabaseAdmin();
+  // De qué fila habla cada acuse, con alcance de workspace. Antes el UPDATE
+  // filtraba por `message_id` a secas: el mismo número conectado en dos
+  // comercios escribía el estado en las dos filas.
+  const filas = await findMessagesByExternalIds(db, {
+    workspaceId: connection.workspace_id,
+    channel: "whatsapp",
+    externalMessageIds: (statuses ?? []).map((s) => s?.id ?? ""),
+  });
   for (const s of statuses ?? []) {
     if (!s?.id || !s.status) continue;
+    const fila = filas.get(s.id);
+    if (!fila) continue;
     if (s.status === "failed") {
       const e = s.errors?.[0];
       console.error(
@@ -561,7 +573,7 @@ async function handleWhatsappStatuses(
           meta_status_raw: s,
           delivery_unconfirmed_at: null,
         })
-        .eq("message_id", s.id)
+        .eq("id", fila.id)
         .in("status", ["sending", "sent"]);
       continue;
     }
@@ -580,7 +592,7 @@ async function handleWhatsappStatuses(
     await db
       .from("messages")
       .update(patch)
-      .eq("message_id", s.id)
+      .eq("id", fila.id)
       .in("status", ["sending", ...behind]);
   }
 }
@@ -648,14 +660,13 @@ async function handleWhatsappReaction(
   if (!reaction?.message_id || !m.from) return;
   const db = supabaseAdmin();
   try {
-    const { data: target } = await db
-      .from("messages")
-      .select("id, conversation_id")
-      .eq("channel", "whatsapp")
-      .eq("message_id", reaction.message_id)
-      .limit(1)
-      .maybeSingle();
-    const t = target as { id: string; conversation_id: string } | null;
+    // Con alcance de workspace: el mismo numero puede estar conectado en dos
+    // comercios, y el wamid es el mismo para los dos.
+    const t = await findMessageByExternalId(db, {
+      workspaceId: connection.workspace_id,
+      channel: "whatsapp",
+      externalMessageId: reaction.message_id,
+    });
     if (!t) return; // el mensaje reaccionado aún no está ingerido
 
     const { data: contact } = await db
@@ -708,14 +719,13 @@ async function handleWhatsappReactionEcho(
   if (!reaction?.message_id) return;
   const db = supabaseAdmin();
   try {
-    const { data: target } = await db
-      .from("messages")
-      .select("id, conversation_id")
-      .eq("channel", "whatsapp")
-      .eq("message_id", reaction.message_id)
-      .limit(1)
-      .maybeSingle();
-    const t = target as { id: string; conversation_id: string } | null;
+    // Con alcance de workspace: el mismo numero puede estar conectado en dos
+    // comercios, y el wamid es el mismo para los dos.
+    const t = await findMessageByExternalId(db, {
+      workspaceId: connection.workspace_id,
+      channel: "whatsapp",
+      externalMessageId: reaction.message_id,
+    });
     if (!t) return;
     const actorId = connection.workspace_id;
     if (!reaction.emoji) {

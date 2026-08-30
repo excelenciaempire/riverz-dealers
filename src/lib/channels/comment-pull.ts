@@ -3,6 +3,7 @@ import type { ChannelConnection } from "@/types";
 import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
 import { buildSelfCommentEvent } from "./comment-echo";
+import { findMessageByExternalId } from "./message-lookup";
 import { ingestInboundEvent } from "./inbox-writer";
 
 /**
@@ -385,14 +386,24 @@ async function ingestCustomerComment(
   // en el caso en que el comercio acaba de ocultarlo y viene a comprobar que
   // quedó bien.
   if (written && ocultoEn(comment)) {
-    await db
-      .from("messages")
-      .update({
-        is_hidden: true,
-        hidden_by: "red",
-        hidden_at: new Date().toISOString(),
-      })
-      .eq("message_id", commentId);
+    // Por la fila de ESTE workspace. Filtrando por `message_id` a secas, la
+    // misma cuenta conectada en dos comercios ocultaba el comentario en los
+    // dos.
+    const fila = await findMessageByExternalId(db, {
+      workspaceId: connection.workspace_id,
+      channel,
+      externalMessageId: commentId,
+    });
+    if (fila) {
+      await db
+        .from("messages")
+        .update({
+          is_hidden: true,
+          hidden_by: "red",
+          hidden_at: new Date().toISOString(),
+        })
+        .eq("id", fila.id);
+    }
   }
   return Boolean(written);
 }

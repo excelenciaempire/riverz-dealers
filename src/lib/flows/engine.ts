@@ -426,6 +426,7 @@ async function sendButtonsAndSuspend(
   const { data: msg } = await db
     .from("messages")
     .select("id")
+    .eq("conversation_id", run.conversation_id!)
     .eq("message_id", whatsapp_message_id)
     .maybeSingle();
   await db
@@ -468,6 +469,7 @@ async function sendListAndSuspend(
   const { data: msg } = await db
     .from("messages")
     .select("id")
+    .eq("conversation_id", run.conversation_id!)
     .eq("message_id", whatsapp_message_id)
     .maybeSingle();
   await db
@@ -838,6 +840,7 @@ async function advanceFromNodeKey(
         const { data: msg } = await db
           .from("messages")
           .select("id")
+          .eq("conversation_id", run.conversation_id!)
           .eq("message_id", whatsapp_message_id)
           .maybeSingle();
         await db

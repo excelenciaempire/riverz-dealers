@@ -35,6 +35,7 @@ import { claimCommentPrivateReply } from './private-reply-lock';
 import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
+import { findMessageByExternalId } from '@/lib/channels/message-lookup';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
@@ -718,16 +719,20 @@ async function registrarSkipComentario(
  */
 async function estaOculto(
   db: SupabaseClient,
+  workspaceId: string,
+  channel: CommentChannel,
   commentId: string | null | undefined,
 ): Promise<boolean> {
   if (!commentId) return false;
-  const { data } = await db
-    .from('messages')
-    .select('is_hidden')
-    .eq('message_id', commentId)
-    .limit(1)
-    .maybeSingle();
-  return Boolean((data as { is_hidden?: boolean | null } | null)?.is_hidden);
+  // Con alcance de workspace: la misma cuenta puede estar conectada en dos
+  // comercios y el id del comentario es el mismo para los dos.
+  const fila = await findMessageByExternalId<{ is_hidden: boolean | null }>(db, {
+    workspaceId,
+    channel,
+    externalMessageId: commentId,
+    select: 'is_hidden',
+  });
+  return Boolean(fila?.is_hidden);
 }
 
 /** Lo que decidió el piso autónomo para un comentario. */
@@ -809,7 +814,8 @@ async function decidirComentario(
   //
   // Da igual quién lo ocultó —el comercio a mano, el agente por spam, o la
   // propia red—: la fila lo dice y con eso alcanza.
-  if (await estaOculto(db, opts.commentId)) return 'comment_ya_oculto';
+  if (await estaOculto(db, opts.workspaceId, commentChannel, opts.commentId))
+    return 'comment_ya_oculto';
 
   // No abrir la puerta a fan-out: el mismo tope por minuto que el alcance de
   // campaña, para que un post viral no dispare cientos de llamadas.

@@ -2,6 +2,7 @@ import type { ChannelConnection } from '@/types';
 import { decrypt } from './encryption';
 import { withAppsecretProofBody } from './meta-graph';
 import { pistaDeModeracion } from './meta-errors';
+import { findMessageByExternalId } from './message-lookup';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -44,7 +45,7 @@ export async function setCommentHidden(
       signal: AbortSignal.timeout(15_000),
     });
     if (res.ok) {
-      await anotarOculto(commentId, hidden, motivo);
+      await anotarOculto(connection, channel, commentId, hidden, motivo);
       return true;
     }
     // ¿Falló, o ya estaba así?
@@ -59,7 +60,7 @@ export async function setCommentHidden(
     // manda a revisar permisos que están bien. Se pregunta el estado real en
     // vez de adivinar qué significa el #1.
     if (await yaEstaAsi(token, channel, commentId, hidden)) {
-      await anotarOculto(commentId, hidden, motivo);
+      await anotarOculto(connection, channel, commentId, hidden, motivo);
       return true;
     }
     await anotarFalloDeModeracion(connection, channel, res);
@@ -167,13 +168,24 @@ async function anotarFalloDeModeracion(
  * Best-effort igual que el resto: si no se puede escribir, el cron lo corrige.
  */
 async function anotarOculto(
+  connection: ChannelConnection,
+  channel: 'ig_comment' | 'fb_comment',
   commentId: string,
   hidden: boolean,
   motivo: string | null,
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import('@/lib/automations/admin-client');
-    await supabaseAdmin()
+    const db = supabaseAdmin();
+    // La fila de ESTE comercio. Antes se escribía por el id de Meta a secas:
+    // la misma cuenta conectada en dos workspaces se ocultaba en los dos.
+    const fila = await findMessageByExternalId(db, {
+      workspaceId: connection.workspace_id,
+      channel,
+      externalMessageId: commentId,
+    });
+    if (!fila) return;
+    await db
       .from('messages')
       .update(
         hidden
@@ -191,7 +203,7 @@ async function anotarOculto(
               hidden_at: null,
             },
       )
-      .eq('message_id', commentId);
+      .eq('id', fila.id);
   } catch (err) {
     console.error('[comments] no se pudo anotar el ocultado:', commentId, err);
   }

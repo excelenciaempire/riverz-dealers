@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./admin-client";
+import { findMessageByExternalId } from "./message-lookup";
 import type { Channel, ChannelConnection } from "@/types";
 
 /** Forma del evento `reaction` de Messenger / Instagram DM. */
@@ -45,14 +46,13 @@ export async function handleMetaReaction(input: {
   if (!reaction?.mid) return;
   const db = supabaseAdmin();
   try {
-    const { data: target } = await db
-      .from("messages")
-      .select("id, conversation_id")
-      .eq("channel", input.channel)
-      .eq("message_id", reaction.mid)
-      .limit(1)
-      .maybeSingle();
-    const t = target as { id: string; conversation_id: string } | null;
+    // Con alcance de workspace: la misma cuenta de Meta puede estar conectada
+    // en dos comercios, y el mid es el mismo para los dos.
+    const t = await findMessageByExternalId(db, {
+      workspaceId: input.connection.workspace_id,
+      channel: input.channel,
+      externalMessageId: reaction.mid,
+    });
     if (!t) return;
 
     const byBusiness = input.selfIds.has(input.senderId);
