@@ -247,7 +247,9 @@ export async function runAiAgent(
       // no armar un contexto caro en cada mensaje.
       hilo: await ultimosTurnos(db, args.conversation.id),
       hayPedido: Boolean(args.conversation.subject),
-      apiKey: process.env.ANTHROPIC_API_KEY ?? null,
+      db,
+      workspaceId: args.workspaceId,
+      agentKeyEncrypted: agent.api_key_encrypted,
     }).catch(() => null);
     if (escalada) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
@@ -877,6 +879,21 @@ export async function runAiAgent(
           modelo: reply.model ?? null,
           agente: agent.name ?? null,
         },
+      });
+    }
+
+    // Las búsquedas en internet las cobra Anthropic APARTE de los tokens
+    // —10 USD cada mil— y `costForModel` sólo sabe de tokens, así que hasta
+    // ahora salían gratis para el comercio y las pagaba Riverz. Se cuentan de
+    // `herramientas`, que ya anota las de servidor.
+    const busquedas = (reply.herramientas ?? []).filter((h) => h === 'web_search').length;
+    if (busquedas > 0 && reply.keySource !== 'agent') {
+      void cobrar(db, args.workspaceId, {
+        concepto: 'busqueda_web',
+        cantidad: busquedas,
+        referenciaTipo: 'conversation',
+        referenciaId: args.conversation.id,
+        detalle: { canal: args.conversation.channel },
       });
     }
 

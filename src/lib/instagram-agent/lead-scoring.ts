@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { latestInboundText } from './engagement';
 
@@ -110,7 +111,18 @@ export async function scoreCampaignRecipients(
   campaignId: string,
   limit = 40,
 ): Promise<{ scored: number; spam: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  // La clave como en todos lados: la de plataforma primero, el entorno último.
+  // Leyendo el entorno directo, un comercio cubierto por la clave de
+  // plataforma no puntuaba un solo lead y no había forma de saber por qué.
+  const { data: camp } = await db
+    .from('instagram_campaigns')
+    .select('workspace_id')
+    .eq('id', campaignId)
+    .maybeSingle();
+  const wsCampaña = (camp as { workspace_id?: string } | null)?.workspace_id ?? '';
+  const apiKey = wsCampaña
+    ? ((await resolveAnthropicKey(db, { workspaceId: wsCampaña }))?.key ?? null)
+    : null;
   if (!hasLlm(apiKey)) return { scored: 0, spam: 0 };
 
   const { data: recipients } = await db

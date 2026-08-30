@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { aiBudgetGuard } from '@/lib/ai/rate-limit'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
 import { darFormaAlCuerpo } from '@/lib/templates/forma'
 import Anthropic from '@anthropic-ai/sdk'
@@ -63,6 +66,12 @@ export async function POST(request: Request) {
 
     const limit = checkRateLimit(`template-ai:${user.id}`, RATE_LIMITS.broadcast)
     if (!limit.success) return rateLimitResponse(limit)
+
+    // El saldo, igual que en el resto de los botones de IA. Sin esto, redactar
+    // plantillas era el único camino a pedido que gastaba sin puerta.
+    const workspaceId = await resolveWorkspaceIdForUser(supabaseAdmin(), user.id)
+    const sinSaldo = await aiBudgetGuard(workspaceId, 'standard')
+    if (sinSaldo) return sinSaldo
 
     const body = await request.json()
     const brief: string = (body.brief ?? '').toString().trim()

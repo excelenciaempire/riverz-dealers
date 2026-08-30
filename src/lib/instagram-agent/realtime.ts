@@ -36,6 +36,7 @@ import { loadIgProfile } from './profile-enrich';
 import { resolveIgSegment } from './segment';
 import { setCommentHidden } from '@/lib/channels/comment-moderation';
 import { findMessageByExternalId } from '@/lib/channels/message-lookup';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import { aplicarDesenlace } from '@/lib/ai/desenlace';
@@ -360,7 +361,8 @@ export async function maybeInstantOutreach(
   });
   if (!gate.success) return;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  const apiKey =
+    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ?? null;
 
   // Spam / intent gate on what they actually said.
   let leadScore: LeadScore = 'medium';
@@ -797,7 +799,12 @@ async function decidirComentario(
   const dmChannel = isFacebook ? ('messenger' as const) : ('instagram' as const);
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  // La clave, como en todo el resto: la del agente, la de plataforma, y recién
+  // después el entorno. Acá se leía SÓLO la variable de entorno, así que un
+  // comercio cubierto por la clave de plataforma quedaba mudo en comentarios
+  // PARA SIEMPRE, con un motivo que decía "sin clave" cuando la clave existía.
+  const resuelta = await resolveAnthropicKey(db, { workspaceId: opts.workspaceId });
+  const apiKey = resuelta?.key ?? null;
   if (!hasLlm(apiKey)) return 'comment_sin_llave';
 
   // Un comentario sin texto (un emoji, una mención) no dice nada que responder.
@@ -1508,7 +1515,8 @@ export async function maybeRunCloser(
   const plan = coercePlan(camp.plan);
   if (!plan) return false;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  const apiKey =
+    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ?? null;
   // If we genuinely can't close (no model / no messageable id), DON'T claim
   // this DM — return false so the generic assistant answers instead of the
   // customer getting silence.

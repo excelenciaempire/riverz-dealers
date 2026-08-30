@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
@@ -172,7 +173,8 @@ export async function sendCampaignBatch(
     campaign.workspace_id,
     campaign.plan.recommended_products,
   );
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? null;
+  const apiKey =
+    (await resolveAnthropicKey(db, { workspaceId: campaign.workspace_id }))?.key ?? null;
   const offer = campaign.plan.offer
     ? { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount }
     : campaign.offer_code

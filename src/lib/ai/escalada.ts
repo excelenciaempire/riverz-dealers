@@ -27,7 +27,8 @@
  * de más entrena al comercio a ignorar los avisos, que es la única forma de
  * que un aviso deje de servir.
  */
-import { completeText, hasLlm } from './llm-client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { completeTextMedido } from './medido';
 
 /** Qué tan rápido hay que meterse. Define el tono del aviso, no si sale. */
 export type Urgencia = 'ahora' | 'hoy';
@@ -172,7 +173,17 @@ export interface ContextoEscalada {
   hilo?: string[];
   /** Si el hilo ya está mirando un pedido concreto. */
   hayPedido?: boolean;
-  apiKey?: string | null;
+  /**
+   * De quién es el gasto. Con esto la capa 2 resuelve la clave como en todos
+   * lados —la del agente, la de plataforma, el entorno— y COBRA.
+   *
+   * Antes acá venía la variable de entorno puesta a mano por el runner: el
+   * triaje de un comercio que trae SU PROPIA clave corría con la de Riverz, en
+   * cada mensaje con hilo o con pedido, y no descontaba un centavo.
+   */
+  db: SupabaseClient;
+  workspaceId: string;
+  agentKeyEncrypted?: string | null;
 }
 
 /**
@@ -212,10 +223,13 @@ const SISTEMA_CLASIFICADOR = [
  * escalar, porque un aviso que suena por cualquier cosa se empieza a ignorar.
  */
 async function clasificar(ctx: ContextoEscalada): Promise<Escalada | null> {
-  if (!hasLlm(ctx.apiKey ?? null)) return null;
   const hilo = (ctx.hilo ?? []).slice(-6).join('\n');
   try {
-    const salida = await completeText({
+    const salida = await completeTextMedido(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      agentKeyEncrypted: ctx.agentKeyEncrypted,
+      concepto: 'ia_clasificacion',
+      detalle: { para: 'escalada' },
       tier: 'triage',
       system: SISTEMA_CLASIFICADOR,
       user: [
@@ -226,11 +240,11 @@ async function clasificar(ctx: ContextoEscalada): Promise<Escalada | null> {
         .filter(Boolean)
         .join('\n\n'),
       maxTokens: 200,
-      anthropicKey: ctx.apiKey ?? undefined,
       // `tier: 'triage'` ya elige el modelo barato y `completeText` sabe qué
       // parámetros acepta: acá no se le agrega esfuerzo a mano.
       effort: 'low',
     });
+    if (!salida) return null;
     const json = salida.slice(salida.indexOf('{'), salida.lastIndexOf('}') + 1);
     const o = JSON.parse(json) as {
       escalar?: boolean;

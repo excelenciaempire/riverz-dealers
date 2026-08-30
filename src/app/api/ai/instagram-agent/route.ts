@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { aiBudgetGuard } from '@/lib/ai/rate-limit'
 import Anthropic from '@anthropic-ai/sdk'
 import { completeText, hasLlm } from '@/lib/ai/llm-client'
 import { createClient } from '@/lib/supabase/server'
@@ -146,6 +147,11 @@ export async function POST(request: Request) {
     // workspace_member, así que la consulta autenticada ya devuelve solo
     // lo del workspace del usuario.
     const workspaceId = await resolveWorkspaceId(supabase, user.id)
+    // La misma guardia que las otras siete rutas que llaman al modelo a pedido
+    // de una persona: tope de ráfaga y saldo. Esta se había quedado afuera, así
+    // que armar un plan de campaña era IA gratis que pagaba Riverz.
+    const sinSaldo = await aiBudgetGuard(workspaceId, 'heavy')
+    if (sinSaldo) return sinSaldo
     const [{ data: products }, audience, brand] = await Promise.all([
       supabase
         .from('shopify_products')
