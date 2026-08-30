@@ -14,10 +14,15 @@ import { useT } from '@/hooks/use-locale'
  * que no entra — y el comercio ve una cifra más chica que su realidad sin que
  * nadie le explique por qué.
  *
- * Mirando la base no se puede saber cuántas son: un pedido cargado a mano es
- * idéntico a uno que el cliente hizo solo. El único que lo sabe es el
- * comercio. Se le pregunta una vez, acá, que es donde la pregunta se entiende
- * sin contexto: justo debajo de la cifra que le falta explicación.
+ * El pedido cargado a mano EN SHOPIFY sí se puede detectar —`source_name` dice
+ * `shopify_draft_order`— y se midió: 30 de 444 en dos meses, y sólo 6 con una
+ * conversación previa. Lo que no se puede detectar de ninguna forma es la venta
+ * que se cierra hablando y **nunca llega a Shopify**: la que se carga en Dropi,
+ * en una planilla, o se cobra en efectivo. Esa no deja rastro en ninguna API.
+ *
+ * El único que sabe cuánta hay es el comercio. Se le pregunta una vez, acá, que
+ * es donde la pregunta se entiende sin contexto: justo debajo de la cifra que
+ * le falta explicación.
  *
  * Se muestra sólo a los admins y sólo mientras no haya respuesta. La respuesta
  * vive en la cuenta (`workspaces.ventas_a_mano`), no en el navegador: es un

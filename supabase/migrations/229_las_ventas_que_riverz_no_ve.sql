@@ -13,10 +13,18 @@
 -- venta es del comercio, y el comercio ve una cifra mas chica que su realidad
 -- sin que nadie le explique por que.
 --
--- No hay forma de deducirlo mirando los datos: un pedido cargado a mano es
--- indistinguible de uno que el cliente hizo solo en la tienda. Se midio sobre
--- la base entera el 2026-08-30 y el resultado fue ambiguo justamente por eso.
--- El unico que sabe la respuesta es el comercio, asi que se le pregunta — una
+-- CORRECCION (2026-08-30, el mismo dia): una parte SI se deduce. Shopify
+-- guarda `source_name` en cada pedido, y `shopify_draft_order` significa que
+-- alguien lo cargo a mano en el admin. Medido sobre los 444 pedidos reales del
+-- 1 de julio al 30 de agosto: 414 los hizo el cliente solo (`web`) y 30 los
+-- cargo una persona, de los cuales solo 6 tenian una conversacion de Riverz
+-- antes — 1,1% de la facturacion. O sea que el pedido cargado a mano EN
+-- SHOPIFY ya no necesita que nadie lo cuente.
+--
+-- Lo que sigue siendo invisible, y es la razon por la que esta columna existe:
+-- la venta que se cierra hablando y NUNCA llega a Shopify — se carga en Dropi,
+-- en una planilla, o se cobra en efectivo. Esa no deja rastro en ninguna API, y
+-- el unico que sabe cuanta hay es el comercio. Por eso se le pregunta — una
 -- vez, y en el lugar donde la pregunta se entiende sola: al lado de la cifra.
 --
 -- La respuesta no cambia ninguna metrica. Cambia lo que el detalle de la
