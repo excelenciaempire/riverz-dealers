@@ -68,7 +68,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { data: conv } = await admin
     .from("conversations")
-    .select("workspace_id")
+    .select("workspace_id, channel")
     .eq("id", (message as Message).conversation_id)
     .maybeSingle();
   if (!conv)
@@ -126,10 +126,38 @@ export async function POST(req: Request): Promise<Response> {
     // El JSON crudo de Meta traducido a una frase ("falta aprobar el permiso")
     // en vez de volcarle el cuerpo del error a un toast.
     const parsed = parseMetaError(result.detail ?? "");
-    const channel = "ig_comment" as const;
-    const messageText = parsed
+    // El canal REAL, no siempre Instagram.
+    //
+    // Estaba fijo en `ig_comment`, así que un fallo de Facebook se explicaba
+    // como si fuera de Instagram —"Instagram comments rejected the send"— y
+    // mandaba a mirar el permiso equivocado. Visto el 2026-08-30 probando la
+    // moderación de un comentario de Facebook.
+    const channel =
+      (conv as Conversation).channel === "fb_comment" ? "fb_comment" : "ig_comment";
+    const descrito = parsed
       ? describeMetaSendError(channel, 502, parsed, locale).userMessage
-      : (result.detail ?? translate(locale, "errInbox.graphCallFailed"));
+      : null;
+    // Con lo que dijo Meta, siempre. La frase traducida sola dejaba al comercio
+    // con "ocurrió un error desconocido" sobre algo que casi siempre es un
+    // permiso con nombre propio: sin el código y el mensaje de Graph no hay
+    // forma de saber cuál, ni de arreglarlo.
+    const crudo = [
+      parsed?.error?.code ? `#${parsed.error.code}` : "",
+      parsed?.error?.message ?? "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const messageText =
+      [descrito ?? result.detail ?? translate(locale, "errInbox.graphCallFailed"), crudo]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 500);
+    console.error("[moderate] Meta rechazó la moderación", {
+      channel,
+      action: body.action,
+      detail: result.detail,
+    });
     return NextResponse.json({ error: messageText }, { status: 502 });
   }
 
