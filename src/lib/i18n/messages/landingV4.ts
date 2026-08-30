@@ -155,7 +155,7 @@ export const landingV4 = {
   // El cuarto es el argumento entero. Si alguien lee un solo paso, que sea este.
   loop4Title: { es: "Cierra la venta, no solo la charla", en: "It closes the sale, not just the chat" },
   loop4Body: {
-    es: "Acá deja de parecerse a un chatbot: manda el link para pagar, confirma la compra y sigue el envío hasta la puerta. Y si hace falta, llama por teléfono.",
+    es: "Aquí deja de parecerse a un chatbot: manda el link para pagar, confirma la compra y sigue el envío hasta la puerta. Y si hace falta, llama por teléfono.",
     en: "This is where it stops resembling a chatbot: it sends the link to pay, confirms the purchase, and follows the shipment to the door. And if a call is what it takes, it calls.",
   },
   loop4P1: { es: "La venta se cierra en el chat", en: "The sale closes inside the chat" },
@@ -276,7 +276,10 @@ export const landingV4 = {
     en: "Recover this week's abandoned carts",
   },
   opLine1: { es: "Segmenté 1.284 carritos de 7 días", en: "Segmented 1,284 carts from the last 7 days" },
-  opLine2: { es: "Escribí el mensaje con el producto", en: "Wrote the message with the product" },
+  // "Escribí" acá es pretérito de primera persona —el Operador contando lo que
+  // hizo, junto a "Segmenté" y "Programé"—, no voseo rioplatense. Se marca para
+  // que el barrido no lo confunda; cambiarlo rompería la frase.
+  opLine2: { es: "Escribí el mensaje con el producto", en: "Wrote the message with the product" }, // no es voseo rioplatense: pretérito de 1ª persona
   opLine3: { es: "Programé el envío a las 3 horas", en: "Scheduled the send for 3 hours later" },
   opAsk: { es: "¿Lo activo?", en: "Shall I turn it on?" },
   opApprove: { es: "Aprobar", en: "Approve" },

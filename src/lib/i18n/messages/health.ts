@@ -45,6 +45,23 @@ export const health: Namespace = {
     es: "{n} campaña(s) quedaron enviando y no terminaron",
     en: "{n} campaign(s) got stuck sending and never finished",
   },
+  // No dice "está roto": dice qué se observa. Puede ser un día raro, y
+  // afirmar una avería que no existe gasta la confianza del resto de la lista.
+  channel_silent: {
+    es: "Un canal conectado dejó de recibir mensajes",
+    en: "A connected channel stopped receiving messages",
+  },
+  // El detalle del silencio. Las dos cifras van juntas porque una sola no
+  // significa nada: 18 h sin recibir es alarma en WhatsApp y un martes normal
+  // en Mercado Libre.
+  detailChannelSilent: {
+    es: "{canal}: {horas} h sin recibir nada; lo normal ahí son hasta {normal} h",
+    en: "{canal}: {horas} h with nothing incoming; it normally goes up to {normal} h",
+  },
+  detailChannelSilentBreve: {
+    es: "{canal}: {horas} h sin recibir nada; suele recibir cada pocas horas",
+    en: "{canal}: {horas} h with nothing incoming; it usually receives every few hours",
+  },
 
   // El detalle del aviso. El crudo que devuelve la base viene en inglés y con
   // el código pelado de Meta; estas claves lo dicen en el idioma del comercio.

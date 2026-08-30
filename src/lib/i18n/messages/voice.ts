@@ -125,7 +125,7 @@ export const voice = {
   },
   whenNewRule: { es: "Crear una regla", en: "Create a rule" },
   whenNothing: {
-    es: "Nada hace que llame solo. Creá una regla o llamá a mano desde la bandeja.",
+    es: "Nada hace que llame solo. Crea una regla o llama a mano desde la bandeja.",
     en: "Nothing makes it call on its own. Create a rule or call by hand from the inbox.",
   },
   whenAutomation: { es: "Automatización", en: "Automation" },
@@ -137,7 +137,7 @@ export const voice = {
     en: "{name} can call when the chat gets stuck",
   },
   whenManual: {
-    es: "También podés llamar a mano desde la ficha de un contacto en la bandeja.",
+    es: "También puedes llamar a mano desde la ficha de un contacto en la bandeja.",
     en: "You can also call by hand from a contact in the inbox.",
   },
 

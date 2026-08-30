@@ -183,6 +183,10 @@ describe('el prompt no se contradice a sí mismo', () => {
       const contenido = readFileSync(join(MENSAJES, nombre), 'utf8')
       const encontrado: string[] = []
       for (const { n, texto } of lineasVivas(contenido)) {
+        // La misma puerta de escape que arriba, por LINEA y no por archivo.
+        // Saltear el catalogo entero por una cadena deja sin revisar las otras
+        // trescientas, que es como se cuelan las de verdad.
+        if (texto.includes(EXCEPCION)) continue
         const bajo = texto.toLowerCase()
         for (const { forma, re } of REGLAS) {
           if (re.test(bajo)) encontrado.push(`${nombre}:${n} — "${forma}"`)

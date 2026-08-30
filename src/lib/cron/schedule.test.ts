@@ -186,9 +186,28 @@ describe("isStale", () => {
     expect(backfill!.timeoutMs).toBeGreaterThan(8 * 60 * 1000);
   });
 
-  it("las rutas cuelgan de /api", () => {
+  it("todo trabajo que el reloj llama cuelga de /api", () => {
     for (const job of SCHEDULED_JOBS) {
+      // `voice-worker` no tiene ruta a propósito: es un proceso de otro
+      // servicio que late contra /api/internal/voice/heartbeat, y está en el
+      // catálogo sólo para tener umbral de atraso y aparecer en el panel. El
+      // reloj no lo llama nunca (lo filtra `parent`), así que exigirle una ruta
+      // era pedirle una puerta a algo que no se abre desde acá.
+      if (!job.path) {
+        expect(job.parent, `${job.name}: sin ruta y sin padre`).toBeTruthy();
+        continue;
+      }
       expect(job.path.startsWith("/api/"), `${job.name}: ${job.path}`).toBe(true);
+    }
+  });
+
+  it("dueJobs nunca devuelve un trabajo sin ruta", () => {
+    // La red de contención de lo de arriba: si alguien le saca el `parent` a
+    // una fila sin ruta, el reloj intentaría hacer fetch("") cada minuto.
+    for (let h = 0; h < 24; h++) {
+      for (const job of dueJobs(utc(2026, 8, 3, h, 0))) {
+        expect(job.path, `${job.name} sale sin ruta`).toBeTruthy();
+      }
     }
   });
 });

@@ -75,3 +75,23 @@ describe('issueDetailText: los avisos de Meta en castellano', () => {
     )
   })
 })
+
+describe('un canal que dejó de recibir', () => {
+  it('dice las horas calladas y el ritmo normal de ESE canal', () => {
+    expect(issueDetailText('channel_silent', 'instagram|31|8', t)).toBe(
+      'Instagram: 31 h sin recibir nada; lo normal ahí son hasta 8 h',
+    )
+  })
+
+  // «lo normal son hasta 0 h» no se entiende: un canal que recibe cada pocos
+  // minutos redondea a cero y la frase tiene que cambiar, no la cifra.
+  it('cuando el ritmo normal redondea a cero lo dice con palabras', () => {
+    expect(issueDetailText('channel_silent', 'whatsapp|9|0', t)).toBe(
+      'WhatsApp: 9 h sin recibir nada; suele recibir cada pocas horas',
+    )
+  })
+
+  it('un formato que no reconoce se muestra crudo, no se pierde', () => {
+    expect(issueDetailText('channel_silent', 'algo raro', t)).toBe('algo raro')
+  })
+})

@@ -12,11 +12,23 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 interface Escritura {
   table: string
+  /** 'update' reconcilia una fila que ya era nuestra; 'upsert' la crea. */
+  op: 'update' | 'upsert' | 'select'
   payload: Record<string, unknown>
   filtros: Array<[string, unknown]>
 }
 
 const escrituras: Escritura[] = []
+
+/**
+ * ¿Ya existe la fila espejo del pedido?
+ *
+ * Lo decide cada prueba: el espejo tiene DOS caminos y son distintos. Si la
+ * fila existe se parchea sólo lo que Shopify sabe; si no existe se crea entera
+ * con `created_by: 'sync'`. Antes esto era siempre `null` y las cinco pruebas
+ * de reconciliación medían, sin saberlo, el camino de creación.
+ */
+let filaExistente: { id: string } | null = { id: 'ord1' }
 
 function fakeAdmin() {
   return {
@@ -24,7 +36,7 @@ function fakeAdmin() {
       const estado = {
         payload: {} as Record<string, unknown>,
         filtros: [] as Array<[string, unknown]>,
-        anotar: false,
+        op: 'select' as Escritura['op'],
       }
       const chain: Record<string, unknown> = {
         select: () => chain,
@@ -34,21 +46,31 @@ function fakeAdmin() {
         in: () => chain,
         neq: () => chain,
         insert: () => chain,
-        upsert: () => chain,
+        upsert(payload: Record<string, unknown>) {
+          estado.payload = payload
+          estado.op = 'upsert'
+          return chain
+        },
         update(payload: Record<string, unknown>) {
           estado.payload = payload
-          estado.anotar = true
+          estado.op = 'update'
           return chain
         },
         eq(col: string, val: unknown) {
           estado.filtros.push([col, val])
           return chain
         },
-        maybeSingle: async () => ({ data: null, error: null }),
+        maybeSingle: async () => {
+          escrituras.push({ table, op: 'select', payload: {}, filtros: estado.filtros })
+          return {
+            data: table === 'orders' ? filaExistente : null,
+            error: null,
+          }
+        },
         then: (ok: (v: unknown) => unknown, fail?: (e: unknown) => unknown) => {
-          if (estado.anotar) {
-            escrituras.push({ table, payload: estado.payload, filtros: estado.filtros })
-            estado.anotar = false
+          if (estado.op !== 'select') {
+            escrituras.push({ table, op: estado.op, payload: estado.payload, filtros: estado.filtros })
+            estado.op = 'select'
           }
           return Promise.resolve({ data: null, error: null }).then(ok, fail)
         },
@@ -119,10 +141,14 @@ function actualizacion(financialStatus: string, extra: Record<string, unknown> =
   })
 }
 
-const espejo = () => escrituras.find((e) => e.table === 'orders')
+const espejo = () =>
+  escrituras.find((e) => e.table === 'orders' && e.op !== 'select')
+const busqueda = () =>
+  escrituras.find((e) => e.table === 'orders' && e.op === 'select')
 
 beforeEach(() => {
   escrituras.length = 0
+  filaExistente = { id: 'ord1' }
 })
 
 describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
@@ -132,9 +158,12 @@ describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
     const upd = espejo()
     expect(upd).toBeTruthy()
     expect(upd?.payload.financial_status).toBe('partially_refunded')
-    // Lo único que se mueve es el estado de pago: sin esto el pedido salía de
-    // los ingresos entero y desaparecía del buscador de posventa.
-    expect(upd?.payload).not.toHaveProperty('status')
+    // Lo que importa es que NO quede cancelado: sin esto el pedido salía de
+    // los ingresos entero y desaparecía del buscador de posventa, así que la
+    // clienta que llamaba justo por ese envío escuchaba "no encontré ningún
+    // pedido activo".
+    expect(upd?.payload.status).not.toBe('cancelled')
+    expect(upd?.payload.status).toBe('created')
   })
 
   it('el reembolso total sí lo cancela', async () => {
@@ -155,12 +184,35 @@ describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
     expect(espejo()?.payload.status).toBe('fulfilled')
   })
 
-  it('el espejo se busca por tienda y número de pedido', async () => {
+  it('el espejo se busca por cuenta, tienda y número de pedido', async () => {
     await POST(actualizacion('partially_refunded'))
 
-    expect(espejo()?.filtros).toEqual([
+    expect(busqueda()?.filtros).toEqual([
+      ['workspace_id', 'ws1'],
       ['shop_domain', 'tienda.myshopify.com'],
       ['shopify_order_id', '8811'],
     ])
+    // Y el parche va a ESA fila, no a un filtro por dominio: dos tiendas
+    // pueden repetir número de pedido.
+    expect(espejo()?.filtros).toEqual([['id', 'ord1']])
+  })
+
+  /**
+   * La venta que hizo una persona sola en la tienda.
+   *
+   * No tiene fila espejo porque no la creó la IA. Antes el webhook sólo hacía
+   * UPDATE, así que no matcheaba nada y la venta no quedaba registrada en
+   * ningún lado. Ahora se crea, y marcada `sync`: decir que la hizo la IA
+   * inflaría la atribución con ventas que no son suyas.
+   */
+  it('un pedido que no existía se crea, y no se lo anota a la IA', async () => {
+    filaExistente = null
+    await POST(actualizacion('paid'))
+
+    const nueva = espejo()
+    expect(nueva?.op).toBe('upsert')
+    expect(nueva?.payload.created_by).toBe('sync')
+    expect(nueva?.payload.shopify_order_id).toBe('8811')
+    expect(nueva?.payload.financial_status).toBe('paid')
   })
 })

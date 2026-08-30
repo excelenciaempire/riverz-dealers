@@ -44,7 +44,17 @@ export type IssueKind =
   | 'whatsapp_blocked'
   | 'connection_error'
   | 'template_rejected'
-  | 'broadcast_stalled';
+  | 'broadcast_stalled'
+  /**
+   * Un canal conectado que DEJO de recibir.
+   *
+   * El unico aviso que nace de una ausencia, y por eso el mas dificil de ver
+   * sin el: «no llegan los mensajes» se ve exactamente igual que «no escribio
+   * nadie». La suscripcion de Meta apuntaba a un host muerto desde hacia un
+   * mes y nadie lo noto. No mira la causa —callback caido, suscripcion
+   * perdida, token revocado—: mira el silencio, que es comun a todas.
+   */
+  | 'channel_silent';
 
 /**
  * Quién puede arreglarlo.
@@ -123,6 +133,12 @@ function hrefFor(row: Pick<IssueRow, 'kind' | 'ref_id' | 'ref_child' | 'last_at'
       return row.ref_id ? `/plantillas/${row.ref_id}` : '/plantillas';
     case 'broadcast_stalled':
       return row.ref_id ? `/campanas/${row.ref_id}` : '/campanas';
+    // A la tarjeta del canal callado: ahi esta el boton de reconectar, que es
+    // lo que arregla casi todas las causas.
+    case 'channel_silent': {
+      const ancla = anchorDeCanal(row.ref_id);
+      return ancla ? `/integraciones#${ancla}` : '/integraciones';
+    }
   }
 }
 
@@ -200,6 +216,11 @@ function audienceFor(row: Pick<IssueRow, 'kind' | 'detail'>): IssueAudience {
     case 'automation_stuck':
     case 'broadcast_stalled':
       return 'plataforma';
+    // La causa suele ser nuestra o de Meta, pero el boton que la arregla
+    // —reconectar el canal— esta del lado del comercio, y mientras tanto es el
+    // unico que puede salir a contestar a mano lo que no esta llegando.
+    case 'channel_silent':
+      return 'comercio';
   }
 }
 

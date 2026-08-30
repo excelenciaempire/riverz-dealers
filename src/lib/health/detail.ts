@@ -102,6 +102,26 @@ function connectionDetail(detail: string, t: TFn): string {
  * patrones, y al final el crudo. Los nombres propios —plantillas, campañas—
  * no se tocan: son el dato.
  */
+/**
+ * «instagram|31|8» -> «Instagram: 31 h sin recibir nada; lo normal ahí son
+ * hasta 8 h».
+ *
+ * La segunda cifra es el ritmo real de ESE canal en ESE comercio, no un umbral
+ * de manual: es lo que convierte el aviso en algo que se puede juzgar de un
+ * vistazo. Cuando redondea a cero (un canal que recibe cada pocos minutos) se
+ * dice con palabras, porque «lo normal son hasta 0 h» no se entiende.
+ */
+function silencioDetail(raw: string, t: TFn): string {
+  const [canal, horas, normal] = raw.split('|');
+  if (!canal || !horas) return raw;
+  const nombre =
+    canal in CHANNEL_DISPLAY ? channelLabel(canal as Channel, t) : canal;
+  const n = Number(normal);
+  return Number.isFinite(n) && n > 0
+    ? t('health.detailChannelSilent', { canal: nombre, horas, normal: String(n) })
+    : t('health.detailChannelSilentBreve', { canal: nombre, horas });
+}
+
 export function issueDetailText(
   kind: IssueKind,
   detail: string | null | undefined,
@@ -141,6 +161,12 @@ export function issueDetailText(
   }
 
   if (kind === 'connection_error') return connectionDetail(raw, t);
+
+  // `channel_silent` viaja como `canal|horas_callado|horas_normales`, porque el
+  // aviso sin las horas no se puede juzgar: quien lo lee necesita saber si es
+  // mucho PARA ESE CANAL. Si el formato no es el esperado se muestra el crudo,
+  // como todo lo demás acá.
+  if (kind === 'channel_silent') return silencioDetail(raw, t);
 
   // "sin motivo" lo escribe la propia función SQL cuando el canal falló y no
   // dijo por qué; es la única cadena en español que sale de la base.

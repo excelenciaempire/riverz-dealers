@@ -83,6 +83,8 @@ function nombreProblema(kind: Issue['kind']): string {
       return 'plantillas rechazadas'
     case 'broadcast_stalled':
       return 'campañas trabadas'
+    case 'channel_silent':
+      return 'canales que dejaron de recibir'
   }
 }
 
