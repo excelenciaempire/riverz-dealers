@@ -1206,6 +1206,10 @@ export const admin = {
     en: "The account isn't eligible yet.",
   },
   cashSchedule: { es: "Agenda", en: "Schedule" },
+  cashSchedule_daily: { es: "Diaria", en: "Daily" },
+  cashSchedule_weekly: { es: "Semanal", en: "Weekly" },
+  cashSchedule_monthly: { es: "Mensual", en: "Monthly" },
+  cashSchedule_manual: { es: "Manual", en: "Manual" },
   cashScheduleValue: {
     es: "{intervalo}, {dias} días hábiles",
     en: "{intervalo}, {dias} business days",

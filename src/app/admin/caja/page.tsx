@@ -33,6 +33,10 @@ import { RefreshButton } from "../_components/filters";
  * que incluye sondas FACTURABLES. Se consulta al abrir y al tocar Actualizar.
  */
 
+/** Los intervalos de pago que Stripe declara hoy y esta pantalla sabe nombrar. */
+const INTERVALOS = ["daily", "weekly", "monthly", "manual"];
+const intervaloConocido = (v: string) => INTERVALOS.includes(v);
+
 const TONO_ESTADO: Record<string, Tone> = {
   ok: "ok",
   bajo: "warn",
@@ -52,6 +56,10 @@ export default function AdminCajaPage() {
 
   const usd = (n: number) => format.currency(n, "USD", { maximumFractionDigits: 0 });
   const usd2 = (n: number) => format.currency(n, "USD", { maximumFractionDigits: 2 });
+  // El decimal sigue el idioma: en español es 0,55 y no 0.55, que es lo que
+  // devuelve toFixed.
+  const dec = (n: number) =>
+    format.number(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const dias = data.diasDeAutonomia;
   const enStripe = (data.stripe.disponibleUsd ?? 0) + (data.stripe.pendienteUsd ?? 0);
@@ -117,10 +125,10 @@ export default function AdminCajaPage() {
               ? t("admin.cashRunwayUnknown")
               : data.sinMedir.length > 0
                 ? t("admin.cashRunwayPartial", {
-                    usd: data.quemaDiaUsd.toFixed(2),
+                    usd: dec(data.quemaDiaUsd),
                     nombres: data.sinMedir.join(", "),
                   })
-                : t("admin.cashRunwayHint", { usd: data.quemaDiaUsd.toFixed(2) })
+                : t("admin.cashRunwayHint", { usd: dec(data.quemaDiaUsd) })
           }
         />
       </div>
@@ -180,7 +188,14 @@ export default function AdminCajaPage() {
                 <Linea
                   termino={t("admin.cashSchedule")}
                   valor={t("admin.cashScheduleValue", {
-                    intervalo: data.stripe.agenda.intervalo,
+                    // Stripe devuelve 'daily'/'weekly'/'monthly'/'manual'. Sin
+                    // esto la fila decía "daily, 2 días hábiles" en español.
+                    // Se comprueba antes de traducir: una clave que no existe
+                    // se imprime cruda, y un intervalo nuevo dejaría la clave
+                    // entera a la vista en vez de un nombre.
+                    intervalo: intervaloConocido(data.stripe.agenda.intervalo)
+                      ? t(`admin.cashSchedule_${data.stripe.agenda.intervalo}`)
+                      : data.stripe.agenda.intervalo,
                     dias: data.stripe.agenda.demoraDias ?? 2,
                   })}
                 />
