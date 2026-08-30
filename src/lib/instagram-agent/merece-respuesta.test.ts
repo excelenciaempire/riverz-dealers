@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { afirmaLoQueNoSabe, mereceRespuesta } from './merece-respuesta'
+import { afirmaLoQueNoSabe, esCriticaPublica, mereceRespuesta } from './merece-respuesta'
 import { recortarSalida as recortar } from '@/lib/ai/salida'
 
 describe('mereceRespuesta', () => {
@@ -92,5 +92,31 @@ describe('afirmaLoQueNoSabe', () => {
     expect(afirmaLoQueNoSabe('Ese dato lo confirmo y te lo paso.')).toBe(false)
     expect(afirmaLoQueNoSabe('Gracias por comentarlo, lo tomo en cuenta.')).toBe(false)
     expect(afirmaLoQueNoSabe('El serum vale $39.990 la unidad.')).toBe(false)
+  })
+})
+
+describe('nombrar un registro no es criticar', () => {
+  // El 2026-08-29 alguien comento "Esta aprobado" —confirmando que el producto
+  // SI tiene aprobacion, o sea defendiendo a la marca— y la IA lo oculto por
+  // critica, porque "aprobado" estaba en la misma lista que "publicidades
+  // falsas". Censurar a quien te defiende es el peor falso positivo posible.
+  for (const t of [
+    'Esta aprobado',
+    'Si tiene ANMAT, lo consulte',
+    'Tiene certificado, lo vi en la web',
+    'Esta habilitado por el ministerio',
+  ]) {
+    it(`no oculta: ${t}`, () => {
+      expect(esCriticaPublica(t)).toBe(false)
+    })
+  }
+
+  it('pero la acusacion sigue siendo critica', () => {
+    expect(esCriticaPublica('Que manera de hacer publicidades falsas')).toBe(true)
+    expect(esCriticaPublica('Les van a meter una demanda por esto')).toBe(true)
+  })
+
+  it('y el tema legal se sigue contestando con cuidado', () => {
+    expect(mereceRespuesta('Esta aprobado por ANMAT?')).toBe('legal')
   })
 })

@@ -27,8 +27,12 @@ const DUDA = [
   'no confío', 'no confio', 'desconfío', 'desconfio', 'estafa', 'engaño',
   'engano', 'falso', 'falsa', 'falsos', 'falsas', 'mentira', 'miente',
   'mienten', 'publicidad engañosa', 'publicidad enganosa', 'timo', 'fraude',
-  'anmat', 'invima', 'registro sanitario', 'aprobación', 'aprobacion',
-  'certificado', 'demanda', 'juicio', 'denuncia', 'ilegal',
+  // Sin `anmat`, `invima`, `registro sanitario`, `aprobación` ni `certificado`.
+  // Nombrar un registro no es desconfiar: "Sí tiene ANMAT, lo consulté" es lo
+  // contrario. Estaban acá y en LEGAL, así que alcanzaban para ocultar a quien
+  // defendía a la marca (visto el 2026-08-29). Siguen entrando por `LEGAL_TEMA`
+  // en `mereceRespuesta`, que es donde de verdad sirven: contestar con cuidado.
+  'demanda', 'juicio', 'denuncia', 'ilegal',
   'no funciona', 'no sirve', 'no me sirvió', 'no me sirvio',
   'scam', 'fake', 'lawsuit', 'refund',
 ];
@@ -99,17 +103,37 @@ export type MotivoRespuesta = 'duda' | 'reclamo' | 'pregunta' | 'legal';
  * prohibirle afirmar y negar lo que no le consta, y dejarle decir en primera
  * persona que lo confirma.
  */
-const LEGAL = [
+/**
+ * El TEMA legal, sin acusación. Nombrar un registro no es atacar a nadie.
+ *
+ * Estaban mezcladas con las acusaciones en una sola lista, y como
+ * `esCriticaPublica` la usaba entera, cualquiera que dijera "está aprobado"
+ * quedaba oculto por crítica. Pasó el 2026-08-29: alguien escribió
+ * exactamente eso —confirmando que el producto SÍ tiene aprobación, o sea
+ * defendiendo a la marca— y la IA lo escondió.
+ *
+ * Sirven para saber DE QUÉ habla (y contestarlo con cuidado), no para decidir
+ * que hay que esconderlo.
+ */
+const LEGAL_TEMA = [
   'anmat', 'invima', 'registro sanitario', 'aprobación', 'aprobacion',
   'aprobado', 'aprobada', 'certificado', 'certificación', 'certificacion',
   'habilitado', 'habilitación', 'habilitacion', 'permiso', 'licencia',
+  'fda',
+];
+
+/** La acusación propiamente dicha: eso sí es una crítica pública. */
+const LEGAL_ATAQUE = [
   'juicio', 'demanda', 'denuncia', 'abogado', 'defensa del consumidor',
   'publicidad engañosa', 'publicidad enganosa', 'publicidades falsas',
   'hecho con ia', 'hechos con ia', 'generado con ia', 'generada con ia',
   'con inteligencia artificial', 'rostros', 'actrices', 'actores',
   'testimonios falsos', 'antes y después falso',
-  'fda', 'lawsuit', 'ai generated', 'deepfake',
+  'lawsuit', 'ai generated', 'deepfake',
 ];
+
+/** Las dos juntas: de esto se trata cuando hay que contestar con cuidado. */
+const LEGAL = [...LEGAL_TEMA, ...LEGAL_ATAQUE];
 
 /**
  * "IA" suelta, que es como lo escribe casi todo el mundo: "tanta IA en
@@ -203,7 +227,10 @@ export function esCriticaPublica(texto: string): boolean {
   if (contiene(t, RECLAMO)) return false;
   return (
     contiene(t, DUDA) ||
-    contiene(t, LEGAL) ||
+    // Sólo la mitad ACUSATORIA de lo legal. Con la lista entera, nombrar un
+    // registro alcanzaba para esconder a alguien: "Está aprobado" —que defiende
+    // a la marca— se ocultó por crítica el 2026-08-29.
+    contiene(t, LEGAL_ATAQUE) ||
     contiene(t, HOSTILIDAD) ||
     contiene(t, REPROCHE) ||
     IA_SUELTA.test(t)
