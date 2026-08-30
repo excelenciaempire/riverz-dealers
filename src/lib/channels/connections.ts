@@ -50,3 +50,50 @@ export async function listConnections(
     { select: opts.select },
   )
 }
+
+/**
+ * Cuándo fue la última vez que ESTA conexión recibió algo POR PUSH.
+ *
+ * Es el dato que falta para poder bajarle la frecuencia a un recorrido
+ * periódico sin adivinar. Hoy la pregunta "¿el webhook está llegando?" sólo se
+ * puede contestar mirando si aparecen mensajes — y eso no distingue "no llega
+ * el webhook" de "no escribió nadie", que es exactamente el error que dejó la
+ * suscripción de Meta apuntando a un dominio muerto durante seis días.
+ *
+ * Se escribe desde los RECEPTORES, no desde la ingesta: el receptor es lo único
+ * que sabe que esto vino por push y no por un recorrido. Una sola escritura por
+ * entrega, no por evento.
+ */
+const ultimoSello = new Map<string, number>();
+/** Cada cuánto se escribe, como mucho. Para el tablero alcanza de sobra. */
+const CADA_MS = 5 * 60_000;
+
+export function sellarEntregaPorPush(
+  db: SupabaseClient,
+  connectionId: string | null | undefined,
+): void {
+  if (!connectionId) return;
+  const ahora = Date.now();
+  const previo = ultimoSello.get(connectionId) ?? 0;
+  if (ahora - previo < CADA_MS) return;
+  ultimoSello.set(connectionId, ahora);
+  // Sin await y sin romper nada: es telemetría, y el mensaje que viene detrás
+  // importa más.
+  void (async () => {
+    try {
+      const { data } = await db
+        .from('channel_connections')
+        .select('config')
+        .eq('id', connectionId)
+        .maybeSingle();
+      const cfg = ((data as { config?: Record<string, unknown> } | null)?.config ??
+        {}) as Record<string, unknown>;
+      await db
+        .from('channel_connections')
+        .update({ config: { ...cfg, last_push_at: new Date(ahora).toISOString() } })
+        .eq('id', connectionId);
+    } catch {
+      /* el sello no puede tumbar la entrega */
+    }
+  })();
+}

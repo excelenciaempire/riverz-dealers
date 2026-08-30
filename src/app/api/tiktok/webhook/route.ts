@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sellarEntregaPorPush } from "@/lib/channels/connections";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { listConnections } from "@/lib/channels/connections";
@@ -104,6 +105,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let fallo: string | null = null;
   for (const conn of conns) {
+    sellarEntregaPorPush(db, conn.id);
     try {
       await applyToConnection(db, conn, { commentId, videoId, action });
     } catch (err) {

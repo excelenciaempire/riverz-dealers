@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sellarEntregaPorPush } from "@/lib/channels/connections";
 import { safeSecretEqual } from "@/lib/auth/cron";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { listConnections } from "@/lib/channels/connections";
@@ -86,6 +87,7 @@ export async function POST(req: Request): Promise<Response> {
   let lastError: string | null = null;
   for (const connection of connections) {
     try {
+      sellarEntregaPorPush(admin, connection.id);
       ingested += await processHistory(admin, connection, historyId);
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdapter } from "@/lib/channels/registry";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { listConnections } from "@/lib/channels/connections";
+import { listConnections, sellarEntregaPorPush } from "@/lib/channels/connections";
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
@@ -253,6 +253,9 @@ async function processChannelsWebhookAsync(
 
     const adapter = getAdapter(c);
     for (const route of routes) {
+      // Llegó por push: se anota para poder decidir con datos si el recorrido
+      // periódico puede espaciarse.
+      sellarEntregaPorPush(db, route.connection.id);
       let events;
       try {
         events = await adapter.parseWebhook(

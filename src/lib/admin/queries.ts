@@ -565,6 +565,18 @@ export interface ChannelRow {
    * "WhatsApp bloqueado" (ver src/lib/health/issues.ts) y el panel ni lo pedía.
    */
   health_status: string | null;
+  /**
+   * Cuándo llegó algo por PUSH por última vez.
+   *
+   * Es lo que contesta "¿el webhook está llegando?" sin adivinar. Antes esa
+   * pregunta sólo se podía responder mirando si aparecen mensajes, y eso no
+   * distingue "no llega el webhook" de "no escribió nadie" — que es el error
+   * que dejó la suscripción de Meta apuntando a un dominio muerto seis días.
+   *
+   * También es la puerta para espaciar un recorrido periódico: sin este dato,
+   * bajarle la frecuencia a Gmail o a Mercado Libre es una apuesta.
+   */
+  last_push_at: string | null;
   quality_rating: string | null;
   messaging_limit_tier: string | null;
   created_at: string | null;
@@ -597,14 +609,15 @@ export async function listChannels(opts: {
   const { data, error } = await q.limit(500);
   if (error) throw new Error(`[admin] listChannels: ${error.message}`);
   const rows = (data ?? []) as unknown as Array<
-    Omit<ChannelRow, 'workspace_name' | 'health_status'> & {
-      config?: { health_status?: string | null } | null;
+    Omit<ChannelRow, 'workspace_name' | 'health_status' | 'last_push_at'> & {
+      config?: { health_status?: string | null; last_push_at?: string | null } | null;
     }
   >;
 
   const mensajeria = rows.map(({ config, ...r }) => ({
     ...r,
     health_status: config?.health_status ?? null,
+    last_push_at: config?.last_push_at ?? null,
   }));
 
   // La otra mitad de Riverz. Las tiendas y los medios de pago viven en tablas
@@ -692,6 +705,9 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
     health_review_status: null,
     health_blockers: null,
     health_status: null,
+    // Las tiendas y los medios de pago no tienen webhook de mensajería: acá
+    // el sello no aplica.
+    last_push_at: null,
     quality_rating: null,
     messaging_limit_tier: null,
   };
