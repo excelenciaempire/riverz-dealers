@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeSecretEqual } from "@/lib/auth/cron";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { listConnections } from "@/lib/channels/connections";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { getFreshAccessToken } from "@/lib/channels/gmail/watch";
 import {
@@ -64,20 +65,13 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const admin = supabaseAdmin();
-  const { data: rows } = await admin
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "gmail")
-    .eq("status", "connected");
-  if (!rows) {
-    return NextResponse.json({ ok: true, ingested: 0 });
-  }
+  const rows = await listConnections(admin, { channel: "gmail" });
 
   // Match the mailbox to EVERY connection that holds it (the same mailbox
   // may live in more than one workspace — each gets its own delivery). We
   // compare against config.email (set by the OAuth callback) and
   // external_account_id as fallback.
-  const connections = (rows as ChannelConnection[]).filter((c) => {
+  const connections = rows.filter((c) => {
     const cfg = (c.config ?? {}) as Record<string, unknown>;
     return (
       String(cfg.email ?? "").toLowerCase() === emailAddress.toLowerCase() ||

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../admin-client";
+import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
-import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "../types";
 
 const ML = "https://api.mercadolibre.com";
@@ -51,15 +51,10 @@ export async function pollAllMercadoLibreConnections(): Promise<{
   answers: number;
 }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "mercadolibre")
-    // Include error/expired: getFreshMLToken refreshes + heals the row back to
-    // 'connected'. These are exactly the sellers most likely to have dropped a
-    // body-less notification, so they must not be excluded from reconciliation.
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  // error/expired incluidos: getFreshMLToken refresca y sana la fila, y son
+  // justamente los vendedores con más chance de haber perdido una notificación
+  // sin cuerpo.
+  const conns = await listConnections(db, { channel: "mercadolibre" });
   let ingested = 0;
   let answers = 0;
 

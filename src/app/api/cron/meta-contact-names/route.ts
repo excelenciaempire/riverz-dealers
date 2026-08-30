@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listConnections } from "@/lib/channels/connections";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
@@ -29,12 +30,11 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin();
-  const { data: conns } = await admin
-    .from("channel_connections")
-    .select("*")
-    .in("channel", ["messenger", "instagram", "fb_comment", "ig_comment"])
-    .eq("status", "connected");
-  if (!conns || conns.length === 0) {
+  const conns = await listConnections(admin, {
+    channels: ["messenger", "instagram", "fb_comment", "ig_comment"],
+    statuses: ["connected"],
+  });
+  if (conns.length === 0) {
     return NextResponse.json({ ok: true, results: [] });
   }
 

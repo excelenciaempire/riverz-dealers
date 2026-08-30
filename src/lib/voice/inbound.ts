@@ -7,6 +7,7 @@
  * and create the inbound voice_calls row — then the same context builder
  * produces the system prompt.
  */
+import { selectAll } from '@/lib/db/paginate';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Contact,
@@ -104,15 +105,17 @@ export async function resolveInboundCall(
   // Find the workspace that owns this DID. Match on EXACT E.164 equality (not
   // a last-8-digits fuzzy match) so two workspaces whose numbers merely share
   // the last 8 digits can't cross-route inbound calls.
-  const { data: conns } = await db
-    .from('channel_connections')
-    .select('workspace_id, config, status')
-    .eq('channel', 'voice');
-  const matches = ((conns ?? []) as {
+  // Paginada: PostgREST corta en 1000 sin avisar, y una llamada al número de la
+  // conexión 1001 no habría encontrado dueño — un teléfono que suena y nadie
+  // atiende, sin error en ningún lado.
+  const conns = await selectAll<{
     workspace_id: string;
     config: VoiceConnectionConfig | null;
     status: string;
-  }[]).filter((c) => {
+  }>(db, 'channel_connections', (q) => q.eq('channel', 'voice'), {
+    select: 'id, workspace_id, config, status',
+  });
+  const matches = conns.filter((c) => {
     const num = c.config?.phone_number;
     return num && toE164(num) === did;
   });

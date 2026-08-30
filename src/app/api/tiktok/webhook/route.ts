@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { listConnections } from "@/lib/channels/connections";
 import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
 import {
   ingestVideoComments,
@@ -91,12 +92,9 @@ export async function POST(req: Request): Promise<Response> {
   const businessId = String(payload.user_openid);
   // Every connection that holds this account (same account can live in more
   // than one workspace — each reflects the change in its own inbox).
-  const { data: rows } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "tiktok_comment")
-    .in("status", ["connected", "error", "expired"]);
-  const conns = ((rows ?? []) as ChannelConnection[]).filter(
+  const conns = (
+    await listConnections(db, { channel: "tiktok_comment" })
+  ).filter(
     (c) => String((c.config as Record<string, unknown> | null)?.business_id ?? "") === businessId,
   );
   if (conns.length === 0) {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { listConnections } from "../connections";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import type { InboundEvent } from "../types";
 import { supabaseAdmin } from "../admin-client";
@@ -85,12 +86,7 @@ export async function pollAllMercadoLibreClaims(): Promise<{
   ingested: number;
 }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "mercadolibre")
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let claims = 0;
   let ingested = 0;

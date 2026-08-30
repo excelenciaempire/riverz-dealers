@@ -5,6 +5,7 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { fetchOutlookAttachments } from "./watch";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { listConnections } from "../connections";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 
@@ -35,16 +36,13 @@ interface PollSummary {
 
 export async function pollAllOutlookConnections(): Promise<PollSummary[]> {
   const admin = supabaseAdmin();
-  const { data: connections, error } = await admin
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "outlook")
-    .eq("status", "connected");
-  if (error) throw new Error(`[outlook-poll] list connections: ${error.message}`);
-  if (!connections || connections.length === 0) return [];
+  // error/expired incluidos, igual que Gmail: el buzón que falló una vez tiene
+  // que poder recuperarse solo.
+  const connections = await listConnections(admin, { channel: "outlook" });
+  if (connections.length === 0) return [];
 
   const out: PollSummary[] = [];
-  for (const c of connections as ChannelConnection[]) {
+  for (const c of connections) {
     const email = String(
       (c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "",
     );

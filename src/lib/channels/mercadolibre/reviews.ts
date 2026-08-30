@@ -1,4 +1,5 @@
 import type { ChannelConnection } from "@/types";
+import { listConnections } from "../connections";
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
@@ -56,12 +57,7 @@ export async function pollAllMercadoLibreReviews(): Promise<{
   notes: string[];
 }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "mercadolibre")
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let items = 0;
   let ingested = 0;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listConnections } from "@/lib/channels/connections";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { startOutlookWatch } from "@/lib/channels/outlook/watch";
 import { baseUrl } from "@/lib/channels/oauth";
@@ -28,15 +29,11 @@ async function cronHandler(request: Request) {
 
   const notificationUrl = `${baseUrl(request)}/api/channels/outlook/webhook`;
   const admin = supabaseAdmin();
-  const { data: connections, error } = await admin
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "outlook")
-    .eq("status", "connected");
-  if (error) {
-    return serverError(error);
-  }
-  if (!connections || connections.length === 0) {
+  const connections = await listConnections(admin, {
+    channel: "outlook",
+    statuses: ["connected"],
+  });
+  if (connections.length === 0) {
     return NextResponse.json({ ok: true, watched: 0 });
   }
 

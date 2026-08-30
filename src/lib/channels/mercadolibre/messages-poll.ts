@@ -3,6 +3,7 @@ import type { ChannelConnection } from "@/types";
 import type { InboundEvent } from "../types";
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
+import { listConnections } from "../connections";
 import { buildPackEvents, getFreshMLToken } from "./adapter";
 import { getLogger } from "@/lib/log/logger";
 
@@ -77,14 +78,9 @@ export async function pollAllMercadoLibreMessages(): Promise<{
   ingested: number;
 }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "mercadolibre")
-    // error/expired incluidos: `getFreshMLToken` refresca y sana la fila, y son
-    // justamente los vendedores con más chance de haber perdido un mensaje.
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  // error/expired incluidos: `getFreshMLToken` refresca y sana la fila, y son
+  // justamente los vendedores con más chance de haber perdido un mensaje.
+  const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let packs = 0;
   let skipped = 0;

@@ -4,6 +4,7 @@ import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
 import { buildSelfCommentEvent } from "./comment-echo";
 import { findMessageByExternalId } from "./message-lookup";
+import { listConnections } from "./connections";
 import { ingestInboundEvent } from "./inbox-writer";
 
 /**
@@ -306,12 +307,9 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
   seen: number;
   detail: Array<{ connection_id: string } & PullResult>;
 }> {
-  const { data: conns } = await db
-    .from("channel_connections")
-    .select("*")
-    .in("channel", ["ig_comment", "fb_comment"])
-    .in("status", ["connected", "error", "expired"]);
-  const list = (conns ?? []) as ChannelConnection[];
+  const list = await listConnections(db, {
+    channels: ["ig_comment", "fb_comment"],
+  });
 
   let ingestedInbound = 0;
   let ingested = 0;

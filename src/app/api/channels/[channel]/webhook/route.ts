@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdapter } from "@/lib/channels/registry";
 import { ingestInboundEvent } from "@/lib/channels/inbox-writer";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { listConnections } from "@/lib/channels/connections";
 import { verifyChannelWebhook } from "@/lib/channels/verify-webhook";
 import { getLogger } from "@/lib/log/logger";
 import { captureWebhookFailure } from "@/lib/webhooks/capture";
@@ -309,12 +310,11 @@ async function routesByPayload(
   // the inbound text. Dropping these would silently lose customer
   // messages until a manual reconnect. Only 'disconnected'/'pending'
   // (admin-off or mid-setup) are excluded.
-  const { data } = await supabaseAdmin()
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", channel)
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  // Paginado: PostgREST corta en 1000 filas sin avisar, y la conexión número
+  // 1001 simplemente dejaba de existir para el enrutador. Su entrega quedaba
+  // anotada como "no coincide ninguna cuenta", que se lee como un page_id mal
+  // configurado y no como lo que era.
+  const conns = await listConnections(supabaseAdmin(), { channel });
   if (conns.length === 0) return [];
 
   // MercadoLibre notifications are FLAT ({resource, user_id, topic} — no

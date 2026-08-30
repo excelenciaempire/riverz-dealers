@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { listConnections } from "../connections";
 import type { ChannelConnection } from "@/types";
 import { supabaseAdmin } from "../admin-client";
 import { getFreshMLToken } from "./adapter";
@@ -29,12 +30,7 @@ export async function syncAllMercadoLibreCatalogs(): Promise<{
   products: number;
 }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "mercadolibre")
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let products = 0;
   for (const conn of conns) {

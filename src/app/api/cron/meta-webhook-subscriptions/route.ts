@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { listConnections } from "@/lib/channels/connections";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { getLogger } from "@/lib/log/logger";
@@ -44,18 +45,14 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin();
-  const { data: conns } = await admin
-    .from("channel_connections")
-    .select("*")
-    // Include error/expired, not just connected: the webhook ROUTER keeps
-    // ingesting for error/expired (the subscription is app-level, not
-    // token-level), so the MAINTENANCE surface must match the ingest surface —
-    // otherwise a page stuck in 'error' never gets its subscription re-applied
-    // and, if Meta unsubscribes it after downtime, silently dies forever. A
-    // genuinely dead token just fails the re-apply (logged), which is harmless.
-    .in("channel", ["messenger", "instagram", "fb_comment", "ig_comment"])
-    .in("status", ["connected", "error", "expired"]);
-  const list = (conns ?? []) as ChannelConnection[];
+  // error/expired incluidos, no sólo connected: el ENRUTADOR del webhook sigue
+  // ingiriendo para error/expired (la suscripción es a nivel app, no de token),
+  // así que la superficie de MANTENIMIENTO tiene que ser la misma — si no, una
+  // página trabada en 'error' nunca vuelve a aplicar su suscripción y, si Meta
+  // la desuscribe tras una caída, muere en silencio para siempre.
+  const list = await listConnections(admin, {
+    channels: ["messenger", "instagram", "fb_comment", "ig_comment"],
+  });
 
   const results: Array<{
     id: string;
@@ -153,11 +150,7 @@ async function cronHandler(request: Request) {
   // re-applied; a dropped subscription silently stops ALL WhatsApp inbound +
   // echo sync while the connection still shows connected. Field selection is
   // app-level (dashboard), so here we only ensure the app stays registered.
-  const { data: waConns } = await admin
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "whatsapp")
-    .in("status", ["connected", "error", "expired"]);
+  const waConns = await listConnections(admin, { channel: "whatsapp" });
   const waResults: Array<{
     id: string;
     wabaId: string;

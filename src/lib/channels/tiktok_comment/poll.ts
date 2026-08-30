@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
+import { listConnections } from "../connections";
 import { applyCommentLifecycle, patchFor, type CommentRow } from "../comment-sync";
 import { guardarVideos } from "./videos";
 import { getFreshTikTokToken } from "./adapter";
@@ -63,15 +64,10 @@ export async function pollAllTikTokConnections(
   opts: { deep?: boolean } = {},
 ): Promise<{ total: number; ingested: number; videos: number }> {
   const db = supabaseAdmin();
-  const { data } = await db
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "tiktok_comment")
-    // Include error/expired: getFreshTikTokToken refreshes + heals the row back
-    // to 'connected'. Polling only 'connected' would permanently self-exclude a
-    // connection whose token refresh transiently failed (it never self-heals).
-    .in("status", ["connected", "error", "expired"]);
-  const conns = (data ?? []) as ChannelConnection[];
+  // error/expired incluidos: getFreshTikTokToken refresca y sana la fila. Mirar
+  // sólo 'connected' auto-excluía para siempre a una conexión cuyo refresco
+  // falló una vez.
+  const conns = await listConnections(db, { channel: "tiktok_comment" });
   let ingested = 0;
   let videos = 0;
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { listConnections } from "@/lib/channels/connections";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { selectAll } from "@/lib/db/paginate";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
@@ -72,12 +74,11 @@ async function cronHandler(request: Request) {
   }
 
   const admin = supabaseAdmin();
-  const { data: connections } = await admin
-    .from("channel_connections")
-    .select("*")
-    .in("channel", ["messenger", "instagram"])
-    .eq("status", "connected");
-  if (!connections || connections.length === 0) {
+  const connections = await listConnections(admin, {
+    channels: ["messenger", "instagram"],
+    statuses: ["connected"],
+  });
+  if (connections.length === 0) {
     return NextResponse.json({ ok: true, results: [] });
   }
 
@@ -250,11 +251,17 @@ async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
   // sufre hard-delete (cascadea contacto+conversación+mensajes), así que sin
   // esto el descubrimiento lo re-crearía cada 6 h. La tabla es pequeña; la
   // traemos una vez por canal y filtramos en memoria.
-  const { data: tombs } = await admin
-    .from("deleted_meta_participants")
-    .select("external_id")
-    .eq("channel", args.connection.channel);
-  const suppressed = new Set((tombs ?? []).map((t) => String(t.external_id)));
+  //
+  // Paginada: sin esto PostgREST cortaba en 1000 y el participante 1001 se
+  // RECREABA en cada corrida. Es el peor caso de la clase — un borrado por
+  // GDPR que vuelve solo.
+  const tombs = await selectAll<{ external_id: string }>(
+    admin,
+    "deleted_meta_participants",
+    (q) => q.eq("channel", args.connection.channel),
+    { select: "external_id" },
+  );
+  const suppressed = new Set(tombs.map((t) => String(t.external_id)));
   let url: string | null = `${GRAPH}/${args.pageId}/conversations?platform=${args.platform}&fields=id,participants&limit=50&access_token=${encodeURIComponent(args.token)}`;
   let pages = 0;
   let ingested = 0;

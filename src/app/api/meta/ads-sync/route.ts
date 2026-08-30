@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { listConnections } from "@/lib/channels/connections";
 import { assertCronAuthAny } from "@/lib/auth/cron";
 import { serverError } from "@/lib/api/errors";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
@@ -26,15 +27,10 @@ async function handler(req: Request): Promise<Response> {
   }
 
   const db = supabaseAdmin();
-  const { data: connections, error } = await db
-    .from("channel_connections")
-    .select("*")
-    .in("channel", ["fb_comment", "ig_comment"])
-    .eq("status", "connected");
-
-  if (error) {
-    return serverError(error);
-  }
+  const connections = await listConnections(db, {
+    channels: ["fb_comment", "ig_comment"],
+    statuses: ["connected"],
+  });
 
   let totalInserted = 0;
   let totalUpdated = 0;

@@ -9,6 +9,7 @@ import {
 } from "../media-ingest";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
+import { listConnections } from "../connections";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 
@@ -36,16 +37,14 @@ interface PollSummary {
 
 export async function pollAllGmailConnections(): Promise<PollSummary[]> {
   const admin = supabaseAdmin();
-  const { data: connections, error } = await admin
-    .from("channel_connections")
-    .select("*")
-    .eq("channel", "gmail")
-    .eq("status", "connected");
-  if (error) throw new Error(`[gmail-poll] list connections: ${error.message}`);
-  if (!connections || connections.length === 0) return [];
+  // error/expired incluidos: el token se refresca solo y sana la fila. Mirando
+  // sólo 'connected', un buzón que falló una vez dejaba de recorrerse para
+  // siempre y no volvía sin que alguien reconectara a mano.
+  const connections = await listConnections(admin, { channel: "gmail" });
+  if (connections.length === 0) return [];
 
   const out: PollSummary[] = [];
-  for (const c of connections as ChannelConnection[]) {
+  for (const c of connections) {
     const email = String((c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "");
     try {
       const ingested = await pollOne(admin, c);

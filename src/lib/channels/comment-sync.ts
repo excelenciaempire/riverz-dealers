@@ -3,6 +3,7 @@ import type { ChannelConnection } from "@/types";
 import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
 import { COMMENT_DELETED_TEXT } from "./display";
+import { listConnections } from "./connections";
 
 /**
  * Two-way comment sync — reflect on Facebook/Instagram back into the inbox.
@@ -313,15 +314,13 @@ export async function reconcileAllCommentConnections(
   deleted: number;
   hiddenChanged: number;
 }> {
-  const { data: conns } = await db
-    .from("channel_connections")
-    .select("*")
-    .in("channel", ["fb_comment", "ig_comment"])
-    // error/expired connections still receive comment webhooks (app-level
-    // subscription), so their deletions/hides must still be reconciled. A dead
-    // token just makes the Graph read fail → treated as transient → skipped.
-    .in("status", ["connected", "error", "expired"]);
-  const list = (conns ?? []) as ChannelConnection[];
+  // error/expired incluidos: siguen recibiendo webhooks de comentarios (la
+  // suscripción es a nivel app, no de token), así que sus borrados y ocultados
+  // igual hay que conciliarlos. Un token muerto sólo hace fallar la lectura de
+  // Graph → se trata como transitorio y se saltea.
+  const list = await listConnections(db, {
+    channels: ["fb_comment", "ig_comment"],
+  });
 
   let checked = 0;
   let deleted = 0;
