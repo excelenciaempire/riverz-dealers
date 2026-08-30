@@ -18,6 +18,7 @@ import {
 import { runWithTools } from './tools';
 import { toolEnabled } from './toolbox';
 import { resolverRegistro } from './registro-rioplatense';
+import { cargarReglas, reglasATexto } from './guidance';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -184,7 +185,14 @@ export async function composeSuperAgentReply(
       shopify,
       igContext,
       businessCurrency,
-      null,
+      // Las reglas del comercio TAMBIÉN acá.
+      //
+      // Sólo las cargaba el runner, así que "Reglas del negocio" gobernaba el
+      // chat y no los comentarios — y el comentario es la superficie pública,
+      // donde una promesa equivocada la lee cualquiera. El 2026-08-29 la IA le
+      // contestó "pago contra entrega" a una clienta que lo dio por hecho,
+      // debajo del anuncio, cuando el comercio no lo ofrece.
+      reglasATexto(await cargarReglas(db, input.workspaceId, agent.id)),
       // El mismo trato que en el privado: el comentario y el DM que sale
       // después son la misma conversación para quien la lee.
       await resolverRegistro({

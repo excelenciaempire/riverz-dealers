@@ -21,6 +21,7 @@ import {
 import { runWithTools } from './tools';
 import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
 import { resolverRegistro } from './registro-rioplatense';
+import { cargarReglas, reglasATexto } from './guidance';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -187,7 +188,10 @@ export async function componerBorrador(
       shopify,
       igContext,
       businessCurrency,
-      null,
+      // Las reglas del comercio también en el borrador: lo que el agente no
+      // puede prometer solo, tampoco se lo puede sugerir a una persona para
+      // que lo mande con un clic.
+      reglasATexto(await cargarReglas(db, input.workspaceId, agent.id)),
       // El borrador se lo va a mandar una persona del equipo: tiene que sonar
       // igual que lo que manda el agente solo, o el hilo cambia de trato a la
       // mitad.
