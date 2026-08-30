@@ -1133,13 +1133,20 @@ export const admin = {
     es: "Al ritmo de la última semana: US${usd} por día.",
     en: "At last week's pace: US${usd} per day.",
   },
+  cashRunwayPartial: {
+    es: "Sólo cubre lo que publica saldo, a US${usd} por día. No entran: {nombres}.",
+    en: "Only covers what publishes a balance, at US${usd} a day. Not included: {nombres}.",
+  },
   cashRunwayUnknown: {
     es: "Sin consumo medido esta semana.",
     en: "No consumption measured this week.",
   },
+  // No todos los que faltan es porque no publiquen: ElevenLabs da caracteres,
+  // que no son dólares y sumarlos daría un total falso. «No suman» es cierto
+  // para los dos casos; «no publican» sólo para uno.
   cashUnmeasured: {
-    es: "No publican saldo: {nombres}. El total es un piso.",
-    en: "No balance published: {nombres}. The total is a floor.",
+    es: "No suman al total: {nombres}. Es un piso.",
+    en: "Not counted in the total: {nombres}. It's a floor.",
   },
   cashDebt: { es: "Saldo que se debe", en: "Balance owed" },
   cashDebtHint: {

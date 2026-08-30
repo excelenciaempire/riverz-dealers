@@ -98,11 +98,29 @@ export default function AdminCajaPage() {
               ? "—"
               : t("admin.cashRunwayDays", { n: format.number(Math.floor(dias)) })
           }
-          tone={dias === null ? "muted" : dias < 2 ? "error" : dias < data.colchonDias ? "warn" : "ok"}
+          /* Verde sólo si el número cubre a TODOS los proveedores. Con
+             Anthropic —el que se lleva casi todo el gasto— sin publicar saldo,
+             la autonomía la sostiene lo que sí se ve (Deepgram), que no es de
+             donde sale la plata que se está gastando: pintar eso de verde es
+             prometer un año de aire sobre un saldo que puede estar en cero. */
+          tone={
+            dias === null || data.sinMedir.length > 0
+              ? "muted"
+              : dias < 2
+                ? "error"
+                : dias < data.colchonDias
+                  ? "warn"
+                  : "ok"
+          }
           hint={
-            data.quemaDiaUsd > 0
-              ? t("admin.cashRunwayHint", { usd: data.quemaDiaUsd.toFixed(2) })
-              : t("admin.cashRunwayUnknown")
+            data.quemaDiaUsd <= 0
+              ? t("admin.cashRunwayUnknown")
+              : data.sinMedir.length > 0
+                ? t("admin.cashRunwayPartial", {
+                    usd: data.quemaDiaUsd.toFixed(2),
+                    nombres: data.sinMedir.join(", "),
+                  })
+                : t("admin.cashRunwayHint", { usd: data.quemaDiaUsd.toFixed(2) })
           }
         />
       </div>
