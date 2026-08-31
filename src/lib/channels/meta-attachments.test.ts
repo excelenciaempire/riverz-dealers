@@ -207,3 +207,31 @@ describe("isStoryMentionOrShareOnly", () => {
     expect(isStoryMentionOrShareOnly(null)).toBe(false);
   });
 });
+
+describe("stickers (cambio de Meta del 2026-08-30)", () => {
+  it("un sticker se baja como imagen y no deja rótulo", async () => {
+    const r = await ingestMetaAttachments({
+      ...BASE,
+      attachments: [
+        { type: "sticker", sticker_id: 369239263222822, payload: { url: "https://cdn.test/pulgar.png" } },
+      ],
+    });
+    expect(r.media).toHaveLength(1);
+    // Antes caía al `else` del final y salía "[Publicación compartida]".
+    expect(r.descriptions).toEqual([]);
+  });
+
+  it("durante la transición Meta manda image + sticker: se baja UNA vez", async () => {
+    const url = "https://cdn.test/pulgar.png";
+    const r = await ingestMetaAttachments({
+      ...BASE,
+      attachments: [
+        { type: "image", sticker_id: 369239263222822, payload: { url } },
+        { type: "sticker", sticker_id: 369239263222822, payload: { url } },
+      ],
+    });
+    expect(downloads).toEqual([url]); // una sola descarga, no dos
+    expect(r.media).toHaveLength(1);
+    expect(r.descriptions).toEqual([]);
+  });
+});

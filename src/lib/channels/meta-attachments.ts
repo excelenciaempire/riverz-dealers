@@ -36,12 +36,25 @@ export interface MetaAttachmentsResult {
 
 /** Adjuntos que SON un archivo descargable del CDN de Meta. `story_mention` y
  *  los reels/posts compartidos de IG también lo son: el `type` no dice si es
- *  foto o video, lo decide el mime real. */
+ *  foto o video, lo decide el mime real.
+ *
+ *  `sticker` entró el 2026-08-30 por un cambio de Meta con fecha:
+ *
+ *    "Sticker messages in webhooks now include a new `sticker` attachment type
+ *     with `sticker_id` metadata. During the 90-day transition period, both the
+ *     `sticker` and `image` attachment types are present in the payload. After
+ *     August 30, 2026, only the `sticker` attachment type will be sent."
+ *    — developers.facebook.com/docs/messenger-platform/reference/webhook-events/messages
+ *
+ *  Sin él, desde esa fecha un sticker de Messenger caía al `else` del final y
+ *  quedaba rotulado "[Publicación compartida]". Instagram no se ve afectado:
+ *  ahí los stickers directamente no disparan webhook. */
 const MEDIA_TYPES = new Set([
   "image",
   "video",
   "audio",
   "file",
+  "sticker",
   "story_mention",
   "ig_reel",
   "reel",
@@ -159,7 +172,7 @@ function describeLink(title: string, url: string): string {
 }
 
 function hintFor(type: string): "image" | "video" | "audio" | "document" | undefined {
-  if (type === "image") return "image";
+  if (type === "image" || type === "sticker") return "image";
   if (type === "video") return "video";
   if (type === "audio") return "audio";
   if (type === "file") return "document";
@@ -179,6 +192,15 @@ export async function ingestMetaAttachments(input: {
   const list = Array.isArray(input.attachments) ? input.attachments : [];
   const media: MessageAttachment[] = [];
   const descriptions: string[] = [];
+  /**
+   * El mismo archivo, anunciado dos veces en el mismo mensaje, se baja UNA.
+   *
+   * Meta lo hace a propósito durante las transiciones: en la del sticker manda
+   * el adjunto `image` y el `sticker` apuntando a la misma URL, para que los
+   * que ya leían `image` no se rompan. Sin este freno, el sticker entraba dos
+   * veces a Storage y salían dos burbujas idénticas.
+   */
+  const yaBajadas = new Set<string>();
   let unsupported = false;
   let slot = 0;
 
@@ -189,6 +211,10 @@ export async function ingestMetaAttachments(input: {
     hinted?: "image" | "video" | "audio" | "document",
     requireMedia = false,
   ): Promise<boolean> => {
+    // Ya vino en otro adjunto de ESTE mismo mensaje: se da por bajada, así el
+    // duplicado no deja rótulo ni segunda burbuja.
+    if (yaBajadas.has(url)) return true;
+    yaBajadas.add(url);
     const ingested = await ingestMetaAttachment({
       attachmentUrl: url,
       workspaceId: input.workspaceId,
@@ -219,9 +245,22 @@ export async function ingestMetaAttachments(input: {
     const url = str(payload.url);
     const title = str(a.title, payload.title);
 
-    // Ver-una-vez y modo temporal de Instagram. Meta manda `{type:"ephemeral"}`
-    // pelado: no hay URL que pedir. Sin este caso caía al `else` del final y
-    // salía como el sentinela genérico, que se lee como un error nuestro.
+    // Ver-una-vez de Instagram. Meta manda `{type:"ephemeral"}` pelado y lo
+    // documenta así, con esas palabras:
+    //
+    //   `"type":"ephemeral" // no URL is included for ephemeral media`
+    //   "Disappearing media (view once, allow replay) is not supported on
+    //    Instagram media webhooks."
+    //   — developers.facebook.com/docs/messenger-platform/instagram/features/webhook
+    //
+    // No es un permiso que falte ni un campo que no estemos pidiendo: pedirle
+    // ese `mid` a Graph con `fields=attachments{image_data,video_data,file_url}`
+    // devuelve 200 y el id pelado, mientras que una imagen normal de la MISMA
+    // cuenta y con la MISMA consulta devuelve `image_data.url` y baja (probado
+    // el 2026-08-30, 16 días después del mensaje). No hay nada que rescatar.
+    //
+    // Sin este caso caía al `else` del final y salía como el sentinela
+    // genérico, que se lee como un error nuestro.
     if (type === "ephemeral") {
       unsupported = true;
       continue;
