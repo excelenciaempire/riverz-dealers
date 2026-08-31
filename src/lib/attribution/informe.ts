@@ -458,15 +458,34 @@ export async function leerAtribucion(
    * un carrito que nunca recibió el mensaje no se recuperó gracias a nosotros.
    */
   const carritosRecordados = new Map<string, string>();
+  /**
+   * Los carritos recordados de cada comprador, para la prueba por persona.
+   *
+   * Hace falta porque la prueba por token casi nunca se puede cumplir: Shopify
+   * emite un `checkout_token` NUEVO cada vez que alguien vuelve a la caja, así
+   * que el pedido con el que la persona termina comprando rarísima vez cierra
+   * el mismo carrito que le recordamos. Medido en Pilar: de los que compraron
+   * después del recordatorio, CERO cerraron el token original — por eso
+   * "Probadas" aparecía vacío aunque Riverz sí hubiera recuperado carritos.
+   */
+  const recordadosDeCompradores: Array<{
+    contactId: string;
+    reclamadoMs: number;
+    completadoMs: number | null;
+  }> = [];
   {
     const desde = new Date(sinceMs - 30 * 86_400_000).toISOString();
     const recordados = await traerTodo<{
       checkout_id: string;
       recovery_dispatched_at: string;
+      completed_at: string | null;
+      customer_phone: string | null;
     }>((a, b) =>
       admin
         .from('shopify_checkouts')
-        .select('checkout_id, recovery_dispatched_at')
+        .select(
+          'checkout_id, recovery_dispatched_at, completed_at, customer_phone',
+        )
         .eq('workspace_id', workspaceId)
         .not('recovery_dispatched_at', 'is', null)
         .is('recovery_last_error', null)
@@ -476,6 +495,15 @@ export async function leerAtribucion(
     );
     for (const c of recordados) {
       carritosRecordados.set(c.checkout_id, c.recovery_dispatched_at);
+      const cId = c.customer_phone
+        ? phoneToContact.get(normPhone(c.customer_phone) ?? '')
+        : null;
+      if (!cId) continue;
+      recordadosDeCompradores.push({
+        contactId: cId,
+        reclamadoMs: Date.parse(c.recovery_dispatched_at),
+        completadoMs: c.completed_at ? Date.parse(c.completed_at) : null,
+      });
     }
   }
 
@@ -645,6 +673,49 @@ export async function leerAtribucion(
   };
 
   /**
+   * Cuándo le salió a cada persona un recordatorio de carrito DE VERDAD.
+   *
+   * Riverz recupera carritos: cuando lo hace, tiene que verse en la cifra. La
+   * prueba por token no sirve para eso (Shopify emite uno nuevo cada vez que la
+   * persona vuelve a la caja), así que la prueba es por persona:
+   *
+   *   le avisamos que se había olvidado el carrito, mientras seguía olvidado,
+   *   y compró dentro de los 7 días.
+   *
+   * Un mensaje cuenta como recordatorio si salió después de que el cron
+   * reclamara el carrito y **antes** de que ese carrito se completara. Esa
+   * segunda mitad es la que separa el recordatorio del "gracias por tu compra":
+   * el de agradecimiento sale segundos DESPUÉS de que la persona pagó, y sin
+   * este corte se contaba como si la hubiéramos ido a buscar.
+   */
+  const VENTANA_RECUPERACION_MS = 7 * 86_400_000;
+  /** Cuánto puede tardar el envío después del reclamo. La automatización de
+   *  carrito espera 15 min; seis horas deja aire de sobra sin agarrar el
+   *  mensaje de otra cosa que pase ese día. */
+  const MARGEN_ENVIO_MS = 6 * 3_600_000;
+  const recuperacionesPorContacto = new Map<string, number[]>();
+  for (const r of recordadosDeCompradores) {
+    for (const m of salidasPorContacto.get(r.contactId) ?? []) {
+      const t = Date.parse(m.at);
+      if (t < r.reclamadoMs || t > r.reclamadoMs + MARGEN_ENVIO_MS) continue;
+      if (r.completadoMs != null && t >= r.completadoMs) continue;
+      const lista = recuperacionesPorContacto.get(r.contactId) ?? [];
+      lista.push(t);
+      recuperacionesPorContacto.set(r.contactId, lista);
+      break;
+    }
+  }
+
+  /** ¿Este pedido cierra un carrito que le recordamos a esta persona? */
+  const recuperoSuCarrito = (contactId: string | null, pedidoIso: string): boolean => {
+    if (!contactId) return false;
+    const t = Date.parse(pedidoIso);
+    return (recuperacionesPorContacto.get(contactId) ?? []).some(
+      (m) => t > m && t - m <= VENTANA_RECUPERACION_MS,
+    );
+  };
+
+  /**
    * A qué hilo lleva el renglón: aquel donde Riverz habló con esta persona
    * ANTES de que comprara.
    *
@@ -719,6 +790,15 @@ export async function leerAtribucion(
       if (!reclamado) return false;
       return leEscribimosEntre(cId, reclamado, order.created_at);
     });
+
+    // El carrito recuperado, probado por PERSONA cuando el token no alcanza —
+    // que es casi siempre. Ver `recuperacionesPorContacto`.
+    if (
+      !proofs.some((p) => p.kind === 'cart_recovery') &&
+      recuperoSuCarrito(cId, order.created_at)
+    ) {
+      proofs.push({ kind: 'cart_recovery' });
+    }
 
     const orderTime = new Date(order.created_at).getTime();
     const total = Number(order.total_price ?? '0');
