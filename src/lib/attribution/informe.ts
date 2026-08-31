@@ -330,6 +330,15 @@ export async function leerAtribucion(
     const etiqueta = row.name?.trim() || row.phone || '';
     if (etiqueta && !nombreDeContacto.has(row.id)) nombreDeContacto.set(row.id, etiqueta);
   }
+  // El teléfono de quien matcheó por correo también entra al mapa. No es para
+  // emparejar pedidos —ése ya matcheó— sino para el camino inverso: el carrito
+  // abandonado se guarda con teléfono, y la persona que compró dejando sólo el
+  // correo quedaba fuera del mapa, así que su recuperación no se podía probar.
+  for (const c of contactsByEmail ?? []) {
+    const row = c as { id: string; phone?: string | null };
+    const tel = row.phone ? normPhone(row.phone) : null;
+    if (tel && !phoneToContact.has(tel)) phoneToContact.set(tel, row.id);
+  }
 
   // Por cada orden buscamos su contacto y atribuimos a la última campaña,
   // flujo y automatización que lo tocaron en las 24h previas (last-touch).
