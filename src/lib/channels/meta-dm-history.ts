@@ -58,6 +58,12 @@ export interface ThreadSyncArgs {
   createIfMissing: boolean;
   /** Ventana hacia atrás. 0 = sin límite (hasta el tope de páginas). */
   windowDays?: number;
+  /**
+   * Piso absoluto (ISO). Manda sobre `windowDays`: se dejan de mirar mensajes
+   * al cruzarlo. El barrido incremental lo usa para pedir SÓLO lo posterior a
+   * la última pasada, en vez de releer los mismos 30 días cada dos horas.
+   */
+  sinceIso?: string;
   /** Páginas de 50 mensajes como máximo. */
   maxPages?: number;
 }
@@ -71,10 +77,17 @@ export interface ThreadSyncArgs {
  *
  * Todo entra marcado como `historical`: rellena la conversación pero no
  * dispara la IA ni suma no-leídos — es historia, no algo nuevo por responder.
+ *
+ * Devuelve cuántos mensajes se guardaron DE VERDAD (los repetidos no cuentan).
  */
 export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> {
   const windowDays = args.windowDays ?? 0;
-  const cutoffMs = windowDays > 0 ? Date.now() - windowDays * 86_400_000 : 0;
+  const desde = args.sinceIso ? new Date(args.sinceIso).getTime() : NaN;
+  const cutoffMs = Number.isFinite(desde)
+    ? desde
+    : windowDays > 0
+      ? Date.now() - windowDays * 86_400_000
+      : 0;
   const maxPages = args.maxPages ?? 4;
   const admin = supabaseAdmin();
   let fields = RICH_FIELDS;
@@ -110,7 +123,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
       // Nada que mostrar (Graph a veces devuelve el mensaje sin cuerpo ni
       // adjunto legible): mejor no dejar una burbuja en blanco en el hilo.
       if (!parsed.text && parsed.media.length === 0) continue;
-      await ingestInboundEvent(admin, {
+      const guardado = await ingestInboundEvent(admin, {
         channel: args.connection.channel,
         connection: args.connection,
         externalContactId: args.externalId,
@@ -129,7 +142,12 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
         createIfMissing: args.createIfMissing,
         raw: { backfill: true },
       });
-      ingested++;
+      // Sólo cuenta lo que ENTRÓ. `ingestInboundEvent` devuelve null cuando el
+      // mensaje ya estaba (índice único por message_id), y contar igual hacía
+      // que el barrido informara ~100 "ingested" por corrida releyendo la
+      // misma historia: el número decía "el webhook pierde mensajes" cuando en
+      // realidad no perdía ninguno.
+      if (guardado) ingested++;
     }
 
     if (reachedCutoff) break;

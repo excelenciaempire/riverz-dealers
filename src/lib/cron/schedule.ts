@@ -155,18 +155,21 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "gmail-watch", whatKey: "admin.cronGmailWatch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *" },
   { name: "outlook-watch", whatKey: "admin.cronOutlookWatch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *" },
 
-  // Cada 2 h, en tramos. Antes era diario y de una sola pasada porque cada
-  // corrida barría TODOS los contactos de TODAS las cuentas (~22 min medidos
-  // el 2026-08-04) y con schedule horario se apilaba encima de sí mismo. Peor:
-  // pasado el timeout, el reloj corta el `fetch`, `withCronRun` no llega a
-  // escribir la fila y el trabajo se apaga sin dejar rastro — así estuvo mudo
-  // del 2026-08-26 al 2026-08-29 sin un solo error registrado.
+  // Red de seguridad del webhook, no la vía principal: los DM entran por
+  // webhook (incluido el eco de lo que el comercio contesta desde la app de
+  // Meta) y esto sólo cierra lo que Meta no entregó.
   //
-  // Ahora el handler procesa un lote fijo por conexión y guarda un cursor, así
-  // que una corrida vale lo mismo con una cuenta que con doscientas. Doce
-  // tramos por día cubren más que una pasada diaria que no termina. Es un
-  // backfill de respaldo: los DMs nuevos entran por webhook, esto recupera lo
-  // que Meta no entregó.
+  // Cada 2 h y barato. Las dos versiones anteriores recorrían TODOS los
+  // contactos de TODAS las cuentas: la primera tardaba ~22 min y el reloj le
+  // cortaba el `fetch` antes de que `withCronRun` escribiera la fila (mudo del
+  // 2026-08-26 al 2026-08-29, sin un solo error registrado); la segunda lo
+  // hacía en lotes de 150 con cursor, pero agotaba el presupuesto de 8 minutos
+  // en CADA corrida releyendo los mismos 30 días, devolvía 207 y se anotaba
+  // como error — de ahí el falso "Trabajo detenido" del 2026-08-31.
+  //
+  // Ahora le pregunta a Meta qué cambió desde la última pasada (marca de agua
+  // sobre `updated_time` de la lista de conversaciones). En régimen es una
+  // llamada y termina en segundos, con una cuenta o con doscientas.
   {
     name: "meta-dm-backfill", whatKey: "admin.cronMetaDmBackfill",
     path: "/api/cron/meta-dm-backfill",

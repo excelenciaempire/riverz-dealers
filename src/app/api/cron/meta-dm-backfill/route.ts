@@ -5,39 +5,25 @@ import { selectAll } from "@/lib/db/paginate";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
-import {
-  resolveThreadId,
-  syncThreadMessages,
-  type MetaPlatform,
-} from "@/lib/channels/meta-dm-history";
-import type { ChannelConnection, Contact } from "@/types";
+import { syncThreadMessages, type MetaPlatform } from "@/lib/channels/meta-dm-history";
+import type { ChannelConnection } from "@/types";
 import { withCronRun } from "@/lib/cron/heartbeat";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
-// Ventana de relleno. Meta devuelve del más nuevo al más viejo, así que
-// dejamos de paginar un hilo al cruzarla. Re-traer meses de historia en cada
-// corrida sólo re-confirma lo que ya tenemos; el valor está en cerrar los
-// huecos recientes (respuestas desde el celular, webhooks perdidos). El hilo
-// que el usuario abre en la bandeja se sincroniza entero aparte
-// (/api/conversations/:id/sync).
-const BACKFILL_WINDOW_DAYS = 30;
-
 /**
- * Contactos por conexión y por corrida.
- *
- * El barrido era completo: TODOS los contactos de TODAS las conexiones, dos
- * llamadas a Graph cada uno, sin tope. Medido en ~22 min con una sola cuenta;
- * con varias cuentas eso sólo crece, y el reloj corta el `fetch` a los 30 min
- * (`scheduler.ts`) — cuando eso pasa, `withCronRun` nunca llega a escribir la
- * fila y el trabajo desaparece sin dejar ni un error. Fue exactamente lo que
- * pasó: última corrida registrada el 2026-08-26, tres días mudo.
- *
- * Con un lote fijo, el costo de una corrida no depende de cuántos comercios
- * haya: cada conexión avanza su tramo y la siguiente corrida sigue donde
- * quedó.
+ * Solape sobre la marca de agua. Meta puede tardar en reflejar un mensaje en
+ * `updated_time`, y una corrida puede empezar mientras entra uno: se vuelve a
+ * mirar esta franja para no dejar un hueco en la costura. Es barato —
+ * re-mirar un hilo cuyos mensajes ya están guardados no inserta nada.
  */
-const LOTE_CONTACTOS = 150;
+const SOLAPE_MS = 15 * 60_000;
+
+/** Cuánto historial mira la PRIMERA corrida de una conexión (no hay marca). */
+const ARRANQUE_DIAS = 30;
+
+/** Páginas de la lista de conversaciones (50 hilos cada una) por corrida. */
+const MAX_PAGINAS_LISTA = 20;
 
 /**
  * Techo de reloj de la corrida entera. Por debajo del timeout del reloj, para
@@ -45,23 +31,52 @@ const LOTE_CONTACTOS = 150;
  */
 const PRESUPUESTO_MS = 8 * 60_000;
 
-/** Dónde quedó el barrido de esta conexión, dentro de `config`. */
-const CURSOR = "dm_backfill_cursor";
+/** Hasta dónde ya se miró esta conexión, dentro de `config`. */
+const MARCA = "dm_backfill_marca";
+/** Pasada a medio terminar: dónde retomar y qué marca adoptar al cerrarla. */
+const PENDIENTE = "dm_backfill_pendiente";
+
+interface Pendiente {
+  /** Sólo hilos MÁS VIEJOS que esto quedan por mirar (la lista viene desc). */
+  hasta: string;
+  /** La marca que se adopta cuando la pasada termine. */
+  objetivo: string;
+}
+
+interface ConversacionGraph {
+  id?: string;
+  updated_time?: string;
+  participants?: { data?: Array<{ id?: string; name?: string; username?: string }> };
+}
 
 /**
  * GET /api/cron/meta-dm-backfill
  *
- * Recorre los contactos de Messenger e Instagram, pide el historial del hilo a
- * la Graph API y re-ingiere lo que falte EN AMBOS SENTIDOS: las respuestas que
- * el equipo mandó desde la app de Meta y los mensajes del cliente que nunca
- * llegaron por webhook (caída, permiso faltante, o previos a la conexión).
- * Idempotente: el índice único por `message_id` vuelve no-op lo ya guardado.
+ * Red de seguridad de los DM de Messenger e Instagram. Lo normal entra por
+ * webhook —los mensajes del cliente y los ecos de lo que el comercio responde
+ * desde la app de Meta—; esto sólo cierra lo que el webhook no entregó (una
+ * caída, un permiso que faltaba, un host viejo).
  *
- * REANUDABLE: cada conexión procesa `LOTE_CONTACTOS` por corrida y guarda en
- * `config.dm_backfill_cursor` el último contacto visto. Al terminar la vuelta
- * el cursor se borra y el ciclo vuelve a empezar. Así una corrida cortada no
- * pierde el trabajo hecho y el tiempo de cada corrida no crece con la cantidad
- * de comercios conectados.
+ * INCREMENTAL: le pregunta a Meta QUÉ CAMBIÓ desde la última pasada, en vez de
+ * recorrer todos los contactos. Lista `/{page}/conversations` —que viene
+ * ordenada por `updated_time` descendente— y corta en la marca de agua. En
+ * régimen eso es UNA llamada y cero hilos que sincronizar.
+ *
+ * El diseño anterior recorría los ~475 contactos de a lotes de 150, con dos
+ * llamadas a Graph por contacto, releyendo los mismos 30 días cada dos horas.
+ * Nunca cerraba una vuelta: agotaba el presupuesto de 8 minutos SIEMPRE,
+ * devolvía 207, y `withCronRun` lo anotaba como `error` — de ahí el aviso
+ * "Trabajo detenido: meta-dm-backfill" en un trabajo que corría puntual cada
+ * dos horas. La alarma era real como síntoma y falsa como diagnóstico.
+ *
+ * REANUDABLE: si una pasada no llega a cruzar la marca (sólo pasa en el
+ * arranque, con 30 días de historia), guarda en `config` dónde quedó y la
+ * corrida siguiente sigue hacia atrás desde ahí. La marca sólo avanza cuando
+ * la pasada se cierra entera, así nunca se saltea un tramo sin mirar.
+ *
+ * Hilos que el comercio inició desde la app hacia alguien que nunca escribió:
+ * salen de la misma lista. El participante sin contacto en Riverz se crea
+ * (`createIfMissing`), salvo que esté en la lista de supresión de borrados.
  *
  * Auth: `x-cron-secret` matches AUTOMATION_CRON_SECRET.
  */
@@ -85,11 +100,12 @@ async function cronHandler(request: Request) {
   const results: Array<{
     connection_id: string;
     channel: string;
+    /** Mensajes que ENTRARON de verdad (los repetidos no cuentan). */
     ingested: number;
-    /** Contactos mirados en ESTA corrida. */
-    revisados?: number;
-    /** La conexión completó una vuelta entera y el cursor volvió al principio. */
-    vuelta_completa?: boolean;
+    /** Hilos con actividad nueva que se sincronizaron en esta corrida. */
+    hilos?: number;
+    /** La pasada llegó hasta la marca: no queda nada atrás por mirar. */
+    al_dia?: boolean;
     error?: string;
   }> = [];
 
@@ -111,10 +127,10 @@ async function cronHandler(request: Request) {
     const token = decrypt(enc);
 
     const isMessenger = c.channel === "messenger";
-    // Graph lists conversations off the PAGE for both Messenger and
-    // Instagram (the latter via platform=instagram). The "self" id for
-    // detecting outbound messages differs though: messenger uses the
-    // page id, IG uses the IG user id.
+    // Graph lista las conversaciones de la PÁGINA en los dos canales (el de
+    // Instagram vía platform=instagram). Lo que cambia es el "yo" con el que
+    // se detecta lo saliente: la página en Messenger, el usuario IG en
+    // Instagram.
     const pageId = String(cfg.page_id ?? "");
     const selfId = isMessenger ? pageId : String(cfg.ig_user_id ?? "");
     const platform: MetaPlatform = isMessenger ? "messenger" : "instagram";
@@ -123,191 +139,187 @@ async function cronHandler(request: Request) {
       continue;
     }
 
-    // El tramo que le toca a esta conexión. Orden por `id` —estable y con
-    // índice— para que el cursor signifique siempre lo mismo aunque entren
-    // contactos nuevos en el medio.
-    const desde = typeof cfg[CURSOR] === "string" ? (cfg[CURSOR] as string) : null;
-    let q = admin
-      .from("contacts")
-      .select("*")
-      .eq("workspace_id", c.workspace_id)
-      .eq("channel", c.channel)
-      .order("id", { ascending: true })
-      .limit(LOTE_CONTACTOS);
-    if (desde) q = q.gt("id", desde);
-    const { data: contacts } = await q;
-    const lote = (contacts ?? []) as Contact[];
-    // Vino menos de un lote: no queda nadie después de éstos, la vuelta
-    // terminó y la próxima corrida arranca de cero.
-    const vueltaCompleta = lote.length < LOTE_CONTACTOS;
+    const arranque = new Date().toISOString();
+    const pend = leerPendiente(cfg[PENDIENTE]);
+    const objetivo = pend?.objetivo ?? arranque;
+    const marca = typeof cfg[MARCA] === "string" ? (cfg[MARCA] as string) : null;
+    const pisoMs =
+      (marca ? new Date(marca).getTime() : Date.now() - ARRANQUE_DIAS * 86_400_000) - SOLAPE_MS;
+    const pisoIso = new Date(pisoMs).toISOString();
+    // Techo: en una pasada reanudada, los hilos más nuevos que esto ya se
+    // miraron en la corrida anterior. `>` y no `>=` para que el hilo del borde
+    // se vuelva a mirar (es idempotente) en vez de saltearse si dos hilos
+    // comparten `updated_time`.
+    const techoMs = pend ? new Date(pend.hasta).getTime() : Infinity;
+
+    const suprimidos = await listaDeSupresion(c.channel);
 
     let ingested = 0;
-    let revisados = 0;
-    // El cursor sólo puede avanzar hasta lo que REALMENTE se miró: si la
-    // corrida se corta por tiempo a mitad del lote, guardar el último del lote
-    // saltearía a los que quedaron sin revisar.
-    let ultimoVisto: string | null = null;
-    for (const contact of lote) {
-      if (Date.now() > limite) {
-        sinTiempo = true;
-        break;
+    let hilos = 0;
+    let ultimoMirado: string | null = null;
+    let alDia = false;
+    let paginas = 0;
+    let fallo: string | null = null;
+    let url: string | null =
+      `${GRAPH}/${pageId}/conversations?platform=${platform}` +
+      `&fields=id,updated_time,participants&limit=50` +
+      `&access_token=${encodeURIComponent(token)}`;
+
+    try {
+      while (url && paginas < MAX_PAGINAS_LISTA) {
+        if (Date.now() > limite) {
+          sinTiempo = true;
+          break;
+        }
+        // `paging.next` no lleva el proof — se re-adjunta en cada página.
+        const r: Response = await fetch(withAppsecretProof(url, token));
+        if (!r.ok) {
+          fallo = `graph ${r.status}`;
+          break;
+        }
+        const j = (await r.json()) as {
+          data?: ConversacionGraph[];
+          paging?: { next?: string };
+        };
+        const lote = j.data ?? [];
+        // Meta devolvió una página vacía: no hay más historia que mirar.
+        if (lote.length === 0) {
+          alDia = true;
+          break;
+        }
+
+        for (const conv of lote) {
+          if (Date.now() > limite) {
+            sinTiempo = true;
+            break;
+          }
+          const cuando = conv.updated_time ? new Date(conv.updated_time).getTime() : NaN;
+          if (!conv.id || !Number.isFinite(cuando)) continue;
+          // La lista viene del más nuevo al más viejo: cruzar el piso significa
+          // que todo lo que sigue ya está guardado.
+          if (cuando < pisoMs) {
+            alDia = true;
+            break;
+          }
+          // Pasada reanudada: este tramo ya se miró en la corrida anterior.
+          if (cuando > techoMs) continue;
+
+          ultimoMirado = conv.updated_time ?? ultimoMirado;
+
+          // El participante que no somos nosotros es el cliente.
+          const otro = (conv.participants?.data ?? []).find(
+            (p) => p.id && p.id !== selfId && p.id !== pageId,
+          );
+          const externalId = String(otro?.id ?? "");
+          if (!externalId) continue;
+          // Nunca re-descubrir a alguien borrado (GDPR / borrado deliberado).
+          if (suprimidos.has(externalId)) continue;
+
+          try {
+            const { data: contacto } = await admin
+              .from("contacts")
+              .select("id, name")
+              .eq("workspace_id", c.workspace_id)
+              .eq("channel", c.channel)
+              .eq("external_id", externalId)
+              .maybeSingle();
+            hilos++;
+            ingested += await syncThreadMessages({
+              token,
+              selfId,
+              connection: c,
+              threadId: conv.id,
+              externalId,
+              contactName:
+                contacto?.name ??
+                (otro?.username ? `@${otro.username}` : undefined) ??
+                otro?.name ??
+                undefined,
+              // Un contacto que ya existe nunca abre fila nueva: si su
+              // conversación fue borrada, sigue borrada. Sólo el participante
+              // desconocido —el hilo que el comercio inició desde la app— se
+              // crea.
+              createIfMissing: !contacto,
+              sinceIso: pisoIso,
+            });
+          } catch (err) {
+            console.warn(
+              `[meta-dm-backfill] ${c.channel} hilo ${conv.id} falló:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+
+        if (alDia || sinTiempo) break;
+        url = j.paging?.next ?? null;
+        paginas++;
+        // Se acabaron las páginas sin cruzar el piso: no hay más historia.
+        if (!url) alDia = true;
       }
-      revisados++;
-      ultimoVisto = contact.id;
-      try {
-        const externalId = contact.external_id;
-        if (!externalId) continue;
-        const threadId = await resolveThreadId(token, pageId, platform, externalId);
-        if (!threadId) continue;
-        // createIfMissing:false — un mensaje viejo nunca abre una fila nueva en
-        // la bandeja ni revive una conversación borrada.
-        ingested += await syncThreadMessages({
-          token,
-          selfId,
-          connection: c,
-          threadId,
-          externalId,
-          contactName: contact.name ?? undefined,
-          createIfMissing: false,
-          windowDays: BACKFILL_WINDOW_DAYS,
-        });
-      } catch (err) {
-        console.warn(
-          `[meta-dm-backfill] ${c.channel} contact ${contact.external_id} failed:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+    } catch (err) {
+      fallo = err instanceof Error ? err.message : String(err);
     }
 
-    // Descubrir hilos que el COMERCIO inició desde la app (a alguien que nunca
-    // escribió), invisibles para el loop de contactos porque aún no existen en
-    // Riverz. Solo se crean si el participante NO tiene contacto todavía, así
-    // no revive conversaciones borradas (esas conservan su contacto).
-    //
-    // Va al cerrar la vuelta y no en cada corrida: es una lista de
-    // conversaciones de la página entera, así que repetirla en cada tramo del
-    // barrido gasta cuota de Graph sin traer nada nuevo.
-    const cerroVuelta = vueltaCompleta && !sinTiempo;
-    if (cerroVuelta) {
-      try {
-        ingested += await discoverNewThreads({ token, pageId, selfId, platform, connection: c });
-      } catch (err) {
-        console.warn(
-          `[meta-dm-backfill] ${c.channel} discover new threads failed:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+    // La marca sólo avanza con la pasada cerrada. Si quedó a medias, se guarda
+    // dónde seguir; la marca vieja queda intacta para que nada se saltee.
+    const nuevoCfg = { ...cfg } as Record<string, unknown>;
+    // Cursor del barrido por contactos, que ya no existe.
+    delete nuevoCfg["dm_backfill_cursor"];
+    if (alDia && !fallo) {
+      nuevoCfg[MARCA] = objetivo;
+      delete nuevoCfg[PENDIENTE];
+    } else if (ultimoMirado) {
+      nuevoCfg[PENDIENTE] = { hasta: ultimoMirado, objetivo } satisfies Pendiente;
     }
-
-    // Guardar dónde quedó. Al cerrar la vuelta el cursor se borra y el ciclo
-    // vuelve a empezar por el principio.
-    const nuevoCursor = cerroVuelta ? null : (ultimoVisto ?? desde);
-    if (nuevoCursor !== desde) {
-      await admin
-        .from("channel_connections")
-        .update({ config: { ...cfg, [CURSOR]: nuevoCursor } })
-        .eq("id", c.id);
+    if (JSON.stringify(nuevoCfg) !== JSON.stringify(cfg)) {
+      await admin.from("channel_connections").update({ config: nuevoCfg }).eq("id", c.id);
     }
 
     results.push({
       connection_id: c.id,
       channel: c.channel,
       ingested,
-      revisados,
-      vuelta_completa: cerroVuelta,
+      hilos,
+      al_dia: alDia,
+      ...(fallo ? { error: fallo } : {}),
     });
     if (sinTiempo) break;
   }
 
-  // 207 y no 200 cuando la corrida no llegó a mirarlo todo: `withCronRun` lo
-  // registra como fallo parcial y el panel lo dice, en vez de mostrar verde un
-  // barrido que se quedó a mitad de camino.
+  // Quedarse sin tiempo con la pasada guardada NO es un fallo: la corrida
+  // siguiente retoma exactamente donde quedó. El 207 se reserva para lo que sí
+  // hay que mirar —una conexión que devolvió error—, porque `withCronRun` lo
+  // anota como fallo y de ahí sale el aviso al panel.
+  const conError = results.some((r) => r.error);
   return NextResponse.json(
-    { ok: !sinTiempo, truncado: sinTiempo, results },
-    { status: sinTiempo ? 207 : 200 },
+    { ok: !conError, truncado: sinTiempo, results },
+    { status: conError ? 207 : 200 },
   );
 }
 
-interface DiscoverArgs {
-  token: string;
-  pageId: string;
-  selfId: string;
-  platform: MetaPlatform;
-  connection: ChannelConnection;
+function leerPendiente(v: unknown): Pendiente | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.hasta !== "string" || typeof o.objetivo !== "string") return null;
+  if (!Number.isFinite(new Date(o.hasta).getTime())) return null;
+  return { hasta: o.hasta, objetivo: o.objetivo };
 }
 
 /**
- * Discover threads the MERCHANT started from the native app to someone who
- * never messaged us (so there's no Riverz contact yet, and the per-contact
- * loop never sees them). Lists the page's conversations, and for each thread
- * whose customer participant has NO contact, backfills the thread with
- * createIfMissing:true. Guard: skipping participants that already have a
- * contact means a soft-deleted conversation (which keeps its contact) is never
- * resurrected.
+ * Participantes borrados a propósito (GDPR / borrado del comercio). El borrado
+ * es duro —cascadea contacto, conversación y mensajes—, así que sin esta lista
+ * el descubrimiento los recrearía en cada corrida.
+ *
+ * Paginada: PostgREST corta en 1000 y el participante 1001 volvía solo.
  */
-async function discoverNewThreads(args: DiscoverArgs): Promise<number> {
-  const admin = supabaseAdmin();
-  // Lista de supresión (GDPR / borrados deliberados): un participante borrado
-  // sufre hard-delete (cascadea contacto+conversación+mensajes), así que sin
-  // esto el descubrimiento lo re-crearía cada 6 h. La tabla es pequeña; la
-  // traemos una vez por canal y filtramos en memoria.
-  //
-  // Paginada: sin esto PostgREST cortaba en 1000 y el participante 1001 se
-  // RECREABA en cada corrida. Es el peor caso de la clase — un borrado por
-  // GDPR que vuelve solo.
+async function listaDeSupresion(channel: string): Promise<Set<string>> {
   const tombs = await selectAll<{ external_id: string }>(
-    admin,
+    supabaseAdmin(),
     "deleted_meta_participants",
-    (q) => q.eq("channel", args.connection.channel),
+    (q) => q.eq("channel", channel),
     { select: "external_id" },
   );
-  const suppressed = new Set(tombs.map((t) => String(t.external_id)));
-  let url: string | null = `${GRAPH}/${args.pageId}/conversations?platform=${args.platform}&fields=id,participants&limit=50&access_token=${encodeURIComponent(args.token)}`;
-  let pages = 0;
-  let ingested = 0;
-  while (url && pages < 3) {
-    const r: Response = await fetch(withAppsecretProof(url, args.token));
-    if (!r.ok) break;
-    const j = (await r.json()) as {
-      data?: {
-        id?: string;
-        participants?: { data?: { id?: string }[] };
-      }[];
-      paging?: { next?: string };
-    };
-    for (const conv of j.data ?? []) {
-      if (!conv.id) continue;
-      // The participant that isn't us is the customer.
-      const other = (conv.participants?.data ?? [])
-        .map((p) => String(p.id ?? ""))
-        .find((id) => id && id !== args.selfId && id !== args.pageId);
-      if (!other) continue;
-      // Nunca re-descubrir a alguien borrado (GDPR / borrado deliberado).
-      if (suppressed.has(other)) continue;
-      // Already known → the per-contact loop handles it (and respects any
-      // soft-delete). Only genuinely-new participants are discovered here.
-      const { data: existing } = await admin
-        .from("contacts")
-        .select("id")
-        .eq("workspace_id", args.connection.workspace_id)
-        .eq("channel", args.connection.channel)
-        .eq("external_id", other)
-        .maybeSingle();
-      if (existing) continue;
-      ingested += await syncThreadMessages({
-        token: args.token,
-        selfId: args.selfId,
-        connection: args.connection,
-        threadId: conv.id,
-        externalId: other,
-        createIfMissing: true,
-        windowDays: BACKFILL_WINDOW_DAYS,
-      });
-    }
-    url = j.paging?.next ?? null;
-    pages++;
-  }
-  return ingested;
+  return new Set(tombs.map((t) => String(t.external_id)));
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */

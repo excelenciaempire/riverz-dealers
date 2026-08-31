@@ -128,7 +128,11 @@ async function cronHandler(request: Request) {
   // tick siguiente —con la lectura ya sana— la huella se vaciaba. Cada ida y
   // vuelta era otro correo, y a la tercera vez nadie los lee: el aviso que
   // importa se pierde entre las falsas alarmas. Sin datos no se opina.
-  const cronsRotos: string[] = []
+  // Dos cosas distintas que el aviso mezclaba en una sola frase: el trabajo que
+  // DEJÓ DE CORRER y el que corre puntual pero termina en error. Decirle
+  // "detenido" al segundo manda a buscar un reloj parado que está andando bien,
+  // y hace desconfiar del resto de los avisos.
+  const cronsRotos: Array<{ name: string; motivo: 'detenido' | 'error' }> = []
   const saludLegible = !salud.error && (runs?.length ?? 0) > 0
   if (!saludLegible) {
     log.warn('estado de los trabajos ilegible: no se evalúan crons este tick', {
@@ -140,8 +144,9 @@ async function cronHandler(request: Request) {
     for (const r of runs ?? []) ultima.set(r.name, r)
     for (const job of SCHEDULED_JOBS) {
       const run = ultima.get(job.name)
-      if (run?.status === 'error' || isStale(job.schedule, run?.started_at ?? null)) {
-        cronsRotos.push(job.name)
+      const detenido = isStale(job.schedule, run?.started_at ?? null)
+      if (detenido || run?.status === 'error') {
+        cronsRotos.push({ name: job.name, motivo: detenido ? 'detenido' : 'error' })
       }
     }
     // Si "se cayó" más de la mitad del catálogo de golpe, lo que se cayó es la
@@ -154,8 +159,11 @@ async function cronHandler(request: Request) {
       })
       cronsRotos.length = 0
     }
-    for (const name of cronsRotos) {
-      actuales.set(`cron:${name}`, `· Trabajo detenido: ${name}`)
+    for (const { name, motivo } of cronsRotos) {
+      actuales.set(
+        `cron:${name}`,
+        motivo === 'detenido' ? `· Trabajo detenido: ${name}` : `· Trabajo con errores: ${name}`,
+      )
     }
   }
 
