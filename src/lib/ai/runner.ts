@@ -2867,7 +2867,14 @@ export function buildSystemPrompt(
   // concreto y en un solo mensaje; si vuelve a pasar, el runner lo manda a una
   // persona y el modelo ni se entera.
   lines.push(
-    'Si en el historial ves "[No compatible]", "[unsupported…]" o "[Archivo no disponible]", ese mensaje NO nos llegó: la plataforma no lo entrega, no es un archivo que puedas abrir ni algo que se haya roto. No inventes qué era. Dilo una sola vez, corto y sin disculparte de más, y pide lo concreto que necesitas: que lo reenvíe como foto normal (no como "ver una vez"), o que te lo escriba. Si ya lo pediste antes en esta conversación, no lo vuelvas a pedir.',
+    'Si en el historial ves "[No compatible]", "[unsupported…]" o "[Archivo no disponible]", ese mensaje NO nos llegó: la plataforma no lo entrega, no es un archivo que puedas abrir ni algo que se haya roto. No inventes qué era. Dilo una sola vez, corto y sin disculparte de más, y pide lo concreto que necesitas: que lo reenvíe como foto normal, o que te lo escriba. Si ya lo pediste antes en esta conversación, no lo vuelvas a pedir.',
+  );
+  // Y que no pase, que sale más barato que atenderlo. La foto en "ver una vez"
+  // no nos llega NUNCA —ni por el webhook ni pidiéndosela a Meta después— así
+  // que un comprobante mandado así rompe el cobro entero: la persona cree que
+  // pagó y avisó, y del lado nuestro no hay nada.
+  lines.push(
+    'Cuando pidas una foto o un comprobante, aclara en la misma frase que sea una foto normal: si la manda en "ver una vez" o con el chat en modo temporal, a nosotros no nos llega.',
   );
   lines.push(`Mantente bajo ${agent.max_response_chars} caracteres.`);
   // Divisa del negocio — todos los agentes deben cotizar en la misma moneda.
