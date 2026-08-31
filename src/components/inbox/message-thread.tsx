@@ -390,6 +390,11 @@ export function MessageThread({
   // refetch (stay silent) when only resyncToken changed.
   const loadedConvRef = useRef<string | null>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  /** Optimismo del botón "Marcar como resuelto": el cartel se va en el acto y
+   *  no cuando vuelve el realtime. Se reinicia abajo al cambiar de hilo y
+   *  cuando el hilo vuelve a escalar. */
+  const [escaladaResuelta, setEscaladaResuelta] = useState(false);
+  const [resolviendo, setResolviendo] = useState(false);
   // Resolved publication a comment thread belongs to (thumbnail +
   // caption + permalink), fetched lazily when a comment conversation
   // opens so the agent sees which ad/post the comment is on.
@@ -591,6 +596,15 @@ export function MessageThread({
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
+
+  // El optimismo dura lo que dura ESTE escalamiento: si el hilo vuelve a
+  // escalar —otro mensaje que no nos llega, otro problema— el cartel tiene que
+  // volver a aparecer. Se ata a `needs_human_at`, que cambia con cada escalada,
+  // y no sólo al id de la conversación.
+  const escaladaEn = conversation?.needs_human_at ?? null;
+  useEffect(() => {
+    setEscaladaResuelta(false);
+  }, [conversationId, escaladaEn]);
 
   // Al abrir un chat de Messenger/Instagram le pedimos a Meta el historial del
   // hilo y rellenamos lo que falte: mensajes que no llegaron por webhook y
@@ -1029,6 +1043,45 @@ export function MessageThread({
     },
     [conversation, onStatusChange, fetchWithCsrf]
   );
+
+  /**
+   * "Ya me hice cargo": cierra el escalamiento sin tocar el estado del hilo.
+   *
+   * Las tres columnas se limpian juntas, igual que `pedirHumano` las prende
+   * juntas: `needs_human_at` es por la que filtran el panel de escalaciones y
+   * la herramienta del Operador, y `needs_human_reason` es la que pinta el
+   * cartel y el filtro "Necesita humano" de la bandeja. Limpiar una sola deja
+   * el caso a medio cerrar en alguna de las tres pantallas.
+   *
+   * Y se le devuelve la palabra al agente, por el mismo motivo que al cambiar
+   * el estado: escalar apaga `ai_enabled` y nada lo volvía a prender, así que
+   * un cliente escalado una vez se quedaba sin IA para siempre. Quien quiera
+   * dejarla apagada tiene el interruptor del hilo, que es explícito y se ve.
+   */
+  const handleResolverEscalada = useCallback(async () => {
+    if (!conversation || resolviendo) return;
+    setResolviendo(true);
+    // Se oculta ya. El realtime de la bandeja actualiza la lista y el hilo
+    // solo, pero es best-effort: sin esto, con el websocket caído el cartel
+    // seguiría puesto hasta recargar, justo después de que alguien lo apretó.
+    setEscaladaResuelta(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("conversations")
+      .update({
+        needs_human_reason: null,
+        needs_human_at: null,
+        needs_human_summary: null,
+        needs_human_visto_at: new Date().toISOString(),
+        ai_enabled: true,
+      })
+      .eq("id", conversation.id);
+    if (error) {
+      console.error("No se pudo cerrar el escalamiento:", error);
+      setEscaladaResuelta(false);
+    }
+    setResolviendo(false);
+  }, [conversation, resolviendo]);
 
   const handleOpenTemplates = useCallback(() => {
     setTemplateModalOpen(true);
@@ -1661,7 +1714,7 @@ export function MessageThread({
       {/* La IA escaló y dejó el hilo a una persona. Sin este aviso, quien lo
           abre no sabe por qué el asistente dejó de responder ni desde cuándo
           espera el cliente — antes el escalamiento era completamente mudo. */}
-      {conversation.needs_human_reason && (
+      {conversation.needs_human_reason && !escaladaResuelta && (
         <div className="flex items-start gap-2 border-b border-border bg-amber-500/10 px-3 py-2 sm:px-4">
           <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="min-w-0 flex-1">
@@ -1684,6 +1737,19 @@ export function MessageThread({
               </p>
             ) : null}
           </div>
+          {/* Cerrar el caso desde donde se lee.
+              Hasta acá el escalamiento sólo se apagaba de refilón: cambiando el
+              estado del hilo o volviendo a prender la IA. Quien resolvía el
+              caso y seguía trabajando dejaba el cartel puesto y el hilo contando
+              en "Necesita humano" para siempre. */}
+          <button
+            type="button"
+            onClick={handleResolverEscalada}
+            disabled={resolviendo}
+            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-500/15 disabled:opacity-50 dark:text-amber-300"
+          >
+            {t("inbox.needsHumanResolve")}
+          </button>
         </div>
       )}
 

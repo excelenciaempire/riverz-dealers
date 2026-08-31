@@ -54,6 +54,7 @@ export const inbox = {
     es: "Hay un problema en curso que el asistente no puede resolver.",
     en: "There's an ongoing problem the assistant can't resolve.",
   },
+  needsHumanResolve: { es: "Marcar como resuelto", en: "Mark as resolved" },
 
   needsHumanSinRespuesta: {
     es: "El asistente no llegó a responder este mensaje. Contéstalo tú.",
