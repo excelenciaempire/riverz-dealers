@@ -73,6 +73,14 @@ const DEFAULT_SCOPES =
     // por OAuth. Medido el 2026-08-24 sobre la tienda demo, pedido #1002.
     'read_order_edits',
     'write_order_edits',
+    // Borradores de pedido ("Pedidos → Borradores"). Un borrador es una venta
+    // que el comercio YA armó —cliente, productos y un `invoice_url` que es un
+    // link de pago listo— esperando que alguien pague. Es un carrito
+    // abandonado más caliente: acá alguien del equipo ya habló con la persona.
+    // Sin este permiso `draft_orders.json` contesta 403 "requires merchant
+    // approval for read_draft_orders scope" y los webhooks del tema ni se
+    // pueden registrar, así que esas ventas eran invisibles.
+    'read_draft_orders',
   ].join(',')
 
 export function shopifyApiVersion(): string {

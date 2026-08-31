@@ -40,8 +40,12 @@ describe("ShopifyAdminClient.reconcileWebhooks", () => {
     vi.unstubAllGlobals();
   });
 
-  // El caso real: la mudanza de dominio dejó los seis viejos vivos junto a los
-  // seis nuevos, entregando cada pedido a un servidor que devuelve 503.
+  // El caso real: la mudanza de dominio dejó los viejos vivos junto a los
+  // nuevos, entregando cada pedido a un servidor que devuelve 503.
+  //
+  // Los conteos salen de SHOPIFY_WEBHOOK_TOPICS y no de un número escrito a
+  // mano: agregar un tema (pasó con los borradores) no puede romper un test
+  // que mide otra cosa.
   it("borra los que apuntan al dominio viejo y conserva los del actual", async () => {
     const live = SHOPIFY_WEBHOOK_TOPICS.flatMap((t, i) => [
       { id: 100 + i, topic: t.topic, address: `${OLD}${t.path}` },
@@ -51,11 +55,11 @@ describe("ShopifyAdminClient.reconcileWebhooks", () => {
 
     const r = await client().reconcileWebhooks(NEW);
 
-    expect(r.deleted).toBe(6);
-    expect(r.kept).toBe(6);
+    expect(r.deleted).toBe(SHOPIFY_WEBHOOK_TOPICS.length);
+    expect(r.kept).toBe(SHOPIFY_WEBHOOK_TOPICS.length);
     expect(r.created).toBe(0);
     const deletes = calls.filter((c) => c.method === "DELETE");
-    expect(deletes).toHaveLength(6);
+    expect(deletes).toHaveLength(SHOPIFY_WEBHOOK_TOPICS.length);
     expect(deletes.every((c) => /\/webhooks\/10\d\.json$/.test(c.url))).toBe(true);
     expect(calls.some((c) => c.method === "POST")).toBe(false);
   });

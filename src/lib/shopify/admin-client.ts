@@ -76,6 +76,11 @@ export function nextPageInfo(link: string | null): string | null {
 export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{ topic: string; path: string }> = [
   { topic: 'checkouts/create', path: '/api/shopify/webhooks/checkouts' },
   { topic: 'checkouts/update', path: '/api/shopify/webhooks/checkouts' },
+  // Borradores: la otra mitad de "Pedidos abandonados". Caen en la misma tabla
+  // que los carritos y salen por la misma plantilla — ver la ruta.
+  { topic: 'draft_orders/create', path: '/api/shopify/webhooks/draft-orders' },
+  { topic: 'draft_orders/update', path: '/api/shopify/webhooks/draft-orders' },
+  { topic: 'draft_orders/delete', path: '/api/shopify/webhooks/draft-orders' },
   { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
   { topic: 'orders/updated', path: '/api/shopify/webhooks/orders' },
   { topic: 'customers/update', path: '/api/shopify/webhooks/customers' },
