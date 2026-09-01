@@ -1828,6 +1828,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [days, setDays] = useState(30);
+  const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>(['comments']);
   const [channels, setChannels] = useState<Array<'ig_comment' | 'fb_comment'>>([
     'ig_comment',
     'fb_comment',
@@ -1843,20 +1844,38 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   };
 
   const run = async () => {
-    if (!channels.length) return;
+    if (!channels.length || !surfaces.length) return;
     setRunning(true);
     try {
-      const response = await fetchWithCsrf('/api/comments/backfill', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ workspace_id: workspaceId, days, channels }),
-      });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        ingestedInbound?: number;
-      };
-      if (!response.ok) throw new Error(result.error);
-      toast.success(t('igAgent.backfillDone', { n: result.ingestedInbound ?? 0 }));
+      const requests = surfaces.map((surface) =>
+        fetchWithCsrf(surface === 'comments' ? '/api/comments/backfill' : '/api/messages/backfill', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            workspace_id: workspaceId,
+            days,
+            channels: surface === 'comments'
+              ? channels
+              : channels.map((channel) => channel === 'ig_comment' ? 'instagram' : 'facebook'),
+          }),
+        }),
+      );
+      const responses = await Promise.all(requests);
+      const results = await Promise.all(responses.map(async (response) => ({
+        response,
+        result: (await response.json().catch(() => ({}))) as {
+          error?: string;
+          ingestedInbound?: number;
+          ingested?: number;
+        },
+      })));
+      const failed = results.find(({ response }) => !response.ok);
+      if (failed) throw new Error(failed.result.error);
+      const imported = results.reduce(
+        (sum, { result }) => sum + (result.ingestedInbound ?? 0) + (result.ingested ?? 0),
+        0,
+      );
+      toast.success(t('igAgent.backfillDone', { n: imported }));
     } catch (error) {
       toast.error(error instanceof Error && error.message ? error.message : t('igAgent.backfillFailed'));
     } finally {
@@ -1864,9 +1883,20 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
     }
   };
 
+  const toggleSurface = (surface: 'comments' | 'messages') => {
+    setSurfaces((current) => current.includes(surface)
+      ? current.filter((value) => value !== surface)
+      : [...current, surface]);
+  };
+
   return (
     <section className="rounded-xl border border-border p-4">
       <h2 className="text-sm font-semibold text-foreground">{t('igAgent.backfillTitle')}</h2>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className="text-xs text-muted-foreground">{t('igAgent.backfillContent')}</span>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={surfaces.includes('comments')} onChange={() => toggleSurface('comments')} />{t('igAgent.backfillComments')}</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={surfaces.includes('messages')} onChange={() => toggleSurface('messages')} />{t('igAgent.backfillMessages')}</label>
+      </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{t('igAgent.backfillDays')}</span>
         {[7, 30, 90, 3650].map((value) => (
@@ -1880,7 +1910,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('ig_comment')} onChange={() => toggleChannel('ig_comment')} />{t('igAgent.network_instagram')}</label>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('fb_comment')} onChange={() => toggleChannel('fb_comment')} />{t('igAgent.network_facebook')}</label>
       </div>
-      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length}>
+      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length || !surfaces.length}>
         {running && <Loader2 className="size-3.5 animate-spin" />}
         {running ? t('igAgent.backfillRunning') : t('igAgent.backfillRun')}
       </Button>
