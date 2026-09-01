@@ -38,6 +38,7 @@ interface AdPostRow {
 export async function syncAdPostsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
+  options: { maxPages?: number } = {},
 ): Promise<{ inserted: number; updated: number }> {
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const config = (connection.config ?? {}) as Record<string, unknown>;
@@ -59,14 +60,14 @@ export async function syncAdPostsForConnection(
   let inserted = 0;
   let updated = 0;
 
-  // /{page_id}/ads_posts paginates with the standard `paging.next`
-  // cursor. We cap at 5 pages (≈125 posts) per run — newer ads sit
-  // first so we always catch what just launched, and the cron picks
-  // up the long tail incrementally.
+  // El cron normal recorre sólo lo reciente. El backfill manual puede pedir
+  // todo el historial y reemplaza este tope para no dejar anuncios viejos
+  // afuera.
+  const maxPages = options.maxPages ?? 5;
   let nextUrl: string | null =
     `${GRAPH}/${pageId}/ads_posts?fields=id,permalink_url,created_time,message&limit=25&access_token=${encodeURIComponent(token)}`;
   let pages = 0;
-  while (nextUrl && pages < 5) {
+  while (nextUrl && pages < maxPages) {
     // `paging.next` carries the access_token but not the proof — re-attach
     // on each page so "Require App Secret" doesn't 400 page 2+.
     const res = await fetch(withAppsecretProof(nextUrl, token));

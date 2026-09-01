@@ -45,8 +45,8 @@ export const errInbox = {
   adminOnly: { es: "Solo administradores", en: "Admins only" },
   sendFailed: { es: "No se pudo enviar", en: "Couldn't send" },
   backfillInvalid: {
-    es: "Elige entre 1 y 90 días y al menos un canal",
-    en: "Choose 1 to 90 days and at least one channel",
+    es: "Elige un periodo y al menos un canal",
+    en: "Choose a period and at least one channel",
   },
 
   // Shared resource guards

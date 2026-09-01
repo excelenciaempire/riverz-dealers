@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       (COMMENT_CHANNELS as readonly string[]).includes(channel),
   );
 
-  if (!workspaceId || !Number.isInteger(days) || days < 1 || days > 90 || !channels.length) {
+  if (!workspaceId || !Number.isInteger(days) || days < 1 || days > 3650 || !channels.length) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.backfillInvalid") },
       { status: 400 },
@@ -77,13 +77,15 @@ export async function POST(request: Request) {
   });
   await Promise.all(
     connections.map((connection) =>
-      syncAdPostsForConnection(admin, connection).catch(() => ({ inserted: 0, updated: 0 })),
+      syncAdPostsForConnection(admin, connection, {
+        maxPages: days === 3650 ? Number.MAX_SAFE_INTEGER : 5,
+      }).catch(() => ({ inserted: 0, updated: 0 })),
     ),
   );
 
   const result = await pullCommentsForWorkspace(admin, workspaceId, {
     windowMs: days * 24 * 60 * 60 * 1000,
-    maxPosts: 100,
+    maxPosts: days === 3650 ? Number.MAX_SAFE_INTEGER : 100,
     suppressAutoReply: true,
     channels,
   });

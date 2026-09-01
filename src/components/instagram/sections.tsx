@@ -1869,7 +1869,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
       <h2 className="text-sm font-semibold text-foreground">{t('igAgent.backfillTitle')}</h2>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{t('igAgent.backfillDays')}</span>
-        {[7, 30, 90].map((value) => (
+        {[7, 30, 90, 3650].map((value) => (
           <Button key={value} size="sm" variant={days === value ? 'secondary' : 'outline'} onClick={() => setDays(value)}>
             {t(`igAgent.backfillDays${value}` as 'igAgent.backfillDays7')}
           </Button>

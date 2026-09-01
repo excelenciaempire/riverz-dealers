@@ -232,6 +232,7 @@ export const igAgent = {
   backfillDays7: { es: "7 días", en: "7 days" },
   backfillDays30: { es: "30 días", en: "30 days" },
   backfillDays90: { es: "90 días", en: "90 days" },
+  backfillDays3650: { es: "Todo el historial", en: "All history" },
   backfillChannels: { es: "Canales", en: "Channels" },
   backfillRun: { es: "Importar comentarios", en: "Import comments" },
   backfillRunning: { es: "Importando…", en: "Importing…" },

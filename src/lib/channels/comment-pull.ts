@@ -6,6 +6,7 @@ import { buildSelfCommentEvent } from "./comment-echo";
 import { findMessageByExternalId } from "./message-lookup";
 import { listConnections } from "./connections";
 import { ingestInboundEvent } from "./inbox-writer";
+import { selectAll } from "@/lib/db/paginate";
 
 /**
  * Comentarios de Instagram y Facebook — lado pull (RED DE SEGURIDAD del webhook).
@@ -526,24 +527,30 @@ async function recentPostIds(
 ): Promise<string[]> {
   const { edge, timeField } = DIALECT[channel];
   const since = Date.now() - options.windowMs;
-  const url = withAppsecretProof(
-    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${options.maxPosts}` +
+  let url: string | null = withAppsecretProof(
+    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${Math.min(options.maxPosts, 100)}` +
       `&access_token=${encodeURIComponent(token)}`,
     token,
   );
+  const ids: string[] = [];
   try {
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const json = (await res.json()) as { data?: RawComment[] };
-    return (json.data ?? [])
-      .filter((m) => {
-        if (!m.id) return false;
+    while (url && ids.length < options.maxPosts) {
+      const res = await fetch(url);
+      if (!res.ok) break;
+      const json = (await res.json()) as {
+        data?: RawComment[];
+        paging?: { next?: string };
+      };
+      for (const m of json.data ?? []) {
+        if (!m.id) continue;
         const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
-        return !Number.isFinite(ms) || ms >= since;
-      })
-      .map((m) => String(m.id));
+        if (!Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
+      }
+      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+    }
+    return ids.slice(0, options.maxPosts);
   } catch {
-    return [];
+    return ids;
   }
 }
 
@@ -570,12 +577,12 @@ async function postIdsWithSavedComments(
   // por conexión; sin sumarlas acá, un backfill inicial sólo ve el puñado de
   // publicaciones orgánicas y pierde justamente la mayor parte de comentarios
   // de una cuenta que pauta.
-  const { data: adPosts } = await db
-    .from("ad_posts")
-    .select("post_id")
-    .eq("connection_id", connection.id)
-    .order("last_seen_at", { ascending: false })
-    .limit(options.maxPosts);
+  const adPosts = await selectAll<{ post_id: string | null }>(
+    db,
+    "ad_posts",
+    (q) => q.eq("connection_id", connection.id).order("last_seen_at", { ascending: false }),
+    { select: "post_id" },
+  );
 
   const { data: msgs } = await db
     .from("messages")
@@ -589,7 +596,7 @@ async function postIdsWithSavedComments(
   if (
     messageIds.length === 0 &&
     deMeta.length === 0 &&
-    (adPosts ?? []).length === 0
+    adPosts.length === 0
   )
     return [];
 
@@ -598,7 +605,7 @@ async function postIdsWithSavedComments(
     .select("post_id")
     .in("message_id", messageIds);
   const seen = new Set<string>();
-  for (const ad of (adPosts ?? []) as Array<{ post_id: string | null }>) {
+  for (const ad of adPosts) {
     if (ad.post_id) seen.add(ad.post_id);
     if (seen.size >= options.maxPosts) break;
   }
