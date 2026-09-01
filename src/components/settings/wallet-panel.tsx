@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
+import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocale, useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -131,6 +131,7 @@ export function WalletPanel() {
   const [movs, setMovs] = useState<Movimiento[] | null>(null);
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
+  const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
   const [autoMonto, setAutoMonto] = useState("");
   const [autoUmbral, setAutoUmbral] = useState("");
 
@@ -517,94 +518,110 @@ export function WalletPanel() {
         </section>
       )}
 
-      {/* ── Rango ───────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        {DIAS.map((d) => (
-          <Button
-            key={d}
-            size="sm"
-            variant={dias === d ? 'default' : 'outline'}
-            onClick={() => {
-              setDias(d);
-              setPagina(0);
-            }}
-          >
-            {d === 0
-              ? t('settings.walletToday')
-              : d === -1
-                ? t('settings.walletYesterday')
-                : t('settings.walletLastDays', { n: d })}
-          </Button>
-        ))}
-        <div className="flex items-center gap-1">
-          <Input
-            type="date"
-            value={desde}
-            onChange={(ev) => {
-              setDesde(ev.target.value);
-              setDias(null);
-              setPagina(0);
-            }}
-            className="h-9 w-40"
-          />
-          <span className="text-muted-foreground">–</span>
-          <Input
-            type="date"
-            value={hasta}
-            onChange={(ev) => {
-              setHasta(ev.target.value);
-              setDias(null);
-              setPagina(0);
-            }}
-            className="h-9 w-40"
-          />
-        </div>
-      </div>
-
-      {/* ── Entró / salió ───────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">{t('settings.walletSpent')}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-            {plata(resumen.gastadoCentavos)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">{t('settings.walletLoaded')}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-            {plata(resumen.cargadoCentavos)}
-          </p>
-        </div>
-      </div>
-
-      {/* ── Gasto por día ───────────────────────────────────────────── */}
-      {resumen.porDia.length > 0 && (
-        <section className="rounded-xl border border-border bg-card p-5">
+      {/* ── Uso en el período ───────────────────────────────────────── */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-foreground">
-            {t('settings.walletByDay')}
+            {t('settings.walletUsage')}
           </h3>
-          <div className="mt-4 flex h-28 items-end gap-1">
-            {resumen.porDia.map((d) => (
-              <div
-                key={d.dia}
-                className="group relative flex-1"
-                title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
+          <div className="flex flex-wrap items-center gap-2">
+            {DIAS.map((d) => (
+              <Button
+                key={d}
+                size="sm"
+                variant={dias === d ? 'default' : 'outline'}
+                onClick={() => {
+                  setDias(d);
+                  setPagina(0);
+                }}
               >
-                <div
-                  className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary"
-                  style={{
-                    height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
-                  }}
-                />
-              </div>
+                {d === 0
+                  ? t('settings.walletToday')
+                  : d === -1
+                    ? t('settings.walletYesterday')
+                    : t('settings.walletLastDays', { n: d })}
+              </Button>
             ))}
+            <Button
+              size="sm"
+              variant={dias === null ? 'default' : 'outline'}
+              onClick={() => {
+                setDias(null);
+                setPagina(0);
+              }}
+            >
+              {t('settings.walletCustomRange')}
+            </Button>
           </div>
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{fmt.date(resumen.porDia[0].dia)}</span>
-            <span>{fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}</span>
+        </div>
+
+        {dias === null && (
+          <div className="mt-3 flex w-full items-center gap-2 sm:w-auto">
+            <Input
+              type="date"
+              value={desde}
+              onChange={(ev) => {
+                setDesde(ev.target.value);
+                setPagina(0);
+              }}
+              className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
+            />
+            <span className="text-muted-foreground">–</span>
+            <Input
+              type="date"
+              value={hasta}
+              onChange={(ev) => {
+                setHasta(ev.target.value);
+                setPagina(0);
+              }}
+              className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
+            />
           </div>
-        </section>
-      )}
+        )}
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-sm text-muted-foreground">{t('settings.walletSpent')}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {plata(resumen.gastadoCentavos)}
+            </p>
+          </div>
+          <div className="rounded-lg bg-muted p-4">
+            <p className="text-sm text-muted-foreground">{t('settings.walletLoaded')}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {plata(resumen.cargadoCentavos)}
+            </p>
+          </div>
+        </div>
+
+        {resumen.porDia.length > 1 && (
+          <div className="mt-6">
+            <h4 className="text-sm font-medium text-foreground">
+              {t('settings.walletByDay')}
+            </h4>
+            <div className="mt-3 flex h-28 items-end gap-1">
+              {resumen.porDia.map((d) => (
+                <div
+                  key={d.dia}
+                  className="group relative flex h-full flex-1 items-end"
+                  title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
+                >
+                  <div
+                    className="w-full rounded-t bg-primary transition-colors"
+                    style={{
+                      height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+              <span>{fmt.date(resumen.porDia[0].dia)}</span>
+              <span>{fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}</span>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ── En qué se fue ───────────────────────────────────────────── */}
       <section className="rounded-xl border border-border bg-card p-5">
@@ -658,12 +675,20 @@ export function WalletPanel() {
       </section>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card">
-        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h3 className="text-sm font-semibold text-foreground">
+      <details
+        className="group rounded-xl border border-border bg-card"
+        open={movimientosAbiertos}
+        onToggle={(ev) => setMovimientosAbiertos(ev.currentTarget.open)}
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 group-open:border-b group-open:border-border">
+          <span className="text-sm font-semibold text-foreground">
             {t('settings.walletLedger')}
-          </h3>
-          {concepto && (
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+
+        {concepto && (
+          <div className="flex justify-end border-b border-border px-4 py-2">
             <Button
               size="sm"
               variant="ghost"
@@ -674,8 +699,8 @@ export function WalletPanel() {
             >
               {t('settings.walletClearFilter')}
             </Button>
-          )}
-        </header>
+          </div>
+        )}
 
         {!movs ? (
           <div className="flex justify-center py-8">
@@ -686,7 +711,10 @@ export function WalletPanel() {
             {t('settings.walletNoMovements')}
           </p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul
+            className="divide-y divide-border overflow-y-auto scrollbar-thin"
+            style={{ maxHeight: '32rem' }}
+          >
             {movs.map((m) => (
               <li
                 key={m.id}
@@ -712,7 +740,9 @@ export function WalletPanel() {
                     {plata(Math.abs(m.centavos))}
                   </p>
                   <p className="text-xs tabular-nums text-muted-foreground">
-                    {plata(m.saldoDespuesCentavos)}
+                    {t('settings.walletBalanceAfter', {
+                      saldo: plata(m.saldoDespuesCentavos),
+                    })}
                   </p>
                 </div>
               </li>
@@ -740,22 +770,27 @@ export function WalletPanel() {
             </Button>
           </footer>
         )}
-      </section>
+      </details>
 
       {/* ── Cuánto sale cada cosa ───────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('settings.walletRates')}
-        </h3>
+      <details className="group rounded-xl border border-border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+          <span>
+            <span className="block text-sm font-semibold text-foreground">
+              {t('settings.walletRates')}
+            </span>
+            {e.aCosto && (
+              <span className="mt-1 block text-sm text-muted-foreground">
+                {t('settings.walletAtCostNote')}
+              </span>
+            )}
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
         {/* Con el costo pasado sin margen, la lista de abajo deja de ser lo que
             se cobra. Decirlo es lo único honesto: si no, el primer resumen que
             no coincida con esta tabla parece un error de facturación. */}
-        {e.aCosto && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('settings.walletAtCostNote')}
-          </p>
-        )}
-        <ul className="mt-3 space-y-2 text-sm">
+        <ul className="space-y-3 border-t border-border px-5 py-4 text-sm">
           {e.costos.map((c) => {
             // Tres números posibles, y se elige el más cierto que haya:
             //   1. lo que ya se le cobró por unidad en este rango,
@@ -808,7 +843,7 @@ export function WalletPanel() {
             );
           })}
         </ul>
-      </section>
+      </details>
     </div>
   );
 }
