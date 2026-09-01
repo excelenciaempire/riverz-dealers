@@ -541,30 +541,30 @@ async function recentPostIds(
   channel: CommentChannel,
   target: string,
   token: string,
-  options: { windowMs: number; maxPosts: number },
+  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean },
 ): Promise<string[]> {
   const { edge, timeField } = DIALECT[channel];
   const since = Date.now() - options.windowMs;
-  let url: string | null = withAppsecretProof(
-    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${Math.min(options.maxPosts, 100)}` +
-      `&access_token=${encodeURIComponent(token)}`,
-    token,
-  );
   const ids: string[] = [];
   try {
-    while (url && ids.length < options.maxPosts) {
-      const res = await fetch(url);
-      if (!res.ok) break;
-      const json = (await res.json()) as {
-        data?: RawComment[];
-        paging?: { next?: string };
-      };
-      for (const m of json.data ?? []) {
-        if (!m.id) continue;
-        const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
-        if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
+    const edges = channel === "fb_comment" ? [edge, "feed"] : [edge];
+    for (const currentEdge of edges) {
+      let url: string | null = withAppsecretProof(
+        `${GRAPH}/${target}/${currentEdge}?fields=id,${timeField}&limit=${Math.min(options.maxPosts, 100)}` +
+          `&access_token=${encodeURIComponent(token)}`,
+        token,
+      );
+      while (url && ids.length < options.maxPosts) {
+        const res = await fetch(url);
+        if (!res.ok) break;
+        const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
+        for (const m of json.data ?? []) {
+          if (!m.id) continue;
+          const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
+          if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
+        }
+        url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
       }
-      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
     }
     return ids.slice(0, options.maxPosts);
   } catch {
