@@ -1144,10 +1144,6 @@ export const settings = {
 
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },
-  walletAutoOff: {
-    es: "Actívala para reponer el saldo automáticamente.",
-    en: "Turn it on to refill your balance automatically.",
-  },
   walletAutoOn: {
     es: "Se cargan {monto} cuando el saldo baja de {umbral}.",
     en: "{monto} is charged whenever the balance drops below {umbral}.",

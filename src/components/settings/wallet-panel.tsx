@@ -131,6 +131,7 @@ export function WalletPanel() {
   const [pagina, setPagina] = useState(0);
   const [hayMas, setHayMas] = useState(false);
   const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
+  const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
   const [autoMonto, setAutoMonto] = useState("");
   const [autoUmbral, setAutoUmbral] = useState("");
 
@@ -309,6 +310,7 @@ export function WalletPanel() {
   const { resumen, auto } = e;
   const autoActivo =
     auto.recargaCentavos !== null && auto.umbralCentavos !== null;
+  const autoVisible = autoDeseado ?? autoActivo;
   const maxDia = Math.max(1, ...resumen.porDia.map((d) => d.gastadoCentavos));
   const enRojo = e.saldoCentavos <= 0 && !e.exenta;
 
@@ -393,19 +395,47 @@ export function WalletPanel() {
         <section className="rounded-xl border border-border bg-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">
-                {t('settings.walletAutoTitle')}
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {autoActivo
-                  ? t('settings.walletAutoOn', {
-                      monto: plata(auto.recargaCentavos ?? 0),
-                      umbral: plata(auto.umbralCentavos ?? 0),
-                    })
-                  : t('settings.walletAutoOff')}
-              </p>
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-semibold text-foreground">
+                  {t('settings.walletAutoTitle')}
+                </h3>
+                <Switch
+                  checked={autoVisible}
+                  disabled={yendo}
+                  aria-label={t('settings.walletAutoTitle')}
+                  onCheckedChange={(checked) => {
+                    setAutoDeseado(checked);
+                    if (checked) {
+                      if (!auto.tieneTarjeta) return;
+                      void guardarAuto({
+                        recargaCentavos: (Number(autoMonto) || 10) * 100,
+                        umbralCentavos: (Number(autoUmbral) || 1) * 100,
+                      }).finally(() => setAutoDeseado(null));
+                      return;
+                    }
+                    if (!autoActivo) {
+                      setAutoDeseado(null);
+                      return;
+                    }
+                    setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
+                    setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
+                    void guardarAuto({ apagar: true }).finally(() =>
+                      setAutoDeseado(null),
+                    );
+                  }}
+                />
+              </div>
+              {autoVisible && autoActivo && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('settings.walletAutoOn', {
+                    monto: plata(auto.recargaCentavos ?? 0),
+                    umbral: plata(auto.umbralCentavos ?? 0),
+                  })}
+                </p>
+              )}
             </div>
-            <div className="flex items-center gap-3">
+            {autoVisible && (
+              <div className="flex items-center gap-3">
               {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
                   tiene tres: sin la marca y los últimos cuatro, ante la duda la
                   cambia — o no la cambia porque no sabe si hace falta. */}
@@ -415,23 +445,6 @@ export function WalletPanel() {
                   <span className="tabular-nums">···· {auto.ultimos4}</span>
                 </span>
               )}
-              <Switch
-                checked={autoActivo}
-                disabled={yendo || !auto.tieneTarjeta}
-                aria-label={t('settings.walletAutoTitle')}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    void guardarAuto({
-                      recargaCentavos: (Number(autoMonto) || 10) * 100,
-                      umbralCentavos: (Number(autoUmbral) || 1) * 100,
-                    });
-                    return;
-                  }
-                  setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
-                  setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
-                  void guardarAuto({ apagar: true });
-                }}
-              />
               <Button
                 variant="outline"
                 size="sm"
@@ -457,12 +470,13 @@ export function WalletPanel() {
                   {t('settings.walletCardRemove')}
                 </Button>
               )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
               prometer un cobro que no se puede hacer. */}
-          {autoActivo && auto.tieneTarjeta && (
+          {autoVisible && auto.tieneTarjeta && (
             <div className="mt-4 flex flex-wrap items-end gap-2">
               <label className="text-sm">
                 <span className="block text-muted-foreground">
