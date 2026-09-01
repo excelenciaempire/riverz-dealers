@@ -64,11 +64,11 @@ export async function POST(request: Request) {
   const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 86_400_000;
   const sinceIso = new Date(startMs).toISOString();
   const untilIso = new Date(untilMs ?? Date.now()).toISOString();
-  const result = await Promise.all(connections.map((connection) => pullConnection(connection, sinceIso, untilIso, allHistory)));
+  const result = await Promise.all(connections.map((connection) => pullConnection(connection, sinceIso, untilIso)));
   return NextResponse.json({ ok: true, ingested: result.reduce((sum, item) => sum + item.ingested, 0), detail: result });
 }
 
-async function pullConnection(connection: ChannelConnection, sinceIso: string, untilIso: string, allHistory: boolean) {
+async function pullConnection(connection: ChannelConnection, sinceIso: string, untilIso: string) {
   const config = (connection.config ?? {}) as Record<string, unknown>;
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const encrypted = String(secrets.access_token ?? "");
@@ -102,7 +102,7 @@ async function pullConnection(connection: ChannelConnection, sinceIso: string, u
         createIfMissing: true,
         sinceIso,
         untilIso,
-        maxPages: allHistory ? Number.MAX_SAFE_INTEGER : 100,
+        maxPages: Number.MAX_SAFE_INTEGER,
       });
     }
     url = data.paging?.next ? withAppsecretProof(data.paging.next, token) : null;

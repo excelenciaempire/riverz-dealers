@@ -85,7 +85,7 @@ export async function POST(request: Request) {
   await Promise.all(
     connections.map((connection) =>
       syncAdPostsForConnection(admin, connection, {
-        maxPages: allHistory || days === 3650 ? Number.MAX_SAFE_INTEGER : 5,
+        maxPages: Number.MAX_SAFE_INTEGER,
       }).catch(() => ({ inserted: 0, updated: 0 })),
     ),
   );
@@ -95,8 +95,8 @@ export async function POST(request: Request) {
   const result = await pullCommentsForWorkspace(admin, workspaceId, {
     windowMs: Date.now() - startMs,
     untilMs: endMs,
-    maxPosts: allHistory || days === 3650 ? Number.MAX_SAFE_INTEGER : 100,
-    maxCommentPages: allHistory ? Number.MAX_SAFE_INTEGER : undefined,
+    maxPosts: Number.MAX_SAFE_INTEGER,
+    maxCommentPages: Number.MAX_SAFE_INTEGER,
     suppressAutoReply: true,
     channels,
   });

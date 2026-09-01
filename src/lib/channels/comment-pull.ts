@@ -110,6 +110,12 @@ const DIALECT: Record<
   },
 };
 
+/** Campos de una respuesta sin su propia expansión anidada. */
+const REPLY_FIELDS: Record<CommentChannel, string> = {
+  ig_comment: "id,text,timestamp,username,hidden,from{id,username}",
+  fb_comment: "id,message,created_time,is_hidden,from{id,name}",
+};
+
 /** ¿Vino oculto? Instagram lo llama `hidden` y Facebook `is_hidden`. */
 function ocultoEn(c: RawComment): boolean {
   return c.hidden === true || c.is_hidden === true;
@@ -667,10 +673,48 @@ async function fetchCommentsWithReplies(
       comments.push(...(json.data ?? []));
       url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
     }
+    // La expansión `replies{…}` de Graph viene paginada por separado y por
+    // defecto deja respuestas fuera. Leemos el edge de cada comentario para
+    // que un backfill sea realmente completo, tanto en Facebook como IG.
+    for (const comment of comments) {
+      if (!comment.id) continue;
+      const replies = await fetchAllReplies(channel, comment.id, token, maxPages) ?? repliesOf(comment);
+      if (channel === "ig_comment") comment.replies = { data: replies };
+      else comment.comments = { data: replies };
+    }
     return comments;
   } catch {
     return comments;
   }
+}
+
+async function fetchAllReplies(
+  channel: CommentChannel,
+  commentId: string,
+  token: string,
+  maxPages: number,
+): Promise<RawComment[] | null> {
+  const edge = channel === "ig_comment" ? "replies" : "comments";
+  let url: string | null = withAppsecretProof(
+    `${GRAPH}/${commentId}/${edge}?fields=${encodeURIComponent(REPLY_FIELDS[channel])}` +
+      `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
+    token,
+  );
+  const replies: RawComment[] = [];
+  try {
+    for (let page = 0; url && page < maxPages; page++) {
+      const res = await fetch(url);
+      if (!res.ok) break;
+      const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
+      replies.push(...(json.data ?? []));
+      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+    }
+  } catch {
+    // Conservamos las respuestas que Graph ya incluyó en la publicación si
+    // este edge puntual falla, en vez de perder todo el comentario padre.
+    return null;
+  }
+  return replies;
 }
 
 /** Meta devuelve "2026-07-27T12:00:00+0000" (sin dos puntos en el huso). */

@@ -53,7 +53,13 @@ const iso = (msAgo: number) =>
 /** Responde las tres llamadas a Graph que hace el pull. */
 function mockGraph(comments: unknown[]) {
   return vi.fn(async (url: string) => {
-    const json = url.includes("/comments")
+    const parent = comments.find((comment) => {
+      const row = comment as { id?: string };
+      return row.id && (url.includes(`/${row.id}/replies`) || url.includes(`/${row.id}/comments`));
+    }) as { replies?: { data?: unknown[] }; comments?: { data?: unknown[] } } | undefined;
+    const json = parent
+      ? { data: parent.replies?.data ?? parent.comments?.data ?? [] }
+      : url.includes("/comments")
       ? { data: comments }
       : url.includes("/media") || url.includes("/posts")
         ? { data: [{ id: POST, timestamp: iso(0), created_time: iso(0) }] }
