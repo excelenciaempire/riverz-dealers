@@ -77,8 +77,6 @@ interface Estado {
     ultimos4: string | null;
     recargaCentavos: number | null;
     umbralCentavos: number | null;
-    fallos: number;
-    ultimoError: string | null;
   };
 }
 
@@ -505,21 +503,12 @@ export function WalletPanel() {
             </div>
           )}
 
-          {/* El error del banco, tal cual. "No se pudo cobrar" no le sirve a
-              nadie: fondos insuficientes y tarjeta vencida se arreglan distinto. */}
-          {auto.fallos > 0 && (
-            <p className="mt-3 text-sm text-destructive">
-              {auto.fallos >= 3
-                ? t('settings.walletAutoGaveUp')
-                : t('settings.walletAutoFailed')}
-              {auto.ultimoError ? ` — ${auto.ultimoError}` : ''}
-            </p>
-          )}
         </section>
       )}
 
-      {/* ── Uso en el período ───────────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        {/* ── Uso en el período ───────────────────────────────────────── */}
+        <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-foreground">
             {t('settings.walletUsage')}
@@ -621,10 +610,10 @@ export function WalletPanel() {
             </div>
           </div>
         )}
-      </section>
+        </section>
 
-      {/* ── En qué se fue ───────────────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-5">
+        {/* ── En qué se fue ───────────────────────────────────────────── */}
+        <section className="rounded-xl border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground">
           {t('settings.walletByConcept')}
         </h3>
@@ -672,7 +661,8 @@ export function WalletPanel() {
             })}
           </ul>
         )}
-      </section>
+        </section>
+      </div>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
       <details
