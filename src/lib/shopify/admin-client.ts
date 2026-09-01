@@ -84,6 +84,11 @@ export const SHOPIFY_WEBHOOK_TOPICS: ReadonlyArray<{ topic: string; path: string
   { topic: 'orders/create', path: '/api/shopify/webhooks/orders' },
   { topic: 'orders/updated', path: '/api/shopify/webhooks/orders' },
   { topic: 'customers/update', path: '/api/shopify/webhooks/customers' },
+  // El precio que cotiza el agente tiene que cambiar al mismo tiempo que la
+  // tienda, no la próxima vez que alguien pulse “Sincronizar”.
+  { topic: 'products/create', path: '/api/shopify/webhooks/products' },
+  { topic: 'products/update', path: '/api/shopify/webhooks/products' },
+  { topic: 'products/delete', path: '/api/shopify/webhooks/products' },
   { topic: 'app/uninstalled', path: '/api/shopify/webhooks/app-uninstalled' },
 ]
 

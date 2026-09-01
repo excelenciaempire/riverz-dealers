@@ -104,6 +104,12 @@ import {
   mediosDeclarados,
 } from './medios-pago';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import {
+  asksForPrice,
+  unauthorizedQuotedPrices,
+  withoutHistoricalPriceLines,
+} from '@/lib/products/price-integrity';
+import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
@@ -213,12 +219,21 @@ export async function runAiAgent(
       args.channel === 'webchat'
         ? (await paginaDeLaConversacion(db, args.conversation.id))?.url ?? null
         : null;
+    const inboundText = args.inboundMessage.content_text ?? '';
+    const priceQuestion = asksForPrice(inboundText);
+    const publicationForRouting =
+      args.channel === 'ig_comment' ||
+      args.channel === 'fb_comment' ||
+      args.channel === 'tiktok_comment'
+        ? await briefDePublicacionPorId(db, args.conversation.id).catch(() => null)
+        : null;
     const productMatch = await detectInboundProduct(
       db,
       args.workspaceId,
-      args.inboundMessage.content_text ?? '',
+      [inboundText, publicationForRouting].filter(Boolean).join('\n'),
       paginaActual,
     );
+    let priceVerified = !priceQuestion;
     const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
 
     const agent = await pickAgent(db, args.workspaceId, args.channel, {
@@ -498,6 +513,13 @@ export async function runAiAgent(
       return;
     }
 
+    // El catálogo sincronizado sirve para describir; para COTIZAR se verifica
+    // la página pública en este mismo turno. Esto también cubre Kaching, cuyos
+    // paquetes cambian fuera de Shopify y por eso no generan products/update.
+    if (priceQuestion && productMatch) {
+      priceVerified = (await refreshLivePricing(db, productMatch.product_id)).ok;
+    }
+
     // Cargamos el "primario" del contacto (migration 050) — si este
     // canal es un alias de otro contacto del mismo cliente humano,
     // queremos su ai_summary y su shopify_customer_data.
@@ -597,6 +619,7 @@ export async function runAiAgent(
         businessCurrency,
         db,
         { conversationId: args.conversation.id, channel: args.channel },
+        { priceQuestion, priceVerified },
       );
     } catch (genErr) {
       // El modelo falló (p. ej. Anthropic 401/402 sin crédito, 429, o 5xx).
@@ -2367,6 +2390,7 @@ async function generateReply(
   /** De dónde viene este turno. Lo necesitan las herramientas que dejan algo
    *  anotado —un pedido, una devolución— para poder atribuirlo. */
   origen: { conversationId: string; channel: Channel },
+  priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -2633,6 +2657,14 @@ async function generateReply(
   // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
   // corte entero.
   const limpio = humanizarTexto(result.text);
+  const invalidPrices = unauthorizedQuotedPrices(
+    limpio,
+    priceIntegrity.priceQuestion && !priceIntegrity.priceVerified ? [] : products,
+    { priceQuestion: priceIntegrity.priceQuestion },
+  );
+  if (invalidPrices.length > 0) {
+    throw new Error(`price_integrity: ${invalidPrices.join(',')}`);
+  }
   const trimmed =
     limpio.length > agent.max_response_chars
       ? limpio.slice(0, agent.max_response_chars).trimEnd() + '…'
@@ -3155,7 +3187,7 @@ export function buildSystemPrompt(
       : TRAINING_MAX;
   for (const p of featured) {
     const isMatch = p.id === matchId;
-    const tmRaw = (p.training_material ?? '').trim();
+    const tmRaw = withoutHistoricalPriceLines(p.training_material);
     // Fallback a la línea de catálogo (título/desc/precio) si el producto
     // aún no tiene training_material compilado (manual recién creado).
     // El precio de cada canal va SIEMPRE, tenga o no ficha compilada. La línea

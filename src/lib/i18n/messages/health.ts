@@ -402,6 +402,14 @@ export const health: Namespace = {
     es: "la respuesta prometía averiguar y volver",
     en: "the reply promised to check back",
   },
+  skip_comment_precio_no_verificado: {
+    es: "no se pudo verificar el precio vigente",
+    en: "the current price could not be verified",
+  },
+  skip_comment_precio_no_autorizado: {
+    es: "la respuesta incluía un precio no autorizado",
+    en: "the reply included an unauthorized price",
+  },
   skip_comment_error: { es: "falló al contestar", en: "failed while replying" },
   skip_comment_no_se_pudo_ocultar: {
     es: "Meta no dejó ocultarlo",

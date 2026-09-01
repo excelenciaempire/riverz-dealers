@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { agruparPorPrincipal, type FilaAgrupable } from '@/lib/products/agrupar';
+import {
+  authorizedPrices,
+  withoutHistoricalPriceLines,
+} from '@/lib/products/price-integrity';
+import { refreshLivePricing } from '@/lib/shopify/live-pricing';
 
 /**
  * EL CEREBRO DEL PRODUCTO en los mensajes proactivos.
@@ -27,6 +32,10 @@ export interface ProductBrain {
   url: string | null;
   /** Producto delicado (salud): el redactor debe ser aún más prudente. */
   healthSensitive: boolean;
+  /** Precios comprobados que pueden pasar la última puerta antes de publicar. */
+  authorizedPriceValues: number[];
+  /** En una pregunta de precio, false obliga a dejar el comentario a una persona. */
+  pricingVerified: boolean;
 }
 
 interface ProductRow {
@@ -101,7 +110,7 @@ function pickProduct(rows: ProductRow[], text: string): ProductRow | null {
 export async function loadProductBrain(
   db: SupabaseClient,
   workspaceId: string,
-  opts: { text?: string | null; preferTitles?: string[] },
+  opts: { text?: string | null; preferTitles?: string[]; verifyPricing?: boolean },
 ): Promise<ProductBrain | null> {
   try {
     const { data } = await db
@@ -123,12 +132,28 @@ export async function loadProductBrain(
     const preferred = (opts.preferTitles ?? [])
       .map((t) => rows.find((p) => p.title.toLowerCase() === t.toLowerCase()))
       .find(Boolean);
-    const product =
+    let product =
       pickProduct(rows, opts.text ?? '') ??
       preferred ??
       // Catálogo de un solo producto: es evidente de cuál se habla.
       (rows.length === 1 ? rows[0] : null);
     if (!product) return null;
+
+    let pricingVerified = !opts.verifyPricing;
+    if (opts.verifyPricing) {
+      const fresh = await refreshLivePricing(db, product.id);
+      pricingVerified = fresh.ok;
+      if (fresh.ok) {
+        // La composición que sigue tiene que usar la misma foto que acabamos de
+        // verificar, no el objeto leído antes del fetch.
+        const { data: refreshed } = await db
+          .from('shopify_products')
+          .select(FIELDS)
+          .eq('id', product.id)
+          .maybeSingle();
+        if (refreshed) product = refreshed as ProductRow;
+      }
+    }
 
     const parts: string[] = [`PRODUCTO DEL QUE HABLA: ${product.title}`];
     if (product.price_min != null) {
@@ -145,7 +170,7 @@ export async function loadProductBrain(
     }
     if (product.training_material?.trim()) {
       parts.push(
-        `- Lo que sabemos de él:\n${product.training_material.trim().slice(0, 1200)}`,
+        `- Lo que sabemos de él:\n${withoutHistoricalPriceLines(product.training_material).slice(0, 1200)}`,
       );
     }
     if (product.say_guidelines?.trim()) {
@@ -192,6 +217,8 @@ export async function loadProductBrain(
       title: product.title,
       url: product.url,
       healthSensitive: product.health_sensitive === true,
+      authorizedPriceValues: authorizedPrices([product]),
+      pricingVerified,
     };
   } catch {
     return null;

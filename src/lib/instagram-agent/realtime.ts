@@ -58,6 +58,8 @@ import { loadCustomerContext } from './customer-context';
 import { loadOrderStatus } from './order-status';
 import { loadCommentThread } from './comment-thread';
 import { loadProductBrain } from './product-brain';
+import { asksForPrice, unauthorizedQuotedPrices } from '@/lib/products/price-integrity';
+import { briefDePublicacionPorId } from '@/lib/channels/publicacion';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
@@ -998,6 +1000,12 @@ async function decidirComentario(
     return 'comment_sin_conexion';
   }
 
+  const priceQuestion = asksForPrice(engagement) && !orderStatus;
+  // “Precio?” no nombra el producto: el producto está en la publicación. Sin
+  // sumar ese contexto, el verificador no sabría qué página comprobar.
+  const postBrief = hilo
+    ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
+    : null;
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
@@ -1009,8 +1017,27 @@ async function decidirComentario(
     // es un primer contacto y no puede empezar saludando de cero.
     loadCommentThread(db, opts.contact.id, opts.sourcePostId ?? null),
     // El cerebro del producto del que habla: su conocimiento y sus barreras.
-    loadProductBrain(db, opts.workspaceId, { text: engagement }),
+    loadProductBrain(db, opts.workspaceId, {
+      text: [engagement, postBrief].filter(Boolean).join('\n'),
+      verifyPricing: priceQuestion,
+    }),
   ]);
+
+  // No se usa el cache como oráculo de precios. Si la página no respondió o
+  // no pudimos identificar el producto del post, una persona lo revisa: una
+  // respuesta tardía se corrige; un precio equivocado queda publicado.
+  if (priceQuestion && (!product || !product.pricingVerified)) {
+    await marcarParaUnaPersona(
+      db,
+      opts.workspaceId,
+      commentChannel,
+      opts.contact.id,
+      engagement,
+      'answer_gap',
+      `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`,
+    );
+    return 'comment_precio_no_verificado';
+  }
 
   // Freno anti-bucle: en un mismo hilo no insistimos más de tres veces. Si da
   // para más, ya no es un comentario — es una conversación, y sigue en la
@@ -1099,6 +1126,25 @@ async function decidirComentario(
     });
   }
   if (!text.trim()) return 'comment_respuesta_vacia';
+
+  const invalidPrices = unauthorizedQuotedPrices(
+    text,
+    product?.authorizedPriceValues ?? [],
+    { priceQuestion },
+  );
+  if (invalidPrices.length > 0) {
+    console.warn('[ig-agent] respuesta descartada por precio no autorizado:', invalidPrices);
+    await marcarParaUnaPersona(
+      db,
+      opts.workspaceId,
+      commentChannel,
+      opts.contact.id,
+      engagement,
+      'answer_gap',
+      `La IA intentó publicar un precio no verificado (${invalidPrices.join(', ')}).`,
+    );
+    return 'comment_precio_no_autorizado';
+  }
 
   // Última puerta antes de publicar: que no afirme lo que no le consta. La
   // prohibición está en el prompt y aun así se cuela —el modelo de los agentes

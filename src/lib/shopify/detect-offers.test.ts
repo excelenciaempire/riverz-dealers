@@ -185,6 +185,21 @@ describe('normalizeDetectedOffers', () => {
   })
 })
 
+describe('offersFromKachingConfig — precios vigentes', () => {
+  it('lee discountValue como el total real de cada paquete', () => {
+    const html = `<script>{"dealBars":[
+      {"title":"1 Unidad","dealBarType":"quantity-break","quantity":1,"discountType":"specific","discountValue":39990},
+      {"title":"2 Unidades + 1 GRATIS","dealBarType":"quantity-break","quantity":3,"discountType":"specific","discountValue":69990},
+      {"title":"3 Unidades + 1 GRATIS","dealBarType":"quantity-break","quantity":4,"discountType":"specific","discountValue":109990}
+    ]}</script>`
+    expect(offersFromKachingConfig(html)).toEqual([
+      { label: '1 Unidad', units: 1, total: 39990 },
+      { label: '2 Unidades + 1 GRATIS', units: 3, total: 69990 },
+      { label: '3 Unidades + 1 GRATIS', units: 4, total: 109990 },
+    ])
+  })
+})
+
 describe('mergeOffers — append-only', () => {
   it('adds only tiers whose units are not already present', () => {
     const existing = [{ label: 'Uno', units: 1, total: 40 }]

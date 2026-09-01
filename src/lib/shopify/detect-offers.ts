@@ -205,7 +205,18 @@ export function offersFromKachingConfig(text: string): DetectedOffer[] {
         type === 'bxgy'
           ? (Number(b?.buyQuantity) || 0) + (Number(b?.getQuantity) || 0)
           : Number(b?.quantity) || 0
-      if (units > 0) out.push({ label: title, units })
+      // En los descuentos de monto fijo, Kaching guarda el TOTAL que se cobra
+      // en `discountValue`. Antes ignorábamos ese campo y dependíamos del texto
+      // visible que Firecrawl hubiera alcanzado a renderizar. Cuando el
+      // comercio cambiaba 99.900 por 109.990, la estructura nueva ya estaba en
+      // el HTML pero Riverz conservaba el precio viejo del scrape anterior.
+      const discountType = String(b?.discountType ?? '')
+      const discountValue = Number(b?.discountValue)
+      const total =
+        discountType === 'specific' && Number.isFinite(discountValue) && discountValue > 0
+          ? discountValue
+          : undefined
+      if (units > 0) out.push({ label: title, units, total })
     }
   }
   return out

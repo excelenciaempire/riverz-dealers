@@ -156,6 +156,16 @@ export const POLITICA = {
     false,
   ),
   comment_prometia_averiguar: ESCALA('answer_gap', 'prometía averiguar y volver'),
+  comment_precio_no_verificado: ESCALA(
+    'answer_gap',
+    'no se pudo verificar el precio vigente',
+    false,
+  ),
+  comment_precio_no_autorizado: ESCALA(
+    'answer_gap',
+    'la respuesta traía un precio no autorizado y no salió',
+    false,
+  ),
   comment_no_se_pudo_ocultar: ESCALA(
     'comment_sin_moderar',
     'Meta no dejó ocultarlo: sigue publicado',

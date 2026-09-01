@@ -60,7 +60,15 @@ describe("ShopifyAdminClient.reconcileWebhooks", () => {
     expect(r.created).toBe(0);
     const deletes = calls.filter((c) => c.method === "DELETE");
     expect(deletes).toHaveLength(SHOPIFY_WEBHOOK_TOPICS.length);
-    expect(deletes.every((c) => /\/webhooks\/10\d\.json$/.test(c.url))).toBe(true);
+    // El inventario crece cuando agregamos una superficie (por ejemplo,
+    // products/create/update/delete). No supongas que siempre cabrá en 100-109.
+    const staleIds = new Set(SHOPIFY_WEBHOOK_TOPICS.map((_, i) => String(100 + i)));
+    expect(
+      deletes.every((c) => {
+        const id = c.url.match(/\/webhooks\/(\d+)\.json$/)?.[1];
+        return Boolean(id && staleIds.has(id));
+      }),
+    ).toBe(true);
     expect(calls.some((c) => c.method === "POST")).toBe(false);
   });
 

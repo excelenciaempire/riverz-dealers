@@ -102,16 +102,16 @@ export async function syncShopifyProducts(
   return { synced: rows.length, deleted: stale.length, bundlesDetected }
 }
 
-interface ShopifyProductVariant {
+export interface ShopifyProductVariant {
   price?: string
   compare_at_price?: string
 }
 
-interface ShopifyProductImage {
+export interface ShopifyProductImage {
   src?: string
 }
 
-interface ShopifyProduct {
+export interface ShopifyProduct {
   id: number
   handle: string
   title: string
@@ -124,7 +124,7 @@ interface ShopifyProduct {
   images?: ShopifyProductImage[]
 }
 
-function productToRow(
+export function productToRow(
   p: ShopifyProduct,
   args: { userId: string; workspaceId: string; shopDomain: string },
   shopCurrency: string | null,
@@ -152,6 +152,7 @@ function productToRow(
     user_id: args.userId,
     workspace_id: args.workspaceId,
     shop_domain: args.shopDomain,
+    platform: 'shopify',
     external_id: p.id,
     handle: p.handle,
     title: p.title,
