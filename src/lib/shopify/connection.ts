@@ -1,19 +1,19 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 
 export interface ShopifyConnectionRow {
-  id: string
-  user_id: string
-  workspace_id: string
-  shop_domain: string
-  shop_name: string | null
-  access_token: string
-  scope: string | null
-  status: 'active' | 'uninstalled' | 'expired' | 'error'
-  installed_at: string | null
-  uninstalled_at: string | null
-  /** 'oauth' = global OAuth app; 'admin_token' = per-store custom app. */
-  connection_method: 'oauth' | 'admin_token'
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  shop_domain: string;
+  shop_name: string | null;
+  access_token: string;
+  scope: string | null;
+  status: 'active' | 'uninstalled' | 'expired' | 'error';
+  installed_at: string | null;
+  uninstalled_at: string | null;
+  /** Cómo obtiene Riverz el token para esta tienda. */
+  connection_method: 'oauth' | 'admin_token' | 'client_credentials';
 }
 
 /**
@@ -27,26 +27,28 @@ export interface ShopifyConnectionRow {
 export async function persistShopifyConnection(
   db: SupabaseClient,
   args: {
-    userId: string
-    workspaceId: string
-    shopDomain: string
-    shopName?: string | null
-    accessToken: string
-    scope?: string | null
+    userId: string;
+    workspaceId: string;
+    shopDomain: string;
+    shopName?: string | null;
+    accessToken: string;
+    scope?: string | null;
     /**
      * Per-store custom app's API secret key (admin-token path), used to
      * HMAC-verify that store's webhooks. Encrypted before persisting.
      * Omit for the OAuth path (webhooks verify against SHOPIFY_API_SECRET).
      */
-    webhookSecret?: string | null
-    connectionMethod?: 'oauth' | 'admin_token'
+    webhookSecret?: string | null;
+    connectionMethod?: 'oauth' | 'admin_token' | 'client_credentials';
+    /** Client ID de una app creada en Shopify Dev Dashboard. */
+    clientId?: string | null;
     /** Segundos de vida del token. Presente desde que Shopify dio de baja los
      *  que no expiran (migración 194). */
-    expiresIn?: number | null
+    expiresIn?: number | null;
     /** Con qué renovarlo, sin volver a molestar al comercio. */
-    refreshToken?: string | null
-    refreshTokenExpiresIn?: number | null
-  },
+    refreshToken?: string | null;
+    refreshTokenExpiresIn?: number | null;
+  }
 ): Promise<{ id: string }> {
   // Only set webhook_secret / connection_method when provided, so an OAuth
   // reconnect never wipes a prior admin-token connection's per-store secret
@@ -63,10 +65,13 @@ export async function persistShopifyConnection(
     last_error: null,
     installed_at: new Date().toISOString(),
     uninstalled_at: null,
-  }
-  if (args.connectionMethod) row.connection_method = args.connectionMethod
+  };
+  if (args.connectionMethod) row.connection_method = args.connectionMethod;
   if (args.webhookSecret != null) {
-    row.webhook_secret = encrypt(args.webhookSecret)
+    row.webhook_secret = encrypt(args.webhookSecret);
+  }
+  if (args.clientId !== undefined) {
+    row.client_id_encrypted = args.clientId ? encrypt(args.clientId) : null;
   }
   // El vencimiento y el refresh se escriben SIEMPRE que vengan, incluso en
   // null: una reconexión que emitiera un token viejo tiene que borrar el
@@ -75,27 +80,29 @@ export async function persistShopifyConnection(
   if (args.expiresIn !== undefined) {
     row.token_expires_at = args.expiresIn
       ? new Date(Date.now() + args.expiresIn * 1000).toISOString()
-      : null
+      : null;
   }
   if (args.refreshToken !== undefined) {
-    row.refresh_token_encrypted = args.refreshToken ? encrypt(args.refreshToken) : null
+    row.refresh_token_encrypted = args.refreshToken
+      ? encrypt(args.refreshToken)
+      : null;
   }
   if (args.refreshTokenExpiresIn !== undefined) {
     row.refresh_token_expires_at = args.refreshTokenExpiresIn
       ? new Date(Date.now() + args.refreshTokenExpiresIn * 1000).toISOString()
-      : null
+      : null;
   }
 
   const { data, error } = await db
     .from('shopify_connections')
     .upsert(row, { onConflict: 'user_id,shop_domain' })
     .select('id')
-    .single()
+    .single();
 
   if (error || !data) {
-    throw new Error(`Failed to persist Shopify connection: ${error?.message}`)
+    throw new Error(`Failed to persist Shopify connection: ${error?.message}`);
   }
-  return { id: data.id as string }
+  return { id: data.id as string };
 }
 
 /** Look up the active connection for a shop domain (webhook path).
@@ -109,7 +116,7 @@ export async function persistShopifyConnection(
  */
 export async function getConnectionByShop(
   db: SupabaseClient,
-  shopDomain: string,
+  shopDomain: string
 ): Promise<{ row: ShopifyConnectionRow; accessToken: string } | null> {
   const { data } = await db
     .from('shopify_connections')
@@ -123,12 +130,12 @@ export async function getConnectionByShop(
     .eq('status', 'active')
     .order('installed_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  if (!data) return null
+    .maybeSingle();
+  if (!data) return null;
   return {
     row: data as ShopifyConnectionRow,
     accessToken: decrypt((data as ShopifyConnectionRow).access_token),
-  }
+  };
 }
 
 /**
@@ -145,7 +152,7 @@ export async function getConnectionByShop(
 export type ShopWebhookSecret =
   | { mode: 'per_store'; secret: string }
   | { mode: 'global' }
-  | { mode: 'fail_closed' }
+  | { mode: 'fail_closed' };
 
 /**
  * Resolve which secret verifies an incoming webhook for `shopDomain`.
@@ -164,7 +171,7 @@ export type ShopWebhookSecret =
  */
 export async function resolveShopWebhookSecret(
   db: SupabaseClient,
-  shopDomain: string,
+  shopDomain: string
 ): Promise<ShopWebhookSecret> {
   const { data } = await db
     .from('shopify_connections')
@@ -173,22 +180,26 @@ export async function resolveShopWebhookSecret(
     .eq('shop_domain', shopDomain)
     .order('installed_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  const row = data as
-    | { connection_method?: string | null; webhook_secret?: string | null }
-    | null
-  if (!row) return { mode: 'global' }
-  if (row.connection_method === 'admin_token') {
-    if (!row.webhook_secret) return { mode: 'fail_closed' }
+    .maybeSingle();
+  const row = data as {
+    connection_method?: string | null;
+    webhook_secret?: string | null;
+  } | null;
+  if (!row) return { mode: 'global' };
+  if (
+    row.connection_method === 'admin_token' ||
+    row.connection_method === 'client_credentials'
+  ) {
+    if (!row.webhook_secret) return { mode: 'fail_closed' };
     try {
-      return { mode: 'per_store', secret: decrypt(row.webhook_secret) }
+      return { mode: 'per_store', secret: decrypt(row.webhook_secret) };
     } catch {
       // Undecryptable per-store secret (ENCRYPTION_KEY rotation / corrupt
       // write): fail closed rather than fall back to the global authority.
-      return { mode: 'fail_closed' }
+      return { mode: 'fail_closed' };
     }
   }
-  return { mode: 'global' }
+  return { mode: 'global' };
 }
 
 /**
@@ -200,19 +211,19 @@ export async function resolveShopWebhookSecret(
  */
 export async function getConnectionForWorkspace(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<Omit<ShopifyConnectionRow, 'access_token'> | null> {
   const { data } = await db
     .from('shopify_connections')
     .select(
-      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method'
     )
     .eq('platform', 'shopify')
     .eq('workspace_id', workspaceId)
     .order('installed_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  return (data as Omit<ShopifyConnectionRow, 'access_token'> | null) ?? null
+    .maybeSingle();
+  return (data as Omit<ShopifyConnectionRow, 'access_token'> | null) ?? null;
 }
 
 /**
@@ -223,17 +234,17 @@ export async function getConnectionForWorkspace(
  */
 export async function getConnectionForUser(
   db: SupabaseClient,
-  userId: string,
+  userId: string
 ): Promise<Omit<ShopifyConnectionRow, 'access_token'> | null> {
   const { data } = await db
     .from('shopify_connections')
     .select(
-      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method',
+      'id, user_id, workspace_id, shop_domain, shop_name, scope, status, installed_at, uninstalled_at, connection_method'
     )
     .eq('platform', 'shopify')
     .eq('user_id', userId)
     .order('installed_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  return (data as Omit<ShopifyConnectionRow, 'access_token'> | null) ?? null
+    .maybeSingle();
+  return (data as Omit<ShopifyConnectionRow, 'access_token'> | null) ?? null;
 }

@@ -13,10 +13,10 @@ interface ShopifyConnection {
   shop_domain: string;
   shop_name: string | null;
   status: string;
-  connection_method?: 'oauth' | 'admin_token';
+  connection_method?: 'oauth' | 'admin_token' | 'client_credentials';
 }
 
-type Mode = 'idle' | 'oauth' | 'token';
+type Mode = 'idle' | 'oauth' | 'token' | 'clientCredentials';
 
 /**
  * Settings → Canales card for Shopify. Matches the per-platform card
@@ -46,13 +46,23 @@ export function ShopifyCard() {
   const [tokenSecret, setTokenSecret] = useState('');
   const [connectingToken, setConnectingToken] = useState(false);
 
+  // Shopify Dev Dashboard app form
+  const [clientShop, setClientShop] = useState('');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+  const [connectingClient, setConnectingClient] = useState(false);
+
   useEffect(() => {
     void load();
     const params = new URLSearchParams(window.location.search);
     const result = params.get('shopify');
     if (result === 'connected') toast.success(t('settings.shopifyConnected'));
     else if (result === 'error')
-      toast.error(t('settings.shopifyConnectError', { reason: params.get('reason') ?? 'error' }));
+      toast.error(
+        t('settings.shopifyConnectError', {
+          reason: params.get('reason') ?? 'error',
+        })
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -97,7 +107,9 @@ export function ShopifyCard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error ?? t('settings.shopifyConnectError', { reason: 'token' }));
+        toast.error(
+          data.error ?? t('settings.shopifyConnectError', { reason: 'token' })
+        );
         return;
       }
       toast.success(t('settings.shopifyConnected'));
@@ -118,11 +130,58 @@ export function ShopifyCard() {
     }
   }
 
+  async function handleClientCredentialsConnect() {
+    if (!clientShop.trim() || !clientId.trim() || !clientSecret.trim()) {
+      toast.error(t('settings.shopifyClientCredentialsMissingFields'));
+      return;
+    }
+    setConnectingClient(true);
+    try {
+      const res = await fetchWithCsrf(
+        '/api/shopify/connect-client-credentials',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: clientShop.trim(),
+            clientId: clientId.trim(),
+            clientSecret: clientSecret.trim(),
+          }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          data.error ??
+            t('settings.shopifyConnectError', { reason: 'credentials' })
+        );
+        return;
+      }
+      toast.success(t('settings.shopifyConnected'));
+      setConnection({
+        shop_domain: data.shop_domain,
+        shop_name: data.shop_name ?? null,
+        status: 'active',
+        connection_method: 'client_credentials',
+      });
+      setMode('idle');
+      setClientShop('');
+      setClientId('');
+      setClientSecret('');
+    } catch {
+      toast.error(t('settings.shopifyConnectError', { reason: 'credentials' }));
+    } finally {
+      setConnectingClient(false);
+    }
+  }
+
   async function handleDisconnect() {
     if (!confirm(t('settings.shopifyDisconnectConfirm'))) return;
     setDisconnecting(true);
     try {
-      const res = await fetchWithCsrf('/api/shopify/status', { method: 'DELETE' });
+      const res = await fetchWithCsrf('/api/shopify/status', {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error('failed');
       toast.success(t('settings.shopifyDisconnected'));
       setConnection(null);
@@ -138,19 +197,26 @@ export function ShopifyCard() {
   return (
     <li
       className={cn(
-        'group flex flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all',
+        'group bg-card flex flex-col gap-3 overflow-hidden rounded-xl border p-4 transition-all',
         isConnected
           ? 'border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]'
-          : 'border-border hover:border-foreground/30',
+          : 'border-border hover:border-foreground/30'
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
-          <Image src="/channels/shopify.svg" alt="Shopify" width={28} height={28} />
+        <div className="ring-border flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1">
+          <Image
+            src="/channels/shopify.svg"
+            alt="Shopify"
+            width={28}
+            height={28}
+          />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">Shopify</p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+          <p className="text-foreground truncate text-sm font-semibold">
+            Shopify
+          </p>
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-snug">
             {t('settings.shopifyDescription')}
           </p>
         </div>
@@ -158,17 +224,22 @@ export function ShopifyCard() {
 
       {loading ? (
         <div className="flex items-center justify-center py-3">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground size-4 animate-spin" />
         </div>
       ) : isConnected ? (
         <ul className="space-y-1">
-          <li className="flex items-center gap-2 rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50">
+          <li className="bg-muted/60 ring-border/50 flex items-center gap-2 rounded-md px-2 py-1.5 ring-1">
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-400" />
-            <span className="flex-1 truncate text-xs text-foreground">
+            <span className="text-foreground flex-1 truncate text-xs">
               {connection?.shop_name || connection?.shop_domain}
               {connection?.connection_method === 'admin_token' && (
-                <span className="ml-1 text-[10px] text-muted-foreground">
+                <span className="text-muted-foreground ml-1 text-[10px]">
                   ({t('settings.shopifyConnectedViaToken')})
+                </span>
+              )}
+              {connection?.connection_method === 'client_credentials' && (
+                <span className="text-muted-foreground ml-1 text-[10px]">
+                  ({t('settings.shopifyConnectedViaClientCredentials')})
                 </span>
               )}
             </span>
@@ -176,7 +247,7 @@ export function ShopifyCard() {
               onClick={handleDisconnect}
               disabled={disconnecting}
               title={t('settings.disconnect')}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-amber-700 dark:hover:text-amber-400"
+              className="text-muted-foreground hover:bg-accent rounded p-1 hover:text-amber-700 dark:hover:text-amber-400"
             >
               {disconnecting ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -203,13 +274,54 @@ export function ShopifyCard() {
               <div className="flex gap-2">
                 <button
                   onClick={handleConnect}
-                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-lg px-3 py-2 text-sm font-medium"
                 >
                   {t('common.connect')}
                 </button>
                 <button
                   onClick={() => setMode('idle')}
-                  className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
+                  className="border-border text-foreground hover:bg-accent rounded-lg border px-3 py-2 text-sm"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </>
+          ) : mode === 'clientCredentials' ? (
+            <>
+              <Input
+                placeholder={t('settings.shopifyDomainPlaceholder')}
+                value={clientShop}
+                onChange={(e) => setClientShop(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <Input
+                type="password"
+                placeholder={t('settings.shopifyClientIdPlaceholder')}
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <Input
+                type="password"
+                placeholder={t('settings.shopifyClientSecretPlaceholder')}
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                className="bg-background text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClientCredentialsConnect}
+                  disabled={connectingClient}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
+                >
+                  {connectingClient && (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  )}
+                  {t('common.connect')}
+                </button>
+                <button
+                  onClick={() => setMode('idle')}
+                  className="border-border text-foreground hover:bg-accent rounded-lg border px-3 py-2 text-sm"
                 >
                   {t('common.cancel')}
                 </button>
@@ -217,7 +329,7 @@ export function ShopifyCard() {
             </>
           ) : mode === 'token' ? (
             <>
-              <p className="rounded-md bg-muted/50 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+              <p className="bg-muted/50 text-muted-foreground rounded-md px-2 py-1.5 text-[11px] leading-snug">
                 {t('settings.shopifyTokenGuide')}
               </p>
               <Input
@@ -244,14 +356,16 @@ export function ShopifyCard() {
                 <button
                   onClick={handleTokenConnect}
                   disabled={connectingToken}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
                 >
-                  {connectingToken && <Loader2 className="size-3.5 animate-spin" />}
+                  {connectingToken && (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  )}
                   {t('common.connect')}
                 </button>
                 <button
                   onClick={() => setMode('idle')}
-                  className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-accent"
+                  className="border-border text-foreground hover:bg-accent rounded-lg border px-3 py-2 text-sm"
                 >
                   {t('common.cancel')}
                 </button>
@@ -262,27 +376,43 @@ export function ShopifyCard() {
               {configured ? (
                 <button
                   onClick={() => setMode('oauth')}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
                 >
-                  <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
+                  <Image
+                    src="/channels/shopify.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                  />
                   {t('common.connect')}
                 </button>
               ) : null}
               <button
-                onClick={() => setMode('token')}
+                onClick={() => setMode('clientCredentials')}
                 className={cn(
                   'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   configured
-                    ? 'text-[11px] text-muted-foreground hover:text-foreground'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90',
+                    ? 'text-muted-foreground hover:text-foreground text-[11px]'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
                 )}
               >
                 {!configured && (
-                  <Image src="/channels/shopify.svg" alt="" width={16} height={16} />
+                  <Image
+                    src="/channels/shopify.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                  />
                 )}
                 {configured
-                  ? t('settings.shopifyUseTokenLink')
-                  : t('settings.shopifyConnectToken')}
+                  ? t('settings.shopifyUseClientCredentialsLink')
+                  : t('settings.shopifyConnectClientCredentials')}
+              </button>
+              <button
+                onClick={() => setMode('token')}
+                className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center text-[11px] font-medium"
+              >
+                {t('settings.shopifyUseTokenLink')}
               </button>
             </>
           )}

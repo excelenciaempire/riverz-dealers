@@ -15,9 +15,9 @@
  *  - Webhooks: base64 HMAC-SHA256 over the raw request body.
  */
 
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto';
 
-const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10'
+const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10';
 // `write_orders` habilita que el asistente IA cree pedidos reales
 // (src/lib/shopify/create-order.ts). Las tiendas conectadas con el set
 // viejo (solo lectura) deben RECONECTAR para otorgarlo — hasta entonces
@@ -81,14 +81,14 @@ const DEFAULT_SCOPES =
     // approval for read_draft_orders scope" y los webhooks del tema ni se
     // pueden registrar, así que esas ventas eran invisibles.
     'read_draft_orders',
-  ].join(',')
+  ].join(',');
 
 export function shopifyApiVersion(): string {
-  return API_VERSION
+  return API_VERSION;
 }
 
 export function shopifyScopes(): string {
-  return DEFAULT_SCOPES
+  return DEFAULT_SCOPES;
 }
 
 /**
@@ -96,99 +96,100 @@ export function shopifyScopes(): string {
  * return null if it doesn't look like a valid shop.
  */
 export function normalizeShopDomain(input: string): string | null {
-  if (!input) return null
-  let s = input.trim().toLowerCase()
-  s = s.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+  if (!input) return null;
+  let s = input.trim().toLowerCase();
+  s = s.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   // Accept "mystore" shorthand → mystore.myshopify.com
-  if (!s.includes('.')) s = `${s}.myshopify.com`
-  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(s)) return null
-  return s
+  if (!s.includes('.')) s = `${s}.myshopify.com`;
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(s)) return null;
+  return s;
 }
 
 export function buildAuthorizeUrl(args: {
-  shop: string
-  state: string
-  apiKey: string
-  redirectUri: string
-  scopes?: string
+  shop: string;
+  state: string;
+  apiKey: string;
+  redirectUri: string;
+  scopes?: string;
 }): string {
   const params = new URLSearchParams({
     client_id: args.apiKey,
     scope: args.scopes || DEFAULT_SCOPES,
     redirect_uri: args.redirectUri,
     state: args.state,
-  })
-  return `https://${args.shop}/admin/oauth/authorize?${params.toString()}`
+  });
+  return `https://${args.shop}/admin/oauth/authorize?${params.toString()}`;
 }
 
 function safeEqualHex(a: string, b: string): boolean {
   try {
-    const ba = Buffer.from(a, 'hex')
-    const bb = Buffer.from(b, 'hex')
-    if (ba.length !== bb.length) return false
-    return timingSafeEqual(ba, bb)
+    const ba = Buffer.from(a, 'hex');
+    const bb = Buffer.from(b, 'hex');
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
   } catch {
-    return false
+    return false;
   }
 }
 
 function safeEqualBase64(a: string, b: string): boolean {
   try {
-    const ba = Buffer.from(a, 'base64')
-    const bb = Buffer.from(b, 'base64')
-    if (ba.length !== bb.length) return false
-    return timingSafeEqual(ba, bb)
+    const ba = Buffer.from(a, 'base64');
+    const bb = Buffer.from(b, 'base64');
+    if (ba.length !== bb.length) return false;
+    return timingSafeEqual(ba, bb);
   } catch {
-    return false
+    return false;
   }
 }
 
 /** Verify the HMAC on an OAuth callback (hex, over the sorted query). */
 export function verifyOAuthHmac(
   params: URLSearchParams,
-  apiSecret: string,
+  apiSecret: string
 ): boolean {
-  const hmac = params.get('hmac')
-  if (!hmac) return false
-  const pairs: string[] = []
+  const hmac = params.get('hmac');
+  if (!hmac) return false;
+  const pairs: string[] = [];
   for (const [key, value] of params.entries()) {
-    if (key === 'hmac' || key === 'signature') continue
-    pairs.push(`${key}=${value}`)
+    if (key === 'hmac' || key === 'signature') continue;
+    pairs.push(`${key}=${value}`);
   }
-  pairs.sort()
-  const message = pairs.join('&')
-  const digest = createHmac('sha256', apiSecret).update(message).digest('hex')
-  return safeEqualHex(digest, hmac)
+  pairs.sort();
+  const message = pairs.join('&');
+  const digest = createHmac('sha256', apiSecret).update(message).digest('hex');
+  return safeEqualHex(digest, hmac);
 }
 
 /** Verify the HMAC on a webhook delivery (base64, over the raw body). */
 export function verifyWebhookHmac(
   rawBody: string,
   headerHmac: string | null,
-  apiSecret: string,
+  apiSecret: string
 ): boolean {
-  if (!headerHmac) return false
+  if (!headerHmac) return false;
   const digest = createHmac('sha256', apiSecret)
     .update(rawBody, 'utf8')
-    .digest('base64')
-  return safeEqualBase64(digest, headerHmac)
+    .digest('base64');
+  return safeEqualBase64(digest, headerHmac);
 }
 
 export interface TokenDeShopify {
-  access_token: string
-  scope: string
+  access_token: string;
+  scope: string;
   /** Segundos de vida. 3600 para los que expiran; null para los viejos. */
-  expires_in: number | null
+  expires_in: number | null;
   /** Con esto se renueva sin tocar al comercio. Null en los viejos. */
-  refresh_token: string | null
+  refresh_token: string | null;
   /** Segundos de vida del refresh (90 días). */
-  refresh_token_expires_in: number | null
+  refresh_token_expires_in: number | null;
 }
 
 function leerToken(data: Record<string, unknown>): TokenDeShopify {
-  if (!data.access_token) throw new Error('No access_token in Shopify response')
+  if (!data.access_token)
+    throw new Error('No access_token in Shopify response');
   const num = (v: unknown) =>
-    typeof v === 'number' && Number.isFinite(v) ? v : null
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
   return {
     access_token: String(data.access_token),
     scope: typeof data.scope === 'string' ? data.scope : '',
@@ -198,7 +199,7 @@ function leerToken(data: Record<string, unknown>): TokenDeShopify {
         ? data.refresh_token
         : null,
     refresh_token_expires_in: num(data.refresh_token_expires_in),
-  }
+  };
 }
 
 /**
@@ -214,10 +215,10 @@ function leerToken(data: Record<string, unknown>): TokenDeShopify {
  * Renovarlo es cosa del servidor: el comercio no vuelve a ver una pantalla.
  */
 export async function exchangeCodeForToken(args: {
-  shop: string
-  code: string
-  apiKey: string
-  apiSecret: string
+  shop: string;
+  code: string;
+  apiKey: string;
+  apiSecret: string;
 }): Promise<TokenDeShopify> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
@@ -228,11 +229,11 @@ export async function exchangeCodeForToken(args: {
       code: args.code,
       expiring: 1,
     }),
-  })
+  });
   if (!res.ok) {
-    throw new Error(`Shopify token exchange failed: ${res.status}`)
+    throw new Error(`Shopify token exchange failed: ${res.status}`);
   }
-  return leerToken(await res.json())
+  return leerToken(await res.json());
 }
 
 /**
@@ -243,10 +244,10 @@ export async function exchangeCodeForToken(args: {
  * tienda afuera, noventa días después, sin que nadie haya tocado nada.
  */
 export async function refreshShopifyToken(args: {
-  shop: string
-  refreshToken: string
-  apiKey: string
-  apiSecret: string
+  shop: string;
+  refreshToken: string;
+  apiKey: string;
+  apiSecret: string;
 }): Promise<TokenDeShopify> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
@@ -257,10 +258,41 @@ export async function refreshShopifyToken(args: {
       grant_type: 'refresh_token',
       refresh_token: args.refreshToken,
     }),
-  })
+  });
   if (!res.ok) {
-    const texto = await res.text().catch(() => '')
-    throw new Error(`Shopify token refresh failed: ${res.status} ${texto.slice(0, 200)}`)
+    const texto = await res.text().catch(() => '');
+    throw new Error(
+      `Shopify token refresh failed: ${res.status} ${texto.slice(0, 200)}`
+    );
   }
-  return leerToken(await res.json())
+  return leerToken(await res.json());
+}
+
+/**
+ * Obtiene el token de una app instalada desde Shopify Dev Dashboard.
+ *
+ * Estos tokens duran 24 horas. No llevan refresh token: se pide otro con el
+ * mismo client id y client secret cuando está por vencer.
+ */
+export async function exchangeClientCredentialsForToken(args: {
+  shop: string;
+  clientId: string;
+  clientSecret: string;
+}): Promise<TokenDeShopify> {
+  const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: args.clientId,
+      client_secret: args.clientSecret,
+    }),
+  });
+  if (!res.ok) {
+    const texto = await res.text().catch(() => '');
+    throw new Error(
+      `Shopify client credentials exchange failed: ${res.status} ${texto.slice(0, 200)}`
+    );
+  }
+  return leerToken(await res.json());
 }
