@@ -54,14 +54,7 @@ export function MetaBusinessLogin({
   channel: "messenger" | "instagram";
   anyConnected: boolean;
   logoChannel: "messenger" | "instagram";
-  /**
-   * El logo de la TARJETA, cuando no es el del canal.
-   *
-   * La tarjeta de Meta se llama "Meta" y lleva el logo de Meta, pero el botón
-   * y el selector de cuentas usaban el de Messenger: la misma tarjeta mostraba
-   * dos marcas distintas para una sola conexión. Instagram no manda ninguno y
-   * se queda con el suyo, que ahí sí coincide.
-   */
+  /** El logo de la tarjeta, cuando no es el del canal interno. */
   logoSrc?: string;
   onConnected: () => void;
 }) {
@@ -182,7 +175,13 @@ export function MetaBusinessLogin({
         }
         const found = j.accounts ?? [];
         if (found.length === 0) {
-          toast.error(t("settings.metaNoAccounts"));
+          toast.error(
+            t(
+              channel === "messenger"
+                ? "settings.noFacebookPagesFound"
+                : "settings.noInstagramAccountsFound",
+            ),
+          );
           return;
         }
         if (found.length === 1) {
@@ -248,7 +247,15 @@ export function MetaBusinessLogin({
         ) : (
           <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
         )}
-        {anyConnected ? t("settings.addAnotherAccount") : t("common.connect")}
+        {t(
+          channel === "messenger"
+            ? anyConnected
+              ? "settings.addAnotherFacebookPage"
+              : "settings.connectFacebookPage"
+            : anyConnected
+              ? "settings.addAnotherInstagramAccount"
+              : "settings.connectInstagramAccount",
+        )}
       </button>
 
       <Dialog
@@ -261,7 +268,13 @@ export function MetaBusinessLogin({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t("settings.chooseAccountsToConnect")}</DialogTitle>
+            <DialogTitle>
+              {t(
+                channel === "messenger"
+                  ? "settings.chooseFacebookPagesToConnect"
+                  : "settings.chooseInstagramAccountsToConnect",
+              )}
+            </DialogTitle>
           </DialogHeader>
 
           <ul className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto">
@@ -276,7 +289,9 @@ export function MetaBusinessLogin({
                   />
                   <span className="flex items-center gap-2 text-sm">
                     <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
-                    {a.label}
+                    {channel === "instagram"
+                      ? a.label.replace(/\s+\(Instagram\)$/u, "")
+                      : a.label}
                   </span>
                 </label>
               </li>

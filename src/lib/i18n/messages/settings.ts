@@ -175,14 +175,46 @@ export const settings = {
     es: 'No se encontraron cuentas para conectar',
     en: 'No accounts found to connect',
   },
+  noFacebookPagesFound: {
+    es: 'No se encontraron páginas de Facebook',
+    en: 'No Facebook pages found',
+  },
+  noInstagramAccountsFound: {
+    es: 'No se encontraron cuentas de Instagram',
+    en: 'No Instagram accounts found',
+  },
   metaConnectionCancelled: {
     es: 'Conexión cancelada',
     en: 'Connection cancelled',
   },
   addAnotherAccount: { es: 'Añadir otra cuenta', en: 'Add another account' },
+  connectFacebookPage: {
+    es: 'Conectar Facebook',
+    en: 'Connect Facebook',
+  },
+  addAnotherFacebookPage: {
+    es: 'Añadir otra página',
+    en: 'Add another page',
+  },
+  connectInstagramAccount: {
+    es: 'Conectar Instagram',
+    en: 'Connect Instagram',
+  },
+  addAnotherInstagramAccount: {
+    es: 'Añadir otra cuenta',
+    en: 'Add another account',
+  },
   chooseAccountsToConnect: {
     es: 'Elige las cuentas a conectar',
     en: 'Choose the accounts to connect',
+  },
+  chooseFacebookPagesToConnect: {
+    es: 'Elige las páginas de Facebook',
+    en: 'Choose Facebook pages',
+  },
+  chooseInstagramAccountsToConnect: {
+    es: 'Elige las cuentas de Instagram',
+    en: 'Choose Instagram accounts',
   },
   connectSelected: {
     es: 'Conectar seleccionadas ({n})',
@@ -659,13 +691,13 @@ export const settings = {
     es: 'Cloud API, WhatsApp Business o coexistencia.',
     en: 'Cloud API, WhatsApp Business or coexistence.',
   },
-  metaCardDescription: {
-    es: 'Messenger y comentarios de tu página en una sola conexión.',
-    en: "Messenger and your page's comments in a single connection.",
+  facebookCardDescription: {
+    es: 'Messenger y comentarios de Facebook.',
+    en: 'Messenger and Facebook comments.',
   },
   instagramCardDescription: {
-    es: 'DMs y comentarios de Instagram en una sola conexión.',
-    en: 'Instagram DMs and comments in a single connection.',
+    es: 'Mensajes y comentarios de Instagram.',
+    en: 'Instagram messages and comments.',
   },
   gmailCardDescription: {
     es: 'Cuentas @gmail o Google Workspace.',

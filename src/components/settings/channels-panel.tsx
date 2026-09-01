@@ -44,8 +44,7 @@ interface ChannelGroup {
   descriptionKey: string;
   /** Channel whose brand logo represents the group. */
   logoChannel: Channel;
-  /** Optional explicit logo asset that overrides logoChannel (e.g. the Meta
-   *  logo for the Facebook/Messenger group). */
+  /** Optional explicit logo asset that overrides logoChannel. */
   logoSrc?: string;
   /** Internal channels this group sets up. */
   members: Channel[];
@@ -64,10 +63,10 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
   },
   {
     key: "facebook",
-    label: "Meta",
-    descriptionKey: "settings.metaCardDescription",
+    label: "Facebook",
+    descriptionKey: "settings.facebookCardDescription",
     logoChannel: "messenger",
-    logoSrc: "/channels/meta.svg",
+    logoSrc: "/channels/facebook.svg",
     members: ["messenger", "fb_comment"],
     connectChannel: "messenger",
   },
@@ -454,6 +453,10 @@ export function ChannelsPanel() {
                         ? (primary as ChannelConnection & { last_error?: string })
                             .last_error
                         : null;
+                    const accountLabel =
+                      g.connectChannel === "instagram"
+                        ? primary.label?.replace(/\s+\(Instagram\)$/u, "")
+                        : primary.label;
                     return (
                       <li
                         key={primary.id}
@@ -462,7 +465,7 @@ export function ChannelsPanel() {
                         <div className="flex items-center gap-2">
                           <StatusIcon status={primary.status} />
                           <span className="flex-1 truncate text-xs text-foreground">
-                            {primary.label ??
+                            {accountLabel ??
                               primary.external_account_id ??
                               t("settings.noLabel")}
                           </span>
@@ -568,8 +571,8 @@ export function ChannelsPanel() {
                       channel={g.connectChannel as "messenger" | "instagram"}
                       anyConnected={anyConnected}
                       logoChannel={g.logoChannel as "messenger" | "instagram"}
-                      // El mismo logo que la tarjeta: la de Meta llevaba el
-                      // logo de Meta arriba y el de Messenger en el botón.
+                      // El mismo logo que la tarjeta mantiene una sola marca
+                      // visual durante todo el flujo.
                       logoSrc={g.logoSrc}
                       onConnected={() => void fetchConnections()}
                     />
