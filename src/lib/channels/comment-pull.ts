@@ -190,6 +190,8 @@ export interface CommentPullOptions {
   untilMs?: number;
   /** Sin tope artificial de páginas de comentarios en una importación total. */
   maxCommentPages?: number;
+  /** En un rango manual, también mira posts viejos con comentarios recientes. */
+  includeOlderPosts?: boolean;
 }
 
 /** Trae al inbox los comentarios que falten en UNA conexión. */
@@ -244,6 +246,7 @@ export async function pullCommentsForConnection(
   const postIds = await postsToScan(db, connection, channel, target, token, {
     windowMs,
     maxPosts,
+    includeOlderPosts: options.includeOlderPosts,
   });
   if (postIds.length === 0) return empty("sin_publicaciones");
 
@@ -501,7 +504,7 @@ async function postsToScan(
   channel: CommentChannel,
   target: string,
   token: string,
-  options: { windowMs: number; maxPosts: number },
+  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean },
 ): Promise<string[]> {
   // MITAD Y MITAD, no "primero las recientes y si sobra lugar las otras".
   //
@@ -559,7 +562,7 @@ async function recentPostIds(
       for (const m of json.data ?? []) {
         if (!m.id) continue;
         const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
-        if (!Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
+        if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
       }
       url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
     }

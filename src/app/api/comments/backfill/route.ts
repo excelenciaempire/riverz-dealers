@@ -97,6 +97,7 @@ export async function POST(request: Request) {
     untilMs: endMs,
     maxPosts: Number.MAX_SAFE_INTEGER,
     maxCommentPages: Number.MAX_SAFE_INTEGER,
+    includeOlderPosts: true,
     suppressAutoReply: true,
     channels,
   });
