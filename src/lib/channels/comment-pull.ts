@@ -563,6 +563,18 @@ async function postIdsWithSavedComments(
     .limit(1000);
   const deMeta = (propios ?? []) as Array<{ message_id: string; post_id: string | null }>;
 
+  // Las creatividades de anuncios —en especial los dark posts— no aparecen
+  // en /media ni /posts. `ads-sync` las descubre desde /ads_posts y las deja
+  // por conexión; sin sumarlas acá, un backfill inicial sólo ve el puñado de
+  // publicaciones orgánicas y pierde justamente la mayor parte de comentarios
+  // de una cuenta que pauta.
+  const { data: adPosts } = await db
+    .from("ad_posts")
+    .select("post_id")
+    .eq("connection_id", connection.id)
+    .order("last_seen_at", { ascending: false })
+    .limit(options.maxPosts);
+
   const { data: msgs } = await db
     .from("messages")
     .select("id, conversations!inner(connection_id)")
@@ -572,13 +584,22 @@ async function postIdsWithSavedComments(
     .order("created_at", { ascending: false })
     .limit(300);
   const messageIds = ((msgs ?? []) as Array<{ id: string }>).map((m) => m.id);
-  if (messageIds.length === 0 && deMeta.length === 0) return [];
+  if (
+    messageIds.length === 0 &&
+    deMeta.length === 0 &&
+    (adPosts ?? []).length === 0
+  )
+    return [];
 
   const { data: metas } = await db
     .from("comments_meta")
     .select("post_id")
     .in("message_id", messageIds);
   const seen = new Set<string>();
+  for (const ad of (adPosts ?? []) as Array<{ post_id: string | null }>) {
+    if (ad.post_id) seen.add(ad.post_id);
+    if (seen.size >= options.maxPosts) break;
+  }
   for (const m of deMeta) {
     if (m.post_id) seen.add(m.post_id);
     if (seen.size >= options.maxPosts) break;
