@@ -38,15 +38,22 @@ export async function POST(request: Request) {
     workspace_id?: string;
     days?: number;
     channels?: string[];
+    date_from?: string;
+    date_to?: string;
+    all_history?: boolean;
   } | null;
   const workspaceId = body?.workspace_id?.trim();
   const days = Number(body?.days);
+  const fromMs = dateBoundary(body?.date_from, false);
+  const untilMs = dateBoundary(body?.date_to, true);
+  const allHistory = body?.all_history === true;
   const channels = (body?.channels ?? []).filter(
     (channel): channel is CommentChannel =>
       (COMMENT_CHANNELS as readonly string[]).includes(channel),
   );
 
-  if (!workspaceId || !Number.isInteger(days) || days < 1 || days > 3650 || !channels.length) {
+  const validDays = Number.isInteger(days) && days >= 1 && days <= 3650;
+  if (!workspaceId || !channels.length || (!allHistory && !validDays && fromMs === undefined) || fromMs === null || untilMs === null || (fromMs !== undefined && untilMs !== undefined && fromMs > untilMs)) {
     return NextResponse.json(
       { error: translate(locale, "errInbox.backfillInvalid") },
       { status: 400 },
@@ -78,16 +85,28 @@ export async function POST(request: Request) {
   await Promise.all(
     connections.map((connection) =>
       syncAdPostsForConnection(admin, connection, {
-        maxPages: days === 3650 ? Number.MAX_SAFE_INTEGER : 5,
+        maxPages: allHistory || days === 3650 ? Number.MAX_SAFE_INTEGER : 5,
       }).catch(() => ({ inserted: 0, updated: 0 })),
     ),
   );
 
+  const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 24 * 60 * 60 * 1000;
+  const endMs = untilMs ?? Date.now();
   const result = await pullCommentsForWorkspace(admin, workspaceId, {
-    windowMs: days * 24 * 60 * 60 * 1000,
-    maxPosts: days === 3650 ? Number.MAX_SAFE_INTEGER : 100,
+    windowMs: Date.now() - startMs,
+    untilMs: endMs,
+    maxPosts: allHistory || days === 3650 ? Number.MAX_SAFE_INTEGER : 100,
+    maxCommentPages: allHistory ? Number.MAX_SAFE_INTEGER : undefined,
     suppressAutoReply: true,
     channels,
   });
-  return NextResponse.json({ ok: true, days, ...result });
+  return NextResponse.json({ ok: true, date_from: startMs ? new Date(startMs).toISOString() : null, date_to: new Date(endMs).toISOString(), ...result });
+}
+
+/** Fecha civil elegida en la UI, interpretada completa en UTC. */
+function dateBoundary(value: string | undefined, end: boolean): number | undefined | null {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isFinite(date.getTime()) ? date.getTime() : null;
 }

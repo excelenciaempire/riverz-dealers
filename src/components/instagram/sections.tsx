@@ -1827,7 +1827,11 @@ export function CommentsSection({
 function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
-  const [days, setDays] = useState(30);
+  const today = new Date().toISOString().slice(0, 10);
+  const dateDaysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const [fromDate, setFromDate] = useState(() => dateDaysAgo(30));
+  const [toDate, setToDate] = useState(today);
+  const [allHistory, setAllHistory] = useState(false);
   const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>(['comments']);
   const [channels, setChannels] = useState<Array<'ig_comment' | 'fb_comment'>>([
     'ig_comment',
@@ -1853,7 +1857,9 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             workspace_id: workspaceId,
-            days,
+            date_from: allHistory ? undefined : fromDate,
+            date_to: toDate,
+            all_history: allHistory,
             channels: surface === 'comments'
               ? channels
               : channels.map((channel) => channel === 'ig_comment' ? 'instagram' : 'facebook'),
@@ -1889,6 +1895,13 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
       : [...current, surface]);
   };
 
+  const selectPeriod = (days: number | 'all') => {
+    const all = days === 'all';
+    setAllHistory(all);
+    setFromDate(all ? '' : dateDaysAgo(days));
+    setToDate(today);
+  };
+
   return (
     <section className="rounded-xl border border-border p-4">
       <h2 className="text-sm font-semibold text-foreground">{t('igAgent.backfillTitle')}</h2>
@@ -1899,18 +1912,31 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">{t('igAgent.backfillDays')}</span>
-        {[7, 30, 90, 3650].map((value) => (
-          <Button key={value} size="sm" variant={days === value ? 'secondary' : 'outline'} onClick={() => setDays(value)}>
+        {[7, 30, 90].map((value) => (
+          <Button key={value} size="sm" variant={!allHistory && fromDate === dateDaysAgo(value) && toDate === today ? 'secondary' : 'outline'} onClick={() => selectPeriod(value)}>
             {t(`igAgent.backfillDays${value}` as 'igAgent.backfillDays7')}
           </Button>
         ))}
+        <Button size="sm" variant={allHistory ? 'secondary' : 'outline'} onClick={() => selectPeriod('all')}>
+          {t('igAgent.backfillDays3650')}
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          {t('igAgent.backfillFrom')}
+          <input type="date" value={fromDate} max={toDate || today} disabled={allHistory} onChange={(event) => { setAllHistory(false); setFromDate(event.target.value); }} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" />
+        </label>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          {t('igAgent.backfillTo')}
+          <input type="date" value={toDate} min={fromDate || undefined} max={today} onChange={(event) => { setAllHistory(false); setToDate(event.target.value); }} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" />
+        </label>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         <span className="text-xs text-muted-foreground">{t('igAgent.backfillChannels')}</span>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('ig_comment')} onChange={() => toggleChannel('ig_comment')} />{t('igAgent.network_instagram')}</label>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('fb_comment')} onChange={() => toggleChannel('fb_comment')} />{t('igAgent.network_facebook')}</label>
       </div>
-      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length || !surfaces.length}>
+      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length || !surfaces.length || (!allHistory && (!fromDate || !toDate || fromDate > toDate))}>
         {running && <Loader2 className="size-3.5 animate-spin" />}
         {running ? t('igAgent.backfillRunning') : t('igAgent.backfillRun')}
       </Button>

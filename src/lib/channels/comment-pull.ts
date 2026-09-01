@@ -180,6 +180,10 @@ export interface CommentPullOptions {
   suppressAutoReply?: boolean;
   /** Limita la recuperación a los canales elegidos desde Comentarios. */
   channels?: CommentChannel[];
+  /** Límite superior inclusivo para una recuperación con rango de fechas. */
+  untilMs?: number;
+  /** Sin tope artificial de páginas de comentarios en una importación total. */
+  maxCommentPages?: number;
 }
 
 /** Trae al inbox los comentarios que falten en UNA conexión. */
@@ -243,9 +247,14 @@ export async function pullCommentsForConnection(
   let sinHilo = 0;
   let yaEstaba = 0;
   for (const postId of postIds) {
-    const comments = await fetchCommentsWithReplies(channel, postId, token);
+    const comments = await fetchCommentsWithReplies(
+      channel,
+      postId,
+      token,
+      options.maxCommentPages ?? MAX_COMMENT_PAGES,
+    );
     for (const comment of comments) {
-      if (!isWithinWindow(comment, windowMs)) continue;
+      if (!isWithinWindow(comment, windowMs, options.untilMs)) continue;
       const parentId = comment.id;
       if (!parentId) continue;
       const replies = repliesOf(comment);
@@ -270,7 +279,7 @@ export async function pullCommentsForConnection(
         }
       }
       for (const reply of replies) {
-        if (!isWithinWindow(reply, windowMs)) continue;
+        if (!isWithinWindow(reply, windowMs, options.untilMs)) continue;
         if (!reply.id) continue;
         if (!isSelf(reply, selfIds, selfUsername)) {
           if (
@@ -396,9 +405,9 @@ function isSelf(c: RawComment, selfIds: Set<string>, selfUsername: string): bool
   return Boolean(selfUsername) && (c.username ?? c.from?.username) === selfUsername;
 }
 
-function isWithinWindow(comment: RawComment, windowMs: number): boolean {
+function isWithinWindow(comment: RawComment, windowMs: number, untilMs?: number): boolean {
   const timestamp = Date.parse(parseMetaTimestamp(timeOf(comment)));
-  return Number.isFinite(timestamp) && timestamp >= Date.now() - windowMs;
+  return Number.isFinite(timestamp) && timestamp >= Date.now() - windowMs && (untilMs === undefined || timestamp <= untilMs);
 }
 
 /**
@@ -639,6 +648,7 @@ async function fetchCommentsWithReplies(
   channel: CommentChannel,
   postId: string,
   token: string,
+  maxPages: number,
 ): Promise<RawComment[]> {
   let url: string | null = withAppsecretProof(
     `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(DIALECT[channel].commentFields)}` +
@@ -647,7 +657,7 @@ async function fetchCommentsWithReplies(
   );
   const comments: RawComment[] = [];
   try {
-    for (let page = 0; url && page < MAX_COMMENT_PAGES; page++) {
+    for (let page = 0; url && page < maxPages; page++) {
       const res = await fetch(url);
       if (!res.ok) break;
       const json = (await res.json()) as {

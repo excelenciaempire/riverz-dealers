@@ -31,13 +31,18 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as {
     workspace_id?: string; days?: number; channels?: string[];
+    date_from?: string; date_to?: string; all_history?: boolean;
   } | null;
   const workspaceId = body?.workspace_id?.trim();
   const days = Number(body?.days);
+  const fromMs = dateBoundary(body?.date_from, false);
+  const untilMs = dateBoundary(body?.date_to, true);
+  const allHistory = body?.all_history === true;
   const selected = (body?.channels ?? []).filter(
     (channel): channel is BackfillChannel => (CHANNELS as readonly string[]).includes(channel),
   );
-  if (!workspaceId || !Number.isInteger(days) || days < 1 || days > 3650 || !selected.length) {
+  const validDays = Number.isInteger(days) && days >= 1 && days <= 3650;
+  if (!workspaceId || !selected.length || (!allHistory && !validDays && fromMs === undefined) || fromMs === null || untilMs === null || (fromMs !== undefined && untilMs !== undefined && fromMs > untilMs)) {
     return NextResponse.json({ error: translate(locale, "errInbox.backfillInvalid") }, { status: 400 });
   }
 
@@ -56,12 +61,14 @@ export async function POST(request: Request) {
     channels: connectionChannels,
     statuses: ["connected"],
   });
-  const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
-  const result = await Promise.all(connections.map((connection) => pullConnection(connection, sinceIso)));
+  const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 86_400_000;
+  const sinceIso = new Date(startMs).toISOString();
+  const untilIso = new Date(untilMs ?? Date.now()).toISOString();
+  const result = await Promise.all(connections.map((connection) => pullConnection(connection, sinceIso, untilIso, allHistory)));
   return NextResponse.json({ ok: true, ingested: result.reduce((sum, item) => sum + item.ingested, 0), detail: result });
 }
 
-async function pullConnection(connection: ChannelConnection, sinceIso: string) {
+async function pullConnection(connection: ChannelConnection, sinceIso: string, untilIso: string, allHistory: boolean) {
   const config = (connection.config ?? {}) as Record<string, unknown>;
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const encrypted = String(secrets.access_token ?? "");
@@ -94,10 +101,18 @@ async function pullConnection(connection: ChannelConnection, sinceIso: string) {
         contactName: other.username ? `@${other.username}` : other.name,
         createIfMissing: true,
         sinceIso,
-        maxPages: 100,
+        untilIso,
+        maxPages: allHistory ? Number.MAX_SAFE_INTEGER : 100,
       });
     }
     url = data.paging?.next ? withAppsecretProof(data.paging.next, token) : null;
   }
   return { channel: connection.channel, ingested };
+}
+
+function dateBoundary(value: string | undefined, end: boolean): number | undefined | null {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isFinite(date.getTime()) ? date.getTime() : null;
 }

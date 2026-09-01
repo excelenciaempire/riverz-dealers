@@ -64,6 +64,8 @@ export interface ThreadSyncArgs {
    * la última pasada, en vez de releer los mismos 30 días cada dos horas.
    */
   sinceIso?: string;
+  /** Techo inclusivo para importar sólo un rango de fechas. */
+  untilIso?: string;
   /** Páginas de 50 mensajes como máximo. */
   maxPages?: number;
 }
@@ -83,6 +85,7 @@ export interface ThreadSyncArgs {
 export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> {
   const windowDays = args.windowDays ?? 0;
   const desde = args.sinceIso ? new Date(args.sinceIso).getTime() : NaN;
+  const hasta = args.untilIso ? new Date(args.untilIso).getTime() : NaN;
   const cutoffMs = Number.isFinite(desde)
     ? desde
     : windowDays > 0
@@ -117,6 +120,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
         reachedCutoff = true;
         break;
       }
+      if (Number.isFinite(hasta) && m.created_time && new Date(m.created_time).getTime() > hasta) continue;
       if (!m.id) continue;
       const outbound = m.from?.id === args.selfId;
       const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId);
