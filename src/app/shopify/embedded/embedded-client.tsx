@@ -118,10 +118,10 @@ export function EmbeddedClient() {
             <a
               href={
                 status.state === 'pending'
-                  ? // Pre-launch: /registro is closed; sign in and the
+                  ? // Pre-launch: /crear is closed; sign in and the
                     // dashboard claims the parked install.
                     signupsOpen()
-                    ? `/registro?shopify=pending&shop=${encodeURIComponent(status.shop)}`
+                    ? `/crear?shopify=pending&shop=${encodeURIComponent(status.shop)}`
                     : `/ingresar?shopify=pending&shop=${encodeURIComponent(status.shop)}`
                   : `/api/shopify/oauth/start?shop=${encodeURIComponent(status.shop)}`
               }

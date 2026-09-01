@@ -62,6 +62,42 @@ export const auth = {
     es: "Enviamos un enlace de confirmación a",
     en: "We sent a confirmation link to",
   },
+  confirmationEmailSubject: {
+    es: "Confirma tu cuenta de Riverz",
+    en: "Confirm your Riverz account",
+  },
+  confirmationEmailTitle: {
+    es: "Confirma tu correo",
+    en: "Confirm your email",
+  },
+  confirmationEmailBody: {
+    es: "Usa este enlace para activar tu cuenta.",
+    en: "Use this link to activate your account.",
+  },
+  confirmationEmailButton: {
+    es: "Confirmar correo",
+    en: "Confirm email",
+  },
+  recoveryEmailSubject: {
+    es: "Recupera tu cuenta de Riverz",
+    en: "Recover your Riverz account",
+  },
+  recoveryEmailTitle: {
+    es: "Recupera tu cuenta",
+    en: "Recover your account",
+  },
+  recoveryEmailBody: {
+    es: "Usa este enlace para crear una contraseña nueva.",
+    en: "Use this link to create a new password.",
+  },
+  recoveryEmailButton: {
+    es: "Crear contraseña nueva",
+    en: "Create a new password",
+  },
+  authEmailFooter: {
+    es: "Si no solicitaste este mensaje, puedes ignorarlo.",
+    en: "If you didn't request this message, you can ignore it.",
+  },
   fullNameLabel: { es: "Nombre completo", en: "Full name" },
   inviteEmailLocked: {
     es: "Esta invitación es para esta dirección. Tu cuenta debe usarla.",

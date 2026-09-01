@@ -150,6 +150,17 @@ export async function proxy(request: NextRequest) {
     return new NextResponse(null, { status: 404 })
   }
 
+  // Estas dos URLs son la selección explícita de idioma de la página de alta:
+  // quien abre /create recibe inglés y quien abre /crear recibe español,
+  // incluso si tenía guardado el otro idioma de una visita anterior.
+  const creationLocale: Locale | null =
+    request.nextUrl.pathname === '/create'
+      ? 'en'
+      : request.nextUrl.pathname === '/crear'
+        ? 'es'
+        : null
+  if (creationLocale) request.cookies.set(LOCALE_COOKIE, creationLocale)
+
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   // Next 16 reads the CSP from the *request* headers to stamp the nonce
@@ -168,9 +179,9 @@ export async function proxy(request: NextRequest) {
   //    (App Store review requires auth before any interstitial page).
   // ONLY at the site root: the App URL is `https://riverz.co`, so this
   // bootstrap fires exclusively for `/?shop=…`. Matching every path would
-  // catch our own post-auth redirects — `/registro?shop=…`,
+  // catch our own post-auth redirects — `/crear?shop=…`,
   // `/integraciones?shop=…` — and bounce them back to OAuth, an infinite
-  // redirect loop (the callback lands on `/registro?shopify=pending&shop=…`).
+  // redirect loop (the callback lands on `/crear?shopify=pending&shop=…`).
   const shopParam = request.nextUrl.searchParams.get('shop')
   if (
     request.nextUrl.pathname === '/' &&
@@ -251,9 +262,9 @@ export async function proxy(request: NextRequest) {
   // in their language.
   const canonicalPath = canonicalizePath(request.nextUrl.pathname)
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value
-  const locale: Locale = isLocale(cookieLocale)
-    ? cookieLocale
-    : detectLocale(request.headers)
+  const locale: Locale = creationLocale ?? (
+    isLocale(cookieLocale) ? cookieLocale : detectLocale(request.headers)
+  )
   const redirectTo = (path: string) => {
     const url = request.nextUrl.clone()
     url.pathname = localizePath(path, locale)
@@ -261,8 +272,8 @@ export async function proxy(request: NextRequest) {
   }
 
   // Con el alta cerrada a mano, la página de registro no se alcanza.
-  // canonicalPath cubre las tres formas: /registro, su slug en inglés /create
-  // y el alias viejo /signup. Quien entra sin sesión cae EN el formulario de la
+  // canonicalPath cubre /crear, su slug en inglés /create y los alias viejos
+  // /registro y /signup. Quien entra sin sesión cae EN el formulario de la
   // lista de espera (#lista), no arriba de la portada, así que el que venía a
   // abrir cuenta igual queda anotado; con sesión, sigue al redirect a /panel.
   //
@@ -271,7 +282,7 @@ export async function proxy(request: NextRequest) {
   const puedeRegistrarse = signupsOpenForInstall(
     (nombre) => Boolean(request.cookies.get(nombre)?.value)
   )
-  if (!user && !puedeRegistrarse && canonicalPath === '/registro') {
+  if (!user && !puedeRegistrarse && canonicalPath === '/crear') {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     url.search = ''
@@ -285,7 +296,7 @@ export async function proxy(request: NextRequest) {
   // complete the flow before reaching the panel.
   if (user && (
     canonicalPath === '/ingresar' ||
-    canonicalPath === '/registro' ||
+    canonicalPath === '/crear' ||
     canonicalPath === '/recuperar-clave'
   )) {
     return redirectTo('/panel')
@@ -352,7 +363,13 @@ export async function proxy(request: NextRequest) {
   // (no geo header) — and the lookup runs at most once per visitor (the cookie
   // is set for a year). Not httpOnly: the client LocaleProvider reads it and
   // overwrites it when the user picks a language in onboarding/Settings.
-  if (!request.cookies.get(LOCALE_COOKIE)) {
+  if (creationLocale) {
+    supabaseResponse.cookies.set(LOCALE_COOKIE, creationLocale, {
+      path: '/',
+      maxAge: LOCALE_COOKIE_MAX_AGE,
+      sameSite: 'lax',
+    })
+  } else if (!request.cookies.get(LOCALE_COOKIE)) {
     supabaseResponse.cookies.set(LOCALE_COOKIE, await detectLocaleWithIp(request.headers), {
       path: '/',
       maxAge: LOCALE_COOKIE_MAX_AGE,

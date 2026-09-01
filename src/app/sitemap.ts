@@ -21,12 +21,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.7,
     },
-    // /registro only while sign-ups are open — no point sending crawlers
+    // /crear only while sign-ups are open — no point sending crawlers
     // to a page the proxy redirects to the landing.
     ...(signupsOpen()
       ? [
           {
-            url: `${BASE_URL}/registro`,
+            url: `${BASE_URL}/crear`,
             lastModified,
             changeFrequency: "monthly" as const,
             priority: 0.7,

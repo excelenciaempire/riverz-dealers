@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies as nextCookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import {
   checkRateLimit,
@@ -21,14 +20,14 @@ import {
   recordSignupCodeRedemption,
 } from "@/lib/auth/signup-codes";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
+import { sendAuthEmail } from "@/lib/auth/email";
 
 /**
  * POST /api/auth/signup
  *
- * Wraps supabase.auth.signUp with per-IP + per-email rate limiting so
- * the auth page can keep its UX (browser-driven) while we still cap
- * mass-registration probes. The verification email goes out through
- * Supabase as usual.
+ * Generates the Supabase confirmation link with per-IP + per-email rate
+ * limiting, then delivers it through Resend from Riverz's verified domain.
+ * The API only reports success after the mail provider accepts the message.
  *
  * Anti-enumeration: on email collision we do NOT say "already
  * registered". Instead we silently fire a password-reset email to that
@@ -160,33 +159,110 @@ export async function POST(req: Request) {
   // attempt) is silently coerced to undefined so Supabase falls back
   // to its project-default Site URL.
   const redirectTo = safeRedirectTo(body?.redirect_to);
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
+  const admin = supabaseAdmin();
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "signup",
     email,
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: redirectTo,
+      redirectTo,
     },
   });
 
-  // Supabase signals an existing-confirmed-user collision in one of two
-  // ways depending on project settings: a hard error, or a "fake" user
-  // object with no identities. Either way we treat it as collision and
-  // send the real owner a recovery link instead of leaking the fact.
   const isCollision =
-    !!error || (data?.user?.identities?.length ?? 1) === 0;
+    error?.code === "email_exists" ||
+    error?.code === "user_already_exists" ||
+    /already (?:been )?registered|already exists/i.test(error?.message ?? "");
+
   if (isCollision) {
     // El correo ya tenía cuenta: no se creó nada, así que el código vuelve a
     // estar disponible. Sin esto, tipear mal el correo quemaría la invitación.
-    if (codeId) await releaseSignupCode(supabaseAdmin(), codeId);
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
+    if (codeId) await releaseSignupCode(admin, codeId);
+
+    const recovery = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: recoveryRedirectTo() },
     });
-  } else if (data?.user?.id) {
+    if (recovery.error || !recovery.data.properties?.action_link) {
+      console.error(
+        JSON.stringify({
+          scope: "auth-signup",
+          event: "recovery_link_failed",
+          code: recovery.error?.code ?? "missing_link",
+        }),
+      );
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
+        { status: 503 },
+      );
+    }
+
+    const delivery = await sendAuthEmail({
+      to: email,
+      actionLink: recovery.data.properties.action_link,
+      locale,
+      kind: "recovery",
+    });
+    if (!delivery.ok) {
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(genericOk);
+  }
+
+  if (error || !data.user?.id || !data.properties?.action_link) {
+    if (codeId) await releaseSignupCode(admin, codeId);
+    console.error(
+      JSON.stringify({
+        scope: "auth-signup",
+        event: "signup_link_failed",
+        code: error?.code ?? "missing_link",
+      }),
+    );
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.signupFailed") },
+      { status: 400 },
+    );
+  }
+
+  const delivery = await sendAuthEmail({
+    to: email,
+    actionLink: data.properties.action_link,
+    locale,
+    kind: "confirmation",
+  });
+  if (!delivery.ok) {
+    // Si el proveedor rechazó el mensaje con certeza, dejamos el alta como si
+    // nunca hubiera ocurrido. Un error de red es ambiguo: Resend pudo aceptarlo
+    // antes de cortarse la respuesta, así que conservamos la cuenta y el enlace.
+    if (delivery.reason !== "network_error") {
+      const { error: rollbackError } = await admin.auth.admin.deleteUser(
+        data.user.id,
+      );
+      if (rollbackError) {
+        console.error(
+          JSON.stringify({
+            scope: "auth-signup",
+            event: "signup_rollback_failed",
+            code: rollbackError.code,
+          }),
+        );
+      }
+    }
+    if (codeId) await releaseSignupCode(admin, codeId);
+    return NextResponse.json(
+      { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
+      { status: 503 },
+    );
+  }
+
+  if (data.user.id) {
     if (codeId) {
-      await recordSignupCodeRedemption(supabaseAdmin(), {
+      await recordSignupCodeRedemption(admin, {
         codeId,
         userId: data.user.id,
         email,
@@ -198,7 +274,7 @@ export async function POST(req: Request) {
     // which version, when, and from where. Best-effort: a logging
     // failure must not blow up account creation.
     await recordLegalConsent({
-      admin: supabaseAdmin(),
+      admin,
       userId: data.user.id,
       email,
       version: body?.terms_version,
@@ -212,7 +288,7 @@ export async function POST(req: Request) {
     // funcionando igual si esto falla — el dueño siempre puede cargarlo desde
     // Ajustes → Perfil.
     if (phone) {
-      const { error: phoneError } = await supabaseAdmin()
+      const { error: phoneError } = await admin
         .from("profiles")
         .update({ phone })
         .eq("user_id", data.user.id);
@@ -222,11 +298,20 @@ export async function POST(req: Request) {
         );
       }
     }
-  } else if (codeId) {
-    // Ni colisión ni usuario: Supabase no creó nada. El cupo vuelve.
-    await releaseSignupCode(supabaseAdmin(), codeId);
   }
   return NextResponse.json(genericOk);
+}
+
+function recoveryRedirectTo(): string | undefined {
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!site) return undefined;
+  try {
+    const url = new URL("/auth/callback", site);
+    url.searchParams.set("next", "/nueva-clave");
+    return safeRedirectTo(url.toString());
+  } catch {
+    return undefined;
+  }
 }
 
 /**

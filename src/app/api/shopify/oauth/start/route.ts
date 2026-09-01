@@ -75,10 +75,10 @@ export async function GET(request: Request) {
     }
     if (await hasPendingInstall(admin, shop)) {
       // Hay una instalacion estacionada: el comercio crea su cuenta y el
-      // panel reclama la tienda solo. La cookie de reclamo le abre /registro
+      // panel reclama la tienda solo. La cookie de reclamo le abre /crear
       // aunque el alta publica este cerrada.
       const claimUrl = new URL(
-        localizePath('/registro', locale),
+        localizePath('/crear', locale),
         base,
       )
       claimUrl.searchParams.set('shopify', 'pending')

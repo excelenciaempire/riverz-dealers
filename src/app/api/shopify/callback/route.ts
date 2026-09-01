@@ -246,11 +246,11 @@ export async function GET(request: Request) {
       log.info('install_parked_pending_claim', { shop })
 
       // El comercio instala desde Shopify sin cuenta previa: va a
-      // /registro aunque el alta publica este cerrada, porque la cookie de
+      // /crear aunque el alta publica este cerrada, porque la cookie de
       // reclamo que se setea abajo lo habilita (ver `signupsOpenForInstall`).
       const locale = await getLocale()
       const url = new URL(
-        localizePath('/registro', locale),
+        localizePath('/crear', locale),
         callbackBase,
       )
       url.searchParams.set('shopify', 'pending')

@@ -121,13 +121,13 @@ export async function GET(request: Request) {
       log.info('install_parked_pending_claim', { storeId: token.storeId })
 
       // El comercio llega instalando desde Tiendanube y todavia no tiene
-      // cuenta: va a /registro aunque el alta publica este cerrada. La
+      // cuenta: va a /crear aunque el alta publica este cerrada. La
       // cookie de reclamo que se setea abajo es la que le abre esa puerta
       // (ver `signupsOpenForInstall`). Mandarlo a /ingresar dejaba la
       // instalacion en un callejon sin salida.
       const locale = await getLocale()
       const destino = new URL(
-        localizePath('/registro', locale),
+        localizePath('/crear', locale),
         process.env.NEXT_PUBLIC_SITE_URL || url.origin,
       )
       destino.searchParams.set('tiendanube', 'pending')

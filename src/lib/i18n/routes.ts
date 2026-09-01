@@ -49,7 +49,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   ajustes: "settings",
   // auth
   ingresar: "login",
-  registro: "create",
+  crear: "create",
   "recuperar-clave": "forgot-password",
   "nueva-clave": "new-password",
   "verificar-email": "verify-email",
@@ -70,8 +70,10 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
  * que el proxy razona igual con las dos formas.
  */
 export const ROUTE_ALIASES: Record<string, string> = {
-  // `/registro` se anunciaba como `/signup` antes de pasar a `/create`.
-  signup: "registro",
+  // Enlaces repartidos antes de que las URLs públicas quedaran como
+  // `/crear` (español) y `/create` (inglés).
+  registro: "crear",
+  signup: "crear",
 };
 
 /** Slug en inglés (o alias) → canonical (Spanish) first segment. */

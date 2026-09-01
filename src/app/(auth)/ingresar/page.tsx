@@ -102,7 +102,7 @@ export default function LoginPage() {
       {signupsOpen() && (
         <p className="mt-7 text-sm text-muted-foreground">
           {t("auth.noAccount")}{" "}
-          <Link href="/registro" className="text-accent-ink hover:underline">
+          <Link href="/crear" className="text-accent-ink hover:underline">
             {t("auth.createAccount")}
           </Link>
         </p>

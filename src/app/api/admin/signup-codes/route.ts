@@ -18,7 +18,7 @@ import {
  *   PATCH { id, revoked }                      → revoca o reactiva uno
  *
  * Es la puerta del alta: sin un código acá, nadie crea cuenta desde
- * `/registro` (ver `lib/auth/signup-codes.ts`).
+ * `/crear` (ver `lib/auth/signup-codes.ts`).
  */
 
 const MAX_QUANTITY = 50;

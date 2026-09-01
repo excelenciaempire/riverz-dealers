@@ -71,7 +71,7 @@ export default function AcceptInvitePage({ params }: PageProps) {
           invite: token,
           email: invite.email ?? "",
         });
-        router.replace(`/registro?${params.toString()}`);
+        router.replace(`/crear?${params.toString()}`);
         return;
       }
       setState("ready");

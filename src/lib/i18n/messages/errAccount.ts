@@ -23,6 +23,14 @@ export const errAccount = {
     es: "Si el correo es válido, recibirás un mensaje.",
     en: "If the email is valid, you'll receive a message.",
   },
+  signupFailed: {
+    es: "No se pudo crear la cuenta.",
+    en: "We couldn't create the account.",
+  },
+  emailDeliveryUnavailable: {
+    es: "No pudimos enviar el correo. Inténtalo de nuevo.",
+    en: "We couldn't send the email. Try again.",
+  },
   inviteCodeRequired: {
     es: "Necesitas un código de invitación para crear la cuenta.",
     en: "You need an invitation code to create an account.",
