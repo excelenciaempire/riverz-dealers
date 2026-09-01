@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: translate(locale, "errInbox.forbiddenAdminOnly") }, { status: 403 });
   }
 
-  const connectionChannels = selected.flatMap((channel) => channel === "facebook" ? ["messenger"] : ["instagram"]);
+  const connectionChannels: Array<"messenger" | "instagram"> = selected.map(
+    (channel) => (channel === "facebook" ? "messenger" : "instagram"),
+  );
   const connections = await listConnections(admin, {
     workspaceId,
     channels: connectionChannels,
