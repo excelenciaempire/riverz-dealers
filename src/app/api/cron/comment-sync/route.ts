@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
-import { pullCommentsAll } from "@/lib/channels/comment-pull";
+import {
+  pullCommentsAll,
+  pullCommentsForWorkspace,
+} from "@/lib/channels/comment-pull";
 import { entenderPendientes } from "@/lib/channels/publicacion-media";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
@@ -46,6 +49,29 @@ async function cronHandler(request: Request) {
 
   try {
     const db = supabaseAdmin();
+
+    const url = new URL(request.url);
+    const workspaceId = url.searchParams.get("workspace_id")?.trim();
+    const backfillDays = Number(url.searchParams.get("backfill_days"));
+    // Recuperación explícita y acotada para una sola cuenta. Es siempre pasiva:
+    // los comentarios importados no despiertan reglas ni respuestas automáticas.
+    if (workspaceId && Number.isFinite(backfillDays) && backfillDays > 0) {
+      if (backfillDays > 90) {
+        return NextResponse.json(
+          { error: "backfill_days debe estar entre 1 y 90" },
+          { status: 400 },
+        );
+      }
+      const pulled = await pullCommentsForWorkspace(db, workspaceId, {
+        windowMs: backfillDays * 24 * 60 * 60 * 1000,
+        maxPosts: 100,
+        suppressAutoReply: true,
+      });
+      return NextResponse.json(
+        { ok: true, backfill: true, days: backfillDays, pulled },
+        { status: 200 },
+      );
+    }
 
     // Lo barato y urgente, siempre.
     const pulled = await pullCommentsAll(db).catch((err) => {

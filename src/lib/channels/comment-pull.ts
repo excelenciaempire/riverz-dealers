@@ -167,11 +167,24 @@ export interface PullResult {
   reason: PullReason;
 }
 
+/** Opciones puntuales para una recuperación histórica, sin cambiar el cron normal. */
+export interface CommentPullOptions {
+  /** Ventana de publicaciones y comentarios a recuperar. */
+  windowMs?: number;
+  /** Tope de publicaciones a recorrer para esta ejecución. */
+  maxPosts?: number;
+  /** No dispara reglas, IA ni respuestas aunque el comentario sea reciente. */
+  suppressAutoReply?: boolean;
+}
+
 /** Trae al inbox los comentarios que falten en UNA conexión. */
 export async function pullCommentsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
+  options: CommentPullOptions = {},
 ): Promise<PullResult> {
+  const windowMs = options.windowMs ?? WINDOW_MS;
+  const maxPosts = options.maxPosts ?? MAX_POSTS_PER_RUN;
   const channel = connection.channel as CommentChannel;
   const isComment = channel === "ig_comment" || channel === "fb_comment";
   const empty = (reason: PullReason): PullResult => ({
@@ -213,7 +226,10 @@ export async function pullCommentsForConnection(
     selfUsername = u;
   }
 
-  const postIds = await postsToScan(db, connection, channel, target, token);
+  const postIds = await postsToScan(db, connection, channel, target, token, {
+    windowMs,
+    maxPosts,
+  });
   if (postIds.length === 0) return empty("sin_publicaciones");
 
   let ingestedInbound = 0;
@@ -224,6 +240,7 @@ export async function pullCommentsForConnection(
   for (const postId of postIds) {
     const comments = await fetchCommentsWithReplies(channel, postId, token);
     for (const comment of comments) {
+      if (!isWithinWindow(comment, windowMs)) continue;
       const parentId = comment.id;
       if (!parentId) continue;
       const replies = repliesOf(comment);
@@ -241,12 +258,14 @@ export async function pullCommentsForConnection(
             postId,
             null,
             answered,
+            options.suppressAutoReply === true,
           )
         ) {
           ingestedInbound++;
         }
       }
       for (const reply of replies) {
+        if (!isWithinWindow(reply, windowMs)) continue;
         if (!reply.id) continue;
         if (!isSelf(reply, selfIds, selfUsername)) {
           if (
@@ -258,6 +277,7 @@ export async function pullCommentsForConnection(
               postId,
               parentId,
               false,
+              options.suppressAutoReply === true,
             )
           ) {
             ingestedInbound++;
@@ -329,12 +349,51 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
 }
 
+/** Recupera únicamente los comentarios de un workspace (por ejemplo, un backfill). */
+export async function pullCommentsForWorkspace(
+  db: SupabaseClient,
+  workspaceId: string,
+  options: CommentPullOptions = {},
+): Promise<{
+  connections: number;
+  ingestedInbound: number;
+  ingested: number;
+  seen: number;
+  detail: Array<{ connection_id: string } & PullResult>;
+}> {
+  const list = await listConnections(db, {
+    workspaceId,
+    channels: ["ig_comment", "fb_comment"],
+  });
+  let ingestedInbound = 0;
+  let ingested = 0;
+  let seen = 0;
+  const detail: Array<{ connection_id: string } & PullResult> = [];
+  for (const connection of list) {
+    try {
+      const result = await pullCommentsForConnection(db, connection, options);
+      ingestedInbound += result.ingestedInbound;
+      ingested += result.ingested;
+      seen += result.seen;
+      detail.push({ connection_id: connection.id, ...result });
+    } catch (err) {
+      console.error("[comment-pull] conexión falló:", connection.id, err);
+    }
+  }
+  return { connections: list.length, ingestedInbound, ingested, seen, detail };
+}
+
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no
  *  lo devuelve, el @usuario de Instagram. */
 function isSelf(c: RawComment, selfIds: Set<string>, selfUsername: string): boolean {
   const fromId = c.from?.id;
   if (fromId) return selfIds.has(String(fromId));
   return Boolean(selfUsername) && (c.username ?? c.from?.username) === selfUsername;
+}
+
+function isWithinWindow(comment: RawComment, windowMs: number): boolean {
+  const timestamp = Date.parse(parseMetaTimestamp(timeOf(comment)));
+  return Number.isFinite(timestamp) && timestamp >= Date.now() - windowMs;
 }
 
 /**
@@ -354,6 +413,7 @@ async function ingestCustomerComment(
   postId: string,
   parentCommentId: string | null,
   alreadyAnswered: boolean,
+  forceSuppressAutoReply: boolean,
 ): Promise<boolean> {
   const commentId = comment.id;
   // Sin id de autor no hay a quién atribuirlo: crear un contacto fantasma sería
@@ -364,7 +424,8 @@ async function ingestCustomerComment(
   // Un timestamp ilegible cae del lado seguro (NaN hace fallar el `<`): mejor
   // no contestar de más que contestar tarde.
   const age = Date.now() - Date.parse(receivedAt);
-  const suppressAutoReply = alreadyAnswered || !(age < LIVE_WINDOW_MS);
+  const suppressAutoReply =
+    forceSuppressAutoReply || alreadyAnswered || !(age < LIVE_WINDOW_MS);
   const written = await ingestInboundEvent(db, {
     channel,
     connection,
@@ -420,6 +481,7 @@ async function postsToScan(
   channel: CommentChannel,
   target: string,
   token: string,
+  options: { windowMs: number; maxPosts: number },
 ): Promise<string[]> {
   // MITAD Y MITAD, no "primero las recientes y si sobra lugar las otras".
   //
@@ -430,20 +492,25 @@ async function postsToScan(
   // 7 de 8 publicaciones de Instagram con comentarios recientes no aparecen en
   // `/media`, porque son anuncios. En una cuenta que pauta, la mitad que se
   // estaba descartando es la que pesa.
-  const mitad = Math.ceil(MAX_POSTS_PER_RUN / 2);
-  const recientes = await recentPostIds(channel, target, token);
-  const conComentarios = await postIdsWithSavedComments(db, connection, channel);
+  const mitad = Math.ceil(options.maxPosts / 2);
+  const recientes = await recentPostIds(channel, target, token, options);
+  const conComentarios = await postIdsWithSavedComments(
+    db,
+    connection,
+    channel,
+    options,
+  );
   const ids = new Set<string>(recientes.slice(0, mitad));
   for (const id of conComentarios) {
-    if (ids.size >= MAX_POSTS_PER_RUN) break;
+    if (ids.size >= options.maxPosts) break;
     ids.add(id);
   }
   // Si una de las dos fuentes trajo poco, la otra usa lo que sobró.
   for (const id of recientes) {
-    if (ids.size >= MAX_POSTS_PER_RUN) break;
+    if (ids.size >= options.maxPosts) break;
     ids.add(id);
   }
-  return [...ids].slice(0, MAX_POSTS_PER_RUN);
+  return [...ids].slice(0, options.maxPosts);
 }
 
 /** Publicaciones recientes de la cuenta, dentro de la ventana. */
@@ -451,11 +518,12 @@ async function recentPostIds(
   channel: CommentChannel,
   target: string,
   token: string,
+  options: { windowMs: number; maxPosts: number },
 ): Promise<string[]> {
   const { edge, timeField } = DIALECT[channel];
-  const since = Date.now() - WINDOW_MS;
+  const since = Date.now() - options.windowMs;
   const url = withAppsecretProof(
-    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${MAX_POSTS_PER_RUN}` +
+    `${GRAPH}/${target}/${edge}?fields=id,${timeField}&limit=${options.maxPosts}` +
       `&access_token=${encodeURIComponent(token)}`,
     token,
   );
@@ -480,8 +548,9 @@ async function postIdsWithSavedComments(
   db: SupabaseClient,
   connection: ChannelConnection,
   channel: CommentChannel,
+  options: { windowMs: number; maxPosts: number },
 ): Promise<string[]> {
-  const sinceIso = new Date(Date.now() - WINDOW_MS).toISOString();
+  const sinceIso = new Date(Date.now() - options.windowMs).toISOString();
   // Por la conexión DUEÑA del comentario (`comments_meta`), no por la de la
   // conversación: con dos páginas del mismo comercio, la conversación es de la
   // primera y la publicación de la segunda no se volvía a escanear nunca.
@@ -510,11 +579,11 @@ async function postIdsWithSavedComments(
   const seen = new Set<string>();
   for (const m of deMeta) {
     if (m.post_id) seen.add(m.post_id);
-    if (seen.size >= MAX_POSTS_PER_RUN) break;
+    if (seen.size >= options.maxPosts) break;
   }
   for (const m of (metas ?? []) as Array<{ post_id: string | null }>) {
     if (m.post_id) seen.add(m.post_id);
-    if (seen.size >= MAX_POSTS_PER_RUN) break;
+    if (seen.size >= options.maxPosts) break;
   }
   return [...seen];
 }
