@@ -1,0 +1,91 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { listConnections } from "@/lib/channels/connections";
+import { pullCommentsForWorkspace } from "@/lib/channels/comment-pull";
+import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
+import { csrfGuard } from "@/lib/csrf";
+import { getLocale } from "@/lib/i18n/server";
+import { translate } from "@/lib/i18n/translate";
+
+const COMMENT_CHANNELS = ["ig_comment", "fb_comment"] as const;
+type CommentChannel = (typeof COMMENT_CHANNELS)[number];
+
+/**
+ * POST /api/comments/backfill
+ *
+ * Recuperación manual, acotada y pasiva de comentarios de Meta. Aunque el
+ * comentario sea reciente, `suppressAutoReply` evita expresamente que esta
+ * importación dispare una respuesta, una regla o la IA.
+ */
+export async function POST(request: Request) {
+  const block = await csrfGuard(request);
+  if (block) return block;
+
+  const locale = await getLocale();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.unauthorized") },
+      { status: 401 },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    workspace_id?: string;
+    days?: number;
+    channels?: string[];
+  } | null;
+  const workspaceId = body?.workspace_id?.trim();
+  const days = Number(body?.days);
+  const channels = (body?.channels ?? []).filter(
+    (channel): channel is CommentChannel =>
+      (COMMENT_CHANNELS as readonly string[]).includes(channel),
+  );
+
+  if (!workspaceId || !Number.isInteger(days) || days < 1 || days > 90 || !channels.length) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.backfillInvalid") },
+      { status: 400 },
+    );
+  }
+
+  const admin = supabaseAdmin();
+  const { data: membership } = await admin
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", workspaceId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership || !["owner", "admin"].includes(String(membership.role))) {
+    return NextResponse.json(
+      { error: translate(locale, "errInbox.forbiddenAdminOnly") },
+      { status: 403 },
+    );
+  }
+
+  // Antes de leer comentarios, descubrimos las creatividades publicitarias.
+  // Meta no lista los dark posts en el feed normal y sin este paso el botón
+  // daría la falsa impresión de haber revisado una cuenta que pauta.
+  const connections = await listConnections(admin, {
+    workspaceId,
+    channels,
+    statuses: ["connected"],
+  });
+  await Promise.all(
+    connections.map((connection) =>
+      syncAdPostsForConnection(admin, connection).catch(() => ({ inserted: 0, updated: 0 })),
+    ),
+  );
+
+  const result = await pullCommentsForWorkspace(admin, workspaceId, {
+    windowMs: days * 24 * 60 * 60 * 1000,
+    maxPosts: 100,
+    suppressAutoReply: true,
+    channels,
+  });
+  return NextResponse.json({ ok: true, days, ...result });
+}

@@ -177,6 +177,8 @@ export interface CommentPullOptions {
   maxPosts?: number;
   /** No dispara reglas, IA ni respuestas aunque el comentario sea reciente. */
   suppressAutoReply?: boolean;
+  /** Limita la recuperación a los canales elegidos desde Comentarios. */
+  channels?: CommentChannel[];
 }
 
 /** Trae al inbox los comentarios que falten en UNA conexión. */
@@ -365,7 +367,7 @@ export async function pullCommentsForWorkspace(
 }> {
   const list = await listConnections(db, {
     workspaceId,
-    channels: ["ig_comment", "fb_comment"],
+    channels: options.channels ?? ["ig_comment", "fb_comment"],
   });
   let ingestedInbound = 0;
   let ingested = 0;

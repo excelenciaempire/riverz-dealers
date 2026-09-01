@@ -227,6 +227,19 @@ export const igAgent = {
     es: "En TikTok siempre contesta en el comentario: no tiene privado.",
     en: "On TikTok it always replies on the comment: there are no DMs.",
   },
+  backfillTitle: { es: "Importar historial", en: "Import history" },
+  backfillDays: { es: "Periodo", en: "Period" },
+  backfillDays7: { es: "7 días", en: "7 days" },
+  backfillDays30: { es: "30 días", en: "30 days" },
+  backfillDays90: { es: "90 días", en: "90 days" },
+  backfillChannels: { es: "Canales", en: "Channels" },
+  backfillRun: { es: "Importar comentarios", en: "Import comments" },
+  backfillRunning: { es: "Importando…", en: "Importing…" },
+  backfillDone: {
+    es: "{n} comentarios importados. No se envió ninguna respuesta.",
+    en: "{n} comments imported. No reply was sent.",
+  },
+  backfillFailed: { es: "No se pudo importar el historial", en: "Couldn't import history" },
 
   // Order attribution ledger
   attributedOrdersTitle: {

@@ -1814,12 +1814,77 @@ export function CommentsSection({
   return (
     <div className="space-y-10">
       <CommentStatsStrip stats={stats} />
+      {workspaceId && <CommentBackfill workspaceId={workspaceId} />}
       <div>
         <CommentAutoReply settings={settings} />
         <CommentReplyOptions settings={settings} />
       </div>
       <CommentToDmPanel />
     </div>
+  );
+}
+
+function CommentBackfill({ workspaceId }: { workspaceId: string }) {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [days, setDays] = useState(30);
+  const [channels, setChannels] = useState<Array<'ig_comment' | 'fb_comment'>>([
+    'ig_comment',
+    'fb_comment',
+  ]);
+  const [running, setRunning] = useState(false);
+
+  const toggleChannel = (channel: 'ig_comment' | 'fb_comment') => {
+    setChannels((current) =>
+      current.includes(channel)
+        ? current.filter((value) => value !== channel)
+        : [...current, channel],
+    );
+  };
+
+  const run = async () => {
+    if (!channels.length) return;
+    setRunning(true);
+    try {
+      const response = await fetchWithCsrf('/api/comments/backfill', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, days, channels }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        ingestedInbound?: number;
+      };
+      if (!response.ok) throw new Error(result.error);
+      toast.success(t('igAgent.backfillDone', { n: result.ingestedInbound ?? 0 }));
+    } catch (error) {
+      toast.error(error instanceof Error && error.message ? error.message : t('igAgent.backfillFailed'));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-border p-4">
+      <h2 className="text-sm font-semibold text-foreground">{t('igAgent.backfillTitle')}</h2>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{t('igAgent.backfillDays')}</span>
+        {[7, 30, 90].map((value) => (
+          <Button key={value} size="sm" variant={days === value ? 'secondary' : 'outline'} onClick={() => setDays(value)}>
+            {t(`igAgent.backfillDays${value}` as 'igAgent.backfillDays7')}
+          </Button>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className="text-xs text-muted-foreground">{t('igAgent.backfillChannels')}</span>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('ig_comment')} onChange={() => toggleChannel('ig_comment')} />{t('igAgent.network_instagram')}</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('fb_comment')} onChange={() => toggleChannel('fb_comment')} />{t('igAgent.network_facebook')}</label>
+      </div>
+      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length}>
+        {running && <Loader2 className="size-3.5 animate-spin" />}
+        {running ? t('igAgent.backfillRunning') : t('igAgent.backfillRun')}
+      </Button>
+    </section>
   );
 }
 
