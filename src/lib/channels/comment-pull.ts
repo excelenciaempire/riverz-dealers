@@ -45,6 +45,8 @@ const WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_POSTS_PER_RUN = 40;
 /** Comentarios por publicación que pedimos a Graph. */
 const COMMENTS_PER_POST = 50;
+/** Páginas de comentarios por publicación antes de cortar una paginación anómala. */
+const MAX_COMMENT_PAGES = 100;
 /**
  * A partir de acá un comentario rescatado entra como HISTORIA: se guarda y se ve
  * en la bandeja, pero no despierta al agente ni a las reglas.
@@ -608,18 +610,26 @@ async function fetchCommentsWithReplies(
   postId: string,
   token: string,
 ): Promise<RawComment[]> {
-  const url = withAppsecretProof(
+  let url: string | null = withAppsecretProof(
     `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(DIALECT[channel].commentFields)}` +
       `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
     token,
   );
+  const comments: RawComment[] = [];
   try {
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const json = (await res.json()) as { data?: RawComment[] };
-    return json.data ?? [];
+    for (let page = 0; url && page < MAX_COMMENT_PAGES; page++) {
+      const res = await fetch(url);
+      if (!res.ok) break;
+      const json = (await res.json()) as {
+        data?: RawComment[];
+        paging?: { next?: string };
+      };
+      comments.push(...(json.data ?? []));
+      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+    }
+    return comments;
   } catch {
-    return [];
+    return comments;
   }
 }
 
