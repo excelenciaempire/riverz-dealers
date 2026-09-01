@@ -1145,8 +1145,8 @@ export const settings = {
   // ── Recarga automática ──
   walletAutoTitle: { es: "Recarga automática", en: "Auto top-up" },
   walletAutoOff: {
-    es: "Guarda una tarjeta y el saldo se repone solo antes de que la IA se calle.",
-    en: "Save a card and your balance refills itself before the AI goes quiet.",
+    es: "Actívala para reponer el saldo automáticamente.",
+    en: "Turn it on to refill your balance automatically.",
   },
   walletAutoOn: {
     es: "Se cargan {monto} cuando el saldo baja de {umbral}.",

@@ -9,6 +9,7 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { avisarSaldoCambio } from '@/hooks/use-saldo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
 
@@ -306,6 +307,8 @@ export function WalletPanel() {
   if (!e) return null;
 
   const { resumen, auto } = e;
+  const autoActivo =
+    auto.recargaCentavos !== null && auto.umbralCentavos !== null;
   const maxDia = Math.max(1, ...resumen.porDia.map((d) => d.gastadoCentavos));
   const enRojo = e.saldoCentavos <= 0 && !e.exenta;
 
@@ -394,10 +397,10 @@ export function WalletPanel() {
                 {t('settings.walletAutoTitle')}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                {auto.recargaCentavos !== null && auto.umbralCentavos !== null
+                {autoActivo
                   ? t('settings.walletAutoOn', {
-                      monto: plata(auto.recargaCentavos),
-                      umbral: plata(auto.umbralCentavos),
+                      monto: plata(auto.recargaCentavos ?? 0),
+                      umbral: plata(auto.umbralCentavos ?? 0),
                     })
                   : t('settings.walletAutoOff')}
               </p>
@@ -412,6 +415,23 @@ export function WalletPanel() {
                   <span className="tabular-nums">···· {auto.ultimos4}</span>
                 </span>
               )}
+              <Switch
+                checked={autoActivo}
+                disabled={yendo || !auto.tieneTarjeta}
+                aria-label={t('settings.walletAutoTitle')}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    void guardarAuto({
+                      recargaCentavos: (Number(autoMonto) || 10) * 100,
+                      umbralCentavos: (Number(autoUmbral) || 1) * 100,
+                    });
+                    return;
+                  }
+                  setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
+                  setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
+                  void guardarAuto({ apagar: true });
+                }}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -442,7 +462,7 @@ export function WalletPanel() {
 
           {/* Sin tarjeta guardada no se ofrece configurar el disparo: sería
               prometer un cobro que no se puede hacer. */}
-          {auto.tieneTarjeta && (
+          {autoActivo && auto.tieneTarjeta && (
             <div className="mt-4 flex flex-wrap items-end gap-2">
               <label className="text-sm">
                 <span className="block text-muted-foreground">
@@ -490,16 +510,6 @@ export function WalletPanel() {
               >
                 {t('settings.walletAutoSave')}
               </Button>
-              {auto.recargaCentavos !== null && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={yendo}
-                  onClick={() => void guardarAuto({ apagar: true })}
-                >
-                  {t('settings.walletAutoTurnOff')}
-                </Button>
-              )}
             </div>
           )}
 
