@@ -133,6 +133,10 @@ export function metaProvider(): ProviderConfig {
       "pages_read_user_content",
       "pages_manage_engagement",
       "pages_manage_metadata",
+      // Descubre creativos y dark posts del administrador de anuncios para
+      // incluir sus comentarios en el backfill. Requiere acceso aprobado por
+      // Meta y una reconexión de la cuenta publicitaria.
+      "ads_read",
       "instagram_basic",
       "instagram_manage_messages",
       "instagram_manage_comments",
