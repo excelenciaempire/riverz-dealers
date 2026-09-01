@@ -310,12 +310,10 @@ export default function InboxPage() {
             ),
           );
         } else {
-          // First time we're seeing this conv: the conv-INSERT event
-          // hasn't landed yet, or was missed. Hydrate from the DB so
-          // the row surfaces with its `contact` joined; the conv-UPDATE
-          // event the webhook emits right after the message INSERT will
-          // converge state when it arrives.
-          hydrateConversation(newMsg.conversation_id);
+          // El INSERT de conversación llega por su propio canal filtrado por
+          // workspace. No hidratamos ids desconocidos desde `messages`: esos
+          // eventos también existen para otros workspaces y antes provocaban
+          // un ciclo de reconsultas/parpadeo durante un backfill ajeno.
         }
       }
 
@@ -410,6 +408,7 @@ export default function InboxPage() {
   // throttle) are simply lost. We need a way to catch up.
   const { isConnected } = useRealtime({
     channelName: "inbox-realtime",
+    workspaceId: workspace?.id,
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
     enabled: true,
