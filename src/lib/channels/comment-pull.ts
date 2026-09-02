@@ -393,6 +393,7 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
       detail.push({ connection_id: c.id, ...r });
     } catch (err) {
       console.error('[comment-pull] conexión falló:', c.id, err);
+      detail.push({ connection_id: c.id, ...failedConnectionResult(c) });
     }
   }
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
@@ -427,9 +428,30 @@ export async function pullCommentsForWorkspace(
       detail.push({ connection_id: connection.id, ...result });
     } catch (err) {
       console.error('[comment-pull] conexión falló:', connection.id, err);
+      // El caller necesita saber que faltó una fuente; omitirla acá hacía que
+      // la ruta HTTP pudiera anunciar una recuperación completa por error.
+      detail.push({
+        connection_id: connection.id,
+        ...failedConnectionResult(connection),
+      });
     }
   }
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
+}
+
+function failedConnectionResult(connection: ChannelConnection): PullResult {
+  const channel = connection.channel;
+  return {
+    channel: channel === 'ig_comment' || channel === 'fb_comment' ? channel : null,
+    ingestedInbound: 0,
+    ingested: 0,
+    posts: 0,
+    seen: 0,
+    sinHilo: 0,
+    yaEstaba: 0,
+    reason: 'partial',
+    errors: ['connection_failed'],
+  };
 }
 
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no

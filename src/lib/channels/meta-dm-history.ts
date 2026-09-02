@@ -5,6 +5,8 @@ import { appsecretProof, withAppsecretProof } from "./meta-graph";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
+/** Una página o mensaje de Graph no puede dejar un backfill colgado. */
+const GRAPH_TIMEOUT_MS = 30_000;
 
 /** Campos ricos de la Conversations API: además del texto, los adjuntos y los
  *  enlaces/posts compartidos. Si la versión de Graph rechaza alguno, se
@@ -37,7 +39,7 @@ export async function resolveThreadId(
   convUrl.searchParams.set("access_token", token);
   const proof = appsecretProof(token);
   if (proof) convUrl.searchParams.set("appsecret_proof", proof);
-  const r = await fetch(convUrl.toString());
+  const r = await graphFetch(convUrl.toString());
   if (!r.ok) return null;
   const j = (await r.json()) as { data?: { id?: string }[] };
   return j.data?.[0]?.id ?? null;
@@ -102,13 +104,13 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
 
   while (url && pages < maxPages) {
     // `paging.next` no lleva el proof — se re-adjunta en cada página.
-    let r: Response = await fetch(withAppsecretProof(url, args.token));
+    let r: Response = await graphFetch(withAppsecretProof(url, args.token));
     // Un campo no soportado tumba la request entera: reintentamos una vez con
     // el juego mínimo para no perder el texto del hilo.
     if (!r.ok && fields === RICH_FIELDS && pages === 0) {
       fields = BASIC_FIELDS;
       url = `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
-      r = await fetch(withAppsecretProof(url, args.token));
+      r = await graphFetch(withAppsecretProof(url, args.token));
     }
     if (!r.ok) break;
     const j = (await r.json()) as { data?: GraphMessage[]; paging?: { next?: string } };
@@ -159,6 +161,15 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
     pages++;
   }
   return ingested;
+}
+
+/**
+ * Graph a veces deja conexiones abiertas sin cuerpo. El timeout convierte ese
+ * caso en una recuperación parcial (sin perder lo ya escrito) y permite que la
+ * siguiente corrida continúe desde los ids ya deduplicados.
+ */
+async function graphFetch(url: string): Promise<Response> {
+  return fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
 }
 
 /**

@@ -138,7 +138,10 @@ export async function POST(request: Request) {
           untilMs: endMs,
           maxPosts: Number.MAX_SAFE_INTEGER,
           maxCommentPages: Number.MAX_SAFE_INTEGER,
-          includeOlderPosts: allHistory,
+          // La ventana limita comentarios, no publicaciones: una campaña o un
+          // post antiguo puede recibir actividad hoy. Se conserva para todos
+          // los comercios, incluso cuando el usuario elige sólo 7/30/90 días.
+          includeOlderPosts: true,
           suppressAutoReply: true,
           channels: metaChannels,
         })

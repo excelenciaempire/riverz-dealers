@@ -11,6 +11,7 @@ import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
+const GRAPH_TIMEOUT_MS = 30_000;
 const CHANNELS = ["facebook", "instagram"] as const;
 type BackfillChannel = (typeof CHANNELS)[number];
 
@@ -64,8 +65,27 @@ export async function POST(request: Request) {
   const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 86_400_000;
   const sinceIso = new Date(startMs).toISOString();
   const untilIso = new Date(untilMs ?? Date.now()).toISOString();
-  const result = await Promise.all(connections.map((connection) => pullConnection(connection, sinceIso, untilIso)));
-  return NextResponse.json({ ok: true, ingested: result.reduce((sum, item) => sum + item.ingested, 0), detail: result });
+  const result = await Promise.all(
+    connections.map(async (connection) => {
+      try {
+        return await pullConnection(connection, sinceIso, untilIso);
+      } catch (error) {
+        console.error("[messages/backfill] connection recovery failed", {
+          connectionId: connection.id,
+          error,
+        });
+        return { channel: connection.channel, ingested: 0, error: "connection_failed" };
+      }
+    }),
+  );
+  const complete = result.every((item) => !item.error);
+  return NextResponse.json({
+    ok: complete,
+    complete,
+    partial: !complete,
+    ingested: result.reduce((sum, item) => sum + item.ingested, 0),
+    detail: result,
+  });
 }
 
 async function pullConnection(connection: ChannelConnection, sinceIso: string, untilIso: string) {
@@ -84,7 +104,18 @@ async function pullConnection(connection: ChannelConnection, sinceIso: string, u
   let url: string | null = `${GRAPH}/${pageId}/conversations?platform=${platform}&fields=id,updated_time,participants&limit=100&access_token=${encodeURIComponent(token)}`;
 
   while (url) {
-    const response = await fetch(withAppsecretProof(url, token));
+    let response: Response;
+    try {
+      response = await fetch(withAppsecretProof(url, token), {
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      console.error("[messages/backfill] Graph conversation discovery failed", {
+        connectionId: connection.id,
+        error,
+      });
+      return { channel: connection.channel, ingested, error: "graph_timeout" };
+    }
     if (!response.ok) return { channel: connection.channel, ingested, error: `graph_${response.status}` };
     const data = (await response.json()) as { data?: GraphConversation[]; paging?: { next?: string } };
     for (const thread of data.data ?? []) {
@@ -92,18 +123,27 @@ async function pullConnection(connection: ChannelConnection, sinceIso: string, u
       if (Number.isFinite(updated) && updated < since) return { channel: connection.channel, ingested };
       const other = (thread.participants?.data ?? []).find((participant) => participant.id && participant.id !== selfId && participant.id !== pageId);
       if (!thread.id || !other?.id) continue;
-      ingested += await syncThreadMessages({
-        token,
-        selfId,
-        connection,
-        threadId: thread.id,
-        externalId: other.id,
-        contactName: other.username ? `@${other.username}` : other.name,
-        createIfMissing: true,
-        sinceIso,
-        untilIso,
-        maxPages: Number.MAX_SAFE_INTEGER,
-      });
+      try {
+        ingested += await syncThreadMessages({
+          token,
+          selfId,
+          connection,
+          threadId: thread.id,
+          externalId: other.id,
+          contactName: other.username ? `@${other.username}` : other.name,
+          createIfMissing: true,
+          sinceIso,
+          untilIso,
+          maxPages: Number.MAX_SAFE_INTEGER,
+        });
+      } catch (error) {
+        console.error("[messages/backfill] Graph thread recovery failed", {
+          connectionId: connection.id,
+          threadId: thread.id,
+          error,
+        });
+        return { channel: connection.channel, ingested, error: "graph_thread_failed" };
+      }
     }
     url = data.paging?.next ? withAppsecretProof(data.paging.next, token) : null;
   }
