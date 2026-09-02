@@ -289,7 +289,12 @@ export const igAgent = {
     en: 'Sentiment, patterns, and opportunities from every imported comment.',
   },
   marketResearchRun: { es: 'Analizar comentarios', en: 'Analyze comments' },
+  marketResearchReanalyze: { es: 'Reanalizar', en: 'Reanalyze' },
   marketResearchRunning: { es: 'Analizando…', en: 'Analyzing…' },
+  marketResearchUpdatedAt: {
+    es: 'Último análisis: {date}',
+    en: 'Last analysis: {date}',
+  },
   marketResearchProgressStarting: {
     es: 'Preparando análisis',
     en: 'Preparing analysis',

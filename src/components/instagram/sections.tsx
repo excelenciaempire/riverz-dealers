@@ -1878,6 +1878,7 @@ export function CommentsSection({
 }
 
 interface MarketResearchResponse {
+  analyzed_at?: string;
   total: number;
   analyzed_sample: number;
   generated_with_ai: boolean;
@@ -1988,10 +1989,35 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
     stage: MarketResearchProgressStage;
   } | null>(null);
   const [report, setReport] = useState<MarketResearchResponse | null>(null);
+  const [loadingStoredReport, setLoadingStoredReport] = useState(true);
   const [detailCategory, setDetailCategory] =
     useState<MarketResearchCommentCategory | null>(null);
   const [detail, setDetail] = useState<MarketResearchCommentPage | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingStoredReport(true);
+    fetch(
+      `/api/comments/market-research?workspace_id=${encodeURIComponent(workspaceId)}`,
+      { cache: 'no-store' }
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { report?: MarketResearchResponse | null; analyzed_at?: string | null } | null) => {
+        if (cancelled || !payload?.report) return;
+        setReport({
+          ...payload.report,
+          analyzed_at: payload.analyzed_at ?? payload.report.analyzed_at,
+        });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingStoredReport(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
 
   const categoryLabel = (category: MarketResearchCommentCategory) => {
     if (category === 'all') return t('igAgent.marketResearchComments');
@@ -2130,9 +2156,19 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
           )}
           {running
             ? t('igAgent.marketResearchRunning')
-            : t('igAgent.marketResearchRun')}
+            : report
+              ? t('igAgent.marketResearchReanalyze')
+              : t('igAgent.marketResearchRun')}
         </Button>
       </div>
+
+      {report?.analyzed_at && (
+        <p className="text-muted-foreground border-border border-t px-5 py-3 text-xs sm:px-7">
+          {t('igAgent.marketResearchUpdatedAt', {
+            date: fmt.dateTime(report.analyzed_at),
+          })}
+        </p>
+      )}
 
       {running && progress && (
         <div
@@ -2158,7 +2194,7 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
 
-      {!running && !report && (
+      {!running && !report && !loadingStoredReport && (
         <div className="text-muted-foreground flex items-center gap-3 px-5 py-6 text-sm sm:px-7">
           <MessageSquareText className="text-accent-ink size-5 shrink-0" />
           {t('igAgent.marketResearchEmpty')}

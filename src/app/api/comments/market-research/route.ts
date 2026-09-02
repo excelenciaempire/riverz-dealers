@@ -45,9 +45,17 @@ type ResearchStreamEvent =
         opportunities: string[];
         risks: string[];
         actions: string[];
+        analyzed_at?: string;
       };
     }
   | { type: 'error'; error: string };
+
+type ResearchReport = Extract<ResearchStreamEvent, { type: 'result' }>['report'];
+
+type StoredResearchRow = {
+  report: ResearchReport | null;
+  analyzed_at: string | null;
+};
 
 type CommentRow = {
   id: string;
@@ -98,12 +106,44 @@ async function assertWorkspaceMember(workspaceId: string, userId: string) {
   return Boolean(membership && ['owner', 'admin'].includes(String(membership.role)));
 }
 
+/** El último análisis se conserva por comercio; los detalles siempre se leen de la fuente viva. */
+async function latestResearch(workspaceId: string): Promise<StoredResearchRow | null> {
+  const { data, error } = await supabaseAdmin()
+    .from('workspace_comment_research')
+    .select('report, analyzed_at')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as StoredResearchRow | null;
+  return row?.report ? row : null;
+}
+
+async function saveResearch(workspaceId: string, report: ResearchReport): Promise<string> {
+  const analyzedAt = new Date().toISOString();
+  const { error } = await supabaseAdmin()
+    .from('workspace_comment_research')
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        report,
+        comment_count: report.total,
+        analyzed_sample: report.analyzed_sample,
+        generated_with_ai: report.generated_with_ai,
+        analyzed_at: analyzedAt,
+        updated_at: analyzedAt,
+      },
+      { onConflict: 'workspace_id' }
+    );
+  if (error) throw error;
+  return analyzedAt;
+}
+
 /**
- * GET /api/comments/market-research?workspace_id=…&category=price&page=0
+ * GET /api/comments/market-research?workspace_id=…
  *
- * Devuelve comentarios reales que explican una métrica. El filtro vuelve a usar
- * exactamente la misma clasificación determinista del reporte; no hay conteos
- * decorativos ni una segunda regla oculta para el detalle.
+ * Sin `category` devuelve el último reporte guardado. Con `category` devuelve
+ * comentarios reales que explican esa métrica; el filtro usa exactamente la
+ * misma clasificación determinista del reporte.
  */
 export async function GET(request: Request) {
   const locale = await getLocale();
@@ -118,13 +158,14 @@ export async function GET(request: Request) {
     );
   const url = new URL(request.url);
   const workspaceId = url.searchParams.get('workspace_id')?.trim();
-  const requested = url.searchParams.get('category') ?? 'all';
-  const category = (COMMENT_CATEGORIES as readonly string[]).includes(requested)
+  const requested = url.searchParams.get('category');
+  const wantsReport = requested === null;
+  const category = requested && (COMMENT_CATEGORIES as readonly string[]).includes(requested)
     ? (requested as CommentCategory)
     : null;
   const page = Math.max(0, Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0);
   const pageSize = 50;
-  if (!workspaceId || !category)
+  if (!workspaceId || (!wantsReport && !category))
     return NextResponse.json(
       { error: translate(locale, 'errAi.workspaceIdRequired') },
       { status: 400 }
@@ -136,6 +177,18 @@ export async function GET(request: Request) {
     );
 
   try {
+    if (wantsReport) {
+      const stored = await latestResearch(workspaceId);
+      return NextResponse.json({ report: stored?.report ?? null, analyzed_at: stored?.analyzed_at ?? null });
+    }
+    // La validación de arriba lo garantiza; este guard además conserva el
+    // narrowing de TypeScript si cambia la forma de los parámetros después.
+    if (!category) {
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.workspaceIdRequired') },
+        { status: 400 }
+      );
+    }
     const matched = filterCommentsByCategory(
       await readWorkspaceComments(workspaceId),
       category
@@ -273,16 +326,17 @@ export async function POST(request: Request) {
           }
         }
 
-        send({
-          type: 'result',
-          report: {
-            total: comments.length,
-            analyzed_sample: qualitative.length,
-            metrics,
-            ...insight,
-            generated_with_ai: generatedWithAi,
-          },
-        });
+        const report: ResearchReport = {
+          total: comments.length,
+          analyzed_sample: qualitative.length,
+          metrics,
+          ...insight,
+          generated_with_ai: generatedWithAi,
+        };
+        // Sólo reemplazamos el reporte anterior después de completar y guardar
+        // éste. Un fallo de IA, red o base deja disponible el análisis previo.
+        const analyzedAt = await saveResearch(workspaceId, report);
+        send({ type: 'result', report: { ...report, analyzed_at: analyzedAt } });
       } catch (error) {
         console.error('[comments/market-research] failed', {
           workspaceId,
