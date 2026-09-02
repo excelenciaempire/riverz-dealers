@@ -213,43 +213,6 @@ async function atribucion(ctx: CapabilityContext, args: Record<string, unknown>)
 
 
 /**
- * Las tres métricas, dibujadas.
- *
- * Se calculan desde el RESULTADO y no desde los argumentos: son lecturas, ya
- * corrieron y no hay nada que aprobar. Viven acá abajo y no dentro de cada
- * capacidad para que las tres compartan el formato de plata y de porcentaje,
- * que es la misma razón por la que existe toda esta capa.
- */
-
-function vistaResumen(
-  ctx: CapabilityContext,
-  r: Awaited<ReturnType<typeof resumen>>,
-): Artefacto | null {
-  if (!tieneCampos(r, 'periodo', 'conversaciones')) return null
-  const t = (k: string) => tt(ctx, `operation.${k}`)
-  return cifras({
-    titulo: t('vTitMetricas'),
-    bajada: translate(loc(ctx), 'operation.vUltimosDias', { dias: r.periodo.dias }),
-    tiles: [
-      tile(ctx, t('vConversaciones'), r.conversaciones.actual, r.conversaciones.anterior),
-      tile(ctx, t('vContactosNuevos'), r.contactos_nuevos.actual, r.contactos_nuevos.anterior),
-      tile(ctx, t('vResueltas'), r.resueltas.actual, r.resueltas.anterior),
-      tile(ctx, t('vEntrantes'), r.mensajes_entrantes.actual, r.mensajes_entrantes.anterior),
-      tile(ctx, t('vSalientes'), r.mensajes_salientes.actual, r.mensajes_salientes.anterior),
-      tile(ctx, t('vRespondioIa'), r.ia.respondio),
-      tile(ctx, t('vPedidos'), r.pedidos.cantidad),
-      { etiqueta: t('vFacturado'), valor: plata(ctx, r.pedidos.facturado, r.pedidos.moneda) },
-    ],
-    // La mezcla por canal es la única serie que se explica sin ejes: de dónde
-    // viene la gente. Los demás cortes son listas y no barras.
-    serie: lista<{ channel: string; inbound: number; outbound: number }>(r, 'por_canal').map((c) => ({
-      etiqueta: c.channel,
-      valor: c.inbound + c.outbound,
-    })),
-  })
-}
-
-/**
  * Lo vendido, con la línea que sostiene el producto entero: probada e influida
  * NO se suman. Dibujarlas una al lado de la otra sin totalizarlas es la forma
  * de que eso se lea, en vez de explicarse en un párrafo que nadie lee.
@@ -420,6 +383,5 @@ export const METRICS_CAPABILITIES: Capability[] = [
       },
     },
     run: resumen,
-    vista: (ctx, _args, r) => vistaResumen(ctx, r as Awaited<ReturnType<typeof resumen>>),
   },
 ]

@@ -75,4 +75,11 @@ describe('capacidades del Operator', () => {
     expect(operatorCanUse('no.existe')).toBe(false)
     expect(operatorCanUse('metricas.resumen')).toBe(true)
   })
+
+  it('no duplica el panel de métricas dentro del Operador', () => {
+    // El resumen sigue siendo una lectura válida para que el Operador pueda
+    // responder preguntas sobre la cuenta, pero sus tarjetas pertenecen al
+    // Panel. Una vista acá duplicaría la misma información en dos pantallas.
+    expect(ALL_CAPABILITIES.find((c) => c.key === 'metricas.resumen')?.vista).toBeUndefined()
+  })
 })
