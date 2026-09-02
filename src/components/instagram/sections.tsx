@@ -1856,26 +1856,89 @@ interface MarketResearchResponse {
   actions: string[];
 }
 
+type MarketResearchProgressStage =
+  | 'starting'
+  | 'reading'
+  | 'calculating'
+  | 'synthesizing';
+
+type MarketResearchStreamEvent =
+  | {
+      type: 'progress';
+      stage: Exclude<MarketResearchProgressStage, 'starting'>;
+      value: number;
+    }
+  | { type: 'result'; report: MarketResearchResponse }
+  | { type: 'error'; error: string };
+
+const MARKET_RESEARCH_PROGRESS_KEY: Record<
+  MarketResearchProgressStage,
+  | 'igAgent.marketResearchProgressStarting'
+  | 'igAgent.marketResearchProgressReading'
+  | 'igAgent.marketResearchProgressCalculating'
+  | 'igAgent.marketResearchProgressSynthesizing'
+> = {
+  starting: 'igAgent.marketResearchProgressStarting',
+  reading: 'igAgent.marketResearchProgressReading',
+  calculating: 'igAgent.marketResearchProgressCalculating',
+  synthesizing: 'igAgent.marketResearchProgressSynthesizing',
+};
+
 /** Investigación pasiva: convierte todos los comentarios ya importados en señales de mercado. */
 function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{
+    value: number;
+    stage: MarketResearchProgressStage;
+  } | null>(null);
   const [report, setReport] = useState<MarketResearchResponse | null>(null);
 
   const run = async () => {
     setRunning(true);
+    setProgress({ value: 5, stage: 'starting' });
     try {
       const response = await fetchWithCsrf('/api/comments/market-research', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ workspace_id: workspaceId }),
       });
-      const result = (await response
-        .json()
-        .catch(() => ({}))) as MarketResearchResponse & { error?: string };
-      if (!response.ok) throw new Error(result.error);
-      setReport(result);
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(result.error);
+      }
+      if (!response.body) throw new Error(t('igAgent.marketResearchFailed'));
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let receivedResult = false;
+      const handleEvent = (event: MarketResearchStreamEvent) => {
+        if (event.type === 'progress') {
+          setProgress({ value: event.value, stage: event.stage });
+          return;
+        }
+        if (event.type === 'error') throw new Error(event.error);
+        setReport(event.report);
+        setProgress({ value: 100, stage: 'synthesizing' });
+        receivedResult = true;
+      };
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.trim()) handleEvent(JSON.parse(line) as MarketResearchStreamEvent);
+        }
+        if (done) break;
+      }
+      if (buffer.trim()) handleEvent(JSON.parse(buffer) as MarketResearchStreamEvent);
+      if (!receivedResult) throw new Error(t('igAgent.marketResearchFailed'));
     } catch (error) {
       toast.error(
         error instanceof Error && error.message
@@ -1884,6 +1947,7 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
       );
     } finally {
       setRunning(false);
+      setProgress(null);
     }
   };
 
@@ -1910,6 +1974,28 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
             : t('igAgent.marketResearchRun')}
         </Button>
       </div>
+
+      {running && progress && (
+        <div aria-live="polite" className="space-y-2">
+          <div
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={progress.value}
+            aria-valuetext={t(MARKET_RESEARCH_PROGRESS_KEY[progress.stage])}
+            className="bg-muted h-1.5 overflow-hidden rounded-full"
+            role="progressbar"
+          >
+            <div
+              className="bg-primary h-full rounded-full transition-[width] duration-500 ease-out"
+              style={{ width: `${progress.value}%` }}
+            />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            {t(MARKET_RESEARCH_PROGRESS_KEY[progress.stage])}{' '}
+            {progress.value}%
+          </p>
+        </div>
+      )}
 
       {report && (
         <div className="border-border space-y-5 border-t pt-5">

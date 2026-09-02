@@ -24,6 +24,26 @@ const COMMENT_CHANNELS: CommentChannel[] = [
 /** El cálculo recorre todo; la síntesis usa una muestra transparente y acotada. */
 const MAX_QUALITATIVE_SAMPLE = 200;
 
+type ResearchProgressStage = 'reading' | 'calculating' | 'synthesizing';
+
+type ResearchStreamEvent =
+  | { type: 'progress'; stage: ResearchProgressStage; value: number }
+  | {
+      type: 'result';
+      report: {
+        total: number;
+        analyzed_sample: number;
+        generated_with_ai: boolean;
+        metrics: ReturnType<typeof analyzeCommentMetrics>;
+        summary: string;
+        findings: Array<{ title: string; detail: string }>;
+        opportunities: string[];
+        risks: string[];
+        actions: string[];
+      };
+    }
+  | { type: 'error'; error: string };
+
 /**
  * POST /api/comments/market-research
  *
@@ -70,78 +90,119 @@ export async function POST(request: Request) {
     );
   }
 
-  const rows = await selectAll<{
-    channel: CommentChannel;
-    content_text: string | null;
-    created_at: string;
-    sender_type: string | null;
-  }>(
-    admin,
-    'messages',
-    (query) =>
-      query
-        .in('channel', COMMENT_CHANNELS)
-        .eq('conversations.workspace_id', workspaceId),
-    {
-      select:
-        'channel,content_text,created_at,sender_type,conversations!inner(workspace_id)',
-      orderBy: 'created_at',
-    }
-  );
-  const comments: ResearchComment[] = rows
-    .filter((row) => row.sender_type === 'customer' && row.content_text?.trim())
-    .map((row) => ({
-      channel: row.channel,
-      text: String(row.content_text).trim(),
-      createdAt: row.created_at,
-    }));
-  if (comments.length === 0) {
-    return NextResponse.json(
-      { error: translate(locale, 'errAi.noCommentsForResearch') },
-      { status: 422 }
-    );
-  }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: ResearchStreamEvent) =>
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const progress = (stage: ResearchProgressStage, value: number) =>
+        send({ type: 'progress', stage, value });
 
-  const metrics = analyzeCommentMetrics(comments);
-  const qualitative = representativeSample(comments, MAX_QUALITATIVE_SAMPLE);
-  const language = locale === 'en' ? 'en' : 'es';
-  let insight = fallbackResearch(metrics, language);
-  let generatedWithAi = false;
-  const key = (await resolveAnthropicKey(admin, { workspaceId }))?.key ?? null;
-  if (hasLlm(key)) {
-    try {
-      const text = await completeText({
-        tier: 'premium',
-        system:
-          'You produce evidence-based market research from customer comments. Never make up facts.',
-        user: buildMarketResearchPrompt({
-          locale: language,
-          metrics,
-          comments: qualitative,
-        }),
-        maxTokens: 1600,
-        anthropicKey: key,
-        effort: 'low',
-      });
-      const parsed = parseMarketResearchResponse(text);
-      if (parsed) {
-        insight = parsed;
-        generatedWithAi = true;
+      try {
+        progress('reading', 18);
+        const rows = await selectAll<{
+          channel: CommentChannel;
+          content_text: string | null;
+          created_at: string;
+          sender_type: string | null;
+        }>(
+          admin,
+          'messages',
+          (query) =>
+            query
+              .in('channel', COMMENT_CHANNELS)
+              .eq('conversations.workspace_id', workspaceId),
+          {
+            select:
+              'channel,content_text,created_at,sender_type,conversations!inner(workspace_id)',
+            orderBy: 'created_at',
+          }
+        );
+        const comments: ResearchComment[] = rows
+          .filter(
+            (row) => row.sender_type === 'customer' && row.content_text?.trim()
+          )
+          .map((row) => ({
+            channel: row.channel,
+            text: String(row.content_text).trim(),
+            createdAt: row.created_at,
+          }));
+        if (comments.length === 0) {
+          send({
+            type: 'error',
+            error: translate(locale, 'errAi.noCommentsForResearch'),
+          });
+          return;
+        }
+
+        progress('calculating', 55);
+        const metrics = analyzeCommentMetrics(comments);
+        const qualitative = representativeSample(comments, MAX_QUALITATIVE_SAMPLE);
+        const language = locale === 'en' ? 'en' : 'es';
+        let insight = fallbackResearch(metrics, language);
+        let generatedWithAi = false;
+
+        progress('synthesizing', 78);
+        const key =
+          (await resolveAnthropicKey(admin, { workspaceId }))?.key ?? null;
+        if (hasLlm(key)) {
+          try {
+            const text = await completeText({
+              tier: 'premium',
+              system:
+                'You produce evidence-based market research from customer comments. Never make up facts.',
+              user: buildMarketResearchPrompt({
+                locale: language,
+                metrics,
+                comments: qualitative,
+              }),
+              maxTokens: 1600,
+              anthropicKey: key,
+              effort: 'low',
+            });
+            const parsed = parseMarketResearchResponse(text);
+            if (parsed) {
+              insight = parsed;
+              generatedWithAi = true;
+            }
+          } catch (error) {
+            console.error('[comments/market-research] AI synthesis failed', {
+              workspaceId,
+              error,
+            });
+          }
+        }
+
+        send({
+          type: 'result',
+          report: {
+            total: comments.length,
+            analyzed_sample: qualitative.length,
+            metrics,
+            ...insight,
+            generated_with_ai: generatedWithAi,
+          },
+        });
+      } catch (error) {
+        console.error('[comments/market-research] failed', {
+          workspaceId,
+          error,
+        });
+        send({
+          type: 'error',
+          error: translate(locale, 'errAi.marketResearchFailed'),
+        });
+      } finally {
+        controller.close();
       }
-    } catch (error) {
-      console.error('[comments/market-research] AI synthesis failed', {
-        workspaceId,
-        error,
-      });
-    }
-  }
+    },
+  });
 
-  return NextResponse.json({
-    total: comments.length,
-    analyzed_sample: qualitative.length,
-    metrics,
-    ...insight,
-    generated_with_ai: generatedWithAi,
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+    },
   });
 }
 

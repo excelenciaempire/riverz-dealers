@@ -269,6 +269,22 @@ export const igAgent = {
   },
   marketResearchRun: { es: 'Analizar comentarios', en: 'Analyze comments' },
   marketResearchRunning: { es: 'Analizando…', en: 'Analyzing…' },
+  marketResearchProgressStarting: {
+    es: 'Preparando análisis',
+    en: 'Preparing analysis',
+  },
+  marketResearchProgressReading: {
+    es: 'Leyendo comentarios importados',
+    en: 'Reading imported comments',
+  },
+  marketResearchProgressCalculating: {
+    es: 'Calculando señales',
+    en: 'Calculating signals',
+  },
+  marketResearchProgressSynthesizing: {
+    es: 'Generando hallazgos',
+    en: 'Generating findings',
+  },
   marketResearchFailed: {
     es: 'No se pudo analizar los comentarios',
     en: "Couldn't analyze comments",
