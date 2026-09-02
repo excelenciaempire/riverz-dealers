@@ -5,6 +5,7 @@ import { selectAll } from "@/lib/db/paginate";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { handleMetaGraphError, parseMetaErrorBody } from "@/lib/channels/meta-auth";
 import { syncThreadMessages, type MetaPlatform } from "@/lib/channels/meta-dm-history";
 import type { ChannelConnection } from "@/types";
 import { withCronRun } from "@/lib/cron/heartbeat";
@@ -174,6 +175,13 @@ async function cronHandler(request: Request) {
         // `paging.next` no lleva el proof — se re-adjunta en cada página.
         const r: Response = await fetch(withAppsecretProof(url, token));
         if (!r.ok) {
+          // Un token revocado o sin los permisos de Página necesarios no se
+          // recupera reintentando cada dos horas. Marcar sólo esa conexión la
+          // saca de este barrido y muestra la acción de reconectar; el resto
+          // de comercios sigue sincronizando y el cron no queda en rojo para
+          // siempre por una sola cuenta.
+          const body = await r.text().catch(() => "");
+          await handleMetaGraphError(admin, c, r.status, parseMetaErrorBody(body));
           fallo = `graph ${r.status}`;
           break;
         }
