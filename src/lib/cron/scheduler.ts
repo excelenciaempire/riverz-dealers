@@ -1,9 +1,16 @@
-import { getLogger } from "@/lib/log/logger";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { getLogger } from '@/lib/log/logger';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 
-import { DEFAULT_TIMEOUT_MS, dueJobs, SCHEDULED_JOBS } from "./schedule";
+import {
+  DEFAULT_TIMEOUT_MS,
+  dueJobs,
+  expectedIntervalMs,
+  isStale,
+  SCHEDULED_JOBS,
+  type ScheduledJob,
+} from './schedule';
 
-const log = getLogger("scheduler");
+const log = getLogger('scheduler');
 
 /**
  * Reloj interno de los trabajos periódicos.
@@ -41,18 +48,26 @@ type SchedulerState = {
   draining: boolean;
 };
 
-const STATE_KEY = "__riverzScheduler";
+/** No reanudamos cuarenta procesos a la vez después de un despliegue largo. */
+const MAX_RECOVERY_JOBS_PER_TICK = 6;
+
+const STATE_KEY = '__riverzScheduler';
 
 function state(): SchedulerState {
   const g = globalThis as typeof globalThis & { [STATE_KEY]?: SchedulerState };
   if (!g[STATE_KEY]) {
-    g[STATE_KEY] = { timer: null, lastTickAt: null, inFlight: new Set(), draining: false };
+    g[STATE_KEY] = {
+      timer: null,
+      lastTickAt: null,
+      inFlight: new Set(),
+      draining: false,
+    };
   }
   return g[STATE_KEY];
 }
 
 function baseUrl(): string {
-  const port = process.env.PORT ?? "3000";
+  const port = process.env.PORT ?? '3000';
   return `http://127.0.0.1:${port}`;
 }
 
@@ -60,32 +75,32 @@ async function runJob(
   name: string,
   path: string,
   secret: string,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<void> {
   const s = state();
   // Un trabajo que todavía corre no se vuelve a lanzar: meta-dm-backfill tarda
   // ~22 min y con schedule horario se apilaba encima de sí mismo.
   if (s.inFlight.has(name)) {
-    log.warn("job skipped (still running)", { job: name });
+    log.warn('job skipped (still running)', { job: name });
     return;
   }
   s.inFlight.add(name);
   const startedAt = Date.now();
   try {
     const res = await fetch(baseUrl() + path, {
-      method: "GET",
-      headers: { "x-cron-secret": secret },
+      method: 'GET',
+      headers: { 'x-cron-secret': secret },
       signal: AbortSignal.timeout(timeoutMs),
     });
     const ms = Date.now() - startedAt;
     // 207 es 2xx pero los polls de correo lo usan para "falló una casilla".
     if (!res.ok || res.status === 207) {
-      log.warn("job failed", { job: name, status: res.status, ms });
+      log.warn('job failed', { job: name, status: res.status, ms });
     } else {
-      log.info("job ok", { job: name, status: res.status, ms });
+      log.info('job ok', { job: name, status: res.status, ms });
     }
   } catch (err) {
-    log.error("job threw", {
+    log.error('job threw', {
       job: name,
       ms: Date.now() - startedAt,
       error: err instanceof Error ? err.message : String(err),
@@ -131,6 +146,49 @@ async function claimTick(at: Date): Promise<boolean> {
   }
 }
 
+/**
+ * Trabajos que quedaron pendientes porque el proceso se reinició o la instancia
+ * estuvo fuera de rotación. La misma tabla que mira el panel decide qué falta;
+ * un trabajo que sigue en ejecución tiene fila `running` fresca y no se duplica.
+ */
+async function recoveryJobs(now: Date): Promise<ScheduledJob[]> {
+  try {
+    const { data, error } = await supabaseAdmin().rpc('admin_cron_health');
+    if (error) throw new Error(error.message);
+    const latest = new Map(
+      ((data ?? []) as Array<{ name: string; started_at: string | null }>).map(
+        (run) => [run.name, run.started_at]
+      )
+    );
+    const overdue = SCHEDULED_JOBS.filter(
+      (job) =>
+        !job.parent &&
+        isStale(job.schedule, latest.get(job.name) ?? null, now.getTime())
+    );
+    const overdueFactor = (job: ScheduledJob): number => {
+      const last = latest.get(job.name);
+      const age = last
+        ? now.getTime() - Date.parse(last)
+        : Number.POSITIVE_INFINITY;
+      return age / (expectedIntervalMs(job.schedule) ?? 60_000);
+    };
+    return overdue
+      .sort((a, b) => overdueFactor(b) - overdueFactor(a))
+      .slice(0, MAX_RECOVERY_JOBS_PER_TICK);
+  } catch (err) {
+    // Si la salud no se puede leer, el horario normal sigue funcionando. No se
+    // inventa una cola de recuperación con datos incompletos.
+    log.warn('recovery health check failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+function uniqueJobs(jobs: ScheduledJob[]): ScheduledJob[] {
+  return [...new Map(jobs.map((job) => [job.name, job])).values()];
+}
+
 function tick(secret: string): void {
   const s = state();
   if (s.draining) return;
@@ -148,21 +206,25 @@ function tick(secret: string): void {
     .then((m) => m.hidratarClaves())
     .catch(() => {});
 
-  const jobs = dueJobs(now);
-  if (jobs.length === 0) return;
-
   void (async () => {
     // El turno se pide DESPUÉS de un salto asíncrono, así que hay que volver a
     // mirar: la instancia pudo entrar en drenaje mientras tanto.
     if (state().draining) return;
     if (!(await claimTick(now))) {
-      log.info('otro proceso tomó este minuto', { jobs: jobs.length });
+      log.info('otro proceso tomó este minuto', { jobs: dueJobs(now).length });
       return;
     }
+    const jobs = uniqueJobs([...dueJobs(now), ...(await recoveryJobs(now))]);
+    if (jobs.length === 0) return;
     // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
     // Cada uno registra su propio resultado.
     for (const job of jobs) {
-      void runJob(job.name, job.path, secret, job.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+      void runJob(
+        job.name,
+        job.path,
+        secret,
+        job.timeoutMs ?? DEFAULT_TIMEOUT_MS
+      );
     }
   })();
 }
@@ -176,12 +238,32 @@ function scheduleNextTick(secret: string): void {
     try {
       tick(secret);
     } catch (err) {
-      log.error("tick threw", { error: err instanceof Error ? err.message : String(err) });
+      log.error('tick threw', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }, delay);
   // No mantener vivo el proceso sólo por este timer.
   t.unref?.();
   state().timer = t;
+}
+
+/**
+ * Después de un arranque no esperamos al próximo borde del minuto: una
+ * interrupción de despliegue ya pudo dejar trabajo vencido. La espera corta da
+ * tiempo a que el servidor acepte el fetch local que usa `runJob`.
+ */
+function scheduleStartupRecovery(secret: string): void {
+  const timer = setTimeout(() => {
+    try {
+      tick(secret);
+    } catch (err) {
+      log.error('startup recovery tick threw', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, 5_000);
+  timer.unref?.();
 }
 
 /**
@@ -195,20 +277,21 @@ function scheduleNextTick(secret: string): void {
 export function startScheduler(): void {
   const s = state();
   if (s.timer) return;
-  if (process.env.NEXT_PHASE === "phase-production-build") return;
-  if (process.env.SCHEDULER_DISABLED === "true") {
-    log.info("scheduler disabled by env");
+  if (process.env.NEXT_PHASE === 'phase-production-build') return;
+  if (process.env.SCHEDULER_DISABLED === 'true') {
+    log.info('scheduler disabled by env');
     return;
   }
 
   const secret = process.env.AUTOMATION_CRON_SECRET;
   if (!secret) {
-    log.warn("scheduler not started: missing AUTOMATION_CRON_SECRET");
+    log.warn('scheduler not started: missing AUTOMATION_CRON_SECRET');
     return;
   }
 
   scheduleNextTick(secret);
-  log.info("scheduler started", { jobs: SCHEDULED_JOBS.length });
+  scheduleStartupRecovery(secret);
+  log.info('scheduler started', { jobs: SCHEDULED_JOBS.length });
 }
 
 /**
@@ -230,7 +313,7 @@ export function stopScheduler(): void {
   s.draining = true;
   if (s.timer) clearTimeout(s.timer);
   s.timer = null;
-  log.info("scheduler detenido (la instancia se está apagando)", {
+  log.info('scheduler detenido (la instancia se está apagando)', {
     enVuelo: s.inFlight.size,
   });
 }

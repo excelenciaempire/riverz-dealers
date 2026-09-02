@@ -61,7 +61,17 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "outlook-poll", whatKey: "admin.cronOutlookPoll", path: "/api/cron/outlook-poll", schedule: "*/2 * * * *" },
   { name: "gmail-poll", whatKey: "admin.cronGmailPoll", path: "/api/cron/gmail-poll", schedule: "*/5 * * * *" },
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
-  { name: "comment-sync", whatKey: "admin.cronCommentSync", path: "/api/cron/comment-sync", schedule: "*/10 * * * *" },
+  // La reconciliación puede consultar hasta 300 comentarios por conexión. El
+  // timeout por defecto era tres minutos y se cortaba mientras el handler aún
+  // terminaba de escribir su resultado; ocho minutos deja margen sin permitir
+  // que una corrida alcance a la siguiente cadencia de diez.
+  {
+    name: "comment-sync",
+    whatKey: "admin.cronCommentSync",
+    path: "/api/cron/comment-sync",
+    schedule: "*/10 * * * *",
+    timeoutMs: 8 * 60_000,
+  },
   { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *" },
   // La recarga automática de la billetera. Cada 5 minutos: entre que el saldo
   // cae y que la IA se queda muda hay margen —el descubierto—, y un cobro con

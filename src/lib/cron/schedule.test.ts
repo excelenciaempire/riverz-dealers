@@ -186,6 +186,12 @@ describe("isStale", () => {
     expect(backfill!.timeoutMs).toBeGreaterThan(8 * 60 * 1000);
   });
 
+  it("la conciliación de comentarios termina antes de su siguiente ventana", () => {
+    const comments = SCHEDULED_JOBS.find((j) => j.name === "comment-sync");
+    expect(comments?.timeoutMs).toBe(8 * 60_000);
+    expect(comments?.timeoutMs).toBeLessThan(expectedIntervalMs(comments!.schedule)!);
+  });
+
   it("todo trabajo que el reloj llama cuelga de /api", () => {
     for (const job of SCHEDULED_JOBS) {
       // `voice-worker` no tiene ruta a propósito: es un proceso de otro

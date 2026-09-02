@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 
 /**
  * Latido de los trabajos de fondo en `cron_runs` (migración 059).
@@ -9,10 +9,12 @@ import { supabaseAdmin } from "@/lib/channels/admin-client";
  * pero un panel que muestra todo verde mientras un cron revienta en cada
  * corrida es peor que no tener panel.
  *
- * `withCronRun` envuelve el handler y escribe una fila al terminar, con la
- * duración real y el resultado de verdad. Se saltan los rechazos de
- * autenticación: la URL es pública y cualquiera puede golpearla — registrar
- * esos intentos llenaría la tabla de ruido y falsearía el estado.
+ * `withCronRun` escribe una fila desde que el handler empieza y la completa al
+ * terminar. Así un trabajo lento sigue figurando como activo y, si el proceso
+ * muere a mitad de camino, su `started_at` queda como evidencia para que el
+ * reloj lo recupere después. Se saltan los rechazos de autenticación: la URL
+ * es pública y cualquiera puede golpearla — registrar esos intentos llenaría
+ * la tabla de ruido y falsearía el estado.
  */
 
 /**
@@ -24,8 +26,8 @@ export async function pingCron(name: string): Promise<void> {
   try {
     const now = new Date().toISOString();
     await supabaseAdmin()
-      .from("cron_runs")
-      .insert({ name, status: "ok", started_at: now, finished_at: now });
+      .from('cron_runs')
+      .insert({ name, status: 'ok', started_at: now, finished_at: now });
   } catch {
     /* best-effort heartbeat */
   }
@@ -34,20 +36,52 @@ export async function pingCron(name: string): Promise<void> {
 async function record(
   name: string,
   startedAt: Date,
-  status: "ok" | "error",
+  status: 'ok' | 'error',
   error: string | null,
+  runId: string | null
 ): Promise<void> {
   try {
-    await supabaseAdmin()
-      .from("cron_runs")
-      .insert({
-        name,
-        status,
-        started_at: startedAt.toISOString(),
-        finished_at: new Date().toISOString(),
-        duration_ms: Date.now() - startedAt.getTime(),
-        error,
-      });
+    const payload = {
+      status,
+      finished_at: new Date().toISOString(),
+      duration_ms: Date.now() - startedAt.getTime(),
+      error,
+    };
+    if (runId) {
+      await supabaseAdmin().from('cron_runs').update(payload).eq('id', runId);
+    } else {
+      await supabaseAdmin()
+        .from('cron_runs')
+        .insert({
+          name,
+          started_at: startedAt.toISOString(),
+          ...payload,
+        });
+    }
+  } catch {
+    /* best-effort heartbeat */
+  }
+}
+
+/** Crea el registro activo antes de ejecutar trabajo que puede tardar minutos. */
+async function begin(name: string, startedAt: Date): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin()
+      .from('cron_runs')
+      .insert({ name, status: 'running', started_at: startedAt.toISOString() })
+      .select('id')
+      .maybeSingle();
+    return (data as { id?: string } | null)?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Una llamada pública sin secreto no debe dejar un falso trabajo activo. */
+async function discard(runId: string | null): Promise<void> {
+  if (!runId) return;
+  try {
+    await supabaseAdmin().from('cron_runs').delete().eq('id', runId);
   } catch {
     /* best-effort heartbeat */
   }
@@ -66,31 +100,35 @@ function describe(err: unknown): string {
  */
 export function withCronRun(
   name: string,
-  handler: (request: Request) => Promise<Response>,
+  handler: (request: Request) => Promise<Response>
 ): (request: Request) => Promise<Response> {
   return async (request: Request): Promise<Response> => {
     const startedAt = new Date();
+    const runId = await begin(name, startedAt);
     let response: Response;
     try {
       response = await handler(request);
     } catch (err) {
-      await record(name, startedAt, "error", describe(err));
+      await record(name, startedAt, 'error', describe(err), runId);
       throw err;
     }
     // 401/403 = alguien golpeó la URL sin el secreto; no es una corrida.
-    if (response.status !== 401 && response.status !== 403) {
-      // 207 es el "fallo parcial" que usan todos los crons de la casa. Cuenta
-      // como error: `response.ok` lo daba por bueno y el panel mostraba verde
-      // mientras el trabajo avisaba de un hueco en cada corrida — así pasaron
-      // seis días sin que nadie viera que Meta entregaba a un host muerto.
-      const failed = !response.ok || response.status === 207;
-      await record(
-        name,
-        startedAt,
-        failed ? "error" : "ok",
-        failed ? await motivo(response) : null,
-      );
+    if (response.status === 401 || response.status === 403) {
+      await discard(runId);
+      return response;
     }
+    // 207 es el "fallo parcial" que usan todos los crons de la casa. Cuenta
+    // como error: `response.ok` lo daba por bueno y el panel mostraba verde
+    // mientras el trabajo avisaba de un hueco en cada corrida — así pasaron
+    // seis días sin que nadie viera que Meta entregaba a un host muerto.
+    const failed = !response.ok || response.status === 207;
+    await record(
+      name,
+      startedAt,
+      failed ? 'error' : 'ok',
+      failed ? await motivo(response) : null,
+      runId
+    );
     return response;
   };
 }
@@ -109,7 +147,9 @@ export function withCronRun(
  */
 async function motivo(response: Response): Promise<string> {
   const prefijo =
-    response.status === 207 ? "HTTP 207 (fallo parcial)" : `HTTP ${response.status}`;
+    response.status === 207
+      ? 'HTTP 207 (fallo parcial)'
+      : `HTTP ${response.status}`;
   try {
     const texto = (await response.clone().text()).trim();
     if (!texto) return prefijo;
@@ -117,7 +157,7 @@ async function motivo(response: Response): Promise<string> {
     try {
       const j = JSON.parse(texto) as Record<string, unknown>;
       const detalle = j.error ?? j.message ?? j.reason;
-      if (typeof detalle === "string" && detalle) {
+      if (typeof detalle === 'string' && detalle) {
         return `${prefijo}: ${detalle}`.slice(0, 500);
       }
     } catch {
