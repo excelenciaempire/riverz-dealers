@@ -138,14 +138,6 @@ export const products = {
   open: { es: 'Abrir', en: 'Open' },
   removeSite: { es: 'Quitar sitio', en: 'Remove site' },
   addAnotherSite: { es: 'Agregar otro sitio', en: 'Add another site' },
-  prelandingsFound: {
-    es: 'Pre-landings encontradas en la tienda',
-    en: 'Pre-landings found in the store',
-  },
-  noPrelandingsFound: {
-    es: 'Aún no se encontraron pre-landings para este producto.',
-    en: 'No pre-landings have been found for this product yet.',
-  },
   rereadAll: { es: 'Re-leer todos', en: 'Re-read all' },
   lastRead: { es: 'Última lectura:', en: 'Last read:' },
 

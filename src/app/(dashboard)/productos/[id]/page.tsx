@@ -240,12 +240,15 @@ export default function ProductDetailPage() {
       setOffersAutoDetected(pr.offers_auto_detected === true);
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
       setCanales(Array.isArray(pr.listings) ? pr.listings : []);
+      // Las pre-landings son otra fuente del producto, no una sección aparte.
+      // Se muestran junto a la página principal y a las URLs que agregó el
+      // comercio, sin repetir una URL que esté persistida en dos columnas.
       setWebsites(
-        Array.isArray(pr.websites) && pr.websites.length
-          ? pr.websites
-          : pr.url
-            ? [pr.url]
-            : []
+        [...[pr.url], ...(pr.prelanding_urls ?? []), ...(pr.websites ?? [])]
+          .map((url) => (typeof url === 'string' ? url.trim() : ''))
+          .filter(
+            (url, index, urls) => Boolean(url) && urls.indexOf(url) === index
+          )
       );
 
       setNotes(pr.custom_notes ?? '');
@@ -884,25 +887,6 @@ export default function ProductDetailPage() {
                   )}
                   {t('products.rereadAll')}
                 </Button>
-              )}
-            </div>
-            <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">{t('products.prelandingsFound')}</p>
-              {(product.prelanding_urls?.length ?? 0) > 0 ? (
-                product.prelanding_urls?.map((url) => (
-                  <a
-                    key={url}
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="size-3 shrink-0" />
-                    <span className="truncate">{url}</span>
-                  </a>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground">{t('products.noPrelandingsFound')}</p>
               )}
             </div>
             {product.scraped_at && (
