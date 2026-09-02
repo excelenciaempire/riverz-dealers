@@ -2,6 +2,7 @@
 
 import {
   CommentsSection,
+  CommentBackfillDialog,
   ConnectionPill,
   useIgConnected,
   useProactiveSettings,
@@ -34,7 +35,7 @@ export default function ComentariosPage() {
   const { workspace } = useWorkspace();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-4xl space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="app-page-title">{t('nav.comments')}</h1>
@@ -42,7 +43,10 @@ export default function ComentariosPage() {
             {t('igAgent.commentsSubtitle')}
           </p>
         </div>
-        {connected === false && <ConnectionPill connected={false} />}
+        <div className="flex items-center gap-2">
+          {connected === false && <ConnectionPill connected={false} />}
+          {workspace?.id && <CommentBackfillDialog workspaceId={workspace.id} />}
+        </div>
       </header>
 
       <CommentsSection settings={settings} workspaceId={workspace?.id} />

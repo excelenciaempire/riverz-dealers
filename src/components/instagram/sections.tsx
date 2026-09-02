@@ -27,13 +27,19 @@ import {
   Rocket,
   X,
   AlertTriangle,
-  BarChart3,
   Sparkles,
+  BrainCircuit,
+  Download,
+  Lightbulb,
+  MessageSquareText,
+  Target,
+  TrendingUp,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Popover,
   PopoverContent,
@@ -45,6 +51,14 @@ import {
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { CommentToDmPanel } from '@/components/settings/comment-to-dm-panel';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
@@ -1826,18 +1840,40 @@ export function CommentsSection({
 }) {
   // Una sola carga para la sección: las cifras y el estado de quién puede
   // contestar salen de la misma consulta.
+  const t = useT();
   const stats = useCommentStats(workspaceId);
   return (
-    <div className="space-y-10">
-      <CommentStatsStrip stats={stats} />
-      {workspaceId && <CommentBackfill workspaceId={workspaceId} />}
-      {workspaceId && <CommentMarketResearch workspaceId={workspaceId} />}
-      <div>
-        <CommentAutoReply settings={settings} />
-        <CommentReplyOptions settings={settings} />
-      </div>
-      <CommentToDmPanel />
-    </div>
+    <Tabs defaultValue="automation" className="space-y-6">
+      <TabsList className="border-border bg-card h-10 border p-1">
+        <TabsTrigger
+          value="automation"
+          className="data-active:bg-accent data-active:text-accent-ink px-3"
+        >
+          <MessageCircle className="size-4" />
+          {t('igAgent.commentsTabAutomation')}
+        </TabsTrigger>
+        <TabsTrigger
+          value="analysis"
+          className="data-active:bg-accent data-active:text-accent-ink px-3"
+        >
+          <BrainCircuit className="size-4" />
+          {t('igAgent.commentsTabAnalysis')}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="automation" className="space-y-8">
+        <CommentStatsStrip stats={stats} />
+        <section className="border-border bg-card rounded-3xl border p-5 sm:p-6">
+          <CommentAutoReply settings={settings} />
+          <CommentReplyOptions settings={settings} />
+        </section>
+        <CommentToDmPanel />
+      </TabsContent>
+
+      <TabsContent value="analysis">
+        {workspaceId && <CommentMarketResearch workspaceId={workspaceId} />}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -1846,7 +1882,12 @@ interface MarketResearchResponse {
   analyzed_sample: number;
   generated_with_ai: boolean;
   metrics: {
+    byChannel: Record<'ig_comment' | 'fb_comment' | 'tiktok_comment', number>;
     sentiment: { positive: number; neutral: number; negative: number };
+    signals: Array<{
+      key: 'price' | 'purchase' | 'availability' | 'complaint';
+      count: number;
+    }>;
     terms: Array<{ term: string; count: number }>;
   };
   summary: string;
@@ -1883,6 +1924,19 @@ const MARKET_RESEARCH_PROGRESS_KEY: Record<
   calculating: 'igAgent.marketResearchProgressCalculating',
   synthesizing: 'igAgent.marketResearchProgressSynthesizing',
 };
+
+const MARKET_RESEARCH_SIGNAL_KEY = {
+  price: 'igAgent.marketResearchSignalPrice',
+  purchase: 'igAgent.marketResearchSignalPurchase',
+  availability: 'igAgent.marketResearchSignalAvailability',
+  complaint: 'igAgent.marketResearchSignalComplaint',
+} as const;
+
+const MARKET_RESEARCH_CHANNEL_KEY = {
+  ig_comment: 'igAgent.network_instagram',
+  fb_comment: 'igAgent.network_facebook',
+  tiktok_comment: 'igAgent.network_tiktok',
+} as const;
 
 /** Investigación pasiva: convierte todos los comentarios ya importados en señales de mercado. */
 function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
@@ -1951,15 +2005,29 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
     }
   };
 
+  const total = report?.total ?? 0;
+  const positiveRate = total
+    ? Math.round(((report?.metrics.sentiment.positive ?? 0) / total) * 100)
+    : 0;
+  const negativeRate = total
+    ? Math.round(((report?.metrics.sentiment.negative ?? 0) / total) * 100)
+    : 0;
+  const signalCount = (
+    key: MarketResearchResponse['metrics']['signals'][number]['key']
+  ) => report?.metrics.signals.find((signal) => signal.key === key)?.count ?? 0;
+
   return (
-    <section className="border-border bg-card space-y-4 rounded-3xl border p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <BarChart3 className="size-4" />
-            {t('igAgent.marketResearchTitle')}
+    <section className="border-border bg-card overflow-hidden rounded-3xl border">
+      <div className="from-accent/45 via-card to-card flex flex-wrap items-start justify-between gap-5 bg-gradient-to-br p-5 sm:p-7">
+        <div className="max-w-xl">
+          <div className="text-accent-ink flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
+            <BrainCircuit className="size-4" />
+            {t('igAgent.marketResearchEyebrow')}
           </div>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h2 className="mt-3 text-xl font-semibold tracking-tight">
+            {t('igAgent.marketResearchTitle')}
+          </h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-6">
             {t('igAgent.marketResearchSubtitle')}
           </p>
         </div>
@@ -1976,7 +2044,7 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
       </div>
 
       {running && progress && (
-        <div aria-live="polite" className="space-y-2">
+        <div aria-live="polite" className="border-border space-y-2 border-t px-5 py-4 sm:px-7">
           <div
             aria-valuemax={100}
             aria-valuemin={0}
@@ -1997,56 +2065,139 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
 
+      {!running && !report && (
+        <div className="text-muted-foreground flex items-center gap-3 px-5 py-6 text-sm sm:px-7">
+          <MessageSquareText className="text-accent-ink size-5 shrink-0" />
+          {t('igAgent.marketResearchEmpty')}
+        </div>
+      )}
+
       {report && (
-        <div className="border-border space-y-5 border-t pt-5">
-          <div className="border-border grid gap-px overflow-hidden rounded-2xl border sm:grid-cols-3">
+        <div className="border-border space-y-7 border-t p-5 sm:p-7">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <ResearchStat
+              icon={<MessageSquareText className="size-4" />}
               label={t('igAgent.marketResearchComments')}
               value={report.total}
             />
             <ResearchStat
-              label={t('igAgent.marketResearchPositive')}
-              value={report.metrics.sentiment.positive}
+              icon={<TrendingUp className="size-4" />}
+              label={t('igAgent.marketResearchPositiveRate')}
+              value={`${positiveRate}%`}
             />
             <ResearchStat
-              label={t('igAgent.marketResearchNegative')}
-              value={report.metrics.sentiment.negative}
+              icon={<Target className="size-4" />}
+              label={t('igAgent.marketResearchPurchaseSignal')}
+              value={signalCount('purchase')}
+            />
+            <ResearchStat
+              icon={<AlertTriangle className="size-4" />}
+              label={t('igAgent.marketResearchNegativeRate')}
+              value={`${negativeRate}%`}
             />
           </div>
-          <p className="text-muted-foreground text-sm leading-6">
-            {report.summary}
-          </p>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(16rem,.65fr)]">
+            <div className="space-y-5">
+              <div>
+                <p className="text-sm font-semibold">
+                  {t('igAgent.marketResearchMarketVoice')}
+                </p>
+                <p className="text-muted-foreground mt-2 text-sm leading-6">
+                  {report.summary}
+                </p>
+              </div>
+              <div className="grid gap-3">
+                {report.findings.map((finding, index) => (
+                  <div
+                    key={`${finding.title}-${finding.detail}`}
+                    className="border-border bg-background rounded-2xl border p-4"
+                  >
+                    <p className="text-accent-ink text-xs font-semibold tabular-nums">
+                      0{index + 1}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold">{finding.title}</p>
+                    <p className="text-muted-foreground mt-1 text-sm leading-5">
+                      {finding.detail}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-border bg-background space-y-5 rounded-2xl border p-4">
+              <div>
+                <p className="text-sm font-semibold">
+                  {t('igAgent.marketResearchSignals')}
+                </p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {t('igAgent.marketResearchSignalsSubtitle')}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {report.metrics.signals.map((signal) => (
+                  <ResearchSignal
+                    key={signal.key}
+                    label={t(MARKET_RESEARCH_SIGNAL_KEY[signal.key])}
+                    count={signal.count}
+                    total={report.total}
+                  />
+                ))}
+              </div>
+              <div className="border-border border-t pt-4">
+                <p className="text-muted-foreground text-xs font-medium">
+                  {t('igAgent.marketResearchChannelMix')}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {Object.entries(report.metrics.byChannel).map(([channel, count]) => (
+                    <Badge key={channel} variant="secondary">
+                      {t(
+                        MARKET_RESEARCH_CHANNEL_KEY[
+                          channel as keyof typeof MARKET_RESEARCH_CHANNEL_KEY
+                        ]
+                      )}{' '}
+                      {count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {report.metrics.terms.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {report.metrics.terms.map(({ term, count }) => (
-                <Badge key={term} variant="secondary">
-                  {term} · {count}
-                </Badge>
-              ))}
+            <div>
+              <p className="text-sm font-semibold">
+                {t('igAgent.marketResearchTerms')}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {report.metrics.terms.map(({ term, count }) => (
+                  <Badge key={term} variant="secondary">
+                    {term} · {count}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
-          <ResearchList title={t('igAgent.marketResearchFindings')}>
-            {report.findings.map((finding) => (
-              <li key={`${finding.title}-${finding.detail}`}>
-                <span className="font-medium">{finding.title}.</span>{' '}
-                {finding.detail}
-              </li>
-            ))}
-          </ResearchList>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <ResearchList
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ResearchPanel
+              icon={<Lightbulb className="size-4" />}
               title={t('igAgent.marketResearchOpportunities')}
               items={report.opportunities}
             />
-            <ResearchList
+            <ResearchPanel
+              icon={<AlertTriangle className="size-4" />}
               title={t('igAgent.marketResearchRisks')}
               items={report.risks}
               empty={t('igAgent.marketResearchNoRisks')}
             />
           </div>
-          <ResearchList
+
+          <ResearchPanel
+            icon={<Target className="size-4" />}
             title={t('igAgent.marketResearchActions')}
             items={report.actions}
+            numbered
           />
           {report.analyzed_sample < report.total && (
             <p className="text-muted-foreground text-xs">
@@ -2062,43 +2213,124 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-function ResearchStat({ label, value }: { label: string; value: number }) {
+function ResearchStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number | string;
+}) {
   return (
-    <div className="bg-background px-4 py-3">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
+    <div className="border-border bg-background rounded-2xl border p-4">
+      <p className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+        {icon}
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
+        {value}
+      </p>
     </div>
   );
 }
 
-function ResearchList({
+function ResearchSignal({
+  label,
+  count,
+  total,
+}: {
+  label: string;
+  count: number;
+  total: number;
+}) {
+  const percentage = total ? Math.round((count / total) * 100) : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="text-foreground font-medium">{label}</span>
+        <span className="text-muted-foreground shrink-0 tabular-nums">
+          {count} · {percentage}%
+        </span>
+      </div>
+      <div className="bg-muted mt-1.5 h-1.5 overflow-hidden rounded-full">
+        <div
+          className="bg-accent-ink h-full rounded-full"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ResearchPanel({
+  icon,
   title,
   items,
   empty,
-  children,
+  numbered = false,
 }: {
+  icon: ReactNode;
   title: string;
-  items?: string[];
+  items: string[];
   empty?: string;
-  children?: ReactNode;
+  numbered?: boolean;
 }) {
-  const content = children ?? items?.map((item) => <li key={item}>{item}</li>);
-  if (!content || (Array.isArray(content) && content.length === 0)) {
-    return empty ? (
-      <p className="text-muted-foreground text-sm">{empty}</p>
-    ) : null;
-  }
   return (
-    <div>
-      <p className="text-sm font-medium">{title}</p>
-      <ul className="text-muted-foreground mt-2 space-y-1.5 text-sm leading-5">
-        {content}
-      </ul>
+    <div className="border-border bg-background rounded-2xl border p-4">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="text-accent-ink">{icon}</span>
+        {title}
+      </p>
+      {items.length > 0 ? (
+        <ol className="text-muted-foreground mt-3 space-y-2 text-sm leading-5">
+          {items.map((item, index) => (
+            <li key={item} className="flex gap-2">
+              {numbered && (
+                <span className="text-accent-ink font-semibold tabular-nums">
+                  {index + 1}.
+                </span>
+              )}
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        empty && <p className="text-muted-foreground mt-3 text-sm">{empty}</p>
+      )}
     </div>
   );
 }
 
-function CommentBackfill({ workspaceId }: { workspaceId: string }) {
+export function CommentBackfillDialog({ workspaceId }: { workspaceId: string }) {
+  const [open, setOpen] = useState(false);
+  const t = useT();
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm" />}>
+        <Download className="size-3.5" />
+        {t('igAgent.backfillOpen')}
+      </DialogTrigger>
+      <DialogContent className="border-border bg-card max-h-[calc(100dvh-2rem)] p-0 sm:max-w-xl">
+        <DialogHeader className="border-border border-b px-5 pt-5 pr-12 pb-4">
+          <DialogTitle>{t('igAgent.backfillTitle')}</DialogTitle>
+          <DialogDescription>{t('igAgent.backfillDialogDescription')}</DialogDescription>
+        </DialogHeader>
+        <div className="px-5 py-5">
+          <CommentBackfill workspaceId={workspaceId} onComplete={() => setOpen(false)} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CommentBackfill({
+  workspaceId,
+  onComplete,
+}: {
+  workspaceId: string;
+  onComplete?: () => void;
+}) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const today = new Date().toISOString().slice(0, 10);
@@ -2184,6 +2416,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
       );
       if (partial) toast.warning(t('igAgent.backfillPartial', { n: imported }));
       else toast.success(t('igAgent.backfillDone', { n: imported }));
+      onComplete?.();
     } catch (error) {
       toast.error(
         error instanceof Error && error.message
@@ -2211,24 +2444,37 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <section className="border-border rounded-xl border p-4">
-      <h2 className="text-foreground text-sm font-semibold">
-        {t('igAgent.backfillTitle')}
-      </h2>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground text-xs">
           {t('igAgent.backfillContent')}
         </span>
-        <label className="flex items-center gap-1.5">
+        <label
+          className={cn(
+            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+            surfaces.includes('comments')
+              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+              : 'text-muted-foreground hover:bg-accent/20'
+          )}
+        >
           <input
+            className="accent-primary"
             type="checkbox"
             checked={surfaces.includes('comments')}
             onChange={() => toggleSurface('comments')}
           />
           {t('igAgent.backfillComments')}
         </label>
-        <label className="flex items-center gap-1.5">
+        <label
+          className={cn(
+            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+            surfaces.includes('messages')
+              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+              : 'text-muted-foreground hover:bg-accent/20'
+          )}
+        >
           <input
+            className="accent-primary"
             type="checkbox"
             checked={surfaces.includes('messages')}
             onChange={() => toggleSurface('messages')}
@@ -2292,28 +2538,52 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
           />
         </label>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground text-xs">
           {t('igAgent.backfillChannels')}
         </span>
-        <label className="flex items-center gap-1.5">
+        <label
+          className={cn(
+            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+            channels.includes('ig_comment')
+              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+              : 'text-muted-foreground hover:bg-accent/20'
+          )}
+        >
           <input
+            className="accent-primary"
             type="checkbox"
             checked={channels.includes('ig_comment')}
             onChange={() => toggleChannel('ig_comment')}
           />
           {t('igAgent.network_instagram')}
         </label>
-        <label className="flex items-center gap-1.5">
+        <label
+          className={cn(
+            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+            channels.includes('fb_comment')
+              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+              : 'text-muted-foreground hover:bg-accent/20'
+          )}
+        >
           <input
+            className="accent-primary"
             type="checkbox"
             checked={channels.includes('fb_comment')}
             onChange={() => toggleChannel('fb_comment')}
           />
           {t('igAgent.network_facebook')}
         </label>
-        <label className="flex items-center gap-1.5">
+        <label
+          className={cn(
+            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+            channels.includes('tiktok_comment')
+              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+              : 'text-muted-foreground hover:bg-accent/20'
+          )}
+        >
           <input
+            className="accent-primary"
             type="checkbox"
             checked={channels.includes('tiktok_comment')}
             onChange={() => toggleChannel('tiktok_comment')}
@@ -2335,7 +2605,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
         {running && <Loader2 className="size-3.5 animate-spin" />}
         {running ? t('igAgent.backfillRunning') : t('igAgent.backfillRun')}
       </Button>
-    </section>
+    </div>
   );
 }
 

@@ -185,9 +185,11 @@ export const igAgent = {
 
   // Página Comentarios
   commentsSubtitle: {
-    es: 'Qué pasa cuando alguien comenta en tus posts.',
-    en: 'What happens when someone comments on your posts.',
+    es: 'Responde comentarios y entiende lo que tu mercado está diciendo.',
+    en: 'Reply to comments and understand what your market is saying.',
   },
+  commentsTabAutomation: { es: 'Automatización', en: 'Automation' },
+  commentsTabAnalysis: { es: 'Análisis', en: 'Analysis' },
   autoReplyComments: {
     es: 'Responder con IA',
     en: 'Reply with AI',
@@ -234,6 +236,11 @@ export const igAgent = {
     en: 'On TikTok it always replies on the comment: there are no DMs.',
   },
   backfillTitle: { es: 'Importar historial', en: 'Import history' },
+  backfillOpen: { es: 'Importar', en: 'Import' },
+  backfillDialogDescription: {
+    es: 'Recupera comentarios y mensajes sin enviar respuestas.',
+    en: 'Recover comments and messages without sending replies.',
+  },
   backfillDays: { es: 'Periodo', en: 'Period' },
   backfillDays7: { es: '7 días', en: '7 days' },
   backfillDays30: { es: '30 días', en: '30 days' },
@@ -260,9 +267,10 @@ export const igAgent = {
     en: "Couldn't import history",
   },
   marketResearchTitle: {
-    es: 'Research de comentarios',
-    en: 'Comment research',
+    es: 'Análisis de comentarios',
+    en: 'Comment analysis',
   },
+  marketResearchEyebrow: { es: 'Inteligencia de audiencia', en: 'Audience intelligence' },
   marketResearchSubtitle: {
     es: 'Sentimiento, patrones y oportunidades a partir de todos los comentarios importados.',
     en: 'Sentiment, patterns, and opportunities from every imported comment.',
@@ -289,6 +297,25 @@ export const igAgent = {
     es: 'No se pudo analizar los comentarios',
     en: "Couldn't analyze comments",
   },
+  marketResearchEmpty: {
+    es: 'Convierte los comentarios importados en señales para ventas, contenido y atención al cliente.',
+    en: 'Turn imported comments into signals for sales, content, and customer service.',
+  },
+  marketResearchPositiveRate: { es: 'Tono positivo', en: 'Positive tone' },
+  marketResearchNegativeRate: { es: 'Fricción', en: 'Friction' },
+  marketResearchPurchaseSignal: { es: 'Interés de compra', en: 'Purchase interest' },
+  marketResearchMarketVoice: { es: 'Lo que dice el mercado', en: 'What the market is saying' },
+  marketResearchSignals: { es: 'Señales de demanda', en: 'Demand signals' },
+  marketResearchSignalsSubtitle: {
+    es: 'Porcentaje de comentarios con cada señal.',
+    en: 'Share of comments with each signal.',
+  },
+  marketResearchSignalPrice: { es: 'Preguntas por precio', en: 'Price questions' },
+  marketResearchSignalPurchase: { es: 'Deseo de comprar', en: 'Purchase intent' },
+  marketResearchSignalAvailability: { es: 'Disponibilidad y entrega', en: 'Availability and delivery' },
+  marketResearchSignalComplaint: { es: 'Quejas o frenos', en: 'Complaints or blockers' },
+  marketResearchChannelMix: { es: 'Origen de la muestra', en: 'Sample sources' },
+  marketResearchTerms: { es: 'Temas frecuentes', en: 'Frequent themes' },
   marketResearchComments: { es: 'Comentarios', en: 'Comments' },
   marketResearchPositive: { es: 'Positivos', en: 'Positive' },
   marketResearchNegative: { es: 'Negativos', en: 'Negative' },
