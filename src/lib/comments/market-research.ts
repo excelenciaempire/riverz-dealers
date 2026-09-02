@@ -1,6 +1,26 @@
 export type CommentChannel = 'fb_comment' | 'ig_comment' | 'tiktok_comment';
+export type CommentSentiment = 'positive' | 'neutral' | 'negative';
+export type CommentCategory =
+  | 'all'
+  | CommentSentiment
+  | 'price'
+  | 'purchase'
+  | 'availability'
+  | 'complaint';
+
+export const COMMENT_CATEGORIES: readonly CommentCategory[] = [
+  'all',
+  'positive',
+  'neutral',
+  'negative',
+  'price',
+  'purchase',
+  'availability',
+  'complaint',
+] as const;
 
 export interface ResearchComment {
+  id?: string;
   channel: CommentChannel;
   text: string;
   createdAt: string;
@@ -9,7 +29,7 @@ export interface ResearchComment {
 export interface MarketMetrics {
   total: number;
   byChannel: Record<CommentChannel, number>;
-  sentiment: { positive: number; neutral: number; negative: number };
+  sentiment: Record<CommentSentiment, number>;
   signals: Array<{
     key: 'price' | 'purchase' | 'availability' | 'complaint';
     count: number;
@@ -108,16 +128,18 @@ export function analyzeCommentMetrics(
     ig_comment: 0,
     tiktok_comment: 0,
   };
-  const sentiment = { positive: 0, neutral: 0, negative: 0 };
+  const sentiment: Record<CommentSentiment, number> = {
+    positive: 0,
+    neutral: 0,
+    negative: 0,
+  };
   const signals = SIGNALS.map((signal) => ({ key: signal.key, count: 0 }));
   const words = new Map<string, number>();
 
   for (const comment of comments) {
     byChannel[comment.channel]++;
     const text = comment.text.trim();
-    if (NEGATIVE.test(text)) sentiment.negative++;
-    else if (POSITIVE.test(text)) sentiment.positive++;
-    else sentiment.neutral++;
+    sentiment[classifyCommentSentiment(text)]++;
 
     SIGNALS.forEach((signal, index) => {
       if (signal.pattern.test(text)) signals[index].count++;
@@ -141,6 +163,32 @@ export function analyzeCommentMetrics(
       .sort((a, b) => b.count - a.count || a.term.localeCompare(b.term))
       .slice(0, 12),
   };
+}
+
+/** Clasificación determinista usada igual en el total, los filtros y el detalle. */
+export function classifyCommentSentiment(text: string): CommentSentiment {
+  if (NEGATIVE.test(text)) return 'negative';
+  if (POSITIVE.test(text)) return 'positive';
+  return 'neutral';
+}
+
+/** Un filtro siempre responde a la misma regla que produjo la métrica visible. */
+export function commentMatchesCategory(
+  comment: ResearchComment,
+  category: CommentCategory
+): boolean {
+  if (category === 'all') return true;
+  if (category === 'positive' || category === 'neutral' || category === 'negative')
+    return classifyCommentSentiment(comment.text) === category;
+  const signal = SIGNALS.find((item) => item.key === category);
+  return Boolean(signal?.pattern.test(comment.text));
+}
+
+export function filterCommentsByCategory(
+  comments: readonly ResearchComment[],
+  category: CommentCategory
+): ResearchComment[] {
+  return comments.filter((comment) => commentMatchesCategory(comment, category));
 }
 
 /** Evita enviar datos de contacto accidentales junto con el texto de research. */
@@ -233,12 +281,62 @@ export function fallbackResearch(
               : 'Review negative comments before amplifying the content.',
           ]
         : [],
-    actions: [
-      es
-        ? 'Priorizar los temas con más menciones en próximos anuncios y respuestas.'
-        : 'Prioritize the most-mentioned themes in upcoming ads and replies.',
-    ],
+    actions: buildEvidenceActions(metrics, locale),
   };
+}
+
+/**
+ * Pasos operativos que siempre apuntan a una señal contada en el corpus entero.
+ * No dependen de que la síntesis de IA devuelva una recomendación bonita pero
+ * imposible de comprobar.
+ */
+export function buildEvidenceActions(
+  metrics: MarketMetrics,
+  locale: 'es' | 'en'
+): string[] {
+  const es = locale === 'es';
+  const count = (key: MarketMetrics['signals'][number]['key']) =>
+    metrics.signals.find((signal) => signal.key === key)?.count ?? 0;
+  const actions: string[] = [];
+  const price = count('price');
+  const purchase = count('purchase');
+  const availability = count('availability');
+  const complaint = count('complaint');
+  const esComments = (n: number) => `${n} ${n === 1 ? 'comentario' : 'comentarios'}`;
+  const enComments = (n: number) => `${n} ${n === 1 ? 'comment' : 'comments'}`;
+  const esVerb = (n: number, singular: string, plural: string) =>
+    n === 1 ? singular : plural;
+  if (price)
+    actions.push(
+      es
+        ? `Actualiza la pieza y la respuesta guardada con precio, moneda y CTA. Evidencia: ${esComments(price)} ${esVerb(price, 'pregunta', 'preguntan')} por precio.`
+        : `Update the asset and saved reply with price, currency, and a CTA. Evidence: ${enComments(price)} ask about price.`
+    );
+  if (availability)
+    actions.push(
+      es
+        ? `Aclara disponibilidad, entrega y cobertura antes de pedir la compra. Evidencia: ${esComments(availability)} ${esVerb(availability, 'pregunta', 'preguntan')} por entrega o stock.`
+        : `Clarify availability, delivery, and coverage before asking for the purchase. Evidence: ${enComments(availability)} ask about delivery or stock.`
+    );
+  if (complaint)
+    actions.push(
+      es
+        ? `Revisa y etiqueta ${esComments(complaint)} con posible fricción antes de reutilizar el anuncio; corrige sólo el problema que se repite.`
+        : `Review and tag the ${enComments(complaint)} with possible friction before reusing the ad; fix only the problem that repeats.`
+    );
+  if (purchase)
+    actions.push(
+      es
+        ? `Prioriza una respuesta rápida con enlace o siguiente paso de compra. Evidencia: ${esComments(purchase)} ${esVerb(purchase, 'muestra', 'muestran')} intención de compra.`
+        : `Prioritize a fast reply with a link or next purchase step. Evidence: ${enComments(purchase)} show purchase intent.`
+    );
+  if (!actions.length)
+    actions.push(
+      es
+        ? 'Aún no hay una señal repetida suficiente para cambiar el anuncio. Importa más comentarios y vuelve a revisar las categorías.'
+        : 'There is not yet a repeated signal strong enough to change the ad. Import more comments and review the categories again.'
+    );
+  return actions.slice(0, 5);
 }
 
 export function parseMarketResearchResponse(

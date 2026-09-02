@@ -1897,6 +1897,32 @@ interface MarketResearchResponse {
   actions: string[];
 }
 
+type MarketResearchCommentCategory =
+  | 'all'
+  | 'positive'
+  | 'neutral'
+  | 'negative'
+  | 'price'
+  | 'purchase'
+  | 'availability'
+  | 'complaint';
+
+interface MarketResearchComment {
+  id?: string;
+  channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment';
+  text: string;
+  createdAt: string;
+}
+
+interface MarketResearchCommentPage {
+  category: MarketResearchCommentCategory;
+  total: number;
+  page: number;
+  page_size: number;
+  comments: MarketResearchComment[];
+  has_more: boolean;
+}
+
 type MarketResearchProgressStage =
   | 'starting'
   | 'reading'
@@ -1941,6 +1967,7 @@ const MARKET_RESEARCH_CHANNEL_KEY = {
 /** Investigación pasiva: convierte todos los comentarios ya importados en señales de mercado. */
 function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
   const t = useT();
+  const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{
@@ -1948,6 +1975,55 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
     stage: MarketResearchProgressStage;
   } | null>(null);
   const [report, setReport] = useState<MarketResearchResponse | null>(null);
+  const [detailCategory, setDetailCategory] =
+    useState<MarketResearchCommentCategory | null>(null);
+  const [detail, setDetail] = useState<MarketResearchCommentPage | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const categoryLabel = (category: MarketResearchCommentCategory) => {
+    if (category === 'all') return t('igAgent.marketResearchComments');
+    if (category === 'positive') return t('igAgent.marketResearchPositive');
+    if (category === 'negative') return t('igAgent.marketResearchNegative');
+    if (category === 'neutral') return t('igAgent.marketResearchNeutral');
+    return t(MARKET_RESEARCH_SIGNAL_KEY[category]);
+  };
+
+  const openDetail = async (
+    category: MarketResearchCommentCategory,
+    page = 0
+  ) => {
+    setDetailCategory(category);
+    setDetailLoading(true);
+    try {
+      const params = new URLSearchParams({
+        workspace_id: workspaceId,
+        category,
+        page: String(page),
+      });
+      const response = await fetchWithCsrf(
+        `/api/comments/market-research?${params.toString()}`
+      );
+      const payload = (await response.json().catch(() => ({}))) as
+        | MarketResearchCommentPage
+        | { error?: string };
+      if (!response.ok || !('comments' in payload))
+        throw new Error(
+          'error' in payload && payload.error
+            ? payload.error
+            : t('igAgent.marketResearchFailed')
+        );
+      setDetail(payload);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : t('igAgent.marketResearchFailed')
+      );
+      setDetailCategory(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const run = async () => {
     setRunning(true);
@@ -2079,21 +2155,25 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
               icon={<MessageSquareText className="size-4" />}
               label={t('igAgent.marketResearchComments')}
               value={report.total}
+              onClick={() => openDetail('all')}
             />
             <ResearchStat
               icon={<TrendingUp className="size-4" />}
               label={t('igAgent.marketResearchPositiveRate')}
               value={`${positiveRate}%`}
+              onClick={() => openDetail('positive')}
             />
             <ResearchStat
               icon={<Target className="size-4" />}
               label={t('igAgent.marketResearchPurchaseSignal')}
               value={signalCount('purchase')}
+              onClick={() => openDetail('purchase')}
             />
             <ResearchStat
               icon={<AlertTriangle className="size-4" />}
               label={t('igAgent.marketResearchNegativeRate')}
               value={`${negativeRate}%`}
+              onClick={() => openDetail('negative')}
             />
           </div>
 
@@ -2141,6 +2221,7 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                     label={t(MARKET_RESEARCH_SIGNAL_KEY[signal.key])}
                     count={signal.count}
                     total={report.total}
+                    onClick={() => openDetail(signal.key)}
                   />
                 ))}
               </div>
@@ -2209,6 +2290,83 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
       )}
+
+      <Dialog
+        open={detailCategory !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailCategory(null);
+            setDetail(null);
+          }
+        }}
+      >
+        <DialogContent className="border-border bg-card max-h-[calc(100dvh-2rem)] overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-border border-b px-5 pt-5 pr-12 pb-4">
+            <DialogTitle>
+              {detailCategory ? categoryLabel(detailCategory) : ''}
+            </DialogTitle>
+            <DialogDescription>
+              {detail
+                ? t('igAgent.marketResearchDetailCount', { n: detail.total })
+                : t('igAgent.marketResearchDetailLoading')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[65dvh] overflow-y-auto px-5 py-4">
+            {detailLoading ? (
+              <div className="text-muted-foreground flex items-center gap-2 py-8 text-sm">
+                <Loader2 className="size-4 animate-spin" />
+                {t('igAgent.marketResearchDetailLoading')}
+              </div>
+            ) : detail ? (
+              <div className="space-y-3">
+                {detail.comments.map((comment, index) => (
+                  <article
+                    key={comment.id ?? `${comment.createdAt}-${index}`}
+                    className="border-border bg-background rounded-xl border p-3.5"
+                  >
+                    <p className="text-sm leading-6">{comment.text}</p>
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      {t(
+                        MARKET_RESEARCH_CHANNEL_KEY[comment.channel]
+                      )}{' '}
+                      · {fmt.dateTime(comment.createdAt)}
+                    </p>
+                  </article>
+                ))}
+                {detail.comments.length === 0 && (
+                  <p className="text-muted-foreground py-8 text-center text-sm">
+                    {t('igAgent.marketResearchDetailEmpty')}
+                  </p>
+                )}
+                <div className="flex justify-between gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={detail.page === 0 || detailLoading || !detailCategory}
+                    onClick={() =>
+                      detailCategory && openDetail(detailCategory, detail.page - 1)
+                    }
+                  >
+                    {t('igAgent.marketResearchPrevious')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!detail.has_more || detailLoading || !detailCategory}
+                    onClick={() =>
+                      detailCategory && openDetail(detailCategory, detail.page + 1)
+                    }
+                  >
+                    {t('igAgent.marketResearchNext')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -2217,13 +2375,19 @@ function ResearchStat({
   icon,
   label,
   value,
+  onClick,
 }: {
   icon: ReactNode;
   label: string;
   value: number | string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="border-border bg-background rounded-2xl border p-4">
+    <button
+      type="button"
+      onClick={onClick}
+      className="border-border bg-background hover:border-accent-ink/40 hover:bg-accent/15 rounded-2xl border p-4 text-left transition-colors"
+    >
       <p className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
         {icon}
         {label}
@@ -2231,7 +2395,7 @@ function ResearchStat({
       <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
         {value}
       </p>
-    </div>
+    </button>
   );
 }
 
@@ -2239,14 +2403,16 @@ function ResearchSignal({
   label,
   count,
   total,
+  onClick,
 }: {
   label: string;
   count: number;
   total: number;
+  onClick?: () => void;
 }) {
   const percentage = total ? Math.round((count / total) * 100) : 0;
   return (
-    <div>
+    <button type="button" onClick={onClick} className="w-full text-left">
       <div className="flex items-baseline justify-between gap-3 text-xs">
         <span className="text-foreground font-medium">{label}</span>
         <span className="text-muted-foreground shrink-0 tabular-nums">
@@ -2259,7 +2425,7 @@ function ResearchSignal({
           style={{ width: `${percentage}%` }}
         />
       </div>
-    </div>
+    </button>
   );
 }
 

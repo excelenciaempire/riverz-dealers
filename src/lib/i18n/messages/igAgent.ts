@@ -319,6 +319,21 @@ export const igAgent = {
   marketResearchComments: { es: 'Comentarios', en: 'Comments' },
   marketResearchPositive: { es: 'Positivos', en: 'Positive' },
   marketResearchNegative: { es: 'Negativos', en: 'Negative' },
+  marketResearchNeutral: { es: 'Neutros', en: 'Neutral' },
+  marketResearchDetailCount: {
+    es: '{n} comentarios reales que explican esta señal.',
+    en: '{n} real comments behind this signal.',
+  },
+  marketResearchDetailLoading: {
+    es: 'Cargando comentarios reales…',
+    en: 'Loading real comments…',
+  },
+  marketResearchDetailEmpty: {
+    es: 'No hay comentarios en esta categoría.',
+    en: 'There are no comments in this category.',
+  },
+  marketResearchPrevious: { es: 'Anterior', en: 'Previous' },
+  marketResearchNext: { es: 'Siguiente', en: 'Next' },
   marketResearchFindings: { es: 'Hallazgos', en: 'Findings' },
   marketResearchOpportunities: { es: 'Oportunidades', en: 'Opportunities' },
   marketResearchRisks: { es: 'Riesgos a revisar', en: 'Risks to review' },

@@ -10,8 +10,12 @@ import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import {
   analyzeCommentMetrics,
   buildMarketResearchPrompt,
+  buildEvidenceActions,
+  COMMENT_CATEGORIES,
+  filterCommentsByCategory,
   fallbackResearch,
   parseMarketResearchResponse,
+  type CommentCategory,
   type CommentChannel,
   type ResearchComment,
 } from '@/lib/comments/market-research';
@@ -43,6 +47,115 @@ type ResearchStreamEvent =
       };
     }
   | { type: 'error'; error: string };
+
+type CommentRow = {
+  id: string;
+  channel: CommentChannel;
+  content_text: string | null;
+  created_at: string;
+  sender_type: string | null;
+};
+
+function commentsFromRows(rows: readonly CommentRow[]): ResearchComment[] {
+  return rows
+    .filter((row) => row.sender_type === 'customer' && row.content_text?.trim())
+    .map((row) => ({
+      id: row.id,
+      channel: row.channel,
+      text: String(row.content_text).trim(),
+      createdAt: row.created_at,
+    }));
+}
+
+/** Lee la fuente completa una sola vez y mantiene el criterio de comentario igual en POST y GET. */
+async function readWorkspaceComments(workspaceId: string): Promise<ResearchComment[]> {
+  const admin = supabaseAdmin();
+  const rows = await selectAll<CommentRow>(
+    admin,
+    'messages',
+    (query) =>
+      query
+        .in('channel', COMMENT_CHANNELS)
+        .eq('conversations.workspace_id', workspaceId),
+    {
+      select:
+        'id,channel,content_text,created_at,sender_type,conversations!inner(workspace_id)',
+      orderBy: 'created_at',
+    }
+  );
+  return commentsFromRows(rows);
+}
+
+async function assertWorkspaceMember(workspaceId: string, userId: string) {
+  const admin = supabaseAdmin();
+  const { data: membership } = await admin
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return Boolean(membership && ['owner', 'admin'].includes(String(membership.role)));
+}
+
+/**
+ * GET /api/comments/market-research?workspace_id=…&category=price&page=0
+ *
+ * Devuelve comentarios reales que explican una métrica. El filtro vuelve a usar
+ * exactamente la misma clasificación determinista del reporte; no hay conteos
+ * decorativos ni una segunda regla oculta para el detalle.
+ */
+export async function GET(request: Request) {
+  const locale = await getLocale();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user)
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 }
+    );
+  const url = new URL(request.url);
+  const workspaceId = url.searchParams.get('workspace_id')?.trim();
+  const requested = url.searchParams.get('category') ?? 'all';
+  const category = (COMMENT_CATEGORIES as readonly string[]).includes(requested)
+    ? (requested as CommentCategory)
+    : null;
+  const page = Math.max(0, Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0);
+  const pageSize = 50;
+  if (!workspaceId || !category)
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.workspaceIdRequired') },
+      { status: 400 }
+    );
+  if (!(await assertWorkspaceMember(workspaceId, user.id)))
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.forbidden') },
+      { status: 403 }
+    );
+
+  try {
+    const matched = filterCommentsByCategory(
+      await readWorkspaceComments(workspaceId),
+      category
+    ).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const start = page * pageSize;
+    return NextResponse.json({
+      category,
+      total: matched.length,
+      page,
+      page_size: pageSize,
+      comments: matched.slice(start, start + pageSize),
+      has_more: start + pageSize < matched.length,
+    });
+  } catch (error) {
+    console.error('[comments/market-research] detail failed', { workspaceId, error });
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.marketResearchFailed') },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * POST /api/comments/market-research
@@ -76,19 +189,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = supabaseAdmin();
-  const { data: membership } = await admin
-    .from('workspace_members')
-    .select('role')
-    .eq('workspace_id', workspaceId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!membership || !['owner', 'admin'].includes(String(membership.role))) {
+  if (!(await assertWorkspaceMember(workspaceId, user.id))) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
       { status: 403 }
     );
   }
+  const admin = supabaseAdmin();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -100,33 +207,7 @@ export async function POST(request: Request) {
 
       try {
         progress('reading', 18);
-        const rows = await selectAll<{
-          channel: CommentChannel;
-          content_text: string | null;
-          created_at: string;
-          sender_type: string | null;
-        }>(
-          admin,
-          'messages',
-          (query) =>
-            query
-              .in('channel', COMMENT_CHANNELS)
-              .eq('conversations.workspace_id', workspaceId),
-          {
-            select:
-              'channel,content_text,created_at,sender_type,conversations!inner(workspace_id)',
-            orderBy: 'created_at',
-          }
-        );
-        const comments: ResearchComment[] = rows
-          .filter(
-            (row) => row.sender_type === 'customer' && row.content_text?.trim()
-          )
-          .map((row) => ({
-            channel: row.channel,
-            text: String(row.content_text).trim(),
-            createdAt: row.created_at,
-          }));
+        const comments = await readWorkspaceComments(workspaceId);
         if (comments.length === 0) {
           send({
             type: 'error',
@@ -162,7 +243,12 @@ export async function POST(request: Request) {
             });
             const parsed = parseMarketResearchResponse(text);
             if (parsed) {
-              insight = parsed;
+              // Las conclusiones se pueden redactar con IA, pero los próximos
+              // pasos siempre nacen de señales contadas sobre TODO el corpus.
+              insight = {
+                ...parsed,
+                actions: buildEvidenceActions(metrics, language),
+              };
               generatedWithAi = true;
             }
           } catch (error) {
