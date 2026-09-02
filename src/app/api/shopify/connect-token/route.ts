@@ -1,17 +1,18 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { csrfGuard } from '@/lib/csrf'
-import { normalizeShopDomain } from '@/lib/shopify/oauth'
-import { persistShopifyConnection } from '@/lib/shopify/connection'
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
-import { syncShopifyProducts } from '@/lib/shopify/product-sync'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { getLocale } from '@/lib/i18n/server'
-import { translate } from '@/lib/i18n/translate'
-import { getLogger } from '@/lib/log/logger'
+import { after, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { normalizeShopDomain } from '@/lib/shopify/oauth';
+import { persistShopifyConnection } from '@/lib/shopify/connection';
+import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
+import { syncShopifyProducts } from '@/lib/shopify/product-sync';
+import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { getLogger } from '@/lib/log/logger';
 
-const log = getLogger('shopify.connect-token')
+const log = getLogger('shopify.connect-token');
 
 /**
  * Connect a Shopify store via a CUSTOM APP the merchant created in their
@@ -32,67 +33,67 @@ const log = getLogger('shopify.connect-token')
  * dead store.
  */
 export async function POST(request: Request) {
-  const block = await csrfGuard(request)
-  if (block) return block
+  const block = await csrfGuard(request);
+  if (block) return block;
 
-  const locale = await getLocale()
-  const supabase = await createClient()
+  const locale = await getLocale();
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { shop?: string; accessToken?: string; apiSecret?: string }
+  let body: { shop?: string; accessToken?: string; apiSecret?: string };
   try {
-    body = (await request.json()) as typeof body
+    body = (await request.json()) as typeof body;
   } catch {
-    body = {}
+    body = {};
   }
 
-  const shop = normalizeShopDomain(body.shop ?? '')
-  const accessToken = (body.accessToken ?? '').trim()
-  const apiSecret = (body.apiSecret ?? '').trim()
+  const shop = normalizeShopDomain(body.shop ?? '');
+  const accessToken = (body.accessToken ?? '').trim();
+  const apiSecret = (body.apiSecret ?? '').trim();
 
   if (!shop) {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.invalidShopDomain') },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
   if (!accessToken || !apiSecret) {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.shopifyMissingTokenFields') },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
 
-  const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+  const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
   if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.noWorkspaceForUser') },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
 
   // Validate the token against the live store before persisting anything.
-  const client = new ShopifyAdminClient(shop, accessToken)
-  let shopName: string | null = null
+  const client = new ShopifyAdminClient(shop, accessToken);
+  let shopName: string | null = null;
   try {
-    shopName = (await client.getShopInfo()).name || null
+    shopName = (await client.getShopInfo()).name || null;
   } catch (err) {
     log.warn('token_validation_failed', {
       shop,
       error: err instanceof Error ? err.message : String(err),
-    })
+    });
     return NextResponse.json(
       { error: translate(locale, 'errProducts.shopifyTokenInvalid') },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
 
-  const admin = supabaseAdmin()
+  const admin = supabaseAdmin();
   try {
     await persistShopifyConnection(admin, {
       userId: user.id,
@@ -106,16 +107,16 @@ export async function POST(request: Request) {
       scope: null,
       webhookSecret: apiSecret,
       connectionMethod: 'admin_token',
-    })
+    });
   } catch (err) {
     log.error('persist_failed', {
       shop,
       error: err instanceof Error ? err.message : String(err),
-    })
+    });
     return NextResponse.json(
       { error: translate(locale, 'errProducts.shopifyTokenInvalid') },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 
   // Register the abandoned-checkout / order / uninstall webhooks. Best-effort
@@ -123,30 +124,41 @@ export async function POST(request: Request) {
   // so this is safely retryable. Webhooks created here are HMAC-signed with
   // the custom app's API secret key (the webhook_secret we just stored).
   const callbackBase =
-    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
   try {
-    await client.registerWebhooks(callbackBase)
+    await client.registerWebhooks(callbackBase);
   } catch (err) {
     log.error('webhook_register_failed', {
       shop,
       error: err instanceof Error ? err.message : String(err),
-    })
+    });
   }
 
-  // Background catalog sync so the AI assistant has products to reason about
-  // immediately. Fire-and-forget — never block the response on it.
-  syncShopifyProducts(admin, {
-    userId: user.id,
-    workspaceId,
-    shopDomain: shop,
-    accessToken,
-  }).catch((err) =>
-    log.error('initial_product_sync_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    }),
-  )
+  after(async () => {
+    try {
+      await syncShopifyProducts(admin, {
+        userId: user.id,
+        workspaceId,
+        shopDomain: shop,
+        accessToken,
+      });
+      await scrapeShopifyCatalogSources(admin, {
+        workspaceId,
+        shopDomain: shop,
+        locale,
+      });
+    } catch (err) {
+      log.error('initial_catalog_sync_or_scrape_failed', {
+        shop,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 
-  log.info('connect_token_success', { shop, userId: user.id, workspaceId })
-  return NextResponse.json({ ok: true, shop_domain: shop, shop_name: shopName })
+  log.info('connect_token_success', { shop, userId: user.id, workspaceId });
+  return NextResponse.json({
+    ok: true,
+    shop_domain: shop,
+    shop_name: shopName,
+  });
 }

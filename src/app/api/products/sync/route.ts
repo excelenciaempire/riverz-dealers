@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
-import { decrypt } from '@/lib/channels/encryption';
+import { decrypt } from '@/lib/whatsapp/encryption';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { serverError } from '@/lib/api/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import {
+  getConnectionForUser,
+  getConnectionForWorkspace,
+} from '@/lib/shopify/connection';
+import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
+import { getLogger } from '@/lib/log/logger';
+
+const log = getLogger('products.sync');
 
 /**
  * POST /api/products/sync
@@ -34,65 +42,71 @@ export async function POST(req: Request) {
 
   const admin = supabaseAdmin();
 
-  // Buscamos la conexión Shopify activa del usuario.
-  const { data: connection, error: connErr } = await admin
-    .from('channel_connections')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('channel', 'shopify')
-    .eq('status', 'connected')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (connErr) {
-    return serverError(connErr);
-  }
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  const connection = workspaceId
+    ? await getConnectionForWorkspace(admin, workspaceId)
+    : await getConnectionForUser(admin, user.id);
   if (!connection) {
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.noActiveShopifyConnection') },
-      { status: 412 },
+      { error: translate(locale, 'errProducts.noShopifyStoreConnected') },
+      { status: 400 }
     );
   }
 
-  const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
-  const config = (connection.config ?? {}) as Record<string, unknown>;
-  const shopDomain = String(config.shop_domain ?? '');
-  const encryptedToken = String(secrets.access_token ?? '');
-  if (!shopDomain || !encryptedToken) {
+  const { data: row } = await admin
+    .from('shopify_connections')
+    .select('access_token, workspace_id')
+    .eq('platform', 'shopify')
+    .eq('id', connection.id)
+    .maybeSingle();
+  if (!row) {
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyConnectionMissingCredentials') },
-      { status: 500 },
+      { error: translate(locale, 'errProducts.shopifyConnectionNotFound') },
+      { status: 404 }
     );
   }
 
-  const accessToken = decrypt(encryptedToken);
+  try {
+    const connectionWorkspaceId = (row as { workspace_id: string })
+      .workspace_id;
+    const result = await syncShopifyProducts(admin, {
+      userId: connection.user_id,
+      workspaceId: connectionWorkspaceId,
+      shopDomain: connection.shop_domain,
+      accessToken: decrypt((row as { access_token: string }).access_token),
+    });
 
-  // Resolvemos el workspace del usuario para poder escribir
-  // shopify_products.workspace_id (migration 057).
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
-  if (!workspaceId) {
+    after(async () => {
+      try {
+        await scrapeShopifyCatalogSources(admin, {
+          workspaceId: connectionWorkspaceId,
+          shopDomain: connection.shop_domain,
+          locale,
+        });
+      } catch (error) {
+        log.error('catalog_scrape_failed', {
+          shop: connection.shop_domain,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    return NextResponse.json({
+      ok: true,
+      synced: result.synced,
+      deleted: result.deleted,
+      bundles_detected: result.bundlesDetected,
+      prelandings_found: result.prelandingsFound,
+      scrape_queued: true,
+    });
+  } catch (error) {
+    log.error('catalog_sync_failed', {
+      shop: connection.shop_domain,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
-      { error: translate(locale, 'errProducts.userNoWorkspace') },
-      { status: 412 },
+      { error: translate(locale, 'errProducts.shopifySyncFailed') },
+      { status: 502 }
     );
   }
-
-  // Corre el sync. lib/shopify/product-sync.ts ahora detecta bundles
-  // inline en productToRow() y los persiste en el mismo upsert chunked
-  // — sin N+1. Devuelve {synced, deleted, bundlesDetected}.
-  const result = await syncShopifyProducts(admin, {
-    userId: user.id,
-    workspaceId,
-    shopDomain,
-    accessToken,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    synced: result.synced,
-    deleted: result.deleted,
-    bundles_detected: result.bundlesDetected,
-    prelandings_found: result.prelandingsFound,
-  });
 }

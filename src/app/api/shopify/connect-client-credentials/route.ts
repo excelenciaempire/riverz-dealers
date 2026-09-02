@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -9,6 +9,7 @@ import {
 import { persistShopifyConnection } from '@/lib/shopify/connection';
 import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
+import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -127,17 +128,26 @@ export async function POST(request: Request) {
       error: err instanceof Error ? err.message : String(err),
     });
   }
-  syncShopifyProducts(admin, {
-    userId: user.id,
-    workspaceId,
-    shopDomain: shop,
-    accessToken: token.access_token,
-  }).catch((err) =>
-    log.error('initial_product_sync_failed', {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  );
+  after(async () => {
+    try {
+      await syncShopifyProducts(admin, {
+        userId: user.id,
+        workspaceId,
+        shopDomain: shop,
+        accessToken: token.access_token,
+      });
+      await scrapeShopifyCatalogSources(admin, {
+        workspaceId,
+        shopDomain: shop,
+        locale,
+      });
+    } catch (err) {
+      log.error('initial_catalog_sync_or_scrape_failed', {
+        shop,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 
   log.info('connect_client_credentials_success', {
     shop,

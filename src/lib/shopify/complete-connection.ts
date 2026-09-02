@@ -1,13 +1,15 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { persistShopifyConnection } from '@/lib/shopify/connection'
-import { ShopifyAdminClient } from '@/lib/shopify/admin-client'
-import { syncShopifyProducts } from '@/lib/shopify/product-sync'
-import { learnOffersOnConnect } from '@/lib/shopify/offer-learning'
-import { enrichProducts } from '@/lib/products/enrich'
-import { unificarLoObvio } from '@/lib/products/unify'
-import { getLogger } from '@/lib/log/logger'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { after } from 'next/server';
+import { persistShopifyConnection } from '@/lib/shopify/connection';
+import { ShopifyAdminClient } from '@/lib/shopify/admin-client';
+import { syncShopifyProducts } from '@/lib/shopify/product-sync';
+import { learnOffersOnConnect } from '@/lib/shopify/offer-learning';
+import { enrichProducts } from '@/lib/products/enrich';
+import { unificarLoObvio } from '@/lib/products/unify';
+import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
+import { getLogger } from '@/lib/log/logger';
 
-const log = getLogger('shopify.complete')
+const log = getLogger('shopify.complete');
 
 /**
  * Everything that happens after we hold a valid OAuth access token and
@@ -23,34 +25,34 @@ const log = getLogger('shopify.complete')
 export async function completeShopifyConnection(
   admin: SupabaseClient,
   args: {
-    userId: string
-    workspaceId: string
-    shopDomain: string
-    accessToken: string
-    scope: string | null
+    userId: string;
+    workspaceId: string;
+    shopDomain: string;
+    accessToken: string;
+    scope: string | null;
     /** Base URL for webhook callbacks (NEXT_PUBLIC_SITE_URL or request origin). */
-    callbackBase: string
+    callbackBase: string;
     /** Shop name if already known (claim flow); resolved best-effort otherwise. */
-    shopName?: string | null
+    shopName?: string | null;
     /** Vida del token y con qué renovarlo (migración 194). Shopify dio de baja
      *  los que no expiran, así que esto viaja desde el canje hasta la fila. */
-    expiresIn?: number | null
-    refreshToken?: string | null
-    refreshTokenExpiresIn?: number | null
-  },
+    expiresIn?: number | null;
+    refreshToken?: string | null;
+    refreshTokenExpiresIn?: number | null;
+  }
 ): Promise<void> {
-  const { userId, workspaceId, shopDomain, accessToken, scope } = args
-  const client = new ShopifyAdminClient(shopDomain, accessToken)
+  const { userId, workspaceId, shopDomain, accessToken, scope } = args;
+  const client = new ShopifyAdminClient(shopDomain, accessToken);
 
-  let shopName = args.shopName ?? null
+  let shopName = args.shopName ?? null;
   if (!shopName) {
     try {
-      shopName = (await client.getShopInfo()).name || null
+      shopName = (await client.getShopInfo()).name || null;
     } catch (err) {
       log.warn('shop_info_failed', {
         shop: shopDomain,
         error: err instanceof Error ? err.message : String(err),
-      })
+      });
     }
   }
 
@@ -67,52 +69,60 @@ export async function completeShopifyConnection(
     // Mark the connection authoritatively as OAuth so webhook verification
     // uses the global secret even if this shop was previously admin_token.
     connectionMethod: 'oauth',
-  })
+  });
 
   try {
-    await client.registerWebhooks(args.callbackBase)
+    await client.registerWebhooks(args.callbackBase);
   } catch (err) {
     // Non-fatal — the connection is persisted; registration can be retried.
     log.error('webhook_register_failed', {
       shop: shopDomain,
       error: err instanceof Error ? err.message : String(err),
-    })
+    });
   }
 
-  // Background-sync the catalog so the AI has something to reason about
-  // immediately, then learn offer tiers from order history, then enrich
-  // (scrape + research). Chained fire-and-forget; never blocks the caller.
-  const enrichOnConnect = process.env.SHOPIFY_ENRICH_ON_CONNECT !== '0'
+  // Keep the response fast, but keep the invocation alive while the whole
+  // catalog is pulled and every public source is read. `after` is supported
+  // by Next route handlers and is more reliable than a detached promise.
+  const enrichOnConnect = process.env.SHOPIFY_ENRICH_ON_CONNECT !== '0';
   const enrichMax = Math.max(
     1,
-    Math.min(Number(process.env.SHOPIFY_ENRICH_MAX) || 25, 200),
-  )
-  syncShopifyProducts(admin, {
-    userId,
-    workspaceId,
-    shopDomain,
-    accessToken,
-  })
-    .then(() =>
-      learnOffersOnConnect(admin, {
+    Math.min(Number(process.env.SHOPIFY_ENRICH_MAX) || 25, 200)
+  );
+  after(async () => {
+    try {
+      await syncShopifyProducts(admin, {
+        userId,
+        workspaceId,
+        shopDomain,
+        accessToken,
+      });
+      await scrapeShopifyCatalogSources(admin, {
+        workspaceId,
+        shopDomain,
+        locale: 'es',
+      });
+      await learnOffersOnConnect(admin, {
         shopDomain,
         accessToken,
         maxPages: 2,
         locale: 'es',
-      }),
-    )
-    .then(() =>
-      enrichOnConnect
-        ? enrichProducts(admin, { shopDomain, max: enrichMax, locale: 'es' })
-        : undefined,
-    )
-    // Si esta tienda es el segundo canal del mismo catálogo, se pliega contra
-    // el que ya estaba: el conocimiento se carga una vez y vale para los dos.
-    .then(() => (workspaceId ? unificarLoObvio(admin, workspaceId) : undefined))
-    .catch((err) =>
+      });
+      if (enrichOnConnect) {
+        await enrichProducts(admin, {
+          shopDomain,
+          max: enrichMax,
+          locale: 'es',
+        });
+      }
+      // Si esta tienda es el segundo canal del mismo catálogo, se pliega contra
+      // el que ya estaba: el conocimiento se carga una vez y vale para los dos.
+      await unificarLoObvio(admin, workspaceId);
+    } catch (err) {
       log.error('initial_sync_offer_or_enrich_failed', {
         shop: shopDomain,
         error: err instanceof Error ? err.message : String(err),
-      }),
-    )
+      });
+    }
+  });
 }

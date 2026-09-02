@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
@@ -11,6 +11,10 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import { syncShopifyProducts } from '@/lib/shopify/product-sync';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
+import { getLogger } from '@/lib/log/logger';
+
+const log = getLogger('shopify.products.sync');
 
 /**
  * Manually re-pull the product catalog from Shopify. The first sync
@@ -29,7 +33,8 @@ export async function POST(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const locale = await getLocale();
 
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
   if (!conn) {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.noShopifyStoreConnected') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -56,7 +61,7 @@ export async function POST(req: Request) {
   if (!row)
     return NextResponse.json(
       { error: translate(locale, 'errProducts.shopifyConnectionNotFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   try {
@@ -66,16 +71,31 @@ export async function POST(req: Request) {
       shopDomain: conn.shop_domain,
       accessToken: decrypt((row as { access_token: string }).access_token),
     });
-    return NextResponse.json({ ok: true, ...result });
+    const connectionWorkspaceId = (row as { workspace_id: string })
+      .workspace_id;
+    after(async () => {
+      try {
+        await scrapeShopifyCatalogSources(admin, {
+          workspaceId: connectionWorkspaceId,
+          shopDomain: conn.shop_domain,
+          locale,
+        });
+      } catch (error) {
+        log.error('catalog_scrape_failed', {
+          shop: conn.shop_domain,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+    return NextResponse.json({ ok: true, ...result, scrape_queued: true });
   } catch (err) {
+    log.error('catalog_sync_failed', {
+      shop: conn.shop_domain,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : translate(locale, 'errProducts.shopifySyncFailed'),
-      },
-      { status: 502 },
+      { error: translate(locale, 'errProducts.shopifySyncFailed') },
+      { status: 502 }
     );
   }
 }
