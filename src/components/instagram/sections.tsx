@@ -1,6 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import {
@@ -21,6 +27,8 @@ import {
   Rocket,
   X,
   AlertTriangle,
+  BarChart3,
+  Sparkles,
 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -1823,11 +1831,183 @@ export function CommentsSection({
     <div className="space-y-10">
       <CommentStatsStrip stats={stats} />
       {workspaceId && <CommentBackfill workspaceId={workspaceId} />}
+      {workspaceId && <CommentMarketResearch workspaceId={workspaceId} />}
       <div>
         <CommentAutoReply settings={settings} />
         <CommentReplyOptions settings={settings} />
       </div>
       <CommentToDmPanel />
+    </div>
+  );
+}
+
+interface MarketResearchResponse {
+  total: number;
+  analyzed_sample: number;
+  generated_with_ai: boolean;
+  metrics: {
+    sentiment: { positive: number; neutral: number; negative: number };
+    terms: Array<{ term: string; count: number }>;
+  };
+  summary: string;
+  findings: Array<{ title: string; detail: string }>;
+  opportunities: string[];
+  risks: string[];
+  actions: string[];
+}
+
+/** Investigación pasiva: convierte todos los comentarios ya importados en señales de mercado. */
+function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
+  const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<MarketResearchResponse | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      const response = await fetchWithCsrf('/api/comments/market-research', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      });
+      const result = (await response
+        .json()
+        .catch(() => ({}))) as MarketResearchResponse & { error?: string };
+      if (!response.ok) throw new Error(result.error);
+      setReport(result);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : t('igAgent.marketResearchFailed')
+      );
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <section className="border-border bg-card space-y-4 rounded-3xl border p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <BarChart3 className="size-4" />
+            {t('igAgent.marketResearchTitle')}
+          </div>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {t('igAgent.marketResearchSubtitle')}
+          </p>
+        </div>
+        <Button type="button" onClick={run} disabled={running} size="sm">
+          {running ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="size-3.5" />
+          )}
+          {running
+            ? t('igAgent.marketResearchRunning')
+            : t('igAgent.marketResearchRun')}
+        </Button>
+      </div>
+
+      {report && (
+        <div className="border-border space-y-5 border-t pt-5">
+          <div className="border-border grid gap-px overflow-hidden rounded-2xl border sm:grid-cols-3">
+            <ResearchStat
+              label={t('igAgent.marketResearchComments')}
+              value={report.total}
+            />
+            <ResearchStat
+              label={t('igAgent.marketResearchPositive')}
+              value={report.metrics.sentiment.positive}
+            />
+            <ResearchStat
+              label={t('igAgent.marketResearchNegative')}
+              value={report.metrics.sentiment.negative}
+            />
+          </div>
+          <p className="text-muted-foreground text-sm leading-6">
+            {report.summary}
+          </p>
+          {report.metrics.terms.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {report.metrics.terms.map(({ term, count }) => (
+                <Badge key={term} variant="secondary">
+                  {term} · {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+          <ResearchList title={t('igAgent.marketResearchFindings')}>
+            {report.findings.map((finding) => (
+              <li key={`${finding.title}-${finding.detail}`}>
+                <span className="font-medium">{finding.title}.</span>{' '}
+                {finding.detail}
+              </li>
+            ))}
+          </ResearchList>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <ResearchList
+              title={t('igAgent.marketResearchOpportunities')}
+              items={report.opportunities}
+            />
+            <ResearchList
+              title={t('igAgent.marketResearchRisks')}
+              items={report.risks}
+              empty={t('igAgent.marketResearchNoRisks')}
+            />
+          </div>
+          <ResearchList
+            title={t('igAgent.marketResearchActions')}
+            items={report.actions}
+          />
+          {report.analyzed_sample < report.total && (
+            <p className="text-muted-foreground text-xs">
+              {t('igAgent.marketResearchSample', {
+                n: report.analyzed_sample,
+                total: report.total,
+              })}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ResearchStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-background px-4 py-3">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function ResearchList({
+  title,
+  items,
+  empty,
+  children,
+}: {
+  title: string;
+  items?: string[];
+  empty?: string;
+  children?: ReactNode;
+}) {
+  const content = children ?? items?.map((item) => <li key={item}>{item}</li>);
+  if (!content || (Array.isArray(content) && content.length === 0)) {
+    return empty ? (
+      <p className="text-muted-foreground text-sm">{empty}</p>
+    ) : null;
+  }
+  return (
+    <div>
+      <p className="text-sm font-medium">{title}</p>
+      <ul className="text-muted-foreground mt-2 space-y-1.5 text-sm leading-5">
+        {content}
+      </ul>
     </div>
   );
 }
@@ -2081,7 +2261,11 @@ export function useIgConnected(): boolean | undefined {
     fetch('/api/ai/instagram-agent/context', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j) setConnected(!!j.instagram_connected);
+        if (!cancelled && j) {
+          setConnected(
+            !!(j.instagram_comments_connected ?? j.instagram_connected)
+          );
+        }
       })
       .catch(() => {});
     return () => {

@@ -259,6 +259,35 @@ export const igAgent = {
     es: 'No se pudo importar el historial',
     en: "Couldn't import history",
   },
+  marketResearchTitle: {
+    es: 'Research de comentarios',
+    en: 'Comment research',
+  },
+  marketResearchSubtitle: {
+    es: 'Sentimiento, patrones y oportunidades a partir de todos los comentarios importados.',
+    en: 'Sentiment, patterns, and opportunities from every imported comment.',
+  },
+  marketResearchRun: { es: 'Analizar comentarios', en: 'Analyze comments' },
+  marketResearchRunning: { es: 'Analizando…', en: 'Analyzing…' },
+  marketResearchFailed: {
+    es: 'No se pudo analizar los comentarios',
+    en: "Couldn't analyze comments",
+  },
+  marketResearchComments: { es: 'Comentarios', en: 'Comments' },
+  marketResearchPositive: { es: 'Positivos', en: 'Positive' },
+  marketResearchNegative: { es: 'Negativos', en: 'Negative' },
+  marketResearchFindings: { es: 'Hallazgos', en: 'Findings' },
+  marketResearchOpportunities: { es: 'Oportunidades', en: 'Opportunities' },
+  marketResearchRisks: { es: 'Riesgos a revisar', en: 'Risks to review' },
+  marketResearchNoRisks: {
+    es: 'No se detectaron riesgos claros en esta lectura.',
+    en: 'No clear risks were detected in this read.',
+  },
+  marketResearchActions: { es: 'Próximas acciones', en: 'Next actions' },
+  marketResearchSample: {
+    es: 'Las métricas usan los {total} comentarios. La síntesis cualitativa usa una muestra representativa de {n}.',
+    en: 'Metrics use all {total} comments. The qualitative synthesis uses a representative sample of {n}.',
+  },
 
   // Order attribution ledger
   attributedOrdersTitle: {
