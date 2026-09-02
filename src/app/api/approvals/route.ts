@@ -29,14 +29,36 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin()
       .from('approval_requests')
-      .select('id, kind, title, body, created_at, expires_at')
+      .select('id, kind, title, body, payload, created_at, expires_at')
       .eq('workspace_id', workspaceId)
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(20)
     if (error) return serverError(error)
-    return NextResponse.json({ approvals: data ?? [] })
+    // Un pago puede llegar como texto, audio y comprobante. La decisión es
+    // una sola por pedido: mostrar cada intento como si fuera otra aprobación
+    // repetía la misma acción y enterraba los casos realmente distintos.
+    const seenPayments = new Map<string, number>()
+    const approvals = (data ?? []).filter((approval) => {
+      if (approval.kind !== 'pago_informado') return true
+      const payload = approval.payload as { order_id?: string | null } | null
+      const orderId = payload?.order_id
+      if (!orderId) return true
+      const count = (seenPayments.get(orderId) ?? 0) + 1
+      seenPayments.set(orderId, count)
+      if (count > 1) return false
+      return true
+    }).map((approval) => {
+      if (approval.kind !== 'pago_informado') return approval
+      const payload = approval.payload as { order_id?: string | null } | null
+      const orderId = payload?.order_id
+      return {
+        ...approval,
+        duplicate_count: orderId ? seenPayments.get(orderId) ?? 1 : 1,
+      }
+    })
+    return NextResponse.json({ approvals })
   } catch (err) {
     return serverError(err)
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { HelpCircle, Loader2 } from 'lucide-react';
+import { ChevronDown, HelpCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
@@ -15,6 +15,7 @@ interface Approval {
   body: string;
   created_at: string;
   expires_at: string;
+  duplicate_count?: number;
 }
 
 /**
@@ -86,7 +87,20 @@ export function PendingApprovals() {
           <li key={a.id} className="flex flex-wrap items-start gap-3 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">{a.title}</p>
-              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{a.body}</p>
+              <details className="group mt-0.5">
+                <summary className="cursor-pointer list-none text-xs text-muted-foreground marker:hidden">
+                  <span className="inline-flex items-center gap-1 hover:text-foreground">
+                    {t('health.approvalDetails')}
+                    <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                  </span>
+                </summary>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">{a.body}</p>
+              </details>
+              {a.duplicate_count && a.duplicate_count > 1 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('health.approvalEvidenceUpdated', { n: a.duplicate_count })}
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">
                 {format.dateTime(a.created_at)}
               </p>

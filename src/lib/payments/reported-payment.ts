@@ -401,6 +401,10 @@ export async function informarPago(
       desde_comprobante: input.desdeComprobante === true,
       leido: input.leido ?? null,
     },
+    // Un mismo pago puede disparar el análisis del texto, del audio y luego
+    // del comprobante. Se decide una vez por pedido; la evidencia más nueva
+    // reemplaza el detalle de la misma aprobación.
+    dedupeKey: pedido?.id ? `pago_informado:${pedido.id}` : undefined,
   })
 
   return { resultado, pedido, approvalId: aviso.approvalId }

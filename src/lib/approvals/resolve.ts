@@ -147,6 +147,7 @@ export async function decidir(
       .from('approval_requests')
       .update({ result: 'rechazada por una persona' })
       .eq('id', fila.id)
+    await cerrarDuplicadosDePago(db, fila, args)
     return { ok: true, message: 'Listo, no se hizo nada.', approvalId: fila.id }
   }
 
@@ -158,7 +159,43 @@ export async function decidir(
       status: ejecucion.ok ? 'aprobada' : 'fallida',
     })
     .eq('id', fila.id)
+  if (ejecucion.ok) await cerrarDuplicadosDePago(db, fila, args)
   return { ...ejecucion, approvalId: fila.id }
+}
+
+/**
+ * Cierra los avisos viejos del mismo pago una vez que uno se decidió.
+ *
+ * Antes de que existiera `dedupe_key` podían quedar varias filas: texto,
+ * audio y comprobante pedían aprobar el mismo pedido por separado. No son
+ * rechazos de pago; quedan con el resultado explícito para que el historial
+ * explique por qué no se volvieron a mostrar ni ejecutar.
+ */
+async function cerrarDuplicadosDePago(
+  db: SupabaseClient,
+  fila: { workspace_id: string; kind: string; payload: Record<string, unknown> },
+  args: { decision: Decision; via: 'whatsapp' | 'panel'; decidedBy?: string | null },
+): Promise<void> {
+  if (fila.kind !== 'pago_informado') return
+  const orderId = String(fila.payload.order_id ?? '')
+  if (!orderId) return
+
+  await db
+    .from('approval_requests')
+    .update({
+      status: 'rechazada',
+      decided_at: new Date().toISOString(),
+      decided_via: args.via,
+      decided_by: args.decidedBy ?? null,
+      result:
+        args.decision === 'aprobada'
+          ? 'Duplicada: otra solicitud de este pago ya fue aprobada.'
+          : 'Duplicada: otra solicitud de este pago ya fue rechazada.',
+    })
+    .eq('workspace_id', fila.workspace_id)
+    .eq('kind', 'pago_informado')
+    .eq('status', APROBACION_PENDIENTE)
+    .contains('payload', { order_id: orderId })
 }
 
 /** Lo que hace cada clase de pregunta cuando dicen que sí. */

@@ -41,6 +41,11 @@ export interface AskInput {
   payload?: Record<string, unknown>
   /** Horas de vida de la pregunta. */
   expiresInHours?: number
+  /**
+   * Identifica una única decisión de negocio. Si vuelve a llegar evidencia del
+   * mismo caso, se conserva la solicitud pendiente y se actualiza su detalle.
+   */
+  dedupeKey?: string
 }
 
 export interface AskResult {
@@ -84,6 +89,37 @@ function unaLinea(texto: string): string {
 export async function askForApproval(input: AskInput): Promise<AskResult> {
   const { db, workspaceId } = input
 
+  if (input.dedupeKey) {
+    const { data: existing, error } = await db
+      .from('approval_requests')
+      .select('id, notified_message_id')
+      .eq('workspace_id', workspaceId)
+      .eq('kind', input.kind)
+      .eq('status', APROBACION_PENDIENTE)
+      .contains('payload', { dedupe_key: input.dedupeKey })
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) return { ok: false, notified: false, error: error.message }
+    if (existing) {
+      const approval = existing as { id: string; notified_message_id: string | null }
+      const { error: updateError } = await db
+        .from('approval_requests')
+        .update({
+          title: input.title,
+          body: input.body,
+          payload: { ...(input.payload ?? {}), dedupe_key: input.dedupeKey },
+          expires_at: new Date(
+            Date.now() + (input.expiresInHours ?? 72) * 3_600_000,
+          ).toISOString(),
+        })
+        .eq('id', approval.id)
+      if (updateError) return { ok: false, notified: false, error: updateError.message }
+      return { ok: true, approvalId: approval.id, notified: Boolean(approval.notified_message_id) }
+    }
+  }
+
   const destino = await quienDecide(db, workspaceId)
 
   const { data, error } = await db
@@ -93,7 +129,9 @@ export async function askForApproval(input: AskInput): Promise<AskResult> {
       kind: input.kind,
       title: input.title,
       body: input.body,
-      payload: input.payload ?? {},
+      payload: input.dedupeKey
+        ? { ...(input.payload ?? {}), dedupe_key: input.dedupeKey }
+        : input.payload ?? {},
       notified_phone: destino,
       expires_at: new Date(
         Date.now() + (input.expiresInHours ?? 72) * 3_600_000,

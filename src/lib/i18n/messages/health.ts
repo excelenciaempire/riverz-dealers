@@ -167,6 +167,11 @@ export const health: Namespace = {
 
   // Decisiones que esperan a una persona
   approvalsTitle: { es: "Esperando tu decisión", en: "Waiting on you" },
+  approvalDetails: { es: "Ver detalle", en: "View details" },
+  approvalEvidenceUpdated: {
+    es: "{n} mensajes sobre este pago",
+    en: "{n} messages about this payment",
+  },
   approvalApprove: { es: "Aprobar", en: "Approve" },
   approvalReject: { es: "Rechazar", en: "Reject" },
   approvalFailed: {
