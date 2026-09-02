@@ -53,6 +53,7 @@ interface Product {
   platform: string | null;
   url: string | null;
   websites: string[] | null;
+  prelanding_urls: string[] | null;
   /** Dónde más se vende lo mismo. Presente sólo si está unificado (mig. 183). */
   listings?: Array<{
     id: string;
@@ -885,6 +886,23 @@ export default function ProductDetailPage() {
                 </Button>
               )}
             </div>
+            {(product.prelanding_urls?.length ?? 0) > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                <p className="text-xs font-medium text-foreground">{t('products.prelandingsFound')}</p>
+                {product.prelanding_urls?.map((url) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 truncate text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink className="size-3 shrink-0" />
+                    <span className="truncate">{url}</span>
+                  </a>
+                ))}
+              </div>
+            )}
             {product.scraped_at && (
               <p className="text-muted-foreground text-[11px]">
                 {t('products.lastRead')}{' '}

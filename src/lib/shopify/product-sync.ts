@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShopifyAdminClient } from './admin-client'
 import { detectBundleApp } from '@/lib/products/bundle-detection'
+import { discoverPrelandings, prelandingHandleKey } from './prelanding-discovery'
 
 /**
  * Pull the store's product catalog into shopify_products. Upserts by
@@ -20,7 +21,12 @@ export async function syncShopifyProducts(
     shopDomain: string
     accessToken: string
   },
-): Promise<{ synced: number; deleted: number; bundlesDetected: number }> {
+): Promise<{
+  synced: number
+  deleted: number
+  bundlesDetected: number
+  prelandingsFound: number
+}> {
   const client = new ShopifyAdminClient(args.shopDomain, args.accessToken)
 
   // Divisa real de la tienda (ISO 4217 de /shop.json). Antes NO la
@@ -67,9 +73,41 @@ export async function syncShopifyProducts(
     if (batch.length < PAGE) break
   }
 
-  if (allProducts.length === 0) return { synced: 0, deleted: 0, bundlesDetected: 0 }
+  if (allProducts.length === 0) {
+    return { synced: 0, deleted: 0, bundlesDetected: 0, prelandingsFound: 0 }
+  }
 
-  const rows = allProducts.map((p) => productToRow(p, args, shopCurrency, dominioPublico))
+  // El sitemap público no requiere permisos adicionales de Shopify y es la
+  // fuente que incluye /pages/*, donde suelen vivir las pre-landings. Si la
+  // tienda bloquea el sitemap, el catálogo se sincroniza igual y conservamos
+  // las URLs que ya habíamos encontrado en un sync previo.
+  let prelandings: Map<string, string[]> | null = null
+  let prelandingsFound = 0
+  if (dominioPublico) {
+    try {
+      const found = await discoverPrelandings(dominioPublico, allProducts)
+      if (found.ok) {
+        prelandings = found.byHandle
+        prelandingsFound = [...found.byHandle.values()].reduce(
+          (count, urls) => count + urls.length,
+          0,
+        )
+      }
+    } catch {
+      // Best effort: la vitrina pública no puede bloquear precios, stock ni
+      // el resto del catálogo administrativo.
+    }
+  }
+
+  const rows = allProducts.map((p) =>
+    productToRow(
+      p,
+      args,
+      shopCurrency,
+      dominioPublico,
+      prelandings ? prelandings.get(prelandingHandleKey(p.handle)) ?? [] : undefined,
+    ),
+  )
   const bundlesDetected = rows.filter((r) => Boolean(r.is_bundle)).length
 
   // Upsert in chunks — PostgREST caps the request payload.
@@ -99,7 +137,7 @@ export async function syncShopifyProducts(
     await db.from('shopify_products').delete().in('id', stale)
   }
 
-  return { synced: rows.length, deleted: stale.length, bundlesDetected }
+  return { synced: rows.length, deleted: stale.length, bundlesDetected, prelandingsFound }
 }
 
 export interface ShopifyProductVariant {
@@ -130,6 +168,8 @@ export function productToRow(
   shopCurrency: string | null,
   /** El dominio de cara al público; sin él se cae al `*.myshopify.com`. */
   dominioPublico: string | null,
+  /** Pre-landings públicas descubiertas desde el sitemap, si se pudo leer. */
+  prelandingUrls?: string[],
 ): Record<string, unknown> {
   const prices = (p.variants ?? [])
     .map((v) => Number(v.price))
@@ -168,6 +208,7 @@ export function productToRow(
     is_bundle: bundle.isBundle,
     bundle_app: bundle.app,
     bundle_metadata: bundle.metadata,
+    ...(prelandingUrls !== undefined ? { prelanding_urls: prelandingUrls } : {}),
     raw: p,
     synced_at: new Date().toISOString(),
   }

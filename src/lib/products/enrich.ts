@@ -20,7 +20,7 @@ import { anthropicModel, type ModelFn } from './model-provider';
  */
 
 const RESEARCH_COLUMNS =
-  'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, bundle_metadata, allowed_offers, offers_auto_detected, say_guidelines, never_say, escalation_triggers, websites, url';
+  'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, bundle_metadata, allowed_offers, offers_auto_detected, say_guidelines, never_say, escalation_triggers, websites, prelanding_urls, url';
 
 export interface EnrichResult {
   ok: boolean;
@@ -42,6 +42,9 @@ async function ensureScrapedContent(
 
   const sites = [
     ...(Array.isArray(product.websites) ? (product.websites as unknown[]) : []),
+    ...(Array.isArray(product.prelanding_urls)
+      ? (product.prelanding_urls as unknown[])
+      : []),
     product.url,
   ]
     .map((s) => (typeof s === 'string' ? s.trim() : ''))

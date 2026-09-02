@@ -41,7 +41,7 @@ export async function POST(
 
   const { data: product, error } = await supabase
     .from('shopify_products')
-    .select('id, url, websites, allowed_offers, offers_auto_detected, bundle_metadata')
+    .select('id, url, websites, prelanding_urls, allowed_offers, offers_auto_detected, bundle_metadata')
     .eq('id', id)
     .maybeSingle();
   if (error) {
@@ -56,6 +56,9 @@ export async function POST(
   // defense, same as the AI-agent routes).
   const rawSites = [
     ...(Array.isArray(product.websites) ? (product.websites as unknown[]) : []),
+    ...(Array.isArray(product.prelanding_urls)
+      ? (product.prelanding_urls as unknown[])
+      : []),
     product.url,
   ]
     .map((s) => (typeof s === 'string' ? s.trim() : ''))

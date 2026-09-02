@@ -31,10 +31,14 @@ export interface LecturaResultado {
 /** Las fuentes de un producto: la lista del editor, o la URL de siempre. */
 export function fuentesDe(product: {
   websites?: unknown
+  prelanding_urls?: unknown
   url?: unknown
 }): string[] {
   const crudas = [
     ...(Array.isArray(product.websites) ? (product.websites as unknown[]) : []),
+    ...(Array.isArray(product.prelanding_urls)
+      ? (product.prelanding_urls as unknown[])
+      : []),
     product.url,
   ]
     .map((s) => (typeof s === 'string' ? s.trim() : ''))

@@ -93,5 +93,6 @@ export async function POST(req: Request) {
     synced: result.synced,
     deleted: result.deleted,
     bundles_detected: result.bundlesDetected,
+    prelandings_found: result.prelandingsFound,
   });
 }
