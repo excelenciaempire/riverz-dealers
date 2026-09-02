@@ -5,13 +5,13 @@
  * have to wire webhooks manually in developers.facebook.com.
  */
 
-import crypto from "crypto";
-import type { Channel } from "@/types";
-import { getLogger } from "@/lib/log/logger";
-import { pointsToUs, publicBaseUrl, rebaseUrl } from "@/lib/base-url";
+import crypto from 'crypto';
+import type { Channel } from '@/types';
+import { getLogger } from '@/lib/log/logger';
+import { pointsToUs, publicBaseUrl, rebaseUrl } from '@/lib/base-url';
 
-const GRAPH = "https://graph.facebook.com/v21.0";
-const log = getLogger("channels.meta-graph");
+const GRAPH = 'https://graph.facebook.com/v21.0';
+const log = getLogger('channels.meta-graph');
 
 // ── appsecret_proof ──────────────────────────────────────────────
 //
@@ -34,10 +34,12 @@ const log = getLogger("channels.meta-graph");
  * unset (local/dev) or no token is supplied, so callers degrade gracefully
  * to a proof-less request instead of throwing.
  */
-export function appsecretProof(accessToken: string | undefined | null): string | null {
+export function appsecretProof(
+  accessToken: string | undefined | null
+): string | null {
   const secret = process.env.META_APP_SECRET;
   if (!secret || !accessToken) return null;
-  return crypto.createHmac("sha256", secret).update(accessToken).digest("hex");
+  return crypto.createHmac('sha256', secret).update(accessToken).digest('hex');
 }
 
 /**
@@ -46,10 +48,13 @@ export function appsecretProof(accessToken: string | undefined | null): string |
  * either way). No-op when the proof can't be computed. Use for GET/DELETE
  * and any call whose token rides in the URL.
  */
-export function withAppsecretProof(url: string, accessToken: string | undefined | null): string {
+export function withAppsecretProof(
+  url: string,
+  accessToken: string | undefined | null
+): string {
   const proof = appsecretProof(accessToken);
   if (!proof) return url;
-  const sep = url.includes("?") ? "&" : "?";
+  const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}appsecret_proof=${proof}`;
 }
 
@@ -60,7 +65,7 @@ export function withAppsecretProof(url: string, accessToken: string | undefined 
  */
 export function withAppsecretProofBody<T extends Record<string, unknown>>(
   body: T,
-  accessToken: string | undefined | null,
+  accessToken: string | undefined | null
 ): T & { appsecret_proof?: string } {
   const proof = appsecretProof(accessToken);
   if (!proof) return body;
@@ -91,17 +96,17 @@ export interface CommentItem {
 export async function fetchPostComments(
   accessToken: string,
   postOrMediaId: string,
-  channel: "fb_comment" | "ig_comment",
-  limit = 25,
+  channel: 'fb_comment' | 'ig_comment',
+  limit = 25
 ): Promise<CommentItem[] | null> {
   try {
     const fields =
-      channel === "ig_comment"
-        ? "id,text,username,timestamp,like_count"
-        : "id,message,from,created_time,like_count";
+      channel === 'ig_comment'
+        ? 'id,text,username,timestamp,like_count'
+        : 'id,message,from,created_time,like_count';
     const url = withAppsecretProof(
       `${GRAPH}/${postOrMediaId}/comments?fields=${encodeURIComponent(fields)}&limit=${limit}&access_token=${encodeURIComponent(accessToken)}`,
-      accessToken,
+      accessToken
     );
     const r = await fetch(url);
     if (!r.ok) return null;
@@ -118,11 +123,11 @@ export async function fetchPostComments(
       }>;
     };
     return (j.data ?? []).map((c) => ({
-      id: String(c.id ?? ""),
-      text: String(c.message ?? c.text ?? ""),
+      id: String(c.id ?? ''),
+      text: String(c.message ?? c.text ?? ''),
       from: c.from?.name ?? c.username ?? null,
       createdAt: c.created_time ?? c.timestamp ?? null,
-      likeCount: typeof c.like_count === "number" ? c.like_count : undefined,
+      likeCount: typeof c.like_count === 'number' ? c.like_count : undefined,
     }));
   } catch {
     return null;
@@ -165,7 +170,7 @@ export interface DiscoveredAccount {
 async function fetchAllGraphPages<T>(
   firstUrl: string,
   userAccessToken: string,
-  maxPages = 40,
+  maxPages = 40
 ): Promise<T[]> {
   const out: T[] = [];
   let url: string | null = firstUrl;
@@ -173,7 +178,9 @@ async function fetchAllGraphPages<T>(
     const r = await fetch(url);
     if (!r.ok) {
       if (page === 0) {
-        throw new Error(`[meta] paged GET failed (${r.status}): ${await r.text().catch(() => "")}`);
+        throw new Error(
+          `[meta] paged GET failed (${r.status}): ${await r.text().catch(() => '')}`
+        );
       }
       break;
     }
@@ -190,10 +197,12 @@ async function fetchAllGraphPages<T>(
  * account id attached to each (if any). Follows pagination so a merchant/agency
  * managing more than 25 pages connects ALL of them.
  */
-export async function listUserPages(userAccessToken: string): Promise<MetaPage[]> {
+export async function listUserPages(
+  userAccessToken: string
+): Promise<MetaPage[]> {
   const first = withAppsecretProof(
     `${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id}&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
-    userAccessToken,
+    userAccessToken
   );
   const data = await fetchAllGraphPages<{
     id: string;
@@ -209,6 +218,27 @@ export async function listUserPages(userAccessToken: string): Promise<MetaPage[]
   }));
 }
 
+/** Cuentas publicitarias que el usuario autorizó para elegir al conectar una
+ * página. No se asocian ni se exploran hasta que el comercio las selecciona. */
+export async function listUserAdAccounts(
+  userAccessToken: string
+): Promise<Array<{ id: string; label: string }>> {
+  const first = withAppsecretProof(
+    `${GRAPH}/me/adaccounts?fields=id,name,account_status&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
+    userAccessToken
+  );
+  const accounts = await fetchAllGraphPages<{
+    id?: string;
+    name?: string;
+  }>(first, userAccessToken);
+  return accounts
+    .map((account) => ({
+      id: String(account.id ?? ''),
+      label: String(account.name ?? account.id ?? ''),
+    }))
+    .filter((account) => /^act_\d+$/.test(account.id));
+}
+
 /**
  * Resolves the list of "things to connect" for a Meta OAuth callback,
  * based on the requested channel:
@@ -220,13 +250,13 @@ export async function listUserPages(userAccessToken: string): Promise<MetaPage[]
  */
 export async function discoverMetaAccounts(
   userAccessToken: string,
-  channel: Channel,
+  channel: Channel
 ): Promise<DiscoveredAccount[]> {
-  if (channel === "whatsapp") {
+  if (channel === 'whatsapp') {
     return discoverWhatsAppAccounts(userAccessToken);
   }
   const pages = await listUserPages(userAccessToken);
-  if (channel === "messenger" || channel === "fb_comment") {
+  if (channel === 'messenger' || channel === 'fb_comment') {
     return pages.map((p) => ({
       channel,
       external_account_id: p.id,
@@ -235,7 +265,7 @@ export async function discoverMetaAccounts(
       label: p.name,
     }));
   }
-  if (channel === "instagram" || channel === "ig_comment") {
+  if (channel === 'instagram' || channel === 'ig_comment') {
     return pages
       .filter((p) => p.instagram_business_account_id)
       .map((p) => ({
@@ -253,7 +283,9 @@ export async function discoverMetaAccounts(
   return [];
 }
 
-async function discoverWhatsAppAccounts(userAccessToken: string): Promise<DiscoveredAccount[]> {
+async function discoverWhatsAppAccounts(
+  userAccessToken: string
+): Promise<DiscoveredAccount[]> {
   // List WABAs the user owns/manages. All three edges paginate (a business can
   // own many WABAs, a WABA many numbers) — fail-soft: a broken edge yields [].
   let businesses: Array<{ id: string; name: string }>;
@@ -261,9 +293,9 @@ async function discoverWhatsAppAccounts(userAccessToken: string): Promise<Discov
     businesses = await fetchAllGraphPages<{ id: string; name: string }>(
       withAppsecretProof(
         `${GRAPH}/me/businesses?fields=id,name&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
-        userAccessToken,
+        userAccessToken
       ),
-      userAccessToken,
+      userAccessToken
     );
   } catch {
     return [];
@@ -276,15 +308,19 @@ async function discoverWhatsAppAccounts(userAccessToken: string): Promise<Discov
       wabas = await fetchAllGraphPages<{ id: string; name: string }>(
         withAppsecretProof(
           `${GRAPH}/${b.id}/owned_whatsapp_business_accounts?fields=id,name&limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
-          userAccessToken,
+          userAccessToken
         ),
-        userAccessToken,
+        userAccessToken
       );
     } catch {
       continue;
     }
     for (const w of wabas) {
-      let phones: Array<{ id: string; display_phone_number: string; verified_name: string }>;
+      let phones: Array<{
+        id: string;
+        display_phone_number: string;
+        verified_name: string;
+      }>;
       try {
         phones = await fetchAllGraphPages<{
           id: string;
@@ -293,16 +329,16 @@ async function discoverWhatsAppAccounts(userAccessToken: string): Promise<Discov
         }>(
           withAppsecretProof(
             `${GRAPH}/${w.id}/phone_numbers?limit=100&access_token=${encodeURIComponent(userAccessToken)}`,
-            userAccessToken,
+            userAccessToken
           ),
-          userAccessToken,
+          userAccessToken
         );
       } catch {
         continue;
       }
       for (const ph of phones) {
         accounts.push({
-          channel: "whatsapp",
+          channel: 'whatsapp',
           external_account_id: ph.id,
           page_access_token: userAccessToken, // WhatsApp uses the user/system-user token.
           config: {
@@ -335,7 +371,7 @@ export async function subscribePageToWebhooks(args: {
   if (familyFields.length === 0) {
     // Defensive: only fires for a channel with no field map (a future
     // channel shipped without one) — log so it doesn't silently no-op.
-    log.warn("no webhook fields defined for channel; skipping subscribe", {
+    log.warn('no webhook fields defined for channel; skipping subscribe', {
       channel: args.channel,
     });
     return;
@@ -348,24 +384,32 @@ export async function subscribePageToWebhooks(args: {
   // leave the page without `comments`, nor wipe `feed` from a page that
   // also has Messenger. Reading-then-unioning is robust whether Meta
   // merges or replaces the field set, and is order-independent.
-  const currentPage = await getSubscribedFields(args.pageId, args.pageAccessToken);
+  const currentPage = await getSubscribedFields(
+    args.pageId,
+    args.pageAccessToken
+  );
   if (currentPage === null) {
     // Couldn't read existing fields (token/scope/transient). We still POST
     // this family's fields so THIS channel works, but warn — under
     // replace-semantics another family's fields could be lost until the
     // verify cron re-applies them.
-    log.warn("could not read current page subscription; applying family fields only", {
-      pageId: args.pageId,
-      channel: args.channel,
-    });
+    log.warn(
+      'could not read current page subscription; applying family fields only',
+      {
+        pageId: args.pageId,
+        channel: args.channel,
+      }
+    );
   }
-  const pageFields = Array.from(new Set([...(currentPage ?? []), ...familyFields]));
+  const pageFields = Array.from(
+    new Set([...(currentPage ?? []), ...familyFields])
+  );
   const r = await fetch(
     withAppsecretProof(
-      `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${pageFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
-      args.pageAccessToken,
+      `${GRAPH}/${args.pageId}/subscribed_apps?subscribed_fields=${pageFields.join(',')}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+      args.pageAccessToken
     ),
-    { method: "POST" },
+    { method: 'POST' }
   );
   if (!r.ok) {
     const detail = await r.text();
@@ -374,22 +418,26 @@ export async function subscribePageToWebhooks(args: {
 
   // IG messaging also requires subscribing the IG user object directly
   // (some scopes like instagram_manage_messages only deliver that way).
-  if ((args.channel === "instagram" || args.channel === "ig_comment") && args.igUserId) {
-    const currentUser = (await getSubscribedFields(args.igUserId, args.pageAccessToken)) ?? [];
+  if (
+    (args.channel === 'instagram' || args.channel === 'ig_comment') &&
+    args.igUserId
+  ) {
+    const currentUser =
+      (await getSubscribedFields(args.igUserId, args.pageAccessToken)) ?? [];
     const userFields = Array.from(new Set([...currentUser, ...IG_USER_FIELDS]));
     const ur = await fetch(
       withAppsecretProof(
-        `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=${userFields.join(",")}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
-        args.pageAccessToken,
+        `${GRAPH}/${args.igUserId}/subscribed_apps?subscribed_fields=${userFields.join(',')}&access_token=${encodeURIComponent(args.pageAccessToken)}`,
+        args.pageAccessToken
       ),
-      { method: "POST" },
+      { method: 'POST' }
     );
     // Best-effort (the page subscription above is the critical one), but a
     // failure here means IG DMs may not deliver — surface it instead of
     // swallowing it silently.
     if (!ur.ok) {
-      const detail = await ur.text().catch(() => "");
-      log.warn("IG user webhook subscribe failed", {
+      const detail = await ur.text().catch(() => '');
+      log.warn('IG user webhook subscribe failed', {
         igUserId: args.igUserId,
         status: ur.status,
         detail: detail.slice(0, 300),
@@ -406,14 +454,14 @@ export async function subscribePageToWebhooks(args: {
  */
 export async function getSubscribedFields(
   objectId: string,
-  pageAccessToken: string,
+  pageAccessToken: string
 ): Promise<string[] | null> {
   try {
     const r = await fetch(
       withAppsecretProof(
         `${GRAPH}/${objectId}/subscribed_apps?access_token=${encodeURIComponent(pageAccessToken)}`,
-        pageAccessToken,
-      ),
+        pageAccessToken
+      )
     );
     if (!r.ok) return null;
     const j = (await r.json()) as {
@@ -432,8 +480,12 @@ export async function getSubscribedFields(
       // Meta returns either string[] or [{name}] depending on API version.
       if (Array.isArray(sf)) {
         for (const f of sf) {
-          if (typeof f === "string") fields.add(f);
-          else if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
+          if (typeof f === 'string') fields.add(f);
+          else if (
+            f &&
+            typeof f === 'object' &&
+            typeof (f as { name?: unknown }).name === 'string'
+          ) {
             fields.add((f as { name: string }).name);
           }
         }
@@ -449,23 +501,23 @@ export async function getSubscribedFields(
 // every connect so DMs + comments are always both covered regardless of
 // which channel triggered the subscription or the order pages were linked.
 const FB_PAGE_FIELDS = [
-  "messages",
-  "messaging_postbacks",
-  "message_reactions",
-  "message_deliveries",
-  "message_reads",
+  'messages',
+  'messaging_postbacks',
+  'message_reactions',
+  'message_deliveries',
+  'message_reads',
   // Echoes of messages the merchant sends from the Messenger app / Business
   // Suite, so those replies sync into Riverz too (multichannel). Delivered as
   // `message.is_echo`; ingested outbound. (IG delivers echoes under `messages`
   // already, so IG_* fields don't need this — and adding an unsupported field
   // to the IG object would 400 the whole subscribe, like `comments`.)
-  "message_echoes",
+  'message_echoes',
   // Cliente que llega (o vuelve) desde un anuncio click-to-Messenger. Sin esto
   // el evento suelto de `referral` no llega y el chat no queda atribuido al
   // anuncio cuando la conversación ya existía. (No se agrega a los objetos de
   // Instagram: un campo no soportado ahí hace fallar TODA la suscripción.)
-  "messaging_referrals",
-  "feed", // FB post/ad comments arrive under the `feed` field
+  'messaging_referrals',
+  'feed', // FB post/ad comments arrive under the `feed` field
 ];
 // NOTE: `comments` is intentionally NOT here. IG comment webhooks are
 // subscribed at the APP level (Meta App Dashboard › Instagram › Webhooks),
@@ -488,16 +540,16 @@ const FB_PAGE_FIELDS = [
 // adaptador ya sabe procesarlo (ver `instagram/adapter.ts`), así que el día
 // que se agregue hay que hacerlo con un reintento campo por campo.
 const IG_PAGE_FIELDS = [
-  "messages",
-  "messaging_postbacks",
-  "message_reactions",
-  "messaging_optins",
+  'messages',
+  'messaging_postbacks',
+  'message_reactions',
+  'messaging_optins',
 ];
 const IG_USER_FIELDS = [
-  "messages",
-  "messaging_postbacks",
-  "message_reactions",
-  "messaging_optins",
+  'messages',
+  'messaging_postbacks',
+  'message_reactions',
+  'messaging_optins',
 ];
 
 /**
@@ -520,7 +572,7 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
   if (!appId || !appSecret) return null;
   try {
     const r = await fetch(
-      `${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`,
+      `${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`
     );
     if (!r.ok) return null;
     const j = (await r.json()) as {
@@ -536,15 +588,15 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
       if (!o.object) continue;
       const fields: string[] = [];
       for (const f of o.fields ?? []) {
-        if (typeof f === "string") fields.push(f);
-        else if (f && typeof f === "object" && typeof f.name === "string") {
+        if (typeof f === 'string') fields.push(f);
+        else if (f && typeof f === 'object' && typeof f.name === 'string') {
           fields.push(f.name);
         }
       }
       out[o.object] = {
         active: Boolean(o.active),
         fields,
-        callbackUrl: String(o.callback_url ?? ""),
+        callbackUrl: String(o.callback_url ?? ''),
       };
     }
     return out;
@@ -562,7 +614,7 @@ export async function getAppWebhookSubscriptions(): Promise<Record<
 export async function setAppWebhookSubscription(
   object: string,
   fields: string[],
-  callbackUrl: string,
+  callbackUrl: string
 ): Promise<boolean> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
@@ -572,12 +624,15 @@ export async function setAppWebhookSubscription(
     const body = new URLSearchParams({
       object,
       callback_url: callbackUrl,
-      fields: fields.join(","),
+      fields: fields.join(','),
       verify_token: verifyToken,
-      include_values: "true",
+      include_values: 'true',
       access_token: `${appId}|${appSecret}`,
     });
-    const r = await fetch(`${GRAPH}/${appId}/subscriptions`, { method: "POST", body });
+    const r = await fetch(`${GRAPH}/${appId}/subscriptions`, {
+      method: 'POST',
+      body,
+    });
     return r.ok;
   } catch {
     return false;
@@ -590,13 +645,16 @@ export async function setAppWebhookSubscription(
  *  Returns true on success. */
 export async function subscribeWabaToWebhooks(
   wabaId: string,
-  token: string,
+  token: string
 ): Promise<boolean> {
   try {
-    const r = await fetch(withAppsecretProof(`${GRAPH}/${wabaId}/subscribed_apps`, token), {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const r = await fetch(
+      withAppsecretProof(`${GRAPH}/${wabaId}/subscribed_apps`, token),
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
     return r.ok;
   } catch {
     return false;
@@ -608,14 +666,14 @@ export async function subscribeWabaToWebhooks(
  *  (transient / bad token) so callers treat "unknown" ≠ "not subscribed". */
 export async function isWabaSubscribed(
   wabaId: string,
-  token: string,
+  token: string
 ): Promise<boolean | null> {
   try {
     const r = await fetch(
       withAppsecretProof(
         `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(token)}`,
-        token,
-      ),
+        token
+      )
     );
     if (!r.ok) return null;
     const j = (await r.json()) as { data?: unknown[] };
@@ -632,12 +690,12 @@ export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
   // llega el token que permite escribirle a alguien fuera de la ventana de 24 h
   // y la lista de suscriptores deja de crecer — en silencio, porque todo lo
   // demás sigue funcionando. Por eso se vigila como los otros.
-  instagram: ["comments", "messages", "messaging_optins"], // IG comments + IG DMs + opt-in
-  page: ["feed", "messages"], // FB comments (feed) + Messenger DMs
+  instagram: ['comments', 'messages', 'messaging_optins'], // IG comments + IG DMs + opt-in
+  page: ['feed', 'messages'], // FB comments (feed) + Messenger DMs
   // WhatsApp inbound + `smb_message_echoes` = messages the merchant sends from
   // their own WhatsApp app (coexistence) syncing back into Riverz. Both are
   // app-level fields; losing the echo field silently breaks app→Riverz sync.
-  whatsapp_business_account: ["messages", "smb_message_echoes"],
+  whatsapp_business_account: ['messages', 'smb_message_echoes'],
 };
 
 /** Una suscripción app-level tal como la devuelve Graph. */
@@ -676,7 +734,7 @@ export const appWebhookBaseUrl = publicBaseUrl;
  * recibir. Pasó el 2026-07-29 con los comentarios de Instagram.
  */
 export function appSubscriptionGaps(
-  subs: Record<string, AppSubscription>,
+  subs: Record<string, AppSubscription>
 ): AppSubscriptionGap[] {
   const base = appWebhookBaseUrl();
   const gaps: AppSubscriptionGap[] = [];
@@ -688,13 +746,14 @@ export function appSubscriptionGaps(
         missing: expected,
         inactive: true,
         wrongCallback: false,
-        callbackUrl: "",
-        expectedCallbackUrl: "",
+        callbackUrl: '',
+        expectedCallbackUrl: '',
       });
       continue;
     }
     const missing = expected.filter((f) => !sub.fields.includes(f));
-    const wrongCallback = Boolean(sub.callbackUrl) && !pointsToUs(sub.callbackUrl, base);
+    const wrongCallback =
+      Boolean(sub.callbackUrl) && !pointsToUs(sub.callbackUrl, base);
     if (missing.length > 0 || !sub.active || wrongCallback) {
       gaps.push({
         object,
@@ -704,24 +763,25 @@ export function appSubscriptionGaps(
         callbackUrl: sub.callbackUrl,
         // Sólo cambia el origen: la ruta la eligió quien registró el webhook y
         // no es nuestra para reescribirla.
-        expectedCallbackUrl: wrongCallback ? rebaseUrl(sub.callbackUrl, base) : sub.callbackUrl,
+        expectedCallbackUrl: wrongCallback
+          ? rebaseUrl(sub.callbackUrl, base)
+          : sub.callbackUrl,
       });
     }
   }
   return gaps;
 }
 
-
 /** The full set of page-level webhook fields to subscribe when connecting
  *  any channel in the page's family (FB page vs IG). Exported so the
  *  re-subscribe/verify cron applies the exact same set. */
 export function pageFieldsForChannel(channel: Channel): string[] {
   switch (channel) {
-    case "messenger":
-    case "fb_comment":
+    case 'messenger':
+    case 'fb_comment':
       return FB_PAGE_FIELDS;
-    case "instagram":
-    case "ig_comment":
+    case 'instagram':
+    case 'ig_comment':
       return IG_PAGE_FIELDS;
     default:
       return [];

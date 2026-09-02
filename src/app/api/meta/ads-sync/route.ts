@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { listConnections } from "@/lib/channels/connections";
-import { assertCronAuthAny } from "@/lib/auth/cron";
-import { serverError } from "@/lib/api/errors";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
-import { withCronRun } from "@/lib/cron/heartbeat";
-import type { ChannelConnection } from "@/types";
+import { NextResponse } from 'next/server';
+import { listConnections } from '@/lib/channels/connections';
+import { assertCronAuthAny } from '@/lib/auth/cron';
+import { serverError } from '@/lib/api/errors';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
+import { withCronRun } from '@/lib/cron/heartbeat';
+import type { ChannelConnection } from '@/types';
 
 /**
  * GET /api/meta/ads-sync
@@ -21,20 +21,27 @@ import type { ChannelConnection } from "@/types";
  */
 async function handler(req: Request): Promise<Response> {
   try {
-    assertCronAuthAny(req, ["ADS_SYNC_SECRET", "AUTOMATION_CRON_SECRET"]);
+    assertCronAuthAny(req, ['ADS_SYNC_SECRET', 'AUTOMATION_CRON_SECRET']);
   } catch (r) {
     return r as Response;
   }
 
   const db = supabaseAdmin();
   const connections = await listConnections(db, {
-    channels: ["fb_comment", "ig_comment"],
-    statuses: ["connected"],
+    channels: ['fb_comment', 'ig_comment'],
+    statuses: ['connected'],
   });
 
   let totalInserted = 0;
   let totalUpdated = 0;
-  const results: Array<{ id: string; inserted: number; updated: number; error?: string }> = [];
+  const results: Array<{
+    id: string;
+    inserted: number;
+    updated: number;
+    status?: string;
+    errors?: string[];
+    error?: string;
+  }> = [];
 
   for (const c of (connections ?? []) as ChannelConnection[]) {
     try {
@@ -43,7 +50,7 @@ async function handler(req: Request): Promise<Response> {
       totalUpdated += r.updated;
       results.push({ id: c.id, ...r });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
+      const msg = err instanceof Error ? err.message : 'unknown';
       results.push({ id: c.id, inserted: 0, updated: 0, error: msg });
     }
   }
@@ -59,4 +66,4 @@ async function handler(req: Request): Promise<Response> {
 
 /** Registra la corrida en `cron_runs` como el resto de los trabajos: hasta
  *  ahora este no dejaba rastro y su silencio era indistinguible de no correr. */
-export const GET = withCronRun("ads-sync", handler);
+export const GET = withCronRun('ads-sync', handler);

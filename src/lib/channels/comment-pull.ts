@@ -1,12 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChannelConnection } from "@/types";
-import { decrypt } from "./encryption";
-import { withAppsecretProof } from "./meta-graph";
-import { buildSelfCommentEvent } from "./comment-echo";
-import { findMessageByExternalId } from "./message-lookup";
-import { listConnections } from "./connections";
-import { ingestInboundEvent } from "./inbox-writer";
-import { selectAll } from "@/lib/db/paginate";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ChannelConnection } from '@/types';
+import { decrypt } from './encryption';
+import { withAppsecretProof } from './meta-graph';
+import { buildSelfCommentEvent } from './comment-echo';
+import { findMessageByExternalId } from './message-lookup';
+import { listConnections } from './connections';
+import { ingestInboundEvent } from './inbox-writer';
+import { selectAll } from '@/lib/db/paginate';
 
 /**
  * Comentarios de Instagram y Facebook — lado pull (RED DE SEGURIDAD del webhook).
@@ -39,7 +39,7 @@ import { selectAll } from "@/lib/db/paginate";
  * externo: repetir una corrida no duplica nada.
  */
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH = 'https://graph.facebook.com/v21.0';
 /** No dejar una recuperación manual ocupada indefinidamente por un edge de Meta. */
 const GRAPH_TIMEOUT_MS = 30_000;
 /** Ventana de publicaciones a revisar — igual que la del reconciliador. */
@@ -63,7 +63,7 @@ const MAX_COMMENT_PAGES = 100;
  */
 const LIVE_WINDOW_MS = 60 * 60_000;
 
-type CommentChannel = "ig_comment" | "fb_comment";
+type CommentChannel = 'ig_comment' | 'fb_comment';
 
 /** Un comentario tal como lo devuelve Graph, en cualquiera de los dos dialectos. */
 interface RawComment {
@@ -93,29 +93,29 @@ const DIALECT: Record<
   { edge: string; timeField: string; commentFields: string }
 > = {
   ig_comment: {
-    edge: "media",
-    timeField: "timestamp",
+    edge: 'media',
+    timeField: 'timestamp',
     // `hidden` en Instagram, `is_hidden` en Facebook: son campos distintos y
     // no se pueden intercambiar. Vienen desde la ingesta para que un
     // comentario que YA estaba oculto cuando lo trajimos no se vea visible
     // hasta que pase la conciliación, que corre cada diez minutos.
     commentFields:
-      "id,text,timestamp,username,hidden,from{id,username}," +
-      "replies{id,text,timestamp,username,hidden,from{id,username}}",
+      'id,text,timestamp,username,hidden,from{id,username},' +
+      'replies{id,text,timestamp,username,hidden,from{id,username}}',
   },
   fb_comment: {
-    edge: "posts",
-    timeField: "created_time",
+    edge: 'posts',
+    timeField: 'created_time',
     commentFields:
-      "id,message,created_time,is_hidden,from{id,name}," +
-      "comments{id,message,created_time,is_hidden,from{id,name}}",
+      'id,message,created_time,is_hidden,from{id,name},' +
+      'comments{id,message,created_time,is_hidden,from{id,name}}',
   },
 };
 
 /** Campos de una respuesta sin su propia expansión anidada. */
 const REPLY_FIELDS: Record<CommentChannel, string> = {
-  ig_comment: "id,text,timestamp,username,hidden,from{id,username}",
-  fb_comment: "id,message,created_time,is_hidden,from{id,name}",
+  ig_comment: 'id,text,timestamp,username,hidden,from{id,username}',
+  fb_comment: 'id,message,created_time,is_hidden,from{id,name}',
 };
 
 /** ¿Vino oculto? Instagram lo llama `hidden` y Facebook `is_hidden`. */
@@ -125,7 +125,7 @@ function ocultoEn(c: RawComment): boolean {
 
 /** El texto del comentario, se llame `text` (Instagram) o `message` (Facebook). */
 function textOf(c: RawComment): string {
-  return c.text ?? c.message ?? "";
+  return c.text ?? c.message ?? '';
 }
 
 /** Cuándo se escribió: `timestamp` en Instagram, `created_time` en Facebook. */
@@ -143,8 +143,11 @@ function repliesOf(c: RawComment): RawComment[] {
  * @usuario — y se guarda con arroba para que la misma persona se lea igual haya
  * comentado o mandado un DM. Facebook sí da el nombre.
  */
-function contactNameOf(channel: CommentChannel, c: RawComment): string | undefined {
-  if (channel === "fb_comment") return c.from?.name?.trim() || undefined;
+function contactNameOf(
+  channel: CommentChannel,
+  c: RawComment
+): string | undefined {
+  if (channel === 'fb_comment') return c.from?.name?.trim() || undefined;
   const username = (c.from?.username ?? c.username)?.trim();
   return username ? `@${username}` : undefined;
 }
@@ -156,10 +159,11 @@ function contactNameOf(channel: CommentChannel, c: RawComment): string | undefin
  * opuestas que se ven igual desde afuera.
  */
 export type PullReason =
-  | "ok"
-  | "sin_config"
-  | "graph_denegado"
-  | "sin_publicaciones";
+  | 'ok'
+  | 'sin_config'
+  | 'graph_denegado'
+  | 'sin_publicaciones'
+  | 'partial';
 
 export interface PullResult {
   channel: CommentChannel | null;
@@ -176,6 +180,8 @@ export interface PullResult {
   /** Vistas que ya estaban guardadas (enviadas desde Riverz o de otra corrida). */
   yaEstaba: number;
   reason: PullReason;
+  /** Códigos de fuente que no pudo recorrerse; el detalle queda en logs. */
+  errors: string[];
 }
 
 /** Opciones puntuales para una recuperación histórica, sin cambiar el cron normal. */
@@ -200,13 +206,13 @@ export interface CommentPullOptions {
 export async function pullCommentsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
-  options: CommentPullOptions = {},
+  options: CommentPullOptions = {}
 ): Promise<PullResult> {
   const windowMs = options.windowMs ?? WINDOW_MS;
   const maxPosts = options.maxPosts ?? MAX_POSTS_PER_RUN;
   const channel = connection.channel as CommentChannel;
-  const isComment = channel === "ig_comment" || channel === "fb_comment";
-  const empty = (reason: PullReason): PullResult => ({
+  const isComment = channel === 'ig_comment' || channel === 'fb_comment';
+  const empty = (reason: PullReason, errors: string[] = []): PullResult => ({
     channel: isComment ? channel : null,
     ingestedInbound: 0,
     ingested: 0,
@@ -215,22 +221,23 @@ export async function pullCommentsForConnection(
     sinHilo: 0,
     yaEstaba: 0,
     reason,
+    errors,
   });
-  if (!isComment) return empty("sin_config");
+  if (!isComment) return empty('sin_config');
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
-  const igUserId = String(cfg.ig_user_id ?? "");
-  const pageId = String(cfg.page_id ?? "");
+  const igUserId = String(cfg.ig_user_id ?? '');
+  const pageId = String(cfg.page_id ?? '');
   // Instagram cuelga los comentarios de la cuenta profesional; Facebook, de la
   // página.
-  const target = channel === "ig_comment" ? igUserId : pageId;
+  const target = channel === 'ig_comment' ? igUserId : pageId;
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
-  const enc = String(secrets.access_token ?? "");
-  if (!target || !enc) return empty("sin_config");
+  const enc = String(secrets.access_token ?? '');
+  if (!target || !enc) return empty('sin_config');
   let token: string;
   try {
     token = decrypt(enc);
   } catch {
-    return empty("sin_config");
+    return empty('sin_config');
   }
 
   // Qué cuenta somos NOSOTROS. Por id siempre. En Instagram, además, por
@@ -238,32 +245,48 @@ export async function pullCommentsForConnection(
   // dato no se puede distinguir lo nuestro de lo del cliente. Leerlo sirve
   // encima de sonda de permisos — si ni eso deja, mejor no tocar nada.
   const selfIds = new Set([igUserId, pageId].filter(Boolean));
-  let selfUsername = "";
-  if (channel === "ig_comment") {
+  let selfUsername = '';
+  if (channel === 'ig_comment') {
     const u = await fetchSelfUsername(target, token);
-    if (!u) return empty("graph_denegado");
+    if (!u) return empty('graph_denegado');
     selfUsername = u;
   }
 
-  const postIds = await postsToScan(db, connection, channel, target, token, {
-    windowMs,
-    maxPosts,
-    includeOlderPosts: options.includeOlderPosts,
-  });
-  if (postIds.length === 0) return empty("sin_publicaciones");
+  const postsToRead = await postsToScan(
+    db,
+    connection,
+    channel,
+    target,
+    token,
+    {
+      windowMs,
+      maxPosts,
+      includeOlderPosts: options.includeOlderPosts,
+    }
+  );
+  const postIds = postsToRead.ids;
+  if (postIds.length === 0) {
+    return empty(
+      postsToRead.errors.length > 0 ? 'graph_denegado' : 'sin_publicaciones',
+      postsToRead.errors
+    );
+  }
 
   let ingestedInbound = 0;
   let ingested = 0;
   let seen = 0;
   let sinHilo = 0;
   let yaEstaba = 0;
+  const errors = [...postsToRead.errors];
   for (const postId of postIds) {
-    const comments = await fetchCommentsWithReplies(
+    const fetched = await fetchCommentsWithReplies(
       channel,
       postId,
       token,
-      options.maxCommentPages ?? MAX_COMMENT_PAGES,
+      options.maxCommentPages ?? MAX_COMMENT_PAGES
     );
+    if (fetched.failed) errors.push('comments_graph_failed');
+    const comments = fetched.comments;
     for (const comment of comments) {
       if (!isWithinWindow(comment, windowMs, options.untilMs)) continue;
       const parentId = comment.id;
@@ -283,7 +306,7 @@ export async function pullCommentsForConnection(
             postId,
             null,
             answered,
-            options.suppressAutoReply === true,
+            options.suppressAutoReply === true
           )
         ) {
           ingestedInbound++;
@@ -302,7 +325,7 @@ export async function pullCommentsForConnection(
               postId,
               parentId,
               false,
-              options.suppressAutoReply === true,
+              options.suppressAutoReply === true
             )
           ) {
             ingestedInbound++;
@@ -340,7 +363,8 @@ export async function pullCommentsForConnection(
     seen,
     sinHilo,
     yaEstaba,
-    reason: "ok",
+    reason: errors.length > 0 ? 'partial' : 'ok',
+    errors: Array.from(new Set(errors)),
   };
 }
 
@@ -353,7 +377,7 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
   detail: Array<{ connection_id: string } & PullResult>;
 }> {
   const list = await listConnections(db, {
-    channels: ["ig_comment", "fb_comment"],
+    channels: ['ig_comment', 'fb_comment'],
   });
 
   let ingestedInbound = 0;
@@ -368,7 +392,7 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
       seen += r.seen;
       detail.push({ connection_id: c.id, ...r });
     } catch (err) {
-      console.error("[comment-pull] conexión falló:", c.id, err);
+      console.error('[comment-pull] conexión falló:', c.id, err);
     }
   }
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
@@ -378,7 +402,7 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
 export async function pullCommentsForWorkspace(
   db: SupabaseClient,
   workspaceId: string,
-  options: CommentPullOptions = {},
+  options: CommentPullOptions = {}
 ): Promise<{
   connections: number;
   ingestedInbound: number;
@@ -388,7 +412,7 @@ export async function pullCommentsForWorkspace(
 }> {
   const list = await listConnections(db, {
     workspaceId,
-    channels: options.channels ?? ["ig_comment", "fb_comment"],
+    channels: options.channels ?? ['ig_comment', 'fb_comment'],
   });
   let ingestedInbound = 0;
   let ingested = 0;
@@ -402,7 +426,7 @@ export async function pullCommentsForWorkspace(
       seen += result.seen;
       detail.push({ connection_id: connection.id, ...result });
     } catch (err) {
-      console.error("[comment-pull] conexión falló:", connection.id, err);
+      console.error('[comment-pull] conexión falló:', connection.id, err);
     }
   }
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
@@ -410,15 +434,29 @@ export async function pullCommentsForWorkspace(
 
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no
  *  lo devuelve, el @usuario de Instagram. */
-function isSelf(c: RawComment, selfIds: Set<string>, selfUsername: string): boolean {
+function isSelf(
+  c: RawComment,
+  selfIds: Set<string>,
+  selfUsername: string
+): boolean {
   const fromId = c.from?.id;
   if (fromId) return selfIds.has(String(fromId));
-  return Boolean(selfUsername) && (c.username ?? c.from?.username) === selfUsername;
+  return (
+    Boolean(selfUsername) && (c.username ?? c.from?.username) === selfUsername
+  );
 }
 
-function isWithinWindow(comment: RawComment, windowMs: number, untilMs?: number): boolean {
+function isWithinWindow(
+  comment: RawComment,
+  windowMs: number,
+  untilMs?: number
+): boolean {
   const timestamp = Date.parse(parseMetaTimestamp(timeOf(comment)));
-  return Number.isFinite(timestamp) && timestamp >= Date.now() - windowMs && (untilMs === undefined || timestamp <= untilMs);
+  return (
+    Number.isFinite(timestamp) &&
+    timestamp >= Date.now() - windowMs &&
+    (untilMs === undefined || timestamp <= untilMs)
+  );
 }
 
 /**
@@ -438,7 +476,7 @@ async function ingestCustomerComment(
   postId: string,
   parentCommentId: string | null,
   alreadyAnswered: boolean,
-  forceSuppressAutoReply: boolean,
+  forceSuppressAutoReply: boolean
 ): Promise<boolean> {
   const commentId = comment.id;
   // Sin id de autor no hay a quién atribuirlo: crear un contacto fantasma sería
@@ -480,13 +518,13 @@ async function ingestCustomerComment(
     });
     if (fila) {
       await db
-        .from("messages")
+        .from('messages')
         .update({
           is_hidden: true,
-          hidden_by: "red",
+          hidden_by: 'red',
           hidden_at: new Date().toISOString(),
         })
-        .eq("id", fila.id);
+        .eq('id', fila.id);
     }
   }
   return Boolean(written);
@@ -506,8 +544,8 @@ async function postsToScan(
   channel: CommentChannel,
   target: string,
   token: string,
-  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean },
-): Promise<string[]> {
+  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean }
+): Promise<{ ids: string[]; errors: string[] }> {
   // MITAD Y MITAD, no "primero las recientes y si sobra lugar las otras".
   //
   // Antes se llenaba el cupo con `recentPostIds` y recién después se sumaban
@@ -523,19 +561,19 @@ async function postsToScan(
     db,
     connection,
     channel,
-    options,
+    options
   );
-  const ids = new Set<string>(recientes.slice(0, mitad));
+  const ids = new Set<string>(recientes.ids.slice(0, mitad));
   for (const id of conComentarios) {
     if (ids.size >= options.maxPosts) break;
     ids.add(id);
   }
   // Si una de las dos fuentes trajo poco, la otra usa lo que sobró.
-  for (const id of recientes) {
+  for (const id of recientes.ids) {
     if (ids.size >= options.maxPosts) break;
     ids.add(id);
   }
-  return [...ids].slice(0, options.maxPosts);
+  return { ids: [...ids].slice(0, options.maxPosts), errors: recientes.errors };
 }
 
 /** Publicaciones recientes de la cuenta, dentro de la ventana. */
@@ -543,28 +581,41 @@ async function recentPostIds(
   channel: CommentChannel,
   target: string,
   token: string,
-  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean },
-): Promise<string[]> {
+  options: { windowMs: number; maxPosts: number; includeOlderPosts?: boolean }
+): Promise<{ ids: string[]; errors: string[] }> {
   const { edge, timeField } = DIALECT[channel];
   const since = Date.now() - options.windowMs;
   const ids: string[] = [];
+  const errors: string[] = [];
   try {
-    const edges = channel === "fb_comment" ? [edge, "feed"] : [edge];
+    const edges = channel === 'fb_comment' ? [edge, 'feed'] : [edge];
     for (const currentEdge of edges) {
       let url: string | null = withAppsecretProof(
         `${GRAPH}/${target}/${currentEdge}?fields=id,${timeField}&limit=${Math.min(options.maxPosts, 100)}` +
           `&access_token=${encodeURIComponent(token)}`,
-        token,
+        token
       );
       let reachedWindowStart = false;
       while (url && ids.length < options.maxPosts && !reachedWindowStart) {
-        const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
-        if (!res.ok) break;
-        const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+        });
+        if (!res.ok) {
+          errors.push('posts_graph_failed');
+          break;
+        }
+        const json = (await res.json()) as {
+          data?: RawComment[];
+          paging?: { next?: string };
+        };
         for (const m of json.data ?? []) {
           if (!m.id) continue;
           const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
-          if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) {
+          if (
+            options.includeOlderPosts ||
+            !Number.isFinite(ms) ||
+            ms >= since
+          ) {
             ids.push(String(m.id));
           } else {
             // Los edges de publicaciones vienen de más nuevo a más viejo. En
@@ -575,12 +626,19 @@ async function recentPostIds(
             break;
           }
         }
-        url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+        url = json.paging?.next
+          ? withAppsecretProof(json.paging.next, token)
+          : null;
       }
     }
-    return ids.slice(0, options.maxPosts);
-  } catch {
-    return ids;
+    return { ids: ids.slice(0, options.maxPosts), errors };
+  } catch (error) {
+    console.warn('[comment-pull] post discovery failed', {
+      channel,
+      target,
+      error,
+    });
+    return { ids, errors: [...errors, 'posts_graph_failed'] };
   }
 }
 
@@ -589,18 +647,21 @@ async function postIdsWithSavedComments(
   db: SupabaseClient,
   connection: ChannelConnection,
   channel: CommentChannel,
-  options: { windowMs: number; maxPosts: number },
+  options: { windowMs: number; maxPosts: number }
 ): Promise<string[]> {
   const sinceIso = new Date(Date.now() - options.windowMs).toISOString();
   // Por la conexión DUEÑA del comentario (`comments_meta`), no por la de la
   // conversación: con dos páginas del mismo comercio, la conversación es de la
   // primera y la publicación de la segunda no se volvía a escanear nunca.
   const { data: propios } = await db
-    .from("comments_meta")
-    .select("message_id, post_id")
-    .eq("connection_id", connection.id)
+    .from('comments_meta')
+    .select('message_id, post_id')
+    .eq('connection_id', connection.id)
     .limit(1000);
-  const deMeta = (propios ?? []) as Array<{ message_id: string; post_id: string | null }>;
+  const deMeta = (propios ?? []) as Array<{
+    message_id: string;
+    post_id: string | null;
+  }>;
 
   // Las creatividades de anuncios —en especial los dark posts— no aparecen
   // en /media ni /posts. `ads-sync` las descubre desde /ads_posts y las deja
@@ -609,31 +670,30 @@ async function postIdsWithSavedComments(
   // de una cuenta que pauta.
   const adPosts = await selectAll<{ post_id: string | null }>(
     db,
-    "ad_posts",
-    (q) => q.eq("connection_id", connection.id).order("last_seen_at", { ascending: false }),
-    { select: "post_id" },
+    'ad_posts',
+    (q) =>
+      q
+        .eq('connection_id', connection.id)
+        .order('last_seen_at', { ascending: false }),
+    { select: 'post_id' }
   );
 
   const { data: msgs } = await db
-    .from("messages")
-    .select("id, conversations!inner(connection_id)")
-    .eq("channel", channel)
-    .eq("conversations.connection_id", connection.id)
-    .gte("created_at", sinceIso)
-    .order("created_at", { ascending: false })
+    .from('messages')
+    .select('id, conversations!inner(connection_id)')
+    .eq('channel', channel)
+    .eq('conversations.connection_id', connection.id)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
     .limit(300);
   const messageIds = ((msgs ?? []) as Array<{ id: string }>).map((m) => m.id);
-  if (
-    messageIds.length === 0 &&
-    deMeta.length === 0 &&
-    adPosts.length === 0
-  )
+  if (messageIds.length === 0 && deMeta.length === 0 && adPosts.length === 0)
     return [];
 
   const { data: metas } = await db
-    .from("comments_meta")
-    .select("post_id")
-    .in("message_id", messageIds);
+    .from('comments_meta')
+    .select('post_id')
+    .in('message_id', messageIds);
   const seen = new Set<string>();
   for (const ad of adPosts) {
     if (ad.post_id) seen.add(ad.post_id);
@@ -650,13 +710,18 @@ async function postIdsWithSavedComments(
   return [...seen];
 }
 
-async function fetchSelfUsername(igUserId: string, token: string): Promise<string | null> {
+async function fetchSelfUsername(
+  igUserId: string,
+  token: string
+): Promise<string | null> {
   const url = withAppsecretProof(
     `${GRAPH}/${igUserId}?fields=username&access_token=${encodeURIComponent(token)}`,
-    token,
+    token
   );
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const json = (await res.json()) as { username?: string };
     return json.username?.trim() || null;
@@ -669,37 +734,57 @@ async function fetchCommentsWithReplies(
   channel: CommentChannel,
   postId: string,
   token: string,
-  maxPages: number,
-): Promise<RawComment[]> {
+  maxPages: number
+): Promise<{ comments: RawComment[]; failed: boolean }> {
   let url: string | null = withAppsecretProof(
     `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(DIALECT[channel].commentFields)}` +
       `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
-    token,
+    token
   );
   const comments: RawComment[] = [];
+  let failed = false;
   try {
     for (let page = 0; url && page < maxPages; page++) {
-      const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
-      if (!res.ok) break;
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        failed = true;
+        break;
+      }
       const json = (await res.json()) as {
         data?: RawComment[];
         paging?: { next?: string };
       };
       comments.push(...(json.data ?? []));
-      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+      url = json.paging?.next
+        ? withAppsecretProof(json.paging.next, token)
+        : null;
     }
     // La expansión `replies{…}` de Graph viene paginada por separado y por
     // defecto deja respuestas fuera. Leemos el edge de cada comentario para
     // que un backfill sea realmente completo, tanto en Facebook como IG.
     for (const comment of comments) {
       if (!comment.id) continue;
-      const replies = await fetchAllReplies(channel, comment.id, token, maxPages) ?? repliesOf(comment);
-      if (channel === "ig_comment") comment.replies = { data: replies };
+      const replyResult = await fetchAllReplies(
+        channel,
+        comment.id,
+        token,
+        maxPages
+      );
+      if (replyResult.failed) failed = true;
+      const replies = replyResult.replies ?? repliesOf(comment);
+      if (channel === 'ig_comment') comment.replies = { data: replies };
       else comment.comments = { data: replies };
     }
-    return comments;
-  } catch {
-    return comments;
+    return { comments, failed };
+  } catch (error) {
+    console.warn('[comment-pull] comments discovery failed', {
+      channel,
+      postId,
+      error,
+    });
+    return { comments, failed: true };
   }
 }
 
@@ -707,34 +792,43 @@ async function fetchAllReplies(
   channel: CommentChannel,
   commentId: string,
   token: string,
-  maxPages: number,
-): Promise<RawComment[] | null> {
-  const edge = channel === "ig_comment" ? "replies" : "comments";
+  maxPages: number
+): Promise<{ replies: RawComment[] | null; failed: boolean }> {
+  const edge = channel === 'ig_comment' ? 'replies' : 'comments';
   let url: string | null = withAppsecretProof(
     `${GRAPH}/${commentId}/${edge}?fields=${encodeURIComponent(REPLY_FIELDS[channel])}` +
       `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
-    token,
+    token
   );
   const replies: RawComment[] = [];
   try {
     for (let page = 0; url && page < maxPages; page++) {
-      const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
-      if (!res.ok) break;
-      const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+      });
+      if (!res.ok) return { replies: null, failed: true };
+      const json = (await res.json()) as {
+        data?: RawComment[];
+        paging?: { next?: string };
+      };
       replies.push(...(json.data ?? []));
-      url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
+      url = json.paging?.next
+        ? withAppsecretProof(json.paging.next, token)
+        : null;
     }
   } catch {
     // Conservamos las respuestas que Graph ya incluyó en la publicación si
     // este edge puntual falla, en vez de perder todo el comentario padre.
-    return null;
+    return { replies: null, failed: true };
   }
-  return replies;
+  return { replies, failed: false };
 }
 
 /** Meta devuelve "2026-07-27T12:00:00+0000" (sin dos puntos en el huso). */
 function parseMetaTimestamp(raw: string | undefined): string {
   if (!raw) return new Date().toISOString();
-  const ms = Date.parse(raw.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : new Date().toISOString();
+  const ms = Date.parse(raw.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  return Number.isFinite(ms)
+    ? new Date(ms).toISOString()
+    : new Date().toISOString();
 }

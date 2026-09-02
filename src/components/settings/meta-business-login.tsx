@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
-import { useT } from "@/hooks/use-locale";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+import { ChannelLogo } from '@/components/inbox/channel-logo';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useT } from '@/hooks/use-locale';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 
 /**
  * Facebook Login for Business launcher for Messenger / Instagram. Uses the
@@ -30,8 +30,11 @@ declare global {
     FB?: {
       init: (params: Record<string, unknown>) => void;
       login: (
-        cb: (resp: { authResponse?: { code?: string }; status?: string }) => void,
-        opts: Record<string, unknown>,
+        cb: (resp: {
+          authResponse?: { code?: string };
+          status?: string;
+        }) => void,
+        opts: Record<string, unknown>
       ) => void;
     };
     fbAsyncInit?: () => void;
@@ -51,9 +54,9 @@ export function MetaBusinessLogin({
 }: {
   workspaceId: string;
   /** "messenger" (Facebook card) or "instagram". */
-  channel: "messenger" | "instagram";
+  channel: 'messenger' | 'instagram';
   anyConnected: boolean;
-  logoChannel: "messenger" | "instagram";
+  logoChannel: 'messenger' | 'instagram';
   /** El logo de la tarjeta, cuando no es el del canal interno. */
   logoSrc?: string;
   onConnected: () => void;
@@ -65,8 +68,17 @@ export function MetaBusinessLogin({
 
   // Held between the discovery (list_only) call and the persist call so the
   // picker can connect the chosen accounts without re-running FB.login.
-  const [cred, setCred] = useState<{ access_token?: string; code?: string } | null>(null);
+  const [cred, setCred] = useState<{
+    access_token?: string;
+    code?: string;
+  } | null>(null);
   const [accounts, setAccounts] = useState<{ id: string; label: string }[]>([]);
+  const [adAccounts, setAdAccounts] = useState<{ id: string; label: string }[]>(
+    []
+  );
+  const [adAccountsByPage, setAdAccountsByPage] = useState<
+    Record<string, Set<string>>
+  >({});
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -91,17 +103,22 @@ export function MetaBusinessLogin({
         // aplica una vez: el que carga primero fija la versión para todos. Si
         // este quedaba en v22, el popup de WhatsApp salía en v22 aunque su
         // propio init pidiera v25 → la coexistencia no se activaba.
-        window.FB?.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: "v25.0" });
+        window.FB?.init({
+          appId: APP_ID,
+          autoLogAppEvents: true,
+          xfbml: false,
+          version: 'v25.0',
+        });
       } catch {
         /* init is idempotent; ignore double-init */
       }
       setSdkReady(true);
     };
-    const id = "facebook-jssdk";
+    const id = 'facebook-jssdk';
     if (!document.getElementById(id)) {
-      const js = document.createElement("script");
+      const js = document.createElement('script');
       js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      js.src = 'https://connect.facebook.net/en_US/sdk.js';
       js.async = true;
       js.defer = true;
       document.body.appendChild(js);
@@ -118,35 +135,47 @@ export function MetaBusinessLogin({
   // Persist the chosen accounts. `pageIds` empty/absent = let the server
   // decide (single-account fast path passes the one id explicitly).
   const persist = useCallback(
-    async (payload: { access_token?: string; code?: string }, pageIds: string[]) => {
+    async (
+      payload: { access_token?: string; code?: string },
+      pageIds: string[]
+    ) => {
       setBusy(true);
       try {
-        const r = await fetchWithCsrf("/api/connections/meta/sdk-connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const r = await fetchWithCsrf('/api/connections/meta/sdk-connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...payload,
             channel,
             workspace_id: workspaceId,
             page_ids: pageIds,
+            ad_account_ids_by_page:
+              channel === 'messenger'
+                ? Object.fromEntries(
+                    pageIds.map((pageId) => [
+                      pageId,
+                      [...(adAccountsByPage[pageId] ?? [])],
+                    ])
+                  )
+                : undefined,
           }),
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
-          toast.error(j.error || t("settings.metaConnectError"));
+          toast.error(j.error || t('settings.metaConnectError'));
           return;
         }
-        toast.success(t("settings.metaConnectedAccounts", { n: j.saved ?? 0 }));
+        toast.success(t('settings.metaConnectedAccounts', { n: j.saved ?? 0 }));
         setPickerOpen(false);
         setCred(null);
         onConnected();
       } catch (err) {
-        toast.error(t("settings.networkError"));
+        toast.error(t('settings.networkError'));
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, channel, onConnected, fetchWithCsrf, t],
+    [workspaceId, channel, onConnected, fetchWithCsrf, t, adAccountsByPage]
   );
 
   // Step 1: discover the accounts the token can manage (no persistence).
@@ -155,9 +184,9 @@ export function MetaBusinessLogin({
     async (payload: { access_token?: string; code?: string }) => {
       setBusy(true);
       try {
-        const r = await fetchWithCsrf("/api/connections/meta/sdk-connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const r = await fetchWithCsrf('/api/connections/meta/sdk-connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...payload,
             channel,
@@ -167,38 +196,45 @@ export function MetaBusinessLogin({
         });
         const j = (await r.json().catch(() => ({}))) as {
           accounts?: { id: string; label: string }[];
+          adAccounts?: { id: string; label: string }[];
           error?: string;
         };
         if (!r.ok) {
-          toast.error(j.error || t("settings.metaConnectError"));
+          toast.error(j.error || t('settings.metaConnectError'));
           return;
         }
         const found = j.accounts ?? [];
         if (found.length === 0) {
           toast.error(
             t(
-              channel === "messenger"
-                ? "settings.noFacebookPagesFound"
-                : "settings.noInstagramAccountsFound",
-            ),
+              channel === 'messenger'
+                ? 'settings.noFacebookPagesFound'
+                : 'settings.noInstagramAccountsFound'
+            )
           );
           return;
         }
-        if (found.length === 1) {
+        if (found.length === 1 && channel !== 'messenger') {
           await persist(payload, [found[0].id]);
           return;
         }
         setCred(payload);
         setAccounts(found);
+        setAdAccounts(j.adAccounts ?? []);
+        setAdAccountsByPage(
+          Object.fromEntries(
+            found.map((account) => [account.id, new Set<string>()])
+          )
+        );
         setChecked(new Set(found.map((a) => a.id)));
         setPickerOpen(true);
       } catch (err) {
-        toast.error(t("settings.networkError"));
+        toast.error(t('settings.networkError'));
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, channel, fetchWithCsrf, persist, t],
+    [workspaceId, channel, fetchWithCsrf, persist, t]
   );
 
   const launch = useCallback(() => {
@@ -219,9 +255,9 @@ export function MetaBusinessLogin({
         const code = ar?.code;
         if (token) void discover({ access_token: token });
         else if (code) void discover({ code });
-        else toast.error(t("settings.metaConnectionCancelled"));
+        else toast.error(t('settings.metaConnectionCancelled'));
       },
-      { config_id: CONFIG_ID },
+      { config_id: CONFIG_ID }
     );
   }, [discover, t]);
 
@@ -235,12 +271,23 @@ export function MetaBusinessLogin({
       return next;
     });
 
+  const toggleAdAccount = (pageId: string, adAccountId: string) => {
+    setAdAccountsByPage((previous) => {
+      const next = { ...previous };
+      const selected = new Set(next[pageId] ?? []);
+      if (selected.has(adAccountId)) selected.delete(adAccountId);
+      else selected.add(adAccountId);
+      next[pageId] = selected;
+      return next;
+    });
+  };
+
   return (
     <>
       <button
         onClick={launch}
         disabled={!sdkReady || busy}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60"
       >
         {busy ? (
           <Loader2 className="size-4 animate-spin" />
@@ -248,13 +295,13 @@ export function MetaBusinessLogin({
           <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
         )}
         {t(
-          channel === "messenger"
+          channel === 'messenger'
             ? anyConnected
-              ? "settings.addAnotherFacebookPage"
-              : "settings.connectFacebookPage"
+              ? 'settings.addAnotherFacebookPage'
+              : 'settings.connectFacebookPage'
             : anyConnected
-              ? "settings.addAnotherInstagramAccount"
-              : "settings.connectInstagramAccount",
+              ? 'settings.addAnotherInstagramAccount'
+              : 'settings.connectInstagramAccount'
         )}
       </button>
 
@@ -270,9 +317,9 @@ export function MetaBusinessLogin({
           <DialogHeader>
             <DialogTitle>
               {t(
-                channel === "messenger"
-                  ? "settings.chooseFacebookPagesToConnect"
-                  : "settings.chooseInstagramAccountsToConnect",
+                channel === 'messenger'
+                  ? 'settings.chooseFacebookPagesToConnect'
+                  : 'settings.chooseInstagramAccountsToConnect'
               )}
             </DialogTitle>
           </DialogHeader>
@@ -280,17 +327,21 @@ export function MetaBusinessLogin({
           <ul className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto">
             {accounts.map((a) => (
               <li key={a.id}>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted">
+                <label className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2">
                   <input
                     type="checkbox"
-                    className="size-4 accent-primary"
+                    className="accent-primary size-4"
                     checked={checked.has(a.id)}
                     onChange={() => toggle(a.id)}
                   />
                   <span className="flex items-center gap-2 text-sm">
-                    <ChannelLogo channel={logoChannel} src={logoSrc} size={16} />
-                    {channel === "instagram"
-                      ? a.label.replace(/\s+\(Instagram\)$/u, "")
+                    <ChannelLogo
+                      channel={logoChannel}
+                      src={logoSrc}
+                      size={16}
+                    />
+                    {channel === 'instagram'
+                      ? a.label.replace(/\s+\(Instagram\)$/u, '')
                       : a.label}
                   </span>
                 </label>
@@ -298,13 +349,55 @@ export function MetaBusinessLogin({
             ))}
           </ul>
 
+          {channel === 'messenger' && (
+            <div className="max-h-48 space-y-3 overflow-y-auto border-t pt-3">
+              <p className="text-foreground text-sm font-medium">
+                {t('settings.chooseFacebookAdAccounts')}
+              </p>
+              {adAccounts.length === 0 ? (
+                <p className="text-muted-foreground text-xs">
+                  {t('settings.noFacebookAdAccountsFound')}
+                </p>
+              ) : (
+                accounts
+                  .filter((account) => checked.has(account.id))
+                  .map((page) => (
+                    <div key={page.id} className="space-y-1">
+                      <p className="text-muted-foreground px-3 text-xs">
+                        {page.label}
+                      </p>
+                      {adAccounts.map((adAccount) => (
+                        <label
+                          key={adAccount.id}
+                          className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5"
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-primary size-4"
+                            checked={
+                              adAccountsByPage[page.id]?.has(adAccount.id) ??
+                              false
+                            }
+                            onChange={() =>
+                              toggleAdAccount(page.id, adAccount.id)
+                            }
+                          />
+                          <span className="text-sm">{adAccount.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))
+              )}
+            </div>
+          )}
+
           <DialogFooter showCloseButton>
             <Button
               onClick={() => cred && void persist(cred, [...checked])}
               disabled={busy || checked.size === 0}
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
-              {t("settings.connectSelected", { n: checked.size })}
+              {t('settings.connectSelected', { n: checked.size })}
             </Button>
           </DialogFooter>
         </DialogContent>

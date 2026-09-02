@@ -183,7 +183,7 @@ export function useIgOverview(): IgOverview {
         getJson<PlanContext>('/api/ai/instagram-agent/context'),
         getJson<CampaignsResponse>('/api/ai/instagram-agent/campaigns'),
         getJson<OrdersResponse>(
-          '/api/ai/instagram-agent/attributed-orders?source=campaign',
+          '/api/ai/instagram-agent/attributed-orders?source=campaign'
         ),
       ]);
       if (cancelled) return;
@@ -200,10 +200,10 @@ export function useIgOverview(): IgOverview {
   /** Lo que cambia al guardar o lanzar una campaña. */
   const reload = useCallback(() => {
     getJson<CampaignsResponse>('/api/ai/instagram-agent/campaigns').then(
-      applyCampaigns,
+      applyCampaigns
     );
     getJson<OrdersResponse>(
-      '/api/ai/instagram-agent/attributed-orders?source=campaign',
+      '/api/ai/instagram-agent/attributed-orders?source=campaign'
     ).then(applyOrders);
   }, [applyCampaigns, applyOrders]);
 
@@ -235,7 +235,7 @@ export function ConnectionPill({ connected }: { connected?: boolean }) {
   if (connected === undefined) return null;
   if (connected) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+      <span className="border-border bg-card text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
         {t('igAgent.igConnected')}
       </span>
@@ -244,7 +244,7 @@ export function ConnectionPill({ connected }: { connected?: boolean }) {
   return (
     <Link
       href="/integraciones"
-      className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/5 px-2.5 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+      className="border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
     >
       <AlertTriangle className="h-3 w-3" />
       {t('igAgent.igNotConnected')}
@@ -257,7 +257,11 @@ export function ConnectionPill({ connected }: { connected?: boolean }) {
  * freno de emergencia— en un solo menú del encabezado. Antes ocupaban dos
  * tarjetas del ancho de la página para tres interruptores que se tocan una vez.
  */
-export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings }) {
+export function AgentSettingsMenu({
+  settings,
+}: {
+  settings: ProactiveSettings;
+}) {
   const t = useT();
   const label = t('igAgent.settingsMenu');
   return (
@@ -273,14 +277,14 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
       >
         <Settings2 className="h-4 w-4" />
         {settings.paused && (
-          <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-destructive" />
+          <span className="bg-destructive absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full" />
         )}
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={6} className="w-72 gap-0 p-0">
         <div
           className={cn(
-            'divide-y divide-border',
-            settings.loaded ? '' : 'pointer-events-none opacity-50',
+            'divide-border divide-y',
+            settings.loaded ? '' : 'pointer-events-none opacity-50'
           )}
         >
           <label className="flex items-start gap-3 p-3">
@@ -292,10 +296,10 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
               }}
             />
             <span>
-              <span className="block text-[13px] font-medium text-foreground">
+              <span className="text-foreground block text-[13px] font-medium">
                 {t('igAgent.outreachEnabled')}
               </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+              <span className="text-muted-foreground mt-0.5 block text-[11px] leading-snug">
                 {t('igAgent.outreachEnabledHint')}
               </span>
             </span>
@@ -314,10 +318,10 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
               }}
             />
             <span>
-              <span className="block text-[13px] font-medium text-foreground">
+              <span className="text-foreground block text-[13px] font-medium">
                 {t('igAgent.marketingOptin')}
               </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+              <span className="text-muted-foreground mt-0.5 block text-[11px] leading-snug">
                 {t('igAgent.marketingOptinHint')}
               </span>
             </span>
@@ -327,7 +331,7 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
             className="flex items-center justify-between gap-3 p-3"
             title={t('igAgent.controlsDailyCapHint')}
           >
-            <span className="text-[13px] font-medium text-foreground">
+            <span className="text-foreground text-[13px] font-medium">
               {t('igAgent.controlsDailyCap')}
             </span>
             <input
@@ -337,7 +341,7 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
               value={settings.cap}
               onChange={(e) => settings.setCap(Number(e.target.value))}
               onBlur={() => settings.save({ daily_cap: settings.cap })}
-              className="w-20 rounded-md border border-border bg-background px-2 py-1 text-right text-[13px] tabular-nums text-foreground"
+              className="border-border bg-background text-foreground w-20 rounded-md border px-2 py-1 text-right text-[13px] tabular-nums"
             />
           </label>
 
@@ -348,7 +352,7 @@ export function AgentSettingsMenu({ settings }: { settings: ProactiveSettings })
             <span
               className={cn(
                 'text-[13px] font-medium',
-                settings.paused ? 'text-destructive' : 'text-foreground',
+                settings.paused ? 'text-destructive' : 'text-foreground'
               )}
             >
               {t('igAgent.controlsPause')}
@@ -372,8 +376,8 @@ export function PausedBanner({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   if (!settings.paused) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-2.5">
-      <p className="flex items-center gap-2 text-[13px] font-medium text-destructive">
+    <div className="border-destructive/40 bg-destructive/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5">
+      <p className="text-destructive flex items-center gap-2 text-[13px] font-medium">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         {t('igAgent.controlsPausedOn')}
       </p>
@@ -404,8 +408,8 @@ function StatGrid({
   return (
     <div
       className={cn(
-        'grid gap-px overflow-hidden rounded-2xl border border-border bg-border',
-        className,
+        'border-border bg-border grid gap-px overflow-hidden rounded-2xl border',
+        className
       )}
     >
       {children}
@@ -437,8 +441,8 @@ function StatCell({
     >
       <p
         className={cn(
-          'flex items-center gap-1.5 uppercase tracking-wide text-muted-foreground',
-          compact ? 'text-[10px]' : 'text-[11px]',
+          'text-muted-foreground flex items-center gap-1.5 tracking-wide uppercase',
+          compact ? 'text-[10px]' : 'text-[11px]'
         )}
       >
         {lead}
@@ -450,13 +454,13 @@ function StatCell({
           compact
             ? 'mt-1 text-base font-semibold'
             : 'mt-1.5 text-2xl font-medium',
-          accent ? 'text-accent-ink' : 'text-foreground',
+          accent ? 'text-accent-ink' : 'text-foreground'
         )}
       >
         {value}
       </p>
       {!compact && (
-        <p className="mt-0.5 text-[11px] text-muted-foreground">{sub ?? ' '}</p>
+        <p className="text-muted-foreground mt-0.5 text-[11px]">{sub ?? ' '}</p>
       )}
     </div>
   );
@@ -524,7 +528,7 @@ export function IgStats({ overview }: { overview: IgOverview }) {
             <span
               className={cn(
                 'relative inline-flex h-1.5 w-1.5 rounded-full',
-                reachable > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                reachable > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/40'
               )}
             />
           </span>
@@ -550,7 +554,7 @@ export function IgStats({ overview }: { overview: IgOverview }) {
                 totals.conversions === 1
                   ? 'igAgent.salesCountOne'
                   : 'igAgent.salesCountOther',
-                { n: fmt.number(totals.conversions) },
+                { n: fmt.number(totals.conversions) }
               )
             : undefined
         }
@@ -623,7 +627,7 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
       if (!id) return;
       const res = await fetchWithCsrf(
         `/api/ai/instagram-agent/campaigns/${id}/launch`,
-        { method: 'POST' },
+        { method: 'POST' }
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -645,7 +649,7 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
     try {
       const res = await fetchWithCsrf(
         `/api/ai/instagram-agent/campaigns/${id}`,
-        { method: 'DELETE' },
+        { method: 'DELETE' }
       );
       if (!res.ok) {
         toast.error(t('igAgent.errorDelete'));
@@ -698,7 +702,7 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
   return (
     <div className="space-y-6">
       <div className="space-y-2.5">
-        <div className="rounded-2xl border border-border bg-card shadow-sm transition-colors focus-within:border-accent-ink/40">
+        <div className="border-border bg-card focus-within:border-accent-ink/40 rounded-2xl border shadow-sm transition-colors">
           <div className="p-5">
             <Textarea
               id="goal"
@@ -744,7 +748,7 @@ export function OutreachSection({ overview }: { overview: IgOverview }) {
               key={short}
               type="button"
               onClick={() => setGoal(t(full))}
-              className="rounded-full border border-border bg-card px-3 py-1 text-[12px] text-muted-foreground transition-colors hover:border-accent-ink/40 hover:text-foreground"
+              className="border-border bg-card text-muted-foreground hover:border-accent-ink/40 hover:text-foreground rounded-full border px-3 py-1 text-[12px] transition-colors"
             >
               {t(short)}
             </button>
@@ -804,7 +808,7 @@ function PlanSheet({
         showCloseButton={false}
         className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
       >
-        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-popover px-5 py-3">
+        <div className="border-border bg-popover sticky top-0 z-10 flex items-center gap-2 border-b px-5 py-3">
           <SheetTitle className="min-w-0 flex-1 truncate">
             {plan ? plan.campaign_name : t('igAgent.proposedCampaign')}
           </SheetTitle>
@@ -845,7 +849,7 @@ function PlanSheet({
         </div>
 
         {plan && !loading && (
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-popover px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="border-border bg-popover sticky bottom-0 flex items-center justify-end gap-2 border-t px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <Button variant="outline" onClick={onSaveDraft} disabled={busy}>
               {saving === 'draft' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -880,14 +884,14 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
       <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 space-y-1">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <Users className="h-3.5 w-3.5 shrink-0" />
               {plan.audience.description}
             </p>
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Radio className="h-3.5 w-3.5 shrink-0 text-accent-ink" />
+            <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+              <Radio className="text-accent-ink h-3.5 w-3.5 shrink-0" />
               <span>
-                <span className="font-medium text-foreground">
+                <span className="text-foreground font-medium">
                   {t('igAgent.engagementLabel')}
                 </span>{' '}
                 {plan.audience.source}
@@ -925,32 +929,32 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
             value={plan.funnel.est_revenue}
           />
         </StatGrid>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-muted-foreground text-[10px]">
           {t('igAgent.estimatesDisclaimer')}
         </p>
       </div>
 
       {/* Vista previa del DM */}
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">
+        <p className="text-foreground text-sm font-medium">
           {t('igAgent.instagramDm')}
         </p>
         {/* Cabecera de chat para que la vista previa se lea como una
             conversación real, en la paleta de la casa. */}
-        <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="mb-2.5 flex items-center gap-2 border-b border-border pb-2.5">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-semibold text-accent-ink">
+        <div className="border-border bg-muted/40 rounded-xl border p-3">
+          <div className="border-border mb-2.5 flex items-center gap-2 border-b pb-2.5">
+            <span className="bg-accent text-accent-ink grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold">
               {plan.message.preview_name.slice(0, 1).toUpperCase()}
             </span>
-            <p className="truncate text-xs font-medium text-foreground">
+            <p className="text-foreground truncate text-xs font-medium">
               {plan.message.preview_name}
             </p>
           </div>
-          <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-primary-foreground">
+          <div className="bg-primary text-primary-foreground ml-auto max-w-[85%] rounded-2xl rounded-br-md px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap">
             {messagePreview}
           </div>
           {plan.offer && (
-            <div className="ml-auto mt-1.5 max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[13px] text-primary-foreground">
+            <div className="bg-primary text-primary-foreground mt-1.5 ml-auto max-w-[85%] rounded-2xl rounded-br-md px-3 py-2 text-[13px]">
               🎁 {t('igAgent.offerCodeLabel')}{' '}
               <span className="font-semibold">{plan.offer.code}</span> —{' '}
               {plan.offer.discount}
@@ -960,14 +964,14 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
       </div>
 
       <PlanNote
-        icon={<CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />}
+        icon={<CornerDownRight className="text-muted-foreground h-3.5 w-3.5" />}
         label={t('igAgent.followUpIfNoReply')}
         text={fillName(plan.follow_up, plan.message.preview_name)}
       />
 
       {plan.comment_reply && (
         <PlanNote
-          icon={<MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />}
+          icon={<MessageCircle className="text-muted-foreground h-3.5 w-3.5" />}
           label={t('igAgent.highIntentCommentReply')}
           text={plan.comment_reply}
         />
@@ -975,20 +979,20 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
 
       {plan.offer && (
         <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <Tag className="h-4 w-4 text-accent-ink" />
+          <p className="text-foreground flex items-center gap-1.5 text-sm font-medium">
+            <Tag className="text-accent-ink h-4 w-4" />
             {t('igAgent.offer')}
           </p>
           <div className="flex items-baseline gap-2">
-            <span className="rounded-md border border-dashed border-accent-ink/40 bg-accent/40 px-2 py-1 font-mono text-sm font-semibold text-accent-ink">
+            <span className="border-accent-ink/40 bg-accent/40 text-accent-ink rounded-md border border-dashed px-2 py-1 font-mono text-sm font-semibold">
               {plan.offer.code}
             </span>
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-foreground text-sm font-medium">
               {plan.offer.discount}
             </span>
           </div>
           {plan.offer.conditions && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {plan.offer.conditions}
             </p>
           )}
@@ -997,8 +1001,8 @@ function PlanBody({ plan }: { plan: InstagramPlan }) {
 
       {plan.recommended_products.length > 0 && (
         <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <ShoppingBag className="h-4 w-4 text-accent-ink" />
+          <p className="text-foreground flex items-center gap-1.5 text-sm font-medium">
+            <ShoppingBag className="text-accent-ink h-4 w-4" />
             {t('igAgent.productsToFeature')}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1025,11 +1029,11 @@ function PlanNote({
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+      <p className="text-foreground flex items-center gap-1.5 text-xs font-medium">
         {icon}
         {label}
       </p>
-      <p className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-[13px] whitespace-pre-wrap text-muted-foreground">
+      <p className="border-border bg-muted/40 text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-[13px] whitespace-pre-wrap">
         {text}
       </p>
     </div>
@@ -1067,14 +1071,14 @@ function AgentThinking({
       t('igAgent.thinkingDraftDm'),
       t('igAgent.thinkingComputeFunnel'),
     ],
-    [audience, productCount, t, fmt],
+    [audience, productCount, t, fmt]
   );
   const [active, setActive] = useState(0);
   useEffect(() => {
     if (active >= steps.length - 1) return;
     const timer = setTimeout(
       () => setActive((a) => Math.min(a + 1, steps.length - 1)),
-      850,
+      850
     );
     return () => clearTimeout(timer);
   }, [active, steps.length]);
@@ -1083,8 +1087,8 @@ function AgentThinking({
     <div>
       <p className="app-eyebrow flex items-center gap-1.5">
         <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-ink/50" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-ink" />
+          <span className="bg-accent-ink/50 absolute inline-flex h-full w-full animate-ping rounded-full" />
+          <span className="bg-accent-ink relative inline-flex h-2 w-2 rounded-full" />
         </span>
         {t('igAgent.agentWorking')}
       </p>
@@ -1094,15 +1098,15 @@ function AgentThinking({
             key={i}
             className={cn(
               'flex items-center gap-2 text-sm transition-colors',
-              i <= active ? 'text-foreground' : 'text-muted-foreground/40',
+              i <= active ? 'text-foreground' : 'text-muted-foreground/40'
             )}
           >
             {i < active ? (
               <Check className="h-4 w-4 shrink-0 text-emerald-500" />
             ) : i === active ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent-ink" />
+              <Loader2 className="text-accent-ink h-4 w-4 shrink-0 animate-spin" />
             ) : (
-              <span className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/30" />
+              <span className="border-muted-foreground/30 h-4 w-4 shrink-0 rounded-full border" />
             )}
             {s}
           </li>
@@ -1129,14 +1133,14 @@ function CampaignsSection({
   return (
     <section className="space-y-3">
       <div className="app-section-head">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-          <Radio className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-foreground flex items-center gap-1.5 text-sm font-medium">
+          <Radio className="text-muted-foreground h-4 w-4" />
           {t('igAgent.myCampaigns')}
         </h2>
       </div>
 
       {campaigns.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-muted-foreground text-[13px]">
           {t('igAgent.noCampaignsYet')}
         </p>
       ) : (
@@ -1144,11 +1148,11 @@ function CampaignsSection({
           {campaigns.map((c) => (
             <li
               key={c.id}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-sm transition-colors hover:border-accent-ink/40"
+              className="group border-border bg-card hover:border-accent-ink/40 relative overflow-hidden rounded-2xl border p-4 pl-5 shadow-sm transition-colors"
             >
               {/* Filo lima: de un vistazo se ve cuál está trabajando ahora. */}
               {c.status === 'active' && (
-                <span className="absolute inset-y-0 left-0 w-[3px] bg-primary" />
+                <span className="bg-primary absolute inset-y-0 left-0 w-[3px]" />
               )}
 
               <div className="flex items-start justify-between gap-3">
@@ -1156,10 +1160,10 @@ function CampaignsSection({
                   href={`/agente-instagram/${toShortId(c.id)}`}
                   className="min-w-0 flex-1"
                 >
-                  <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-accent-ink">
+                  <p className="text-foreground group-hover:text-accent-ink truncate text-sm font-medium transition-colors">
                     {c.name}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="text-muted-foreground mt-0.5 text-[11px]">
                     {c.offer_code
                       ? `${t('igAgent.codePrefix', { code: c.offer_code })} · `
                       : ''}
@@ -1209,7 +1213,7 @@ function CampaignsSection({
                       type="button"
                       onClick={() => setConfirming(c.id)}
                       aria-label={t('igAgent.deleteCampaign')}
-                      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex size-7 items-center justify-center rounded-md opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -1251,19 +1255,19 @@ function CampaignResults({
 
   return (
     <div className="mt-3 space-y-2">
-      <div className="relative h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="absolute inset-y-0 left-0 w-full bg-accent-ink/25" />
+      <div className="bg-muted relative h-1.5 overflow-hidden rounded-full">
+        <div className="bg-accent-ink/25 absolute inset-y-0 left-0 w-full" />
         <div
-          className="absolute inset-y-0 left-0 bg-accent-ink/60 transition-all duration-500"
+          className="bg-accent-ink/60 absolute inset-y-0 left-0 transition-all duration-500"
           style={{ width: width(replies) }}
         />
         <div
-          className="absolute inset-y-0 left-0 bg-accent-ink transition-all duration-500"
+          className="bg-accent-ink absolute inset-y-0 left-0 transition-all duration-500"
           style={{ width: width(conversions) }}
         />
       </div>
 
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+      <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-[11px]">
         <ResultStat n={fmt.number(sent)} label={t('igAgent.sent')} />
         <ResultStat n={fmt.number(replies)} label={t('igAgent.replies')} />
         <ResultStat
@@ -1271,7 +1275,7 @@ function CampaignResults({
           label={t('igAgent.conversions')}
         />
         {revenue > 0 && (
-          <span className="ml-auto font-semibold tabular-nums text-accent-ink">
+          <span className="text-accent-ink ml-auto font-semibold tabular-nums">
             {fmt.currency(revenue, metrics?.currency ?? 'USD')}
           </span>
         )}
@@ -1283,7 +1287,7 @@ function CampaignResults({
 function ResultStat({ n, label }: { n: string; label: string }) {
   return (
     <span className="inline-flex items-baseline gap-1">
-      <span className="font-semibold tabular-nums text-foreground">{n}</span>
+      <span className="text-foreground font-semibold tabular-nums">{n}</span>
       <span className="lowercase">{label}</span>
     </span>
   );
@@ -1303,30 +1307,30 @@ export function AttributedOrders({ overview }: { overview: IgOverview }) {
   return (
     <section className="space-y-3">
       <div className="app-section-head">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-          <Receipt className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-foreground flex items-center gap-1.5 text-sm font-medium">
+          <Receipt className="text-muted-foreground h-4 w-4" />
           {t('igAgent.attributedOrdersTitle')}
         </h2>
       </div>
-      <ul className="divide-y divide-border rounded-2xl border border-border bg-card px-5 shadow-sm">
+      <ul className="divide-border border-border bg-card divide-y rounded-2xl border px-5 shadow-sm">
         {orders.slice(0, 5).map((o) => (
           <li
             key={o.shopify_order_id}
             className="flex items-center justify-between gap-3 py-2.5"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">
+              <p className="text-foreground truncate text-sm font-medium">
                 {o.order_name
                   ? t('igAgent.orderLabelName', { name: o.order_name })
                   : o.shopify_order_id}
               </p>
-              <p className="text-[11px] text-muted-foreground">
-                {t(ORDER_SOURCE_LABEL[o.source] ?? 'igAgent.orderSourceAgent')} ·{' '}
-                {fmt.date(o.created_at, { day: 'numeric', month: 'numeric' })}
+              <p className="text-muted-foreground text-[11px]">
+                {t(ORDER_SOURCE_LABEL[o.source] ?? 'igAgent.orderSourceAgent')}{' '}
+                · {fmt.date(o.created_at, { day: 'numeric', month: 'numeric' })}
               </p>
             </div>
             {o.revenue != null && (
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-accent-ink">
+              <span className="text-accent-ink shrink-0 text-sm font-semibold tabular-nums">
                 {fmt.currency(o.revenue, o.currency ?? currency)}
               </span>
             )}
@@ -1432,21 +1436,21 @@ export function useProactiveSettings(): ProactiveSettings {
           setMaxThreadReplies(
             typeof j.comment_max_thread_replies === 'number'
               ? j.comment_max_thread_replies
-              : 3,
+              : 3
           );
           setReplyMode(
             REPLY_MODES.includes(j.comment_reply_mode)
               ? (j.comment_reply_mode as CommentReplyMode)
               : j.comment_public_reply === true
                 ? 'public_dm'
-                : 'dm',
+                : 'dm'
           );
           setNetworks(
             networksFrom({
               instagram: j.comment_instagram !== false,
               facebook: j.comment_facebook === true,
               tiktok: j.comment_tiktok === true,
-            }),
+            })
           );
           setMarketingOptin(j.marketing_optin_enabled === true);
           setLoaded(true);
@@ -1478,7 +1482,7 @@ export function useProactiveSettings(): ProactiveSettings {
         body: JSON.stringify(next),
       }).catch(() => {});
     },
-    [fetchWithCsrf],
+    [fetchWithCsrf]
   );
 
   return {
@@ -1510,17 +1514,21 @@ export function useProactiveSettings(): ProactiveSettings {
  * atiende. Es la conducta por defecto de la página, así que va primero y sin
  * caja: una caja lo habría dejado al mismo nivel que una regla cualquiera.
  */
-export function CommentAutoReply({ settings }: { settings: ProactiveSettings }) {
+export function CommentAutoReply({
+  settings,
+}: {
+  settings: ProactiveSettings;
+}) {
   const t = useT();
   return (
     <label
       className={cn(
         'flex items-start justify-between gap-6 transition-opacity',
-        settings.loaded ? '' : 'pointer-events-none opacity-50',
+        settings.loaded ? '' : 'pointer-events-none opacity-50'
       )}
     >
       <span>
-        <span className="block text-[15px] font-medium text-foreground">
+        <span className="text-foreground block text-[15px] font-medium">
           {t('igAgent.autoReplyComments')}
         </span>
       </span>
@@ -1586,7 +1594,7 @@ function CommentStatsStrip({ stats }: { stats: CommentStats | null }) {
           value={fmt.number(stats.dms_sent)}
         />
       </StatGrid>
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="text-muted-foreground mt-2 text-[11px]">
         {t('igAgent.statLastDays', { n: stats.days })}
       </p>
     </div>
@@ -1612,12 +1620,12 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
   const t = useT();
   if (!settings.autoReply) return null;
   return (
-    <div className="mt-5 space-y-4 border-l-2 border-border pl-4">
+    <div className="border-border mt-5 space-y-4 border-l-2 pl-4">
       {/* En qué redes, primero: es la decisión que enmarca a las otras dos, y
           estaba escrita al final como un "también Facebook" que además no
           dejaba elegir sólo Facebook. */}
       <div>
-        <p className="text-[13px] font-medium text-foreground">
+        <p className="text-foreground text-[13px] font-medium">
           {t('igAgent.networksLabel')}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1645,8 +1653,8 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
                 className={cn(
                   'rounded-lg border px-3 py-1.5 text-[13px] transition-colors',
                   on
-                    ? 'border-accent-ink/40 bg-accent/40 font-medium text-foreground'
-                    : 'border-border text-muted-foreground hover:bg-accent/20',
+                    ? 'border-accent-ink/40 bg-accent/40 text-foreground font-medium'
+                    : 'border-border text-muted-foreground hover:bg-accent/20'
                 )}
               >
                 {t(`igAgent.network_${net}`)}
@@ -1658,7 +1666,7 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
             sin esto, elegir "Solo por privado" con TikTok encendido sorprende
             con respuestas públicas bajo el video. */}
         {settings.networks.includes('tiktok') && (
-          <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+          <p className="text-muted-foreground mt-1.5 text-[11px] leading-snug">
             {t('igAgent.tiktokPublicOnly')}
           </p>
         )}
@@ -1680,7 +1688,7 @@ function CommentReplyOptions({ settings }: { settings: ProactiveSettings }) {
           tercera es la nueva: contesta a la vista de todos y abre el privado
           solo cuando hay algo que ganar o algo que no se dice en público. */}
       <div>
-        <p className="text-[13px] font-medium text-foreground">
+        <p className="text-foreground text-[13px] font-medium">
           {t('igAgent.replyModeLabel')}
         </p>
         <div className="mt-2 space-y-1.5">
@@ -1744,23 +1752,23 @@ function ModeRow({
         'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors',
         selected
           ? 'border-accent-ink/40 bg-accent/40'
-          : 'border-transparent hover:bg-accent/20',
+          : 'hover:bg-accent/20 border-transparent'
       )}
     >
       <span
         className={cn(
           'mt-[3px] flex size-3.5 shrink-0 items-center justify-center rounded-full border',
-          selected ? 'border-accent-ink' : 'border-border',
+          selected ? 'border-accent-ink' : 'border-border'
         )}
       >
-        {selected && <span className="size-1.5 rounded-full bg-accent-ink" />}
+        {selected && <span className="bg-accent-ink size-1.5 rounded-full" />}
       </span>
       <span className="min-w-0">
-        <span className="block text-[13px] font-medium text-foreground">
+        <span className="text-foreground block text-[13px] font-medium">
           {title}
         </span>
         {hint && (
-          <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+          <span className="text-muted-foreground mt-0.5 block text-[11px] leading-snug">
             {hint}
           </span>
         )}
@@ -1783,11 +1791,11 @@ function OptionRow({
   return (
     <label className="flex items-start justify-between gap-4">
       <span>
-        <span className="block text-[13px] font-medium text-foreground">
+        <span className="text-foreground block text-[13px] font-medium">
           {title}
         </span>
         {hint && (
-          <span className="mt-0.5 block max-w-md text-[11px] leading-snug text-muted-foreground">
+          <span className="text-muted-foreground mt-0.5 block max-w-md text-[11px] leading-snug">
             {hint}
           </span>
         )}
@@ -1828,11 +1836,14 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const today = new Date().toISOString().slice(0, 10);
-  const dateDaysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const dateDaysAgo = (days: number) =>
+    new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const [fromDate, setFromDate] = useState(() => dateDaysAgo(30));
   const [toDate, setToDate] = useState(today);
   const [allHistory, setAllHistory] = useState(false);
-  const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>(['comments']);
+  const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>([
+    'comments',
+  ]);
   const [channels, setChannels] = useState<Array<'ig_comment' | 'fb_comment'>>([
     'ig_comment',
     'fb_comment',
@@ -1843,7 +1854,7 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
     setChannels((current) =>
       current.includes(channel)
         ? current.filter((value) => value !== channel)
-        : [...current, channel],
+        : [...current, channel]
     );
   };
 
@@ -1852,47 +1863,70 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
     setRunning(true);
     try {
       const requests = surfaces.map((surface) =>
-        fetchWithCsrf(surface === 'comments' ? '/api/comments/backfill' : '/api/messages/backfill', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            workspace_id: workspaceId,
-            date_from: allHistory ? undefined : fromDate,
-            date_to: toDate,
-            all_history: allHistory,
-            channels: surface === 'comments'
-              ? channels
-              : channels.map((channel) => channel === 'ig_comment' ? 'instagram' : 'facebook'),
-          }),
-        }),
+        fetchWithCsrf(
+          surface === 'comments'
+            ? '/api/comments/backfill'
+            : '/api/messages/backfill',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              workspace_id: workspaceId,
+              date_from: allHistory ? undefined : fromDate,
+              date_to: toDate,
+              all_history: allHistory,
+              channels:
+                surface === 'comments'
+                  ? channels
+                  : channels.map((channel) =>
+                      channel === 'ig_comment' ? 'instagram' : 'facebook'
+                    ),
+            }),
+          }
+        )
       );
       const responses = await Promise.all(requests);
-      const results = await Promise.all(responses.map(async (response) => ({
-        response,
-        result: (await response.json().catch(() => ({}))) as {
-          error?: string;
-          ingestedInbound?: number;
-          ingested?: number;
-        },
-      })));
+      const results = await Promise.all(
+        responses.map(async (response) => ({
+          response,
+          result: (await response.json().catch(() => ({}))) as {
+            error?: string;
+            ingestedInbound?: number;
+            ingested?: number;
+            complete?: boolean;
+            partial?: boolean;
+          },
+        }))
+      );
       const failed = results.find(({ response }) => !response.ok);
       if (failed) throw new Error(failed.result.error);
       const imported = results.reduce(
-        (sum, { result }) => sum + (result.ingestedInbound ?? 0) + (result.ingested ?? 0),
-        0,
+        (sum, { result }) =>
+          sum + (result.ingestedInbound ?? 0) + (result.ingested ?? 0),
+        0
       );
-      toast.success(t('igAgent.backfillDone', { n: imported }));
+      const partial = results.some(
+        ({ result }) => result.partial || result.complete === false
+      );
+      if (partial) toast.warning(t('igAgent.backfillPartial', { n: imported }));
+      else toast.success(t('igAgent.backfillDone', { n: imported }));
     } catch (error) {
-      toast.error(error instanceof Error && error.message ? error.message : t('igAgent.backfillFailed'));
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : t('igAgent.backfillFailed')
+      );
     } finally {
       setRunning(false);
     }
   };
 
   const toggleSurface = (surface: 'comments' | 'messages') => {
-    setSurfaces((current) => current.includes(surface)
-      ? current.filter((value) => value !== surface)
-      : [...current, surface]);
+    setSurfaces((current) =>
+      current.includes(surface)
+        ? current.filter((value) => value !== surface)
+        : [...current, surface]
+    );
   };
 
   const selectPeriod = (days: number | 'all') => {
@@ -1903,40 +1937,119 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <section className="rounded-xl border border-border p-4">
-      <h2 className="text-sm font-semibold text-foreground">{t('igAgent.backfillTitle')}</h2>
+    <section className="border-border rounded-xl border p-4">
+      <h2 className="text-foreground text-sm font-semibold">
+        {t('igAgent.backfillTitle')}
+      </h2>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-xs text-muted-foreground">{t('igAgent.backfillContent')}</span>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={surfaces.includes('comments')} onChange={() => toggleSurface('comments')} />{t('igAgent.backfillComments')}</label>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={surfaces.includes('messages')} onChange={() => toggleSurface('messages')} />{t('igAgent.backfillMessages')}</label>
+        <span className="text-muted-foreground text-xs">
+          {t('igAgent.backfillContent')}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={surfaces.includes('comments')}
+            onChange={() => toggleSurface('comments')}
+          />
+          {t('igAgent.backfillComments')}
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={surfaces.includes('messages')}
+            onChange={() => toggleSurface('messages')}
+          />
+          {t('igAgent.backfillMessages')}
+        </label>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">{t('igAgent.backfillDays')}</span>
+        <span className="text-muted-foreground text-xs">
+          {t('igAgent.backfillDays')}
+        </span>
         {[7, 30, 90].map((value) => (
-          <Button key={value} size="sm" variant={!allHistory && fromDate === dateDaysAgo(value) && toDate === today ? 'secondary' : 'outline'} onClick={() => selectPeriod(value)}>
+          <Button
+            key={value}
+            size="sm"
+            variant={
+              !allHistory && fromDate === dateDaysAgo(value) && toDate === today
+                ? 'secondary'
+                : 'outline'
+            }
+            onClick={() => selectPeriod(value)}
+          >
             {t(`igAgent.backfillDays${value}` as 'igAgent.backfillDays7')}
           </Button>
         ))}
-        <Button size="sm" variant={allHistory ? 'secondary' : 'outline'} onClick={() => selectPeriod('all')}>
+        <Button
+          size="sm"
+          variant={allHistory ? 'secondary' : 'outline'}
+          onClick={() => selectPeriod('all')}
+        >
           {t('igAgent.backfillDays3650')}
         </Button>
       </div>
       <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
-        <label className="grid gap-1 text-xs text-muted-foreground">
+        <label className="text-muted-foreground grid gap-1 text-xs">
           {t('igAgent.backfillFrom')}
-          <input type="date" value={fromDate} max={toDate || today} disabled={allHistory} onChange={(event) => { setAllHistory(false); setFromDate(event.target.value); }} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" />
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || today}
+            disabled={allHistory}
+            onChange={(event) => {
+              setAllHistory(false);
+              setFromDate(event.target.value);
+            }}
+            className="border-border bg-background text-foreground rounded-md border px-2 py-1.5 text-sm"
+          />
         </label>
-        <label className="grid gap-1 text-xs text-muted-foreground">
+        <label className="text-muted-foreground grid gap-1 text-xs">
           {t('igAgent.backfillTo')}
-          <input type="date" value={toDate} min={fromDate || undefined} max={today} onChange={(event) => { setAllHistory(false); setToDate(event.target.value); }} className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" />
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            max={today}
+            onChange={(event) => {
+              setAllHistory(false);
+              setToDate(event.target.value);
+            }}
+            className="border-border bg-background text-foreground rounded-md border px-2 py-1.5 text-sm"
+          />
         </label>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        <span className="text-xs text-muted-foreground">{t('igAgent.backfillChannels')}</span>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('ig_comment')} onChange={() => toggleChannel('ig_comment')} />{t('igAgent.network_instagram')}</label>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={channels.includes('fb_comment')} onChange={() => toggleChannel('fb_comment')} />{t('igAgent.network_facebook')}</label>
+        <span className="text-muted-foreground text-xs">
+          {t('igAgent.backfillChannels')}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={channels.includes('ig_comment')}
+            onChange={() => toggleChannel('ig_comment')}
+          />
+          {t('igAgent.network_instagram')}
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={channels.includes('fb_comment')}
+            onChange={() => toggleChannel('fb_comment')}
+          />
+          {t('igAgent.network_facebook')}
+        </label>
       </div>
-      <Button className="mt-4" size="sm" onClick={run} disabled={running || !channels.length || !surfaces.length || (!allHistory && (!fromDate || !toDate || fromDate > toDate))}>
+      <Button
+        className="mt-4"
+        size="sm"
+        onClick={run}
+        disabled={
+          running ||
+          !channels.length ||
+          !surfaces.length ||
+          (!allHistory && (!fromDate || !toDate || fromDate > toDate))
+        }
+      >
         {running && <Loader2 className="size-3.5 animate-spin" />}
         {running ? t('igAgent.backfillRunning') : t('igAgent.backfillRun')}
       </Button>

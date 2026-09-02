@@ -1,8 +1,8 @@
-import { encrypt } from "./encryption";
-import { discoverMetaAccounts, subscribePageToWebhooks } from "./meta-graph";
-import { upsertConnectionRow } from "./upsert-connection";
-import type { supabaseAdmin } from "./admin-client";
-import type { Channel } from "@/types";
+import { encrypt } from './encryption';
+import { discoverMetaAccounts, subscribePageToWebhooks } from './meta-graph';
+import { upsertConnectionRow } from './upsert-connection';
+import type { supabaseAdmin } from './admin-client';
+import type { Channel } from '@/types';
 
 /**
  * Shared Meta connection persistence — discover the pages / IG accounts a
@@ -19,6 +19,21 @@ export interface PersistMetaResult {
   subscribed: number;
 }
 
+/** Normaliza el valor que se guarda en UNA conexión de página, sin mezclar
+ * las elecciones de otras páginas del mismo comercio. */
+export function selectedAdAccountIds(
+  adAccountIdsByPage: Record<string, string[]>,
+  pageId: string
+): string[] {
+  return Array.from(
+    new Set(
+      (adAccountIdsByPage[pageId] ?? [])
+        .map(String)
+        .filter((id) => /^act_\d+$/.test(id))
+    )
+  );
+}
+
 export async function persistMetaConnections(
   admin: ReturnType<typeof supabaseAdmin>,
   opts: {
@@ -31,34 +46,57 @@ export async function persistMetaConnections(
      *  config.page_id) is in this list — the page-picker flow. Absent =
      *  persist everything (legacy behavior). */
     pageIds?: string[];
-  },
+    /** Cuentas de anuncios elegidas por página. Sólo aplica a Facebook. */
+    adAccountIdsByPage?: Record<string, string[]>;
+  }
 ): Promise<PersistMetaResult> {
-  const { accessToken, channel, workspaceId, userId, baseSecrets = {}, pageIds } = opts;
+  const {
+    accessToken,
+    channel,
+    workspaceId,
+    userId,
+    baseSecrets = {},
+    pageIds,
+    adAccountIdsByPage = {},
+  } = opts;
 
   let discovered;
   try {
     discovered = await discoverMetaAccounts(accessToken, channel);
   } catch (err) {
     console.error(`[meta-connect] discovery failed:`, err);
-    throw new MetaConnectError("could not list pages/accounts");
+    throw new MetaConnectError('could not list pages/accounts');
   }
   if (pageIds && pageIds.length > 0) {
     const wanted = new Set(pageIds.map(String));
     discovered = discovered.filter(
-      (a) => wanted.has(a.external_account_id) || wanted.has(String(a.config.page_id)),
+      (a) =>
+        wanted.has(a.external_account_id) ||
+        wanted.has(String(a.config.page_id))
     );
   }
   if (discovered.length === 0) {
     throw new MetaConnectError(
-      channel === "instagram" || channel === "ig_comment"
-        ? "no IG Professional accounts found on your pages"
-        : "no manageable pages or accounts found",
+      channel === 'instagram' || channel === 'ig_comment'
+        ? 'no IG Professional accounts found on your pages'
+        : 'no manageable pages or accounts found'
     );
   }
 
   let saved = 0;
   let subscribed = 0;
   for (const account of discovered) {
+    const pageId = String(
+      account.config.page_id ?? account.external_account_id
+    );
+    const adAccountIds =
+      channel === 'messenger'
+        ? selectedAdAccountIds(adAccountIdsByPage, pageId)
+        : [];
+    const config =
+      channel === 'messenger'
+        ? { ...account.config, ad_account_ids: adAccountIds }
+        : account.config;
     const secrets = {
       ...baseSecrets,
       access_token: encrypt(account.page_access_token),
@@ -69,12 +107,15 @@ export async function persistMetaConnections(
       channel,
       label: account.label,
       external_account_id: account.external_account_id,
-      config: account.config,
+      config,
       secrets,
       created_by: userId,
     });
     if (up.error) {
-      console.error(`[meta-connect] upsert failed for ${account.label}:`, up.error);
+      console.error(
+        `[meta-connect] upsert failed for ${account.label}:`,
+        up.error
+      );
       continue;
     }
     saved++;
@@ -85,10 +126,10 @@ export async function persistMetaConnections(
     // ninguna conexión y se descarta. Misma cuenta, mismo token (la respuesta
     // al comentario usa el page token).
     const commentSibling =
-      channel === "messenger"
-        ? "fb_comment"
-        : channel === "instagram"
-          ? "ig_comment"
+      channel === 'messenger'
+        ? 'fb_comment'
+        : channel === 'instagram'
+          ? 'ig_comment'
           : null;
     if (commentSibling) {
       const cUp = await upsertConnectionRow(admin, {
@@ -96,20 +137,19 @@ export async function persistMetaConnections(
         channel: commentSibling,
         label: account.label,
         external_account_id: account.external_account_id,
-        config: account.config,
+        config,
         secrets,
         created_by: userId,
       });
       if (cUp.error) {
         console.error(
           `[meta-connect] comment-sibling upsert failed for ${account.label}:`,
-          cUp.error,
+          cUp.error
         );
       }
     }
 
-    if (channel !== "whatsapp") {
-      const pageId = String(account.config.page_id ?? account.external_account_id);
+    if (channel !== 'whatsapp') {
       const igUserId = account.config.ig_user_id as string | undefined;
       // Retry on a transient failure — a dropped subscribe leaves a page that
       // shows "connected" but receives NOTHING (and, until the verify cron
@@ -130,7 +170,7 @@ export async function persistMetaConnections(
         } catch (err) {
           console.warn(
             `[meta-connect] subscribe failed (attempt ${attempt + 1}) for ${account.label}:`,
-            err,
+            err
           );
         }
       }

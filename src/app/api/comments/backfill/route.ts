@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { listConnections } from "@/lib/channels/connections";
-import { pullCommentsForWorkspace } from "@/lib/channels/comment-pull";
-import { syncAdPostsForConnection } from "@/lib/channels/meta-ads-sync";
-import { csrfGuard } from "@/lib/csrf";
-import { getLocale } from "@/lib/i18n/server";
-import { translate } from "@/lib/i18n/translate";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { listConnections } from '@/lib/channels/connections';
+import { pullCommentsForWorkspace } from '@/lib/channels/comment-pull';
+import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
+import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
-const COMMENT_CHANNELS = ["ig_comment", "fb_comment"] as const;
+const COMMENT_CHANNELS = ['ig_comment', 'fb_comment'] as const;
 type CommentChannel = (typeof COMMENT_CHANNELS)[number];
 
 /**
@@ -29,8 +29,8 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.unauthorized") },
-      { status: 401 },
+      { error: translate(locale, 'errInbox.unauthorized') },
+      { status: 401 }
     );
   }
 
@@ -49,30 +49,39 @@ export async function POST(request: Request) {
   const allHistory = body?.all_history === true;
   const channels = (body?.channels ?? []).filter(
     (channel): channel is CommentChannel =>
-      (COMMENT_CHANNELS as readonly string[]).includes(channel),
+      (COMMENT_CHANNELS as readonly string[]).includes(channel)
   );
 
   const validDays = Number.isInteger(days) && days >= 1 && days <= 3650;
-  if (!workspaceId || !channels.length || (!allHistory && !validDays && fromMs === undefined) || fromMs === null || untilMs === null || (fromMs !== undefined && untilMs !== undefined && fromMs > untilMs)) {
+  if (
+    !workspaceId ||
+    !channels.length ||
+    (!allHistory && !validDays && fromMs === undefined) ||
+    fromMs === null ||
+    untilMs === null ||
+    (fromMs !== undefined && untilMs !== undefined && fromMs > untilMs)
+  ) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.backfillInvalid") },
-      { status: 400 },
+      { error: translate(locale, 'errInbox.backfillInvalid') },
+      { status: 400 }
     );
   }
 
   const admin = supabaseAdmin();
-  const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 24 * 60 * 60 * 1000;
+  const startMs = allHistory
+    ? 0
+    : (fromMs ?? Date.now() - days * 24 * 60 * 60 * 1000);
   const endMs = untilMs ?? Date.now();
   const { data: membership } = await admin
-    .from("workspace_members")
-    .select("role")
-    .eq("workspace_id", workspaceId)
-    .eq("user_id", user.id)
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', user.id)
     .maybeSingle();
-  if (!membership || !["owner", "admin"].includes(String(membership.role))) {
+  if (!membership || !['owner', 'admin'].includes(String(membership.role))) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.forbiddenAdminOnly") },
-      { status: 403 },
+      { error: translate(locale, 'errInbox.forbiddenAdminOnly') },
+      { status: 403 }
     );
   }
 
@@ -82,19 +91,35 @@ export async function POST(request: Request) {
   const connections = await listConnections(admin, {
     workspaceId,
     channels,
-    statuses: ["connected"],
+    statuses: ['connected'],
   });
-  await Promise.all(
-    connections.map((connection) =>
-      syncAdPostsForConnection(admin, connection, {
-        maxPages: Number.MAX_SAFE_INTEGER,
-        // La fecha de una creatividad y la de su comentario no son iguales,
-        // pero un anuncio anterior al rango no puede ser la fuente de una
-        // creatividad publicada en él. Acotar el descubrimiento evita leer
-        // años de anuncios para un backfill de días concretos.
-        ...(allHistory ? {} : { sinceMs: startMs }),
-      }).catch(() => ({ inserted: 0, updated: 0 })),
-    ),
+  const adDiscovery = await Promise.all(
+    connections
+      .filter((connection) => connection.channel === 'fb_comment')
+      .map(async (connection) => {
+        try {
+          return {
+            connection_id: connection.id,
+            ...(await syncAdPostsForConnection(admin, connection, {
+              maxPages: Number.MAX_SAFE_INTEGER,
+            })),
+          };
+        } catch (error) {
+          console.error('[comments/backfill] ad discovery failed', {
+            connectionId: connection.id,
+            error,
+          });
+          return {
+            connection_id: connection.id,
+            inserted: 0,
+            updated: 0,
+            discoveredPosts: 0,
+            scannedAccounts: 0,
+            status: 'failed' as const,
+            errors: ['ad_discovery_failed'],
+          };
+        }
+      })
   );
 
   const result = await pullCommentsForWorkspace(admin, workspaceId, {
@@ -106,13 +131,29 @@ export async function POST(request: Request) {
     suppressAutoReply: true,
     channels,
   });
-  return NextResponse.json({ ok: true, date_from: startMs ? new Date(startMs).toISOString() : null, date_to: new Date(endMs).toISOString(), ...result });
+  const pullIncomplete = result.detail.some(
+    (item) => item.reason === 'graph_denegado' || item.reason === 'partial'
+  );
+  const adIncomplete = adDiscovery.some((item) => item.status !== 'ok');
+  const complete = !pullIncomplete && !adIncomplete;
+  return NextResponse.json({
+    ok: complete,
+    complete,
+    partial: !complete,
+    date_from: startMs ? new Date(startMs).toISOString() : null,
+    date_to: new Date(endMs).toISOString(),
+    ad_discovery: adDiscovery,
+    ...result,
+  });
 }
 
 /** Fecha civil elegida en la UI, interpretada completa en UTC. */
-function dateBoundary(value: string | undefined, end: boolean): number | undefined | null {
-  if (value === undefined || value === "") return undefined;
+function dateBoundary(
+  value: string | undefined,
+  end: boolean
+): number | undefined | null {
+  if (value === undefined || value === '') return undefined;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
+  const date = new Date(`${value}T${end ? '23:59:59.999' : '00:00:00.000'}Z`);
   return Number.isFinite(date.getTime()) ? date.getTime() : null;
 }
