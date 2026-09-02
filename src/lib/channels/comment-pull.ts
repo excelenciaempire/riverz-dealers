@@ -40,6 +40,8 @@ import { selectAll } from "@/lib/db/paginate";
  */
 
 const GRAPH = "https://graph.facebook.com/v21.0";
+/** No dejar una recuperación manual ocupada indefinidamente por un edge de Meta. */
+const GRAPH_TIMEOUT_MS = 30_000;
 /** Ventana de publicaciones a revisar — igual que la del reconciliador. */
 const WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 /** Tope de publicaciones por corrida (la siguiente sigue, más nuevas primero). */
@@ -554,14 +556,24 @@ async function recentPostIds(
           `&access_token=${encodeURIComponent(token)}`,
         token,
       );
-      while (url && ids.length < options.maxPosts) {
-        const res = await fetch(url);
+      let reachedWindowStart = false;
+      while (url && ids.length < options.maxPosts && !reachedWindowStart) {
+        const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
         if (!res.ok) break;
         const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
         for (const m of json.data ?? []) {
           if (!m.id) continue;
           const ms = Date.parse(parseMetaTimestamp(timeOf(m)));
-          if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) ids.push(String(m.id));
+          if (options.includeOlderPosts || !Number.isFinite(ms) || ms >= since) {
+            ids.push(String(m.id));
+          } else {
+            // Los edges de publicaciones vienen de más nuevo a más viejo. En
+            // un rango acotado no hay razón para seguir paginando una vez que
+            // la página ya cruzó el inicio; de hacerlo, un backfill de 90 días
+            // podía terminar recorriendo toda la vida de la página.
+            reachedWindowStart = true;
+            break;
+          }
         }
         url = json.paging?.next ? withAppsecretProof(json.paging.next, token) : null;
       }
@@ -644,7 +656,7 @@ async function fetchSelfUsername(igUserId: string, token: string): Promise<strin
     token,
   );
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
     if (!res.ok) return null;
     const json = (await res.json()) as { username?: string };
     return json.username?.trim() || null;
@@ -667,7 +679,7 @@ async function fetchCommentsWithReplies(
   const comments: RawComment[] = [];
   try {
     for (let page = 0; url && page < maxPages; page++) {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
       if (!res.ok) break;
       const json = (await res.json()) as {
         data?: RawComment[];
@@ -706,7 +718,7 @@ async function fetchAllReplies(
   const replies: RawComment[] = [];
   try {
     for (let page = 0; url && page < maxPages; page++) {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
       if (!res.ok) break;
       const json = (await res.json()) as { data?: RawComment[]; paging?: { next?: string } };
       replies.push(...(json.data ?? []));

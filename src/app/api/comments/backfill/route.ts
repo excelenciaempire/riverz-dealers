@@ -61,6 +61,8 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin();
+  const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 24 * 60 * 60 * 1000;
+  const endMs = untilMs ?? Date.now();
   const { data: membership } = await admin
     .from("workspace_members")
     .select("role")
@@ -86,18 +88,21 @@ export async function POST(request: Request) {
     connections.map((connection) =>
       syncAdPostsForConnection(admin, connection, {
         maxPages: Number.MAX_SAFE_INTEGER,
+        // La fecha de una creatividad y la de su comentario no son iguales,
+        // pero un anuncio anterior al rango no puede ser la fuente de una
+        // creatividad publicada en él. Acotar el descubrimiento evita leer
+        // años de anuncios para un backfill de días concretos.
+        ...(allHistory ? {} : { sinceMs: startMs }),
       }).catch(() => ({ inserted: 0, updated: 0 })),
     ),
   );
 
-  const startMs = allHistory ? 0 : fromMs ?? Date.now() - days * 24 * 60 * 60 * 1000;
-  const endMs = untilMs ?? Date.now();
   const result = await pullCommentsForWorkspace(admin, workspaceId, {
     windowMs: Date.now() - startMs,
     untilMs: endMs,
     maxPosts: Number.MAX_SAFE_INTEGER,
     maxCommentPages: Number.MAX_SAFE_INTEGER,
-    includeOlderPosts: true,
+    includeOlderPosts: allHistory,
     suppressAutoReply: true,
     channels,
   });

@@ -27,6 +27,7 @@ import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import type { ChannelConnection } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH_TIMEOUT_MS = 30_000;
 
 interface AdPostRow {
   id: string;
@@ -38,7 +39,7 @@ interface AdPostRow {
 export async function syncAdPostsForConnection(
   db: SupabaseClient,
   connection: ChannelConnection,
-  options: { maxPages?: number } = {},
+  options: { maxPages?: number; sinceMs?: number } = {},
 ): Promise<{ inserted: number; updated: number }> {
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const config = (connection.config ?? {}) as Record<string, unknown>;
@@ -64,13 +65,24 @@ export async function syncAdPostsForConnection(
   // todo el historial y reemplaza este tope para no dejar anuncios viejos
   // afuera.
   const maxPages = options.maxPages ?? 5;
+  const sinceMs = options.sinceMs;
   let nextUrl: string | null =
-    `${GRAPH}/${pageId}/ads_posts?fields=id,permalink_url,created_time,message&limit=25&access_token=${encodeURIComponent(token)}`;
+    `${GRAPH}/${pageId}/ads_posts?fields=id,permalink_url,created_time,message&limit=25` +
+    `${sinceMs !== undefined ? `&since=${Math.floor(sinceMs / 1000)}` : ""}` +
+    `&access_token=${encodeURIComponent(token)}`;
   let pages = 0;
   while (nextUrl && pages < maxPages) {
     // `paging.next` carries the access_token but not the proof — re-attach
     // on each page so "Require App Secret" doesn't 400 page 2+.
-    const res = await fetch(withAppsecretProof(nextUrl, token));
+    let res: Response;
+    try {
+      res = await fetch(withAppsecretProof(nextUrl, token), {
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      console.warn(`[ads-sync] ${pageId}/ads_posts request failed:`, error);
+      break;
+    }
     if (!res.ok) {
       console.warn(`[ads-sync] ${pageId}/ads_posts failed: ${await res.text()}`);
       break;
@@ -80,9 +92,21 @@ export async function syncAdPostsForConnection(
       paging?: { next?: string };
     };
     const posts = json.data ?? [];
+    // Algunos cursores de Meta conservan `next` aun después de que un filtro
+    // de fecha vacía la página. Sin este corte, un backfill puede recorrer un
+    // cursor vacío indefinidamente.
+    if (posts.length === 0) break;
 
     for (const post of posts) {
       if (!post.id) continue;
+      const createdAt = post.created_time ? Date.parse(post.created_time) : NaN;
+      // `ads_posts` llega de más nuevo a más viejo. Un backfill con rango no
+      // necesita recorrer años de creatividades para terminar encontrando las
+      // del período pedido. Si Meta omite la fecha, la conservamos: saltarla
+      // podría esconder una creatividad válida.
+      if (sinceMs !== undefined && Number.isFinite(createdAt) && createdAt < sinceMs) {
+        continue;
+      }
       const row = {
         workspace_id: connection.workspace_id,
         connection_id: connection.id,
@@ -115,7 +139,17 @@ export async function syncAdPostsForConnection(
       }
     }
 
-    nextUrl = json.paging?.next ?? null;
+    const oldest = posts
+      .map((post) => (post.created_time ? Date.parse(post.created_time) : NaN))
+      .filter(Number.isFinite)
+      .reduce<number | null>((min, time) => (min === null || time < min ? time : min), null);
+    // El listado está ordenado de reciente a antiguo; cuando esta página ya
+    // pasó el inicio solicitado, las siguientes no pueden aportar anuncios al
+    // backfill. En un recorrido completo (`sinceMs` ausente) se mantiene la
+    // paginación histórica original.
+    nextUrl = sinceMs !== undefined && oldest !== null && oldest < sinceMs
+      ? null
+      : (json.paging?.next ?? null);
     pages++;
   }
 
