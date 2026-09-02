@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Play, Square, Sparkles, Loader2, PhoneCall } from 'lucide-react';
+import {
+  ChevronDown,
+  Play,
+  Square,
+  Sparkles,
+  Loader2,
+  PhoneCall,
+  Plus,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +20,11 @@ import { useT, useLocale } from '@/hooks/use-locale';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
-import type { VoiceCallingHours, VoiceCallType, VoiceObjectives } from '@/types';
+import type {
+  VoiceCallingHours,
+  VoiceCallType,
+  VoiceObjectives,
+} from '@/types';
 import {
   type CuratedVoice,
   DEFAULT_CALLING_HOURS,
@@ -56,7 +68,8 @@ export function initialVoiceState(agent?: {
     voice_greeting: agent?.voice_greeting ?? '',
     voice_system_prompt: agent?.voice_system_prompt ?? '',
     voice_objectives: agent?.voice_objectives ?? {},
-    voice_max_call_seconds: agent?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS,
+    voice_max_call_seconds:
+      agent?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS,
     voice_calling_hours: agent?.voice_calling_hours ?? DEFAULT_CALLING_HOURS,
     voice_max_retries: agent?.voice_max_retries ?? DEFAULT_MAX_RETRIES,
     voice_retry_delay_minutes:
@@ -157,13 +170,19 @@ export function VoiceSettings({
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
   const [voces, setVoces] = useState<CuratedVoice[] | null>(null);
+  const [proveedorVoz, setProveedorVoz] = useState<string | null>(null);
   const [verVoces, setVerVoces] = useState(false);
+  const [creandoVoz, setCreandoVoz] = useState(false);
+  const [guardandoVoz, setGuardandoVoz] = useState(false);
+  const [nombreVoz, setNombreVoz] = useState('');
+  const [muestrasVoz, setMuestrasVoz] = useState<File[]>([]);
+  const [consentimientoVoz, setConsentimientoVoz] = useState(false);
   const [verGuiones, setVerGuiones] = useState(false);
   const [verCuando, setVerCuando] = useState(() => tocado(value));
 
   const { readiness, loading: cargandoEstado } = useVoiceReadiness(
     value.voice_enabled ? workspaceId : undefined,
-    agentId,
+    agentId
   );
 
   // Las voces del proveedor que la plataforma tiene activo hoy. Sin esto el
@@ -176,8 +195,14 @@ export function VoiceSettings({
         cache: 'no-store',
       });
       if (!res.ok || cancelado) return;
-      const json = (await res.json()) as { voices: CuratedVoice[] };
-      if (!cancelado) setVoces(json.voices ?? []);
+      const json = (await res.json()) as {
+        provider?: string;
+        voices: CuratedVoice[];
+      };
+      if (!cancelado) {
+        setProveedorVoz(json.provider ?? null);
+        setVoces(json.voices ?? []);
+      }
     })();
     return () => {
       cancelado = true;
@@ -258,6 +283,48 @@ export function VoiceSettings({
     }
   }
 
+  async function crearVoz() {
+    if (
+      !workspaceId ||
+      !nombreVoz.trim() ||
+      !muestrasVoz.length ||
+      !consentimientoVoz
+    ) {
+      toast.error(t('voice.voiceCloneInvalid'));
+      return;
+    }
+    setGuardandoVoz(true);
+    try {
+      const form = new FormData();
+      form.set('workspace_id', workspaceId);
+      form.set('name', nombreVoz.trim());
+      form.set('consent', 'true');
+      muestrasVoz.forEach((file) => form.append('samples', file));
+      const res = await fetchWithCsrf('/api/voice/voices', {
+        method: 'POST',
+        body: form,
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        voice?: CuratedVoice;
+      } | null;
+      if (!res.ok || !json?.voice) {
+        toast.error(json?.error ?? t('voice.voiceCloneFailed'));
+        return;
+      }
+      setVoces((actual) => [json.voice!, ...(actual ?? [])]);
+      set({ voice_id: json.voice.voice_id });
+      setNombreVoz('');
+      setMuestrasVoz([]);
+      setConsentimientoVoz(false);
+      setCreandoVoz(false);
+      setVerVoces(false);
+      toast.success(t('voice.voiceCreated'));
+    } finally {
+      setGuardandoVoz(false);
+    }
+  }
+
   async function testCall() {
     if (!workspaceId || !agentId || !testPhone.trim()) return;
     setCalling(true);
@@ -287,9 +354,12 @@ export function VoiceSettings({
 
   function setObjective(
     type: VoiceCallType,
-    patch: { objective?: string; extra_instructions?: string },
+    patch: { objective?: string; extra_instructions?: string }
   ) {
-    const prev = value.voice_objectives[type] ?? { enabled: true, objective: '' };
+    const prev = value.voice_objectives[type] ?? {
+      enabled: true,
+      objective: '',
+    };
     set({
       voice_objectives: {
         ...value.voice_objectives,
@@ -300,13 +370,24 @@ export function VoiceSettings({
     });
   }
 
-  function setUpsell(patch: { enabled?: boolean; offer_text?: string; discount?: string }) {
-    const oc = value.voice_objectives.order_confirmation ?? { enabled: true, objective: '' };
+  function setUpsell(patch: {
+    enabled?: boolean;
+    offer_text?: string;
+    discount?: string;
+  }) {
+    const oc = value.voice_objectives.order_confirmation ?? {
+      enabled: true,
+      objective: '',
+    };
     const prevUpsell = oc.upsell ?? { enabled: false };
     set({
       voice_objectives: {
         ...value.voice_objectives,
-        order_confirmation: { ...oc, enabled: true, upsell: { ...prevUpsell, ...patch } },
+        order_confirmation: {
+          ...oc,
+          enabled: true,
+          upsell: { ...prevUpsell, ...patch },
+        },
       },
     });
   }
@@ -327,6 +408,8 @@ export function VoiceSettings({
 
   const idioma = language === 'en' || locale === 'en' ? 'en' : 'es';
   const vozElegida = (voces ?? []).find((v) => v.voice_id === value.voice_id);
+  const vocesPropias = (voces ?? []).filter((v) => v.source === 'custom');
+  const vocesBiblioteca = (voces ?? []).filter((v) => v.source !== 'custom');
 
   if (!value.voice_enabled) return <div />;
 
@@ -340,20 +423,28 @@ export function VoiceSettings({
       {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
           medio del formulario, después de la caja de probar. */}
       {workspaceId && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
           <div className="mb-1 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-accent-ink" />
-            <p className="text-sm font-medium text-foreground">{t('voice.setupTitle')}</p>
+            <Sparkles className="text-accent-ink h-4 w-4" />
+            <p className="text-foreground text-sm font-medium">
+              {t('voice.setupTitle')}
+            </p>
           </div>
-          <p className="mb-2 text-xs text-muted-foreground">{t('voice.setupHint')}</p>
+          <p className="text-muted-foreground mb-2 text-xs">
+            {t('voice.setupHint')}
+          </p>
           <Textarea
-            className="min-h-16 bg-background text-foreground"
+            className="bg-background text-foreground min-h-16"
             placeholder={t('voice.setupPlaceholder')}
             value={setupText}
             onChange={(e) => setSetupText(e.target.value)}
           />
           <div className="mt-2 flex justify-end">
-            <Button size="sm" onClick={aiSetup} disabled={setupLoading || !setupText.trim()}>
+            <Button
+              size="sm"
+              onClick={aiSetup}
+              disabled={setupLoading || !setupText.trim()}
+            >
               {setupLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -370,74 +461,159 @@ export function VoiceSettings({
       {/* ── Cómo suena ── */}
       {voces !== null && voces.length > 0 && (
         <div>
-          <p className="mb-1 text-sm font-medium text-foreground">{t('voice.voiceLabel')}</p>
+          <p className="text-foreground mb-1 text-sm font-medium">
+            {t('voice.voiceLabel')}
+          </p>
           {/* Una fila con la elegida, no cuatro tarjetas apiladas. */}
-          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
-            <span className="text-sm text-foreground">
+          <div className="border-border bg-muted/40 flex items-center justify-between rounded-lg border px-3 py-2">
+            <span className="text-foreground text-sm">
               {vozElegida ? vozElegida.label : t('voice.voiceDefault')}
             </span>
             <button
               type="button"
               onClick={() => setVerVoces((v) => !v)}
-              className="text-xs text-accent-ink hover:underline"
+              className="text-accent-ink text-xs hover:underline"
             >
               {t('voice.numberChange')}
             </button>
           </div>
           {verVoces && (
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {voces.map((v) => {
-                const selected = value.voice_id === v.voice_id;
-                return (
-                  <div
-                    key={v.voice_id}
-                    className={cn(
-                      'flex items-center justify-between rounded-lg border px-3 py-2',
-                      selected ? 'border-primary bg-primary/5' : 'border-border bg-muted/40',
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        set({ voice_id: v.voice_id });
-                        setVerVoces(false);
-                      }}
-                      className="flex-1 text-left"
-                    >
-                      <p className="text-sm text-foreground">{v.label}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {v.locale} · {v.gender === 'female' ? '♀' : '♂'}
-                      </p>
-                    </button>
+            <div className="mt-3 space-y-4">
+              {vocesPropias.length > 0 && (
+                <VoiceList
+                  title={t('voice.voiceCustom')}
+                  voices={vocesPropias}
+                  selectedId={value.voice_id}
+                  previewingId={previewing}
+                  onSelect={(id) => {
+                    set({ voice_id: id });
+                    setVerVoces(false);
+                  }}
+                  onPreview={preview}
+                  trainingLabel={t('voice.voiceTraining')}
+                  failedLabel={t('voice.voiceTrainingFailed')}
+                />
+              )}
+              {vocesBiblioteca.length > 0 && (
+                <VoiceList
+                  title={t('voice.voiceLibrary')}
+                  voices={vocesBiblioteca}
+                  selectedId={value.voice_id}
+                  previewingId={previewing}
+                  onSelect={(id) => {
+                    set({ voice_id: id });
+                    setVerVoces(false);
+                  }}
+                  onPreview={preview}
+                  trainingLabel={t('voice.voiceTraining')}
+                  failedLabel={t('voice.voiceTrainingFailed')}
+                />
+              )}
+              {proveedorVoz === 'fish' && (
+                <div className="border-border rounded-lg border border-dashed p-3">
+                  {!creandoVoz ? (
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
-                      onClick={() => preview(v.voice_id)}
+                      variant="outline"
+                      onClick={() => setCreandoVoz(true)}
                     >
-                      {previewing === v.voice_id ? (
-                        <Square className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      {t('voice.voiceCreate')}
                     </Button>
-                  </div>
-                );
-              })}
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-foreground text-sm font-medium">
+                        {t('voice.voiceCreateTitle')}
+                      </p>
+                      <Input
+                        className="bg-background text-foreground"
+                        value={nombreVoz}
+                        onChange={(event) => setNombreVoz(event.target.value)}
+                        placeholder={t('voice.voiceNamePlaceholder')}
+                        maxLength={80}
+                      />
+                      <div>
+                        <p className="text-foreground mb-1 text-xs font-medium">
+                          {t('voice.voiceSamples')}
+                        </p>
+                        <Input
+                          className="bg-background text-foreground"
+                          type="file"
+                          accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/ogg,audio/opus,.mp3,.wav,.m4a,.ogg,.opus"
+                          multiple
+                          onChange={(event) =>
+                            setMuestrasVoz(
+                              Array.from(event.target.files ?? []).slice(0, 3)
+                            )
+                          }
+                        />
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t('voice.voiceSamplesHint')}
+                        </p>
+                      </div>
+                      <label className="text-muted-foreground flex items-start gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={consentimientoVoz}
+                          onChange={(event) =>
+                            setConsentimientoVoz(event.target.checked)
+                          }
+                          className="mt-0.5"
+                        />
+                        {t('voice.voiceConsent')}
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={crearVoz}
+                          disabled={
+                            guardandoVoz ||
+                            !nombreVoz.trim() ||
+                            !muestrasVoz.length ||
+                            !consentimientoVoz
+                          }
+                        >
+                          {guardandoVoz ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            t('voice.voiceCreateAction')
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setCreandoVoz(false)}
+                        >
+                          {t('voice.voiceCancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
       {voces !== null && voces.length === 0 && (
         // Sin curaduría para el proveedor activo no se dibuja un selector falso.
-        <p className="text-xs text-muted-foreground">{t('voice.voicePlatform')}</p>
+        <p className="text-muted-foreground text-xs">
+          {t('voice.voicePlatform')}
+        </p>
       )}
 
       <div>
-        <p className="mb-1 text-sm font-medium text-foreground">{t('voice.greeting')}</p>
-        <p className="mb-2 text-xs text-muted-foreground">{t('voice.greetingHint')}</p>
+        <p className="text-foreground mb-1 text-sm font-medium">
+          {t('voice.greeting')}
+        </p>
+        <p className="text-muted-foreground mb-2 text-xs">
+          {t('voice.greetingHint')}
+        </p>
         <Textarea
-          className="min-h-16 bg-muted text-foreground"
+          className="bg-muted text-foreground min-h-16"
           // El placeholder muestra el saludo que YA usa el worker cuando esto
           // está vacío. Un recuadro en blanco hacía pensar que no saluda.
           placeholder={DEFAULT_GREETINGS[idioma]}
@@ -458,28 +634,35 @@ export function VoiceSettings({
           {OBJECTIVE_TYPES.map(({ type, labelKey }) => {
             const obj = value.voice_objectives[type];
             return (
-              <div key={type} className="rounded-lg border border-border bg-muted/40 p-3">
-                <p className="mb-2 text-sm text-foreground">{t(labelKey)}</p>
+              <div
+                key={type}
+                className="border-border bg-muted/40 rounded-lg border p-3"
+              >
+                <p className="text-foreground mb-2 text-sm">{t(labelKey)}</p>
                 <Textarea
-                  className="min-h-14 bg-background text-foreground"
+                  className="bg-background text-foreground min-h-14"
                   // El guion por defecto, a la vista. Antes había que prender un
                   // interruptor para ver una caja vacía y adivinar qué escribir.
                   placeholder={DEFAULT_OBJECTIVES[type][idioma]}
                   value={obj?.objective ?? ''}
-                  onChange={(e) => setObjective(type, { objective: e.target.value })}
+                  onChange={(e) =>
+                    setObjective(type, { objective: e.target.value })
+                  }
                 />
                 {/* Sólo si YA tiene algo escrito: los agentes viejos no pierden
                     lo que cargaron, pero nadie empieza a llenar dos cajas. */}
                 {(obj?.extra_instructions ?? '').trim() !== '' && (
                   <Textarea
-                    className="mt-2 min-h-12 bg-background text-foreground"
+                    className="bg-background text-foreground mt-2 min-h-12"
                     placeholder={t('voice.extraInstructions')}
                     value={obj?.extra_instructions ?? ''}
-                    onChange={(e) => setObjective(type, { extra_instructions: e.target.value })}
+                    onChange={(e) =>
+                      setObjective(type, { extra_instructions: e.target.value })
+                    }
                   />
                 )}
                 {type === 'followup' && (
-                  <p className="mt-2 text-[11px] text-muted-foreground">
+                  <p className="text-muted-foreground mt-2 text-[11px]">
                     {t('voice.objFollowupSharedDelay')}
                   </p>
                 )}
@@ -487,9 +670,9 @@ export function VoiceSettings({
                     la herramienta de editar el pedido. Por eso conserva su
                     interruptor, a diferencia de los de objetivo. */}
                 {type === 'order_confirmation' && (
-                  <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
+                  <div className="border-border/60 bg-background mt-3 rounded-md border p-2.5">
                     <label className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-foreground">
+                      <span className="text-foreground text-xs font-medium">
                         {t('voice.upsellLabel')}
                       </span>
                       <Switch
@@ -500,16 +683,20 @@ export function VoiceSettings({
                     {obj?.upsell?.enabled && (
                       <div className="mt-2 space-y-2">
                         <Textarea
-                          className="min-h-12 bg-muted text-foreground"
+                          className="bg-muted text-foreground min-h-12"
                           placeholder={t('voice.upsellOfferPlaceholder')}
                           value={obj?.upsell?.offer_text ?? ''}
-                          onChange={(e) => setUpsell({ offer_text: e.target.value })}
+                          onChange={(e) =>
+                            setUpsell({ offer_text: e.target.value })
+                          }
                         />
                         <Input
                           className="bg-muted text-foreground"
                           placeholder={t('voice.upsellDiscountPlaceholder')}
                           value={obj?.upsell?.discount ?? ''}
-                          onChange={(e) => setUpsell({ discount: e.target.value })}
+                          onChange={(e) =>
+                            setUpsell({ discount: e.target.value })
+                          }
                         />
                       </div>
                     )}
@@ -529,10 +716,14 @@ export function VoiceSettings({
         alternar={() => setVerCuando((v) => !v)}
       >
         <div className="space-y-5">
-          <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/40 p-3">
+          <div className="border-border bg-muted/40 flex items-start justify-between gap-4 rounded-lg border p-3">
             <div>
-              <p className="text-sm font-medium text-foreground">{t('voice.aiDecides')}</p>
-              <p className="text-xs text-muted-foreground">{t('voice.aiDecidesHint')}</p>
+              <p className="text-foreground text-sm font-medium">
+                {t('voice.aiDecides')}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {t('voice.aiDecidesHint')}
+              </p>
             </div>
             <Switch
               checked={value.voice_ai_decides}
@@ -541,31 +732,41 @@ export function VoiceSettings({
           </div>
 
           <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.callingHours')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.callingHoursHint')}</p>
+            <p className="text-foreground mb-1 text-sm font-medium">
+              {t('voice.callingHours')}
+            </p>
+            <p className="text-muted-foreground mb-2 text-xs">
+              {t('voice.callingHoursHint')}
+            </p>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 {t('voice.from')}
                 <Input
                   type="time"
-                  className="w-28 bg-muted text-foreground"
+                  className="bg-muted text-foreground w-28"
                   value={value.voice_calling_hours.start}
                   onChange={(e) =>
                     set({
-                      voice_calling_hours: { ...value.voice_calling_hours, start: e.target.value },
+                      voice_calling_hours: {
+                        ...value.voice_calling_hours,
+                        start: e.target.value,
+                      },
                     })
                   }
                 />
               </label>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 {t('voice.to')}
                 <Input
                   type="time"
-                  className="w-28 bg-muted text-foreground"
+                  className="bg-muted text-foreground w-28"
                   value={value.voice_calling_hours.end}
                   onChange={(e) =>
                     set({
-                      voice_calling_hours: { ...value.voice_calling_hours, end: e.target.value },
+                      voice_calling_hours: {
+                        ...value.voice_calling_hours,
+                        end: e.target.value,
+                      },
                     })
                   }
                 />
@@ -581,7 +782,9 @@ export function VoiceSettings({
                     onClick={() => toggleDay(day)}
                     className={cn(
                       'rounded-md px-2.5 py-1 text-xs',
-                      on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      on
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {t(key)}
@@ -590,15 +793,23 @@ export function VoiceSettings({
               })}
             </div>
             {noDays ? (
-              <p className="mt-2 text-xs text-destructive">{t('voice.hoursNoDays')}</p>
+              <p className="text-destructive mt-2 text-xs">
+                {t('voice.hoursNoDays')}
+              </p>
             ) : crossesMidnight ? (
-              <p className="mt-2 text-xs text-muted-foreground">{t('voice.hoursOvernight')}</p>
+              <p className="text-muted-foreground mt-2 text-xs">
+                {t('voice.hoursOvernight')}
+              </p>
             ) : null}
           </div>
 
           <div>
-            <p className="mb-1 text-sm font-medium text-foreground">{t('voice.retries')}</p>
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.retriesHint')}</p>
+            <p className="text-foreground mb-1 text-sm font-medium">
+              {t('voice.retries')}
+            </p>
+            <p className="text-muted-foreground mb-2 text-xs">
+              {t('voice.retriesHint')}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {RETRY_CHOICES.map(({ retries, labelKey }) => {
                 const on = value.voice_max_retries === retries;
@@ -610,12 +821,15 @@ export function VoiceSettings({
                       set({
                         voice_max_retries: retries,
                         voice_retry_delay_minutes:
-                          value.voice_retry_delay_minutes || DEFAULT_RETRY_DELAY_MINUTES,
+                          value.voice_retry_delay_minutes ||
+                          DEFAULT_RETRY_DELAY_MINUTES,
                       })
                     }
                     className={cn(
                       'rounded-md px-2.5 py-1 text-xs',
-                      on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      on
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {t(labelKey)}
@@ -629,10 +843,14 @@ export function VoiceSettings({
 
       {/* Probarlo es lo último que uno hace, así que va último. */}
       {workspaceId && (
-        <div className="rounded-lg border border-border bg-muted/40 p-3">
-          <p className="mb-2 text-sm font-medium text-foreground">{t('voice.testCall')}</p>
+        <div className="border-border bg-muted/40 rounded-lg border p-3">
+          <p className="text-foreground mb-2 text-sm font-medium">
+            {t('voice.testCall')}
+          </p>
           {!agentId && (
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.testCallSaveFirst')}</p>
+            <p className="text-muted-foreground mb-2 text-xs">
+              {t('voice.testCallSaveFirst')}
+            </p>
           )}
           <div className="flex gap-2">
             <Input
@@ -665,6 +883,79 @@ export function VoiceSettings({
 }
 
 /** Bloque plegado. Mismo gesto que usa la tarjeta de comportamiento en /voz. */
+function VoiceList({
+  title,
+  voices,
+  selectedId,
+  previewingId,
+  onSelect,
+  onPreview,
+  trainingLabel,
+  failedLabel,
+}: {
+  title: string;
+  voices: CuratedVoice[];
+  selectedId: string | null;
+  previewingId: string | null;
+  onSelect: (id: string) => void;
+  onPreview: (id: string) => void;
+  trainingLabel: string;
+  failedLabel: string;
+}) {
+  return (
+    <div>
+      <p className="text-muted-foreground mb-2 text-xs font-medium">{title}</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {voices.map((voice) => {
+          const available =
+            voice.state !== 'created' && voice.state !== 'failed';
+          const selected = selectedId === voice.voice_id;
+          return (
+            <div
+              key={voice.voice_id}
+              className={cn(
+                'flex items-center justify-between rounded-lg border px-3 py-2',
+                selected
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border bg-muted/40'
+              )}
+            >
+              <button
+                type="button"
+                disabled={!available}
+                onClick={() => onSelect(voice.voice_id)}
+                className="flex-1 text-left disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <p className="text-foreground text-sm">{voice.label}</p>
+                <p className="text-muted-foreground text-[11px]">
+                  {available
+                    ? `${voice.locale} · ${voice.gender === 'female' ? '♀' : '♂'}`
+                    : voice.state === 'failed'
+                      ? failedLabel
+                      : trainingLabel}
+                </p>
+              </button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={!available}
+                onClick={() => onPreview(voice.voice_id)}
+              >
+                {previewingId === voice.voice_id ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Plegable({
   titulo,
   ayuda,
@@ -686,11 +977,11 @@ function Plegable({
         className="flex w-full items-center gap-1.5 text-left"
       >
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${abierto ? 'rotate-180' : ''}`}
+          className={`text-muted-foreground h-4 w-4 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`}
         />
-        <span className="text-sm font-medium text-foreground">{titulo}</span>
+        <span className="text-foreground text-sm font-medium">{titulo}</span>
       </button>
-      <p className="ml-[22px] mt-0.5 text-xs text-muted-foreground">{ayuda}</p>
+      <p className="text-muted-foreground mt-0.5 ml-[22px] text-xs">{ayuda}</p>
       {abierto && <div className="mt-3">{children}</div>}
     </div>
   );

@@ -139,15 +139,39 @@ export interface CuratedVoice {
   /** Locale hint for the UI grouping. */
   locale: 'es-MX' | 'es-CO' | 'es-AR' | 'es-419' | 'en-US';
   gender: 'female' | 'male';
+  /** De dónde viene la voz; permite separar la biblioteca de las voces del comercio. */
+  source?: 'library' | 'custom';
+  /** Fish entrena de forma asíncrona; no se puede elegir antes de que esté lista. */
+  state?: 'created' | 'training' | 'trained' | 'failed';
 }
 
 export const CURATED_VOICES: CuratedVoice[] = [
   // NOTE: these ids are well-known public ElevenLabs multilingual voices that
   // handle Latin-American Spanish well; the merchant can override with any id.
-  { voice_id: 'XrExE9yKIg1WjnnlVkGX', label: 'Matilda', locale: 'es-419', gender: 'female' },
-  { voice_id: 'pqHfZKP75CvOlQylNhV4', label: 'Bill', locale: 'es-419', gender: 'male' },
-  { voice_id: 'EXAVITQu4vr4xnSDxMaL', label: 'Sarah', locale: 'es-419', gender: 'female' },
-  { voice_id: 'TX3LPaxmHKxFdv7VOQHJ', label: 'Liam', locale: 'es-419', gender: 'male' },
+  {
+    voice_id: 'XrExE9yKIg1WjnnlVkGX',
+    label: 'Matilda',
+    locale: 'es-419',
+    gender: 'female',
+  },
+  {
+    voice_id: 'pqHfZKP75CvOlQylNhV4',
+    label: 'Bill',
+    locale: 'es-419',
+    gender: 'male',
+  },
+  {
+    voice_id: 'EXAVITQu4vr4xnSDxMaL',
+    label: 'Sarah',
+    locale: 'es-419',
+    gender: 'female',
+  },
+  {
+    voice_id: 'TX3LPaxmHKxFdv7VOQHJ',
+    label: 'Liam',
+    locale: 'es-419',
+    gender: 'male',
+  },
 ];
 
 export const DEFAULT_VOICE_ID = CURATED_VOICES[0].voice_id;
@@ -170,10 +194,35 @@ export const CURATED_VOICES_BY_PROVIDER: Record<string, CuratedVoice[]> = {
   elevenlabs: CURATED_VOICES,
   // reference_id de Fish Audio, verificados contra su API con español real.
   fish: [
-    { voice_id: 'f7ffe935b3ca41598cc31dd39dcd6bc6', label: 'Delfina', locale: 'es-AR', gender: 'female' },
-    { voice_id: 'c964e3267b9448939d5087a6b4ee6007', label: 'Camila', locale: 'es-AR', gender: 'female' },
-    { voice_id: 'fc9d68adf13843d0827b39624b021bd3', label: 'Renata', locale: 'es-MX', gender: 'female' },
-    { voice_id: 'def180b161a3498db94025d5124fcb2a', label: 'Néstor', locale: 'es-419', gender: 'male' },
-    { voice_id: '47a7c0605b6a4a658acc1fb85df19444', label: 'Waldemar', locale: 'es-419', gender: 'male' },
+    {
+      voice_id: 'f7ffe935b3ca41598cc31dd39dcd6bc6',
+      label: 'Delfina',
+      locale: 'es-AR',
+      gender: 'female',
+    },
+    {
+      voice_id: 'c964e3267b9448939d5087a6b4ee6007',
+      label: 'Camila',
+      locale: 'es-AR',
+      gender: 'female',
+    },
+    {
+      voice_id: 'fc9d68adf13843d0827b39624b021bd3',
+      label: 'Renata',
+      locale: 'es-MX',
+      gender: 'female',
+    },
+    {
+      voice_id: 'def180b161a3498db94025d5124fcb2a',
+      label: 'Néstor',
+      locale: 'es-419',
+      gender: 'male',
+    },
+    {
+      voice_id: '47a7c0605b6a4a658acc1fb85df19444',
+      label: 'Waldemar',
+      locale: 'es-419',
+      gender: 'male',
+    },
   ],
 };
