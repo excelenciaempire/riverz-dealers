@@ -54,7 +54,7 @@ export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
   const t = useT();
   const unified = value === "all";
   return (
-    <div className="flex items-stretch border-b border-border bg-background/40">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-stretch overflow-hidden border-b border-border bg-background/40">
       {/* Toggle "Unificar" PRIMERO, estilo interruptor on/off: junta mensajes y
           comentarios en una sola lista. En móvil se muestra solo el switch
           (sin label) para que los dos tabs conserven su espacio. */}
@@ -64,7 +64,7 @@ export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
         aria-pressed={unified}
         aria-label={t("inbox.tabUnify")}
         className={cn(
-          "flex shrink-0 items-center gap-1.5 border-r border-border px-2.5 text-xs font-medium transition-colors sm:px-3",
+          "flex min-w-0 max-w-28 items-center gap-1.5 border-r border-border px-2.5 text-xs font-medium transition-colors sm:px-3",
           unified
             ? "bg-primary/15 text-accent-ink"
             : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -75,7 +75,7 @@ export function InboxTabs({ value, onChange, counts }: InboxTabsProps) {
         ) : (
           <ToggleLeft className="h-4 w-4 shrink-0" />
         )}
-        <span className="hidden sm:inline">{t("inbox.tabUnify")}</span>
+        <span className="hidden min-w-0 truncate sm:inline">{t("inbox.tabUnify")}</span>
       </button>
       {/* Con el modo unificado activo los dos tabs se atenúan: la lista muestra
           mensajes y comentarios juntos, así que separar por tab no aplica. */}
@@ -118,7 +118,7 @@ function Tab({
     <button
       onClick={onClick}
       className={cn(
-        "relative flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
+        "relative flex min-w-0 items-center justify-center gap-1 overflow-hidden px-1.5 py-2.5 text-xs font-medium transition-colors sm:px-2",
         active
           ? "text-foreground"
           : dimmed
@@ -127,9 +127,9 @@ function Tab({
       )}
     >
       {icon}
-      <span>{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
       {count > 0 && (
-        <span className="ml-0.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent-ink">
+        <span className="ml-0.5 shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent-ink">
           {count > 999 ? "999+" : count}
         </span>
       )}
