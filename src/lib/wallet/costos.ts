@@ -200,6 +200,15 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     cobro: 'por_uso',
   },
   {
+    concepto: 'investigacion',
+    nombreEs: 'Análisis de comentarios',
+    nombreEn: 'Comment analysis',
+    centavos: 8,
+    unidad: 'análisis',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
+  {
     concepto: 'lectura_de_pagina',
     nombreEs: 'Leer una página web',
     nombreEn: 'Reading a web page',

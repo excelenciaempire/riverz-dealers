@@ -6,7 +6,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { completeTextConUso, hasLlm } from '@/lib/ai/llm-client';
+import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import {
   analyzeCommentMetrics,
   buildMarketResearchPrompt,
@@ -224,11 +225,10 @@ export async function POST(request: Request) {
         let generatedWithAi = false;
 
         progress('synthesizing', 78);
-        const key =
-          (await resolveAnthropicKey(admin, { workspaceId }))?.key ?? null;
-        if (hasLlm(key)) {
+        const clave = await resolveAnthropicKey(admin, { workspaceId });
+        if (hasLlm(clave?.key)) {
           try {
-            const text = await completeText({
+            const completado = await completeTextConUso({
               tier: 'premium',
               system:
                 'You produce evidence-based market research from customer comments. Never make up facts.',
@@ -238,10 +238,24 @@ export async function POST(request: Request) {
                 comments: qualitative,
               }),
               maxTokens: 1600,
-              anthropicKey: key,
+              anthropicKey: clave?.key,
               effort: 'low',
             });
-            const parsed = parseMarketResearchResponse(text);
+            // La síntesis se genera para este comercio: si usa la clave de
+            // Riverz, su consumo queda en su saldo. Con una clave propia, el
+            // proveedor ya le factura directamente y no se duplica el cobro.
+            await cobrarUsoDeIa(admin, workspaceId, {
+              concepto: 'investigacion',
+              modelo: completado.modelo,
+              uso: completado.uso,
+              origenDeLaClave: clave?.source,
+              referenciaTipo: 'analisis_comentarios',
+              detalle: {
+                proveedor: completado.proveedor,
+                comentariosAnalizados: qualitative.length,
+              },
+            });
+            const parsed = parseMarketResearchResponse(completado.text);
             if (parsed) {
               // Las conclusiones se pueden redactar con IA, pero los próximos
               // pasos siempre nacen de señales contadas sobre TODO el corpus.

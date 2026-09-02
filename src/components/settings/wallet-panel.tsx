@@ -425,14 +425,6 @@ export function WalletPanel() {
                   }}
                 />
               </div>
-              {autoVisible && autoActivo && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t('settings.walletAutoOn', {
-                    monto: plata(auto.recargaCentavos ?? 0),
-                    umbral: plata(auto.umbralCentavos ?? 0),
-                  })}
-                </p>
-              )}
             </div>
             {autoVisible && (
               <div className="flex items-center gap-3">
@@ -525,6 +517,14 @@ export function WalletPanel() {
                 {t('settings.walletAutoSave')}
               </Button>
             </div>
+          )}
+          {autoVisible && autoActivo && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {t('settings.walletAutoOn', {
+                monto: plata(auto.recargaCentavos ?? 0),
+                umbral: plata(auto.umbralCentavos ?? 0),
+              })}
+            </p>
           )}
 
         </section>
