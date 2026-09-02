@@ -15,7 +15,7 @@ import { enrichProduct } from '@/lib/products/enrich';
  */
 export async function POST(
   req: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(req);
   if (block) return block;
@@ -30,7 +30,15 @@ export async function POST(
 
   const locale = await getLocale();
 
-  const result = await enrichProduct(supabase, id, locale);
+  const body = (await req.json().catch(() => null)) as {
+    refresh_sources?: unknown;
+  } | null;
+  const result = await enrichProduct(supabase, id, locale, {
+    // El botón del editor manda esta señal para incluir cualquier pre-landing
+    // o cambio de URL guardado justo antes de investigar. Las ejecuciones
+    // automáticas mantienen la lectura existente para no gastar cuota de más.
+    refreshSources: body?.refresh_sources === true,
+  });
   if (result.ok) {
     return NextResponse.json({ ok: true, faqs_count: result.faqsCount });
   }
@@ -40,12 +48,12 @@ export async function POST(
   if (result.reason === 'no_api_key') {
     return NextResponse.json(
       { error: translate(locale, 'errProducts.anthropicKeyMissing') },
-      { status: 500 },
+      { status: 500 }
     );
   }
   // Model/provider failure — detail already persisted to ai_research_error.
   return NextResponse.json(
     { error: translate(locale, 'errProducts.researchFailed') },
-    { status: 502 },
+    { status: 502 }
   );
 }

@@ -85,17 +85,15 @@ interface Product {
   say_guidelines: string | null;
   never_say: string[] | null;
   escalation_triggers: string[] | null;
-  allowed_offers:
-    | Array<
-        | string
-        | {
-            label?: string;
-            total?: number | string;
-            conditions?: string;
-            units?: number | string;
-          }
-      >
-    | null;
+  allowed_offers: Array<
+    | string
+    | {
+        label?: string;
+        total?: number | string;
+        conditions?: string;
+        units?: number | string;
+      }
+  > | null;
   health_sensitive: boolean | null;
   /** True when allowed_offers was auto-populated by offer detection (migration 088). */
   offers_auto_detected: boolean | null;
@@ -130,7 +128,9 @@ function linesToArray(text: string): string[] {
 }
 
 /** Cada línea "objeción | respuesta" → { objection, rebuttal }. */
-function parseObjections(text: string): Array<{ objection: string; rebuttal: string }> {
+function parseObjections(
+  text: string
+): Array<{ objection: string; rebuttal: string }> {
   return linesToArray(text).map((line) => {
     const [objection, ...rest] = line.split('|');
     return { objection: objection.trim(), rebuttal: rest.join('|').trim() };
@@ -177,7 +177,7 @@ export default function ProductDetailPage() {
     try {
       const res = await fetchWithCsrf(
         `/api/products/unificar?id=${encodeURIComponent(id)}`,
-        { method: 'DELETE' },
+        { method: 'DELETE' }
       );
       if (!res.ok) throw new Error();
       // Se saca de la lista en vez de recargar: la pantalla tiene un formulario
@@ -210,7 +210,9 @@ export default function ProductDetailPage() {
       const prodJson = await prodRes.json();
       const pr = prodJson.product as Product;
       setProduct(pr);
-      setAssignedAgents(Array.isArray(prodJson.agents) ? prodJson.agents.length : 0);
+      setAssignedAgents(
+        Array.isArray(prodJson.agents) ? prodJson.agents.length : 0
+      );
 
       setTitle(pr.title ?? '');
       setImages(
@@ -218,7 +220,7 @@ export default function ProductDetailPage() {
           ? pr.images
           : pr.image_url
             ? [pr.image_url]
-            : [],
+            : []
       );
       setDescriptionText(pr.description ?? '');
       // Divisa: la del producto, o la detectada del workspace en vez de 'COP'.
@@ -231,8 +233,8 @@ export default function ProductDetailPage() {
                 label: o.label ?? '',
                 total: o.total != null ? String(o.total) : '',
                 units: o.units != null ? String(o.units) : '',
-              },
-        ),
+              }
+        )
       );
       setOffersAutoDetected(pr.offers_auto_detected === true);
       setBenefits((pr.structured_research?.differentiators ?? []).join('\n'));
@@ -242,16 +244,18 @@ export default function ProductDetailPage() {
           ? pr.websites
           : pr.url
             ? [pr.url]
-            : [],
+            : []
       );
 
       setNotes(pr.custom_notes ?? '');
       setFaqs(pr.custom_faqs ?? []);
       setObjections(
         (pr.structured_research?.objections ?? [])
-          .map((o) => `${o.objection ?? ''}${o.rebuttal ? ` | ${o.rebuttal}` : ''}`.trim())
+          .map((o) =>
+            `${o.objection ?? ''}${o.rebuttal ? ` | ${o.rebuttal}` : ''}`.trim()
+          )
           .filter(Boolean)
-          .join('\n'),
+          .join('\n')
       );
       setSayGuidelines(pr.say_guidelines ?? '');
       setNeverSay((pr.never_say ?? []).join('\n'));
@@ -279,7 +283,7 @@ export default function ProductDetailPage() {
       window.history.replaceState(
         null,
         '',
-        localizePath(canonicalizePath(desired), locale),
+        localizePath(canonicalizePath(desired), locale)
       );
     }
   }, [product?.handle, locale]);
@@ -314,10 +318,22 @@ export default function ProductDetailPage() {
       health_sensitive: healthSensitive,
     }),
     [
-      title, images, descriptionText, currency, offers, websites, benefits,
-      objections, notes, faqs, sayGuidelines, neverSay, escalation,
-      healthSensitive, product,
-    ],
+      title,
+      images,
+      descriptionText,
+      currency,
+      offers,
+      websites,
+      benefits,
+      objections,
+      notes,
+      faqs,
+      sayGuidelines,
+      neverSay,
+      escalation,
+      healthSensitive,
+      product,
+    ]
   );
 
   const saveProduct = useCallback(async () => {
@@ -390,11 +406,11 @@ export default function ProductDetailPage() {
       toast.success(
         json.added > 0
           ? t('products.imagesSynced', { n: json.added })
-          : t('products.imagesUpToDate'),
+          : t('products.imagesUpToDate')
       );
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : t('products.syncImagesError'),
+        err instanceof Error ? err.message : t('products.syncImagesError')
       );
     } finally {
       setSyncingImages(false);
@@ -414,8 +430,11 @@ export default function ProductDetailPage() {
       if (!res.ok) throw new Error(json.error ?? t('products.readPagesError'));
       toast.success(
         json.failed
-          ? t('products.pagesReadWithFailures', { sites: json.sites ?? 1, failed: json.failed })
-          : t('products.pagesRead', { sites: json.sites ?? 1 }),
+          ? t('products.pagesReadWithFailures', {
+              sites: json.sites ?? 1,
+              failed: json.failed,
+            })
+          : t('products.pagesRead', { sites: json.sites ?? 1 })
       );
       await load();
     } catch (err) {
@@ -430,9 +449,17 @@ export default function ProductDetailPage() {
     setResearching(true);
     try {
       await saveProduct();
-      const res = await fetchWithCsrf(`/api/products/${product.id}/ai-research`, {
-        method: 'POST',
-      });
+      const res = await fetchWithCsrf(
+        `/api/products/${product.id}/ai-research`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // La intención explícita del botón es investigar las fuentes que el
+          // merchant ve ahora, incluidas las pre-landings recién agregadas. No
+          // reutilizamos una lectura anterior en ese caso.
+          body: JSON.stringify({ refresh_sources: true }),
+        }
+      );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? t('products.researchError'));
       toast.success(t('products.researchReady', { count: json.faqs_count }));
@@ -466,14 +493,16 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-5 animate-spin" />
       </div>
     );
   }
   if (!product) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-muted-foreground">{t('products.productNotFoundDot')}</p>
+        <p className="text-muted-foreground text-sm">
+          {t('products.productNotFoundDot')}
+        </p>
         <Button variant="outline" onClick={() => router.push('/productos')}>
           {t('products.back')}
         </Button>
@@ -484,7 +513,8 @@ export default function ProductDetailPage() {
   const isShopify = product.shop_domain && product.shop_domain !== 'manual';
   // ¿Está publicado en alguna plataforma? Sólo entonces hay fotos que traer:
   // un producto cargado a mano no tiene de dónde.
-  const sincronizado = Boolean(isShopify) || (product.listings?.length ?? 0) > 0;
+  const sincronizado =
+    Boolean(isShopify) || (product.listings?.length ?? 0) > 0;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -494,12 +524,12 @@ export default function ProductDetailPage() {
           variant="outline"
           size="icon"
           onClick={() => router.push('/productos')}
-          className="h-8 w-8 border-border"
+          className="border-border h-8 w-8"
           aria-label={t('products.back')}
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {product.vendor ?? product.product_type ?? t('products.product')}
         </p>
       </div>
@@ -514,7 +544,7 @@ export default function ProductDetailPage() {
               onClick={handleSyncImages}
               disabled={syncingImages}
               title={t('products.syncImagesTitle')}
-              className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+              className="border-border text-foreground hover:bg-muted h-8 bg-transparent"
             >
               {syncingImages ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -529,14 +559,16 @@ export default function ProductDetailPage() {
           {images.map((src, idx) => (
             <div
               key={`${src}-${idx}`}
-              className="group relative size-44 shrink-0 overflow-hidden rounded-xl border border-border bg-card"
+              className="group border-border bg-card relative size-44 shrink-0 overflow-hidden rounded-xl border"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={src} alt="" className="size-full object-cover" />
               <button
                 type="button"
-                onClick={() => setImages((cur) => cur.filter((_, i) => i !== idx))}
-                className="absolute right-1.5 top-1.5 rounded-full bg-background/80 p-1 text-foreground opacity-0 backdrop-blur transition-opacity hover:bg-background group-hover:opacity-100"
+                onClick={() =>
+                  setImages((cur) => cur.filter((_, i) => i !== idx))
+                }
+                className="bg-background/80 text-foreground hover:bg-background absolute top-1.5 right-1.5 rounded-full p-1 opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
                 aria-label={t('products.removeImage')}
               >
                 <X className="size-3.5" />
@@ -547,7 +579,7 @@ export default function ProductDetailPage() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex size-44 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+            className="border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground flex size-44 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed transition-colors"
           >
             {uploading ? (
               <Loader2 className="size-5 animate-spin" />
@@ -572,7 +604,7 @@ export default function ProductDetailPage() {
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="h-11 bg-card text-base"
+            className="bg-card h-11 text-base"
           />
         </Field>
 
@@ -581,7 +613,7 @@ export default function ProductDetailPage() {
           <Textarea
             value={descriptionText}
             onChange={(e) => setDescriptionText(e.target.value)}
-            className="min-h-[96px] bg-card"
+            className="bg-card min-h-[96px]"
           />
         </Field>
 
@@ -593,7 +625,7 @@ export default function ProductDetailPage() {
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="border-border bg-card text-foreground focus:ring-ring h-8 rounded-md border px-2 text-xs focus:ring-1 focus:outline-none"
               aria-label={t('products.currency')}
             >
               {(currency && !CURRENCIES.includes(currency)
@@ -608,16 +640,30 @@ export default function ProductDetailPage() {
           }
         >
           <div className="space-y-2">
+            {product.price_min != null && (
+              <div className="border-border bg-muted/30 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+                <span className="text-muted-foreground">
+                  {t('products.catalogPrice')}
+                </span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {product.price_min === product.price_max
+                    ? fmt.money(product.price_min, product.currency ?? currency)
+                    : `${fmt.money(product.price_min, product.currency ?? currency)} – ${fmt.money(product.price_max ?? product.price_min, product.currency ?? currency)}`}
+                </span>
+              </div>
+            )}
             {offersAutoDetected && offers.length > 0 && (
-              <div className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px] text-accent-ink">
+              <div className="border-primary/30 bg-primary/5 text-accent-ink flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px]">
                 <Sparkles className="size-3.5 shrink-0" />
                 {t('products.offersAutoDetectedHint')}
               </div>
             )}
             {offers.length > 0 && (
-              <div className="flex items-center gap-2 px-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 px-0.5 text-[11px] font-medium tracking-wide uppercase">
                 <span className="flex-1">{t('products.offerName')}</span>
-                <span className="w-16 text-center sm:w-20">{t('products.units')}</span>
+                <span className="w-16 text-center sm:w-20">
+                  {t('products.units')}
+                </span>
                 <span className="w-28 sm:w-40">{t('products.offerPrice')}</span>
                 <span className="w-7" />
               </div>
@@ -628,12 +674,14 @@ export default function ProductDetailPage() {
                   value={o.label}
                   onChange={(e) =>
                     setOffers((cur) =>
-                      cur.map((x, i) => (i === idx ? { ...x, label: e.target.value } : x)),
+                      cur.map((x, i) =>
+                        i === idx ? { ...x, label: e.target.value } : x
+                      )
                     )
                   }
                   placeholder={t('products.offerNamePlaceholder')}
                   aria-label={t('products.offerName')}
-                  className="h-10 flex-1 bg-card"
+                  className="bg-card h-10 flex-1"
                 />
                 <div className="relative w-16 sm:w-20">
                   <Input
@@ -642,34 +690,39 @@ export default function ProductDetailPage() {
                       setOffers((cur) =>
                         cur.map((x, i) =>
                           i === idx
-                            ? { ...x, units: e.target.value.replace(/[^\d]/g, '') }
-                            : x,
-                        ),
+                            ? {
+                                ...x,
+                                units: e.target.value.replace(/[^\d]/g, ''),
+                              }
+                            : x
+                        )
                       )
                     }
                     inputMode="numeric"
                     placeholder={t('products.unitsPlaceholder')}
                     aria-label={t('products.units')}
-                    className="h-10 bg-card pr-7 text-center tabular-nums"
+                    className="bg-card h-10 pr-7 text-center tabular-nums"
                   />
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs">
                     {t('products.unitsSuffix')}
                   </span>
                 </div>
                 <div className="relative w-28 sm:w-40">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
                     $
                   </span>
                   <Input
                     value={o.total}
                     onChange={(e) =>
                       setOffers((cur) =>
-                        cur.map((x, i) => (i === idx ? { ...x, total: e.target.value } : x)),
+                        cur.map((x, i) =>
+                          i === idx ? { ...x, total: e.target.value } : x
+                        )
                       )
                     }
                     inputMode="decimal"
                     aria-label={t('products.offerPrice')}
-                    className="h-10 bg-card pl-7 tabular-nums"
+                    className="bg-card h-10 pl-7 tabular-nums"
                   />
                 </div>
                 <button
@@ -678,7 +731,7 @@ export default function ProductDetailPage() {
                     setOffers((cur) => cur.filter((_, i) => i !== idx));
                     setOffersAutoDetected(false);
                   }}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5"
                   aria-label={t('products.removeOffer')}
                 >
                   <X className="size-4" />
@@ -689,10 +742,13 @@ export default function ProductDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setOffers((cur) => [...cur, { label: '', total: '', units: '' }]);
+                setOffers((cur) => [
+                  ...cur,
+                  { label: '', total: '', units: '' },
+                ]);
                 setOffersAutoDetected(false);
               }}
-              className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+              className="border-border text-foreground hover:bg-muted h-8 bg-transparent"
             >
               <Plus className="size-3.5" />
               {t('products.addOffer')}
@@ -705,7 +761,7 @@ export default function ProductDetailPage() {
           <Textarea
             value={benefits}
             onChange={(e) => setBenefits(e.target.value)}
-            className="min-h-[96px] bg-card"
+            className="bg-card min-h-[96px]"
           />
         </Field>
 
@@ -719,16 +775,20 @@ export default function ProductDetailPage() {
               {canales.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                  className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-xs text-foreground">
+                    <p className="text-foreground truncate text-xs">
                       <span className="font-medium">
                         {PLATAFORMA[c.platform] ?? c.platform}
                       </span>
-                      {c.price_min != null ? ` · ${c.price_min} ${c.currency ?? ''}` : ''}
+                      {c.price_min != null
+                        ? ` · ${c.price_min} ${c.currency ?? ''}`
+                        : ''}
                     </p>
-                    <p className="truncate text-[11px] text-muted-foreground">{c.title}</p>
+                    <p className="text-muted-foreground truncate text-[11px]">
+                      {c.title}
+                    </p>
                   </div>
                   {/* La principal no se separa de sí misma: es la que manda el
                       conocimiento y las otras cuelgan de ella. */}
@@ -754,22 +814,24 @@ export default function ProductDetailPage() {
           label={t('products.websites')}
           hint={t('products.websitesHint')}
           action={
-            <span className="text-[11px] text-muted-foreground">{websites.length}/5</span>
+            <span className="text-muted-foreground text-[11px]">
+              {websites.length}/5
+            </span>
           }
         >
           <div className="space-y-2">
             {websites.map((w, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Globe className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Globe className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
                   <Input
                     value={w}
                     onChange={(e) =>
                       setWebsites((cur) =>
-                        cur.map((x, i) => (i === idx ? e.target.value : x)),
+                        cur.map((x, i) => (i === idx ? e.target.value : x))
                       )
                     }
-                    className="h-10 bg-card pl-9"
+                    className="bg-card h-10 pl-9"
                   />
                 </div>
                 {/^https?:\/\//.test(w) && (
@@ -777,7 +839,7 @@ export default function ProductDetailPage() {
                     href={w}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5"
                     aria-label={t('products.open')}
                   >
                     <ExternalLink className="size-4" />
@@ -785,8 +847,10 @@ export default function ProductDetailPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setWebsites((cur) => cur.filter((_, i) => i !== idx))}
-                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() =>
+                    setWebsites((cur) => cur.filter((_, i) => i !== idx))
+                  }
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5"
                   aria-label={t('products.removeSite')}
                 >
                   <X className="size-4" />
@@ -799,7 +863,7 @@ export default function ProductDetailPage() {
                 size="sm"
                 disabled={websites.length >= 5}
                 onClick={() => setWebsites((cur) => [...cur, ''])}
-                className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+                className="border-border text-foreground hover:bg-muted h-8 bg-transparent"
               >
                 <Plus className="size-3.5" />
                 {t('products.addAnotherSite')}
@@ -810,7 +874,7 @@ export default function ProductDetailPage() {
                   size="sm"
                   onClick={handleRescrape}
                   disabled={scraping}
-                  className="h-8 border-border bg-transparent text-foreground hover:bg-muted"
+                  className="border-border text-foreground hover:bg-muted h-8 bg-transparent"
                 >
                   {scraping ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -822,7 +886,7 @@ export default function ProductDetailPage() {
               )}
             </div>
             {product.scraped_at && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-muted-foreground text-[11px]">
                 {t('products.lastRead')}{' '}
                 {fmt.dateTime(product.scraped_at, {
                   day: '2-digit',
@@ -843,44 +907,60 @@ export default function ProductDetailPage() {
           icon={<Sparkles className="size-4" />}
         >
           <div className="space-y-3">
-            <Field label={t('products.objections')} hint={t('products.objectionsHint')} compact>
+            <Field
+              label={t('products.objections')}
+              hint={t('products.objectionsHint')}
+              compact
+            >
               <Textarea
                 value={objections}
                 onChange={(e) => setObjections(e.target.value)}
-                className="min-h-[64px] bg-card"
+                className="bg-card min-h-[64px]"
               />
             </Field>
             <Field label={t('products.whatToEmphasize')} compact>
               <Textarea
                 value={sayGuidelines}
                 onChange={(e) => setSayGuidelines(e.target.value)}
-                className="min-h-[56px] bg-card"
+                className="bg-card min-h-[56px]"
               />
             </Field>
-            <Field label={t('products.assistantNotes')} hint={t('products.assistantNotesHint')} compact>
+            <Field
+              label={t('products.assistantNotes')}
+              hint={t('products.assistantNotesHint')}
+              compact
+            >
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="min-h-[56px] bg-card"
+                className="bg-card min-h-[56px]"
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={t('products.neverSay')} hint={t('products.onePerLineShort')} compact>
+              <Field
+                label={t('products.neverSay')}
+                hint={t('products.onePerLineShort')}
+                compact
+              >
                 <Textarea
                   value={neverSay}
                   onChange={(e) => setNeverSay(e.target.value)}
-                  className="min-h-[56px] bg-card"
+                  className="bg-card min-h-[56px]"
                 />
               </Field>
-              <Field label={t('products.escalateIfMentions')} hint={t('products.onePerLineShort')} compact>
+              <Field
+                label={t('products.escalateIfMentions')}
+                hint={t('products.onePerLineShort')}
+                compact
+              >
                 <Textarea
                   value={escalation}
                   onChange={(e) => setEscalation(e.target.value)}
-                  className="min-h-[56px] bg-card"
+                  className="bg-card min-h-[56px]"
                 />
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-xs text-foreground">
+            <label className="text-foreground flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={healthSensitive}
@@ -898,7 +978,7 @@ export default function ProductDetailPage() {
           subtitle={t('products.faqsSubtitle')}
           icon={<MessageSquareQuote className="size-4" />}
           action={
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-muted-foreground text-[11px]">
               {faqs.length + product.ai_generated_faqs.length || 0}
             </span>
           }
@@ -908,7 +988,7 @@ export default function ProductDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => setFaqs((f) => [...f, { q: '', a: '' }])}
-              className="h-7 border-border bg-transparent text-foreground hover:bg-muted"
+              className="border-border text-foreground hover:bg-muted h-7 bg-transparent"
             >
               <Plus className="size-3.5" />
               {t('products.add')}
@@ -917,21 +997,28 @@ export default function ProductDetailPage() {
           {faqs.length > 0 && (
             <div className="mt-3 space-y-2">
               {faqs.map((f, idx) => (
-                <div key={idx} className="space-y-1.5 rounded-md border border-border bg-card p-2.5">
+                <div
+                  key={idx}
+                  className="border-border bg-card space-y-1.5 rounded-md border p-2.5"
+                >
                   <div className="flex items-center gap-2">
                     <Input
                       value={f.q}
                       onChange={(e) =>
                         setFaqs((cur) =>
-                          cur.map((x, i) => (i === idx ? { ...x, q: e.target.value } : x)),
+                          cur.map((x, i) =>
+                            i === idx ? { ...x, q: e.target.value } : x
+                          )
                         )
                       }
-                      className="h-8 bg-background"
+                      className="bg-background h-8"
                     />
                     <button
                       type="button"
-                      onClick={() => setFaqs((cur) => cur.filter((_, i) => i !== idx))}
-                      className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                      onClick={() =>
+                        setFaqs((cur) => cur.filter((_, i) => i !== idx))
+                      }
+                      className="text-muted-foreground rounded p-1 hover:bg-red-500/10 hover:text-red-500"
                       aria-label={t('products.removeFaq')}
                     >
                       <X className="size-3.5" />
@@ -941,43 +1028,53 @@ export default function ProductDetailPage() {
                     value={f.a}
                     onChange={(e) =>
                       setFaqs((cur) =>
-                        cur.map((x, i) => (i === idx ? { ...x, a: e.target.value } : x)),
+                        cur.map((x, i) =>
+                          i === idx ? { ...x, a: e.target.value } : x
+                        )
                       )
                     }
-                    className="min-h-[56px] bg-background text-sm"
+                    className="bg-background min-h-[56px] text-sm"
                   />
                 </div>
               ))}
             </div>
           )}
           {product.ai_generated_faqs.length > 0 && (
-            <div className="mt-4 space-y-2 border-t border-border pt-3">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="border-border mt-4 space-y-2 border-t pt-3">
+              <p className="text-muted-foreground text-[10px] tracking-wide uppercase">
                 {t('products.aiGenerated')}
               </p>
               {product.ai_generated_faqs.map((f, idx) => {
                 const adopted = faqs.some(
-                  (x) => x.q.trim() === f.q.trim() && x.a.trim() === f.a.trim(),
+                  (x) => x.q.trim() === f.q.trim() && x.a.trim() === f.a.trim()
                 );
                 return (
-                  <div key={idx} className="rounded-md border border-border bg-card/60 p-2.5">
+                  <div
+                    key={idx}
+                    className="border-border bg-card/60 rounded-md border p-2.5"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">{f.q}</p>
+                      <p className="text-foreground text-sm font-medium">
+                        {f.q}
+                      </p>
                       <button
                         type="button"
-                        onClick={() => !adopted && setFaqs((cur) => [...cur, { q: f.q, a: f.a }])}
+                        onClick={() =>
+                          !adopted &&
+                          setFaqs((cur) => [...cur, { q: f.q, a: f.a }])
+                        }
                         disabled={adopted}
                         className={cn(
                           'text-[10px] transition-colors',
                           adopted
                             ? 'cursor-default text-emerald-600 dark:text-emerald-400'
-                            : 'text-muted-foreground hover:text-foreground',
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                       >
                         {adopted ? t('products.adopted') : t('products.adopt')}
                       </button>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{f.a}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{f.a}</p>
                   </div>
                 );
               })}
@@ -989,9 +1086,9 @@ export default function ProductDetailPage() {
       {/* Barra de acciones — sticky dentro de la columna para que quede
           alineada con el formulario (antes era fixed a la ventana y se
           descolgaba del contenido). */}
-      <div className="sticky bottom-0 z-20 mt-8 border-t border-border bg-background/85 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="border-border bg-background/85 sticky bottom-0 z-20 mt-8 border-t pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="flex items-center gap-2">
-          <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
+          <span className="text-muted-foreground hidden min-w-0 flex-1 truncate text-xs sm:block">
             {isShopify
               ? t('products.syncedFrom', {
                   platform:
@@ -1006,7 +1103,7 @@ export default function ProductDetailPage() {
             variant="ghost"
             onClick={() => setDeleteOpen(true)}
             disabled={saving || researching || deleting}
-            className="h-9 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+            className="text-muted-foreground h-9 hover:bg-red-500/10 hover:text-red-500"
             aria-label={t('products.delete')}
           >
             <Trash2 className="size-4" />
@@ -1016,15 +1113,19 @@ export default function ProductDetailPage() {
             variant="outline"
             onClick={handleResearch}
             disabled={researching || saving}
-            className="h-9 border-border bg-transparent text-foreground hover:bg-muted"
+            className="border-border text-foreground hover:bg-muted h-9 bg-transparent"
           >
-            {researching ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+            {researching ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Wand2 className="size-4" />
+            )}
             {t('products.generateResearch')}
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="h-9 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 h-9"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : null}
             {t('products.saveChanges')}
@@ -1033,12 +1134,15 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Confirmación de borrado */}
-      <Dialog open={deleteOpen} onOpenChange={(o) => !deleting && setDeleteOpen(o)}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => !deleting && setDeleteOpen(o)}
+      >
         <DialogContent className="bg-card text-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('products.deleteTitle')}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1.5 text-sm text-muted-foreground">
+          <div className="text-muted-foreground space-y-1.5 text-sm">
             <p>{t('products.deleteBody', { name: product.title })}</p>
             {assignedAgents > 0 && (
               <p>{t('products.deleteAgentsWarning', { n: assignedAgents })}</p>
@@ -1059,7 +1163,11 @@ export default function ProductDetailPage() {
               disabled={deleting}
               className="bg-red-600 text-white hover:bg-red-600/90"
             >
-              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {deleting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
               {t('products.delete')}
             </Button>
           </DialogFooter>
@@ -1086,10 +1194,10 @@ function Field({
   return (
     <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
       <div className="flex items-center justify-between gap-2">
-        <label className="text-sm font-medium text-foreground">{label}</label>
+        <label className="text-foreground text-sm font-medium">{label}</label>
         {action}
       </div>
-      {hint && <p className="-mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-muted-foreground -mt-0.5 text-xs">{hint}</p>}
       {children}
     </div>
   );
@@ -1110,16 +1218,20 @@ function Collapsible({
   children: React.ReactNode;
 }) {
   return (
-    <details className="group rounded-xl border border-border bg-card/40">
+    <details className="group border-border bg-card/40 rounded-xl border">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3">
         <span className="text-muted-foreground">{icon}</span>
         <span className="flex-1">
-          <span className="text-sm font-medium text-foreground">{title}</span>
-          {subtitle && <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{subtitle}</span>}
+          <span className="text-foreground text-sm font-medium">{title}</span>
+          {subtitle && (
+            <span className="text-muted-foreground ml-2 hidden text-xs sm:inline">
+              {subtitle}
+            </span>
+          )}
         </span>
         {action}
         <svg
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+          className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -1128,7 +1240,7 @@ function Collapsible({
           <path d="m6 9 6 6 6-6" />
         </svg>
       </summary>
-      <div className="border-t border-border px-4 py-3">{children}</div>
+      <div className="border-border border-t px-4 py-3">{children}</div>
     </details>
   );
 }
