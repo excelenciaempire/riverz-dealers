@@ -637,14 +637,21 @@ export async function runAiAgent(
       // archivaba como "ai_error" —error genérico del modelo— y el tablero
       // mandaba a buscar un bug donde sólo había que recargar. Es el
       // diagnóstico que costó encontrar en agosto de 2026.
-      const category =
-        httpStatus === 429
+      const error = genErr instanceof Error ? genErr.message : String(genErr);
+      // Este bloqueo no significa que el proveedor o el modelo hayan fallado:
+      // evitó enviar un precio que no estaba verificado. Se deriva a una persona,
+      // pero no debe contaminar la métrica de errores de IA.
+      const isPriceIntegrityHandoff = error.startsWith('price_integrity:');
+      const category = isPriceIntegrityHandoff
+        ? 'answer_gap'
+        : httpStatus === 429
           ? 'ai_rate_limited'
           : claveRechazada(genErr)
             ? 'ai_no_credit'
             : httpStatus && httpStatus >= 500
               ? 'ai_upstream'
               : 'ai_error';
+      const executionStatus = isPriceIntegrityHandoff ? 'skipped' : 'failed';
       console.error(
         `[ai] generateReply failed (${category}, http=${httpStatus ?? 'n/a'}):`,
         genErr,
@@ -681,7 +688,11 @@ export async function runAiAgent(
         console.info(
           `[ia] cortesía ya enviada hace poco en ${args.conversation.id}: no se repite`,
         );
-        await logReply(db, agent, args, { status: 'failed', skip_reason: category });
+        await logReply(db, agent, args, {
+          status: executionStatus,
+          skip_reason: category,
+          error,
+        });
         return;
       }
       try {
@@ -724,9 +735,9 @@ export async function runAiAgent(
         console.error('[ai] courtesy send failed:', sendErr);
       }
       await logReply(db, agent, args, {
-        status: 'failed',
+        status: executionStatus,
         skip_reason: category,
-        error: genErr instanceof Error ? genErr.message : String(genErr),
+        error,
       });
       return;
     }
@@ -1409,6 +1420,25 @@ export interface ContextMessage {
     mediaMime: string | null;
     transcription: string | null;
   } | null;
+}
+
+/**
+ * Anthropic requiere que la conversación inicial empiece y termine en un
+ * mensaje del cliente. El historial puede acabar en un mensaje del asistente
+ * cuando el webhook llega antes de que se persista el mensaje entrante actual.
+ */
+export function normalizarLimitesDeConversacion(
+  messages: ContextMessage[],
+  fallback: ContextMessage,
+): ContextMessage[] {
+  let normalized = messages;
+  while (normalized.length && normalized[0].role !== 'user') {
+    normalized = normalized.slice(1);
+  }
+  while (normalized.length && normalized.at(-1)?.role !== 'user') {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized.length > 0 ? normalized : [fallback];
 }
 
 /**
@@ -2474,19 +2504,10 @@ async function generateReply(
     registro,
   );
 
-  // Ensure the conversation starts with a user turn — required by the API.
-  let messages: ContextMessage[] = context.messages;
-  while (messages.length && messages[0].role !== 'user') {
-    messages = messages.slice(1);
-  }
-  if (messages.length === 0) {
-    messages = [
-      {
-        role: 'user',
-        content: contact.name ? `Hola, soy ${contact.name}.` : 'Hola.',
-      },
-    ];
-  }
+  const messages = normalizarLimitesDeConversacion(context.messages, {
+    role: 'user',
+    content: contact.name ? `Hola, soy ${contact.name}.` : 'Hola.',
+  });
 
   // ── Transcripción de audios / voice notes ──
   // Para cualquier mensaje del cliente con media_type voice|audio sin
