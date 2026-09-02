@@ -153,7 +153,7 @@ export function ActivacionWizard() {
         <Plan
           plan={estado?.plan ?? { agentes: [], recetas: [] }}
           onBack={() => ir(3)}
-          onDone={() => router.push('/operacion')}
+          onDone={() => router.push('/operacion/validar')}
         />
       )}
     </div>
@@ -441,7 +441,7 @@ function Plan({
           </div>
         </div>
         <div className="mt-5 flex justify-end">
-          <Button onClick={onDone}>{t('operation.goToCenter')}</Button>
+          <Button onClick={onDone}>{t('operation.validationRun')}</Button>
         </div>
       </Tarjeta>
     )

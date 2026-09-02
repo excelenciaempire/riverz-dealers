@@ -93,6 +93,11 @@ export const FORBIDDEN_COLUMNS: Record<string, readonly string[]> = {
   // declaradas igual, con lista vacía: la barrera rechaza lo que no está en
   // este mapa, así que declararlas es la forma de decir "ya la miré".
   ai_replies: [],
+  // Preparación operativa por comercio. El perfil describe al comercio, no a
+  // compradores; los escenarios sí pueden contener respuestas simuladas y
+  // nunca salen por el panel de plataforma.
+  operacion_setup: [],
+  operacion_validation_runs: ['scenarios'],
   flows: [],
   automations: [],
   shopify_products: [],

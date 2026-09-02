@@ -130,6 +130,12 @@ import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import { motorApagado } from '@/lib/workspaces/motor';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import type { OtherStoreContext } from '@/lib/ai/tools';
+import {
+  cargarPerfilOperativo,
+  perfilOperativoAPrompt,
+  requiereModuloRegulado,
+  type PerfilOperativo,
+} from '@/lib/operacion/perfil-operativo';
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -2472,6 +2478,7 @@ async function generateReply(
   }
   const igContext = extras.length ? extras.join('\n\n') : null;
   const reglas = reglasATexto(await cargarReglas(db, agent.workspace_id, agent.id));
+  const perfilOperativo = await cargarPerfilOperativo(db, agent.workspace_id);
   // De vos o de tú, según de dónde sea el CLIENTE. Sirve en todos los canales:
   // donde no hay teléfono (Instagram, comentarios, chat web, correo) el país
   // sale de la dirección del cliente en la tienda y, si tampoco, del número
@@ -2502,6 +2509,7 @@ async function generateReply(
     businessCurrency,
     reglas,
     registro,
+    perfilOperativo,
   );
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
@@ -2879,6 +2887,9 @@ export function buildSystemPrompt(
    * Neutro es la casa; ver el bloque de idioma más abajo.
    */
   registro: Registro = 'neutro',
+  /** Configuración estructurada del comercio. Null conserva el comportamiento
+   * histórico para cuentas que todavía no pasaron por la activación guiada. */
+  perfilOperativo: PerfilOperativo | null = null,
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(limpiarPersona(agent.persona));
@@ -2939,6 +2950,8 @@ export function buildSystemPrompt(
     lines.push('Contexto adicional sobre el negocio:');
     lines.push(agent.knowledge.trim());
   }
+  const perfilPrompt = perfilOperativoAPrompt(perfilOperativo);
+  if (perfilPrompt) lines.push(perfilPrompt);
 
   // ── Business-scope guardrails (off-topic refusal + character lock) ──
   // Single source of truth in `ai/guardrails.ts`, appended on EVERY
@@ -3303,13 +3316,14 @@ export function buildSystemPrompt(
     lines.push('Datos del cliente que ya conoces:');
     lines.push(knownContact.join(' · '));
   }
-  // ── Health-topic guard ──
-  // For skincare / cosmetics / supplement brands the model must not
-  // diagnose, claim efficacy for medical conditions, or recommend use
-  // for pregnancy / lactation / dermatitis. Escalate every time.
-  lines.push(
-    'Temas de salud (embarazo, lactancia, alergias, dermatitis u otra condición dermatológica, medicación, consejos médicos): NO afirmes que un producto es seguro/eficaz para esa condición, NO recomiendes uso, NO inventes ingredientes ni contraindicaciones. Responde que por seguridad esa consulta la atiende una persona del equipo y pídele que espere a un agente humano.',
-  );
+  // ── Módulo regulado ──
+  // Sólo aplica cuando el comercio lo declaró. Las cuentas anteriores no
+  // tienen perfil y conservan el resguardo histórico hasta validarse.
+  if (requiereModuloRegulado(perfilOperativo)) {
+    lines.push(
+      'Temas de salud (embarazo, lactancia, alergias, dermatitis u otra condición dermatológica, medicación, consejos médicos): NO afirmes que un producto es seguro/eficaz para esa condición, NO recomiendes uso, NO inventes ingredientes ni contraindicaciones. Responde que por seguridad esa consulta la atiende una persona del equipo y pídele que espere a un agente humano.',
+    );
+  }
   lines.push(
     'Si la consulta requiere intervención humana (precios complejos, reembolsos, queja seria), pídele amablemente al cliente que espere a que un agente humano se conecte.',
   );

@@ -11,7 +11,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from '@/lib/ai/types';
-import type { Contact } from '@/types';
+import { CHANNELS, type Channel, type Contact } from '@/types';
 import {
   buildSystemPrompt,
   construirHerramientas,
@@ -24,6 +24,8 @@ import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
+import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
 import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
 import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import type { CheckoutConfig } from '@/lib/shopify/create-checkout';
@@ -50,7 +52,8 @@ import type { CheckoutConfig } from '@/lib/shopify/create-checkout';
  *     cubierta sin que nadie se acuerde de cubrirla.
  *
  * POST /api/ai/agents/[id]/test
- *   body: { message: string, historial?: {role,content}[], simulated_phone?: string }
+ *   body: { message: string, historial?: {role,content}[], simulated_phone?: string,
+ *           simulated_channel?: Channel }
  *   → { reply, chunks, herramientas, usage }
  */
 
@@ -78,6 +81,7 @@ export async function POST(
   const body = (await request.json().catch(() => null)) as {
     message?: string;
     simulated_phone?: string;
+    simulated_channel?: unknown;
     historial?: unknown;
   } | null;
   const message = body?.message?.trim();
@@ -136,21 +140,23 @@ export async function POST(
     // El mismo enganche de producto que producción: es lo que fija el producto
     // y trae su material de entrenamiento al prompt.
     const productMatch = await detectInboundProduct(admin, a.workspace_id, message);
-    const [products, businessCurrency, permitidos, reglas, topeDescuento] =
+    const [products, businessCurrency, permitidos, reglas, topeDescuento, perfilOperativo] =
       await Promise.all([
         loadProductCatalog(admin, a, a.workspace_id, productMatch),
         resolveWorkspaceCurrency(admin, a.workspace_id),
         productosPermitidos(admin, a, a.workspace_id),
         cargarReglas(admin, a.workspace_id, a.id).then(reglasATexto),
         topeDeDescuento(admin, a.workspace_id).catch(() => 0),
+        cargarPerfilOperativo(admin, a.workspace_id),
       ]);
 
     // Un contacto de mentira, con la forma de uno real. No se guarda en ningún
     // lado: existe para que el prompt tenga a quién nombrar.
+    const simulatedChannel = canalSimulado(body?.simulated_channel);
     const contacto = {
       id: '',
       workspace_id: a.workspace_id,
-      channel: 'webchat',
+      channel: simulatedChannel,
       external_id: 'prueba',
       name: null,
       phone: body?.simulated_phone?.trim() || null,
@@ -187,9 +193,11 @@ export async function POST(
       products,
       productMatch,
       shopify,
-      null,
+      esComentarioPublico(simulatedChannel) ? REGLAS_COMENTARIO_PUBLICO : null,
       businessCurrency,
       reglas,
+      undefined,
+      perfilOperativo,
     );
 
     // La misma lista que produccion, resuelta por la pizarra del comercio.
@@ -279,6 +287,16 @@ function normalizarHistorial(valor: unknown): Array<{ role: 'user' | 'assistant'
   // La API exige que el hilo arranque con el usuario.
   while (turnos.length && turnos[0].role !== 'user') turnos.shift();
   return turnos.slice(-MAX_HISTORIAL);
+}
+
+function canalSimulado(value: unknown): Channel {
+  return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
+    ? value as Channel
+    : 'webchat';
+}
+
+function esComentarioPublico(channel: Channel): boolean {
+  return channel === 'ig_comment' || channel === 'fb_comment' || channel === 'tiktok_comment';
 }
 
 /**

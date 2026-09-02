@@ -25,6 +25,8 @@ import {
 } from "../../_components/admin-ui";
 import { SuspensionSwitch } from "../../_components/suspension-switch";
 import { MotorSwitch } from "../../_components/motor-switch";
+import { OperationPrep } from "../../_components/operation-prep";
+import { OperationHealth } from "../../_components/operation-health";
 
 /**
  * Las respuestas posibles a "¿cierras ventas hablando?", mapeadas a su clave.
@@ -91,6 +93,14 @@ export default function AdminWorkspaceDetailPage({
           motorApagadoAt={workspace.motor_apagado_at ?? null}
           onDone={reload}
         />
+      </Panel>
+
+      <Panel title={t("admin.prepareOperationTitle")}>
+        <OperationPrep workspaceId={workspace.id} onDone={reload} />
+      </Panel>
+
+      <Panel title={t("admin.operationHealthTitle")}>
+        <OperationHealth workspaceId={workspace.id} />
       </Panel>
 
       {/* La billetera. Va arriba porque es la respuesta a la queja más

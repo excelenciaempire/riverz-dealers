@@ -156,6 +156,22 @@ export const operation = {
   goToCenter: { es: "Ir al centro de operación", en: "Go to the operation center" },
   planFailed: { es: "No se pudo crear", en: "Couldn't create" },
 
+  validationTitle: { es: "Valida antes de activar", en: "Validate before activating" },
+  validationHint: {
+    es: "Prueba el agente con los mismos datos y herramientas de producción. No se envía ni modifica nada.",
+    en: "Test the agent with the same production data and tools. Nothing is sent or changed.",
+  },
+  validationRun: { es: "Ejecutar pruebas", en: "Run tests" },
+  validationRunning: { es: "Probando…", en: "Testing…" },
+  validationPassed: { es: "Listo para activar", en: "Ready to activate" },
+  validationWarning: { es: "Requiere revisión humana", en: "Needs human review" },
+  validationBlocked: { es: "Falta configurar información esencial", en: "Essential information is missing" },
+  validationRelease: { es: "Activar respuestas automáticas", en: "Enable automatic replies" },
+  validationReleased: { es: "Respuestas automáticas activadas", en: "Automatic replies enabled" },
+  validationNoAgent: { es: "Crea un agente en borrador para empezar la validación.", en: "Create a draft agent to start validation." },
+  validationError: { es: "No se pudo completar la validación.", en: "Couldn't complete validation." },
+  validationScenario: { es: "Prueba", en: "Test" },
+
   // Roles de la flota
   roleSalesName: { es: "Ventas", en: "Sales" },
   roleAftersaleName: { es: "Postventa", en: "After-sales" },
