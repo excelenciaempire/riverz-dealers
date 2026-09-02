@@ -62,6 +62,19 @@ describe('market research comments', () => {
     );
   });
 
+  it('does not call every buying-related word an intent to buy', () => {
+    const comments = [
+      { channel: 'ig_comment' as const, text: 'Dónde lo compro?', createdAt: '2026-09-01T00:00:00Z' },
+      { channel: 'fb_comment' as const, text: 'Me interesa, quiero comprar', createdAt: '2026-09-02T00:00:00Z' },
+      { channel: 'tiktok_comment' as const, text: 'Info por favor', createdAt: '2026-09-03T00:00:00Z' },
+    ];
+    const metrics = analyzeCommentMetrics(comments);
+    const count = (key: string) => metrics.signals.find((signal) => signal.key === key)?.count;
+    expect(count('where_to_buy')).toBe(1);
+    expect(count('purchase')).toBe(1);
+    expect(count('information')).toBe(1);
+  });
+
   it('creates actions only when the full corpus has the supporting signal', () => {
     const metrics = analyzeCommentMetrics([
       { channel: 'ig_comment', text: '¿Cuánto cuesta?', createdAt: '2026-09-01T00:00:00Z' },

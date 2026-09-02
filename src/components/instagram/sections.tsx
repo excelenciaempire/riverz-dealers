@@ -1885,7 +1885,14 @@ interface MarketResearchResponse {
     byChannel: Record<'ig_comment' | 'fb_comment' | 'tiktok_comment', number>;
     sentiment: { positive: number; neutral: number; negative: number };
     signals: Array<{
-      key: 'price' | 'purchase' | 'availability' | 'complaint';
+      key:
+        | 'price'
+        | 'purchase'
+        | 'where_to_buy'
+        | 'information'
+        | 'availability'
+        | 'product_use'
+        | 'complaint';
       count: number;
     }>;
     terms: Array<{ term: string; count: number }>;
@@ -1904,7 +1911,10 @@ type MarketResearchCommentCategory =
   | 'negative'
   | 'price'
   | 'purchase'
+  | 'where_to_buy'
+  | 'information'
   | 'availability'
+  | 'product_use'
   | 'complaint';
 
 interface MarketResearchComment {
@@ -1954,7 +1964,10 @@ const MARKET_RESEARCH_PROGRESS_KEY: Record<
 const MARKET_RESEARCH_SIGNAL_KEY = {
   price: 'igAgent.marketResearchSignalPrice',
   purchase: 'igAgent.marketResearchSignalPurchase',
+  where_to_buy: 'igAgent.marketResearchSignalWhereToBuy',
+  information: 'igAgent.marketResearchSignalInformation',
   availability: 'igAgent.marketResearchSignalAvailability',
+  product_use: 'igAgent.marketResearchSignalProductUse',
   complaint: 'igAgent.marketResearchSignalComplaint',
 } as const;
 
