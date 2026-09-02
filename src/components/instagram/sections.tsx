@@ -2076,11 +2076,13 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
         for (const line of lines) {
-          if (line.trim()) handleEvent(JSON.parse(line) as MarketResearchStreamEvent);
+          if (line.trim())
+            handleEvent(JSON.parse(line) as MarketResearchStreamEvent);
         }
         if (done) break;
       }
-      if (buffer.trim()) handleEvent(JSON.parse(buffer) as MarketResearchStreamEvent);
+      if (buffer.trim())
+        handleEvent(JSON.parse(buffer) as MarketResearchStreamEvent);
       if (!receivedResult) throw new Error(t('igAgent.marketResearchFailed'));
     } catch (error) {
       toast.error(
@@ -2133,7 +2135,10 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
       </div>
 
       {running && progress && (
-        <div aria-live="polite" className="border-border space-y-2 border-t px-5 py-4 sm:px-7">
+        <div
+          aria-live="polite"
+          className="border-border space-y-2 border-t px-5 py-4 sm:px-7"
+        >
           <div
             aria-valuemax={100}
             aria-valuemin={0}
@@ -2148,8 +2153,7 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
             />
           </div>
           <p className="text-muted-foreground text-xs">
-            {t(MARKET_RESEARCH_PROGRESS_KEY[progress.stage])}{' '}
-            {progress.value}%
+            {t(MARKET_RESEARCH_PROGRESS_KEY[progress.stage])} {progress.value}%
           </p>
         </div>
       )}
@@ -2209,7 +2213,9 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                     <p className="text-accent-ink text-xs font-semibold tabular-nums">
                       0{index + 1}
                     </p>
-                    <p className="mt-1 text-sm font-semibold">{finding.title}</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {finding.title}
+                    </p>
                     <p className="text-muted-foreground mt-1 text-sm leading-5">
                       {finding.detail}
                     </p>
@@ -2243,16 +2249,18 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                   {t('igAgent.marketResearchChannelMix')}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {Object.entries(report.metrics.byChannel).map(([channel, count]) => (
-                    <Badge key={channel} variant="secondary">
-                      {t(
-                        MARKET_RESEARCH_CHANNEL_KEY[
-                          channel as keyof typeof MARKET_RESEARCH_CHANNEL_KEY
-                        ]
-                      )}{' '}
-                      {count}
-                    </Badge>
-                  ))}
+                  {Object.entries(report.metrics.byChannel).map(
+                    ([channel, count]) => (
+                      <Badge key={channel} variant="secondary">
+                        {t(
+                          MARKET_RESEARCH_CHANNEL_KEY[
+                            channel as keyof typeof MARKET_RESEARCH_CHANNEL_KEY
+                          ]
+                        )}{' '}
+                        {count}
+                      </Badge>
+                    )
+                  )}
                 </div>
               </div>
             </div>
@@ -2339,10 +2347,8 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                   >
                     <p className="text-sm leading-6">{comment.text}</p>
                     <p className="text-muted-foreground mt-2 text-xs">
-                      {t(
-                        MARKET_RESEARCH_CHANNEL_KEY[comment.channel]
-                      )}{' '}
-                      · {fmt.dateTime(comment.createdAt)}
+                      {t(MARKET_RESEARCH_CHANNEL_KEY[comment.channel])} ·{' '}
+                      {fmt.dateTime(comment.createdAt)}
                     </p>
                   </article>
                 ))}
@@ -2356,9 +2362,12 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={detail.page === 0 || detailLoading || !detailCategory}
+                    disabled={
+                      detail.page === 0 || detailLoading || !detailCategory
+                    }
                     onClick={() =>
-                      detailCategory && openDetail(detailCategory, detail.page - 1)
+                      detailCategory &&
+                      openDetail(detailCategory, detail.page - 1)
                     }
                   >
                     {t('igAgent.marketResearchPrevious')}
@@ -2367,9 +2376,12 @@ function CommentMarketResearch({ workspaceId }: { workspaceId: string }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!detail.has_more || detailLoading || !detailCategory}
+                    disabled={
+                      !detail.has_more || detailLoading || !detailCategory
+                    }
                     onClick={() =>
-                      detailCategory && openDetail(detailCategory, detail.page + 1)
+                      detailCategory &&
+                      openDetail(detailCategory, detail.page + 1)
                     }
                   >
                     {t('igAgent.marketResearchNext')}
@@ -2481,7 +2493,11 @@ function ResearchPanel({
   );
 }
 
-export function CommentBackfillDialog({ workspaceId }: { workspaceId: string }) {
+export function CommentBackfillDialog({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) {
   const [open, setOpen] = useState(false);
   const t = useT();
   return (
@@ -2493,10 +2509,15 @@ export function CommentBackfillDialog({ workspaceId }: { workspaceId: string }) 
       <DialogContent className="border-border bg-card max-h-[calc(100dvh-2rem)] p-0 sm:max-w-xl">
         <DialogHeader className="border-border border-b px-5 pt-5 pr-12 pb-4">
           <DialogTitle>{t('igAgent.backfillTitle')}</DialogTitle>
-          <DialogDescription>{t('igAgent.backfillDialogDescription')}</DialogDescription>
+          <DialogDescription>
+            {t('igAgent.backfillDialogDescription')}
+          </DialogDescription>
         </DialogHeader>
         <div className="px-5 py-5">
-          <CommentBackfill workspaceId={workspaceId} onComplete={() => setOpen(false)} />
+          <CommentBackfill
+            workspaceId={workspaceId}
+            onComplete={() => setOpen(false)}
+          />
         </div>
       </DialogContent>
     </Dialog>
@@ -2510,6 +2531,20 @@ function CommentBackfill({
   workspaceId: string;
   onComplete?: () => void;
 }) {
+  type CommentBackfillChannel = 'ig_comment' | 'fb_comment' | 'tiktok_comment';
+  type MessageBackfillChannel = 'instagram' | 'facebook';
+  type BackfillCapabilities = {
+    comments: { instagram: boolean; facebook: boolean; tiktok: boolean };
+    messages: {
+      instagram: boolean;
+      facebook: boolean;
+      whatsapp: {
+        connected: boolean;
+        mode: 'coexistence' | 'cloud' | 'disconnected';
+        manual_backfill: boolean;
+      };
+    };
+  };
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   const today = new Date().toISOString().slice(0, 10);
@@ -2521,14 +2556,51 @@ function CommentBackfill({
   const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>([
     'comments',
   ]);
-  const [channels, setChannels] = useState<
-    Array<'ig_comment' | 'fb_comment' | 'tiktok_comment'>
-  >(['ig_comment', 'fb_comment']);
+  const [channels, setChannels] = useState<CommentBackfillChannel[]>([
+    'ig_comment',
+    'fb_comment',
+  ]);
+  const [messageChannels, setMessageChannels] = useState<
+    MessageBackfillChannel[]
+  >(['instagram', 'facebook']);
+  const [capabilities, setCapabilities] = useState<BackfillCapabilities | null>(
+    null
+  );
   const [running, setRunning] = useState(false);
 
-  const toggleChannel = (
-    channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment'
-  ) => {
+  useEffect(() => {
+    let cancelled = false;
+    fetch(
+      `/api/messages/backfill?workspace_id=${encodeURIComponent(workspaceId)}`,
+      { cache: 'no-store' }
+    )
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: BackfillCapabilities | null) => {
+        if (cancelled || !payload) return;
+        setCapabilities(payload);
+        setChannels((current) =>
+          current.filter(
+            (channel) =>
+              (channel === 'ig_comment' && payload.comments.instagram) ||
+              (channel === 'fb_comment' && payload.comments.facebook) ||
+              (channel === 'tiktok_comment' && payload.comments.tiktok)
+          )
+        );
+        setMessageChannels((current) =>
+          current.filter(
+            (channel) =>
+              (channel === 'instagram' && payload.messages.instagram) ||
+              (channel === 'facebook' && payload.messages.facebook)
+          )
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const toggleChannel = (channel: CommentBackfillChannel) => {
     setChannels((current) =>
       current.includes(channel)
         ? current.filter((value) => value !== channel)
@@ -2536,40 +2608,41 @@ function CommentBackfill({
     );
   };
 
+  const toggleMessageChannel = (channel: MessageBackfillChannel) => {
+    setMessageChannels((current) =>
+      current.includes(channel)
+        ? current.filter((value) => value !== channel)
+        : [...current, channel]
+    );
+  };
+
   const run = async () => {
-    if (!channels.length || !surfaces.length) return;
+    if (
+      !surfaces.length ||
+      (surfaces.includes('comments') && !channels.length) ||
+      (surfaces.includes('messages') && !messageChannels.length)
+    )
+      return;
     setRunning(true);
     try {
-      const messageChannels = channels.filter(
-        (channel) => channel !== 'tiktok_comment'
-      );
-      const requests = surfaces
-        .filter(
-          (surface) => surface === 'comments' || messageChannels.length > 0
+      const requests = surfaces.map((surface) =>
+        fetchWithCsrf(
+          surface === 'comments'
+            ? '/api/comments/backfill'
+            : '/api/messages/backfill',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              workspace_id: workspaceId,
+              date_from: allHistory ? undefined : fromDate,
+              date_to: toDate,
+              all_history: allHistory,
+              channels: surface === 'comments' ? channels : messageChannels,
+            }),
+          }
         )
-        .map((surface) =>
-          fetchWithCsrf(
-            surface === 'comments'
-              ? '/api/comments/backfill'
-              : '/api/messages/backfill',
-            {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                workspace_id: workspaceId,
-                date_from: allHistory ? undefined : fromDate,
-                date_to: toDate,
-                all_history: allHistory,
-                channels:
-                  surface === 'comments'
-                    ? channels
-                    : messageChannels.map((channel) =>
-                        channel === 'ig_comment' ? 'instagram' : 'facebook'
-                      ),
-              }),
-            }
-          )
-        );
+      );
       const responses = await Promise.all(requests);
       const results = await Promise.all(
         responses.map(async (response) => ({
@@ -2621,6 +2694,16 @@ function CommentBackfill({
     setFromDate(all ? '' : dateDaysAgo(days));
     setToDate(today);
   };
+
+  const commentAvailable = (channel: CommentBackfillChannel) =>
+    !capabilities ||
+    (channel === 'ig_comment' && capabilities.comments.instagram) ||
+    (channel === 'fb_comment' && capabilities.comments.facebook) ||
+    (channel === 'tiktok_comment' && capabilities.comments.tiktok);
+  const messageAvailable = (channel: MessageBackfillChannel) =>
+    !capabilities ||
+    (channel === 'instagram' && capabilities.messages.instagram) ||
+    (channel === 'facebook' && capabilities.messages.facebook);
 
   return (
     <div className="space-y-4">
@@ -2717,67 +2800,124 @@ function CommentBackfill({
           />
         </label>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground text-xs">
-          {t('igAgent.backfillChannels')}
-        </span>
-        <label
-          className={cn(
-            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
-            channels.includes('ig_comment')
-              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
-              : 'text-muted-foreground hover:bg-accent/20'
+      {surfaces.includes('comments') && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground text-xs">
+            {t('igAgent.backfillChannels')}
+          </span>
+          <label
+            className={cn(
+              'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+              channels.includes('ig_comment')
+                ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+                : 'text-muted-foreground hover:bg-accent/20',
+              !commentAvailable('ig_comment') && 'cursor-not-allowed opacity-45'
+            )}
+          >
+            <input
+              className="accent-primary"
+              type="checkbox"
+              checked={channels.includes('ig_comment')}
+              disabled={!commentAvailable('ig_comment')}
+              onChange={() => toggleChannel('ig_comment')}
+            />
+            {t('igAgent.network_instagram')}
+          </label>
+          <label
+            className={cn(
+              'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+              channels.includes('fb_comment')
+                ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+                : 'text-muted-foreground hover:bg-accent/20',
+              !commentAvailable('fb_comment') && 'cursor-not-allowed opacity-45'
+            )}
+          >
+            <input
+              className="accent-primary"
+              type="checkbox"
+              checked={channels.includes('fb_comment')}
+              disabled={!commentAvailable('fb_comment')}
+              onChange={() => toggleChannel('fb_comment')}
+            />
+            {t('igAgent.network_facebook')}
+          </label>
+          <label
+            className={cn(
+              'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+              channels.includes('tiktok_comment')
+                ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+                : 'text-muted-foreground hover:bg-accent/20',
+              !commentAvailable('tiktok_comment') &&
+                'cursor-not-allowed opacity-45'
+            )}
+          >
+            <input
+              className="accent-primary"
+              type="checkbox"
+              checked={channels.includes('tiktok_comment')}
+              disabled={!commentAvailable('tiktok_comment')}
+              onChange={() => toggleChannel('tiktok_comment')}
+            />
+            {t('igAgent.network_tiktok')}
+          </label>
+        </div>
+      )}
+      {surfaces.includes('messages') && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground text-xs">
+              {t('igAgent.backfillMessageChannels')}
+            </span>
+            {(
+              [
+                ['instagram', 'igAgent.network_instagram'],
+                ['facebook', 'igAgent.network_facebook'],
+              ] as const
+            ).map(([channel, label]) => (
+              <label
+                key={channel}
+                className={cn(
+                  'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
+                  messageChannels.includes(channel)
+                    ? 'border-accent-ink/35 bg-accent/40 text-foreground'
+                    : 'text-muted-foreground hover:bg-accent/20',
+                  !messageAvailable(channel) && 'cursor-not-allowed opacity-45'
+                )}
+              >
+                <input
+                  className="accent-primary"
+                  type="checkbox"
+                  checked={messageChannels.includes(channel)}
+                  disabled={!messageAvailable(channel)}
+                  onChange={() => toggleMessageChannel(channel)}
+                />
+                {t(label)}
+              </label>
+            ))}
+          </div>
+          {capabilities?.messages.whatsapp.connected && (
+            <div className="border-border bg-muted/30 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs leading-5">
+              <span className="text-foreground shrink-0 font-medium">
+                {t('igAgent.backfillWhatsApp')}
+              </span>
+              <p className="text-muted-foreground">
+                {capabilities.messages.whatsapp.mode === 'coexistence'
+                  ? t('igAgent.backfillWhatsAppCoexistence')
+                  : t('igAgent.backfillWhatsAppCloud')}
+              </p>
+            </div>
           )}
-        >
-          <input
-            className="accent-primary"
-            type="checkbox"
-            checked={channels.includes('ig_comment')}
-            onChange={() => toggleChannel('ig_comment')}
-          />
-          {t('igAgent.network_instagram')}
-        </label>
-        <label
-          className={cn(
-            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
-            channels.includes('fb_comment')
-              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
-              : 'text-muted-foreground hover:bg-accent/20'
-          )}
-        >
-          <input
-            className="accent-primary"
-            type="checkbox"
-            checked={channels.includes('fb_comment')}
-            onChange={() => toggleChannel('fb_comment')}
-          />
-          {t('igAgent.network_facebook')}
-        </label>
-        <label
-          className={cn(
-            'border-border flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors',
-            channels.includes('tiktok_comment')
-              ? 'border-accent-ink/35 bg-accent/40 text-foreground'
-              : 'text-muted-foreground hover:bg-accent/20'
-          )}
-        >
-          <input
-            className="accent-primary"
-            type="checkbox"
-            checked={channels.includes('tiktok_comment')}
-            onChange={() => toggleChannel('tiktok_comment')}
-          />
-          {t('igAgent.network_tiktok')}
-        </label>
-      </div>
+        </div>
+      )}
       <Button
         className="mt-4"
         size="sm"
         onClick={run}
         disabled={
           running ||
-          !channels.length ||
           !surfaces.length ||
+          (surfaces.includes('comments') && !channels.length) ||
+          (surfaces.includes('messages') && !messageChannels.length) ||
           (!allHistory && (!fromDate || !toDate || fromDate > toDate))
         }
       >

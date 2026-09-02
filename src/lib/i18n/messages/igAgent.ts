@@ -252,6 +252,16 @@ export const igAgent = {
   backfillComments: { es: 'Comentarios', en: 'Comments' },
   backfillMessages: { es: 'Mensajes', en: 'Messages' },
   backfillChannels: { es: 'Canales', en: 'Channels' },
+  backfillMessageChannels: { es: 'Mensajes en', en: 'Messages on' },
+  backfillWhatsApp: { es: 'WhatsApp', en: 'WhatsApp' },
+  backfillWhatsAppCoexistence: {
+    es: 'El historial disponible se sincroniza automáticamente al conectar un número en coexistencia. No activa respuestas ni automatizaciones.',
+    en: 'Available history is synced automatically when a coexistence number is connected. It does not trigger replies or automations.',
+  },
+  backfillWhatsAppCloud: {
+    es: 'WhatsApp Cloud API no permite descargar chats anteriores. Los mensajes nuevos se sincronizan desde que se conecta el número.',
+    en: 'WhatsApp Cloud API cannot download earlier chats. New messages sync from the moment the number is connected.',
+  },
   backfillRun: { es: 'Importar historial', en: 'Import history' },
   backfillRunning: { es: 'Importando…', en: 'Importing…' },
   backfillDone: {
@@ -270,7 +280,10 @@ export const igAgent = {
     es: 'Análisis de comentarios',
     en: 'Comment analysis',
   },
-  marketResearchEyebrow: { es: 'Inteligencia de audiencia', en: 'Audience intelligence' },
+  marketResearchEyebrow: {
+    es: 'Inteligencia de audiencia',
+    en: 'Audience intelligence',
+  },
   marketResearchSubtitle: {
     es: 'Sentimiento, patrones y oportunidades a partir de todos los comentarios importados.',
     en: 'Sentiment, patterns, and opportunities from every imported comment.',
@@ -301,29 +314,53 @@ export const igAgent = {
     es: 'Convierte los comentarios importados en señales para ventas, contenido y atención al cliente.',
     en: 'Turn imported comments into signals for sales, content, and customer service.',
   },
-  marketResearchPositiveRate: { es: 'Elogios explícitos', en: 'Explicit praise' },
-  marketResearchNegativeRate: { es: 'Posibles problemas', en: 'Possible problems' },
+  marketResearchPositiveRate: {
+    es: 'Elogios explícitos',
+    en: 'Explicit praise',
+  },
+  marketResearchNegativeRate: {
+    es: 'Posibles problemas',
+    en: 'Possible problems',
+  },
   marketResearchPurchaseSignal: {
     es: 'Intención explícita de compra',
     en: 'Explicit purchase intent',
   },
-  marketResearchMarketVoice: { es: 'Lo que dice el mercado', en: 'What the market is saying' },
+  marketResearchMarketVoice: {
+    es: 'Lo que dice el mercado',
+    en: 'What the market is saying',
+  },
   marketResearchSignals: { es: 'Señales de demanda', en: 'Demand signals' },
   marketResearchSignalsSubtitle: {
     es: 'Cada categoría abre los comentarios que coincide con su regla.',
     en: 'Each category opens the comments that match its rule.',
   },
-  marketResearchSignalPrice: { es: 'Preguntas por precio', en: 'Price questions' },
-  marketResearchSignalPurchase: { es: 'Deseo de comprar', en: 'Purchase intent' },
+  marketResearchSignalPrice: {
+    es: 'Preguntas por precio',
+    en: 'Price questions',
+  },
+  marketResearchSignalPurchase: {
+    es: 'Deseo de comprar',
+    en: 'Purchase intent',
+  },
   marketResearchSignalWhereToBuy: { es: 'Dónde comprar', en: 'Where to buy' },
   marketResearchSignalInformation: {
     es: 'Solicitud de información',
     en: 'Information requests',
   },
-  marketResearchSignalAvailability: { es: 'Disponibilidad y entrega', en: 'Availability and delivery' },
+  marketResearchSignalAvailability: {
+    es: 'Disponibilidad y entrega',
+    en: 'Availability and delivery',
+  },
   marketResearchSignalProductUse: { es: 'Cómo se usa', en: 'How to use it' },
-  marketResearchSignalComplaint: { es: 'Quejas o frenos', en: 'Complaints or blockers' },
-  marketResearchChannelMix: { es: 'Origen de la muestra', en: 'Sample sources' },
+  marketResearchSignalComplaint: {
+    es: 'Quejas o frenos',
+    en: 'Complaints or blockers',
+  },
+  marketResearchChannelMix: {
+    es: 'Origen de la muestra',
+    en: 'Sample sources',
+  },
   marketResearchTerms: { es: 'Temas frecuentes', en: 'Frequent themes' },
   marketResearchComments: { es: 'Comentarios', en: 'Comments' },
   marketResearchPositive: { es: 'Positivos', en: 'Positive' },
