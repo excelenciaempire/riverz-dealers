@@ -399,7 +399,12 @@ export function ChannelsPanel() {
             byAccount.set(key, arr);
           }
           const accounts = [...byAccount.values()];
-          const anyConnected = memberConns.some((c) => c.status === "connected");
+          // En Meta, comentarios y mensajes comparten una misma cuenta, pero
+          // son capacidades distintas. Que los comentarios sigan activos no
+          // puede tapar que Messenger o Instagram ya perdieron su token.
+          const anyConnected = memberConns.some(
+            (c) => c.channel === g.connectChannel && c.status === "connected",
+          );
           const ready = isProviderReady(g.connectChannel);
           const isMeta =
             g.connectChannel === "whatsapp" ||
@@ -445,8 +450,12 @@ export function ChannelsPanel() {
               {accounts.length > 0 && (
                 <ul className="max-h-80 space-y-1 overflow-y-auto">
                   {accounts.map((conns) => {
+                    // La fila representa el canal que esta tarjeta conecta.
+                    // Elegir el hermano que aún funciona (p. ej. comentarios)
+                    // escondía el error del canal de mensajes y mostraba una
+                    // marca verde junto a un aviso de reconexión.
                     const primary =
-                      conns.find((c) => c.status === "connected") ?? conns[0];
+                      conns.find((c) => c.channel === g.connectChannel) ?? conns[0];
                     const ids = conns.map((c) => c.id);
                     const errText =
                       primary.status === "error"
