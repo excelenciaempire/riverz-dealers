@@ -886,10 +886,10 @@ export default function ProductDetailPage() {
                 </Button>
               )}
             </div>
-            {(product.prelanding_urls?.length ?? 0) > 0 && (
-              <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
-                <p className="text-xs font-medium text-foreground">{t('products.prelandingsFound')}</p>
-                {product.prelanding_urls?.map((url) => (
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">{t('products.prelandingsFound')}</p>
+              {(product.prelanding_urls?.length ?? 0) > 0 ? (
+                product.prelanding_urls?.map((url) => (
                   <a
                     key={url}
                     href={url}
@@ -900,9 +900,11 @@ export default function ProductDetailPage() {
                     <ExternalLink className="size-3 shrink-0" />
                     <span className="truncate">{url}</span>
                   </a>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">{t('products.noPrelandingsFound')}</p>
+              )}
+            </div>
             {product.scraped_at && (
               <p className="text-muted-foreground text-[11px]">
                 {t('products.lastRead')}{' '}
