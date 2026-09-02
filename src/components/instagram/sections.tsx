@@ -1844,13 +1844,14 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
   const [surfaces, setSurfaces] = useState<Array<'comments' | 'messages'>>([
     'comments',
   ]);
-  const [channels, setChannels] = useState<Array<'ig_comment' | 'fb_comment'>>([
-    'ig_comment',
-    'fb_comment',
-  ]);
+  const [channels, setChannels] = useState<
+    Array<'ig_comment' | 'fb_comment' | 'tiktok_comment'>
+  >(['ig_comment', 'fb_comment']);
   const [running, setRunning] = useState(false);
 
-  const toggleChannel = (channel: 'ig_comment' | 'fb_comment') => {
+  const toggleChannel = (
+    channel: 'ig_comment' | 'fb_comment' | 'tiktok_comment'
+  ) => {
     setChannels((current) =>
       current.includes(channel)
         ? current.filter((value) => value !== channel)
@@ -1862,29 +1863,36 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
     if (!channels.length || !surfaces.length) return;
     setRunning(true);
     try {
-      const requests = surfaces.map((surface) =>
-        fetchWithCsrf(
-          surface === 'comments'
-            ? '/api/comments/backfill'
-            : '/api/messages/backfill',
-          {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              workspace_id: workspaceId,
-              date_from: allHistory ? undefined : fromDate,
-              date_to: toDate,
-              all_history: allHistory,
-              channels:
-                surface === 'comments'
-                  ? channels
-                  : channels.map((channel) =>
-                      channel === 'ig_comment' ? 'instagram' : 'facebook'
-                    ),
-            }),
-          }
-        )
+      const messageChannels = channels.filter(
+        (channel) => channel !== 'tiktok_comment'
       );
+      const requests = surfaces
+        .filter(
+          (surface) => surface === 'comments' || messageChannels.length > 0
+        )
+        .map((surface) =>
+          fetchWithCsrf(
+            surface === 'comments'
+              ? '/api/comments/backfill'
+              : '/api/messages/backfill',
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                workspace_id: workspaceId,
+                date_from: allHistory ? undefined : fromDate,
+                date_to: toDate,
+                all_history: allHistory,
+                channels:
+                  surface === 'comments'
+                    ? channels
+                    : messageChannels.map((channel) =>
+                        channel === 'ig_comment' ? 'instagram' : 'facebook'
+                      ),
+              }),
+            }
+          )
+        );
       const responses = await Promise.all(requests);
       const results = await Promise.all(
         responses.map(async (response) => ({
@@ -2037,6 +2045,14 @@ function CommentBackfill({ workspaceId }: { workspaceId: string }) {
             onChange={() => toggleChannel('fb_comment')}
           />
           {t('igAgent.network_facebook')}
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={channels.includes('tiktok_comment')}
+            onChange={() => toggleChannel('tiktok_comment')}
+          />
+          {t('igAgent.network_tiktok')}
         </label>
       </div>
       <Button

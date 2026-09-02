@@ -4,11 +4,16 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { listConnections } from '@/lib/channels/connections';
 import { pullCommentsForWorkspace } from '@/lib/channels/comment-pull';
 import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
+import { backfillTikTokCommentsForWorkspace } from '@/lib/channels/tiktok_comment/poll';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 
-const COMMENT_CHANNELS = ['ig_comment', 'fb_comment'] as const;
+const COMMENT_CHANNELS = [
+  'ig_comment',
+  'fb_comment',
+  'tiktok_comment',
+] as const;
 type CommentChannel = (typeof COMMENT_CHANNELS)[number];
 
 /**
@@ -93,6 +98,10 @@ export async function POST(request: Request) {
     channels,
     statuses: ['connected'],
   });
+  const metaChannels = channels.filter(
+    (channel): channel is 'ig_comment' | 'fb_comment' =>
+      channel !== 'tiktok_comment'
+  );
   const adDiscovery = await Promise.all(
     connections
       .filter((connection) => connection.channel === 'fb_comment')
@@ -122,20 +131,36 @@ export async function POST(request: Request) {
       })
   );
 
-  const result = await pullCommentsForWorkspace(admin, workspaceId, {
-    windowMs: Date.now() - startMs,
-    untilMs: endMs,
-    maxPosts: Number.MAX_SAFE_INTEGER,
-    maxCommentPages: Number.MAX_SAFE_INTEGER,
-    includeOlderPosts: allHistory,
-    suppressAutoReply: true,
-    channels,
-  });
+  const result =
+    metaChannels.length > 0
+      ? await pullCommentsForWorkspace(admin, workspaceId, {
+          windowMs: Date.now() - startMs,
+          untilMs: endMs,
+          maxPosts: Number.MAX_SAFE_INTEGER,
+          maxCommentPages: Number.MAX_SAFE_INTEGER,
+          includeOlderPosts: allHistory,
+          suppressAutoReply: true,
+          channels: metaChannels,
+        })
+      : {
+          connections: 0,
+          ingestedInbound: 0,
+          ingested: 0,
+          seen: 0,
+          detail: [],
+        };
+  const tiktok = channels.includes('tiktok_comment')
+    ? await backfillTikTokCommentsForWorkspace(workspaceId, {
+        sinceMs: startMs,
+        untilMs: endMs,
+      })
+    : null;
   const pullIncomplete = result.detail.some(
     (item) => item.reason === 'graph_denegado' || item.reason === 'partial'
   );
   const adIncomplete = adDiscovery.some((item) => item.status !== 'ok');
-  const complete = !pullIncomplete && !adIncomplete;
+  const tiktokIncomplete = tiktok?.detail.some((item) => item.error) ?? false;
+  const complete = !pullIncomplete && !adIncomplete && !tiktokIncomplete;
   return NextResponse.json({
     ok: complete,
     complete,
@@ -143,6 +168,7 @@ export async function POST(request: Request) {
     date_from: startMs ? new Date(startMs).toISOString() : null,
     date_to: new Date(endMs).toISOString(),
     ad_discovery: adDiscovery,
+    tiktok,
     ...result,
   });
 }
