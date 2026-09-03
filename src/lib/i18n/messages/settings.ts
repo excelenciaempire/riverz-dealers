@@ -204,8 +204,8 @@ export const settings = {
     en: 'Connection cancelled',
   },
   metaAccessNeedsRefresh: {
-    es: 'Meta necesita renovar el permiso. Los mensajes entrantes siguen activos.',
-    en: 'Meta needs to renew its permission. Incoming messages remain active.',
+    es: 'Renueva el permiso de este activo. Solo se conectará esta marca.',
+    en: 'Renew permission for this asset. Only this brand will be connected.',
   },
   metaAssetAccessNeedsRenewal: {
     es: 'Meta ya no puede acceder a {account}. Renueva el permiso y selecciona solo esta marca.',
