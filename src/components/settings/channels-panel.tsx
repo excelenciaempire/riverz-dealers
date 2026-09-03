@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   CheckCircle2,
   Loader2,
@@ -11,25 +11,28 @@ import {
   Copy,
   X,
   CreditCard,
-} from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { whatsappPaymentUrl } from "@/lib/whatsapp/billing";
-import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
-import { useWorkspace } from "@/hooks/use-workspace";
-import { useT } from "@/hooks/use-locale";
-import type { Channel, ChannelConnection } from "@/types";
-import { channelLabel } from "@/lib/channels/display";
-import { ChannelLogo } from "@/components/inbox/channel-logo";
-import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
-import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
-import { isMetaAuthWarning } from "@/lib/channels/meta-auth";
-import { ShopifyCard } from "@/components/settings/shopify-card";
-import { StoreCard } from "@/components/settings/store-card";
-import { MercadoPagoCard } from "@/components/settings/mercadopago-card";
-import { KlaviyoCard } from "@/components/settings/klaviyo-card";
-import { MetaPixelCard } from "@/components/settings/meta-pixel-card";
-import { MercadoLibreConnect } from "@/components/settings/mercadolibre-connect";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { whatsappPaymentUrl } from '@/lib/whatsapp/billing';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { useT } from '@/hooks/use-locale';
+import type { Channel, ChannelConnection } from '@/types';
+import { channelLabel } from '@/lib/channels/display';
+import { ChannelLogo } from '@/components/inbox/channel-logo';
+import { WhatsAppEmbeddedSignup } from '@/components/settings/whatsapp-embedded-signup';
+import { MetaBusinessLogin } from '@/components/settings/meta-business-login';
+import {
+  isMetaAccessWarning,
+  isMetaAssetAccessWarning,
+} from '@/lib/channels/meta-auth';
+import { ShopifyCard } from '@/components/settings/shopify-card';
+import { StoreCard } from '@/components/settings/store-card';
+import { MercadoPagoCard } from '@/components/settings/mercadopago-card';
+import { KlaviyoCard } from '@/components/settings/klaviyo-card';
+import { MetaPixelCard } from '@/components/settings/meta-pixel-card';
+import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect';
+import { cn } from '@/lib/utils';
 
 /**
  * One card per platform. Facebook and Instagram each cover two internal
@@ -54,66 +57,73 @@ interface ChannelGroup {
 
 const CHANNEL_GROUPS: ChannelGroup[] = [
   {
-    key: "whatsapp",
-    label: "WhatsApp",
-    descriptionKey: "settings.whatsappCardDescription",
-    logoChannel: "whatsapp",
-    members: ["whatsapp"],
-    connectChannel: "whatsapp",
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    descriptionKey: 'settings.whatsappCardDescription',
+    logoChannel: 'whatsapp',
+    members: ['whatsapp'],
+    connectChannel: 'whatsapp',
   },
   {
-    key: "facebook",
-    label: "Facebook",
-    descriptionKey: "settings.facebookCardDescription",
-    logoChannel: "messenger",
-    logoSrc: "/channels/facebook.svg",
-    members: ["messenger", "fb_comment"],
-    connectChannel: "messenger",
+    key: 'facebook',
+    label: 'Facebook',
+    descriptionKey: 'settings.facebookCardDescription',
+    logoChannel: 'messenger',
+    logoSrc: '/channels/facebook.svg',
+    members: ['messenger', 'fb_comment'],
+    connectChannel: 'messenger',
   },
   {
-    key: "instagram",
-    label: "Instagram",
-    descriptionKey: "settings.instagramCardDescription",
-    logoChannel: "instagram",
-    members: ["instagram", "ig_comment"],
-    connectChannel: "instagram",
+    key: 'instagram',
+    label: 'Instagram',
+    descriptionKey: 'settings.instagramCardDescription',
+    logoChannel: 'instagram',
+    members: ['instagram', 'ig_comment'],
+    connectChannel: 'instagram',
   },
   {
-    key: "gmail",
-    label: "Gmail",
-    descriptionKey: "settings.gmailCardDescription",
-    logoChannel: "gmail",
-    members: ["gmail"],
-    connectChannel: "gmail",
+    key: 'gmail',
+    label: 'Gmail',
+    descriptionKey: 'settings.gmailCardDescription',
+    logoChannel: 'gmail',
+    members: ['gmail'],
+    connectChannel: 'gmail',
   },
   {
-    key: "outlook",
-    label: "Outlook",
-    descriptionKey: "settings.outlookCardDescription",
-    logoChannel: "outlook",
-    members: ["outlook"],
-    connectChannel: "outlook",
+    key: 'outlook',
+    label: 'Outlook',
+    descriptionKey: 'settings.outlookCardDescription',
+    logoChannel: 'outlook',
+    members: ['outlook'],
+    connectChannel: 'outlook',
   },
-  { key: "zoho", label: "Zoho Mail", descriptionKey: "settings.zohoCardDescription", logoChannel: "zoho", members: ["zoho"], connectChannel: "zoho" },
   {
-    key: "mercadolibre",
-    label: "Mercado Libre",
-    descriptionKey: "settings.mercadolibreCardDescription",
-    logoChannel: "mercadolibre",
+    key: 'zoho',
+    label: 'Zoho Mail',
+    descriptionKey: 'settings.zohoCardDescription',
+    logoChannel: 'zoho',
+    members: ['zoho'],
+    connectChannel: 'zoho',
+  },
+  {
+    key: 'mercadolibre',
+    label: 'Mercado Libre',
+    descriptionKey: 'settings.mercadolibreCardDescription',
+    logoChannel: 'mercadolibre',
     // El isotipo oficial es amarillo con anillo azul: va en caja blanca
     // para que el azul contraste con la tarjeta oscura.
-    logoSrc: "/channels/mercadolibre.svg",
-    members: ["mercadolibre"],
-    connectChannel: "mercadolibre",
+    logoSrc: '/channels/mercadolibre.svg',
+    members: ['mercadolibre'],
+    connectChannel: 'mercadolibre',
   },
   {
-    key: "tiktok",
-    label: "TikTok",
-    descriptionKey: "settings.tiktokCardDescription",
-    logoChannel: "tiktok_comment",
-    logoSrc: "/channels/tiktok.svg",
-    members: ["tiktok_comment"],
-    connectChannel: "tiktok_comment",
+    key: 'tiktok',
+    label: 'TikTok',
+    descriptionKey: 'settings.tiktokCardDescription',
+    logoChannel: 'tiktok_comment',
+    logoSrc: '/channels/tiktok.svg',
+    members: ['tiktok_comment'],
+    connectChannel: 'tiktok_comment',
   },
 ];
 
@@ -129,7 +139,7 @@ interface ProviderStatus {
 
 type ManualChannel = Extract<
   Channel,
-  "whatsapp" | "messenger" | "instagram" | "fb_comment" | "ig_comment"
+  'whatsapp' | 'messenger' | 'instagram' | 'fb_comment' | 'ig_comment'
 >;
 
 export function ChannelsPanel() {
@@ -141,7 +151,7 @@ export function ChannelsPanel() {
   const [manualOpen, setManualOpen] = useState<ManualChannel | null>(null);
 
   useEffect(() => {
-    fetch("/api/connections/status")
+    fetch('/api/connections/status')
       .then((r) => r.json())
       .then((j: ProviderStatus) => setProviders(j))
       .catch(() =>
@@ -152,8 +162,8 @@ export function ChannelsPanel() {
           zoho: false,
           mercadolibre: false,
           tiktok: false,
-          siteUrl: "",
-        }),
+          siteUrl: '',
+        })
       );
   }, []);
 
@@ -166,26 +176,26 @@ export function ChannelsPanel() {
     const id = window.location.hash.slice(1);
     if (!id || loading) return;
     requestAnimationFrame(() => {
-      document.getElementById(id)?.scrollIntoView({ block: "center" });
+      document.getElementById(id)?.scrollIntoView({ block: 'center' });
     });
   }, [loading]);
 
   const isProviderReady = (channel: Channel): boolean => {
     if (!providers) return false;
-    if (channel === "gmail") return providers.google;
-    if (channel === "outlook") return providers.microsoft;
-    if (channel === "zoho") return providers.zoho;
-    if (channel === "mercadolibre") return providers.mercadolibre;
-    if (channel === "tiktok_comment") return providers.tiktok;
+    if (channel === 'gmail') return providers.google;
+    if (channel === 'outlook') return providers.microsoft;
+    if (channel === 'zoho') return providers.zoho;
+    if (channel === 'mercadolibre') return providers.mercadolibre;
+    if (channel === 'tiktok_comment') return providers.tiktok;
     return providers.meta;
   };
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(t("settings.copiedToClipboard", { label }));
+      toast.success(t('settings.copiedToClipboard', { label }));
     } catch {
-      toast.error(t("settings.couldNotCopy"));
+      toast.error(t('settings.couldNotCopy'));
     }
   };
 
@@ -197,23 +207,23 @@ export function ChannelsPanel() {
     // also REVOKEs them at the column level so a crafted member query can't
     // read the ciphertext either.
     const { data, error } = await supabase
-      .from("channel_connections")
+      .from('channel_connections')
       .select(
-        "id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at, messaging_limit_tier, quality_rating, health_can_send, health_review_status, health_blockers, health_checked_at",
+        'id, workspace_id, channel, label, status, external_account_id, config, last_error, created_at, updated_at, messaging_limit_tier, quality_rating, health_can_send, health_review_status, health_blockers, health_checked_at'
       )
-      .eq("workspace_id", workspace.id)
+      .eq('workspace_id', workspace.id)
       // Las conexiones desconectadas no se muestran: al desconectar, la fila
       // debe desaparecer de la tarjeta (el registro queda en BD por si se
       // reconecta, y el router de webhooks ya las ignora).
-      .neq("status", "disconnected")
-      .order("created_at", { ascending: false });
+      .neq('status', 'disconnected')
+      .order('created_at', { ascending: false });
     // Un error acá no puede pasar en silencio: la tarjeta quedaría igual que
     // "sin conectar" y el comercio pensaría que perdió sus canales. Pasó de
     // verdad — la 078 revoca el SELECT de tabla y otorga por columna, así que
     // una columna nueva sin grant (42501) vacía TODA la consulta.
     if (error) {
-      console.error("channel_connections select failed", error);
-      toast.error(t("settings.connectionsLoadError"));
+      console.error('channel_connections select failed', error);
+      toast.error(t('settings.connectionsLoadError'));
       return;
     }
     setConnections((data ?? []) as ChannelConnection[]);
@@ -228,15 +238,17 @@ export function ChannelsPanel() {
       if (!workspace) return;
       setBusy(true);
       // TikTok usa su ruta dedicada (la URL registrada en la app de TikTok).
-      if (channel === "tiktok_comment") {
-        window.location.assign(`/api/tiktok/oauth/start?workspace_id=${workspace.id}`);
+      if (channel === 'tiktok_comment') {
+        window.location.assign(
+          `/api/tiktok/oauth/start?workspace_id=${workspace.id}`
+        );
         return;
       }
       const provider = providerForChannel(channel);
       const url = `/api/connections/${provider}/oauth/start?workspace_id=${workspace.id}&channel=${channel}`;
       window.location.assign(url);
     },
-    [workspace],
+    [workspace]
   );
 
   // A Facebook / Instagram card maps to two member connections (DMs +
@@ -247,37 +259,38 @@ export function ChannelsPanel() {
   // just-deleted row on screen until a manual reload.
   const handleDisconnect = useCallback(
     async (ids: string[]) => {
-      if (!ids.length || !confirm(t("settings.disconnectChannelConfirm"))) return;
+      if (!ids.length || !confirm(t('settings.disconnectChannelConfirm')))
+        return;
       const supabase = createClient();
       const { error } = await supabase
-        .from("channel_connections")
-        .update({ status: "disconnected" })
-        .in("id", ids);
+        .from('channel_connections')
+        .update({ status: 'disconnected' })
+        .in('id', ids);
       if (error) {
-        toast.error(t("settings.genericError"));
+        toast.error(t('settings.genericError'));
         return;
       }
       // Quitar de la vista al instante (no solo marcar disconnected): el
       // usuario espera que la fila desaparezca al desconectar.
       setConnections((prev) => prev.filter((c) => !ids.includes(c.id)));
-      toast.success(t("settings.channelDisconnected"));
+      toast.success(t('settings.channelDisconnected'));
       void fetchConnections();
     },
-    [fetchConnections, t],
+    [fetchConnections, t]
   );
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-5 animate-spin" />
       </div>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-        {t("settings.workspaceNotFound")}
+      <div className="border-border bg-card text-muted-foreground rounded-xl border p-6 text-sm">
+        {t('settings.workspaceNotFound')}
       </div>
     );
   }
@@ -307,48 +320,74 @@ export function ChannelsPanel() {
             <AlertCircle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0 flex-1 space-y-2">
               <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                {t("settings.oauthAppsMissing")}
+                {t('settings.oauthAppsMissing')}
               </h3>
               <ul className="space-y-1 text-xs text-amber-800/80 dark:text-amber-100/70">
                 <li>
-                  <span className={providers.meta ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
-                    {providers.meta ? "✓" : "✗"}
-                  </span>{" "}
-                  <strong>Meta App</strong> — developers.facebook.com → My Apps → Create App
-                  → Business. Variables: <code>META_APP_ID</code>, <code>META_APP_SECRET</code>
+                  <span
+                    className={
+                      providers.meta
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-300'
+                    }
+                  >
+                    {providers.meta ? '✓' : '✗'}
+                  </span>{' '}
+                  <strong>Meta App</strong> — developers.facebook.com → My Apps
+                  → Create App → Business. Variables: <code>META_APP_ID</code>,{' '}
+                  <code>META_APP_SECRET</code>
                 </li>
                 <li>
-                  <span className={providers.google ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
-                    {providers.google ? "✓" : "✗"}
-                  </span>{" "}
-                  <strong>Google OAuth Client</strong> — console.cloud.google.com →
-                  APIs & Services → Credentials. Variables: <code>GOOGLE_CLIENT_ID</code>,
+                  <span
+                    className={
+                      providers.google
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-300'
+                    }
+                  >
+                    {providers.google ? '✓' : '✗'}
+                  </span>{' '}
+                  <strong>Google OAuth Client</strong> —
+                  console.cloud.google.com → APIs & Services → Credentials.
+                  Variables: <code>GOOGLE_CLIENT_ID</code>,
                   <code>GOOGLE_CLIENT_SECRET</code>
                 </li>
                 <li>
-                  <span className={providers.microsoft ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-300"}>
-                    {providers.microsoft ? "✓" : "✗"}
-                  </span>{" "}
-                  <strong>Microsoft Azure App</strong> — portal.azure.com → App registrations
-                  → New registration. Variables: <code>MICROSOFT_CLIENT_ID</code>,
+                  <span
+                    className={
+                      providers.microsoft
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-300'
+                    }
+                  >
+                    {providers.microsoft ? '✓' : '✗'}
+                  </span>{' '}
+                  <strong>Microsoft Azure App</strong> — portal.azure.com → App
+                  registrations → New registration. Variables:{' '}
+                  <code>MICROSOFT_CLIENT_ID</code>,
                   <code>MICROSOFT_CLIENT_SECRET</code>
                 </li>
               </ul>
               {providers.siteUrl && (
-                <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
+                <div className="bg-muted/50 mt-2 rounded-md p-2 text-xs">
                   <p className="mb-1 text-amber-800 dark:text-amber-200">
-                    {t("settings.redirectUrisToPaste")}
+                    {t('settings.redirectUrisToPaste')}
                   </p>
                   <div className="space-y-1 font-mono">
-                    {(["meta", "google", "microsoft"] as const).map((p) => {
+                    {(['meta', 'google', 'microsoft'] as const).map((p) => {
                       const url = `${providers.siteUrl}/api/connections/${p}/oauth/callback`;
                       return (
-                        <div key={p} className="flex items-center justify-between gap-2">
-                          <span className="truncate text-foreground">{url}</span>
+                        <div
+                          key={p}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="text-foreground truncate">
+                            {url}
+                          </span>
                           <button
                             onClick={() => copyToClipboard(url, p)}
-                            className="shrink-0 rounded p-1 flex items-center justify-center min-h-9 min-w-9 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-                            title={t("settings.copy")}
+                            className="text-muted-foreground hover:bg-accent hover:text-foreground flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded p-1 sm:min-h-0 sm:min-w-0"
+                            title={t('settings.copy')}
                           >
                             <Copy className="size-3" />
                           </button>
@@ -366,7 +405,9 @@ export function ChannelsPanel() {
       {/* La página ya se titula "Integraciones": un segundo título encima de
           la misma grilla no agrega información. */}
       {!isAdmin && (
-        <p className="text-xs text-muted-foreground">{t("settings.readOnly")}</p>
+        <p className="text-muted-foreground text-xs">
+          {t('settings.readOnly')}
+        </p>
       )}
 
       {manualOpen && workspace && (
@@ -393,7 +434,7 @@ export function ChannelsPanel() {
           // mailbox / phone) so Messenger + comments show as a single
           // "Facebook" connection rather than two redundant rows.
           const memberConns = g.members.flatMap(
-            (m) => connectionsByChannel.get(m) ?? [],
+            (m) => connectionsByChannel.get(m) ?? []
           );
           const byAccount = new Map<string, ChannelConnection[]>();
           for (const c of memberConns) {
@@ -407,22 +448,20 @@ export function ChannelsPanel() {
           // son capacidades distintas. Que los comentarios sigan activos no
           // puede tapar que Messenger o Instagram ya perdieron su token.
           const anyConnected = memberConns.some(
-            (c) => c.channel === g.connectChannel && c.status === "connected",
+            (c) => c.channel === g.connectChannel && c.status === 'connected'
           );
           // These ids only come from the active workspace's connection rows.
           // A person may administer the same Facebook account in several
           // Riverz workspaces, but renewing here can only update this one.
           const reconnectAccountIds = memberConns
-            .filter(
-              (c) => isMetaAuthWarning(c.last_error),
-            )
+            .filter((c) => isMetaAccessWarning(c.last_error))
             .map((c) => c.external_account_id)
             .filter((id): id is string => Boolean(id));
           const ready = isProviderReady(g.connectChannel);
           const isMeta =
-            g.connectChannel === "whatsapp" ||
-            g.connectChannel === "messenger" ||
-            g.connectChannel === "instagram";
+            g.connectChannel === 'whatsapp' ||
+            g.connectChannel === 'messenger' ||
+            g.connectChannel === 'instagram';
           return (
             <li
               key={g.key}
@@ -430,31 +469,38 @@ export function ChannelsPanel() {
               // tarjeta del canal caído, no al principio de la página.
               id={`canal-${g.key}`}
               className={cn(
-                "group flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 transition-all",
+                'group bg-card flex scroll-mt-24 flex-col gap-3 overflow-hidden rounded-xl border p-4 transition-all',
                 anyConnected
-                  ? "border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]"
-                  : "border-border hover:border-foreground/30",
+                  ? 'border-emerald-500/40 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.1)]'
+                  : 'border-border hover:border-foreground/30'
               )}
             >
               <div className="flex items-start gap-3">
                 {/* Todos los logos van sobre blanco: son marcas de colores
                     sobre fondo transparente y en modo oscuro se pierden. */}
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1 ring-border">
-                  <ChannelLogo channel={g.logoChannel} src={g.logoSrc} size={28} />
+                <div className="ring-border flex size-11 shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ring-1">
+                  <ChannelLogo
+                    channel={g.logoChannel}
+                    src={g.logoSrc}
+                    size={28}
+                  />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">{g.label}</p>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                  <p className="text-foreground truncate text-sm font-semibold">
+                    {g.label}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-snug">
                     {t(g.descriptionKey)}
                   </p>
                   {/* TikTok gestiona comentarios por API solo en cuentas
                       Business; el switch es gratis e instantáneo. Se avisa
                       antes de conectar para que el comercio no se atore. */}
-                  {g.connectChannel === "tiktok_comment" && accounts.length === 0 && (
-                    <p className="mt-1 text-[11px] leading-snug text-accent-ink">
-                      {t("settings.tiktokBusinessNote")}
-                    </p>
-                  )}
+                  {g.connectChannel === 'tiktok_comment' &&
+                    accounts.length === 0 && (
+                      <p className="text-accent-ink mt-1 text-[11px] leading-snug">
+                        {t('settings.tiktokBusinessNote')}
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -468,37 +514,50 @@ export function ChannelsPanel() {
                     // escondía el error del canal de mensajes y mostraba una
                     // marca verde junto a un aviso de reconexión.
                     const primary =
-                      conns.find((c) => c.channel === g.connectChannel) ?? conns[0];
+                      conns.find((c) => c.channel === g.connectChannel) ??
+                      conns[0];
                     const ids = conns.map((c) => c.id);
-                    const lastError = (primary as ChannelConnection & {
-                      last_error?: string;
-                    }).last_error;
+                    const lastError = (
+                      primary as ChannelConnection & {
+                        last_error?: string;
+                      }
+                    ).last_error;
                     // Messenger/Instagram and their comment sibling use the
                     // same Meta credential. An auth warning on either one
                     // needs exactly one renewal action for this account.
-                    const metaAuthWarning = conns.some((connection) =>
-                      isMetaAuthWarning(connection.last_error),
-                    );
-                    const errText = metaAuthWarning
-                      ? t("settings.metaAccessNeedsRefresh")
-                      : primary.status === "error"
-                        ? lastError
-                        : null;
                     const accountLabel =
-                      g.connectChannel === "instagram"
-                        ? primary.label?.replace(/\s+\(Instagram\)$/u, "")
+                      g.connectChannel === 'instagram'
+                        ? primary.label?.replace(/\s+\(Instagram\)$/u, '')
                         : primary.label;
+                    const metaAssetAccessWarning = conns.some((connection) =>
+                      isMetaAssetAccessWarning(connection.last_error)
+                    );
+                    const metaAccessWarning = conns.some((connection) =>
+                      isMetaAccessWarning(connection.last_error)
+                    );
+                    const errText = metaAssetAccessWarning
+                      ? t('settings.metaAssetAccessNeedsRenewal', {
+                          account:
+                            accountLabel ??
+                            primary.external_account_id ??
+                            t('settings.noLabel'),
+                        })
+                      : metaAccessWarning
+                        ? t('settings.metaAccessNeedsRefresh')
+                        : primary.status === 'error'
+                          ? lastError
+                          : null;
                     return (
                       <li
                         key={primary.id}
-                        className="rounded-md bg-muted/60 px-2 py-1.5 ring-1 ring-border/50"
+                        className="bg-muted/60 ring-border/50 rounded-md px-2 py-1.5 ring-1"
                       >
                         <div className="flex items-center gap-2">
                           <StatusIcon status={primary.status} />
-                          <span className="flex-1 truncate text-xs text-foreground">
+                          <span className="text-foreground flex-1 truncate text-xs">
                             {accountLabel ??
                               primary.external_account_id ??
-                              t("settings.noLabel")}
+                              t('settings.noLabel')}
                           </span>
                           {/* Una sola acción por cuenta. Antes había dos
                               iconos —"desconectar" y "eliminar"— que para
@@ -509,8 +568,8 @@ export function ChannelsPanel() {
                           {isAdmin && (
                             <button
                               onClick={() => handleDisconnect(ids)}
-                              title={t("settings.disconnectAction")}
-                              className="rounded p-1 flex items-center justify-center min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 text-muted-foreground hover:bg-accent hover:text-red-700 dark:hover:text-red-400"
+                              title={t('settings.disconnectAction')}
+                              className="text-muted-foreground hover:bg-accent flex min-h-10 min-w-10 items-center justify-center rounded p-1 hover:text-red-700 sm:min-h-0 sm:min-w-0 dark:hover:text-red-400"
                             >
                               <Unplug className="size-3.5" />
                             </button>
@@ -519,10 +578,10 @@ export function ChannelsPanel() {
                         {errText && (
                           <p
                             className={cn(
-                              "mt-1 pl-6 text-[10px] leading-snug",
+                              'mt-1 pl-6 text-[10px] leading-snug',
                               metaAuthWarning
-                                ? "text-amber-700 dark:text-amber-300"
-                                : "text-red-600 dark:text-red-400",
+                                ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-red-600 dark:text-red-400'
                             )}
                           >
                             {errText}
@@ -531,38 +590,39 @@ export function ChannelsPanel() {
                         {/* Estado de entrega de WhatsApp: puede-enviar / cupo /
                             calidad + nota honesta de verificación. Lo que Meta
                             expone y antes se leía una vez y se tiraba. */}
-                        {g.connectChannel === "whatsapp" &&
-                          primary.status === "connected" && (
+                        {g.connectChannel === 'whatsapp' &&
+                          primary.status === 'connected' && (
                             <WhatsAppHealth connection={primary} />
                           )}
                         {/* WhatsApp business-initiated sends (plantillas) need a
                             valid payment method on the WABA, or Meta blocks them
                             (error 141006). Surface a direct link so the merchant
                             can add/fix it in WhatsApp Manager. */}
-                        {g.connectChannel === "whatsapp" &&
-                          primary.status === "connected" && (
-                            hasWhatsAppBlocker(primary, 141006) && (
-                              <a
-                                href={whatsappPaymentUrl(
-                                  primary.config?.waba_id as string | undefined,
-                                )}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={t("settings.whatsappManagerPaymentTooltip")}
-                                className="mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-                              >
-                                <CreditCard className="size-3" />
-                                {t("settings.configurePaymentMethod")}
-                              </a>
-                            )
+                        {g.connectChannel === 'whatsapp' &&
+                          primary.status === 'connected' &&
+                          hasWhatsAppBlocker(primary, 141006) && (
+                            <a
+                              href={whatsappPaymentUrl(
+                                primary.config?.waba_id as string | undefined
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={t(
+                                'settings.whatsappManagerPaymentTooltip'
+                              )}
+                              className="text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium"
+                            >
+                              <CreditCard className="size-3" />
+                              {t('settings.configurePaymentMethod')}
+                            </a>
                           )}
                         {/* El pie del correo. Sólo en los buzones: en chat el
                             nombre está arriba y una firma por mensaje sería
                             ruido. */}
-                        {(g.connectChannel === "gmail" ||
-                          g.connectChannel === "outlook" ||
-                          g.connectChannel === "zoho") &&
-                          primary.status === "connected" &&
+                        {(g.connectChannel === 'gmail' ||
+                          g.connectChannel === 'outlook' ||
+                          g.connectChannel === 'zoho') &&
+                          primary.status === 'connected' &&
                           isAdmin && <FirmaDeCorreo connection={primary} />}
                       </li>
                     );
@@ -576,17 +636,17 @@ export function ChannelsPanel() {
                   {/* WhatsApp is one-per-workspace: once a number is
                       connected, hide the connect CTAs and tell the admin to
                       disconnect first to switch numbers. */}
-                  {g.connectChannel === "whatsapp" && anyConnected ? (
-                    <p className="text-center text-[10px] leading-snug text-muted-foreground">
-                      {t("settings.oneWhatsappPerAccount")}
+                  {g.connectChannel === 'whatsapp' && anyConnected ? (
+                    <p className="text-muted-foreground text-center text-[10px] leading-snug">
+                      {t('settings.oneWhatsappPerAccount')}
                     </p>
                   ) : /* WhatsApp: Embedded Signup (Coexistence/new number) is
                       the primary path WHEN configured; otherwise fall through
                       to the manual paste button so the WhatsApp card still
                       lets the admin connect any number via token paste. */
-                  g.connectChannel === "whatsapp" &&
-                  ready &&
-                  process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
+                  g.connectChannel === 'whatsapp' &&
+                    ready &&
+                    process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ? (
                     <div className="space-y-1.5">
                       {/* One entry point → Meta's "Select your setup" screen,
                           which offers both a new number and coexistence (keep
@@ -595,8 +655,8 @@ export function ChannelsPanel() {
                         workspaceId={workspace.id}
                         onConnected={() => void fetchConnections()}
                       />
-                      <p className="text-center text-[10px] leading-snug text-muted-foreground">
-                        {t("settings.whatsappCoexistenceHint")}
+                      <p className="text-muted-foreground text-center text-[10px] leading-snug">
+                        {t('settings.whatsappCoexistenceHint')}
                       </p>
                     </div>
                   ) : /* Facebook / Instagram: Facebook Login for Business via
@@ -604,21 +664,21 @@ export function ChannelsPanel() {
                       config_id on the bare server redirect, so the SDK is the
                       working path. Manual token paste stays as a fallback. */
                   isMeta &&
-                    g.connectChannel !== "whatsapp" &&
+                    g.connectChannel !== 'whatsapp' &&
                     ready &&
                     process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID ? (
                     <MetaBusinessLogin
                       workspaceId={workspace.id}
-                      channel={g.connectChannel as "messenger" | "instagram"}
+                      channel={g.connectChannel as 'messenger' | 'instagram'}
                       anyConnected={anyConnected}
                       reconnectAccountIds={reconnectAccountIds}
-                      logoChannel={g.logoChannel as "messenger" | "instagram"}
+                      logoChannel={g.logoChannel as 'messenger' | 'instagram'}
                       // El mismo logo que la tarjeta mantiene una sola marca
                       // visual durante todo el flujo.
                       logoSrc={g.logoSrc}
                       onConnected={() => void fetchConnections()}
                     />
-                  ) : g.connectChannel === "mercadolibre" ? (
+                  ) : g.connectChannel === 'mercadolibre' ? (
                     // ML es por país: el vendedor elige su país (una sola app
                     // autoriza a todos) y se loguea en el dominio correcto.
                     <MercadoLibreConnect
@@ -642,7 +702,10 @@ export function ChannelsPanel() {
                           // see Meta's consent screen). Without a config_id the
                           // classic dialog won't load for a Business app, so we
                           // fall back to manual token paste.
-                          if (isMeta && !process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID) {
+                          if (
+                            isMeta &&
+                            !process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID
+                          ) {
                             setManualOpen(g.connectChannel as ManualChannel);
                             return;
                           }
@@ -650,14 +713,14 @@ export function ChannelsPanel() {
                         }}
                         disabled={busy || !ready}
                         className={cn(
-                          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                           // Un solo botón de acción para todas las tarjetas, con
                           // el mismo color: conectar y añadir otra cuenta son lo
                           // mismo, y el gris hacía ver la tarjeta ya conectada
                           // como si estuviera a medias.
                           !ready
-                            ? "cursor-not-allowed border border-border bg-muted/40 text-muted-foreground"
-                            : "bg-primary text-primary-foreground hover:bg-primary/90",
+                            ? 'border-border bg-muted/40 text-muted-foreground cursor-not-allowed border'
+                            : 'bg-primary text-primary-foreground hover:bg-primary/90'
                         )}
                       >
                         {!ready ? (
@@ -666,13 +729,13 @@ export function ChannelsPanel() {
                           // que se dice lo único cierto y accionable — todavía
                           // no está. "Configura el proveedor" mandaba a
                           // buscar una pantalla que no existe.
-                          <>{t("settings.comingSoon")}</>
+                          <>{t('settings.comingSoon')}</>
                         ) : (
                           <>
                             <ChannelLogo channel={g.logoChannel} size={16} />
                             {anyConnected
-                              ? t("settings.addAnotherAccount")
-                              : t("settings.connect")}
+                              ? t('settings.addAnotherAccount')
+                              : t('settings.connect')}
                           </>
                         )}
                       </button>
@@ -686,15 +749,15 @@ export function ChannelsPanel() {
                     <button
                       onClick={() => {
                         const ids = accounts.flatMap((conns) =>
-                          conns.map((c) => c.id),
+                          conns.map((c) => c.id)
                         );
                         if (
                           ids.length > 1 &&
                           !window.confirm(
-                            t("settings.disconnectAllAccountsConfirm", {
+                            t('settings.disconnectAllAccountsConfirm', {
                               n: ids.length,
                               label: g.label,
-                            }),
+                            })
                           )
                         )
                           return;
@@ -703,7 +766,7 @@ export function ChannelsPanel() {
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
                     >
                       <Unplug className="size-4" />
-                      {t("settings.disconnectAllN", { n: accounts.length })}
+                      {t('settings.disconnectAllN', { n: accounts.length })}
                     </button>
                   )}
                 </div>
@@ -722,55 +785,69 @@ export function ChannelsPanel() {
   );
 }
 
-function StatusIcon({ status }: { status: ChannelConnection["status"] }) {
-  const classes = "size-3.5";
-  if (status === "connected") return <CheckCircle2 className={cn(classes, "text-emerald-700 dark:text-emerald-400")} />;
-  if (status === "error") return <AlertCircle className={cn(classes, "text-red-600 dark:text-red-400")} />;
-  if (status === "pending") return <Loader2 className={cn(classes, "animate-spin text-amber-600 dark:text-amber-400")} />;
-  return <XCircle className={cn(classes, "text-muted-foreground")} />;
+function StatusIcon({ status }: { status: ChannelConnection['status'] }) {
+  const classes = 'size-3.5';
+  if (status === 'connected')
+    return (
+      <CheckCircle2
+        className={cn(classes, 'text-emerald-700 dark:text-emerald-400')}
+      />
+    );
+  if (status === 'error')
+    return (
+      <AlertCircle className={cn(classes, 'text-red-600 dark:text-red-400')} />
+    );
+  if (status === 'pending')
+    return (
+      <Loader2
+        className={cn(
+          classes,
+          'animate-spin text-amber-600 dark:text-amber-400'
+        )}
+      />
+    );
+  return <XCircle className={cn(classes, 'text-muted-foreground')} />;
 }
 
 // i18n keys per manual channel. The brand labels (whatsapp/messenger/instagram)
 // resolve to a settings.* key; the two comment channels use channelLabel(). Tips
 // are settings.* keys resolved at render in ManualTokenModal.
-const MANUAL_HINT: Record<
-  ManualChannel,
-  { labelKey: string; tipKey: string }
-> = {
-  whatsapp: {
-    labelKey: "settings.manualLabelWhatsapp",
-    tipKey: "settings.manualTipWhatsapp",
-  },
-  messenger: {
-    labelKey: "settings.manualLabelMessenger",
-    tipKey: "settings.manualTipMessenger",
-  },
-  instagram: {
-    labelKey: "settings.manualLabelInstagram",
-    tipKey: "settings.manualTipInstagram",
-  },
-  fb_comment: {
-    labelKey: "settings.manualLabelFbComment",
-    tipKey: "settings.manualTipFbComment",
-  },
-  ig_comment: {
-    labelKey: "settings.manualLabelIgComment",
-    tipKey: "settings.manualTipIgComment",
-  },
-};
+const MANUAL_HINT: Record<ManualChannel, { labelKey: string; tipKey: string }> =
+  {
+    whatsapp: {
+      labelKey: 'settings.manualLabelWhatsapp',
+      tipKey: 'settings.manualTipWhatsapp',
+    },
+    messenger: {
+      labelKey: 'settings.manualLabelMessenger',
+      tipKey: 'settings.manualTipMessenger',
+    },
+    instagram: {
+      labelKey: 'settings.manualLabelInstagram',
+      tipKey: 'settings.manualTipInstagram',
+    },
+    fb_comment: {
+      labelKey: 'settings.manualLabelFbComment',
+      tipKey: 'settings.manualTipFbComment',
+    },
+    ig_comment: {
+      labelKey: 'settings.manualLabelIgComment',
+      tipKey: 'settings.manualTipIgComment',
+    },
+  };
 
 /** Cupo del WABA legible: TIER_1K → "1K". */
 function tierLabel(tier?: string | null): string | null {
   if (!tier) return null;
   const map: Record<string, string> = {
-    TIER_50: "50",
-    TIER_250: "250",
-    TIER_1K: "1K",
-    TIER_10K: "10K",
-    TIER_100K: "100K",
-    TIER_UNLIMITED: "∞",
+    TIER_50: '50',
+    TIER_250: '250',
+    TIER_1K: '1K',
+    TIER_10K: '10K',
+    TIER_100K: '100K',
+    TIER_UNLIMITED: '∞',
   };
-  return map[tier] ?? tier.replace(/^TIER_/, "");
+  return map[tier] ?? tier.replace(/^TIER_/, '');
 }
 
 /**
@@ -785,22 +862,22 @@ function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
   if (!tier && !quality) return null;
 
   const qualityDot =
-    quality === "GREEN"
-      ? "bg-emerald-500"
-      : quality === "YELLOW"
-        ? "bg-amber-500"
-        : quality === "RED"
-          ? "bg-red-500"
+    quality === 'GREEN'
+      ? 'bg-emerald-500'
+      : quality === 'YELLOW'
+        ? 'bg-amber-500'
+        : quality === 'RED'
+          ? 'bg-red-500'
           : null;
 
   return (
-    <div className="mt-1 pl-6 space-y-1">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-        {tier && <span>{t("settings.healthTier", { tier })}</span>}
+    <div className="mt-1 space-y-1 pl-6">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
+        {tier && <span>{t('settings.healthTier', { tier })}</span>}
         {qualityDot && (
           <span className="inline-flex items-center gap-1">
-            <span className={cn("size-1.5 rounded-full", qualityDot)} />
-            {t("settings.healthQuality")}
+            <span className={cn('size-1.5 rounded-full', qualityDot)} />
+            {t('settings.healthQuality')}
           </span>
         )}
       </div>
@@ -808,8 +885,14 @@ function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
   );
 }
 
-function hasWhatsAppBlocker(connection: ChannelConnection, code: number): boolean {
-  return connection.health_blockers?.some((blocker) => blocker.code === code) ?? false;
+function hasWhatsAppBlocker(
+  connection: ChannelConnection,
+  code: number
+): boolean {
+  return (
+    connection.health_blockers?.some((blocker) => blocker.code === code) ??
+    false
+  );
 }
 
 function ManualTokenModal({
@@ -829,30 +912,30 @@ function ManualTokenModal({
   // Las etiquetas de marca quedan tal cual; solo los dos canales de
   // comentarios (no son nombres de marca) se traducen según el idioma.
   const metaLabel =
-    channel === "fb_comment"
-      ? channelLabel("fb_comment", t)
-      : channel === "ig_comment"
-        ? channelLabel("ig_comment", t)
+    channel === 'fb_comment'
+      ? channelLabel('fb_comment', t)
+      : channel === 'ig_comment'
+        ? channelLabel('ig_comment', t)
         : t(meta.labelKey);
-  const [token, setToken] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [wabaId, setWabaId] = useState("");
+  const [token, setToken] = useState('');
+  const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [wabaId, setWabaId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     if (!token.trim()) {
-      toast.error(t("settings.pasteAToken"));
+      toast.error(t('settings.pasteAToken'));
       return;
     }
-    if (channel === "whatsapp" && (!phoneNumberId.trim() || !wabaId.trim())) {
-      toast.error(t("settings.whatsappNeedsIds"));
+    if (channel === 'whatsapp' && (!phoneNumberId.trim() || !wabaId.trim())) {
+      toast.error(t('settings.whatsappNeedsIds'));
       return;
     }
     setSaving(true);
     try {
-      const res = await fetchWithCsrf("/api/connections/meta/manual", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const res = await fetchWithCsrf('/api/connections/meta/manual', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           channel,
           token: token.trim(),
@@ -861,12 +944,17 @@ function ManualTokenModal({
           waba_id: wabaId.trim() || undefined,
         }),
       });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; label?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        label?: string;
+      };
       if (!res.ok) {
-        toast.error(json.error ?? t("settings.couldNotSaveToken"));
+        toast.error(json.error ?? t('settings.couldNotSaveToken'));
         return;
       }
-      toast.success(t("settings.connectedLabel", { label: json.label ?? channel }));
+      toast.success(
+        t('settings.connectedLabel', { label: json.label ?? channel })
+      );
       await onSaved();
     } finally {
       setSaving(false);
@@ -882,19 +970,21 @@ function ManualTokenModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
+        className="border-border bg-card max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {t("settings.connectWithToken", { label: metaLabel })}
+            <h3 className="text-foreground text-sm font-semibold">
+              {t('settings.connectWithToken', { label: metaLabel })}
             </h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t(meta.tipKey)}</p>
+            <p className="text-muted-foreground mt-1 text-[11px] leading-relaxed">
+              {t(meta.tipKey)}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("settings.close")}
+            className="text-muted-foreground hover:bg-accent hover:text-foreground -mt-1 -mr-1 rounded p-1"
+            aria-label={t('settings.close')}
           >
             <X className="size-4" />
           </button>
@@ -902,7 +992,7 @@ function ManualTokenModal({
 
         <div className="mt-4 space-y-3">
           <label className="block">
-            <span className="block text-[11px] font-medium text-foreground">
+            <span className="text-foreground block text-[11px] font-medium">
               Access token
             </span>
             <textarea
@@ -910,31 +1000,31 @@ function ManualTokenModal({
               onChange={(e) => setToken(e.target.value)}
               placeholder="EAA..."
               rows={4}
-              className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-[11px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary mt-1 block w-full rounded-md border px-2.5 py-2 font-mono text-[11px] focus:outline-none"
             />
           </label>
-          {channel === "whatsapp" && (
+          {channel === 'whatsapp' && (
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="block text-[11px] font-medium text-foreground">
+                <span className="text-foreground block text-[11px] font-medium">
                   phone_number_id
                 </span>
                 <input
                   value={phoneNumberId}
                   onChange={(e) => setPhoneNumberId(e.target.value)}
                   placeholder="1166510229869969"
-                  className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary mt-1 block w-full rounded-md border px-2.5 py-2 font-mono text-xs focus:outline-none"
                 />
               </label>
               <label className="block">
-                <span className="block text-[11px] font-medium text-foreground">
+                <span className="text-foreground block text-[11px] font-medium">
                   waba_id
                 </span>
                 <input
                   value={wabaId}
                   onChange={(e) => setWabaId(e.target.value)}
                   placeholder="2771752166515024"
-                  className="mt-1 block w-full rounded-md border border-border bg-muted px-2.5 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary mt-1 block w-full rounded-md border px-2.5 py-2 font-mono text-xs focus:outline-none"
                 />
               </label>
             </div>
@@ -944,17 +1034,17 @@ function ManualTokenModal({
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground hover:bg-accent"
+            className="border-border text-foreground hover:bg-accent rounded-md border px-3 py-1.5 text-xs"
           >
-            {t("settings.cancel")}
+            {t('settings.cancel')}
           </button>
           <button
             onClick={submit}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3 animate-spin" />}
-            {t("settings.saveAndConnect")}
+            {t('settings.saveAndConnect')}
           </button>
         </div>
       </div>
@@ -964,16 +1054,16 @@ function ManualTokenModal({
 
 function providerForChannel(channel: Channel): string {
   if (
-    channel === "whatsapp" ||
-    channel === "instagram" ||
-    channel === "messenger" ||
-    channel === "fb_comment" ||
-    channel === "ig_comment"
+    channel === 'whatsapp' ||
+    channel === 'instagram' ||
+    channel === 'messenger' ||
+    channel === 'fb_comment' ||
+    channel === 'ig_comment'
   )
-    return "meta";
-  if (channel === "gmail") return "google";
-  if (channel === "outlook") return "microsoft";
-  if (channel === "zoho") return "zoho";
+    return 'meta';
+  if (channel === 'gmail') return 'google';
+  if (channel === 'outlook') return 'microsoft';
+  if (channel === 'zoho') return 'zoho';
   return channel;
 }
 
@@ -987,7 +1077,7 @@ function providerForChannel(channel: Channel): string {
 function FirmaDeCorreo({ connection }: { connection: ChannelConnection }) {
   const t = useT();
   const inicial = String(
-    (connection.config as Record<string, unknown> | null)?.signature ?? "",
+    (connection.config as Record<string, unknown> | null)?.signature ?? ''
   );
   const [valor, setValor] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
@@ -996,15 +1086,18 @@ function FirmaDeCorreo({ connection }: { connection: ChannelConnection }) {
     if (valor.trim() === inicial.trim()) return;
     setGuardando(true);
     try {
-      const res = await fetch("/api/channels/firma", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ connection_id: connection.id, signature: valor }),
+      const res = await fetch('/api/channels/firma', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          connection_id: connection.id,
+          signature: valor,
+        }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      toast.success(t("settings.signatureSaved"));
+      toast.success(t('settings.signatureSaved'));
     } catch {
-      toast.error(t("settings.signatureFailed"));
+      toast.error(t('settings.signatureFailed'));
     } finally {
       setGuardando(false);
     }
@@ -1013,12 +1106,12 @@ function FirmaDeCorreo({ connection }: { connection: ChannelConnection }) {
   return (
     <div className="mt-1 pl-6">
       <textarea
-        className="w-full resize-y rounded-md border border-border bg-background px-2 py-1 text-[11px] leading-snug"
+        className="border-border bg-background w-full resize-y rounded-md border px-2 py-1 text-[11px] leading-snug"
         rows={2}
         maxLength={400}
         value={valor}
         disabled={guardando}
-        placeholder={t("settings.signaturePlaceholder")}
+        placeholder={t('settings.signaturePlaceholder')}
         onChange={(e) => setValor(e.target.value)}
         onBlur={guardar}
       />

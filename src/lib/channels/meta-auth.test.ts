@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   handleMetaGraphError,
+  isMetaAccessWarning,
+  isMetaAssetAccessWarning,
   isMetaAuthWarning,
+  META_ASSET_ACCESS_ERROR,
   META_AUTH_ERROR,
 } from './meta-auth';
 
@@ -24,5 +27,11 @@ describe('Meta auth failures', () => {
     expect(
       isMetaAuthWarning('Token de Meta expirado o sin permisos — reconectar')
     ).toBe(true);
+  });
+
+  it('distinguishes an authorization that no longer includes this asset', () => {
+    expect(isMetaAssetAccessWarning(META_ASSET_ACCESS_ERROR)).toBe(true);
+    expect(isMetaAccessWarning(META_ASSET_ACCESS_ERROR)).toBe(true);
+    expect(isMetaAuthWarning(META_ASSET_ACCESS_ERROR)).toBe(false);
   });
 });

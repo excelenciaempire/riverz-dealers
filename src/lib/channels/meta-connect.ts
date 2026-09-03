@@ -1,5 +1,9 @@
 import { encrypt } from './encryption';
-import { discoverMetaAccounts, subscribePageToWebhooks } from './meta-graph';
+import {
+  discoverMetaAccounts,
+  subscribePageToWebhooks,
+  type DiscoveredAccount,
+} from './meta-graph';
 import { upsertConnectionRow } from './upsert-connection';
 import type { supabaseAdmin } from './admin-client';
 import type { Channel } from '@/types';
@@ -63,6 +67,35 @@ export function metaConnectionConfig(
   };
 }
 
+/**
+ * Meta may return every Page managed by the Facebook profile. A Riverz
+ * workspace, however, must only receive the accounts explicitly selected for
+ * that workspace. Do not accept a partial match: saving the accounts Meta did
+ * return would silently replace a missing brand with another one.
+ */
+export function selectMetaAccounts(
+  discovered: DiscoveredAccount[],
+  pageIds: string[]
+): DiscoveredAccount[] {
+  const wanted = new Set(pageIds.map((id) => id.trim()).filter(Boolean));
+  if (wanted.size === 0) {
+    throw new MetaConnectError('meta_asset_selection_required');
+  }
+
+  const matches = (account: DiscoveredAccount, id: string) =>
+    id === account.external_account_id || id === String(account.config.page_id);
+  const unavailable = [...wanted].filter(
+    (id) => !discovered.some((account) => matches(account, id))
+  );
+  if (unavailable.length > 0) {
+    throw new MetaConnectError('meta_selected_asset_unavailable');
+  }
+
+  return discovered.filter((account) =>
+    [...wanted].some((id) => matches(account, id))
+  );
+}
+
 export async function persistMetaConnections(
   admin: ReturnType<typeof supabaseAdmin>,
   opts: {
@@ -71,10 +104,9 @@ export async function persistMetaConnections(
     workspaceId: string;
     userId: string;
     baseSecrets?: Record<string, unknown>;
-    /** When set, only persist accounts whose external_account_id (or
-     *  config.page_id) is in this list — the page-picker flow. Absent =
-     *  persist everything (legacy behavior). */
-    pageIds?: string[];
+    /** Explicit account ids from the picker. A Meta login never implicitly
+     * imports every Page visible to the Facebook profile. */
+    pageIds: string[];
     /** Cuentas de anuncios elegidas por página. Sólo aplica a Facebook. */
     adAccountIdsByPage?: Record<string, string[]>;
   }
@@ -96,14 +128,7 @@ export async function persistMetaConnections(
     console.error(`[meta-connect] discovery failed:`, err);
     throw new MetaConnectError('could not list pages/accounts');
   }
-  if (pageIds && pageIds.length > 0) {
-    const wanted = new Set(pageIds.map(String));
-    discovered = discovered.filter(
-      (a) =>
-        wanted.has(a.external_account_id) ||
-        wanted.has(String(a.config.page_id))
-    );
-  }
+  discovered = selectMetaAccounts(discovered, pageIds);
   if (discovered.length === 0) {
     throw new MetaConnectError(
       channel === 'instagram' || channel === 'ig_comment'

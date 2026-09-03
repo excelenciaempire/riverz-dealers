@@ -1,31 +1,40 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { csrfGuard } from "@/lib/csrf";
-import { encrypt } from "@/lib/channels/encryption";
-import { subscribePageToWebhooks, withAppsecretProof } from "@/lib/channels/meta-graph";
-import { refreshMessagingLimitTier } from "@/lib/whatsapp/tier-cap";
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { encrypt } from '@/lib/channels/encryption';
+import {
+  subscribePageToWebhooks,
+  withAppsecretProof,
+} from '@/lib/channels/meta-graph';
+import { refreshMessagingLimitTier } from '@/lib/whatsapp/tier-cap';
 import {
   fetchWhatsAppAccountHealth,
   persistWhatsAppHealthSnapshot,
-} from "@/lib/whatsapp/account-health";
+} from '@/lib/whatsapp/account-health';
 import {
   upsertSingleWhatsAppConnection,
   syncLegacyWhatsAppConfig,
   WhatsAppAlreadyConnectedError,
-} from "@/lib/channels/whatsapp/connect";
-import { upsertConnectionRow } from "@/lib/channels/upsert-connection";
-import { getLocale } from "@/lib/i18n/server";
-import { translate } from "@/lib/i18n/translate";
-import type { Channel } from "@/types";
+} from '@/lib/channels/whatsapp/connect';
+import { upsertConnectionRow } from '@/lib/channels/upsert-connection';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import type { Channel } from '@/types';
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+class MetaManualAssetMismatchError extends Error {
+  constructor(readonly asset: 'facebook' | 'instagram') {
+    super(asset);
+  }
+}
+
+const GRAPH = 'https://graph.facebook.com/v21.0';
 const META_CHANNELS: Channel[] = [
-  "messenger",
-  "instagram",
-  "fb_comment",
-  "ig_comment",
-  "whatsapp",
+  'messenger',
+  'instagram',
+  'fb_comment',
+  'ig_comment',
+  'whatsapp',
 ];
 
 /**
@@ -58,47 +67,45 @@ export async function POST(req: Request): Promise<Response> {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.notSignedIn") },
-      { status: 401 },
+      { error: translate(locale, 'errInbox.notSignedIn') },
+      { status: 401 }
     );
   }
 
-  const body = (await req.json().catch(() => null)) as
-    | {
-        channel?: string;
-        token?: string;
-        page_id?: string;
-        ig_user_id?: string;
-        waba_id?: string;
-        phone_number_id?: string;
-        workspace_id?: string;
-      }
-    | null;
+  const body = (await req.json().catch(() => null)) as {
+    channel?: string;
+    token?: string;
+    page_id?: string;
+    ig_user_id?: string;
+    waba_id?: string;
+    phone_number_id?: string;
+    workspace_id?: string;
+  } | null;
   if (!body || !body.channel || !body.token || !body.workspace_id) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.metaManualMissingFields") },
-      { status: 400 },
+      { error: translate(locale, 'errInbox.metaManualMissingFields') },
+      { status: 400 }
     );
   }
   if (!META_CHANNELS.includes(body.channel as Channel)) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.channelNotSupported") },
-      { status: 400 },
+      { error: translate(locale, 'errInbox.channelNotSupported') },
+      { status: 400 }
     );
   }
 
   const admin = supabaseAdmin();
   const { data: membership } = await admin
-    .from("workspace_members")
-    .select("id")
-    .eq("workspace_id", body.workspace_id)
-    .eq("user_id", user.id)
-    .eq("role", "admin")
+    .from('workspace_members')
+    .select('id')
+    .eq('workspace_id', body.workspace_id)
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
     .maybeSingle();
   if (!membership) {
     return NextResponse.json(
-      { error: translate(locale, "errInbox.forbidden") },
-      { status: 403 },
+      { error: translate(locale, 'errInbox.forbidden') },
+      { status: 403 }
     );
   }
 
@@ -106,7 +113,7 @@ export async function POST(req: Request): Promise<Response> {
   const token = body.token.trim();
 
   try {
-    if (channel === "whatsapp") {
+    if (channel === 'whatsapp') {
       return await connectWhatsApp(admin, {
         workspaceId: body.workspace_id,
         userId: user.id,
@@ -127,11 +134,24 @@ export async function POST(req: Request): Promise<Response> {
     if (err instanceof WhatsAppAlreadyConnectedError) {
       return NextResponse.json(
         {
-          error: translate(locale, "errInbox.whatsappAlreadyConnected", {
+          error: translate(locale, 'errInbox.whatsappAlreadyConnected', {
             label: err.existingLabel,
           }),
         },
-        { status: 409 },
+        { status: 409 }
+      );
+    }
+    if (err instanceof MetaManualAssetMismatchError) {
+      return NextResponse.json(
+        {
+          error: translate(
+            locale,
+            err.asset === 'facebook'
+              ? 'errInbox.metaManualFacebookAssetMismatch'
+              : 'errInbox.metaManualInstagramAssetMismatch'
+          ),
+        },
+        { status: 400 }
       );
     }
     const msg = err instanceof Error ? err.message : String(err);
@@ -152,15 +172,15 @@ interface PageInsertArgs {
 // channel for that platform, so one "connect" sets up both. Facebook
 // page → Messenger + FB comments; Instagram → IG DMs + IG comments.
 const CHANNEL_SIBLINGS: Record<string, Channel[]> = {
-  messenger: ["messenger", "fb_comment"],
-  fb_comment: ["messenger", "fb_comment"],
-  instagram: ["instagram", "ig_comment"],
-  ig_comment: ["instagram", "ig_comment"],
+  messenger: ['messenger', 'fb_comment'],
+  fb_comment: ['messenger', 'fb_comment'],
+  instagram: ['instagram', 'ig_comment'],
+  ig_comment: ['instagram', 'ig_comment'],
 };
 
 async function connectPageChannel(
   admin: ReturnType<typeof supabaseAdmin>,
-  args: PageInsertArgs,
+  args: PageInsertArgs
 ): Promise<Response> {
   // Verify the token is a Page Access Token by hitting /me with the
   // page fields we need. Page tokens reply with { id, name } where id
@@ -168,30 +188,42 @@ async function connectPageChannel(
   const probe = await fetch(
     withAppsecretProof(
       `${GRAPH}/me?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(args.token)}`,
-      args.token,
-    ),
+      args.token
+    )
   );
   if (!probe.ok) {
-    throw new Error(`token probe failed (${probe.status}): ${await probe.text()}`);
+    throw new Error(
+      `token probe failed (${probe.status}): ${await probe.text()}`
+    );
   }
   const profile = (await probe.json()) as {
     id?: string;
     name?: string;
     instagram_business_account?: { id?: string; username?: string };
   };
-  if (!profile.id) throw new Error("token did not resolve to a page");
+  if (!profile.id) throw new Error('token did not resolve to a page');
+
+  if (args.pageIdHint && args.pageIdHint !== profile.id) {
+    throw new MetaManualAssetMismatchError('facebook');
+  }
+  if (
+    args.igUserIdHint &&
+    args.igUserIdHint !== profile.instagram_business_account?.id
+  ) {
+    throw new MetaManualAssetMismatchError('instagram');
+  }
 
   const pageId = args.pageIdHint ?? profile.id;
-  const pageName = profile.name ?? "Facebook Page";
+  const pageName = profile.name ?? 'Facebook Page';
   const igUserId = args.igUserIdHint ?? profile.instagram_business_account?.id;
   const igUsername = profile.instagram_business_account?.username;
 
   // Expand to both sibling channels so one paste connects DMs + comments.
   const channels = CHANNEL_SIBLINGS[args.channel] ?? [args.channel];
-  const needsIg = channels.some((c) => c === "instagram" || c === "ig_comment");
+  const needsIg = channels.some((c) => c === 'instagram' || c === 'ig_comment');
   if (needsIg && !igUserId) {
     throw new Error(
-      "this page has no Instagram Professional account attached — link an IG business account first",
+      'this page has no Instagram Professional account attached — link an IG business account first'
     );
   }
 
@@ -201,7 +233,7 @@ async function connectPageChannel(
   let label = pageName;
 
   for (const ch of channels) {
-    const isIg = ch === "instagram" || ch === "ig_comment";
+    const isIg = ch === 'instagram' || ch === 'ig_comment';
     const externalAccountId = isIg ? (igUserId as string) : pageId;
     const rowLabel = isIg
       ? igUsername
@@ -259,10 +291,12 @@ interface WhatsAppInsertArgs {
 
 async function connectWhatsApp(
   admin: ReturnType<typeof supabaseAdmin>,
-  args: WhatsAppInsertArgs,
+  args: WhatsAppInsertArgs
 ): Promise<Response> {
   if (!args.phone_number_id || !args.waba_id) {
-    throw new Error("WhatsApp manual connect needs phone_number_id and waba_id");
+    throw new Error(
+      'WhatsApp manual connect needs phone_number_id and waba_id'
+    );
   }
   // Probe the phone number to confirm the token has access. We also read
   // is_on_biz_app (Coexistence) for informational purposes — Business
@@ -272,11 +306,13 @@ async function connectWhatsApp(
   const probe = await fetch(
     withAppsecretProof(
       `${GRAPH}/${args.phone_number_id}?fields=display_phone_number,verified_name,is_on_biz_app,platform_type,quality_rating&access_token=${encodeURIComponent(args.token)}`,
-      args.token,
-    ),
+      args.token
+    )
   );
   if (!probe.ok) {
-    throw new Error(`phone probe failed (${probe.status}): ${await probe.text()}`);
+    throw new Error(
+      `phone probe failed (${probe.status}): ${await probe.text()}`
+    );
   }
   const phone = (await probe.json()) as {
     display_phone_number?: string;
@@ -298,7 +334,7 @@ async function connectWhatsApp(
     displayPhoneNumber: phone.display_phone_number,
     verifiedName: phone.verified_name,
     coexistence: Boolean(phone.is_on_biz_app),
-    onboarding: "manual",
+    onboarding: 'manual',
   });
 
   // Cache the WABA messaging-tier so bulk paths can gate sends without
@@ -332,21 +368,23 @@ async function connectWhatsApp(
       admin,
       connectionId,
       health,
-      phone.quality_rating,
+      phone.quality_rating
     );
     if (!health.canSend) {
       await admin
-        .from("channel_connections")
+        .from('channel_connections')
         .update({
-          last_error: `no puede enviar (review=${health.reviewStatus ?? "?"}): ${health.blockers
-            .map((b) => `${b.entity}${b.code ? ` ${b.code}` : ""} ${b.description}`)
-            .join(" | ")
+          last_error: `no puede enviar (review=${health.reviewStatus ?? '?'}): ${health.blockers
+            .map(
+              (b) => `${b.entity}${b.code ? ` ${b.code}` : ''} ${b.description}`
+            )
+            .join(' | ')
             .slice(0, 400)}`,
         })
-        .eq("id", connectionId);
+        .eq('id', connectionId);
     }
   } catch (err) {
-    console.warn("[whatsapp/manual] health check failed:", err);
+    console.warn('[whatsapp/manual] health check failed:', err);
   }
 
   return NextResponse.json({ ok: true, connection_id: connectionId, label });

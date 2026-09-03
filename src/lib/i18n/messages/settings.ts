@@ -207,6 +207,10 @@ export const settings = {
     es: 'Meta necesita renovar el permiso. Los mensajes entrantes siguen activos.',
     en: 'Meta needs to renew its permission. Incoming messages remain active.',
   },
+  metaAssetAccessNeedsRenewal: {
+    es: 'Meta ya no puede acceder a {account}. Renueva el permiso y selecciona solo esta marca.',
+    en: 'Meta can no longer access {account}. Renew permission and select only this brand.',
+  },
   metaReconnectAccountUnavailable: {
     es: 'Meta no devolvió esta cuenta. Revisa sus permisos en Meta Business Suite.',
     en: 'Meta did not return this account. Check its permissions in Meta Business Suite.',
@@ -778,7 +782,10 @@ export const settings = {
     es: 'Bandeja para Outlook, Hotmail y Microsoft 365.',
     en: 'Inbox for Outlook, Hotmail and Microsoft 365.',
   },
-  zohoCardDescription: { es: 'Bandeja de Zoho Mail para responder automáticamente.', en: 'Zoho Mail inbox for automated replies.' },
+  zohoCardDescription: {
+    es: 'Bandeja de Zoho Mail para responder automáticamente.',
+    en: 'Zoho Mail inbox for automated replies.',
+  },
   mercadolibreCardDescription: {
     es: 'Preguntas de tus publicaciones y mensajes post-venta.',
     en: 'Questions on your listings and post-sale messages.',

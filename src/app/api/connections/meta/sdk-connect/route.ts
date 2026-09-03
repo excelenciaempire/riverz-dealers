@@ -75,6 +75,16 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400 }
     );
   }
+  if (
+    !body.list_only &&
+    (!Array.isArray(body.page_ids) ||
+      body.page_ids.every((id) => typeof id !== 'string' || !id.trim()))
+  ) {
+    return NextResponse.json(
+      { error: translate(locale, 'errInbox.metaAssetSelectionRequired') },
+      { status: 400 }
+    );
+  }
 
   const admin = supabaseAdmin();
   const { data: membership } = await admin
@@ -168,14 +178,17 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // 3b. Discover + persist connections (shared with the OAuth callback).
-    //     page_ids (when present) narrows to the accounts the user picked.
+    // 3b. Persist only the accounts explicitly selected in the picker. Meta
+    //     can return several brands for one Facebook profile; none may bleed
+    //     into this workspace merely because the profile can manage them.
     const result = await persistMetaConnections(admin, {
       accessToken,
       channel: body.channel as Channel,
       workspaceId: body.workspace_id,
       userId: user.id,
-      pageIds: body.page_ids,
+      pageIds: body.page_ids!.filter(
+        (id): id is string => typeof id === 'string' && Boolean(id.trim())
+      ),
       adAccountIdsByPage: normalizeAdAccountIdsByPage(
         body.ad_account_ids_by_page
       ),
@@ -184,9 +197,15 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const msg =
-      err instanceof MetaConnectError
-        ? err.message
-        : translate(locale, 'errInbox.metaConnectionFailed');
+      err instanceof MetaConnectError &&
+      err.message === 'meta_asset_selection_required'
+        ? translate(locale, 'errInbox.metaAssetSelectionRequired')
+        : err instanceof MetaConnectError &&
+            err.message === 'meta_selected_asset_unavailable'
+          ? translate(locale, 'errInbox.metaSelectedAssetUnavailable')
+          : err instanceof MetaConnectError
+            ? err.message
+            : translate(locale, 'errInbox.metaConnectionFailed');
     console.error('[meta/sdk-connect] error:', err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }

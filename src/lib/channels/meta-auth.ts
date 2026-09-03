@@ -1,17 +1,30 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChannelConnection } from "@/types";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ChannelConnection } from '@/types';
 
 /** Stable internal marker; the UI translates it instead of exposing Meta's
  * technical token failure to the merchant. */
-export const META_AUTH_ERROR = "meta_auth_expired";
+export const META_AUTH_ERROR = 'meta_auth_expired';
+/** The Facebook profile may still be valid while no longer being authorized
+ * for this exact Page / Instagram business account. */
+export const META_ASSET_ACCESS_ERROR = 'meta_asset_access_lost';
 
 /** Includes the old human-readable value so existing rows get the improved
  * UI and can recover without another migration. */
 export function isMetaAuthWarning(value: string | null | undefined): boolean {
   return (
     value === META_AUTH_ERROR ||
-    /^Token de Meta expirado(?: o sin permisos)?/u.test(value ?? "")
+    /^Token de Meta expirado(?: o sin permisos)?/u.test(value ?? '')
   );
+}
+
+export function isMetaAssetAccessWarning(
+  value: string | null | undefined
+): boolean {
+  return value === META_ASSET_ACCESS_ERROR;
+}
+
+export function isMetaAccessWarning(value: string | null | undefined): boolean {
+  return isMetaAuthWarning(value) || isMetaAssetAccessWarning(value);
 }
 
 /**
@@ -34,7 +47,7 @@ export async function handleMetaGraphError(
   db: SupabaseClient,
   connection: ChannelConnection,
   status: number,
-  parsedBody: { error?: { code?: number; type?: string } } | null,
+  parsedBody: { error?: { code?: number; type?: string } } | null
 ): Promise<void> {
   const err = parsedBody?.error;
   const code = err?.code;
@@ -43,15 +56,15 @@ export async function handleMetaGraphError(
     code === 102 ||
     code === 463 ||
     code === 467 ||
-    (status === 401 && err?.type === "OAuthException");
+    (status === 401 && err?.type === 'OAuthException');
   if (!isAuthFailure) return;
   try {
     await db
-      .from("channel_connections")
+      .from('channel_connections')
       .update({
         last_error: META_AUTH_ERROR,
       })
-      .eq("id", connection.id);
+      .eq('id', connection.id);
   } catch {
     /* swallow */
   }
@@ -61,7 +74,7 @@ export async function handleMetaGraphError(
  *  if the body wasn't JSON (rare — Meta errors are always JSON but
  *  network proxies can mangle them). */
 export function parseMetaErrorBody(
-  bodyText: string,
+  bodyText: string
 ): { error?: { code?: number; type?: string } } | null {
   try {
     return JSON.parse(bodyText) as { error?: { code?: number; type?: string } };
@@ -74,13 +87,13 @@ export function parseMetaErrorBody(
  * status assignment also revives legacy rows previously marked `error`. */
 export async function clearMetaConnectionError(
   db: SupabaseClient,
-  connection: ChannelConnection,
+  connection: ChannelConnection
 ): Promise<void> {
   try {
     await db
-      .from("channel_connections")
-      .update({ last_error: null, status: "connected" })
-      .eq("id", connection.id);
+      .from('channel_connections')
+      .update({ last_error: null, status: 'connected' })
+      .eq('id', connection.id);
   } catch {
     /* swallow */
   }
