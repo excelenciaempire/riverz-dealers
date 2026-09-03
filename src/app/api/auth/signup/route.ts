@@ -205,6 +205,13 @@ export async function POST(req: Request) {
       locale,
       kind: "recovery",
     });
+    if (!delivery.ok && delivery.reason === "not_configured") {
+      const { error: nativeRecoveryError } =
+        await admin.auth.resetPasswordForEmail(email, {
+          redirectTo: recoveryRedirectTo(),
+        });
+      if (!nativeRecoveryError) return NextResponse.json(genericOk);
+    }
     if (!delivery.ok) {
       return NextResponse.json(
         { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
@@ -236,6 +243,28 @@ export async function POST(req: Request) {
     kind: "confirmation",
   });
   if (!delivery.ok) {
+    // Si el correo propio no está configurado, Supabase conserva la entrega
+    // nativa de confirmaciones. Así cada alta sigue requiriendo verificar el
+    // correo y no queda una cuenta pendiente sin forma de activarse.
+    if (delivery.reason === "not_configured") {
+      const { error: nativeConfirmationError } = await admin.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: redirectTo },
+      });
+      if (!nativeConfirmationError) {
+        await completeSignup({
+          admin,
+          codeId,
+          userId: data.user.id,
+          email,
+          termsVersion: body?.terms_version,
+          req,
+          phone,
+        });
+        return NextResponse.json(genericOk);
+      }
+    }
     // Si el proveedor rechazó el mensaje con certeza, dejamos el alta como si
     // nunca hubiera ocurrido. Un error de red es ambiguo: Resend pudo aceptarlo
     // antes de cortarse la respuesta, así que conservamos la cuenta y el enlace.
@@ -260,46 +289,67 @@ export async function POST(req: Request) {
     );
   }
 
-  if (data.user.id) {
-    if (codeId) {
-      await recordSignupCodeRedemption(admin, {
-        codeId,
-        userId: data.user.id,
-        email,
-      });
-    }
-
-    // Genuine new account: persist the clickwrap consent (append-only
-    // audit row + profile mirror) so we hold proof of who accepted
-    // which version, when, and from where. Best-effort: a logging
-    // failure must not blow up account creation.
-    await recordLegalConsent({
-      admin,
-      userId: data.user.id,
-      email,
-      version: body?.terms_version,
-      context: "signup",
-      req,
-    });
-
-    // La fila de `profiles` la crea el disparador `handle_new_user` (migración
-    // 001), que solo copia nombre y correo. El teléfono se escribe acá encima
-    // en vez de tocar el disparador: no hace falta migración y el alta sigue
-    // funcionando igual si esto falla — el dueño siempre puede cargarlo desde
-    // Ajustes → Perfil.
-    if (phone) {
-      const { error: phoneError } = await admin
-        .from("profiles")
-        .update({ phone })
-        .eq("user_id", data.user.id);
-      if (phoneError) {
-        console.warn(
-          `[auth/signup] no se pudo guardar el teléfono de ${data.user.id}: ${phoneError.message}`,
-        );
-      }
-    }
-  }
+  await completeSignup({
+    admin,
+    codeId,
+    userId: data.user.id,
+    email,
+    termsVersion: body?.terms_version,
+    req,
+    phone,
+  });
   return NextResponse.json(genericOk);
+}
+
+async function completeSignup({
+  admin,
+  codeId,
+  userId,
+  email,
+  termsVersion,
+  req,
+  phone,
+}: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  codeId: string | null;
+  userId: string;
+  email: string;
+  termsVersion: string | undefined;
+  req: Request;
+  phone: string;
+}) {
+  if (codeId) {
+    await recordSignupCodeRedemption(admin, { codeId, userId, email });
+  }
+
+  // Genuine new account: persist the clickwrap consent (append-only audit row
+  // + profile mirror) so we hold proof of who accepted which version, when,
+  // and from where. Best-effort: a logging failure must not blow up account
+  // creation.
+  await recordLegalConsent({
+    admin,
+    userId,
+    email,
+    version: termsVersion,
+    context: "signup",
+    req,
+  });
+
+  // La fila de `profiles` la crea el disparador `handle_new_user` (migración
+  // 001), que solo copia nombre y correo. El teléfono se escribe acá encima
+  // en vez de tocar el disparador: no hace falta migración y el alta sigue
+  // funcionando igual si esto falla — el dueño siempre puede cargarlo desde
+  // Ajustes → Perfil.
+  if (!phone) return;
+  const { error: phoneError } = await admin
+    .from("profiles")
+    .update({ phone })
+    .eq("user_id", userId);
+  if (phoneError) {
+    console.warn(
+      `[auth/signup] no se pudo guardar el teléfono de ${userId}: ${phoneError.message}`,
+    );
+  }
 }
 
 function recoveryRedirectTo(): string | undefined {

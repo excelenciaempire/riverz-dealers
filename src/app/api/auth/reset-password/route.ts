@@ -38,15 +38,6 @@ export async function POST(req: Request) {
     return NextResponse.json(genericOk);
   }
 
-  // Configuración global, no depende de si la cuenta existe: devolver el mismo
-  // 503 para cualquier correo conserva el contrato anti-enumeración.
-  if (!authEmailConfigured()) {
-    return NextResponse.json(
-      { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
-      { status: 503 },
-    );
-  }
-
   const ip = clientIp(req);
   const ipCheck = checkRateLimit(`auth-reset:ip:${ip}`, RATE_LIMITS.auth);
   if (!ipCheck.success) return rateLimitResponse(ipCheck);
@@ -56,10 +47,35 @@ export async function POST(req: Request) {
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
+  const redirectTo = safeRedirectTo(body?.redirect_to);
+
+  // En producción Riverz entrega estos correos con Resend. En entornos donde
+  // ese proveedor no está configurado, conservamos el flujo usando el correo
+  // transaccional de Supabase en vez de dejar al comercio sin recuperación.
+  if (!authEmailConfigured()) {
+    const { error } = await supabaseAdmin().auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (error) {
+      console.error(
+        JSON.stringify({
+          scope: "auth-reset",
+          event: "native_recovery_email_failed",
+          code: error.code ?? "unknown",
+        }),
+      );
+      return NextResponse.json(
+        { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(genericOk);
+  }
+
   const { data, error } = await supabaseAdmin().auth.admin.generateLink({
     type: "recovery",
     email,
-    options: { redirectTo: safeRedirectTo(body?.redirect_to) },
+    options: { redirectTo },
   });
 
   // Una dirección inexistente recibe exactamente la misma respuesta que una
