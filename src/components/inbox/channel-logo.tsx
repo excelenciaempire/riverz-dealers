@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Renders the official brand logo for a channel. Logos live under
- * /public/channels/ (sourced from Simple Icons, CC0). For comment
+ * /public/channels/ (mostly sourced from Simple Icons, CC0; Zoho Mail comes
+ * from Zoho's official product asset). For comment
  * channels we reuse the parent platform logo (Facebook for fb_comment,
  * Instagram for ig_comment) with a small "·" overlay treatment.
  *
@@ -28,6 +29,7 @@ const LOGO_MAP: Partial<Record<Channel, { src: string; alt: string }>> = {
   messenger: { src: "/channels/messenger.svg", alt: "Messenger" },
   gmail: { src: "/channels/gmail.svg", alt: "Gmail" },
   outlook: { src: "/channels/microsoftoutlook.svg", alt: "Outlook" },
+  zoho: { src: "/channels/zoho-mail.svg", alt: "Zoho Mail" },
   fb_comment: { src: "/channels/facebook.svg", alt: "Facebook" },
   ig_comment: { src: "/channels/instagram.svg", alt: "Instagram" },
   mercadolibre: { src: "/channels/mercadolibre.svg", alt: "Mercado Libre" },

@@ -722,7 +722,7 @@ export async function runAiAgent(
           channel: args.channel,
           sender_type: 'bot',
           content_type:
-            args.channel === 'gmail' || args.channel === 'outlook'
+            args.channel === 'gmail' || args.channel === 'outlook' || args.channel === 'zoho'
               ? 'email'
               : args.channel === 'fb_comment' || args.channel === 'ig_comment'
                 ? 'comment'
@@ -957,7 +957,7 @@ export async function runAiAgent(
           channel: args.channel,
           sender_type: 'bot',
           content_type:
-            args.channel === 'gmail' || args.channel === 'outlook'
+            args.channel === 'gmail' || args.channel === 'outlook' || args.channel === 'zoho'
               ? 'email'
               : args.channel === 'fb_comment' || args.channel === 'ig_comment'
                 ? 'comment'
@@ -1577,6 +1577,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   fb_comment: 'comentario de Facebook',
   gmail: 'correo',
   outlook: 'correo',
+  zoho: 'correo',
   mercadolibre: 'Mercado Libre',
   ml_review: 'opinión de Mercado Libre',
   tiktok_comment: 'comentario de TikTok',
@@ -3625,6 +3626,7 @@ async function resolveAiOutboundTarget(
     replyToExternalId: target.externalId,
   };
 }
+
 async function logReply(
   db: SupabaseClient,
   agent: AiAgent,
