@@ -6,6 +6,7 @@ import { User, Palette, Building2, KeyRound, CreditCard, Wallet } from 'lucide-r
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useT } from '@/hooks/use-locale';
 import { ProfileForm } from '@/components/settings/profile-form';
+import { PasswordForm } from '@/components/settings/password-form';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WorkspacePanel } from '@/components/settings/workspace-panel';
 import { SupportAccessPanel } from '@/components/settings/support-access';
@@ -95,6 +96,7 @@ export default function SettingsPage() {
 
         <TabsContent value="profile" className="space-y-6">
           <ProfileForm />
+          <PasswordForm />
         </TabsContent>
 
         <TabsContent value="workspace" className="space-y-6">

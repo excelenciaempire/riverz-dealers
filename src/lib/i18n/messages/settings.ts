@@ -247,6 +247,37 @@ export const settings = {
 
   // Profile form
   profileTitle: { es: 'Perfil', en: 'Profile' },
+  passwordTitle: { es: 'Contraseña', en: 'Password' },
+  currentPasswordLabel: {
+    es: 'Contraseña actual',
+    en: 'Current password',
+  },
+  newPasswordLabel: { es: 'Nueva contraseña', en: 'New password' },
+  confirmNewPasswordLabel: {
+    es: 'Confirmar nueva contraseña',
+    en: 'Confirm new password',
+  },
+  changePassword: { es: 'Cambiar contraseña', en: 'Change password' },
+  passwordMin8: {
+    es: 'La contraseña debe tener al menos 8 caracteres.',
+    en: 'Password must be at least 8 characters.',
+  },
+  passwordsDontMatch: {
+    es: 'Las contraseñas no coinciden.',
+    en: 'Passwords do not match.',
+  },
+  currentPasswordIncorrect: {
+    es: 'La contraseña actual no es correcta.',
+    en: 'The current password is incorrect.',
+  },
+  passwordChanged: {
+    es: 'Contraseña actualizada.',
+    en: 'Password updated.',
+  },
+  passwordChangeFailed: {
+    es: 'No se pudo actualizar la contraseña.',
+    en: 'Could not update the password.',
+  },
   avatarInvalidType: {
     es: 'Usa PNG, JPG, WebP o GIF.',
     en: 'Use PNG, JPG, WebP or GIF.',
