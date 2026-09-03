@@ -232,6 +232,15 @@ export const settings = {
     es: 'Añadir otra página',
     en: 'Add another page',
   },
+  connectMeta: { es: 'Conectar Meta', en: 'Connect Meta' },
+  reauthorizeMeta: {
+    es: 'Renovar permiso de Meta',
+    en: 'Renew Meta permission',
+  },
+  addAnotherMetaAccount: {
+    es: 'Añadir otra cuenta de Meta',
+    en: 'Add another Meta account',
+  },
   connectInstagramAccount: {
     es: 'Conectar Instagram',
     en: 'Connect Instagram',
@@ -773,6 +782,10 @@ export const settings = {
   facebookCardDescription: {
     es: 'Messenger y comentarios de Facebook.',
     en: 'Messenger and Facebook comments.',
+  },
+  metaCardDescription: {
+    es: 'Facebook e Instagram de tu marca.',
+    en: 'Your brand’s Facebook and Instagram.',
   },
   instagramCardDescription: {
     es: 'Mensajes y comentarios de Instagram.',

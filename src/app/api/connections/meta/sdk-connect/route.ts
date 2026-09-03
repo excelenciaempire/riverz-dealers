@@ -57,6 +57,7 @@ export async function POST(req: Request): Promise<Response> {
     list_only?: boolean;
     page_ids?: string[];
     ad_account_ids_by_page?: Record<string, string[]>;
+    include_instagram?: boolean;
   } | null;
   if (
     !body ||
@@ -181,18 +182,49 @@ export async function POST(req: Request): Promise<Response> {
     // 3b. Persist only the accounts explicitly selected in the picker. Meta
     //     can return several brands for one Facebook profile; none may bleed
     //     into this workspace merely because the profile can manage them.
+    const pageIds = body.page_ids!.filter(
+      (id): id is string => typeof id === 'string' && Boolean(id.trim())
+    );
     const result = await persistMetaConnections(admin, {
       accessToken,
       channel: body.channel as Channel,
       workspaceId: body.workspace_id,
       userId: user.id,
-      pageIds: body.page_ids!.filter(
-        (id): id is string => typeof id === 'string' && Boolean(id.trim())
-      ),
+      pageIds,
       adAccountIdsByPage: normalizeAdAccountIdsByPage(
         body.ad_account_ids_by_page
       ),
     });
+
+    // One Riverz Meta connection starts from a Facebook Page. When that Page
+    // has a linked Instagram professional account, set up its IG DMs and
+    // comments in the same consent flow instead of making the merchant repeat
+    // the whole authorization on a second card.
+    if (body.channel === 'messenger' && body.include_instagram) {
+      const { discoverMetaAccounts } =
+        await import('@/lib/channels/meta-graph');
+      const instagramAccounts = await discoverMetaAccounts(
+        accessToken,
+        'instagram'
+      );
+      const selectedInstagramIds = instagramAccounts
+        .filter((account) => pageIds.includes(String(account.config.page_id)))
+        .map((account) => account.external_account_id);
+      if (selectedInstagramIds.length > 0) {
+        const instagram = await persistMetaConnections(admin, {
+          accessToken,
+          channel: 'instagram',
+          workspaceId: body.workspace_id,
+          userId: user.id,
+          pageIds: selectedInstagramIds,
+        });
+        return NextResponse.json({
+          ok: true,
+          saved: result.saved + instagram.saved,
+          subscribed: result.subscribed + instagram.subscribed,
+        });
+      }
+    }
 
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

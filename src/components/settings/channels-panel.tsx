@@ -35,10 +35,8 @@ import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect'
 import { cn } from '@/lib/utils';
 
 /**
- * One card per platform. Facebook and Instagram each cover two internal
- * channels (DMs + comments) but share a single page token, so the user
- * connects once and both light up — no separate Messenger / comments
- * connections to manage.
+ * One card per platform. Meta is one customer-facing connection; its Page and
+ * linked Instagram account fan out to four internal channels for routing.
  */
 interface ChannelGroup {
   key: string;
@@ -65,21 +63,13 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     connectChannel: 'whatsapp',
   },
   {
-    key: 'facebook',
-    label: 'Facebook',
-    descriptionKey: 'settings.facebookCardDescription',
+    key: 'meta',
+    label: 'Meta',
+    descriptionKey: 'settings.metaCardDescription',
     logoChannel: 'messenger',
     logoSrc: '/channels/facebook.svg',
-    members: ['messenger', 'fb_comment'],
+    members: ['messenger', 'fb_comment', 'instagram', 'ig_comment'],
     connectChannel: 'messenger',
-  },
-  {
-    key: 'instagram',
-    label: 'Instagram',
-    descriptionKey: 'settings.instagramCardDescription',
-    logoChannel: 'instagram',
-    members: ['instagram', 'ig_comment'],
-    connectChannel: 'instagram',
   },
   {
     key: 'gmail',
@@ -438,7 +428,10 @@ export function ChannelsPanel() {
           );
           const byAccount = new Map<string, ChannelConnection[]>();
           for (const c of memberConns) {
-            const key = c.external_account_id ?? c.id;
+            const key =
+              g.key === 'meta'
+                ? String(c.config?.page_id ?? c.external_account_id ?? c.id)
+                : (c.external_account_id ?? c.id);
             const arr = byAccount.get(key) ?? [];
             arr.push(c);
             byAccount.set(key, arr);
@@ -455,7 +448,11 @@ export function ChannelsPanel() {
           // Riverz workspaces, but renewing here can only update this one.
           const reconnectAccountIds = memberConns
             .filter((c) => isMetaAccessWarning(c.last_error))
-            .map((c) => c.external_account_id)
+            .map((c) =>
+              g.key === 'meta'
+                ? (c.config?.page_id as string | undefined)
+                : c.external_account_id
+            )
             .filter((id): id is string => Boolean(id));
           const ready = isProviderReady(g.connectChannel);
           const isMeta =
@@ -526,7 +523,8 @@ export function ChannelsPanel() {
                     // same Meta credential. An auth warning on either one
                     // needs exactly one renewal action for this account.
                     const accountLabel =
-                      g.connectChannel === 'instagram'
+                      primary.channel === 'instagram' ||
+                      primary.channel === 'ig_comment'
                         ? primary.label?.replace(/\s+\(Instagram\)$/u, '')
                         : primary.label;
                     const metaAssetAccessWarning = conns.some((connection) =>
@@ -670,6 +668,7 @@ export function ChannelsPanel() {
                     <MetaBusinessLogin
                       workspaceId={workspace.id}
                       channel={g.connectChannel as 'messenger' | 'instagram'}
+                      includeInstagram={g.key === 'meta'}
                       anyConnected={anyConnected}
                       reconnectAccountIds={reconnectAccountIds}
                       logoChannel={g.logoChannel as 'messenger' | 'instagram'}

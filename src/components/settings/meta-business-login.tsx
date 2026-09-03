@@ -47,6 +47,7 @@ const CONFIG_ID = process.env.NEXT_PUBLIC_META_LOGIN_CONFIG_ID;
 export function MetaBusinessLogin({
   workspaceId,
   channel,
+  includeInstagram = false,
   anyConnected,
   reconnectAccountIds = [],
   logoChannel,
@@ -54,8 +55,10 @@ export function MetaBusinessLogin({
   onConnected,
 }: {
   workspaceId: string;
-  /** "messenger" (Facebook card) or "instagram". */
+  /** `messenger` is the Page entry point. It can also set up linked IG. */
   channel: 'messenger' | 'instagram';
+  /** Connect the linked Instagram professional account in the same Meta flow. */
+  includeInstagram?: boolean;
   anyConnected: boolean;
   /** Accounts already associated with this Riverz workspace that only need
    * fresh Meta consent. They must never be replaced by other accounts the
@@ -154,6 +157,7 @@ export function MetaBusinessLogin({
             channel,
             workspace_id: workspaceId,
             page_ids: pageIds,
+            include_instagram: includeInstagram,
             ad_account_ids_by_page:
               channel === 'messenger' && reconnectAccountIds.length === 0
                 ? Object.fromEntries(
@@ -188,6 +192,7 @@ export function MetaBusinessLogin({
       t,
       adAccountsByPage,
       reconnectAccountIds,
+      includeInstagram,
     ]
   );
 
@@ -328,10 +333,16 @@ export function MetaBusinessLogin({
         {t(
           channel === 'messenger'
             ? reconnectAccountIds.length > 0
-              ? 'settings.reauthorizeFacebook'
+              ? includeInstagram
+                ? 'settings.reauthorizeMeta'
+                : 'settings.reauthorizeFacebook'
               : anyConnected
-                ? 'settings.addAnotherFacebookPage'
-                : 'settings.connectFacebookPage'
+                ? includeInstagram
+                  ? 'settings.addAnotherMetaAccount'
+                  : 'settings.addAnotherFacebookPage'
+                : includeInstagram
+                  ? 'settings.connectMeta'
+                  : 'settings.connectFacebookPage'
             : reconnectAccountIds.length > 0
               ? 'settings.reauthorizeInstagram'
               : anyConnected
