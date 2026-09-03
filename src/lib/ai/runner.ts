@@ -45,6 +45,11 @@ import type {
   ShopifyCustomerSnapshot,
 } from '@/types';
 import { getAdapter } from '@/lib/channels/registry';
+import {
+  esCanalDeComentarios,
+  esError as esErrorDestinoComentario,
+  resolveCommentReplyTarget,
+} from '@/lib/channels/comment-reply-target';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
@@ -702,20 +707,22 @@ export async function runAiAgent(
         return;
       }
       try {
+        const outboundTarget = await resolveAiOutboundTarget(db, args);
         const adapter = getAdapter(args.channel);
         const sendResult = await adapter.sendText({
           channel: args.channel,
-          connection: args.connection,
+          connection: outboundTarget.connection,
           conversation: args.conversation,
           contact: args.contact,
           text,
+          replyToExternalId: outboundTarget.replyToExternalId,
         });
         await db.from('messages').insert({
           conversation_id: args.conversation.id,
           channel: args.channel,
           sender_type: 'bot',
           content_type:
-            args.channel === 'gmail' || args.channel === 'outlook' || args.channel === 'zoho'
+            args.channel === 'gmail' || args.channel === 'outlook'
               ? 'email'
               : args.channel === 'fb_comment' || args.channel === 'ig_comment'
                 ? 'comment'
@@ -930,16 +937,18 @@ export async function runAiAgent(
       agent.response_mode,
     );
 
+    const outboundTarget = await resolveAiOutboundTarget(db, args);
     const adapter = getAdapter(args.channel);
     const insertedIds: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const sendResult = await adapter.sendText({
         channel: args.channel,
-        connection: args.connection,
+        connection: outboundTarget.connection,
         conversation: args.conversation,
         contact: args.contact,
         text: chunk,
+        replyToExternalId: outboundTarget.replyToExternalId,
       });
       const { data: persistedMessage } = await db
         .from('messages')
@@ -948,7 +957,7 @@ export async function runAiAgent(
           channel: args.channel,
           sender_type: 'bot',
           content_type:
-            args.channel === 'gmail' || args.channel === 'outlook' || args.channel === 'zoho'
+            args.channel === 'gmail' || args.channel === 'outlook'
               ? 'email'
               : args.channel === 'fb_comment' || args.channel === 'ig_comment'
                 ? 'comment'
@@ -1568,7 +1577,6 @@ const CHANNEL_LABEL: Record<string, string> = {
   fb_comment: 'comentario de Facebook',
   gmail: 'correo',
   outlook: 'correo',
-  zoho: 'correo',
   mercadolibre: 'Mercado Libre',
   ml_review: 'opinión de Mercado Libre',
   tiktok_comment: 'comentario de TikTok',
@@ -3589,6 +3597,34 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function resolveAiOutboundTarget(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string;
+    channel: Channel;
+    conversation: Conversation;
+    connection: ChannelConnection;
+    inboundMessage: Message;
+  },
+): Promise<{ connection: ChannelConnection; replyToExternalId?: string }> {
+  if (!esCanalDeComentarios(args.channel)) {
+    return { connection: args.connection };
+  }
+
+  const target = await resolveCommentReplyTarget(db, {
+    workspaceId: args.workspaceId,
+    conversation: args.conversation,
+    pickedMessageId: args.inboundMessage.id,
+  });
+  if (esErrorDestinoComentario(target)) {
+    throw new Error(`[${args.channel}] no reply target: ${target.error}`);
+  }
+
+  return {
+    connection: target.connection,
+    replyToExternalId: target.externalId,
+  };
+}
 async function logReply(
   db: SupabaseClient,
   agent: AiAgent,
@@ -3783,3 +3819,4 @@ async function anotarSalida(
     console.error('[ai] no se pudo anotar la salida:', motivo, err);
   }
 }
+
