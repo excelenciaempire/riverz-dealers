@@ -23,6 +23,7 @@ import { channelLabel } from "@/lib/channels/display";
 import { ChannelLogo } from "@/components/inbox/channel-logo";
 import { WhatsAppEmbeddedSignup } from "@/components/settings/whatsapp-embedded-signup";
 import { MetaBusinessLogin } from "@/components/settings/meta-business-login";
+import { isMetaAuthWarning } from "@/lib/channels/meta-auth";
 import { ShopifyCard } from "@/components/settings/shopify-card";
 import { StoreCard } from "@/components/settings/store-card";
 import { MercadoPagoCard } from "@/components/settings/mercadopago-card";
@@ -405,6 +406,15 @@ export function ChannelsPanel() {
           const anyConnected = memberConns.some(
             (c) => c.channel === g.connectChannel && c.status === "connected",
           );
+          // These ids only come from the active workspace's connection rows.
+          // A person may administer the same Facebook account in several
+          // Riverz workspaces, but renewing here can only update this one.
+          const reconnectAccountIds = memberConns
+            .filter(
+              (c) => isMetaAuthWarning(c.last_error),
+            )
+            .map((c) => c.external_account_id)
+            .filter((id): id is string => Boolean(id));
           const ready = isProviderReady(g.connectChannel);
           const isMeta =
             g.connectChannel === "whatsapp" ||
@@ -457,10 +467,19 @@ export function ChannelsPanel() {
                     const primary =
                       conns.find((c) => c.channel === g.connectChannel) ?? conns[0];
                     const ids = conns.map((c) => c.id);
-                    const errText =
-                      primary.status === "error"
-                        ? (primary as ChannelConnection & { last_error?: string })
-                            .last_error
+                    const lastError = (primary as ChannelConnection & {
+                      last_error?: string;
+                    }).last_error;
+                    // Messenger/Instagram and their comment sibling use the
+                    // same Meta credential. An auth warning on either one
+                    // needs exactly one renewal action for this account.
+                    const metaAuthWarning = conns.some((connection) =>
+                      isMetaAuthWarning(connection.last_error),
+                    );
+                    const errText = metaAuthWarning
+                      ? t("settings.metaAccessNeedsRefresh")
+                      : primary.status === "error"
+                        ? lastError
                         : null;
                     const accountLabel =
                       g.connectChannel === "instagram"
@@ -495,7 +514,14 @@ export function ChannelsPanel() {
                           )}
                         </div>
                         {errText && (
-                          <p className="mt-1 pl-6 text-[10px] leading-snug text-red-600 dark:text-red-400">
+                          <p
+                            className={cn(
+                              "mt-1 pl-6 text-[10px] leading-snug",
+                              metaAuthWarning
+                                ? "text-amber-700 dark:text-amber-300"
+                                : "text-red-600 dark:text-red-400",
+                            )}
+                          >
                             {errText}
                           </p>
                         )}
@@ -579,6 +605,7 @@ export function ChannelsPanel() {
                       workspaceId={workspace.id}
                       channel={g.connectChannel as "messenger" | "instagram"}
                       anyConnected={anyConnected}
+                      reconnectAccountIds={reconnectAccountIds}
                       logoChannel={g.logoChannel as "messenger" | "instagram"}
                       // El mismo logo que la tarjeta mantiene una sola marca
                       // visual durante todo el flujo.

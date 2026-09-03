@@ -1,7 +1,11 @@
 import type { OutboundMedia, SendResult } from "./types";
 import type { Channel } from "@/types";
 import { decrypt } from "./encryption";
-import { handleMetaGraphError, clearMetaConnectionError } from "./meta-auth";
+import {
+  handleMetaGraphError,
+  clearMetaConnectionError,
+  isMetaAuthWarning,
+} from "./meta-auth";
 import { describeMetaSendError, parseMetaError } from "./meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
 import { withAppsecretProofBody } from "./meta-graph";
@@ -111,7 +115,7 @@ export async function sendMetaMedia(
     console.error(`[${channel}] send media failed (${res.status}): ${detail}`);
     throw new Error(describeMetaSendError(channel, res.status, parsed, locale).userMessage);
   }
-  if (input.connection.status !== "connected") {
+  if (isMetaAuthWarning(input.connection.last_error)) {
     await clearMetaConnectionError(supabaseAdmin(), input.connection);
   }
   const json = (await res.json()) as { message_id?: string };

@@ -187,10 +187,22 @@ export const settings = {
     es: 'Conexión cancelada',
     en: 'Connection cancelled',
   },
+  metaAccessNeedsRefresh: {
+    es: 'Meta necesita renovar el permiso. Los mensajes entrantes siguen activos.',
+    en: 'Meta needs to renew its permission. Incoming messages remain active.',
+  },
+  metaReconnectAccountUnavailable: {
+    es: 'Meta no devolvió esta cuenta. Revisa sus permisos en Meta Business Suite.',
+    en: 'Meta did not return this account. Check its permissions in Meta Business Suite.',
+  },
   addAnotherAccount: { es: 'Añadir otra cuenta', en: 'Add another account' },
   connectFacebookPage: {
     es: 'Conectar Facebook',
     en: 'Connect Facebook',
+  },
+  reauthorizeFacebook: {
+    es: 'Renovar permiso de Facebook',
+    en: 'Renew Facebook permission',
   },
   addAnotherFacebookPage: {
     es: 'Añadir otra página',
@@ -199,6 +211,10 @@ export const settings = {
   connectInstagramAccount: {
     es: 'Conectar Instagram',
     en: 'Connect Instagram',
+  },
+  reauthorizeInstagram: {
+    es: 'Renovar permiso de Instagram',
+    en: 'Renew Instagram permission',
   },
   addAnotherInstagramAccount: {
     es: 'Añadir otra cuenta',

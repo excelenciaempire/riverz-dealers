@@ -17,7 +17,11 @@ import {
   logUnrenderableMetaMessage,
 } from "../meta-attachments";
 import { handleMetaReaction, type MetaReactionEvent } from "../meta-reactions";
-import { handleMetaGraphError, clearMetaConnectionError } from "../meta-auth";
+import {
+  handleMetaGraphError,
+  clearMetaConnectionError,
+  isMetaAuthWarning,
+} from "../meta-auth";
 import { describeMetaSendError, parseMetaError } from "../meta-errors";
 import { safeLocale } from "@/lib/i18n/server";
 import { buildParticipantMap } from "../meta-participants";
@@ -152,7 +156,7 @@ export const messengerAdapter: ChannelAdapter = {
     }
     // Send succeeded — auto-restore a connection previously flagged dead
     // so a recovered token re-greens without a manual reconnect.
-    if (input.connection.status !== "connected") {
+    if (isMetaAuthWarning(input.connection.last_error)) {
       await clearMetaConnectionError(supabaseAdmin(), input.connection);
     }
     const json = (await res.json()) as { message_id?: string };

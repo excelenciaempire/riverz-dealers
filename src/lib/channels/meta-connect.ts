@@ -14,6 +14,11 @@ import type { Channel } from '@/types';
 
 export class MetaConnectError extends Error {}
 
+/** Facebook Login user tokens exchanged by the SDK live for roughly 60 days.
+ * Persist the deadline explicitly: `updated_at` also changes when messages
+ * arrive, so it is not a safe proxy for token age. */
+const META_TOKEN_LIFETIME_MS = 60 * 24 * 60 * 60 * 1000;
+
 export interface PersistMetaResult {
   saved: number;
   subscribed: number;
@@ -32,6 +37,30 @@ export function selectedAdAccountIds(
         .filter((id) => /^act_\d+$/.test(id))
     )
   );
+}
+
+/**
+ * Reconnecting a Facebook page must not silently erase its ad-comment
+ * account choices. We only write `ad_account_ids` when the picker explicitly
+ * supplied a choice for that page; otherwise upsertConnectionRow keeps the
+ * prior config while it refreshes the token.
+ */
+export function metaConnectionConfig(
+  channel: Channel,
+  accountConfig: Record<string, unknown>,
+  pageId: string,
+  adAccountIdsByPage: Record<string, string[]>
+): Record<string, unknown> {
+  if (
+    channel !== 'messenger' ||
+    !Object.prototype.hasOwnProperty.call(adAccountIdsByPage, pageId)
+  ) {
+    return accountConfig;
+  }
+  return {
+    ...accountConfig,
+    ad_account_ids: selectedAdAccountIds(adAccountIdsByPage, pageId),
+  };
 }
 
 export async function persistMetaConnections(
@@ -85,22 +114,24 @@ export async function persistMetaConnections(
 
   let saved = 0;
   let subscribed = 0;
+  const tokenExpiresAt = new Date(
+    Date.now() + META_TOKEN_LIFETIME_MS
+  ).toISOString();
   for (const account of discovered) {
     const pageId = String(
       account.config.page_id ?? account.external_account_id
     );
-    const adAccountIds =
-      channel === 'messenger'
-        ? selectedAdAccountIds(adAccountIdsByPage, pageId)
-        : [];
-    const config =
-      channel === 'messenger'
-        ? { ...account.config, ad_account_ids: adAccountIds }
-        : account.config;
+    const config = metaConnectionConfig(
+      channel,
+      account.config,
+      pageId,
+      adAccountIdsByPage
+    );
     const secrets = {
       ...baseSecrets,
       access_token: encrypt(account.page_access_token),
       user_access_token: encrypt(accessToken),
+      access_token_expires_at: tokenExpiresAt,
     };
     const up = await upsertConnectionRow(admin, {
       workspace_id: workspaceId,

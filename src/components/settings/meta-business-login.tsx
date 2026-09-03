@@ -48,6 +48,7 @@ export function MetaBusinessLogin({
   workspaceId,
   channel,
   anyConnected,
+  reconnectAccountIds = [],
   logoChannel,
   logoSrc,
   onConnected,
@@ -56,6 +57,10 @@ export function MetaBusinessLogin({
   /** "messenger" (Facebook card) or "instagram". */
   channel: 'messenger' | 'instagram';
   anyConnected: boolean;
+  /** Accounts already associated with this Riverz workspace that only need
+   * fresh Meta consent. They must never be replaced by other accounts the
+   * same Facebook user can manage. */
+  reconnectAccountIds?: string[];
   logoChannel: 'messenger' | 'instagram';
   /** El logo de la tarjeta, cuando no es el del canal interno. */
   logoSrc?: string;
@@ -150,7 +155,7 @@ export function MetaBusinessLogin({
             workspace_id: workspaceId,
             page_ids: pageIds,
             ad_account_ids_by_page:
-              channel === 'messenger'
+              channel === 'messenger' && reconnectAccountIds.length === 0
                 ? Object.fromEntries(
                     pageIds.map((pageId) => [
                       pageId,
@@ -175,7 +180,15 @@ export function MetaBusinessLogin({
         setBusy(false);
       }
     },
-    [workspaceId, channel, onConnected, fetchWithCsrf, t, adAccountsByPage]
+    [
+      workspaceId,
+      channel,
+      onConnected,
+      fetchWithCsrf,
+      t,
+      adAccountsByPage,
+      reconnectAccountIds,
+    ]
   );
 
   // Step 1: discover the accounts the token can manage (no persistence).
@@ -214,6 +227,22 @@ export function MetaBusinessLogin({
           );
           return;
         }
+        const reconnecting = new Set(reconnectAccountIds.map(String));
+        if (reconnecting.size > 0) {
+          const known = found.filter((account) => reconnecting.has(account.id));
+          // A reauthorization is intentionally one step: Meta's official
+          // consent screen is enough when this workspace's known account is
+          // still available. The internal picker is only for adding accounts.
+          if (known.length === reconnecting.size) {
+            await persist(
+              payload,
+              known.map((account) => account.id)
+            );
+            return;
+          }
+          toast.error(t('settings.metaReconnectAccountUnavailable'));
+          return;
+        }
         if (found.length === 1 && channel !== 'messenger') {
           await persist(payload, [found[0].id]);
           return;
@@ -234,7 +263,7 @@ export function MetaBusinessLogin({
         setBusy(false);
       }
     },
-    [workspaceId, channel, fetchWithCsrf, persist, t]
+    [workspaceId, channel, fetchWithCsrf, persist, t, reconnectAccountIds]
   );
 
   const launch = useCallback(() => {
@@ -296,12 +325,16 @@ export function MetaBusinessLogin({
         )}
         {t(
           channel === 'messenger'
-            ? anyConnected
-              ? 'settings.addAnotherFacebookPage'
-              : 'settings.connectFacebookPage'
-            : anyConnected
-              ? 'settings.addAnotherInstagramAccount'
-              : 'settings.connectInstagramAccount'
+            ? reconnectAccountIds.length > 0
+              ? 'settings.reauthorizeFacebook'
+              : anyConnected
+                ? 'settings.addAnotherFacebookPage'
+                : 'settings.connectFacebookPage'
+            : reconnectAccountIds.length > 0
+              ? 'settings.reauthorizeInstagram'
+              : anyConnected
+                ? 'settings.addAnotherInstagramAccount'
+                : 'settings.connectInstagramAccount'
         )}
       </button>
 
