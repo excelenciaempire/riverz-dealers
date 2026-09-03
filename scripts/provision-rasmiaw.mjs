@@ -153,7 +153,7 @@ async function upsertAutomation(ownerId, agentId, definition) {
 
 async function main() {
   const { data: members, error: memberError } = await db.from('workspace_members')
-    .select('user_id, role').eq('workspace_id', WORKSPACE_ID).order('created_at').limit(1)
+    .select('user_id, role').eq('workspace_id', WORKSPACE_ID).limit(1)
   fail(memberError)
   const ownerId = members?.[0]?.user_id
   if (!ownerId) throw new Error('No se encontró el propietario de Rasmiaw.')
