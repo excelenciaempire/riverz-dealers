@@ -79,11 +79,58 @@ export async function activationIssuesById(
     | null
   if (!fila) throw new Error('esa automatización no existe en esta cuenta')
 
-  return activationIssues({
+  const steps = (await loadStepsTree(fila.id)) as unknown as StepLike[]
+  const issues = activationIssues({
     triggerType: fila.trigger_type,
     triggerConfig: fila.trigger_config,
-    steps: (await loadStepsTree(fila.id)) as unknown as StepLike[],
+    steps,
   })
+  if ((fila.trigger_config as Record<string, unknown> | null)?.requires_integration === 'mercadopago') {
+    // La integración todavía no expone un estado reutilizable desde el motor.
+    // Mientras este bloqueo esté en el borrador, el flujo no puede activarse
+    // por accidente; la conexión la reemplaza por su configuración real.
+    issues.push({
+      path: 'trigger.integration',
+      message: 'Mercado Pago must be connected before activation',
+      key: 'automations.issueMercadoPagoPendiente',
+    })
+  }
+  // Una automatización que usa un borrador se puede armar, pero no prender.
+  // Antes pasaba la validación y fallaba en cada envío hasta que alguien
+  // revisaba el log. La aprobación de Meta es una dependencia real de la
+  // activación, no una sugerencia de la tarjeta.
+  const nombres = new Set<string>()
+  const walk = (items: StepLike[]) => items.forEach((step) => {
+    if (step.step_type === 'send_template') {
+      const name = String(step.step_config?.template_name ?? '').trim()
+      if (name) nombres.add(name)
+    }
+    if (step.branches) {
+      walk(step.branches.yes ?? [])
+      walk(step.branches.no ?? [])
+    }
+  })
+  walk(steps)
+  if (nombres.size > 0) {
+    const { data: templates } = await db
+      .from('message_templates')
+      .select('name, status')
+      .eq('workspace_id', workspaceId)
+      .in('name', [...nombres])
+    const approved = new Set(
+      (templates ?? [])
+        .filter((t) => String(t.status ?? '').toLowerCase() === 'approved')
+        .map((t) => String(t.name)),
+    )
+    if ([...nombres].some((name) => !approved.has(name))) {
+      issues.push({
+        path: 'steps',
+        message: 'all templates must be approved by Meta before activation',
+        key: 'automations.issuePlantillaNoAprobada',
+      })
+    }
+  }
+  return issues
 }
 
 /** Como la anterior, pero corta con un mensaje legible en vez de devolver la lista. */

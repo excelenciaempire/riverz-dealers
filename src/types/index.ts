@@ -777,6 +777,8 @@ export type AutomationStepType =
   | 'remove_tag'
   | 'assign_conversation'
   | 'update_contact_field'
+  /** Stores recovery-stage values in the paused run; it never contacts anyone. */
+  | 'set_context'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -886,7 +888,11 @@ export interface UpdateContactFieldStepConfig {
 
 export interface WaitStepConfig {
   amount: number;
-  unit: 'minutes' | 'hours' | 'days';
+  unit: 'seconds' | 'minutes' | 'hours' | 'days';
+}
+
+export interface SetContextStepConfig {
+  values: Record<string, string | number | boolean | null>;
 }
 
 /**
@@ -978,6 +984,7 @@ export type AutomationStepConfig =
   | TagStepConfig
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
+  | SetContextStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig

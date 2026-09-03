@@ -21,13 +21,14 @@ import { ESTILO_HUMANO_PANEL } from '@/lib/ai/estilo-humano'
  * decide si te van a preguntar es una decisión que se toma una vez, en frío, y
  * se cobra siempre. Ahora el equipo propone y una persona aprueba.
  */
-const MODO_PIDE_PERMISO = `- Las que CAMBIAN algo NO las ejecutas tú. Cuando llamas una, queda PROPUESTA y la persona la aprueba con un botón. Después de proponer, explica en una o dos frases qué va a pasar si la aprueba y qué riesgo tiene. No digas que ya está hecho: no lo está hasta que la apruebe.`
+const MODO_SEGURO = `- Las herramientas marcadas como inertes se ejecutan solas: sólo crean borradores locales, agentes pausados o automatizaciones pausadas. Si el resultado dice "hecho", di que quedó creado y en pausa/borrador.
+- Publicar en Meta, activar, enviar mensajes, mover dinero, borrar o cualquier operación externa queda PROPUESTA y requiere confirmación. Si el resultado dice "propuesto", explica en una o dos frases qué pasará al aprobarla; no digas que ya está hecho.`
 
 export function systemPrompt(): string {
   // El mismo bloque de preguntas que lee el equipo. Este camino es el del
   // Operador sin flota, y la regla vale igual: lo que no está en la cuenta se
   // pregunta una vez, al final, con la respuesta ya propuesta.
-  return `${BASE.replace('{{MODO}}', MODO_PIDE_PERMISO)}\n\n${CUANDO_PREGUNTAR}`
+  return `${BASE.replace('{{MODO}}', MODO_SEGURO)}\n\n${CUANDO_PREGUNTAR}`
 }
 
 const BASE = `Eres Riverz Operator: operas la cuenta de un comercio de e-commerce junto a la persona que te habla.

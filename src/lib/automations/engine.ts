@@ -14,6 +14,7 @@ import type {
   AssignConversationStepConfig,
   VoiceCallStepConfig,
   VoiceCallType,
+  SetContextStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { motorApagado } from '@/lib/workspaces/motor'
@@ -87,6 +88,13 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
   try {
     const db = supabaseAdmin()
 
+    // Una compra gana sobre el carrito. Cancelamos la espera de recuperación
+    // antes de evaluar el pedido nuevo, para que el cron no alcance a mandar
+    // un recordatorio entre ambos webhooks.
+    if (input.triggerType === 'shopify_order_created' && input.contactId) {
+      await cancelPendingByTrigger(db, input.workspaceId, input.contactId, 'shopify_abandoned_checkout')
+    }
+
     // Motor apagado —suspendida por cobro, o esperando aprobación—: no
     // sale ni un mensaje más. Se corta acá arriba, antes de leer nada, para
     // que ningún camino nuevo se olvide de preguntarlo.
@@ -140,6 +148,64 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
   } catch (err) {
     console.error('[automations] dispatch failed:', err)
   }
+}
+
+/** Cancela secuencias configuradas para ceder el chat apenas el cliente responde. */
+export async function cancelPendingAutomationsOnInbound(input: {
+  workspaceId: string
+  contactId: string
+  conversationId: string
+  messageText: string
+}): Promise<void> {
+  const db = supabaseAdmin()
+  const { data: pending } = await db
+    .from('automation_pending_executions')
+    .select('id, automation_id, log_id, context')
+    .eq('workspace_id', input.workspaceId)
+    .eq('contact_id', input.contactId)
+    .eq('status', 'pending')
+  if (!pending?.length) return
+  const ids = [...new Set(pending.map((p) => String(p.automation_id)))]
+  const { data: automations } = await db
+    .from('automations')
+    .select('id, trigger_config')
+    .in('id', ids)
+    .eq('workspace_id', input.workspaceId)
+  const stops = new Map(
+    (automations ?? [])
+      .filter((a) => Boolean((a.trigger_config as Record<string, unknown> | null)?.stop_on_inbound))
+      .map((a) => [String(a.id), a.trigger_config as Record<string, unknown>]),
+  )
+  const target = pending.filter((p) => stops.has(String(p.automation_id)))
+  if (!target.length) return
+  await db.from('automation_pending_executions').update({ status: 'done' }).in('id', target.map((p) => p.id))
+  for (const row of target) {
+    if (row.log_id) {
+      await appendResults(String(row.log_id), [{
+        step_id: String(row.id), step_type: 'wait', status: 'skipped', detail: 'cancelled by inbound reply',
+      }], 'partial', null)
+    }
+  }
+  // Se conserva el último contexto de recuperación junto al chat y se asigna
+  // sólo al asistente indicado. No tocamos `assigned_agent_id`: es propiedad
+  // del equipo humano.
+  const context = (target[target.length - 1].context as AutomationContext | null) ?? {}
+  const trigger = stops.get(String(target[target.length - 1].automation_id)) ?? {}
+  const agentId = String(trigger.handoff_ai_agent_id ?? context.vars?.handoff_ai_agent_id ?? '').trim()
+  if (agentId) {
+    await db.from('conversations').update({
+      assigned_ai_agent_id: agentId,
+      automation_context: { ...(context.vars ?? {}), inbound_text: input.messageText },
+    }).eq('id', input.conversationId).eq('workspace_id', input.workspaceId)
+  }
+}
+
+async function cancelPendingByTrigger(
+  db: ReturnType<typeof supabaseAdmin>, workspaceId: string, contactId: string, triggerType: string,
+): Promise<void> {
+  const { data: automations } = await db.from('automations').select('id').eq('workspace_id', workspaceId).eq('trigger_type', triggerType)
+  const ids = (automations ?? []).map((a) => a.id)
+  if (ids.length) await db.from('automation_pending_executions').update({ status: 'done' }).eq('workspace_id', workspaceId).eq('contact_id', contactId).eq('status', 'pending').in('automation_id', ids)
 }
 
 /**
@@ -812,6 +878,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       })
       if (!whatsapp_message_id) exigirQueHayaSalido()
       return `template sent via Meta (${whatsapp_message_id})`
+    }
+
+    case 'set_context': {
+      const cfg = step.step_config as SetContextStepConfig
+      args.context.vars = { ...(args.context.vars ?? {}), ...(cfg.values ?? {}) }
+      return 'context stored'
     }
 
     case 'add_tag': {
@@ -1503,7 +1575,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
 }
 
 function waitMs(cfg: WaitStepConfig): number {
-  const unitMs = cfg.unit === 'days' ? 86_400_000 : cfg.unit === 'hours' ? 3_600_000 : 60_000
+  const unitMs = cfg.unit === 'days' ? 86_400_000 : cfg.unit === 'hours' ? 3_600_000 : cfg.unit === 'minutes' ? 60_000 : 1_000
   return Math.max(1_000, cfg.amount * unitMs)
 }
 

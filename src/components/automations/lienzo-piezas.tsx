@@ -106,6 +106,13 @@ export const STEP_META: Record<BuilderStepType, StepMeta> = {
     iconBg: "bg-violet-500/15",
     iconText: "text-violet-600 dark:text-violet-400",
   },
+  set_context: {
+    label: "automations.stepSetContext",
+    icon: PencilLine,
+    border: "border-l-violet-500",
+    iconBg: "bg-violet-500/15",
+    iconText: "text-violet-600 dark:text-violet-400",
+  },
   wait: {
     label: "automations.stepWait",
     icon: Hourglass,

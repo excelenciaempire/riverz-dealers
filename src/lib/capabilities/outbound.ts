@@ -297,7 +297,44 @@ function revisarCuerpo(args: Record<string, unknown>): void {
   }
 }
 
-async function crearBorrador(ctx: CapabilityContext, args: Record<string, unknown>) {
+async function guardarBorrador(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const idioma = typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es'
+  const previa = await buscarPorNombre(ctx, args.nombre, idioma)
+  if (previa && (previa.status ?? '').toLowerCase() !== 'draft') {
+    throw new Error(
+      `Ya existe la plantilla "${previa.name}" (${previa.status}). Como el texto definitivo no coincide, usa un nombre nuevo.`,
+    )
+  }
+  revisarCuerpo(args)
+  const salida = exigirOk(
+    ctx,
+    await crearPlantilla(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      userId: previa?.user_id ?? (await usuarioDe(ctx)),
+      nombre: String(args.nombre ?? ''),
+      idioma,
+      categoria: String(args.categoria ?? 'MARKETING').toUpperCase(),
+      headerType: typeof args.encabezado === 'string' && args.encabezado.trim() ? 'text' : 'none',
+      headerText: typeof args.encabezado === 'string' ? args.encabezado : undefined,
+      bodyText: cuerpoConForma(args),
+      footerText: typeof args.pie === 'string' ? args.pie : undefined,
+      buttons: leerBotones(args.botones),
+      bodySamples: Array.isArray(args.ejemplos) ? args.ejemplos.map((x) => String(x)) : undefined,
+      enviarAMeta: false,
+      plantillaExistenteId: previa?.id ?? null,
+    }),
+  )
+  return {
+    id: salida.id,
+    nombre: salida.name,
+    idioma: salida.language,
+    categoria: salida.category,
+    estado: 'borrador',
+    nota: 'Quedó guardada localmente. No se envió a Meta ni se puede mandar a clientes.',
+  }
+}
+
+async function crearYEnviar(ctx: CapabilityContext, args: Record<string, unknown>) {
   const idioma = typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es'
   const previa = await buscarPorNombre(ctx, args.nombre, idioma)
   // Pisar un borrador es corregirlo; pisar una plantilla que ya viajó a Meta
@@ -418,6 +455,27 @@ async function enviarAMeta(ctx: CapabilityContext, args: Record<string, unknown>
     meta_template_id: r.metaTemplateId,
     nota: 'Meta la revisa sola y puede tardar horas. Hasta que quede aprobada no se puede enviar.',
   }
+}
+
+async function enviarLoteAMeta(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const nombres = Array.isArray(args.plantillas)
+    ? args.plantillas.map((v) => String(v).trim()).filter(Boolean)
+    : []
+  if (nombres.length === 0) throw new Error('Elige al menos un borrador para enviar a Meta.')
+  const idioma = typeof args.idioma === 'string' ? args.idioma : undefined
+  // Validar el lote completo primero evita una publicación parcial por un
+  // nombre mal escrito a mitad de la confirmación agrupada.
+  for (const nombre of nombres) {
+    const fila = await buscarPorNombre(ctx, nombre, idioma)
+    if (!fila) throw new Error(`No existe el borrador "${nombre}".`)
+    const estado = (fila.status ?? '').toLowerCase()
+    if (estado !== 'draft' && estado !== 'rejected') {
+      throw new Error(`"${fila.name}" ya está en Meta (${fila.status}).`)
+    }
+  }
+  const resultados = []
+  for (const nombre of nombres) resultados.push(await enviarAMeta(ctx, { nombre, idioma }))
+  return { enviadas: resultados, total: resultados.length }
 }
 
 async function detallePlantilla(ctx: CapabilityContext, args: Record<string, unknown>) {
@@ -598,6 +656,49 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
   },
 
   {
+    key: 'plantillas.crear_borrador',
+    description:
+      'Guarda una plantilla local en borrador. No la manda a Meta ni a clientes; sirve para preparar un conjunto completo antes de pedir una sola confirmación para publicarlo.',
+    descriptionEn:
+      'Saves a local template draft. It does not submit it to Meta or send it to customers; use it to prepare a full set before one grouped publishing confirmation.',
+    risk: 'reversible',
+    inerte: true,
+    schema: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre único, normalizado a minúsculas con guiones bajos.' },
+        cuerpo: { type: 'string', description: 'Texto definitivo de WhatsApp. Admite {{1}}, {{2}}…' },
+        categoria: { type: 'string', enum: ['MARKETING', 'UTILITY', 'AUTHENTICATION'] },
+        idioma: { type: 'string', description: 'Código de Meta; es por defecto.' },
+        encabezado: { type: 'string' },
+        pie: { type: 'string' },
+        ejemplos: { type: 'array', items: { type: 'string' } },
+        botones: { type: 'array', items: { type: 'object' } },
+      },
+      required: ['nombre', 'cuerpo'],
+    },
+    async preview(_ctx, args) {
+      revisarCuerpo(args)
+      return `Guardar borrador «${normalizeTemplateName(String(args.nombre ?? ''))}»`
+    },
+    artifact: (_ctx, args) =>
+      artefactoPlantilla({
+        nombre: normalizeTemplateName(String(args.nombre ?? '')),
+        categoria: String(args.categoria ?? 'MARKETING'),
+        idioma: typeof args.idioma === 'string' && args.idioma.trim() ? args.idioma.trim() : 'es',
+        cuerpo: cuerpoConForma(args),
+        encabezado: typeof args.encabezado === 'string' ? args.encabezado : null,
+        pie: typeof args.pie === 'string' ? args.pie : null,
+        botones: (Array.isArray(args.botones) ? args.botones : []).map((b) => {
+          const boton = (b ?? {}) as Record<string, unknown>
+          return { texto: String(boton.texto ?? boton.text ?? ''), tipo: String(boton.tipo ?? boton.type ?? 'respuesta_rapida') }
+        }),
+        estado: 'borrador',
+      }),
+    run: guardarBorrador,
+  },
+
+  {
     key: 'plantillas.crear',
     description:
       'Escribe una plantilla de WhatsApp y la manda a aprobación de Meta. Es un camino de ida: no se cancela y el nombre queda tomado en ese WhatsApp aunque la rechacen. La revisión tarda horas; hasta que quede aprobada no se le puede enviar a nadie. La persona ve el mensaje entero antes de decidir.',
@@ -673,7 +774,7 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
         }),
         estado: 'en_revision',
       }),
-    run: crearBorrador,
+    run: crearYEnviar,
   },
 
   {
@@ -727,5 +828,34 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
       })
     },
     run: enviarAMeta,
+  },
+
+  {
+    key: 'plantillas.enviar_lote_a_meta',
+    description:
+      'Envía un conjunto de borradores a aprobación de Meta con una sola confirmación. Es externo e irreversible: los nombres quedan tomados aunque Meta los rechace.',
+    descriptionEn:
+      'Submits a group of drafts to Meta approval with one confirmation. It is external and irreversible: names remain reserved even if Meta rejects them.',
+    risk: 'irreversible',
+    schema: {
+      type: 'object',
+      properties: {
+        plantillas: { type: 'array', items: { type: 'string' }, description: 'Nombres de los borradores.' },
+        idioma: { type: 'string' },
+      },
+      required: ['plantillas'],
+    },
+    async preview(ctx, args) {
+      const nombres = Array.isArray(args.plantillas) ? args.plantillas.map(String).filter(Boolean) : []
+      if (!nombres.length) throw new Error('Elige al menos un borrador para enviar a Meta.')
+      for (const nombre of nombres) {
+        const fila = await buscarPorNombre(ctx, nombre, args.idioma)
+        if (!fila || !['draft', 'rejected'].includes((fila.status ?? '').toLowerCase())) {
+          throw new Error(`"${nombre}" no está disponible como borrador para Meta.`)
+        }
+      }
+      return `Mandaría ${nombres.length} borradores a aprobación de Meta: ${nombres.join(', ')}. No se puede cancelar.`
+    },
+    run: enviarLoteAMeta,
   },
 ]

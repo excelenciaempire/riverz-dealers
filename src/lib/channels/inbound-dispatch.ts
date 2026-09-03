@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Channel, Contact, Conversation, Message } from '@/types';
-import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { cancelPendingAutomationsOnInbound, runAutomationsForTrigger } from '@/lib/automations/engine';
 import { dispatchInboundToFlows } from '@/lib/flows/engine';
 
 /**
@@ -46,6 +46,15 @@ export async function dispatchAutomationsAndFlows(
 ): Promise<boolean> {
   const text = args.message.content_text ?? '';
   let flowConsumed = false;
+
+  // Antes de repartir el inbound, cualquier secuencia que prometió ceder el
+  // chat se detiene y deja su contexto al asistente asignado.
+  await cancelPendingAutomationsOnInbound({
+    workspaceId: args.workspaceId,
+    contactId: args.contact.id,
+    conversationId: args.conversation.id,
+    messageText: text,
+  }).catch((err) => console.error('[automations] inbound cancellation failed:', err));
 
   // ── Flujos ──
   // Se esperan (no fire-and-forget) porque necesitamos saber si consumieron

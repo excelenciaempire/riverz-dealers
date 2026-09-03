@@ -79,6 +79,35 @@ async function activar(ctx: CapabilityContext, args: Record<string, unknown>) {
   return data
 }
 
+async function activarLote(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const ids = Array.isArray(args.automation_ids)
+    ? [...new Set(args.automation_ids.map((id) => String(id)).filter(Boolean))]
+    : []
+  if (!ids.length) throw new Error('Elige al menos una automatización para activar.')
+  // Validar todo antes de prender la primera: la confirmación agrupada es una
+  // decisión única, no una activación a medias escondida en un bucle.
+  const problemas = await Promise.all(
+    ids.map(async (id) => ({ id, issues: await activationIssuesById(ctx.db, id, ctx.workspaceId) })),
+  )
+  const fallas = problemas.filter((x) => x.issues.length > 0)
+  if (fallas.length) {
+    throw new Error(
+      `No se puede activar el conjunto: ${fallas
+        .map((x) => `${x.id}: ${x.issues.map((i) => comoSeLee(i, ctx.locale ?? 'es')).join(', ')}`)
+        .join('; ')}`,
+    )
+  }
+  const { data, error } = await ctx.db
+    .from('automations')
+    .update({ is_active: true })
+    .in('id', ids)
+    .eq('workspace_id', ctx.workspaceId)
+    .select('id, name, is_active')
+  if (error) throw new Error(error.message)
+  if ((data ?? []).length !== ids.length) throw new Error('Una automatización ya no existe en esta cuenta.')
+  return { activadas: data ?? [], total: ids.length }
+}
+
 async function editarEspera(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { data: paso } = await ctx.db
     .from('automation_steps')
@@ -903,6 +932,30 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
   },
 
   {
+    key: 'automatizaciones.activar_lote',
+    description:
+      'Prende varias automatizaciones ya validadas con una sola confirmación. Primero comprueba todo el conjunto; si una no está lista, no prende ninguna.',
+    descriptionEn:
+      'Turns on several validated automations with one confirmation. It checks the full set first; if one is not ready, none are turned on.',
+    risk: 'irreversible',
+    schema: {
+      type: 'object',
+      properties: { automation_ids: { type: 'array', items: { type: 'string' } } },
+      required: ['automation_ids'],
+    },
+    async preview(ctx, args) {
+      const ids = Array.isArray(args.automation_ids) ? args.automation_ids.map(String).filter(Boolean) : []
+      if (!ids.length) throw new Error('Elige al menos una automatización para activar.')
+      const nombres = await Promise.all(ids.map((id) => nombreDe(ctx, id)))
+      const problemas = await Promise.all(ids.map((id) => activationIssuesById(ctx.db, id, ctx.workspaceId)))
+      const no = problemas.flat().map((i) => comoSeLee(i, ctx.locale ?? 'es'))
+      if (no.length) throw new Error(`El conjunto todavía no se puede prender. ${no.join('; ')}`)
+      return `Prendería ${nombres.length} automatizaciones: ${nombres.join(', ')}.`
+    },
+    run: activarLote,
+  },
+
+  {
     key: 'automatizaciones.editar_espera',
     description:
       'Cambia cuánto espera un paso de espera. El paso se identifica por su id, que sale de la automatización o del lienzo.',
@@ -914,7 +967,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       properties: {
         step_id: { type: 'string' },
         amount: { type: 'number' },
-        unit: { type: 'string', enum: ['minutes', 'hours', 'days'] },
+        unit: { type: 'string', enum: ['seconds', 'minutes', 'hours', 'days'] },
       },
       required: ['step_id', 'amount', 'unit'],
     },

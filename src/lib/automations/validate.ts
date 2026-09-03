@@ -111,14 +111,19 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.value`, message: 'field value is required', key: 'automations.issueSinValor' })
       }
       break
+    case 'set_context':
+      if (!c.values || typeof c.values !== 'object' || Array.isArray(c.values)) {
+        issues.push({ path: `${path}.values`, message: 'context values are required' })
+      }
+      break
     case 'wait':
       if (typeof c.amount !== 'number' || !Number.isFinite(c.amount) || c.amount <= 0) {
         issues.push({ path: `${path}.amount`, message: 'wait amount must be greater than 0', key: 'automations.issueEsperaCero' })
       }
-      if (!['minutes', 'hours', 'days'].includes(String(c.unit))) {
+      if (!['seconds', 'minutes', 'hours', 'days'].includes(String(c.unit))) {
         issues.push({
           path: `${path}.unit`,
-          message: 'wait unit must be minutes, hours, or days', key: 'automations.issueEsperaUnidad',
+          message: 'wait unit must be seconds, minutes, hours, or days', key: 'automations.issueEsperaUnidad',
         })
       }
       break

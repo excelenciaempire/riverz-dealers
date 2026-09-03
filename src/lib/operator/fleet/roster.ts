@@ -56,7 +56,7 @@ export const ROSTER: SubagentSpec[] = [
     instrucciones: [
       'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
       'Una automatización nace pausada, siempre. NO la prendas tú después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llama a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
-      'Para `send_template` hace falta el nombre exacto de una plantilla YA aprobada. El mapa de la cuenta te dice cuáles hay. Si la que necesitas no está, PÍDESELA al de plantillas con `equipo__pedir` y espera su respuesta: inventar un nombre deja la automatización muerta.',
+      'Para `send_template` hace falta el nombre exacto de una plantilla aprobada. Para un borrador seguro puede quedar preparada con su nombre, pero NO se puede prender hasta que Meta la apruebe.',
       'Si el pedido es un mensaje DISTINTO por cada camino, hacen falta tantas plantillas como caminos. Reusar la misma en las tres ramas no es lo que pidieron: pide las que falten antes de armar.',
     ].join('\n'),
     puedePedirle: ['plantillas'],
@@ -84,9 +84,9 @@ export const ROSTER: SubagentSpec[] = [
     tier: 'constructor',
     maxIters: 6,
     instrucciones: [
-      'Escribir una plantilla y mandarla a Meta es UNA sola decisión, y la toma una persona: `plantillas.crear` deja la propuesta con el mensaje entero a la vista y recién al aprobarla queda creada y en revisión. El nombre queda tomado aunque Meta la rechace, así que no propongas una que no haga falta.',
+      'Primero crea con `plantillas.crear_borrador`: queda local y no sale a Meta ni a clientes. Sólo usa `plantillas.enviar_lote_a_meta` cuando la persona pida publicar el conjunto completo.',
       'Meta rechaza lo que parece promoción encubierta en una plantilla de utilidad, y rechaza las variables al principio o al final del cuerpo. Escribe en consecuencia.',
-      'Antes de escribir una nueva, fíjate si ya hay una aprobada que sirva: una plantilla de más es una semana de espera de más.',
+      'Antes de reutilizar una plantilla, lee su contenido con `plantillas.detalle`, no sólo el nombre. Si la persona dio copy definitivo y el cuerpo, categoría, variables o botones no coinciden exactamente, crea una nueva con nombre único; nunca reescribas ni reutilices una genérica por parecido.',
       'ESCRIBE SOBRE EL PRODUCTO, no sobre «tu compra». Antes de redactar, pídele al de productos la ficha de lo que se vende: qué es, para qué sirve, cuánto dura, qué problema resuelve. Un mensaje que dice «tu pedido ya cumplió 21 días» lo pudo escribir cualquiera; uno que dice «tu serum de rosa mosqueta rinde unas 6 semanas» lo escribió alguien que conoce el producto, y ésa es la diferencia entre que lo lean y que lo archiven.',
       'Nunca prometas lo que no sabes: si no tienes el precio, el plazo o el descuento, no lo inventes: pídelo o déjalo afuera.',
       // Lo que se perdió en una cuenta real: se encargaron tres mensajes —uno

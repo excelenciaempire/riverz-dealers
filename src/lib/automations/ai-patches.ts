@@ -45,9 +45,9 @@ import type { ValidationIssue } from './validate'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { AutomationTriggerType } from '@/types'
 
-export type UnidadEspera = 'minutes' | 'hours' | 'days'
+export type UnidadEspera = 'seconds' | 'minutes' | 'hours' | 'days'
 
-const UNIDADES: UnidadEspera[] = ['minutes', 'hours', 'days']
+const UNIDADES: UnidadEspera[] = ['seconds', 'minutes', 'hours', 'days']
 
 /** Cuántos patches entran en una sola edición. */
 const TOPE_PATCHES = 20

@@ -53,12 +53,14 @@ const STEP_LABEL_KEY: Record<string, string> = {
   remove_tag: "automations.stepRemoveTag",
   assign_conversation: "automations.stepAssignConversation",
   update_contact_field: "automations.stepUpdateContactField",
+  set_context: "automations.stepSetContext",
   close_conversation: "automations.stepCloseConversation",
   voice_call: "automations.stepVoiceCall",
   send_webhook: "automations.stepSendWebhook",
 }
 
 const WAIT_UNIT_KEY: Record<string, [string, string]> = {
+  seconds: ["automations.waitSecondOne", "automations.waitSecondOther"],
   minutes: ["automations.waitMinuteOne", "automations.waitMinuteOther"],
   hours: ["automations.waitHourOne", "automations.waitHourOther"],
   days: ["automations.waitDayOne", "automations.waitDayOther"],
@@ -82,7 +84,7 @@ function friendlyDetail(
     if (m) return { branch: m[1] as "yes" | "no" }
   }
   if (r.step_type === "wait") {
-    const m = /waiting\s+(\d+)\s+(minutes|hours|days)/.exec(d)
+    const m = /waiting\s+(\d+)\s+(seconds|minutes|hours|days)/.exec(d)
     if (m) {
       const n = Number(m[1])
       const [one, many] = WAIT_UNIT_KEY[m[2]] ?? []

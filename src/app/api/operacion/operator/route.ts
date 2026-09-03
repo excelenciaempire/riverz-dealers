@@ -101,7 +101,11 @@ async function contexto() {
  * propone y una persona aprueba. Los pasos de un plan YA aprobado sí se
  * construyen — ahí la aprobación fue el click sobre el plan.
  */
-const PIDE_PERMISO = false
+// Construir un borrador local, un agente en pausa o una automatización pausada
+// no alcanza a nadie. El loop sólo ejecuta esas capacidades marcadas como
+// inertes; publicar, activar, enviar, cobrar o borrar sigue quedando como una
+// propuesta que requiere confirmación explícita.
+const CONSTRUIR_INERTE_AUTOMATICAMENTE = true
 
 export async function GET(request: Request) {
   const ctx = await contexto()
@@ -295,7 +299,7 @@ export async function POST(request: Request) {
         history: [...toAnthropic(previos), { role: 'user', content: texto }],
         locale,
         onEvent: push,
-        autoBuild: PIDE_PERMISO,
+        autoBuild: CONSTRUIR_INERTE_AUTOMATICAMENTE,
         flota: ctx.flota,
         pedido: texto,
         detener: () => pidieronDetener(ctx.admin, runId),

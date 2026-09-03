@@ -97,6 +97,8 @@ export interface AiAgent {
   workspace_id: string;
   name: string;
   is_active: boolean;
+  /** Only receives conversations explicitly handed off by an automation. */
+  assigned_only?: boolean;
 
   /**
    * Qué trabajo hace este agente. Migración 164.

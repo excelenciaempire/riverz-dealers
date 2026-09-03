@@ -165,7 +165,7 @@ const PROPS_PASO = {
   },
   grupo: { type: 'string', description: 'Para la pregunta dato=in_segment: el nombre del grupo.' },
   cantidad: { type: 'number', description: 'Para wait: cuánto espera.' },
-  unidad: { type: 'string', enum: ['minutes', 'hours', 'days'] },
+  unidad: { type: 'string', enum: ['seconds', 'minutes', 'hours', 'days'] },
   dato: {
     type: 'string',
     enum: [...DATOS_VALIDOS],
@@ -379,8 +379,8 @@ function aPaso(
       if (!Number.isFinite(cantidad) || cantidad <= 0) {
         return falta(problemas, `${ruta}.cantidad`, 'la espera tiene que ser mayor que cero')
       }
-      if (!['minutes', 'hours', 'days'].includes(String(p.unidad))) {
-        return falta(problemas, `${ruta}.unidad`, 'la unidad tiene que ser minutes, hours o days')
+      if (!['seconds', 'minutes', 'hours', 'days'].includes(String(p.unidad))) {
+        return falta(problemas, `${ruta}.unidad`, 'la unidad tiene que ser seconds, minutes, hours o days')
       }
       return { step_type: 'wait', step_config: { amount: cantidad, unit: String(p.unidad) } }
     }
@@ -742,7 +742,7 @@ export function resumirPaso(p: AiPaso): PasoArtefacto {
 }
 
 function enCastellano(u: string | undefined): string {
-  return u === 'days' ? 'días' : u === 'hours' ? 'horas' : u === 'minutes' ? 'minutos' : (u ?? '')
+  return u === 'days' ? 'días' : u === 'hours' ? 'horas' : u === 'minutes' ? 'minutos' : u === 'seconds' ? 'segundos' : (u ?? '')
 }
 
 const SIGNO: Record<string, string> = { gte: '≥', gt: '>', lte: '≤', lt: '<' }

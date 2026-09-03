@@ -246,10 +246,18 @@ export async function runAiAgent(
     );
     let priceVerified = !priceQuestion;
     const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
+    const { data: handoff } = await db
+      .from('conversations')
+      .select('assigned_ai_agent_id, automation_context')
+      .eq('id', args.conversation.id)
+      .maybeSingle();
+    const forcedAgentId = (handoff as { assigned_ai_agent_id?: string | null } | null)
+      ?.assigned_ai_agent_id ?? null;
 
     const agent = await pickAgent(db, args.workspaceId, args.channel, {
       productMatch,
       stickyAgentId,
+      forcedAgentId,
       inboundText: args.inboundMessage.content_text ?? '',
       // `pending_checkout_at` lo marca la propia herramienta de checkout: si
       // está, hay algo sin cerrar y "no pude pagar" es un rescate, no una
@@ -629,8 +637,9 @@ export async function runAiAgent(
         otherStore,
         businessCurrency,
         db,
-        { conversationId: args.conversation.id, channel: args.channel },
+        { conversationId: args.conversation.id, channel: args.channel, inboundText: args.inboundMessage.content_text ?? '' },
         { priceQuestion, priceVerified },
+        (handoff as { automation_context?: Record<string, unknown> | null } | null)?.automation_context ?? null,
       );
     } catch (genErr) {
       // El modelo falló (p. ej. Anthropic 401/402 sin crédito, 429, o 5xx).
@@ -1109,6 +1118,8 @@ export async function pickAgent(
   routing: {
     productMatch: ProductMatch | null;
     stickyAgentId: string | null;
+    /** An automation handoff wins over product and sticky routing. */
+    forcedAgentId?: string | null;
     /** El mensaje que acaba de entrar, para arbitrar entre roles. */
     inboundText?: string | null;
     /** Hay un carrito o checkout sin cerrar: habilita el rol de recuperación. */
@@ -1138,17 +1149,27 @@ export async function pickAgent(
   };
   const all = rows as AgentWithLinks[];
 
+  if (routing.forcedAgentId) {
+    const assigned = all.find((agent) => agent.id === routing.forcedAgentId);
+    if (assigned) return assigned;
+    // An explicit handoff to a paused/deleted agent must not silently fall
+    // through to another agent that could expose unrelated conversations.
+    return null;
+  }
+
   // Quiénes pueden atender este canal. Se calcula acá arriba porque lo
   // necesitan dos decisiones: si el agente pegado tiene que soltar el hilo, y
   // quién lo agarra después. Con una sola lista las dos no se pueden
   // contradecir.
   const candidatosDe = (rowsIn: AgentWithLinks[]) => {
+    const disponibles = rowsIn.filter((row) => !row.assigned_only);
     const delCanal = rowsIn.filter(
       (row) =>
+        !row.assigned_only &&
         row.scope === 'channels' &&
         row.ai_agent_channels.some((c) => c.channel === channel),
     );
-    return delCanal.length > 0 ? delCanal : rowsIn.filter((r) => r.scope === 'workspace');
+    return delCanal.length > 0 ? delCanal : disponibles.filter((r) => r.scope === 'workspace');
   };
 
   // ── Stickiness ──
@@ -2288,10 +2309,11 @@ export function construirHerramientas(args: {
   otherStore: OtherStoreContext | null;
   voiceCtx: VoiceEscalationContext | null;
   topeDescuento: number;
+  descuentoFijo?: number | null;
   /** Por defecto, el agente contestando. Ver `ModoDeHerramientas`. */
   modo?: ModoDeHerramientas;
 }): Anthropic.ToolUnion[] {
-  const { agent, hayContacto, shopify, otherStore, voiceCtx, topeDescuento } = args;
+  const { agent, hayContacto, shopify, otherStore, voiceCtx, topeDescuento, descuentoFijo } = args;
   const modo = args.modo ?? 'conversacion';
   // Lo que este agente puede hacer, y con qué correa.
   //
@@ -2391,7 +2413,7 @@ export function construirHerramientas(args: {
     // WooCommerce se ofrecía igual y fallaba al ejecutarse, justo después de
     // que el agente le prometiera la rebaja a la clienta.
     ...(shopify && topeDescuento > 0 && hayContacto && puede('ofrecer_descuento')
-      ? [buildDescuentoTool(topeDescuento)]
+      ? [buildDescuentoTool(topeDescuento, descuentoFijo)]
       : []),
     // Lo que hace una persona en la bandeja mientras atiende. Ninguna recibe un
     // id: el contacto y la conversación salen del contexto, no del modelo.
@@ -2435,8 +2457,9 @@ async function generateReply(
   db: SupabaseClient,
   /** De dónde viene este turno. Lo necesitan las herramientas que dejan algo
    *  anotado —un pedido, una devolución— para poder atribuirlo. */
-  origen: { conversationId: string; channel: Channel },
+  origen: { conversationId: string; channel: Channel; inboundText: string },
   priceIntegrity: { priceQuestion: boolean; priceVerified: boolean },
+  recoveryContext: Record<string, unknown> | null,
 ): Promise<ReplyResult> {
   if (agent.provider !== 'anthropic') {
     throw new Error(`Provider ${agent.provider} not implemented`);
@@ -2505,7 +2528,7 @@ async function generateReply(
       shopifySnapshot?.default_address?.country ??
       null,
   });
-  const system = buildSystemPrompt(
+  let system = buildSystemPrompt(
     agent,
     contact,
     primaryContact,
@@ -2521,6 +2544,11 @@ async function generateReply(
     registro,
     perfilOperativo,
   );
+  const handoffContext = recoveryContext;
+  if (handoffContext && agent.assigned_only) {
+    const etapa = Number(handoffContext.benefit_percent ?? 0);
+    system += `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi: esas consultas se escalan al equipo humano.`;
+  }
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
     role: 'user',
@@ -2590,9 +2618,16 @@ async function generateReply(
   // Cuánto puede descontar este comercio. Se lee acá, una vez por respuesta:
   // el tope viaja dentro de la descripción de la tool, así que el modelo ve el
   // número real y no propone uno que después se le va a recortar.
-  const topeDescuento = primaryContact.id
+  const topeConfigurado = primaryContact.id
     ? await topeDeDescuento(db, agent.workspace_id).catch(() => 0)
     : 0;
+  const textoRecuperacion = origen.inboundText.trim().toUpperCase();
+  const etapaBeneficio = Number(handoffContext?.benefit_percent ?? 0);
+  const pidioBeneficio = textoRecuperacion === 'BENEFICIO' || (etapaBeneficio === 10 && textoRecuperacion === 'SI');
+  const descuentoFijo = agent.assigned_only && pidioBeneficio && [5, 10].includes(etapaBeneficio)
+    ? etapaBeneficio
+    : null;
+  const topeDescuento = descuentoFijo ?? (agent.assigned_only ? 0 : topeConfigurado);
 
   const voiceCtx: VoiceEscalationContext | null =
     agent.voice_enabled &&
@@ -2613,6 +2648,7 @@ async function generateReply(
     otherStore,
     voiceCtx,
     topeDescuento,
+    descuentoFijo,
   });
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador
@@ -2629,6 +2665,7 @@ async function generateReply(
           // conversación — o sea, una venta que no se puede atribuir a nada.
           conversationId: origen.conversationId,
           agentId: agent.id,
+          fixedDiscountPercent: descuentoFijo,
           channel: origen.channel,
           // De qué productos puede hablar: lo usa `buscar_producto`.
           permitidos,

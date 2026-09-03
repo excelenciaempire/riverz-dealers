@@ -448,11 +448,14 @@ export const CREAR_LINK_DE_PAGO_TOOL: Anthropic.Tool = {
  * porcentaje y sale el que esté permitido, nunca al revés. Con el tope en 0
  * —el default— esta tool no se le ofrece al agente.
  */
-export function buildDescuentoTool(tope: number): Anthropic.Tool {
+export function buildDescuentoTool(tope: number, fijo?: number | null): Anthropic.Tool {
+  const exacto = Number.isFinite(fijo) && Number(fijo) > 0 ? Number(fijo) : null
   return {
     name: 'ofrecer_descuento',
     description:
-      `Genera un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Puedes ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Úsalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repítele ESE código en vez de pedir otro.`,
+      exacto
+        ? `Genera el cupón personal de ${exacto}% ya autorizado por esta recuperación. Es de un solo uso y sólo para esta clienta; no cambies el porcentaje.`
+        : `Genera un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Puedes ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Úsalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repítele ESE código en vez de pedir otro.`,
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -460,7 +463,8 @@ export function buildDescuentoTool(tope: number): Anthropic.Tool {
           type: 'integer',
           minimum: 1,
           maximum: tope,
-          description: `Cuánto descontar. El máximo autorizado es ${tope}%.`,
+          ...(exacto ? { enum: [exacto] } : {}),
+          description: exacto ? `Debe ser exactamente ${exacto}%.` : `Cuánto descontar. El máximo autorizado es ${tope}%.`,
         },
         reason: {
           type: 'string',
@@ -816,6 +820,8 @@ export interface LocalOrdersContext {
   /** Para poder pasarle la conversación a una persona cuando algo queda a medias. */
   conversationId?: string | null
   agentId?: string | null
+  /** A recovery handoff can authorize exactly one server-fixed percentage. */
+  fixedDiscountPercent?: number | null
   /** Por dónde llegó, para poder decir después dónde falló el agente. */
   channel?: string | null
   /**
@@ -1098,7 +1104,7 @@ export async function runTool(
       conversationId: shopify?.conversationId ?? null,
       agentId: shopify?.agentId ?? null,
       contactName: shopify?.contactName ?? null,
-      pedido: Number(input.percent ?? 0),
+      pedido: localOrders.fixedDiscountPercent ?? Number(input.percent ?? 0),
     })
     if ('error' in res) {
       return JSON.stringify({

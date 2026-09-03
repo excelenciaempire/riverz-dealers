@@ -3401,6 +3401,7 @@ function StepEditor({
               onChange={(e) => set({ unit: e.target.value })}
               className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
             >
+              <option value="seconds">{t("automations.unitSeconds")}</option>
               <option value="minutes">{t("automations.unitMinutes")}</option>
               <option value="hours">{t("automations.unitHours")}</option>
               <option value="days">{t("automations.unitDays")}</option>
@@ -3683,6 +3684,7 @@ function FieldBlock({
 // i18n key pairs [singular, plural] for the wait-step preview, resolved
 // with t() inside previewFor.
 const WAIT_UNIT_LABELS: Record<string, [string, string]> = {
+  seconds: ["automations.waitSecondOne", "automations.waitSecondOther"],
   minutes: ["automations.waitMinuteOne", "automations.waitMinuteOther"],
   hours: ["automations.waitHourOne", "automations.waitHourOther"],
   days: ["automations.waitDayOne", "automations.waitDayOther"],
