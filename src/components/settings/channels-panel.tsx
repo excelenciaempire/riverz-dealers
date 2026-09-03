@@ -579,7 +579,7 @@ export function ChannelsPanel() {
                           <p
                             className={cn(
                               'mt-1 pl-6 text-[10px] leading-snug',
-                              metaAuthWarning
+                              metaAccessWarning
                                 ? 'text-amber-700 dark:text-amber-300'
                                 : 'text-red-600 dark:text-red-400'
                             )}
