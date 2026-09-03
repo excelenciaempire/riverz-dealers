@@ -11,7 +11,6 @@ import {
   Copy,
   X,
   CreditCard,
-  ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { whatsappPaymentUrl } from "@/lib/whatsapp/billing";
@@ -542,18 +541,20 @@ export function ChannelsPanel() {
                             can add/fix it in WhatsApp Manager. */}
                         {g.connectChannel === "whatsapp" &&
                           primary.status === "connected" && (
-                            <a
-                              href={whatsappPaymentUrl(
-                                primary.config?.waba_id as string | undefined,
-                              )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={t("settings.whatsappManagerPaymentTooltip")}
-                              className="mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-                            >
-                              <CreditCard className="size-3" />
-                              {t("settings.configurePaymentMethod")}
-                            </a>
+                            hasWhatsAppBlocker(primary, 141006) && (
+                              <a
+                                href={whatsappPaymentUrl(
+                                  primary.config?.waba_id as string | undefined,
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={t("settings.whatsappManagerPaymentTooltip")}
+                                className="mt-1 flex items-center gap-1 pl-6 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+                              >
+                                <CreditCard className="size-3" />
+                                {t("settings.configurePaymentMethod")}
+                              </a>
+                            )
                           )}
                         {/* El pie del correo. Sólo en los buzones: en chat el
                             nombre está arriba y una firma por mensaje sería
@@ -773,27 +774,15 @@ function tierLabel(tier?: string | null): string | null {
 }
 
 /**
- * Estado de entrega de WhatsApp para la tarjeta del canal. Muestra, en el
- * idioma del comercio y de forma minimalista, lo que Meta expone y Riverz antes
- * descartaba: puede-enviar (AVAILABLE/LIMITED/BLOCKED), cupo, calidad del número,
- * y una nota HONESTA sobre verificar el negocio (sube el cupo, no destraba la
- * entrega a números fríos). Sin snapshot todavía, no renderiza nada.
+ * Contexto operativo de WhatsApp: el cupo y la calidad del número. El estado
+ * general de envío y la verificación del negocio no se muestran en la tarjeta:
+ * no explican una acción concreta y pueden alarmar sin resolver el problema.
  */
 function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
   const t = useT();
-  const canSend = connection.health_can_send;
   const tier = tierLabel(connection.messaging_limit_tier);
   const quality = connection.quality_rating;
-  if (!canSend && !tier && !quality) return null;
-
-  const sendMeta =
-    canSend === "AVAILABLE"
-      ? { label: t("settings.healthAvailable"), dot: "bg-emerald-500" }
-      : canSend === "LIMITED"
-        ? { label: t("settings.healthLimited"), dot: "bg-amber-500" }
-        : canSend === "BLOCKED"
-          ? { label: t("settings.healthBlocked"), dot: "bg-red-500" }
-          : null;
+  if (!tier && !quality) return null;
 
   const qualityDot =
     quality === "GREEN"
@@ -804,19 +793,9 @@ function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
           ? "bg-red-500"
           : null;
 
-  // Nota de verificación: si el número está LIMITED/BLOCKED, verificar el
-  // negocio sube el cupo (pero NO destraba la entrega a fríos — honestidad).
-  const showVerify = canSend === "LIMITED" || canSend === "BLOCKED";
-
   return (
     <div className="mt-1 pl-6 space-y-1">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-        {sendMeta && (
-          <span className="inline-flex items-center gap-1">
-            <span className={cn("size-1.5 rounded-full", sendMeta.dot)} />
-            {sendMeta.label}
-          </span>
-        )}
         {tier && <span>{t("settings.healthTier", { tier })}</span>}
         {qualityDot && (
           <span className="inline-flex items-center gap-1">
@@ -825,20 +804,12 @@ function WhatsAppHealth({ connection }: { connection: ChannelConnection }) {
           </span>
         )}
       </div>
-      {showVerify && (
-        <a
-          href="https://business.facebook.com/settings/security-center"
-          target="_blank"
-          rel="noopener noreferrer"
-          title={t("settings.healthVerifyNote")}
-          className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-        >
-          <ShieldCheck className="size-3" />
-          {t("settings.verifyBusiness")}
-        </a>
-      )}
     </div>
   );
+}
+
+function hasWhatsAppBlocker(connection: ChannelConnection, code: number): boolean {
+  return connection.health_blockers?.some((blocker) => blocker.code === code) ?? false;
 }
 
 function ManualTokenModal({
