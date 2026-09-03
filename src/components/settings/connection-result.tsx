@@ -36,7 +36,7 @@ export function ConnectionResult() {
     } else if (oauth === 'error') {
       const detail = params.get('detail');
       toast.error(t('settings.connectResultError'), {
-        description: detail ?? undefined,
+        description: connectionErrorDetail(detail, t),
       });
     }
 
@@ -60,4 +60,14 @@ export function ConnectionResult() {
   }, [params, t]);
 
   return null;
+}
+
+function connectionErrorDetail(
+  detail: string | null,
+  t: (key: string) => string,
+): string {
+  if (detail === 'zoho_mailbox_required') return t('settings.zohoMailboxRequired');
+  if (detail === 'zoho_inbox_required') return t('settings.zohoInboxRequired');
+  if (detail === 'mailbox_address_unavailable') return t('settings.mailboxAddressUnavailable');
+  return t('settings.connectResultErrorDetail');
 }

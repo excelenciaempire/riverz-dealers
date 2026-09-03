@@ -278,9 +278,15 @@ export async function GET(
   // duplicate on every reconnect.
   if ((channel === "gmail" || channel === "outlook" || channel === "zoho") && !externalAccountId) {
     console.error(`[oauth/${provider}] mailbox profile discovery returned no address`);
-    return redirectWithStatus(req, "error", "could not read mailbox address");
+    return redirectWithStatus(
+      req,
+      "error",
+      channel === "zoho" ? "zoho_mailbox_required" : "mailbox_address_unavailable",
+    );
   }
-  if (channel === "zoho" && !zohoIdentity?.inboxFolderId) return redirectWithStatus(req, "error", "could not read Zoho inbox");
+  if (channel === "zoho" && !zohoIdentity?.inboxFolderId) {
+    return redirectWithStatus(req, "error", "zoho_inbox_required");
+  }
 
   let inserted: ChannelConnection | null = null;
   if (externalAccountId) {

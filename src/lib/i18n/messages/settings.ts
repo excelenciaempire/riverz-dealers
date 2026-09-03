@@ -142,6 +142,22 @@ export const settings = {
   mpUpgradeCta: { es: 'Conectar con un clic', en: 'Connect with one click' },
   connectResultOk: { es: 'Cuenta conectada', en: 'Account connected' },
   connectResultError: { es: 'No se pudo conectar', en: "Couldn't connect" },
+  connectResultErrorDetail: {
+    es: 'No se pudo completar la conexión. Inténtalo de nuevo.',
+    en: "We couldn't complete the connection. Try again.",
+  },
+  mailboxAddressUnavailable: {
+    es: 'No se pudo identificar la dirección del buzón. Vuelve a conectar la cuenta.',
+    en: "We couldn't identify the mailbox address. Reconnect the account.",
+  },
+  zohoMailboxRequired: {
+    es: 'Esta cuenta no tiene un buzón activo de Zoho Mail. Conecta una cuenta con Zoho Mail configurado.',
+    en: 'This account does not have an active Zoho Mail mailbox. Connect an account with Zoho Mail configured.',
+  },
+  zohoInboxRequired: {
+    es: 'Esta cuenta de Zoho Mail no tiene una bandeja de entrada disponible.',
+    en: 'This Zoho Mail account does not have an available inbox.',
+  },
   connectResultCancelled: {
     es: 'Conexión cancelada',
     en: 'Connection cancelled',
