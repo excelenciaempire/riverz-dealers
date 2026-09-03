@@ -12,7 +12,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection } from "@/types";
 
-const VALID: ProviderName[] = ["meta", "google", "microsoft", "mercadolibre"];
+const VALID: ProviderName[] = ["meta", "google", "microsoft", "zoho", "mercadolibre"];
 
 /**
  * GET /api/connections/:provider/oauth/callback?code=…&state=…
@@ -75,7 +75,7 @@ export async function GET(
 
   let tokenJson: Record<string, unknown>;
   try {
-    if (provider === "google" || provider === "microsoft" || provider === "mercadolibre") {
+    if (provider === "google" || provider === "microsoft" || provider === "zoho" || provider === "mercadolibre") {
       const params = new URLSearchParams({
         client_id: cfg.clientId,
         client_secret: cfg.clientSecret,
@@ -88,7 +88,8 @@ export async function GET(
       if (provider === "mercadolibre" && state.codeVerifier) {
         params.set("code_verifier", state.codeVerifier);
       }
-      const r = await fetch(cfg.tokenUrl, {
+      const tokenUrl = provider === "zoho" ? `${zohoAccountsUrl(url.searchParams.get("accounts-server"))}/oauth/v2/token` : cfg.tokenUrl;
+      const r = await fetch(tokenUrl, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: params.toString(),
@@ -141,6 +142,7 @@ export async function GET(
   let label: string | undefined;
   let externalAccountId: string | undefined;
   let mlSiteId: string | undefined;
+  let zohoIdentity: { accountId: string; accountsUrl: string; mailUrl: string; inboxFolderId?: string } | undefined;
   try {
     if (provider === "mercadolibre") {
       const r = await fetch("https://api.mercadolibre.com/users/me", {
@@ -169,6 +171,23 @@ export async function GET(
         const j = (await r.json()) as { userPrincipalName?: string; mail?: string };
         label = j.mail ?? j.userPrincipalName;
         externalAccountId = label;
+      }
+    } else if (provider === "zoho") {
+      const accountsUrl = zohoAccountsUrl(url.searchParams.get("accounts-server"));
+      const mailUrl = zohoMailUrl(accountsUrl);
+      const r = await fetch(`${mailUrl}/api/accounts`, { headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, Accept: "application/json" } });
+      if (r.ok) {
+        const j = (await r.json()) as { data?: Array<{ accountId?: string | number; primaryEmailAddress?: string; mailboxAddress?: string; enabled?: boolean; type?: string }> };
+        const account = (j.data ?? []).find((a) => a.enabled !== false && a.type !== "IMAP_ACCOUNT") ?? j.data?.[0];
+        const email = account?.primaryEmailAddress ?? account?.mailboxAddress;
+        if (account?.accountId != null && email) {
+          const folders = await fetch(`${mailUrl}/api/accounts/${account.accountId}/folders`, { headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, Accept: "application/json" } });
+          const folderJson = folders.ok ? ((await folders.json()) as { data?: Array<{ folderId?: string | number; folderType?: string }> }) : null;
+          const inboxFolderId = folderJson?.data?.find((folder) => folder.folderType?.toLowerCase() === "inbox")?.folderId;
+          label = email;
+          externalAccountId = email.toLowerCase();
+          zohoIdentity = { accountId: String(account.accountId), accountsUrl, mailUrl, inboxFolderId: inboxFolderId == null ? undefined : String(inboxFolderId) };
+        }
       }
     } else if (provider === "meta") {
       // For Meta connections the externalAccountId depends on the
@@ -241,6 +260,8 @@ export async function GET(
   const rowConfig =
     channel === "gmail" || channel === "outlook"
       ? { email: label ?? externalAccountId }
+      : channel === "zoho"
+        ? { email: label ?? externalAccountId, zoho_account_id: zohoIdentity?.accountId, zoho_accounts_url: zohoIdentity?.accountsUrl, zoho_mail_url: zohoIdentity?.mailUrl, zoho_inbox_folder_id: zohoIdentity?.inboxFolderId }
       : channel === "mercadolibre"
         ? {
             seller_id: externalAccountId,
@@ -255,10 +276,11 @@ export async function GET(
   // Gmail's Pub/Sub push routes by email. If profile discovery failed, refuse
   // rather than persist an identity-less mailbox that can't receive and would
   // duplicate on every reconnect.
-  if ((channel === "gmail" || channel === "outlook") && !externalAccountId) {
+  if ((channel === "gmail" || channel === "outlook" || channel === "zoho") && !externalAccountId) {
     console.error(`[oauth/${provider}] mailbox profile discovery returned no address`);
     return redirectWithStatus(req, "error", "could not read mailbox address");
   }
+  if (channel === "zoho" && !zohoIdentity?.inboxFolderId) return redirectWithStatus(req, "error", "could not read Zoho inbox");
 
   let inserted: ChannelConnection | null = null;
   if (externalAccountId) {
@@ -337,6 +359,19 @@ export async function GET(
   }
 
   return redirectWithStatus(req, "ok");
+}
+
+function zohoAccountsUrl(value: string | null): string {
+  const fallback = (process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com").replace(/\/$/, "");
+  if (!value) return fallback;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && /^accounts\.zoho\.(com|eu|in|com\.au|jp|com\.cn|sa|ca)$/.test(parsed.hostname) ? parsed.origin : fallback;
+  } catch { return fallback; }
+}
+
+function zohoMailUrl(accountsUrl: string): string {
+  return (process.env.ZOHO_MAIL_API_URL?.trim() || accountsUrl.replace("//accounts.", "//mail.")).replace(/\/$/, "");
 }
 
 function isProvider(p: string): p is ProviderName {

@@ -36,6 +36,7 @@ const CANALES: Channel[] = [
   'messenger',
   'gmail',
   'outlook',
+  'zoho',
   'fb_comment',
   'ig_comment',
   'mercadolibre',

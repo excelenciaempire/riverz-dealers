@@ -44,6 +44,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   messenger: 'Messenger',
   gmail: 'Gmail',
   outlook: 'Outlook',
+  zoho: 'Zoho Mail',
   fb_comment: 'assistant.channelFbComments',
   ig_comment: 'assistant.channelIgComments',
   mercadolibre: 'Mercado Libre',

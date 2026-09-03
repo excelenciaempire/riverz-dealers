@@ -27,7 +27,7 @@ import { getAdapter } from '@/lib/channels/registry'
  */
 
 /** Canales donde tiene sentido preguntar: los que son una conversación 1 a 1. */
-const CANALES = new Set(['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook'])
+const CANALES = new Set(['whatsapp', 'instagram', 'messenger', 'gmail', 'outlook', 'zoho'])
 
 /** Cuánto vale una pregunta. Pasado eso, un "1" vuelve a ser un mensaje normal. */
 const VENTANA_RESPUESTA_MS = 48 * 60 * 60 * 1000
@@ -143,7 +143,7 @@ export async function pedirOpinion(
 
     // La ventana de servicio de Meta. Fuera de ella el envío falla —y en
     // WhatsApp, una plantilla para preguntar esto no vale lo que cuesta.
-    if (conversation.channel !== 'gmail' && conversation.channel !== 'outlook') {
+    if (conversation.channel !== 'gmail' && conversation.channel !== 'outlook' && conversation.channel !== 'zoho') {
       const { data: ultimo } = await db
         .from('messages')
         .select('created_at')

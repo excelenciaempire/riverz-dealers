@@ -69,7 +69,7 @@ export function MessageActions({
     message.sender_type === "agent" || message.sender_type === "bot";
   // Emails render as full-width cards (often a 600px marketing layout), not
   // chat bubbles — the 75% cap squeezes them so headings wrap mid-word.
-  const isEmail = message.channel === "gmail" || message.channel === "outlook";
+  const isEmail = message.channel === "gmail" || message.channel === "outlook" || message.channel === "zoho";
   // Reaccionar y responder-a-un-mensaje son propios de los chats de mensajería.
   // En Mercado Libre (preguntas/mensajes), email y comentarios no existen esas
   // acciones — se contesta desde el composer / la barra de moderación. Copiar

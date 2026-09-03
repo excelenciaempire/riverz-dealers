@@ -6,6 +6,7 @@ import { instagramAdapter } from "./instagram/adapter";
 import { messengerAdapter } from "./messenger/adapter";
 import { gmailAdapter } from "./gmail/adapter";
 import { outlookAdapter } from "./outlook/adapter";
+import { zohoAdapter } from "./zoho/adapter";
 import { fbCommentAdapter } from "./fb_comment/adapter";
 import { igCommentAdapter } from "./ig_comment/adapter";
 import { mercadoLibreAdapter } from "./mercadolibre/adapter";
@@ -19,6 +20,7 @@ const ADAPTERS: Record<Channel, ChannelAdapter> = {
   messenger: messengerAdapter,
   gmail: gmailAdapter,
   outlook: outlookAdapter,
+  zoho: zohoAdapter,
   fb_comment: fbCommentAdapter,
   ig_comment: igCommentAdapter,
   mercadolibre: mercadoLibreAdapter,

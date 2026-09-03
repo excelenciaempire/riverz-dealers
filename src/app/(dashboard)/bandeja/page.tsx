@@ -249,7 +249,7 @@ export default function InboxPage() {
 
       const channels = new Set<Channel>();
       for (const r of rows ?? []) {
-        const isEmail = r.channel === "gmail" || r.channel === "outlook";
+        const isEmail = r.channel === "gmail" || r.channel === "outlook" || r.channel === "zoho";
         if (!isEmail || r.created_by === user.id) {
           channels.add(r.channel as Channel);
         }

@@ -13,7 +13,7 @@ import { publicBaseUrl } from "@/lib/base-url";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 
-const VALID: ProviderName[] = ["meta", "google", "microsoft", "mercadolibre"];
+const VALID: ProviderName[] = ["meta", "google", "microsoft", "zoho", "mercadolibre"];
 
 /**
  * GET /api/connections/:provider/oauth/start?workspace_id=…&channel=…
@@ -133,7 +133,7 @@ export async function GET(
     // one invalid scope (AADSTS70011), which silently broke every Outlook
     // connect. Only Meta's legacy scope fallback uses a comma. MercadoLibre
     // configures scopes on the app (empty list here) so the param is omitted.
-    authorize.searchParams.set("scope", cfg.scopes.join(provider === "meta" ? "," : " "));
+    authorize.searchParams.set("scope", cfg.scopes.join(provider === "meta" || provider === "zoho" ? "," : " "));
   }
   if (pkce) {
     authorize.searchParams.set("code_challenge", pkce.challenge);

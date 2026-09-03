@@ -343,9 +343,9 @@ export const INTEGRATION_CAPABILITIES: Capability[] = [
   {
     key: 'integraciones.estado',
     description:
-      'Con qué está conectada la cuenta: cada canal (WhatsApp, Instagram, Messenger, comentarios, Gmail, Outlook, Mercado Libre, TikTok) con la cuenta del otro lado, si está conectado o caído, desde cuándo, el último error y cuándo vence su token; más la tienda conectada (Shopify, Tiendanube, WooCommerce). Es lo que hay que mirar cuando dejaron de entrar o de salir mensajes por un canal.',
+      'Con qué está conectada la cuenta: cada canal (WhatsApp, Instagram, Messenger, comentarios, Gmail, Outlook, Zoho Mail, Mercado Libre, TikTok) con la cuenta del otro lado, si está conectado o caído, desde cuándo, el último error y cuándo vence su token; más la tienda conectada (Shopify, Tiendanube, WooCommerce). Es lo que hay que mirar cuando dejaron de entrar o de salir mensajes por un canal.',
     descriptionEn:
-      'What the account is connected to: every channel (WhatsApp, Instagram, Messenger, comments, Gmail, Outlook, Mercado Libre, TikTok) with the account on the other side, whether it is connected or down, since when, the last error and when its token expires; plus the connected store (Shopify, Tiendanube, WooCommerce). This is what to look at when messages stopped coming in or going out through a channel.',
+      'What the account is connected to: every channel (WhatsApp, Instagram, Messenger, comments, Gmail, Outlook, Zoho Mail, Mercado Libre, TikTok) with the account on the other side, whether it is connected or down, since when, the last error and when its token expires; plus the connected store (Shopify, Tiendanube, WooCommerce). This is what to look at when messages stopped coming in or going out through a channel.',
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: estado,

@@ -51,7 +51,7 @@ export async function PATCH(request: Request): Promise<Response> {
     .eq('id', connectionId)
     .maybeSingle()
   const canal = (propia as { channel?: string } | null)?.channel
-  if (!propia || (canal !== 'gmail' && canal !== 'outlook')) {
+  if (!propia || (canal !== 'gmail' && canal !== 'outlook' && canal !== 'zoho')) {
     return NextResponse.json(
       { error: translate(locale, 'errInbox.connectionNotFound') },
       { status: 404 },

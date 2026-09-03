@@ -1157,7 +1157,7 @@ export function MessageBubble({
   // "Tú / cliente" header and a color-coded side rail than as left/right
   // speech bubbles. Outbound (our replies) get a primary rail on the
   // right; inbound (client) gets a slate rail on the left.
-  if (message.channel === "gmail" || message.channel === "outlook") {
+  if (message.channel === "gmail" || message.channel === "outlook" || message.channel === "zoho") {
     const fullTime = formatInTimeZone(
       new Date(message.created_at),
       tz,

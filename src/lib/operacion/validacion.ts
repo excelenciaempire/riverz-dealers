@@ -44,7 +44,7 @@ export function escenariosParaCanal(channel: string | null | undefined): Validat
       purpose: 'respuesta pública breve y segura',
     }];
   }
-  if (channel === 'gmail' || channel === 'outlook') {
+  if (channel === 'gmail' || channel === 'outlook' || channel === 'zoho') {
     return [...VALIDATION_SCENARIOS, {
       id: 'email_reply',
       message: 'Necesito ayuda con mi compra.',

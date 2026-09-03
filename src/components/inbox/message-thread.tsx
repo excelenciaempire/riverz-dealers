@@ -1757,7 +1757,7 @@ export function MessageThread({
           instead of letting it disappear into the conversation row in
           the list. Long subjects truncate; click to expand. */}
       {(conversation.channel === "gmail" ||
-        conversation.channel === "outlook") &&
+        conversation.channel === "outlook" || conversation.channel === "zoho") &&
         conversation.subject && (
           <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-2 text-xs sm:px-4">
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">

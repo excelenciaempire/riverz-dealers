@@ -176,7 +176,7 @@ export async function POST(req: Request): Promise<Response> {
     ? "template"
     : mediaSendType
     ? mediaSendType
-    : channel === "gmail" || channel === "outlook"
+    : channel === "gmail" || channel === "outlook" || channel === "zoho"
       ? "email"
       : channel === "fb_comment" ||
           channel === "ig_comment" ||

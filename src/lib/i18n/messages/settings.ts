@@ -731,6 +731,7 @@ export const settings = {
     es: 'Bandeja para Outlook, Hotmail y Microsoft 365.',
     en: 'Inbox for Outlook, Hotmail and Microsoft 365.',
   },
+  zohoCardDescription: { es: 'Bandeja de Zoho Mail para responder automáticamente.', en: 'Zoho Mail inbox for automated replies.' },
   mercadolibreCardDescription: {
     es: 'Preguntas de tus publicaciones y mensajes post-venta.',
     en: 'Questions on your listings and post-sale messages.',

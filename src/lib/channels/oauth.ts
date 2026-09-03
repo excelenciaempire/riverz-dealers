@@ -174,6 +174,18 @@ export function microsoftProvider(): ProviderConfig {
   };
 }
 
+export function zohoProvider(): ProviderConfig {
+  const accountsUrl = (process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com").replace(/\/$/, "");
+  return {
+    clientId: required("ZOHO_CLIENT_ID"),
+    clientSecret: required("ZOHO_CLIENT_SECRET"),
+    authorizationUrl: `${accountsUrl}/oauth/v2/auth`,
+    tokenUrl: `${accountsUrl}/oauth/v2/token`,
+    scopes: ["ZohoMail.accounts.READ", "ZohoMail.folders.READ", "ZohoMail.messages.CREATE", "ZohoMail.messages.READ"],
+    extraAuthParams: { access_type: "offline", prompt: "consent" },
+  };
+}
+
 /**
  * MercadoLibre authorize host per country. UNA sola app autoriza vendedores de
  * CUALQUIER país — solo cambia el dominio de login/consentimiento; la token API
@@ -233,11 +245,12 @@ function required(name: string): string {
   return v;
 }
 
-export type ProviderName = "meta" | "google" | "microsoft" | "mercadolibre";
+export type ProviderName = "meta" | "google" | "microsoft" | "zoho" | "mercadolibre";
 export function loadProvider(name: ProviderName): ProviderConfig {
   if (name === "meta") return metaProvider();
   if (name === "google") return googleProvider();
   if (name === "microsoft") return microsoftProvider();
+  if (name === "zoho") return zohoProvider();
   if (name === "mercadolibre") return mercadoLibreProvider();
   throw new Error(`Unknown OAuth provider: ${name}`);
 }

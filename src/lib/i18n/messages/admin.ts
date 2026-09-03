@@ -395,6 +395,7 @@ export const admin = {
     en: "Instagram proactive DM engine",
   },
   cronOutlookPoll: { es: "Sondea buzones de Outlook", en: "Polls Outlook mailboxes" },
+  cronZohoPoll: { es: "Sondea buzones de Zoho Mail", en: "Polls Zoho Mail mailboxes" },
   cronGmailPoll: { es: "Sondea buzones de Gmail", en: "Polls Gmail mailboxes" },
   cronMercadolibre: {
     es: "Preguntas, pedidos, envíos, reclamos y catálogo de Mercado Libre",

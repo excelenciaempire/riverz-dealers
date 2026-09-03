@@ -48,6 +48,13 @@ export const CHANNEL_DISPLAY: Record<Channel, ChannelDisplay> = {
     badge: "bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/30",
     accent: "#0078D4",
   },
+  zoho: {
+    channel: "zoho",
+    label: "Zoho Mail",
+    shortLabel: "ZM",
+    badge: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30",
+    accent: "#E42527",
+  },
   fb_comment: {
     channel: "fb_comment",
     label: "Comentarios FB",

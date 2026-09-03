@@ -173,10 +173,10 @@ export async function ingestInboundEvent(
       // correo es su casilla. No hay dato mas probado que ese, y por eso se
       // marca `canal` (migracion 206) -- es lo que habilita unirlo con su
       // ficha de otro canal.
-      email: channel === "gmail" || channel === "outlook" ? event.externalContactId : undefined,
+      email: channel === "gmail" || channel === "outlook" || channel === "zoho" ? event.externalContactId : undefined,
       phone: channel === "whatsapp" ? event.externalContactId : undefined,
       email_origen:
-        channel === "gmail" || channel === "outlook" ? "canal" : undefined,
+        channel === "gmail" || channel === "outlook" || channel === "zoho" ? "canal" : undefined,
       phone_origen: channel === "whatsapp" ? "canal" : undefined,
       created_at: historicalCreatedAt,
     },
@@ -289,7 +289,7 @@ export async function ingestInboundEvent(
   // las columnas estructuradas — el resto sigue accesible vía JSONB).
   const firstAttachment = event.attachments?.[0];
   const baseContentType: string =
-    channel === "gmail" || channel === "outlook"
+    channel === "gmail" || channel === "outlook" || channel === "zoho"
       ? "email"
       : channel === "fb_comment" || channel === "ig_comment"
         ? "comment"
@@ -941,6 +941,7 @@ function isThreadGroupedChannel(channel: Channel): boolean {
   return (
     channel === "gmail" ||
     channel === "outlook" ||
+    channel === "zoho" ||
     channel === "mercadolibre" ||
     channel === "tiktok_comment"
   );

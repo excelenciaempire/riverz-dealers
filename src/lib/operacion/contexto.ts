@@ -56,7 +56,7 @@ export async function contextoDeLaCuenta(
     whatsapp: vivos.has('whatsapp'),
     meta,
     mercadolibre: vivos.has('mercadolibre'),
-    email: vivos.has('gmail') || vivos.has('outlook'),
+    email: vivos.has('gmail') || vivos.has('outlook') || vivos.has('zoho'),
     telefono: vivos.has('voice'),
   }
 }

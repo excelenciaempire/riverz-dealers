@@ -59,6 +59,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // --- minutos ---
   { name: "instagram-agent", whatKey: "admin.cronInstagramAgent", path: "/api/cron/instagram-agent", schedule: "*/2 * * * *" },
   { name: "outlook-poll", whatKey: "admin.cronOutlookPoll", path: "/api/cron/outlook-poll", schedule: "*/2 * * * *" },
+  { name: "zoho-poll", whatKey: "admin.cronZohoPoll", path: "/api/cron/zoho-poll", schedule: "*/5 * * * *" },
   { name: "gmail-poll", whatKey: "admin.cronGmailPoll", path: "/api/cron/gmail-poll", schedule: "*/5 * * * *" },
   { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *" },
   // La reconciliación puede consultar hasta 300 comentarios por conexión. El

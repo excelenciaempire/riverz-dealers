@@ -173,7 +173,7 @@ export function ConversationList({
         .from("channel_connections")
         .select("id")
         .eq("created_by", user.id)
-        .in("channel", ["gmail", "outlook"]);
+        .in("channel", ["gmail", "outlook", "zoho"]);
       const ownEmailIds = (ownConns ?? []).map((c) => c.id);
 
       let query = supabase
@@ -196,9 +196,9 @@ export function ConversationList({
       query =
         ownEmailIds.length > 0
           ? query.or(
-              `channel.not.in.(gmail,outlook),connection_id.in.(${ownEmailIds.join(",")})`,
+              `channel.not.in.(gmail,outlook,zoho),connection_id.in.(${ownEmailIds.join(",")})`,
             )
-          : query.not("channel", "in", "(gmail,outlook)");
+          : query.not("channel", "in", "(gmail,outlook,zoho)");
       const { data, error } = await query;
 
       if (cancelled) return;

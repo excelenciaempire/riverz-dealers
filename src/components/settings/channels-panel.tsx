@@ -95,6 +95,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     members: ["outlook"],
     connectChannel: "outlook",
   },
+  { key: "zoho", label: "Zoho Mail", descriptionKey: "settings.zohoCardDescription", logoChannel: "zoho", members: ["zoho"], connectChannel: "zoho" },
   {
     key: "mercadolibre",
     label: "Mercado Libre",
@@ -121,6 +122,7 @@ interface ProviderStatus {
   meta: boolean;
   google: boolean;
   microsoft: boolean;
+  zoho: boolean;
   mercadolibre: boolean;
   tiktok: boolean;
   siteUrl: string;
@@ -148,6 +150,7 @@ export function ChannelsPanel() {
           meta: false,
           google: false,
           microsoft: false,
+          zoho: false,
           mercadolibre: false,
           tiktok: false,
           siteUrl: "",
@@ -172,6 +175,7 @@ export function ChannelsPanel() {
     if (!providers) return false;
     if (channel === "gmail") return providers.google;
     if (channel === "outlook") return providers.microsoft;
+    if (channel === "zoho") return providers.zoho;
     if (channel === "mercadolibre") return providers.mercadolibre;
     if (channel === "tiktok_comment") return providers.tiktok;
     return providers.meta;
@@ -555,7 +559,8 @@ export function ChannelsPanel() {
                             nombre está arriba y una firma por mensaje sería
                             ruido. */}
                         {(g.connectChannel === "gmail" ||
-                          g.connectChannel === "outlook") &&
+                          g.connectChannel === "outlook" ||
+                          g.connectChannel === "zoho") &&
                           primary.status === "connected" &&
                           isAdmin && <FirmaDeCorreo connection={primary} />}
                       </li>
@@ -997,6 +1002,7 @@ function providerForChannel(channel: Channel): string {
     return "meta";
   if (channel === "gmail") return "google";
   if (channel === "outlook") return "microsoft";
+  if (channel === "zoho") return "zoho";
   return channel;
 }
 

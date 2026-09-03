@@ -7,6 +7,7 @@ export type Channel =
   | 'messenger'
   | 'gmail'
   | 'outlook'
+  | 'zoho'
   | 'fb_comment'
   | 'ig_comment'
   | 'mercadolibre'
@@ -20,6 +21,7 @@ export const CHANNELS: Channel[] = [
   'messenger',
   'gmail',
   'outlook',
+  'zoho',
   'fb_comment',
   'ig_comment',
   'mercadolibre',

@@ -82,6 +82,7 @@ const CHANNEL_LABEL_KEYS: Record<Channel, string> = {
   messenger: 'Messenger',
   gmail: 'Gmail',
   outlook: 'Outlook',
+  zoho: 'Zoho Mail',
   fb_comment: 'contacts.channelFbComment',
   ig_comment: 'contacts.channelIgComment',
   mercadolibre: 'Mercado Libre',

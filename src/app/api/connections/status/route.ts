@@ -16,6 +16,7 @@ export async function GET(): Promise<Response> {
     microsoft: Boolean(
       process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET,
     ),
+    zoho: Boolean(process.env.ZOHO_CLIENT_ID && process.env.ZOHO_CLIENT_SECRET),
     mercadolibre: Boolean(
       process.env.MERCADOLIBRE_CLIENT_ID && process.env.MERCADOLIBRE_CLIENT_SECRET,
     ),
