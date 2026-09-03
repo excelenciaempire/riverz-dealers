@@ -208,8 +208,8 @@ export const settings = {
     en: 'Renew permission for this asset. Only this brand will be connected.',
   },
   metaAssetAccessNeedsRenewal: {
-    es: 'Meta ya no puede acceder a {account}. Renueva el permiso y selecciona solo esta marca.',
-    en: 'Meta can no longer access {account}. Renew permission and select only this brand.',
+    es: 'Meta ya no puede acceder a {account}. Conserva los activos de este perfil en Meta; aquí solo se conecta esta marca.',
+    en: 'Meta can no longer access {account}. Keep this profile’s assets in Meta; only this brand connects here.',
   },
   metaReconnectAccountUnavailable: {
     es: 'Meta no devolvió esta cuenta. Revisa sus permisos en Meta Business Suite.',
