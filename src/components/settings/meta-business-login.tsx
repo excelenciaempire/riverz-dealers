@@ -255,7 +255,9 @@ export function MetaBusinessLogin({
             found.map((account) => [account.id, new Set<string>()])
           )
         );
-        setChecked(new Set(found.map((a) => a.id)));
+        // Meta can list every Page managed by one profile. New connections
+        // start unselected so a workspace never receives assets by accident.
+        setChecked(new Set());
         setPickerOpen(true);
       } catch (err) {
         toast.error(t('settings.networkError'));
@@ -356,6 +358,10 @@ export function MetaBusinessLogin({
               )}
             </DialogTitle>
           </DialogHeader>
+
+          <p className="text-muted-foreground text-sm">
+            {t('settings.metaPickerWorkspaceScope')}
+          </p>
 
           <ul className="-mx-1 flex max-h-72 flex-col gap-1 overflow-y-auto">
             {accounts.map((a) => (

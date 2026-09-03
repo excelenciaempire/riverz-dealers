@@ -191,6 +191,10 @@ export const settings = {
     es: 'No se encontraron cuentas para conectar',
     en: 'No accounts found to connect',
   },
+  metaPickerWorkspaceScope: {
+    es: 'Elige los activos de esta cuenta de Riverz.',
+    en: 'Choose the assets for this Riverz account.',
+  },
   noFacebookPagesFound: {
     es: 'No se encontraron páginas de Facebook',
     en: 'No Facebook pages found',

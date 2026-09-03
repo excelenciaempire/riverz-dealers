@@ -96,6 +96,100 @@ export function selectMetaAccounts(
   );
 }
 
+type ExistingMetaConnection = {
+  id: string;
+  channel: Channel;
+  external_account_id: string | null;
+  config: Record<string, unknown> | null;
+  secrets: Record<string, unknown> | null;
+};
+
+/**
+ * A Meta consent can cover several brands, while Riverz keeps each brand in
+ * its own workspace. A token may be refreshed across workspaces only when it
+ * belongs to the exact same Page and (for Instagram) the exact same IG user.
+ * This is a credential refresh, never an asset import or reassignment.
+ */
+export function isExactMetaAssetMatch(
+  connection: ExistingMetaConnection,
+  account: DiscoveredAccount
+): boolean {
+  const config = connection.config ?? {};
+  const pageId = String(config.page_id ?? '');
+  if (!pageId || pageId !== String(account.config.page_id ?? '')) return false;
+
+  const isInstagram =
+    connection.channel === 'instagram' || connection.channel === 'ig_comment';
+  if (isInstagram) {
+    const igUserId = String(
+      config.ig_user_id ?? connection.external_account_id ?? ''
+    );
+    return (
+      igUserId === String(account.config.ig_user_id ?? '') &&
+      connection.external_account_id === account.external_account_id
+    );
+  }
+  return (
+    (connection.channel === 'messenger' ||
+      connection.channel === 'fb_comment') &&
+    connection.external_account_id === account.external_account_id
+  );
+}
+
+async function refreshExactExistingMetaConnections(
+  admin: ReturnType<typeof supabaseAdmin>,
+  accounts: DiscoveredAccount[],
+  accessToken: string,
+  tokenExpiresAt: string
+): Promise<void> {
+  const family = accounts[0]?.channel;
+  const channels =
+    family === 'messenger'
+      ? ['messenger', 'fb_comment']
+      : family === 'instagram'
+        ? ['instagram', 'ig_comment']
+        : [];
+  if (channels.length === 0) return;
+
+  const { data, error } = await admin
+    .from('channel_connections')
+    .select('id, channel, external_account_id, config, secrets')
+    .in('channel', channels)
+    .neq('status', 'disconnected');
+  if (error) {
+    console.warn('[meta-connect] could not load exact existing assets:', error);
+    return;
+  }
+
+  const rows = (data ?? []) as ExistingMetaConnection[];
+  for (const account of accounts) {
+    const secrets = {
+      access_token: encrypt(account.page_access_token),
+      user_access_token: encrypt(accessToken),
+      access_token_expires_at: tokenExpiresAt,
+    };
+    for (const connection of rows.filter((row) =>
+      isExactMetaAssetMatch(row, account)
+    )) {
+      const { error: updateError } = await admin
+        .from('channel_connections')
+        .update({
+          status: 'connected',
+          last_error: null,
+          secrets: { ...(connection.secrets ?? {}), ...secrets },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id);
+      if (updateError) {
+        console.warn(
+          `[meta-connect] could not refresh exact asset ${connection.id}:`,
+          updateError
+        );
+      }
+    }
+  }
+}
+
 export async function persistMetaConnections(
   admin: ReturnType<typeof supabaseAdmin>,
   opts: {
@@ -128,7 +222,8 @@ export async function persistMetaConnections(
     console.error(`[meta-connect] discovery failed:`, err);
     throw new MetaConnectError('could not list pages/accounts');
   }
-  discovered = selectMetaAccounts(discovered, pageIds);
+  const allDiscovered = discovered;
+  discovered = selectMetaAccounts(allDiscovered, pageIds);
   if (discovered.length === 0) {
     throw new MetaConnectError(
       channel === 'instagram' || channel === 'ig_comment'
@@ -142,6 +237,16 @@ export async function persistMetaConnections(
   const tokenExpiresAt = new Date(
     Date.now() + META_TOKEN_LIFETIME_MS
   ).toISOString();
+  // Meta can revoke a prior page token when the same Facebook profile renews
+  // its consent. If that consent includes several already-linked brands,
+  // refresh only rows that already map to those exact assets — no account is
+  // added, moved, or relabeled across Riverz workspaces.
+  await refreshExactExistingMetaConnections(
+    admin,
+    allDiscovered,
+    accessToken,
+    tokenExpiresAt
+  );
   for (const account of discovered) {
     const pageId = String(
       account.config.page_id ?? account.external_account_id

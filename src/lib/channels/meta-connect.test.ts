@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MetaConnectError,
+  isExactMetaAssetMatch,
   metaConnectionConfig,
   selectMetaAccounts,
   selectedAdAccountIds,
@@ -65,5 +66,45 @@ describe('selectMetaAccounts', () => {
     expect(() =>
       selectMetaAccounts(accounts, ['pilar-page', 'missing-page'])
     ).toThrow(new MetaConnectError('meta_selected_asset_unavailable'));
+  });
+});
+
+describe('isExactMetaAssetMatch', () => {
+  const instagram = {
+    channel: 'instagram' as const,
+    external_account_id: 'ig-pilar',
+    page_access_token: 'token',
+    config: { page_id: 'page-pilar', ig_user_id: 'ig-pilar' },
+    label: 'Pilar Skin (Instagram)',
+  };
+
+  it('refreshes a matching asset in another workspace without moving it', () => {
+    expect(
+      isExactMetaAssetMatch(
+        {
+          id: 'other-workspace-row',
+          channel: 'instagram',
+          external_account_id: 'ig-pilar',
+          config: { page_id: 'page-pilar', ig_user_id: 'ig-pilar' },
+          secrets: {},
+        },
+        instagram
+      )
+    ).toBe(true);
+  });
+
+  it('never matches another brand that shares the same Meta profile', () => {
+    expect(
+      isExactMetaAssetMatch(
+        {
+          id: 'rasmiaw-row',
+          channel: 'instagram',
+          external_account_id: 'ig-rasmiaw',
+          config: { page_id: 'page-rasmiaw', ig_user_id: 'ig-rasmiaw' },
+          secrets: {},
+        },
+        instagram
+      )
+    ).toBe(false);
   });
 });
