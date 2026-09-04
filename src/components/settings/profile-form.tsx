@@ -576,6 +576,18 @@ export function ProfileForm() {
                   {t('settings.alertScopeNotifications')}
                 </option>
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhone('');
+                  setPrimaryScope('both');
+                }}
+                disabled={saving || !phone.trim()}
+                className="border-border text-muted-foreground hover:text-destructive rounded-lg border p-2 transition-colors disabled:opacity-50"
+                aria-label={t('settings.phoneRemove')}
+              >
+                <Trash2 className="size-4" />
+              </button>
             </div>
             <p className="text-muted-foreground text-xs">
               {t('settings.phoneHint')}
