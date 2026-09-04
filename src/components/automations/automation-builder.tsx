@@ -4373,7 +4373,7 @@ function clampScale(s: number) {
 /** Selectors a click on which should not start a pan — the user is
  *  trying to interact with a control, not move the canvas. */
 const INTERACTIVE_SELECTOR =
-  'input, textarea, select, button, a, label, [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-drag-handle]';
+  'input, textarea, select, button, a, label, [role="switch"], [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-drag-handle]';
 
 function CanvasViewport({ children }: { children: React.ReactNode }) {
   const t = useT();
