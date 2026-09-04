@@ -103,6 +103,44 @@ export async function POST(request: Request) {
     const orderId = Number(order.id ?? 0)
     const incomingFulfillment =
       (order.fulfillment_status as string | null | undefined) ?? null
+    const fulfillments = Array.isArray(order.fulfillments)
+      ? (order.fulfillments as Record<string, unknown>[])
+      : []
+    const latestFulfillment = fulfillments[fulfillments.length - 1]
+    const shipmentStatus = String(latestFulfillment?.shipment_status ?? '')
+    const trackingNumber = String(latestFulfillment?.tracking_number ?? '')
+    const trackingCompany = String(latestFulfillment?.tracking_company ?? '')
+    const trackingUrl = String(latestFulfillment?.tracking_url ?? '')
+
+    let previousLogistics: {
+      fulfillment_status?: string | null
+      shipment_status?: string | null
+      tracking_number?: string | null
+      tracking_company?: string | null
+      tracking_url?: string | null
+    } | null = null
+
+    if (topic === 'orders/updated' && orderId > 0) {
+      const [{ data: mirrored }, { data: state }] = await Promise.all([
+        admin
+          .from('orders')
+          .select('tracking_number, tracking_company, tracking_url')
+          .eq('workspace_id', workspaceId)
+          .eq('shop_domain', shopDomain)
+          .eq('shopify_order_id', String(orderId))
+          .maybeSingle(),
+        admin
+          .from('shopify_order_fulfillment_state')
+          .select('fulfillment_status, shipment_status')
+          .eq('shop_domain', shopDomain)
+          .eq('order_id', orderId)
+          .maybeSingle(),
+      ])
+      previousLogistics = {
+        ...((mirrored as Record<string, string | null> | null) ?? {}),
+        ...((state as Record<string, string | null> | null) ?? {}),
+      }
+    }
 
     // El espejo en Riverz (tabla `orders`, migración 080). Antes esto era un
     // UPDATE: sólo tocaba los pedidos que había creado la IA, y una venta
@@ -228,11 +266,6 @@ export async function POST(request: Request) {
       // performs the read + upsert + diff inside a FOR UPDATE row lock,
       // so exactly one delivery observes the null→fulfilled transition.
       if (orderId > 0) {
-        const fulfillments = Array.isArray(order.fulfillments)
-          ? (order.fulfillments as Record<string, unknown>[])
-          : []
-        const latest = fulfillments[fulfillments.length - 1]
-        const shipmentStatus = (latest?.shipment_status as string | null) ?? null
         const justDelivered = shipmentStatus === 'delivered'
 
         const { data: transition } = await admin.rpc(
@@ -241,7 +274,7 @@ export async function POST(request: Request) {
             p_shop_domain: shopDomain,
             p_order_id: orderId,
             p_fulfillment_status: incomingFulfillment,
-            p_shipment_status: shipmentStatus,
+            p_shipment_status: shipmentStatus || null,
             p_just_delivered: justDelivered,
             p_financial_status: (order.financial_status as string | null) ?? null,
             p_cancelled: !!order.cancelled_at,
@@ -284,24 +317,20 @@ export async function POST(request: Request) {
     // Shopify es la fuente que Dropi actualiza cuando genera la guía. Así,
     // Make, Zapier y n8n reciben tanto el pedido inicial como cada cambio de
     // fulfillment sin necesitar acceso a la API privada de Dropi.
-    const fulfillments = Array.isArray(order.fulfillments)
-      ? (order.fulfillments as Record<string, unknown>[])
-      : []
-    const latestFulfillment = fulfillments[fulfillments.length - 1]
     const eventData = {
       shop_domain: shopDomain,
       order_id: String(order.id ?? ''),
       order_name: String(order.name ?? ''),
       financial_status: String(order.financial_status ?? ''),
       fulfillment_status: String(order.fulfillment_status ?? ''),
-      shipment_status: String(latestFulfillment?.shipment_status ?? ''),
-      tracking_number: String(latestFulfillment?.tracking_number ?? ''),
-      tracking_company: String(latestFulfillment?.tracking_company ?? ''),
+      shipment_status: shipmentStatus,
+      tracking_number: trackingNumber,
+      tracking_company: trackingCompany,
       tracking_url:
-        String(latestFulfillment?.tracking_url ?? '') ||
+        trackingUrl ||
         resolveCarrierTrackingUrl(
-          String(latestFulfillment?.tracking_company ?? ''),
-          String(latestFulfillment?.tracking_number ?? ''),
+          trackingCompany,
+          trackingNumber,
         ) ||
         String(order.order_status_url ?? ''),
     }
@@ -314,6 +343,28 @@ export async function POST(request: Request) {
       void emitWebhook(workspaceId, 'payment.approved', eventData).catch((error) =>
         console.error('[webhook] Shopify payment delivery failed', error),
       )
+    }
+    if (topic === 'orders/updated') {
+      const shipmentChanged =
+        (incomingFulfillment != null &&
+          incomingFulfillment !== previousLogistics?.fulfillment_status) ||
+        (shipmentStatus !== '' && shipmentStatus !== previousLogistics?.shipment_status)
+      const trackingChanged =
+        trackingNumber !== '' &&
+        (trackingNumber !== previousLogistics?.tracking_number ||
+          trackingCompany !== (previousLogistics?.tracking_company ?? '') ||
+          trackingUrl !== (previousLogistics?.tracking_url ?? ''))
+
+      if (shipmentChanged) {
+        void emitWebhook(workspaceId, 'shipment.updated', eventData).catch((error) =>
+          console.error('[webhook] Shopify shipment delivery failed', error),
+        )
+      }
+      if (trackingChanged) {
+        void emitWebhook(workspaceId, 'tracking.updated', eventData).catch((error) =>
+          console.error('[webhook] Shopify tracking delivery failed', error),
+        )
+      }
     }
 
     if (triggerTypes.length === 0) {

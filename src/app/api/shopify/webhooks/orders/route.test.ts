@@ -19,6 +19,9 @@ interface Escritura {
 }
 
 const escrituras: Escritura[] = []
+const { emittedWebhooks } = vi.hoisted(() => ({
+  emittedWebhooks: [] as Array<{ type: string; data: Record<string, unknown> }>,
+}))
 
 /**
  * ¿Ya existe la fila espejo del pedido?
@@ -28,7 +31,8 @@ const escrituras: Escritura[] = []
  * con `created_by: 'sync'`. Antes esto era siempre `null` y las cinco pruebas
  * de reconciliación medían, sin saberlo, el camino de creación.
  */
-let filaExistente: { id: string } | null = { id: 'ord1' }
+let filaExistente: Record<string, string | null> | null = { id: 'ord1' }
+let estadoFulfillment: Record<string, string | null> | null = null
 
 function fakeAdmin() {
   return {
@@ -63,7 +67,12 @@ function fakeAdmin() {
         maybeSingle: async () => {
           escrituras.push({ table, op: 'select', payload: {}, filtros: estado.filtros })
           return {
-            data: table === 'orders' ? filaExistente : null,
+            data:
+              table === 'orders'
+                ? filaExistente
+                : table === 'shopify_order_fulfillment_state'
+                  ? estadoFulfillment
+                  : null,
             error: null,
           }
         },
@@ -108,6 +117,15 @@ vi.mock('@/lib/automations/engine', () => ({ runAutomationsForTrigger: async () 
 vi.mock('@/lib/contacts/tags', () => ({ applyCategoryTags: async () => {} }))
 vi.mock('@/lib/workspaces/resolve', () => ({ resolveWorkspaceIdForUser: async () => 'ws1' }))
 vi.mock('@/lib/webhooks/capture', () => ({ captureWebhookFailure: async () => {} }))
+vi.mock('@/lib/webhooks/outbound', () => ({
+  emitWebhook: async (
+    _workspaceId: string,
+    type: string,
+    data: Record<string, unknown>,
+  ) => {
+    emittedWebhooks.push({ type, data })
+  },
+}))
 vi.mock('@/lib/channels/registry', () => ({ getAdapter: () => ({ sendText: async () => ({}) }) }))
 vi.mock('@/lib/shopify/create-checkout', () => ({ fmtMoney: () => '' }))
 vi.mock('@/lib/shopify/carrier-tracking', () => ({ resolveCarrierTrackingUrl: () => '' }))
@@ -148,7 +166,9 @@ const busqueda = () =>
 
 beforeEach(() => {
   escrituras.length = 0
+  emittedWebhooks.length = 0
   filaExistente = { id: 'ord1' }
+  estadoFulfillment = null
 })
 
 describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
@@ -195,6 +215,58 @@ describe('POST /api/shopify/webhooks/orders — espejo de estados', () => {
     // Y el parche va a ESA fila, no a un filtro por dominio: dos tiendas
     // pueden repetir número de pedido.
     expect(espejo()?.filtros).toEqual([['id', 'ord1']])
+  })
+
+  it('publica la guía y el estado logístico cuando Shopify los cambia', async () => {
+    await POST(
+      actualizacion('paid', {
+        fulfillment_status: 'fulfilled',
+        fulfillments: [
+          {
+            shipment_status: 'in_transit',
+            tracking_number: 'CO123456789',
+            tracking_company: 'Coordinadora',
+            tracking_url: 'https://rastreo.example/CO123456789',
+          },
+        ],
+      }),
+    )
+
+    expect(emittedWebhooks.map((event) => event.type)).toEqual([
+      'order.updated',
+      'shipment.updated',
+      'tracking.updated',
+    ])
+    expect(emittedWebhooks.at(-1)?.data.tracking_number).toBe('CO123456789')
+  })
+
+  it('no repite eventos logísticos cuando la guía no cambió', async () => {
+    filaExistente = {
+      id: 'ord1',
+      tracking_number: 'CO123456789',
+      tracking_company: 'Coordinadora',
+      tracking_url: 'https://rastreo.example/CO123456789',
+    }
+    estadoFulfillment = {
+      fulfillment_status: 'fulfilled',
+      shipment_status: 'in_transit',
+    }
+
+    await POST(
+      actualizacion('paid', {
+        fulfillment_status: 'fulfilled',
+        fulfillments: [
+          {
+            shipment_status: 'in_transit',
+            tracking_number: 'CO123456789',
+            tracking_company: 'Coordinadora',
+            tracking_url: 'https://rastreo.example/CO123456789',
+          },
+        ],
+      }),
+    )
+
+    expect(emittedWebhooks.map((event) => event.type)).toEqual(['order.updated'])
   })
 
   /**

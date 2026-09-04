@@ -210,8 +210,12 @@ export function WebhooksCard() {
                     onClick={() => setFormOpen((current) => !current)}
                     className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium"
                   >
-                    <Plus className="size-4" />
-                    {t('settings.webhookNew')}
+                    {formOpen ? (
+                      <X className="size-4" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
+                    {formOpen ? t('common.cancel') : t('settings.webhookNew')}
                   </button>
                 </div>
 

@@ -9,12 +9,15 @@ export type RiverzWebhookEvent =
   | 'message.sent'
   | 'order.created'
   | 'order.updated'
+  | 'shipment.updated'
+  | 'tracking.updated'
   | 'payment.approved'
   | 'payment.rejected';
 
 export const WEBHOOK_EVENTS: RiverzWebhookEvent[] = [
   'conversation.created', 'conversation.escalated', 'conversation.resolved',
   'message.received', 'message.sent', 'order.created', 'order.updated',
+  'shipment.updated', 'tracking.updated',
   'payment.approved', 'payment.rejected',
 ];
 
