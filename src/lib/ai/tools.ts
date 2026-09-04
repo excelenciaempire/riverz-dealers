@@ -88,7 +88,7 @@ export interface VoiceEscalationContext {
 export const ESCALATE_TO_CALL_TOOL: Anthropic.Tool = {
   name: 'escalate_to_call',
   description:
-    'Programa una LLAMADA telefónica de ti (la IA) al cliente cuando convenga más que seguir por texto: el cliente pide que lo llamen, está frustrado, el tema es urgente o de alto valor, o la conversación se estancó. Úsala con criterio, la mayoría se resuelve por texto. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasa un motivo corto.',
+    'Programa una LLAMADA telefónica de ti (la IA) al cliente ÚNICAMENTE después de que el cliente la haya pedido o haya aceptado explícitamente tu propuesta de llamarlo. Si parece útil llamar, primero ofrécelo por chat y espera una respuesta afirmativa. NUNCA uses esta herramienta por frustración, urgencia, valor o conversación estancada sin ese consentimiento. La llamada respeta el horario permitido y no se hace si el cliente pidió no ser llamado. Pasa un motivo corto.',
   input_schema: {
     type: 'object' as const,
     properties: {

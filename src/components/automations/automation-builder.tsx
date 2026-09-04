@@ -4021,7 +4021,14 @@ function VoiceCallStepEditor({
   const { workspace } = useWorkspace();
   const rama = useContext(RamaLlamadaContext);
   const [agents, setAgents] = useState<
-    { id: string; name: string; voice_enabled: boolean }[]
+    {
+      id: string;
+      name: string;
+      voice_enabled: boolean;
+      is_active: boolean;
+      scope?: string | null;
+      ai_agent_channels?: { channel: string }[];
+    }[]
   >([]);
   const [loading, setLoading] = useState(true);
   /** Lo que le falta a la cuenta para que suene un teléfono (número, freno
@@ -4034,21 +4041,25 @@ function VoiceCallStepEditor({
     if (!workspace?.id) return;
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      // Un nodo de llamada sólo puede elegir perfiles creados en Llamadas.
-      // Ofrecer asistentes de chat que no pueden hablar era un selector que
-      // dejaba configurar un flujo imposible de ejecutar.
-      const { data } = await supabase
-        .from('ai_agents')
-        .select('id, name, voice_enabled')
-        .eq('workspace_id', workspace.id)
-        .eq('is_active', true)
-        .eq('voice_enabled', true)
-        .is('deleted_at', null)
-        .order('priority', { ascending: false });
-      if (cancelled) return;
+      const res = await fetch(
+        `/api/ai/agents?workspace_id=${workspace.id}`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok || cancelled) return;
+      const json = (await res.json()) as {
+        agents?: {
+          id: string;
+          name: string;
+          voice_enabled: boolean;
+          is_active: boolean;
+          scope?: string | null;
+          ai_agent_channels?: { channel: string }[];
+        }[];
+      };
       setAgents(
-        (data ?? []) as { id: string; name: string; voice_enabled: boolean }[]
+        (json.agents ?? []).filter(
+          (agent) => agent.is_active && agent.voice_enabled
+        )
       );
       setLoading(false);
     })();
@@ -4099,12 +4110,18 @@ function VoiceCallStepEditor({
         {loading ? (
           <p className="text-muted-foreground text-xs">{t('common.loading')}</p>
         ) : agents.length === 0 ? (
-          <p className="text-muted-foreground text-xs">
-            {t('automations.voiceCallNoAgents')}{' '}
-            <Link href="/voz" className="text-accent-ink underline">
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-xs">
+              {t('automations.voiceCallNoAgents')}
+            </p>
+            <Link
+              href="/voz"
+              className="border-border bg-background hover:bg-muted inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium text-foreground transition-colors"
+            >
+              <Plus className="size-3.5" />
               {t('automations.voiceCallCreateAgent')}
             </Link>
-          </p>
+          </div>
         ) : (
           <select
             value={agentId}
@@ -4126,6 +4143,8 @@ function VoiceCallStepEditor({
         )}
       </FieldBlock>
 
+      {agentId && (
+        <>
       {/* Lo que falta, con el link que lo arregla. Es el reemplazo del
           callejón sin salida: un paso que no va a sonar lo dice acá, no tres
           días después cuando entre un pedido. */}
@@ -4137,26 +4156,6 @@ function VoiceCallStepEditor({
           href={b.fixHref ?? undefined}
         />
       ))}
-
-      {/* La rama que hace útil a la llamada. */}
-      {rama && (
-        <FieldBlock label={t('automations.voiceCallIfNoAnswer')}>
-          {yaRamifica ? (
-            <p className="text-muted-foreground text-xs">
-              {t('automations.voiceCallBranchDone')}
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => rama.armar(stepCid)}
-              className="border-border bg-background text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-accent-ink inline-flex items-center gap-1.5 rounded-full border-2 border-dashed px-2.5 py-1 text-[11px] font-medium transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t('automations.voiceCallBuildBranch')}
-            </button>
-          )}
-        </FieldBlock>
-      )}
 
       {/* El objetivo del agente ya vive en su pestaña de Voz; acá sólo se
           pisa para ESTA llamada, que es la excepción y no el camino. */}
@@ -4176,10 +4175,40 @@ function VoiceCallStepEditor({
         <button
           type="button"
           onClick={() => setVerObjetivo(true)}
-          className="text-muted-foreground hover:text-foreground text-[11px] underline"
+          className="border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground flex w-full items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-2 text-left text-xs transition-colors"
         >
-          {t('automations.voiceCallObjective')}
+          <Plus className="size-3.5 shrink-0" />
+          <span>
+            <span className="block font-medium text-foreground">
+              {t('automations.voiceCallObjective')}
+            </span>
+            <span className="text-[11px]">
+              {t('automations.voiceCallObjectiveHint')}
+            </span>
+          </span>
         </button>
+      )}
+
+      {/* La rama que hace útil a la llamada. */}
+      {rama && (
+        <FieldBlock label={t('automations.voiceCallIfNoAnswer')}>
+          {yaRamifica ? (
+            <p className="text-muted-foreground text-xs">
+              {t('automations.voiceCallBranchDone')}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => rama.armar(stepCid)}
+              className="border-border bg-background text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-accent-ink inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors"
+            >
+              <Plus className="size-3.5" />
+              {t('automations.voiceCallBuildBranch')}
+            </button>
+          )}
+        </FieldBlock>
+      )}
+        </>
       )}
     </>
   );

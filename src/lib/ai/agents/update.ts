@@ -78,6 +78,8 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'voice_calling_hours',
   'voice_max_retries',
   'voice_retry_delay_minutes',
+  'voice_accepts_inbound',
+  'voice_transfer_number',
 ];
 
 /** El agente como se lo puede devolver: la llave cifrada nunca sale. */

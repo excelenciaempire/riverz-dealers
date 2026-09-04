@@ -138,7 +138,9 @@ export async function voiceReadiness(
       .eq('workspace_id', workspaceId)
       .eq('channel', 'voice')
       .maybeSingle(),
-    listVoiceAgents(db, workspaceId, 'id, name'),
+    // `*` mantiene compatibilidad durante el despliegue gradual de la columna
+    // per-agent (migración 244): PostgREST no falla si todavía no existe.
+    listVoiceAgents(db, workspaceId),
     voiceWorkerDown(db),
     db
       .from('voice_calls')
@@ -166,7 +168,17 @@ export async function voiceReadiness(
     }
     // Salientes sí, entrantes no: no es un bloqueo, es media función apagada
     // sin que nadie lo diga. Sólo cuando ya hay número — antes no significa nada.
-    if (cfg.phone_number && !cfg.inbound_enabled) warn('inbound_disabled');
+    if (
+      cfg.phone_number &&
+      !agentes.some((agent) => agent.voice_accepts_inbound === true) &&
+      !(
+        agentes.every(
+          (agent) => agent.voice_accepts_inbound === undefined
+        ) && cfg.inbound_enabled
+      )
+    ) {
+      warn('inbound_disabled');
+    }
   }
 
   // ── El agente ──

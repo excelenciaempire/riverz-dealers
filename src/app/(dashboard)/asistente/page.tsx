@@ -31,6 +31,7 @@ import { EscalacionesPanel } from '@/components/ai/escalaciones-panel';
 import { SupportModeSwitcher } from '@/components/support/mode-switcher';
 import type { AiAgent } from '@/lib/ai/types';
 import type { Channel } from '@/types';
+import { isDedicatedVoiceProfile } from '@/lib/voice/profile';
 
 export type AgentSummary = Omit<AiAgent, 'api_key_encrypted'> & {
   has_api_key: boolean;
@@ -116,7 +117,13 @@ export default function AiAgentsPage() {
         cache: 'no-store',
       });
       const json = await res.json();
-      if (res.ok) setAgents((json.agents ?? []) as AgentSummary[]);
+      if (res.ok) {
+        setAgents(
+          ((json.agents ?? []) as AgentSummary[]).filter(
+            (agent) => !isDedicatedVoiceProfile(agent)
+          )
+        );
+      }
       else toast.error(json.error ?? t('assistant.loadError'));
     } catch (err) {
       toast.error(t('assistant.genericError'));

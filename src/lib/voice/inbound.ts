@@ -15,7 +15,7 @@ import type {
   VoiceConnectionConfig,
 } from '@/types';
 import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
-import { pickVoiceAgent } from './agents';
+import { pickInboundVoiceAgent, pickVoiceAgent } from './agents';
 
 function toE164(raw: string): string {
   const t = raw.trim();
@@ -126,11 +126,15 @@ export async function resolveInboundCall(
   const conn = matches[0];
   if (conn.status === 'disconnected') return { ok: false, reason: 'disconnected' };
   const cfg = conn.config ?? {};
-  if (!cfg.inbound_enabled) return { ok: false, reason: 'inbound_disabled' };
   if (cfg.kill_switch) return { ok: false, reason: 'kill_switch' };
 
-  const agent = await pickVoiceAgent(db, conn.workspace_id);
-  if (!agent) return { ok: false, reason: 'no_voice_agent' };
+  const agent = await pickInboundVoiceAgent(db, conn.workspace_id);
+  if (
+    !agent ||
+    (agent.voice_accepts_inbound === undefined && !cfg.inbound_enabled)
+  ) {
+    return { ok: false, reason: 'inbound_disabled' };
+  }
 
   const caller = callerToE164(input.caller, cfg.country);
 

@@ -68,3 +68,29 @@ export async function pickVoiceAgent(
 ): Promise<AiAgent | null> {
   return (await listVoiceAgents(db, workspaceId))[0] ?? null;
 }
+
+/** Agentes que, además de poder llamar, aceptan atender entrantes. */
+export async function listInboundVoiceAgents(
+  db: SupabaseClient,
+  workspaceId: string,
+  columns = '*',
+): Promise<AgentWithChannels[]> {
+  const select =
+    columns.trim() === '*' ? '*' : `${columns}, voice_accepts_inbound`;
+  const agents = await listVoiceAgents(db, workspaceId, select);
+  // Despliegue gradual: antes de que la migración 244 llegue a la base, `*`
+  // no incluye la columna. En ese breve intervalo conserva el ruteo anterior;
+  // `inbound.ts` todavía exige el switch global para ese caso.
+  if (agents.every((agent) => agent.voice_accepts_inbound === undefined)) {
+    return agents;
+  }
+  return agents.filter((agent) => agent.voice_accepts_inbound === true);
+}
+
+/** El perfil de mayor prioridad habilitado para responder entrantes. */
+export async function pickInboundVoiceAgent(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<AiAgent | null> {
+  return (await listInboundVoiceAgents(db, workspaceId))[0] ?? null;
+}

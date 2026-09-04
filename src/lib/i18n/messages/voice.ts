@@ -82,20 +82,23 @@ export const voice = {
     es: "En medio del chat, el agente puede llamar si conviene (cliente lo pide, urgente, alto valor). Respeta horario y 'no llamar'.",
     en: "Mid-chat, the agent can call when it helps (customer asks, urgent, high value). Respects hours and 'do not call'.",
   },
-  linkTitle: { es: 'Agente de llamadas', en: 'Calling agent' },
+  linkTitle: { es: 'Llamadas', en: 'Calls' },
   linkHint: {
-    es: 'Elige quién hablará por teléfono cuando este asistente necesite una llamada.',
-    en: 'Choose who speaks by phone when this assistant needs a call.',
+    es: 'Conecta el agente de voz que usará este asistente.',
+    en: 'Connect the voice agent this assistant will use.',
   },
   linkNone: { es: 'Sin agente vinculado', en: 'No agent linked' },
   linkEmpty: {
     es: 'Aún no hay agentes de voz.',
     en: 'There are no voice agents yet.',
   },
-  linkCreate: { es: 'Crear en Llamadas', en: 'Create in Calls' },
+  linkCreate: {
+    es: 'Crear agente en Llamadas',
+    en: 'Create agent in Calls',
+  },
   linkPropose: {
-    es: 'Puede proponer una llamada',
-    en: 'Can suggest a call',
+    es: 'Ofrecer una llamada en el chat',
+    en: 'Offer a call in chat',
   },
   linkProposeHint: {
     es: 'Solo cuando el cliente la pida o acepte recibirla.',
@@ -118,6 +121,10 @@ export const voice = {
   voiceAgentActive: { es: 'Activo para llamadas', en: 'Active for calls' },
   voiceAgentReady: { es: 'Listo para llamar', en: 'Ready to call' },
   voiceAgentNeedsVoice: { es: 'Falta elegir una voz', en: 'Choose a voice' },
+  voiceAgentLinkedCount: {
+    es: 'Vinculado en {count}',
+    en: 'Linked in {count}',
+  },
   voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
   voiceAgentCreated: { es: 'Agente de voz creado', en: 'Voice agent created' },
   voiceAgentCreateFailed: {
@@ -454,10 +461,10 @@ export const voice = {
     es: 'Activar la voz de un agente',
     en: "Turn on an agent's voice",
   },
-  behaviourTitle: { es: 'Comportamiento', en: 'Behaviour' },
+  behaviourTitle: { es: 'Políticas generales', en: 'General policies' },
   behaviourHint: {
-    es: 'Controla qué puede hacer tu central.',
-    en: 'Control what your call center can do.',
+    es: 'Aplican a todos los agentes de voz.',
+    en: 'Apply to every voice agent.',
   },
   inboundHint: {
     es: 'El agente atiende cuando alguien llama a tu número.',
@@ -465,6 +472,30 @@ export const voice = {
   },
   unsavedChanges: { es: 'Cambios sin guardar', en: 'Unsaved changes' },
   allSaved: { es: 'Todo guardado', en: 'Everything saved' },
+  agentOperations: { es: 'Operación', en: 'Operations' },
+  agentOperationsHint: {
+    es: 'Cómo atiende y cuándo pasa la llamada a una persona.',
+    en: 'How it answers and when it hands the call to a person.',
+  },
+  agentAcceptsInbound: {
+    es: 'Atender llamadas entrantes',
+    en: 'Answer incoming calls',
+  },
+  agentAcceptsInboundHint: {
+    es: 'Puede responder las llamadas que llegan a tu número.',
+    en: 'Can answer calls placed to your number.',
+  },
+  agentTransferNumber: {
+    es: 'Transferir a esta persona',
+    en: 'Transfer to this person',
+  },
+  agentMaxDuration: {
+    es: 'Duración máxima',
+    en: 'Maximum duration',
+  },
+  durationThreeMinutes: { es: '3 minutos', en: '3 minutes' },
+  durationFiveMinutes: { es: '5 minutos', en: '5 minutes' },
+  durationTenMinutes: { es: '10 minutos', en: '10 minutes' },
   advancedToggle: { es: 'Opciones avanzadas', en: 'Advanced options' },
 
   // El freno de emergencia sale de la lista de interruptores: no es una

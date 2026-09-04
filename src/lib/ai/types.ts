@@ -231,6 +231,10 @@ export interface AiAgent {
   voice_max_retries: number;
   /** Minutes to wait before retrying an unanswered call. */
   voice_retry_delay_minutes: number;
+  /** Whether this voice profile may answer calls to the workspace number. */
+  voice_accepts_inbound?: boolean;
+  /** E.164 destination used when this voice profile transfers to a person. */
+  voice_transfer_number?: string | null;
   /** Let the chat agent decide, mid-conversation, to escalate to a phone
    *  call (via the escalate_to_call tool), within guardrails. Migration 115. */
   voice_ai_decides: boolean;

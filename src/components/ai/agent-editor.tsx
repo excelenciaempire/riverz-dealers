@@ -14,10 +14,10 @@ import {
   EyeOff,
   Search,
   Package,
+  Plus,
   Briefcase,
   Radio,
   SlidersHorizontal,
-  PhoneCall,
   Settings as SettingsIcon,
   ChevronDown,
   ChevronRight,
@@ -47,10 +47,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import {
-  initialVoiceState,
-  type VoiceState,
-} from '@/components/ai/voice-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { ToolSwitchboard, type Disponibilidad } from './tool-switchboard';
@@ -161,19 +157,6 @@ const CHANNELS: { value: Channel; label: string; icon: string | null }[] = [
   },
   { value: 'webchat', label: 'nav.webchat', icon: '/channels/webchat.svg' },
 ];
-
-/**
- * Las llamadas son un canal más para el runtime (`pickVoiceAgent` acepta
- * scope='workspace' o el canal 'voice'), pero no se ofrecía aquí: un agente
- * puesto en "Solo algunos" quedaba excluido de las llamadas aunque tuviera
- * la voz activada. Sólo aparece si la voz está encendida — no tiene sentido
- * elegir el canal de llamadas para un agente que no llama.
- */
-const VOICE_CHANNEL: { value: Channel; label: string; icon: string | null } = {
-  value: 'voice',
-  label: 'nav.voice',
-  icon: null,
-};
 
 // label es una clave i18n resuelta con t() en el render.
 const LANGUAGES: { code: string; label: string }[] = [
@@ -565,8 +548,6 @@ export function AgentEditor({
   // completo; el botón del header lo abre on-demand.
   const [showTest, setShowTest] = useState(false);
 
-  // Voice AI config — one state object, edited by <VoiceSettings>.
-  const [voice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
   const [voiceAgentId, setVoiceAgentId] = useState(agent?.voice_agent_id ?? '');
   const [voiceCanPropose, setVoiceCanPropose] = useState(
     agent?.voice_ai_decides ?? false
@@ -1054,18 +1035,10 @@ export function AgentEditor({
       role,
       permissions,
       tools,
-      // Voice AI (migration 113 + 115)
-      voice_enabled: voice.voice_enabled,
+      // El asistente sólo conserva el vínculo y el permiso para ofrecer una
+      // llamada. Voz, guiones y operación pertenecen al perfil en Llamadas.
       voice_agent_id: voiceAgentId || null,
-      voice_ai_decides: voiceCanPropose,
-      voice_id: voice.voice_id,
-      voice_greeting: voice.voice_greeting.trim() || null,
-      voice_system_prompt: voice.voice_system_prompt.trim() || null,
-      voice_objectives: voice.voice_objectives,
-      voice_max_call_seconds: voice.voice_max_call_seconds,
-      voice_calling_hours: voice.voice_calling_hours,
-      voice_max_retries: voice.voice_max_retries,
-      voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
+      voice_ai_decides: Boolean(voiceAgentId && voiceCanPropose),
       model: DEFAULT_MODEL,
       scope,
       // El canal de llamadas se guarda aunque la voz esté apagada.
@@ -1610,10 +1583,7 @@ export function AgentEditor({
                   </div>
                   {scope === 'channels' && (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {(voice.voice_enabled
-                        ? [...CHANNELS, VOICE_CHANNEL]
-                        : CHANNELS
-                      ).map((c) => {
+                      {CHANNELS.map((c) => {
                         const on = channels.includes(c.value);
                         return (
                           <button
@@ -1635,9 +1605,7 @@ export function AgentEditor({
                                 height={16}
                                 className="shrink-0"
                               />
-                            ) : (
-                              <PhoneCall className="h-4 w-4 shrink-0" />
-                            )}
+                            ) : null}
                             {/* Los canales son marcas y van literales; los que no
                             —llamadas, chat web— traen una clave i18n. Se
                             distinguían por si tenían logo, y eso se rompió el
@@ -2650,6 +2618,7 @@ function VoiceAgentLink({
 }) {
   const t = useT();
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -2657,7 +2626,10 @@ function VoiceAgentLink({
       const res = await fetch(`/api/ai/agents?workspace_id=${workspaceId}`, {
         cache: 'no-store',
       });
-      if (!res.ok || cancelled) return;
+      if (!res.ok || cancelled) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
       const json = (await res.json()) as {
         agents?: { id: string; name: string; voice_enabled?: boolean }[];
       };
@@ -2667,6 +2639,7 @@ function VoiceAgentLink({
             .filter((agent) => agent.voice_enabled && agent.id !== agentId)
             .map((agent) => ({ id: agent.id, name: agent.name }))
         );
+        setLoading(false);
       }
     })();
     return () => {
@@ -2676,32 +2649,44 @@ function VoiceAgentLink({
 
   return (
     <SectionCard title={t('voice.linkTitle')} hint={t('voice.linkHint')}>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="border-border bg-background text-foreground w-full rounded-md border px-2 py-1.5 text-sm"
-      >
-        <option value="">{t('voice.linkNone')}</option>
-        {agents.map((agent) => (
-          <option key={agent.id} value={agent.id}>
-            {agent.name}
-          </option>
-        ))}
-      </select>
-      {agents.length === 0 && (
-        <p className="text-muted-foreground text-xs">
-          {t('voice.linkEmpty')}{' '}
-          <Link href="/voz" className="text-accent-ink underline">
-            {t('voice.linkCreate')}
-          </Link>
-        </p>
+      {loading ? (
+        <Loader2 className="text-muted-foreground size-4 animate-spin" />
+      ) : agents.length === 0 ? (
+        <Link
+          href="/voz"
+          className="border-border bg-background hover:bg-muted inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium text-foreground transition-colors"
+        >
+          <Plus className="size-4" />
+          {t('voice.linkCreate')}
+        </Link>
+      ) : (
+        <>
+          <select
+            value={value}
+            onChange={(event) => {
+              const next = event.target.value;
+              onChange(next);
+              if (!next) onCanProposeChange(false);
+            }}
+            className="border-border bg-background text-foreground h-9 w-full rounded-lg border px-2.5 text-sm"
+          >
+            <option value="">{t('voice.linkNone')}</option>
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
+          {value && (
+            <ToggleRow
+              checked={canPropose}
+              onChange={onCanProposeChange}
+              title={t('voice.linkPropose')}
+              hint={t('voice.linkProposeHint')}
+            />
+          )}
+        </>
       )}
-      <ToggleRow
-        checked={canPropose}
-        onChange={onCanProposeChange}
-        title={t('voice.linkPropose')}
-        hint={t('voice.linkProposeHint')}
-      />
     </SectionCard>
   );
 }

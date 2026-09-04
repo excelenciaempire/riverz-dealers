@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ArrowRightLeft,
   ChevronDown,
   Play,
   Square,
   Sparkles,
   Loader2,
   PhoneCall,
+  PhoneIncoming,
   Plus,
+  Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -38,7 +41,6 @@ import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
 
 export interface VoiceState {
   voice_enabled: boolean;
-  voice_ai_decides: boolean;
   voice_id: string | null;
   voice_greeting: string;
   voice_system_prompt: string;
@@ -47,11 +49,12 @@ export interface VoiceState {
   voice_calling_hours: VoiceCallingHours;
   voice_max_retries: number;
   voice_retry_delay_minutes: number;
+  voice_accepts_inbound: boolean;
+  voice_transfer_number: string;
 }
 
 export function initialVoiceState(agent?: {
   voice_enabled?: boolean;
-  voice_ai_decides?: boolean;
   voice_id?: string | null;
   voice_greeting?: string | null;
   voice_system_prompt?: string | null;
@@ -60,10 +63,11 @@ export function initialVoiceState(agent?: {
   voice_calling_hours?: VoiceCallingHours | null;
   voice_max_retries?: number;
   voice_retry_delay_minutes?: number;
+  voice_accepts_inbound?: boolean;
+  voice_transfer_number?: string | null;
 }): VoiceState {
   return {
     voice_enabled: agent?.voice_enabled ?? false,
-    voice_ai_decides: agent?.voice_ai_decides ?? false,
     voice_id: agent?.voice_id ?? null,
     voice_greeting: agent?.voice_greeting ?? '',
     voice_system_prompt: agent?.voice_system_prompt ?? '',
@@ -74,6 +78,8 @@ export function initialVoiceState(agent?: {
     voice_max_retries: agent?.voice_max_retries ?? DEFAULT_MAX_RETRIES,
     voice_retry_delay_minutes:
       agent?.voice_retry_delay_minutes ?? DEFAULT_RETRY_DELAY_MINUTES,
+    voice_accepts_inbound: agent?.voice_accepts_inbound ?? false,
+    voice_transfer_number: agent?.voice_transfer_number ?? '',
   };
 }
 
@@ -117,7 +123,6 @@ const DAY_KEYS: { day: number; key: string }[] = [
 function tocado(v: VoiceState): boolean {
   const h = v.voice_calling_hours;
   return (
-    v.voice_ai_decides ||
     v.voice_max_retries !== DEFAULT_MAX_RETRIES ||
     h.start !== DEFAULT_CALLING_HOURS.start ||
     h.end !== DEFAULT_CALLING_HOURS.end ||
@@ -152,7 +157,6 @@ export function VoiceSettings({
   language,
   workspaceId,
   agentId,
-  showAiDecides = true,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
@@ -160,8 +164,6 @@ export function VoiceSettings({
   workspaceId?: string;
   /** null en un agente que todavía no se guardó: sin id no se puede llamar. */
   agentId?: string | null;
-  /** La política de escalado pertenece al asistente de chat vinculado. */
-  showAiDecides?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -260,14 +262,12 @@ export function VoiceSettings({
       }
       const c = json.config as {
         voice_enabled: boolean;
-        voice_ai_decides: boolean;
         voice_greeting: string;
         objectives: VoiceObjectives;
       };
       onChange({
         ...value,
         voice_enabled: c.voice_enabled ?? true,
-        voice_ai_decides: Boolean(c.voice_ai_decides),
         voice_greeting: c.voice_greeting || value.voice_greeting,
         voice_objectives: { ...value.voice_objectives, ...c.objectives },
       });
@@ -762,6 +762,76 @@ export function VoiceSettings({
         />
       </div>
 
+      {/* Estas decisiones cambian según quién atiende. No viven en la central
+          general porque ventas y soporte pueden transferir a personas distintas
+          y no todos los agentes deben recibir entrantes. */}
+      <div className="border-border overflow-hidden rounded-xl border">
+        <div className="border-border bg-muted/20 border-b px-3.5 py-3">
+          <p className="text-foreground text-sm font-medium">
+            {t('voice.agentOperations')}
+          </p>
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            {t('voice.agentOperationsHint')}
+          </p>
+        </div>
+        <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
+          <span className="flex min-w-0 gap-2.5">
+            <span className="bg-accent/10 text-accent-ink grid size-8 shrink-0 place-items-center rounded-lg">
+              <PhoneIncoming className="size-4" />
+            </span>
+            <span>
+              <span className="text-foreground block text-sm font-medium">
+                {t('voice.agentAcceptsInbound')}
+              </span>
+              <span className="text-muted-foreground mt-0.5 block text-xs">
+                {t('voice.agentAcceptsInboundHint')}
+              </span>
+            </span>
+          </span>
+          <Switch
+            className="mt-1 shrink-0"
+            checked={value.voice_accepts_inbound}
+            onCheckedChange={(checked) =>
+              set({ voice_accepts_inbound: checked })
+            }
+          />
+        </label>
+        <div className="grid gap-4 p-3.5 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
+              <ArrowRightLeft className="text-muted-foreground size-3.5" />
+              {t('voice.agentTransferNumber')}
+            </span>
+            <Input
+              type="tel"
+              className="bg-background text-foreground"
+              value={value.voice_transfer_number}
+              onChange={(event) =>
+                set({ voice_transfer_number: event.target.value })
+              }
+              placeholder={t('voice.phoneNumberPlaceholder')}
+            />
+          </label>
+          <label className="block">
+            <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
+              <Timer className="text-muted-foreground size-3.5" />
+              {t('voice.agentMaxDuration')}
+            </span>
+            <select
+              value={value.voice_max_call_seconds}
+              onChange={(event) =>
+                set({ voice_max_call_seconds: Number(event.target.value) })
+              }
+              className="border-border bg-background text-foreground h-9 w-full rounded-lg border px-2.5 text-sm"
+            >
+              <option value={180}>{t('voice.durationThreeMinutes')}</option>
+              <option value={300}>{t('voice.durationFiveMinutes')}</option>
+              <option value={600}>{t('voice.durationTenMinutes')}</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
       {/* ── Qué dice en cada tipo de llamada. Plegado: tiene guiones que
              funcionan y casi nadie los toca. ── */}
       <Plegable
@@ -856,23 +926,6 @@ export function VoiceSettings({
         alternar={() => setVerCuando((v) => !v)}
       >
         <div className="space-y-5">
-          {showAiDecides && (
-            <div className="border-border bg-muted/40 flex items-start justify-between gap-4 rounded-lg border p-3">
-              <div>
-                <p className="text-foreground text-sm font-medium">
-                  {t('voice.aiDecides')}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t('voice.aiDecidesHint')}
-                </p>
-              </div>
-              <Switch
-                checked={value.voice_ai_decides}
-                onCheckedChange={(c) => set({ voice_ai_decides: c })}
-              />
-            </div>
-          )}
-
           <div>
             <p className="text-foreground mb-1 text-sm font-medium">
               {t('voice.callingHours')}

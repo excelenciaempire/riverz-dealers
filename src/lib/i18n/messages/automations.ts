@@ -347,14 +347,20 @@ export const automations = {
     en: "Turn on this agent's voice",
   },
   voiceCallNoAgents: {
-    es: "Todavía no hay ningún agente en esta cuenta.",
-    en: "This account has no agents yet.",
+    es: "Aún no hay agentes de voz.",
+    en: "There are no voice agents yet.",
   },
-  voiceCallCreateAgent: { es: "Crear uno", en: "Create one" },
-  voiceCallObjective: { es: "Personalizar el objetivo", en: "Customize the objective" },
+  voiceCallCreateAgent: {
+    es: "Crear agente en Llamadas",
+    en: "Create agent in Calls",
+  },
+  voiceCallObjective: {
+    es: "Objetivo de esta llamada",
+    en: "Objective for this call",
+  },
   voiceCallObjectiveHint: {
-    es: "Vacío, usa el objetivo del agente.",
-    en: "Left empty, the agent's own objective is used.",
+    es: "Opcional. Si no lo cambias, usa el objetivo del agente.",
+    en: "Optional. If unchanged, it uses the agent's objective.",
   },
   voiceCallObjectivePlaceholder: {
     es: "Ej: confirmar la dirección de envío y el método de pago.",

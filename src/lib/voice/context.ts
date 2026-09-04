@@ -715,7 +715,11 @@ export async function buildVoiceContext(
         : null,
     speech_style: isArgentina ? 'rioplatense' : null,
     recording: { enabled: Boolean(opts.recordingEnabled) },
-    transfer: { number: opts.transferNumber ?? null },
+    transfer: {
+      // La persona correcta depende del agente (ventas, soporte, cobros).
+      // El valor antiguo de la conexión queda como fallback de compatibilidad.
+      number: agent.voice_transfer_number ?? opts.transferNumber ?? null,
+    },
     max_call_seconds: agent.voice_max_call_seconds || 300,
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },

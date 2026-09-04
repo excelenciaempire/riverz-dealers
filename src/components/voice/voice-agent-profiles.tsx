@@ -31,6 +31,12 @@ type VoiceAgent = {
   ai_agent_channels?: { channel: string }[];
 } & Partial<VoiceState>;
 
+type TriggerLinks = {
+  automations?: { agent_ids?: string[] }[];
+  deciding?: { voice_agent_id?: string | null }[];
+  campaigns?: { agent_id?: string | null }[];
+};
+
 /**
  * Los perfiles telefónicos viven en Llamadas. Un asistente de chat sólo los
  * vincula; no vuelve a mezclar guion, voz y operación del canal con su persona.
@@ -52,6 +58,7 @@ export function VoiceAgentProfiles({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [usageByAgent, setUsageByAgent] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!workspaceId) {
@@ -60,9 +67,14 @@ export function VoiceAgentProfiles({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/ai/agents?workspace_id=${workspaceId}`, {
-        cache: 'no-store',
-      });
+      const [res, linksRes] = await Promise.all([
+        fetch(`/api/ai/agents?workspace_id=${workspaceId}`, {
+          cache: 'no-store',
+        }),
+        fetch(`/api/voice/triggers?workspace_id=${workspaceId}`, {
+          cache: 'no-store',
+        }),
+      ]);
       if (!res.ok) return;
       const json = (await res.json()) as { agents?: VoiceAgent[] };
       setAgents(
@@ -71,9 +83,24 @@ export function VoiceAgentProfiles({
             agent.voice_enabled ||
             agent.ai_agent_channels?.some(
               (channel) => channel.channel === 'voice'
-            )
+          )
         )
       );
+      if (linksRes.ok) {
+        const links = (await linksRes.json()) as TriggerLinks;
+        const counts: Record<string, number> = {};
+        const add = (id?: string | null) => {
+          if (id) counts[id] = (counts[id] ?? 0) + 1;
+        };
+        for (const automation of links.automations ?? []) {
+          for (const id of automation.agent_ids ?? []) add(id);
+        }
+        for (const assistant of links.deciding ?? []) {
+          add(assistant.voice_agent_id);
+        }
+        for (const campaign of links.campaigns ?? []) add(campaign.agent_id);
+        setUsageByAgent(counts);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +126,7 @@ export function VoiceAgentProfiles({
           channels: ['voice'],
           voice_enabled: true,
           voice_ai_decides: false,
+          voice_accepts_inbound: false,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -139,6 +167,9 @@ export function VoiceAgentProfiles({
           voice_calling_hours: voice.voice_calling_hours,
           voice_max_retries: voice.voice_max_retries,
           voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
+          voice_accepts_inbound: voice.voice_accepts_inbound,
+          voice_transfer_number:
+            voice.voice_transfer_number.trim() || null,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -303,6 +334,14 @@ export function VoiceAgentProfiles({
                           : agent.is_active
                             ? t('voice.voiceAgentNeedsVoice')
                             : t('voice.voiceAgentPaused')}
+                        {(usageByAgent[agent.id] ?? 0) > 0 && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            {t('voice.voiceAgentLinkedCount', {
+                              count: String(usageByAgent[agent.id]),
+                            })}
+                          </>
+                        )}
                       </span>
                     </span>
                   </span>
@@ -336,7 +375,6 @@ export function VoiceAgentProfiles({
                       language={agent.language ?? locale}
                       workspaceId={workspaceId}
                       agentId={agent.id}
-                      showAiDecides={false}
                     />
                     <div className="border-border mt-5 flex justify-end border-t pt-4">
                       <Button

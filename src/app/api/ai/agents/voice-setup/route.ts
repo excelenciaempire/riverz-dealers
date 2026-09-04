@@ -12,7 +12,7 @@ import { DEFAULT_OBJECTIVES } from '@/lib/voice/constants';
 /**
  * AI-assisted voice setup: the merchant describes, in plain language, when
  * they want the agent to call; Claude turns it into a voice config the Voz
- * tab can apply (enabled call types + objectives + greeting + "AI decides").
+ * tab can apply (enabled call types + objectives + greeting).
  * Setup should feel like a sentence, not a form. Session-authed.
  */
 export async function POST(request: Request) {
@@ -64,11 +64,11 @@ export async function POST(request: Request) {
   // `buildVoiceContext` lee cuando la llamada ya existe. Pedirle que
   // "active" producía un JSON que el comercio veía aplicado y que no cambiaba
   // ningún comportamiento.
-  const system = `Eres un asistente que configura un AGENTE DE VOZ telefónico para una tienda. A partir de la descripción del comerciante escribes el OBJETIVO de cada tipo de llamada —qué tiene que lograr el agente cuando esa llamada ocurre—, un saludo inicial breve y natural, y decides si conviene dejar que la IA decida llamar sola.
+  const system = `Eres un asistente que configura un AGENTE DE VOZ telefónico para una tienda. A partir de la descripción del comerciante escribes el OBJETIVO de cada tipo de llamada —qué tiene que lograr el agente cuando esa llamada ocurre— y un saludo inicial breve y natural.
 Tipos de llamada: order_confirmation (confirmar pedido), cart_recovery (recuperar carrito), followup (seguimiento si el cliente dejó de responder), inbound (contestar llamadas entrantes).
 Devuelve SOLO un JSON válido con esta forma exacta, sin texto extra:
-{"voice_enabled":true,"voice_ai_decides":false,"voice_greeting":"...","objectives":{"order_confirmation":{"objective":""},"cart_recovery":{"objective":""},"followup":{"objective":""},"inbound":{"objective":""}}}
-Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio que describe el comerciante; el saludo usa {{contact_name}} para el nombre; escribe todo en '${lang}'. Si el comerciante menciona que la IA decida u opere sola, pon voice_ai_decides=true.`;
+{"voice_enabled":true,"voice_greeting":"...","objectives":{"order_confirmation":{"objective":""},"cart_recovery":{"objective":""},"followup":{"objective":""},"inbound":{"objective":""}}}
+Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio que describe el comerciante; el saludo usa {{contact_name}} para el nombre; escribe todo en '${lang}'.`;
 
   try {
     const client = getAnthropic(apiKey);
@@ -118,7 +118,6 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
     return NextResponse.json({
       config: {
         voice_enabled: parsed.voice_enabled !== false,
-        voice_ai_decides: Boolean(parsed.voice_ai_decides),
         voice_greeting: typeof parsed.voice_greeting === 'string' ? parsed.voice_greeting : '',
         objectives,
       },

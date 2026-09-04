@@ -217,6 +217,8 @@ export async function POST(request: Request) {
     'voice_calling_hours',
     'voice_max_retries',
     'voice_retry_delay_minutes',
+    'voice_accepts_inbound',
+    'voice_transfer_number',
   ] as const) {
     if (k in body && body[k] !== undefined) payload[k] = body[k];
   }

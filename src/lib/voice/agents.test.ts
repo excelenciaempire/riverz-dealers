@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listVoiceAgents } from './agents';
+import { listInboundVoiceAgents, listVoiceAgents } from './agents';
 
 /**
  * El bug que motiva estas pruebas: `listVoiceAgents` filtra por `scope` y
@@ -83,5 +83,33 @@ describe('listVoiceAgents', () => {
     const { db } = fakeDb([bajo, alto]);
     const r = await listVoiceAgents(db, 'ws1', 'id, name');
     expect(r.map((a) => a.id)).toEqual(['alto', 'bajo']);
+  });
+});
+
+describe('listInboundVoiceAgents', () => {
+  it('sólo devuelve agentes habilitados para llamadas entrantes', async () => {
+    const habilitado = {
+      ...BASE,
+      id: 'inbound',
+      voice_accepts_inbound: true,
+    };
+    const saliente = {
+      ...BASE,
+      id: 'outbound',
+      voice_accepts_inbound: false,
+    };
+    const { db } = fakeDb([habilitado, saliente]);
+
+    const r = await listInboundVoiceAgents(db, 'ws1');
+
+    expect(r.map((a) => a.id)).toEqual(['inbound']);
+  });
+
+  it('conserva el ruteo anterior mientras la columna aún no existe', async () => {
+    const { db } = fakeDb([BASE]);
+
+    const r = await listInboundVoiceAgents(db, 'ws1');
+
+    expect(r.map((a) => a.id)).toEqual(['a1']);
   });
 });

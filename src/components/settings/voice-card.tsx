@@ -8,7 +8,6 @@ import {
   Gauge,
   Loader2,
   Mic2,
-  PhoneIncoming,
   Save,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -155,33 +154,12 @@ export function VoiceCard({ onSaved }: { onSaved?: () => void }) {
 
       <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
         <Toggle
-          icon={PhoneIncoming}
-          label={t('voice.inboundEnabled')}
-          hint={t('voice.inboundHint')}
-          checked={!!cfg.inbound_enabled}
-          onChange={(c) => setCfg({ ...cfg, inbound_enabled: c })}
-        />
-        <Toggle
           icon={Mic2}
           label={t('voice.recordingEnabled')}
           hint={t('voice.recordingHint')}
           checked={!!cfg.recording_enabled}
           onChange={(c) => setCfg({ ...cfg, recording_enabled: c })}
         />
-        {/* El aviso hablado cuelga de la grabación: sin grabar no significa
-            nada, y suelto parecía una tercera decisión independiente. */}
-        {cfg.recording_enabled && (
-          <div className="sm:col-span-2">
-            <Toggle
-              compact
-              icon={Mic2}
-              label={t('voice.recordingDisclosure')}
-              hint={t('voice.recordingDisclosureHint')}
-              checked={!!cfg.recording_disclosure}
-              onChange={(c) => setCfg({ ...cfg, recording_disclosure: c })}
-            />
-          </div>
-        )}
         <ControlField icon={Gauge} label={t('voice.monthlyLimit')}>
           <Input
             type="number"
@@ -201,15 +179,20 @@ export function VoiceCard({ onSaved }: { onSaved?: () => void }) {
             {t('voice.monthlyLimitHint')}
           </span>
         </ControlField>
-        <ControlField icon={ArrowRightLeft} label={t('voice.transferNumber')}>
-          <Input
-            value={cfg.transfer_number ?? ''}
-            onChange={(e) =>
-              setCfg({ ...cfg, transfer_number: e.target.value })
-            }
-            placeholder={t('voice.phoneNumberPlaceholder')}
-          />
-        </ControlField>
+        {/* El aviso hablado cuelga de la grabación: sin grabar no significa
+            nada, y suelto parecía una tercera decisión independiente. */}
+        {cfg.recording_enabled && (
+          <div className="sm:col-span-2">
+            <Toggle
+              compact
+              icon={Mic2}
+              label={t('voice.recordingDisclosure')}
+              hint={t('voice.recordingDisclosureHint')}
+              checked={!!cfg.recording_disclosure}
+              onChange={(c) => setCfg({ ...cfg, recording_disclosure: c })}
+            />
+          </div>
+        )}
       </div>
 
       {/* Contra entrega: le sirve a los que hacen dropshipping y a nadie más.
