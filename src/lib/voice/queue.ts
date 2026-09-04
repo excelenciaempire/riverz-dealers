@@ -25,6 +25,11 @@ import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_DELAY_MINUTES,
 } from './constants';
+import {
+  normalizeVoiceCapacity,
+  voiceCallDedupeKey,
+  voiceCallPriority,
+} from './capacity';
 
 const DEFAULT_TZ = 'America/Bogota';
 
@@ -65,7 +70,7 @@ export interface EnqueueInput {
 }
 
 export type EnqueueResult =
-  | { enqueued: true; callId: string; scheduledAt: string }
+  | { enqueued: true; callId: string; scheduledAt: string; duplicate?: boolean }
   | { enqueued: false; reason: string };
 
 /** ISO weekday (1 = Mon … 7 = Sun) of `instant` in `tz`. */
@@ -232,6 +237,7 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     status: string;
   } | null;
   const cfg = conn?.config ?? {};
+  const capacity = normalizeVoiceCapacity(cfg);
   const agent = agentRow as AiAgent | null;
   const contact = contactRow as Contact | null;
 
@@ -327,6 +333,61 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     input.maxAttempts ?? (agent.voice_max_retries ?? DEFAULT_MAX_RETRIES) + 1;
   const maxAttempts = Math.max(1, Math.min(6, Math.floor(rawMaxAttempts) || 1));
 
+  const dispatchPriority = voiceCallPriority({
+    callType: input.callType,
+    automationId: input.automationId,
+    context: input.context,
+  });
+  const rawDedupeKey = voiceCallDedupeKey({
+    contactId: input.contactId,
+    callType: input.callType,
+    automationId: input.automationId,
+    context: input.context,
+  });
+  const dedupeKey = capacity.dedupeMinutes > 0 ? rawDedupeKey : null;
+
+  // Automatic triggers can arrive twice (webhook retry + cron, or two
+  // automation runners). Reuse the live call so both callers wait for the
+  // same result, and suppress a recently completed duplicate.
+  if (dedupeKey) {
+    const cutoff = new Date(
+      Date.now() - capacity.dedupeMinutes * 60_000
+    ).toISOString();
+    const { data: duplicate } = await db
+      .from('voice_calls')
+      .select('id, status, scheduled_at, created_at, ended_at')
+      .eq('workspace_id', input.workspaceId)
+      .eq('dedupe_key', dedupeKey)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const existing = duplicate as {
+      id: string;
+      status: string;
+      scheduled_at: string;
+      created_at: string;
+      ended_at: string | null;
+    } | null;
+    if (
+      existing &&
+      ['queued', 'dialing', 'in_progress'].includes(existing.status)
+    ) {
+      return {
+        enqueued: true,
+        callId: existing.id,
+        scheduledAt: existing.scheduled_at,
+        duplicate: true,
+      };
+    }
+    if (
+      existing &&
+      new Date(existing.ended_at ?? existing.created_at).getTime() >=
+        new Date(cutoff).getTime()
+    ) {
+      return { enqueued: false, reason: 'duplicate_recent' };
+    }
+  }
+
   const { data: inserted, error } = await db
     .from('voice_calls')
     .insert({
@@ -340,6 +401,8 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
       language: input.language || agent.language || 'es',
       status: 'queued',
       context: input.context ?? {},
+      dispatch_priority: dispatchPriority,
+      dedupe_key: dedupeKey,
       scheduled_at: scheduledAt.toISOString(),
       attempt: input.attempt ?? 1,
       max_attempts: maxAttempts,
@@ -349,6 +412,28 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     .single();
 
   if (error || !inserted) {
+    // The partial unique index closes the race between the lookup above and
+    // this insert. If another runner won, hand back that call instead of an
+    // opaque database error.
+    if ((error as { code?: string } | null)?.code === '23505' && dedupeKey) {
+      const { data: winner } = await db
+        .from('voice_calls')
+        .select('id, scheduled_at')
+        .eq('workspace_id', input.workspaceId)
+        .eq('dedupe_key', dedupeKey)
+        .in('status', ['queued', 'dialing', 'in_progress'])
+        .is('ended_at', null)
+        .maybeSingle();
+      if (winner) {
+        const row = winner as { id: string; scheduled_at: string };
+        return {
+          enqueued: true,
+          callId: row.id,
+          scheduledAt: row.scheduled_at,
+          duplicate: true,
+        };
+      }
+    }
     return {
       enqueued: false,
       reason: `insert_failed:${error?.message ?? 'unknown'}`,

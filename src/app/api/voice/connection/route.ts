@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
+import { normalizeVoiceCapacity } from '@/lib/voice/capacity';
 
 /**
  * Voice channel connection config (per workspace). Stores the merchant's DID,
@@ -14,7 +15,10 @@ import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
  * GET  ?workspace_id=  → { config, status } | { config: null }
  * PUT  { workspace_id, config } → upsert
  */
-async function requireMember(userId: string, workspaceId: string): Promise<boolean> {
+async function requireMember(
+  userId: string,
+  workspaceId: string
+): Promise<boolean> {
   const { data } = await supabaseAdmin()
     .from('workspace_members')
     .select('id')
@@ -29,10 +33,15 @@ export async function GET(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const workspaceId = new URL(request.url).searchParams.get('workspace_id');
-  if (!workspaceId) return NextResponse.json({ error: 'workspace_id required' }, { status: 400 });
+  if (!workspaceId)
+    return NextResponse.json(
+      { error: 'workspace_id required' },
+      { status: 400 }
+    );
   if (!(await requireMember(user.id, workspaceId))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
@@ -58,14 +67,18 @@ export async function PUT(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as {
     workspace_id?: string;
     config?: VoiceConnectionConfig;
   } | null;
   if (!body?.workspace_id) {
-    return NextResponse.json({ error: 'workspace_id required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'workspace_id required' },
+      { status: 400 }
+    );
   }
   // Comprar/liberar un número y enviar la documentación regulatoria exigen
   // admin, pero esta ruta pedía sólo ser miembro — así que cualquiera podía
@@ -84,9 +97,8 @@ export async function PUT(request: Request) {
       .eq('channel', 'voice')
       .maybeSingle();
 
-    const prevConfig =
-      ((existing as { config?: VoiceConnectionConfig } | null)?.config ??
-        {}) as VoiceConnectionConfig;
+    const prevConfig = ((existing as { config?: VoiceConnectionConfig } | null)
+      ?.config ?? {}) as VoiceConnectionConfig;
 
     // MERGE onto what's stored, don't rebuild from a whitelist.
     //
@@ -96,29 +108,55 @@ export async function PUT(request: Request) {
     // the same trap fires again every time a control leaves the form. Merging
     // makes "not sent" mean "leave it alone" — the only safe default for a
     // config several different flows write to.
-    const cfg: VoiceConnectionConfig = {
-      ...prevConfig,
-      inbound_enabled: Boolean(body.config?.inbound_enabled),
-      // 0 and null both mean "no cap" — that's what `enqueueCall` checks
-      // (`limit && limit > 0`) and what the field's hint promises.
-      monthly_minutes_limit:
-        body.config?.monthly_minutes_limit != null
-          ? Math.max(0, Number(body.config.monthly_minutes_limit) || 0)
-          : null,
-      kill_switch: Boolean(body.config?.kill_switch),
-      recording_enabled: Boolean(body.config?.recording_enabled),
-      recording_disclosure: Boolean(body.config?.recording_disclosure),
-      transfer_number: body.config?.transfer_number?.trim() || undefined,
-      // COD / dropshipping mode (opt-in)
-      cod_mode: Boolean(body.config?.cod_mode),
-      order_writeback: body.config?.order_writeback
+    const incoming = body.config ?? {};
+    const owns = (key: keyof VoiceConnectionConfig) =>
+      Object.prototype.hasOwnProperty.call(incoming, key);
+    const cfg: VoiceConnectionConfig = { ...prevConfig, ...incoming };
+
+    // This route is shared by small, independent cards. Only normalize keys
+    // the caller actually sent; an omitted checkbox must not turn another
+    // card's setting off.
+    for (const key of [
+      'inbound_enabled',
+      'kill_switch',
+      'recording_enabled',
+      'recording_disclosure',
+      'cod_mode',
+    ] as const) {
+      if (owns(key)) cfg[key] = Boolean(incoming[key]);
+    }
+    if (owns('monthly_minutes_limit')) {
+      cfg.monthly_minutes_limit =
+        incoming.monthly_minutes_limit == null
+          ? null
+          : Math.max(0, Number(incoming.monthly_minutes_limit) || 0);
+    }
+    if (owns('transfer_number')) {
+      cfg.transfer_number = incoming.transfer_number?.trim() || undefined;
+    }
+    if (owns('order_writeback')) {
+      cfg.order_writeback = incoming.order_writeback
         ? {
-            enabled: Boolean(body.config.order_writeback.enabled),
-            confirmed_tag: body.config.order_writeback.confirmed_tag?.trim() || undefined,
-            cancelled_tag: body.config.order_writeback.cancelled_tag?.trim() || undefined,
+            enabled: Boolean(incoming.order_writeback.enabled),
+            confirmed_tag:
+              incoming.order_writeback.confirmed_tag?.trim() || undefined,
+            cancelled_tag:
+              incoming.order_writeback.cancelled_tag?.trim() || undefined,
           }
-        : prevConfig.order_writeback,
-    };
+        : undefined;
+    }
+    if (
+      owns('max_concurrent_calls') ||
+      owns('reserved_inbound_slots') ||
+      owns('max_campaign_concurrent') ||
+      owns('dedupe_minutes')
+    ) {
+      const capacity = normalizeVoiceCapacity(cfg);
+      cfg.max_concurrent_calls = capacity.maxConcurrentCalls;
+      cfg.reserved_inbound_slots = capacity.reservedInboundSlots;
+      cfg.max_campaign_concurrent = capacity.maxCampaignConcurrent;
+      cfg.dedupe_minutes = capacity.dedupeMinutes;
+    }
 
     // The number and its country belong to the purchase + regulatory flow
     // (/api/voice/numbers). They were also editable by hand right below the
@@ -127,6 +165,9 @@ export async function PUT(request: Request) {
     // at the real one. One owner now.
     cfg.phone_number = prevConfig.phone_number;
     cfg.country = prevConfig.country;
+    cfg.telnyx_number_id = prevConfig.telnyx_number_id;
+    cfg.regulatory_group_id = prevConfig.regulatory_group_id;
+    cfg.regulatory_status = prevConfig.regulatory_status;
 
     const status = cfg.phone_number ? 'connected' : 'pending';
 

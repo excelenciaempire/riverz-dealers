@@ -1205,6 +1205,12 @@ export interface VoiceCall {
   summary: string | null;
   /** Order/cart/objective context interpolated for the call. */
   context: Record<string, unknown>;
+  /** Higher values leave the shared queue first. */
+  dispatch_priority: number;
+  /** Stable key used to prevent concurrent automatic duplicates. */
+  dedupe_key: string | null;
+  /** Physical SIP session id for exact inbound idempotency. */
+  external_call_id: string | null;
   scheduled_at: string;
   attempt: number;
   max_attempts: number;
@@ -1281,6 +1287,14 @@ export interface VoiceConnectionConfig {
   /** Anti-duplicate window for auto-enqueued calls, in HOURS (default 0.25 = 15 min;
    *  COD merchants set 12 to group multiple same-contact orders into one call). */
   dedupe_hours?: number;
+  /** Concurrent calls allowed for this workspace (1–50, default 3). */
+  max_concurrent_calls?: number;
+  /** Capacity kept free for incoming calls (default 0). */
+  reserved_inbound_slots?: number;
+  /** Concurrent campaign calls allowed (default 1). */
+  max_campaign_concurrent?: number;
+  /** Anti-duplicate window for automatic calls; 0 disables it. */
+  dedupe_minutes?: number;
 }
 
 /** Bulk outbound call campaign over a saved segment (migration 116). */

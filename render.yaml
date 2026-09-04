@@ -193,6 +193,10 @@ services:
       # (Authorization: Bearer). Set the SAME value on the voice-worker.
       - key: VOICE_WORKER_SECRET
         sync: false
+      # Hard platform ceiling for calls dispatched at once. Per-workspace
+      # limits are configured in Llamadas and always stay below this guard.
+      - key: VOICE_GLOBAL_CONCURRENCY_LIMIT
+        value: "10"
       # Platform (super) admin allowlist — EXTRA emails that can open the
       # platform panel (riverz.co/admin), on top of the built-in Riverz team
       # list in src/lib/auth/platform-admin.ts. Optional and additive: leaving

@@ -27,6 +27,7 @@ export async function GET(request: Request) {
   const callId = url.searchParams.get('call_id');
   const did = url.searchParams.get('did');
   const caller = url.searchParams.get('caller');
+  const sessionId = url.searchParams.get('session_id');
   const db = supabaseAdmin();
 
   try {
@@ -54,7 +55,11 @@ export async function GET(request: Request) {
           .eq('id', call.id);
       }
     } else if (did && caller) {
-      const resolved = await resolveInboundCall(db, { did, caller });
+      const resolved = await resolveInboundCall(db, {
+        did,
+        caller,
+        sessionId: sessionId || undefined,
+      });
       if (!resolved.ok) {
         return NextResponse.json({ error: resolved.reason }, { status: 409 });
       }
@@ -62,7 +67,7 @@ export async function GET(request: Request) {
     } else {
       return NextResponse.json(
         { error: 'call_id or did+caller required' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -75,18 +80,20 @@ export async function GET(request: Request) {
       .eq('channel', 'voice')
       .maybeSingle();
     const cfg =
-      (conn as {
-        config?: {
-          phone_number?: string;
-          recording_enabled?: boolean;
-          recording_disclosure?: boolean;
-          transfer_number?: string;
-          greeting_delay_seconds?: number;
-          silence_timeout_seconds?: number;
-          inbound_first_speaker?: 'agent' | 'customer';
-          outbound_first_speaker?: 'agent' | 'customer';
-        };
-      } | null)?.config ?? {};
+      (
+        conn as {
+          config?: {
+            phone_number?: string;
+            recording_enabled?: boolean;
+            recording_disclosure?: boolean;
+            transfer_number?: string;
+            greeting_delay_seconds?: number;
+            silence_timeout_seconds?: number;
+            inbound_first_speaker?: 'agent' | 'customer';
+            outbound_first_speaker?: 'agent' | 'customer';
+          };
+        } | null
+      )?.config ?? {};
     const trunkId = process.env.LIVEKIT_SIP_OUTBOUND_TRUNK_ID ?? null;
 
     // ¿Habla primero el agente? Por dirección: en salientes el agente saluda
@@ -94,8 +101,8 @@ export async function GET(request: Request) {
     // (default 'customer'). Configurable por el comercio.
     const firstSpeaker =
       call.direction === 'inbound'
-        ? cfg.inbound_first_speaker ?? 'customer'
-        : cfg.outbound_first_speaker ?? 'agent';
+        ? (cfg.inbound_first_speaker ?? 'customer')
+        : (cfg.outbound_first_speaker ?? 'agent');
 
     const payload = await buildVoiceContext(db, call, {
       trunkId,
@@ -111,7 +118,9 @@ export async function GET(request: Request) {
       agentGreetsFirst: firstSpeaker === 'agent',
       greetingDelaySeconds: Number(cfg.greeting_delay_seconds) || 0,
       silenceTimeoutSeconds:
-        cfg.silence_timeout_seconds != null ? Number(cfg.silence_timeout_seconds) : 8,
+        cfg.silence_timeout_seconds != null
+          ? Number(cfg.silence_timeout_seconds)
+          : 8,
     });
     return NextResponse.json(payload);
   } catch (err) {

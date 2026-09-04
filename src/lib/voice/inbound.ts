@@ -9,11 +9,7 @@
  */
 import { selectAll } from '@/lib/db/paginate';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type {
-  Contact,
-  VoiceCall,
-  VoiceConnectionConfig,
-} from '@/types';
+import type { Contact, VoiceCall, VoiceConnectionConfig } from '@/types';
 import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { pickInboundVoiceAgent, pickVoiceAgent } from './agents';
 
@@ -56,7 +52,7 @@ async function resolveContact(
   db: SupabaseClient,
   workspaceId: string,
   /** Ya normalizado por `callerToE164`. */
-  e164: string,
+  e164: string
 ): Promise<Contact | null> {
   const last8 = e164.slice(-8);
   // Match any existing contact by phone (cross-channel), preferring the oldest.
@@ -98,7 +94,7 @@ export type InboundResolution =
  */
 export async function resolveInboundCall(
   db: SupabaseClient,
-  input: { did: string; caller: string },
+  input: { did: string; caller: string; sessionId?: string }
 ): Promise<InboundResolution> {
   const did = toE164(input.did);
 
@@ -124,7 +120,8 @@ export async function resolveInboundCall(
   // and unverified). Refuse rather than guess and route to the wrong tenant.
   if (matches.length > 1) return { ok: false, reason: 'ambiguous_did' };
   const conn = matches[0];
-  if (conn.status === 'disconnected') return { ok: false, reason: 'disconnected' };
+  if (conn.status === 'disconnected')
+    return { ok: false, reason: 'disconnected' };
   const cfg = conn.config ?? {};
   if (cfg.kill_switch) return { ok: false, reason: 'kill_switch' };
 
@@ -142,23 +139,16 @@ export async function resolveInboundCall(
   if (!contact) return { ok: false, reason: 'contact_failed' };
   if (contact.voice_opt_out) return { ok: false, reason: 'opt_out' };
 
-  // Idempotency: the worker may re-fetch /context for the SAME physical call
-  // (timeout/reconnect). Reuse a recent, still-open inbound call for this
-  // contact instead of creating a duplicate row + conversation.
-  const recentIso = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-  const { data: existing } = await db
-    .from('voice_calls')
-    .select('*')
-    .eq('workspace_id', conn.workspace_id)
-    .eq('contact_id', contact.id)
-    .eq('direction', 'inbound')
-    .in('status', ['in_progress', 'dialing'])
-    .is('ended_at', null)
-    .gte('created_at', recentIso)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (existing) return { ok: true, call: existing as VoiceCall };
+  // Idempotency is tied to the physical SIP leg, never the caller. A customer
+  // may genuinely call twice at the same time from one switchboard number.
+  if (input.sessionId) {
+    const { data: existing } = await db
+      .from('voice_calls')
+      .select('*')
+      .eq('external_call_id', input.sessionId)
+      .maybeSingle();
+    if (existing) return { ok: true, call: existing as VoiceCall };
+  }
 
   const { data: inserted, error } = await db
     .from('voice_calls')
@@ -172,6 +162,8 @@ export async function resolveInboundCall(
       language: agent.language || 'es',
       status: 'in_progress',
       context: {},
+      dispatch_priority: 500,
+      external_call_id: input.sessionId ?? null,
       attempt: 1,
       max_attempts: 1,
       started_at: new Date().toISOString(),
@@ -180,7 +172,18 @@ export async function resolveInboundCall(
     .select('*')
     .single();
   if (error || !inserted) {
-    return { ok: false, reason: `insert_failed:${error?.message ?? 'unknown'}` };
+    if ((error as { code?: string }).code === '23505' && input.sessionId) {
+      const { data: winner } = await db
+        .from('voice_calls')
+        .select('*')
+        .eq('external_call_id', input.sessionId)
+        .maybeSingle();
+      if (winner) return { ok: true, call: winner as VoiceCall };
+    }
+    return {
+      ok: false,
+      reason: `insert_failed:${error?.message ?? 'unknown'}`,
+    };
   }
   return { ok: true, call: inserted as VoiceCall };
 }

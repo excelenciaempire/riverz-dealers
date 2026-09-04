@@ -92,6 +92,7 @@ class RiverzAPI:
         call_id: str | None = None,
         did: str | None = None,
         caller: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Trae la config de la llamada. Llamar UNA vez cerca del inicio:
         marca la llamada como dialing/in_progress en el servidor."""
@@ -102,6 +103,8 @@ class RiverzAPI:
             params["did"] = did
         if caller:
             params["caller"] = caller
+        if session_id:
+            params["session_id"] = session_id
         return await self._request("GET", "/api/internal/voice/context", params=params)
 
     async def run_tool(self, call_id: str, tool: str, input: dict[str, Any]) -> dict[str, Any]:

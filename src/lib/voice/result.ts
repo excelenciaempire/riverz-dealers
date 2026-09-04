@@ -41,7 +41,7 @@ export interface VoiceTranscriptTurn {
 
 export interface VoiceResultPayload {
   call_id: string;
-  status: VoiceCallStatus;
+  status: VoiceCallStatus | 'capacity_limited';
   outcome?: VoiceCallOutcome | null;
   outcome_details?: Record<string, unknown> | null;
   summary?: string | null;
@@ -74,15 +74,20 @@ function nn(v: number | null | undefined): number {
 /** Rough per-unit rates → estimated USD cost. Reconciled later (fase 2). */
 function estimateCost(
   usage: VoiceResultPayload['usage'],
-  durationSeconds: number | null,
+  durationSeconds: number | null
 ): VoiceCallCost {
   const minutes = nn(durationSeconds) / 60;
-  const sttMin = (usage?.stt_seconds != null ? nn(usage.stt_seconds) : nn(durationSeconds)) / 60;
+  const sttMin =
+    (usage?.stt_seconds != null ? nn(usage.stt_seconds) : nn(durationSeconds)) /
+    60;
   const stt_usd = sttMin * envNum('VOICE_STT_USD_PER_MIN', 0.0078);
   const llm_usd =
-    (nn(usage?.llm_input_tokens) / 1_000_000) * envNum('VOICE_LLM_IN_USD_PER_MTOK', 1) +
-    (nn(usage?.llm_output_tokens) / 1_000_000) * envNum('VOICE_LLM_OUT_USD_PER_MTOK', 5);
-  const tts_usd = (nn(usage?.tts_chars) / 1000) * envNum('VOICE_TTS_USD_PER_1K_CHARS', 0.05);
+    (nn(usage?.llm_input_tokens) / 1_000_000) *
+      envNum('VOICE_LLM_IN_USD_PER_MTOK', 1) +
+    (nn(usage?.llm_output_tokens) / 1_000_000) *
+      envNum('VOICE_LLM_OUT_USD_PER_MTOK', 5);
+  const tts_usd =
+    (nn(usage?.tts_chars) / 1000) * envNum('VOICE_TTS_USD_PER_1K_CHARS', 0.05);
   const telephony_usd = minutes * envNum('VOICE_TELEPHONY_USD_PER_MIN', 0.02);
   const total_usd =
     Math.round((stt_usd + llm_usd + tts_usd + telephony_usd) * 10000) / 10000;
@@ -99,7 +104,7 @@ function estimateCost(
 /** Find (by workspace) or create the voice channel_connections id. */
 async function voiceConnectionId(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<string | null> {
   const { data } = await db
     .from('channel_connections')
@@ -114,13 +119,14 @@ async function voiceConnectionId(
 async function materializeTranscript(
   db: SupabaseClient,
   call: VoiceCall,
-  payload: VoiceResultPayload,
+  payload: VoiceResultPayload
 ): Promise<string | null> {
   const turns = payload.transcript ?? [];
   const endedAt = payload.ended_at ?? new Date().toISOString();
   const connectionId = await voiceConnectionId(db, call.workspace_id);
 
-  const directionLabel = call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
+  const directionLabel =
+    call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
   const subject = call.summary || payload.summary || directionLabel;
 
   const { data: convo, error: convErr } = await db
@@ -175,7 +181,7 @@ async function materializeTranscript(
 async function scheduleRetry(
   db: SupabaseClient,
   call: VoiceCall,
-  agent: AiAgent,
+  agent: AiAgent
 ): Promise<boolean> {
   if (call.attempt >= call.max_attempts) return false;
   const { data: ws } = await db
@@ -189,7 +195,7 @@ async function scheduleRetry(
   const scheduledAt = nextAllowedTime(
     tz,
     agent.voice_calling_hours || DEFAULT_CALLING_HOURS,
-    earliest,
+    earliest
   );
   const { error } = await db.from('voice_calls').insert({
     workspace_id: call.workspace_id,
@@ -202,6 +208,8 @@ async function scheduleRetry(
     language: call.language,
     status: 'queued',
     context: call.context ?? {},
+    dispatch_priority: call.dispatch_priority,
+    dedupe_key: call.dedupe_key,
     scheduled_at: scheduledAt.toISOString(),
     attempt: call.attempt + 1,
     max_attempts: call.max_attempts,
@@ -221,13 +229,19 @@ async function scheduleRetry(
  * that one renders UI in the merchant's language, while these strings feed
  * the model and the tag list, which are Spanish throughout the app.
  */
-const OUTCOME_WORDING: Record<VoiceCallOutcome, { memory: string; tag: string }> = {
+const OUTCOME_WORDING: Record<
+  VoiceCallOutcome,
+  { memory: string; tag: string }
+> = {
   confirmed: { memory: 'confirmó el pedido', tag: 'confirmado' },
   cancelled_by_customer: { memory: 'canceló el pedido', tag: 'cancelado' },
   rescheduled: { memory: 'pidió reprogramar la entrega', tag: 'reprogramado' },
   recovered: { memory: 'retomó la compra', tag: 'recuperado' },
   declined: { memory: 'no quiso avanzar', tag: 'rechazado' },
-  callback_requested: { memory: 'pidió que lo llamen después', tag: 'volver-a-llamar' },
+  callback_requested: {
+    memory: 'pidió que lo llamen después',
+    tag: 'volver-a-llamar',
+  },
   opt_out: { memory: 'pidió no recibir más llamadas', tag: 'no-llamar' },
   no_outcome: { memory: 'sin resultado claro', tag: 'sin-resultado' },
 };
@@ -247,7 +261,7 @@ const CONTACT_MEMORY_MAX_CHARS = 2000;
  */
 async function callAttemptChain(
   db: SupabaseClient,
-  call: VoiceCall,
+  call: VoiceCall
 ): Promise<string[]> {
   const ids = [call.id];
   let parent = call.parent_call_id ?? null;
@@ -258,7 +272,9 @@ async function callAttemptChain(
       .select('parent_call_id')
       .eq('id', parent)
       .maybeSingle();
-    parent = (data as { parent_call_id?: string | null } | null)?.parent_call_id ?? null;
+    parent =
+      (data as { parent_call_id?: string | null } | null)?.parent_call_id ??
+      null;
   }
   return ids;
 }
@@ -278,7 +294,7 @@ async function callAttemptChain(
 async function absorbCallIntoContact(
   db: SupabaseClient,
   call: VoiceCall,
-  payload: VoiceResultPayload,
+  payload: VoiceResultPayload
 ): Promise<void> {
   const summary = (payload.summary ?? '').trim();
   const outcome = payload.outcome ?? null;
@@ -289,20 +305,29 @@ async function absorbCallIntoContact(
     .select('ai_summary')
     .eq('id', call.contact_id)
     .maybeSingle();
-  const prior = ((data as { ai_summary?: string | null } | null)?.ai_summary ?? '').trim();
+  const prior = (
+    (data as { ai_summary?: string | null } | null)?.ai_summary ?? ''
+  ).trim();
 
   const when = (payload.ended_at ?? new Date().toISOString()).slice(0, 10);
-  const direction = call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
+  const direction =
+    call.direction === 'inbound' ? 'Llamada entrante' : 'Llamada';
   const outcomeText = outcome ? ` — ${OUTCOME_WORDING[outcome].memory}` : '';
   const line = `${direction} del ${when}${outcomeText}${summary ? `: ${summary}` : '.'}`;
 
   // Newest first, then truncate: the recent call matters more than an old one,
   // and this keeps the field from growing without bound across many calls.
-  const next = [line, prior].filter(Boolean).join('\n').slice(0, CONTACT_MEMORY_MAX_CHARS);
+  const next = [line, prior]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, CONTACT_MEMORY_MAX_CHARS);
 
   await db
     .from('contacts')
-    .update({ ai_summary: next, last_ai_conversation_at: new Date().toISOString() })
+    .update({
+      ai_summary: next,
+      last_ai_conversation_at: new Date().toISOString(),
+    })
     .eq('id', call.contact_id);
 }
 
@@ -315,7 +340,7 @@ async function absorbCallIntoContact(
 async function tagContactForOutcome(
   db: SupabaseClient,
   call: VoiceCall,
-  outcome: VoiceCallOutcome,
+  outcome: VoiceCallOutcome
 ): Promise<void> {
   const name = `llamada:${OUTCOME_WORDING[outcome].tag}`;
 
@@ -377,7 +402,7 @@ export function llamadaRota(input: {
   if (input.status !== 'completed' || !input.connected) return null;
 
   const hablo = input.transcript.some(
-    (t) => t.role === 'agent' && (t.text ?? '').trim() !== '',
+    (t) => t.role === 'agent' && (t.text ?? '').trim() !== ''
   );
   if (!hablo && !input.summary) {
     return 'agent_silent: el modelo no respondió durante la llamada';
@@ -399,7 +424,7 @@ export function llamadaRota(input: {
  * already has `ended_at` is a no-op (returns ok).
  */
 export async function persistCallResult(
-  payload: VoiceResultPayload,
+  payload: VoiceResultPayload
 ): Promise<{ ok: boolean; reason?: string }> {
   const db = supabaseAdmin();
 
@@ -410,6 +435,43 @@ export async function persistCallResult(
     .maybeSingle();
   if (!callRow) return { ok: false, reason: 'call_not_found' };
   const call = callRow as VoiceCall;
+
+  // Provider channel limits are backpressure, not a customer-visible failure.
+  // Keep the same call id (so parked automations keep waiting), clear the
+  // temporary dispatch fields, and retry with a bounded delay.
+  if (payload.status === 'capacity_limited') {
+    if (call.ended_at) return { ok: true, reason: 'already_finalized' };
+    const requeues =
+      Math.max(
+        0,
+        Number((call.context as Record<string, unknown>)?.capacity_requeues) ||
+          0
+      ) + 1;
+    const delaySeconds = Math.min(300, 15 * 2 ** Math.min(requeues - 1, 5));
+    const scheduledAt = new Date(
+      Date.now() + delaySeconds * 1000
+    ).toISOString();
+    const { error } = await db
+      .from('voice_calls')
+      .update({
+        status: 'queued',
+        scheduled_at: scheduledAt,
+        started_at: null,
+        answered_at: null,
+        ended_at: null,
+        room_name: null,
+        error: 'capacity_limited',
+        context: { ...(call.context ?? {}), capacity_requeues: requeues },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', call.id)
+      .is('ended_at', null);
+    if (error) {
+      console.error('[voice] capacity requeue failed:', call.id, error);
+      return { ok: false, reason: 'capacity_requeue_failed' };
+    }
+    return { ok: true, reason: 'requeued_for_capacity' };
+  }
 
   // Idempotency: fast path for the already-finalized read, plus an ATOMIC
   // claim so two concurrent POSTs (the worker may retry) can't both proceed —
@@ -435,7 +497,8 @@ export async function persistCallResult(
 
   const durationSeconds = payload.duration_seconds ?? null;
   const cost = estimateCost(payload.usage, durationSeconds);
-  const connected = call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
+  const connected =
+    call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 
   // Materialize the transcript into a conversation when the call connected.
   let conversationId: string | null = call.conversation_id;
@@ -444,18 +507,18 @@ export async function persistCallResult(
   }
 
   const roto = llamadaRota({
-    status: payload.status,
+    status: payload.status as VoiceCallStatus,
     connected,
     transcript: payload.transcript ?? [],
     summary: payload.summary ?? null,
   });
   const mudo = roto !== null;
   const statusFinal = mudo ? 'failed' : payload.status;
-  const errorFinal = mudo ? payload.error || roto : payload.error ?? null;
+  const errorFinal = mudo ? payload.error || roto : (payload.error ?? null);
   if (mudo) {
     console.error(
       '[voice] llamada sin una sola respuesta del agente — revisar el LLM:',
-      call.id,
+      call.id
     );
   }
 
@@ -513,7 +576,7 @@ export async function persistCallResult(
   // confirmed order to Dropi. No-op unless the workspace enabled it.
   if (statusFinal === 'completed' && payload.outcome) {
     void maybeCodWriteback(db, call, payload.outcome).catch((err) =>
-      console.error('[voice] COD write-back failed:', err),
+      console.error('[voice] COD write-back failed:', err)
     );
   }
 
@@ -549,7 +612,7 @@ export async function persistCallResult(
     void callAttemptChain(db, call)
       .then((ids) => resumeAfterVoiceCall(ids, resultVars))
       .catch((err) =>
-        console.error('[voice] resume parked automation failed:', err),
+        console.error('[voice] resume parked automation failed:', err)
       );
 
     void runAutomationsForTrigger({
@@ -560,7 +623,9 @@ export async function persistCallResult(
         conversation_id: conversationId ?? undefined,
         vars: resultVars,
       },
-    }).catch((err) => console.error('[voice] post-call automations failed:', err));
+    }).catch((err) =>
+      console.error('[voice] post-call automations failed:', err)
+    );
   }
 
   // What was said on the phone has to reach the TEXT agent, or the customer
@@ -568,12 +633,12 @@ export async function persistCallResult(
   // fire-and-forget: a summary that fails must never fail the call.
   if (connected) {
     void absorbCallIntoContact(db, call, payload).catch((err) =>
-      console.error('[voice] contact memory failed:', err),
+      console.error('[voice] contact memory failed:', err)
     );
   }
   if (payload.outcome && payload.outcome !== 'no_outcome') {
     void tagContactForOutcome(db, call, payload.outcome).catch((err) =>
-      console.error('[voice] outcome tag failed:', err),
+      console.error('[voice] outcome tag failed:', err)
     );
   }
 

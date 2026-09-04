@@ -135,6 +135,26 @@ def _is_ring_timeout(err) -> bool:
     return "timed out" in str(getattr(err, "message", err) or "").lower()
 
 
+def _is_capacity_limit(err) -> bool:
+    """Telnyx/LiveKit reports exhausted concurrent channels as SIP 403.
+    A generic 403 can also mean bad credentials, so only retry messages that
+    explicitly describe channel/concurrency capacity."""
+    if _sip_status_code(err) != 403:
+        return False
+    meta = getattr(err, "metadata", None) or {}
+    text = " ".join([
+        str(getattr(err, "message", err) or ""),
+        " ".join(f"{key}={value}" for key, value in meta.items()),
+    ]).lower()
+    return any(token in text for token in (
+        "channel limit",
+        "concurrent call limit",
+        "concurrency limit",
+        "maximum concurrent",
+        "no available channel",
+    ))
+
+
 def _sip_status_code(err) -> int | None:
     """SIP status code que viene en el TwirpError del marcado, si lo trae."""
     meta = getattr(err, "metadata", None) or {}
@@ -406,7 +426,12 @@ async def _finalize(
         except Exception:
             duration = None
 
-    summary = await _summarize(context or {}, call_state.transcript)
+    # Capacity is infrastructure backpressure, not a completed call. There is
+    # no transcript to summarize and the backend will put the same row back in
+    # the queue.
+    summary = None if status == "capacity_limited" else await _summarize(
+        context or {}, call_state.transcript
+    )
 
     payload = {
         "call_id": call_state.call_id,
@@ -1144,7 +1169,8 @@ async def _run_outbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, 
 
     if last_error is not None:
         call_state.status = (
-            "no_answer" if last_code is None and _is_ring_timeout(last_error)
+            "capacity_limited" if _is_capacity_limit(last_error)
+            else "no_answer" if last_code is None and _is_ring_timeout(last_error)
             else _map_sip_status(last_code)
         )
         logger.warning(
@@ -1183,11 +1209,16 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     did = attrs.get("sip.trunkPhoneNumber")
     caller = attrs.get("sip.phoneNumber")
 
-    context = await api.get_context(did=did, caller=caller)
+    participant_identity = getattr(participant, "identity", "") or ""
+    # Exact identity of the physical SIP leg. Two real simultaneous calls from
+    # the same phone must produce two records; a reconnect of the same leg must
+    # reuse one. Caller + a two-minute window cannot tell those cases apart.
+    session_id = f"{ctx.room.name}:{participant_identity}" if participant_identity else None
+    context = await api.get_context(did=did, caller=caller, session_id=session_id)
     call_state.call_id = context.get("call_id", "")
     call_state.answered_at = _now_iso()
     # El participante telefónico ya está en la room -> guardamos su identity para transferir.
-    call_state.phone_identity = getattr(participant, "identity", "") or ""
+    call_state.phone_identity = participant_identity
 
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()

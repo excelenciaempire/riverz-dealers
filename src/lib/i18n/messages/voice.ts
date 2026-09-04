@@ -473,6 +473,61 @@ export const voice = {
   },
   unsavedChanges: { es: 'Cambios sin guardar', en: 'Unsaved changes' },
   allSaved: { es: 'Todo guardado', en: 'Everything saved' },
+  capacityTitle: { es: 'Capacidad', en: 'Capacity' },
+  capacityHint: {
+    es: 'Ordena el tráfico y evita que una campaña bloquee las demás llamadas.',
+    en: 'Orders traffic and prevents a campaign from blocking other calls.',
+  },
+  capacityInProgress: { es: 'En curso', en: 'In progress' },
+  capacityActiveMix: {
+    es: '{inbound} entrantes · {outbound} salientes',
+    en: '{inbound} incoming · {outbound} outgoing',
+  },
+  capacityQueued: { es: 'En cola', en: 'Queued' },
+  capacityInboundReserve: { es: 'Reserva entrante', en: 'Inbound reserve' },
+  capacityReserveOff: { es: 'Sin reserva', en: 'No reserve' },
+  capacityDialogTitle: { es: 'Capacidad de llamadas', en: 'Call capacity' },
+  capacityDialogHint: {
+    es: 'Define cuántas conversaciones pueden ocurrir al mismo tiempo.',
+    en: 'Set how many conversations can happen at the same time.',
+  },
+  capacityMaxTitle: { es: 'Máximo simultáneo', en: 'Concurrent maximum' },
+  capacityMaxHint: {
+    es: 'Incluye entrantes y salientes.',
+    en: 'Includes incoming and outgoing calls.',
+  },
+  capacityReserveTitle: {
+    es: 'Reservar para entrantes',
+    en: 'Reserve for incoming',
+  },
+  capacityReserveHint: {
+    es: 'Mantiene líneas libres aunque haya llamadas salientes.',
+    en: 'Keeps lines free while outgoing calls are running.',
+  },
+  capacityCampaignTitle: { es: 'Máximo por campañas', en: 'Campaign maximum' },
+  capacityCampaignHint: {
+    es: 'Evita que una campaña ocupe toda la capacidad.',
+    en: 'Prevents one campaign from using all capacity.',
+  },
+  capacityDedupeTitle: {
+    es: 'Evitar llamadas duplicadas',
+    en: 'Prevent duplicate calls',
+  },
+  capacityDedupeHint: {
+    es: 'Agrupa disparos automáticos repetidos.',
+    en: 'Groups repeated automatic triggers.',
+  },
+  capacityMinutes: { es: 'min', en: 'min' },
+  capacityPriority: { es: 'Prioridad automática', en: 'Automatic priority' },
+  capacityPriorityInbound: { es: 'Entrantes', en: 'Incoming' },
+  capacityPriorityManual: { es: 'Manuales', en: 'Manual' },
+  capacityPriorityAutomation: { es: 'Automatizaciones', en: 'Automations' },
+  capacityPriorityCampaign: { es: 'Campañas', en: 'Campaigns' },
+  capacitySaved: { es: 'Capacidad actualizada', en: 'Capacity updated' },
+  capacitySaveFailed: {
+    es: 'No se pudo guardar la capacidad.',
+    en: "Couldn't save call capacity.",
+  },
   agentOperations: { es: 'Operación', en: 'Operations' },
   agentOperationsHint: {
     es: 'Cómo atiende y cuándo pasa la llamada a una persona.',

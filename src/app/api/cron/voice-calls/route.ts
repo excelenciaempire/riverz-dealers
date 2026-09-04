@@ -3,7 +3,7 @@ import type { VoiceCall, VoiceConnectionConfig } from '@/types';
 import { serverError } from '@/lib/api/errors';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { withCronRun } from "@/lib/cron/heartbeat";
+import { withCronRun } from '@/lib/cron/heartbeat';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import {
   dispatchVoiceCall,
@@ -17,6 +17,7 @@ import {
   transcribeRecording,
 } from '@/lib/voice/rescate';
 import { persistCallResult } from '@/lib/voice/result';
+import { fairVoiceQueue } from '@/lib/voice/capacity';
 
 /**
  * Voice calls cron (every minute):
@@ -28,6 +29,7 @@ import { persistCallResult } from '@/lib/voice/result';
  */
 
 const CLAIM_BATCH = 25;
+const QUEUE_SCAN = 100;
 // Hard ceiling well above any per-agent voice_max_call_seconds (300s default).
 const STUCK_AFTER_MS = 20 * 60 * 1000;
 
@@ -40,7 +42,7 @@ const STUCK_AFTER_MS = 20 * 60 * 1000;
  */
 async function customerRepliedSince(
   db: ReturnType<typeof supabaseAdmin>,
-  call: VoiceCall,
+  call: VoiceCall
 ): Promise<boolean> {
   const { data: convs } = await db
     .from('conversations')
@@ -75,7 +77,7 @@ async function customerRepliedSince(
  */
 async function cancelCall(
   call: VoiceCall,
-  reason: 'kill_switch' | 'opt_out' | 'customer_replied',
+  reason: 'kill_switch' | 'opt_out' | 'customer_replied'
 ): Promise<void> {
   await persistCallResult({
     call_id: call.id,
@@ -83,7 +85,12 @@ async function cancelCall(
     ended_at: new Date().toISOString(),
     error: reason,
   }).catch((err) =>
-    console.error('[cron/voice-calls] cancel-persist failed:', call.id, reason, err),
+    console.error(
+      '[cron/voice-calls] cancel-persist failed:',
+      call.id,
+      reason,
+      err
+    )
   );
 }
 
@@ -114,6 +121,7 @@ async function cronHandler(request: Request) {
   let dispatched = 0;
   let failed = 0;
   let swept = 0;
+  let capacityHeld = 0;
 
   try {
     // ── 1. Dispatch due queued calls ──
@@ -122,24 +130,50 @@ async function cronHandler(request: Request) {
       .select('*')
       .eq('status', 'queued')
       .lte('scheduled_at', nowIso)
+      .order('dispatch_priority', { ascending: false })
       .order('scheduled_at', { ascending: true })
-      .limit(CLAIM_BATCH);
+      .limit(QUEUE_SCAN);
 
-    for (const row of (due ?? []) as VoiceCall[]) {
-      // Claim atomically: only one runner flips queued → dialing.
-      const { data: claimed } = await db
-        .from('voice_calls')
-        .update({
-          status: 'dialing',
-          started_at: nowIso,
-          room_name: roomNameForCall(row.id),
-          updated_at: nowIso,
-        })
-        .eq('id', row.id)
-        .eq('status', 'queued')
-        .select('id')
-        .maybeSingle();
-      if (!claimed) continue; // lost the race
+    const globalLimit = Math.max(
+      1,
+      Math.min(250, Number(process.env.VOICE_GLOBAL_CONCURRENCY_LIMIT) || 10)
+    );
+    for (const row of fairVoiceQueue((due ?? []) as VoiceCall[])) {
+      if (dispatched >= CLAIM_BATCH) break;
+
+      // Capacity + queued→dialing happen inside one database transaction.
+      // When all slots are busy the row stays queued; lack of capacity is not
+      // a failed customer call and must never trigger retries or fallbacks.
+      const { data: claimRows, error: claimError } = await db.rpc(
+        'claim_voice_call_with_capacity',
+        {
+          p_call_id: row.id,
+          p_room_name: roomNameForCall(row.id),
+          p_global_limit: globalLimit,
+        }
+      );
+      if (claimError) {
+        console.error(
+          '[cron/voice-calls] capacity claim failed:',
+          row.id,
+          claimError
+        );
+        continue;
+      }
+      const claim = (Array.isArray(claimRows) ? claimRows[0] : claimRows) as {
+        claimed?: boolean;
+        reason?: string | null;
+      } | null;
+      if (!claim?.claimed) {
+        if (
+          claim?.reason?.includes('capacity') ||
+          claim?.reason === 'inbound_reserved'
+        ) {
+          capacityHeld++;
+        }
+        if (claim?.reason === 'global_capacity') break;
+        continue;
+      }
 
       // Re-check the kill switch at dispatch time (it may have flipped since
       // the call was enqueued).
@@ -149,7 +183,8 @@ async function cronHandler(request: Request) {
         .eq('workspace_id', row.workspace_id)
         .eq('channel', 'voice')
         .maybeSingle();
-      const cfg = (conn as { config?: VoiceConnectionConfig } | null)?.config ?? {};
+      const cfg =
+        (conn as { config?: VoiceConnectionConfig } | null)?.config ?? {};
       const connStatus = (conn as { status?: string } | null)?.status;
       if (cfg.kill_switch || connStatus === 'disconnected') {
         await cancelCall(row, 'kill_switch');
@@ -162,7 +197,12 @@ async function cronHandler(request: Request) {
       if (!(await puedeUsarIa(db, row.workspace_id))) {
         await db
           .from('voice_calls')
-          .update({ status: 'queued', updated_at: new Date().toISOString() })
+          .update({
+            status: 'queued',
+            started_at: null,
+            room_name: null,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', row.id);
         continue;
       }
@@ -183,13 +223,19 @@ async function cronHandler(request: Request) {
       // when the message already worked. Without this the customer answered
       // the WhatsApp, bought, and got phoned about the cart anyway hours
       // later — the single fastest way to make the feature feel dumb.
-      if (row.context?.skip_if_replied && (await customerRepliedSince(db, row))) {
+      if (
+        row.context?.skip_if_replied &&
+        (await customerRepliedSince(db, row))
+      ) {
         await cancelCall(row, 'customer_replied');
         continue;
       }
 
       try {
-        await dispatchVoiceCall({ callId: row.id, workspaceId: row.workspace_id });
+        await dispatchVoiceCall({
+          callId: row.id,
+          workspaceId: row.workspace_id,
+        });
         dispatched++;
       } catch (err) {
         failed++;
@@ -202,7 +248,9 @@ async function cronHandler(request: Request) {
           status: 'failed',
           ended_at: new Date().toISOString(),
           error: err instanceof Error ? err.message : String(err),
-        }).catch((e) => console.error('[cron/voice-calls] fail-persist failed:', row.id, e));
+        }).catch((e) =>
+          console.error('[cron/voice-calls] fail-persist failed:', row.id, e)
+        );
       }
     }
 
@@ -256,7 +304,9 @@ async function cronHandler(request: Request) {
           conecto && row.started_at
             ? Math.max(
                 0,
-                Math.round((ended.getTime() - new Date(row.started_at).getTime()) / 1000),
+                Math.round(
+                  (ended.getTime() - new Date(row.started_at).getTime()) / 1000
+                )
               )
             : null,
         transcript: transcript ?? undefined,
@@ -264,15 +314,22 @@ async function cronHandler(request: Request) {
         error: conecto
           ? 'worker_timeout: la llamada se cortó de nuestro lado; transcripción rescatada del audio'
           : 'worker_timeout',
-      }).catch((err) => console.error('[cron/voice-calls] sweep failed:', row.id, err));
+      }).catch((err) =>
+        console.error('[cron/voice-calls] sweep failed:', row.id, err)
+      );
       swept++;
     }
 
-    return NextResponse.json({ dispatched, failed, swept });
+    return NextResponse.json({
+      dispatched,
+      failed,
+      swept,
+      capacity_held: capacityHeld,
+    });
   } catch (err) {
     return serverError(err, 'voice-calls cron failed');
   }
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */
-export const GET = withCronRun("voice-calls", cronHandler);
+export const GET = withCronRun('voice-calls', cronHandler);

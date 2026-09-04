@@ -18,6 +18,7 @@ import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
 import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
+import { VoiceCapacityCard } from '@/components/voice/voice-capacity-card';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -240,6 +241,8 @@ export default function VoicePage() {
             void releerEstado();
           }}
         />
+
+        <VoiceCapacityCard workspaceId={workspaceId} />
 
         <VoiceCard
           onSaved={() => {
