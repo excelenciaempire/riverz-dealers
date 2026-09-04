@@ -312,6 +312,16 @@ export function ProfileForm() {
             );
           }
         }
+        // No esperar a que la consulta del workspace vuelva a terminar para
+        // repintar la lista: de otro modo el número sí queda en la base pero
+        // la pantalla muestra una fila vacía durante el refresco.
+        setExtras(
+          sinDuplicados.filter(
+            (x) =>
+              sanitizePhoneForMeta(x.phone) !==
+              sanitizePhoneForMeta(trimmedPhone)
+          )
+        );
         reloadWorkspace();
       }
 
