@@ -249,33 +249,6 @@ export const voice = {
     en: 'This voice agent’s hours and retries.',
   },
 
-  // Cuando llama. La pregunta que ninguna pantalla contestaba.
-  whenTitle: { es: 'Cuándo llama', en: 'When it calls' },
-  whenHint: {
-    es: 'Las reglas que hoy pueden hacer sonar el teléfono.',
-    en: 'The rules that can make the phone ring today.',
-  },
-  whenNewRule: { es: 'Crear una regla', en: 'Create a rule' },
-  whenFlowContact: { es: 'Contacto', en: 'Contact' },
-  whenFlowRule: { es: 'Regla', en: 'Rule' },
-  whenFlowCall: { es: 'Llamada', en: 'Call' },
-  whenNothing: {
-    es: 'Aún no hay reglas activas. Las llamadas solo salen manualmente desde la bandeja.',
-    en: 'There are no active rules yet. Calls can only be placed manually from the inbox.',
-  },
-  whenAutomation: { es: 'Automatización', en: 'Automation' },
-  whenAssistant: { es: 'Asistente', en: 'Assistant' },
-  whenCampaign: { es: 'Campaña', en: 'Campaign' },
-  whenPaused: { es: 'Pausada', en: 'Paused' },
-  whenAgentDecides: {
-    es: '{name} puede llamar cuando el chat se traba',
-    en: '{name} can call when the chat gets stuck',
-  },
-  whenManual: {
-    es: 'También puedes llamar a mano desde la ficha de un contacto en la bandeja.',
-    en: 'You can also call by hand from a contact in the inbox.',
-  },
-
   // La linea de estado: si el telefono puede sonar, en un renglon.
   canCallFrom: {
     es: 'Puede llamar desde {number}',

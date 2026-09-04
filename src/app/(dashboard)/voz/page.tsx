@@ -18,7 +18,6 @@ import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
-import { WhenItCalls } from '@/components/voice/when-it-calls';
 import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
@@ -253,18 +252,12 @@ export default function VoicePage() {
           }}
         />
 
-        {/* Cuándo llama va DESPUÉS de quién atiende y antes del comportamiento:
-            es el orden en que se piensa —tengo número, tengo quien atienda,
-            ahora cuándo suena— y era justo el eslabón que no estaba. */}
-        <div className="grid items-start gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <WhenItCalls />
-          <VoiceCard
-            onSaved={() => {
-              recargar();
-              releerEstado();
-            }}
-          />
-        </div>
+        <VoiceCard
+          onSaved={() => {
+            recargar();
+            releerEstado();
+          }}
+        />
       </section>
 
       {/* ── Mirarlo. Se hace todas las semanas. ── */}
