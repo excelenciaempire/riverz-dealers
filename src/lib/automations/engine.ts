@@ -41,6 +41,7 @@ import {
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
+import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ------------------------------------------------------------
@@ -773,8 +774,19 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     }
 
     case 'send_template': {
-      const cfg = step.step_config as SendTemplateStepConfig
+      const configured = step.step_config as SendTemplateStepConfig
       if (!args.contactId) throw new Error('send_template needs a contact')
+      const variant = await assignedTemplateVariant(db, configured, {
+        workspaceId: args.automation.workspace_id,
+        automationId: args.automation.id,
+        stepId: step.id,
+        contactId: args.contactId,
+      })
+      // The selected variant becomes the normal send configuration. This keeps
+      // dynamic-link and variable resolution identical to regular templates.
+      const cfg: SendTemplateStepConfig = variant
+        ? { template_name: variant.template_name, language: variant.language, variables: variant.variables }
+        : configured
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
 
@@ -877,7 +889,20 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         reason: motivoDelDisparador(args.automation.trigger_type),
       })
       if (!whatsapp_message_id) exigirQueHayaSalido()
-      return `template sent via Meta (${whatsapp_message_id})`
+      if (variant && configured.ab_test) {
+        await recordExperimentExposure(db, {
+          workspaceId: args.automation.workspace_id,
+          automationId: args.automation.id,
+          stepId: step.id,
+          logId: args.logId,
+          contactId: args.contactId,
+          experimentId: configured.ab_test.id,
+          variantId: variant.id,
+          templateName: cfg.template_name,
+          whatsappMessageId: whatsapp_message_id,
+        })
+      }
+      return `template sent via Meta (${whatsapp_message_id})${variant ? ` [A/B ${variant.id.toUpperCase()}]` : ''}`
     }
 
     case 'set_context': {

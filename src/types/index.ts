@@ -862,6 +862,14 @@ export interface SendTemplateStepConfig {
   template_name: string;
   language?: string;
   variables?: Record<string, string>;
+  /** Optional, stable A/B experiment owned by this send step. */
+  ab_test?: {
+    id: string;
+    variants: [
+      { id: 'a'; template_name: string; language?: string; variables?: Record<string, string>; weight: number },
+      { id: 'b'; template_name: string; language?: string; variables?: Record<string, string>; weight: number },
+    ];
+  };
 }
 
 export interface TagStepConfig {

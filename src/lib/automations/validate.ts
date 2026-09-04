@@ -1,4 +1,5 @@
 import { CONDITION_SUBJECTS, type AutomationTriggerType } from '@/types'
+import { abTestValidationError } from './template-ab-test'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -76,8 +77,12 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       }
       break
     case 'send_template':
-      if (!nonEmpty(c.template_name)) {
+      if (!nonEmpty(c.template_name) && !c.ab_test) {
         issues.push({ path: `${path}.template_name`, message: 'template name is required', key: 'automations.issueSinPlantilla' })
+      }
+      {
+        const error = abTestValidationError(c)
+        if (error) issues.push({ path: `${path}.ab_test`, message: error, key: 'automations.issueAbTest' })
       }
       break
     case 'add_tag':

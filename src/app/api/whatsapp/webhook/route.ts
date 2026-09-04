@@ -14,6 +14,7 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { platformWhatsApp } from '@/lib/admin/platform-whatsapp'
 import { parseReply, resolveByCode } from '@/lib/approvals/resolve'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { attributeExperimentResponse } from '@/lib/automations/template-ab-attribution'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { metaErrorText, metaErrorCode } from '@/lib/whatsapp/delivery-errors'
@@ -1000,6 +1001,19 @@ async function processMessage(
     }
     console.error('Error inserting message:', msgError)
     return
+  }
+
+  // A/B attribution is intentionally before flows/AI: the customer's first
+  // reply is evidence for the last eligible template exposure, regardless of
+  // which automation subsequently handles the conversation.
+  const exposureWorkspaceId = (contactRecord as { workspace_id?: string | null }).workspace_id
+  if (exposureWorkspaceId) {
+    await attributeExperimentResponse(supabaseAdmin(), {
+      workspaceId: exposureWorkspaceId,
+      contactId: contactRecord.id,
+      messageId: message.id,
+      receivedAt: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+    }).catch((error) => console.error('[ab-test] response attribution failed:', error))
   }
 
   // Update conversation

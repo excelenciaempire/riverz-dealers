@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
 import { getConnectionByShop } from '@/lib/shopify/connection'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { attributeExperimentOrder } from '@/lib/automations/template-ab-attribution'
 import {
   extractShopifyLegacyPhone,
   extractShopifyName,
@@ -294,6 +295,25 @@ export async function POST(request: Request) {
       email: (order.email as string) || undefined,
       legacyExternalId: extractShopifyLegacyPhone(order),
     })
+    if (topic === 'orders/create' && contactId && orderId > 0) {
+      const { data: mirroredOrder } = await admin
+        .from('orders')
+        .select('id, total_price, currency')
+        .eq('workspace_id', workspaceId)
+        .eq('shop_domain', shopDomain)
+        .eq('shopify_order_id', String(orderId))
+        .maybeSingle()
+      if (mirroredOrder) {
+        await attributeExperimentOrder(admin, {
+          workspaceId,
+          contactId,
+          orderId: String((mirroredOrder as { id: string }).id),
+          total: Number((mirroredOrder as { total_price?: string | number | null }).total_price ?? 0) || null,
+          currency: (mirroredOrder as { currency?: string | null }).currency ?? null,
+          orderedAt: String(order.created_at ?? new Date().toISOString()),
+        }).catch((err) => console.error('[ab-test] order attribution failed:', err))
+      }
+    }
     if (!contactId) return NextResponse.json({ ok: true })
 
     // El pedido se guardó recién, cuando todavía no había contacto. Ahora que

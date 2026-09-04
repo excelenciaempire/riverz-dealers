@@ -134,6 +134,11 @@ export async function activationIssuesById(
     if (step.step_type === 'send_template') {
       const name = String(step.step_config?.template_name ?? '').trim()
       if (name) nombres.add(name)
+      const variants = (step.step_config?.ab_test as { variants?: Array<{ template_name?: string }> } | undefined)?.variants ?? []
+      for (const variant of variants) {
+        const variantName = String(variant.template_name ?? '').trim()
+        if (variantName) nombres.add(variantName)
+      }
     }
     if (step.branches) {
       walk(step.branches.yes ?? [])

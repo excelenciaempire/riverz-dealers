@@ -64,6 +64,7 @@ import { useT } from "@/hooks/use-locale"
 import type { TFn } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { BranchFan, HEAD_H, LINE, STEP_META } from "./lienzo-piezas"
+import { AbTestResults } from "./ab-test-results"
 import { WhatsappPreview } from "@/components/templates/whatsapp-preview"
 import {
   extractVariables,
@@ -92,6 +93,7 @@ import type { TemplateHeaderType } from "@/lib/whatsapp/template-components"
 /** Approved templates, shared with the send_template editor + the phone
  *  preview without threading props through the recursive step tree. */
 const TemplatesContext = createContext<MessageTemplate[]>([])
+const AutomationIdContext = createContext<string | null>(null)
 
 /** Saved contact segments — used by the audience picker on the trigger
  *  card and by the `in_segment` condition subject inside the step tree. */
@@ -1649,7 +1651,8 @@ export function AutomationBuilder({
         armar: armarRamaLlamada,
       }}
     >
-    <TemplatesContext.Provider value={templates}>
+      <AutomationIdContext.Provider value={state.id ?? null}>
+      <TemplatesContext.Provider value={templates}>
     <SegmentsContext.Provider value={segments}>
     <TagsContext.Provider value={tags}>
     <TagsMutateContext.Provider
@@ -1892,7 +1895,8 @@ export function AutomationBuilder({
     </TagsMutateContext.Provider>
     </TagsContext.Provider>
     </SegmentsContext.Provider>
-    </TemplatesContext.Provider>
+      </TemplatesContext.Provider>
+      </AutomationIdContext.Provider>
     </RamaLlamadaContext.Provider>
     </HasVoiceCallContext.Provider>
     </TriggerContext.Provider>
@@ -3182,6 +3186,7 @@ function StepEditor({
   const t = useT()
   const cfg = step.step_config
   const templates = useContext(TemplatesContext)
+  const automationId = useContext(AutomationIdContext)
   const trigger = useContext(TriggerContext)
   const hasVoiceCall = useContext(HasVoiceCallContext)
   const set = (patch: Record<string, unknown>) =>
@@ -3202,9 +3207,26 @@ function StepEditor({
         </FieldBlock>
       )
     case "send_template": {
-      const selectedTpl = templates.find(
-        (tp) => tp.name === (cfg.template_name as string),
-      )
+      const abTest = cfg.ab_test as {
+        id: string
+        variants: Array<{ id: "a" | "b"; template_name: string; language?: string; variables?: Record<string, string>; weight: number }>
+      } | undefined
+      const seedFor = (name: string) => {
+        const tpl = templates.find((tp) => tp.name === name)
+        const declared = (tpl?.variable_fields ?? {}) as Record<string, string>
+        return { template_name: name, language: tpl?.language ?? "es", variables: Object.fromEntries(Object.entries(declared).map(([n, key]) => [n, `{{vars.${key}}}`])) }
+      }
+      const changeVariant = (id: "a" | "b", name: string) => {
+        if (!abTest) return
+        set({ ab_test: { ...abTest, variants: abTest.variants.map((v) => v.id === id ? { ...v, ...seedFor(name) } : v) } })
+      }
+      const changeWeight = (id: "a" | "b", value: number) => {
+        if (!abTest) return
+        const weight = Math.max(0, Math.min(100, Number.isFinite(value) ? Math.round(value) : 0))
+        set({ ab_test: { ...abTest, variants: abTest.variants.map((v) => v.id === id ? { ...v, weight } : { ...v, weight: 100 - weight }) } })
+      }
+      const selectedTemplateName = abTest?.variants.find((v) => v.id === "a")?.template_name ?? String(cfg.template_name ?? "")
+      const selectedTpl = templates.find((tp) => tp.name === selectedTemplateName)
       const varIndices = selectedTpl
         ? extractVariables(selectedTpl.body_text ?? "")
         : []
@@ -3217,6 +3239,33 @@ function StepEditor({
       }
       return (
         <>
+          <div className="mb-3 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+            <span className="text-sm font-medium text-foreground">{t("automations.abTest")}</span>
+            <Switch
+              checked={Boolean(abTest)}
+              onCheckedChange={(enabled) => {
+                if (!enabled) set({ ab_test: undefined })
+                else set({ ab_test: { id: `ab_${crypto.randomUUID()}`, variants: [
+                  { id: "a", ...seedFor(String(cfg.template_name ?? "")), weight: 50 },
+                  { id: "b", ...seedFor(""), weight: 50 },
+                ] } })
+              }}
+            />
+          </div>
+          {abTest ? (
+            <div className="mb-3 space-y-3 rounded-md border border-border p-3">
+              {abTest.variants.map((variant) => (
+                <div key={variant.id} className="grid grid-cols-[1fr_5rem] gap-2">
+                  <select value={variant.template_name} onChange={(e) => changeVariant(variant.id, e.target.value)} className="rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground">
+                    <option value="">{t("automations.chooseTemplate")}</option>
+                    {templates.map((tpl) => <option key={tpl.id} value={tpl.name}>{`${variant.id.toUpperCase()} · ${tpl.name}`}</option>)}
+                  </select>
+                  <Input aria-label={`${t("automations.abTraffic")} ${variant.id.toUpperCase()}`} type="number" min="0" max="100" value={variant.weight} onChange={(e) => changeWeight(variant.id, Number(e.target.value))} />
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">{t("automations.abTestHint")}</p>
+            </div>
+          ) : (
           <FieldBlock label={t("automations.whatsappTemplate")}>
             {templates.length > 0 ? (
               <select
@@ -3256,6 +3305,8 @@ function StepEditor({
               </p>
             )}
           </FieldBlock>
+          )}
+          {abTest && automationId && step.serverId && <AbTestResults automationId={automationId} stepId={step.serverId} />}
           {varIndices.length > 0 && (
             <FieldBlock label={t("automations.templateVariables")}>
               <div className="space-y-2">
