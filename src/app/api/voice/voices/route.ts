@@ -100,6 +100,7 @@ async function fishLibraryPage(
         gender: fishGender(item.tags),
         source: 'library' as const,
         state: item.state ?? 'trained',
+        tags: item.tags ?? [],
         preview_url: item.samples?.find((sample) =>
           sample.audio?.startsWith('https://')
         )?.audio,

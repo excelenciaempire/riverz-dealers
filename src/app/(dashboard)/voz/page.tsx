@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
-import { VoiceStatusLine } from '@/components/voice/voice-status-line';
 import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
 import { VoiceOrderSettings } from '@/components/voice/voice-order-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -77,11 +76,7 @@ export default function VoicePage() {
   >([]);
 
   const workspaceId = workspace?.id;
-  const {
-    readiness,
-    loading: cargandoEstado,
-    reload: releerEstado,
-  } = useVoiceReadiness(workspaceId);
+  const { readiness, reload: releerEstado } = useVoiceReadiness(workspaceId);
 
   /** El freno y el consumo. Se relee tras guardar, o quedan mintiendo hasta el F5. */
   const recargar = useCallback(async () => {
@@ -214,9 +209,7 @@ export default function VoicePage() {
               {t('voice.stopHint')}
             </span>
           </p>
-        ) : (
-          <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
-        )}
+        ) : null}
       </div>
 
       {/* ── Armarlo. Se hace una vez. ── */}

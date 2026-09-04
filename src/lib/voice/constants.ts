@@ -145,6 +145,8 @@ export interface CuratedVoice {
   state?: 'created' | 'training' | 'trained' | 'failed';
   /** Muestra pública del proveedor. Evita sintetizar audio sólo para explorar. */
   preview_url?: string;
+  /** Etiquetas del proveedor usadas únicamente para filtrar la biblioteca. */
+  tags?: string[];
 }
 
 export const CURATED_VOICES: CuratedVoice[] = [

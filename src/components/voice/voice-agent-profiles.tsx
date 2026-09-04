@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3,
+  Clock3,
+  FileText,
   Headphones,
   Loader2,
   Mic2,
   Pencil,
+  PhoneCall,
+  PhoneIncoming,
   Plus,
+  Settings2,
+  SlidersHorizontal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -40,6 +46,16 @@ type TriggerLinks = {
   campaigns?: { agent_id?: string | null }[];
 };
 
+type EditorSection =
+  | 'general'
+  | 'voice'
+  | 'operations'
+  | 'schedule'
+  | 'control'
+  | 'scripts'
+  | 'test'
+  | 'stats';
+
 /**
  * Los perfiles telefónicos viven en Llamadas. Un asistente de chat sólo los
  * vincula; no vuelve a mezclar guion, voz y operación del canal con su persona.
@@ -57,10 +73,11 @@ export function VoiceAgentProfiles({
   const [agents, setAgents] = useState<VoiceAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<VoiceAgent | null>(null);
-  const [editorTab, setEditorTab] = useState<'settings' | 'stats'>('settings');
+  const [editorTab, setEditorTab] = useState<EditorSection>('general');
   const [agentName, setAgentName] = useState('');
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createTab, setCreateTab] = useState<EditorSection>('general');
   const [name, setName] = useState('');
   const [newVoice, setNewVoice] = useState<VoiceState>(() => ({
     ...initialVoiceState(),
@@ -124,6 +141,7 @@ export function VoiceAgentProfiles({
   function openCreate() {
     setName('');
     setNewVoice({ ...initialVoiceState(), voice_enabled: true });
+    setCreateTab('general');
     setCreating(true);
   }
 
@@ -132,7 +150,7 @@ export function VoiceAgentProfiles({
     setCreating(false);
   }
 
-  function openEditor(agent: VoiceAgent, tab: 'settings' | 'stats') {
+  function openEditor(agent: VoiceAgent, tab: 'general' | 'stats') {
     setEditing(agent);
     setEditorTab(tab);
     setAgentName(agent.name);
@@ -378,7 +396,7 @@ export function VoiceAgentProfiles({
                     size="icon-sm"
                     variant="ghost"
                     aria-label={t('voice.voiceAgentEdit')}
-                    onClick={() => openEditor(agent, 'settings')}
+                    onClick={() => openEditor(agent, 'general')}
                   >
                     <Pencil className="size-3.5" />
                   </Button>
@@ -416,7 +434,7 @@ export function VoiceAgentProfiles({
         }}
       >
         <DialogContent
-          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
+          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
           showCloseButton={false}
         >
           <div className="border-border flex items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
@@ -439,70 +457,62 @@ export function VoiceAgentProfiles({
             </button>
           </div>
 
-          <div className="border-border flex gap-1 border-b px-4 py-2 sm:px-6">
-            {(['settings', 'stats'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setEditorTab(tab)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  editorTab === tab
-                    ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tab === 'settings'
-                  ? t('voice.voiceAgentSettings')
-                  : t('voice.voiceAgentStats')}
-              </button>
-            ))}
-          </div>
-
-          <div className="overflow-y-auto px-4 py-5 sm:px-6">
-            {editing && voice && editorTab === 'settings' ? (
-              <div className="mx-auto max-w-3xl space-y-5">
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                  <label className="block">
-                    <span className="text-foreground mb-1.5 block text-xs font-medium">
-                      {t('voice.voiceAgentNameLabel')}
-                    </span>
-                    <Input
-                      value={agentName}
-                      onChange={(event) => setAgentName(event.target.value)}
-                      maxLength={80}
-                      className="bg-background h-9"
-                    />
-                  </label>
-                  <label className="border-border flex h-9 cursor-pointer items-center gap-3 rounded-lg border px-3">
-                    <span className="text-foreground text-xs font-medium">
-                      {t('voice.enable')}
-                    </span>
-                    <Switch
-                      checked={voice.voice_enabled}
-                      onCheckedChange={(enabled) =>
-                        setVoice({ ...voice, voice_enabled: enabled })
-                      }
-                    />
-                  </label>
+          <div className="grid min-h-0 overflow-y-auto sm:grid-cols-[180px_minmax(0,1fr)] sm:overflow-hidden">
+            <EditorNav
+              current={editorTab}
+              onChange={setEditorTab}
+              showTest
+              showStats
+            />
+            <div className="overflow-y-auto px-4 py-5 sm:px-6">
+              {editing && voice && editorTab !== 'stats' ? (
+                <div className="mx-auto max-w-3xl space-y-5">
+                  {editorTab === 'general' && (
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <label className="block">
+                        <span className="text-foreground mb-1.5 block text-xs font-medium">
+                          {t('voice.voiceAgentNameLabel')}
+                        </span>
+                        <Input
+                          value={agentName}
+                          onChange={(event) => setAgentName(event.target.value)}
+                          maxLength={80}
+                          className="bg-background h-9"
+                        />
+                      </label>
+                      <label className="border-border flex h-9 cursor-pointer items-center gap-3 rounded-lg border px-3">
+                        <span className="text-foreground text-xs font-medium">
+                          {t('voice.enable')}
+                        </span>
+                        <Switch
+                          checked={voice.voice_enabled}
+                          onCheckedChange={(enabled) =>
+                            setVoice({ ...voice, voice_enabled: enabled })
+                          }
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <VoiceSettings
+                    value={voice}
+                    onChange={setVoice}
+                    language={editing.language ?? locale}
+                    workspaceId={workspaceId}
+                    agentId={editing.id}
+                    showReadiness={false}
+                    section={editorTab}
+                    onBeforeTestCall={() => save(editing, false)}
+                    testCallDisabled={saving}
+                  />
                 </div>
-                <VoiceSettings
-                  value={voice}
-                  onChange={setVoice}
-                  language={editing.language ?? locale}
-                  workspaceId={workspaceId}
-                  agentId={editing.id}
-                  showReadiness={false}
-                  onBeforeTestCall={() => save(editing, false)}
-                  testCallDisabled={saving}
-                />
-              </div>
-            ) : editing ? (
-              <VoiceAnalytics agentId={editing.id} showEmpty />
-            ) : null}
+              ) : editing ? (
+                <VoiceAnalytics agentId={editing.id} showEmpty />
+              ) : null}
+            </div>
           </div>
 
           <div className="border-border bg-card/60 flex items-center justify-between gap-2 border-t px-4 py-4 sm:px-6">
-            {editorTab === 'settings' && editing ? (
+            {editorTab !== 'stats' && editing ? (
               <>
                 <Button
                   type="button"
@@ -561,7 +571,7 @@ export function VoiceAgentProfiles({
         }}
       >
         <DialogContent
-          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl"
+          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
           showCloseButton={false}
         >
           <div className="border-border flex items-start justify-between gap-4 border-b px-4 py-4 sm:px-6">
@@ -589,30 +599,40 @@ export function VoiceAgentProfiles({
             </button>
           </div>
 
-          <div className="overflow-y-auto px-4 py-5 sm:px-6">
-            <div className="mx-auto max-w-3xl space-y-6">
-              <label className="block">
-                <span className="text-foreground mb-1.5 block text-sm font-medium">
-                  {t('voice.voiceAgentNameLabel')}
-                </span>
-                <Input
-                  className="bg-background text-foreground h-10"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t('voice.voiceAgentName')}
-                  maxLength={80}
-                  autoFocus
-                />
-              </label>
+          <div className="grid min-h-0 overflow-y-auto sm:grid-cols-[180px_minmax(0,1fr)] sm:overflow-hidden">
+            <EditorNav current={createTab} onChange={setCreateTab} />
+            <div className="overflow-y-auto px-4 py-5 sm:px-6">
+              <div className="mx-auto max-w-3xl space-y-5">
+                {createTab === 'general' && (
+                  <label className="block">
+                    <span className="text-foreground mb-1.5 block text-sm font-medium">
+                      {t('voice.voiceAgentNameLabel')}
+                    </span>
+                    <Input
+                      className="bg-background text-foreground h-10"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder={t('voice.voiceAgentName')}
+                      maxLength={80}
+                      autoFocus
+                    />
+                  </label>
+                )}
 
-              <VoiceSettings
-                value={newVoice}
-                onChange={setNewVoice}
-                language={locale}
-                workspaceId={workspaceId}
-                showReadiness={false}
-                showTestCall={false}
-              />
+                <VoiceSettings
+                  value={newVoice}
+                  onChange={setNewVoice}
+                  language={locale}
+                  workspaceId={workspaceId}
+                  showReadiness={false}
+                  showTestCall={false}
+                  section={
+                    createTab === 'test' || createTab === 'stats'
+                      ? 'general'
+                      : createTab
+                  }
+                />
+              </div>
             </div>
           </div>
 
@@ -695,5 +715,81 @@ export function VoiceAgentProfiles({
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+function EditorNav({
+  current,
+  onChange,
+  showTest = false,
+  showStats = false,
+}: {
+  current: EditorSection;
+  onChange: (section: EditorSection) => void;
+  showTest?: boolean;
+  showStats?: boolean;
+}) {
+  const t = useT();
+  const items: {
+    key: EditorSection;
+    label: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    {
+      key: 'general',
+      label: t('voice.voiceNavGeneral'),
+      icon: SlidersHorizontal,
+    },
+    { key: 'voice', label: t('voice.voiceNavVoice'), icon: Mic2 },
+    {
+      key: 'operations',
+      label: t('voice.voiceNavOperations'),
+      icon: PhoneIncoming,
+    },
+    { key: 'schedule', label: t('voice.voiceNavSchedule'), icon: Clock3 },
+    { key: 'control', label: t('voice.voiceNavControl'), icon: Settings2 },
+    { key: 'scripts', label: t('voice.voiceNavScripts'), icon: FileText },
+    ...(showTest
+      ? [
+          {
+            key: 'test' as const,
+            label: t('voice.voiceNavTest'),
+            icon: PhoneCall,
+          },
+        ]
+      : []),
+    ...(showStats
+      ? [
+          {
+            key: 'stats' as const,
+            label: t('voice.voiceAgentStats'),
+            icon: BarChart3,
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <nav className="border-border bg-card/40 flex gap-1 overflow-x-auto border-b p-2 sm:block sm:overflow-visible sm:border-r sm:border-b-0 sm:py-4">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = current === item.key;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onChange(item.key)}
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors sm:mb-1 sm:w-full ${
+              active
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+            }`}
+          >
+            <Icon className="size-4" />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
   );
 }

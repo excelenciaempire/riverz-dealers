@@ -155,7 +155,42 @@ function resolveObjective(agent: AiAgent, call: VoiceCall): string {
   return DEFAULT_OBJECTIVES[call.call_type][langOf(agent, call)];
 }
 
-/** Interpolate {{contact_name}} and {{business_name}}; falls back to a default. */
+function contextValue(
+  context: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  for (const key of keys) {
+    const value = context[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value))
+      return String(value);
+  }
+  return '';
+}
+
+export function interpolateVoiceGreeting(
+  template: string,
+  values: Record<string, string>
+): string {
+  const contactName = values.contact_name?.trim().split(/\s+/)[0] ?? '';
+  return template
+    .replace(
+      /\{\{\s*contact_name\s*\}\}/gi,
+      contactName ? ` ${contactName}` : ''
+    )
+    .replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_match, key: string) =>
+      Object.hasOwn(values, key.toLowerCase()) ? values[key.toLowerCase()] : ''
+    )
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([,.;!?])/g, '$1')
+    .trim();
+}
+
+/**
+ * Interpola sólo datos que realmente llegaron con la llamada. Las entrantes y
+ * las pruebas normalmente no traen pedido; en ese caso el marcador desaparece
+ * en vez de ser leído en voz alta o inventar información.
+ */
 function resolveGreeting(
   agent: AiAgent,
   contact: Contact,
@@ -169,15 +204,19 @@ function resolveGreeting(
       ? DEFAULT_GREETING_AR
       : DEFAULT_GREETINGS[lang];
   const raw = (agent.voice_greeting && agent.voice_greeting.trim()) || fallback;
-  const first = (contact.name ?? '').trim().split(/\s+/)[0] ?? '';
-  // "{{contact_name}}" is meant to sit after "Hola"/"Hi" — inject a leading
-  // space + name when known, or collapse to nothing so it reads naturally.
-  return raw
-    .replace(/\{\{\s*contact_name\s*\}\}/gi, first ? ` ${first}` : '')
-    .replace(
-      /\{\{\s*business_name\s*\}\}/gi,
-      (businessName ?? '').trim() || BUSINESS_FALLBACK[lang]
-    );
+  const context = call.context ?? {};
+  const values: Record<string, string> = {
+    contact_name: (contact.name ?? '').trim(),
+    business_name: (businessName ?? '').trim() || BUSINESS_FALLBACK[lang],
+    customer_name:
+      contextValue(context, 'customer_name') || (contact.name ?? '').trim(),
+    order_number: contextValue(context, 'order_number', 'order_name'),
+    order_total: contextValue(context, 'order_total', 'total_price', 'total'),
+    product_name: contextValue(context, 'product_name', 'product_title'),
+    shipping_city: contextValue(context, 'shipping_city', 'city'),
+    tracking_number: contextValue(context, 'tracking_number'),
+  };
+  return interpolateVoiceGreeting(raw, values);
 }
 
 /**

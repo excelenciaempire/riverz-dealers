@@ -22,6 +22,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
@@ -67,6 +74,15 @@ export interface VoiceState {
   voice_recording_enabled: boolean;
   voice_recording_disclosure: boolean;
 }
+
+export type VoiceSettingsSection =
+  | 'general'
+  | 'voice'
+  | 'operations'
+  | 'schedule'
+  | 'control'
+  | 'scripts'
+  | 'test';
 
 export function initialVoiceState(agent?: {
   voice_enabled?: boolean;
@@ -190,6 +206,7 @@ export function VoiceSettings({
   showTestCall = true,
   onBeforeTestCall,
   testCallDisabled = false,
+  section,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
@@ -204,6 +221,8 @@ export function VoiceSettings({
   /** Persiste los cambios para que la prueba use exactamente lo que se ve. */
   onBeforeTestCall?: () => Promise<boolean>;
   testCallDisabled?: boolean;
+  /** Sección visible cuando el editor usa navegación lateral. */
+  section?: VoiceSettingsSection;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -212,6 +231,7 @@ export function VoiceSettings({
   const [testPhone, setTestPhone] = useState('');
   const [calling, setCalling] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const greetingRef = useRef<HTMLTextAreaElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<AbortController | null>(null);
   const [setupText, setSetupText] = useState('');
@@ -244,6 +264,17 @@ export function VoiceSettings({
   const [paginaBiblioteca, setPaginaBiblioteca] = useState(1);
   const [masVoces, setMasVoces] = useState(false);
   const [cargandoVoces, setCargandoVoces] = useState(false);
+  const [filtroGenero, setFiltroGenero] = useState<'all' | 'female' | 'male'>(
+    'all'
+  );
+  const [filtroEstilo, setFiltroEstilo] = useState<
+    | 'all'
+    | 'conversational'
+    | 'professional'
+    | 'narration'
+    | 'calm'
+    | 'energetic'
+  >('all');
 
   const { readiness, loading: cargandoEstado } = useVoiceReadiness(
     value.voice_enabled && showReadiness ? workspaceId : undefined,
@@ -253,7 +284,7 @@ export function VoiceSettings({
   // Las voces del proveedor que la plataforma tiene activo hoy. Sin esto el
   // selector ofrecía una elección que el motor descartaba.
   const cargarVoces = useCallback(async () => {
-    if (!workspaceId || !value.voice_enabled) return;
+    if (!workspaceId) return;
     setCargandoVoces(true);
     try {
       const params = new URLSearchParams({
@@ -283,7 +314,7 @@ export function VoiceSettings({
     } finally {
       setCargandoVoces(false);
     }
-  }, [workspaceId, value.voice_enabled, paginaBiblioteca, busquedaAplicada]);
+  }, [workspaceId, paginaBiblioteca, busquedaAplicada]);
 
   useEffect(() => {
     void cargarVoces();
@@ -613,21 +644,48 @@ export function VoiceSettings({
     !vozElegida || !vozElegida.state || vozElegida.state === 'trained';
   const vocesPropias = (voces ?? []).filter((v) => v.source === 'custom');
   const vocesBiblioteca = (voces ?? []).filter((v) => v.source !== 'custom');
+  const vocesFiltradas = vocesBiblioteca.filter((voice) => {
+    if (filtroGenero !== 'all' && voice.gender !== filtroGenero) return false;
+    if (filtroEstilo === 'all') return true;
+    return (voice.tags ?? []).some((tag) => tag.toLowerCase() === filtroEstilo);
+  });
 
-  if (!value.voice_enabled) return <div />;
+  function insertGreetingVariable(variable: string) {
+    const token = `{{${variable}}}`;
+    const input = greetingRef.current;
+    const base = value.voice_greeting || DEFAULT_GREETINGS[idioma];
+    if (base.includes(token)) return;
+    const editingGreeting =
+      value.voice_greeting && document.activeElement === input;
+    const start = editingGreeting
+      ? (input?.selectionStart ?? base.length)
+      : base.length;
+    const end = editingGreeting ? (input?.selectionEnd ?? start) : base.length;
+    const next =
+      base.slice(0, start) +
+      (start > 0 && !/\s$/.test(base.slice(0, start)) ? ' ' : '') +
+      token +
+      base.slice(end);
+    set({ voice_greeting: next });
+    requestAnimationFrame(() => {
+      greetingRef.current?.focus();
+      const position = next.indexOf(token, start) + token.length;
+      greetingRef.current?.setSelectionRange(position, position);
+    });
+  }
 
   return (
     <div className="space-y-6">
       {/* Si este agente puede atender el teléfono, y si no, por qué. Antes acá
           había una línea de datos que sólo sabía decir el número: si el agente
           estaba pausado o no había número, se callaba. */}
-      {showReadiness && (
+      {showReadiness && !section && (
         <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
       )}
 
       {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
           medio del formulario, después de la caja de probar. */}
-      {workspaceId && (
+      {workspaceId && (!section || section === 'general') && (
         <div className="border-border overflow-hidden rounded-xl border">
           <button
             type="button"
@@ -671,7 +729,7 @@ export function VoiceSettings({
       )}
 
       {/* ── Cómo suena ── */}
-      {value.voice_enabled && (
+      {(!section || section === 'voice') && (
         <div>
           <p className="text-foreground mb-1 text-sm font-medium">
             {t('voice.voiceLabel')}
@@ -737,54 +795,140 @@ export function VoiceSettings({
                 />
               )}
               {vocesBiblioteca.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      className="bg-background text-foreground"
-                      value={busquedaVoz}
-                      onChange={(event) => setBusquedaVoz(event.target.value)}
-                      placeholder={t('voice.voiceLibrarySearch')}
-                      onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
-                        event.preventDefault();
-                        setPaginaBiblioteca(1);
-                        setBusquedaAplicada(busquedaVoz.trim());
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setPaginaBiblioteca(1);
-                        setBusquedaAplicada(busquedaVoz.trim());
-                      }}
-                    >
-                      {t('voice.voiceLibrarySearchAction')}
-                    </Button>
+                <div className="space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="flex gap-2">
+                      <Input
+                        className="bg-background text-foreground"
+                        value={busquedaVoz}
+                        onChange={(event) => setBusquedaVoz(event.target.value)}
+                        placeholder={t('voice.voiceLibrarySearch')}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return;
+                          event.preventDefault();
+                          setPaginaBiblioteca(1);
+                          setBusquedaAplicada(busquedaVoz.trim());
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPaginaBiblioteca(1);
+                          setBusquedaAplicada(busquedaVoz.trim());
+                        }}
+                      >
+                        {t('voice.voiceLibrarySearchAction')}
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Select
+                        value={filtroGenero}
+                        onValueChange={(next) =>
+                          setFiltroGenero(next as typeof filtroGenero)
+                        }
+                      >
+                        <SelectTrigger
+                          size="default"
+                          className="bg-background h-9 min-w-28 text-xs"
+                          aria-label={t('voice.voiceFilterGender')}
+                        >
+                          <SelectValue
+                            labels={{
+                              all: t('voice.voiceFilterAll'),
+                              female: t('voice.voiceFilterFemale'),
+                              male: t('voice.voiceFilterMale'),
+                            }}
+                          />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="all">
+                            {t('voice.voiceFilterAll')}
+                          </SelectItem>
+                          <SelectItem value="female">
+                            {t('voice.voiceFilterFemale')}
+                          </SelectItem>
+                          <SelectItem value="male">
+                            {t('voice.voiceFilterMale')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={filtroEstilo}
+                        onValueChange={(next) =>
+                          setFiltroEstilo(next as typeof filtroEstilo)
+                        }
+                      >
+                        <SelectTrigger
+                          size="default"
+                          className="bg-background h-9 min-w-36 text-xs"
+                          aria-label={t('voice.voiceFilterStyle')}
+                        >
+                          <SelectValue
+                            labels={{
+                              all: t('voice.voiceFilterAnyStyle'),
+                              conversational: t(
+                                'voice.voiceStyleConversational'
+                              ),
+                              professional: t('voice.voiceStyleProfessional'),
+                              narration: t('voice.voiceStyleNarration'),
+                              calm: t('voice.voiceStyleCalm'),
+                              energetic: t('voice.voiceStyleEnergetic'),
+                            }}
+                          />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          <SelectItem value="all">
+                            {t('voice.voiceFilterAnyStyle')}
+                          </SelectItem>
+                          <SelectItem value="conversational">
+                            {t('voice.voiceStyleConversational')}
+                          </SelectItem>
+                          <SelectItem value="professional">
+                            {t('voice.voiceStyleProfessional')}
+                          </SelectItem>
+                          <SelectItem value="narration">
+                            {t('voice.voiceStyleNarration')}
+                          </SelectItem>
+                          <SelectItem value="calm">
+                            {t('voice.voiceStyleCalm')}
+                          </SelectItem>
+                          <SelectItem value="energetic">
+                            {t('voice.voiceStyleEnergetic')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   {estadoBiblioteca === 'fallback' && (
                     <p className="text-muted-foreground text-xs">
                       {t('voice.voiceLibraryFallback')}
                     </p>
                   )}
-                  <VoiceList
-                    title={
-                      estadoBiblioteca === 'fish'
-                        ? t('voice.voiceLibrary')
-                        : t('voice.voiceAvailable')
-                    }
-                    voices={vocesBiblioteca}
-                    selectedId={value.voice_id}
-                    previewingId={previewing}
-                    onSelect={(id) => {
-                      set({ voice_id: id });
-                      setVerVoces(false);
-                    }}
-                    onPreview={preview}
-                    trainingLabel={t('voice.voiceTraining')}
-                    failedLabel={t('voice.voiceTrainingFailed')}
-                  />
+                  {vocesFiltradas.length > 0 ? (
+                    <VoiceList
+                      title={
+                        estadoBiblioteca === 'fish'
+                          ? t('voice.voiceLibrary')
+                          : t('voice.voiceAvailable')
+                      }
+                      voices={vocesFiltradas}
+                      selectedId={value.voice_id}
+                      previewingId={previewing}
+                      onSelect={(id) => {
+                        set({ voice_id: id });
+                        setVerVoces(false);
+                      }}
+                      onPreview={preview}
+                      trainingLabel={t('voice.voiceTraining')}
+                      failedLabel={t('voice.voiceTrainingFailed')}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground py-5 text-center text-xs">
+                      {t('voice.voiceLibraryNoResults')}
+                    </p>
+                  )}
                   {estadoBiblioteca === 'fish' && (
                     <div className="flex items-center justify-between gap-2">
                       <Button
@@ -924,517 +1068,560 @@ export function VoiceSettings({
           )}
         </div>
       )}
-      <div>
-        <p className="text-foreground mb-1 text-sm font-medium">
-          {t('voice.greeting')}
-        </p>
-        <p className="text-muted-foreground mb-2 text-xs">
-          {t('voice.greetingHint')}
-        </p>
-        <Textarea
-          className="bg-muted text-foreground min-h-16"
-          // El placeholder muestra el saludo que YA usa el worker cuando esto
-          // está vacío. Un recuadro en blanco hacía pensar que no saluda.
-          placeholder={DEFAULT_GREETINGS[idioma]}
-          value={value.voice_greeting}
-          onChange={(e) => set({ voice_greeting: e.target.value })}
-        />
-      </div>
+      {(!section || section === 'general') && (
+        <div>
+          <p className="text-foreground mb-1 text-sm font-medium">
+            {t('voice.greeting')}
+          </p>
+          <Textarea
+            ref={greetingRef}
+            className="bg-muted text-foreground min-h-16"
+            // El placeholder muestra el saludo que YA usa el worker cuando esto
+            // está vacío. Un recuadro en blanco hacía pensar que no saluda.
+            placeholder={DEFAULT_GREETINGS[idioma]}
+            value={value.voice_greeting}
+            onChange={(e) => set({ voice_greeting: e.target.value })}
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[
+              ['contact_name', t('voice.variableContact')],
+              ['business_name', t('voice.variableBusiness')],
+              ['order_number', t('voice.variableOrder')],
+              ['order_total', t('voice.variableTotal')],
+              ['product_name', t('voice.variableProduct')],
+              ['shipping_city', t('voice.variableCity')],
+              ['tracking_number', t('voice.variableTracking')],
+            ].map(([variable, label]) => (
+              <button
+                key={variable}
+                type="button"
+                title={`{{${variable}}}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => insertGreetingVariable(variable)}
+                disabled={(
+                  value.voice_greeting || DEFAULT_GREETINGS[idioma]
+                ).includes(`{{${variable}}}`)}
+                className="border-border bg-background text-muted-foreground hover:border-accent/50 hover:text-foreground rounded-md border px-2 py-1 text-[11px] transition-colors disabled:cursor-default disabled:opacity-40"
+              >
+                + {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-muted-foreground mt-1.5 text-[11px]">
+            {t('voice.variablesOptional')}
+          </p>
+        </div>
+      )}
 
       {/* Estas decisiones cambian según quién atiende. No viven en la central
           general porque ventas y soporte pueden transferir a personas distintas
           y no todos los agentes deben recibir entrantes. */}
-      <div className="border-border overflow-hidden rounded-xl border">
-        <div className="border-border bg-muted/20 border-b px-3.5 py-3">
-          <p className="text-foreground text-sm font-medium">
-            {t('voice.agentOperations')}
-          </p>
-        </div>
-        <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
-          <span className="flex min-w-0 gap-2.5">
-            <span className="bg-accent/10 text-accent-ink grid size-8 shrink-0 place-items-center rounded-lg">
-              <PhoneIncoming className="size-4" />
-            </span>
-            <span>
-              <span className="text-foreground block text-sm font-medium">
-                {t('voice.agentAcceptsInbound')}
-              </span>
-              <span className="text-muted-foreground mt-0.5 block text-xs">
-                {t('voice.agentAcceptsInboundHint')}
-              </span>
-            </span>
-          </span>
-          <Switch
-            className="mt-1 shrink-0"
-            checked={value.voice_accepts_inbound}
-            onCheckedChange={(checked) =>
-              set({ voice_accepts_inbound: checked })
-            }
-          />
-        </label>
-        <div className="grid gap-4 p-3.5 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
-              <ArrowRightLeft className="text-muted-foreground size-3.5" />
-              {t('voice.agentTransferNumber')}
-            </span>
-            <Input
-              type="tel"
-              className="bg-background text-foreground"
-              value={value.voice_transfer_number}
-              onChange={(event) =>
-                set({ voice_transfer_number: event.target.value })
-              }
-              placeholder={t('voice.phoneNumberPlaceholder')}
-            />
-          </label>
-          <label className="block">
-            <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
-              <Timer className="text-muted-foreground size-3.5" />
-              {t('voice.agentMaxDuration')}
-            </span>
-            <select
-              value={value.voice_max_call_seconds}
-              onChange={(event) =>
-                set({ voice_max_call_seconds: Number(event.target.value) })
-              }
-              className="border-border bg-background text-foreground h-9 w-full rounded-lg border px-2.5 text-sm"
-            >
-              <option value={180}>{t('voice.durationThreeMinutes')}</option>
-              <option value={300}>{t('voice.durationFiveMinutes')}</option>
-              <option value={600}>{t('voice.durationTenMinutes')}</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <Plegable
-        titulo={t('voice.agentControlTitle')}
-        ayuda={t('voice.agentControlHint')}
-        abierto={verControl}
-        alternar={() => setVerControl((current) => !current)}
-      >
-        <div className="space-y-3">
-          {capacity && (
-            <div className="border-border bg-muted/20 grid overflow-hidden rounded-xl border sm:grid-cols-3">
-              <AgentMetric
-                icon={Activity}
-                label={t('voice.capacityInProgress')}
-                value={`${capacity.active} / ${value.voice_max_concurrent_calls}`}
-              />
-              <AgentMetric
-                icon={PhoneIncoming}
-                label={t('voice.typeInbound')}
-                value={String(capacity.inbound_active)}
-              />
-              <AgentMetric
-                icon={Timer}
-                label={t('voice.capacityQueued')}
-                value={String(capacity.queued)}
-              />
+      {(!section || section === 'operations') && (
+        <div className="border-border overflow-hidden rounded-xl border">
+          {!section && (
+            <div className="border-border bg-muted/20 border-b px-3.5 py-3">
+              <p className="text-foreground text-sm font-medium">
+                {t('voice.agentOperations')}
+              </p>
             </div>
           )}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AgentNumberField
-              icon={Gauge}
-              label={t('voice.capacityMaxTitle')}
-              hint={t('voice.agentCapacityMaxHint')}
-              value={value.voice_max_concurrent_calls}
-              min={1}
-              max={20}
-              onChange={(next) => {
-                const max = Math.min(20, Math.max(1, next || 1));
-                set({
-                  voice_max_concurrent_calls: max,
-                  voice_reserved_inbound_slots: Math.min(
-                    value.voice_reserved_inbound_slots,
-                    Math.max(0, max - 1)
-                  ),
-                  voice_max_campaign_concurrent: Math.min(
-                    value.voice_max_campaign_concurrent,
-                    max
-                  ),
-                });
-              }}
-            />
-            <AgentNumberField
-              icon={Megaphone}
-              label={t('voice.capacityCampaignTitle')}
-              hint={t('voice.capacityCampaignHint')}
-              value={value.voice_max_campaign_concurrent}
-              min={1}
-              max={value.voice_max_concurrent_calls}
-              onChange={(next) =>
-                set({
-                  voice_max_campaign_concurrent: Math.min(
-                    value.voice_max_concurrent_calls,
-                    Math.max(1, next || 1)
-                  ),
-                })
-              }
-            />
-            <AgentNumberField
-              icon={Timer}
-              label={t('voice.monthlyLimit')}
-              hint={t('voice.monthlyLimitHint')}
-              value={value.voice_monthly_minutes_limit}
-              min={0}
-              onChange={(next) =>
-                set({ voice_monthly_minutes_limit: Math.max(0, next || 0) })
-              }
-            />
-
-            <div className="border-border rounded-xl border p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex min-w-0 gap-2.5">
-                  <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                  <span>
-                    <span className="text-foreground block text-sm font-medium">
-                      {t('voice.capacityDedupeTitle')}
-                    </span>
-                    <span className="text-muted-foreground mt-0.5 block text-xs">
-                      {t('voice.capacityDedupeHint')}
-                    </span>
-                  </span>
-                </span>
-                <Switch
-                  checked={value.voice_dedupe_minutes > 0}
-                  onCheckedChange={(checked) =>
-                    set({ voice_dedupe_minutes: checked ? 15 : 0 })
-                  }
-                />
-              </div>
-              {value.voice_dedupe_minutes > 0 && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={value.voice_dedupe_minutes}
-                    onChange={(event) =>
-                      set({
-                        voice_dedupe_minutes: Math.min(
-                          1440,
-                          Math.max(1, Number(event.target.value) || 1)
-                        ),
-                      })
-                    }
-                    className="w-24"
-                  />
-                  <span className="text-muted-foreground text-xs">
-                    {t('voice.capacityMinutes')}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {value.voice_accepts_inbound && (
-            <div className="border-border flex items-center justify-between gap-4 rounded-xl border p-3.5">
-              <div className="flex min-w-0 gap-2.5">
-                <PhoneIncoming className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                <div>
-                  <p className="text-foreground text-sm font-medium">
-                    {t('voice.capacityReserveTitle')}
-                  </p>
-                  <p className="text-muted-foreground mt-0.5 text-xs">
-                    {t('voice.agentReserveHint')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {value.voice_reserved_inbound_slots > 0 && (
-                  <Input
-                    type="number"
-                    min={1}
-                    max={Math.max(1, value.voice_max_concurrent_calls - 1)}
-                    value={value.voice_reserved_inbound_slots}
-                    onChange={(event) =>
-                      set({
-                        voice_reserved_inbound_slots: Math.min(
-                          value.voice_max_concurrent_calls - 1,
-                          Math.max(1, Number(event.target.value) || 1)
-                        ),
-                      })
-                    }
-                    className="w-20"
-                  />
-                )}
-                <Switch
-                  checked={value.voice_reserved_inbound_slots > 0}
-                  onCheckedChange={(checked) =>
-                    set({
-                      voice_max_concurrent_calls: checked
-                        ? Math.max(2, value.voice_max_concurrent_calls)
-                        : value.voice_max_concurrent_calls,
-                      voice_reserved_inbound_slots: checked ? 1 : 0,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="border-border overflow-hidden rounded-xl border">
-            <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
+          <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
+            <span className="flex min-w-0 gap-2.5">
+              <span className="bg-accent/10 text-accent-ink grid size-8 shrink-0 place-items-center rounded-lg">
+                <PhoneIncoming className="size-4" />
+              </span>
               <span>
                 <span className="text-foreground block text-sm font-medium">
-                  {t('voice.recordingEnabled')}
+                  {t('voice.agentAcceptsInbound')}
                 </span>
                 <span className="text-muted-foreground mt-0.5 block text-xs">
-                  {t('voice.recordingHint')}
+                  {t('voice.agentAcceptsInboundHint')}
                 </span>
               </span>
-              <Switch
-                checked={value.voice_recording_enabled}
-                onCheckedChange={(checked) =>
+            </span>
+            <Switch
+              className="mt-1 shrink-0"
+              checked={value.voice_accepts_inbound}
+              onCheckedChange={(checked) =>
+                set({ voice_accepts_inbound: checked })
+              }
+            />
+          </label>
+          <div className="grid gap-4 p-3.5 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
+                <ArrowRightLeft className="text-muted-foreground size-3.5" />
+                {t('voice.agentTransferNumber')}
+              </span>
+              <Input
+                type="tel"
+                className="bg-background text-foreground"
+                value={value.voice_transfer_number}
+                onChange={(event) =>
+                  set({ voice_transfer_number: event.target.value })
+                }
+                placeholder={t('voice.phoneNumberPlaceholder')}
+              />
+            </label>
+            <label className="block">
+              <span className="text-foreground mb-1.5 flex items-center gap-2 text-xs font-medium">
+                <Timer className="text-muted-foreground size-3.5" />
+                {t('voice.agentMaxDuration')}
+              </span>
+              <select
+                value={value.voice_max_call_seconds}
+                onChange={(event) =>
+                  set({ voice_max_call_seconds: Number(event.target.value) })
+                }
+                className="border-border bg-background text-foreground h-9 w-full rounded-lg border px-2.5 text-sm"
+              >
+                <option value={180}>{t('voice.durationThreeMinutes')}</option>
+                <option value={300}>{t('voice.durationFiveMinutes')}</option>
+                <option value={600}>{t('voice.durationTenMinutes')}</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {(!section || section === 'control') && (
+        <Plegable
+          titulo={t('voice.agentControlTitle')}
+          ayuda={t('voice.agentControlHint')}
+          abierto={section === 'control' || verControl}
+          alternar={() => setVerControl((current) => !current)}
+          ocultarEncabezado={section === 'control'}
+        >
+          <div className="space-y-3">
+            {capacity && (
+              <div className="border-border bg-muted/20 grid overflow-hidden rounded-xl border sm:grid-cols-3">
+                <AgentMetric
+                  icon={Activity}
+                  label={t('voice.capacityInProgress')}
+                  value={`${capacity.active} / ${value.voice_max_concurrent_calls}`}
+                />
+                <AgentMetric
+                  icon={PhoneIncoming}
+                  label={t('voice.typeInbound')}
+                  value={String(capacity.inbound_active)}
+                />
+                <AgentMetric
+                  icon={Timer}
+                  label={t('voice.capacityQueued')}
+                  value={String(capacity.queued)}
+                />
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AgentNumberField
+                icon={Gauge}
+                label={t('voice.capacityMaxTitle')}
+                hint={t('voice.agentCapacityMaxHint')}
+                value={value.voice_max_concurrent_calls}
+                min={1}
+                max={20}
+                onChange={(next) => {
+                  const max = Math.min(20, Math.max(1, next || 1));
                   set({
-                    voice_recording_enabled: checked,
-                    voice_recording_disclosure: checked
-                      ? value.voice_recording_disclosure
-                      : false,
+                    voice_max_concurrent_calls: max,
+                    voice_reserved_inbound_slots: Math.min(
+                      value.voice_reserved_inbound_slots,
+                      Math.max(0, max - 1)
+                    ),
+                    voice_max_campaign_concurrent: Math.min(
+                      value.voice_max_campaign_concurrent,
+                      max
+                    ),
+                  });
+                }}
+              />
+              <AgentNumberField
+                icon={Megaphone}
+                label={t('voice.capacityCampaignTitle')}
+                hint={t('voice.capacityCampaignHint')}
+                value={value.voice_max_campaign_concurrent}
+                min={1}
+                max={value.voice_max_concurrent_calls}
+                onChange={(next) =>
+                  set({
+                    voice_max_campaign_concurrent: Math.min(
+                      value.voice_max_concurrent_calls,
+                      Math.max(1, next || 1)
+                    ),
                   })
                 }
               />
-            </label>
-            {value.voice_recording_enabled && (
-              <label className="flex cursor-pointer items-start justify-between gap-4 px-3.5 py-3">
-                <span>
-                  <span className="text-foreground block text-sm font-medium">
-                    {t('voice.recordingDisclosure')}
-                  </span>
-                  <span className="text-muted-foreground mt-0.5 block text-xs">
-                    {t('voice.recordingDisclosureHint')}
-                  </span>
-                </span>
-                <Switch
-                  checked={value.voice_recording_disclosure}
-                  onCheckedChange={(checked) =>
-                    set({ voice_recording_disclosure: checked })
-                  }
-                />
-              </label>
-            )}
-          </div>
+              <AgentNumberField
+                icon={Timer}
+                label={t('voice.monthlyLimit')}
+                hint={t('voice.monthlyLimitHint')}
+                value={value.voice_monthly_minutes_limit}
+                min={0}
+                onChange={(next) =>
+                  set({ voice_monthly_minutes_limit: Math.max(0, next || 0) })
+                }
+              />
 
-          <div className="border-border bg-muted/20 rounded-xl border px-3.5 py-3">
-            <p className="text-muted-foreground text-[11px] font-medium uppercase">
-              {t('voice.capacityPriority')}
-            </p>
-            <p className="text-foreground mt-1.5 text-xs">
-              {t('voice.agentPriorityOrder')}
-            </p>
-          </div>
-        </div>
-      </Plegable>
-
-      {/* ── Qué dice en cada tipo de llamada. Plegado: tiene guiones que
-             funcionan y casi nadie los toca. ── */}
-      <Plegable
-        titulo={t('voice.objectives')}
-        ayuda={t('voice.objectivesHint')}
-        abierto={verGuiones}
-        alternar={() => setVerGuiones((v) => !v)}
-      >
-        <div className="space-y-3">
-          {OBJECTIVE_TYPES.map(({ type, labelKey }) => {
-            const obj = value.voice_objectives[type];
-            return (
-              <div
-                key={type}
-                className="border-border bg-muted/40 rounded-lg border p-3"
-              >
-                <p className="text-foreground mb-2 text-sm">{t(labelKey)}</p>
-                <Textarea
-                  className="bg-background text-foreground min-h-14"
-                  // El guion por defecto, a la vista. Antes había que prender un
-                  // interruptor para ver una caja vacía y adivinar qué escribir.
-                  placeholder={DEFAULT_OBJECTIVES[type][idioma]}
-                  value={obj?.objective ?? ''}
-                  onChange={(e) =>
-                    setObjective(type, { objective: e.target.value })
-                  }
-                />
-                {/* Sólo si YA tiene algo escrito: los agentes viejos no pierden
-                    lo que cargaron, pero nadie empieza a llenar dos cajas. */}
-                {(obj?.extra_instructions ?? '').trim() !== '' && (
-                  <Textarea
-                    className="bg-background text-foreground mt-2 min-h-12"
-                    placeholder={t('voice.extraInstructions')}
-                    value={obj?.extra_instructions ?? ''}
-                    onChange={(e) =>
-                      setObjective(type, { extra_instructions: e.target.value })
+              <div className="border-border rounded-xl border p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="flex min-w-0 gap-2.5">
+                    <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                    <span>
+                      <span className="text-foreground block text-sm font-medium">
+                        {t('voice.capacityDedupeTitle')}
+                      </span>
+                      <span className="text-muted-foreground mt-0.5 block text-xs">
+                        {t('voice.capacityDedupeHint')}
+                      </span>
+                    </span>
+                  </span>
+                  <Switch
+                    checked={value.voice_dedupe_minutes > 0}
+                    onCheckedChange={(checked) =>
+                      set({ voice_dedupe_minutes: checked ? 15 : 0 })
                     }
                   />
-                )}
-                {type === 'followup' && (
-                  <p className="text-muted-foreground mt-2 text-[11px]">
-                    {t('voice.objFollowupSharedDelay')}
-                  </p>
-                )}
-                {/* El upsell sí hace algo: `context.ts` lo lee y le da al agente
-                    la herramienta de editar el pedido. Por eso conserva su
-                    interruptor, a diferencia de los de objetivo. */}
-                {type === 'order_confirmation' && (
-                  <div className="border-border/60 bg-background mt-3 rounded-md border p-2.5">
-                    <label className="flex items-center justify-between">
-                      <span className="text-foreground text-xs font-medium">
-                        {t('voice.upsellLabel')}
-                      </span>
-                      <Switch
-                        checked={obj?.upsell?.enabled ?? false}
-                        onCheckedChange={(c) => setUpsell({ enabled: c })}
-                      />
-                    </label>
-                    {obj?.upsell?.enabled && (
-                      <div className="mt-2 space-y-2">
-                        <Textarea
-                          className="bg-muted text-foreground min-h-12"
-                          placeholder={t('voice.upsellOfferPlaceholder')}
-                          value={obj?.upsell?.offer_text ?? ''}
-                          onChange={(e) =>
-                            setUpsell({ offer_text: e.target.value })
-                          }
-                        />
-                        <Input
-                          className="bg-muted text-foreground"
-                          placeholder={t('voice.upsellDiscountPlaceholder')}
-                          value={obj?.upsell?.discount ?? ''}
-                          onChange={(e) =>
-                            setUpsell({ discount: e.target.value })
-                          }
-                        />
-                      </div>
-                    )}
+                </div>
+                {value.voice_dedupe_minutes > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={value.voice_dedupe_minutes}
+                      onChange={(event) =>
+                        set({
+                          voice_dedupe_minutes: Math.min(
+                            1440,
+                            Math.max(1, Number(event.target.value) || 1)
+                          ),
+                        })
+                      }
+                      className="w-24"
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      {t('voice.capacityMinutes')}
+                    </span>
                   </div>
                 )}
               </div>
-            );
-          })}
-        </div>
-      </Plegable>
-
-      {/* ── Cuándo insiste. Plegado, salvo que alguien ya lo haya tocado. ── */}
-      <Plegable
-        titulo={t('voice.whenGroup')}
-        ayuda={t('voice.whenGroupHint')}
-        abierto={verCuando}
-        alternar={() => setVerCuando((v) => !v)}
-      >
-        <div className="space-y-5">
-          <div>
-            <p className="text-foreground mb-1 text-sm font-medium">
-              {t('voice.callingHours')}
-            </p>
-            <p className="text-muted-foreground mb-2 text-xs">
-              {t('voice.callingHoursHint')}
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-muted-foreground flex items-center gap-2 text-xs">
-                {t('voice.from')}
-                <Input
-                  type="time"
-                  className="bg-muted text-foreground w-28"
-                  value={value.voice_calling_hours.start}
-                  onChange={(e) =>
-                    set({
-                      voice_calling_hours: {
-                        ...value.voice_calling_hours,
-                        start: e.target.value,
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="text-muted-foreground flex items-center gap-2 text-xs">
-                {t('voice.to')}
-                <Input
-                  type="time"
-                  className="bg-muted text-foreground w-28"
-                  value={value.voice_calling_hours.end}
-                  onChange={(e) =>
-                    set({
-                      voice_calling_hours: {
-                        ...value.voice_calling_hours,
-                        end: e.target.value,
-                      },
-                    })
-                  }
-                />
-              </label>
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {DAY_KEYS.map(({ day, key }) => {
-                const on = value.voice_calling_hours.days.includes(day);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleDay(day)}
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-xs',
-                      on
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {t(key)}
-                  </button>
-                );
-              })}
-            </div>
-            {noDays ? (
-              <p className="text-destructive mt-2 text-xs">
-                {t('voice.hoursNoDays')}
-              </p>
-            ) : crossesMidnight ? (
-              <p className="text-muted-foreground mt-2 text-xs">
-                {t('voice.hoursOvernight')}
-              </p>
-            ) : null}
-          </div>
 
-          <div>
-            <p className="text-foreground mb-1 text-sm font-medium">
-              {t('voice.retries')}
-            </p>
-            <p className="text-muted-foreground mb-2 text-xs">
-              {t('voice.retriesHint')}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {RETRY_CHOICES.map(({ retries, labelKey }) => {
-                const on = value.voice_max_retries === retries;
-                return (
-                  <button
-                    key={retries}
-                    type="button"
-                    onClick={() =>
+            {value.voice_accepts_inbound && (
+              <div className="border-border flex items-center justify-between gap-4 rounded-xl border p-3.5">
+                <div className="flex min-w-0 gap-2.5">
+                  <PhoneIncoming className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                  <div>
+                    <p className="text-foreground text-sm font-medium">
+                      {t('voice.capacityReserveTitle')}
+                    </p>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      {t('voice.agentReserveHint')}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {value.voice_reserved_inbound_slots > 0 && (
+                    <Input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, value.voice_max_concurrent_calls - 1)}
+                      value={value.voice_reserved_inbound_slots}
+                      onChange={(event) =>
+                        set({
+                          voice_reserved_inbound_slots: Math.min(
+                            value.voice_max_concurrent_calls - 1,
+                            Math.max(1, Number(event.target.value) || 1)
+                          ),
+                        })
+                      }
+                      className="w-20"
+                    />
+                  )}
+                  <Switch
+                    checked={value.voice_reserved_inbound_slots > 0}
+                    onCheckedChange={(checked) =>
                       set({
-                        voice_max_retries: retries,
-                        voice_retry_delay_minutes:
-                          value.voice_retry_delay_minutes ||
-                          DEFAULT_RETRY_DELAY_MINUTES,
+                        voice_max_concurrent_calls: checked
+                          ? Math.max(2, value.voice_max_concurrent_calls)
+                          : value.voice_max_concurrent_calls,
+                        voice_reserved_inbound_slots: checked ? 1 : 0,
                       })
                     }
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-xs',
-                      on
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {t(labelKey)}
-                  </button>
-                );
-              })}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="border-border overflow-hidden rounded-xl border">
+              <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
+                <span>
+                  <span className="text-foreground block text-sm font-medium">
+                    {t('voice.recordingEnabled')}
+                  </span>
+                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                    {t('voice.recordingHint')}
+                  </span>
+                </span>
+                <Switch
+                  checked={value.voice_recording_enabled}
+                  onCheckedChange={(checked) =>
+                    set({
+                      voice_recording_enabled: checked,
+                      voice_recording_disclosure: checked
+                        ? value.voice_recording_disclosure
+                        : false,
+                    })
+                  }
+                />
+              </label>
+              {value.voice_recording_enabled && (
+                <label className="flex cursor-pointer items-start justify-between gap-4 px-3.5 py-3">
+                  <span>
+                    <span className="text-foreground block text-sm font-medium">
+                      {t('voice.recordingDisclosure')}
+                    </span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {t('voice.recordingDisclosureHint')}
+                    </span>
+                  </span>
+                  <Switch
+                    checked={value.voice_recording_disclosure}
+                    onCheckedChange={(checked) =>
+                      set({ voice_recording_disclosure: checked })
+                    }
+                  />
+                </label>
+              )}
+            </div>
+
+            <div className="border-border bg-muted/20 rounded-xl border px-3.5 py-3">
+              <p className="text-muted-foreground text-[11px] font-medium uppercase">
+                {t('voice.capacityPriority')}
+              </p>
+              <p className="text-foreground mt-1.5 text-xs">
+                {t('voice.agentPriorityOrder')}
+              </p>
             </div>
           </div>
-        </div>
-      </Plegable>
+        </Plegable>
+      )}
+
+      {/* ── Qué dice en cada tipo de llamada. Plegado: tiene guiones que
+             funcionan y casi nadie los toca. ── */}
+      {(!section || section === 'scripts') && (
+        <Plegable
+          titulo={t('voice.objectives')}
+          ayuda={t('voice.objectivesHint')}
+          abierto={section === 'scripts' || verGuiones}
+          alternar={() => setVerGuiones((v) => !v)}
+          ocultarEncabezado={section === 'scripts'}
+        >
+          <div className="space-y-3">
+            {OBJECTIVE_TYPES.map(({ type, labelKey }) => {
+              const obj = value.voice_objectives[type];
+              return (
+                <div
+                  key={type}
+                  className="border-border bg-muted/40 rounded-lg border p-3"
+                >
+                  <p className="text-foreground mb-2 text-sm">{t(labelKey)}</p>
+                  <Textarea
+                    className="bg-background text-foreground min-h-14"
+                    // El guion por defecto, a la vista. Antes había que prender un
+                    // interruptor para ver una caja vacía y adivinar qué escribir.
+                    placeholder={DEFAULT_OBJECTIVES[type][idioma]}
+                    value={obj?.objective ?? ''}
+                    onChange={(e) =>
+                      setObjective(type, { objective: e.target.value })
+                    }
+                  />
+                  {/* Sólo si YA tiene algo escrito: los agentes viejos no pierden
+                    lo que cargaron, pero nadie empieza a llenar dos cajas. */}
+                  {(obj?.extra_instructions ?? '').trim() !== '' && (
+                    <Textarea
+                      className="bg-background text-foreground mt-2 min-h-12"
+                      placeholder={t('voice.extraInstructions')}
+                      value={obj?.extra_instructions ?? ''}
+                      onChange={(e) =>
+                        setObjective(type, {
+                          extra_instructions: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+                  {type === 'followup' && (
+                    <p className="text-muted-foreground mt-2 text-[11px]">
+                      {t('voice.objFollowupSharedDelay')}
+                    </p>
+                  )}
+                  {/* El upsell sí hace algo: `context.ts` lo lee y le da al agente
+                    la herramienta de editar el pedido. Por eso conserva su
+                    interruptor, a diferencia de los de objetivo. */}
+                  {type === 'order_confirmation' && (
+                    <div className="border-border/60 bg-background mt-3 rounded-md border p-2.5">
+                      <label className="flex items-center justify-between">
+                        <span className="text-foreground text-xs font-medium">
+                          {t('voice.upsellLabel')}
+                        </span>
+                        <Switch
+                          checked={obj?.upsell?.enabled ?? false}
+                          onCheckedChange={(c) => setUpsell({ enabled: c })}
+                        />
+                      </label>
+                      {obj?.upsell?.enabled && (
+                        <div className="mt-2 space-y-2">
+                          <Textarea
+                            className="bg-muted text-foreground min-h-12"
+                            placeholder={t('voice.upsellOfferPlaceholder')}
+                            value={obj?.upsell?.offer_text ?? ''}
+                            onChange={(e) =>
+                              setUpsell({ offer_text: e.target.value })
+                            }
+                          />
+                          <Input
+                            className="bg-muted text-foreground"
+                            placeholder={t('voice.upsellDiscountPlaceholder')}
+                            value={obj?.upsell?.discount ?? ''}
+                            onChange={(e) =>
+                              setUpsell({ discount: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Plegable>
+      )}
+
+      {/* ── Cuándo insiste. Plegado, salvo que alguien ya lo haya tocado. ── */}
+      {(!section || section === 'schedule') && (
+        <Plegable
+          titulo={t('voice.whenGroup')}
+          ayuda={t('voice.whenGroupHint')}
+          abierto={section === 'schedule' || verCuando}
+          alternar={() => setVerCuando((v) => !v)}
+          ocultarEncabezado={section === 'schedule'}
+        >
+          <div className="space-y-5">
+            <div>
+              <p className="text-foreground mb-1 text-sm font-medium">
+                {t('voice.callingHours')}
+              </p>
+              <p className="text-muted-foreground mb-2 text-xs">
+                {t('voice.callingHoursHint')}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                  {t('voice.from')}
+                  <Input
+                    type="time"
+                    className="bg-muted text-foreground w-28"
+                    value={value.voice_calling_hours.start}
+                    onChange={(e) =>
+                      set({
+                        voice_calling_hours: {
+                          ...value.voice_calling_hours,
+                          start: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                  {t('voice.to')}
+                  <Input
+                    type="time"
+                    className="bg-muted text-foreground w-28"
+                    value={value.voice_calling_hours.end}
+                    onChange={(e) =>
+                      set({
+                        voice_calling_hours: {
+                          ...value.voice_calling_hours,
+                          end: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {DAY_KEYS.map(({ day, key }) => {
+                  const on = value.voice_calling_hours.days.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={cn(
+                        'rounded-md px-2.5 py-1 text-xs',
+                        on
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {t(key)}
+                    </button>
+                  );
+                })}
+              </div>
+              {noDays ? (
+                <p className="text-destructive mt-2 text-xs">
+                  {t('voice.hoursNoDays')}
+                </p>
+              ) : crossesMidnight ? (
+                <p className="text-muted-foreground mt-2 text-xs">
+                  {t('voice.hoursOvernight')}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <p className="text-foreground mb-1 text-sm font-medium">
+                {t('voice.retries')}
+              </p>
+              <p className="text-muted-foreground mb-2 text-xs">
+                {t('voice.retriesHint')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {RETRY_CHOICES.map(({ retries, labelKey }) => {
+                  const on = value.voice_max_retries === retries;
+                  return (
+                    <button
+                      key={retries}
+                      type="button"
+                      onClick={() =>
+                        set({
+                          voice_max_retries: retries,
+                          voice_retry_delay_minutes:
+                            value.voice_retry_delay_minutes ||
+                            DEFAULT_RETRY_DELAY_MINUTES,
+                        })
+                      }
+                      className={cn(
+                        'rounded-md px-2.5 py-1 text-xs',
+                        on
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {t(labelKey)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Plegable>
+      )}
 
       {/* Probarlo es lo último que uno hace, así que va último. */}
-      {workspaceId && showTestCall && (
+      {workspaceId && showTestCall && (!section || section === 'test') && (
         <div className="border-border bg-muted/40 rounded-lg border p-3">
           <p className="text-foreground mb-2 text-sm font-medium">
             {t('voice.testCall')}
@@ -1643,28 +1830,40 @@ function Plegable({
   ayuda,
   abierto,
   alternar,
+  ocultarEncabezado = false,
   children,
 }: {
   titulo: string;
   ayuda: string;
   abierto: boolean;
   alternar: () => void;
+  ocultarEncabezado?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <button
-        type="button"
-        onClick={alternar}
-        className="flex w-full items-center gap-1.5 text-left"
-      >
-        <ChevronDown
-          className={`text-muted-foreground h-4 w-4 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`}
-        />
-        <span className="text-foreground text-sm font-medium">{titulo}</span>
-      </button>
-      <p className="text-muted-foreground mt-0.5 ml-[22px] text-xs">{ayuda}</p>
-      {abierto && <div className="mt-3">{children}</div>}
+      {!ocultarEncabezado && (
+        <>
+          <button
+            type="button"
+            onClick={alternar}
+            className="flex w-full items-center gap-1.5 text-left"
+          >
+            <ChevronDown
+              className={`text-muted-foreground h-4 w-4 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`}
+            />
+            <span className="text-foreground text-sm font-medium">
+              {titulo}
+            </span>
+          </button>
+          <p className="text-muted-foreground mt-0.5 ml-[22px] text-xs">
+            {ayuda}
+          </p>
+        </>
+      )}
+      {abierto && (
+        <div className={ocultarEncabezado ? '' : 'mt-3'}>{children}</div>
+      )}
     </div>
   );
 }
