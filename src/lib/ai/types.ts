@@ -1,8 +1,4 @@
-import type {
-  Channel,
-  VoiceCallingHours,
-  VoiceObjectives,
-} from '@/types';
+import type { Channel, VoiceCallingHours, VoiceObjectives } from '@/types';
 import type { AgentPermissions, AgentRole } from './roles';
 import type { AgentTools } from './toolbox';
 
@@ -214,6 +210,8 @@ export interface AiAgent {
   // ── Voice AI (migration 113) ──
   /** Master switch: this agent can place/answer phone calls. */
   voice_enabled: boolean;
+  /** Voice profile used when this chat agent escalates a conversation by phone. */
+  voice_agent_id?: string | null;
   /** TTS provider for the call voice. MVP: 'elevenlabs'. */
   voice_provider: 'elevenlabs';
   /** Provider voice id (e.g. ElevenLabs voice_id). */

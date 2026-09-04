@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalizedRouter } from '@/hooks/use-localized-router';
 import Image from 'next/image';
+import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -37,11 +38,7 @@ import {
   mediosDeclarados,
   type MedioDePago,
 } from '@/lib/ai/medios-pago';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -51,7 +48,6 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  VoiceSettings,
   initialVoiceState,
   type VoiceState,
 } from '@/components/ai/voice-settings';
@@ -98,10 +94,26 @@ const CANAL: Record<string, string> = {
 
 // label/hint son claves i18n resueltas con t() en el render.
 const TONES: { value: AiTone; label: string; hint: string }[] = [
-  { value: 'friendly', label: 'assistant.toneFriendly', hint: 'assistant.toneFriendlyHint' },
-  { value: 'formal', label: 'assistant.toneFormal', hint: 'assistant.toneFormalHint' },
-  { value: 'casual', label: 'assistant.toneCasual', hint: 'assistant.toneCasualHint' },
-  { value: 'concise', label: 'assistant.toneConcise', hint: 'assistant.toneConciseHint' },
+  {
+    value: 'friendly',
+    label: 'assistant.toneFriendly',
+    hint: 'assistant.toneFriendlyHint',
+  },
+  {
+    value: 'formal',
+    label: 'assistant.toneFormal',
+    hint: 'assistant.toneFormalHint',
+  },
+  {
+    value: 'casual',
+    label: 'assistant.toneCasual',
+    hint: 'assistant.toneCasualHint',
+  },
+  {
+    value: 'concise',
+    label: 'assistant.toneConcise',
+    hint: 'assistant.toneConciseHint',
+  },
 ];
 
 // Modelo fijo: la decisión no aporta valor al comercio, la tomamos por él. Lo
@@ -137,8 +149,16 @@ const CHANNELS: { value: Channel; label: string; icon: string | null }[] = [
   { value: 'instagram', label: 'Instagram', icon: '/channels/instagram.svg' },
   { value: 'messenger', label: 'Messenger', icon: '/channels/messenger.svg' },
   { value: 'gmail', label: 'Gmail', icon: '/channels/gmail.svg' },
-  { value: 'outlook', label: 'Outlook', icon: '/channels/microsoftoutlook.svg' },
-  { value: 'mercadolibre', label: 'Mercado Libre', icon: '/channels/mercadolibre.svg' },
+  {
+    value: 'outlook',
+    label: 'Outlook',
+    icon: '/channels/microsoftoutlook.svg',
+  },
+  {
+    value: 'mercadolibre',
+    label: 'Mercado Libre',
+    icon: '/channels/mercadolibre.svg',
+  },
   { value: 'webchat', label: 'nav.webchat', icon: '/channels/webchat.svg' },
 ];
 
@@ -181,7 +201,11 @@ const ROLE_KEY: Record<AgentRole, string> = {
  * bandeja para que una persona la envie con un clic. Es el punto medio entre
  * tener el asistente apagado y confiarle el chat entero.
  */
-const AUTONOMY_MODES: { value: 'auto' | 'approval'; label: string; hint: string }[] = [
+const AUTONOMY_MODES: {
+  value: 'auto' | 'approval';
+  label: string;
+  hint: string;
+}[] = [
   {
     value: 'auto',
     label: 'assistant.autonomyAuto',
@@ -194,23 +218,24 @@ const AUTONOMY_MODES: { value: 'auto' | 'approval'; label: string; hint: string 
   },
 ];
 
-const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] = [
-  {
-    value: 'single',
-    label: 'assistant.responseModeSingle',
-    hint: 'assistant.responseModeSingleHint',
-  },
-  {
-    value: 'multi',
-    label: 'assistant.responseModeMulti',
-    hint: 'assistant.responseModeMultiHint',
-  },
-  {
-    value: 'dynamic',
-    label: 'assistant.responseModeDynamic',
-    hint: 'assistant.responseModeDynamicHint',
-  },
-];
+const RESPONSE_MODES: { value: AiResponseMode; label: string; hint: string }[] =
+  [
+    {
+      value: 'single',
+      label: 'assistant.responseModeSingle',
+      hint: 'assistant.responseModeSingleHint',
+    },
+    {
+      value: 'multi',
+      label: 'assistant.responseModeMulti',
+      hint: 'assistant.responseModeMultiHint',
+    },
+    {
+      value: 'dynamic',
+      label: 'assistant.responseModeDynamic',
+      hint: 'assistant.responseModeDynamicHint',
+    },
+  ];
 
 // label es una clave i18n resuelta con t() en el render. El offset UTC va
 // en la traducción porque la ciudad cambia entre idiomas.
@@ -238,7 +263,11 @@ const TIMEZONES: { value: string; label: string }[] = [
 ];
 
 // short/long son claves i18n resueltas con t() en el render.
-const WEEK_DAYS: { value: 0 | 1 | 2 | 3 | 4 | 5 | 6; short: string; long: string }[] = [
+const WEEK_DAYS: {
+  value: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  short: string;
+  long: string;
+}[] = [
   { value: 1, short: 'assistant.dayMonShort', long: 'assistant.dayMonLong' },
   { value: 2, short: 'assistant.dayTueShort', long: 'assistant.dayTueLong' },
   { value: 3, short: 'assistant.dayWedShort', long: 'assistant.dayWedLong' },
@@ -292,7 +321,7 @@ function buildBusinessHours(
   start: string,
   end: string,
   timezone: string,
-  days: number[],
+  days: number[]
 ): BusinessHours | null {
   if (!enabled || days.length === 0) return null;
   const window = `${start}-${end}`;
@@ -312,11 +341,9 @@ interface AgentEditorProps {
    *  porque el usuario sigue editando después de la creación. */
   onAgentUpserted?: (saved: AgentSummary) => void | Promise<void>;
   /**
-   * Pestaña con la que abre. La pantalla de Llamadas manda `voice`: mandar al
-   * comercio a la lista de asistentes para que adivine cuál abrir y en qué
-   * solapa está la voz era pedirle que rehiciera el camino a mano.
+   * Pestaña con la que abre cuando se llega desde una acción contextual.
    */
-  initialTab?: 'business' | 'tools' | 'reach' | 'voice' | 'advanced' | 'stats';
+  initialTab?: 'business' | 'tools' | 'reach' | 'advanced' | 'stats';
 }
 
 export function AgentEditor({
@@ -336,7 +363,7 @@ export function AgentEditor({
   // generar lo levantamos al id devuelto para que el botón Guardar
   // haga PATCH en lugar de POST otro registro.
   const [currentAgentId, setCurrentAgentId] = useState<string | null>(
-    agent?.id ?? null,
+    agent?.id ?? null
   );
   const editing = Boolean(currentAgentId);
   // `isNew` = el editor se abrió en modo "crear" (sin agente previo). Se
@@ -351,7 +378,7 @@ export function AgentEditor({
   // cuadro y no tenia forma de saber que era basura nuestra. Entrando limpia,
   // su proximo guardado la deja limpia tambien en la base.
   const [persona, setPersona] = useState(
-    agent?.persona ? limpiarPersona(agent.persona) : defaultPersona(locale),
+    agent?.persona ? limpiarPersona(agent.persona) : defaultPersona(locale)
   );
   const [knowledge, setKnowledge] = useState(agent?.knowledge ?? '');
   // New agents default to the merchant's UI language; existing agents keep
@@ -369,72 +396,74 @@ export function AgentEditor({
   // los últimos ~100 mensajes + el resumen). reply_outside_hours se deriva
   // del toggle "Horario de atención" al guardar.
   const [replyWhenAssigned, setReplyWhenAssigned] = useState(
-    agent?.reply_when_assigned ?? false,
+    agent?.reply_when_assigned ?? false
   );
   const [escalateKeywords, setEscalateKeywords] = useState<string[]>(
     // Sólo lo que ES un pedido de hablar con una persona. "Reembolso" estaba en
     // esta lista y no es eso: es una consulta que el agente sabe atender, y
     // tenerla acá apagaba la IA de esa conversación —para siempre— con que el
     // cliente escribiera la palabra.
-    agent?.escalate_keywords ?? ['humano', 'persona', 'agente'],
+    agent?.escalate_keywords ?? ['humano', 'persona', 'agente']
   );
   const [escalateInput, setEscalateInput] = useState('');
   const [responseMode, setResponseMode] = useState<AiResponseMode>(
-    agent?.response_mode ?? 'dynamic',
+    agent?.response_mode ?? 'dynamic'
   );
   // Autonomia: responde solo o deja la respuesta para aprobar (migracion 170).
   const [requiresApproval, setRequiresApproval] = useState<boolean>(
-    agent?.requires_approval ?? false,
+    agent?.requires_approval ?? false
   );
   const [inboundDebounce, setInboundDebounce] = useState<number>(
-    agent?.inbound_debounce_seconds ?? 15,
+    agent?.inbound_debounce_seconds ?? 15
   );
-  const [burstMax, setBurstMax] = useState<number>(agent?.reply_burst_max ?? 20);
+  const [burstMax, setBurstMax] = useState<number>(
+    agent?.reply_burst_max ?? 20
+  );
   const [escalateAfterMessages, setEscalateAfterMessages] = useState<number>(
-    agent?.escalate_after_messages ?? 0,
+    agent?.escalate_after_messages ?? 0
   );
   // Seguimiento inteligente: si el cliente no responde, el asistente
   // manda un mensaje contextual de seguimiento. Migration 079.
   const [followupEnabled, setFollowupEnabled] = useState<boolean>(
-    agent?.followup_enabled ?? false,
+    agent?.followup_enabled ?? false
   );
   // Tope 23 h por cumplimiento Meta (ventana de 24 h). Agentes viejos con 24
   // se muestran como 23 y se corrigen al guardar.
   const [followupDelayHours, setFollowupDelayHours] = useState<number>(
-    Math.min(23, agent?.followup_delay_hours ?? 23),
+    Math.min(23, agent?.followup_delay_hours ?? 23)
   );
   const [followupMaxCount, setFollowupMaxCount] = useState<number>(
-    agent?.followup_max_count ?? 1,
+    agent?.followup_max_count ?? 1
   );
   // Cierre de ventas: si está ON, el asistente arma y crea el pedido real
   // en Shopify. Migration 080. Requiere Shopify conectado con permiso de
   // pedidos (write_orders).
   const [puedeCrearPedidos, setPuedeCrearPedidos] = useState<boolean>(
-    agent?.puede_crear_pedidos ?? false,
+    agent?.puede_crear_pedidos ?? false
   );
   // Cómo cierra la venta (migración 219). Elige entre lo que la pizarra ya
   // permite: con una sola de las dos herramientas prendida no hay nada que
   // elegir y el control no se muestra.
-  const [cobroModo, setCobroModo] = useState<'checkout' | 'chat' | 'segun_pago'>(
-    agent?.cobro_modo ?? 'segun_pago',
-  );
+  const [cobroModo, setCobroModo] = useState<
+    'checkout' | 'chat' | 'segun_pago'
+  >(agent?.cobro_modo ?? 'segun_pago');
   // `null` no es la lista vacía: es "todavía no lo declaró". Con null el
   // agente no nombra ningún medio y no confirma contra entrega — pasa a una
   // persona. Es donde arranca todo asistente nuevo, y es el lado seguro.
   const [medios, setMedios] = useState<MedioDePago[] | null>(
-    mediosDeclarados(agent?.medios_pago),
+    mediosDeclarados(agent?.medios_pago)
   );
   // Rol y permisos por acción (migración 164). `permissions` en null significa
   // "usá las columnas viejas": los agentes anteriores siguen igual hasta que
   // alguien toque uno de estos interruptores.
   const [role, setRole] = useState<AgentRole>(agent?.role ?? 'general');
   const [permissions, setPermissions] = useState<AgentPermissions | null>(
-    agent?.permissions ?? null,
+    agent?.permissions ?? null
   );
   // La correa por herramienta (migración 180). En null cada una hereda del
   // permiso viejo: aplicar esto no le cambió el agente a nadie.
   const [tools, setTools] = useState<AgentTools | null>(
-    (agent?.tools as AgentTools | null) ?? null,
+    (agent?.tools as AgentTools | null) ?? null
   );
   // Qué de todo eso tiene HOY con qué hacerse en esta cuenta. La pizarra deja
   // prender todo igual —apagar algo de antemano o dejarlo listo para cuando se
@@ -450,7 +479,8 @@ export function AgentEditor({
   /** Cuánto puede descontar el agente. Vive en la cuenta, no en el agente. */
   const [topeDescuento, setTopeDescuento] = useState(0);
   /** Con qué pruebas da un pedido por cobrado. También de la cuenta. */
-  const [reglasCobro, setReglasCobro] = useState<ReglasDeCobro>(REGLAS_POR_DEFECTO);
+  const [reglasCobro, setReglasCobro] =
+    useState<ReglasDeCobro>(REGLAS_POR_DEFECTO);
 
   /**
    * Cambiar de rol trae su preset de permisos.
@@ -474,7 +504,9 @@ export function AgentEditor({
   // Estado de la conexión Shopify para gatear "Cierre de ventas". null =
   // cargando. El cierre solo se puede activar con Shopify conectado; si no,
   // mostramos un botón "Vincular" que abre un popup sin salir del editor.
-  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
+  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(
+    null
+  );
   const [linkShop, setLinkShop] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -485,22 +517,24 @@ export function AgentEditor({
   const [hoursEnabled, setHoursEnabled] = useState<boolean>(initialBh.enabled);
   const [hoursStart, setHoursStart] = useState<string>(initialBh.start);
   const [hoursEnd, setHoursEnd] = useState<string>(initialBh.end);
-  const [hoursTimezone, setHoursTimezone] = useState<string>(initialBh.timezone);
+  const [hoursTimezone, setHoursTimezone] = useState<string>(
+    initialBh.timezone
+  );
   const [hoursDays, setHoursDays] = useState<number[]>(initialBh.days);
   // Modelo fijo, sin selector. El runner lee agent.model del registro;
   // mandamos siempre DEFAULT_MODEL en el payload de guardado.
   const [scope, setScope] = useState<AiScope>(agent?.scope ?? 'workspace');
   const [channels, setChannels] = useState<Channel[]>(
-    (agent?.ai_agent_channels ?? []).map((c) => c.channel as Channel),
+    (agent?.ai_agent_channels ?? []).map((c) => c.channel as Channel)
   );
   // Un asistente nuevo SIEMPRE arranca en "specific": se entrena a partir
   // del producto que elijas, así que la selección es obligatoria. Los
   // existentes conservan su scope guardado (incl. "all", por compatibilidad).
   const [productScope, setProductScope] = useState<AiProductScope>(
-    agent ? (agent.product_scope ?? 'all') : 'specific',
+    agent ? (agent.product_scope ?? 'all') : 'specific'
   );
   const [selectedProducts, setSelectedProducts] = useState<string[]>(
-    (agent?.ai_agent_products ?? []).map((p) => p.product_id),
+    (agent?.ai_agent_products ?? []).map((p) => p.product_id)
   );
   const [catalog, setCatalog] = useState<ShopifyProductSummary[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -532,19 +566,24 @@ export function AgentEditor({
   const [showTest, setShowTest] = useState(false);
 
   // Voice AI config — one state object, edited by <VoiceSettings>.
-  const [voice, setVoice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
+  const [voice] = useState<VoiceState>(initialVoiceState(agent ?? undefined));
+  const [voiceAgentId, setVoiceAgentId] = useState(agent?.voice_agent_id ?? '');
+  const [voiceCanPropose, setVoiceCanPropose] = useState(
+    agent?.voice_ai_decides ?? false
+  );
 
-  type TabKey = 'business' | 'tools' | 'reach' | 'voice' | 'advanced' | 'stats';
+  type TabKey = 'business' | 'tools' | 'reach' | 'advanced' | 'stats';
   // `stats` sólo existe con el agente ya creado: entrar por un enlace viejo a
   // una pestaña que no está dibujada dejaba el modal en blanco.
   const [tab, setTab] = useState<TabKey>(
-    initialTab && (initialTab !== 'stats' || agent?.id) ? initialTab : 'business',
+    initialTab && (initialTab !== 'stats' || agent?.id)
+      ? initialTab
+      : 'business'
   );
   const TABS: { key: TabKey; label: string; icon: typeof Briefcase }[] = [
     { key: 'business', label: t('assistant.tabBusiness'), icon: Briefcase },
     { key: 'tools', label: t('operation.toolsTitle'), icon: SlidersHorizontal },
     { key: 'reach', label: t('assistant.tabReach'), icon: Radio },
-    { key: 'voice', label: t('voice.tab'), icon: PhoneCall },
     { key: 'advanced', label: t('assistant.tabAdvanced'), icon: SettingsIcon },
     // Estadísticas no está en el rail: se entra por el botón de la tarjeta del
     // agente. El panel sigue existiendo (tab === 'stats').
@@ -553,16 +592,16 @@ export function AgentEditor({
   // Mapas valor→etiqueta para <SelectValue labels={...}>, resueltos con t()
   // porque las etiquetas base ahora son claves i18n.
   const LANGUAGE_LABELS = Object.fromEntries(
-    LANGUAGES.map((l) => [l.code, t(l.label)]),
+    LANGUAGES.map((l) => [l.code, t(l.label)])
   );
   const RESPONSE_MODE_LABELS = Object.fromEntries(
-    RESPONSE_MODES.map((m) => [m.value, t(m.label)]),
+    RESPONSE_MODES.map((m) => [m.value, t(m.label)])
   );
   const AUTONOMY_LABELS = Object.fromEntries(
-    AUTONOMY_MODES.map((m) => [m.value, t(m.label)]),
+    AUTONOMY_MODES.map((m) => [m.value, t(m.label)])
   );
   const TIMEZONE_LABELS = Object.fromEntries(
-    TIMEZONES.map((tz) => [tz.value, t(tz.label)]),
+    TIMEZONES.map((tz) => [tz.value, t(tz.label)])
   );
   /** El texto de cada modo de cobro, para que el selector no muestre el nombre
    *  interno de la columna. */
@@ -572,7 +611,7 @@ export function AgentEditor({
     checkout: t('operation.cobroCheckout'),
   };
   const ROLE_LABELS = Object.fromEntries(
-    AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)]),
+    AGENT_ROLES.map((r) => [r, t(`operation.role${ROLE_KEY[r]}Name`)])
   );
 
   function toggleEscalate(kw: string) {
@@ -588,12 +627,16 @@ export function AgentEditor({
   }
 
   function toggleChannel(c: Channel) {
-    setChannels((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+    setChannels((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+    );
   }
 
   function toggleHoursDay(d: number) {
     setHoursDays((prev) =>
-      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+      prev.includes(d)
+        ? prev.filter((x) => x !== d)
+        : [...prev, d].sort((a, b) => a - b)
     );
   }
 
@@ -608,7 +651,8 @@ export function AgentEditor({
   function toggleProduct(p: ShopifyProductSummary) {
     const ids = idsDelGrupo(p);
     setSelectedProducts((prev) => {
-      if (ids.some((id) => prev.includes(id))) return prev.filter((x) => !ids.includes(x));
+      if (ids.some((id) => prev.includes(id)))
+        return prev.filter((x) => !ids.includes(x));
       const next = Array.from(new Set([...prev, ...ids]));
       // Primer producto de un asistente nuevo → preparar la plantilla y
       // disparar la investigación del producto (lo que antes era manual). Se
@@ -627,12 +671,16 @@ export function AgentEditor({
    * merchant vea el agente pre-armado sin duplicar la investigación completa.
    */
   function applyProductTemplate(p: ProductDetail) {
-    setName((cur) => cur.trim() || t('assistant.defaultAgentName', { title: p.title }).slice(0, 60));
+    setName(
+      (cur) =>
+        cur.trim() ||
+        t('assistant.defaultAgentName', { title: p.title }).slice(0, 60)
+    );
     // System prompt: lo arma el código a partir del producto (título +
     // cliente ideal + beneficios + objeciones si hay investigación). Solo
     // pisa el persona por defecto / vacío, nunca lo que el usuario escribió.
     setPersona((cur) =>
-      isDefaultPersona(cur) ? buildPersonaFromProduct(p, locale) : cur,
+      isDefaultPersona(cur) ? buildPersonaFromProduct(p, locale) : cur
     );
     // "Información del negocio": SIEMPRE queda rellena al elegir el producto
     // (si está vacía) — con el resumen del producto cuando hay investigación,
@@ -641,7 +689,8 @@ export function AgentEditor({
     setKnowledge((cur) =>
       cur.trim()
         ? cur
-        : buildBusinessInfoFromProduct(p, t) || t('assistant.businessInfoPlaceholder'),
+        : buildBusinessInfoFromProduct(p, t) ||
+          t('assistant.businessInfoPlaceholder')
     );
   }
 
@@ -699,7 +748,7 @@ export function AgentEditor({
     (async () => {
       try {
         const res = await fetch(
-          `/api/ai/agents/disponibilidad?workspace_id=${encodeURIComponent(workspaceId)}`,
+          `/api/ai/agents/disponibilidad?workspace_id=${encodeURIComponent(workspaceId)}`
         );
         if (!res.ok) return;
         const json = (await res.json()) as Disponibilidad;
@@ -724,7 +773,7 @@ export function AgentEditor({
     (async () => {
       try {
         const res = await fetch(
-          `/api/ai/tope-descuento?workspace_id=${encodeURIComponent(workspaceId)}`,
+          `/api/ai/tope-descuento?workspace_id=${encodeURIComponent(workspaceId)}`
         );
         if (!res.ok) return;
         const json = (await res.json()) as { tope?: number };
@@ -758,7 +807,7 @@ export function AgentEditor({
         }
       })();
     },
-    [workspaceId, fetchWithCsrf, t],
+    [workspaceId, fetchWithCsrf, t]
   );
 
   // Con qué pruebas se da un pedido por cobrado. También de la CUENTA, y por
@@ -770,7 +819,7 @@ export function AgentEditor({
     (async () => {
       try {
         const res = await fetch(
-          `/api/ai/cobro-comprobante?workspace_id=${encodeURIComponent(workspaceId)}`,
+          `/api/ai/cobro-comprobante?workspace_id=${encodeURIComponent(workspaceId)}`
         );
         if (!res.ok) return;
         const json = (await res.json()) as { reglas?: ReglasDeCobro };
@@ -807,7 +856,7 @@ export function AgentEditor({
         }
       })();
     },
-    [workspaceId, fetchWithCsrf, t],
+    [workspaceId, fetchWithCsrf, t]
   );
 
   // Estado de la conexión Shopify (gatea "Cierre de ventas").
@@ -840,7 +889,7 @@ export function AgentEditor({
     const popup = window.open(
       `/api/shopify/install?shop=${encodeURIComponent(shop)}`,
       'shopify-connect',
-      'width=620,height=760',
+      'width=620,height=760'
     );
     const started = Date.now();
     const timer = window.setInterval(async () => {
@@ -957,13 +1006,6 @@ export function AgentEditor({
       toast.error(t('assistant.hoursDayRequired'));
       return;
     }
-    // El horario de llamadas no se validaba en ningún lado: sin días se
-    // guardaba y las llamadas dejaban de salir sin explicación.
-    if (voice.voice_enabled && voice.voice_calling_hours.days.length === 0) {
-      setTab('voice');
-      toast.error(t('voice.hoursNoDays'));
-      return;
-    }
     setSaving(true);
     const payload: Partial<AiAgent> & {
       workspace_id?: string;
@@ -999,7 +1041,7 @@ export function AgentEditor({
         hoursStart,
         hoursEnd,
         hoursTimezone,
-        hoursDays,
+        hoursDays
       ),
       escalate_keywords: escalateKeywords,
       escalate_after_messages: escalateAfterMessages,
@@ -1014,7 +1056,8 @@ export function AgentEditor({
       tools,
       // Voice AI (migration 113 + 115)
       voice_enabled: voice.voice_enabled,
-      voice_ai_decides: voice.voice_ai_decides,
+      voice_agent_id: voiceAgentId || null,
+      voice_ai_decides: voiceCanPropose,
       voice_id: voice.voice_id,
       voice_greeting: voice.voice_greeting.trim() || null,
       voice_system_prompt: voice.voice_system_prompt.trim() || null,
@@ -1054,7 +1097,9 @@ export function AgentEditor({
       toast.error(json.error ?? t('assistant.saveError'));
       return;
     }
-    toast.success(editing ? t('assistant.savedToast') : t('assistant.createdToast'));
+    toast.success(
+      editing ? t('assistant.savedToast') : t('assistant.createdToast')
+    );
     if (json.agent) {
       const saved = json.agent as AgentSummary;
       setCurrentAgentId(saved.id);
@@ -1101,18 +1146,21 @@ export function AgentEditor({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? t('assistant.testFailed'));
       const reply: string = json.reply ?? '';
-      const chunks: string[] = Array.isArray(json.chunks) && json.chunks.length > 0
-        ? json.chunks
-        : reply
-          ? [reply]
-          : [];
+      const chunks: string[] =
+        Array.isArray(json.chunks) && json.chunks.length > 0
+          ? json.chunks
+          : reply
+            ? [reply]
+            : [];
       setTestHistory((prev) => [
         ...prev,
         {
           role: 'assistant',
           chunks,
           stamp: nowStamp(),
-          herramientas: Array.isArray(json.herramientas) ? json.herramientas : [],
+          herramientas: Array.isArray(json.herramientas)
+            ? json.herramientas
+            : [],
         },
       ]);
     } catch (err) {
@@ -1139,19 +1187,21 @@ export function AgentEditor({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-border bg-card p-0 text-foreground sm:max-w-3xl lg:max-w-5xl"
+        className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
         showCloseButton={false}
       >
-        <div className="flex items-start justify-between border-b border-border px-4 py-4 sm:px-6">
+        <div className="border-border flex items-start justify-between border-b px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-accent-ink">
+            <div className="bg-primary/10 text-accent-ink flex size-9 items-center justify-center rounded-lg">
               <Sparkles className="size-4" />
             </div>
             <div>
-              <DialogTitle className="text-base font-semibold text-foreground">
-                {editing ? name || t('assistant.assistant') : t('assistant.newAgent')}
+              <DialogTitle className="text-foreground text-base font-semibold">
+                {editing
+                  ? name || t('assistant.assistant')
+                  : t('assistant.newAgent')}
               </DialogTitle>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('assistant.editorSubtitle')}
               </p>
             </div>
@@ -1160,13 +1210,21 @@ export function AgentEditor({
             <button
               type="button"
               onClick={() => setShowTest((v) => !v)}
-              className="hidden items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:inline-flex"
-              title={showTest ? t('assistant.hideTestPanel') : t('assistant.showTestPanel')}
+              className="border-border bg-background text-foreground hover:bg-accent hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors sm:inline-flex"
+              title={
+                showTest
+                  ? t('assistant.hideTestPanel')
+                  : t('assistant.showTestPanel')
+              }
             >
-              {showTest ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {showTest ? (
+                <EyeOff className="size-3.5" />
+              ) : (
+                <Eye className="size-3.5" />
+              )}
               {showTest ? t('assistant.hideTest') : t('assistant.test')}
             </button>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <label className="text-muted-foreground flex items-center gap-2 text-xs">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
               {isActive ? t('assistant.active') : t('assistant.paused')}
             </label>
@@ -1174,7 +1232,7 @@ export function AgentEditor({
               type="button"
               onClick={onClose}
               aria-label={t('assistant.close')}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1"
             >
               <X className="size-4" />
             </button>
@@ -1188,14 +1246,14 @@ export function AgentEditor({
             // cada columna scrollea por dentro y el cuerpo queda fijo.
             'grid min-h-0 gap-0 overflow-y-auto sm:overflow-hidden',
             showTest
-              // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
-              // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
-              ? 'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
-              : 'sm:grid-cols-[180px_minmax(0,1fr)]',
+              ? // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
+                // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
+                'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
+              : 'sm:grid-cols-[180px_minmax(0,1fr)]'
           )}
         >
           {/* Section nav rail */}
-          <nav className="border-r border-border bg-card/40 p-2 sm:py-4">
+          <nav className="border-border bg-card/40 border-r p-2 sm:py-4">
             {TABS.map((tabItem) => {
               const Icon = tabItem.icon;
               const active = tab === tabItem.key;
@@ -1208,7 +1266,7 @@ export function AgentEditor({
                     'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
                     active
                       ? 'bg-primary/10 text-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                   )}
                 >
                   <Icon className="size-4" />
@@ -1234,12 +1292,12 @@ export function AgentEditor({
                 >
                   {isNew ? (
                     applyingProduct ? (
-                      <p className="flex items-center gap-2 text-[11px] text-accent-ink">
+                      <p className="text-accent-ink flex items-center gap-2 text-[11px]">
                         <Loader2 className="size-3.5 animate-spin" />
                         {t('assistant.preparingWithProduct')}
                       </p>
                     ) : (
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-muted-foreground text-[11px]">
                         {t('assistant.productNewHint')}
                       </p>
                     )
@@ -1260,7 +1318,7 @@ export function AgentEditor({
                   {(isNew || productScope === 'specific') && (
                     <div className="mt-2 space-y-2">
                       <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
                         <Input
                           value={productSearch}
                           onChange={(e) => setProductSearch(e.target.value)}
@@ -1268,18 +1326,16 @@ export function AgentEditor({
                           className="bg-background pl-8 text-sm"
                         />
                       </div>
-                      <div className="max-h-[280px] overflow-y-auto rounded-lg border border-border bg-background">
+                      <div className="border-border bg-background max-h-[280px] overflow-y-auto rounded-lg border">
                         {catalogLoading ? (
                           <div className="flex justify-center py-6">
-                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                            <Loader2 className="text-muted-foreground size-4 animate-spin" />
                           </div>
                         ) : filteredCatalog.length === 0 ? (
-                          <div className="space-y-3 px-3 py-6 text-center text-xs text-muted-foreground">
+                          <div className="text-muted-foreground space-y-3 px-3 py-6 text-center text-xs">
                             {catalog.length === 0 ? (
                               <>
-                                <p>
-                                  {t('assistant.noProductsYet')}
-                                </p>
+                                <p>{t('assistant.noProductsYet')}</p>
                                 <Button
                                   type="button"
                                   onClick={goToCreateProduct}
@@ -1294,7 +1350,7 @@ export function AgentEditor({
                             )}
                           </div>
                         ) : (
-                          <ul className="divide-y divide-border">
+                          <ul className="divide-border divide-y">
                             {filteredCatalog.map((p) => {
                               // Cuenta como asignado si lo está CUALQUIERA de
                               // sus publicaciones: quien asignó el producto
@@ -1302,14 +1358,14 @@ export function AgentEditor({
                               // fila, y el agente ya lo trata como el producto
                               // entero. Mostrarlo sin asignar sería mentirle.
                               const on = idsDelGrupo(p).some((id) =>
-                                selectedProducts.includes(id),
+                                selectedProducts.includes(id)
                               );
                               return (
                                 <li
                                   key={p.id}
                                   className={cn(
                                     'flex items-center gap-3 px-3 py-2',
-                                    on && 'bg-primary/10',
+                                    on && 'bg-primary/10'
                                   )}
                                 >
                                   {p.image_url ? (
@@ -1320,15 +1376,15 @@ export function AgentEditor({
                                       className="size-8 shrink-0 rounded object-cover"
                                     />
                                   ) : (
-                                    <div className="flex size-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                                    <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded">
                                       <Package className="size-3.5" />
                                     </div>
                                   )}
                                   <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm text-foreground">
+                                    <p className="text-foreground truncate text-sm">
                                       {p.title}
                                     </p>
-                                    <p className="truncate text-[11px] text-muted-foreground">
+                                    <p className="text-muted-foreground truncate text-[11px]">
                                       {[
                                         p.product_type,
                                         p.vendor,
@@ -1351,12 +1407,14 @@ export function AgentEditor({
                                           <span
                                             key={l.id}
                                             title={l.title ?? undefined}
-                                            className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                            className="border-border text-muted-foreground inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
                                           >
-                                            <span className="font-medium text-foreground">
+                                            <span className="text-foreground font-medium">
                                               {CANAL[l.platform] ?? l.platform}
                                             </span>
-                                            {l.price_min != null ? `$${l.price_min}` : ''}
+                                            {l.price_min != null
+                                              ? `$${l.price_min}`
+                                              : ''}
                                           </span>
                                         ))}
                                       </div>
@@ -1373,7 +1431,7 @@ export function AgentEditor({
                                       'h-7 shrink-0 gap-1 px-2.5 text-xs',
                                       on
                                         ? 'bg-emerald-600 text-white hover:bg-emerald-600/90'
-                                        : 'border-border bg-transparent text-foreground hover:bg-muted',
+                                        : 'border-border text-foreground hover:bg-muted bg-transparent'
                                     )}
                                   >
                                     {on ? (
@@ -1397,12 +1455,12 @@ export function AgentEditor({
                           opción, pero pasa callado — y el agente contesta que
                           no tiene nada a la venta. */}
                       {!isNew && selectedProducts.length === 0 && (
-                        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-foreground">
+                        <p className="text-foreground rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
                           {t('assistant.scopeSpecificEmpty')}
                         </p>
                       )}
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground text-[11px]">
                           {productosAsignados === 1
                             ? t('assistant.productsAssignedOne', {
                                 count: productosAsignados,
@@ -1414,7 +1472,7 @@ export function AgentEditor({
                         <button
                           type="button"
                           onClick={goToCreateProduct}
-                          className="text-[11px] text-accent-ink underline hover:opacity-80"
+                          className="text-accent-ink text-[11px] underline hover:opacity-80"
                         >
                           {t('assistant.notListedCreate')}
                         </button>
@@ -1426,9 +1484,7 @@ export function AgentEditor({
                 {/* Identidad: nombre + tono + idioma. El modelo lo
                     elegimos nosotros (Haiku) para no abrumar al usuario
                     con decisiones técnicas. */}
-                <SectionCard
-                  title={t('assistant.identityTitle')}
-                >
+                <SectionCard title={t('assistant.identityTitle')}>
                   <Field label={t('assistant.agentNameLabel')}>
                     <Input
                       value={name}
@@ -1449,7 +1505,7 @@ export function AgentEditor({
                             'rounded-lg border px-3 py-2 text-left text-sm transition-colors',
                             tone === toneOption.value
                               ? 'border-primary/60 bg-primary/10 text-foreground'
-                              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                           )}
                         >
                           {t(toneOption.label)}
@@ -1458,8 +1514,11 @@ export function AgentEditor({
                     </div>
                   </Field>
                   <Field label={t('assistant.languageLabel')}>
-                    <Select value={language} onValueChange={(v) => setLanguage(v ?? 'es')}>
-                      <SelectTrigger className="w-full bg-background">
+                    <Select
+                      value={language}
+                      onValueChange={(v) => setLanguage(v ?? 'es')}
+                    >
+                      <SelectTrigger className="bg-background w-full">
                         <SelectValue labels={LANGUAGE_LABELS} />
                       </SelectTrigger>
                       <SelectContent>
@@ -1483,7 +1542,7 @@ export function AgentEditor({
                     <button
                       type="button"
                       onClick={() => setShowAdvancedPersona((v) => !v)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs"
                     >
                       {showAdvancedPersona ? (
                         <ChevronDown className="size-3.5" />
@@ -1500,10 +1559,10 @@ export function AgentEditor({
                       rows={10}
                       onChange={(e) => setPersona(e.target.value)}
                       placeholder={t('assistant.personaPlaceholder')}
-                      className="resize-y bg-background font-mono text-xs leading-relaxed"
+                      className="bg-background resize-y font-mono text-xs leading-relaxed"
                     />
                   ) : (
-                    <p className="line-clamp-3 rounded-md border border-border bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+                    <p className="border-border bg-background/60 text-muted-foreground line-clamp-3 rounded-md border p-3 text-xs leading-relaxed">
                       {persona.trim() || t('assistant.personaEmpty')}
                     </p>
                   )}
@@ -1518,7 +1577,7 @@ export function AgentEditor({
                     onChange={(e) => setKnowledge(e.target.value)}
                     rows={5}
                     placeholder={t('assistant.businessInfoPlaceholder')}
-                    className="resize-y bg-background font-mono text-xs leading-relaxed"
+                    className="bg-background resize-y font-mono text-xs leading-relaxed"
                   />
                 </SectionCard>
 
@@ -1531,62 +1590,64 @@ export function AgentEditor({
                 <SectionCard title={t('reglas.title')} hint={t('reglas.hint')}>
                   <ReglasPanel />
                 </SectionCard>
-
               </>
             )}
 
             {tab === 'reach' && (
               <>
                 <Field label={t('assistant.channelsFieldLabel')}>
-              <div className="grid grid-cols-2 gap-2">
-                <ScopeCard
-                  active={scope === 'workspace'}
-                  onClick={() => setScope('workspace')}
-                  title={t('assistant.allChannels')}
-                />
-                <ScopeCard
-                  active={scope === 'channels'}
-                  onClick={() => setScope('channels')}
-                  title={t('assistant.someChannels')}
-                />
-              </div>
-              {scope === 'channels' && (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(voice.voice_enabled ? [...CHANNELS, VOICE_CHANNEL] : CHANNELS).map((c) => {
-                    const on = channels.includes(c.value);
-                    return (
-                      <button
-                        key={c.value}
-                        type="button"
-                        onClick={() => toggleChannel(c.value)}
-                        className={cn(
-                          'flex items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                          on
-                            ? 'border-primary/60 bg-primary/10 text-foreground'
-                            : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
-                        )}
-                      >
-                        {c.icon ? (
-                          <Image
-                            src={c.icon}
-                            alt=""
-                            width={16}
-                            height={16}
-                            className="shrink-0"
-                          />
-                        ) : (
-                          <PhoneCall className="h-4 w-4 shrink-0" />
-                        )}
-                        {/* Los canales son marcas y van literales; los que no
+                  <div className="grid grid-cols-2 gap-2">
+                    <ScopeCard
+                      active={scope === 'workspace'}
+                      onClick={() => setScope('workspace')}
+                      title={t('assistant.allChannels')}
+                    />
+                    <ScopeCard
+                      active={scope === 'channels'}
+                      onClick={() => setScope('channels')}
+                      title={t('assistant.someChannels')}
+                    />
+                  </div>
+                  {scope === 'channels' && (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {(voice.voice_enabled
+                        ? [...CHANNELS, VOICE_CHANNEL]
+                        : CHANNELS
+                      ).map((c) => {
+                        const on = channels.includes(c.value);
+                        return (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onClick={() => toggleChannel(c.value)}
+                            className={cn(
+                              'flex items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                              on
+                                ? 'border-primary/60 bg-primary/10 text-foreground'
+                                : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+                            )}
+                          >
+                            {c.icon ? (
+                              <Image
+                                src={c.icon}
+                                alt=""
+                                width={16}
+                                height={16}
+                                className="shrink-0"
+                              />
+                            ) : (
+                              <PhoneCall className="h-4 w-4 shrink-0" />
+                            )}
+                            {/* Los canales son marcas y van literales; los que no
                             —llamadas, chat web— traen una clave i18n. Se
                             distinguían por si tenían logo, y eso se rompió el
                             día que uno sin marca tuvo ícono propio. */}
-                        {c.label.includes('.') ? t(c.label) : c.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                            {c.label.includes('.') ? t(c.label) : c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Field>
 
                 {/* Rules toggles + escalation chips share the Alcance tab. */}
@@ -1606,7 +1667,10 @@ export function AgentEditor({
                   title={t('assistant.businessHoursTitle')}
                   hint={t('assistant.businessHoursHint')}
                   right={
-                    <Switch checked={hoursEnabled} onCheckedChange={setHoursEnabled} />
+                    <Switch
+                      checked={hoursEnabled}
+                      onCheckedChange={setHoursEnabled}
+                    />
                   }
                 >
                   {hoursEnabled && (
@@ -1632,16 +1696,18 @@ export function AgentEditor({
                       {/* Fin <= inicio = turno noche. Se explica aquí para que
                           no parezca un dato mal cargado. */}
                       {hoursStart >= hoursEnd && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground text-[11px]">
                           {t('assistant.hoursOvernight')}
                         </p>
                       )}
                       <Field label={t('assistant.timezoneLabel')}>
                         <Select
                           value={hoursTimezone}
-                          onValueChange={(v) => setHoursTimezone(v ?? 'America/Bogota')}
+                          onValueChange={(v) =>
+                            setHoursTimezone(v ?? 'America/Bogota')
+                          }
                         >
-                          <SelectTrigger className="w-full bg-background">
+                          <SelectTrigger className="bg-background w-full">
                             <SelectValue labels={TIMEZONE_LABELS} />
                           </SelectTrigger>
                           <SelectContent>
@@ -1667,7 +1733,7 @@ export function AgentEditor({
                                   'rounded-lg border px-1 py-1.5 text-xs transition-colors',
                                   on
                                     ? 'border-primary/60 bg-primary/10 text-foreground'
-                                    : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+                                    : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                                 )}
                               >
                                 {t(d.short)}
@@ -1679,33 +1745,7 @@ export function AgentEditor({
                     </>
                   )}
                 </SectionCard>
-
               </>
-            )}
-
-            {tab === 'voice' && (
-              // El encabezado de la tarjeta ES el interruptor: antes decía
-              // "Voz · Permite que este agente haga y conteste llamadas" y
-              // justo debajo repetía "Agente de voz" con el switch, dos veces
-              // lo mismo. Ahora es una sola fila: qué es, qué hace y el
-              // interruptor.
-              <SectionCard
-                title={t('voice.enable')}
-                right={
-                  <Switch
-                    checked={voice.voice_enabled}
-                    onCheckedChange={(c) => setVoice({ ...voice, voice_enabled: c })}
-                  />
-                }
-              >
-                <VoiceSettings
-                  value={voice}
-                  onChange={setVoice}
-                  language={language}
-                  workspaceId={workspaceId}
-                  agentId={agent?.id ?? null}
-                />
-              </SectionCard>
             )}
 
             {tab === 'stats' && agent?.id && <AgentStats agentId={agent.id} />}
@@ -1716,9 +1756,15 @@ export function AgentEditor({
                     porque es LA decisión del producto: estaba dentro de
                     "Avanzado", junto a la temperatura del modelo y los tiempos
                     de espera, y el comercio no la encontraba. */}
-                <SectionCard title={t('operation.toolsTitle')} hint={t('operation.toolsHint')}>
+                <SectionCard
+                  title={t('operation.toolsTitle')}
+                  hint={t('operation.toolsHint')}
+                >
                   <ToolSwitchboard
-                    agent={{ permissions, puede_crear_pedidos: puedeCrearPedidos }}
+                    agent={{
+                      permissions,
+                      puede_crear_pedidos: puedeCrearPedidos,
+                    }}
                     tools={tools}
                     onChange={setTools}
                     disponible={disponible}
@@ -1729,11 +1775,21 @@ export function AgentEditor({
                   />
                 </SectionCard>
 
+                <VoiceAgentLink
+                  workspaceId={workspaceId}
+                  agentId={currentAgentId}
+                  value={voiceAgentId}
+                  onChange={setVoiceAgentId}
+                  canPropose={voiceCanPropose}
+                  onCanProposeChange={setVoiceCanPropose}
+                />
+
                 {/* Cómo se cobra. Va debajo de la pizarra porque depende de
                     ella: sólo hay algo que elegir cuando el agente puede
                     tanto mandar a la caja como tomar el pedido. Con una sola
                     de las dos, la decisión ya está tomada. */}
-                {(tools?.crear_checkout ?? 'auto') !== 'off' && puedeCrearPedidos ? (
+                {(tools?.crear_checkout ?? 'auto') !== 'off' &&
+                puedeCrearPedidos ? (
                   <SectionCard
                     title={t('operation.cobroTitle')}
                     hint={t('operation.cobroHint')}
@@ -1744,7 +1800,7 @@ export function AgentEditor({
                         setCobroModo((v as typeof cobroModo) ?? 'segun_pago')
                       }
                     >
-                      <SelectTrigger className="w-full bg-background">
+                      <SelectTrigger className="bg-background w-full">
                         {/* Con `labels`: sin ellas el disparador pinta el valor
                             crudo de la columna ("segun_pago"), que es el nombre
                             interno y no le dice nada a nadie. */}
@@ -1754,8 +1810,12 @@ export function AgentEditor({
                         <SelectItem value="segun_pago">
                           {t('operation.cobroSegunPago')}
                         </SelectItem>
-                        <SelectItem value="chat">{t('operation.cobroChat')}</SelectItem>
-                        <SelectItem value="checkout">{t('operation.cobroCheckout')}</SelectItem>
+                        <SelectItem value="chat">
+                          {t('operation.cobroChat')}
+                        </SelectItem>
+                        <SelectItem value="checkout">
+                          {t('operation.cobroCheckout')}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </SectionCard>
@@ -1782,7 +1842,7 @@ export function AgentEditor({
                         return (
                           <label
                             key={m}
-                            className="flex cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
+                            className="border-border/60 bg-background flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
                           >
                             <Switch
                               checked={puesto}
@@ -1791,7 +1851,7 @@ export function AgentEditor({
                                   const base = prev ?? [];
                                   return v
                                     ? MEDIOS_PAGO.filter(
-                                        (k) => k === m || base.includes(k),
+                                        (k) => k === m || base.includes(k)
                                       )
                                     : base.filter((k) => k !== m);
                                 })
@@ -1799,7 +1859,7 @@ export function AgentEditor({
                             />
                             <span>
                               {t(
-                                `operation.medio${m.charAt(0).toUpperCase()}${m.slice(1)}`,
+                                `operation.medio${m.charAt(0).toUpperCase()}${m.slice(1)}`
                               )}
                             </span>
                           </label>
@@ -1811,22 +1871,27 @@ export function AgentEditor({
 
                 {/* El rol va acá al lado: no habilita nada, decide a quién le
                     toca el mensaje cuando hay varios agentes en un canal. */}
-                <SectionCard title={t('operation.roleLabel')} hint={t('operation.roleHint')}>
+                <SectionCard
+                  title={t('operation.roleLabel')}
+                  hint={t('operation.roleHint')}
+                >
                   <Select
                     value={role}
-                    onValueChange={(v) => aplicarRol((v as AgentRole) ?? 'general')}
+                    onValueChange={(v) =>
+                      aplicarRol((v as AgentRole) ?? 'general')
+                    }
                   >
-                    <SelectTrigger className="w-full bg-background">
+                    <SelectTrigger className="bg-background w-full">
                       <SelectValue labels={ROLE_LABELS} />
                     </SelectTrigger>
                     <SelectContent>
                       {AGENT_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>
                           <div className="flex flex-col">
-                            <span className="text-sm text-foreground">
+                            <span className="text-foreground text-sm">
                               {t(`operation.role${ROLE_KEY[r]}Name`)}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-muted-foreground text-[11px]">
                               {t(`operation.role${ROLE_KEY[r]}What`)}
                             </span>
                           </div>
@@ -1843,23 +1908,25 @@ export function AgentEditor({
                 {/* Rol y permisos (migración 164). El rol reparte el trabajo
                     cuando hay varios agentes en un canal; los permisos dicen
                     qué puede tocar este. */}
-                <SectionCard
-                  title={t('assistant.responseBehaviorTitle')}
-                >
+                <SectionCard title={t('assistant.responseBehaviorTitle')}>
                   <Field label={t('assistant.autonomyLabel')}>
                     <Select
                       value={requiresApproval ? 'approval' : 'auto'}
-                      onValueChange={(v) => setRequiresApproval(v === 'approval')}
+                      onValueChange={(v) =>
+                        setRequiresApproval(v === 'approval')
+                      }
                     >
-                      <SelectTrigger className="w-full bg-background">
+                      <SelectTrigger className="bg-background w-full">
                         <SelectValue labels={AUTONOMY_LABELS} />
                       </SelectTrigger>
                       <SelectContent>
                         {AUTONOMY_MODES.map((m) => (
                           <SelectItem key={m.value} value={m.value}>
                             <div className="flex flex-col">
-                              <span className="text-sm text-foreground">{t(m.label)}</span>
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-foreground text-sm">
+                                {t(m.label)}
+                              </span>
+                              <span className="text-muted-foreground text-[11px]">
                                 {t(m.hint)}
                               </span>
                             </div>
@@ -1872,17 +1939,21 @@ export function AgentEditor({
                   <Field label={t('assistant.responseModeLabel')}>
                     <Select
                       value={responseMode}
-                      onValueChange={(v) => setResponseMode((v as AiResponseMode) ?? 'single')}
+                      onValueChange={(v) =>
+                        setResponseMode((v as AiResponseMode) ?? 'single')
+                      }
                     >
-                      <SelectTrigger className="w-full bg-background">
+                      <SelectTrigger className="bg-background w-full">
                         <SelectValue labels={RESPONSE_MODE_LABELS} />
                       </SelectTrigger>
                       <SelectContent>
                         {RESPONSE_MODES.map((m) => (
                           <SelectItem key={m.value} value={m.value}>
                             <div className="flex flex-col">
-                              <span className="text-sm text-foreground">{t(m.label)}</span>
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-foreground text-sm">
+                                {t(m.label)}
+                              </span>
+                              <span className="text-muted-foreground text-[11px]">
                                 {t(m.hint)}
                               </span>
                             </div>
@@ -1906,12 +1977,12 @@ export function AgentEditor({
                         setInboundDebounce(
                           Number.isFinite(n)
                             ? Math.max(MIN_DEBOUNCE_SECONDS, Math.min(60, n))
-                            : MIN_DEBOUNCE_SECONDS,
+                            : MIN_DEBOUNCE_SECONDS
                         );
                       }}
                       className="bg-background"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-muted-foreground text-[11px]">
                       {t('assistant.debounceHelp')}
                     </p>
                   </Field>
@@ -1927,12 +1998,18 @@ export function AgentEditor({
                       value={burstMax}
                       onChange={(e) => {
                         const n = Number(e.target.value);
-                        setBurstMax(Number.isFinite(n) ? Math.max(0, Math.min(200, n)) : 20);
+                        setBurstMax(
+                          Number.isFinite(n)
+                            ? Math.max(0, Math.min(200, n))
+                            : 20
+                        );
                       }}
                       className="bg-background"
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      {burstMax === 0 ? t('assistant.burstOff') : t('assistant.burstHelp')}
+                    <p className="text-muted-foreground text-[11px]">
+                      {burstMax === 0
+                        ? t('assistant.burstOff')
+                        : t('assistant.burstHelp')}
                     </p>
                   </Field>
                 </SectionCard>
@@ -1945,37 +2022,37 @@ export function AgentEditor({
                       pestanas del "escalar despues de N mensajes": la misma
                       decision partida en dos lugares, y ninguno de los dos
                       mostraba la mitad que faltaba. */}
-                <Field label={t('assistant.escalateKeywordsLabel')}>
-                  <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-background p-2">
-                    {escalateKeywords.map((kw) => (
-                      <span
-                        key={kw}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-accent-ink"
-                      >
-                        {kw}
-                        <button
-                          type="button"
-                          onClick={() => toggleEscalate(kw)}
-                          className="rounded hover:text-red-700 dark:hover:text-red-400"
+                  <Field label={t('assistant.escalateKeywordsLabel')}>
+                    <div className="border-border bg-background flex flex-wrap gap-1.5 rounded-lg border p-2">
+                      {escalateKeywords.map((kw) => (
+                        <span
+                          key={kw}
+                          className="bg-primary/15 text-accent-ink inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs"
                         >
-                          <X className="size-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      value={escalateInput}
-                      onChange={(e) => setEscalateInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault();
-                          addEscalate();
-                        }
-                      }}
-                      onBlur={addEscalate}
-                      placeholder={t('assistant.escalateKeywordsPlaceholder')}
-                      className="min-w-[140px] flex-1 bg-transparent px-1 text-xs text-foreground focus:outline-none"
-                    />
-                  </div>
+                          {kw}
+                          <button
+                            type="button"
+                            onClick={() => toggleEscalate(kw)}
+                            className="rounded hover:text-red-700 dark:hover:text-red-400"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        value={escalateInput}
+                        onChange={(e) => setEscalateInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault();
+                            addEscalate();
+                          }
+                        }}
+                        onBlur={addEscalate}
+                        placeholder={t('assistant.escalateKeywordsPlaceholder')}
+                        className="text-foreground min-w-[140px] flex-1 bg-transparent px-1 text-xs focus:outline-none"
+                      />
+                    </div>
                   </Field>
                   <Field label={t('assistant.escalateAfterLabel')}>
                     <Input
@@ -1984,11 +2061,13 @@ export function AgentEditor({
                       value={escalateAfterMessages}
                       onChange={(e) => {
                         const n = Number(e.target.value);
-                        setEscalateAfterMessages(Number.isFinite(n) ? Math.max(0, n) : 0);
+                        setEscalateAfterMessages(
+                          Number.isFinite(n) ? Math.max(0, n) : 0
+                        );
                       }}
                       className="bg-background"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-muted-foreground text-[11px]">
                       {t('assistant.escalateAfterHelp')}
                     </p>
                   </Field>
@@ -2023,12 +2102,14 @@ export function AgentEditor({
                               // solo lo permite dentro de la ventana de 24 h
                               // desde el último mensaje del cliente.
                               setFollowupDelayHours(
-                                Number.isFinite(n) ? Math.max(1, Math.min(23, n)) : 23,
+                                Number.isFinite(n)
+                                  ? Math.max(1, Math.min(23, n))
+                                  : 23
                               );
                             }}
                             className="bg-background"
                           />
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-muted-foreground text-[11px]">
                             {t('assistant.followupDelayHelp')}
                           </p>
                         </Field>
@@ -2041,17 +2122,19 @@ export function AgentEditor({
                             onChange={(e) => {
                               const n = Number(e.target.value);
                               setFollowupMaxCount(
-                                Number.isFinite(n) ? Math.max(1, Math.min(5, n)) : 1,
+                                Number.isFinite(n)
+                                  ? Math.max(1, Math.min(5, n))
+                                  : 1
                               );
                             }}
                             className="bg-background"
                           />
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-muted-foreground text-[11px]">
                             {t('assistant.followupMaxHelp')}
                           </p>
                         </Field>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-muted-foreground text-[11px]">
                         {t('assistant.followupFootnote')}
                       </p>
                     </>
@@ -2079,7 +2162,7 @@ export function AgentEditor({
                 >
                   {shopifyConnected === false && !puedeCrearPedidos ? (
                     <div className="space-y-2">
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-muted-foreground text-[11px]">
                         {t('assistant.salesCloseConnectPrompt')}
                       </p>
                       {showLinkInput ? (
@@ -2087,7 +2170,9 @@ export function AgentEditor({
                           <Input
                             value={linkShop}
                             onChange={(e) => setLinkShop(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && linkShopify()}
+                            onKeyDown={(e) =>
+                              e.key === 'Enter' && linkShopify()
+                            }
                             placeholder={t('assistant.shopDomainPlaceholder')}
                             className="bg-background"
                             disabled={linking}
@@ -2134,7 +2219,7 @@ export function AgentEditor({
                         </Button>
                       )}
                       {linking && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground text-[11px]">
                           {t('assistant.linkingHint')}
                         </p>
                       )}
@@ -2151,183 +2236,190 @@ export function AgentEditor({
               asistente, right verdes para usuario, fondo beige con dots).
               Se puede ocultar con el botón "Ocultar prueba" del header. */}
           {showTest && (
-          <aside className="flex min-h-0 flex-col overflow-hidden border-t border-border bg-muted/30 sm:border-l sm:border-t-0">
-            <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-foreground">
-                  {t('assistant.testPanelTitle')}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {t('assistant.testPanelSubtitle')}
-                </p>
+            <aside className="border-border bg-muted/30 flex min-h-0 flex-col overflow-hidden border-t sm:border-t-0 sm:border-l">
+              <div className="border-border bg-card flex items-center justify-between gap-2 border-b px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-foreground text-xs font-semibold">
+                    {t('assistant.testPanelTitle')}
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">
+                    {t('assistant.testPanelSubtitle')}
+                  </p>
+                </div>
+                {testHistory.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetTestConversation}
+                    className="border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] transition-colors"
+                    title={t('assistant.resetConversation')}
+                  >
+                    <RotateCcw className="size-3" />
+                    {t('assistant.reset')}
+                  </button>
+                )}
               </div>
-              {testHistory.length > 0 && (
-                <button
-                  type="button"
-                  onClick={resetTestConversation}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  title={t('assistant.resetConversation')}
-                >
-                  <RotateCcw className="size-3" />
-                  {t('assistant.reset')}
-                </button>
-              )}
-            </div>
-            {/* De acá para abajo los hex sueltos (#ece5dd, #111b21, #dcf8c6,
+              {/* De acá para abajo los hex sueltos (#ece5dd, #111b21, #dcf8c6,
                 #54656f…) y los `bg-white` son el cromo REAL de WhatsApp, no
                 un descuido del sistema de temas: la prueba tiene que verse
                 como el teléfono del cliente, así que no siguen el modo
                 claro/oscuro ni se cambian por tokens. */}
-            <div
-              ref={testScrollRef}
-              className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
-              style={{
-                backgroundColor: '#ece5dd',
-                backgroundImage:
-                  'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-                backgroundSize: '12px 12px',
-              }}
-            >
-              {testHistory.length === 0 && !testing && (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
-                  <Sparkles className="size-6" />
-                  <p className="text-xs leading-snug">
-                    {t('assistant.testEmptyPrompt')}
-                  </p>
-                </div>
-              )}
-              {testHistory.map((turn, ti) => (
-                <div
-                  key={ti}
-                  className={cn(
-                    'flex flex-col gap-1',
-                    turn.role === 'user' ? 'items-end' : 'items-start',
-                  )}
-                >
-                  {/* Sender label so it's unmistakable who is who: the
-                      tester ("Tú", green) vs the assistant (its name, blue). */}
-                  <span
+              <div
+                ref={testScrollRef}
+                className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3"
+                style={{
+                  backgroundColor: '#ece5dd',
+                  backgroundImage:
+                    'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
+                  backgroundSize: '12px 12px',
+                }}
+              >
+                {testHistory.length === 0 && !testing && (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[#54656f]">
+                    <Sparkles className="size-6" />
+                    <p className="text-xs leading-snug">
+                      {t('assistant.testEmptyPrompt')}
+                    </p>
+                  </div>
+                )}
+                {testHistory.map((turn, ti) => (
+                  <div
+                    key={ti}
                     className={cn(
-                      'px-1 text-[10px] font-semibold',
-                      turn.role === 'user' ? 'text-[#1d7a45]' : 'text-[#0a6ebd]',
+                      'flex flex-col gap-1',
+                      turn.role === 'user' ? 'items-end' : 'items-start'
                     )}
                   >
-                    {turn.role === 'user' ? t('assistant.you') : name.trim() || t('assistant.assistant')}
-                  </span>
-                  {turn.chunks.length === 0 ? (
-                    <div
+                    {/* Sender label so it's unmistakable who is who: the
+                      tester ("Tú", green) vs the assistant (its name, blue). */}
+                    <span
                       className={cn(
-                        'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
+                        'px-1 text-[10px] font-semibold',
                         turn.role === 'user'
-                          ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21]'
-                          : 'rounded-bl-none border border-border bg-white text-[#111b21]',
+                          ? 'text-[#1d7a45]'
+                          : 'text-[#0a6ebd]'
                       )}
                     >
-                      <span className="italic text-[#6b7280]">{t('assistant.noReply')}</span>
-                    </div>
-                  ) : (
-                    turn.chunks.map((chunk, ci) => {
-                      const isLast = ci === turn.chunks.length - 1;
-                      return (
-                        <div
-                          key={ci}
-                          className={cn(
-                            'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
-                            turn.role === 'user'
-                              ? cn(
-                                  'bg-[#dcf8c6] text-[#111b21]',
-                                  isLast ? 'rounded-br-none' : '',
-                                )
-                              : cn(
-                                  'border border-border bg-white text-[#111b21]',
-                                  isLast ? 'rounded-bl-none' : '',
-                                ),
-                          )}
-                        >
-                          <p className="whitespace-pre-wrap pr-10">{chunk}</p>
-                          {isLast && (
-                            <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781]">
-                              <span>{turn.stamp}</span>
-                              {turn.role === 'user' && (
-                                <CheckCheck className="size-3 text-[#53bdeb]" />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                  {/* Con qué se ayudó para contestar. Sin esto no hay forma de
+                      {turn.role === 'user'
+                        ? t('assistant.you')
+                        : name.trim() || t('assistant.assistant')}
+                    </span>
+                    {turn.chunks.length === 0 ? (
+                      <div
+                        className={cn(
+                          'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
+                          turn.role === 'user'
+                            ? 'rounded-br-none bg-[#dcf8c6] text-[#111b21]'
+                            : 'border-border rounded-bl-none border bg-white text-[#111b21]'
+                        )}
+                      >
+                        <span className="text-[#6b7280] italic">
+                          {t('assistant.noReply')}
+                        </span>
+                      </div>
+                    ) : (
+                      turn.chunks.map((chunk, ci) => {
+                        const isLast = ci === turn.chunks.length - 1;
+                        return (
+                          <div
+                            key={ci}
+                            className={cn(
+                              'relative max-w-[85%] rounded-lg px-2 py-1.5 text-[13px] leading-snug shadow-sm',
+                              turn.role === 'user'
+                                ? cn(
+                                    'bg-[#dcf8c6] text-[#111b21]',
+                                    isLast ? 'rounded-br-none' : ''
+                                  )
+                                : cn(
+                                    'border-border border bg-white text-[#111b21]',
+                                    isLast ? 'rounded-bl-none' : ''
+                                  )
+                            )}
+                          >
+                            <p className="pr-10 whitespace-pre-wrap">{chunk}</p>
+                            {isLast && (
+                              <div className="flex items-center justify-end gap-1 text-[10px] text-[#667781]">
+                                <span>{turn.stamp}</span>
+                                {turn.role === 'user' && (
+                                  <CheckCheck className="size-3 text-[#53bdeb]" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                    {/* Con qué se ayudó para contestar. Sin esto no hay forma de
                       distinguir una respuesta buscada de una inventada, que es
                       justo lo que se viene a mirar acá. */}
-                  {turn.role === 'assistant' && (turn.herramientas?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-1 px-1">
-                      {turn.herramientas!.map((h, hi) => (
-                        <span
-                          key={`${h}-${hi}`}
-                          className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f]"
-                        >
-                          {h}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {testing && (
-                <div className="flex items-start">
-                  <div className="rounded-lg rounded-bl-none border border-border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
-                    <span className="inline-flex gap-0.5">
-                      <span className="size-1.5 animate-pulse rounded-full bg-[#54656f]" />
-                      <span
-                        className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
-                        style={{ animationDelay: '150ms' }}
-                      />
-                      <span
-                        className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
-                        style={{ animationDelay: '300ms' }}
-                      />
-                    </span>
+                    {turn.role === 'assistant' &&
+                      (turn.herramientas?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1 px-1">
+                          {turn.herramientas!.map((h, hi) => (
+                            <span
+                              key={`${h}-${hi}`}
+                              className="rounded bg-white/70 px-1.5 py-px font-mono text-[9px] text-[#54656f]"
+                            >
+                              {h}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                   </div>
-                </div>
-              )}
-              {!editing && (
-                <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
-                  {t('assistant.saveBeforeTestHint')}
-                </p>
-              )}
-            </div>
-            <div className="border-t border-border bg-[#f0f0f0] p-2">
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void runTest();
-                    }
-                  }}
-                  rows={2}
-                  placeholder={t('assistant.testInputPlaceholder')}
-                  className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21]"
-                  disabled={testing || !editing}
-                />
-                <Button
-                  onClick={runTest}
-                  disabled={testing || !editing || !testMessage.trim()}
-                  className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a]"
-                  aria-label={t('assistant.send')}
-                >
-                  <Send className="size-4" />
-                </Button>
+                ))}
+                {testing && (
+                  <div className="flex items-start">
+                    <div className="border-border rounded-lg rounded-bl-none border bg-white px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm">
+                      <span className="inline-flex gap-0.5">
+                        <span className="size-1.5 animate-pulse rounded-full bg-[#54656f]" />
+                        <span
+                          className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                          style={{ animationDelay: '150ms' }}
+                        />
+                        <span
+                          className="size-1.5 animate-pulse rounded-full bg-[#54656f]"
+                          style={{ animationDelay: '300ms' }}
+                        />
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {!editing && (
+                  <p className="rounded-md border border-dashed border-[#b4b4a8] bg-white/60 px-3 py-2 text-[11px] text-[#54656f]">
+                    {t('assistant.saveBeforeTestHint')}
+                  </p>
+                )}
               </div>
-            </div>
-          </aside>
+              <div className="border-border border-t bg-[#f0f0f0] p-2">
+                <div className="flex items-end gap-2">
+                  <Textarea
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void runTest();
+                      }
+                    }}
+                    rows={2}
+                    placeholder={t('assistant.testInputPlaceholder')}
+                    className="min-h-[44px] resize-none rounded-2xl border border-[#dcdcdc] bg-white text-sm text-[#111b21]"
+                    disabled={testing || !editing}
+                  />
+                  <Button
+                    onClick={runTest}
+                    disabled={testing || !editing || !testMessage.trim()}
+                    className="size-10 shrink-0 rounded-full bg-[#25d366] p-0 text-white hover:bg-[#1ebe5a]"
+                    aria-label={t('assistant.send')}
+                  >
+                    <Send className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </aside>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border bg-card/60 px-4 py-4 sm:px-6">
+        <div className="border-border bg-card/60 flex items-center justify-end gap-2 border-t px-4 py-4 sm:px-6">
           <Button
             variant="outline"
             onClick={onClose}
@@ -2384,8 +2476,23 @@ function researchText(x: unknown): string {
       keys.map((k) => o[k]).find((v) => typeof v === 'string' && v.trim()) as
         | string
         | undefined;
-    const head = pick('objection', 'objeción', 'title', 'titulo', 'name', 'text', 'texto');
-    const tail = pick('rebuttal', 'response', 'respuesta', 'answer', 'detail', 'detalle');
+    const head = pick(
+      'objection',
+      'objeción',
+      'title',
+      'titulo',
+      'name',
+      'text',
+      'texto'
+    );
+    const tail = pick(
+      'rebuttal',
+      'response',
+      'respuesta',
+      'answer',
+      'detail',
+      'detalle'
+    );
     if (head && tail) return `${head.trim()} → ${tail.trim()}`;
     if (head) return head.trim();
     if (tail) return tail.trim();
@@ -2448,14 +2555,18 @@ function buildPersonaFromProduct(p: ProductDetail, locale: string): string {
   if (sr) {
     const audience = typeof sr.audience === 'string' ? sr.audience.trim() : '';
     if (audience) {
-      lines.push(en ? `Your typical customer: ${audience}.` : `Tu cliente típico: ${audience}.`);
+      lines.push(
+        en
+          ? `Your typical customer: ${audience}.`
+          : `Tu cliente típico: ${audience}.`
+      );
     }
     const benefits = arr(sr.benefits ?? sr.desires).slice(0, 4);
     if (benefits.length) {
       lines.push(
         en
           ? `Lean on these benefits to convince: ${benefits.join('; ')}.`
-          : `Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`,
+          : `Apóyate en estos beneficios para convencer: ${benefits.join('; ')}.`
       );
     }
     const objections = arr(sr.objections).slice(0, 4);
@@ -2463,7 +2574,7 @@ function buildPersonaFromProduct(p: ProductDetail, locale: string): string {
       lines.push(
         en
           ? `Handle these common objections tactfully: ${objections.join('; ')}.`
-          : `Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`,
+          : `Maneja con tacto estas objeciones comunes: ${objections.join('; ')}.`
       );
     }
   }
@@ -2481,7 +2592,13 @@ async function fetchProductDetail(id: string): Promise<ProductDetail | null> {
   }
 }
 
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-foreground">{label}</Label>
@@ -2502,16 +2619,90 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card/40 p-4">
+    <div className="border-border bg-card/40 space-y-3 rounded-2xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{title}</p>
-          {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+          <p className="text-foreground text-sm font-semibold">{title}</p>
+          {hint && <p className="text-muted-foreground text-[11px]">{hint}</p>}
         </div>
         {right}
       </div>
       {children}
     </div>
+  );
+}
+
+/** El asistente de chat delega la llamada a un perfil creado en Llamadas. */
+function VoiceAgentLink({
+  workspaceId,
+  agentId,
+  value,
+  onChange,
+  canPropose,
+  onCanProposeChange,
+}: {
+  workspaceId: string;
+  agentId: string | null;
+  value: string;
+  onChange: (id: string) => void;
+  canPropose: boolean;
+  onCanProposeChange: (value: boolean) => void;
+}) {
+  const t = useT();
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch(`/api/ai/agents?workspace_id=${workspaceId}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok || cancelled) return;
+      const json = (await res.json()) as {
+        agents?: { id: string; name: string; voice_enabled?: boolean }[];
+      };
+      if (!cancelled) {
+        setAgents(
+          (json.agents ?? [])
+            .filter((agent) => agent.voice_enabled && agent.id !== agentId)
+            .map((agent) => ({ id: agent.id, name: agent.name }))
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, agentId]);
+
+  return (
+    <SectionCard title={t('voice.linkTitle')} hint={t('voice.linkHint')}>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="border-border bg-background text-foreground w-full rounded-md border px-2 py-1.5 text-sm"
+      >
+        <option value="">{t('voice.linkNone')}</option>
+        {agents.map((agent) => (
+          <option key={agent.id} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+      {agents.length === 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t('voice.linkEmpty')}{' '}
+          <Link href="/voz" className="text-accent-ink underline">
+            {t('voice.linkCreate')}
+          </Link>
+        </p>
+      )}
+      <ToggleRow
+        checked={canPropose}
+        onChange={onCanProposeChange}
+        title={t('voice.linkPropose')}
+        hint={t('voice.linkProposeHint')}
+      />
+    </SectionCard>
   );
 }
 
@@ -2527,10 +2718,10 @@ function ToggleRow({
   hint?: string;
 }) {
   return (
-    <label className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+    <label className="border-border bg-background flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5">
       <div>
-        <p className="text-sm text-foreground">{title}</p>
-        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+        <p className="text-foreground text-sm">{title}</p>
+        {hint && <p className="text-muted-foreground text-[11px]">{hint}</p>}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
@@ -2556,11 +2747,11 @@ function ScopeCard({
         'rounded-xl border px-3 py-2.5 text-left transition-colors',
         active
           ? 'border-primary/60 bg-primary/10'
-          : 'border-border bg-background hover:border-foreground/30',
+          : 'border-border bg-background hover:border-foreground/30'
       )}
     >
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      <p className="text-foreground text-sm font-medium">{title}</p>
+      {hint && <p className="text-muted-foreground text-[11px]">{hint}</p>}
     </button>
   );
 }

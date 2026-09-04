@@ -82,6 +82,48 @@ export const voice = {
     es: "En medio del chat, el agente puede llamar si conviene (cliente lo pide, urgente, alto valor). Respeta horario y 'no llamar'.",
     en: "Mid-chat, the agent can call when it helps (customer asks, urgent, high value). Respects hours and 'do not call'.",
   },
+  linkTitle: { es: 'Agente de llamadas', en: 'Calling agent' },
+  linkHint: {
+    es: 'Elige quién hablará por teléfono cuando este asistente necesite una llamada.',
+    en: 'Choose who speaks by phone when this assistant needs a call.',
+  },
+  linkNone: { es: 'Sin agente vinculado', en: 'No agent linked' },
+  linkEmpty: {
+    es: 'Aún no hay agentes de voz.',
+    en: 'There are no voice agents yet.',
+  },
+  linkCreate: { es: 'Crear en Llamadas', en: 'Create in Calls' },
+  linkPropose: {
+    es: 'Puede proponer una llamada',
+    en: 'Can suggest a call',
+  },
+  linkProposeHint: {
+    es: 'Solo cuando el cliente la pida o acepte recibirla.',
+    en: 'Only when the customer asks for or accepts it.',
+  },
+  voiceAgentsTitle: { es: 'Agentes de voz', en: 'Voice agents' },
+  voiceAgentsHint: {
+    es: 'Crea y configura aquí quién habla por teléfono. Luego vincúlalo a un asistente de chat o a una automatización.',
+    en: 'Create and configure who speaks by phone here. Then link it to a chat assistant or an automation.',
+  },
+  voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
+  voiceAgentName: { es: 'Nombre del agente de voz', en: 'Voice agent name' },
+  voiceAgentsEmpty: {
+    es: 'Crea un agente de voz para empezar.',
+    en: 'Create a voice agent to get started.',
+  },
+  voiceAgentActive: { es: 'Activo para llamadas', en: 'Active for calls' },
+  voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
+  voiceAgentCreated: { es: 'Agente de voz creado', en: 'Voice agent created' },
+  voiceAgentCreateFailed: {
+    es: 'No se pudo crear el agente de voz.',
+    en: "Couldn't create the voice agent.",
+  },
+  voiceAgentSaved: { es: 'Agente de voz guardado', en: 'Voice agent saved' },
+  voiceAgentSaveFailed: {
+    es: 'No se pudo guardar el agente de voz.',
+    en: "Couldn't save the voice agent.",
+  },
 
   // ── Weekday short labels (ISO 1=Mon … 7=Sun) ──
   dayMon: { es: 'Lun', en: 'Mon' },
@@ -127,6 +169,28 @@ export const voice = {
     en: 'The calling voice is set by the platform.',
   },
   voiceLibrary: { es: 'Biblioteca de voces', en: 'Voice library' },
+  voiceAvailable: { es: 'Voces disponibles', en: 'Available voices' },
+  voiceLibrarySearch: { es: 'Buscar en Fish Audio', en: 'Search Fish Audio' },
+  voiceLibrarySearchAction: { es: 'Buscar', en: 'Search' },
+  voiceLibraryPrevious: { es: 'Anterior', en: 'Previous' },
+  voiceLibraryNext: { es: 'Siguiente', en: 'Next' },
+  voiceLibraryFallback: {
+    es: 'No se pudo cargar Fish Audio. Estas voces verificadas siguen disponibles.',
+    en: "Fish Audio couldn't be loaded. These verified voices are still available.",
+  },
+  voiceLibraryUnavailable: {
+    es: 'No se pudo cargar la biblioteca de Fish Audio.',
+    en: "Couldn't load the Fish Audio library.",
+  },
+  voiceLibraryRetry: { es: 'Reintentar', en: 'Try again' },
+  voiceLibraryNoResults: {
+    es: 'No hay voces que coincidan con la búsqueda.',
+    en: 'No voices match this search.',
+  },
+  voicePreviewFailed: {
+    es: 'No se pudo reproducir la vista previa.',
+    en: "Couldn't play the preview.",
+  },
   voiceCustom: { es: 'Tus voces', en: 'Your voices' },
   voiceCreate: { es: 'Crear voz', en: 'Create voice' },
   voiceCreateTitle: { es: 'Crear una voz propia', en: 'Create your own voice' },
@@ -169,8 +233,8 @@ export const voice = {
   voiceTrainingFailed: { es: 'No se pudo preparar', en: "Couldn't prepare" },
   whenGroup: { es: 'Cuándo insiste', en: 'When it keeps trying' },
   whenGroupHint: {
-    es: 'Horario, reintentos y si puede decidir llamar por su cuenta.',
-    en: 'Hours, retries, and whether it can decide to call on its own.',
+    es: 'Horario y reintentos de este agente de voz.',
+    en: 'This voice agent’s hours and retries.',
   },
 
   // Cuando llama. La pregunta que ninguna pantalla contestaba.

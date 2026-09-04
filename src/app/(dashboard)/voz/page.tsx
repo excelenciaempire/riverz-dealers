@@ -12,12 +12,18 @@ import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
 import { WhenItCalls } from '@/components/voice/when-it-calls';
+import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 
-type Usage = { minutes_used: number; minutes_limit: number; spend_usd: number; calls: number };
+type Usage = {
+  minutes_used: number;
+  minutes_limit: number;
+  spend_usd: number;
+  calls: number;
+};
 
 /**
  * Llamadas.
@@ -61,21 +67,32 @@ export default function VoicePage() {
    * el filtro del registro los necesita para no esconder las llamadas de un
    * agente que se pausó después de hacerlas.
    */
-  const [enElRegistro, setEnElRegistro] = useState<{ id: string; name: string }[]>([]);
+  const [enElRegistro, setEnElRegistro] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   const workspaceId = workspace?.id;
-  const { readiness, loading: cargandoEstado, reload: releerEstado } =
-    useVoiceReadiness(workspaceId);
+  const {
+    readiness,
+    loading: cargandoEstado,
+    reload: releerEstado,
+  } = useVoiceReadiness(workspaceId);
 
   /** El freno y el consumo. Se relee tras guardar, o quedan mintiendo hasta el F5. */
   const recargar = useCallback(async () => {
     if (!workspaceId) return;
     const [cn, us] = await Promise.all([
-      fetch(`/api/voice/connection?workspace_id=${workspaceId}`, { cache: 'no-store' }),
-      fetch(`/api/voice/usage?workspace_id=${workspaceId}`, { cache: 'no-store' }),
+      fetch(`/api/voice/connection?workspace_id=${workspaceId}`, {
+        cache: 'no-store',
+      }),
+      fetch(`/api/voice/usage?workspace_id=${workspaceId}`, {
+        cache: 'no-store',
+      }),
     ]);
     if (cn.ok) {
-      const json = (await cn.json()) as { config?: { kill_switch?: boolean } | null };
+      const json = (await cn.json()) as {
+        config?: { kill_switch?: boolean } | null;
+      };
       setParado(!!json.config?.kill_switch);
     }
     if (us.ok) setUsage((await us.json()) as Usage);
@@ -114,9 +131,12 @@ export default function VoicePage() {
     if (!workspaceId) return;
     setParando(true);
     try {
-      const actual = await fetch(`/api/voice/connection?workspace_id=${workspaceId}`, {
-        cache: 'no-store',
-      }).then((r) => r.json());
+      const actual = await fetch(
+        `/api/voice/connection?workspace_id=${workspaceId}`,
+        {
+          cache: 'no-store',
+        }
+      ).then((r) => r.json());
       const res = await fetchWithCsrf('/api/voice/connection', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -143,14 +163,16 @@ export default function VoicePage() {
           {/* La frase de qué es esto sólo mientras no hay nada montado: apenas
               la línea de estado dice «Puede llamar desde tal número», explicar
               que el agente llama por teléfono es decir lo mismo dos veces. */}
-          <p className="mt-1.5 text-[13px] text-muted-foreground">
+          <p className="text-muted-foreground mt-1.5 text-[13px]">
             {readiness?.ready ? '' : t('voice.pageDesc')}
             {/* El consumo, en gris y sólo cuando ya hubo llamadas: en una
                 cuenta nueva un «0 min» no le dice nada a nadie. */}
             {usage && usage.calls > 0 && (
               <>
                 {readiness?.ready ? '' : ' · '}
-                {t('voice.usageThisMonth', { minutes: String(usage.minutes_used) })}
+                {t('voice.usageThisMonth', {
+                  minutes: String(usage.minutes_used),
+                })}
                 {usage.minutes_limit > 0
                   ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
                   : ''}
@@ -181,10 +203,12 @@ export default function VoicePage() {
       </header>
 
       {parado ? (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+        <p className="border-destructive/40 bg-destructive/5 text-destructive flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2.5 text-sm">
           <Ban className="h-4 w-4 shrink-0" />
           {t('voice.stopped')}
-          <span className="text-xs text-muted-foreground">{t('voice.stopHint')}</span>
+          <span className="text-muted-foreground text-xs">
+            {t('voice.stopHint')}
+          </span>
         </p>
       ) : (
         // Si el teléfono puede sonar, arriba de todo y en una frase. Antes había
@@ -199,36 +223,19 @@ export default function VoicePage() {
       {/* ── Armarlo. Se hace una vez. ── */}
       <section className="space-y-4">
         <div className="app-section-head">
-          <h2 className="text-sm font-semibold text-foreground">{t('voice.setupGroup')}</h2>
+          <h2 className="text-foreground text-sm font-semibold">
+            {t('voice.setupGroup')}
+          </h2>
         </div>
 
         <VoiceNumberCard />
 
-        {/* «Quién atiende» era una tarjeta entera para repetir lo que la línea
-            de estado ya dice tres centímetros más arriba: el nombre del agente.
-            Cuando hay más de uno —el caso raro— la línea dice cuántos y la
-            lista aparece acá; con uno solo, la tarjeta sobraba entera. */}
-        {(readiness?.agents.length ?? 0) > 1 && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">{t('voice.whoAnswers')}</h3>
-            <ul className="mt-2 divide-y divide-border">
-              {(readiness?.agents ?? []).map((a) => (
-                <li key={a.id} className="flex items-center justify-between py-2">
-                  <span className="text-sm text-foreground">{a.name}</span>
-                  {/* Directo a la pestaña de llamadas del agente: «Configurar»
-                      dejaba al comercio en la lista de asistentes, adivinando
-                      cuál abrir y en qué solapa estaba la voz. */}
-                  <Link
-                    href={`/asistente?agent=${a.id}&tab=voice`}
-                    className="text-xs text-accent-ink underline"
-                  >
-                    {t('voice.configure')}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <VoiceAgentProfiles
+          workspaceId={workspaceId}
+          onSaved={() => {
+            void releerEstado();
+          }}
+        />
 
         {/* Cuándo llama va DESPUÉS de quién atiende y antes del comportamiento:
             es el orden en que se piensa —tengo número, tengo quien atienda,
@@ -248,11 +255,13 @@ export default function VoicePage() {
       {/* ── Mirarlo. Se hace todas las semanas. ── */}
       <section className="space-y-4">
         <div className="app-section-head">
-          <h2 className="text-sm font-semibold text-foreground">{t('voice.activityGroup')}</h2>
+          <h2 className="text-foreground text-sm font-semibold">
+            {t('voice.activityGroup')}
+          </h2>
           {/* Campañas era una tarjeta entera para un link. */}
           <Link
             href="/voz/campanas"
-            className="flex items-center gap-1 text-xs text-accent-ink hover:underline"
+            className="text-accent-ink flex items-center gap-1 text-xs hover:underline"
           >
             <Megaphone className="h-3.5 w-3.5" />
             {t('voice.campaignsTitle')}

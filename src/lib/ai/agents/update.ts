@@ -10,12 +10,12 @@
  * La route sigue mandando: acá no hay `NextResponse` ni traducciones. Los
  * fallos salen como código y quien llama decide el HTTP y el idioma.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { findChannelConflict } from '../channel-conflict'
-import { encrypt } from '@/lib/whatsapp/encryption'
-import type { AiAgent } from '../types'
-import { mediosDeclarados } from '@/lib/ai/medios-pago'
-import { sanitizeTools } from '../toolbox'
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { findChannelConflict } from '../channel-conflict';
+import { encrypt } from '@/lib/whatsapp/encryption';
+import type { AiAgent } from '../types';
+import { mediosDeclarados } from '@/lib/ai/medios-pago';
+import { sanitizeTools } from '../toolbox';
 
 /**
  * Los campos que se pueden guardar desde afuera.
@@ -67,6 +67,7 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'priority',
   // Voice AI (migration 113 + 115)
   'voice_enabled',
+  'voice_agent_id',
   'voice_ai_decides',
   'voice_provider',
   'voice_id',
@@ -77,21 +78,23 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'voice_calling_hours',
   'voice_max_retries',
   'voice_retry_delay_minutes',
-]
+];
 
 /** El agente como se lo puede devolver: la llave cifrada nunca sale. */
-export type AgenteSeguro = Omit<AiAgent, 'api_key_encrypted'> & { has_api_key: boolean }
+export type AgenteSeguro = Omit<AiAgent, 'api_key_encrypted'> & {
+  has_api_key: boolean;
+};
 
 export type AgentUpdateFailure =
   /** `scope='channels'` sin ningún canal: el agente no tendría dónde responder. */
   | { code: 'channels_required' }
   /** Otro agente activo del mismo rol ya ocupa esos canales. */
   | { code: 'channel_conflict'; agentName: string; channels: string[] }
-  | { code: 'db'; error: unknown }
+  | { code: 'db'; error: unknown };
 
 export type AgentUpdateOutcome =
   | { ok: true; agent: AgenteSeguro | null }
-  | { ok: false; fail: AgentUpdateFailure }
+  | { ok: false; fail: AgentUpdateFailure };
 
 /**
  * Se queda con lo que el cuerpo de la petición puede escribir.
@@ -100,56 +103,61 @@ export type AgentUpdateOutcome =
  * tal cual, porque la columna guarda el cifrado y no el texto.
  */
 export function pickAgentPatch(
-  body: Partial<AiAgent> & { api_key?: string },
+  body: Partial<AiAgent> & { api_key?: string }
 ): Record<string, unknown> {
-  const patch: Record<string, unknown> = {}
+  const patch: Record<string, unknown> = {};
   for (const k of AGENT_PATCH_FIELDS) {
-    if (k in body) patch[k] = body[k]
+    if (k in body) patch[k] = body[k];
   }
   if (typeof body.api_key === 'string') {
-    patch.api_key_encrypted = body.api_key.trim() ? encrypt(body.api_key.trim()) : null
+    patch.api_key_encrypted = body.api_key.trim()
+      ? encrypt(body.api_key.trim())
+      : null;
   }
   // `tools` es lo que decide si una herramienta se ejecuta sola: se filtra
   // contra el catálogo antes de escribir. El cuerpo de un PATCH lo arma un
   // cliente que no controlamos, y un modo inventado —o una clave que ya no
   // existe— no puede terminar mandando sobre plata que sale.
-  if ('tools' in patch) patch.tools = sanitizeTools(patch.tools)
+  if ('tools' in patch) patch.tools = sanitizeTools(patch.tools);
   // Un modo inventado dejaría al agente sin ninguna instrucción de cobro: la
   // restricción de la tabla lo rechazaría con un error feo en vez de guardar.
   if ('cobro_modo' in patch) {
-    const v = patch.cobro_modo
+    const v = patch.cobro_modo;
     patch.cobro_modo =
-      v === 'checkout' || v === 'chat' || v === 'segun_pago' ? v : 'segun_pago'
+      v === 'checkout' || v === 'chat' || v === 'segun_pago' ? v : 'segun_pago';
   }
   // `null` es un estado, no un error: significa "todavía no lo declaró", y con
   // eso el agente no nombra ningún medio ni confirma contra entrega. Se
   // conserva. Lo que sí se limpia es lo inventado: la columna es jsonb y un
   // medio de pago que el prompt no conoce es una promesa incumplible.
   if ('medios_pago' in patch) {
-    patch.medios_pago = patch.medios_pago == null
-      ? null
-      : (mediosDeclarados(patch.medios_pago) ?? [])
+    patch.medios_pago =
+      patch.medios_pago == null
+        ? null
+        : (mediosDeclarados(patch.medios_pago) ?? []);
   }
   // El tope de ráfaga se acota acá además de en la base: la restricción de la
   // tabla rechazaría un 5000 con un error de Postgres feo, y lo que hay que
   // hacer con un número fuera de rango es recortarlo, no romper el guardado.
   if ('reply_burst_max' in patch) {
-    const n = Math.floor(Number(patch.reply_burst_max))
-    patch.reply_burst_max = Number.isFinite(n) ? Math.min(200, Math.max(0, n)) : 20
+    const n = Math.floor(Number(patch.reply_burst_max));
+    patch.reply_burst_max = Number.isFinite(n)
+      ? Math.min(200, Math.max(0, n))
+      : 20;
   }
-  return patch
+  return patch;
 }
 
 export interface AgentUpdateInput {
-  agentId: string
+  agentId: string;
   /** El recorte de cuenta. Quien llama ya verificó que puede tocar este agente. */
-  workspaceId: string
+  workspaceId: string;
   /** Campos de `ai_agents` ya filtrados por `pickAgentPatch`. */
-  patch: Record<string, unknown>
+  patch: Record<string, unknown>;
   /** Reemplaza los canales del agente. Ausente = no se tocan. */
-  channels?: string[]
+  channels?: string[];
   /** Reemplaza los productos del agente. Ausente = no se tocan. */
-  productIds?: string[]
+  productIds?: string[];
 }
 
 /**
@@ -162,37 +170,39 @@ export interface AgentUpdateInput {
  */
 export async function updateAgent(
   admin: SupabaseClient,
-  input: AgentUpdateInput,
+  input: AgentUpdateInput
 ): Promise<AgentUpdateOutcome> {
-  const { agentId, workspaceId, patch } = input
+  const { agentId, workspaceId, patch } = input;
 
   const { data: cur } = await admin
     .from('ai_agents')
     .select('is_active, scope, role, ai_agent_channels(channel)')
     .eq('id', agentId)
     .eq('workspace_id', workspaceId)
-    .maybeSingle()
-  const curRow = cur as
-    | {
-        is_active: boolean
-        scope: string
-        role?: string | null
-        ai_agent_channels?: { channel: string }[]
-      }
-    | null
+    .maybeSingle();
+  const curRow = cur as {
+    is_active: boolean;
+    scope: string;
+    role?: string | null;
+    ai_agent_channels?: { channel: string }[];
+  } | null;
 
-  const finalActive = 'is_active' in patch ? Boolean(patch.is_active) : Boolean(curRow?.is_active)
-  const finalScope = (patch.scope as string | undefined) ?? curRow?.scope ?? 'workspace'
+  const finalActive =
+    'is_active' in patch
+      ? Boolean(patch.is_active)
+      : Boolean(curRow?.is_active);
+  const finalScope =
+    (patch.scope as string | undefined) ?? curRow?.scope ?? 'workspace';
   const finalChannels = Array.isArray(input.channels)
     ? input.channels
-    : (curRow?.ai_agent_channels ?? []).map((c) => c.channel)
+    : (curRow?.ai_agent_channels ?? []).map((c) => c.channel);
 
   // Un agente de alcance por canal y sin canales no responde en ningún lado, y
   // el detector de conflictos no lo ve porque no ocupa nada. Se valida esté
   // activo o pausado: pausado, el error aparece cuando lo prenden y ya nadie se
   // acuerda de qué cambió.
   if (finalScope === 'channels' && finalChannels.length === 0) {
-    return { ok: false, fail: { code: 'channels_required' } }
+    return { ok: false, fail: { code: 'channels_required' } };
   }
 
   if (finalActive) {
@@ -202,7 +212,7 @@ export async function updateAgent(
       scope: finalScope,
       channels: finalScope === 'channels' ? finalChannels : [],
       role: (patch.role as string | undefined) ?? curRow?.role ?? 'general',
-    })
+    });
     if (conflict) {
       return {
         ok: false,
@@ -211,7 +221,7 @@ export async function updateAgent(
           agentName: conflict.agentName,
           channels: conflict.channels,
         },
-      }
+      };
     }
   }
 
@@ -220,34 +230,44 @@ export async function updateAgent(
       .from('ai_agents')
       .update(patch)
       .eq('id', agentId)
-      .eq('workspace_id', workspaceId)
-    if (error) return { ok: false, fail: { code: 'db', error } }
+      .eq('workspace_id', workspaceId);
+    if (error) return { ok: false, fail: { code: 'db', error } };
   }
 
   if (Array.isArray(input.channels)) {
-    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId)
+    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId);
     if ((patch.scope ?? 'workspace') === 'channels' && input.channels.length) {
       await admin
         .from('ai_agent_channels')
-        .insert(input.channels.map((channel) => ({ agent_id: agentId, channel })))
+        .insert(
+          input.channels.map((channel) => ({ agent_id: agentId, channel }))
+        );
     }
   }
   // Aunque no vinieran canales: si el alcance pasó a toda la cuenta, los
   // vínculos viejos sobran y confundirían a la próxima lectura.
   if (patch.scope === 'workspace') {
-    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId)
+    await admin.from('ai_agent_channels').delete().eq('agent_id', agentId);
   }
 
   if (Array.isArray(input.productIds)) {
-    await admin.from('ai_agent_products').delete().eq('agent_id', agentId)
-    if ((patch.product_scope ?? 'all') === 'specific' && input.productIds.length) {
+    await admin.from('ai_agent_products').delete().eq('agent_id', agentId);
+    if (
+      (patch.product_scope ?? 'all') === 'specific' &&
+      input.productIds.length
+    ) {
       await admin
         .from('ai_agent_products')
-        .insert(input.productIds.map((product_id) => ({ agent_id: agentId, product_id })))
+        .insert(
+          input.productIds.map((product_id) => ({
+            agent_id: agentId,
+            product_id,
+          }))
+        );
     }
   }
   if (patch.product_scope === 'all') {
-    await admin.from('ai_agent_products').delete().eq('agent_id', agentId)
+    await admin.from('ai_agent_products').delete().eq('agent_id', agentId);
   }
 
   // Se relee con las relaciones para que quien llamó pueda actualizar su copia
@@ -257,9 +277,12 @@ export async function updateAgent(
     .select('*, ai_agent_channels(channel), ai_agent_products(product_id)')
     .eq('id', agentId)
     .eq('workspace_id', workspaceId)
-    .maybeSingle()
+    .maybeSingle();
 
-  if (!fresh) return { ok: true, agent: null }
-  const { api_key_encrypted, ...rest } = fresh as AiAgent
-  return { ok: true, agent: { ...rest, has_api_key: Boolean(api_key_encrypted) } as AgenteSeguro }
+  if (!fresh) return { ok: true, agent: null };
+  const { api_key_encrypted, ...rest } = fresh as AiAgent;
+  return {
+    ok: true,
+    agent: { ...rest, has_api_key: Boolean(api_key_encrypted) } as AgenteSeguro,
+  };
 }

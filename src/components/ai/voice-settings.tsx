@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   Play,
@@ -152,6 +152,7 @@ export function VoiceSettings({
   language,
   workspaceId,
   agentId,
+  showAiDecides = true,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
@@ -159,6 +160,8 @@ export function VoiceSettings({
   workspaceId?: string;
   /** null en un agente que todavía no se guardó: sin id no se puede llamar. */
   agentId?: string | null;
+  /** La política de escalado pertenece al asistente de chat vinculado. */
+  showAiDecides?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -167,11 +170,14 @@ export function VoiceSettings({
   const [testPhone, setTestPhone] = useState('');
   const [calling, setCalling] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
   const [voces, setVoces] = useState<CuratedVoice[] | null>(null);
   const [proveedorVoz, setProveedorVoz] = useState<string | null>(null);
-  const [verVoces, setVerVoces] = useState(false);
+  // Un perfil nuevo debe mostrar la biblioteca de inmediato; esconder la única
+  // decisión pendiente detrás de «Cambiar» hace pensar que no existe.
+  const [verVoces, setVerVoces] = useState(() => !value.voice_id);
   const [creandoVoz, setCreandoVoz] = useState(false);
   const [guardandoVoz, setGuardandoVoz] = useState(false);
   const [nombreVoz, setNombreVoz] = useState('');
@@ -179,6 +185,14 @@ export function VoiceSettings({
   const [consentimientoVoz, setConsentimientoVoz] = useState(false);
   const [verGuiones, setVerGuiones] = useState(false);
   const [verCuando, setVerCuando] = useState(() => tocado(value));
+  const [estadoBiblioteca, setEstadoBiblioteca] = useState<
+    'fish' | 'fallback' | 'unavailable' | null
+  >(null);
+  const [busquedaVoz, setBusquedaVoz] = useState('');
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
+  const [paginaBiblioteca, setPaginaBiblioteca] = useState(1);
+  const [masVoces, setMasVoces] = useState(false);
+  const [cargandoVoces, setCargandoVoces] = useState(false);
 
   const { readiness, loading: cargandoEstado } = useVoiceReadiness(
     value.voice_enabled ? workspaceId : undefined,
@@ -187,27 +201,42 @@ export function VoiceSettings({
 
   // Las voces del proveedor que la plataforma tiene activo hoy. Sin esto el
   // selector ofrecía una elección que el motor descartaba.
-  useEffect(() => {
+  const cargarVoces = useCallback(async () => {
     if (!workspaceId || !value.voice_enabled) return;
-    let cancelado = false;
-    (async () => {
-      const res = await fetch(`/api/voice/voices?workspace_id=${workspaceId}`, {
+    setCargandoVoces(true);
+    try {
+      const params = new URLSearchParams({
+        workspace_id: workspaceId,
+        page: String(paginaBiblioteca),
+      });
+      if (busquedaAplicada) params.set('search', busquedaAplicada);
+      const res = await fetch(`/api/voice/voices?${params}`, {
         cache: 'no-store',
       });
-      if (!res.ok || cancelado) return;
+      if (!res.ok) {
+        setEstadoBiblioteca('unavailable');
+        return;
+      }
       const json = (await res.json()) as {
         provider?: string;
         voices: CuratedVoice[];
+        library_status?: 'fish' | 'fallback' | 'unavailable';
+        has_more?: boolean;
       };
-      if (!cancelado) {
-        setProveedorVoz(json.provider ?? null);
-        setVoces(json.voices ?? []);
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [workspaceId, value.voice_enabled]);
+      setProveedorVoz(json.provider ?? null);
+      setVoces(json.voices ?? []);
+      setEstadoBiblioteca(json.library_status ?? null);
+      setMasVoces(Boolean(json.has_more));
+    } catch {
+      setEstadoBiblioteca('unavailable');
+    } finally {
+      setCargandoVoces(false);
+    }
+  }, [workspaceId, value.voice_enabled, paginaBiblioteca, busquedaAplicada]);
+
+  useEffect(() => {
+    void cargarVoces();
+  }, [cargarVoces]);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
@@ -255,17 +284,21 @@ export function VoiceSettings({
   async function preview(voiceId: string) {
     if (previewing) {
       audioRef.current?.pause();
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      audioRef.current = null;
+      audioUrlRef.current = null;
       setPreviewing(null);
       return;
     }
     setPreviewing(voiceId);
     try {
-      const res = await fetch('/api/voice/preview', {
+      const res = await fetchWithCsrf('/api/voice/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voice_id: voiceId, language }),
       });
       if (!res.ok) {
+        toast.error(t('voice.voicePreviewFailed'));
         setPreviewing(null);
         return;
       }
@@ -273,12 +306,21 @@ export function VoiceSettings({
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
+      audioUrlRef.current = url;
       audio.onended = () => {
         setPreviewing(null);
         URL.revokeObjectURL(url);
+        if (audioUrlRef.current === url) audioUrlRef.current = null;
+      };
+      audio.onerror = () => {
+        setPreviewing(null);
+        URL.revokeObjectURL(url);
+        if (audioUrlRef.current === url) audioUrlRef.current = null;
+        toast.error(t('voice.voicePreviewFailed'));
       };
       await audio.play();
     } catch {
+      toast.error(t('voice.voicePreviewFailed'));
       setPreviewing(null);
     }
   }
@@ -495,20 +537,97 @@ export function VoiceSettings({
                 />
               )}
               {vocesBiblioteca.length > 0 && (
-                <VoiceList
-                  title={t('voice.voiceLibrary')}
-                  voices={vocesBiblioteca}
-                  selectedId={value.voice_id}
-                  previewingId={previewing}
-                  onSelect={(id) => {
-                    set({ voice_id: id });
-                    setVerVoces(false);
-                  }}
-                  onPreview={preview}
-                  trainingLabel={t('voice.voiceTraining')}
-                  failedLabel={t('voice.voiceTrainingFailed')}
-                />
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      className="bg-background text-foreground"
+                      value={busquedaVoz}
+                      onChange={(event) => setBusquedaVoz(event.target.value)}
+                      placeholder={t('voice.voiceLibrarySearch')}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        setPaginaBiblioteca(1);
+                        setBusquedaAplicada(busquedaVoz.trim());
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPaginaBiblioteca(1);
+                        setBusquedaAplicada(busquedaVoz.trim());
+                      }}
+                    >
+                      {t('voice.voiceLibrarySearchAction')}
+                    </Button>
+                  </div>
+                  {estadoBiblioteca === 'fallback' && (
+                    <p className="text-muted-foreground text-xs">
+                      {t('voice.voiceLibraryFallback')}
+                    </p>
+                  )}
+                  <VoiceList
+                    title={
+                      estadoBiblioteca === 'fish'
+                        ? t('voice.voiceLibrary')
+                        : t('voice.voiceAvailable')
+                    }
+                    voices={vocesBiblioteca}
+                    selectedId={value.voice_id}
+                    previewingId={previewing}
+                    onSelect={(id) => {
+                      set({ voice_id: id });
+                      setVerVoces(false);
+                    }}
+                    onPreview={preview}
+                    trainingLabel={t('voice.voiceTraining')}
+                    failedLabel={t('voice.voiceTrainingFailed')}
+                  />
+                  {estadoBiblioteca === 'fish' && (
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={paginaBiblioteca === 1 || cargandoVoces}
+                        onClick={() =>
+                          setPaginaBiblioteca((page) => Math.max(1, page - 1))
+                        }
+                      >
+                        {t('voice.voiceLibraryPrevious')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={!masVoces || cargandoVoces}
+                        onClick={() => setPaginaBiblioteca((page) => page + 1)}
+                      >
+                        {t('voice.voiceLibraryNext')}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
+              {proveedorVoz === 'fish' &&
+                estadoBiblioteca === 'unavailable' && (
+                  <div className="border-border rounded-lg border border-dashed p-3">
+                    <p className="text-muted-foreground text-xs">
+                      {t('voice.voiceLibraryUnavailable')}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1"
+                      onClick={() => void cargarVoces()}
+                    >
+                      {t('voice.voiceLibraryRetry')}
+                    </Button>
+                  </div>
+                )}
               {proveedorVoz === 'fish' && (
                 <div className="border-border rounded-lg border border-dashed p-3">
                   {!creandoVoz ? (
@@ -598,12 +717,33 @@ export function VoiceSettings({
           )}
         </div>
       )}
-      {voces !== null && voces.length === 0 && (
-        // Sin curaduría para el proveedor activo no se dibuja un selector falso.
-        <p className="text-muted-foreground text-xs">
-          {t('voice.voicePlatform')}
-        </p>
-      )}
+      {voces !== null &&
+        voces.length === 0 &&
+        (proveedorVoz === 'fish' && estadoBiblioteca === 'fish' ? (
+          <p className="text-muted-foreground text-xs">
+            {t('voice.voiceLibraryNoResults')}
+          </p>
+        ) : proveedorVoz === 'fish' && estadoBiblioteca === 'unavailable' ? (
+          <div className="border-border rounded-lg border border-dashed p-3">
+            <p className="text-muted-foreground text-xs">
+              {t('voice.voiceLibraryUnavailable')}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="mt-1"
+              onClick={() => void cargarVoces()}
+            >
+              {t('voice.voiceLibraryRetry')}
+            </Button>
+          </div>
+        ) : (
+          // Sin curaduría para el proveedor activo no se dibuja un selector falso.
+          <p className="text-muted-foreground text-xs">
+            {t('voice.voicePlatform')}
+          </p>
+        ))}
 
       <div>
         <p className="text-foreground mb-1 text-sm font-medium">
@@ -716,20 +856,22 @@ export function VoiceSettings({
         alternar={() => setVerCuando((v) => !v)}
       >
         <div className="space-y-5">
-          <div className="border-border bg-muted/40 flex items-start justify-between gap-4 rounded-lg border p-3">
-            <div>
-              <p className="text-foreground text-sm font-medium">
-                {t('voice.aiDecides')}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {t('voice.aiDecidesHint')}
-              </p>
+          {showAiDecides && (
+            <div className="border-border bg-muted/40 flex items-start justify-between gap-4 rounded-lg border p-3">
+              <div>
+                <p className="text-foreground text-sm font-medium">
+                  {t('voice.aiDecides')}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {t('voice.aiDecidesHint')}
+                </p>
+              </div>
+              <Switch
+                checked={value.voice_ai_decides}
+                onCheckedChange={(c) => set({ voice_ai_decides: c })}
+              />
             </div>
-            <Switch
-              checked={value.voice_ai_decides}
-              onCheckedChange={(c) => set({ voice_ai_decides: c })}
-            />
-          </div>
+          )}
 
           <div>
             <p className="text-foreground mb-1 text-sm font-medium">

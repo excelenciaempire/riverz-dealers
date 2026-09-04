@@ -21,7 +21,7 @@ import type { AgentPermissions } from '@/lib/ai/roles';
  * preset por encima de esto.
  */
 const PERMISOS_COMPLETOS: AgentPermissions = Object.fromEntries(
-  AGENT_PERMISSIONS.map((p) => [p, true]),
+  AGENT_PERMISSIONS.map((p) => [p, true])
 ) as AgentPermissions;
 import type { AiAgent } from '@/lib/ai/types';
 
@@ -41,14 +41,14 @@ export async function GET(request: Request) {
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const workspaceId = new URL(request.url).searchParams.get('workspace_id');
   if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.workspaceIdRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   if (!member)
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
 
   // Incluimos ai_agent_products(product_id): el editor pre-selecciona los
@@ -93,19 +93,21 @@ export async function POST(request: Request) {
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
-  const body = (await request.json().catch(() => null)) as Partial<AiAgent> & {
-    workspace_id?: string;
-    channels?: string[];
-    product_ids?: string[];
-    api_key?: string;
-  } | null;
+  const body = (await request.json().catch(() => null)) as
+    | (Partial<AiAgent> & {
+        workspace_id?: string;
+        channels?: string[];
+        product_ids?: string[];
+        api_key?: string;
+      })
+    | null;
   if (!body?.workspace_id || !body.name?.trim()) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.workspaceIdNameRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
   if (!member)
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
 
   // scope='channels' sin canales = agente que no responde en ninguna parte
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
   if (body.scope === 'channels' && (body.channels ?? []).length === 0) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.channelsRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -151,7 +153,7 @@ export async function POST(request: Request) {
             channels: channelLabels(conflict.channels, locale),
           }),
         },
-        { status: 409 },
+        { status: 409 }
       );
     }
   }
@@ -205,6 +207,7 @@ export async function POST(request: Request) {
   // sensible column defaults.
   for (const k of [
     'voice_enabled',
+    'voice_agent_id',
     'voice_ai_decides',
     'voice_provider',
     'voice_id',
@@ -230,12 +233,16 @@ export async function POST(request: Request) {
     return serverError(error);
   }
 
-  if (body.scope === 'channels' && Array.isArray(body.channels) && body.channels.length) {
+  if (
+    body.scope === 'channels' &&
+    Array.isArray(body.channels) &&
+    body.channels.length
+  ) {
     await admin.from('ai_agent_channels').insert(
       body.channels.map((channel) => ({
         agent_id: (created as AiAgent).id,
         channel,
-      })),
+      }))
     );
   }
   if (
@@ -280,7 +287,7 @@ export async function POST(request: Request) {
     .maybeSingle();
   return NextResponse.json(
     { agent: stripKey((fresh ?? created) as AiAgent) },
-    { status: 201 },
+    { status: 201 }
   );
 }
 
@@ -288,7 +295,9 @@ type AgentWithChannels = AiAgent & {
   ai_agent_channels?: { channel: string }[];
 };
 
-function stripKey<T extends AiAgent>(a: T): Omit<T, 'api_key_encrypted'> & {
+function stripKey<T extends AiAgent>(
+  a: T
+): Omit<T, 'api_key_encrypted'> & {
   has_api_key: boolean;
 } {
   const { api_key_encrypted, ...rest } = a;

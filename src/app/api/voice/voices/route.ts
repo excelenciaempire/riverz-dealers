@@ -52,28 +52,36 @@ async function fishKey() {
   );
 }
 
-async function fishLibrary(apiKey: string) {
+async function fishLibraryPage(apiKey: string, page: number, query?: string) {
   const url = new URL(FISH_MODEL_URL);
   url.searchParams.set('page_size', '24');
+  url.searchParams.set('page_number', String(page));
   url.searchParams.set('language', 'es');
   url.searchParams.set('licensed', 'true');
   url.searchParams.set('sort_by', 'score');
+  if (query) url.searchParams.set('title', query);
   const res = await fetch(url, {
     headers: { authorization: `Bearer ${apiKey}` },
-    next: { revalidate: 3600 },
+    next: { revalidate: 300 },
   });
   if (!res.ok) throw new Error(`Fish library ${res.status}`);
-  const payload = (await res.json()) as { items?: FishModel[] };
-  return (payload.items ?? [])
-    .filter((item) => isFishModelId(item._id) && item.state !== 'failed')
-    .map((item) => ({
-      voice_id: item._id!,
-      label: item.title?.trim() || 'Fish Audio',
-      locale: 'es-419' as const,
-      gender: 'female' as const,
-      source: 'library' as const,
-      state: item.state ?? 'trained',
-    }));
+  const payload = (await res.json()) as {
+    items?: FishModel[];
+    has_more?: boolean | null;
+  };
+  return {
+    voices: (payload.items ?? [])
+      .filter((item) => isFishModelId(item._id) && item.state !== 'failed')
+      .map((item) => ({
+        voice_id: item._id!,
+        label: item.title?.trim() || 'Fish Audio',
+        locale: 'es-419' as const,
+        gender: 'female' as const,
+        source: 'library' as const,
+        state: item.state ?? 'trained',
+      })),
+    hasMore: Boolean(payload.has_more),
+  };
 }
 
 async function refreshCustomVoiceStates(
@@ -182,23 +190,44 @@ export async function GET(request: Request) {
     state: voice.state,
   }));
 
+  const search = new URL(request.url).searchParams
+    .get('search')
+    ?.trim()
+    .slice(0, 80);
+  const requestedPage = Number(
+    new URL(request.url).searchParams.get('page') ?? '1'
+  );
+  const page = Number.isInteger(requestedPage)
+    ? Math.max(1, Math.min(100, requestedPage))
+    : 1;
   let library = CURATED_VOICES_BY_PROVIDER.fish.map((voice) => ({
     ...voice,
     source: 'library' as const,
   }));
+  let libraryStatus: 'fish' | 'fallback' | 'unavailable' = 'unavailable';
+  let hasMore = false;
   if (apiKey) {
     try {
-      const listed = await fishLibrary(apiKey);
-      if (listed.length) library = listed;
+      const listed = await fishLibraryPage(apiKey, page, search);
+      library = listed.voices;
+      hasMore = listed.hasMore;
+      libraryStatus = 'fish';
     } catch (error) {
-      // La biblioteca no puede impedir elegir una voz propia o llamar. El
-      // catálogo curado conserva una salida conocida mientras Fish se recupera.
+      // La biblioteca no puede impedir elegir una voz propia o llamar. Las
+      // voces verificadas siguen disponibles, pero NUNCA se presentan como si
+      // fueran el catálogo en vivo de Fish.
       console.error('[voice/voices] Fish library unavailable', error);
+      libraryStatus = 'fallback';
     }
+  } else {
+    library = [];
   }
   return NextResponse.json({
     provider,
     voices: [...custom, ...library],
+    library_status: libraryStatus,
+    has_more: hasMore,
+    page,
   });
 }
 

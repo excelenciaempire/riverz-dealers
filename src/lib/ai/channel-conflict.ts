@@ -20,9 +20,9 @@ import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 // Canales sobre los que el asistente de IA puede responder (DM + email). Un
 // agente de scope 'workspace' ocupa TODOS estos; uno de scope 'channels' solo
 // los suyos.
-// 'voice' entra aquí porque `pickVoiceAgent` lo trata como un canal más:
-// un agente de scope 'workspace' también contesta llamadas, así que debe
-// ocuparlo para que dos agentes activos no se peleen el teléfono.
+// `voice` forma parte del alcance del agente, pero no del detector de choque:
+// varios perfiles de voz son válidos y `listVoiceAgents` los enruta por
+// prioridad. Tratarlo como un chat hacía imposible crear dos voces.
 export const AI_CHANNELS = [
   'whatsapp',
   'instagram',
@@ -49,8 +49,10 @@ const CHANNEL_LABELS: Record<string, string> = {
 export function channelLabels(channels: string[], locale?: Locale): string {
   return channels
     .map((c) => {
-      if (c === 'voice') return translate(locale ?? DEFAULT_LOCALE, 'nav.voice');
-      if (c === 'webchat') return translate(locale ?? DEFAULT_LOCALE, 'nav.webchat');
+      if (c === 'voice')
+        return translate(locale ?? DEFAULT_LOCALE, 'nav.voice');
+      if (c === 'webchat')
+        return translate(locale ?? DEFAULT_LOCALE, 'nav.webchat');
       return CHANNEL_LABELS[c] ?? c;
     })
     .join(', ');
@@ -65,14 +67,13 @@ export function channelLabels(channels: string[], locale?: Locale): string {
  * apagada seguía "ocupando" las llamadas y bloqueaba a otro agente que sí
  * podía atenderlas, con un conflicto que la pantalla ni siquiera muestra.
  */
-function effectiveChannels(
-  scope: string,
-  channels: string[],
-  voiceEnabled = true,
-): string[] {
+function effectiveChannels(scope: string, channels: string[]): string[] {
   const allowed = AI_CHANNELS as readonly string[];
-  const base = scope === 'workspace' ? [...AI_CHANNELS] : channels.filter((c) => allowed.includes(c));
-  return voiceEnabled ? base : base.filter((c) => c !== 'voice');
+  const base =
+    scope === 'workspace'
+      ? [...AI_CHANNELS]
+      : channels.filter((c) => allowed.includes(c));
+  return base.filter((c) => c !== 'voice');
 }
 
 export interface ChannelConflict {
@@ -96,11 +97,9 @@ export async function findChannelConflict(
     voiceEnabled?: boolean;
     /** Migración 164. Ausente = 'general', como los agentes anteriores. */
     role?: string | null;
-  },
+  }
 ): Promise<ChannelConflict | null> {
-  const mine = new Set(
-    effectiveChannels(args.scope, args.channels, args.voiceEnabled !== false),
-  );
+  const mine = new Set(effectiveChannels(args.scope, args.channels));
   if (mine.size === 0) return null;
   const miRol = args.role ?? 'general';
 
@@ -124,8 +123,7 @@ export async function findChannelConflict(
     if ((a.role ?? 'general') !== miRol) continue;
     const theirs = effectiveChannels(
       a.scope,
-      (a.ai_agent_channels ?? []).map((c) => c.channel),
-      a.voice_enabled !== false,
+      (a.ai_agent_channels ?? []).map((c) => c.channel)
     );
     const overlap = theirs.filter((c) => mine.has(c));
     if (overlap.length > 0) {
