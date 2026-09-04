@@ -67,7 +67,10 @@ const CARRIERS: CarrierResolver[] = [
   },
   {
     patterns: ['coordinadora'],
-    build: () => 'https://coordinadora.com/rastreo/rastreo-de-guia/',
+    // URL oficial documentada por Coordinadora. A diferencia del portal
+    // anterior, este deep-link conserva la guía para que Pilar y el cliente
+    // no tengan que copiarla manualmente al abrir el rastreo.
+    build: (n) => `https://rastreo.coordinadora.com/?guia=${encodeURIComponent(n)}`,
   },
   {
     patterns: ['deprisa'],

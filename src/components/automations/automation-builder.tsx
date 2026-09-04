@@ -473,9 +473,8 @@ function snapshot(s: BuilderInitial): string {
 // 24-hour customer-service window, which is true for every automation
 // that includes a `wait` step. The type stays in the union so legacy
 // rows still load, but new steps must be a template.
-// `send_webhook` is intentionally NOT offered — it's a technical/developer
-// action that confuses merchants. The type stays in the union so any legacy
-// automation keeps loading + running its webhook step.
+// Webhook is for equipos que conectan Make, Zapier o n8n. No se propone por
+// defecto en las plantillas, pero sí se ofrece cuando el comercio lo busca.
 // `update_contact_field` is likewise NOT offered — it overwrites a core
 // contact field (name/email/company) with a fixed value, which is rarely what
 // a merchant wants and can clobber real data; tags already cover state. The
@@ -487,6 +486,7 @@ function snapshot(s: BuilderInitial): string {
 // next load a flat one folds into the unified card (see collapseSwitch).
 const ADDABLE_STEPS: BuilderStepType[] = [
   'send_template',
+  'send_webhook',
   'voice_call',
   'assign_conversation',
   'wait',

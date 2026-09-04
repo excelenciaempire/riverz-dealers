@@ -26,6 +26,7 @@ import { resolveOfferChosen } from '@/lib/shopify/offers'
 import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
 import { marcarCuponesUsados } from '@/lib/shopify/discounts'
 import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido'
+import { emitWebhook } from '@/lib/webhooks/outbound'
 import type {
   AutomationTriggerType,
   Channel,
@@ -278,6 +279,41 @@ export async function POST(request: Request) {
           if (row?.transitioned_to_delivered) triggerTypes.push('shopify_order_delivered')
         }
       }
+    }
+
+    // Shopify es la fuente que Dropi actualiza cuando genera la guía. Así,
+    // Make, Zapier y n8n reciben tanto el pedido inicial como cada cambio de
+    // fulfillment sin necesitar acceso a la API privada de Dropi.
+    const fulfillments = Array.isArray(order.fulfillments)
+      ? (order.fulfillments as Record<string, unknown>[])
+      : []
+    const latestFulfillment = fulfillments[fulfillments.length - 1]
+    const eventData = {
+      shop_domain: shopDomain,
+      order_id: String(order.id ?? ''),
+      order_name: String(order.name ?? ''),
+      financial_status: String(order.financial_status ?? ''),
+      fulfillment_status: String(order.fulfillment_status ?? ''),
+      shipment_status: String(latestFulfillment?.shipment_status ?? ''),
+      tracking_number: String(latestFulfillment?.tracking_number ?? ''),
+      tracking_company: String(latestFulfillment?.tracking_company ?? ''),
+      tracking_url:
+        String(latestFulfillment?.tracking_url ?? '') ||
+        resolveCarrierTrackingUrl(
+          String(latestFulfillment?.tracking_company ?? ''),
+          String(latestFulfillment?.tracking_number ?? ''),
+        ) ||
+        String(order.order_status_url ?? ''),
+    }
+    void emitWebhook(
+      workspaceId,
+      topic === 'orders/create' ? 'order.created' : 'order.updated',
+      eventData,
+    ).catch((error) => console.error('[webhook] Shopify order delivery failed', error))
+    if (triggerTypes.includes('shopify_order_paid')) {
+      void emitWebhook(workspaceId, 'payment.approved', eventData).catch((error) =>
+        console.error('[webhook] Shopify payment delivery failed', error),
+      )
     }
 
     if (triggerTypes.length === 0) {
