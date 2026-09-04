@@ -22,6 +22,9 @@ interface Status {
   hasToken: boolean;
   updatedAt: string | null;
   needsMigration: boolean;
+  technicalAlertPhone: string | null;
+  technicalAlertEmail: string | null;
+  needsTechnicalRecipientsMigration: boolean;
 }
 
 /**
@@ -47,6 +50,8 @@ export default function AdminWhatsAppPage() {
   const [token, setToken] = useState('');
   const [templateName, setTemplateName] = useState('');
   const [isActive, setIsActive] = useState(false);
+  const [technicalAlertPhone, setTechnicalAlertPhone] = useState('');
+  const [technicalAlertEmail, setTechnicalAlertEmail] = useState('');
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -70,6 +75,8 @@ export default function AdminWhatsAppPage() {
     setDisplayPhoneNumber(json.displayPhoneNumber ?? '');
     setTemplateName(json.templateName ?? '');
     setIsActive(json.active);
+    setTechnicalAlertPhone(json.technicalAlertPhone ?? '');
+    setTechnicalAlertEmail(json.technicalAlertEmail ?? '');
   }, []);
 
   useEffect(() => {
@@ -90,6 +97,8 @@ export default function AdminWhatsAppPage() {
           templateName,
           templateLanguage: 'es',
           isActive,
+          technicalAlertPhone,
+          technicalAlertEmail,
         }),
       });
       const json = await res.json();
@@ -125,6 +134,13 @@ export default function AdminWhatsAppPage() {
           <span>
             {t('admin.waNeedsMigration')}
           </span>
+        </div>
+      )}
+
+      {status.needsTechnicalRecipientsMigration && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+          <span>{t('admin.waTechnicalNeedsMigration')}</span>
         </div>
       )}
 
@@ -196,6 +212,31 @@ export default function AdminWhatsAppPage() {
         </Button>
         </div>
       </details>
+
+      <div className="max-w-2xl space-y-4 rounded-xl border border-border bg-card p-5">
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('admin.waTechnicalRecipients')}</p>
+          <p className="text-xs text-muted-foreground">{t('admin.waTechnicalRecipientsHint')}</p>
+        </div>
+        <Field label={t('admin.waTechnicalPhone')}>
+          <Input
+            value={technicalAlertPhone}
+            onChange={(e) => setTechnicalAlertPhone(e.target.value)}
+            inputMode="tel"
+          />
+        </Field>
+        <Field label={t('admin.waTechnicalEmail')}>
+          <Input
+            type="email"
+            value={technicalAlertEmail}
+            onChange={(e) => setTechnicalAlertEmail(e.target.value)}
+          />
+        </Field>
+        <Button onClick={save} disabled={saving} className="w-full">
+          {saving && <Loader2 className="size-4 animate-spin" />}
+          {t('common.save')}
+        </Button>
+      </div>
     </div>
   );
 }

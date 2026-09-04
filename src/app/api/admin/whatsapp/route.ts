@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     templateName?: string;
     templateLanguage?: string;
     isActive?: boolean;
+    technicalAlertPhone?: string;
+    technicalAlertEmail?: string;
   } | null;
   if (!body) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
@@ -46,6 +48,12 @@ export async function POST(request: Request) {
       templateName: body.templateName?.trim() || null,
       templateLanguage: body.templateLanguage?.trim() || 'es',
       isActive: body.isActive === true,
+      ...(Object.hasOwn(body, 'technicalAlertPhone')
+        ? { technicalAlertPhone: body.technicalAlertPhone?.trim() || null }
+        : {}),
+      ...(Object.hasOwn(body, 'technicalAlertEmail')
+        ? { technicalAlertEmail: body.technicalAlertEmail?.trim() || null }
+        : {}),
     },
     gate.actor.userId,
   );
@@ -64,6 +72,8 @@ export async function POST(request: Request) {
       phone_number_id: body.phoneNumberId?.trim() || null,
       token_changed: Boolean(body.token?.trim()),
       is_active: body.isActive === true,
+      technical_alert_phone_changed: Object.hasOwn(body, 'technicalAlertPhone'),
+      technical_alert_email_changed: Object.hasOwn(body, 'technicalAlertEmail'),
       via: 'manual',
     },
   });

@@ -978,6 +978,26 @@ export const admin = {
     es: "Apagado, los avisos siguen saliendo sólo por correo.",
     en: "Off, alerts still go out by email only.",
   },
+  waTechnicalRecipients: {
+    es: "Alertas técnicas",
+    en: "Technical alerts",
+  },
+  waTechnicalRecipientsHint: {
+    es: "Sólo administración recibe problemas internos. Los comercios reciben sus propios avisos en sus números configurados.",
+    en: "Only administrators receive internal issues. Merchants receive their own alerts at their configured numbers.",
+  },
+  waTechnicalPhone: {
+    es: "WhatsApp de administración",
+    en: "Administrator WhatsApp",
+  },
+  waTechnicalEmail: {
+    es: "Correo de administración",
+    en: "Administrator email",
+  },
+  waTechnicalNeedsMigration: {
+    es: "Falta aplicar la migración 248_destinos_tecnicos_plataforma.sql para guardar estos destinatarios desde el panel. Hasta entonces se usan los valores de Render.",
+    en: "Migration 248_destinos_tecnicos_plataforma.sql must be applied before these recipients can be saved from the panel. Until then, Render values are used.",
+  },
 
   voiceCustom: { es: "Otro…", en: "Other…" },
   voiceProviderId: { es: "id del proveedor", en: "provider id" },

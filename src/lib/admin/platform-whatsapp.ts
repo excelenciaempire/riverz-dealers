@@ -36,6 +36,11 @@ export interface PlatformWhatsAppStatus {
   updatedAt: string | null;
   /** La tabla todavía no existe (falta aplicar la migración 147). */
   needsMigration: boolean;
+  /** El teléfono se muestra sólo al administrador, nunca a un comercio. */
+  technicalAlertPhone: string | null;
+  technicalAlertEmail: string | null;
+  /** La tabla existe, pero aún le faltan las columnas de la migración 248. */
+  needsTechnicalRecipientsMigration: boolean;
 }
 
 interface Row {
@@ -47,6 +52,8 @@ interface Row {
   alert_template_language: string | null;
   is_active: boolean;
   updated_at: string;
+  technical_alert_phone?: string | null;
+  technical_alert_email?: string | null;
 }
 
 async function readRow(): Promise<{ row: Row | null; missing: boolean }> {
@@ -68,6 +75,12 @@ export async function platformWhatsAppStatus(): Promise<PlatformWhatsAppStatus> 
 
   const phoneNumberId = row?.phone_number_id ?? envPhone;
   const hasToken = Boolean(row?.access_token_encrypted || envToken);
+  // `select('*')` no incluye una columna que todavía no existe. Esto permite
+  // desplegar el código antes de aplicar 248 sin romper el emisor ni perder el
+  // respaldo actual de Render.
+  const hasTechnicalColumns = Boolean(
+    row && Object.hasOwn(row, 'technical_alert_phone') && Object.hasOwn(row, 'technical_alert_email'),
+  );
   return {
     configured: Boolean(phoneNumberId && hasToken),
     active: row ? row.is_active : Boolean(envPhone && envToken),
@@ -79,6 +92,21 @@ export async function platformWhatsAppStatus(): Promise<PlatformWhatsAppStatus> 
     hasToken,
     updatedAt: row?.updated_at ?? null,
     needsMigration: missing,
+    technicalAlertPhone: row?.technical_alert_phone || process.env.PLATFORM_ALERT_PHONE || null,
+    technicalAlertEmail: row?.technical_alert_email || process.env.PLATFORM_ALERT_EMAIL || null,
+    needsTechnicalRecipientsMigration: !missing && !hasTechnicalColumns,
+  };
+}
+
+/** Destinatarios exclusivos de los avisos técnicos internos. */
+export async function platformTechnicalAlertRecipients(): Promise<{
+  phone: string | null;
+  email: string | null;
+}> {
+  const { row } = await readRow();
+  return {
+    phone: row?.technical_alert_phone || process.env.PLATFORM_ALERT_PHONE || null,
+    email: row?.technical_alert_email || process.env.PLATFORM_ALERT_EMAIL || null,
   };
 }
 
@@ -242,6 +270,8 @@ export interface PlatformWhatsAppInput {
   templateName?: string | null;
   templateLanguage?: string | null;
   isActive?: boolean;
+  technicalAlertPhone?: string | null;
+  technicalAlertEmail?: string | null;
 }
 
 /** Guarda la configuración. Un token vacío NO borra el que ya estaba. */
@@ -262,6 +292,10 @@ export async function savePlatformWhatsApp(
   if (input.templateLanguage !== undefined)
     patch.alert_template_language = input.templateLanguage;
   if (input.isActive !== undefined) patch.is_active = input.isActive;
+  if (input.technicalAlertPhone !== undefined)
+    patch.technical_alert_phone = input.technicalAlertPhone;
+  if (input.technicalAlertEmail !== undefined)
+    patch.technical_alert_email = input.technicalAlertEmail;
   const token = (input.token ?? '').trim();
   if (token) patch.access_token_encrypted = encrypt(token);
 

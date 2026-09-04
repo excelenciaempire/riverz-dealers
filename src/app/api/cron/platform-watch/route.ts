@@ -5,7 +5,10 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectPlatformIssues, type Issue } from '@/lib/health/issues'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
-import { sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
+import {
+  platformTechnicalAlertRecipients,
+  sendPlatformAlert,
+} from '@/lib/admin/platform-whatsapp'
 import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
 
@@ -247,8 +250,10 @@ async function cronHandler(request: Request) {
     return NextResponse.json({ problemas: actuales.size, nuevos: 0, avisado: false })
   }
 
-  const telefono = process.env.PLATFORM_ALERT_PHONE
-  const correo = process.env.PLATFORM_ALERT_EMAIL
+  // El emisor es el WhatsApp de Riverz; los destinatarios son exclusivamente
+  // de administración y viven con esa configuración. Render queda como
+  // respaldo hasta que se aplique la migración que habilita el panel.
+  const { phone: telefono, email: correo } = await platformTechnicalAlertRecipients()
   if (!telefono && !correo) {
     log.warn('hay novedades y no hay a quién avisarle', {
       nuevos: nuevas.length,
