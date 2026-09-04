@@ -1180,23 +1180,25 @@ export function AgentEditor({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowTest((v) => !v)}
-              className="border-border bg-background text-foreground hover:bg-accent hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors sm:inline-flex"
-              title={
-                showTest
-                  ? t('assistant.hideTestPanel')
-                  : t('assistant.showTestPanel')
-              }
-            >
-              {showTest ? (
-                <EyeOff className="size-3.5" />
-              ) : (
-                <Eye className="size-3.5" />
-              )}
-              {showTest ? t('assistant.hideTest') : t('assistant.test')}
-            </button>
+            {tab !== 'stats' && (
+              <button
+                type="button"
+                onClick={() => setShowTest((v) => !v)}
+                className="border-border bg-background text-foreground hover:bg-accent hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors sm:inline-flex"
+                title={
+                  showTest
+                    ? t('assistant.hideTestPanel')
+                    : t('assistant.showTestPanel')
+                }
+              >
+                {showTest ? (
+                  <EyeOff className="size-3.5" />
+                ) : (
+                  <Eye className="size-3.5" />
+                )}
+                {showTest ? t('assistant.hideTest') : t('assistant.test')}
+              </button>
+            )}
             <label className="text-muted-foreground flex items-center gap-2 text-xs">
               <Switch checked={isActive} onCheckedChange={setIsActive} />
               {isActive ? t('assistant.active') : t('assistant.paused')}
@@ -1218,36 +1220,40 @@ export function AgentEditor({
             // el cuerpo debe poder scrollear o se recorta. En pantalla ancha
             // cada columna scrollea por dentro y el cuerpo queda fijo.
             'grid min-h-0 gap-0 overflow-y-auto sm:overflow-hidden',
-            showTest
-              ? // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
-                // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
-                'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
-              : 'sm:grid-cols-[180px_minmax(0,1fr)]'
+            tab === 'stats'
+              ? 'sm:grid-cols-1'
+              : showTest
+                ? // El panel de prueba suma ~520px de rieles fijos: solo a 3 columnas
+                  // desde lg (donde el diálogo ya es max-w-5xl y hay espacio).
+                  'lg:grid-cols-[180px_minmax(0,1fr)_340px]'
+                : 'sm:grid-cols-[180px_minmax(0,1fr)]'
           )}
         >
           {/* Section nav rail */}
-          <nav className="border-border bg-card/40 border-r p-2 sm:py-4">
-            {TABS.map((tabItem) => {
-              const Icon = tabItem.icon;
-              const active = tab === tabItem.key;
-              return (
-                <button
-                  key={tabItem.key}
-                  type="button"
-                  onClick={() => setTab(tabItem.key)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                    active
-                      ? 'bg-primary/10 text-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {tabItem.label}
-                </button>
-              );
-            })}
-          </nav>
+          {tab !== 'stats' && (
+            <nav className="border-border bg-card/40 border-r p-2 sm:py-4">
+              {TABS.map((tabItem) => {
+                const Icon = tabItem.icon;
+                const active = tab === tabItem.key;
+                return (
+                  <button
+                    key={tabItem.key}
+                    type="button"
+                    onClick={() => setTab(tabItem.key)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                      active
+                        ? 'bg-primary/10 text-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {tabItem.label}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
 
           {/* Form column */}
           <div className="space-y-6 overflow-y-auto p-4 sm:p-6">
@@ -2203,7 +2209,7 @@ export function AgentEditor({
               y se ve igual que en producción (left bubbles blancas para
               asistente, right verdes para usuario, fondo beige con dots).
               Se puede ocultar con el botón "Ocultar prueba" del header. */}
-          {showTest && (
+          {showTest && tab !== 'stats' && (
             <aside className="border-border bg-muted/30 flex min-h-0 flex-col overflow-hidden border-t sm:border-t-0 sm:border-l">
               <div className="border-border bg-card flex items-center justify-between gap-2 border-b px-4 py-3">
                 <div className="min-w-0">
