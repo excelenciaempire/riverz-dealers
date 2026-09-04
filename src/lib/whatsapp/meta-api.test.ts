@@ -3,6 +3,7 @@ import {
   INTERACTIVE_LIMITS,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendTemplateMessage,
 } from "./meta-api";
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -263,6 +264,47 @@ describe("sendInteractiveList — validation", () => {
             },
           ],
         },
+      },
+    });
+  });
+});
+
+describe("sendTemplateMessage — dynamic URL button", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("passes the per-contact token in Meta's URL-button component", async () => {
+    let captured: { body: unknown } | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured = { body: JSON.parse(String(init.body)) };
+        return new Response(JSON.stringify({ messages: [{ id: "wamid.URL" }] }), { status: 200 });
+      }),
+    );
+
+    await sendTemplateMessage({
+      phoneNumberId: "test-phone",
+      accessToken: "test-token",
+      to: "1234567890",
+      templateName: "rasmiaw_carrito_abandonado_1",
+      language: "es",
+      buttonUrlParam: "short-token",
+      buttonUrlIndex: 0,
+    });
+
+    expect(captured!.body).toMatchObject({
+      type: "template",
+      template: {
+        name: "rasmiaw_carrito_abandonado_1",
+        language: { code: "es" },
+        components: [{
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: "short-token" }],
+        }],
       },
     });
   });

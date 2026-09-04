@@ -25,6 +25,13 @@ const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_
 const fail = (error) => {
   if (error) throw new Error(error.message)
 }
+const siteBase = /^https:\/\//i.test(env.NEXT_PUBLIC_SITE_URL ?? '') &&
+  !/localhost|127\.0\.0\.1/i.test(env.NEXT_PUBLIC_SITE_URL ?? '')
+  ? env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '')
+  : 'https://riverz.co'
+// Meta only accepts a variable at the end of a fixed HTTPS URL. The token is
+// resolved per contact by the engine and redirects to the Shopify checkout.
+const dynamicCheckoutButtonUrl = `${siteBase}/r/{{1}}`
 
 const templates = [
   {
@@ -80,7 +87,7 @@ Válido durante las próximas 24 horas. 🏃`,
 Nuestro rascador te ayudará a que tu gato desgaste sus uñas, libere estrés, se mantenga activo y tenga su propio espacio para rascar, jugar y descansar. 😻
 
 Completa tu compra de forma fácil y rápida y vive la experiencia Rasmiaw.`,
-    buttons: [{ type: 'URL', text: 'Volver a mi carrito', url: 'https://riverz.ai/c/{{1}}', url_variable: 'checkout_url' }],
+    buttons: [{ type: 'URL', text: 'Volver a mi carrito', url: dynamicCheckoutButtonUrl, url_variable: 'abandoned_checkout' }],
   },
   {
     name: 'rasmiaw_carrito_abandonado_2', category: 'Marketing', body: `¡Tu michi todavía está esperando!
@@ -90,7 +97,7 @@ Retoma tu carrito y obtén un 10% de descuento por completar tu compra. 🎉
 ¡No dejes que se te escape!
 
 Aquí puedes completar tu compra de forma fácil y rápida…`,
-    buttons: [{ type: 'URL', text: 'Completar con 10% OFF', url: 'https://riverz.ai/c/{{1}}', url_variable: 'checkout_url' }],
+    buttons: [{ type: 'URL', text: 'Completar con 10% OFF', url: dynamicCheckoutButtonUrl, url_variable: 'abandoned_checkout' }],
   },
   {
     name: 'rasmiaw_pago_rechazado', category: 'Utility', body: `¡Ups! Algo salió mal con tu pago. 😿
