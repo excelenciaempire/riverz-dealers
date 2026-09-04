@@ -144,7 +144,7 @@ export const voice = {
   },
   voiceNavGeneral: { es: 'General', en: 'General' },
   voiceNavVoice: { es: 'Voz', en: 'Voice' },
-  voiceNavOperations: { es: 'Entrantes', en: 'Inbound' },
+  voiceNavOperations: { es: 'Atención', en: 'Handling' },
   voiceNavSchedule: { es: 'Salientes', en: 'Outbound' },
   voiceNavControl: { es: 'Capacidad', en: 'Capacity' },
   voiceNavRecording: { es: 'Grabación', en: 'Recording' },
@@ -288,6 +288,13 @@ export const voice = {
     es: '1 a 3 archivos · MP3, WAV, M4A, OGG u OPUS.',
     en: '1 to 3 files · MP3, WAV, M4A, OGG, or OPUS.',
   },
+  voiceChooseFiles: { es: 'Seleccionar audios', en: 'Select audio' },
+  voiceNoFilesSelected: { es: 'Ningún audio', en: 'No audio selected' },
+  voiceFileSelectedOne: { es: '1 audio', en: '1 audio file' },
+  voiceFilesSelected: {
+    es: '{count} audios',
+    en: '{count} audio files',
+  },
   voiceConsent: {
     es: 'Confirmo que tengo permiso para usar y clonar esta voz.',
     en: 'I confirm I have permission to use and clone this voice.',
@@ -303,7 +310,7 @@ export const voice = {
     es: 'Si un dato no está disponible, se omite.',
     en: 'Missing data is omitted.',
   },
-  voiceCreateAction: { es: 'Crear', en: 'Create' },
+  voiceCreateAction: { es: 'Crear voz', en: 'Create voice' },
   voiceBack: { es: 'Volver', en: 'Back' },
   voiceCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceCreating: { es: 'Creando…', en: 'Creating…' },
@@ -558,23 +565,31 @@ export const voice = {
     es: 'Define cuántas conversaciones pueden ocurrir al mismo tiempo.',
     en: 'Set how many conversations can happen at the same time.',
   },
-  capacityMaxTitle: { es: 'Máximo simultáneo', en: 'Concurrent maximum' },
+  capacityConcurrentGroup: { es: 'En simultáneo', en: 'At the same time' },
+  capacityLimitsGroup: { es: 'Límites', en: 'Limits' },
+  capacityMaxTitle: {
+    es: 'Llamadas simultáneas',
+    en: 'Simultaneous calls',
+  },
   capacityMaxHint: {
     es: 'Incluye entrantes y salientes.',
     en: 'Includes incoming and outgoing calls.',
   },
   capacityReserveTitle: {
-    es: 'Reservar para entrantes',
-    en: 'Reserve for incoming',
+    es: 'Guardar espacios para llamadas entrantes',
+    en: 'Keep slots for incoming calls',
   },
   capacityReserveHint: {
     es: 'Mantiene líneas libres aunque haya llamadas salientes.',
     en: 'Keeps lines free while outgoing calls are running.',
   },
-  capacityCampaignTitle: { es: 'Máximo por campañas', en: 'Campaign maximum' },
+  capacityCampaignTitle: {
+    es: 'Llamadas de campaña',
+    en: 'Campaign calls',
+  },
   capacityCampaignHint: {
-    es: 'Evita que una campaña ocupe toda la capacidad.',
-    en: 'Prevents one campaign from using all capacity.',
+    es: 'Máximo activo a la vez.',
+    en: 'Maximum active at once.',
   },
   agentControlTitle: { es: 'Control de llamadas', en: 'Call controls' },
   agentControlHint: {
@@ -582,12 +597,12 @@ export const voice = {
     en: "This agent's capacity, recording, and limits.",
   },
   agentCapacityMaxHint: {
-    es: 'Conversaciones que puede mantener a la vez.',
-    en: 'Conversations it can handle at once.',
+    es: 'Total que este agente puede atender a la vez.',
+    en: 'Total this agent can handle at once.',
   },
   agentReserveHint: {
-    es: 'Guarda capacidad para quien llame.',
-    en: 'Keeps capacity available for incoming callers.',
+    es: 'Las llamadas salientes no podrán ocuparlos.',
+    en: 'Outgoing calls cannot use them.',
   },
   agentPriorityOrder: {
     es: 'Entrantes → manuales → automatizaciones → campañas',
@@ -602,12 +617,12 @@ export const voice = {
     en: 'Update confirmed orders and connect Dropi.',
   },
   capacityDedupeTitle: {
-    es: 'Evitar llamadas duplicadas',
-    en: 'Prevent duplicate calls',
+    es: 'Bloquear llamadas repetidas',
+    en: 'Block repeated calls',
   },
   capacityDedupeHint: {
-    es: 'Agrupa disparos automáticos repetidos.',
-    en: 'Groups repeated automatic triggers.',
+    es: 'Evita repetir una llamada automática al mismo contacto.',
+    en: 'Prevents another automatic call to the same contact.',
   },
   capacityMinutes: { es: 'min', en: 'min' },
   capacityPriority: { es: 'Prioridad automática', en: 'Automatic priority' },
@@ -633,10 +648,14 @@ export const voice = {
     es: 'Puede responder las llamadas que llegan a tu número.',
     en: 'Can answer calls placed to your number.',
   },
-  agentTransferNumber: {
-    es: 'Transferir a esta persona',
-    en: 'Transfer to this person',
+  agentTransferTitle: { es: 'Transferencia a humano', en: 'Human transfer' },
+  agentTransferHint: {
+    es: 'Solo si el cliente lo pide o la IA no puede resolver el caso.',
+    en: 'Only when the customer asks or AI cannot resolve the case.',
   },
+  agentTransferConfigure: { es: 'Configurar', en: 'Configure' },
+  agentTransferNumber: { es: 'Número de destino', en: 'Destination number' },
+  agentTransferRemove: { es: 'Quitar', en: 'Remove' },
   agentMaxDuration: {
     es: 'Duración máxima',
     en: 'Maximum duration',

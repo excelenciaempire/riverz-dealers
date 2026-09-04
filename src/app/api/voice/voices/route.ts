@@ -12,7 +12,8 @@ import {
 } from '@/lib/voice/voice-connection-store';
 
 const FISH_MODEL_URL = 'https://api.fish.audio/model';
-const FISH_LIBRARY_PAGE_SIZE = 48;
+const FISH_PROVIDER_PAGE_SIZE = 100;
+const FISH_LIBRARY_PAGE_SIZE = 250;
 const MAX_SAMPLE_BYTES = 10 * 1024 * 1024;
 const MAX_SAMPLES = 3;
 const AUDIO_TYPES = new Set([
@@ -72,26 +73,47 @@ async function fishLibraryPage(
   tags: string[],
   sortBy: 'score' | 'task_count' | 'created_at'
 ) {
-  const url = new URL(FISH_MODEL_URL);
-  url.searchParams.set('page_size', String(FISH_LIBRARY_PAGE_SIZE));
-  url.searchParams.set('page_number', String(page));
-  url.searchParams.set('language', 'es');
-  url.searchParams.set('sort_by', sortBy);
-  if (query) url.searchParams.set('title', query);
-  for (const tag of tags) url.searchParams.append('tag', tag);
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : undefined;
-  const res = await fetch(url, {
-    headers,
-    next: { revalidate: 300 },
-  });
-  if (!res.ok) throw new Error(`Fish library ${res.status}`);
-  const payload = (await res.json()) as {
+  const start = (page - 1) * FISH_LIBRARY_PAGE_SIZE;
+  const firstProviderPage = Math.floor(start / FISH_PROVIDER_PAGE_SIZE) + 1;
+  const offsetWithinFirstPage = start % FISH_PROVIDER_PAGE_SIZE;
+  const providerPagesNeeded = Math.ceil(
+    (offsetWithinFirstPage + FISH_LIBRARY_PAGE_SIZE) / FISH_PROVIDER_PAGE_SIZE
+  );
+  const payloads = await Promise.all(
+    Array.from({ length: providerPagesNeeded }, async (_, index) => {
+      const url = new URL(FISH_MODEL_URL);
+      url.searchParams.set('page_size', String(FISH_PROVIDER_PAGE_SIZE));
+      url.searchParams.set('page_number', String(firstProviderPage + index));
+      url.searchParams.set('language', 'es');
+      url.searchParams.set('sort_by', sortBy);
+      if (query) url.searchParams.set('title', query);
+      for (const tag of tags) url.searchParams.append('tag', tag);
+      const res = await fetch(url, {
+        headers,
+        next: { revalidate: 300 },
+      });
+      if (!res.ok) throw new Error(`Fish library ${res.status}`);
+      return (await res.json()) as {
+        total?: number;
+        items?: FishModel[];
+        has_more?: boolean | null;
+      };
+    })
+  );
+  const items = payloads
+    .flatMap((payload) => payload.items ?? [])
+    .slice(
+      offsetWithinFirstPage,
+      offsetWithinFirstPage + FISH_LIBRARY_PAGE_SIZE
+    );
+  const lastPayload = payloads.at(-1) as {
     total?: number;
     items?: FishModel[];
     has_more?: boolean | null;
   };
   return {
-    voices: (payload.items ?? [])
+    voices: items
       .filter(
         (item) =>
           isFishModelId(item._id) &&
@@ -110,8 +132,10 @@ async function fishLibraryPage(
           sample.audio?.startsWith('https://')
         )?.audio,
       })),
-    hasMore: Boolean(payload.has_more),
-    total: Number.isFinite(payload.total) ? Number(payload.total) : null,
+    hasMore: Boolean(lastPayload.has_more),
+    total: Number.isFinite(payloads[0]?.total)
+      ? Number(payloads[0].total)
+      : null,
   };
 }
 
