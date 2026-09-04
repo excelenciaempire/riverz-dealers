@@ -8,6 +8,7 @@ import {
   type MetaPlatform,
 } from '@/lib/channels/meta-dm-history';
 import { withAppsecretProof } from '@/lib/channels/meta-graph';
+import { fetchMetaGraph } from '@/lib/channels/meta-fetch';
 import { csrfGuard } from '@/lib/csrf';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
@@ -236,9 +237,11 @@ async function pullConnection(
   while (url) {
     let response: Response;
     try {
-      response = await fetch(withAppsecretProof(url, token), {
-        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
-      });
+      response = await fetchMetaGraph(
+        withAppsecretProof(url, token),
+        {},
+        { timeoutMs: GRAPH_TIMEOUT_MS }
+      );
     } catch (error) {
       console.error('[messages/backfill] Graph conversation discovery failed', {
         connectionId: connection.id,

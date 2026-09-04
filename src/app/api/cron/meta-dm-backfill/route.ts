@@ -5,8 +5,16 @@ import { selectAll } from "@/lib/db/paginate";
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
+import { fetchMetaGraph } from "@/lib/channels/meta-fetch";
 import { handleMetaGraphError, parseMetaErrorBody } from "@/lib/channels/meta-auth";
 import { syncThreadMessages, type MetaPlatform } from "@/lib/channels/meta-dm-history";
+import {
+  isInsideMetaDmResumeWindow,
+  META_DM_BACKFILL_MARK,
+  META_DM_BACKFILL_PENDING,
+  readMetaDmBackfillPending,
+  updateMetaDmBackfillCheckpoint,
+} from "@/lib/channels/meta-dm-backfill-state";
 import type { ChannelConnection } from "@/types";
 import { withCronRun } from "@/lib/cron/heartbeat";
 
@@ -31,18 +39,6 @@ const MAX_PAGINAS_LISTA = 20;
  * terminar siempre por decisión propia y dejar la fila escrita en `cron_runs`.
  */
 const PRESUPUESTO_MS = 8 * 60_000;
-
-/** Hasta dónde ya se miró esta conexión, dentro de `config`. */
-const MARCA = "dm_backfill_marca";
-/** Pasada a medio terminar: dónde retomar y qué marca adoptar al cerrarla. */
-const PENDIENTE = "dm_backfill_pendiente";
-
-interface Pendiente {
-  /** Sólo hilos MÁS VIEJOS que esto quedan por mirar (la lista viene desc). */
-  hasta: string;
-  /** La marca que se adopta cuando la pasada termine. */
-  objetivo: string;
-}
 
 interface ConversacionGraph {
   id?: string;
@@ -141,9 +137,12 @@ async function cronHandler(request: Request) {
     }
 
     const arranque = new Date().toISOString();
-    const pend = leerPendiente(cfg[PENDIENTE]);
+    const pend = readMetaDmBackfillPending(cfg[META_DM_BACKFILL_PENDING]);
     const objetivo = pend?.objetivo ?? arranque;
-    const marca = typeof cfg[MARCA] === "string" ? (cfg[MARCA] as string) : null;
+    const marca =
+      typeof cfg[META_DM_BACKFILL_MARK] === "string"
+        ? (cfg[META_DM_BACKFILL_MARK] as string)
+        : null;
     const pisoMs =
       (marca ? new Date(marca).getTime() : Date.now() - ARRANQUE_DIAS * 86_400_000) - SOLAPE_MS;
     const pisoIso = new Date(pisoMs).toISOString();
@@ -151,8 +150,6 @@ async function cronHandler(request: Request) {
     // miraron en la corrida anterior. `>` y no `>=` para que el hilo del borde
     // se vuelva a mirar (es idempotente) en vez de saltearse si dos hilos
     // comparten `updated_time`.
-    const techoMs = pend ? new Date(pend.hasta).getTime() : Infinity;
-
     const suprimidos = await listaDeSupresion(c.channel);
 
     let ingested = 0;
@@ -173,7 +170,7 @@ async function cronHandler(request: Request) {
           break;
         }
         // `paging.next` no lleva el proof — se re-adjunta en cada página.
-        const r: Response = await fetch(withAppsecretProof(url, token));
+        const r = await fetchMetaGraph(withAppsecretProof(url, token), {}, { deadlineMs: limite });
         if (!r.ok) {
           // Un token revocado o sin los permisos de Página necesarios no se
           // recupera reintentando cada dos horas. Marcar sólo esa conexión la
@@ -210,7 +207,7 @@ async function cronHandler(request: Request) {
             break;
           }
           // Pasada reanudada: este tramo ya se miró en la corrida anterior.
-          if (cuando > techoMs) continue;
+          if (!isInsideMetaDmResumeWindow(cuando, pend)) continue;
 
           ultimoMirado = conv.updated_time ?? ultimoMirado;
 
@@ -251,14 +248,15 @@ async function cronHandler(request: Request) {
               sinceIso: pisoIso,
             });
           } catch (err) {
-            console.warn(
-              `[meta-dm-backfill] ${c.channel} hilo ${conv.id} falló:`,
-              err instanceof Error ? err.message : err,
-            );
+            // No seguir hacia atrás: `ultimoMirado` queda en ESTE hilo y el
+            // checkpoint inclusivo obliga a reintentarlo. Continuar habría
+            // guardado un borde más viejo y saltado para siempre este hueco.
+            fallo = `hilo ${conv.id}: ${err instanceof Error ? err.message : String(err)}`;
+            break;
           }
         }
 
-        if (alDia || sinTiempo) break;
+        if (alDia || sinTiempo || fallo) break;
         url = j.paging?.next ?? null;
         paginas++;
         // Se acabaron las páginas sin cruzar el piso: no hay más historia.
@@ -270,15 +268,11 @@ async function cronHandler(request: Request) {
 
     // La marca sólo avanza con la pasada cerrada. Si quedó a medias, se guarda
     // dónde seguir; la marca vieja queda intacta para que nada se saltee.
-    const nuevoCfg = { ...cfg } as Record<string, unknown>;
-    // Cursor del barrido por contactos, que ya no existe.
-    delete nuevoCfg["dm_backfill_cursor"];
-    if (alDia && !fallo) {
-      nuevoCfg[MARCA] = objetivo;
-      delete nuevoCfg[PENDIENTE];
-    } else if (ultimoMirado) {
-      nuevoCfg[PENDIENTE] = { hasta: ultimoMirado, objetivo } satisfies Pendiente;
-    }
+    const nuevoCfg = updateMetaDmBackfillCheckpoint(cfg, {
+      complete: alDia && !fallo,
+      objective: objetivo,
+      resumeAt: ultimoMirado,
+    });
     if (JSON.stringify(nuevoCfg) !== JSON.stringify(cfg)) {
       await admin.from("channel_connections").update({ config: nuevoCfg }).eq("id", c.id);
     }
@@ -303,14 +297,6 @@ async function cronHandler(request: Request) {
     { ok: !conError, truncado: sinTiempo, results },
     { status: conError ? 207 : 200 },
   );
-}
-
-function leerPendiente(v: unknown): Pendiente | null {
-  if (!v || typeof v !== "object") return null;
-  const o = v as Record<string, unknown>;
-  if (typeof o.hasta !== "string" || typeof o.objetivo !== "string") return null;
-  if (!Number.isFinite(new Date(o.hasta).getTime())) return null;
-  return { hasta: o.hasta, objetivo: o.objetivo };
 }
 
 /**

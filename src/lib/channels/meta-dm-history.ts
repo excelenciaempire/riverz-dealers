@@ -2,6 +2,7 @@ import { supabaseAdmin } from "./admin-client";
 import { ingestInboundEvent } from "./inbox-writer";
 import { ingestMetaAttachment } from "./media-ingest";
 import { appsecretProof, withAppsecretProof } from "./meta-graph";
+import { fetchMetaGraph } from "./meta-fetch";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
@@ -112,7 +113,10 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
       url = `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
       r = await graphFetch(withAppsecretProof(url, args.token));
     }
-    if (!r.ok) break;
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      throw new Error(`[meta] thread messages failed (${r.status}): ${detail.slice(0, 300)}`);
+    }
     const j = (await r.json()) as { data?: GraphMessage[]; paging?: { next?: string } };
 
     for (const m of j.data ?? []) {
@@ -169,7 +173,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
  * siguiente corrida continúe desde los ids ya deduplicados.
  */
 async function graphFetch(url: string): Promise<Response> {
-  return fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
+  return fetchMetaGraph(url, {}, { timeoutMs: GRAPH_TIMEOUT_MS });
 }
 
 /**
