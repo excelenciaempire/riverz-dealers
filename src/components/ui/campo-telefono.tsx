@@ -202,8 +202,18 @@ export function CampoTelefono({
 }) {
   const t = useT();
   const { locale } = useLocale();
-  const [pais, setPais] = useState<CountryCode>(paisPorDefecto);
-  const [local, setLocal] = useState("");
+  // Un destino adicional se monta por primera vez DESPUÉS de que llega desde
+  // la base. Si el estado naciera vacío, `visto` ya coincidiría con `value` y
+  // el bloque de sincronización de abajo no correría: el número existe pero
+  // el input parece vacío hasta editarlo. Inicializar desde la prop evita esa
+  // primera pintura falsa.
+  const inicial = interpretar(value);
+  const [pais, setPais] = useState<CountryCode>(
+    inicial?.country ?? paisPorDefecto,
+  );
+  const [local, setLocal] = useState(() =>
+    inicial?.country ? comoSeVe(inicial) : "",
+  );
   const [abierto, setAbierto] = useState(false);
   const [busca, setBusca] = useState("");
   const buscador = useRef<HTMLInputElement>(null);
