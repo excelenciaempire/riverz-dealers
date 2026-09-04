@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
 import { getLogger } from "@/lib/log/logger";
+import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.ml_review");
@@ -55,6 +56,7 @@ export async function pollAllMercadoLibreReviews(): Promise<{
   /** Por qué no trajo lo que se esperaba. Un cero sin motivo es
    *  indistinguible de "no había nada", y eso ya costó dos diagnósticos. */
   notes: string[];
+  failures: MercadoLibreSyncFailure[];
 }> {
   const db = supabaseAdmin();
   const conns = await listConnections(db, { channel: "mercadolibre" });
@@ -62,6 +64,7 @@ export async function pollAllMercadoLibreReviews(): Promise<{
   let items = 0;
   let ingested = 0;
   const notes: string[] = [];
+  const failures: MercadoLibreSyncFailure[] = [];
   for (const conn of conns) {
     try {
       const r = await pollOneSeller(conn);
@@ -71,34 +74,37 @@ export async function pollAllMercadoLibreReviews(): Promise<{
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       notes.push(`conn ${conn.id}: ${msg}`);
-      log.warn("ml reviews poll failed for connection", { connectionId: conn.id, error: msg });
+      failures.push(mercadoLibreFailure(conn.id, err));
+      log.warn("ml reviews poll failed for connection", {
+        connectionId: conn.id,
+        error: msg,
+      });
     }
   }
-  return { sellers: conns.length, items, ingested, notes };
+  return { sellers: conns.length, items, ingested, notes, failures };
 }
 
-async function pollOneSeller(
-  conn: ChannelConnection,
-): Promise<{ items: number; ingested: number; notes: string[] }> {
+async function pollOneSeller(conn: ChannelConnection): Promise<{ items: number; ingested: number; notes: string[] }> {
   const notes: string[] = [];
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
-  if (!sellerId) return { items: 0, ingested: 0, notes: ["sin seller_id"] };
+  if (!sellerId) throw new Error("conexión sin seller_id");
 
   const token = await getFreshMLToken(conn);
   const auth = { Authorization: `Bearer ${token}` };
 
-  const searchRes = await fetch(
-    `${ML}/users/${sellerId}/items/search?limit=${MAX_ITEMS}`,
-    { headers: auth },
-  );
+  const searchRes = await fetch(`${ML}/users/${sellerId}/items/search?limit=${MAX_ITEMS}`, { headers: auth });
   if (!searchRes.ok) {
     const body = (await searchRes.text()).slice(0, 120);
-    return { items: 0, ingested: 0, notes: [`items/search ${searchRes.status}: ${body}`] };
+    throw new Error(`items/search ${searchRes.status}: ${body}`);
   }
   const itemIds = ((await searchRes.json()) as { results?: string[] }).results ?? [];
   if (itemIds.length === 0) {
-    return { items: 0, ingested: 0, notes: ["el vendedor no tiene publicaciones"] };
+    return {
+      items: 0,
+      ingested: 0,
+      notes: ["el vendedor no tiene publicaciones"],
+    };
   }
 
   const state = { ...((cfg.reviews_state ?? {}) as Record<string, ItemState>) };
@@ -112,8 +118,7 @@ async function pollOneSeller(
       headers: auth,
     });
     if (!headRes.ok) {
-      notes.push(`${itemId} conteo ${headRes.status}`);
-      continue;
+      throw new Error(`${itemId} conteo HTTP ${headRes.status}`);
     }
     const head = (await headRes.json()) as {
       paging?: { total?: number };
@@ -134,20 +139,14 @@ async function pollOneSeller(
     // opiniones enterraría el resto de la bandeja— pero tampoco cero: una
     // sección vacía no le dice al comercio si esto funciona o está roto. Se
     // traen las de los últimos SEED_DAYS y de ahí en adelante sólo lo nuevo.
-    const since = prev
-      ? Date.parse(prev.checkedAt) || 0
-      : Date.now() - SEED_DAYS * 86_400_000;
+    const since = prev ? Date.parse(prev.checkedAt) || 0 : Date.now() - SEED_DAYS * 86_400_000;
     const title = await itemTitle(itemId, auth);
     let offset = 0;
     let found = 0;
     while (offset < Math.min(total, MAX_SCAN)) {
-      const pageRes = await fetch(
-        `${ML}/reviews/item/${itemId}?limit=${PAGE}&offset=${offset}`,
-        { headers: auth },
-      );
+      const pageRes = await fetch(`${ML}/reviews/item/${itemId}?limit=${PAGE}&offset=${offset}`, { headers: auth });
       if (!pageRes.ok) {
-        notes.push(`${itemId} pagina ${pageRes.status}`);
-        break;
+        throw new Error(`${itemId} página HTTP ${pageRes.status}`);
       }
       const page = (await pageRes.json()) as { reviews?: MlReview[] };
       const reviews = page.reviews ?? [];
@@ -198,19 +197,17 @@ async function pollOneSeller(
     state[itemId] = { total, checkedAt: now };
   }
 
-  await db
+  const { error: stateError } = await db
     .from("channel_connections")
     .update({ config: { ...cfg, reviews_state: state } })
     .eq("id", conn.id);
+  if (stateError) throw new Error(`reviews_state: ${stateError.message}`);
 
   return { items: itemIds.length, ingested, notes };
 }
 
 /** Título de la publicación, para que el hilo no se llame "MLA3567114684". */
-async function itemTitle(
-  itemId: string,
-  auth: Record<string, string>,
-): Promise<string> {
+async function itemTitle(itemId: string, auth: Record<string, string>): Promise<string> {
   try {
     const r = await fetch(`${ML}/items/${itemId}?attributes=title`, {
       headers: auth,

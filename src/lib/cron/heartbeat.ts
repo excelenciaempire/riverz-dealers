@@ -25,9 +25,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 export async function pingCron(name: string): Promise<void> {
   try {
     const now = new Date().toISOString();
-    await supabaseAdmin()
-      .from('cron_runs')
-      .insert({ name, status: 'ok', started_at: now, finished_at: now });
+    await supabaseAdmin().from('cron_runs').insert({ name, status: 'ok', started_at: now, finished_at: now });
   } catch {
     /* best-effort heartbeat */
   }
@@ -87,6 +85,27 @@ async function discard(runId: string | null): Promise<void> {
   }
 }
 
+/**
+ * Registra un subtrabajo que no tiene endpoint propio.
+ *
+ * Algunos sincronizadores agrupan varias tareas para ahorrar procesos, pero
+ * cada una conserva su propio ritmo y su propia señal de salud. `pingCron`
+ * sólo dice que una tarea empezó; usarlo como resultado dejaba el panel verde
+ * aunque el trabajo fallara después. Esta envoltura registra el resultado real.
+ */
+export async function withCronTask<T>(name: string, task: () => Promise<T>): Promise<T> {
+  const startedAt = new Date();
+  const runId = await begin(name, startedAt);
+  try {
+    const result = await task();
+    await record(name, startedAt, 'ok', null, runId);
+    return result;
+  } catch (err) {
+    await record(name, startedAt, 'error', describe(err), runId);
+    throw err;
+  }
+}
+
 function describe(err: unknown): string {
   if (err instanceof Error) return err.message.slice(0, 500);
   return String(err).slice(0, 500);
@@ -122,13 +141,7 @@ export function withCronRun(
     // mientras el trabajo avisaba de un hueco en cada corrida — así pasaron
     // seis días sin que nadie viera que Meta entregaba a un host muerto.
     const failed = !response.ok || response.status === 207;
-    await record(
-      name,
-      startedAt,
-      failed ? 'error' : 'ok',
-      failed ? await motivo(response) : null,
-      runId
-    );
+    await record(name, startedAt, failed ? 'error' : 'ok', failed ? await motivo(response) : null, runId);
     return response;
   };
 }
@@ -146,10 +159,7 @@ export function withCronRun(
  * quien llamó.
  */
 async function motivo(response: Response): Promise<string> {
-  const prefijo =
-    response.status === 207
-      ? 'HTTP 207 (fallo parcial)'
-      : `HTTP ${response.status}`;
+  const prefijo = response.status === 207 ? 'HTTP 207 (fallo parcial)' : `HTTP ${response.status}`;
   try {
     const texto = (await response.clone().text()).trim();
     if (!texto) return prefijo;

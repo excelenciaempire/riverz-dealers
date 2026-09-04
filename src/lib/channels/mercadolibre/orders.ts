@@ -7,6 +7,7 @@ import { syncClaimsForConnection } from "./claims-poll";
 import { upsertContact } from "../inbox-writer";
 import { recordPurchases } from "@/lib/contacts/purchases";
 import { getLogger } from "@/lib/log/logger";
+import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.orders");
@@ -70,19 +71,23 @@ interface MlShipment {
  * `channel_connections.config.orders_cursor`. La primera corrida mira 90 días
  * hacia atrás para que el comercio vea historia y no una pantalla vacía.
  */
-export async function syncAllMercadoLibreOrders(): Promise<{
+export async function syncAllMercadoLibreOrders(
+  options: { includeClaims?: boolean } = {}
+): Promise<{
   sellers: number;
   orders: number;
   claims: number;
+  failures: MercadoLibreSyncFailure[];
 }> {
   const db = supabaseAdmin();
   const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let orders = 0;
   let claims = 0;
+  const failures: MercadoLibreSyncFailure[] = [];
   for (const conn of conns) {
     try {
-      const r = await syncOneSeller(db, conn);
+      const r = await syncOneSeller(db, conn, options);
       orders += r.orders;
       claims += r.claims;
     } catch (err) {
@@ -90,18 +95,20 @@ export async function syncAllMercadoLibreOrders(): Promise<{
         connectionId: conn.id,
         error: err instanceof Error ? err.message : String(err),
       });
+      failures.push(mercadoLibreFailure(conn.id, err));
     }
   }
-  return { sellers: conns.length, orders, claims };
+  return { sellers: conns.length, orders, claims, failures };
 }
 
 async function syncOneSeller(
   db: SupabaseClient,
   conn: ChannelConnection,
+  options: { includeClaims?: boolean }
 ): Promise<{ orders: number; claims: number }> {
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
-  if (!sellerId) return { orders: 0, claims: 0 };
+  if (!sellerId) throw new Error("conexión sin seller_id");
 
   const token = await getFreshMLToken(conn);
   const auth = { Authorization: `Bearer ${token}` };
@@ -122,28 +129,22 @@ async function syncOneSeller(
       `&sort=date_desc&limit=${PAGE}&offset=${offset}`;
     const res = await fetch(url, { headers: auth });
     if (!res.ok) {
-      log.warn("ml orders search failed", {
-        status: res.status,
-        connectionId: conn.id,
-      });
-      break;
+      throw new Error(`orders/search HTTP ${res.status}`);
     }
-    const page = (await res.json()) as { results?: MlOrder[]; paging?: { total?: number } };
+    const page = (await res.json()) as {
+      results?: MlOrder[];
+      paging?: { total?: number };
+    };
     const results = page.results ?? [];
     if (results.length === 0) break;
 
     for (const o of results) {
-      try {
-        await upsertOrder(db, conn, o, auth);
-        count++;
-        const u = o.date_last_updated ?? o.date_created;
-        if (u && u > newest) newest = u;
-      } catch (err) {
-        log.warn("ml order upsert failed", {
-          orderId: o.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+      // Si uno falla, no se adelanta el cursor. La próxima corrida repite la
+      // página completa (los upserts son idempotentes) y rescata ese pedido.
+      await upsertOrder(db, conn, o, auth);
+      count++;
+      const u = o.date_last_updated ?? o.date_created;
+      if (u && u > newest) newest = u;
     }
     offset += PAGE;
     // Tope defensivo: sin esto un cursor corrupto pagina la cuenta entera.
@@ -153,12 +154,13 @@ async function syncOneSeller(
   // El cursor se escribe ANTES de los reclamos: `cfg` es una copia leída al
   // entrar, y guardarla después pisaría cualquier cosa que la sincronización de
   // reclamos —o un refresco de token— haya dejado en `config` mientras tanto.
-  await db
+  const { error: cursorError } = await db
     .from("channel_connections")
     .update({ config: { ...cfg, orders_cursor: newest } })
     .eq("id", conn.id);
+  if (cursorError) throw new Error(`orders cursor: ${cursorError.message}`);
 
-  const { claims } = await syncClaimsForConnection(db, conn, token);
+  const claims = options.includeClaims === false ? 0 : (await syncClaimsForConnection(db, conn, token)).claims;
 
   return { orders: count, claims };
 }
@@ -167,7 +169,7 @@ async function upsertOrder(
   db: SupabaseClient,
   conn: ChannelConnection,
   o: MlOrder,
-  auth: Record<string, string>,
+  auth: Record<string, string>
 ): Promise<void> {
   const shipment = o.shipping?.id ? await fetchShipment(o.shipping.id, auth) : null;
 
@@ -237,18 +239,14 @@ async function upsertOrder(
     status: lifecycle(o, shipment),
     tracking_number: shipment?.tracking_number ?? null,
     tracking_company: shipment?.tracking_method ?? null,
-    tracking_url: shipment?.tracking_number
-      ? `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle`
-      : null,
+    tracking_url: shipment?.tracking_number ? `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle` : null,
     shipping_status: shipment?.status ?? null,
     created_by: "sync",
     created_at: o.date_created ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await db
-    .from("orders")
-    .upsert(row, { onConflict: "workspace_id,shop_domain,shopify_order_id" });
+  const { error } = await db.from("orders").upsert(row, { onConflict: "workspace_id,shop_domain,shopify_order_id" });
   // Se propaga a propósito. La primera versión ignoraba este error y contaba
   // el pedido igual: el endpoint informaba 42 pedidos con 0 filas escritas
   // (el índice único era parcial y ON CONFLICT lo rechazaba). Un contador que
@@ -281,10 +279,7 @@ async function upsertOrder(
   }
 }
 
-async function fetchShipment(
-  id: number,
-  auth: Record<string, string>,
-): Promise<MlShipment | null> {
+async function fetchShipment(id: number, auth: Record<string, string>): Promise<MlShipment | null> {
   try {
     const r = await fetch(`${ML}/shipments/${id}`, { headers: auth });
     if (!r.ok) return null;
@@ -321,4 +316,3 @@ function mlDate(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toISOString().replace("Z", "-00:00");
 }
-

@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { reconcileAllCommentConnections } from "@/lib/channels/comment-sync";
-import {
-  pullCommentsAll,
-  pullCommentsForWorkspace,
-} from "@/lib/channels/comment-pull";
+import { pullCommentsAll, pullCommentsForWorkspace } from "@/lib/channels/comment-pull";
 import { entenderPendientes, identificarProductosPendientes } from "@/lib/channels/publicacion-media";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
+import { withCronRun, withCronTask } from "@/lib/cron/heartbeat";
 
 /**
  * GET /api/cron/comment-sync
@@ -57,26 +54,27 @@ async function cronHandler(request: Request) {
     // los comentarios importados no despiertan reglas ni respuestas automáticas.
     if (workspaceId && Number.isFinite(backfillDays) && backfillDays > 0) {
       if (backfillDays > 90) {
-        return NextResponse.json(
-          { error: "backfill_days debe estar entre 1 y 90" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "backfill_days debe estar entre 1 y 90" }, { status: 400 });
       }
       const pulled = await pullCommentsForWorkspace(db, workspaceId, {
         windowMs: backfillDays * 24 * 60 * 60 * 1000,
         maxPosts: 100,
         suppressAutoReply: true,
       });
-      return NextResponse.json(
-        { ok: true, backfill: true, days: backfillDays, pulled },
-        { status: 200 },
-      );
+      return NextResponse.json({ ok: true, backfill: true, days: backfillDays, pulled }, { status: 200 });
     }
 
     // Lo barato y urgente, siempre.
     const pulled = await pullCommentsAll(db).catch((err) => {
       console.error("[comment-sync] pull de comentarios falló:", err);
-      return { connections: 0, ingestedInbound: 0, ingested: 0, seen: 0, detail: [] };
+      return {
+        connections: 0,
+        ingestedInbound: 0,
+        ingested: 0,
+        seen: 0,
+        detail: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
     });
 
     // Entender la publicación: qué muestra la foto, qué se dice en el video.
@@ -86,33 +84,80 @@ async function cronHandler(request: Request) {
     // hoy se entienda pronto, no vaciar la cola de una sentada.
     const publicaciones = await entenderPendientes(db, { limite: 4 }).catch((err) => {
       console.error("[comment-sync] entender publicaciones falló:", err);
-      return { intentados: 0, entendidos: 0 };
+      return {
+        intentados: 0,
+        entendidos: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
     });
-    const productosDePublicaciones = await identificarProductosPendientes(db, { limite: 12 }).catch((err) => {
+    const productosDePublicaciones = await identificarProductosPendientes(db, {
+      limite: 12,
+    }).catch((err) => {
       console.error("[comment-sync] identificar productos de publicaciones falló:", err);
-      return { intentados: 0, identificados: 0 };
+      return {
+        intentados: 0,
+        identificados: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
     });
 
     // Lo caro, sólo cuando toca.
     const due = await reconcileIsDue(db);
     if (!due) {
+      const failed = commentFailures(pulled, publicaciones, productosDePublicaciones);
       return NextResponse.json(
-        { ok: true, reconciled: false, pulled, publicaciones, productosDePublicaciones },
-        { status: 200 },
+        {
+          ok: failed === 0,
+          reconciled: false,
+          pulled,
+          publicaciones,
+          productosDePublicaciones,
+          failed,
+        },
+        { status: failed ? 207 : 200 }
       );
     }
     // Este SÍ se espera: es el reloj del que depende la próxima corrida, y
     // dejarlo suelto abriría la puerta a que dos seguidas se crean con derecho.
-    await pingCron(RECONCILE_JOB);
-    const result = await reconcileAllCommentConnections(db);
+    let result: Awaited<ReturnType<typeof reconcileAllCommentConnections>> | undefined;
+    try {
+      result = await withCronTask(RECONCILE_JOB, async () => {
+        const value = await reconcileAllCommentConnections(db);
+        result = value;
+        if (!value.ok) throw new Error(`${value.failed} conexiones con errores`);
+        return value;
+      });
+    } catch (err) {
+      if (!result) throw err;
+    }
+    const failed = commentFailures(pulled, publicaciones, productosDePublicaciones) + (result!.ok ? 0 : 1);
     return NextResponse.json(
-      { ...result, reconciled: true, pulled, publicaciones, productosDePublicaciones },
-      { status: 200 },
+      {
+        ...result!,
+        ok: failed === 0,
+        reconciled: true,
+        pulled,
+        publicaciones,
+        productosDePublicaciones,
+        failed,
+      },
+      { status: failed ? 207 : 200 }
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+function commentFailures(...values: unknown[]): number {
+  let failed = 0;
+  for (const value of values) {
+    if (!value || typeof value !== "object") continue;
+    if ("error" in value) failed++;
+    const detail = (value as { detail?: Array<{ errors?: unknown[] }> }).detail;
+    if (detail?.some((row) => (row.errors?.length ?? 0) > 0)) failed++;
+  }
+  return failed;
 }
 
 /**
@@ -121,9 +166,7 @@ async function cronHandler(request: Request) {
  * de más es sólo gasto de llamadas, correr de menos deja comentarios borrados
  * visibles en la bandeja.
  */
-async function reconcileIsDue(
-  db: ReturnType<typeof supabaseAdmin>,
-): Promise<boolean> {
+async function reconcileIsDue(db: ReturnType<typeof supabaseAdmin>): Promise<boolean> {
   try {
     const { data, error } = await db
       .from("cron_runs")

@@ -48,16 +48,36 @@ async function cronHandler(request: Request) {
     channel: string;
     resolved: number;
     skipped: number;
+    failed: number;
+    error?: string;
   }> = [];
 
   for (const c of conns as ChannelConnection[]) {
     const secrets = (c.secrets ?? {}) as Record<string, unknown>;
     const enc = String(secrets.access_token ?? "");
-    if (!enc) continue;
+    if (!enc) {
+      results.push({
+        connectionId: c.id,
+        channel: c.channel,
+        resolved: 0,
+        skipped: 0,
+        failed: 1,
+        error: "conexión sin access_token",
+      });
+      continue;
+    }
     let token: string;
     try {
       token = decrypt(enc);
     } catch {
+      results.push({
+        connectionId: c.id,
+        channel: c.channel,
+        resolved: 0,
+        skipped: 0,
+        failed: 1,
+        error: "access_token ilegible",
+      });
       continue;
     }
     const channel = c.channel;
@@ -73,50 +93,58 @@ async function cronHandler(request: Request) {
     }
 
     // Pull only THIS workspace's contacts on this channel that still need a name.
-    const { data: contacts } = await admin
+    const { data: contacts, error: contactsError } = await admin
       .from("contacts")
       .select("id, external_id, name")
       .eq("workspace_id", c.workspace_id)
       .eq("channel", channel)
       .is("name", null)
       .limit(500);
+    if (contactsError) {
+      results.push({
+        connectionId: c.id,
+        channel,
+        resolved: 0,
+        skipped: 0,
+        failed: 1,
+        error: contactsError.message,
+      });
+      continue;
+    }
     const list = (contacts ?? []) as Pick<Contact, "id" | "external_id" | "name">[];
     let resolved = 0;
     let skipped = 0;
+    let failed = 0;
     for (const ct of list) {
       if (!ct.external_id) {
         skipped++;
         continue;
       }
-      const name =
-        participantMap?.get(ct.external_id) ??
-        (await resolveName(channel, ct.external_id, token));
+      const name = participantMap?.get(ct.external_id) ?? (await resolveName(channel, ct.external_id, token));
       if (!name) {
         skipped++;
         continue;
       }
-      await admin.from("contacts").update({ name }).eq("id", ct.id);
+      const { error } = await admin.from("contacts").update({ name }).eq("id", ct.id);
+      if (error) {
+        failed++;
+        continue;
+      }
       resolved++;
     }
-    results.push({ connectionId: c.id, channel, resolved, skipped });
+    results.push({ connectionId: c.id, channel, resolved, skipped, failed });
   }
 
-  return NextResponse.json({ ok: true, results });
+  const failed = results.reduce((sum, result) => sum + result.failed, 0);
+  return NextResponse.json({ ok: failed === 0, failed, results }, { status: failed ? 207 : 200 });
 }
 
-async function resolveName(
-  channel: string,
-  externalId: string,
-  token: string,
-): Promise<string | undefined> {
+async function resolveName(channel: string, externalId: string, token: string): Promise<string | undefined> {
   const wantsUsername = channel === "instagram" || channel === "ig_comment";
   const fields = wantsUsername ? "username,name" : "name";
   try {
     const r = await fetch(
-      withAppsecretProof(
-        `${GRAPH}/${externalId}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
-        token,
-      ),
+      withAppsecretProof(`${GRAPH}/${externalId}?fields=${fields}&access_token=${encodeURIComponent(token)}`, token)
     );
     if (!r.ok) return undefined;
     const j = (await r.json()) as { username?: string; name?: string };

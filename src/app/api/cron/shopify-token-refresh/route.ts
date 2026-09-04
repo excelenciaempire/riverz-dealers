@@ -48,7 +48,7 @@ async function cronHandler(request: Request) {
 
   // Sólo las que expiran Y están por vencer. Las viejas —sin fecha— no se
   // tocan: no tienen refresh y forzarles algo las rompería antes de tiempo.
-  const { data } = await admin
+  const { data, error: connectionsError } = await admin
     .from('shopify_connections')
     .select(COLUMNAS_TOKEN)
     .eq('platform', 'shopify')
@@ -56,6 +56,9 @@ async function cronHandler(request: Request) {
     .not('token_expires_at', 'is', null)
     .lte('token_expires_at', limite)
     .limit(200)
+  if (connectionsError) {
+    return NextResponse.json({ error: connectionsError.message }, { status: 500 })
+  }
 
   const filas = (data ?? []) as Parameters<typeof tokenVivo>[1][]
   let renovados = 0
@@ -77,12 +80,15 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({
-    ok: true,
-    porVencer: filas.length,
-    renovados,
-    fallaron,
-  })
+  return NextResponse.json(
+    {
+      ok: fallaron === 0,
+      porVencer: filas.length,
+      renovados,
+      fallaron,
+    },
+    { status: fallaron ? 207 : 200 }
+  )
 }
 
 export const GET = withCronRun('shopify-token-refresh', cronHandler)

@@ -55,7 +55,10 @@ async function cronHandler(request: Request) {
     .from('channel_connections')
     .select('workspace_id, config')
     .eq('channel', 'whatsapp')
-    .in('workspace_id', rows.map((r) => r.workspace_id))
+    .in(
+      'workspace_id',
+      rows.map((r) => r.workspace_id)
+    )
   const countryOf = new Map<string, string>()
   for (const c of (connRows ?? []) as {
     workspace_id: string
@@ -114,7 +117,7 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({ workspaces: rows.length, ok, failed, ...totals })
+  return NextResponse.json({ workspaces: rows.length, ok, failed, ...totals }, { status: failed ? 207 : 200 })
 }
 
 export const GET = withCronRun('mercadopago-sync', cronHandler)

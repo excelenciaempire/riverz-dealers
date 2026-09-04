@@ -4,10 +4,7 @@ import { serverError } from '@/lib/api/errors'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { resolveWorkspaceKey } from '@/lib/integrations/workspace-key'
-import {
-  KlaviyoUnauthorizedError,
-  syncWorkspaceToKlaviyo,
-} from '@/lib/integrations/klaviyo'
+import { KlaviyoUnauthorizedError, syncWorkspaceToKlaviyo } from '@/lib/integrations/klaviyo'
 import { syncWorkspaceEvents } from '@/lib/integrations/klaviyo-events'
 import { syncKlaviyoSegments } from '@/lib/integrations/klaviyo-segments'
 import { syncKlaviyoOptOuts } from '@/lib/integrations/klaviyo-optout'
@@ -47,7 +44,10 @@ async function cronHandler(request: Request) {
     .limit(MAX_WORKSPACES)
 
   if (error) return serverError(error)
-  const rows = (data ?? []) as { workspace_id: string; last_sync_at: string | null }[]
+  const rows = (data ?? []) as {
+    workspace_id: string
+    last_sync_at: string | null
+  }[]
   if (rows.length === 0) return NextResponse.json({ workspaces: 0 })
 
   let ok = 0
@@ -65,12 +65,7 @@ async function cronHandler(request: Request) {
   }
 
   for (const row of rows) {
-    const apiKey = await resolveWorkspaceKey(
-      admin,
-      row.workspace_id,
-      'klaviyo',
-      process.env.KLAVIYO_API_KEY,
-    )
+    const apiKey = await resolveWorkspaceKey(admin, row.workspace_id, 'klaviyo', process.env.KLAVIYO_API_KEY)
     if (!apiKey) {
       failed++
       continue
@@ -141,7 +136,7 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({ workspaces: rows.length, ok, failed, ...totals })
+  return NextResponse.json({ workspaces: rows.length, ok, failed, ...totals }, { status: failed ? 207 : 200 })
 }
 
 export const GET = withCronRun('klaviyo-sync', cronHandler)

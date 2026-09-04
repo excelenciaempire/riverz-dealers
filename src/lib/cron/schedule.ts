@@ -55,19 +55,78 @@ export const DEFAULT_TIMEOUT_MS = 180_000;
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
   // --- cada minuto ---
-  { name: "flows-resume", whatKey: "admin.cronFlowsResume", path: "/api/cron/flows-resume", schedule: "* * * * *" },
-  { name: "automations", whatKey: "admin.cronAutomations", path: "/api/automations/cron", schedule: "* * * * *" },
-  { name: "flows-retries", whatKey: "admin.cronFlowsRetries", path: "/api/flows/retries/cron", schedule: "* * * * *" },
-  { name: "broadcasts", whatKey: "admin.cronBroadcasts", path: "/api/broadcasts/cron", schedule: "* * * * *" },
-  { name: "voice-calls", whatKey: "admin.cronVoiceCalls", path: "/api/cron/voice-calls", schedule: "* * * * *" },
-  { name: "voice-campaign-run", whatKey: "admin.cronVoiceCampaignRun", path: "/api/cron/voice-campaign-run", schedule: "* * * * *" },
+  {
+    name: "flows-resume",
+    whatKey: "admin.cronFlowsResume",
+    path: "/api/cron/flows-resume",
+    schedule: "* * * * *",
+  },
+  {
+    name: "automations",
+    whatKey: "admin.cronAutomations",
+    path: "/api/automations/cron",
+    schedule: "* * * * *",
+  },
+  {
+    name: "flows-retries",
+    whatKey: "admin.cronFlowsRetries",
+    path: "/api/flows/retries/cron",
+    schedule: "* * * * *",
+  },
+  {
+    name: "broadcasts",
+    whatKey: "admin.cronBroadcasts",
+    path: "/api/broadcasts/cron",
+    schedule: "* * * * *",
+  },
+  {
+    name: "voice-calls",
+    whatKey: "admin.cronVoiceCalls",
+    path: "/api/cron/voice-calls",
+    schedule: "* * * * *",
+  },
+  {
+    name: "voice-campaign-run",
+    whatKey: "admin.cronVoiceCampaignRun",
+    path: "/api/cron/voice-campaign-run",
+    schedule: "* * * * *",
+  },
 
   // --- minutos ---
-  { name: "instagram-agent", whatKey: "admin.cronInstagramAgent", path: "/api/cron/instagram-agent", schedule: "*/2 * * * *" },
-  { name: "outlook-poll", whatKey: "admin.cronOutlookPoll", path: "/api/cron/outlook-poll", schedule: "*/2 * * * *", retryOnFailure: true },
-  { name: "zoho-poll", whatKey: "admin.cronZohoPoll", path: "/api/cron/zoho-poll", schedule: "*/5 * * * *", retryOnFailure: true },
-  { name: "gmail-poll", whatKey: "admin.cronGmailPoll", path: "/api/cron/gmail-poll", schedule: "*/5 * * * *", retryOnFailure: true },
-  { name: "mercadolibre", whatKey: "admin.cronMercadolibre", path: "/api/cron/mercadolibre", schedule: "*/5 * * * *", retryOnFailure: true },
+  {
+    name: "instagram-agent",
+    whatKey: "admin.cronInstagramAgent",
+    path: "/api/cron/instagram-agent",
+    schedule: "*/2 * * * *",
+  },
+  {
+    name: "outlook-poll",
+    whatKey: "admin.cronOutlookPoll",
+    path: "/api/cron/outlook-poll",
+    schedule: "*/2 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "zoho-poll",
+    whatKey: "admin.cronZohoPoll",
+    path: "/api/cron/zoho-poll",
+    schedule: "*/5 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "gmail-poll",
+    whatKey: "admin.cronGmailPoll",
+    path: "/api/cron/gmail-poll",
+    schedule: "*/5 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "mercadolibre",
+    whatKey: "admin.cronMercadolibre",
+    path: "/api/cron/mercadolibre",
+    schedule: "*/5 * * * *",
+    retryOnFailure: true,
+  },
   // La reconciliación puede consultar hasta 300 comentarios por conexión. El
   // timeout por defecto era tres minutos y se cortaba mientras el handler aún
   // terminaba de escribir su resultado; ocho minutos deja margen sin permitir
@@ -80,13 +139,24 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     timeoutMs: 8 * 60_000,
     retryOnFailure: true,
   },
-  { name: "contacts-sync", whatKey: "admin.cronContactsSync", path: "/api/cron/contacts-sync", schedule: "*/10 * * * *", retryOnFailure: true },
+  {
+    name: "contacts-sync",
+    whatKey: "admin.cronContactsSync",
+    path: "/api/cron/contacts-sync",
+    schedule: "*/10 * * * *",
+    retryOnFailure: true,
+  },
   // La recarga automática de la billetera. Cada 5 minutos: entre que el saldo
   // cae y que la IA se queda muda hay margen —el descubierto—, y un cobro con
   // tarjeta no conviene apurarlo. Lo bastante seguido para que nadie se entere
   // de que estuvo en cero, lo bastante espaciado para que un fallo no se
   // multiplique por sesenta.
-  { name: "wallet-autorecarga", whatKey: "admin.cronWalletAutorecarga", path: "/api/cron/wallet-autorecarga", schedule: "*/5 * * * *" },
+  {
+    name: "wallet-autorecarga",
+    whatKey: "admin.cronWalletAutorecarga",
+    path: "/api/cron/wallet-autorecarga",
+    schedule: "*/5 * * * *",
+  },
   // Cada 5 minutos, que es el ritmo al que TikTok entrega de verdad: su propio
   // webhook comment.update se dispara "dentro de 5 min", así que preguntar más
   // seguido no adelanta nada. Estaba cada minuto y se medía: 1.434 corridas por
@@ -96,24 +166,38 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // Lo que se siente instantáneo no es esto: el hilo abierto se refresca solo
   // (/api/conversations/:id/tiktok-refresh) y el barrido profundo de 6 h cubre
   // el catálogo entero.
-  { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/5 * * * *", retryOnFailure: true },
+  {
+    name: "tiktok-comments",
+    whatKey: "admin.cronTiktokComments",
+    path: "/api/cron/tiktok-comments",
+    schedule: "*/5 * * * *",
+    retryOnFailure: true,
+  },
   // Repara reclamos internos abandonados por un reinicio y verifica la
   // suscripción de TikTok. Los backfills de cada canal los retoma el scheduler
   // con sus sincronizadores incrementales, sin repetir envíos salientes.
-  { name: "self-heal", whatKey: "admin.cronSelfHeal", path: "/api/cron/self-heal", schedule: "*/5 * * * *", retryOnFailure: true },
+  {
+    name: "self-heal",
+    whatKey: "admin.cronSelfHeal",
+    path: "/api/cron/self-heal",
+    schedule: "*/5 * * * *",
+    retryOnFailure: true,
+  },
   // Lo que DICE cada video, que es el contexto sin el cual un comentario no se
   // puede contestar. Cron propio y no de prestado dentro del poll: en el panel
   // se ve si se atrasa, y un video recién publicado —que es cuando llegan casi
   // todos sus comentarios— queda transcripto en minutos.
   {
-    name: "tiktok-transcripciones", whatKey: "admin.cronTiktokTranscripciones",
+    name: "tiktok-transcripciones",
+    whatKey: "admin.cronTiktokTranscripciones",
     path: "/api/cron/tiktok-transcripciones",
     schedule: "*/15 * * * *",
     timeoutMs: 300_000,
     retryOnFailure: true,
   },
   {
-    name: "instagram-external-enrich", whatKey: "admin.cronInstagramEnrich",
+    name: "instagram-external-enrich",
+    whatKey: "admin.cronInstagramEnrich",
     path: "/api/cron/instagram-external-enrich",
     schedule: "*/10 * * * *",
     retryOnFailure: true,
@@ -123,46 +207,119 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // ese nombre no existía en `cron_runs`: el trabajo corría cada 15 minutos sin
   // fallar nunca, pero el panel y el vigilante lo daban por muerto para
   // siempre, y ese falso positivo viajaba en cada aviso.
-  { name: "flows-cron", whatKey: "admin.cronFlowsSweep", path: "/api/flows/cron", schedule: "*/15 * * * *" },
+  {
+    name: "flows-cron",
+    whatKey: "admin.cronFlowsSweep",
+    path: "/api/flows/cron",
+    schedule: "*/15 * * * *",
+  },
   // Espeja los contactos hacia Klaviyo. Por marca de agua: la primera corrida
   // sube la base y las siguientes sólo lo que cambió.
-  { name: "klaviyo-sync", whatKey: "admin.cronKlaviyoSync", path: "/api/cron/klaviyo-sync", schedule: "*/15 * * * *", retryOnFailure: true },
-  { name: "ai-followups", whatKey: "admin.cronAiFollowups", path: "/api/cron/ai-followups", schedule: "*/30 * * * *" },
+  {
+    name: "klaviyo-sync",
+    whatKey: "admin.cronKlaviyoSync",
+    path: "/api/cron/klaviyo-sync",
+    schedule: "*/15 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "ai-followups",
+    whatKey: "admin.cronAiFollowups",
+    path: "/api/cron/ai-followups",
+    schedule: "*/30 * * * *",
+  },
   // Red de seguridad del webhook de Mercado Pago: levanta lo que no haya
   // llegado por aviso. Sólo ingesta; el envío lo decide mercadopago-recovery.
-  { name: "mercadopago-sync", whatKey: "admin.cronMercadopagoSync", path: "/api/cron/mercadopago-sync", schedule: "*/30 * * * *", retryOnFailure: true },
-  { name: "delivery-watchdog", whatKey: "admin.cronDeliveryWatchdog", path: "/api/cron/delivery-watchdog", schedule: "*/30 * * * *", retryOnFailure: true },
+  {
+    name: "mercadopago-sync",
+    whatKey: "admin.cronMercadopagoSync",
+    path: "/api/cron/mercadopago-sync",
+    schedule: "*/30 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "delivery-watchdog",
+    whatKey: "admin.cronDeliveryWatchdog",
+    path: "/api/cron/delivery-watchdog",
+    schedule: "*/30 * * * *",
+    retryOnFailure: true,
+  },
   // Las ventas del chat que no le llegaron a Meta. Casi todo lo que falla acá
   // se arregla solo o en un rato (un 500, la red, un token que el comercio
   // renueva), y sin reintento cada uno de esos ratos es una venta que el
   // algoritmo nunca supo que ocurrió. Meta descarta lo que tenga más de 7 días,
   // así que el barrido tiene que ser frecuente, y sale barato: sin pendientes
   // es una consulta contra un índice parcial vacío.
-  { name: "conversion-retry", whatKey: "admin.cronConversionRetry", path: "/api/cron/conversion-retry", schedule: "*/15 * * * *", retryOnFailure: true },
+  {
+    name: "conversion-retry",
+    whatKey: "admin.cronConversionRetry",
+    path: "/api/cron/conversion-retry",
+    schedule: "*/15 * * * *",
+    retryOnFailure: true,
+  },
   // Vivía en un workflow de GitHub Actions con la URL de producción guardada en
   // un secret: al mudar de dominio quedó apuntando al host viejo y el mapa
   // post_id → ad_id se congeló, así que los comentarios sobre anuncios dejaron
   // de marcarse como tales. Acá dentro la URL no puede desviarse.
-  { name: "ads-sync", whatKey: "admin.cronAdsSync", path: "/api/meta/ads-sync", schedule: "*/30 * * * *", retryOnFailure: true },
+  {
+    name: "ads-sync",
+    whatKey: "admin.cronAdsSync",
+    path: "/api/meta/ads-sync",
+    schedule: "*/30 * * * *",
+    retryOnFailure: true,
+  },
   // Le avisa al EQUIPO lo que se rompió, apenas se rompe. `issues-alert` avisa
   // al comercio una vez por día; este avisa acá y ahora, y sólo lo nuevo.
-  { name: "platform-watch", whatKey: "admin.cronPlatformWatch", path: "/api/cron/platform-watch", schedule: "*/15 * * * *" },
+  {
+    name: "platform-watch",
+    whatKey: "admin.cronPlatformWatch",
+    path: "/api/cron/platform-watch",
+    schedule: "*/15 * * * *",
+  },
 
   // --- horas ---
   // Cada 5 minutos, igual que la recuperación de pagos. El checkout entra por
   // webhook en segundos y la espera de 2 h la aplica el propio cron, así que
   // correr una vez por hora le sumaba hasta 59 minutos a esa espera: un
   // carrito abandonado a las 10:05 recién salía a las 13:00.
-  { name: "shopify-cart-recovery", whatKey: "admin.cronShopifyCartRecovery", path: "/api/cron/shopify-cart-recovery", schedule: "*/5 * * * *" },
-  { name: "tiendanube-checkouts", whatKey: "admin.cronTiendanubeCheckouts", path: "/api/cron/tiendanube-checkouts", schedule: "15 * * * *", retryOnFailure: true },
+  {
+    name: "shopify-cart-recovery",
+    whatKey: "admin.cronShopifyCartRecovery",
+    path: "/api/cron/shopify-cart-recovery",
+    schedule: "*/5 * * * *",
+  },
+  {
+    name: "tiendanube-checkouts",
+    whatKey: "admin.cronTiendanubeCheckouts",
+    path: "/api/cron/tiendanube-checkouts",
+    schedule: "15 * * * *",
+    retryOnFailure: true,
+  },
   // Cada 5 minutos: con el webhook de Mercado Pago el rechazo entra en
   // segundos, y una cola que arranca una vez por hora se comía esa ventaja.
   // La corrida sale barata — sin filas pendientes devuelve enseguida.
-  { name: "mercadopago-recovery", whatKey: "admin.cronMercadopagoRecovery", path: "/api/cron/mercadopago-recovery", schedule: "*/5 * * * *" },
-  { name: "shopify-feedback", whatKey: "admin.cronShopifyFeedback", path: "/api/cron/shopify-feedback", schedule: "30 * * * *" },
-  { name: "meta-contact-names", whatKey: "admin.cronMetaContactNames", path: "/api/cron/meta-contact-names", schedule: "0 */6 * * *", retryOnFailure: true },
   {
-    name: "meta-webhook-subscriptions", whatKey: "admin.cronMetaWebhookSubs",
+    name: "mercadopago-recovery",
+    whatKey: "admin.cronMercadopagoRecovery",
+    path: "/api/cron/mercadopago-recovery",
+    schedule: "*/5 * * * *",
+  },
+  {
+    name: "shopify-feedback",
+    whatKey: "admin.cronShopifyFeedback",
+    path: "/api/cron/shopify-feedback",
+    schedule: "30 * * * *",
+  },
+  {
+    name: "meta-contact-names",
+    whatKey: "admin.cronMetaContactNames",
+    path: "/api/cron/meta-contact-names",
+    schedule: "0 */6 * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "meta-webhook-subscriptions",
+    whatKey: "admin.cronMetaWebhookSubs",
     path: "/api/cron/meta-webhook-subscriptions",
     schedule: "0 */6 * * *",
     retryOnFailure: true,
@@ -170,16 +327,34 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // El mismo desvío de dominio, del lado de las tiendas: Shopify, Tiendanube y
   // WooCommerce guardan la URL al conectar y no la revisan nunca más.
   {
-    name: "commerce-webhooks", whatKey: "admin.cronCommerceWebhooks",
+    name: "commerce-webhooks",
+    whatKey: "admin.cronCommerceWebhooks",
     path: "/api/cron/commerce-webhooks",
     schedule: "30 */6 * * *",
     retryOnFailure: true,
   },
   // De madrugada: leer la página de un producto tarda segundos y el research
   // cuesta tokens, así que se hace cuando nadie está mirando y por tandas.
-  { name: "catalog-enrich", whatKey: "admin.cronCatalogEnrich", path: "/api/cron/catalog-enrich", schedule: "0 4 * * *" },
-  { name: "gmail-watch", whatKey: "admin.cronGmailWatch", path: "/api/cron/gmail-watch", schedule: "0 */12 * * *", retryOnFailure: true },
-  { name: "outlook-watch", whatKey: "admin.cronOutlookWatch", path: "/api/cron/outlook-watch", schedule: "0 */12 * * *", retryOnFailure: true },
+  {
+    name: "catalog-enrich",
+    whatKey: "admin.cronCatalogEnrich",
+    path: "/api/cron/catalog-enrich",
+    schedule: "0 4 * * *",
+  },
+  {
+    name: "gmail-watch",
+    whatKey: "admin.cronGmailWatch",
+    path: "/api/cron/gmail-watch",
+    schedule: "0 */12 * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "outlook-watch",
+    whatKey: "admin.cronOutlookWatch",
+    path: "/api/cron/outlook-watch",
+    schedule: "0 */12 * * *",
+    retryOnFailure: true,
+  },
 
   // Red de seguridad del webhook, no la vía principal: los DM entran por
   // webhook (incluido el eco de lo que el comercio contesta desde la app de
@@ -197,7 +372,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // sobre `updated_time` de la lista de conversaciones). En régimen es una
   // llamada y termina en segundos, con una cuenta o con doscientas.
   {
-    name: "meta-dm-backfill", whatKey: "admin.cronMetaDmBackfill",
+    name: "meta-dm-backfill",
+    whatKey: "admin.cronMetaDmBackfill",
     path: "/api/cron/meta-dm-backfill",
     schedule: "0 */2 * * *",
     timeoutMs: 900_000,
@@ -205,22 +381,54 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   },
 
   // --- diarios ---
-  { name: "pii-purge", whatKey: "admin.cronPiiPurge", path: "/api/cron/pii-purge", schedule: "0 3 * * *" },
+  {
+    name: "pii-purge",
+    whatKey: "admin.cronPiiPurge",
+    path: "/api/cron/pii-purge",
+    schedule: "0 3 * * *",
+  },
   // Acumula lo que consumio cada cuenta: conversaciones atendidas por IA,
   // respuestas, tokens y lo que nos costo. Corre sobre AYER —que ya cerro, asi
   // que el numero es definitivo— y sobre HOY, para que la pantalla del comercio
   // no muestre el consumo con un dia de atraso. Volver a correrlo es seguro: la
   // clave es (cuenta, dia) y se pisa.
-  { name: "billing-usage", whatKey: "admin.cronBillingUsage", path: "/api/cron/billing-usage", schedule: "15 * * * *" },
+  {
+    name: "billing-usage",
+    whatKey: "admin.cronBillingUsage",
+    path: "/api/cron/billing-usage",
+    schedule: "15 * * * *",
+  },
   // Avisa por correo lo que se rompió en silencio. Una vez por día: la
   // frecuencia es la deduplicación, y si sigue roto mañana vuelve a avisar.
-  { name: "issues-alert", whatKey: "admin.cronIssuesAlert", path: "/api/cron/issues-alert", schedule: "0 13 * * *" },
-  { name: "meta-token-refresh", whatKey: "admin.cronMetaTokenRefresh", path: "/api/cron/meta-token-refresh", schedule: "0 6 * * *", retryOnFailure: true },
+  {
+    name: "issues-alert",
+    whatKey: "admin.cronIssuesAlert",
+    path: "/api/cron/issues-alert",
+    schedule: "0 13 * * *",
+  },
+  {
+    name: "meta-token-refresh",
+    whatKey: "admin.cronMetaTokenRefresh",
+    path: "/api/cron/meta-token-refresh",
+    schedule: "0 6 * * *",
+    retryOnFailure: true,
+  },
   // Cada quince minutos, y no una vez al dia como el de Meta: el token de
   // Shopify dura UNA HORA. Con una corrida diaria la tienda estaria vencida el
   // 96% del tiempo.
-  { name: "shopify-token-refresh", whatKey: "admin.cronShopifyTokenRefresh", path: "/api/cron/shopify-token-refresh", schedule: "*/15 * * * *", retryOnFailure: true },
-  { name: "reengagement", whatKey: "admin.cronReengagement", path: "/api/cron/reengagement", schedule: "0 14 * * *" },
+  {
+    name: "shopify-token-refresh",
+    whatKey: "admin.cronShopifyTokenRefresh",
+    path: "/api/cron/shopify-token-refresh",
+    schedule: "*/15 * * * *",
+    retryOnFailure: true,
+  },
+  {
+    name: "reengagement",
+    whatKey: "admin.cronReengagement",
+    path: "/api/cron/reengagement",
+    schedule: "0 14 * * *",
+  },
 
   // --- sub-trabajos ---
   // El reloj NO los dispara (los filtra `dueJobs` por tener `parent`): los
@@ -229,13 +437,15 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // catálogo eran invisibles para el panel: corrían, fallaban y nadie lo veía.
   // El `schedule` es su cadencia real, y sirve para el umbral de atraso.
   {
-    name: "comment-sync-reconcile", whatKey: "admin.cronCommentReconcile",
+    name: "comment-sync-reconcile",
+    whatKey: "admin.cronCommentReconcile",
     path: "/api/cron/comment-sync",
     schedule: "*/10 * * * *",
     parent: "comment-sync",
   },
   {
-    name: "tiktok-webhook", whatKey: "admin.cronTiktokWebhook",
+    name: "tiktok-webhook",
+    whatKey: "admin.cronTiktokWebhook",
     path: "/api/cron/tiktok-comments",
     schedule: "0 */6 * * *",
     parent: "tiktok-comments",
@@ -244,25 +454,30 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // sobre un video viejo entraba nunca: este barrido recorre TODO el catálogo
   // paginado. Es una llamada por video, así que va cada 6 h y con timeout largo.
   {
-    name: "tiktok-comments-deep", whatKey: "admin.cronTiktokDeep",
+    name: "tiktok-comments-deep",
+    whatKey: "admin.cronTiktokDeep",
     path: "/api/cron/tiktok-comments?deep=1",
     schedule: "20 */6 * * *",
     timeoutMs: 600_000,
+    retryOnFailure: true,
   },
   {
-    name: "mercadolibre-orders", whatKey: "admin.cronMlOrders",
+    name: "mercadolibre-orders",
+    whatKey: "admin.cronMlOrders",
     path: "/api/cron/mercadolibre",
     schedule: "*/15 * * * *",
     parent: "mercadolibre",
   },
   {
-    name: "mercadolibre-catalog", whatKey: "admin.cronMlCatalog",
+    name: "mercadolibre-catalog",
+    whatKey: "admin.cronMlCatalog",
     path: "/api/cron/mercadolibre",
     schedule: "0 * * * *",
     parent: "mercadolibre",
   },
   {
-    name: "ml-reviews", whatKey: "admin.cronMlReviews",
+    name: "ml-reviews",
+    whatKey: "admin.cronMlReviews",
     path: "/api/cron/mercadolibre",
     schedule: "0 * * * *",
     parent: "mercadolibre",
@@ -272,7 +487,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // de arriba de este archivo. El ritmo real lo pone el propio cron de ML
   // (`api/cron/mercadolibre/route.ts`), esto sólo lo hace visible.
   {
-    name: "mercadolibre-claims", whatKey: "admin.cronMlClaims",
+    name: "mercadolibre-claims",
+    whatKey: "admin.cronMlClaims",
     path: "/api/cron/mercadolibre",
     schedule: "*/10 * * * *",
     parent: "mercadolibre",
@@ -284,7 +500,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // fila le da umbral de atraso y presencia en el panel. Sin esto, "el worker
   // está caído" no se veía en ninguna pantalla.
   {
-    name: "voice-worker", whatKey: "admin.cronVoiceWorker",
+    name: "voice-worker",
+    whatKey: "admin.cronVoiceWorker",
     path: "",
     schedule: "* * * * *",
     parent: "voice-calls",
@@ -350,8 +567,7 @@ export function isDue(schedule: string, at: Date): boolean {
   const domRestricted = dayOfMonth !== "*";
   const dowRestricted = dayOfWeek !== "*";
   const domOk = fieldMatches(dayOfMonth, dom, 1, 31);
-  const dowOk =
-    fieldMatches(dayOfWeek, dow, 0, 7) || (dow === 0 && fieldMatches(dayOfWeek, 7, 0, 7));
+  const dowOk = fieldMatches(dayOfWeek, dow, 0, 7) || (dow === 0 && fieldMatches(dayOfWeek, 7, 0, 7));
 
   if (domRestricted && dowRestricted) return domOk || dowOk;
   if (domRestricted) return domOk;

@@ -4,10 +4,7 @@ import { assertCronAuth } from '@/lib/auth/cron'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { getStoreByDomain, markStoreExpired } from '@/lib/commerce/connection'
-import {
-  TiendanubeClient,
-  normalizeTiendanubeCheckout,
-} from '@/lib/commerce/providers/tiendanube'
+import { TiendanubeClient, normalizeTiendanubeCheckout } from '@/lib/commerce/providers/tiendanube'
 import { ingestCheckout } from '@/lib/commerce/ingest'
 import { StoreUnauthorizedError } from '@/lib/commerce/types'
 import { getLogger } from '@/lib/log/logger'
@@ -44,11 +41,14 @@ async function cronHandler(request: Request) {
 
   const admin = supabaseAdmin()
 
-  const { data: connections } = await admin
+  const { data: connections, error: connectionsError } = await admin
     .from('shopify_connections')
     .select('shop_domain')
     .eq('platform', 'tiendanube')
     .eq('status', 'active')
+  if (connectionsError) {
+    return NextResponse.json({ error: connectionsError.message }, { status: 500 })
+  }
 
   const rows = (connections ?? []) as { shop_domain: string }[]
   if (rows.length === 0) return NextResponse.json({ stores: 0, discovered: 0 })
@@ -66,7 +66,7 @@ async function cronHandler(request: Request) {
           admin,
           'tiendanube',
           shopDomain,
-          'Credencial revocada en Tiendanube — reconectar desde Ajustes',
+          'Credencial revocada en Tiendanube — reconectar desde Ajustes'
         )
         continue
       }
@@ -75,30 +75,23 @@ async function cronHandler(request: Request) {
     }
   }
 
-  return NextResponse.json({ stores: rows.length, discovered, failed })
+  return NextResponse.json({ stores: rows.length, discovered, failed }, { status: failed ? 207 : 200 })
 }
 
-async function pollStore(
-  admin: SupabaseClient,
-  shopDomain: string,
-): Promise<number> {
+async function pollStore(admin: SupabaseClient, shopDomain: string): Promise<number> {
   const store = await getStoreByDomain(admin, 'tiendanube', shopDomain)
   if (!store?.externalStoreId) return 0
 
   const sinceId = await highWaterMark(admin, shopDomain)
 
-  const client = new TiendanubeClient(
-    store.externalStoreId,
-    store.accessToken,
-    shopDomain,
-  )
+  const client = new TiendanubeClient(store.externalStoreId, store.accessToken, shopDomain)
   const raw = await client.paginate<unknown>(
     `/checkouts?since_id=${sinceId}`,
     // Tope bajo a propósito: esto corre cada hora y con `since_id` solo
     // trae lo nuevo. Un tope alto solo importaría en la primera corrida
     // de una tienda con mucho historial, y ahí preferimos ir de a poco
     // antes que agotar el límite de 2 req/s de la plataforma.
-    { perPage: 100, maxPages: 5 },
+    { perPage: 100, maxPages: 5 }
   )
 
   let persisted = 0
@@ -131,11 +124,8 @@ async function pollStore(
  *
  * Devuelve 0 en la primera corrida (trae todo lo que entre en el tope).
  */
-async function highWaterMark(
-  admin: SupabaseClient,
-  shopDomain: string,
-): Promise<number> {
-  const { data } = await admin
+async function highWaterMark(admin: SupabaseClient, shopDomain: string): Promise<number> {
+  const { data, error } = await admin
     .from('shopify_checkouts')
     .select('checkout_id')
     .eq('platform', 'tiendanube')
@@ -143,6 +133,7 @@ async function highWaterMark(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (error) throw new Error(`tiendanube cursor: ${error.message}`)
 
   const id = Number((data as { checkout_id?: string } | null)?.checkout_id)
   return Number.isFinite(id) && id > 0 ? id : 0

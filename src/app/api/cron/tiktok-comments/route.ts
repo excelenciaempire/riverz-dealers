@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { pollAllTikTokConnections } from "@/lib/channels/tiktok_comment/poll";
-import { transcribirPendientes } from "@/lib/channels/tiktok_comment/videos";
-import { supabaseAdmin } from "@/lib/channels/admin-client";
-import { ensureTikTokCommentWebhook } from "@/lib/channels/tiktok_comment/webhook-subscribe";
-import { assertCronAuth } from "@/lib/auth/cron";
-import { withCronRun } from "@/lib/cron/heartbeat";
+import { NextResponse } from 'next/server';
+import { pollAllTikTokConnections } from '@/lib/channels/tiktok_comment/poll';
+import { transcribirPendientes } from '@/lib/channels/tiktok_comment/videos';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { ensureTikTokCommentWebhook } from '@/lib/channels/tiktok_comment/webhook-subscribe';
+import { assertCronAuth } from '@/lib/auth/cron';
+import { withCronRun } from '@/lib/cron/heartbeat';
 
 /**
  * GET /api/cron/tiktok-comments
@@ -16,7 +16,7 @@ import { withCronRun } from "@/lib/cron/heartbeat";
  */
 async function cronHandler(request: Request) {
   try {
-    assertCronAuth(request, "AUTOMATION_CRON_SECRET");
+    assertCronAuth(request, 'AUTOMATION_CRON_SECRET');
   } catch (r) {
     if (r instanceof Response) return r;
     throw r;
@@ -31,7 +31,7 @@ async function cronHandler(request: Request) {
     // un comentario sobre un video de hace semanas no entra de otra forma.
     // Es caro (una llamada por video), así que corre cada 6 h por su propia
     // entrada en el catálogo de crons, no cada minuto.
-    const deep = new URL(request.url).searchParams.get("deep") === "1";
+    const deep = new URL(request.url).searchParams.get('deep') === '1';
     const result = await pollAllTikTokConnections({ deep });
 
     // La transcripción de los videos tiene cron propio
@@ -40,14 +40,26 @@ async function cronHandler(request: Request) {
     // habían registrado.
     const transcripcion = deep
       ? await transcribirPendientes(supabaseAdmin(), { limite: 8 }).catch((err) => {
-          console.error("[tiktok/cron] transcripción falló:", err);
-          return { intentados: 0, transcriptos: 0 };
+          console.error('[tiktok/cron] transcripción falló:', err);
+          return {
+            intentados: 0,
+            transcriptos: 0,
+            error: err instanceof Error ? err.message : String(err),
+          };
         })
       : { intentados: 0, transcriptos: 0 };
 
+    const failed = result.connections.filter((connection) => connection.error).length;
+    const transcriptionFailed = 'error' in transcripcion;
     return NextResponse.json(
-      { ...result, deep, webhook, transcripcion },
-      { status: 200 },
+      {
+        ...result,
+        deep,
+        webhook,
+        transcripcion,
+        failed: failed + (transcriptionFailed ? 1 : 0),
+      },
+      { status: failed || transcriptionFailed ? 207 : 200 }
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -58,10 +70,8 @@ async function cronHandler(request: Request) {
 /** Registra la corrida en cron_runs con duración y resultado reales. El
  *  barrido profundo lleva nombre propio: corre cada 6 h y tarda mucho más,
  *  así que mezclarlo con el poll de cada minuto haría ilegible el panel. */
-const runShallow = withCronRun("tiktok-comments", cronHandler);
-const runDeep = withCronRun("tiktok-comments-deep", cronHandler);
+const runShallow = withCronRun('tiktok-comments', cronHandler);
+const runDeep = withCronRun('tiktok-comments-deep', cronHandler);
 
 export const GET = (request: Request): Promise<Response> =>
-  new URL(request.url).searchParams.get("deep") === "1"
-    ? runDeep(request)
-    : runShallow(request);
+  new URL(request.url).searchParams.get('deep') === '1' ? runDeep(request) : runShallow(request);

@@ -7,22 +7,15 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken, resolveMlNickname } from "./adapter";
 import { ingestRawMedia } from "../media-ingest";
 import { getLogger } from "@/lib/log/logger";
+import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.claims");
 
-/** Reclamos abiertos que se piden por corrida. */
-const OPEN_PAGE = 50;
-/**
- * Reclamos CERRADOS recientes que se revisan por corrida.
- *
- * Hacen falta por dos motivos: un reclamo puede abrirse y cerrarse entre dos
- * corridas —y entonces la búsqueda de abiertos no lo ve nunca—, y un reclamo
- * que ya estaba guardado como abierto sólo se entera de que cerró si alguien
- * vuelve a mirarlo. Medido el 2026-08-28: los dos reclamos que la bandeja
- * mostraba como abiertos estaban cerrados en Mercado Libre desde el día 15.
- */
-const CLOSED_PAGE = 20;
+/** Máximo permitido por Mercado Libre en la búsqueda de reclamos. */
+const CLAIMS_PAGE = 100;
+/** Defensa ante una cuenta anómala; la API no permite offset + limit >= 10.000. */
+const MAX_CLAIMS = 9_900;
 /**
  * Hasta dónde hacia atrás se importan los mensajes de un reclamo.
  *
@@ -84,12 +77,14 @@ export async function pollAllMercadoLibreClaims(): Promise<{
   sellers: number;
   claims: number;
   ingested: number;
+  failures: MercadoLibreSyncFailure[];
 }> {
   const db = supabaseAdmin();
   const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let claims = 0;
   let ingested = 0;
+  const failures: MercadoLibreSyncFailure[] = [];
   for (const conn of conns) {
     try {
       const token = await getFreshMLToken(conn);
@@ -101,9 +96,10 @@ export async function pollAllMercadoLibreClaims(): Promise<{
         connectionId: conn.id,
         error: err instanceof Error ? err.message : String(err),
       });
+      failures.push(mercadoLibreFailure(conn.id, err));
     }
   }
-  return { sellers: conns.length, claims, ingested };
+  return { sellers: conns.length, claims, ingested, failures };
 }
 
 /**
@@ -114,29 +110,34 @@ export async function pollAllMercadoLibreClaims(): Promise<{
 export async function syncClaimsForConnection(
   db: SupabaseClient,
   conn: ChannelConnection,
-  token: string,
+  token: string
 ): Promise<{ claims: number; ingested: number }> {
   const auth = { Authorization: `Bearer ${token}` };
+  const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
+  if (!sellerId) throw new Error("conexión sin seller_id");
+  const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
 
-  // Abiertos + cerrados recientes. Los cerrados van ordenados por fecha
-  // descendente (`sort=date_desc`): sin eso Mercado Libre devuelve los de 2023.
+  // Todos los abiertos + todos los cerrados que cambiaron dentro de la ventana.
+  // Se acota por vendedor y rol, como exige la API actual; buscar sólo por
+  // status escanea reclamos ajenos al caso y termina rate-limited.
   const found = new Map<string, MlClaim>();
-  for (const c of await searchClaims(auth, "opened", OPEN_PAGE, false)) {
+  for (const c of await searchClaims(auth, sellerId, "opened")) {
     const id = String(c.id ?? "");
     if (id) found.set(id, c);
   }
-  for (const c of await searchClaims(auth, "closed", CLOSED_PAGE, true)) {
+  for (const c of await searchClaims(auth, sellerId, "closed", new Date(cutoff))) {
     const id = String(c.id ?? "");
     if (id) found.set(id, c);
   }
 
   // Lo que teníamos por abierto y ya no aparece entre los abiertos: se pide de
   // a uno. Es la única forma de enterarse de que cerró hace semanas.
-  const { data: openRows } = await db
+  const { data: openRows, error: openRowsError } = await db
     .from("ml_claims")
     .select("claim_id")
     .eq("workspace_id", conn.workspace_id)
     .neq("status", "closed");
+  if (openRowsError) throw new Error(`ml_claims open: ${openRowsError.message}`);
   for (const row of (openRows ?? []) as Array<{ claim_id: string }>) {
     if (found.has(row.claim_id)) continue;
     const c = await fetchClaim(row.claim_id, auth);
@@ -146,11 +147,12 @@ export async function syncClaimsForConnection(
 
   // Estado previo de cada uno, para saber cuáles cambiaron desde la última vez.
   const ids = [...found.keys()];
-  const { data: storedRows } = await db
+  const { data: storedRows, error: storedRowsError } = await db
     .from("ml_claims")
     .select("claim_id, raw")
     .eq("workspace_id", conn.workspace_id)
     .in("claim_id", ids);
+  if (storedRowsError) throw new Error(`ml_claims stored: ${storedRowsError.message}`);
   const previous = new Map<string, string>();
   for (const row of (storedRows ?? []) as Array<{
     claim_id: string;
@@ -159,8 +161,6 @@ export async function syncClaimsForConnection(
     previous.set(row.claim_id, String(row.raw?.last_updated ?? ""));
   }
 
-  const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
-  const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
   let claims = 0;
   let ingested = 0;
   for (const [claimId, claim] of found) {
@@ -190,8 +190,7 @@ export async function syncClaimsForConnection(
         connection_id: conn.id,
         claim_id: claimId,
         resource_id: claim.resource_id != null ? String(claim.resource_id) : null,
-        order_id:
-          claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null,
+        order_id: claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null,
         stage: claim.stage != null ? String(claim.stage) : null,
         status: claim.status != null ? String(claim.status) : null,
         type: claim.type != null ? String(claim.type) : null,
@@ -201,9 +200,10 @@ export async function syncClaimsForConnection(
         raw: claim,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "workspace_id,claim_id" },
+      { onConflict: "workspace_id,claim_id" }
     );
-    if (!error) claims++;
+    if (error) throw new Error(`ml_claims upsert ${claimId}: ${error.message}`);
+    claims++;
 
     // Una devolución no se atiende en la bandeja: se decide en /devoluciones,
     // junto a las que abre el agente desde el chat.
@@ -227,11 +227,7 @@ function ourRole(claim: MlClaim, sellerId: string): string | null {
  * el comercio la vea junto a las que abre el agente por chat, en vez de tener
  * que acordarse de mirar dos sitios.
  */
-async function mirrorReturn(
-  db: SupabaseClient,
-  conn: ChannelConnection,
-  claim: MlClaim,
-): Promise<void> {
+async function mirrorReturn(db: SupabaseClient, conn: ChannelConnection, claim: MlClaim): Promise<void> {
   const claimId = String(claim.id ?? "");
   if (!claimId) return;
   const orderId = claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null;
@@ -252,7 +248,7 @@ async function mirrorReturn(
     contactId = row?.contact_id ?? null;
   }
 
-  await db.from("returns").upsert(
+  const { error } = await db.from("returns").upsert(
     {
       workspace_id: conn.workspace_id,
       platform: "mercadolibre",
@@ -269,61 +265,71 @@ async function mirrorReturn(
       created_by: "sync",
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "workspace_id,platform,external_id" },
+    { onConflict: "workspace_id,platform,external_id" }
   );
+  if (error) throw new Error(`returns upsert ${claimId}: ${error.message}`);
 }
 
 /** Reclamos por estado. `sort=date_desc` es el ÚNICO orden que respeta. */
 async function searchClaims(
   auth: Record<string, string>,
+  sellerId: string,
   status: "opened" | "closed",
-  limit: number,
-  newestFirst: boolean,
+  updatedAfter?: Date
 ): Promise<MlClaim[]> {
-  try {
-    const url =
-      `${ML}/post-purchase/v1/claims/search?status=${status}&limit=${limit}` +
-      (newestFirst ? "&sort=date_desc" : "");
-    const r = await fetch(url, { headers: auth });
-    if (!r.ok) return [];
-    const j = (await r.json()) as { data?: MlClaim[]; results?: MlClaim[] };
-    return j.data ?? j.results ?? [];
-  } catch {
-    return [];
+  const out: MlClaim[] = [];
+  for (let offset = 0; offset < MAX_CLAIMS; offset += CLAIMS_PAGE) {
+    const params = new URLSearchParams({
+      "players.user_id": sellerId,
+      "players.role": "respondent",
+      status,
+      limit: String(CLAIMS_PAGE),
+      offset: String(offset),
+      sort: "date_created:desc",
+    });
+    if (updatedAfter) {
+      params.set("range", `last_updated:after:${mlClaimDate(updatedAfter)}`);
+    }
+    const r = await fetch(`${ML}/post-purchase/v1/claims/search?${params}`, {
+      headers: auth,
+    });
+    if (!r.ok) throw new Error(`claims/search ${status} HTTP ${r.status}`);
+    const j = (await r.json()) as {
+      data?: MlClaim[];
+      results?: MlClaim[];
+      paging?: { total?: number };
+    };
+    const page = j.data ?? j.results ?? [];
+    out.push(...page);
+    if (page.length < CLAIMS_PAGE || out.length >= Number(j.paging?.total ?? 0)) break;
   }
+  return out;
 }
 
-async function fetchClaim(
-  claimId: string,
-  auth: Record<string, string>,
-): Promise<MlClaim | null> {
-  try {
-    const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}`, { headers: auth });
-    if (!r.ok) return null;
-    return (await r.json()) as MlClaim;
-  } catch {
-    return null;
-  }
+function mlClaimDate(date: Date): string {
+  return date.toISOString().replace("Z", "+00:00");
+}
+
+async function fetchClaim(claimId: string, auth: Record<string, string>): Promise<MlClaim | null> {
+  const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}`, {
+    headers: auth,
+  });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`claims/${claimId} HTTP ${r.status}`);
+  return (await r.json()) as MlClaim;
 }
 
 /** Los mensajes del reclamo, del más viejo al más nuevo. */
-async function readClaimMessages(
-  claimId: string,
-  auth: Record<string, string>,
-): Promise<MlClaimMessage[]> {
-  try {
-    const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
-      headers: auth,
-    });
-    if (!r.ok) return [];
-    const j = (await r.json()) as MlClaimMessage[] | { data?: MlClaimMessage[] };
-    const list = Array.isArray(j) ? j : (j.data ?? []);
-    // Mercado Libre los devuelve en cualquier orden (medido: el del vendedor
-    // antes que el del comprador, siendo posterior).
-    return [...list].sort((a, b) => msgTime(a) - msgTime(b));
-  } catch {
-    return [];
-  }
+async function readClaimMessages(claimId: string, auth: Record<string, string>): Promise<MlClaimMessage[]> {
+  const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
+    headers: auth,
+  });
+  if (!r.ok) throw new Error(`claims/${claimId}/messages HTTP ${r.status}`);
+  const j = (await r.json()) as MlClaimMessage[] | { data?: MlClaimMessage[] };
+  const list = Array.isArray(j) ? j : (j.data ?? []);
+  // Mercado Libre los devuelve en cualquier orden (medido: el del vendedor
+  // antes que el del comprador, siendo posterior).
+  return [...list].sort((a, b) => msgTime(a) - msgTime(b));
 }
 
 function msgTime(m: MlClaimMessage): number {
@@ -336,14 +342,12 @@ async function ingestClaimMessages(
   claim: MlClaim,
   messages: MlClaimMessage[],
   auth: Record<string, string>,
-  token: string,
+  token: string
 ): Promise<number> {
   const claimId = String(claim.id ?? "");
   // El "cliente" del hilo es quien reclama. El vendedor es la otra parte, y
   // sus mensajes son salientes los haya escrito Riverz o Mercado Libre.
-  const buyerId = String(
-    claim.players?.find((p) => p.role === "complainant")?.user_id ?? "",
-  );
+  const buyerId = String(claim.players?.find((p) => p.role === "complainant")?.user_id ?? "");
   if (!claimId || !buyerId) return 0;
   const nickname = await resolveMlNickname(buyerId, auth);
 
@@ -405,7 +409,7 @@ async function ingestClaimAttachments(args: {
     try {
       const r = await fetch(
         `${ML}/post-purchase/v1/claims/${args.claimId}/attachments/${encodeURIComponent(name)}/download`,
-        { headers: { Authorization: `Bearer ${args.token}` } },
+        { headers: { Authorization: `Bearer ${args.token}` } }
       );
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());

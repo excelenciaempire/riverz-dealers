@@ -7,7 +7,8 @@ import { syncAllMercadoLibreCatalogs } from "@/lib/channels/mercadolibre/catalog
 import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews";
 import { pollAllMercadoLibreClaims } from "@/lib/channels/mercadolibre/claims-poll";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { withCronRun, pingCron } from "@/lib/cron/heartbeat";
+import { withCronRun, withCronTask } from "@/lib/cron/heartbeat";
+import { hasMercadoLibreFailures } from "@/lib/channels/mercadolibre/sync-result";
 
 /**
  * TODO Mercado Libre en un solo trabajo.
@@ -60,6 +61,9 @@ async function cronHandler(request: Request) {
 
   const db = supabaseAdmin();
   const out: Record<string, unknown> = {};
+  // Recuperación operativa: permite forzar una pasada completa autenticada
+  // después de una caída o un despliegue, sin esperar los relojes internos.
+  const force = new URL(request.url).searchParams.get("force") === "1";
 
   // ── Lo urgente, siempre ──
   out.questions = await pollAllMercadoLibreConnections().catch((err) => ({
@@ -73,14 +77,13 @@ async function cronHandler(request: Request) {
   }));
 
   // ── Pedidos, envíos y reclamos ──
-  if (await isDue(db, JOB_ORDERS, EVERY_ORDERS_MS)) {
+  if (force || (await isDue(db, JOB_ORDERS, EVERY_ORDERS_MS))) {
     // El ping va ANTES del trabajo: es el reloj del que depende la próxima
     // corrida, y dejarlo para el final permitiría que dos seguidas se crean
     // con derecho si la primera tarda.
-    await pingCron(JOB_ORDERS);
-    out.orders = await syncAllMercadoLibreOrders().catch((err) => ({
-      error: err instanceof Error ? err.message : String(err),
-    }));
+    // Los reclamos tienen su propia pasada debajo. El sincronizador de pedidos
+    // los conserva por defecto para el webhook, pero acá duplicaría llamadas.
+    out.orders = await runSubtask(JOB_ORDERS, () => syncAllMercadoLibreOrders({ includeClaims: false }));
   }
 
   // ── Reclamos ──
@@ -89,38 +92,56 @@ async function cronHandler(request: Request) {
   // reloj y lo que se diga ahí decide si se devuelve la plata, así que no puede
   // esperar a la corrida de pedidos. Cuesta dos búsquedas por vendedor más los
   // mensajes de los que cambiaron.
-  if (await isDue(db, JOB_CLAIMS, EVERY_CLAIMS_MS)) {
-    await pingCron(JOB_CLAIMS);
-    out.claims = await pollAllMercadoLibreClaims().catch((err) => ({
-      error: err instanceof Error ? err.message : String(err),
-    }));
+  if (force || (await isDue(db, JOB_CLAIMS, EVERY_CLAIMS_MS))) {
+    out.claims = await runSubtask(JOB_CLAIMS, pollAllMercadoLibreClaims);
   }
 
   // ── Catálogo ──
-  if (await isDue(db, JOB_CATALOG, EVERY_SLOW_MS)) {
-    await pingCron(JOB_CATALOG);
-    out.catalog = await syncAllMercadoLibreCatalogs().catch((err) => ({
-      error: err instanceof Error ? err.message : String(err),
-    }));
+  if (force || (await isDue(db, JOB_CATALOG, EVERY_SLOW_MS))) {
+    out.catalog = await runSubtask(JOB_CATALOG, syncAllMercadoLibreCatalogs);
   }
 
   // ── Opiniones ──
-  if (await isDue(db, JOB_REVIEWS, EVERY_SLOW_MS)) {
-    await pingCron(JOB_REVIEWS);
-    out.reviews = await pollAllMercadoLibreReviews().catch((err) => ({
-      error: err instanceof Error ? err.message : String(err),
-    }));
+  if (force || (await isDue(db, JOB_REVIEWS, EVERY_SLOW_MS))) {
+    out.reviews = await runSubtask(JOB_REVIEWS, pollAllMercadoLibreReviews);
   }
 
-  return NextResponse.json(out, { status: 200 });
+  const failed = Object.values(out).filter((value) => hasMercadoLibreFailures(value) || hasError(value)).length;
+  return NextResponse.json(
+    {
+      ok: failed === 0,
+      ...out,
+      failed,
+      ...(failed ? { error: `${failed} sincronizaciones de Mercado Libre con errores` } : {}),
+    },
+    { status: failed ? 207 : 200 }
+  );
+}
+
+function hasError(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && "error" in value);
+}
+
+/** Conserva el resultado parcial, pero registra el subtrabajo como error. */
+async function runSubtask<T>(name: string, task: () => Promise<T>): Promise<T | { error: string }> {
+  let result: T | undefined;
+  try {
+    return await withCronTask(name, async () => {
+      result = await task();
+      if (hasMercadoLibreFailures(result)) {
+        const count = (result as { failures: unknown[] }).failures.length;
+        throw new Error(`${count} conexiones con errores`);
+      }
+      return result;
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return result && typeof result === "object" ? { ...result, error } : { error };
+  }
 }
 
 /** ¿Pasó ya el intervalo desde la última vez que corrió este sub-trabajo? */
-async function isDue(
-  db: ReturnType<typeof supabaseAdmin>,
-  job: string,
-  everyMs: number,
-): Promise<boolean> {
+async function isDue(db: ReturnType<typeof supabaseAdmin>, job: string, everyMs: number): Promise<boolean> {
   try {
     const { data, error } = await db
       .from("cron_runs")

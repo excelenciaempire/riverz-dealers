@@ -1,11 +1,4 @@
-import type {
-  ChannelAdapter,
-  InboundEvent,
-  OutboundMedia,
-  OutboundText,
-  ParsedWebhookContext,
-  SendResult,
-} from "../types";
+import type { ChannelAdapter, InboundEvent, OutboundMedia, OutboundText, ParsedWebhookContext, SendResult } from "../types";
 import type { ChannelConnection, MessageAttachment } from "@/types";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
@@ -56,19 +49,21 @@ export const mercadoLibreAdapter: ChannelAdapter = {
 
     // Target resource: prefer the reply-to (last inbound id), else the
     // conversation thread. Both are "q:<id>" or "pack:<id>".
-    const target = input.replyToExternalId?.startsWith("q:")
-      ? input.replyToExternalId
-      : ((input.conversation as { thread_external_id?: string })?.thread_external_id ??
-          input.replyToExternalId ??
-          "");
+    const target = input.replyToExternalId?.startsWith("q:") ? input.replyToExternalId : ((input.conversation as { thread_external_id?: string })?.thread_external_id ?? input.replyToExternalId ?? "");
 
     if (target.startsWith("q:")) {
       // Answer a pre-sale question (one-shot, max 2000 chars).
       const questionId = target.slice(2);
       const res = await fetch(`${ML}/answers`, {
         method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ question_id: Number(questionId), text: input.text.slice(0, 2000) }),
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          question_id: Number(questionId),
+          text: input.text.slice(0, 2000),
+        }),
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
@@ -92,21 +87,18 @@ export const mercadoLibreAdapter: ChannelAdapter = {
         .filter((c) => (c.codePointAt(0) ?? 0) <= 0xff)
         .join("")
         .slice(0, 350);
-      const res = await fetch(
-        `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`,
-        {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${token}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            from: { user_id: sellerId },
-            to: { user_id: buyerId },
-            text,
-          }),
+      const res = await fetch(`${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          from: { user_id: sellerId },
+          to: { user_id: buyerId },
+          text,
+        }),
+      });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new Error(`[mercadolibre] message failed (${res.status}): ${detail}`);
@@ -125,13 +117,11 @@ export const mercadoLibreAdapter: ChannelAdapter = {
           // caía siempre al id del POST, que es justo el que NO coincide con el
           // del webhook. Es decir, la protección contra duplicados nunca actuó.
           `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`,
-          { headers: { authorization: `Bearer ${token}` } },
+          { headers: { authorization: `Bearer ${token}` } }
         );
         if (packRes.ok) {
           const pack = (await packRes.json()) as MlPack;
-          const sellerMsgs = (pack.messages ?? []).filter(
-            (m) => String(m.from?.user_id ?? "") === sellerId && Boolean(m.id),
-          );
+          const sellerMsgs = (pack.messages ?? []).filter((m) => String(m.from?.user_id ?? "") === sellerId && Boolean(m.id));
           const matching = sellerMsgs.filter((m) => (m.text ?? "") === text);
           const pool = matching.length ? matching : sellerMsgs;
           let newest: (typeof pool)[number] | undefined;
@@ -153,17 +143,17 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       // el reclamo está abierto; cerrado devuelve 4xx y su motivo se muestra
       // tal cual, que es más útil que un "no se pudo enviar".
       const claimId = target.slice(6);
-      const res = await fetch(
-        `${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`,
-        {
-          method: "POST",
-          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-          body: JSON.stringify({
-            receiver_role: "complainant",
-            message: input.text.slice(0, 2000),
-          }),
+      const res = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          receiver_role: "complainant",
+          message: input.text.slice(0, 2000),
+        }),
+      });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         throw new Error(`[mercadolibre] claim message failed (${res.status}): ${detail}`);
@@ -191,10 +181,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     const sellerId = String(cfg.seller_id ?? "");
     const siteId = String(cfg.site_id ?? "");
 
-    const target =
-      (input.conversation as { thread_external_id?: string })?.thread_external_id ??
-      input.replyToExternalId ??
-      "";
+    const target = (input.conversation as { thread_external_id?: string })?.thread_external_id ?? input.replyToExternalId ?? "";
     // La mediación tiene su propio almacén de adjuntos: la foto se sube al
     // expediente del reclamo y viaja con el descargo. Es justo donde más falta
     // hace —el comprobante de despacho es la prueba del vendedor.
@@ -234,19 +221,19 @@ export const mercadoLibreAdapter: ChannelAdapter = {
       .filter((c) => (c.codePointAt(0) ?? 0) <= 0xff)
       .join("")
       .slice(0, 350);
-    const res = await fetch(
-      `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`,
-      {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          from: { user_id: sellerId },
-          to: { user_id: buyerId },
-          text,
-          attachments: [uploaded.id],
-        }),
+    const res = await fetch(`${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        from: { user_id: sellerId },
+        to: { user_id: buyerId },
+        text,
+        attachments: [uploaded.id],
+      }),
+    });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       throw new Error(`[mercadolibre] message with attachment failed (${res.status}): ${detail}`);
@@ -255,10 +242,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     return { externalMessageId: posted.id ?? undefined, status: "sent" };
   },
 
-  async parseWebhook(
-    ctx: ParsedWebhookContext,
-    connection: ChannelConnection,
-  ): Promise<InboundEvent[]> {
+  async parseWebhook(ctx: ParsedWebhookContext, connection: ChannelConnection): Promise<InboundEvent[]> {
     const n = ctx.payload as MlNotification | null;
     if (!n?.resource || !n.topic) return [];
     const cfg = (connection.config ?? {}) as Record<string, unknown>;
@@ -285,7 +269,9 @@ export const mercadoLibreAdapter: ChannelAdapter = {
 
     // ---- Questions ----
     if (n.topic === "questions" || n.topic === "marketplace_questions") {
-      const r = await fetch(`${ML}${n.resource}?api_version=4`, { headers: auth });
+      const r = await fetch(`${ML}${n.resource}?api_version=4`, {
+        headers: auth,
+      });
       if (!r.ok) return [];
       const q = (await r.json()) as MlQuestion;
       if (!q.id) return [];
@@ -375,11 +361,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     // sincronizador, que ya sabe normalizar un pedido de ML y traer el envío
     // que le cuelga. El webhook sólo adelanta el reloj: sin él el cambio
     // llegaría en la próxima corrida del cron, hasta 15 minutos después.
-    if (
-      n.topic === "orders_v2" ||
-      n.topic === "shipments" ||
-      n.topic?.startsWith("post_purchase.claims")
-    ) {
+    if (n.topic === "orders_v2" || n.topic === "shipments" || n.topic?.startsWith("post_purchase.claims")) {
       // Import perezoso: orders.ts importa este módulo para el token, así que
       // hacerlo arriba cerraría el ciclo.
       const { syncAllMercadoLibreOrders } = await import("./orders");
@@ -414,12 +396,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
  * Devuelve además el estado del hilo: el sondeo lo usa para dejar de releer los
  * que Mercado Libre declara cerrados (ver `PackRead.quiet`).
  */
-export async function buildPackEvents(args: {
-  connection: ChannelConnection;
-  packId: string;
-  sellerId: string;
-  token: string;
-}): Promise<PackRead> {
+export async function buildPackEvents(args: { connection: ChannelConnection; packId: string; sellerId: string; token: string }): Promise<PackRead> {
   const { connection, packId, sellerId, token } = args;
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
   const auth = { authorization: `Bearer ${token}` };
@@ -430,25 +407,24 @@ export async function buildPackEvents(args: {
   // post-venta ingerido, ni por webhook ni por ningún lado, y no había forma de
   // distinguirlo de "este vendedor no recibe mensajes". El envío sí lo mandaba
   // (`sendText`), así que se podía contestar un hilo que nunca se veía entrar.
-  const r = await fetch(
-    `${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`,
-    { headers: auth },
-  );
+  const r = await fetch(`${ML}/messages/packs/${packId}/sellers/${sellerId}?tag=post_sale&mark_as_read=false`, {
+    headers: auth,
+  });
   if (!r.ok) {
+    const body = (await r.text().catch(() => "")).slice(0, 200);
     log.warn("no se pudo leer el hilo post-venta de Mercado Libre", {
       packId,
       status: r.status,
-      body: (await r.text().catch(() => "")).slice(0, 200),
+      body,
     });
-    return { events: [], quiet: false };
+    throw new Error(`messages/packs/${packId} HTTP ${r.status}${body ? `: ${body}` : ""}`);
   }
   const conv = (await r.json()) as MlPack;
   // Mercado Libre cierra la mensajería de la mayoría de las ventas: mide el
   // 2026-08-05, 21 de 24 hilos vuelven `blocked` y vacíos, y van a seguir así
   // salvo que el comprador escriba primero. Releerlos cada corrida era casi
   // todo el costo del sondeo.
-  const quiet =
-    (conv.messages?.length ?? 0) === 0 && conv.conversation_status?.status === "blocked";
+  const quiet = (conv.messages?.length ?? 0) === 0 && conv.conversation_status?.status === "blocked";
   const events: InboundEvent[] = [];
   const nickCache = new Map<string, string | undefined>();
   for (const m of conv.messages ?? []) {
@@ -518,10 +494,7 @@ export interface PackRead {
 export async function getFreshMLToken(connection: ChannelConnection): Promise<string> {
   const admin = supabaseAdmin();
 
-  const stillValid = (
-    s: Record<string, unknown>,
-    c: Record<string, unknown>,
-  ): string | null => {
+  const stillValid = (s: Record<string, unknown>, c: Record<string, unknown>): string | null => {
     const exp = c.token_expires_at ? Date.parse(String(c.token_expires_at)) : 0;
     const enc = String(s.access_token ?? "");
     return enc && exp > Date.now() + 120_000 ? decrypt(enc) : null;
@@ -534,11 +507,7 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
 
   // Re-read fresh before spending the refresh_token — a concurrent request may
   // have just rotated it.
-  const { data: fresh } = await admin
-    .from("channel_connections")
-    .select("secrets, config")
-    .eq("id", connection.id)
-    .maybeSingle();
+  const { data: fresh } = await admin.from("channel_connections").select("secrets, config").eq("id", connection.id).maybeSingle();
   if (fresh) {
     secrets = (fresh.secrets ?? {}) as Record<string, unknown>;
     config = (fresh.config ?? {}) as Record<string, unknown>;
@@ -550,7 +519,10 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
   if (!refreshEnc) throw new Error("[mercadolibre] connection missing refresh_token");
   const res = await fetch(`${ML}/oauth/token`, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      accept: "application/json",
+    },
     body: new URLSearchParams({
       grant_type: "refresh_token",
       client_id: process.env.MERCADOLIBRE_CLIENT_ID ?? "",
@@ -563,21 +535,17 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
     // A concurrent winner may have rotated the token while we were in flight
     // (our refresh_token was already spent → this 400). Re-read: if it's now
     // valid, use it instead of flipping a healthy connection to error.
-    const { data: after } = await admin
-      .from("channel_connections")
-      .select("secrets, config")
-      .eq("id", connection.id)
-      .maybeSingle();
+    const { data: after } = await admin.from("channel_connections").select("secrets, config").eq("id", connection.id).maybeSingle();
     if (after) {
-      const recovered = stillValid(
-        (after.secrets ?? {}) as Record<string, unknown>,
-        (after.config ?? {}) as Record<string, unknown>,
-      );
+      const recovered = stillValid((after.secrets ?? {}) as Record<string, unknown>, (after.config ?? {}) as Record<string, unknown>);
       if (recovered) return recovered;
     }
     await admin
       .from("channel_connections")
-      .update({ status: "error", last_error: `ML token refresh failed: ${detail.slice(0, 300)}` })
+      .update({
+        status: "error",
+        last_error: `ML token refresh failed: ${detail.slice(0, 300)}`,
+      })
       .eq("id", connection.id);
     throw new Error(`[mercadolibre] token refresh failed (${res.status}): ${detail}`);
   }
@@ -610,10 +578,7 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
  * name). Best-effort: returns undefined on any failure so ingest still works
  * and the UI falls back to "Cliente Mercado Libre · …id".
  */
-export async function resolveMlNickname(
-  userId: string,
-  auth: Record<string, string>,
-): Promise<string | undefined> {
+export async function resolveMlNickname(userId: string, auth: Record<string, string>): Promise<string | undefined> {
   if (!userId || userId === "ml") return undefined;
   try {
     const r = await fetch(`${ML}/users/${userId}`, { headers: auth });
@@ -633,12 +598,7 @@ export async function resolveMlNickname(
  * que devolvió. Un adjunto que no sube corta el envío en vez de mandar el
  * texto solo: en una mediación la foto ES el argumento.
  */
-async function sendClaimMedia(
-  claimId: string,
-  input: OutboundMedia,
-  token: string,
-  locale: Locale,
-): Promise<SendResult> {
+async function sendClaimMedia(claimId: string, input: OutboundMedia, token: string, locale: Locale): Promise<SendResult> {
   const file = await fetchAttachmentBytes(input.mediaUrl);
   if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
   const filename = input.filename || attachmentFilename(input.mediaUrl, file.mime);
@@ -663,7 +623,10 @@ async function sendClaimMedia(
 
   const res = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/actions/send-message`, {
     method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
     body: JSON.stringify({
       receiver_role: "complainant",
       message: (input.caption ?? "").slice(0, 2000),
@@ -675,7 +638,10 @@ async function sendClaimMedia(
     throw new Error(`[mercadolibre] claim message failed (${res.status}): ${detail}`);
   }
   await res.json().catch(() => ({}));
-  return { externalMessageId: await newestClaimMessageHash(claimId, token), status: "sent" };
+  return {
+    externalMessageId: await newestClaimMessageHash(claimId, token),
+    status: "sent",
+  };
 }
 
 /**
@@ -686,18 +652,27 @@ async function sendClaimMedia(
  * desde Riverz volvería a entrar como una fila nueva en la corrida siguiente y
  * el hilo mostraría el descargo dos veces.
  */
-async function newestClaimMessageHash(
-  claimId: string,
-  token: string,
-): Promise<string | undefined> {
+async function newestClaimMessageHash(claimId: string, token: string): Promise<string | undefined> {
   try {
     const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!r.ok) return undefined;
     const raw = (await r.json()) as
-      | Array<{ sender_role?: string; hash?: string; message_date?: string; date_created?: string }>
-      | { data?: Array<{ sender_role?: string; hash?: string; message_date?: string; date_created?: string }> };
+      | Array<{
+          sender_role?: string;
+          hash?: string;
+          message_date?: string;
+          date_created?: string;
+        }>
+      | {
+          data?: Array<{
+            sender_role?: string;
+            hash?: string;
+            message_date?: string;
+            date_created?: string;
+          }>;
+        };
     const list = Array.isArray(raw) ? raw : (raw.data ?? []);
     const mine = list.filter((m) => m.sender_role === "respondent" && m.hash);
     let newest: (typeof mine)[number] | undefined;

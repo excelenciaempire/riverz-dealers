@@ -3,7 +3,6 @@ import { listConnections } from "@/lib/channels/connections";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { startGmailWatch } from "@/lib/channels/gmail/watch";
 import { assertCronAuth } from "@/lib/auth/cron";
-import { serverError } from "@/lib/api/errors";
 import type { ChannelConnection } from "@/types";
 import { withCronRun } from "@/lib/cron/heartbeat";
 
@@ -36,7 +35,12 @@ async function cronHandler(request: Request) {
     return NextResponse.json({ ok: true, watched: 0 });
   }
 
-  const results: Array<{ id: string; ok: boolean; expiration?: string; error?: string }> = [];
+  const results: Array<{
+    id: string;
+    ok: boolean;
+    expiration?: string;
+    error?: string;
+  }> = [];
   for (const c of connections as ChannelConnection[]) {
     const r = await startGmailWatch(admin, c);
     if (r.error) {
@@ -45,7 +49,8 @@ async function cronHandler(request: Request) {
       results.push({ id: c.id, ok: true, expiration: r.expiration });
     }
   }
-  return NextResponse.json({ ok: true, results });
+  const failed = results.filter((result) => !result.ok).length;
+  return NextResponse.json({ ok: failed === 0, failed, results }, { status: failed ? 207 : 200 });
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */

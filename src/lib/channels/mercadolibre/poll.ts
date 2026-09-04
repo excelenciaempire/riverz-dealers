@@ -3,6 +3,7 @@ import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
 import type { InboundEvent } from "../types";
+import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
 
 const ML = "https://api.mercadolibre.com";
 /** Preguntas por corrida. Ordenadas de la más nueva a la más vieja. */
@@ -49,6 +50,7 @@ export async function pollAllMercadoLibreConnections(): Promise<{
   total: number;
   ingested: number;
   answers: number;
+  failures: MercadoLibreSyncFailure[];
 }> {
   const db = supabaseAdmin();
   // error/expired incluidos: getFreshMLToken refresca y sana la fila, y son
@@ -57,18 +59,22 @@ export async function pollAllMercadoLibreConnections(): Promise<{
   const conns = await listConnections(db, { channel: "mercadolibre" });
   let ingested = 0;
   let answers = 0;
+  const failures: MercadoLibreSyncFailure[] = [];
 
   for (const conn of conns) {
     try {
       const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
-      if (!sellerId) continue;
+      if (!sellerId) throw new Error("conexión sin seller_id");
       const token = await getFreshMLToken(conn);
       const r = await fetch(
         `${ML}/questions/search?seller_id=${sellerId}&api_version=4` +
           `&sort_fields=date_created&sort_types=DESC&limit=${PAGE}`,
-        { headers: { authorization: `Bearer ${token}` } },
+        { headers: { authorization: `Bearer ${token}` } }
       );
-      if (!r.ok) continue;
+      if (!r.ok) {
+        const body = (await r.text().catch(() => "")).slice(0, 160);
+        throw new Error(`questions/search HTTP ${r.status}${body ? `: ${body}` : ""}`);
+      }
       const j = (await r.json()) as { questions?: MlQuestion[] };
       for (const q of j.questions ?? []) {
         if (!q.id || !q.text) continue;
@@ -111,7 +117,8 @@ export async function pollAllMercadoLibreConnections(): Promise<{
       }
     } catch (err) {
       console.error("[mercadolibre/poll] failed for", conn.id, err);
+      failures.push(mercadoLibreFailure(conn.id, err));
     }
   }
-  return { total: conns.length, ingested, answers };
+  return { total: conns.length, ingested, answers, failures };
 }

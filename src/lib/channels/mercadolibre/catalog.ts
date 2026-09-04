@@ -6,6 +6,7 @@ import { getFreshMLToken } from "./adapter";
 import { upsertCatalog } from "@/lib/commerce/catalog";
 import { normalizeMlItem } from "@/lib/commerce/providers/mercadolibre";
 import { getLogger } from "@/lib/log/logger";
+import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.catalog");
@@ -28,11 +29,13 @@ const BATCH = 20;
 export async function syncAllMercadoLibreCatalogs(): Promise<{
   sellers: number;
   products: number;
+  failures: MercadoLibreSyncFailure[];
 }> {
   const db = supabaseAdmin();
   const conns = await listConnections(db, { channel: "mercadolibre" });
 
   let products = 0;
+  const failures: MercadoLibreSyncFailure[] = [];
   for (const conn of conns) {
     try {
       products += await syncOne(db, conn);
@@ -41,18 +44,16 @@ export async function syncAllMercadoLibreCatalogs(): Promise<{
         connectionId: conn.id,
         error: err instanceof Error ? err.message : String(err),
       });
+      failures.push(mercadoLibreFailure(conn.id, err));
     }
   }
-  return { sellers: conns.length, products };
+  return { sellers: conns.length, products, failures };
 }
 
-async function syncOne(
-  db: SupabaseClient,
-  conn: ChannelConnection,
-): Promise<number> {
+async function syncOne(db: SupabaseClient, conn: ChannelConnection): Promise<number> {
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
-  if (!sellerId) return 0;
+  if (!sellerId) throw new Error("conexión sin seller_id");
 
   const token = await getFreshMLToken(conn);
   const auth = { Authorization: `Bearer ${token}` };
@@ -61,12 +62,12 @@ async function syncOne(
   const ids: string[] = [];
   let offset = 0;
   for (;;) {
-    const r = await fetch(
-      `${ML}/users/${sellerId}/items/search?limit=100&offset=${offset}`,
-      { headers: auth },
-    );
-    if (!r.ok) break;
-    const j = (await r.json()) as { results?: string[]; paging?: { total?: number } };
+    const r = await fetch(`${ML}/users/${sellerId}/items/search?limit=100&offset=${offset}`, { headers: auth });
+    if (!r.ok) throw new Error(`items/search HTTP ${r.status}`);
+    const j = (await r.json()) as {
+      results?: string[];
+      paging?: { total?: number };
+    };
     const batch = j.results ?? [];
     if (batch.length === 0) break;
     ids.push(...batch);
@@ -79,11 +80,15 @@ async function syncOne(
   const products = [];
   for (let i = 0; i < ids.length; i += BATCH) {
     const chunk = ids.slice(i, i + BATCH);
-    const r = await fetch(`${ML}/items?ids=${chunk.join(",")}`, { headers: auth });
-    if (!r.ok) continue;
+    const r = await fetch(`${ML}/items?ids=${chunk.join(",")}`, {
+      headers: auth,
+    });
+    if (!r.ok) throw new Error(`items detail HTTP ${r.status}`);
     const rows = (await r.json()) as Array<{ code?: number; body?: unknown }>;
     for (const row of rows) {
-      if (row?.code !== 200) continue;
+      if (row?.code !== 200) {
+        throw new Error(`item detail HTTP ${row?.code ?? "desconocido"}`);
+      }
       const p = normalizeMlItem(row.body);
       if (p) products.push(p);
     }
@@ -92,19 +97,13 @@ async function syncOne(
 
   // 3. Dueño del workspace: `shopify_products.user_id` es NOT NULL y la
   //    conexión no lo lleva (es del canal, no de una persona).
-  const { data: ws } = await db
-    .from("workspaces")
-    .select("owner_id")
-    .eq("id", conn.workspace_id)
-    .maybeSingle();
+  const { data: ws } = await db.from("workspaces").select("owner_id").eq("id", conn.workspace_id).maybeSingle();
   const userId = (ws as { owner_id?: string } | null)?.owner_id;
   if (!userId) {
-    log.warn("ml catalog: workspace sin owner_id", { workspaceId: conn.workspace_id });
-    return 0;
+    throw new Error(`workspace ${conn.workspace_id} sin owner_id`);
   }
 
-  const currency = products.find((p) => p.raw?.currency_id)?.raw
-    ?.currency_id as string | undefined;
+  const currency = products.find((p) => p.raw?.currency_id)?.raw?.currency_id as string | undefined;
 
   const res = await upsertCatalog(db, {
     platform: "mercadolibre",

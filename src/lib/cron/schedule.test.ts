@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  dueJobs,
-  expectedIntervalMs,
-  isDue,
-  isStale,
-  SCHEDULED_JOBS,
-} from "./schedule";
+import { dueJobs, expectedIntervalMs, isDue, isStale, SCHEDULED_JOBS } from "./schedule";
 
 /** Fecha UTC a partir de sus partes, para no depender de la zona local. */
 function utc(y: number, mo: number, d: number, h: number, mi: number): Date {
@@ -104,9 +98,7 @@ describe("SCHEDULED_JOBS", () => {
 
   it("el reloj no dispara sub-trabajos", () => {
     // Si los disparara, correrían dos veces: una por su padre y otra por acá.
-    const subs = new Set(
-      SCHEDULED_JOBS.filter((j) => j.parent).map((j) => j.name),
-    );
+    const subs = new Set(SCHEDULED_JOBS.filter((j) => j.parent).map((j) => j.name));
     for (let m = 0; m < 60; m++) {
       for (const job of dueJobs(utc(2026, 8, 3, 0, m))) {
         expect(subs.has(job.name)).toBe(false);
@@ -121,37 +113,9 @@ describe("SCHEDULED_JOBS", () => {
   });
 
   it("todos los sincronizadores de canales se autorrecuperan sin repetir envíos", () => {
-    const sincronizadores = [
-      "outlook-poll",
-      "zoho-poll",
-      "gmail-poll",
-      "mercadolibre",
-      "comment-sync",
-      "contacts-sync",
-      "tiktok-comments",
-      "self-heal",
-      "tiktok-transcripciones",
-      "instagram-external-enrich",
-      "klaviyo-sync",
-      "mercadopago-sync",
-      "delivery-watchdog",
-      "conversion-retry",
-      "ads-sync",
-      "tiendanube-checkouts",
-      "meta-contact-names",
-      "meta-dm-backfill",
-      "meta-webhook-subscriptions",
-      "commerce-webhooks",
-      "gmail-watch",
-      "outlook-watch",
-      "meta-token-refresh",
-      "shopify-token-refresh",
-    ];
+    const sincronizadores = ["outlook-poll", "zoho-poll", "gmail-poll", "mercadolibre", "comment-sync", "contacts-sync", "tiktok-comments", "self-heal", "tiktok-transcripciones", "instagram-external-enrich", "klaviyo-sync", "mercadopago-sync", "delivery-watchdog", "conversion-retry", "ads-sync", "tiendanube-checkouts", "meta-contact-names", "meta-dm-backfill", "meta-webhook-subscriptions", "commerce-webhooks", "gmail-watch", "outlook-watch", "meta-token-refresh", "shopify-token-refresh", "tiktok-comments-deep"];
     for (const name of sincronizadores) {
-      expect(
-        SCHEDULED_JOBS.find((job) => job.name === name)?.retryOnFailure,
-        `${name} quedó sin recuperación automática`,
-      ).toBe(true);
+      expect(SCHEDULED_JOBS.find((job) => job.name === name)?.retryOnFailure, `${name} quedó sin recuperación automática`).toBe(true);
     }
   });
 
@@ -189,14 +153,8 @@ describe("isStale", () => {
     // Un horario que no se entiende nunca dispararía: se verifica que cada
     // trabajo tenga al menos un minuto de la hora en el que le toque.
     for (const job of SCHEDULED_JOBS) {
-      const fires = Array.from({ length: 60 }, (_, m) =>
-        isDue(job.schedule, utc(2026, 8, 3, 0, m)),
-      ).some(Boolean);
-      const firesLaterInTheDay = Array.from({ length: 24 }, (_, h) =>
-        Array.from({ length: 60 }, (_, m) => isDue(job.schedule, utc(2026, 8, 3, h, m))).some(
-          Boolean,
-        ),
-      ).some(Boolean);
+      const fires = Array.from({ length: 60 }, (_, m) => isDue(job.schedule, utc(2026, 8, 3, 0, m))).some(Boolean);
+      const firesLaterInTheDay = Array.from({ length: 24 }, (_, h) => Array.from({ length: 60 }, (_, m) => isDue(job.schedule, utc(2026, 8, 3, h, m))).some(Boolean)).some(Boolean);
       expect(fires || firesLaterInTheDay, `${job.name} nunca dispara`).toBe(true);
     }
   });
@@ -209,9 +167,7 @@ describe("isStale", () => {
     // techo de reloj del handler es de 8 min.
     const backfill = SCHEDULED_JOBS.find((j) => j.name === "meta-dm-backfill");
     expect(backfill).toBeDefined();
-    const veces = Array.from({ length: 24 }, (_, h) =>
-      Array.from({ length: 60 }, (_, m) => isDue(backfill!.schedule, utc(2026, 8, 3, h, m))),
-    )
+    const veces = Array.from({ length: 24 }, (_, h) => Array.from({ length: 60 }, (_, m) => isDue(backfill!.schedule, utc(2026, 8, 3, h, m))))
       .flat()
       .filter(Boolean).length;
     expect(veces).toBeGreaterThan(1);

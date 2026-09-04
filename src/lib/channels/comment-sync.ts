@@ -66,16 +66,9 @@ export async function applyCommentLifecycle(
     kind: Lifecycle;
     /** New body for `edit`. */
     text?: string;
-  },
+  }
 ): Promise<boolean> {
-  const { data: rows } = await db
-    .from("messages")
-    .select(
-      "id, is_hidden, is_liked, status, content_text, edited_at, conversations!inner(workspace_id)",
-    )
-    .eq("channel", input.channel)
-    .eq("message_id", input.commentExternalId)
-    .eq("conversations.workspace_id", input.workspaceId);
+  const { data: rows } = await db.from("messages").select("id, is_hidden, is_liked, status, content_text, edited_at, conversations!inner(workspace_id)").eq("channel", input.channel).eq("message_id", input.commentExternalId).eq("conversations.workspace_id", input.workspaceId);
   const list = (rows ?? []) as unknown as CommentRow[];
   if (list.length === 0) return false;
 
@@ -117,13 +110,8 @@ function editadoRecienPorNosotros(row: CommentRow): boolean {
   return Number.isFinite(at) && Date.now() - at < EDICION_RECIENTE_MS;
 }
 
-export function patchFor(
-  row: CommentRow,
-  kind: Lifecycle,
-  text?: string,
-): Record<string, unknown> | null {
-  const isDeleted =
-    row.status === "failed" && (row.content_text ?? "").trim() === COMMENT_DELETED_TEXT;
+export function patchFor(row: CommentRow, kind: Lifecycle, text?: string): Record<string, unknown> | null {
+  const isDeleted = row.status === "failed" && (row.content_text ?? "").trim() === COMMENT_DELETED_TEXT;
   switch (kind) {
     case "delete":
       if (isDeleted) return null;
@@ -168,8 +156,13 @@ export function patchFor(
  */
 export async function reconcileCommentsForConnection(
   db: SupabaseClient,
-  connection: ChannelConnection,
-): Promise<{ checked: number; deleted: number; hiddenChanged: number; skipped: boolean }> {
+  connection: ChannelConnection
+): Promise<{
+  checked: number;
+  deleted: number;
+  hiddenChanged: number;
+  skipped: boolean;
+}> {
   const channel = connection.channel;
   if (channel !== "fb_comment" && channel !== "ig_comment") {
     return { checked: 0, deleted: 0, hiddenChanged: 0, skipped: true };
@@ -237,10 +230,7 @@ export async function reconcileCommentsForConnection(
   }
 
   if (suspiciousMassLoss) {
-    console.warn(
-      `[comment-sync] ${notFound}/${probes.length} comments not found on ${channel} ` +
-        `(connection ${connection.id}) — skipped deletions (likely a scope/token issue).`,
-    );
+    console.warn(`[comment-sync] ${notFound}/${probes.length} comments not found on ${channel} ` + `(connection ${connection.id}) — skipped deletions (likely a scope/token issue).`);
   }
   return { checked: probes.length, deleted, hiddenChanged, skipped: false };
 }
@@ -249,23 +239,13 @@ function connWorkspaceId(connection: ChannelConnection): string {
   return connection.workspace_id;
 }
 
-type Probe =
-  | { kind: "ok"; hidden: boolean | null }
-  | { kind: "gone" }
-  | { kind: "error" };
+type Probe = { kind: "ok"; hidden: boolean | null } | { kind: "gone" } | { kind: "error" };
 
 /** GET the comment node and read its hidden state, or classify it as deleted. */
-async function probeComment(
-  channel: "fb_comment" | "ig_comment",
-  commentId: string,
-  token: string,
-): Promise<Probe> {
+async function probeComment(channel: "fb_comment" | "ig_comment", commentId: string, token: string): Promise<Probe> {
   // FB comments expose `is_hidden`; IG comments expose `hidden`.
   const field = channel === "ig_comment" ? "hidden" : "is_hidden";
-  const url = withAppsecretProof(
-    `${GRAPH}/${commentId}?fields=${field}&access_token=${encodeURIComponent(token)}`,
-    token,
-  );
+  const url = withAppsecretProof(`${GRAPH}/${commentId}?fields=${field}&access_token=${encodeURIComponent(token)}`, token);
   let res: Response;
   try {
     res = await fetch(url);
@@ -303,14 +283,13 @@ async function probeComment(
 }
 
 /** Reconcile every connected FB/IG comment connection. Entry point for the cron. */
-export async function reconcileAllCommentConnections(
-  db: SupabaseClient,
-): Promise<{
+export async function reconcileAllCommentConnections(db: SupabaseClient): Promise<{
   ok: boolean;
   connections: number;
   checked: number;
   deleted: number;
   hiddenChanged: number;
+  failed: number;
 }> {
   // error/expired incluidos: siguen recibiendo webhooks de comentarios (la
   // suscripción es a nivel app, no de token), así que sus borrados y ocultados
@@ -323,6 +302,7 @@ export async function reconcileAllCommentConnections(
   let checked = 0;
   let deleted = 0;
   let hiddenChanged = 0;
+  let failed = 0;
   for (const c of list) {
     try {
       const r = await reconcileCommentsForConnection(db, c);
@@ -331,17 +311,21 @@ export async function reconcileAllCommentConnections(
       hiddenChanged += r.hiddenChanged;
     } catch (err) {
       console.error("[comment-sync] connection failed:", c.id, err);
+      failed++;
     }
   }
-  return { ok: true, connections: list.length, checked, deleted, hiddenChanged };
+  return {
+    ok: failed === 0,
+    connections: list.length,
+    checked,
+    deleted,
+    hiddenChanged,
+    failed,
+  };
 }
 
 /** Run `fn` over `items` with a bounded number of concurrent promises. */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
   async function worker(): Promise<void> {
@@ -384,18 +368,15 @@ async function candidatosAReconciliar(
     connection: ChannelConnection;
     channel: "fb_comment" | "ig_comment";
     sinceIso: string;
-  },
+  }
 ): Promise<{ list: CommentRow[]; siguienteCursor: string | null }> {
   const cfg = (args.connection.config ?? {}) as Record<string, unknown>;
-  const cursor =
-    typeof cfg.reconcile_cursor === "string" ? cfg.reconcile_cursor : null;
+  const cursor = typeof cfg.reconcile_cursor === "string" ? cfg.reconcile_cursor : null;
 
   const base = () => {
     let q = db
       .from("messages")
-      .select(
-        "id, message_id, is_hidden, status, content_text, edited_at, created_at, conversations!inner(connection_id)",
-      )
+      .select("id, message_id, is_hidden, status, content_text, edited_at, created_at, conversations!inner(connection_id)")
       .eq("channel", args.channel)
       .not("message_id", "is", null)
       .neq("status", "failed") // las ya borradas no hace falta re-consultarlas
@@ -406,18 +387,11 @@ async function candidatosAReconciliar(
   };
 
   const { data } = await base().eq("conversations.connection_id", args.connection.id);
-  const porConversacion = (data ?? []) as unknown as Array<
-    CommentRow & { created_at: string }
-  >;
+  const porConversacion = (data ?? []) as unknown as Array<CommentRow & { created_at: string }>;
 
   // Y las que esta conexión posee de verdad, aunque su conversación sea de otra.
-  const { data: propias } = await db
-    .from("comments_meta")
-    .select("message_id")
-    .eq("connection_id", args.connection.id);
-  const idsPropios = new Set(
-    ((propias ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
-  );
+  const { data: propias } = await db.from("comments_meta").select("message_id").eq("connection_id", args.connection.id);
+  const idsPropios = new Set(((propias ?? []) as Array<{ message_id: string }>).map((r) => r.message_id));
   let porMeta: Array<CommentRow & { created_at: string }> = [];
   if (idsPropios.size > 0) {
     const { data: extra } = await base().in("id", [...idsPropios]);
@@ -426,43 +400,25 @@ async function candidatosAReconciliar(
 
   // Unión, y fuera los que `comments_meta` dice que son de OTRA conexión: ésos
   // los reconcilia su dueña, con su token.
-  const { data: ajenos } = await db
-    .from("comments_meta")
-    .select("message_id, connection_id")
-    .neq("connection_id", args.connection.id)
-    .not("connection_id", "is", null);
-  const deOtro = new Set(
-    ((ajenos ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
-  );
+  const { data: ajenos } = await db.from("comments_meta").select("message_id, connection_id").neq("connection_id", args.connection.id).not("connection_id", "is", null);
+  const deOtro = new Set(((ajenos ?? []) as Array<{ message_id: string }>).map((r) => r.message_id));
 
   const porId = new Map<string, CommentRow & { created_at: string }>();
   for (const fila of [...porConversacion, ...porMeta]) {
     if (deOtro.has(fila.id) && !idsPropios.has(fila.id)) continue;
     porId.set(fila.id, fila);
   }
-  const list = [...porId.values()]
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, MAX_PER_RUN);
+  const list = [...porId.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, MAX_PER_RUN);
 
-  const siguienteCursor =
-    list.length === MAX_PER_RUN ? (list[list.length - 1]?.created_at ?? null) : null;
+  const siguienteCursor = list.length === MAX_PER_RUN ? (list[list.length - 1]?.created_at ?? null) : null;
   return { list, siguienteCursor };
 }
 
 /** Dónde quedó la reconciliación. `null` = volver a empezar por lo más nuevo. */
-async function guardarCursor(
-  db: SupabaseClient,
-  connection: ChannelConnection,
-  cursor: string | null,
-): Promise<void> {
+async function guardarCursor(db: SupabaseClient, connection: ChannelConnection, cursor: string | null): Promise<void> {
   try {
-    const { data } = await db
-      .from("channel_connections")
-      .select("config")
-      .eq("id", connection.id)
-      .maybeSingle();
-    const cfg = ((data as { config?: Record<string, unknown> } | null)?.config ??
-      {}) as Record<string, unknown>;
+    const { data } = await db.from("channel_connections").select("config").eq("id", connection.id).maybeSingle();
+    const cfg = ((data as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
     await db
       .from("channel_connections")
       .update({ config: { ...cfg, reconcile_cursor: cursor } })

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listConnections } from '@/lib/channels/connections';
 import { assertCronAuthAny } from '@/lib/auth/cron';
-import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
 import { withCronRun } from '@/lib/cron/heartbeat';
@@ -55,13 +54,19 @@ async function handler(req: Request): Promise<Response> {
     }
   }
 
-  return NextResponse.json({
-    ok: true,
-    connections: results.length,
-    inserted: totalInserted,
-    updated: totalUpdated,
-    results,
-  });
+  const failed = results.filter((result) => result.error || (result.errors?.length ?? 0) > 0).length;
+
+  return NextResponse.json(
+    {
+      ok: failed === 0,
+      connections: results.length,
+      inserted: totalInserted,
+      updated: totalUpdated,
+      failed,
+      results,
+    },
+    { status: failed ? 207 : 200 }
+  );
 }
 
 /** Registra la corrida en `cron_runs` como el resto de los trabajos: hasta

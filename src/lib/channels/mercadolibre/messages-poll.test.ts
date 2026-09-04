@@ -43,8 +43,7 @@ function fakeDb(conn: ChannelConnection): SupabaseClient {
         {
           get(_t, prop) {
             if (prop === "then") {
-              return (resolve: (v: unknown) => unknown) =>
-                Promise.resolve({ data: [conn] }).then(resolve);
+              return (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [conn] }).then(resolve);
             }
             if (prop === "maybeSingle") {
               return () => Promise.resolve({ data: { config: conn.config } });
@@ -57,7 +56,7 @@ function fakeDb(conn: ChannelConnection): SupabaseClient {
             }
             return () => chain;
           },
-        },
+        }
       );
       return chain;
     },
@@ -79,7 +78,7 @@ function mockMl(unread: string[]) {
         ? { results: unread.map((id) => ({ pack_id: id })) }
         : { results: ORDERS.map((id) => ({ id, pack_id: id })) };
       return { ok: true, json: async () => json } as unknown as Response;
-    }),
+    })
   );
 }
 
@@ -95,7 +94,10 @@ describe("pollAllMercadoLibreMessages", () => {
   });
 
   it("recuerda los hilos cerrados y no los relee en la corrida siguiente", async () => {
-    const conn = { ...connection, config: { seller_id: SELLER } } as ChannelConnection;
+    const conn = {
+      ...connection,
+      config: { seller_id: SELLER },
+    } as ChannelConnection;
     currentDb = fakeDb(conn);
     mockMl([]);
 
@@ -119,7 +121,10 @@ describe("pollAllMercadoLibreMessages", () => {
   it("un hilo cerrado con novedad se lee igual y sale de la lista", async () => {
     const conn = {
       ...connection,
-      config: { seller_id: SELLER, quiet_packs: { p1: Date.now(), p2: Date.now(), p3: Date.now() } },
+      config: {
+        seller_id: SELLER,
+        quiet_packs: { p1: Date.now(), p2: Date.now(), p3: Date.now() },
+      },
     } as ChannelConnection;
     currentDb = fakeDb(conn);
     packEvents = {
@@ -142,7 +147,10 @@ describe("pollAllMercadoLibreMessages", () => {
   });
 
   it("un mensaje viejo entra pero no despierta al agente", async () => {
-    const conn = { ...connection, config: { seller_id: SELLER } } as ChannelConnection;
+    const conn = {
+      ...connection,
+      config: { seller_id: SELLER },
+    } as ChannelConnection;
     currentDb = fakeDb(conn);
     packEvents = {
       p1: [
@@ -160,5 +168,17 @@ describe("pollAllMercadoLibreMessages", () => {
 
     expect(ingested).toHaveLength(1);
     expect(ingested[0].suppressAutoReply).toBe(true);
+  });
+
+  it("expone el fallo del proveedor para que el cron pueda recuperarlo", async () => {
+    currentDb = fakeDb(connection);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 503 }) as Response)
+    );
+
+    const result = await pollAllMercadoLibreMessages();
+
+    expect(result.failures).toEqual([{ connectionId: "conn-1", error: "messages/unread HTTP 503" }]);
   });
 });
