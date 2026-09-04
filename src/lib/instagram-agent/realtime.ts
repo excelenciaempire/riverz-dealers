@@ -330,13 +330,13 @@ export async function maybeInstantOutreach(
   //     ⇒ Prospección, desde su propio cron (`send.ts`).
   // La persona puede estar en las dos, pero nunca en el mismo instante.
   if (opts.commentId) {
-    await autonomousCommentReply(db, opts);
+    await replyToComment(db, opts);
     return;
   }
   // Una respuesta dentro de un hilo tampoco inscribe a nadie: esa persona ya
   // está en conversación. La atiende el piso, que lee el hilo.
   if (opts.parentCommentId) {
-    await autonomousCommentReply(db, opts);
+    await replyToComment(db, opts);
     return;
   }
   const campaign = await campaignForContact(
@@ -345,7 +345,7 @@ export async function maybeInstantOutreach(
     opts.contact.id,
   );
   if (!campaign || !(await featureEnabled(db, opts.workspaceId, 'outreach'))) {
-    await autonomousCommentReply(db, opts);
+    await replyToComment(db, opts);
     return;
   }
 
@@ -771,6 +771,8 @@ interface OpcionesComentario {
   /** De qué red viene el comentario. Por defecto Instagram, que era el único
    *  canal que llegaba aquí antes de que Facebook se habilitara. */
   commentChannel?: CommentChannel;
+  /** Revisión histórica solicitada por el comercio: publica sólo en el hilo. */
+  publicOnly?: boolean;
 }
 
 /**
@@ -785,12 +787,13 @@ interface OpcionesComentario {
  * Los motivos son propios del canal y llevan prefijo `comment_` para no
  * confundirse con los del runner (`ai/runner.ts`).
  */
-async function autonomousCommentReply(
+export async function replyToComment(
   db: SupabaseClient,
   opts: OpcionesComentario,
-): Promise<void> {
+): Promise<string | null> {
   const motivo = await decidirComentario(db, opts);
   if (motivo) await registrarSkipComentario(db, opts, motivo);
+  return motivo;
 }
 
 async function decidirComentario(
@@ -1226,15 +1229,17 @@ async function decidirComentario(
   // eligió el comercio (migración 177). En 'public_smart' pregunta al
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
   // un "qué linda foto" es perderla para el que sí quería comprar.
-  const decision = await decideCommentDm({
-    // En TikTok la única respuesta posible es la pública, así que no se le
-    // pregunta al clasificador algo que no se puede ejecutar.
-    mode: isTikTok ? 'public' : commentCfg.replyMode,
-    apiKey,
-    comment: engagement,
-    reply: text,
-    hasOrderQuestion: Boolean(orderStatus),
-  });
+  const decision = opts.publicOnly
+    ? { dm: false, reason: orderStatus ? ('pedido' as const) : ('ninguna' as const) }
+    : await decideCommentDm({
+        // En TikTok la única respuesta posible es la pública, así que no se le
+        // pregunta al clasificador algo que no se puede ejecutar.
+        mode: isTikTok ? 'public' : commentCfg.replyMode,
+        apiKey,
+        comment: engagement,
+        reply: text,
+        hasOrderQuestion: Boolean(orderStatus),
+      });
 
   // Pedido, pago o reclamo: se atiende fuera del post y queda visible para el
   // equipo. La marca y el aviso son idempotentes por conversación.
@@ -1259,7 +1264,7 @@ async function decidirComentario(
   // DM. `external_id` es lo que hace falta para escribirle: sin él (un caso
   // raro de Graph) queda la respuesta pública, que sigue siendo una respuesta.
   const wantsDm =
-    decision.dm && Boolean(opts.contact.external_id) && Boolean(connection);
+    !opts.publicOnly && decision.dm && Boolean(opts.contact.external_id) && Boolean(connection);
   const wonPrivateReply = wantsDm
     ? await claimCommentPrivateReply(
         db,
