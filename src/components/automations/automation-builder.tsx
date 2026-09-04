@@ -3586,6 +3586,31 @@ function StepEditor({
       const selectedTpl = templates.find(
         (tp) => tp.name === selectedTemplateName
       );
+      const previewTemplates = abTest
+        ? abTest.variants.flatMap((variant) => {
+            const template = templates.find(
+              (candidate) => candidate.name === variant.template_name
+            );
+            return template
+              ? [
+                  {
+                    id: variant.id,
+                    template,
+                    variables: variant.variables ?? {},
+                  },
+                ]
+              : [];
+          })
+        : selectedTpl
+          ? [
+              {
+                id: null,
+                template: selectedTpl,
+                variables:
+                  (cfg.variables as Record<string, string> | undefined) ?? {},
+              },
+            ]
+          : [];
       const varIndices = selectedTpl
         ? extractVariables(selectedTpl.body_text ?? '')
         : [];
@@ -3629,12 +3654,12 @@ function StepEditor({
               {abTest.variants.map((variant) => (
                 <div
                   key={variant.id}
-                  className="grid grid-cols-[1fr_5rem] gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-1.5"
                 >
                   <select
                     value={variant.template_name}
                     onChange={(e) => changeVariant(variant.id, e.target.value)}
-                    className="border-border bg-muted text-foreground rounded-md border px-2 py-1.5 text-sm"
+                    className="border-border bg-muted text-foreground w-full min-w-0 rounded-md border px-2 py-1.5 text-sm"
                   >
                     <option value="">{t('automations.chooseTemplate')}</option>
                     {templates.map((tpl) => (
@@ -3650,6 +3675,7 @@ function StepEditor({
                     min="0"
                     max="100"
                     value={variant.weight}
+                    className="min-w-0 px-1 text-center"
                     onChange={(e) =>
                       changeWeight(variant.id, Number(e.target.value))
                     }
@@ -3752,7 +3778,7 @@ function StepEditor({
               )}
             </FieldBlock>
           )}
-          {selectedTpl && (
+          {previewTemplates.length > 0 && (
             <div className="border-border mt-3 border-t pt-3">
               <button
                 type="button"
@@ -3768,28 +3794,40 @@ function StepEditor({
                 {t('automations.preview')}
               </button>
               {showPreview && (
-                <div className="mt-2 origin-top scale-[0.8]">
-                  <WhatsappPreview
-                    headerType={
-                      (selectedTpl.header_type ?? 'none') as TemplateHeaderType
-                    }
-                    headerText={selectedTpl.header_content ?? undefined}
-                    bodyText={(selectedTpl.body_text || '').replace(
-                      /\{\{\s*(\d+)\s*\}\}/g,
-                      (_, n) => {
-                        const m = (variables[String(n)] ?? '').match(
-                          /\{\{vars\.(\w+)\}\}/
-                        );
-                        return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`;
-                      }
-                    )}
-                    footerText={selectedTpl.footer_text ?? undefined}
-                    buttons={
-                      (selectedTpl.buttons as unknown as
-                        | TemplateButtonInput[]
-                        | null) ?? undefined
-                    }
-                  />
+                <div className="mt-2 space-y-3">
+                  {previewTemplates.map(
+                    ({ id, template, variables: previewVariables }) => (
+                      <div key={id ?? template.id}>
+                        {id && (
+                          <p className="text-muted-foreground mb-1 text-xs font-medium">
+                            {id.toUpperCase()}
+                          </p>
+                        )}
+                        <WhatsappPreview
+                          headerType={
+                            (template.header_type ??
+                              'none') as TemplateHeaderType
+                          }
+                          headerText={template.header_content ?? undefined}
+                          bodyText={(template.body_text || '').replace(
+                            /\{\{\s*(\d+)\s*\}\}/g,
+                            (_, n) => {
+                              const m = (
+                                previewVariables[String(n)] ?? ''
+                              ).match(/\{\{vars\.(\w+)\}\}/);
+                              return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`;
+                            }
+                          )}
+                          footerText={template.footer_text ?? undefined}
+                          buttons={
+                            (template.buttons as unknown as
+                              | TemplateButtonInput[]
+                              | null) ?? undefined
+                          }
+                        />
+                      </div>
+                    )
+                  )}
                 </div>
               )}
             </div>
