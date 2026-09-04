@@ -4,7 +4,10 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectPlatformIssues, type Issue } from '@/lib/health/issues'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
-import { isActionableCronFailure } from '@/lib/cron/recovery'
+import {
+  isActionableCronFailure,
+  needsCronFailureConfirmation,
+} from '@/lib/cron/recovery'
 import { platformTechnicalAlertRecipients, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
@@ -185,12 +188,16 @@ async function cronHandler(request: Request) {
   } else {
     const ultima = new Map<string, { status?: string; started_at?: string | null }>()
     for (const r of runs ?? []) ultima.set(r.name, r)
-    const erroresPorConfirmar: string[] = []
+    const pendientesPorConfirmar: string[] = []
     for (const job of SCHEDULED_JOBS) {
       const run = ultima.get(job.name)
       const detenido = isStale(job.schedule, run?.started_at ?? null)
       if (detenido) cronsRotos.push({ name: job.name, motivo: 'detenido' })
-      else if (run?.status === 'error') erroresPorConfirmar.push(job.name)
+      // Un `running` no demuestra recuperación: el monitor y el trabajo pueden
+      // arrancar en el mismo segundo. Se consulta el último resultado completo
+      // para no borrar la huella del incidente mientras corre su siguiente
+      // intento y volver a notificarla quince minutos después.
+      else if (needsCronFailureConfirmation(run?.status)) pendientesPorConfirmar.push(job.name)
     }
 
     // Un error reciente tiene primero una oportunidad de autorrepararse. Sólo
@@ -198,7 +205,7 @@ async function cronHandler(request: Request) {
     // margen. Las consultas se hacen únicamente para los pocos que están en
     // rojo, no una por cada trabajo sano del catálogo.
     const confirmados = await Promise.all(
-      erroresPorConfirmar.map(async (name) => {
+      pendientesPorConfirmar.map(async (name) => {
         const { data, error } = await admin
           .from('cron_runs')
           .select('status, started_at')
@@ -219,8 +226,8 @@ async function cronHandler(request: Request) {
         return isActionableCronFailure(data ?? [])
       })
     )
-    for (let i = 0; i < erroresPorConfirmar.length; i++) {
-      if (confirmados[i]) cronsRotos.push({ name: erroresPorConfirmar[i], motivo: 'error' })
+    for (let i = 0; i < pendientesPorConfirmar.length; i++) {
+      if (confirmados[i]) cronsRotos.push({ name: pendientesPorConfirmar[i], motivo: 'error' })
     }
     // Si "se cayó" más de la mitad del catálogo de golpe, lo que se cayó es la
     // lectura, no los trabajos: 41 fallas independientes en el mismo minuto no

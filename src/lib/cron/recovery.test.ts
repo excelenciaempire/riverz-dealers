@@ -3,6 +3,7 @@ import {
   CRON_ERROR_GRACE_MS,
   CRON_FAILURE_CONFIRMATION_GAP_MS,
   isActionableCronFailure,
+  needsCronFailureConfirmation,
   shouldRetryScheduledResponse,
 } from './recovery';
 import type { ScheduledJob } from './schedule';
@@ -67,6 +68,12 @@ describe('scheduled job recovery', () => {
 
 describe('admin alert confirmation', () => {
   const now = Date.parse('2026-09-04T18:30:00.000Z');
+
+  it('keeps checking the previous result while a recovery is running', () => {
+    expect(needsCronFailureConfirmation('running')).toBe(true);
+    expect(needsCronFailureConfirmation('error')).toBe(true);
+    expect(needsCronFailureConfirmation('ok')).toBe(false);
+  });
 
   it('ignores one recent failure that the recovery system can still fix', () => {
     expect(

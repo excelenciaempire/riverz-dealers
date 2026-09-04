@@ -20,6 +20,15 @@ export type CompletedCronRun = {
 };
 
 /**
+ * Un trabajo activo conserva el último resultado completo hasta que termine.
+ * Esto evita que el monitor confunda "está intentando recuperarse" con
+ * "ya se recuperó".
+ */
+export function needsCronFailureConfirmation(status?: string): boolean {
+  return status === 'error' || status === 'running';
+}
+
+/**
  * Sólo se repite una respuesta completa y recuperable. Una excepción de red no
  * se repite acá porque el handler HTTP podría seguir ejecutándose aunque se
  * haya cortado la conexión con el scheduler.
