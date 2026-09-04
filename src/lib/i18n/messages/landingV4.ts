@@ -72,10 +72,13 @@ export const landingV4 = {
   // El titular parte del punto de partida real del cliente: la tienda ya
   // vende. La bajada nombra el trabajo que se pierde entre intención y pedido,
   // sin pedirle que aprenda una categoría nueva.
-  heroTitleLead: { es: 'Tu tienda ya vende.', en: 'Your store already sells.' },
+  heroTitleLead: {
+    es: 'Tu equipo de empleados de IA.',
+    en: 'Your team of AI employees.',
+  },
   heroTitleMuted: {
-    es: 'Riverz la mantiene en movimiento.',
-    en: 'Riverz keeps it moving.',
+    es: 'Para vender, recuperar y atender.',
+    en: 'Built to sell, recover, and support.',
   },
   heroSubtitle: {
     es: 'Convierte mensajes, carritos y pagos pendientes en el siguiente paso: vender, recuperar o atender. Todo con tu catálogo, tus pedidos y tus reglas.',
