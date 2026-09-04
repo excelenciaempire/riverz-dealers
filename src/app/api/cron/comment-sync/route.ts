@@ -5,7 +5,7 @@ import {
   pullCommentsAll,
   pullCommentsForWorkspace,
 } from "@/lib/channels/comment-pull";
-import { entenderPendientes } from "@/lib/channels/publicacion-media";
+import { entenderPendientes, identificarProductosPendientes } from "@/lib/channels/publicacion-media";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { pingCron, withCronRun } from "@/lib/cron/heartbeat";
 
@@ -88,12 +88,16 @@ async function cronHandler(request: Request) {
       console.error("[comment-sync] entender publicaciones falló:", err);
       return { intentados: 0, entendidos: 0 };
     });
+    const productosDePublicaciones = await identificarProductosPendientes(db, { limite: 12 }).catch((err) => {
+      console.error("[comment-sync] identificar productos de publicaciones falló:", err);
+      return { intentados: 0, identificados: 0 };
+    });
 
     // Lo caro, sólo cuando toca.
     const due = await reconcileIsDue(db);
     if (!due) {
       return NextResponse.json(
-        { ok: true, reconciled: false, pulled, publicaciones },
+        { ok: true, reconciled: false, pulled, publicaciones, productosDePublicaciones },
         { status: 200 },
       );
     }
@@ -102,7 +106,7 @@ async function cronHandler(request: Request) {
     await pingCron(RECONCILE_JOB);
     const result = await reconcileAllCommentConnections(db);
     return NextResponse.json(
-      { ...result, reconciled: true, pulled, publicaciones },
+      { ...result, reconciled: true, pulled, publicaciones, productosDePublicaciones },
       { status: 200 },
     );
   } catch (err) {

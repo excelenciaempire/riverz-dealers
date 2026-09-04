@@ -68,6 +68,8 @@ interface FilaContexto {
   medio_tipo: string | null;
   medio_url: string | null;
   medio_entendido: string | null;
+  product_ids?: string[] | null;
+  product_match_status?: string | null;
   estado: string;
   intentos: number;
 }
@@ -112,19 +114,42 @@ export async function briefDeMedio(
   db: SupabaseClient,
   args: { workspaceId: string; channel: string; externalId: string },
 ): Promise<string | null> {
-  const { data } = await db
+  const contextResult = await db
     .from("publicacion_contexto")
-    .select("medio_tipo, medio_entendido")
+    .select("medio_tipo, medio_entendido, product_ids, product_match_status")
     .eq("workspace_id", args.workspaceId)
     .eq("channel", args.channel)
     .eq("external_id", args.externalId)
     .maybeSingle();
-  const f = data as { medio_tipo: string | null; medio_entendido: string | null } | null;
-  const texto = f?.medio_entendido?.trim();
-  if (!texto) return null;
-  return f?.medio_tipo === "video"
+  // Durante un deploy gradual puede llegar código antes que la migración. El
+  // análisis del post no debe caerse por eso: vuelve al contexto previo y el
+  // vínculo con producto se completa en la siguiente pasada del cron.
+  const fallback = contextResult.error
+    ? await db.from('publicacion_contexto').select('medio_tipo, medio_entendido')
+      .eq("workspace_id", args.workspaceId)
+      .eq("channel", args.channel)
+      .eq("external_id", args.externalId)
+      .maybeSingle()
+    : null;
+  const data = (contextResult.data ?? fallback?.data) as {
+    medio_tipo: string | null;
+    medio_entendido: string | null;
+    product_ids?: string[] | null;
+    product_match_status?: string | null;
+  } | null;
+  const texto = data?.medio_entendido?.trim();
+  const ids = Array.isArray(data?.product_ids) ? data.product_ids.filter(Boolean) : [];
+  const { data: products } = ids.length
+    ? await db.from('shopify_products').select('id, title').in('id', ids)
+    : { data: [] as Array<{ id: string; title: string | null }> };
+  const names = (products ?? []).map((product) => String(product.title ?? '').trim()).filter(Boolean);
+  const medio = !texto
+    ? null
+    : data?.medio_tipo === "video"
     ? `Lo que se dice en el video: "${texto.slice(0, 4000)}"`
     : `Lo que se ve en la imagen: ${texto.slice(0, 1200)}`;
+  const producto = names.length ? `Producto identificado en esta publicación: ${names.join(', ')}.` : null;
+  return [medio, producto].filter(Boolean).join('\n') || null;
 }
 
 /**
@@ -165,6 +190,47 @@ export async function entenderPendientes(
     }
   }
   return { intentados: filas.length, entendidos };
+}
+
+/**
+ * Completa el vínculo producto para publicaciones que ya se habían analizado
+ * antes de que existiera el mapeo. No vuelve a descargar ni a transcribir el
+ * medio: usa únicamente el contexto que ya quedó guardado.
+ */
+export async function identificarProductosPendientes(
+  db: SupabaseClient,
+  opts: { limite?: number } = {},
+): Promise<{ intentados: number; identificados: number }> {
+  const limite = Math.max(1, opts.limite ?? 12);
+  const { data } = await db
+    .from('publicacion_contexto')
+    .select('id, workspace_id, titulo, cuerpo, medio_entendido')
+    .eq('estado', 'listo')
+    .eq('product_match_status', 'pending')
+    .order('updated_at', { ascending: false })
+    .limit(limite);
+  let identificados = 0;
+  for (const post of (data ?? []) as Array<{
+    id: string;
+    workspace_id: string;
+    titulo: string | null;
+    cuerpo: string | null;
+    medio_entendido: string | null;
+  }>) {
+    const match = await identificarProductos(
+      db,
+      post.workspace_id,
+      [post.titulo, post.cuerpo, post.medio_entendido].filter(Boolean).join('\n'),
+    );
+    const { error } = await db.from('publicacion_contexto').update({
+      product_ids: match.ids,
+      product_match_status: match.status,
+      product_matched_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', post.id);
+    if (!error && match.status === 'identified') identificados++;
+  }
+  return { intentados: (data ?? []).length, identificados };
 }
 
 async function marcar(
@@ -235,13 +301,66 @@ async function entenderUna(db: SupabaseClient, fila: FilaContexto): Promise<bool
     await marcar(db, fila, "error", { medio_tipo: medio.tipo, medio_url: medio.url });
     return false;
   }
+  const productMatch = await identificarProductos(db, fila.workspace_id, [
+    fila.titulo,
+    medio.caption,
+    entendido,
+  ].filter(Boolean).join('\n'));
   await marcar(db, fila, "listo", {
     medio_tipo: medio.tipo,
     medio_url: medio.url,
     medio_entendido: entendido.slice(0, 6000),
     ...(medio.caption ? { titulo: medio.caption.slice(0, 2000) } : {}),
   });
+  // La tabla puede estar en un deploy intermedio sin las columnas nuevas. El
+  // análisis principal ya quedó guardado; sólo se salta el enlace derivado y
+  // el cron lo recupera cuando el esquema esté actualizado.
+  await db.from('publicacion_contexto').update({
+    product_ids: productMatch.ids,
+    product_match_status: productMatch.status,
+    product_matched_at: new Date().toISOString(),
+  }).eq('id', fila.id).then(() => {}, () => {});
   return true;
+}
+
+interface ProductCandidate {
+  id: string;
+  title: string;
+  handle: string | null;
+}
+
+function normalize(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Identificación conservadora: si hay duda, no enlaza un producto. */
+export function matchProductsInPublication(
+  products: ProductCandidate[],
+  source: string,
+): { ids: string[]; status: 'identified' | 'ambiguous' | 'unidentified' } {
+  const hay = normalize(source);
+  if (!hay) return { ids: [], status: 'unidentified' };
+  const scored = products.map((product) => {
+    const title = normalize(product.title);
+    const handle = normalize(product.handle ?? '');
+    if ((title.length >= 4 && hay.includes(title)) || (handle.length >= 4 && hay.includes(handle))) return { id: product.id, score: 100 };
+    const words = title.split(' ').filter((word) => word.length >= 4);
+    const hits = words.filter((word) => hay.includes(word)).length;
+    return { id: product.id, score: words.length > 0 && hits >= 2 ? hits : 0 };
+  }).filter((candidate) => candidate.score > 0);
+  if (scored.length === 0) return { ids: [], status: 'unidentified' };
+  const best = Math.max(...scored.map((candidate) => candidate.score));
+  const winners = scored.filter((candidate) => candidate.score === best);
+  return winners.length === 1 ? { ids: [winners[0].id], status: 'identified' } : { ids: [], status: 'ambiguous' };
+}
+
+async function identificarProductos(
+  db: SupabaseClient,
+  workspaceId: string,
+  source: string,
+): Promise<{ ids: string[]; status: 'identified' | 'ambiguous' | 'unidentified' }> {
+  const { data } = await db.from('shopify_products').select('id, title, handle').eq('workspace_id', workspaceId).limit(100);
+  return matchProductsInPublication((data ?? []) as ProductCandidate[], source);
 }
 
 /**

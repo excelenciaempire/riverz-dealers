@@ -121,6 +121,51 @@ export async function briefDePublicacionPorId(
   return conv ? briefDePublicacion(db, conv) : null;
 }
 
+/**
+ * Contexto del post exacto de un comentario. Instagram y Facebook agrupan
+ * varios posts de la misma persona en un hilo, por lo que el id del hilo no
+ * siempre representa el comentario recién recibido.
+ */
+export async function briefDePublicacionPorOrigen(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string;
+    channel: 'ig_comment' | 'fb_comment';
+    postId: string;
+    connectionId?: string | null;
+  },
+): Promise<string | null> {
+  const medio = await briefDeMedio(db, {
+    workspaceId: args.workspaceId,
+    channel: args.channel,
+    externalId: args.postId,
+  }).catch(() => null);
+  const { data } = await db
+    .from('publicacion_contexto')
+    .select('titulo, cuerpo')
+    .eq('workspace_id', args.workspaceId)
+    .eq('channel', args.channel)
+    .eq('external_id', args.postId)
+    .maybeSingle();
+  const cached = data as { titulo?: string | null; cuerpo?: string | null } | null;
+  let texto = String(cached?.cuerpo ?? cached?.titulo ?? '').trim();
+  if (!texto && args.connectionId) {
+    texto = await textoDelPost(db, {
+      workspace_id: args.workspaceId,
+      channel: args.channel,
+      connection_id: args.connectionId,
+    } as Conversation, args.postId) ?? '';
+    if (texto) {
+      await db.from('publicacion_contexto').update({
+        cuerpo: texto.slice(0, 2000),
+        updated_at: new Date().toISOString(),
+      }).eq('workspace_id', args.workspaceId).eq('channel', args.channel).eq('external_id', args.postId);
+    }
+  }
+  if (!texto && !medio) return null;
+  return bloque(texto || 'Sin texto publicado.', args.channel, medio);
+}
+
 function bloque(
   texto: string,
   canal: "ig_comment" | "fb_comment",

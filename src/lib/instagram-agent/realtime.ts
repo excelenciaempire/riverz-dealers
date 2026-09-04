@@ -61,7 +61,7 @@ import { loadOrderStatus } from './order-status';
 import { loadCommentThread } from './comment-thread';
 import { loadProductBrain } from './product-brain';
 import { asksForPrice, unauthorizedQuotedPrices } from '@/lib/products/price-integrity';
-import { briefDePublicacionPorId } from '@/lib/channels/publicacion';
+import { briefDePublicacionPorId, briefDePublicacionPorOrigen } from '@/lib/channels/publicacion';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
 import {
@@ -1022,9 +1022,16 @@ async function decidirComentario(
   const priceQuestion = asksForPrice(engagement) && !orderStatus;
   // “Precio?” no nombra el producto: el producto está en la publicación. Sin
   // sumar ese contexto, el verificador no sabría qué página comprobar.
-  const postBrief = hilo
-    ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
-    : null;
+  const postBrief = opts.sourcePostId && (commentChannel === 'ig_comment' || commentChannel === 'fb_comment')
+    ? await briefDePublicacionPorOrigen(db, {
+        workspaceId: opts.workspaceId,
+        channel: commentChannel,
+        postId: opts.sourcePostId,
+        connectionId: opts.connection?.id ?? null,
+      }).catch(() => null)
+    : hilo
+      ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
+      : null;
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
