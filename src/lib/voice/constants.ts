@@ -138,11 +138,13 @@ export interface CuratedVoice {
   label: string;
   /** Locale hint for the UI grouping. */
   locale: 'es-MX' | 'es-CO' | 'es-AR' | 'es-419' | 'en-US';
-  gender: 'female' | 'male';
+  gender: 'female' | 'male' | 'neutral';
   /** De dónde viene la voz; permite separar la biblioteca de las voces del comercio. */
   source?: 'library' | 'custom';
   /** Fish entrena de forma asíncrona; no se puede elegir antes de que esté lista. */
   state?: 'created' | 'training' | 'trained' | 'failed';
+  /** Muestra pública del proveedor. Evita sintetizar audio sólo para explorar. */
+  preview_url?: string;
 }
 
 export const CURATED_VOICES: CuratedVoice[] = [

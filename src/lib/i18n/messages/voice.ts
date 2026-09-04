@@ -11,8 +11,8 @@ export const voice = {
   voiceLabel: { es: 'Voz del agente', en: 'Agent voice' },
   greeting: { es: 'Saludo inicial', en: 'Opening line' },
   greetingHint: {
-    es: 'Lo primero que dice al conectar. Usa {{contact_name}} para el nombre.',
-    en: 'The first thing said on connect. Use {{contact_name}} for the name.',
+    es: 'Puedes usar {{contact_name}} para el nombre.',
+    en: 'Use {{contact_name}} for the customer name.',
   },
   objectives: {
     es: 'Objetivos por tipo de llamada',
@@ -106,8 +106,8 @@ export const voice = {
   },
   voiceAgentsTitle: { es: 'Agentes de voz', en: 'Voice agents' },
   voiceAgentsHint: {
-    es: 'Crea y configura aquí quién habla por teléfono. Luego vincúlalo a un asistente de chat o a una automatización.',
-    en: 'Create and configure who speaks by phone here. Then link it to a chat assistant or an automation.',
+    es: 'Crea y administra tus agentes telefónicos.',
+    en: 'Create and manage your phone agents.',
   },
   voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
   voiceAgentFirst: {
@@ -117,8 +117,8 @@ export const voice = {
   voiceAgentCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceAgentNewTitle: { es: 'Nuevo agente de voz', en: 'New voice agent' },
   voiceAgentDialogHint: {
-    es: 'Configura cómo habla y atiende las llamadas.',
-    en: 'Configure how it speaks and handles calls.',
+    es: 'Voz y operación',
+    en: 'Voice and operations',
   },
   voiceAgentNameLabel: { es: 'Nombre', en: 'Name' },
   voiceAgentName: { es: 'Ej. Ventas', en: 'E.g. Sales' },
@@ -140,6 +140,14 @@ export const voice = {
   voiceAgentLinkedCount: {
     es: 'Vinculado en {count}',
     en: 'Linked in {count}',
+  },
+  voiceAgentNotLinked: { es: 'Sin vínculos', en: 'Not linked' },
+  voiceAgentEdit: { es: 'Editar agente', en: 'Edit agent' },
+  voiceAgentSettings: { es: 'Configuración', en: 'Settings' },
+  voiceAgentStats: { es: 'Estadísticas', en: 'Analytics' },
+  voiceAgentStatsEmpty: {
+    es: 'Aún no hay llamadas de este agente',
+    en: 'This agent has no calls yet',
   },
   voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
   voiceAgentCreated: { es: 'Agente de voz creado', en: 'Voice agent created' },
@@ -426,12 +434,12 @@ export const voice = {
   recordingEnabled: { es: 'Grabar llamadas', en: 'Record calls' },
   recordingDisclosure: { es: 'Avisar que se graba', en: 'Announce recording' },
   recordingDisclosureHint: {
-    es: 'El agente lo dice al saludar. Obligatorio para grabar en varios lugares (California, Florida, la UE…).',
-    en: 'The agent says it in the greeting. Required to record in several places (California, Florida, the EU…).',
+    es: 'Se incluye en el saludo cuando la ley exige consentimiento.',
+    en: 'Added to the greeting where consent is legally required.',
   },
   recordingHint: {
-    es: 'Guarda el audio; se escucha desde el registro de llamadas.',
-    en: 'Saves the audio; you can play it from the call log.',
+    es: 'Guarda el audio en el registro.',
+    en: 'Saves audio in the call log.',
   },
   transferNumber: {
     es: 'Transferir a un humano (número)',

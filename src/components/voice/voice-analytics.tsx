@@ -48,24 +48,35 @@ function Tile({ label, value }: { label: string; value: string }) {
 export function VoiceAnalytics({
   start,
   end,
-}: { start?: string; end?: string } = {}) {
+  agentId,
+  showEmpty = false,
+}: {
+  start?: string;
+  end?: string;
+  agentId?: string;
+  showEmpty?: boolean;
+} = {}) {
   const t = useT();
   const format = useFormat();
   const { workspace } = useWorkspace();
   const wsId = workspace?.id;
   const [data, setData] = useState<Analytics | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!wsId) return;
     let cancelled = false;
+    setLoading(true);
+    setData(null);
     const range =
       start && end
         ? `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
         : 'days=30';
     (async () => {
       try {
+        const agent = agentId ? `&agent_id=${encodeURIComponent(agentId)}` : '';
         const res = await fetch(
-          `/api/voice/analytics?workspace_id=${wsId}&${range}`,
+          `/api/voice/analytics?workspace_id=${wsId}&${range}${agent}`,
           {
             cache: 'no-store',
           }
@@ -73,14 +84,35 @@ export function VoiceAnalytics({
         if (res.ok && !cancelled) setData((await res.json()) as Analytics);
       } catch {
         /* no-op */
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [wsId, start, end]);
+  }, [wsId, start, end, agentId]);
 
-  if (!data || data.total === 0) return null;
+  if (loading && showEmpty) {
+    return (
+      <div className="grid min-h-56 place-items-center">
+        <span className="border-muted-foreground/30 border-t-foreground size-5 animate-spin rounded-full border-2" />
+      </div>
+    );
+  }
+
+  if (!data || data.total === 0) {
+    return showEmpty ? (
+      <div className="border-border bg-muted/20 grid min-h-56 place-items-center rounded-2xl border border-dashed text-center">
+        <div>
+          <PhoneCall className="text-muted-foreground mx-auto size-5" />
+          <p className="text-foreground mt-2 text-sm font-medium">
+            {t('voice.voiceAgentStatsEmpty')}
+          </p>
+        </div>
+      </div>
+    ) : null;
+  }
 
   const maxHour = Math.max(1, ...data.by_hour.map((h) => h.count));
 

@@ -26,8 +26,11 @@ const AUDIO_TYPES = new Set([
 type FishModel = {
   _id?: string;
   title?: string;
+  type?: 'tts' | 'svc';
   state?: 'created' | 'training' | 'trained' | 'failed';
   languages?: string[];
+  tags?: string[];
+  samples?: { audio?: string }[];
 };
 
 type WorkspaceVoice = {
@@ -52,16 +55,29 @@ async function fishKey() {
   );
 }
 
-async function fishLibraryPage(apiKey: string, page: number, query?: string) {
+function fishGender(tags?: string[]): 'female' | 'male' | 'neutral' {
+  const normalized = (tags ?? []).map((tag) => tag.toLowerCase());
+  if (normalized.some((tag) => tag === 'female' || tag === 'mujer'))
+    return 'female';
+  if (normalized.some((tag) => tag === 'male' || tag === 'hombre'))
+    return 'male';
+  return 'neutral';
+}
+
+async function fishLibraryPage(
+  apiKey: string | null,
+  page: number,
+  query?: string
+) {
   const url = new URL(FISH_MODEL_URL);
   url.searchParams.set('page_size', '24');
   url.searchParams.set('page_number', String(page));
   url.searchParams.set('language', 'es');
-  url.searchParams.set('licensed', 'true');
   url.searchParams.set('sort_by', 'score');
   if (query) url.searchParams.set('title', query);
+  const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : undefined;
   const res = await fetch(url, {
-    headers: { authorization: `Bearer ${apiKey}` },
+    headers,
     next: { revalidate: 300 },
   });
   if (!res.ok) throw new Error(`Fish library ${res.status}`);
@@ -71,14 +87,22 @@ async function fishLibraryPage(apiKey: string, page: number, query?: string) {
   };
   return {
     voices: (payload.items ?? [])
-      .filter((item) => isFishModelId(item._id) && item.state !== 'failed')
+      .filter(
+        (item) =>
+          isFishModelId(item._id) &&
+          item.type !== 'svc' &&
+          item.state !== 'failed'
+      )
       .map((item) => ({
         voice_id: item._id!,
         label: item.title?.trim() || 'Fish Audio',
         locale: 'es-419' as const,
-        gender: 'female' as const,
+        gender: fishGender(item.tags),
         source: 'library' as const,
         state: item.state ?? 'trained',
+        preview_url: item.samples?.find((sample) =>
+          sample.audio?.startsWith('https://')
+        )?.audio,
       })),
     hasMore: Boolean(payload.has_more),
   };
@@ -171,12 +195,15 @@ export async function GET(request: Request) {
     });
   }
 
-  const { data: mine } = await supabaseAdmin()
+  const { data: mine, error: mineError } = await supabaseAdmin()
     .from('workspace_voice_models')
     .select('provider_model_id, name, state')
     .eq('workspace_id', workspaceId)
     .eq('provider', 'fish')
     .order('created_at', { ascending: false });
+  if (mineError) {
+    console.error('[voice/voices] workspace voices unavailable', mineError);
+  }
   const apiKey = await fishKey();
   const ownVoices = apiKey
     ? await refreshCustomVoiceStates((mine ?? []) as WorkspaceVoice[], apiKey)
@@ -204,23 +231,21 @@ export async function GET(request: Request) {
     ...voice,
     source: 'library' as const,
   }));
-  let libraryStatus: 'fish' | 'fallback' | 'unavailable' = 'unavailable';
+  let libraryStatus: 'fish' | 'fallback' | 'unavailable' = 'fallback';
   let hasMore = false;
-  if (apiKey) {
-    try {
-      const listed = await fishLibraryPage(apiKey, page, search);
-      library = listed.voices;
-      hasMore = listed.hasMore;
-      libraryStatus = 'fish';
-    } catch (error) {
-      // La biblioteca no puede impedir elegir una voz propia o llamar. Las
-      // voces verificadas siguen disponibles, pero NUNCA se presentan como si
-      // fueran el catálogo en vivo de Fish.
-      console.error('[voice/voices] Fish library unavailable', error);
-      libraryStatus = 'fallback';
-    }
-  } else {
-    library = [];
+  try {
+    // El catálogo público de Fish no necesita una llave. Antes se ocultaba
+    // completo cuando no había secreto local y además se enviaba `licensed`,
+    // un filtro que Fish ya no soporta y que devolvía cero resultados.
+    const listed = await fishLibraryPage(apiKey, page, search);
+    library = listed.voices;
+    hasMore = listed.hasMore;
+    libraryStatus = 'fish';
+  } catch (error) {
+    // La biblioteca no puede impedir elegir una voz propia o llamar. Las
+    // voces verificadas siguen disponibles, pero NUNCA se presentan como si
+    // fueran el catálogo en vivo de Fish.
+    console.error('[voice/voices] Fish library unavailable', error);
   }
   return NextResponse.json({
     provider,

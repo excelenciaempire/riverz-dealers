@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AudioLines,
-  Check,
-  ChevronDown,
+  BarChart3,
+  Headphones,
   Loader2,
   Mic2,
+  Pencil,
   Plus,
   Trash2,
   X,
@@ -21,6 +21,7 @@ import {
   initialVoiceState,
   type VoiceState,
 } from '@/components/ai/voice-settings';
+import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useLocale, useT } from '@/hooks/use-locale';
 
@@ -55,7 +56,8 @@ export function VoiceAgentProfiles({
   const fetchWithCsrf = useFetchWithCsrf();
   const [agents, setAgents] = useState<VoiceAgent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<VoiceAgent | null>(null);
+  const [editorTab, setEditorTab] = useState<'settings' | 'stats'>('settings');
   const [agentName, setAgentName] = useState('');
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -130,6 +132,20 @@ export function VoiceAgentProfiles({
     setCreating(false);
   }
 
+  function openEditor(agent: VoiceAgent, tab: 'settings' | 'stats') {
+    setEditing(agent);
+    setEditorTab(tab);
+    setAgentName(agent.name);
+    setVoice(initialVoiceState(agent));
+  }
+
+  function closeEditor() {
+    if (saving) return;
+    setEditing(null);
+    setAgentName('');
+    setVoice(null);
+  }
+
   async function create() {
     if (!name.trim() || !workspaceId || saving) return;
     if (!newVoice.voice_id) {
@@ -181,8 +197,6 @@ export function VoiceAgentProfiles({
       setAgents((current) => [created, ...current]);
       setName('');
       setCreating(false);
-      setOpenId(null);
-      setVoice(null);
       toast.success(t('voice.voiceAgentCreated'));
       onSaved?.();
     } finally {
@@ -263,8 +277,8 @@ export function VoiceAgentProfiles({
         delete next[deleteTarget.id];
         return next;
       });
-      if (openId === deleteTarget.id) {
-        setOpenId(null);
+      if (editing?.id === deleteTarget.id) {
+        setEditing(null);
         setAgentName('');
         setVoice(null);
       }
@@ -315,15 +329,12 @@ export function VoiceAgentProfiles({
           <Loader2 className="text-muted-foreground size-5 animate-spin" />
         </div>
       ) : agents.length === 0 ? (
-        <div className="px-5 py-8 text-center sm:py-10">
-          <div className="bg-accent/10 text-accent-ink border-accent/20 mx-auto grid size-14 place-items-center rounded-2xl border">
-            <AudioLines className="size-6" />
+        <div className="px-5 py-10 text-center">
+          <div className="bg-accent/10 text-accent-ink mx-auto grid size-12 place-items-center rounded-2xl">
+            <Mic2 className="size-5" />
           </div>
-          <p className="text-foreground mt-4 text-sm font-medium">
+          <p className="text-foreground mt-3 text-sm font-medium">
             {t('voice.voiceAgentsEmptyTitle')}
-          </p>
-          <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
-            {t('voice.voiceAgentsEmpty')}
           </p>
           <Button type="button" className="mt-4" onClick={openCreate}>
             <Plus className="mr-1 size-4" />
@@ -331,44 +342,26 @@ export function VoiceAgentProfiles({
           </Button>
         </div>
       ) : (
-        <div className="space-y-2 p-3 sm:p-4">
+        <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
           {agents.map((agent) => {
-            const open = openId === agent.id;
             const ready =
               agent.is_active && agent.voice_enabled && !!agent.voice_id;
             return (
               <div
                 key={agent.id}
                 id={`voice-agent-${agent.id}`}
-                className={`overflow-hidden rounded-xl border transition-all ${
-                  open
-                    ? 'border-accent/50 bg-background shadow-sm'
-                    : 'border-border bg-muted/20 hover:border-border/80 hover:bg-muted/35'
-                }`}
+                className="border-border bg-background/60 hover:border-accent/40 group rounded-xl border p-4 transition-colors"
               >
-                <button
-                  type="button"
-                  className="group flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left sm:px-4"
-                  aria-expanded={open}
-                  onClick={() => {
-                    if (open) {
-                      setOpenId(null);
-                      return;
-                    }
-                    setOpenId(agent.id);
-                    setAgentName(agent.name);
-                    setVoice(initialVoiceState(agent));
-                  }}
-                >
+                <div className="flex items-start justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-3">
-                    <span className="bg-background text-foreground grid size-9 shrink-0 place-items-center rounded-full border text-sm font-semibold uppercase">
+                    <span className="bg-muted text-foreground grid size-10 shrink-0 place-items-center rounded-full text-sm font-semibold uppercase">
                       {agent.name.slice(0, 1)}
                     </span>
                     <span className="min-w-0">
-                      <span className="text-foreground block truncate text-sm font-medium">
+                      <span className="text-foreground block truncate text-sm font-semibold">
                         {agent.name}
                       </span>
-                      <span className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
+                      <span className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
                         <span
                           className={`size-1.5 rounded-full ${ready ? 'bg-emerald-500' : 'bg-amber-500'}`}
                         />
@@ -377,96 +370,189 @@ export function VoiceAgentProfiles({
                           : agent.is_active
                             ? t('voice.voiceAgentNeedsVoice')
                             : t('voice.voiceAgentPaused')}
-                        {(usageByAgent[agent.id] ?? 0) > 0 && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            {t('voice.voiceAgentLinkedCount', {
-                              count: String(usageByAgent[agent.id]),
-                            })}
-                          </>
-                        )}
                       </span>
                     </span>
                   </span>
-                  <span className="bg-background grid size-8 shrink-0 place-items-center rounded-lg border">
-                    <ChevronDown
-                      className={`text-muted-foreground size-4 transition-transform ${open ? 'rotate-180' : ''}`}
-                    />
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t('voice.voiceAgentEdit')}
+                    onClick={() => openEditor(agent, 'settings')}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                </div>
+
+                <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-3">
+                  <span className="text-muted-foreground truncate text-xs">
+                    {(usageByAgent[agent.id] ?? 0) > 0
+                      ? t('voice.voiceAgentLinkedCount', {
+                          count: String(usageByAgent[agent.id]),
+                        })
+                      : t('voice.voiceAgentNotLinked')}
                   </span>
-                </button>
-                {open && voice && (
-                  <div className="border-border bg-card border-t px-4 py-5 sm:px-5">
-                    <div className="border-border bg-muted/25 mb-5 grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                      <label className="block">
-                        <span className="text-foreground mb-1.5 block text-xs font-medium">
-                          {t('voice.voiceAgentNameLabel')}
-                        </span>
-                        <Input
-                          value={agentName}
-                          onChange={(event) => setAgentName(event.target.value)}
-                          maxLength={80}
-                          className="bg-background h-9"
-                        />
-                      </label>
-                      <div className="flex h-9 items-center justify-between gap-4 sm:justify-end">
-                        <span className="text-foreground flex items-center gap-2 text-sm font-medium">
-                          <span
-                            className={`grid size-7 place-items-center rounded-lg ${voice.voice_enabled ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}
-                          >
-                            <Check className="size-3.5" />
-                          </span>
-                          {t('voice.enable')}
-                        </span>
-                        <Switch
-                          checked={voice.voice_enabled}
-                          onCheckedChange={(enabled) =>
-                            setVoice({ ...voice, voice_enabled: enabled })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <VoiceSettings
-                      value={voice}
-                      onChange={setVoice}
-                      language={agent.language ?? locale}
-                      workspaceId={workspaceId}
-                      agentId={agent.id}
-                      showReadiness={false}
-                      onBeforeTestCall={() => save(agent, false)}
-                      testCallDisabled={saving}
-                    />
-                    <div className="border-border mt-5 flex items-center justify-between gap-3 border-t pt-4">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeleteTarget(agent)}
-                        disabled={saving}
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="mr-1 size-3.5" />
-                        {t('voice.voiceAgentDelete')}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => save(agent)}
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          t('voice.save')
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 gap-1.5"
+                    onClick={() => openEditor(agent, 'stats')}
+                  >
+                    <BarChart3 className="size-3.5" />
+                    {t('voice.voiceAgentStats')}
+                  </Button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <Dialog
+        open={!!editing}
+        onOpenChange={(open) => {
+          if (!open) closeEditor();
+        }}
+      >
+        <DialogContent
+          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
+          showCloseButton={false}
+        >
+          <div className="border-border flex items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="bg-accent/15 text-accent-ink grid size-9 shrink-0 place-items-center rounded-xl">
+                <Headphones className="size-4" />
+              </span>
+              <DialogTitle className="truncate text-base font-semibold">
+                {agentName || editing?.name}
+              </DialogTitle>
+            </div>
+            <button
+              type="button"
+              onClick={closeEditor}
+              disabled={saving}
+              aria-label={t('common.close')}
+              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded-lg p-1.5 transition-colors disabled:opacity-50"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="border-border flex gap-1 border-b px-4 py-2 sm:px-6">
+            {(['settings', 'stats'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setEditorTab(tab)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  editorTab === tab
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab === 'settings'
+                  ? t('voice.voiceAgentSettings')
+                  : t('voice.voiceAgentStats')}
+              </button>
+            ))}
+          </div>
+
+          <div className="overflow-y-auto px-4 py-5 sm:px-6">
+            {editing && voice && editorTab === 'settings' ? (
+              <div className="mx-auto max-w-3xl space-y-5">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <label className="block">
+                    <span className="text-foreground mb-1.5 block text-xs font-medium">
+                      {t('voice.voiceAgentNameLabel')}
+                    </span>
+                    <Input
+                      value={agentName}
+                      onChange={(event) => setAgentName(event.target.value)}
+                      maxLength={80}
+                      className="bg-background h-9"
+                    />
+                  </label>
+                  <label className="border-border flex h-9 cursor-pointer items-center gap-3 rounded-lg border px-3">
+                    <span className="text-foreground text-xs font-medium">
+                      {t('voice.enable')}
+                    </span>
+                    <Switch
+                      checked={voice.voice_enabled}
+                      onCheckedChange={(enabled) =>
+                        setVoice({ ...voice, voice_enabled: enabled })
+                      }
+                    />
+                  </label>
+                </div>
+                <VoiceSettings
+                  value={voice}
+                  onChange={setVoice}
+                  language={editing.language ?? locale}
+                  workspaceId={workspaceId}
+                  agentId={editing.id}
+                  showReadiness={false}
+                  onBeforeTestCall={() => save(editing, false)}
+                  testCallDisabled={saving}
+                />
+              </div>
+            ) : editing ? (
+              <VoiceAnalytics agentId={editing.id} showEmpty />
+            ) : null}
+          </div>
+
+          <div className="border-border bg-card/60 flex items-center justify-between gap-2 border-t px-4 py-4 sm:px-6">
+            {editorTab === 'settings' && editing ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setDeleteTarget(editing)}
+                  disabled={saving}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="mr-1 size-3.5" />
+                  {t('voice.voiceAgentDelete')}
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={closeEditor}
+                    disabled={saving}
+                  >
+                    {t('voice.voiceAgentCancel')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void save(editing)}
+                    disabled={saving || !agentName.trim()}
+                  >
+                    {saving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      t('voice.save')
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto"
+                onClick={closeEditor}
+              >
+                {t('common.close')}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={creating}

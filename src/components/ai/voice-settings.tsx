@@ -216,6 +216,7 @@ export function VoiceSettings({
   const previewRequestRef = useRef<AbortController | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
+  const [verSetup, setVerSetup] = useState(false);
   const [voces, setVoces] = useState<CuratedVoice[] | null>(null);
   const [proveedorVoz, setProveedorVoz] = useState<string | null>(null);
   // Un perfil nuevo debe mostrar la biblioteca de inmediato; esconder la única
@@ -388,7 +389,9 @@ export function VoiceSettings({
     }
   }
 
-  async function preview(voiceId: string) {
+  async function preview(voice: CuratedVoice | string) {
+    const voiceId = typeof voice === 'string' ? voice : voice.voice_id;
+    const publicPreview = typeof voice === 'string' ? null : voice.preview_url;
     const stoppingSameVoice = previewing === voiceId;
     previewRequestRef.current?.abort();
     previewRequestRef.current = null;
@@ -403,42 +406,49 @@ export function VoiceSettings({
     previewRequestRef.current = controller;
     setPreviewing(voiceId);
     try {
-      const res = await fetchWithCsrf('/api/voice/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspace_id: workspaceId,
-          voice_id: voiceId,
-          language,
-        }),
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      if (!res.ok) {
-        toast.error(t('voice.voicePreviewFailed'));
-        setPreviewing(null);
-        return;
+      let url = publicPreview;
+      if (!url) {
+        const res = await fetchWithCsrf('/api/voice/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspace_id: workspaceId,
+            voice_id: voiceId,
+            language,
+          }),
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          toast.error(t('voice.voicePreviewFailed'));
+          setPreviewing(null);
+          return;
+        }
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        audioUrlRef.current = url;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audioUrlRef.current = url;
       audio.onended = () => {
         if (audioRef.current === audio) {
           audioRef.current = null;
           setPreviewing(null);
         }
-        URL.revokeObjectURL(url);
-        if (audioUrlRef.current === url) audioUrlRef.current = null;
+        if (audioUrlRef.current === url) {
+          URL.revokeObjectURL(url);
+          audioUrlRef.current = null;
+        }
       };
       audio.onerror = () => {
         if (audioRef.current === audio) {
           audioRef.current = null;
           setPreviewing(null);
         }
-        URL.revokeObjectURL(url);
-        if (audioUrlRef.current === url) audioUrlRef.current = null;
+        if (audioUrlRef.current === url) {
+          URL.revokeObjectURL(url);
+          audioUrlRef.current = null;
+        }
         toast.error(t('voice.voicePreviewFailed'));
       };
       await audio.play();
@@ -618,38 +628,45 @@ export function VoiceSettings({
       {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
           medio del formulario, después de la caja de probar. */}
       {workspaceId && (
-        <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
-          <div className="mb-1 flex items-center gap-2">
-            <Sparkles className="text-accent-ink h-4 w-4" />
-            <p className="text-foreground text-sm font-medium">
-              {t('voice.setupTitle')}
-            </p>
-          </div>
-          <p className="text-muted-foreground mb-2 text-xs">
-            {t('voice.setupHint')}
-          </p>
-          <Textarea
-            className="bg-background text-foreground min-h-16"
-            placeholder={t('voice.setupPlaceholder')}
-            value={setupText}
-            onChange={(e) => setSetupText(e.target.value)}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button
-              size="sm"
-              onClick={aiSetup}
-              disabled={setupLoading || !setupText.trim()}
-            >
-              {setupLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Sparkles className="mr-1 h-3.5 w-3.5" />
-                  {t('voice.setupApply')}
-                </>
-              )}
-            </Button>
-          </div>
+        <div className="border-border overflow-hidden rounded-xl border">
+          <button
+            type="button"
+            onClick={() => setVerSetup((current) => !current)}
+            className="hover:bg-muted/30 flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="text-accent-ink size-4" />
+              <span className="text-foreground text-sm font-medium">
+                {t('voice.setupTitle')}
+              </span>
+            </span>
+            <ChevronDown
+              className={`text-muted-foreground size-4 transition-transform ${verSetup ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {verSetup && (
+            <div className="border-border bg-muted/20 border-t p-3.5">
+              <Textarea
+                className="bg-background text-foreground min-h-16"
+                placeholder={t('voice.setupPlaceholder')}
+                value={setupText}
+                onChange={(e) => setSetupText(e.target.value)}
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={aiSetup}
+                  disabled={setupLoading || !setupText.trim()}
+                >
+                  {setupLoading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    t('voice.setupApply')
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -674,7 +691,7 @@ export function VoiceSettings({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => preview(value.voice_id!)}
+                  onClick={() => preview(vozElegida ?? value.voice_id!)}
                   disabled={!vozElegidaDisponible}
                   className="gap-1.5"
                 >
@@ -693,7 +710,7 @@ export function VoiceSettings({
                 onClick={() => setVerVoces((v) => !v)}
                 className="text-accent-ink px-1.5 text-xs hover:underline"
               >
-                {t('voice.numberChange')}
+                {verVoces ? t('common.close') : t('voice.numberChange')}
               </button>
             </span>
           </div>
@@ -907,34 +924,6 @@ export function VoiceSettings({
           )}
         </div>
       )}
-      {voces !== null &&
-        voces.length === 0 &&
-        (proveedorVoz === 'fish' && estadoBiblioteca === 'fish' ? (
-          <p className="text-muted-foreground text-xs">
-            {t('voice.voiceLibraryNoResults')}
-          </p>
-        ) : proveedorVoz === 'fish' && estadoBiblioteca === 'unavailable' ? (
-          <div className="border-border rounded-lg border border-dashed p-3">
-            <p className="text-muted-foreground text-xs">
-              {t('voice.voiceLibraryUnavailable')}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="mt-1"
-              onClick={() => void cargarVoces()}
-            >
-              {t('voice.voiceLibraryRetry')}
-            </Button>
-          </div>
-        ) : (
-          // Sin curaduría para el proveedor activo no se dibuja un selector falso.
-          <p className="text-muted-foreground text-xs">
-            {t('voice.voicePlatform')}
-          </p>
-        ))}
-
       <div>
         <p className="text-foreground mb-1 text-sm font-medium">
           {t('voice.greeting')}
@@ -959,9 +948,6 @@ export function VoiceSettings({
         <div className="border-border bg-muted/20 border-b px-3.5 py-3">
           <p className="text-foreground text-sm font-medium">
             {t('voice.agentOperations')}
-          </p>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            {t('voice.agentOperationsHint')}
           </p>
         </div>
         <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
@@ -1581,7 +1567,7 @@ function VoiceList({
   selectedId: string | null;
   previewingId: string | null;
   onSelect: (id: string) => void;
-  onPreview: (id: string) => void;
+  onPreview: (voice: CuratedVoice) => void;
   trainingLabel: string;
   failedLabel: string;
 }) {
@@ -1612,7 +1598,9 @@ function VoiceList({
                 <p className="text-foreground text-sm">{voice.label}</p>
                 <p className="text-muted-foreground text-[11px]">
                   {available
-                    ? `${voice.locale} · ${voice.gender === 'female' ? '♀' : '♂'}`
+                    ? voice.gender === 'neutral'
+                      ? voice.locale
+                      : `${voice.locale} · ${voice.gender === 'female' ? '♀' : '♂'}`
                     : voice.state === 'failed'
                       ? failedLabel
                       : trainingLabel}
@@ -1623,7 +1611,7 @@ function VoiceList({
                 size="sm"
                 variant="ghost"
                 disabled={!available}
-                onClick={() => onPreview(voice.voice_id)}
+                onClick={() => onPreview(voice)}
                 className="gap-1.5"
                 aria-label={
                   previewingId === voice.voice_id
