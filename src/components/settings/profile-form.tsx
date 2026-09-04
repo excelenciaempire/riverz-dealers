@@ -38,6 +38,13 @@ const ALLOWED_MIME = new Set([
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type AlertNumber = { phone: string; scope: AlertDestinationScope };
 
+function parseLegacyAlertNumber(value: string): AlertNumber {
+  const match = /^(escalations|notifications|both)::(.+)$/.exec(value);
+  return match
+    ? { scope: match[1] as AlertDestinationScope, phone: match[2] }
+    : { scope: 'both', phone: value };
+}
+
 /**
  * Cuántos números extra se pueden cargar.
  *
@@ -93,10 +100,7 @@ export function ProfileForm() {
     const propios = (
       w.alert_destinations?.length
         ? w.alert_destinations
-        : (w.alert_phones ?? []).map((phone) => ({
-            phone,
-            scope: 'both' as const,
-          }))
+        : (w.alert_phones ?? []).map(parseLegacyAlertNumber)
     ).filter((x) => x.phone);
     const propio = sanitizePhoneForMeta(profile.phone ?? '');
     const principal = propios.find(
@@ -284,9 +288,29 @@ export function ProfileForm() {
           })
           .eq('id', workspace.id);
         if (wsError) {
-          throw new Error(
-            t('settings.saveFailed', { message: wsError.message })
-          );
+          // Durante el despliegue la aplicación puede actualizarse unos
+          // segundos antes que la migración. Conservamos el mismo dato en el
+          // campo anterior, con el alcance prefijado, para no bloquear a quien
+          // está configurando guardias justo en ese momento.
+          if (!wsError.message.includes('alert_destinations')) {
+            throw new Error(
+              t('settings.saveFailed', { message: wsError.message })
+            );
+          }
+          const { error: legacyError } = await supabase
+            .from('workspaces')
+            .update({
+              alert_phones: sinDuplicados.map(
+                (x) => `${x.scope}::${x.phone}`
+              ),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', workspace.id);
+          if (legacyError) {
+            throw new Error(
+              t('settings.saveFailed', { message: legacyError.message })
+            );
+          }
         }
         reloadWorkspace();
       }
@@ -350,7 +374,7 @@ export function ProfileForm() {
     (
       (workspace as unknown as { alert_phones?: string[] | null } | null)
         ?.alert_phones ?? []
-    ).map((phone) => ({ phone, scope: 'both' as const }));
+    ).map(parseLegacyAlertNumber);
   const savedPrimaryScope =
     savedDestinations.find(
       (x) =>
