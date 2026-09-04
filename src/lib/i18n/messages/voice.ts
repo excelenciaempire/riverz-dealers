@@ -112,7 +112,17 @@ export const voice = {
   voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
   voiceAgentFirst: { es: 'Crear mi primer agente', en: 'Create my first agent' },
   voiceAgentCancel: { es: 'Cancelar', en: 'Cancel' },
-  voiceAgentName: { es: 'Nombre del agente de voz', en: 'Voice agent name' },
+  voiceAgentNewTitle: { es: 'Nuevo agente de voz', en: 'New voice agent' },
+  voiceAgentDialogHint: {
+    es: 'Configura cómo habla y atiende las llamadas.',
+    en: 'Configure how it speaks and handles calls.',
+  },
+  voiceAgentNameLabel: { es: 'Nombre', en: 'Name' },
+  voiceAgentName: { es: 'Ej. Ventas', en: 'E.g. Sales' },
+  voiceAgentChooseVoice: {
+    es: 'Elige una voz para continuar.',
+    en: 'Choose a voice to continue.',
+  },
   voiceAgentsEmptyTitle: { es: 'Dale una voz a tu negocio', en: 'Give your business a voice' },
   voiceAgentsEmpty: {
     es: 'Elige cómo habla, qué dice y cuándo está disponible.',

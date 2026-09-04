@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   VoiceSettings,
   initialVoiceState,
@@ -57,6 +58,10 @@ export function VoiceAgentProfiles({
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  const [newVoice, setNewVoice] = useState<VoiceState>(() => ({
+    ...initialVoiceState(),
+    voice_enabled: true,
+  }));
   const [saving, setSaving] = useState(false);
   const [usageByAgent, setUsageByAgent] = useState<Record<string, number>>({});
 
@@ -110,8 +115,23 @@ export function VoiceAgentProfiles({
     void load();
   }, [load]);
 
+  function openCreate() {
+    setName('');
+    setNewVoice({ ...initialVoiceState(), voice_enabled: true });
+    setCreating(true);
+  }
+
+  function closeCreate() {
+    if (saving) return;
+    setCreating(false);
+  }
+
   async function create() {
     if (!name.trim() || !workspaceId || saving) return;
+    if (!newVoice.voice_id) {
+      toast.error(t('voice.voiceAgentChooseVoice'));
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetchWithCsrf('/api/ai/agents', {
@@ -126,7 +146,17 @@ export function VoiceAgentProfiles({
           channels: ['voice'],
           voice_enabled: true,
           voice_ai_decides: false,
-          voice_accepts_inbound: false,
+          voice_id: newVoice.voice_id,
+          voice_greeting: newVoice.voice_greeting.trim() || null,
+          voice_system_prompt: newVoice.voice_system_prompt.trim() || null,
+          voice_objectives: newVoice.voice_objectives,
+          voice_max_call_seconds: newVoice.voice_max_call_seconds,
+          voice_calling_hours: newVoice.voice_calling_hours,
+          voice_max_retries: newVoice.voice_max_retries,
+          voice_retry_delay_minutes: newVoice.voice_retry_delay_minutes,
+          voice_accepts_inbound: newVoice.voice_accepts_inbound,
+          voice_transfer_number:
+            newVoice.voice_transfer_number.trim() || null,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -141,8 +171,8 @@ export function VoiceAgentProfiles({
       setAgents((current) => [created, ...current]);
       setName('');
       setCreating(false);
-      setOpenId(created.id);
-      setVoice(initialVoiceState(created));
+      setOpenId(null);
+      setVoice(null);
       toast.success(t('voice.voiceAgentCreated'));
       onSaved?.();
     } finally {
@@ -212,55 +242,16 @@ export function VoiceAgentProfiles({
             <Button
               type="button"
               size="sm"
-              variant={creating ? 'ghost' : 'outline'}
-              onClick={() => setCreating((value) => !value)}
+              variant="outline"
+              onClick={openCreate}
               className="relative shrink-0"
             >
-              {creating ? (
-                <X className="mr-1 size-3.5" />
-              ) : (
-                <Plus className="mr-1 size-3.5" />
-              )}
-              {creating
-                ? t('voice.voiceAgentCancel')
-                : t('voice.voiceAgentCreate')}
+              <Plus className="mr-1 size-3.5" />
+              {t('voice.voiceAgentCreate')}
             </Button>
           )}
         </div>
       </div>
-
-      {creating && (
-        <div className="border-border bg-background/70 border-b p-4 sm:p-5">
-          <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
-            <Input
-              className="bg-background text-foreground h-10"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void create();
-              }}
-              placeholder={t('voice.voiceAgentName')}
-              maxLength={80}
-              autoFocus
-            />
-            <Button
-              type="button"
-              onClick={create}
-              disabled={saving || !name.trim()}
-              className="h-10 shrink-0"
-            >
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <>
-                  <Plus className="mr-1 size-4" />
-                  {t('voice.voiceAgentCreate')}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="grid min-h-36 place-items-center">
@@ -277,16 +268,10 @@ export function VoiceAgentProfiles({
           <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
             {t('voice.voiceAgentsEmpty')}
           </p>
-          {!creating && (
-            <Button
-              type="button"
-              className="mt-4"
-              onClick={() => setCreating(true)}
-            >
-              <Plus className="mr-1 size-4" />
-              {t('voice.voiceAgentFirst')}
-            </Button>
-          )}
+          <Button type="button" className="mt-4" onClick={openCreate}>
+            <Plus className="mr-1 size-4" />
+            {t('voice.voiceAgentFirst')}
+          </Button>
         </div>
       ) : (
         <div className="space-y-2 p-3 sm:p-4">
@@ -397,6 +382,94 @@ export function VoiceAgentProfiles({
           })}
         </div>
       )}
+
+      <Dialog
+        open={creating}
+        onOpenChange={(open) => {
+          if (!open) closeCreate();
+        }}
+      >
+        <DialogContent
+          className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-4xl"
+          showCloseButton={false}
+        >
+          <div className="border-border flex items-start justify-between gap-4 border-b px-4 py-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="bg-accent/15 text-accent-ink grid size-9 shrink-0 place-items-center rounded-xl">
+                <Mic2 className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle className="text-foreground text-base font-semibold">
+                  {t('voice.voiceAgentNewTitle')}
+                </DialogTitle>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {t('voice.voiceAgentDialogHint')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeCreate}
+              disabled={saving}
+              aria-label={t('common.close')}
+              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded-lg p-1.5 transition-colors disabled:opacity-50"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="overflow-y-auto px-4 py-5 sm:px-6">
+            <div className="mx-auto max-w-3xl space-y-6">
+              <label className="block">
+                <span className="text-foreground mb-1.5 block text-sm font-medium">
+                  {t('voice.voiceAgentNameLabel')}
+                </span>
+                <Input
+                  className="bg-background text-foreground h-10"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t('voice.voiceAgentName')}
+                  maxLength={80}
+                  autoFocus
+                />
+              </label>
+
+              <VoiceSettings
+                value={newVoice}
+                onChange={setNewVoice}
+                language={locale}
+                workspaceId={workspaceId}
+                showReadiness={false}
+                showTestCall={false}
+              />
+            </div>
+          </div>
+
+          <div className="border-border bg-card/60 flex flex-wrap items-center justify-end gap-2 border-t px-4 py-4 sm:px-6">
+            {!newVoice.voice_id && (
+              <p className="text-muted-foreground mr-auto text-xs">
+                {t('voice.voiceAgentChooseVoice')}
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeCreate}
+              disabled={saving}
+            >
+              {t('voice.voiceAgentCancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={create}
+              disabled={saving || !name.trim() || !newVoice.voice_id}
+            >
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              {t('voice.voiceAgentCreate')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -157,6 +157,8 @@ export function VoiceSettings({
   language,
   workspaceId,
   agentId,
+  showReadiness = true,
+  showTestCall = true,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
@@ -164,6 +166,10 @@ export function VoiceSettings({
   workspaceId?: string;
   /** null en un agente que todavía no se guardó: sin id no se puede llamar. */
   agentId?: string | null;
+  /** Al crear, el estado global todavía no puede evaluar un agente sin id. */
+  showReadiness?: boolean;
+  /** Una llamada de prueba sólo tiene sentido después del primer guardado. */
+  showTestCall?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -460,11 +466,13 @@ export function VoiceSettings({
       {/* Si este agente puede atender el teléfono, y si no, por qué. Antes acá
           había una línea de datos que sólo sabía decir el número: si el agente
           estaba pausado o no había número, se callaba. */}
-      <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
+      {showReadiness && (
+        <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
+      )}
 
       {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
           medio del formulario, después de la caja de probar. */}
-      {workspaceId && (
+      {workspaceId && showTestCall && (
         <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
           <div className="mb-1 flex items-center gap-2">
             <Sparkles className="text-accent-ink h-4 w-4" />
