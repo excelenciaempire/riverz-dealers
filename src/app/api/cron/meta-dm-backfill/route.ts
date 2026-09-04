@@ -311,7 +311,10 @@ async function listaDeSupresion(channel: string): Promise<Set<string>> {
     supabaseAdmin(),
     "deleted_meta_participants",
     (q) => q.eq("channel", channel),
-    { select: "external_id" },
+    // La tabla tiene PK compuesta (channel, external_id), no columna `id`.
+    // Sin este orderBy, selectAll fallaba y devolvía una lista vacía: un
+    // participante borrado podía ser descubierto y creado otra vez.
+    { select: "external_id", orderBy: "external_id" },
   );
   return new Set(tombs.map((t) => String(t.external_id)));
 }
