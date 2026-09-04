@@ -98,6 +98,9 @@ describe('renovar', () => {
       token_expires_at: new Date(Date.now() - 1000).toISOString(),
       refresh_token_encrypted: encrypt('refresh_viejo'),
       refresh_token_expires_at: null,
+      connection_method: 'oauth',
+      client_id_encrypted: null,
+      webhook_secret: null,
     })
 
     expect(r.renovado).toBe(true)
@@ -122,6 +125,9 @@ describe('renovar', () => {
       token_expires_at: new Date(Date.now() - 1000).toISOString(),
       refresh_token_encrypted: encrypt('refresh_viejo'),
       refresh_token_expires_at: null,
+      connection_method: 'oauth',
+      client_id_encrypted: null,
+      webhook_secret: null,
     })
 
     expect(r.renovado).toBe(false)
@@ -144,6 +150,9 @@ describe('renovar', () => {
       token_expires_at: null,
       refresh_token_encrypted: null,
       refresh_token_expires_at: null,
+      connection_method: 'admin_token',
+      client_id_encrypted: null,
+      webhook_secret: null,
     })
 
     expect(r.accessToken).toBe('shpca_viejo')
