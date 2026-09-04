@@ -13,6 +13,7 @@ import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection, Contact, Conversation, Message } from "@/types";
 import { isButtonUrlVariable } from "@/lib/whatsapp/dynamic-links";
+import { emitWebhook } from '@/lib/webhooks/outbound';
 
 /**
  * ¿La plantilla lleva un botón de enlace VARIABLE (carrito, seguimiento…)?
@@ -395,6 +396,13 @@ export async function POST(req: Request): Promise<Response> {
       updated_at: sentAt,
     })
     .eq("id", (conversation as Conversation).id);
+
+  // La entrega al destino nunca puede bloquear la respuesta de la bandeja.
+  void emitWebhook((conversation as Conversation).workspace_id, 'message.sent', {
+    conversation_id: (conversation as Conversation).id,
+    message_id: (message as Message | null)?.id ?? null,
+    channel,
+  }).catch((error) => console.error('[webhook] outbound message delivery failed', error));
 
   return NextResponse.json({
     ok: true,

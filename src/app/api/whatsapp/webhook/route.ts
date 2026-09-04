@@ -18,6 +18,7 @@ import { attributeExperimentResponse } from '@/lib/automations/template-ab-attri
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { metaErrorText, metaErrorCode } from '@/lib/whatsapp/delivery-errors'
+import { emitWebhook } from '@/lib/webhooks/outbound'
 import {
   handleTemplateStatusUpdate,
   handleTemplateQualityUpdate,
@@ -1001,6 +1002,16 @@ async function processMessage(
     }
     console.error('Error inserting message:', msgError)
     return
+  }
+
+  // Best-effort: el webhook de Meta tiene que devolver 200 sin esperar a los
+  // destinos externos. El evento no incluye el texto ni otros datos sensibles.
+  if (conversation.workspace_id) {
+    void emitWebhook(conversation.workspace_id, 'message.received', {
+      conversation_id: conversation.id,
+      message_id: message.id,
+      channel: 'whatsapp',
+    }).catch((error) => console.error('[webhook] inbound message delivery failed', error))
   }
 
   // A/B attribution is intentionally before flows/AI: the customer's first

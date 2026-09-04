@@ -32,6 +32,7 @@ import { MercadoPagoCard } from '@/components/settings/mercadopago-card';
 import { KlaviyoCard } from '@/components/settings/klaviyo-card';
 import { MetaPixelCard } from '@/components/settings/meta-pixel-card';
 import { MercadoLibreConnect } from '@/components/settings/mercadolibre-connect';
+import { WebhooksCard } from '@/components/settings/webhooks-card';
 import { cn } from '@/lib/utils';
 
 /**
@@ -779,6 +780,7 @@ export function ChannelsPanel() {
         <MercadoPagoCard />
         <MetaPixelCard />
         <KlaviyoCard />
+        {isAdmin && <WebhooksCard />}
       </ul>
     </div>
   );

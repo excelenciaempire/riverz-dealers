@@ -2,6 +2,19 @@ import type { Namespace } from './types';
 
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
+  webhooksTitle: { es: 'Webhooks', en: 'Webhooks' },
+  webhooksDescription: { es: 'Envía eventos de Riverz a tus automatizaciones.', en: 'Send Riverz events to your automations.' },
+  webhookNew: { es: 'Nuevo webhook', en: 'New webhook' },
+  webhookConnectWith: { es: 'Conectar con {name}', en: 'Connect with {name}' },
+  webhookName: { es: 'Nombre del webhook', en: 'Webhook name' },
+  webhookCopied: { es: 'Copiado', en: 'Copied' },
+  webhookInvalid: { es: 'Revisa el nombre, la URL HTTPS y los eventos.', en: 'Check the name, HTTPS URL and events.' },
+  webhookSecretTitle: { es: 'Guarda este secreto', en: 'Save this secret' },
+  webhookSecretDescription: { es: 'Solo se muestra una vez. Úsalo para validar la firma HMAC SHA-256.', en: 'It is shown only once. Use it to validate the HMAC SHA-256 signature.' },
+  webhookEvents: { es: 'eventos', en: 'events' },
+  webhookSendTest: { es: 'Enviar prueba', en: 'Send test' },
+  webhookTestSent: { es: 'Prueba enviada', en: 'Test sent' },
+  webhookDeleted: { es: 'Webhook eliminado', en: 'Webhook deleted' },
   title: { es: 'Ajustes', en: 'Settings' },
   integrations: { es: 'Integraciones', en: 'Integrations' },
 
