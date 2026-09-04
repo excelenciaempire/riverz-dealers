@@ -9,6 +9,10 @@ import {
   SCHEDULED_JOBS,
   type ScheduledJob,
 } from './schedule';
+import {
+  JOB_RECOVERY_DELAY_MS,
+  shouldRetryScheduledResponse,
+} from './recovery';
 
 const log = getLogger('scheduler');
 
@@ -72,41 +76,51 @@ function baseUrl(): string {
 }
 
 async function runJob(
-  name: string,
-  path: string,
+  job: ScheduledJob,
   secret: string,
-  timeoutMs: number
 ): Promise<void> {
   const s = state();
   // Un trabajo que todavía corre no se vuelve a lanzar: meta-dm-backfill tarda
   // ~22 min y con schedule horario se apilaba encima de sí mismo.
-  if (s.inFlight.has(name)) {
-    log.warn('job skipped (still running)', { job: name });
+  if (s.inFlight.has(job.name)) {
+    log.warn('job skipped (still running)', { job: job.name });
     return;
   }
-  s.inFlight.add(name);
-  const startedAt = Date.now();
+  s.inFlight.add(job.name);
   try {
-    const res = await fetch(baseUrl() + path, {
-      method: 'GET',
-      headers: { 'x-cron-secret': secret },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const ms = Date.now() - startedAt;
-    // 207 es 2xx pero los polls de correo lo usan para "falló una casilla".
-    if (!res.ok || res.status === 207) {
-      log.warn('job failed', { job: name, status: res.status, ms });
-    } else {
-      log.info('job ok', { job: name, status: res.status, ms });
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const startedAt = Date.now();
+      const res = await fetch(baseUrl() + job.path, {
+        method: 'GET',
+        headers: { 'x-cron-secret': secret },
+        signal: AbortSignal.timeout(job.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      });
+      const ms = Date.now() - startedAt;
+      // 207 es 2xx pero los sincronizadores lo usan para "falló una cuenta".
+      if (res.ok && res.status !== 207) {
+        log.info('job ok', { job: job.name, status: res.status, ms, attempt });
+        return;
+      }
+      if (shouldRetryScheduledResponse({ job, status: res.status, durationMs: ms, attempt })) {
+        log.warn('job failed; automatic recovery queued', {
+          job: job.name,
+          status: res.status,
+          ms,
+        });
+        await res.body?.cancel().catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, JOB_RECOVERY_DELAY_MS));
+        continue;
+      }
+      log.warn('job failed', { job: job.name, status: res.status, ms, attempt });
+      return;
     }
   } catch (err) {
     log.error('job threw', {
-      job: name,
-      ms: Date.now() - startedAt,
+      job: job.name,
       error: err instanceof Error ? err.message : String(err),
     });
   } finally {
-    s.inFlight.delete(name);
+    s.inFlight.delete(job.name);
   }
 }
 
@@ -219,12 +233,7 @@ function tick(secret: string): void {
     // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
     // Cada uno registra su propio resultado.
     for (const job of jobs) {
-      void runJob(
-        job.name,
-        job.path,
-        secret,
-        job.timeoutMs ?? DEFAULT_TIMEOUT_MS
-      );
+      void runJob(job, secret);
     }
   })();
 }
