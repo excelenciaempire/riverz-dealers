@@ -734,17 +734,13 @@ export function VoiceSettings({
           <p className="text-foreground mb-1 text-sm font-medium">
             {t('voice.voiceLabel')}
           </p>
-          {/* Una fila con la elegida, no cuatro tarjetas apiladas. */}
-          <div className="border-border bg-muted/40 flex items-center justify-between rounded-lg border px-3 py-2">
-            <span className="text-foreground text-sm">
-              {vozElegida
-                ? vozElegida.label
-                : value.voice_id
-                  ? t('voice.voiceSelected')
-                  : t('voice.voiceNone')}
-            </span>
-            <span className="flex items-center gap-1">
-              {value.voice_id && (
+          {/* El resumen sólo aporta valor después de elegir una voz. */}
+          {value.voice_id && (
+            <div className="border-border bg-muted/40 flex items-center justify-between rounded-lg border px-3 py-2">
+              <span className="text-foreground text-sm">
+                {vozElegida?.label ?? t('voice.voiceSelected')}
+              </span>
+              <span className="flex items-center gap-1">
                 <Button
                   type="button"
                   size="sm"
@@ -762,18 +758,18 @@ export function VoiceSettings({
                     ? t('voice.voicePreviewStop')
                     : t('voice.voicePreview')}
                 </Button>
-              )}
-              <button
-                type="button"
-                onClick={() => setVerVoces((v) => !v)}
-                className="text-accent-ink px-1.5 text-xs hover:underline"
-              >
-                {verVoces ? t('common.close') : t('voice.numberChange')}
-              </button>
-            </span>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setVerVoces((v) => !v)}
+                  className="text-accent-ink px-1.5 text-xs hover:underline"
+                >
+                  {verVoces ? t('common.close') : t('voice.numberChange')}
+                </button>
+              </span>
+            </div>
+          )}
           {verVoces && (
-            <div className="mt-3 space-y-4">
+            <div className={value.voice_id ? 'mt-3 space-y-4' : 'space-y-4'}>
               {cargandoVoces && voces === null && (
                 <div className="flex justify-center py-4">
                   <Loader2 className="text-muted-foreground size-4 animate-spin" />
@@ -1076,9 +1072,6 @@ export function VoiceSettings({
           <Textarea
             ref={greetingRef}
             className="bg-muted text-foreground min-h-16"
-            // El placeholder muestra el saludo que YA usa el worker cuando esto
-            // está vacío. Un recuadro en blanco hacía pensar que no saluda.
-            placeholder={DEFAULT_GREETINGS[idioma]}
             value={value.voice_greeting}
             onChange={(e) => set({ voice_greeting: e.target.value })}
           />

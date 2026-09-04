@@ -612,7 +612,6 @@ export function VoiceAgentProfiles({
                       className="bg-background text-foreground h-10"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={t('voice.voiceAgentName')}
                       maxLength={80}
                       autoFocus
                     />
