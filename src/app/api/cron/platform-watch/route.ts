@@ -5,10 +5,7 @@ import { withCronRun } from '@/lib/cron/heartbeat'
 import { collectPlatformIssues, type Issue } from '@/lib/health/issues'
 import { SCHEDULED_JOBS, isStale } from '@/lib/cron/schedule'
 import { isActionableCronFailure } from '@/lib/cron/recovery'
-import {
-  platformTechnicalAlertRecipients,
-  sendPlatformAlert,
-} from '@/lib/admin/platform-whatsapp'
+import { platformTechnicalAlertRecipients, sendPlatformAlert } from '@/lib/admin/platform-whatsapp'
 import { leerProveedores } from '@/lib/admin/proveedores'
 import { getLogger } from '@/lib/log/logger'
 
@@ -112,9 +109,11 @@ async function cronHandler(request: Request) {
       .eq('status', 'connected')
       .not('config->>last_error', 'is', null),
   ])
-  const runs = salud.data as
-    | Array<{ name: string; status: string; started_at: string | null }>
-    | null
+  const runs = salud.data as Array<{
+    name: string
+    status: string
+    started_at: string | null
+  }> | null
 
   // Clave estable -> la línea tal cual va en el mensaje.
   const actuales = new Map<Clave, string>()
@@ -150,17 +149,16 @@ async function cronHandler(request: Request) {
   // falla queda en la conexión y sólo llega acá si ningún envío posterior la
   // limpió antes del siguiente tick.
   if (dropi.error) {
-    log.warn('no se pudo leer la salud de Dropi', { error: dropi.error.message })
+    log.warn('no se pudo leer la salud de Dropi', {
+      error: dropi.error.message,
+    })
   } else {
     for (const row of (dropi.data ?? []) as Array<{
       workspace_id: string
       config?: { last_error?: string | null } | null
     }>) {
       if (!row.config?.last_error) continue
-      actuales.set(
-        `integracion:${row.workspace_id}:dropi`,
-        '· Integración con error: Dropi',
-      )
+      actuales.set(`integracion:${row.workspace_id}:dropi`, '· Integración con error: Dropi')
     }
   }
 
@@ -207,13 +205,19 @@ async function cronHandler(request: Request) {
           .eq('name', name)
           .in('status', ['ok', 'error'])
           .order('started_at', { ascending: false })
-          .limit(2)
+          // El scheduler deja dos filas cuando hace un retry rápido. Leer más
+          // permite distinguir ese par de dos ciclos programados realmente
+          // fallidos sin perder el último resultado sano que corta la racha.
+          .limit(6)
         if (error) {
-          log.warn('no se pudo confirmar un trabajo en error', { job: name, error: error.message })
+          log.warn('no se pudo confirmar un trabajo en error', {
+            job: name,
+            error: error.message,
+          })
           return false
         }
         return isActionableCronFailure(data ?? [])
-      }),
+      })
     )
     for (let i = 0; i < erroresPorConfirmar.length; i++) {
       if (confirmados[i]) cronsRotos.push({ name: erroresPorConfirmar[i], motivo: 'error' })
@@ -231,7 +235,7 @@ async function cronHandler(request: Request) {
     for (const { name, motivo } of cronsRotos) {
       actuales.set(
         `cron:${name}`,
-        motivo === 'detenido' ? `· Trabajo detenido: ${name}` : `· Trabajo con errores: ${name}`,
+        motivo === 'detenido' ? `· Trabajo detenido: ${name}` : `· Trabajo con errores: ${name}`
       )
     }
   }
@@ -259,7 +263,7 @@ async function cronHandler(request: Request) {
         `saldo:${p.id}`,
         p.estado === 'sin_saldo'
           ? `· ${p.nombre} SIN SALDO — recargar ya: ${p.url}`
-          : `· ${p.nombre} con poco saldo${cuanto} — recargar: ${p.url}`,
+          : `· ${p.nombre} con poco saldo${cuanto} — recargar: ${p.url}`
       )
     }
   } catch (err) {
@@ -278,7 +282,11 @@ async function cronHandler(request: Request) {
   const anterior = (estadoRow as { fingerprint?: string | null } | null)?.fingerprint ?? ''
 
   if (fingerprint === anterior) {
-    return NextResponse.json({ problemas: actuales.size, nuevos: 0, avisado: false })
+    return NextResponse.json({
+      problemas: actuales.size,
+      nuevos: 0,
+      avisado: false,
+    })
   }
 
   const previas = new Set(anterior ? anterior.split('|') : [])
@@ -286,16 +294,23 @@ async function cronHandler(request: Request) {
 
   // Guardar SIEMPRE, aunque el aviso no salga: si no, un fallo de WhatsApp
   // convierte el próximo tick en el mismo mensaje otra vez, cada 15 minutos.
-  await admin
-    .from('platform_watch_state')
-    .upsert(
-      { id: true, fingerprint, notified_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-      { onConflict: 'id' },
-    )
+  await admin.from('platform_watch_state').upsert(
+    {
+      id: true,
+      fingerprint,
+      notified_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  )
 
   // Que desaparezca un problema también cambia la huella, y eso no se avisa.
   if (nuevas.length === 0) {
-    return NextResponse.json({ problemas: actuales.size, nuevos: 0, avisado: false })
+    return NextResponse.json({
+      problemas: actuales.size,
+      nuevos: 0,
+      avisado: false,
+    })
   }
 
   // El emisor es el WhatsApp de Riverz; los destinatarios son exclusivamente
@@ -307,7 +322,11 @@ async function cronHandler(request: Request) {
       nuevos: nuevas.length,
       falta: 'PLATFORM_ALERT_PHONE o PLATFORM_ALERT_EMAIL',
     })
-    return NextResponse.json({ problemas: actuales.size, nuevos: nuevas.length, avisado: false })
+    return NextResponse.json({
+      problemas: actuales.size,
+      nuevos: nuevas.length,
+      avisado: false,
+    })
   }
 
   const lineas = nuevas.slice(0, MAX_LINEAS).map((k) => actuales.get(k)!)
@@ -329,7 +348,11 @@ async function cronHandler(request: Request) {
   // dejaba de salir en silencio al día siguiente — el peor modo de falla para
   // algo cuya única función es avisar.
   if (telefono) {
-    const enviado = await sendPlatformAlert({ to: telefono, title: tituloWhatsapp, body: cuerpo })
+    const enviado = await sendPlatformAlert({
+      to: telefono,
+      title: tituloWhatsapp,
+      body: cuerpo,
+    })
     if (enviado.ok) via.push('whatsapp')
     else log.warn('no se pudo avisar por whatsapp', { error: enviado.error })
   }
@@ -338,7 +361,7 @@ async function cronHandler(request: Request) {
   // número de WhatsApp dado de alta, sin plantilla aprobada y sin ventana de
   // 24 h. Los dos salen si los dos están configurados — un aviso duplicado
   // molesta; uno que no sale, no se nota.
-  if (correo && (await avisarPorCorreo(correo, tituloCorreo, cuerpo))) via.push('correo');
+  if (correo && (await avisarPorCorreo(correo, tituloCorreo, cuerpo))) via.push('correo')
 
   if (via.length === 0) {
     log.warn('había novedades y ningún aviso salió', { nuevos: nuevas.length })
@@ -362,7 +385,10 @@ async function avisarPorCorreo(to: string, titulo: string, cuerpo: string): Prom
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         from: process.env.WAITLIST_FROM || 'Riverz <onboarding@resend.dev>',
         to: [to],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CRON_ERROR_GRACE_MS,
+  CRON_FAILURE_CONFIRMATION_GAP_MS,
   isActionableCronFailure,
   shouldRetryScheduledResponse,
 } from './recovery';
@@ -85,12 +86,30 @@ describe('admin alert confirmation', () => {
     ).toBe(false);
   });
 
-  it('alerts after two consecutive failures', () => {
+  it('does not treat an immediate automatic retry as another incident', () => {
     expect(
       isActionableCronFailure(
         [
           { status: 'error', started_at: new Date(now - 2_000).toISOString() },
           { status: 'error', started_at: new Date(now - 5_000).toISOString() },
+        ],
+        now
+      )
+    ).toBe(false);
+  });
+
+  it('alerts after failures in two distinct scheduled cycles', () => {
+    expect(
+      isActionableCronFailure(
+        [
+          { status: 'error', started_at: new Date(now - 2_000).toISOString() },
+          {
+            status: 'error',
+            started_at: new Date(
+              now - CRON_FAILURE_CONFIRMATION_GAP_MS - 2_000
+            ).toISOString(),
+          },
+          { status: 'ok', started_at: new Date(now - 60_000).toISOString() },
         ],
         now
       )

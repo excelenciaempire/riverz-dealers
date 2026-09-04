@@ -37,7 +37,8 @@ import {
  */
 export const USD_POR_PERFIL = 2.3 / 1000;
 
-const APIFY_ACTOR = process.env.APIFY_IG_ACTOR ?? 'apify~instagram-profile-scraper';
+const APIFY_ACTOR =
+  process.env.APIFY_IG_ACTOR ?? 'apify~instagram-profile-scraper';
 
 interface ApifyPost {
   caption?: string;
@@ -106,11 +107,48 @@ function clean(out: string): string | null {
  */
 type ScrapeOutcome =
   | { ok: true; profile: ApifyProfile }
-  | { ok: false; kind: 'empty' | 'error' };
+  | { ok: false; kind: 'empty' }
+  | {
+      ok: false;
+      kind: 'error';
+      reason: ExternalEnrichFailureReason;
+      status?: number;
+    };
+
+export type ExternalEnrichFailureReason =
+  | 'missing_key'
+  | 'authentication'
+  | 'billing'
+  | 'rate_limit'
+  | 'provider'
+  | 'request'
+  | 'network'
+  | 'database'
+  | 'unknown';
+
+/** Convierte la respuesta externa en una causa estable y accionable. */
+export function classifyApifyFailure(
+  status: number,
+  body = ''
+): ExternalEnrichFailureReason {
+  const normalized = body.toLowerCase();
+  if (status === 401 || status === 403) return 'authentication';
+  if (
+    status === 402 ||
+    /not-enough-usage|usage-limit|payment|billing|credit|plan-required/.test(
+      normalized
+    )
+  ) {
+    return 'billing';
+  }
+  if (status === 429) return 'rate_limit';
+  if (status >= 500) return 'provider';
+  return 'request';
+}
 
 async function scrapeProfile(
   username: string,
-  token: string,
+  token: string
 ): Promise<ScrapeOutcome> {
   try {
     const res = await fetch(
@@ -120,13 +158,19 @@ async function scrapeProfile(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usernames: [username], resultsLimit: 6 }),
         signal: AbortSignal.timeout(90_000),
-      },
+      }
     );
     if (!res.ok) {
+      const body = await res.text().catch(() => '');
       console.error(
-        `[ig-external-enrich] Apify respondió ${res.status} — no se marca el intento`,
+        `[ig-external-enrich] Apify respondió ${res.status} — no se marca el intento`
       );
-      return { ok: false, kind: 'error' };
+      return {
+        ok: false,
+        kind: 'error',
+        reason: classifyApifyFailure(res.status, body),
+        status: res.status,
+      };
     }
     const items = (await res.json()) as ApifyProfile[];
     if (!Array.isArray(items) || items.length === 0) {
@@ -134,7 +178,7 @@ async function scrapeProfile(
     }
     return { ok: true, profile: items[0] };
   } catch {
-    return { ok: false, kind: 'error' };
+    return { ok: false, kind: 'error', reason: 'network' };
   }
 }
 
@@ -230,19 +274,32 @@ async function mark(
     external_hint: string | null;
     is_public: boolean | null;
     opener_hint?: string | null;
-  },
+  }
 ): Promise<void> {
-  await db.from('contact_ig_profile').upsert(
+  const { error } = await db.from('contact_ig_profile').upsert(
     {
       contact_id: contactId,
       ...fields,
       external_enriched_at: new Date().toISOString(),
     },
-    { onConflict: 'contact_id' },
+    { onConflict: 'contact_id' }
   );
+  if (error) throw new Error(error.message);
 }
 
-export type ExternalEnrichResult = 'enriched' | 'private' | 'skipped' | 'failed';
+export type ExternalEnrichResult =
+  | 'enriched'
+  | 'private'
+  | 'skipped'
+  | `failed:${ExternalEnrichFailureReason}`
+  | `failed:${ExternalEnrichFailureReason}:http_${number}`;
+
+export function externalEnrichFailureReason(
+  result: ExternalEnrichResult
+): ExternalEnrichFailureReason | null {
+  if (!result.startsWith('failed:')) return null;
+  return result.split(':')[1] as ExternalEnrichFailureReason;
+}
 
 /**
  * Enrich one contact from their PUBLIC Instagram profile. Idempotent + marks
@@ -251,7 +308,7 @@ export type ExternalEnrichResult = 'enriched' | 'private' | 'skipped' | 'failed'
  */
 export async function enrichExternalProfile(
   db: SupabaseClient,
-  opts: { contactId: string; username: string; workspaceId?: string | null },
+  opts: { contactId: string; username: string; workspaceId?: string | null }
 ): Promise<ExternalEnrichResult> {
   try {
     const uname = opts.username.replace(/^@/, '').trim();
@@ -262,9 +319,9 @@ export async function enrichExternalProfile(
       db,
       opts.workspaceId ?? null,
       'apify',
-      process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null,
+      process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null
     );
-    if (!llave) return 'skipped';
+    if (!llave) return 'failed:missing_key';
     const scraped = await scrapeProfile(uname, llave.key);
     // Apify cobra por perfil consultado. Si la llave la puso el comercio ya le
     // cobra Apify; si salió la de Riverz, se le pasa el costo.
@@ -281,9 +338,15 @@ export async function enrichExternalProfile(
       // Solo un "no existe" cuenta como investigado. Un fallo de transporte se
       // deja sin marcar para que el siguiente pase lo reintente.
       if (scraped.kind === 'empty') {
-        await mark(db, opts.contactId, { external_hint: null, is_public: null });
+        await mark(db, opts.contactId, {
+          external_hint: null,
+          is_public: null,
+        });
+        return 'skipped';
       }
-      return 'failed';
+      return scraped.status
+        ? `failed:${scraped.reason}:http_${scraped.status}`
+        : `failed:${scraped.reason}`;
     }
     const p = scraped.profile;
     if (isPrivate(p)) {
@@ -297,7 +360,12 @@ export async function enrichExternalProfile(
       is_public: true,
     });
     return 'enriched';
-  } catch {
-    return 'failed';
+  } catch (error) {
+    const reason: ExternalEnrichFailureReason =
+      error instanceof Error &&
+      /database|relation|column|row|upsert/i.test(error.message)
+        ? 'database'
+        : 'unknown';
+    return `failed:${reason}`;
   }
 }

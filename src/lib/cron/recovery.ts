@@ -6,6 +6,13 @@ export const JOB_RECOVERY_DELAY_MS = 2_000;
 export const JOB_RECOVERY_MAX_FIRST_RUN_MS = 60_000;
 /** Una falla aislada que no pudo reintentarse deja de ser ruido pasado este plazo. */
 export const CRON_ERROR_GRACE_MS = 20 * 60_000;
+/**
+ * Dos filas creadas por el mismo intento + su reintento inmediato no son dos
+ * incidentes independientes. El trabajo más frecuente del catálogo corre cada
+ * minuto; 30 s separa con margen el retry de 2 s de una corrida programada
+ * nueva, incluso con algo de jitter del reloj.
+ */
+export const CRON_FAILURE_CONFIRMATION_GAP_MS = 30_000;
 
 export type CompletedCronRun = {
   status?: string;
@@ -42,8 +49,23 @@ export function isActionableCronFailure(
   );
   const latest = completed[0];
   if (latest?.status !== 'error') return false;
-  if (completed[1]?.status === 'error') return true;
 
   const startedAt = Date.parse(latest.started_at ?? '');
-  return Number.isFinite(startedAt) && now - startedAt >= CRON_ERROR_GRACE_MS;
+  if (!Number.isFinite(startedAt)) return false;
+  if (now - startedAt >= CRON_ERROR_GRACE_MS) return true;
+
+  // Sólo los errores consecutivos desde el último resultado sano pertenecen
+  // al incidente actual. Para confirmarlo hace falta otra corrida real: las
+  // dos filas que deja el retry rápido cuentan como una sola oportunidad.
+  for (const previous of completed.slice(1)) {
+    if (previous.status === 'ok') break;
+    const previousAt = Date.parse(previous.started_at ?? '');
+    if (
+      Number.isFinite(previousAt) &&
+      startedAt - previousAt >= CRON_FAILURE_CONFIRMATION_GAP_MS
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

@@ -157,6 +157,15 @@ export const PROVEEDORES_CON_CLAVE: ProveedorConClave[] = [
     conceptos: ['voz_tts'],
     almacen: 'platform_keys',
   },
+  {
+    id: 'apify',
+    nombre: 'Apify',
+    envVar: 'APIFY_TOKEN',
+    prefijo: 'apify_api_',
+    paraQueKey: 'admin.cronInstagramEnrich',
+    conceptos: [],
+    almacen: 'platform_keys',
+  },
 ]
 
 export function proveedorConClave(id: string): ProveedorConClave | undefined {
@@ -212,16 +221,25 @@ async function filasDelPanel(): Promise<Map<string, FilaClave>> {
 }
 
 /** La de Anthropic, que vive en su propia tabla desde /admin/ia. */
-async function anthropicDelPanel(): Promise<{ pista: string; updated_at: string | null } | null> {
+async function anthropicDelPanel(): Promise<{
+  pista: string
+  updated_at: string | null
+} | null> {
   try {
     const { data } = await supabaseAdmin()
       .from('platform_ai_settings')
       .select('anthropic_key_encrypted, updated_at')
       .eq('id', true)
       .maybeSingle()
-    const row = data as { anthropic_key_encrypted?: string | null; updated_at?: string } | null
+    const row = data as {
+      anthropic_key_encrypted?: string | null
+      updated_at?: string
+    } | null
     if (!row?.anthropic_key_encrypted) return null
-    return { pista: pistaDe(decrypt(row.anthropic_key_encrypted)), updated_at: row.updated_at ?? null }
+    return {
+      pista: pistaDe(decrypt(row.anthropic_key_encrypted)),
+      updated_at: row.updated_at ?? null,
+    }
   } catch {
     return null
   }
@@ -241,7 +259,10 @@ export async function leerEstadoDeClaves(): Promise<EstadoDeClave[]> {
   return PROVEEDORES_CON_CLAVE.map((p) => {
     const propia =
       p.almacen === 'platform_ai_settings'
-        ? anthropic && { pista: anthropic.pista, updated_at: anthropic.updated_at }
+        ? anthropic && {
+            pista: anthropic.pista,
+            updated_at: anthropic.updated_at,
+          }
         : panel.get(p.id)
     const enRender = Boolean(process.env[p.envVar])
 
@@ -253,11 +274,7 @@ export async function leerEstadoDeClaves(): Promise<EstadoDeClave[]> {
       paraQueKey: p.paraQueKey,
       conceptos: p.conceptos,
       origen,
-      pista: propia
-        ? propia.pista
-        : enRender
-          ? pistaDe(process.env[p.envVar] as string)
-          : null,
+      pista: propia ? propia.pista : enRender ? pistaDe(process.env[p.envVar] as string) : null,
       actualizadaEn: propia?.updated_at ?? null,
     }
   })
@@ -277,7 +294,7 @@ export type ResultadoGuardar = { ok: true } | { ok: false; error: string }
 export async function guardarClave(
   id: string,
   valor: string,
-  usuario: string | null,
+  usuario: string | null
 ): Promise<ResultadoGuardar> {
   const p = proveedorConClave(id)
   if (!p) return { ok: false, error: 'proveedor desconocido' }
@@ -285,7 +302,10 @@ export async function guardarClave(
   const clave = valor.trim()
   if (!clave) return { ok: false, error: 'clave vacía' }
   if (p.prefijo && !clave.startsWith(p.prefijo)) {
-    return { ok: false, error: `la clave de ${p.nombre} empieza por ${p.prefijo}` }
+    return {
+      ok: false,
+      error: `la clave de ${p.nombre} empieza por ${p.prefijo}`,
+    }
   }
 
   const cifrada = encrypt(clave)
@@ -311,7 +331,7 @@ export async function guardarClave(
         updated_at: new Date().toISOString(),
         updated_by: usuario,
       },
-      { onConflict: 'proveedor' },
+      { onConflict: 'proveedor' }
     )
     if (error) return { ok: false, error: error.message }
   }
@@ -336,7 +356,10 @@ export async function borrarClave(id: string): Promise<ResultadoGuardar> {
   if (p.almacen === 'platform_ai_settings') {
     const { error } = await db
       .from('platform_ai_settings')
-      .update({ anthropic_key_encrypted: null, updated_at: new Date().toISOString() })
+      .update({
+        anthropic_key_encrypted: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', true)
     if (error) return { ok: false, error: error.message }
     invalidatePlatformKeyCache()
@@ -383,10 +406,11 @@ export async function hidratarClaves(): Promise<number> {
 
   let puestas = 0
   try {
-    const { data } = await supabaseAdmin()
-      .from('platform_keys')
-      .select('proveedor, clave_cifrada')
-    for (const f of (data ?? []) as { proveedor: string; clave_cifrada: string }[]) {
+    const { data } = await supabaseAdmin().from('platform_keys').select('proveedor, clave_cifrada')
+    for (const f of (data ?? []) as {
+      proveedor: string
+      clave_cifrada: string
+    }[]) {
       const p = proveedorConClave(f.proveedor)
       if (!p) continue
       try {

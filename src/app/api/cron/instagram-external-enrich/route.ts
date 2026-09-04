@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { enrichExternalProfile } from '@/lib/instagram-agent/external-enrich';
+import {
+  enrichExternalProfile,
+  externalEnrichFailureReason,
+} from '@/lib/instagram-agent/external-enrich';
 import { withCronRun } from '@/lib/cron/heartbeat';
 
 /**
@@ -45,12 +48,17 @@ async function cronHandler(request: Request) {
     id: string;
     name: string | null;
     workspace_id: string | null;
-    contact_ig_profile: { external_enriched_at: string | null } | { external_enriched_at: string | null }[] | null;
+    contact_ig_profile:
+      | { external_enriched_at: string | null }
+      | { external_enriched_at: string | null }[]
+      | null;
   };
   const due = ((data ?? []) as Row[])
     .filter((r) => (r.name ?? '').startsWith('@'))
     .filter((r) => {
-      const prof = Array.isArray(r.contact_ig_profile) ? r.contact_ig_profile[0] : r.contact_ig_profile;
+      const prof = Array.isArray(r.contact_ig_profile)
+        ? r.contact_ig_profile[0]
+        : r.contact_ig_profile;
       const at = prof?.external_enriched_at;
       return !at || new Date(at).getTime() < cutoff;
     })
@@ -62,6 +70,7 @@ async function cronHandler(request: Request) {
     skipped: 0,
     failed: 0,
   };
+  const failureReasons: Record<string, number> = {};
   for (const r of due) {
     // El token sale de la integración del workspace (Integraciones → Apify);
     // sin token conectado, enrichExternalProfile devuelve 'skipped'.
@@ -70,11 +79,22 @@ async function cronHandler(request: Request) {
       username: r.name ?? '',
       workspaceId: r.workspace_id,
     });
-    counts[result] = (counts[result] ?? 0) + 1;
+    const failureReason = externalEnrichFailureReason(result);
+    if (failureReason) {
+      counts.failed++;
+      failureReasons[failureReason] = (failureReasons[failureReason] ?? 0) + 1;
+    } else {
+      counts[result] = (counts[result] ?? 0) + 1;
+    }
   }
 
   return NextResponse.json(
-    { ok: counts.failed === 0, processed: due.length, ...counts },
+    {
+      ok: counts.failed === 0,
+      processed: due.length,
+      ...counts,
+      ...(counts.failed ? { failureReasons } : {}),
+    },
     { status: counts.failed ? 207 : 200 }
   );
 }
