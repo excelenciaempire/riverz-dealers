@@ -44,10 +44,13 @@ export function VoiceStatusLine({
     <p
       className={cn(
         'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-sm',
-        tono === 'blocked' && 'border-destructive/40 bg-destructive/5 text-destructive',
-        tono === 'warn' && 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400',
-        tono === 'ok' && 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
-        className,
+        tono === 'blocked' &&
+          'border-destructive/40 bg-destructive/5 text-destructive',
+        tono === 'warn' &&
+          'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400',
+        tono === 'ok' &&
+          'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
+        className
       )}
     >
       <span
@@ -55,7 +58,7 @@ export function VoiceStatusLine({
           'size-1.5 shrink-0 rounded-full',
           tono === 'blocked' && 'bg-destructive',
           tono === 'warn' && 'bg-amber-500',
-          tono === 'ok' && 'animate-pulse bg-emerald-500',
+          tono === 'ok' && 'animate-pulse bg-emerald-500'
         )}
       />
 
@@ -67,18 +70,14 @@ export function VoiceStatusLine({
               : t('voice.canCall')}
           </span>
           {readiness.agents.length === 1 ? (
-            // El nombre ES el enlace a su pestaña de llamadas. Antes esto era
-            // texto muerto y abajo había una tarjeta entera repitiendo el mismo
-            // nombre sólo para colgarle un «Configurar».
-            <Link
-              href={`/asistente?agent=${readiness.agents[0].id}&tab=voice`}
-              className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            >
+            <span className="text-muted-foreground">
               {t('voice.answeredBy', { name: readiness.agents[0].name })}
-            </Link>
+            </span>
           ) : readiness.agents.length > 1 ? (
             <span className="text-muted-foreground">
-              {t('voice.answeredByMany', { count: String(readiness.agents.length) })}
+              {t('voice.answeredByMany', {
+                count: String(readiness.agents.length),
+              })}
             </span>
           ) : null}
         </>
@@ -87,7 +86,9 @@ export function VoiceStatusLine({
           <span className="font-medium">
             {bloqueo ? t('voice.cannotCall') : t('voice.callsWarning')}
           </span>
-          <span>{t(VOICE_BLOCKED_KEY[item!.code], { name: item!.agentName ?? '' })}</span>
+          <span>
+            {t(VOICE_BLOCKED_KEY[item!.code], { name: item!.agentName ?? '' })}
+          </span>
           {item!.fixHref && (
             <Link href={item!.fixHref} className="underline underline-offset-2">
               {t('voice.blockedFix')}

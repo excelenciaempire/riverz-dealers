@@ -107,12 +107,17 @@ export const voice = {
     en: 'Create and configure who speaks by phone here. Then link it to a chat assistant or an automation.',
   },
   voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
+  voiceAgentFirst: { es: 'Crear mi primer agente', en: 'Create my first agent' },
+  voiceAgentCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceAgentName: { es: 'Nombre del agente de voz', en: 'Voice agent name' },
+  voiceAgentsEmptyTitle: { es: 'Dale una voz a tu negocio', en: 'Give your business a voice' },
   voiceAgentsEmpty: {
-    es: 'Crea un agente de voz para empezar.',
-    en: 'Create a voice agent to get started.',
+    es: 'Elige cómo habla, qué dice y cuándo está disponible.',
+    en: 'Choose how it speaks, what it says, and when it is available.',
   },
   voiceAgentActive: { es: 'Activo para llamadas', en: 'Active for calls' },
+  voiceAgentReady: { es: 'Listo para llamar', en: 'Ready to call' },
+  voiceAgentNeedsVoice: { es: 'Falta elegir una voz', en: 'Choose a voice' },
   voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
   voiceAgentCreated: { es: 'Agente de voz creado', en: 'Voice agent created' },
   voiceAgentCreateFailed: {
@@ -244,9 +249,12 @@ export const voice = {
     en: 'The rules that can make the phone ring today.',
   },
   whenNewRule: { es: 'Crear una regla', en: 'Create a rule' },
+  whenFlowContact: { es: 'Contacto', en: 'Contact' },
+  whenFlowRule: { es: 'Regla', en: 'Rule' },
+  whenFlowCall: { es: 'Llamada', en: 'Call' },
   whenNothing: {
-    es: 'Nada hace que llame solo. Crea una regla o llama a mano desde la bandeja.',
-    en: 'Nothing makes it call on its own. Create a rule or call by hand from the inbox.',
+    es: 'Aún no hay reglas activas. Las llamadas solo salen manualmente desde la bandeja.',
+    en: 'There are no active rules yet. Calls can only be placed manually from the inbox.',
   },
   whenAutomation: { es: 'Automatización', en: 'Automation' },
   whenAssistant: { es: 'Asistente', en: 'Assistant' },
@@ -432,6 +440,10 @@ export const voice = {
   // Los dos grupos de la pantalla: lo que se arma una vez y lo que se mira
   // todas las semanas. Sin ellos eran siete tarjetas iguales apiladas.
   setupGroup: { es: 'Configuración', en: 'Setup' },
+  voiceSetupHint: {
+    es: 'Prepara tu número, tu agente y las reglas de llamada.',
+    en: 'Set up your number, agent, and calling rules.',
+  },
   activityGroup: { es: 'Actividad', en: 'Activity' },
   whoAnswers: { es: 'Quién atiende', en: 'Who answers' },
   whoAnswersNone: {
@@ -443,6 +455,16 @@ export const voice = {
     en: "Turn on an agent's voice",
   },
   behaviourTitle: { es: 'Comportamiento', en: 'Behaviour' },
+  behaviourHint: {
+    es: 'Controla qué puede hacer tu central.',
+    en: 'Control what your call center can do.',
+  },
+  inboundHint: {
+    es: 'El agente atiende cuando alguien llama a tu número.',
+    en: 'The agent answers when someone calls your number.',
+  },
+  unsavedChanges: { es: 'Cambios sin guardar', en: 'Unsaved changes' },
+  allSaved: { es: 'Todo guardado', en: 'Everything saved' },
   advancedToggle: { es: 'Opciones avanzadas', en: 'Advanced options' },
 
   // El freno de emergencia sale de la lista de interruptores: no es una

@@ -33,9 +33,11 @@ const OUTCOME_KEY: Record<string, string> = {
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
+    <div className="bg-card p-3.5">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="text-foreground mt-1 text-xl font-semibold tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }
@@ -43,7 +45,10 @@ function Tile({ label, value }: { label: string; value: string }) {
 /** Compact voice-calls analytics panel for /metricas. Renders nothing until
  *  there's at least one call. Follows the dashboard date range when start/end
  *  are provided; otherwise falls back to the last 30 days. */
-export function VoiceAnalytics({ start, end }: { start?: string; end?: string } = {}) {
+export function VoiceAnalytics({
+  start,
+  end,
+}: { start?: string; end?: string } = {}) {
   const t = useT();
   const format = useFormat();
   const { workspace } = useWorkspace();
@@ -53,12 +58,18 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
   useEffect(() => {
     if (!wsId) return;
     let cancelled = false;
-    const range = start && end ? `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}` : 'days=30';
+    const range =
+      start && end
+        ? `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+        : 'days=30';
     (async () => {
       try {
-        const res = await fetch(`/api/voice/analytics?workspace_id=${wsId}&${range}`, {
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `/api/voice/analytics?workspace_id=${wsId}&${range}`,
+          {
+            cache: 'no-store',
+          }
+        );
         if (res.ok && !cancelled) setData((await res.json()) as Analytics);
       } catch {
         /* no-op */
@@ -77,16 +88,26 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <PhoneCall className="h-4 w-4 text-yellow-500" />
-        <h2 className="text-sm font-semibold text-foreground">{t('voice.metricsTitle')}</h2>
+        <h2 className="text-foreground text-sm font-semibold">
+          {t('voice.metricsTitle')}
+        </h2>
         {!(start && end) && (
-          <span className="text-xs text-muted-foreground">({t('voice.metricsLast30')})</span>
+          <span className="text-muted-foreground text-xs">
+            ({t('voice.metricsLast30')})
+          </span>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="border-border bg-border grid grid-cols-2 gap-px overflow-hidden rounded-2xl border sm:grid-cols-3 lg:grid-cols-6">
         <Tile label={t('voice.metricTotal')} value={String(data.total)} />
-        <Tile label={t('voice.metricAnswered')} value={`${data.answered_pct}%`} />
-        <Tile label={t('voice.metricConfirmed')} value={`${data.confirmed_pct}%`} />
+        <Tile
+          label={t('voice.metricAnswered')}
+          value={`${data.answered_pct}%`}
+        />
+        <Tile
+          label={t('voice.metricConfirmed')}
+          value={`${data.confirmed_pct}%`}
+        />
         <Tile label={t('voice.metricMinutes')} value={String(data.minutes)} />
         <Tile
           label={t('voice.metricCost')}
@@ -94,18 +115,26 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
         />
         <Tile
           label={t('voice.metricUpsell')}
-          value={data.upsell_revenue > 0 ? format.number(data.upsell_revenue) : '—'}
+          value={
+            data.upsell_revenue > 0 ? format.number(data.upsell_revenue) : '—'
+          }
         />
       </div>
 
       {/* By hour — simple CSS bars */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        <p className="mb-2 text-xs text-muted-foreground">{t('voice.metricByHour')}</p>
+      <div className="border-border bg-card rounded-2xl border p-4 shadow-sm">
+        <p className="text-muted-foreground mb-2 text-xs">
+          {t('voice.metricByHour')}
+        </p>
         <div className="flex h-20 items-end gap-0.5">
           {data.by_hour.map((h) => (
-            <div key={h.hour} className="flex-1" title={`${h.hour}:00 — ${h.count}`}>
+            <div
+              key={h.hour}
+              className="flex-1"
+              title={`${h.hour}:00 — ${h.count}`}
+            >
               <div
-                className="w-full rounded-sm bg-yellow-500/60"
+                className="bg-accent-ink/65 w-full rounded-t-sm transition-[height] duration-500"
                 style={{ height: `${(h.count / maxHour) * 100}%` }}
               />
             </div>
@@ -116,11 +145,16 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {/* By city */}
         {data.by_city.length > 0 && (
-          <div className="rounded-lg border border-border bg-card p-3">
-            <p className="mb-2 text-xs text-muted-foreground">{t('voice.metricByCity')}</p>
+          <div className="border-border bg-card rounded-2xl border p-4 shadow-sm">
+            <p className="text-muted-foreground mb-2 text-xs">
+              {t('voice.metricByCity')}
+            </p>
             <div className="space-y-1">
               {data.by_city.map((c) => (
-                <div key={c.city} className="flex items-center justify-between text-xs">
+                <div
+                  key={c.city}
+                  className="flex items-center justify-between text-xs"
+                >
                   <span className="text-foreground">{c.city}</span>
                   <span className="text-muted-foreground">
                     {c.confirmed}/{c.total}
@@ -132,12 +166,19 @@ export function VoiceAnalytics({ start, end }: { start?: string; end?: string } 
         )}
 
         {/* By outcome */}
-        <div className="rounded-lg border border-border bg-card p-3">
-          <p className="mb-2 text-xs text-muted-foreground">{t('voice.metricByOutcome')}</p>
+        <div className="border-border bg-card rounded-2xl border p-4 shadow-sm">
+          <p className="text-muted-foreground mb-2 text-xs">
+            {t('voice.metricByOutcome')}
+          </p>
           <div className="space-y-1">
             {data.by_outcome.map((o) => (
-              <div key={o.outcome} className="flex items-center justify-between text-xs">
-                <span className="text-foreground">{t(OUTCOME_KEY[o.outcome] ?? o.outcome)}</span>
+              <div
+                key={o.outcome}
+                className="flex items-center justify-between text-xs"
+              >
+                <span className="text-foreground">
+                  {t(OUTCOME_KEY[o.outcome] ?? o.outcome)}
+                </span>
                 <span className="text-muted-foreground">{o.count}</span>
               </div>
             ))}

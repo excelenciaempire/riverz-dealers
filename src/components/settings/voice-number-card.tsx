@@ -286,11 +286,20 @@ export function VoiceNumberCard() {
   const compraBloqueada = requiresDocs && !approved;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Phone className="h-4 w-4 text-yellow-500" />
-        {t('voice.numberTitle')}
-      </h2>
+    <section className="border-border bg-card rounded-2xl border p-4 shadow-sm sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 grid size-9 shrink-0 place-items-center rounded-xl">
+          <Phone className="size-4" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">
+            {t('voice.numberTitle')}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t('voice.numberDesc')}
+          </p>
+        </div>
+      </div>
 
       {loading ? (
         <div className="mt-3">
@@ -298,8 +307,8 @@ export function VoiceNumberCard() {
         </div>
       ) : current?.phone_number ? (
         /* Ya tiene número: una línea y nada más que decidir. */
-        <div className="mt-3">
-          <div className="flex items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-3 py-2.5">
+        <div className="mt-4">
+          <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-3">
             <span className="flex items-center gap-2 text-sm text-foreground">
               <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               <span className="font-medium">{current.phone_number}</span>
@@ -325,7 +334,7 @@ export function VoiceNumberCard() {
           </div>
         </div>
       ) : (
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-3">
           {/* La decisión, y por qué importa. */}
           <div>
             <p className="text-sm text-foreground">{t('voice.numberPickCountry')}</p>

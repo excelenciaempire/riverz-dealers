@@ -1,7 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Loader2, Plus } from 'lucide-react';
+import {
+  AudioLines,
+  Check,
+  ChevronDown,
+  Loader2,
+  Mic2,
+  Plus,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +84,7 @@ export function VoiceAgentProfiles({
   }, [load]);
 
   async function create() {
-    if (!name.trim() || !workspaceId) return;
+    if (!name.trim() || !workspaceId || saving) return;
     setSaving(true);
     try {
       const res = await fetchWithCsrf('/api/ai/agents', {
@@ -115,7 +123,7 @@ export function VoiceAgentProfiles({
   }
 
   async function save(agent: VoiceAgent) {
-    if (!voice) return;
+    if (!voice || saving) return;
     setSaving(true);
     try {
       const res = await fetchWithCsrf(`/api/ai/agents/${agent.id}`, {
@@ -152,70 +160,123 @@ export function VoiceAgentProfiles({
   }
 
   return (
-    <section className="border-border bg-card rounded-xl border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-foreground text-sm font-semibold">
-            {t('voice.voiceAgentsTitle')}
-          </h3>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            {t('voice.voiceAgentsHint')}
-          </p>
+    <section className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+      <div className="border-border/70 bg-muted/20 relative border-b px-5 py-4">
+        <Waveform className="absolute top-0 right-5 hidden h-full opacity-45 sm:flex" />
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="bg-accent/15 text-accent-ink mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl">
+              <Mic2 className="size-4" />
+            </span>
+            <div>
+              <h3 className="text-foreground text-sm font-semibold">
+                {t('voice.voiceAgentsTitle')}
+              </h3>
+              <p className="text-muted-foreground mt-0.5 max-w-xl text-xs">
+                {t('voice.voiceAgentsHint')}
+              </p>
+            </div>
+          </div>
+          {agents.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant={creating ? 'ghost' : 'outline'}
+              onClick={() => setCreating((value) => !value)}
+              className="relative shrink-0"
+            >
+              {creating ? (
+                <X className="mr-1 size-3.5" />
+              ) : (
+                <Plus className="mr-1 size-3.5" />
+              )}
+              {creating
+                ? t('voice.voiceAgentCancel')
+                : t('voice.voiceAgentCreate')}
+            </Button>
+          )}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setCreating((value) => !value)}
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          {t('voice.voiceAgentCreate')}
-        </Button>
       </div>
 
       {creating && (
-        <div className="border-border bg-muted/30 mt-3 flex gap-2 rounded-lg border p-3">
-          <Input
-            className="bg-background text-foreground"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder={t('voice.voiceAgentName')}
-            maxLength={80}
-            autoFocus
-          />
-          <Button
-            type="button"
-            size="sm"
-            onClick={create}
-            disabled={saving || !name.trim()}
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              t('voice.voiceAgentCreate')
-            )}
-          </Button>
+        <div className="border-border bg-background/70 border-b p-4 sm:p-5">
+          <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:flex-row">
+            <Input
+              className="bg-background text-foreground h-10"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void create();
+              }}
+              placeholder={t('voice.voiceAgentName')}
+              maxLength={80}
+              autoFocus
+            />
+            <Button
+              type="button"
+              onClick={create}
+              disabled={saving || !name.trim()}
+              className="h-10 shrink-0"
+            >
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <>
+                  <Plus className="mr-1 size-4" />
+                  {t('voice.voiceAgentCreate')}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
 
       {loading ? (
-        <Loader2 className="text-muted-foreground mt-4 h-4 w-4 animate-spin" />
+        <div className="grid min-h-36 place-items-center">
+          <Loader2 className="text-muted-foreground size-5 animate-spin" />
+        </div>
       ) : agents.length === 0 ? (
-        <p className="text-muted-foreground mt-4 text-sm">
-          {t('voice.voiceAgentsEmpty')}
-        </p>
+        <div className="px-5 py-8 text-center sm:py-10">
+          <div className="bg-accent/10 text-accent-ink border-accent/20 mx-auto grid size-14 place-items-center rounded-2xl border">
+            <AudioLines className="size-6" />
+          </div>
+          <p className="text-foreground mt-4 text-sm font-medium">
+            {t('voice.voiceAgentsEmptyTitle')}
+          </p>
+          <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
+            {t('voice.voiceAgentsEmpty')}
+          </p>
+          {!creating && (
+            <Button
+              type="button"
+              className="mt-4"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="mr-1 size-4" />
+              {t('voice.voiceAgentFirst')}
+            </Button>
+          )}
+        </div>
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2 p-3 sm:p-4">
           {agents.map((agent) => {
             const open = openId === agent.id;
+            const ready =
+              agent.is_active && agent.voice_enabled && !!agent.voice_id;
             return (
               <div
                 key={agent.id}
-                className="border-border bg-muted/30 rounded-lg border"
+                id={`voice-agent-${agent.id}`}
+                className={`overflow-hidden rounded-xl border transition-all ${
+                  open
+                    ? 'border-accent/50 bg-background shadow-sm'
+                    : 'border-border bg-muted/20 hover:border-border/80 hover:bg-muted/35'
+                }`}
               >
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+                  className="group flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left sm:px-4"
+                  aria-expanded={open}
                   onClick={() => {
                     if (open) {
                       setOpenId(null);
@@ -225,24 +286,41 @@ export function VoiceAgentProfiles({
                     setVoice(initialVoiceState(agent));
                   }}
                 >
-                  <span>
-                    <span className="text-foreground block text-sm font-medium">
-                      {agent.name}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="bg-background text-foreground grid size-9 shrink-0 place-items-center rounded-full border text-sm font-semibold uppercase">
+                      {agent.name.slice(0, 1)}
                     </span>
-                    <span className="text-muted-foreground text-xs">
-                      {agent.is_active
-                        ? t('voice.voiceAgentActive')
-                        : t('voice.voiceAgentPaused')}
+                    <span className="min-w-0">
+                      <span className="text-foreground block truncate text-sm font-medium">
+                        {agent.name}
+                      </span>
+                      <span className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
+                        <span
+                          className={`size-1.5 rounded-full ${ready ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        />
+                        {ready
+                          ? t('voice.voiceAgentReady')
+                          : agent.is_active
+                            ? t('voice.voiceAgentNeedsVoice')
+                            : t('voice.voiceAgentPaused')}
+                      </span>
                     </span>
                   </span>
-                  <ChevronDown
-                    className={`text-muted-foreground h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
-                  />
+                  <span className="bg-background grid size-8 shrink-0 place-items-center rounded-lg border">
+                    <ChevronDown
+                      className={`text-muted-foreground size-4 transition-transform ${open ? 'rotate-180' : ''}`}
+                    />
+                  </span>
                 </button>
                 {open && voice && (
-                  <div className="border-border border-t px-3 py-4">
-                    <div className="border-border bg-background mb-4 flex items-center justify-between rounded-lg border px-3 py-2">
-                      <span className="text-foreground text-sm">
+                  <div className="border-border bg-card border-t px-4 py-5 sm:px-5">
+                    <div className="border-border bg-muted/25 mb-5 flex items-center justify-between rounded-xl border px-3.5 py-3">
+                      <span className="text-foreground flex items-center gap-2 text-sm font-medium">
+                        <span
+                          className={`grid size-7 place-items-center rounded-lg ${voice.voice_enabled ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}
+                        >
+                          <Check className="size-3.5" />
+                        </span>
                         {t('voice.enable')}
                       </span>
                       <Switch
@@ -260,7 +338,7 @@ export function VoiceAgentProfiles({
                       agentId={agent.id}
                       showAiDecides={false}
                     />
-                    <div className="mt-4 flex justify-end">
+                    <div className="border-border mt-5 flex justify-end border-t pt-4">
                       <Button
                         type="button"
                         size="sm"
@@ -282,5 +360,21 @@ export function VoiceAgentProfiles({
         </div>
       )}
     </section>
+  );
+}
+
+function Waveform({ className }: { className?: string }) {
+  const bars = [16, 28, 20, 38, 24, 44, 30, 18, 34, 22, 40, 26];
+
+  return (
+    <div className={`items-center gap-1 ${className ?? ''}`} aria-hidden="true">
+      {bars.map((height, index) => (
+        <span
+          key={`${height}-${index}`}
+          className="bg-accent-ink/25 w-1 rounded-full"
+          style={{ height }}
+        />
+      ))}
+    </div>
   );
 }

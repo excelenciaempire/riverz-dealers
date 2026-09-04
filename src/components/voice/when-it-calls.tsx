@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, Plus } from 'lucide-react';
+import {
+  ChevronRight,
+  Inbox,
+  PhoneOutgoing,
+  Plus,
+  Workflow,
+} from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { useT } from '@/hooks/use-locale';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -34,9 +40,12 @@ export function WhenItCalls() {
     if (!workspace?.id) return;
     let cancelado = false;
     (async () => {
-      const res = await fetch(`/api/voice/triggers?workspace_id=${workspace.id}`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(
+        `/api/voice/triggers?workspace_id=${workspace.id}`,
+        {
+          cache: 'no-store',
+        }
+      );
       if (!res.ok || cancelado) return;
       const json = (await res.json()) as Triggers;
       if (!cancelado) setData(json);
@@ -54,29 +63,58 @@ export function WhenItCalls() {
     data.campaigns.length === 0;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{t('voice.whenTitle')}</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('voice.whenHint')}</p>
+    <section className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
+        <div className="flex items-start gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+            <Workflow className="size-4" />
+          </span>
+          <div>
+            <h3 className="text-foreground text-sm font-semibold">
+              {t('voice.whenTitle')}
+            </h3>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              {t('voice.whenHint')}
+            </p>
+          </div>
         </div>
-        <Link
-          href="/automatizaciones"
-          className="flex shrink-0 items-center gap-1 text-xs text-accent-ink hover:underline"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t('voice.whenNewRule')}
-        </Link>
+        {!vacio && (
+          <Link
+            href="/automatizaciones"
+            className="text-accent-ink hover:bg-accent/10 flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors"
+          >
+            <Plus className="size-3.5" />
+            {t('voice.whenNewRule')}
+          </Link>
+        )}
       </div>
 
       {vacio ? (
-        // Decirlo derecho: no es un estado vacío decorativo, es la diferencia
-        // entre «configuré todo y no pasa nada» y saber por qué.
-        <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground">
-          {t('voice.whenNothing')}
-        </p>
+        <div className="px-4 pt-5 pb-4 sm:px-5 sm:pb-5">
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2">
+            <FlowNode icon={Inbox} label={t('voice.whenFlowContact')} />
+            <span className="bg-border h-px w-full" />
+            <FlowNode icon={Workflow} label={t('voice.whenFlowRule')} muted />
+            <span className="bg-border h-px w-full" />
+            <FlowNode
+              icon={PhoneOutgoing}
+              label={t('voice.whenFlowCall')}
+              muted
+            />
+          </div>
+          <p className="text-muted-foreground mt-4 text-sm">
+            {t('voice.whenNothing')}
+          </p>
+          <Link
+            href="/automatizaciones"
+            className="border-border bg-background hover:bg-muted text-foreground mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors"
+          >
+            <Plus className="size-3.5" />
+            {t('voice.whenNewRule')}
+          </Link>
+        </div>
       ) : (
-        <ul className="mt-3 divide-y divide-border">
+        <ul className="border-border mt-4 divide-y border-t px-4 sm:px-5">
           {data.automations.map((a) => (
             <Row
               key={a.id}
@@ -115,9 +153,39 @@ export function WhenItCalls() {
           con «o llamá a mano desde la bandeja», así que esta línea decía lo
           mismo dos veces seguidas. */}
       {!vacio && (
-        <p className="mt-3 text-xs text-muted-foreground">{t('voice.whenManual')}</p>
+        <p className="border-border bg-muted/15 text-muted-foreground flex items-center gap-2 border-t px-4 py-3 text-xs sm:px-5">
+          <Inbox className="size-3.5 shrink-0" />
+          {t('voice.whenManual')}
+        </p>
       )}
-    </div>
+    </section>
+  );
+}
+
+function FlowNode({
+  icon: Icon,
+  label,
+  muted,
+}: {
+  icon: typeof Inbox;
+  label: string;
+  muted?: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+      <span
+        className={`grid size-9 place-items-center rounded-full border ${
+          muted
+            ? 'border-border bg-muted/30 text-muted-foreground'
+            : 'border-accent/30 bg-accent/10 text-accent-ink'
+        }`}
+      >
+        <Icon className="size-4" />
+      </span>
+      <span className="text-muted-foreground truncate text-[10px] font-medium">
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -141,14 +209,16 @@ function Row({
         className="flex items-center justify-between gap-3 py-2.5 hover:opacity-80"
       >
         <span className="min-w-0">
-          <span className="block truncate text-sm text-foreground">{label}</span>
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          <span className="text-foreground block truncate text-sm">
+            {label}
+          </span>
+          <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
             {kind}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge && (
-            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="border-border text-muted-foreground rounded-full border px-2 py-0.5 text-[10px]">
               {badge}
             </span>
           )}

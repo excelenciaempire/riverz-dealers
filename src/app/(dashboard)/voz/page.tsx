@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
-import { Loader2, Megaphone, ChevronRight, Ban } from 'lucide-react';
+import {
+  AudioLines,
+  Ban,
+  ChevronRight,
+  Loader2,
+  Megaphone,
+  PhoneCall,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { VoiceCard } from '@/components/settings/voice-card';
@@ -156,76 +163,85 @@ export default function VoicePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="app-page-title">{t('nav.voice')}</h1>
-          {/* La frase de qué es esto sólo mientras no hay nada montado: apenas
-              la línea de estado dice «Puede llamar desde tal número», explicar
-              que el agente llama por teléfono es decir lo mismo dos veces. */}
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
-            {readiness?.ready ? '' : t('voice.pageDesc')}
-            {/* El consumo, en gris y sólo cuando ya hubo llamadas: en una
-                cuenta nueva un «0 min» no le dice nada a nadie. */}
-            {usage && usage.calls > 0 && (
-              <>
-                {readiness?.ready ? '' : ' · '}
-                {t('voice.usageThisMonth', {
-                  minutes: String(usage.minutes_used),
-                })}
-                {usage.minutes_limit > 0
-                  ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
-                  : ''}
-                {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
-              </>
-            )}
-          </p>
-        </div>
-        {/* Arriba y a mano. Al fondo de la página, después del registro, era un
-            freno de emergencia al que había que llegar scrolleando. */}
-        <Button
-          variant={parado ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => frenar(!parado)}
-          disabled={parando}
-        >
-          {parando ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : parado ? (
-            t('voice.stoppedResume')
-          ) : (
-            <>
-              <Ban className="mr-1 h-3.5 w-3.5" />
-              {t('voice.stopAction')}
-            </>
+    <div className="mx-auto max-w-5xl space-y-9">
+      <header className="border-border bg-card relative overflow-hidden rounded-2xl border shadow-sm">
+        <div className="bg-accent/10 pointer-events-none absolute -top-20 -right-16 size-64 rounded-full blur-3xl" />
+        <div className="relative flex flex-wrap items-start justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-start gap-3.5">
+            <span className="bg-accent text-accent-foreground grid size-11 shrink-0 place-items-center rounded-2xl shadow-sm">
+              <PhoneCall className="size-5" />
+            </span>
+            <div>
+              <h1 className="app-page-title">{t('nav.voice')}</h1>
+              <p className="text-muted-foreground mt-1 max-w-lg text-[13px]">
+                {t('voice.pageDesc')}
+              </p>
+              {usage && usage.calls > 0 && (
+                <p className="text-muted-foreground border-border bg-background/70 mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
+                  <AudioLines className="text-accent-ink size-3" />
+                  {t('voice.usageThisMonth', {
+                    minutes: String(usage.minutes_used),
+                  })}
+                  {usage.minutes_limit > 0
+                    ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
+                    : ''}
+                  {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
+                </p>
+              )}
+            </div>
+          </div>
+          {(readiness?.ready || !!usage?.calls || parado) && (
+            <Button
+              variant={parado ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => frenar(!parado)}
+              disabled={parando}
+              className="shrink-0"
+            >
+              {parando ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : parado ? (
+                t('voice.stoppedResume')
+              ) : (
+                <>
+                  <Ban className="mr-1 size-3.5" />
+                  {t('voice.stopAction')}
+                </>
+              )}
+            </Button>
           )}
-        </Button>
-      </header>
+        </div>
 
-      {parado ? (
-        <p className="border-destructive/40 bg-destructive/5 text-destructive flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2.5 text-sm">
-          <Ban className="h-4 w-4 shrink-0" />
-          {t('voice.stopped')}
-          <span className="text-muted-foreground text-xs">
-            {t('voice.stopHint')}
-          </span>
-        </p>
-      ) : (
-        // Si el teléfono puede sonar, arriba de todo y en una frase. Antes había
-        // que leer tres tarjetas y deducirlo — y se deducía mal: el agente de
-        // Pilar estuvo borrado seis días sin que ninguna pantalla lo dijera.
-        // Con el freno puesto no se dibuja: el cartel rojo de arriba ya lo dice,
-        // y dos avisos en fila diciendo lo mismo es la forma más fácil de que no
-        // se lea ninguno.
-        <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
-      )}
+        <div className="border-border/70 border-t">
+          {parado ? (
+            <p className="bg-destructive/5 text-destructive flex flex-wrap items-center gap-x-2 gap-y-1 px-5 py-3 text-sm sm:px-6">
+              <Ban className="size-4 shrink-0" />
+              <span className="font-medium">{t('voice.stopped')}</span>
+              <span className="text-muted-foreground text-xs">
+                {t('voice.stopHint')}
+              </span>
+            </p>
+          ) : (
+            <VoiceStatusLine
+              readiness={readiness}
+              loading={cargandoEstado}
+              className="rounded-none border-0 px-5 py-3 sm:px-6"
+            />
+          )}
+        </div>
+      </header>
 
       {/* ── Armarlo. Se hace una vez. ── */}
       <section className="space-y-4">
-        <div className="app-section-head">
-          <h2 className="text-foreground text-sm font-semibold">
-            {t('voice.setupGroup')}
-          </h2>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-foreground text-sm font-semibold">
+              {t('voice.setupGroup')}
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              {t('voice.voiceSetupHint')}
+            </p>
+          </div>
         </div>
 
         <VoiceNumberCard />
@@ -240,20 +256,19 @@ export default function VoicePage() {
         {/* Cuándo llama va DESPUÉS de quién atiende y antes del comportamiento:
             es el orden en que se piensa —tengo número, tengo quien atienda,
             ahora cuándo suena— y era justo el eslabón que no estaba. */}
-        <WhenItCalls />
-
-        <VoiceCard
-          onSaved={() => {
-            recargar();
-            // Guardar acá puede cambiar el estado (prender los entrantes, mover
-            // el tope): releerlo, o la línea de arriba queda mintiendo hasta F5.
-            releerEstado();
-          }}
-        />
+        <div className="grid items-start gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <WhenItCalls />
+          <VoiceCard
+            onSaved={() => {
+              recargar();
+              releerEstado();
+            }}
+          />
+        </div>
       </section>
 
       {/* ── Mirarlo. Se hace todas las semanas. ── */}
-      <section className="space-y-4">
+      <section className="space-y-4 pb-8">
         <div className="app-section-head">
           <h2 className="text-foreground text-sm font-semibold">
             {t('voice.activityGroup')}

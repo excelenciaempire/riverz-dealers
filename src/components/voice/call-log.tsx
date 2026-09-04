@@ -139,7 +139,7 @@ export function CallLog({
       if (f.agentId.length) p.set('agent_id', f.agentId.join(','));
       return p;
     },
-    [workspaceId, tz],
+    [workspaceId, tz]
   );
 
   const load = useCallback(async () => {
@@ -149,7 +149,9 @@ export function CallLog({
       const params = buildParams(filters);
       params.set('limit', String(pageSize));
       params.set('offset', String(page * pageSize));
-      const res = await fetch(`/api/voice/calls?${params}`, { cache: 'no-store' });
+      const res = await fetch(`/api/voice/calls?${params}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) return;
       const json = (await res.json()) as { calls: CallRow[]; total: number };
       setCalls(json.calls ?? []);
@@ -170,7 +172,9 @@ export function CallLog({
     try {
       const params = buildParams(filters);
       params.set('export', '1');
-      const res = await fetch(`/api/voice/calls?${params}`, { cache: 'no-store' });
+      const res = await fetch(`/api/voice/calls?${params}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error('export failed');
       const { calls: rows, truncated } = (await res.json()) as {
         calls: CallRow[];
@@ -207,7 +211,7 @@ export function CallLog({
           c.upsell_amount ?? '',
           c.cost?.total_usd ?? '',
           c.summary ?? '',
-        ]),
+        ])
       );
       toast.success(t('voice.exported', { count: rows.length }));
       if (truncated) toast.warning(t('voice.exportTruncated'));
@@ -231,9 +235,11 @@ export function CallLog({
   const allLabel = t('voice.filterAll');
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    <section className="border-border bg-card rounded-2xl border p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">{t('voice.callLogTitle')}</h2>
+        <h2 className="text-foreground text-sm font-semibold">
+          {t('voice.callLogTitle')}
+        </h2>
         <Button
           variant="outline"
           size="sm"
@@ -253,7 +259,7 @@ export function CallLog({
       {/* Filtros */}
       <div className="mb-3 space-y-2">
         <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -268,7 +274,11 @@ export function CallLog({
             preset={filters.datePreset}
             custom={filters.dateCustom}
             onChange={(preset, custom) => {
-              setFilters((f) => ({ ...f, datePreset: preset, dateCustom: custom }));
+              setFilters((f) => ({
+                ...f,
+                datePreset: preset,
+                dateCustom: custom,
+              }));
               setPage(0);
             }}
           />
@@ -277,21 +287,30 @@ export function CallLog({
             allLabel={allLabel}
             values={filters.status}
             onChange={(v) => set('status', v)}
-            options={STATUSES.map((s) => ({ value: s, label: t(VOICE_STATUS_KEY[s]) }))}
+            options={STATUSES.map((s) => ({
+              value: s,
+              label: t(VOICE_STATUS_KEY[s]),
+            }))}
           />
           <FilterMultiSelect
             label={t('voice.outcome')}
             allLabel={allLabel}
             values={filters.outcome}
             onChange={(v) => set('outcome', v)}
-            options={OUTCOMES.map((o) => ({ value: o, label: t(VOICE_OUTCOME_KEY[o]) }))}
+            options={OUTCOMES.map((o) => ({
+              value: o,
+              label: t(VOICE_OUTCOME_KEY[o]),
+            }))}
           />
           <FilterMultiSelect
             label={t('voice.callType')}
             allLabel={allLabel}
             values={filters.callType}
             onChange={(v) => set('callType', v)}
-            options={ALL_CALL_TYPES.map((c) => ({ value: c, label: t(VOICE_TYPE_KEY[c]) }))}
+            options={ALL_CALL_TYPES.map((c) => ({
+              value: c,
+              label: t(VOICE_TYPE_KEY[c]),
+            }))}
           />
           <FilterMultiSelect
             label={t('voice.direction')}
@@ -320,7 +339,7 @@ export function CallLog({
                 setSearch('');
                 setPage(0);
               }}
-              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
             >
               {t('voice.clearFilters')}
             </button>
@@ -329,24 +348,41 @@ export function CallLog({
       </div>
 
       {loading ? (
-        <div className="flex items-center text-muted-foreground">
+        <div className="text-muted-foreground flex items-center">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : calls.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {dirty ? t('voice.noCallsMatch') : t('voice.noCalls')}
-        </p>
+        <div className="border-border bg-muted/15 grid min-h-40 place-items-center rounded-xl border border-dashed px-4 text-center">
+          <div>
+            <span className="bg-background text-muted-foreground mx-auto grid size-10 place-items-center rounded-full border">
+              <PhoneCall className="size-4" />
+            </span>
+            <p className="text-muted-foreground mt-3 text-sm">
+              {dirty ? t('voice.noCallsMatch') : t('voice.noCalls')}
+            </p>
+          </div>
+        </div>
       ) : (
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">{t('voice.colContact')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('voice.callType')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('voice.colStatus')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('voice.outcome')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('voice.duration')}</th>
+                <tr className="text-muted-foreground text-left text-xs">
+                  <th className="pr-4 pb-2 font-medium">
+                    {t('voice.colContact')}
+                  </th>
+                  <th className="pr-4 pb-2 font-medium">
+                    {t('voice.callType')}
+                  </th>
+                  <th className="pr-4 pb-2 font-medium">
+                    {t('voice.colStatus')}
+                  </th>
+                  <th className="pr-4 pb-2 font-medium">
+                    {t('voice.outcome')}
+                  </th>
+                  <th className="pr-4 pb-2 font-medium">
+                    {t('voice.duration')}
+                  </th>
                   <th className="pb-2 font-medium">{t('voice.colWhen')}</th>
                 </tr>
               </thead>
@@ -355,23 +391,25 @@ export function CallLog({
                   <tr
                     key={c.id}
                     onClick={() => setSelectedCall(c.id)}
-                    className="cursor-pointer border-t border-border/60 hover:bg-muted/40"
+                    className="border-border/60 hover:bg-muted/40 cursor-pointer border-t"
                   >
                     <td className="py-2 pr-4">
-                      <span className="inline-flex items-center gap-1.5 text-foreground">
+                      <span className="text-foreground inline-flex items-center gap-1.5">
                         {c.direction === 'inbound' ? (
                           <PhoneIncoming className="h-3.5 w-3.5 text-yellow-500" />
                         ) : (
                           <PhoneCall className="h-3.5 w-3.5 text-yellow-500" />
                         )}
                         {c.contact?.name || c.phone}
-                        {c.recording_url && <Mic className="h-3 w-3 text-muted-foreground" />}
+                        {c.recording_url && (
+                          <Mic className="text-muted-foreground h-3 w-3" />
+                        )}
                       </span>
                     </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
+                    <td className="text-muted-foreground py-2 pr-4">
                       {t(VOICE_TYPE_KEY[c.call_type])}
                     </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
+                    <td className="text-muted-foreground py-2 pr-4">
                       {(() => {
                         // Una llamada que una barrera frenó se lee «No se
                         // llamó» con el motivo debajo: antes decía «Cancelada»
@@ -381,7 +419,8 @@ export function CallLog({
                         return (
                           <>
                             <span className="inline-flex items-center gap-1.5">
-                              {(c.status === 'dialing' || c.status === 'in_progress') && (
+                              {(c.status === 'dialing' ||
+                                c.status === 'in_progress') && (
                                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
                               )}
                               {t(statusKey)}
@@ -395,13 +434,13 @@ export function CallLog({
                         );
                       })()}
                     </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
+                    <td className="text-muted-foreground py-2 pr-4">
                       {c.outcome ? t(VOICE_OUTCOME_KEY[c.outcome]) : '—'}
                     </td>
-                    <td className="py-2 pr-4 text-muted-foreground">
+                    <td className="text-muted-foreground py-2 pr-4">
                       {fmtCallDuration(c.duration_seconds)}
                     </td>
-                    <td className="py-2 text-muted-foreground">
+                    <td className="text-muted-foreground py-2">
                       {format.dateTime(new Date(c.created_at))}
                     </td>
                   </tr>
@@ -413,7 +452,7 @@ export function CallLog({
           {/* Paginado + tamaño de página */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {t('voice.paginationRange', {
                   from: page * pageSize + 1,
                   to: Math.min((page + 1) * pageSize, total),
@@ -421,7 +460,9 @@ export function CallLog({
                 })}
               </p>
               <div className="inline-flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">{t('voice.perPage')}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t('voice.perPage')}
+                </span>
                 {PAGE_SIZES.map((size) => (
                   <button
                     key={size}
@@ -434,7 +475,7 @@ export function CallLog({
                       'rounded-md px-2 py-1 text-xs font-medium tabular-nums transition-colors',
                       pageSize === size
                         ? 'bg-muted text-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                     )}
                   >
                     {size}
@@ -453,7 +494,7 @@ export function CallLog({
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
-                <span className="px-2 text-xs text-muted-foreground">
+                <span className="text-muted-foreground px-2 text-xs">
                   {t('voice.pageOf', { page: page + 1, total: totalPages })}
                 </span>
                 <Button
