@@ -393,9 +393,13 @@ export const settings = {
   mcpCopied: { es: 'Copiado', en: 'Copied' },
   phoneLabel: { es: 'WhatsApp', en: 'WhatsApp' },
   phoneHint: {
-    es: 'A este número te preguntamos lo que la IA no decide sola, como un pago informado que no cierra.',
-    en: "We message this number when the AI can't decide on its own, like a reported payment that doesn't add up.",
+    es: 'Elige qué avisos recibe cada número.',
+    en: 'Choose which alerts each number receives.',
   },
+  alertScopeLabel: { es: 'Tipo de aviso', en: 'Alert type' },
+  alertScopeBoth: { es: 'Ambas', en: 'Both' },
+  alertScopeEscalations: { es: 'Escalaciones', en: 'Escalations' },
+  alertScopeNotifications: { es: 'Notificaciones', en: 'Notifications' },
   phoneAdd: { es: 'Agregar otro número', en: 'Add another number' },
   phoneRemove: { es: 'Quitar', en: 'Remove' },
   phoneInvalid: {

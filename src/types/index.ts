@@ -35,6 +35,13 @@ export const CHANNELS: Channel[] = [
 // ============================================================
 export type WorkspaceRole = 'admin' | 'agent';
 
+export type AlertDestinationScope = 'escalations' | 'notifications' | 'both';
+
+export interface AlertDestination {
+  phone: string;
+  scope: AlertDestinationScope;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -57,6 +64,8 @@ export interface Workspace {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+  /** Números que reciben avisos y qué clase de aviso recibe cada uno. */
+  alert_destinations?: AlertDestination[];
 }
 
 export interface WorkspaceMember {
@@ -385,7 +394,7 @@ export interface Conversation {
    * normal: 'story_reply' (contestaron tu historia) o 'story_mention' (te
    * mencionaron en la suya). Se estampa una vez y se queda (migración 130).
    * Es lo que lleva estos hilos a la pestaña Comentarios de la bandeja. */
-  engagement_kind?: "story_reply" | "story_mention" | null;
+  engagement_kind?: 'story_reply' | 'story_mention' | null;
   /** Chat web: la página de la tienda desde la que se escribió el último
    * mensaje, y su título — que en una tienda es el nombre del producto. Se
    * pisa en cada mensaje, así que describe dónde está la persona AHORA
@@ -465,7 +474,12 @@ export type ContentType =
   | 'interactive'
   | 'email'
   | 'comment';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
 
 export interface MessageAttachment {
   url: string;
@@ -489,7 +503,14 @@ export interface Message {
   media_url?: string;
   /** Categoría del adjunto principal (image/voice/audio/video/document/sticker).
    *  Migration 051. */
-  media_type?: 'image' | 'voice' | 'audio' | 'video' | 'document' | 'sticker' | null;
+  media_type?:
+    | 'image'
+    | 'voice'
+    | 'audio'
+    | 'video'
+    | 'document'
+    | 'sticker'
+    | null;
   /** MIME real del adjunto principal. Migration 051. */
   media_mime?: string | null;
   /** Bytes del adjunto principal. Migration 051. */
@@ -526,7 +547,7 @@ export interface Message {
    *  barra de moderación de la bandeja) o 'red' (alguien desde Instagram /
    *  Facebook / TikTok). Antes `is_hidden` era un sí/no sin autor y los tres
    *  caminos escribían la misma marca. */
-  hidden_by?: "ia" | "persona" | "red" | null;
+  hidden_by?: 'ia' | 'persona' | 'red' | null;
   hidden_by_user_id?: string | null;
   /** Por qué lo decidió la IA ('spam'), o nulo. */
   hidden_reason?: string | null;
@@ -617,12 +638,14 @@ export interface ChannelConnection {
   /** account_review_status del WABA. */
   health_review_status?: string | null;
   /** Motivos bloqueantes legibles del último chequeo de salud. */
-  health_blockers?: {
-    entity: string;
-    code: number | null;
-    description: string;
-    solution: string | null;
-  }[] | null;
+  health_blockers?:
+    | {
+        entity: string;
+        code: number | null;
+        description: string;
+        solution: string | null;
+      }[]
+    | null;
   /** Cuándo se leyó por última vez la salud. */
   health_checked_at?: string | null;
 }
@@ -686,8 +709,19 @@ export interface MessageSnippet {
   created_at: string;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
+export type RecipientStatus =
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'replied'
+  | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -866,8 +900,20 @@ export interface SendTemplateStepConfig {
   ab_test?: {
     id: string;
     variants: [
-      { id: 'a'; template_name: string; language?: string; variables?: Record<string, string>; weight: number },
-      { id: 'b'; template_name: string; language?: string; variables?: Record<string, string>; weight: number },
+      {
+        id: 'a';
+        template_name: string;
+        language?: string;
+        variables?: Record<string, string>;
+        weight: number;
+      },
+      {
+        id: 'b';
+        template_name: string;
+        language?: string;
+        variables?: Record<string, string>;
+        weight: number;
+      },
     ];
   };
 }
@@ -1238,7 +1284,12 @@ export interface VoiceConnectionConfig {
 }
 
 /** Bulk outbound call campaign over a saved segment (migration 116). */
-export type VoiceCampaignStatus = 'draft' | 'running' | 'paused' | 'done' | 'canceled';
+export type VoiceCampaignStatus =
+  | 'draft'
+  | 'running'
+  | 'paused'
+  | 'done'
+  | 'canceled';
 
 export interface VoiceCampaign {
   id: string;

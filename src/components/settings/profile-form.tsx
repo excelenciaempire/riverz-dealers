@@ -20,17 +20,9 @@ import type { CountryCode } from 'libphonenumber-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import type { AlertDestinationScope } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -44,6 +36,7 @@ const ALLOWED_MIME = new Set([
 // rejects anything malformed when we call updateUser({ email }). We
 // just want to stop obvious typos before making a network call.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+type AlertNumber = { phone: string; scope: AlertDestinationScope };
 
 /**
  * Cuántos números extra se pueden cargar.
@@ -71,7 +64,9 @@ export function ProfileForm() {
    * que la persona ya conoce. Buscarlos en otra pestaña era encontrarlos por
    * casualidad.
    */
-  const [extras, setExtras] = useState<string[]>([]);
+  const [primaryScope, setPrimaryScope] =
+    useState<AlertDestinationScope>('both');
+  const [extras, setExtras] = useState<AlertNumber[]>([]);
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
@@ -90,10 +85,26 @@ export function ProfileForm() {
   // quien los edita son la misma cosa.
   const { workspace, isAdmin, reload: reloadWorkspace } = useWorkspace();
   useEffect(() => {
-    if (!workspace) return;
-    const w = workspace as unknown as { alert_phones?: string[] | null };
-    setExtras([...(w.alert_phones ?? [])]);
-  }, [workspace]);
+    if (!workspace || !profile) return;
+    const w = workspace as unknown as {
+      alert_phones?: string[] | null;
+      alert_destinations?: AlertNumber[] | null;
+    };
+    const propios = (
+      w.alert_destinations?.length
+        ? w.alert_destinations
+        : (w.alert_phones ?? []).map((phone) => ({
+            phone,
+            scope: 'both' as const,
+          }))
+    ).filter((x) => x.phone);
+    const propio = sanitizePhoneForMeta(profile.phone ?? '');
+    const principal = propios.find(
+      (x) => sanitizePhoneForMeta(x.phone) === propio
+    );
+    setPrimaryScope(principal?.scope ?? 'both');
+    setExtras(propios.filter((x) => sanitizePhoneForMeta(x.phone) !== propio));
+  }, [workspace, profile]);
 
   // Seed form state once the profile loads.
   useEffect(() => {
@@ -111,7 +122,7 @@ export function ProfileForm() {
   }, [previewUrl]);
 
   const currentAvatar =
-    previewUrl ?? (!removeAvatar ? profile?.avatar_url ?? null : null);
+    previewUrl ?? (!removeAvatar ? (profile?.avatar_url ?? null) : null);
 
   const initial = (fullName || profile?.full_name || profile?.email || 'U')
     .charAt(0)
@@ -127,7 +138,7 @@ export function ProfileForm() {
       await navigator.clipboard.writeText(user.id);
       setIdCopied(true);
       toast.success(
-        t('settings.copiedToClipboard', { label: t('settings.userId') }),
+        t('settings.copiedToClipboard', { label: t('settings.userId') })
       );
       setTimeout(() => setIdCopied(false), 1500);
     } catch {
@@ -187,7 +198,7 @@ export function ProfileForm() {
     // Los extra, con la misma vara: uno inválido guardado es un aviso perdido
     // en silencio, que es justo el modo de falla que se está arreglando.
     const extraMalo = extras
-      .map((x) => x.trim())
+      .map((x) => x.phone.trim())
       .filter(Boolean)
       .find((x) => !isValidE164(sanitizePhoneForMeta(x)));
     if (extraMalo) {
@@ -201,8 +212,7 @@ export function ProfileForm() {
 
       // Upload a newly-staged image, if any.
       if (pendingAvatar) {
-        const ext =
-          pendingAvatar.name.split('.').pop()?.toLowerCase() || 'png';
+        const ext = pendingAvatar.name.split('.').pop()?.toLowerCase() || 'png';
         const path = `${user.id}/avatar-${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('avatars')
@@ -212,7 +222,9 @@ export function ProfileForm() {
             contentType: pendingAvatar.type,
           });
         if (uploadError) {
-          throw new Error(t('settings.uploadFailed', { message: uploadError.message }));
+          throw new Error(
+            t('settings.uploadFailed', { message: uploadError.message })
+          );
         }
         const {
           data: { publicUrl },
@@ -236,23 +248,45 @@ export function ProfileForm() {
         })
         .eq('user_id', user.id);
       if (updateError) {
-        throw new Error(t('settings.saveFailed', { message: updateError.message }));
+        throw new Error(
+          t('settings.saveFailed', { message: updateError.message })
+        );
       }
 
       // Y los números extra del espacio de trabajo, si esta persona puede.
       // Se guardan normalizados igual que el propio: un número con el prefijo
       // a medias es un aviso que no llega y que nadie va a poder explicar.
       if (isAdmin && workspace) {
-        const limpios = extras
-          .map((x) => x.trim())
-          .filter(Boolean)
-          .map((x) => normalizeToWhatsApp(x));
+        const destinos = [
+          ...(trimmedPhone
+            ? [
+                {
+                  phone: normalizeToWhatsApp(trimmedPhone),
+                  scope: primaryScope,
+                },
+              ]
+            : []),
+          ...extras
+            .map((x) => ({ phone: x.phone.trim(), scope: x.scope }))
+            .filter(Boolean)
+            .map((x) => ({ ...x, phone: normalizeToWhatsApp(x.phone) })),
+        ];
+        const sinDuplicados = [
+          ...new Map(
+            destinos.map((x) => [sanitizePhoneForMeta(x.phone), x])
+          ).values(),
+        ];
         const { error: wsError } = await supabase
           .from('workspaces')
-          .update({ alert_phones: limpios, updated_at: new Date().toISOString() })
+          .update({
+            alert_destinations: sinDuplicados,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', workspace.id);
         if (wsError) {
-          throw new Error(t('settings.saveFailed', { message: wsError.message }));
+          throw new Error(
+            t('settings.saveFailed', { message: wsError.message })
+          );
         }
         reloadWorkspace();
       }
@@ -270,7 +304,9 @@ export function ProfileForm() {
         if (emailError) {
           // Partial success: name/avatar saved but email didn't.
           toast.success(t('common.saved'));
-          toast.error(t('settings.emailChangeFailed', { message: emailError.message }));
+          toast.error(
+            t('settings.emailChangeFailed', { message: emailError.message })
+          );
           setSaving(false);
           await refreshProfile();
           return;
@@ -285,9 +321,7 @@ export function ProfileForm() {
       await refreshProfile();
 
       toast.success(
-        emailSent
-          ? t('settings.savedEmailConfirm')
-          : t('common.saved'),
+        emailSent ? t('settings.savedEmailConfirm') : t('common.saved')
       );
     } catch (err) {
       // El motivo REAL, no un genérico.
@@ -297,12 +331,39 @@ export function ProfileForm() {
       // (`settings.saveFailed` con el texto de la base) que nunca llegaban a
       // verse. Con eso, "no me deja guardar" no se podía diagnosticar ni
       // mirando la pantalla (2026-08-29).
-      toast.error(err instanceof Error ? err.message : t('settings.genericError'));
+      toast.error(
+        err instanceof Error ? err.message : t('settings.genericError')
+      );
       console.error('[perfil] no se pudo guardar:', err);
     } finally {
       setSaving(false);
     }
   };
+
+  const savedDestinations =
+    (
+      workspace as unknown as {
+        alert_destinations?: AlertNumber[] | null;
+        alert_phones?: string[] | null;
+      } | null
+    )?.alert_destinations ??
+    (
+      (workspace as unknown as { alert_phones?: string[] | null } | null)
+        ?.alert_phones ?? []
+    ).map((phone) => ({ phone, scope: 'both' as const }));
+  const savedPrimaryScope =
+    savedDestinations.find(
+      (x) =>
+        sanitizePhoneForMeta(x.phone) ===
+        sanitizePhoneForMeta(profile?.phone ?? '')
+    )?.scope ?? 'both';
+  const savedExtras = savedDestinations
+    .filter(
+      (x) =>
+        sanitizePhoneForMeta(x.phone) !==
+        sanitizePhoneForMeta(profile?.phone ?? '')
+    )
+    .map((x) => ({ phone: sanitizePhoneForMeta(x.phone), scope: x.scope }));
 
   const dirty =
     !!profile &&
@@ -314,16 +375,19 @@ export function ProfileForm() {
       // el mismo número y la comparación cruda decía que no. El botón quedaba
       // gris para quien SÍ había cambiado algo —o encendido para siempre para
       // quien no— según de qué lado estuviera el `+`.
-      sanitizePhoneForMeta(phone) !== sanitizePhoneForMeta(profile.phone ?? '') ||
+      sanitizePhoneForMeta(phone) !==
+        sanitizePhoneForMeta(profile.phone ?? '') ||
+      primaryScope !== savedPrimaryScope ||
       pendingAvatar !== null ||
       removeAvatar ||
-      JSON.stringify(extras.map((x) => sanitizePhoneForMeta(x)).filter(Boolean)) !==
-        JSON.stringify(
-          (
-            (workspace as unknown as { alert_phones?: string[] | null } | null)
-              ?.alert_phones ?? []
-          ).map((x) => sanitizePhoneForMeta(x)),
-        ));
+      JSON.stringify(
+        extras
+          .map((x) => ({
+            phone: sanitizePhoneForMeta(x.phone),
+            scope: x.scope,
+          }))
+          .filter((x) => x.phone)
+      ) !== JSON.stringify(savedExtras));
 
   const joined = user?.created_at
     ? fmt.date(user.created_at, {
@@ -336,7 +400,9 @@ export function ProfileForm() {
   return (
     <Card className="bg-card/40 border-border">
       <CardHeader>
-        <CardTitle className="text-foreground">{t('settings.profileTitle')}</CardTitle>
+        <CardTitle className="text-foreground">
+          {t('settings.profileTitle')}
+        </CardTitle>
       </CardHeader>
 
       <CardContent>
@@ -345,9 +411,12 @@ export function ProfileForm() {
           <div className="flex flex-wrap items-center gap-5">
             <Avatar size="lg" className="size-16">
               {currentAvatar ? (
-                <AvatarImage src={currentAvatar} alt={fullName || t('settings.avatarAlt')} />
+                <AvatarImage
+                  src={currentAvatar}
+                  alt={fullName || t('settings.avatarAlt')}
+                />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-base text-accent-ink">
+              <AvatarFallback className="bg-primary/10 text-accent-ink text-base">
                 {initial}
               </AvatarFallback>
             </Avatar>
@@ -367,7 +436,9 @@ export function ProfileForm() {
                 disabled={saving}
               >
                 <Upload className="size-4" />
-                {currentAvatar ? t('settings.changePhoto') : t('settings.uploadPhoto')}
+                {currentAvatar
+                  ? t('settings.changePhoto')
+                  : t('settings.uploadPhoto')}
               </Button>
               {currentAvatar && (
                 <Button
@@ -436,7 +507,26 @@ export function ProfileForm() {
               onChange={setPhone}
               disabled={saving}
             />
-            <p className="text-xs text-muted-foreground">{t('settings.phoneHint')}</p>
+            <select
+              value={primaryScope}
+              onChange={(e) =>
+                setPrimaryScope(e.target.value as AlertDestinationScope)
+              }
+              disabled={saving || !phone.trim()}
+              className="border-input bg-background text-foreground h-9 rounded-md border px-3 text-sm disabled:opacity-50"
+              aria-label={t('settings.alertScopeLabel')}
+            >
+              <option value="both">{t('settings.alertScopeBoth')}</option>
+              <option value="escalations">
+                {t('settings.alertScopeEscalations')}
+              </option>
+              <option value="notifications">
+                {t('settings.alertScopeNotifications')}
+              </option>
+            </select>
+            <p className="text-muted-foreground text-xs">
+              {t('settings.phoneHint')}
+            </p>
 
             {/* Los otros números a los que avisamos.
                 Son del espacio de trabajo y no de este perfil, pero se editan
@@ -444,25 +534,56 @@ export function ProfileForm() {
                 otra pestaña se encontraban por casualidad. */}
             {isAdmin && (
               <div className="space-y-2 pt-1">
-                {extras.map((numero, i) => (
+                {extras.map((destino, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <CampoTelefono
                       id={`extra-phone-${i}`}
-                      value={numero}
+                      value={destino.phone}
                       onChange={(v) =>
-                        setExtras((prev) => prev.map((x, j) => (j === i ? v : x)))
+                        setExtras((prev) =>
+                          prev.map((x, j) => (j === i ? { ...x, phone: v } : x))
+                        )
                       }
                       paisPorDefecto={paisDelPropio}
                       disabled={saving}
                       className="flex-1"
                     />
+                    <select
+                      value={destino.scope}
+                      onChange={(e) =>
+                        setExtras((prev) =>
+                          prev.map((x, j) =>
+                            j === i
+                              ? {
+                                  ...x,
+                                  scope: e.target
+                                    .value as AlertDestinationScope,
+                                }
+                              : x
+                          )
+                        )
+                      }
+                      disabled={saving}
+                      className="border-input bg-background text-foreground h-9 rounded-md border px-2 text-sm disabled:opacity-50"
+                      aria-label={t('settings.alertScopeLabel')}
+                    >
+                      <option value="both">
+                        {t('settings.alertScopeBoth')}
+                      </option>
+                      <option value="escalations">
+                        {t('settings.alertScopeEscalations')}
+                      </option>
+                      <option value="notifications">
+                        {t('settings.alertScopeNotifications')}
+                      </option>
+                    </select>
                     <button
                       type="button"
                       onClick={() =>
                         setExtras((prev) => prev.filter((_, j) => j !== i))
                       }
                       disabled={saving}
-                      className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                      className="border-border text-muted-foreground hover:text-destructive rounded-lg border p-2 transition-colors disabled:opacity-50"
                       aria-label={t('settings.phoneRemove')}
                     >
                       <Trash2 className="size-4" />
@@ -472,9 +593,14 @@ export function ProfileForm() {
                 {extras.length < MAX_EXTRA && (
                   <button
                     type="button"
-                    onClick={() => setExtras((prev) => [...prev, ''])}
+                    onClick={() =>
+                      setExtras((prev) => [
+                        ...prev,
+                        { phone: '', scope: 'both' },
+                      ])
+                    }
                     disabled={saving}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+                    className="text-accent-ink inline-flex items-center gap-1.5 text-xs font-medium hover:underline disabled:opacity-50"
                   >
                     <Plus className="size-3.5" />
                     {t('settings.phoneAdd')}
@@ -485,25 +611,31 @@ export function ProfileForm() {
           </div>
 
           {/* Read-only block */}
-          <div className="rounded-lg border border-border bg-card/60 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="border-border bg-card/60 rounded-lg border p-4">
+            <p className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
               {t('settings.accountData')}
             </p>
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-muted-foreground">{t('settings.roleLabel')}</dt>
-                <dd className="mt-0.5 font-mono text-foreground">
+                <dt className="text-muted-foreground">
+                  {t('settings.roleLabel')}
+                </dt>
+                <dd className="text-foreground mt-0.5 font-mono">
                   {profile?.role ?? 'user'}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">{t('settings.joinedOn')}</dt>
-                <dd className="mt-0.5 text-foreground">{joined}</dd>
+                <dt className="text-muted-foreground">
+                  {t('settings.joinedOn')}
+                </dt>
+                <dd className="text-foreground mt-0.5">{joined}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">{t('settings.userId')}</dt>
+                <dt className="text-muted-foreground">
+                  {t('settings.userId')}
+                </dt>
                 <dd className="mt-0.5 flex items-center gap-1.5">
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="text-muted-foreground font-mono text-xs">
                     {shortId ?? '—'}
                   </span>
                   {shortId && (
@@ -511,7 +643,7 @@ export function ProfileForm() {
                       type="button"
                       onClick={onCopyId}
                       aria-label={t('settings.userId')}
-                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {idCopied ? (
                         <Check className="size-3.5" />
@@ -526,7 +658,7 @@ export function ProfileForm() {
           </div>
 
           {!profile && (
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground size-4 animate-spin" />
           )}
 
           <div className="flex justify-end">
