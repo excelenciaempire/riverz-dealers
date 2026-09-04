@@ -12,13 +12,12 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { VoiceCard } from '@/components/settings/voice-card';
 import { VoiceNumberCard } from '@/components/settings/voice-number-card';
 import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
 import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
-import { VoiceCapacityCard } from '@/components/voice/voice-capacity-card';
+import { VoiceOrderSettings } from '@/components/voice/voice-order-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -242,14 +241,7 @@ export default function VoicePage() {
           }}
         />
 
-        <VoiceCapacityCard workspaceId={workspaceId} />
-
-        <VoiceCard
-          onSaved={() => {
-            recargar();
-            releerEstado();
-          }}
-        />
+        <VoiceOrderSettings workspaceId={workspaceId} />
       </section>
 
       {/* ── Mirarlo. Se hace todas las semanas. ── */}

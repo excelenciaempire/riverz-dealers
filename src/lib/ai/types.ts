@@ -235,6 +235,20 @@ export interface AiAgent {
   voice_accepts_inbound?: boolean;
   /** E.164 destination used when this voice profile transfers to a person. */
   voice_transfer_number?: string | null;
+  /** Maximum simultaneous calls handled by this voice profile. */
+  voice_max_concurrent_calls?: number;
+  /** Slots kept free for incoming calls to this profile. */
+  voice_reserved_inbound_slots?: number;
+  /** Campaign calls from this profile allowed at once. */
+  voice_max_campaign_concurrent?: number;
+  /** Automatic-call duplicate window in minutes; 0 disables it. */
+  voice_dedupe_minutes?: number;
+  /** Monthly talk-minute cap for this profile; null/0 = unlimited. */
+  voice_monthly_minutes_limit?: number | null;
+  /** Record calls handled by this profile. */
+  voice_recording_enabled?: boolean;
+  /** Announce recording before the greeting. */
+  voice_recording_disclosure?: boolean;
   /** Let the chat agent decide, mid-conversation, to escalate to a phone
    *  call (via the escalate_to_call tool), within guardrails. Migration 115. */
   voice_ai_decides: boolean;

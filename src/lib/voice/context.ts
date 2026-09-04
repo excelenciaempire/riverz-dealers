@@ -39,7 +39,10 @@ import {
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
 import { normalizeStack, resolveVoiceId } from './compat';
-import { countryOfPhone, normalizeForDialing } from '@/lib/whatsapp/phone-utils';
+import {
+  countryOfPhone,
+  normalizeForDialing,
+} from '@/lib/whatsapp/phone-utils';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -107,7 +110,7 @@ export interface VoiceContextPayload {
  */
 async function workspaceName(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<string | null> {
   const { data } = await db
     .from('workspaces')
@@ -119,7 +122,7 @@ async function workspaceName(
 
 async function workspaceDialCountry(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<string | null> {
   const { data } = await db
     .from('channel_connections')
@@ -128,8 +131,9 @@ async function workspaceDialCountry(
     .eq('channel', 'whatsapp')
     .limit(1)
     .maybeSingle();
-  const display = (data as { config?: { display_phone_number?: string } } | null)
-    ?.config?.display_phone_number;
+  const display = (
+    data as { config?: { display_phone_number?: string } } | null
+  )?.config?.display_phone_number;
   return countryOfPhone(display);
 }
 
@@ -145,7 +149,8 @@ function resolveObjective(agent: AiAgent, call: VoiceCall): string {
       ? (call.context.objective_override as string).trim()
       : '';
   if (override) return override;
-  const configured = agent.voice_objectives?.[call.call_type]?.objective?.trim();
+  const configured =
+    agent.voice_objectives?.[call.call_type]?.objective?.trim();
   if (configured) return configured;
   return DEFAULT_OBJECTIVES[call.call_type][langOf(agent, call)];
 }
@@ -156,11 +161,13 @@ function resolveGreeting(
   contact: Contact,
   call: VoiceCall,
   isArgentina = false,
-  businessName?: string | null,
+  businessName?: string | null
 ): string {
   const lang = langOf(agent, call);
   const fallback =
-    isArgentina && lang === 'es' ? DEFAULT_GREETING_AR : DEFAULT_GREETINGS[lang];
+    isArgentina && lang === 'es'
+      ? DEFAULT_GREETING_AR
+      : DEFAULT_GREETINGS[lang];
   const raw = (agent.voice_greeting && agent.voice_greeting.trim()) || fallback;
   const first = (contact.name ?? '').trim().split(/\s+/)[0] ?? '';
   // "{{contact_name}}" is meant to sit after "Hola"/"Hi" — inject a leading
@@ -169,7 +176,7 @@ function resolveGreeting(
     .replace(/\{\{\s*contact_name\s*\}\}/gi, first ? ` ${first}` : '')
     .replace(
       /\{\{\s*business_name\s*\}\}/gi,
-      (businessName ?? '').trim() || BUSINESS_FALLBACK[lang],
+      (businessName ?? '').trim() || BUSINESS_FALLBACK[lang]
     );
 }
 
@@ -181,20 +188,24 @@ function resolveGreeting(
 function buildVoiceInstructions(
   agent: AiAgent,
   call: VoiceCall,
-  objective: string,
+  objective: string
 ): string {
   const lang = langOf(agent, call);
-  const extra = agent.voice_objectives?.[call.call_type]?.extra_instructions?.trim();
+  const extra =
+    agent.voice_objectives?.[call.call_type]?.extra_instructions?.trim();
   const ctx = call.context ?? {};
   const contextLines = Object.entries(ctx)
     .filter(([k]) => k !== 'objective_override')
-    .map(([k, v]) => `- ${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .map(
+      ([k, v]) =>
+        `- ${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`
+    )
     .join('\n');
 
   if (lang === 'en') {
     return [
       '## You are on a phone call',
-      "You are speaking OUT LOUD on a live phone call, not typing. Everything you say is converted to speech.",
+      'You are speaking OUT LOUD on a live phone call, not typing. Everything you say is converted to speech.',
       'Rules for sounding human and natural:',
       '- Speak in short, simple sentences. One idea at a time.',
       '- Say numbers, prices and dates as words (e.g. "twenty-three thousand pesos", "March fifth"), never as digits or symbols.',
@@ -203,7 +214,7 @@ function buildVoiceInstructions(
       '- Use natural fillers and acknowledgements ("sure", "got it", "one sec") so it flows.',
       '- If you need to read back an address or an order, do it slowly and confirm.',
       "- Never say you are an AI unless directly asked; act as a member of the store's team.",
-        ...(call.direction === 'outbound'
+      ...(call.direction === 'outbound'
         ? [
             '## YOU called THEM',
             'They did not ask for this call. They picked up an unknown number, so the first thing they need is who you are and why you are calling.',
@@ -225,7 +236,7 @@ function buildVoiceInstructions(
       '- NEVER add, multiply, combine or repeat packs to build a quantity that is not listed. If the customer asks for a quantity with no offer of its own, offer the closest listed option and state its exact units and price.',
       '- If you are unsure about a price or what it includes, say so and offer to send it over WhatsApp. Making a number up is worse than not knowing it.',
       '- Do not promise gifts, discounts or shipping that are not written there.',
-    '## Sound like a person, not a script',
+      '## Sound like a person, not a script',
       'You are having a CONVERSATION, not reciting. Nobody wants a catalog read to them over the phone.',
       '- React to what the customer says before moving on. If they share something, acknowledge it.',
       '- Never dump two or three things in a row. Say one, then ask.',
@@ -364,7 +375,7 @@ export async function buildVoiceContext(
     greetingDelaySeconds?: number;
     /** Segundos de silencio del cliente antes de "¿sigues ahí?" y colgar (0 = off). */
     silenceTimeoutSeconds?: number;
-  },
+  }
 ): Promise<VoiceContextPayload> {
   const { data: agentRow } = await db
     .from('ai_agents')
@@ -379,15 +390,24 @@ export async function buildVoiceContext(
     .select('*')
     .eq('id', call.contact_id)
     .maybeSingle();
-  if (!contactRow) throw new Error(`voice contact ${call.contact_id} not found`);
+  if (!contactRow)
+    throw new Error(`voice contact ${call.contact_id} not found`);
   const contact = contactRow as Contact;
   const primaryContact = await loadPrimaryContact(db, contact);
 
-  const businessCurrency = await resolveWorkspaceCurrency(db, call.workspace_id);
+  const businessCurrency = await resolveWorkspaceCurrency(
+    db,
+    call.workspace_id
+  );
 
   // Same Shopify context the chat agent uses (order policy + tools). No
   // pinned product for a call (there's no message to detect from).
-  const shopify = await resolveShopifyContext(db, call.workspace_id, contact, null);
+  const shopify = await resolveShopifyContext(
+    db,
+    call.workspace_id,
+    contact,
+    null
+  );
   if (shopify) {
     shopify.canCreateOrders = agent.puede_crear_pedidos === true;
     shopify.workspaceId = call.workspace_id;
@@ -406,7 +426,8 @@ export async function buildVoiceContext(
     idleResetHint: null,
   };
   const shopifySnapshot =
-    (primaryContact.shopify_customer_data as ShopifyCustomerSnapshot | null) ?? null;
+    (primaryContact.shopify_customer_data as ShopifyCustomerSnapshot | null) ??
+    null;
 
   const base = buildSystemPrompt(
     agent,
@@ -419,7 +440,7 @@ export async function buildVoiceContext(
     null,
     shopify,
     null,
-    businessCurrency,
+    businessCurrency
   );
 
   const objective = resolveObjective(agent, call);
@@ -455,8 +476,11 @@ export async function buildVoiceContext(
   // WhatsApp del comercio (sus clientes suelen ser del mismo país). Fail-soft:
   // si no se puede resolver, marca lo guardado.
   const dialCountry =
-    (shopifySnapshot as { default_address?: { country_code?: string | null } } | null)
-      ?.default_address?.country_code ??
+    (
+      shopifySnapshot as {
+        default_address?: { country_code?: string | null };
+      } | null
+    )?.default_address?.country_code ??
     (await workspaceDialCountry(db, call.workspace_id));
   const dialPhone = normalizeForDialing(call.phone, dialCountry) || call.phone;
 
@@ -489,7 +513,9 @@ export async function buildVoiceContext(
   // recorta es la cola del catálogo, y para eso está la línea que le dice al
   // agente que pregunte si necesita un detalle puntual.
   // Configurable con VOICE_SYSTEM_PROMPT_MAX_CHARS.
-  const PROMPT_CHAR_BUDGET = Number(process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 6000);
+  const PROMPT_CHAR_BUDGET = Number(
+    process.env.VOICE_SYSTEM_PROMPT_MAX_CHARS || 6000
+  );
   const baseTrimmed =
     base.length > PROMPT_CHAR_BUDGET
       ? base.slice(0, PROMPT_CHAR_BUDGET) +
@@ -506,7 +532,8 @@ export async function buildVoiceContext(
     .select('phone_number_id')
     .eq('workspace_id', call.workspace_id)
     .maybeSingle();
-  const hasWhatsApp = !!(waCfg as { phone_number_id?: string } | null)?.phone_number_id;
+  const hasWhatsApp = !!(waCfg as { phone_number_id?: string } | null)
+    ?.phone_number_id;
 
   /**
    * Todo lo que el agente sabe hacer, también por teléfono.
@@ -534,7 +561,9 @@ export async function buildVoiceContext(
         if (!t || t.platform === 'shopify') return null;
         return { ...t, customerEmail: null, customerPhone: null };
       })();
-  const topeDescuento = await topeDeDescuento(db, call.workspace_id).catch(() => 0);
+  const topeDescuento = await topeDeDescuento(db, call.workspace_id).catch(
+    () => 0
+  );
 
   const NO_EN_LLAMADA = new Set(['escalate_to_call']);
   const herramientas = construirHerramientas({
@@ -548,16 +577,25 @@ export async function buildVoiceContext(
     // Sólo las de esquema propio. La de servidor —la búsqueda web— no tiene
     // `input_schema` y se cae acá; vuelve más abajo por el puente, como una
     // herramienta común.
-    .map((t) => t as unknown as { name?: string; description?: string; input_schema?: unknown })
+    .map(
+      (t) =>
+        t as unknown as {
+          name?: string;
+          description?: string;
+          input_schema?: unknown;
+        }
+    )
     .filter(
       (t): t is { name: string; description?: string; input_schema: unknown } =>
-        typeof t.name === 'string' && t.input_schema !== undefined,
+        typeof t.name === 'string' && t.input_schema !== undefined
     )
     .filter((t) => !NO_EN_LLAMADA.has(t.name));
 
   // El upsell en llamada necesita un pedido en contexto; sin eso `update_order`
   // no tiene sobre qué trabajar y sólo confunde al modelo.
-  const utiles = herramientas.filter((t) => t.name !== 'update_order' || upsellOn);
+  const utiles = herramientas.filter(
+    (t) => t.name !== 'update_order' || upsellOn
+  );
 
   const toolSpecs = [
     ...utiles.map((t) => ({
@@ -624,11 +662,13 @@ export async function buildVoiceContext(
   // `normalizeStack` es la red de seguridad de lectura: si la fila quedó torcida
   // (modelo/voz/endpoint de un proveedor anterior), el worker igual recibe algo
   // coherente en vez de una llamada muda.
-  const { config: model, changes } = normalizeStack(await getVoiceModelResolved(db));
+  const { config: model, changes } = normalizeStack(
+    await getVoiceModelResolved(db)
+  );
   if (changes.length) {
     console.warn(
       '[voice/context] stack corregido al vuelo',
-      changes.map((c) => `${c.layer}.${c.field}: ${c.from} → ${c.to}`),
+      changes.map((c) => `${c.layer}.${c.field}: ${c.from} → ${c.to}`)
     );
   }
 
@@ -640,7 +680,11 @@ export async function buildVoiceContext(
   const lang = langOf(agent, call);
   const negocio = await workspaceName(db, call.workspace_id);
   let greeting = resolveGreeting(agent, contact, call, isArgentina, negocio);
-  if (opts.recordingEnabled && opts.recordingDisclosure) {
+  const recordingEnabled =
+    agent.voice_recording_enabled ?? opts.recordingEnabled ?? true;
+  const recordingDisclosure =
+    agent.voice_recording_disclosure ?? opts.recordingDisclosure ?? false;
+  if (recordingEnabled && recordingDisclosure) {
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }
 
@@ -652,8 +696,14 @@ export async function buildVoiceContext(
     language: lang,
     greeting,
     agent_greets_first: opts.agentGreetsFirst !== false,
-    greeting_delay_seconds: Math.max(0, Math.min(Number(opts.greetingDelaySeconds) || 0, 10)),
-    silence_timeout_seconds: Math.max(0, Math.min(Number(opts.silenceTimeoutSeconds ?? 8), 60)),
+    greeting_delay_seconds: Math.max(
+      0,
+      Math.min(Number(opts.greetingDelaySeconds) || 0, 10)
+    ),
+    silence_timeout_seconds: Math.max(
+      0,
+      Math.min(Number(opts.silenceTimeoutSeconds ?? 8), 60)
+    ),
     system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {
@@ -667,13 +717,13 @@ export async function buildVoiceContext(
               'realtime',
               model.realtime_provider,
               agent.voice_id,
-              model.tts_default_voice_id,
+              model.tts_default_voice_id
             )
           : resolveVoiceId(
               'tts',
               model.tts_provider,
               agent.voice_id,
-              model.tts_default_voice_id,
+              model.tts_default_voice_id
             ),
       model: model.tts_model,
       // OpenAI/VoxCPM enrutan por base_url; deepgram/cartesia/elevenlabs/gemini
@@ -684,14 +734,20 @@ export async function buildVoiceContext(
     llm: (() => {
       // base_url efectivo: el de la config o el del catálogo del proveedor (Groq,
       // Gemini, Cerebras, OpenAI… enrutan por OpenAI-compat). Anthropic = null → nativo.
-      const llmBase = effectiveBaseUrl('llm', model.llm_provider, model.llm_base_url);
+      const llmBase = effectiveBaseUrl(
+        'llm',
+        model.llm_provider,
+        model.llm_base_url
+      );
       return {
         provider: model.llm_provider,
         // Con endpoint OpenAI-compat el NOMBRE de modelo lo dicta ese endpoint →
         // usamos el de la config, NO el agent.model (que puede ser de otro
         // proveedor, ej. claude-*, y rompería el endpoint). Sin base_url (Anthropic)
         // respetamos el override por-agente.
-        model: llmBase ? (model.llm_model || agent.model) : (agent.model || model.llm_model),
+        model: llmBase
+          ? model.llm_model || agent.model
+          : agent.model || model.llm_model,
         base_url: llmBase,
         api_key: model.llm_api_key,
       };
@@ -705,7 +761,9 @@ export async function buildVoiceContext(
       api_key: model.stt_api_key,
     },
     realtime:
-      model.mode === 'realtime' && model.realtime_provider && model.realtime_model
+      model.mode === 'realtime' &&
+      model.realtime_provider &&
+      model.realtime_model
         ? {
             provider: model.realtime_provider,
             model: model.realtime_model,
@@ -714,7 +772,7 @@ export async function buildVoiceContext(
           }
         : null,
     speech_style: isArgentina ? 'rioplatense' : null,
-    recording: { enabled: Boolean(opts.recordingEnabled) },
+    recording: { enabled: recordingEnabled },
     transfer: {
       // La persona correcta depende del agente (ventas, soporte, cobros).
       // El valor antiguo de la conexión queda como fallback de compatibilidad.

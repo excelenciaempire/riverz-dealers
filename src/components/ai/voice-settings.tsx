@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Activity,
   ArrowRightLeft,
   ChevronDown,
+  Gauge,
   Play,
   Square,
   Sparkles,
   Loader2,
+  Megaphone,
   PhoneCall,
   PhoneIncoming,
   Plus,
+  ShieldCheck,
   Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -55,6 +59,13 @@ export interface VoiceState {
   voice_retry_delay_minutes: number;
   voice_accepts_inbound: boolean;
   voice_transfer_number: string;
+  voice_max_concurrent_calls: number;
+  voice_reserved_inbound_slots: number;
+  voice_max_campaign_concurrent: number;
+  voice_dedupe_minutes: number;
+  voice_monthly_minutes_limit: number;
+  voice_recording_enabled: boolean;
+  voice_recording_disclosure: boolean;
 }
 
 export function initialVoiceState(agent?: {
@@ -69,6 +80,13 @@ export function initialVoiceState(agent?: {
   voice_retry_delay_minutes?: number;
   voice_accepts_inbound?: boolean;
   voice_transfer_number?: string | null;
+  voice_max_concurrent_calls?: number;
+  voice_reserved_inbound_slots?: number;
+  voice_max_campaign_concurrent?: number;
+  voice_dedupe_minutes?: number;
+  voice_monthly_minutes_limit?: number | null;
+  voice_recording_enabled?: boolean;
+  voice_recording_disclosure?: boolean;
 }): VoiceState {
   return {
     voice_enabled: agent?.voice_enabled ?? false,
@@ -84,6 +102,13 @@ export function initialVoiceState(agent?: {
       agent?.voice_retry_delay_minutes ?? DEFAULT_RETRY_DELAY_MINUTES,
     voice_accepts_inbound: agent?.voice_accepts_inbound ?? false,
     voice_transfer_number: agent?.voice_transfer_number ?? '',
+    voice_max_concurrent_calls: agent?.voice_max_concurrent_calls ?? 3,
+    voice_reserved_inbound_slots: agent?.voice_reserved_inbound_slots ?? 0,
+    voice_max_campaign_concurrent: agent?.voice_max_campaign_concurrent ?? 1,
+    voice_dedupe_minutes: agent?.voice_dedupe_minutes ?? 15,
+    voice_monthly_minutes_limit: agent?.voice_monthly_minutes_limit ?? 0,
+    voice_recording_enabled: agent?.voice_recording_enabled ?? true,
+    voice_recording_disclosure: agent?.voice_recording_disclosure ?? false,
   };
 }
 
@@ -203,6 +228,13 @@ export function VoiceSettings({
   const [consentimientoVoz, setConsentimientoVoz] = useState(false);
   const [verGuiones, setVerGuiones] = useState(false);
   const [verCuando, setVerCuando] = useState(() => tocado(value));
+  const [verControl, setVerControl] = useState(false);
+  const [capacity, setCapacity] = useState<{
+    active: number;
+    inbound_active: number;
+    outbound_active: number;
+    queued: number;
+  } | null>(null);
   const [estadoBiblioteca, setEstadoBiblioteca] = useState<
     'fish' | 'fallback' | 'unavailable' | null
   >(null);
@@ -278,6 +310,42 @@ export function VoiceSettings({
     },
     []
   );
+
+  useEffect(() => {
+    if (!workspaceId || !agentId) {
+      setCapacity(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const params = new URLSearchParams({
+          workspace_id: workspaceId,
+          agent_id: agentId,
+        });
+        const response = await fetch(`/api/voice/capacity?${params}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok || cancelled) return;
+        const json = (await response.json()) as {
+          active: number;
+          inbound_active: number;
+          outbound_active: number;
+          queued: number;
+        };
+        if (!cancelled) setCapacity(json);
+      } catch {
+        // Live counters are informational; keep the saved controls usable
+        // during a transient network failure.
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [agentId, workspaceId]);
 
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
@@ -954,6 +1022,227 @@ export function VoiceSettings({
         </div>
       </div>
 
+      <Plegable
+        titulo={t('voice.agentControlTitle')}
+        ayuda={t('voice.agentControlHint')}
+        abierto={verControl}
+        alternar={() => setVerControl((current) => !current)}
+      >
+        <div className="space-y-3">
+          {capacity && (
+            <div className="border-border bg-muted/20 grid overflow-hidden rounded-xl border sm:grid-cols-3">
+              <AgentMetric
+                icon={Activity}
+                label={t('voice.capacityInProgress')}
+                value={`${capacity.active} / ${value.voice_max_concurrent_calls}`}
+              />
+              <AgentMetric
+                icon={PhoneIncoming}
+                label={t('voice.typeInbound')}
+                value={String(capacity.inbound_active)}
+              />
+              <AgentMetric
+                icon={Timer}
+                label={t('voice.capacityQueued')}
+                value={String(capacity.queued)}
+              />
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <AgentNumberField
+              icon={Gauge}
+              label={t('voice.capacityMaxTitle')}
+              hint={t('voice.agentCapacityMaxHint')}
+              value={value.voice_max_concurrent_calls}
+              min={1}
+              max={20}
+              onChange={(next) => {
+                const max = Math.min(20, Math.max(1, next || 1));
+                set({
+                  voice_max_concurrent_calls: max,
+                  voice_reserved_inbound_slots: Math.min(
+                    value.voice_reserved_inbound_slots,
+                    Math.max(0, max - 1)
+                  ),
+                  voice_max_campaign_concurrent: Math.min(
+                    value.voice_max_campaign_concurrent,
+                    max
+                  ),
+                });
+              }}
+            />
+            <AgentNumberField
+              icon={Megaphone}
+              label={t('voice.capacityCampaignTitle')}
+              hint={t('voice.capacityCampaignHint')}
+              value={value.voice_max_campaign_concurrent}
+              min={1}
+              max={value.voice_max_concurrent_calls}
+              onChange={(next) =>
+                set({
+                  voice_max_campaign_concurrent: Math.min(
+                    value.voice_max_concurrent_calls,
+                    Math.max(1, next || 1)
+                  ),
+                })
+              }
+            />
+            <AgentNumberField
+              icon={Timer}
+              label={t('voice.monthlyLimit')}
+              hint={t('voice.monthlyLimitHint')}
+              value={value.voice_monthly_minutes_limit}
+              min={0}
+              onChange={(next) =>
+                set({ voice_monthly_minutes_limit: Math.max(0, next || 0) })
+              }
+            />
+
+            <div className="border-border rounded-xl border p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex min-w-0 gap-2.5">
+                  <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                  <span>
+                    <span className="text-foreground block text-sm font-medium">
+                      {t('voice.capacityDedupeTitle')}
+                    </span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {t('voice.capacityDedupeHint')}
+                    </span>
+                  </span>
+                </span>
+                <Switch
+                  checked={value.voice_dedupe_minutes > 0}
+                  onCheckedChange={(checked) =>
+                    set({ voice_dedupe_minutes: checked ? 15 : 0 })
+                  }
+                />
+              </div>
+              {value.voice_dedupe_minutes > 0 && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={value.voice_dedupe_minutes}
+                    onChange={(event) =>
+                      set({
+                        voice_dedupe_minutes: Math.min(
+                          1440,
+                          Math.max(1, Number(event.target.value) || 1)
+                        ),
+                      })
+                    }
+                    className="w-24"
+                  />
+                  <span className="text-muted-foreground text-xs">
+                    {t('voice.capacityMinutes')}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {value.voice_accepts_inbound && (
+            <div className="border-border flex items-center justify-between gap-4 rounded-xl border p-3.5">
+              <div className="flex min-w-0 gap-2.5">
+                <PhoneIncoming className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="text-foreground text-sm font-medium">
+                    {t('voice.capacityReserveTitle')}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {t('voice.agentReserveHint')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {value.voice_reserved_inbound_slots > 0 && (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={Math.max(1, value.voice_max_concurrent_calls - 1)}
+                    value={value.voice_reserved_inbound_slots}
+                    onChange={(event) =>
+                      set({
+                        voice_reserved_inbound_slots: Math.min(
+                          value.voice_max_concurrent_calls - 1,
+                          Math.max(1, Number(event.target.value) || 1)
+                        ),
+                      })
+                    }
+                    className="w-20"
+                  />
+                )}
+                <Switch
+                  checked={value.voice_reserved_inbound_slots > 0}
+                  onCheckedChange={(checked) =>
+                    set({
+                      voice_max_concurrent_calls: checked
+                        ? Math.max(2, value.voice_max_concurrent_calls)
+                        : value.voice_max_concurrent_calls,
+                      voice_reserved_inbound_slots: checked ? 1 : 0,
+                    })
+                  }
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="border-border overflow-hidden rounded-xl border">
+            <label className="border-border flex cursor-pointer items-start justify-between gap-4 border-b px-3.5 py-3">
+              <span>
+                <span className="text-foreground block text-sm font-medium">
+                  {t('voice.recordingEnabled')}
+                </span>
+                <span className="text-muted-foreground mt-0.5 block text-xs">
+                  {t('voice.recordingHint')}
+                </span>
+              </span>
+              <Switch
+                checked={value.voice_recording_enabled}
+                onCheckedChange={(checked) =>
+                  set({
+                    voice_recording_enabled: checked,
+                    voice_recording_disclosure: checked
+                      ? value.voice_recording_disclosure
+                      : false,
+                  })
+                }
+              />
+            </label>
+            {value.voice_recording_enabled && (
+              <label className="flex cursor-pointer items-start justify-between gap-4 px-3.5 py-3">
+                <span>
+                  <span className="text-foreground block text-sm font-medium">
+                    {t('voice.recordingDisclosure')}
+                  </span>
+                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                    {t('voice.recordingDisclosureHint')}
+                  </span>
+                </span>
+                <Switch
+                  checked={value.voice_recording_disclosure}
+                  onCheckedChange={(checked) =>
+                    set({ voice_recording_disclosure: checked })
+                  }
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="border-border bg-muted/20 rounded-xl border px-3.5 py-3">
+            <p className="text-muted-foreground text-[11px] font-medium uppercase">
+              {t('voice.capacityPriority')}
+            </p>
+            <p className="text-foreground mt-1.5 text-xs">
+              {t('voice.agentPriorityOrder')}
+            </p>
+          </div>
+        </div>
+      </Plegable>
+
       {/* ── Qué dice en cada tipo de llamada. Plegado: tiene guiones que
              funcionan y casi nadie los toca. ── */}
       <Plegable
@@ -1209,6 +1498,70 @@ export function VoiceSettings({
         </div>
       )}
     </div>
+  );
+}
+
+function AgentMetric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="border-border/70 px-3.5 py-3 sm:border-r sm:last:border-r-0">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+        <Icon className="size-3.5" />
+        {label}
+      </p>
+      <p className="text-foreground mt-1 text-lg font-semibold tabular-nums">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AgentNumberField({
+  icon: Icon,
+  label,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  icon: typeof Activity;
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  max?: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="border-border flex items-start justify-between gap-3 rounded-xl border p-3.5">
+      <span className="flex min-w-0 gap-2.5">
+        <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+        <span>
+          <span className="text-foreground block text-sm font-medium">
+            {label}
+          </span>
+          <span className="text-muted-foreground mt-0.5 block text-xs">
+            {hint}
+          </span>
+        </span>
+      </span>
+      <Input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-20 shrink-0"
+      />
+    </label>
   );
 }
 

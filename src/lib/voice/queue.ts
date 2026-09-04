@@ -27,6 +27,7 @@ import {
 } from './constants';
 import {
   normalizeVoiceCapacity,
+  normalizeVoiceAgentCapacity,
   voiceCallDedupeKey,
   voiceCallPriority,
 } from './capacity';
@@ -167,7 +168,8 @@ export function nextAllowedTime(
 async function minutesUsedThisMonth(
   db: SupabaseClient,
   workspaceId: string,
-  tz: string
+  tz: string,
+  agentId?: string
 ): Promise<number> {
   const ym = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,
@@ -175,12 +177,14 @@ async function minutesUsedThisMonth(
     month: '2-digit',
   }).format(new Date());
   const monthStart = fromZonedTime(`${ym}-01T00:00:00`, tz).toISOString();
-  const { data } = await db
+  let query = db
     .from('voice_calls')
     .select('duration_seconds')
     .eq('workspace_id', workspaceId)
     .gte('created_at', monthStart)
     .not('duration_seconds', 'is', null);
+  if (agentId) query = query.eq('agent_id', agentId);
+  const { data } = await query;
   const seconds = (
     (data ?? []) as { duration_seconds: number | null }[]
   ).reduce((acc, r) => acc + (r.duration_seconds ?? 0), 0);
@@ -237,8 +241,10 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     status: string;
   } | null;
   const cfg = conn?.config ?? {};
-  const capacity = normalizeVoiceCapacity(cfg);
   const agent = agentRow as AiAgent | null;
+  const capacity = agent
+    ? normalizeVoiceAgentCapacity(agent, cfg)
+    : normalizeVoiceCapacity(cfg);
   const contact = contactRow as Contact | null;
 
   const rawPhone = (input.phone || contact?.phone || '').trim();
@@ -309,9 +315,17 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   if (!phoneOk) return blocked('invalid_phone');
 
   // Monthly minutes cap.
-  const limit = cfg.monthly_minutes_limit ?? null;
+  const usesAgentLimit = agent.voice_monthly_minutes_limit !== undefined;
+  const limit = usesAgentLimit
+    ? agent.voice_monthly_minutes_limit
+    : (cfg.monthly_minutes_limit ?? null);
   if (limit && limit > 0) {
-    const used = await minutesUsedThisMonth(db, input.workspaceId, tz);
+    const used = await minutesUsedThisMonth(
+      db,
+      input.workspaceId,
+      tz,
+      usesAgentLimit ? agent.id : undefined
+    );
     if (used >= limit) return blocked('monthly_limit_reached');
   }
 

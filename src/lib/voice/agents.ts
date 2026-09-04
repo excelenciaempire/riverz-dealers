@@ -37,12 +37,9 @@ type AgentWithChannels = AiAgent & {
 export async function listVoiceAgents(
   db: SupabaseClient,
   workspaceId: string,
-  columns = '*',
+  columns = '*'
 ): Promise<AgentWithChannels[]> {
-  const select =
-    columns.trim() === '*'
-      ? '*'
-      : `${columns}, scope, priority`;
+  const select = columns.trim() === '*' ? '*' : `${columns}, scope, priority`;
   const { data } = await db
     .from('ai_agents')
     .select(`${select}, ai_agent_channels(channel)`)
@@ -56,7 +53,7 @@ export async function listVoiceAgents(
     .filter(
       (a) =>
         a.scope === 'workspace' ||
-        (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice'),
+        (a.ai_agent_channels ?? []).some((c) => c.channel === 'voice')
     )
     .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
@@ -64,7 +61,7 @@ export async function listVoiceAgents(
 /** El que atiende: el de mayor prioridad, o ninguno. */
 export async function pickVoiceAgent(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<AiAgent | null> {
   return (await listVoiceAgents(db, workspaceId))[0] ?? null;
 }
@@ -73,10 +70,12 @@ export async function pickVoiceAgent(
 export async function listInboundVoiceAgents(
   db: SupabaseClient,
   workspaceId: string,
-  columns = '*',
+  columns = '*'
 ): Promise<AgentWithChannels[]> {
   const select =
-    columns.trim() === '*' ? '*' : `${columns}, voice_accepts_inbound`;
+    columns.trim() === '*'
+      ? '*'
+      : `${columns}, voice_accepts_inbound, voice_max_concurrent_calls`;
   const agents = await listVoiceAgents(db, workspaceId, select);
   // Despliegue gradual: antes de que la migración 244 llegue a la base, `*`
   // no incluye la columna. En ese breve intervalo conserva el ruteo anterior;
@@ -84,13 +83,37 @@ export async function listInboundVoiceAgents(
   if (agents.every((agent) => agent.voice_accepts_inbound === undefined)) {
     return agents;
   }
-  return agents.filter((agent) => agent.voice_accepts_inbound === true);
+  const eligible = agents.filter(
+    (agent) => agent.voice_accepts_inbound === true
+  );
+  if (eligible.length === 0) return eligible;
+
+  // Prefer the highest-priority profile that still has room. Without this, a
+  // second inbound call always went to the same agent even when another voice
+  // profile was idle.
+  const { data: activeRows } = await db
+    .from('voice_calls')
+    .select('agent_id')
+    .in(
+      'agent_id',
+      eligible.map((agent) => agent.id)
+    )
+    .in('status', ['dialing', 'in_progress'])
+    .is('ended_at', null);
+  const active = new Map<string, number>();
+  for (const row of (activeRows ?? []) as { agent_id: string }[]) {
+    active.set(row.agent_id, (active.get(row.agent_id) ?? 0) + 1);
+  }
+  return eligible.filter(
+    (agent) =>
+      (active.get(agent.id) ?? 0) < (agent.voice_max_concurrent_calls ?? 3)
+  );
 }
 
 /** El perfil de mayor prioridad habilitado para responder entrantes. */
 export async function pickInboundVoiceAgent(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<AiAgent | null> {
   return (await listInboundVoiceAgents(db, workspaceId))[0] ?? null;
 }

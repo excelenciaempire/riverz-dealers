@@ -60,21 +60,23 @@ export function blockerFromReason(reason: string): VoiceBlocker {
 async function minutesUsedThisMonth(
   db: SupabaseClient,
   workspaceId: string,
+  agentId?: string
 ): Promise<number> {
   const now = new Date();
   const monthStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
   ).toISOString();
-  const { data } = await db
+  let query = db
     .from('voice_calls')
     .select('duration_seconds')
     .eq('workspace_id', workspaceId)
     .gte('created_at', monthStart)
     .not('duration_seconds', 'is', null);
-  const seconds = ((data ?? []) as { duration_seconds: number | null }[]).reduce(
-    (acc, r) => acc + (r.duration_seconds ?? 0),
-    0,
-  );
+  if (agentId) query = query.eq('agent_id', agentId);
+  const { data } = await query;
+  const seconds = (
+    (data ?? []) as { duration_seconds: number | null }[]
+  ).reduce((acc, r) => acc + (r.duration_seconds ?? 0), 0);
   return seconds / 60;
 }
 
@@ -118,14 +120,16 @@ export async function voiceWorkerDown(db: SupabaseClient): Promise<boolean> {
 export async function voiceReadiness(
   db: SupabaseClient,
   workspaceId: string,
-  agentId?: string | null,
+  agentId?: string | null
 ): Promise<VoiceReadiness> {
   const blockers: VoiceBlocker[] = [];
   const warnings: VoiceBlocker[] = [];
   const add = (code: VoiceBlockerCode, agentName?: string) =>
-    blockers.push({ code, fixHref: VOICE_BLOCKED_FIX_HREF[code], ...(agentName ? { agentName } : {}) });
-  const warn = (code: VoiceBlockerCode) =>
-    warnings.push({ code, fixHref: VOICE_BLOCKED_FIX_HREF[code] });
+    blockers.push({
+      code,
+      fixHref: VOICE_BLOCKED_FIX_HREF[code],
+      ...(agentName ? { agentName } : {}),
+    });
 
   if (!isLiveKitConfigured()) add('platform_unavailable');
 
@@ -152,7 +156,10 @@ export async function voiceReadiness(
   if (workerDown) add('worker_down');
 
   // ── La cuenta: conexión, número, freno, tope ──
-  const conn = connRes.data as { config: VoiceConnectionConfig | null; status: string } | null;
+  const conn = connRes.data as {
+    config: VoiceConnectionConfig | null;
+    status: string;
+  } | null;
   const cfg = conn?.config ?? {};
 
   if (!conn) {
@@ -161,31 +168,17 @@ export async function voiceReadiness(
     if (conn.status === 'disconnected') add('voice_disconnected');
     if (!cfg.phone_number) add('no_number');
     if (cfg.kill_switch) add('kill_switch');
-    const limit = cfg.monthly_minutes_limit ?? null;
-    if (limit && limit > 0) {
-      const used = await minutesUsedThisMonth(db, workspaceId);
-      if (used >= limit) add('monthly_limit_reached');
-    }
-    // Salientes sí, entrantes no: no es un bloqueo, es media función apagada
-    // sin que nadie lo diga. Sólo cuando ya hay número — antes no significa nada.
-    if (
-      cfg.phone_number &&
-      !agentes.some((agent) => agent.voice_accepts_inbound === true) &&
-      !(
-        agentes.every(
-          (agent) => agent.voice_accepts_inbound === undefined
-        ) && cfg.inbound_enabled
-      )
-    ) {
-      warn('inbound_disabled');
-    }
+    // Entrantes apagadas es una preferencia del agente, no una alerta global.
+    // Se muestra dentro de su configuración; el canal saliente sigue sano.
   }
 
   // ── El agente ──
   if (agentId) {
     const { data: agentRow } = await db
       .from('ai_agents')
-      .select('id, name, voice_enabled, is_active, deleted_at')
+      .select(
+        'id, name, voice_enabled, is_active, deleted_at, voice_monthly_minutes_limit'
+      )
       .eq('id', agentId)
       .eq('workspace_id', workspaceId)
       .maybeSingle();
@@ -195,11 +188,26 @@ export async function voiceReadiness(
       voice_enabled: boolean;
       is_active: boolean;
       deleted_at?: string | null;
+      voice_monthly_minutes_limit?: number | null;
     } | null;
     if (!agent) add('agent_not_found');
     else if (agent.deleted_at) add('agent_deleted', agent.name);
     else if (!agent.voice_enabled) add('voice_disabled', agent.name);
     else if (!agent.is_active) add('agent_paused', agent.name);
+    else {
+      const limit =
+        agent.voice_monthly_minutes_limit === undefined
+          ? (cfg.monthly_minutes_limit ?? null)
+          : agent.voice_monthly_minutes_limit;
+      if (limit && limit > 0) {
+        const used = await minutesUsedThisMonth(
+          db,
+          workspaceId,
+          agent.voice_monthly_minutes_limit === undefined ? undefined : agent.id
+        );
+        if (used >= limit) add('monthly_limit_reached', agent.name);
+      }
+    }
   } else if (agentes.length === 0) {
     add('no_voice_agent');
   }

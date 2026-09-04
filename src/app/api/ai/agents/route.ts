@@ -212,6 +212,7 @@ export async function POST(request: Request) {
     'voice_provider',
     'voice_id',
     'voice_greeting',
+    'voice_system_prompt',
     'voice_objectives',
     'voice_max_call_seconds',
     'voice_calling_hours',
@@ -219,6 +220,13 @@ export async function POST(request: Request) {
     'voice_retry_delay_minutes',
     'voice_accepts_inbound',
     'voice_transfer_number',
+    'voice_max_concurrent_calls',
+    'voice_reserved_inbound_slots',
+    'voice_max_campaign_concurrent',
+    'voice_dedupe_minutes',
+    'voice_monthly_minutes_limit',
+    'voice_recording_enabled',
+    'voice_recording_disclosure',
   ] as const) {
     if (k in body && body[k] !== undefined) payload[k] = body[k];
   }

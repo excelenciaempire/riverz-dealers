@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fairVoiceQueue,
+  normalizeVoiceAgentCapacity,
   normalizeVoiceCapacity,
   voiceCallDedupeKey,
   voiceCallPriority,
@@ -36,6 +37,30 @@ describe('normalizeVoiceCapacity', () => {
     expect(normalizeVoiceCapacity({ dedupe_hours: 12 }).dedupeMinutes).toBe(
       720
     );
+  });
+
+  it('uses the voice agent limits instead of the shared fallback', () => {
+    expect(
+      normalizeVoiceAgentCapacity(
+        {
+          voice_max_concurrent_calls: 8,
+          voice_reserved_inbound_slots: 2,
+          voice_max_campaign_concurrent: 3,
+          voice_dedupe_minutes: 30,
+        },
+        {
+          max_concurrent_calls: 2,
+          reserved_inbound_slots: 0,
+          max_campaign_concurrent: 1,
+          dedupe_minutes: 5,
+        }
+      )
+    ).toEqual({
+      maxConcurrentCalls: 8,
+      reservedInboundSlots: 2,
+      maxCampaignConcurrent: 3,
+      dedupeMinutes: 30,
+    });
   });
 });
 

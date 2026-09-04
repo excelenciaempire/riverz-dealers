@@ -80,6 +80,13 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'voice_retry_delay_minutes',
   'voice_accepts_inbound',
   'voice_transfer_number',
+  'voice_max_concurrent_calls',
+  'voice_reserved_inbound_slots',
+  'voice_max_campaign_concurrent',
+  'voice_dedupe_minutes',
+  'voice_monthly_minutes_limit',
+  'voice_recording_enabled',
+  'voice_recording_disclosure',
 ];
 
 /** El agente como se lo puede devolver: la llave cifrada nunca sale. */
@@ -146,6 +153,36 @@ export function pickAgentPatch(
     patch.reply_burst_max = Number.isFinite(n)
       ? Math.min(200, Math.max(0, n))
       : 20;
+  }
+  if ('voice_max_concurrent_calls' in patch) {
+    const n = Math.floor(Number(patch.voice_max_concurrent_calls));
+    patch.voice_max_concurrent_calls = Number.isFinite(n)
+      ? Math.min(20, Math.max(1, n))
+      : 3;
+  }
+  if ('voice_reserved_inbound_slots' in patch) {
+    const n = Math.floor(Number(patch.voice_reserved_inbound_slots));
+    const max = Number(patch.voice_max_concurrent_calls ?? 3);
+    patch.voice_reserved_inbound_slots = Number.isFinite(n)
+      ? Math.min(Math.max(0, max - 1), Math.max(0, n))
+      : 0;
+  }
+  if ('voice_max_campaign_concurrent' in patch) {
+    const n = Math.floor(Number(patch.voice_max_campaign_concurrent));
+    const max = Number(patch.voice_max_concurrent_calls ?? 3);
+    patch.voice_max_campaign_concurrent = Number.isFinite(n)
+      ? Math.min(max, Math.max(1, n))
+      : 1;
+  }
+  if ('voice_dedupe_minutes' in patch) {
+    const n = Math.floor(Number(patch.voice_dedupe_minutes));
+    patch.voice_dedupe_minutes = Number.isFinite(n)
+      ? Math.min(1440, Math.max(0, n))
+      : 15;
+  }
+  if ('voice_monthly_minutes_limit' in patch) {
+    const n = Math.floor(Number(patch.voice_monthly_minutes_limit));
+    patch.voice_monthly_minutes_limit = Number.isFinite(n) ? Math.max(0, n) : 0;
   }
   return patch;
 }
@@ -258,14 +295,12 @@ export async function updateAgent(
       (patch.product_scope ?? 'all') === 'specific' &&
       input.productIds.length
     ) {
-      await admin
-        .from('ai_agent_products')
-        .insert(
-          input.productIds.map((product_id) => ({
-            agent_id: agentId,
-            product_id,
-          }))
-        );
+      await admin.from('ai_agent_products').insert(
+        input.productIds.map((product_id) => ({
+          agent_id: agentId,
+          product_id,
+        }))
+      );
     }
   }
   if (patch.product_scope === 'all') {

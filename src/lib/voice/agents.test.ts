@@ -16,10 +16,11 @@ type Fila = Record<string, unknown>;
 function fakeDb(filas: Fila[]) {
   const visto = { select: '' };
   const db = {
-    from() {
+    from(table: string) {
       return {
         select(cols: string) {
           visto.select = cols;
+          const source = table === 'voice_calls' ? [] : filas;
           const pedidas = cols
             .replace(/ai_agent_channels\(channel\)/, '')
             .split(',')
@@ -35,9 +36,10 @@ function fakeDb(filas: Fila[]) {
           };
           const q: Record<string, unknown> = {
             eq: () => q,
+            in: () => q,
             is: () => q,
             then: (r: (v: { data: Fila[] }) => unknown) =>
-              r({ data: filas.map(proyectar) }),
+              r({ data: source.map(proyectar) }),
           };
           return q;
         },

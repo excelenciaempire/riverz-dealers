@@ -8,6 +8,7 @@ import {
   Loader2,
   Mic2,
   Plus,
+  Trash2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -55,6 +56,7 @@ export function VoiceAgentProfiles({
   const [agents, setAgents] = useState<VoiceAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState('');
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -63,6 +65,8 @@ export function VoiceAgentProfiles({
     voice_enabled: true,
   }));
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VoiceAgent | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [usageByAgent, setUsageByAgent] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
@@ -156,6 +160,13 @@ export function VoiceAgentProfiles({
           voice_retry_delay_minutes: newVoice.voice_retry_delay_minutes,
           voice_accepts_inbound: newVoice.voice_accepts_inbound,
           voice_transfer_number: newVoice.voice_transfer_number.trim() || null,
+          voice_max_concurrent_calls: newVoice.voice_max_concurrent_calls,
+          voice_reserved_inbound_slots: newVoice.voice_reserved_inbound_slots,
+          voice_max_campaign_concurrent: newVoice.voice_max_campaign_concurrent,
+          voice_dedupe_minutes: newVoice.voice_dedupe_minutes,
+          voice_monthly_minutes_limit: newVoice.voice_monthly_minutes_limit,
+          voice_recording_enabled: newVoice.voice_recording_enabled,
+          voice_recording_disclosure: newVoice.voice_recording_disclosure,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -187,6 +198,7 @@ export function VoiceAgentProfiles({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: agentName.trim() || agent.name,
           voice_enabled: voice.voice_enabled,
           voice_id: voice.voice_id,
           voice_greeting: voice.voice_greeting.trim() || null,
@@ -198,6 +210,13 @@ export function VoiceAgentProfiles({
           voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
           voice_accepts_inbound: voice.voice_accepts_inbound,
           voice_transfer_number: voice.voice_transfer_number.trim() || null,
+          voice_max_concurrent_calls: voice.voice_max_concurrent_calls,
+          voice_reserved_inbound_slots: voice.voice_reserved_inbound_slots,
+          voice_max_campaign_concurrent: voice.voice_max_campaign_concurrent,
+          voice_dedupe_minutes: voice.voice_dedupe_minutes,
+          voice_monthly_minutes_limit: voice.voice_monthly_minutes_limit,
+          voice_recording_enabled: voice.voice_recording_enabled,
+          voice_recording_disclosure: voice.voice_recording_disclosure,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -222,11 +241,47 @@ export function VoiceAgentProfiles({
     }
   }
 
+  async function removeAgent() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetchWithCsrf(`/api/ai/agents/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        toast.error(json?.error ?? t('voice.voiceAgentDeleteFailed'));
+        return;
+      }
+      setAgents((current) =>
+        current.filter((agent) => agent.id !== deleteTarget.id)
+      );
+      setUsageByAgent((current) => {
+        const next = { ...current };
+        delete next[deleteTarget.id];
+        return next;
+      });
+      if (openId === deleteTarget.id) {
+        setOpenId(null);
+        setAgentName('');
+        setVoice(null);
+      }
+      setDeleteTarget(null);
+      toast.success(t('voice.voiceAgentDeleted'));
+      onSaved?.();
+    } catch {
+      toast.error(t('voice.voiceAgentDeleteFailed'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <section className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
-      <div className="border-border/70 bg-muted/20 relative border-b px-5 py-4">
-        <Waveform className="absolute top-0 right-5 hidden h-full opacity-45 sm:flex" />
-        <div className="relative flex items-start justify-between gap-4">
+      <div className="border-border/70 bg-muted/20 border-b px-5 py-4">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="bg-accent/15 text-accent-ink mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl">
               <Mic2 className="size-4" />
@@ -301,6 +356,7 @@ export function VoiceAgentProfiles({
                       return;
                     }
                     setOpenId(agent.id);
+                    setAgentName(agent.name);
                     setVoice(initialVoiceState(agent));
                   }}
                 >
@@ -340,21 +396,34 @@ export function VoiceAgentProfiles({
                 </button>
                 {open && voice && (
                   <div className="border-border bg-card border-t px-4 py-5 sm:px-5">
-                    <div className="border-border bg-muted/25 mb-5 flex items-center justify-between rounded-xl border px-3.5 py-3">
-                      <span className="text-foreground flex items-center gap-2 text-sm font-medium">
-                        <span
-                          className={`grid size-7 place-items-center rounded-lg ${voice.voice_enabled ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}
-                        >
-                          <Check className="size-3.5" />
+                    <div className="border-border bg-muted/25 mb-5 grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <label className="block">
+                        <span className="text-foreground mb-1.5 block text-xs font-medium">
+                          {t('voice.voiceAgentNameLabel')}
                         </span>
-                        {t('voice.enable')}
-                      </span>
-                      <Switch
-                        checked={voice.voice_enabled}
-                        onCheckedChange={(enabled) =>
-                          setVoice({ ...voice, voice_enabled: enabled })
-                        }
-                      />
+                        <Input
+                          value={agentName}
+                          onChange={(event) => setAgentName(event.target.value)}
+                          maxLength={80}
+                          className="bg-background h-9"
+                        />
+                      </label>
+                      <div className="flex h-9 items-center justify-between gap-4 sm:justify-end">
+                        <span className="text-foreground flex items-center gap-2 text-sm font-medium">
+                          <span
+                            className={`grid size-7 place-items-center rounded-lg ${voice.voice_enabled ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}
+                          >
+                            <Check className="size-3.5" />
+                          </span>
+                          {t('voice.enable')}
+                        </span>
+                        <Switch
+                          checked={voice.voice_enabled}
+                          onCheckedChange={(enabled) =>
+                            setVoice({ ...voice, voice_enabled: enabled })
+                          }
+                        />
+                      </div>
                     </div>
                     <VoiceSettings
                       value={voice}
@@ -366,7 +435,18 @@ export function VoiceAgentProfiles({
                       onBeforeTestCall={() => save(agent, false)}
                       testCallDisabled={saving}
                     />
-                    <div className="border-border mt-5 flex justify-end border-t pt-4">
+                    <div className="border-border mt-5 flex items-center justify-between gap-3 border-t pt-4">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(agent)}
+                        disabled={saving}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="mr-1 size-3.5" />
+                        {t('voice.voiceAgentDelete')}
+                      </Button>
                       <Button
                         type="button"
                         size="sm"
@@ -475,22 +555,59 @@ export function VoiceAgentProfiles({
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="border-border bg-card text-foreground sm:max-w-md">
+          <div className="flex items-start gap-3">
+            <span className="bg-destructive/10 text-destructive grid size-10 shrink-0 place-items-center rounded-xl">
+              <Trash2 className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="text-base">
+                {t('voice.voiceAgentDeleteTitle')}
+              </DialogTitle>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t('voice.voiceAgentDeleteHint', {
+                  name: deleteTarget?.name ?? '',
+                })}
+              </p>
+            </div>
+          </div>
+
+          {!!deleteTarget && (usageByAgent[deleteTarget.id] ?? 0) > 0 && (
+            <p className="border-border bg-muted/30 text-muted-foreground rounded-xl border px-3.5 py-3 text-xs">
+              {t('voice.voiceAgentDeleteLinked', {
+                count: String(usageByAgent[deleteTarget.id]),
+              })}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              {t('voice.voiceAgentCancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={removeAgent}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />}
+              {t('voice.voiceAgentDeleteConfirm')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
-  );
-}
-
-function Waveform({ className }: { className?: string }) {
-  const bars = [16, 28, 20, 38, 24, 44, 30, 18, 34, 22, 40, 26];
-
-  return (
-    <div className={`items-center gap-1 ${className ?? ''}`} aria-hidden="true">
-      {bars.map((height, index) => (
-        <span
-          key={`${height}-${index}`}
-          className="bg-accent-ink/25 w-1 rounded-full"
-          style={{ height }}
-        />
-      ))}
-    </div>
   );
 }

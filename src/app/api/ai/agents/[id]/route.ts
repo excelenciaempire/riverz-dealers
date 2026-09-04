@@ -29,7 +29,7 @@ async function requireMember(agentId: string, userId: string) {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -42,14 +42,14 @@ export async function PATCH(
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const target = await requireMember(id, user.id);
   if (!target)
     return NextResponse.json(
       { error: translate(locale, 'errAi.notFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   const body = (await request.json().catch(() => null)) as
@@ -62,7 +62,7 @@ export async function PATCH(
   if (!body)
     return NextResponse.json(
       { error: translate(locale, 'errAi.invalidJson') },
-      { status: 400 },
+      { status: 400 }
     );
 
   // El cuerpo del guardado vive en `@/lib/ai/agents/update`: el Operator
@@ -81,7 +81,7 @@ export async function PATCH(
     if (fail.code === 'channels_required') {
       return NextResponse.json(
         { error: translate(locale, 'errAi.channelsRequired') },
-        { status: 400 },
+        { status: 400 }
       );
     }
     if (fail.code === 'channel_conflict') {
@@ -92,7 +92,7 @@ export async function PATCH(
             channels: channelLabels(fail.channels, locale),
           }),
         },
-        { status: 409 },
+        { status: 409 }
       );
     }
     return serverError(fail.error);
@@ -103,7 +103,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -116,25 +116,59 @@ export async function DELETE(
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const target = await requireMember(id, user.id);
   if (!target)
     return NextResponse.json(
       { error: translate(locale, 'errAi.notFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   // Soft-delete via migration 059's `deleted_at` column. Partial index
   // `idx_ai_agents_workspace_active` ignores tombstones so the runner
   // stops picking this agent immediately, while ai_replies history is
   // preserved for analytics.
-  const { error } = await supabaseAdmin()
+  const admin = supabaseAdmin();
+  const now = new Date().toISOString();
+  const { error } = await admin
     .from('ai_agents')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: now })
     .eq('id', id)
     .is('deleted_at', null);
   if (error) return serverError(error);
+
+  // Voice profiles may be linked from chat assistants and queued work. The
+  // tombstone keeps past calls intact, while these active links are cleared so
+  // nothing can silently keep trying to use a deleted profile.
+  const [{ error: assistantError }, { error: queuedError }] = await Promise.all(
+    [
+      admin
+        .from('ai_agents')
+        .update({ voice_agent_id: null, voice_ai_decides: false })
+        .eq('workspace_id', target.workspace_id)
+        .eq('voice_agent_id', id)
+        .is('deleted_at', null),
+      admin
+        .from('voice_calls')
+        .update({
+          status: 'canceled',
+          error: 'agent_deleted',
+          ended_at: now,
+          updated_at: now,
+        })
+        .eq('workspace_id', target.workspace_id)
+        .eq('agent_id', id)
+        .eq('status', 'queued'),
+    ]
+  );
+  if (assistantError || queuedError) {
+    console.error('[voice] agent cleanup incomplete', {
+      agentId: id,
+      assistantError,
+      queuedError,
+    });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -152,6 +152,25 @@ export const voice = {
     es: 'No se pudo guardar el agente de voz.',
     en: "Couldn't save the voice agent.",
   },
+  voiceAgentDelete: { es: 'Eliminar agente', en: 'Delete agent' },
+  voiceAgentDeleteTitle: {
+    es: '¿Eliminar este agente?',
+    en: 'Delete this agent?',
+  },
+  voiceAgentDeleteHint: {
+    es: 'Se eliminará {name}. El historial de llamadas se conserva.',
+    en: '{name} will be deleted. Call history will be kept.',
+  },
+  voiceAgentDeleteLinked: {
+    es: '{count} vínculos dejarán de usar este agente.',
+    en: '{count} links will stop using this agent.',
+  },
+  voiceAgentDeleteConfirm: { es: 'Sí, eliminar', en: 'Delete agent' },
+  voiceAgentDeleted: { es: 'Agente eliminado', en: 'Agent deleted' },
+  voiceAgentDeleteFailed: {
+    es: 'No se pudo eliminar el agente.',
+    en: "Couldn't delete the agent.",
+  },
 
   // ── Weekday short labels (ISO 1=Mon … 7=Sun) ──
   dayMon: { es: 'Lun', en: 'Mon' },
@@ -508,6 +527,31 @@ export const voice = {
   capacityCampaignHint: {
     es: 'Evita que una campaña ocupe toda la capacidad.',
     en: 'Prevents one campaign from using all capacity.',
+  },
+  agentControlTitle: { es: 'Control de llamadas', en: 'Call controls' },
+  agentControlHint: {
+    es: 'Capacidad, grabación y límites de este agente.',
+    en: "This agent's capacity, recording, and limits.",
+  },
+  agentCapacityMaxHint: {
+    es: 'Conversaciones que puede mantener a la vez.',
+    en: 'Conversations it can handle at once.',
+  },
+  agentReserveHint: {
+    es: 'Guarda capacidad para quien llame.',
+    en: 'Keeps capacity available for incoming callers.',
+  },
+  agentPriorityOrder: {
+    es: 'Entrantes → manuales → automatizaciones → campañas',
+    en: 'Incoming → manual → automations → campaigns',
+  },
+  orderIntegrationTitle: {
+    es: 'Pedidos contra entrega',
+    en: 'Cash-on-delivery orders',
+  },
+  orderIntegrationHint: {
+    es: 'Actualiza pedidos confirmados y conecta Dropi.',
+    en: 'Update confirmed orders and connect Dropi.',
   },
   capacityDedupeTitle: {
     es: 'Evitar llamadas duplicadas',

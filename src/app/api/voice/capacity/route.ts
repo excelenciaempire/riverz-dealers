@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { normalizeVoiceCapacity } from '@/lib/voice/capacity';
 import type { VoiceConnectionConfig } from '@/types';
+import type { AiAgent } from '@/lib/ai/types';
+import { normalizeVoiceAgentCapacity } from '@/lib/voice/capacity';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -13,6 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const workspaceId = new URL(request.url).searchParams.get('workspace_id');
+  const agentId = new URL(request.url).searchParams.get('agent_id');
   if (!workspaceId) {
     return NextResponse.json(
       { error: 'workspace_id required' },
@@ -30,30 +33,51 @@ export async function GET(request: Request) {
   if (!member)
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  const [{ data: connection }, { data: activeRows }, { count: queued }] =
-    await Promise.all([
-      db
-        .from('channel_connections')
-        .select('config')
-        .eq('workspace_id', workspaceId)
-        .eq('channel', 'voice')
-        .maybeSingle(),
-      db
-        .from('voice_calls')
-        .select('direction, context')
-        .eq('workspace_id', workspaceId)
-        .in('status', ['dialing', 'in_progress'])
-        .is('ended_at', null),
-      db
-        .from('voice_calls')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspaceId)
-        .eq('status', 'queued'),
-    ]);
+  const [
+    { data: connection },
+    { data: agentRow },
+    { data: activeRows },
+    { count: queued },
+  ] = await Promise.all([
+    db
+      .from('channel_connections')
+      .select('config')
+      .eq('workspace_id', workspaceId)
+      .eq('channel', 'voice')
+      .maybeSingle(),
+    agentId
+      ? db
+          .from('ai_agents')
+          .select('*')
+          .eq('id', agentId)
+          .eq('workspace_id', workspaceId)
+          .is('deleted_at', null)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    db
+      .from('voice_calls')
+      .select('direction, context')
+      .eq('workspace_id', workspaceId)
+      .match(agentId ? { agent_id: agentId } : {})
+      .in('status', ['dialing', 'in_progress'])
+      .is('ended_at', null),
+    db
+      .from('voice_calls')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId)
+      .match(agentId ? { agent_id: agentId } : {})
+      .eq('status', 'queued'),
+  ]);
+
+  if (agentId && !agentRow) {
+    return NextResponse.json({ error: 'agent_not_found' }, { status: 404 });
+  }
 
   const rawConfig =
     (connection as { config?: VoiceConnectionConfig } | null)?.config ?? {};
-  const config = normalizeVoiceCapacity(rawConfig);
+  const config = agentRow
+    ? normalizeVoiceAgentCapacity(agentRow as AiAgent, rawConfig)
+    : normalizeVoiceCapacity(rawConfig);
   const rows = (activeRows ?? []) as {
     direction: 'inbound' | 'outbound';
     context: Record<string, unknown> | null;

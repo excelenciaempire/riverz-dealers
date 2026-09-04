@@ -1,4 +1,5 @@
 import type { VoiceCall, VoiceCallType, VoiceConnectionConfig } from '@/types';
+import type { AiAgent } from '@/lib/ai/types';
 
 export const DEFAULT_VOICE_CAPACITY = {
   maxConcurrentCalls: 3,
@@ -13,6 +14,46 @@ export type VoiceCapacityConfig = {
   maxCampaignConcurrent: number;
   dedupeMinutes: number;
 };
+
+export function normalizeVoiceAgentCapacity(
+  agent: Pick<
+    AiAgent,
+    | 'voice_max_concurrent_calls'
+    | 'voice_reserved_inbound_slots'
+    | 'voice_max_campaign_concurrent'
+    | 'voice_dedupe_minutes'
+  >,
+  fallback?: VoiceConnectionConfig
+): VoiceCapacityConfig {
+  const shared = normalizeVoiceCapacity(fallback);
+  const maxConcurrentCalls = integerInRange(
+    agent.voice_max_concurrent_calls,
+    shared.maxConcurrentCalls,
+    1,
+    20
+  );
+  return {
+    maxConcurrentCalls,
+    reservedInboundSlots: integerInRange(
+      agent.voice_reserved_inbound_slots,
+      shared.reservedInboundSlots,
+      0,
+      Math.max(0, maxConcurrentCalls - 1)
+    ),
+    maxCampaignConcurrent: integerInRange(
+      agent.voice_max_campaign_concurrent,
+      shared.maxCampaignConcurrent,
+      1,
+      maxConcurrentCalls
+    ),
+    dedupeMinutes: integerInRange(
+      agent.voice_dedupe_minutes,
+      shared.dedupeMinutes,
+      0,
+      1440
+    ),
+  };
+}
 
 function integerInRange(
   value: unknown,
