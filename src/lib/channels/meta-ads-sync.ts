@@ -17,6 +17,17 @@ export interface AdSyncResult {
   errors: string[];
 }
 
+/**
+ * No seleccionar una cuenta publicitaria es válido: el canal sigue recibiendo
+ * comentarios orgánicos. Sólo `partial`/`failed` significan que una fuente que
+ * sí estaba configurada no pudo sincronizarse.
+ */
+export function isAdSyncFailure(
+  result: { status?: AdDiscoveryStatus | string; error?: string },
+): boolean {
+  return Boolean(result.error) || result.status === 'partial' || result.status === 'failed';
+}
+
 interface MarketingAd {
   id?: string;
   name?: string;

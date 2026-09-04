@@ -3,7 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('./encryption', () => ({ decrypt: (value: string) => value }));
 
-import { isStoryForPage, syncAdPostsForConnection } from './meta-ads-sync';
+import {
+  isAdSyncFailure,
+  isStoryForPage,
+  syncAdPostsForConnection,
+} from './meta-ads-sync';
 
 describe('isStoryForPage', () => {
   it('acepta únicamente creatividades de la página conectada', () => {
@@ -12,6 +16,16 @@ describe('isStoryForPage', () => {
     expect(isStoryForPage('4613694577403750_123', '461369457740375')).toBe(
       false
     );
+  });
+});
+
+describe('isAdSyncFailure', () => {
+  it('does not fail when a comments-only connection has no ad account', () => {
+    expect(isAdSyncFailure({ status: 'not_configured' })).toBe(false);
+    expect(isAdSyncFailure({ status: 'ok' })).toBe(false);
+    expect(isAdSyncFailure({ status: 'partial' })).toBe(true);
+    expect(isAdSyncFailure({ status: 'failed' })).toBe(true);
+    expect(isAdSyncFailure({ error: 'network' })).toBe(true);
   });
 });
 

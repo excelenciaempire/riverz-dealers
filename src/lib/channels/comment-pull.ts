@@ -771,6 +771,13 @@ async function fetchCommentsWithReplies(
         signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
       });
       if (!res.ok) {
+        // Una publicación borrada sigue en nuestro histórico y puede aparecer
+        // en comments_meta durante la ventana de rescate. Graph 100/33 sólo
+        // dice que ese objeto ya no existe o dejó de ser visible; no implica
+        // que la conexión, el token o el resto de comentarios hayan fallado.
+        if (await isMissingGraphObject(res)) {
+          return { comments, failed: false };
+        }
         failed = true;
         break;
       }
@@ -828,7 +835,14 @@ async function fetchAllReplies(
       const res = await fetch(url, {
         signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
       });
-      if (!res.ok) return { replies: null, failed: true };
+      if (!res.ok) {
+        // El comentario puede desaparecer entre leer el padre y pedir sus
+        // respuestas. Es el mismo borrado normal, no un problema del canal.
+        return {
+          replies: null,
+          failed: !(await isMissingGraphObject(res)),
+        };
+      }
       const json = (await res.json()) as {
         data?: RawComment[];
         paging?: { next?: string };
@@ -844,6 +858,19 @@ async function fetchAllReplies(
     return { replies: null, failed: true };
   }
   return { replies, failed: false };
+}
+
+/** Meta Graph: objeto eliminado/inaccesible, código 100 y subcódigo 33. */
+async function isMissingGraphObject(response: Response): Promise<boolean> {
+  if (response.status !== 400) return false;
+  try {
+    const body = (await response.clone().json()) as {
+      error?: { code?: number; error_subcode?: number };
+    };
+    return body.error?.code === 100 && body.error?.error_subcode === 33;
+  } catch {
+    return false;
+  }
 }
 
 /** Meta devuelve "2026-07-27T12:00:00+0000" (sin dos puntos en el huso). */

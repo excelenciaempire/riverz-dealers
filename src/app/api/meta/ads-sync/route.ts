@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { listConnections } from '@/lib/channels/connections';
 import { assertCronAuthAny } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { syncAdPostsForConnection } from '@/lib/channels/meta-ads-sync';
+import {
+  isAdSyncFailure,
+  syncAdPostsForConnection,
+} from '@/lib/channels/meta-ads-sync';
 import { withCronRun } from '@/lib/cron/heartbeat';
 import type { ChannelConnection } from '@/types';
 
@@ -54,7 +57,7 @@ async function handler(req: Request): Promise<Response> {
     }
   }
 
-  const failed = results.filter((result) => result.error || (result.errors?.length ?? 0) > 0).length;
+  const failed = results.filter(isAdSyncFailure).length;
 
   return NextResponse.json(
     {

@@ -218,4 +218,56 @@ describe("pullCommentsForConnection", () => {
     expect(r.ingestedInbound).toBe(0);
     expect(ingested).toHaveLength(0);
   });
+
+  it("ignora como normal una publicación histórica que Meta ya eliminó", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes(`/${POST}/comments`)) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 100, error_subcode: 33, type: "GraphMethodException" },
+            }),
+            { status: 400, headers: { "content-type": "application/json" } },
+          );
+        }
+        const json = url.includes("/media")
+          ? { data: [{ id: POST, timestamp: iso(0) }] }
+          : { username: "pilaroficial_arg" };
+        return new Response(JSON.stringify(json), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const result = await pullCommentsForConnection(fakeDb(), connection);
+    expect(result.reason).toBe("ok");
+    expect(result.errors).toEqual([]);
+  });
+
+  it("mantiene en error un rechazo real de Graph", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes(`/${POST}/comments`)) {
+          return new Response(JSON.stringify({ error: { code: 190 } }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        const json = url.includes("/media")
+          ? { data: [{ id: POST, timestamp: iso(0) }] }
+          : { username: "pilaroficial_arg" };
+        return new Response(JSON.stringify(json), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const result = await pullCommentsForConnection(fakeDb(), connection);
+    expect(result.reason).toBe("partial");
+    expect(result.errors).toContain("comments_graph_failed");
+  });
 });
