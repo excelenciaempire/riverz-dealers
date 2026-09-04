@@ -1,9 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SendTemplateStepConfig } from '@/types';
-import {
-  selectTemplateVariant,
-  type TemplateVariant,
-} from './template-ab-test';
+import { keepAssignedVariant, type TemplateVariant } from './template-ab-test';
 
 const RESPONSE_WINDOW_MS = 72 * 60 * 60 * 1000;
 const ORDER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -15,7 +12,6 @@ export async function assignedTemplateVariant(
   input: {
     workspaceId: string;
     automationId: string;
-    stepId: string;
     contactId: string;
   }
 ): Promise<TemplateVariant | null> {
@@ -26,17 +22,16 @@ export async function assignedTemplateVariant(
     .select('variant_id')
     .eq('workspace_id', input.workspaceId)
     .eq('automation_id', input.automationId)
-    .eq('automation_step_id', input.stepId)
     .eq('contact_id', input.contactId)
     .eq('experiment_id', experiment.id)
     .order('sent_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const existing = experiment.variants.find(
-    (variant) => variant.id === data?.variant_id
-  );
-  return (
-    existing ?? selectTemplateVariant(config, input.contactId, input.stepId)
+  return keepAssignedVariant(
+    config,
+    data?.variant_id,
+    input.contactId,
+    experiment.id
   );
 }
 

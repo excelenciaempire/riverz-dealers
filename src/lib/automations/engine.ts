@@ -783,7 +783,6 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const variant = await assignedTemplateVariant(db, configured, {
         workspaceId: args.automation.workspace_id,
         automationId: args.automation.id,
-        stepId: step.id,
         contactId: args.contactId,
       })
       // The selected variant becomes the normal send configuration. This keeps

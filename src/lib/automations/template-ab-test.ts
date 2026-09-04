@@ -43,6 +43,20 @@ export function selectTemplateVariant(
   return experimentBucket(contactId, stepId, experiment.id) < a.weight ? a : b;
 }
 
+/** A stored assignment wins over current traffic weights. This keeps a contact
+ * on its original variant when a user later changes the traffic split. */
+export function keepAssignedVariant(
+  config: SendTemplateStepConfig,
+  previousVariantId: string | null | undefined,
+  contactId: string,
+  routingId: string
+): TemplateVariant | null {
+  const existing = config.ab_test?.variants.find(
+    (variant) => variant.id === previousVariantId
+  );
+  return existing ?? selectTemplateVariant(config, contactId, routingId);
+}
+
 export function abTestValidationError(
   config: Record<string, unknown>
 ): string | null {

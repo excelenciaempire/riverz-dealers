@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   abTestValidationError,
+  keepAssignedVariant,
   selectTemplateVariant,
 } from './template-ab-test';
 
@@ -37,5 +38,20 @@ describe('template A/B tests', () => {
         },
       })
     ).toContain('100');
+  });
+  it('keeps an existing assignment when weights change', () => {
+    const changed = {
+      ...config,
+      ab_test: {
+        ...config.ab_test,
+        variants: [
+          { ...config.ab_test.variants[0], weight: 90 },
+          { ...config.ab_test.variants[1], weight: 10 },
+        ] as typeof config.ab_test.variants,
+      },
+    };
+    expect(keepAssignedVariant(changed, 'b', 'contact-1', 'step-1')?.id).toBe(
+      'b'
+    );
   });
 });

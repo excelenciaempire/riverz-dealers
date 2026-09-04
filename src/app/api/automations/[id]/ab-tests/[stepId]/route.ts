@@ -36,11 +36,26 @@ export async function GET(
   if (!member)
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+  // Steps are replaced on every editor save. The experiment id lives in the
+  // saved config and is stable across that replacement, unlike the row's FK.
+  const { data: step } = await db
+    .from('automation_steps')
+    .select('step_config')
+    .eq('id', stepId)
+    .eq('automation_id', automation.id)
+    .eq('step_type', 'send_template')
+    .maybeSingle();
+  const experimentId = (
+    step?.step_config as { ab_test?: { id?: string } } | undefined
+  )?.ab_test?.id;
+  if (!experimentId)
+    return NextResponse.json({ variants: { a: empty(), b: empty() } });
+
   const { data, error } = await db
     .from('automation_template_exposures')
     .select('variant_id, response_at, order_id, order_total, order_currency')
     .eq('automation_id', automation.id)
-    .eq('automation_step_id', stepId);
+    .eq('experiment_id', experimentId);
   if (error)
     return NextResponse.json(
       { error: 'analytics_unavailable' },
