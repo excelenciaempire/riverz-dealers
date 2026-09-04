@@ -19,6 +19,7 @@ import { ALL_CAPABILITIES, esInerte, getCapability } from './registry'
 const INERTES: Record<string, string> = {
   'automatizaciones.crear': 'nace pausada',
   'automatizaciones.crear_desde_receta': 'nace pausada y sin plantilla',
+  'plantillas.crear_borrador': 'guarda texto local; no sale a Meta ni a clientes',
   'agentes.crear_borrador': 'nace pausado, no le contesta a nadie',
   'segmentos.crear': 'guarda un criterio; no prende ni manda nada',
   'segmentos.editar': 'cambia un criterio guardado; sigue sin mandar nada',

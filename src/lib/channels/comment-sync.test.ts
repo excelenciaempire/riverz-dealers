@@ -146,6 +146,6 @@ describe('qué publicaciones se rastrean', () => {
     // Llenando el cupo con las recientes primero, una cuenta que publica 40
     // veces en catorce días no escaneaba NINGUNA creatividad de anuncio — que
     // es para lo que existe el módulo.
-    expect(pull).toContain('const mitad = Math.ceil(MAX_POSTS_PER_RUN / 2)')
+    expect(pull).toContain('const mitad = Math.ceil(options.maxPosts / 2)')
   })
 })

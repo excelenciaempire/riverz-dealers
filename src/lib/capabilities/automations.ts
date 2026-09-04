@@ -952,6 +952,7 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
       if (no.length) throw new Error(`El conjunto todavía no se puede prender. ${no.join('; ')}`)
       return `Prendería ${nombres.length} automatizaciones: ${nombres.join(', ')}.`
     },
+    artifact: (ctx) => vistaActivar(ctx, { activa: true }),
     run: activarLote,
   },
 

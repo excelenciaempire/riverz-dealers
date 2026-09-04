@@ -175,6 +175,11 @@ describe('las piezas que el banco sabe dibujar', () => {
 })
 
 describe('lo que el panel del Operador puede mostrar', () => {
+  // El resumen ya tiene su panel propio. El Operador puede leerlo y explicarlo,
+  // pero duplicar esas métricas en el lienzo confunde qué pantalla es la fuente
+  // de verdad.
+  const SIN_VISTA_EN_OPERADOR = new Set(['metricas.resumen'])
+
   /**
    * TODA capacidad dibuja algo.
    *
@@ -190,7 +195,7 @@ describe('lo que el panel del Operador puede mostrar', () => {
       // dibuja desde sus argumentos (`artifact`), porque tiene que verse antes
       // de aprobarlo. No son intercambiables.
       const dibuja = c.risk === 'lectura' ? c.vista : c.artifact
-      return !dibuja
+      return !dibuja && !SIN_VISTA_EN_OPERADOR.has(c.key)
     }).map((c) => c.key)
     expect(mudas).toEqual([])
   })

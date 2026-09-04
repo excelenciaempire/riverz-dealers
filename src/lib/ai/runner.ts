@@ -27,6 +27,7 @@ import { costForModel } from '@/lib/admin/cost';
 import { appendBusinessScopeGuardrails } from './guardrails';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
 import { detectarEscalada, type Escalada } from './escalada';
+import { recoveryAction, recoveryCheckoutAllowed } from './recovery-policy';
 import { avisarEscalada } from './aviso-escalada';
 import { prometeAveriguar } from './salida';
 import { registrarHueco } from './answer-gaps';
@@ -2310,6 +2311,8 @@ export function construirHerramientas(args: {
   voiceCtx: VoiceEscalationContext | null;
   topeDescuento: number;
   descuentoFijo?: number | null;
+  /** Recuperación sólo puede abrir checkout tras una respuesta autorizada. */
+  checkoutPermitido?: boolean;
   /** Por defecto, el agente contestando. Ver `ModoDeHerramientas`. */
   modo?: ModoDeHerramientas;
 }): Anthropic.ToolUnion[] {
@@ -2330,6 +2333,7 @@ export function construirHerramientas(args: {
   // las otras dos se habian quedado atras.
   const puede = (k: string) => {
     if (!toolEnabled(agent, k)) return false;
+    if (k === 'crear_checkout' && args.checkoutPermitido === false) return false;
     if (modo === 'borrador' && ESCRIBEN.has(k)) return false;
     if (modo === 'comentario' && DE_LA_BANDEJA.has(k)) return false;
     return true;
@@ -2621,10 +2625,13 @@ async function generateReply(
   const topeConfigurado = primaryContact.id
     ? await topeDeDescuento(db, agent.workspace_id).catch(() => 0)
     : 0;
-  const textoRecuperacion = origen.inboundText.trim().toUpperCase();
   const etapaBeneficio = Number(handoffContext?.benefit_percent ?? 0);
-  const pidioBeneficio = textoRecuperacion === 'BENEFICIO' || (etapaBeneficio === 10 && textoRecuperacion === 'SI');
-  const descuentoFijo = agent.assigned_only && pidioBeneficio && [5, 10].includes(etapaBeneficio)
+  const accionRecuperacion = recoveryAction({
+    assignedOnly: Boolean(agent.assigned_only),
+    text: origen.inboundText,
+    benefitPercent: etapaBeneficio,
+  });
+  const descuentoFijo = accionRecuperacion === 'benefit' && [5, 10].includes(etapaBeneficio)
     ? etapaBeneficio
     : null;
   const topeDescuento = descuentoFijo ?? (agent.assigned_only ? 0 : topeConfigurado);
@@ -2649,6 +2656,9 @@ async function generateReply(
     voiceCtx,
     topeDescuento,
     descuentoFijo,
+    checkoutPermitido: agent.assigned_only
+      ? recoveryCheckoutAllowed(accionRecuperacion)
+      : undefined,
   });
   const opciones = {
     // Mercado Libre no permite consultar pedidos en vivo (comprador

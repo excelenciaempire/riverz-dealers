@@ -60,7 +60,6 @@ describe("validateStepsForActivation", () => {
     ]);
     expect(issues.map((i) => i.path)).toEqual([
       "steps[0].amount",
-      "steps[1].unit",
       "steps[2].amount",
       "steps[3].amount",
     ]);

@@ -99,6 +99,16 @@ const SEÑALES: Señal[] = [
       /(?<![\wáéíóúñ])dos veces(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobr|debit)/i,
       /(?<![\wáéíóúñ])no reconozco(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobro|cargo|compra)(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])desconoc(er|í|i|e) (el|ese) (cobro|cargo)(?![\wáéíóúñ])/i,
+      /(?<![\wáéíóúñ])(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i,
+    ],
+  },
+  {
+    clase: 'envio_mal',
+    urgencia: 'ahora',
+    porQue: 'El envío parece ir a una dirección o ciudad incorrecta',
+    patrones: [
+      /(?<![\wáéíóúñ])(env[ií]o|gu[ií]a|paquete)(?![\wáéíóúñ])[^.!?]{0,50}(otra|equivocad[oa]|incorrecta)[^.!?]{0,30}(ciudad|direcci[óo]n|lugar)?/i,
+      /(?<![\wáéíóúñ])(va|lleg[óo]|enviaron)(?![\wáéíóúñ])[^.!?]{0,40}(otra ciudad|ciudad equivocada|direcci[óo]n equivocada)(?![\wáéíóúñ])/i,
     ],
   },
   {
@@ -110,6 +120,7 @@ const SEÑALES: Señal[] = [
       /(?<![\wáéíóúñ])nunca (me )?lleg[óo](?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])figura como entregad[oa](?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])dice entregad[oa](?![\wáéíóúñ])[^.!?]{0,30}(?![\wáéíóúñ])no(?![\wáéíóúñ])/i,
+      /(?<![\wáéíóúñ])(gu[ií]a|tracking|seguimiento)(?![\wáéíóúñ])[^.!?]{0,40}(dice|figura|marca)[^.!?]{0,25}entregad[oa][^.!?]{0,35}(pero|y)[^.!?]{0,25}(no|sin recibir)(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])hace (m[áa]s de )?\d+ (d[íi]as|semanas)(?![\wáéíóúñ])[^.!?]{0,40}(?<![\wáéíóúñ])(no lleg|sin recibir|esperando)/i,
     ],
   },

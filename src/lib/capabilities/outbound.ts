@@ -24,7 +24,7 @@ import {
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import { isStalledBroadcast, since, windowDays } from './predicates'
-import { corto, lista, numero, tabla, tieneCampos, tt } from './vistas'
+import { cambio, corto, lista, numero, tabla, tieneCampos, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
 
 async function plantillas(ctx: CapabilityContext) {
@@ -854,8 +854,13 @@ export const OUTBOUND_CAPABILITIES: Capability[] = [
           throw new Error(`"${nombre}" no está disponible como borrador para Meta.`)
         }
       }
-      return `Mandaría ${nombres.length} borradores a aprobación de Meta: ${nombres.join(', ')}. No se puede cancelar.`
+      return `Mandaría ${nombres.length} borradores a aprobación de Meta: ${nombres.join(', ')}. Meta reserva esos nombres al recibirlos.`
     },
+    artifact: (ctx) =>
+      cambio({
+        titulo: tt(ctx, 'operation.vTitEnviarBorradoresMeta'),
+        que: tt(ctx, 'operation.vQueEnviarBorradoresMeta'),
+      }),
     run: enviarLoteAMeta,
   },
 ]

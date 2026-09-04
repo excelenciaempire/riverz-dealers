@@ -580,6 +580,11 @@ export const operation = {
   // Los encabezados de lo que el Operador dibuja. Los lee una persona, así que
   // salen del catálogo; lo que devuelve `run()` lo lee el modelo y va en español.
   vTitMetricas: { es: "Cómo viene la cuenta", en: "How the account is doing" },
+  vTitEnviarBorradoresMeta: { es: "Enviar borradores a Meta", en: "Submit drafts to Meta" },
+  vQueEnviarBorradoresMeta: {
+    es: "Envía los borradores seleccionados a revisión de Meta.",
+    en: "Submits the selected drafts for Meta review.",
+  },
   vTitAtribucion: { es: "Lo que vendió Riverz", en: "What Riverz sold" },
   vTitCortes: { es: "Quién atendió", en: "Who did the work" },
   vTitSalud: { es: "Cómo está la operación", en: "How the operation is doing" },

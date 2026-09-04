@@ -49,6 +49,8 @@ import {
   loadCommentSettings,
 } from './controls';
 import { decideCommentDm } from './dm-opportunity';
+import type { DmDecision } from './dm-opportunity';
+import { avisarEscalada } from '@/lib/ai/aviso-escalada';
 import {
   recordProactiveDm,
   recordPublicCommentReply,
@@ -186,6 +188,20 @@ async function marcarParaUnaPersona(
       .is('needs_human_at', null);
     if (error) {
       console.error('[ig-agent] la marca para una persona no se escribio:', error.message);
+    } else {
+      await avisarEscalada(db, {
+        workspaceId,
+        conversationId: convId,
+        cliente: null,
+        contacto: null,
+        canal: channel,
+        escalada: {
+          clase: 'otro',
+          urgencia: 'hoy',
+          porQue: resumen ?? 'Un comentario requiere atención del equipo',
+        },
+        ultimoMensaje: pregunta,
+      });
     }
   } catch (err) {
     console.error('[ig-agent] no se pudo marcar para una persona:', err);
@@ -1220,6 +1236,24 @@ async function decidirComentario(
     hasOrderQuestion: Boolean(orderStatus),
   });
 
+  // Pedido, pago o reclamo: se atiende fuera del post y queda visible para el
+  // equipo. La marca y el aviso son idempotentes por conversación.
+  const esPagoManual = /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i.test(engagement);
+  const decisionForPublic = esPagoManual
+    ? { ...decision, reason: 'privado' as const }
+    : decision;
+  if (decision.reason === 'pedido' || decision.reason === 'reclamo' || esPagoManual) {
+    await marcarParaUnaPersona(
+      db,
+      opts.workspaceId,
+      commentChannel,
+      opts.contact.id,
+      engagement,
+      'problema_detectado',
+      'Caso privado de pedido, pago o reclamo recibido desde un comentario.',
+    );
+  }
+
   // Publicar bajo el comentario no consume nada de Meta; abrir el privado sí.
   // Por eso el candado se pide sólo aquí, cuando ya se sabe que va a salir un
   // DM. `external_id` es lo que hace falta para escribirle: sin él (un caso
@@ -1284,7 +1318,7 @@ async function decidirComentario(
     if (willPublish) {
       // Sin DM, lo público NO puede decir "te escribí por privado": es la
       // respuesta entera, ahí mismo.
-      const publicText = publicReplyFrom(text, dmSent);
+      const publicText = publicReplyFrom(text, dmSent, decisionForPublic);
       const publicConnection = opts.connection ?? connection;
       try {
         if (!publicConnection) throw new Error('sin conexión de comentarios');
@@ -1457,7 +1491,19 @@ function oracionesQueEntran(texto: string, tope: number): string {
   return salida.trim();
 }
 
-export function publicReplyFrom(dmText: string, dmSent = true): string {
+export function publicReplyFrom(
+  dmText: string,
+  dmSent = true,
+  decision?: Pick<DmDecision, 'reason'>,
+): string {
+  // Un pedido, reclamo o dato que deba ir por privado no puede reutilizar la
+  // primera frase del borrador: esa frase puede contener guía, importe u otro
+  // dato del cliente. La respuesta pública sólo invita al DM.
+  if (decision?.reason === 'pedido' || decision?.reason === 'reclamo' || decision?.reason === 'privado') {
+    return dmSent
+      ? 'Te escribí por privado para revisarlo contigo 💬'
+      : 'Por favor, escríbenos por mensaje privado para revisarlo contigo 💬'
+  }
   const clean = dmText.trim();
   if (!dmSent) {
     if (!clean) return '';

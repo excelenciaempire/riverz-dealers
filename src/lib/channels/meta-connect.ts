@@ -5,6 +5,7 @@ import {
   type DiscoveredAccount,
 } from './meta-graph';
 import { upsertConnectionRow } from './upsert-connection';
+import { listConnections } from './connections';
 import type { supabaseAdmin } from './admin-client';
 import type { Channel } from '@/types';
 
@@ -151,17 +152,16 @@ async function refreshExactExistingMetaConnections(
         : [];
   if (channels.length === 0) return;
 
-  const { data, error } = await admin
-    .from('channel_connections')
-    .select('id, channel, external_account_id, config, secrets')
-    .in('channel', channels)
-    .neq('status', 'disconnected');
-  if (error) {
+  let rows: ExistingMetaConnection[];
+  try {
+    rows = (await listConnections(admin, {
+      channels: channels as Channel[],
+      select: 'id, channel, external_account_id, config, secrets',
+    })) as ExistingMetaConnection[];
+  } catch (error) {
     console.warn('[meta-connect] could not load exact existing assets:', error);
     return;
   }
-
-  const rows = (data ?? []) as ExistingMetaConnection[];
   for (const account of accounts) {
     const secrets = {
       access_token: encrypt(account.page_access_token),
