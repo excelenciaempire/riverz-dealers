@@ -1,13 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  ArrowRightLeft,
-  ChevronDown,
-  Loader2,
-  Save,
-  ShoppingBag,
-} from 'lucide-react';
+import { ChevronDown, Loader2, Save, ShoppingBag, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +11,9 @@ import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useT } from '@/hooks/use-locale';
 import type { VoiceConnectionConfig } from '@/types';
 
-type OrderConfig = Pick<VoiceConnectionConfig, 'cod_mode' | 'order_writeback'>;
+type OrderConfig = Pick<VoiceConnectionConfig, 'order_writeback'>;
 
 const EMPTY: OrderConfig = {
-  cod_mode: false,
   order_writeback: { enabled: false },
 };
 
@@ -50,12 +43,11 @@ export function VoiceOrderSettings({ workspaceId }: { workspaceId?: string }) {
         config?: VoiceConnectionConfig;
       };
       const next: OrderConfig = {
-        cod_mode: json.config?.cod_mode === true,
         order_writeback: json.config?.order_writeback ?? { enabled: false },
       };
       setConfig(next);
       setSaved(next);
-      if (next.cod_mode) setOpen(true);
+      if (next.order_writeback?.enabled) setOpen(true);
     } finally {
       setLoading(false);
     }
@@ -127,81 +119,81 @@ export function VoiceOrderSettings({ workspaceId }: { workspaceId?: string }) {
 
       {open && !loading && (
         <div className="border-border space-y-3 border-t p-4 sm:p-5">
-          <label className="border-border flex cursor-pointer items-start justify-between gap-4 rounded-xl border p-3.5">
-            <span>
-              <span className="text-foreground block text-sm font-medium">
-                {t('voice.codMode')}
-              </span>
-              <span className="text-muted-foreground mt-0.5 block text-xs">
-                {t('voice.codModeHint')}
-              </span>
-            </span>
-            <Switch
-              checked={config.cod_mode === true}
-              onCheckedChange={(checked) =>
-                setConfig((current) => ({ ...current, cod_mode: checked }))
-              }
-            />
-          </label>
-
-          {config.cod_mode && (
-            <>
-              <label className="border-border flex cursor-pointer items-center justify-between gap-4 rounded-xl border p-3.5">
-                <span className="text-foreground flex items-center gap-2 text-sm font-medium">
-                  <ArrowRightLeft className="text-muted-foreground size-4" />
-                  {t('voice.orderWriteback')}
+          <div className="border-border overflow-hidden rounded-xl border">
+            <label className="flex cursor-pointer items-start justify-between gap-4 p-3.5">
+              <span className="flex min-w-0 gap-2.5">
+                <Tags className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <span>
+                  <span className="text-foreground block text-sm font-medium">
+                    {t('voice.orderWriteback')}
+                  </span>
+                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                    {t('voice.orderWritebackHint')}
+                  </span>
                 </span>
-                <Switch
-                  checked={writeback.enabled === true}
-                  onCheckedChange={(checked) =>
-                    patchWriteback({ enabled: checked })
-                  }
-                />
-              </label>
+              </span>
+              <Switch
+                checked={writeback.enabled === true}
+                onCheckedChange={(checked) =>
+                  patchWriteback({
+                    enabled: checked,
+                    ...(checked && !writeback.confirmed_tag
+                      ? { confirmed_tag: t('voice.outcomeConfirmed') }
+                      : {}),
+                    ...(checked && !writeback.cancelled_tag
+                      ? { cancelled_tag: t('voice.outcomeCancelled') }
+                      : {}),
+                  })
+                }
+              />
+            </label>
 
-              {writeback.enabled && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label>
-                    <span className="text-muted-foreground mb-1 block text-xs font-medium">
-                      {t('voice.confirmedTag')}
-                    </span>
-                    <Input
-                      value={writeback.confirmed_tag ?? ''}
-                      onChange={(event) =>
-                        patchWriteback({ confirmed_tag: event.target.value })
-                      }
-                      placeholder={t('voice.outcomeConfirmed')}
-                    />
-                  </label>
-                  <label>
-                    <span className="text-muted-foreground mb-1 block text-xs font-medium">
-                      {t('voice.cancelledTag')}
-                    </span>
-                    <Input
-                      value={writeback.cancelled_tag ?? ''}
-                      onChange={(event) =>
-                        patchWriteback({ cancelled_tag: event.target.value })
-                      }
-                      placeholder={t('voice.outcomeCancelled')}
-                    />
-                  </label>
-                </div>
-              )}
-
-              <DropiCard />
-            </>
-          )}
-
-          <div className="flex justify-end pt-1">
-            <Button size="sm" onClick={save} disabled={saving || !dirty}>
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Save className="mr-1 size-3.5" />
-              )}
-              {t('voice.save')}
-            </Button>
+            {writeback.enabled && (
+              <div className="border-border bg-muted/15 grid gap-3 border-t p-3.5 sm:grid-cols-2">
+                <label>
+                  <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                    {t('voice.confirmedTag')}
+                  </span>
+                  <Input
+                    name="voice_shopify_confirmed_tag"
+                    autoComplete="off"
+                    value={writeback.confirmed_tag ?? ''}
+                    onChange={(event) =>
+                      patchWriteback({ confirmed_tag: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                    {t('voice.cancelledTag')}
+                  </span>
+                  <Input
+                    name="voice_shopify_cancelled_tag"
+                    autoComplete="off"
+                    value={writeback.cancelled_tag ?? ''}
+                    onChange={(event) =>
+                      patchWriteback({ cancelled_tag: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            )}
           </div>
+
+          <DropiCard />
+
+          {dirty && (
+            <div className="flex justify-end pt-1">
+              <Button size="sm" onClick={save} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Save className="mr-1 size-3.5" />
+                )}
+                {t('voice.save')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Check, Trash2, Truck } from 'lucide-react';
+import { Loader2, Check, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -21,6 +21,8 @@ export function DropiCard() {
   const [baseUrl, setBaseUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +65,8 @@ export function DropiCard() {
       }
       setConnected(true);
       setApiKey('');
+      setEditing(false);
+      setShowAdvanced(false);
       toast.success(t('voice.dropiConnected'));
     } catch {
       toast.error(t('settings.networkError'));
@@ -74,12 +78,15 @@ export function DropiCard() {
   async function disconnect() {
     setSaving(true);
     try {
-      const res = await fetchWithCsrf('/api/integrations/dropi', { method: 'DELETE' });
+      const res = await fetchWithCsrf('/api/integrations/dropi', {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         toast.error(t('settings.disconnectError'));
         return;
       }
       setConnected(false);
+      setEditing(false);
       toast.success(t('voice.dropiDisconnected'));
     } catch {
       toast.error(t('settings.networkError'));
@@ -89,13 +96,17 @@ export function DropiCard() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className="border-border bg-card rounded-xl border p-3.5">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Truck className="h-5 w-5 text-orange-500" />
+          <Truck className="size-4 text-orange-500" />
           <div>
-            <p className="text-sm font-medium text-foreground">Dropi</p>
-            <p className="text-xs text-muted-foreground">{t('voice.dropiDesc')}</p>
+            <p className="text-foreground text-sm font-medium">
+              {t('voice.dropiTitle')}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {t('voice.dropiDesc')}
+            </p>
           </div>
         </div>
         {connected && (
@@ -107,24 +118,62 @@ export function DropiCard() {
       </div>
 
       {loading ? (
-        <div className="mt-3 flex items-center text-muted-foreground">
+        <div className="text-muted-foreground mt-3 flex items-center">
           <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+      ) : !editing ? (
+        <div className="mt-3 flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            {connected ? t('voice.dropiConfigure') : t('voice.dropiConnect')}
+          </Button>
+          {connected && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={disconnect}
+              disabled={saving}
+            >
+              {t('settings.disconnect')}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={connected ? t('voice.dropiReplaceKey') : t('voice.dropiApiKey')}
-          />
-          <Input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={t('voice.dropiBaseUrl')}
-          />
+          <label className="block">
+            <span className="text-muted-foreground mb-1 block text-xs font-medium">
+              {connected ? t('voice.dropiReplaceKey') : t('voice.dropiApiKey')}
+            </span>
+            <Input
+              name="dropi_api_key"
+              type="password"
+              autoComplete="new-password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+            onClick={() => setShowAdvanced((current) => !current)}
+          >
+            {t('voice.dropiAdvanced')}
+          </button>
+          {showAdvanced && (
+            <label className="block">
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                {t('voice.dropiBaseUrl')}
+              </span>
+              <Input
+                name="dropi_base_url"
+                type="url"
+                autoComplete="off"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </label>
+          )}
           <div className="flex items-center gap-2">
-            <Button onClick={save} disabled={saving}>
+            <Button size="sm" onClick={save} disabled={saving}>
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : connected ? (
@@ -133,11 +182,16 @@ export function DropiCard() {
                 t('common.connect')
               )}
             </Button>
-            {connected && (
-              <Button onClick={disconnect} disabled={saving} variant="ghost" aria-label="Dropi">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditing(false);
+                setApiKey('');
+              }}
+            >
+              {t('voice.voiceCancel')}
+            </Button>
           </div>
         </div>
       )}

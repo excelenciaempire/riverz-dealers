@@ -609,12 +609,12 @@ export const voice = {
     en: 'Incoming → manual → automations → campaigns',
   },
   orderIntegrationTitle: {
-    es: 'Pedidos contra entrega',
-    en: 'Cash-on-delivery orders',
+    es: 'Pedidos por llamada',
+    en: 'Orders by phone',
   },
   orderIntegrationHint: {
-    es: 'Actualiza pedidos confirmados y conecta Dropi.',
-    en: 'Update confirmed orders and connect Dropi.',
+    es: 'Define qué pasa al terminar una llamada de pedido.',
+    en: 'Choose what happens after an order call.',
   },
   capacityDedupeTitle: {
     es: 'Bloquear llamadas repetidas',
@@ -835,19 +835,30 @@ export const voice = {
     en: 'For dropshipping / cash on delivery. Enables writing the outcome to the order and grouping calls.',
   },
   orderWriteback: {
-    es: 'Escribir resultado en el pedido (Shopify)',
-    en: 'Write outcome to the order (Shopify)',
+    es: 'Actualizar el pedido en Shopify',
+    en: 'Update the order in Shopify',
   },
-  confirmedTag: { es: 'Etiqueta al confirmar', en: 'Tag when confirmed' },
-  cancelledTag: { es: 'Etiqueta al cancelar', en: 'Tag when cancelled' },
+  orderWritebackHint: {
+    es: 'Añade una etiqueta según el resultado de la llamada.',
+    en: 'Adds a tag based on the call result.',
+  },
+  confirmedTag: { es: 'Si confirma', en: 'If confirmed' },
+  cancelledTag: { es: 'Si cancela', en: 'If cancelled' },
   // ── Dropi integration card ──
+  dropiTitle: { es: 'Enviar a Dropi', en: 'Send to Dropi' },
   dropiDesc: {
-    es: 'Fulfillment COD: los pedidos confirmados por llamada pasan a despacho.',
-    en: 'COD fulfillment: orders confirmed by call go to dispatch.',
+    es: 'Envía automáticamente los pedidos confirmados.',
+    en: 'Automatically sends confirmed orders.',
   },
   dropiApiKey: { es: 'API key de Dropi', en: 'Dropi API key' },
-  dropiReplaceKey: { es: 'Reemplazar API key…', en: 'Replace API key…' },
-  dropiBaseUrl: { es: 'URL base (opcional)', en: 'Base URL (optional)' },
+  dropiReplaceKey: {
+    es: 'Nueva API key (opcional)',
+    en: 'New API key (optional)',
+  },
+  dropiBaseUrl: { es: 'URL de API (opcional)', en: 'API URL (optional)' },
+  dropiConnect: { es: 'Conectar Dropi', en: 'Connect Dropi' },
+  dropiConfigure: { es: 'Configurar', en: 'Configure' },
+  dropiAdvanced: { es: 'Configuración avanzada', en: 'Advanced settings' },
   dropiInvalidKey: {
     es: 'Ingresa una API key válida.',
     en: 'Enter a valid API key.',
