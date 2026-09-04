@@ -28,7 +28,9 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   AlertTriangle,
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   Plus,
   Trash2,
   GripVertical,
@@ -3517,6 +3519,7 @@ function StepEditor({
     onChange({ ...step, step_config: { ...cfg, ...patch } });
   // Template preview is collapsed by default (used only by send_template).
   const [showPreview, setShowPreview] = useState(false);
+  const [previewVariantIndex, setPreviewVariantIndex] = useState(0);
 
   switch (step.step_type) {
     case 'send_message':
@@ -3738,9 +3741,13 @@ function StepEditor({
               )}
             </FieldBlock>
           )}
-          {abTest && automationId && step.serverId && (
+          {abTest && automationId && step.serverId ? (
             <AbTestResults automationId={automationId} stepId={step.serverId} />
-          )}
+          ) : abTest ? (
+            <div className="border-border text-muted-foreground mt-3 rounded-md border px-3 py-2 text-xs">
+              {t('automations.abMetricsSaveFirst')}
+            </div>
+          ) : null}
           {varIndices.length > 0 && (
             <FieldBlock label={t('automations.templateVariables')}>
               <div className="space-y-2">
@@ -3793,43 +3800,72 @@ function StepEditor({
                 />
                 {t('automations.preview')}
               </button>
-              {showPreview && (
-                <div className="mt-2 space-y-3">
-                  {previewTemplates.map(
-                    ({ id, template, variables: previewVariables }) => (
-                      <div key={id ?? template.id}>
-                        {id && (
-                          <p className="text-muted-foreground mb-1 text-xs font-medium">
-                            {id.toUpperCase()}
-                          </p>
-                        )}
-                        <WhatsappPreview
-                          headerType={
-                            (template.header_type ??
-                              'none') as TemplateHeaderType
-                          }
-                          headerText={template.header_content ?? undefined}
-                          bodyText={(template.body_text || '').replace(
-                            /\{\{\s*(\d+)\s*\}\}/g,
-                            (_, n) => {
-                              const m = (
-                                previewVariables[String(n)] ?? ''
-                              ).match(/\{\{vars\.(\w+)\}\}/);
-                              return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`;
+              {showPreview &&
+                (() => {
+                  const index = previewVariantIndex % previewTemplates.length;
+                  const current = previewTemplates[index];
+                  return (
+                    <div className="mt-2">
+                      {previewTemplates.length > 1 && (
+                        <div className="mb-2 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewVariantIndex(
+                                (i) =>
+                                  (i + previewTemplates.length - 1) %
+                                  previewTemplates.length
+                              )
                             }
-                          )}
-                          footerText={template.footer_text ?? undefined}
-                          buttons={
-                            (template.buttons as unknown as
-                              | TemplateButtonInput[]
-                              | null) ?? undefined
+                            className="text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center rounded"
+                            aria-label={t('automations.abPreviousPreview')}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <span className="text-muted-foreground text-xs font-medium">
+                            {current.id?.toUpperCase()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewVariantIndex(
+                                (i) => (i + 1) % previewTemplates.length
+                              )
+                            }
+                            className="text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center rounded"
+                            aria-label={t('automations.abNextPreview')}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                      <WhatsappPreview
+                        headerType={
+                          (current.template.header_type ??
+                            'none') as TemplateHeaderType
+                        }
+                        headerText={
+                          current.template.header_content ?? undefined
+                        }
+                        bodyText={(current.template.body_text || '').replace(
+                          /\{\{\s*(\d+)\s*\}\}/g,
+                          (_, n) => {
+                            const m = (
+                              current.variables[String(n)] ?? ''
+                            ).match(/\{\{vars\.(\w+)\}\}/);
+                            return (m && SAMPLE_BY_VAR[m[1]]) || `{{${n}}}`;
                           }
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
+                        )}
+                        footerText={current.template.footer_text ?? undefined}
+                        buttons={
+                          (current.template.buttons as unknown as
+                            | TemplateButtonInput[]
+                            | null) ?? undefined
+                        }
+                      />
+                    </div>
+                  );
+                })()}
             </div>
           )}
         </>

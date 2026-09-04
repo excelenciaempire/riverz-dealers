@@ -24,48 +24,50 @@ export function AbTestResults({
   const [variants, setVariants] = useState<{ a: Variant; b: Variant } | null>(
     null
   );
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     void fetch(`/api/automations/${automationId}/ab-tests/${stepId}`, {
       cache: 'no-store',
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => data?.variants && setVariants(data.variants))
-      .catch(() => undefined);
+      .then((data) => {
+        if (data?.variants) {
+          setFailed(false);
+          setVariants(data.variants);
+        } else setFailed(true);
+      })
+      .catch(() => setFailed(true));
   }, [automationId, stepId]);
-  if (!variants) return null;
-  const columns = ['grid-cols-6', 'gap-1'];
-  return (
-    <div className="border-border mt-3 overflow-hidden rounded-md border text-xs">
-      <div
-        className={`${columns.join(' ')} bg-muted/40 text-muted-foreground px-2 py-1.5 font-medium`}
-      >
-        <span>{t('automations.abResults')}</span>
-        <span>{t('automations.abSent')}</span>
-        <span>{t('automations.abReplies')}</span>
-        <span>{t('automations.abRate')}</span>
-        <span>{t('automations.abOrders')}</span>
-        <span>{t('automations.abRevenue')}</span>
+  if (!variants) {
+    return (
+      <div className="border-border text-muted-foreground mt-3 rounded-md border px-3 py-2 text-xs">
+        {failed
+          ? t('automations.abMetricsUnavailable')
+          : t('automations.abMetricsLoading')}
       </div>
+    );
+  }
+  return (
+    <section className="border-border mt-3 rounded-md border p-3 text-xs">
+      <h3 className="text-foreground mb-2 text-sm font-medium">
+        {t('automations.abResults')}
+      </h3>
       {(['a', 'b'] as const).map((id) => {
         const v = variants[id];
         return (
           <div
             key={id}
-            className={`${columns.join(' ')} border-border text-foreground border-t px-2 py-1.5`}
+            className="border-border text-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t py-2 first:border-t-0 first:pt-0"
           >
-            <span>{id.toUpperCase()}</span>
-            <span>{fmt.number(v.sent)}</span>
-            <span>{fmt.number(v.responses)}</span>
-            <span>
-              {v.response_rate === null
-                ? '—'
-                : `${Math.round(v.response_rate * 100)}%`}
-            </span>
-            <span>{fmt.number(v.orders)}</span>
-            <span>{fmt.number(v.revenue)}</span>
+            <strong>{id.toUpperCase()}</strong>
+            <span>{`${t('automations.abSent')}: ${fmt.number(v.sent)}`}</span>
+            <span>{`${t('automations.abReplies')}: ${fmt.number(v.responses)}`}</span>
+            <span>{`${t('automations.abRate')}: ${v.response_rate === null ? '—' : `${Math.round(v.response_rate * 100)}%`}`}</span>
+            <span>{`${t('automations.abOrders')}: ${fmt.number(v.orders)}`}</span>
+            <span>{`${t('automations.abRevenue')}: ${fmt.number(v.revenue)}`}</span>
           </div>
         );
       })}
-    </div>
+    </section>
   );
 }

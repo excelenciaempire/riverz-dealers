@@ -49,7 +49,9 @@ export async function GET(
     step?.step_config as { ab_test?: { id?: string } } | undefined
   )?.ab_test?.id;
   if (!experimentId)
-    return NextResponse.json({ variants: { a: empty(), b: empty() } });
+    return NextResponse.json({
+      variants: withRates({ a: empty(), b: empty() }),
+    });
 
   const { data, error } = await db
     .from('automation_template_exposures')
@@ -75,17 +77,24 @@ export async function GET(
       metric.currency = row.order_currency;
   }
   return NextResponse.json({
-    variants: {
-      a: {
-        ...variants.a,
-        response_rate: rate(variants.a.responses, variants.a.sent),
-      },
-      b: {
-        ...variants.b,
-        response_rate: rate(variants.b.responses, variants.b.sent),
-      },
-    },
+    variants: withRates(variants),
   });
+}
+
+function withRates(variants: {
+  a: ReturnType<typeof empty>;
+  b: ReturnType<typeof empty>;
+}) {
+  return {
+    a: {
+      ...variants.a,
+      response_rate: rate(variants.a.responses, variants.a.sent),
+    },
+    b: {
+      ...variants.b,
+      response_rate: rate(variants.b.responses, variants.b.sent),
+    },
+  };
 }
 
 function empty() {
