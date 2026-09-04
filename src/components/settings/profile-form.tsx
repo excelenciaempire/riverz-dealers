@@ -55,7 +55,7 @@ const MAX_EXTRA = 4;
 
 export function ProfileForm() {
   const { user, profile, refreshProfile } = useAuth();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const t = useT();
   const fmt = useFormat();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,22 +93,38 @@ export function ProfileForm() {
   const { workspace, isAdmin, reload: reloadWorkspace } = useWorkspace();
   useEffect(() => {
     if (!workspace || !profile) return;
-    const w = workspace as unknown as {
-      alert_phones?: string[] | null;
-      alert_destinations?: AlertNumber[] | null;
+    let cancelado = false;
+
+    // La relación workspace:workspaces(*) se usa para el shell, pero no es una
+    // fuente fiable para un valor que acaba de cambiar. Leer esta columna en
+    // forma directa evita que al recargar se pinte una fila extra vacía aunque
+    // el número sí exista en la base.
+    void (async () => {
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('alert_phones')
+        .eq('id', workspace.id)
+        .maybeSingle();
+      if (cancelado) return;
+
+      const crudos = error
+        ? (
+            workspace as unknown as { alert_phones?: string[] | null }
+          ).alert_phones ?? []
+        : ((data as { alert_phones?: string[] | null } | null)?.alert_phones ?? []);
+      const propios = crudos.map(parseLegacyAlertNumber).filter((x) => x.phone);
+      const propio = sanitizePhoneForMeta(profile.phone ?? '');
+      const principal = propios.find(
+        (x) => sanitizePhoneForMeta(x.phone) === propio
+      );
+      setPrimaryScope(principal?.scope ?? 'both');
+      setExtras(propios.filter((x) => sanitizePhoneForMeta(x.phone) !== propio));
+    })();
+
+    return () => {
+      cancelado = true;
     };
-    const propios = (
-      w.alert_destinations?.length
-        ? w.alert_destinations
-        : (w.alert_phones ?? []).map(parseLegacyAlertNumber)
-    ).filter((x) => x.phone);
-    const propio = sanitizePhoneForMeta(profile.phone ?? '');
-    const principal = propios.find(
-      (x) => sanitizePhoneForMeta(x.phone) === propio
-    );
-    setPrimaryScope(principal?.scope ?? 'both');
-    setExtras(propios.filter((x) => sanitizePhoneForMeta(x.phone) !== propio));
-  }, [workspace, profile]);
+  }, [workspace, profile, supabase]);
 
   // Seed form state once the profile loads.
   useEffect(() => {
