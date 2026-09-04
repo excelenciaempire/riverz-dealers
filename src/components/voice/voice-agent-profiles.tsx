@@ -44,6 +44,7 @@ type VoiceAgent = {
 type TriggerLinks = {
   automations?: { agent_ids?: string[] }[];
   deciding?: { voice_agent_id?: string | null }[];
+  linked_assistants?: { voice_agent_id?: string | null }[];
   campaigns?: { agent_id?: string | null }[];
 };
 
@@ -125,7 +126,7 @@ export function VoiceAgentProfiles({
         for (const automation of links.automations ?? []) {
           for (const id of automation.agent_ids ?? []) add(id);
         }
-        for (const assistant of links.deciding ?? []) {
+        for (const assistant of links.linked_assistants ?? links.deciding ?? []) {
           add(assistant.voice_agent_id);
         }
         for (const campaign of links.campaigns ?? []) add(campaign.agent_id);

@@ -31,6 +31,10 @@ import {
   voiceCallDedupeKey,
   voiceCallPriority,
 } from './capacity';
+import {
+  withVoiceExecutionMeta,
+  type VoiceCallOrigin,
+} from './execution-context';
 
 const DEFAULT_TZ = 'America/Bogota';
 
@@ -43,6 +47,12 @@ export interface EnqueueInput {
   phone?: string | null;
   /** Order/cart/objective payload surfaced to the agent. */
   context?: Record<string, unknown>;
+  /** Riverz flow that created the call. Kept out of the model-visible context. */
+  origin?: VoiceCallOrigin;
+  /** Chat assistant to continue on the phone, when the call came from chat. */
+  sourceAssistantId?: string | null;
+  /** Conversation whose live history should be available on the call. */
+  sourceConversationId?: string | null;
   automationId?: string | null;
   /** Retry chain parent (set by the cron on a retry). */
   parentCallId?: string | null;
@@ -197,6 +207,13 @@ async function minutesUsedThisMonth(
  */
 export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   const db = supabaseAdmin();
+  const callContext = input.origin
+    ? withVoiceExecutionMeta(input.context, {
+        origin: input.origin,
+        assistantId: input.sourceAssistantId,
+        conversationId: input.sourceConversationId,
+      })
+    : (input.context ?? {});
 
   // Workspace timezone (drives the calling window + monthly metering).
   const { data: ws } = await db
@@ -274,7 +291,7 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
         language: input.language || agent.language || 'es',
         status: 'canceled',
         error: reason,
-        context: input.context ?? {},
+        context: callContext,
         attempt: input.attempt ?? 1,
         max_attempts: 1,
         ended_at: new Date().toISOString(),
@@ -350,13 +367,13 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   const dispatchPriority = voiceCallPriority({
     callType: input.callType,
     automationId: input.automationId,
-    context: input.context,
+    context: callContext,
   });
   const rawDedupeKey = voiceCallDedupeKey({
     contactId: input.contactId,
     callType: input.callType,
     automationId: input.automationId,
-    context: input.context,
+    context: callContext,
   });
   const dedupeKey = capacity.dedupeMinutes > 0 ? rawDedupeKey : null;
 
@@ -414,7 +431,7 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
       phone: e164,
       language: input.language || agent.language || 'es',
       status: 'queued',
-      context: input.context ?? {},
+      context: callContext,
       dispatch_priority: dispatchPriority,
       dedupe_key: dedupeKey,
       scheduled_at: scheduledAt.toISOString(),

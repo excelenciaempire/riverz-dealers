@@ -204,4 +204,8 @@ export const errAi = {
     es: 'Elige al menos un canal.',
     en: 'Choose at least one channel.',
   },
+  voiceAgentInvalid: {
+    es: 'El agente de voz ya no está disponible. Elige otro.',
+    en: 'That voice agent is no longer available. Choose another one.',
+  },
 } satisfies Namespace;

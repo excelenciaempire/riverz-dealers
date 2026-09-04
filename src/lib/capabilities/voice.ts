@@ -276,6 +276,7 @@ async function llamar(ctx: CapabilityContext, args: Record<string, unknown>) {
     // llegar a cualquier hora. La franja del agente es del comercio y una
     // llamada pedida por el chat no la puede saltar.
     context: objetivo ? { objective_override: objetivo } : {},
+    origin: 'operator',
   })
   if (!res.enqueued) throw new Error(`No se encoló la llamada. ${motivo(res.reason)}`)
 

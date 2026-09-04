@@ -12,6 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, VoiceCall, VoiceConnectionConfig } from '@/types';
 import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { pickInboundVoiceAgent, pickVoiceAgent } from './agents';
+import { withVoiceExecutionMeta } from './execution-context';
 
 function toE164(raw: string): string {
   const t = raw.trim();
@@ -161,7 +162,7 @@ export async function resolveInboundCall(
       phone: caller,
       language: agent.language || 'es',
       status: 'in_progress',
-      context: {},
+      context: withVoiceExecutionMeta({}, { origin: 'inbound' }),
       dispatch_priority: 500,
       external_call_id: input.sessionId ?? null,
       attempt: 1,

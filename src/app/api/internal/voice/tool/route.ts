@@ -13,6 +13,11 @@ import { runTool } from '@/lib/ai/tools';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
+import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import {
+  resolveVoiceBrainAgent,
+  resolveVoiceContextConversation,
+} from '@/lib/voice/context';
 
 /**
  * POST /api/internal/voice/tool
@@ -64,7 +69,23 @@ export async function POST(request: Request) {
       .select('*')
       .eq('id', call.agent_id)
       .maybeSingle();
-    const agente = agentRow as AiAgent | null;
+    const voiceAgent = agentRow as AiAgent | null;
+    if (!voiceAgent)
+      return NextResponse.json({ error: 'agent_not_found' }, { status: 404 });
+    const primaryContact = await loadPrimaryContact(db, contact);
+    const contextConversation = await resolveVoiceContextConversation(
+      db,
+      call,
+      contact,
+      primaryContact
+    );
+    const agente = await resolveVoiceBrainAgent(
+      db,
+      call,
+      voiceAgent,
+      contextConversation
+    );
+    const conversationId = contextConversation?.id ?? call.conversation_id;
     const canCreateOrders = agente?.puede_crear_pedidos === true;
 
     const orderId =
@@ -122,9 +143,9 @@ export async function POST(request: Request) {
       const currency = await resolveWorkspaceCurrency(db, call.workspace_id);
       shopify.canCreateOrders = canCreateOrders;
       shopify.workspaceId = call.workspace_id;
-      shopify.agentId = call.agent_id;
+      shopify.agentId = agente.id;
       shopify.contactId = call.contact_id;
-      shopify.conversationId = call.conversation_id;
+      shopify.conversationId = conversationId;
       shopify.channel = 'voice';
       shopify.contactName = contact.name ?? null;
       shopify.currency = shopify.config?.currency || currency;
@@ -152,8 +173,8 @@ export async function POST(request: Request) {
       db,
       workspaceId: call.workspace_id,
       contactId: call.contact_id,
-      conversationId: call.conversation_id,
-      agentId: call.agent_id,
+      conversationId,
+      agentId: agente.id,
       channel: 'voice',
       // La correa del comercio vale igual por teléfono: lo que puso «con
       // aprobación» se prepara y espera a una persona, no se ejecuta porque la

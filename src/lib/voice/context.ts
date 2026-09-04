@@ -10,6 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Contact,
+  Conversation,
   ShopifyCustomerSnapshot,
   VoiceCall,
   VoiceCallType,
@@ -18,12 +19,17 @@ import type { AiAgent } from '@/lib/ai/types';
 import {
   buildSystemPrompt,
   construirHerramientas,
+  loadContext,
+  loadRecentContactNotes,
   loadProductCatalog,
   resolveShopifyContext,
   type LoadedContext,
 } from '@/lib/ai/runner';
 import { BUSCAR_EN_INTERNET_TOOL } from '@/lib/ai/busqueda-web';
 import { toolEnabled } from '@/lib/ai/toolbox';
+import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
+import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
+import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -43,6 +49,7 @@ import {
   countryOfPhone,
   normalizeForDialing,
 } from '@/lib/whatsapp/phone-utils';
+import { publicVoiceContext, voiceExecutionMeta } from './execution-context';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
@@ -168,6 +175,145 @@ function contextValue(
   return '';
 }
 
+/**
+ * The conversation used as an anchor for Riverz's cross-channel memory.
+ * Explicit source wins; otherwise use the latest conversation of the same
+ * unified person. A forged/manual source from another contact is ignored.
+ */
+export async function resolveVoiceContextConversation(
+  db: SupabaseClient,
+  call: VoiceCall,
+  contact: Contact,
+  primaryContact: Contact
+): Promise<Conversation | null> {
+  const meta = voiceExecutionMeta(call.context);
+  if (meta?.conversationId) {
+    const { data } = await db
+      .from('conversations')
+      .select('*')
+      .eq('id', meta.conversationId)
+      .eq('workspace_id', call.workspace_id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (data) {
+      const candidate = data as Conversation;
+      const { data: sourceContactRow } = await db
+        .from('contacts')
+        .select('*')
+        .eq('id', candidate.contact_id)
+        .eq('workspace_id', call.workspace_id)
+        .maybeSingle();
+      if (sourceContactRow) {
+        const sourcePrimary = await loadPrimaryContact(
+          db,
+          sourceContactRow as Contact
+        );
+        if (sourcePrimary.id === primaryContact.id) return candidate;
+      }
+    }
+  }
+
+  const { data: aliases } = await db
+    .from('contacts')
+    .select('id')
+    .eq('workspace_id', call.workspace_id)
+    .eq('unified_contact_id', primaryContact.id);
+  const contactIds = [contact.id, primaryContact.id]
+    .concat(((aliases ?? []) as { id: string }[]).map((row) => row.id))
+    .filter((id, index, all) => all.indexOf(id) === index);
+  const { data } = await db
+    .from('conversations')
+    .select('*')
+    .eq('workspace_id', call.workspace_id)
+    .in('contact_id', contactIds)
+    .is('deleted_at', null)
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as Conversation | null) ?? null;
+}
+
+/**
+ * Voice owns voice/operations; a linked chat assistant owns business knowledge.
+ * An explicit assistant is used only when it really links to this voice profile.
+ * For standalone/automation/inbound calls, one unambiguous link is inherited.
+ */
+export async function resolveVoiceBrainAgent(
+  db: SupabaseClient,
+  call: VoiceCall,
+  voiceAgent: AiAgent,
+  conversation: Conversation | null
+): Promise<AiAgent> {
+  const meta = voiceExecutionMeta(call.context);
+  let candidateId = meta?.assistantId ?? null;
+
+  if (!candidateId && conversation) {
+    const { data } = await db
+      .from('ai_replies')
+      .select('agent_id')
+      .eq('conversation_id', conversation.id)
+      .eq('status', 'sent')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    candidateId =
+      (data as { agent_id?: string | null } | null)?.agent_id ?? null;
+  }
+
+  if (candidateId) {
+    const { data } = await db
+      .from('ai_agents')
+      .select('*')
+      .eq('id', candidateId)
+      .eq('workspace_id', call.workspace_id)
+      .eq('voice_agent_id', voiceAgent.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (data) return data as AiAgent;
+  }
+
+  const { data: linked } = await db
+    .from('ai_agents')
+    .select('*')
+    .eq('workspace_id', call.workspace_id)
+    .eq('voice_agent_id', voiceAgent.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('priority', { ascending: false })
+    .limit(2);
+  return linked?.length === 1 ? (linked[0] as AiAgent) : voiceAgent;
+}
+
+/** Recent cross-channel turns, compact enough for a live-call latency budget. */
+function recentConversationBlock(
+  context: LoadedContext,
+  lang: 'es' | 'en'
+): string {
+  const lines = context.messages
+    .filter(
+      (message) =>
+        !/\b(queued|dialing|in_progress)\b/i.test(String(message.content ?? ''))
+    )
+    .slice(-12)
+    .map((message) => {
+      const who =
+        message.role === 'user'
+          ? lang === 'en'
+            ? 'Customer'
+            : 'Cliente'
+          : lang === 'en'
+            ? 'Business'
+            : 'Negocio';
+      return `${who}: ${String(message.content ?? '').trim()}`;
+    })
+    .filter((line) => !line.endsWith(': '));
+  if (!lines.length) return '';
+  const body = lines.join('\n').slice(-2400);
+  return lang === 'en'
+    ? `## Recent customer context\nUse this only as context; do not repeat it unless relevant.\n${body}`
+    : `## Contexto reciente del cliente\nÚsalo sólo como contexto; no lo repitas salvo que sea relevante.\n${body}`;
+}
+
 export function interpolateVoiceGreeting(
   template: string,
   values: Record<string, string>
@@ -232,7 +378,7 @@ function buildVoiceInstructions(
   const lang = langOf(agent, call);
   const extra =
     agent.voice_objectives?.[call.call_type]?.extra_instructions?.trim();
-  const ctx = call.context ?? {};
+  const ctx = publicVoiceContext(call.context);
   const contextLines = Object.entries(ctx)
     .filter(([k]) => k !== 'objective_override')
     .map(
@@ -422,7 +568,7 @@ export async function buildVoiceContext(
     .eq('id', call.agent_id)
     .maybeSingle();
   if (!agentRow) throw new Error(`voice agent ${call.agent_id} not found`);
-  const agent = agentRow as AiAgent;
+  const voiceAgent = agentRow as AiAgent;
 
   const { data: contactRow } = await db
     .from('contacts')
@@ -433,6 +579,24 @@ export async function buildVoiceContext(
     throw new Error(`voice contact ${call.contact_id} not found`);
   const contact = contactRow as Contact;
   const primaryContact = await loadPrimaryContact(db, contact);
+  const contextConversation = await resolveVoiceContextConversation(
+    db,
+    call,
+    contact,
+    primaryContact
+  );
+  const resolvedBrain = await resolveVoiceBrainAgent(
+    db,
+    call,
+    voiceAgent,
+    contextConversation
+  );
+  // The origin decides the language for this call; everything else comes from
+  // the assistant brain (when linked) or the self-contained voice profile.
+  const agent: AiAgent = {
+    ...resolvedBrain,
+    language: call.language || resolvedBrain.language,
+  };
 
   const businessCurrency = await resolveWorkspaceCurrency(
     db,
@@ -452,7 +616,7 @@ export async function buildVoiceContext(
     shopify.workspaceId = call.workspace_id;
     shopify.agentId = agent.id;
     shopify.contactId = primaryContact.id;
-    shopify.conversationId = call.conversation_id;
+    shopify.conversationId = contextConversation?.id ?? call.conversation_id;
     shopify.channel = 'voice';
     shopify.contactName = contact.name ?? null;
     shopify.currency = shopify.config?.currency || businessCurrency;
@@ -464,29 +628,57 @@ export async function buildVoiceContext(
     rollingSummary: null,
     idleResetHint: null,
   };
+  const sharedContext = contextConversation
+    ? await loadContext(
+        db,
+        contextConversation,
+        Math.min(30, Math.max(1, agent.context_messages || 30))
+      )
+    : emptyContext;
   const shopifySnapshot =
     (primaryContact.shopify_customer_data as ShopifyCustomerSnapshot | null) ??
     null;
+  const recentNotes = await loadRecentContactNotes(db, primaryContact.id);
+  const reglas = reglasATexto(
+    await cargarReglas(db, call.workspace_id, agent.id)
+  );
+  const perfilOperativo = await cargarPerfilOperativo(db, call.workspace_id);
+  const registro = await resolverRegistro({
+    db,
+    workspaceId: call.workspace_id,
+    idioma: agent.language,
+    contact,
+    primaryContact,
+    paisEnLaTienda:
+      (shopifySnapshot?.default_address as
+        | { country_code?: string | null }
+        | undefined)?.country_code ??
+      shopifySnapshot?.default_address?.country ??
+      null,
+  });
 
   const base = buildSystemPrompt(
     agent,
     contact,
     primaryContact,
     shopifySnapshot,
-    [],
-    emptyContext,
+    recentNotes,
+    sharedContext,
     products,
     null,
     shopify,
     null,
-    businessCurrency
+    businessCurrency,
+    reglas,
+    registro,
+    perfilOperativo
   );
 
-  const objective = resolveObjective(agent, call);
+  const objective = resolveObjective(voiceAgent, call);
 
   // In-call upsell: only on order confirmation, when enabled, and when we have
   // an order to edit (order_id in context) and a Shopify connection.
-  const upsell = agent.voice_objectives?.order_confirmation?.upsell;
+  const upsell = voiceAgent.voice_objectives?.order_confirmation?.upsell;
   const upsellOn =
     call.call_type === 'order_confirmation' &&
     !!upsell?.enabled &&
@@ -503,7 +695,7 @@ export async function buildVoiceContext(
 
   // Instrucciones de sistema propias de las llamadas (campo del agente). Se suman
   // al persona base + bloque de voz; el comercio las edita en la pestaña Llamadas.
-  const voiceSystem = agent.voice_system_prompt?.trim();
+  const voiceSystem = voiceAgent.voice_system_prompt?.trim();
   const voiceSystemBlock = voiceSystem
     ? `\n\n${lang0 === 'en' ? '## Call instructions' : '## Instrucciones de la llamada'}\n${voiceSystem}`
     : '';
@@ -531,11 +723,16 @@ export async function buildVoiceContext(
 
   const rioplatenseBlock = isArgentina ? `\n\n${RIOPLATENSE_SPEECH}` : '';
 
+  const conversationBlock = recentConversationBlock(
+    sharedContext,
+    langOf(agent, call)
+  );
   const voiceBlock =
-    buildVoiceInstructions(agent, call, objective) +
+    buildVoiceInstructions(voiceAgent, call, objective) +
     upsellBlock +
     rioplatenseBlock +
-    voiceSystemBlock;
+    voiceSystemBlock +
+    (conversationBlock ? `\n\n${conversationBlock}` : '');
 
   // El system prompt se re-envía en CADA turno, así que su tamaño multiplica el
   // costo, la latencia y los tokens-por-minuto. El grueso vive en `base`
@@ -718,11 +915,17 @@ export async function buildVoiceContext(
   // decisión es del comercio, que es quien conoce a quién llama.
   const lang = langOf(agent, call);
   const negocio = await workspaceName(db, call.workspace_id);
-  let greeting = resolveGreeting(agent, contact, call, isArgentina, negocio);
+  let greeting = resolveGreeting(
+    voiceAgent,
+    contact,
+    call,
+    isArgentina,
+    negocio
+  );
   const recordingEnabled =
-    agent.voice_recording_enabled ?? opts.recordingEnabled ?? true;
+    voiceAgent.voice_recording_enabled ?? opts.recordingEnabled ?? true;
   const recordingDisclosure =
-    agent.voice_recording_disclosure ?? opts.recordingDisclosure ?? false;
+    voiceAgent.voice_recording_disclosure ?? opts.recordingDisclosure ?? false;
   if (recordingEnabled && recordingDisclosure) {
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }
@@ -755,13 +958,13 @@ export async function buildVoiceContext(
           ? resolveVoiceId(
               'realtime',
               model.realtime_provider,
-              agent.voice_id,
+              voiceAgent.voice_id,
               model.tts_default_voice_id
             )
           : resolveVoiceId(
               'tts',
               model.tts_provider,
-              agent.voice_id,
+              voiceAgent.voice_id,
               model.tts_default_voice_id
             ),
       model: model.tts_model,
@@ -815,9 +1018,9 @@ export async function buildVoiceContext(
     transfer: {
       // La persona correcta depende del agente (ventas, soporte, cobros).
       // El valor antiguo de la conexión queda como fallback de compatibilidad.
-      number: agent.voice_transfer_number ?? opts.transferNumber ?? null,
+      number: voiceAgent.voice_transfer_number ?? opts.transferNumber ?? null,
     },
-    max_call_seconds: agent.voice_max_call_seconds || 300,
+    max_call_seconds: voiceAgent.voice_max_call_seconds || 300,
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },
     tools_enabled: toolsEnabled,

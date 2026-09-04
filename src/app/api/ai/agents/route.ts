@@ -24,6 +24,7 @@ const PERMISOS_COMPLETOS: AgentPermissions = Object.fromEntries(
   AGENT_PERMISSIONS.map((p) => [p, true])
 ) as AgentPermissions;
 import type { AiAgent } from '@/lib/ai/types';
+import { validVoiceAgentLink } from '@/lib/ai/agents/update';
 
 /**
  * List + create endpoints for AI customer-service agents.
@@ -233,6 +234,16 @@ export async function POST(request: Request) {
   if (body.api_key && body.api_key.trim()) {
     payload.api_key_encrypted = encrypt(body.api_key.trim());
   }
+  if (
+    body.voice_agent_id != null &&
+    !(await validVoiceAgentLink(admin, body.workspace_id, body.voice_agent_id))
+  ) {
+    return NextResponse.json(
+      { error: translate(locale, 'errAi.voiceAgentInvalid') },
+      { status: 400 }
+    );
+  }
+  if (!body.voice_agent_id) payload.voice_ai_decides = false;
 
   const { data: created, error } = await admin
     .from('ai_agents')

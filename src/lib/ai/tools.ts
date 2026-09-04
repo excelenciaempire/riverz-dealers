@@ -76,6 +76,9 @@ export interface VoiceEscalationContext {
   workspaceId: string
   agentId: string
   contactId: string
+  assistantId: string
+  conversationId: string
+  language?: string | null
 }
 
 /**
@@ -1336,6 +1339,10 @@ export async function runTool(
       contactId: voice.contactId,
       callType: 'followup',
       context: { reason: input.reason ?? '', escalated_by_ai: true },
+      origin: 'assistant',
+      sourceAssistantId: voice.assistantId,
+      sourceConversationId: voice.conversationId,
+      language: voice.language,
     })
     if (!res.enqueued) {
       return JSON.stringify({

@@ -1212,6 +1212,8 @@ async function enqueueVoiceCallStep(
     callType,
     automationId: args.automation.id,
     context,
+    origin: 'automation',
+    sourceConversationId: args.context.conversation_id,
     maxAttempts: cfg.max_attempts,
     // Una automatización que llama y no llama es lo más caro de diagnosticar:
     // deja la fila con el motivo para que se vea en el registro de llamadas.

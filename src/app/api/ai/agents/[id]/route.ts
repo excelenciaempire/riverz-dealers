@@ -8,6 +8,7 @@ import { translate } from '@/lib/i18n/translate';
 import { channelLabels } from '@/lib/ai/channel-conflict';
 import { pickAgentPatch, updateAgent } from '@/lib/ai/agents/update';
 import type { AiAgent } from '@/lib/ai/types';
+import { persistCallResult } from '@/lib/voice/result';
 
 async function requireMember(agentId: string, userId: string) {
   const admin = supabaseAdmin();
@@ -95,6 +96,12 @@ export async function PATCH(
         { status: 409 }
       );
     }
+    if (fail.code === 'voice_agent_invalid') {
+      return NextResponse.json(
+        { error: translate(locale, 'errAi.voiceAgentInvalid') },
+        { status: 400 }
+      );
+    }
     return serverError(fail.error);
   }
 
@@ -132,6 +139,21 @@ export async function DELETE(
   // preserved for analytics.
   const admin = supabaseAdmin();
   const now = new Date().toISOString();
+  const [{ data: queuedRows }, { data: stepRows }] = await Promise.all([
+    admin
+      .from('voice_calls')
+      .select('id')
+      .eq('workspace_id', target.workspace_id)
+      .eq('agent_id', id)
+      .eq('status', 'queued'),
+    admin
+      .from('automation_steps')
+      .select(
+        'id, automation_id, step_config, automations!inner(workspace_id)'
+      )
+      .eq('step_type', 'voice_call')
+      .eq('automations.workspace_id', target.workspace_id),
+  ]);
   const { error } = await admin
     .from('ai_agents')
     .update({ deleted_at: now })
@@ -142,33 +164,64 @@ export async function DELETE(
   // Voice profiles may be linked from chat assistants and queued work. The
   // tombstone keeps past calls intact, while these active links are cleared so
   // nothing can silently keep trying to use a deleted profile.
-  const [{ error: assistantError }, { error: queuedError }] = await Promise.all(
-    [
+  const affectedSteps = (
+    (stepRows ?? []) as {
+      id: string;
+      automation_id: string;
+      step_config: Record<string, unknown> | null;
+    }[]
+  ).filter((step) => step.step_config?.agent_id === id);
+  const affectedAutomationIds = [
+    ...new Set(affectedSteps.map((step) => step.automation_id)),
+  ];
+  const cleanup = await Promise.all([
+    admin
+      .from('ai_agents')
+      .update({ voice_agent_id: null, voice_ai_decides: false })
+      .eq('workspace_id', target.workspace_id)
+      .eq('voice_agent_id', id)
+      .is('deleted_at', null),
+    ...affectedSteps.map((step) =>
       admin
-        .from('ai_agents')
-        .update({ voice_agent_id: null, voice_ai_decides: false })
-        .eq('workspace_id', target.workspace_id)
-        .eq('voice_agent_id', id)
-        .is('deleted_at', null),
-      admin
-        .from('voice_calls')
-        .update({
-          status: 'canceled',
-          error: 'agent_deleted',
-          ended_at: now,
-          updated_at: now,
-        })
-        .eq('workspace_id', target.workspace_id)
-        .eq('agent_id', id)
-        .eq('status', 'queued'),
-    ]
-  );
-  if (assistantError || queuedError) {
+        .from('automation_steps')
+        .update({ step_config: { ...(step.step_config ?? {}), agent_id: '' } })
+        .eq('id', step.id)
+    ),
+    ...(affectedAutomationIds.length
+      ? [
+          admin
+            .from('automations')
+            .update({ is_active: false, activation_state: 'draft' })
+            .eq('workspace_id', target.workspace_id)
+            .in('id', affectedAutomationIds),
+        ]
+      : []),
+    admin
+      .from('voice_campaigns')
+      .update({ status: 'paused', updated_at: now })
+      .eq('workspace_id', target.workspace_id)
+      .eq('agent_id', id)
+      .eq('status', 'running'),
+  ]);
+  if (cleanup.some((result) => result.error)) {
     console.error('[voice] agent cleanup incomplete', {
       agentId: id,
-      assistantError,
-      queuedError,
+      errors: cleanup.map((result) => result.error).filter(Boolean),
     });
   }
+
+  // Finish every queued row through the canonical result pipeline. Besides
+  // canceling the call, this wakes an automation parked on that call instead
+  // of leaving it frozen until the 24-hour safety timeout.
+  await Promise.all(
+    ((queuedRows ?? []) as { id: string }[]).map((call) =>
+      persistCallResult({
+        call_id: call.id,
+        status: 'canceled',
+        ended_at: now,
+        error: 'agent_deleted',
+      })
+    )
+  );
   return NextResponse.json({ ok: true });
 }

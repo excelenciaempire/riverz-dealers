@@ -204,4 +204,25 @@ describe('cuando no hay barrera', () => {
     });
     expect(insertados[0].error).toBeUndefined();
   });
+
+  it('guarda el asistente y la conversación que originaron la llamada', async () => {
+    montar({ phone_number: '+12099793169' });
+
+    await enqueueCall({
+      ...PEDIDO,
+      origin: 'assistant',
+      sourceAssistantId: 'asistente-1',
+      sourceConversationId: 'conversacion-1',
+      context: { reason: 'El cliente pidió hablar' },
+    });
+
+    expect(insertados[0].context).toEqual({
+      reason: 'El cliente pidió hablar',
+      __riverz: {
+        origin: 'assistant',
+        assistant_id: 'asistente-1',
+        conversation_id: 'conversacion-1',
+      },
+    });
+  });
 });

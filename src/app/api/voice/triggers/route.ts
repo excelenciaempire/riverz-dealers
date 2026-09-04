@@ -49,9 +49,8 @@ export async function GET(request: Request) {
         .is('automations.deleted_at', null),
       db
         .from('ai_agents')
-        .select('id, name, voice_agent_id')
+        .select('id, name, voice_agent_id, voice_ai_decides')
         .eq('workspace_id', workspaceId)
-        .eq('voice_ai_decides', true)
         .not('voice_agent_id', 'is', null)
         .is('deleted_at', null),
       db
@@ -88,10 +87,18 @@ export async function GET(request: Request) {
         ...automation,
         agent_ids: [...agent_ids],
       })),
-      deciding: (agentes.data ?? []) as {
+      deciding: (agentes.data ?? []).filter(
+        (agent) => (agent as { voice_ai_decides?: boolean }).voice_ai_decides
+      ) as {
         id: string;
         name: string;
         voice_agent_id: string;
+      }[],
+      linked_assistants: (agentes.data ?? []) as {
+        id: string;
+        name: string;
+        voice_agent_id: string;
+        voice_ai_decides: boolean;
       }[],
       campaigns: (campanas.data ?? []) as {
         id: string;

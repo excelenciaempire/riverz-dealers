@@ -99,7 +99,26 @@ export type AgentUpdateFailure =
   | { code: 'channels_required' }
   /** Otro agente activo del mismo rol ya ocupa esos canales. */
   | { code: 'channel_conflict'; agentName: string; channels: string[] }
+  /** The linked voice profile is missing, deleted, disabled or from another workspace. */
+  | { code: 'voice_agent_invalid' }
   | { code: 'db'; error: unknown };
+
+export async function validVoiceAgentLink(
+  admin: SupabaseClient,
+  workspaceId: string,
+  voiceAgentId: unknown
+): Promise<boolean> {
+  if (typeof voiceAgentId !== 'string' || !voiceAgentId.trim()) return false;
+  const { data } = await admin
+    .from('ai_agents')
+    .select('id')
+    .eq('id', voiceAgentId)
+    .eq('workspace_id', workspaceId)
+    .eq('voice_enabled', true)
+    .is('deleted_at', null)
+    .maybeSingle();
+  return Boolean(data);
+}
 
 export type AgentUpdateOutcome =
   | { ok: true; agent: AgenteSeguro | null }
@@ -215,7 +234,7 @@ export async function updateAgent(
 
   const { data: cur } = await admin
     .from('ai_agents')
-    .select('is_active, scope, role, ai_agent_channels(channel)')
+    .select('is_active, scope, role, voice_agent_id, ai_agent_channels(channel)')
     .eq('id', agentId)
     .eq('workspace_id', workspaceId)
     .maybeSingle();
@@ -223,8 +242,29 @@ export async function updateAgent(
     is_active: boolean;
     scope: string;
     role?: string | null;
+    voice_agent_id?: string | null;
     ai_agent_channels?: { channel: string }[];
   } | null;
+
+  if (
+    patch.voice_agent_id != null &&
+    (patch.voice_agent_id === agentId ||
+      !(await validVoiceAgentLink(admin, workspaceId, patch.voice_agent_id)))
+  ) {
+    return { ok: false, fail: { code: 'voice_agent_invalid' } };
+  }
+  const finalVoiceAgentId =
+    'voice_agent_id' in patch
+      ? (patch.voice_agent_id as string | null)
+      : (curRow?.voice_agent_id ?? null);
+  // The permission has no meaning without a linked phone profile. Normalize it
+  // here so API clients cannot leave a misleading enabled toggle behind.
+  if (
+    ('voice_agent_id' in patch && !finalVoiceAgentId) ||
+    (patch.voice_ai_decides === true && !finalVoiceAgentId)
+  ) {
+    patch.voice_ai_decides = false;
+  }
 
   const finalActive =
     'is_active' in patch

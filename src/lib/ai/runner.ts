@@ -2773,6 +2773,9 @@ async function generateReply(
           workspaceId: agent.workspace_id,
           agentId: voiceAgentId,
           contactId: primaryContact.id,
+          assistantId: agent.id,
+          conversationId: origen.conversationId,
+          language: agent.language,
         }
       : null;
 

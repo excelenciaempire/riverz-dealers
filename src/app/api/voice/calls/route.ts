@@ -45,6 +45,7 @@ export async function POST(request: Request) {
     objective?: string;
     phone?: string;
     call_type?: VoiceCallType;
+    conversation_id?: string;
   } | null;
   if (!body?.workspace_id || !body.contact_id) {
     return NextResponse.json(
@@ -75,6 +76,8 @@ export async function POST(request: Request) {
       phone: body.phone ?? null,
       immediate: true,
       context: body.objective ? { objective_override: body.objective } : {},
+      origin: 'manual',
+      sourceConversationId: body.conversation_id,
     });
     if (!result.enqueued) {
       return NextResponse.json({ error: result.reason }, { status: 409 });

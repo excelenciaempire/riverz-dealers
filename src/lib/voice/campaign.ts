@@ -49,6 +49,7 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
         campaign_id: c.id,
         ...(c.objective ? { objective_override: c.objective } : {}),
       },
+      origin: 'campaign',
     });
     if (res.enqueued) enqueued++;
   }
