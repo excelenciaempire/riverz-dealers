@@ -71,7 +71,7 @@ export type EnqueueResult =
 /** ISO weekday (1 = Mon … 7 = Sun) of `instant` in `tz`. */
 function isoWeekday(tz: string, instant: Date): number {
   const jsDow = new Date(
-    instant.toLocaleString('en-US', { timeZone: tz }),
+    instant.toLocaleString('en-US', { timeZone: tz })
   ).getDay(); // 0 = Sun … 6 = Sat
   return jsDow === 0 ? 7 : jsDow;
 }
@@ -117,7 +117,7 @@ function shiftYmd(ymd: string, deltaDays: number): string {
 export function nextAllowedTime(
   tz: string,
   hours: VoiceCallingHours,
-  from: Date = new Date(),
+  from: Date = new Date()
 ): Date {
   const days = hours.days?.length ? hours.days : DEFAULT_CALLING_HOURS.days;
   // Normalize once and reuse for BOTH the window comparison and the scheduled
@@ -162,7 +162,7 @@ export function nextAllowedTime(
 async function minutesUsedThisMonth(
   db: SupabaseClient,
   workspaceId: string,
-  tz: string,
+  tz: string
 ): Promise<number> {
   const ym = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,
@@ -176,10 +176,9 @@ async function minutesUsedThisMonth(
     .eq('workspace_id', workspaceId)
     .gte('created_at', monthStart)
     .not('duration_seconds', 'is', null);
-  const seconds = ((data ?? []) as { duration_seconds: number | null }[]).reduce(
-    (acc, r) => acc + (r.duration_seconds ?? 0),
-    0,
-  );
+  const seconds = (
+    (data ?? []) as { duration_seconds: number | null }[]
+  ).reduce((acc, r) => acc + (r.duration_seconds ?? 0), 0);
   return seconds / 60;
 }
 
@@ -203,38 +202,44 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   // freno de emergencia estaba prendido ni siquiera sabíamos a qué agente ni a
   // qué contacto iba la llamada, y no había con qué dejar la fila que le
   // explica al comercio por qué no sonó el teléfono (`recordSkip`).
-  const [{ data: connRow }, { data: agentRow }, { data: contactRow }] = await Promise.all([
-    db
-      .from('channel_connections')
-      .select('config, status')
-      .eq('workspace_id', input.workspaceId)
-      .eq('channel', 'voice')
-      .maybeSingle(),
-    db
-      .from('ai_agents')
-      .select('*')
-      .eq('id', input.agentId)
-      .eq('workspace_id', input.workspaceId)
-      .maybeSingle(),
-    // Scope by workspace so a caller can't enqueue a call against a contact
-    // from another tenant (the dashboard route validates workspace membership
-    // + agent ownership, but not the contact).
-    db
-      .from('contacts')
-      .select('*')
-      .eq('id', input.contactId)
-      .eq('workspace_id', input.workspaceId)
-      .maybeSingle(),
-  ]);
+  const [{ data: connRow }, { data: agentRow }, { data: contactRow }] =
+    await Promise.all([
+      db
+        .from('channel_connections')
+        .select('config, status')
+        .eq('workspace_id', input.workspaceId)
+        .eq('channel', 'voice')
+        .maybeSingle(),
+      db
+        .from('ai_agents')
+        .select('*')
+        .eq('id', input.agentId)
+        .eq('workspace_id', input.workspaceId)
+        .maybeSingle(),
+      // Scope by workspace so a caller can't enqueue a call against a contact
+      // from another tenant (the dashboard route validates workspace membership
+      // + agent ownership, but not the contact).
+      db
+        .from('contacts')
+        .select('*')
+        .eq('id', input.contactId)
+        .eq('workspace_id', input.workspaceId)
+        .maybeSingle(),
+    ]);
 
-  const conn = connRow as { config: VoiceConnectionConfig | null; status: string } | null;
+  const conn = connRow as {
+    config: VoiceConnectionConfig | null;
+    status: string;
+  } | null;
   const cfg = conn?.config ?? {};
   const agent = agentRow as AiAgent | null;
   const contact = contactRow as Contact | null;
 
   const rawPhone = (input.phone || contact?.phone || '').trim();
   const phoneOk = /^\+?[0-9]{7,15}$/.test(rawPhone.replace(/[^\d+]/g, ''));
-  const e164 = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/[^\d]/g, '')}`;
+  const e164 = rawPhone.startsWith('+')
+    ? rawPhone
+    : `+${rawPhone.replace(/[^\d]/g, '')}`;
 
   /**
    * Frenar dejando rastro. La fila `canceled` sólo se puede escribir si hay
@@ -263,7 +268,10 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
         ended_at: new Date().toISOString(),
       });
       if (skipErr) {
-        console.error('[voice] no se pudo registrar la llamada frenada:', skipErr);
+        console.error(
+          '[voice] no se pudo registrar la llamada frenada:',
+          skipErr
+        );
       }
     }
     return { enqueued: false, reason };
@@ -271,11 +279,13 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
 
   // La cuenta, antes que nada suyo: suspendida por cobro o con el motor
   // apagado esperando aprobación, el teléfono no suena.
-  if (await motorApagado(db, input.workspaceId)) return blocked('motor_apagado');
+  if (await motorApagado(db, input.workspaceId))
+    return blocked('motor_apagado');
 
   // ── Barreras, en orden de qué apaga qué ──
   if (!conn) return blocked('no_voice_connection');
   if (conn.status === 'disconnected') return blocked('voice_disconnected');
+  if (!cfg.phone_number) return blocked('no_number');
   if (cfg.kill_switch) return blocked('kill_switch');
 
   if (!agent) return blocked('agent_not_found');
@@ -339,7 +349,10 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     .single();
 
   if (error || !inserted) {
-    return { enqueued: false, reason: `insert_failed:${error?.message ?? 'unknown'}` };
+    return {
+      enqueued: false,
+      reason: `insert_failed:${error?.message ?? 'unknown'}`,
+    };
   }
   return {
     enqueued: true,
@@ -352,7 +365,9 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
  * Retry delay for the agent, in minutes. Exposed so the result handler and
  * the cron use the same value when scheduling a retry.
  */
-export function retryDelayMinutes(agent: Pick<AiAgent, 'voice_retry_delay_minutes'>): number {
+export function retryDelayMinutes(
+  agent: Pick<AiAgent, 'voice_retry_delay_minutes'>
+): number {
   return agent.voice_retry_delay_minutes ?? DEFAULT_RETRY_DELAY_MINUTES;
 }
 

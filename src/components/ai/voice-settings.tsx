@@ -37,7 +37,11 @@ import {
   DEFAULT_OBJECTIVES,
   DEFAULT_RETRY_DELAY_MINUTES,
 } from '@/lib/voice/constants';
-import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
+import {
+  blockerCodeFromReason,
+  VOICE_BLOCKED_KEY,
+  VOICE_TYPE_KEY,
+} from '@/lib/voice/labels';
 
 export interface VoiceState {
   voice_enabled: boolean;
@@ -159,6 +163,8 @@ export function VoiceSettings({
   agentId,
   showReadiness = true,
   showTestCall = true,
+  onBeforeTestCall,
+  testCallDisabled = false,
 }: {
   value: VoiceState;
   onChange: (v: VoiceState) => void;
@@ -170,6 +176,9 @@ export function VoiceSettings({
   showReadiness?: boolean;
   /** Una llamada de prueba sólo tiene sentido después del primer guardado. */
   showTestCall?: boolean;
+  /** Persiste los cambios para que la prueba use exactamente lo que se ve. */
+  onBeforeTestCall?: () => Promise<boolean>;
+  testCallDisabled?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -179,6 +188,7 @@ export function VoiceSettings({
   const [calling, setCalling] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const previewRequestRef = useRef<AbortController | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
   const [voces, setVoces] = useState<CuratedVoice[] | null>(null);
@@ -246,6 +256,29 @@ export function VoiceSettings({
     void cargarVoces();
   }, [cargarVoces]);
 
+  // Una voz propia puede tardar unos segundos en entrenar. Mientras este
+  // editor siga abierto, refresca su estado hasta que se pueda escuchar.
+  useEffect(() => {
+    if (
+      !voces?.some(
+        (voice) => voice.state === 'created' || voice.state === 'training'
+      )
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => void cargarVoces(), 5000);
+    return () => window.clearTimeout(timer);
+  }, [voces, cargarVoces]);
+
+  useEffect(
+    () => () => {
+      previewRequestRef.current?.abort();
+      audioRef.current?.pause();
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    },
+    []
+  );
+
   const set = (patch: Partial<VoiceState>) => onChange({ ...value, ...patch });
 
   async function aiSetup() {
@@ -288,21 +321,31 @@ export function VoiceSettings({
   }
 
   async function preview(voiceId: string) {
-    if (previewing) {
-      audioRef.current?.pause();
-      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-      audioRef.current = null;
-      audioUrlRef.current = null;
-      setPreviewing(null);
-      return;
-    }
+    const stoppingSameVoice = previewing === voiceId;
+    previewRequestRef.current?.abort();
+    previewRequestRef.current = null;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+    setPreviewing(null);
+    if (stoppingSameVoice) return;
+
+    const controller = new AbortController();
+    previewRequestRef.current = controller;
     setPreviewing(voiceId);
     try {
       const res = await fetchWithCsrf('/api/voice/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voice_id: voiceId, language }),
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          voice_id: voiceId,
+          language,
+        }),
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (!res.ok) {
         toast.error(t('voice.voicePreviewFailed'));
         setPreviewing(null);
@@ -314,20 +357,31 @@ export function VoiceSettings({
       audioRef.current = audio;
       audioUrlRef.current = url;
       audio.onended = () => {
-        setPreviewing(null);
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+          setPreviewing(null);
+        }
         URL.revokeObjectURL(url);
         if (audioUrlRef.current === url) audioUrlRef.current = null;
       };
       audio.onerror = () => {
-        setPreviewing(null);
+        if (audioRef.current === audio) {
+          audioRef.current = null;
+          setPreviewing(null);
+        }
         URL.revokeObjectURL(url);
         if (audioUrlRef.current === url) audioUrlRef.current = null;
         toast.error(t('voice.voicePreviewFailed'));
       };
       await audio.play();
     } catch {
+      if (controller.signal.aborted) return;
       toast.error(t('voice.voicePreviewFailed'));
       setPreviewing(null);
+    } finally {
+      if (previewRequestRef.current === controller) {
+        previewRequestRef.current = null;
+      }
     }
   }
 
@@ -361,22 +415,35 @@ export function VoiceSettings({
         return;
       }
       setVoces((actual) => [json.voice!, ...(actual ?? [])]);
-      set({ voice_id: json.voice.voice_id });
       setNombreVoz('');
       setMuestrasVoz([]);
       setConsentimientoVoz(false);
       setCreandoVoz(false);
-      setVerVoces(false);
-      toast.success(t('voice.voiceCreated'));
+      if (json.voice.state === 'trained') {
+        set({ voice_id: json.voice.voice_id });
+        setVerVoces(false);
+        toast.success(t('voice.voiceCreated'));
+      } else {
+        setVerVoces(true);
+        toast.success(t('voice.voiceTrainingStarted'));
+      }
     } finally {
       setGuardandoVoz(false);
     }
   }
 
   async function testCall() {
-    if (!workspaceId || !agentId || !testPhone.trim()) return;
+    if (
+      !workspaceId ||
+      !agentId ||
+      !value.voice_enabled ||
+      !value.voice_id ||
+      !testPhone.trim()
+    )
+      return;
     setCalling(true);
     try {
+      if (onBeforeTestCall && !(await onBeforeTestCall())) return;
       const res = await fetchWithCsrf('/api/voice/test-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -386,15 +453,23 @@ export function VoiceSettings({
           phone: testPhone.trim(),
         }),
       });
-      const json = await res.json();
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       if (!res.ok) {
-        // El motivo viene del mismo control que frena las llamadas reales
-        // (kill switch, sin número, opt-out): mostrarlo tal cual es más útil
-        // que un "error" genérico.
-        toast.error(json.error ?? t('voice.callFailed'));
+        const reason = json?.error;
+        toast.error(
+          reason === 'motor_apagado'
+            ? t('voice.testCallAccountPaused')
+            : reason
+              ? t(VOICE_BLOCKED_KEY[blockerCodeFromReason(reason)])
+              : t('voice.callFailed')
+        );
         return;
       }
       toast.success(t('voice.testCallQueued'));
+    } catch {
+      toast.error(t('voice.callFailed'));
     } finally {
       setCalling(false);
     }
@@ -456,6 +531,8 @@ export function VoiceSettings({
 
   const idioma = language === 'en' || locale === 'en' ? 'en' : 'es';
   const vozElegida = (voces ?? []).find((v) => v.voice_id === value.voice_id);
+  const vozElegidaDisponible =
+    !vozElegida || !vozElegida.state || vozElegida.state === 'trained';
   const vocesPropias = (voces ?? []).filter((v) => v.source === 'custom');
   const vocesBiblioteca = (voces ?? []).filter((v) => v.source !== 'custom');
 
@@ -472,7 +549,7 @@ export function VoiceSettings({
 
       {/* Armarlo hablando. Es el camino corto, así que va primero: estaba en el
           medio del formulario, después de la caja de probar. */}
-      {workspaceId && showTestCall && (
+      {workspaceId && (
         <div className="border-primary/30 bg-primary/5 rounded-lg border p-3">
           <div className="mb-1 flex items-center gap-2">
             <Sparkles className="text-accent-ink h-4 w-4" />
@@ -509,7 +586,7 @@ export function VoiceSettings({
       )}
 
       {/* ── Cómo suena ── */}
-      {voces !== null && voces.length > 0 && (
+      {value.voice_enabled && (
         <div>
           <p className="text-foreground mb-1 text-sm font-medium">
             {t('voice.voiceLabel')}
@@ -517,18 +594,48 @@ export function VoiceSettings({
           {/* Una fila con la elegida, no cuatro tarjetas apiladas. */}
           <div className="border-border bg-muted/40 flex items-center justify-between rounded-lg border px-3 py-2">
             <span className="text-foreground text-sm">
-              {vozElegida ? vozElegida.label : t('voice.voiceDefault')}
+              {vozElegida
+                ? vozElegida.label
+                : value.voice_id
+                  ? t('voice.voiceSelected')
+                  : t('voice.voiceNone')}
             </span>
-            <button
-              type="button"
-              onClick={() => setVerVoces((v) => !v)}
-              className="text-accent-ink text-xs hover:underline"
-            >
-              {t('voice.numberChange')}
-            </button>
+            <span className="flex items-center gap-1">
+              {value.voice_id && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => preview(value.voice_id!)}
+                  disabled={!vozElegidaDisponible}
+                  className="gap-1.5"
+                >
+                  {previewing === value.voice_id ? (
+                    <Square className="size-3.5" />
+                  ) : (
+                    <Play className="size-3.5" />
+                  )}
+                  {previewing === value.voice_id
+                    ? t('voice.voicePreviewStop')
+                    : t('voice.voicePreview')}
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setVerVoces((v) => !v)}
+                className="text-accent-ink px-1.5 text-xs hover:underline"
+              >
+                {t('voice.numberChange')}
+              </button>
+            </span>
           </div>
           {verVoces && (
             <div className="mt-3 space-y-4">
+              {cargandoVoces && voces === null && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="text-muted-foreground size-4 animate-spin" />
+                </div>
+              )}
               {vocesPropias.length > 0 && (
                 <VoiceList
                   title={t('voice.voiceCustom')}
@@ -619,22 +726,29 @@ export function VoiceSettings({
                   )}
                 </div>
               )}
-              {proveedorVoz === 'fish' &&
-                estadoBiblioteca === 'unavailable' && (
-                  <div className="border-border rounded-lg border border-dashed p-3">
-                    <p className="text-muted-foreground text-xs">
-                      {t('voice.voiceLibraryUnavailable')}
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="mt-1"
-                      onClick={() => void cargarVoces()}
-                    >
-                      {t('voice.voiceLibraryRetry')}
-                    </Button>
-                  </div>
+              {estadoBiblioteca === 'unavailable' && (
+                <div className="border-border rounded-lg border border-dashed p-3">
+                  <p className="text-muted-foreground text-xs">
+                    {t('voice.voiceLibraryUnavailable')}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="mt-1"
+                    onClick={() => void cargarVoces()}
+                  >
+                    {t('voice.voiceLibraryRetry')}
+                  </Button>
+                </div>
+              )}
+              {!cargandoVoces &&
+                estadoBiblioteca !== 'unavailable' &&
+                voces !== null &&
+                voces.length === 0 && (
+                  <p className="text-muted-foreground py-2 text-xs">
+                    {t('voice.voiceLibraryNoResults')}
+                  </p>
                 )}
               {proveedorVoz === 'fish' && (
                 <div className="border-border rounded-lg border border-dashed p-3">
@@ -1045,7 +1159,7 @@ export function VoiceSettings({
       </Plegable>
 
       {/* Probarlo es lo último que uno hace, así que va último. */}
-      {workspaceId && (
+      {workspaceId && showTestCall && (
         <div className="border-border bg-muted/40 rounded-lg border p-3">
           <p className="text-foreground mb-2 text-sm font-medium">
             {t('voice.testCall')}
@@ -1063,11 +1177,24 @@ export function VoiceSettings({
               value={testPhone}
               disabled={!agentId}
               onChange={(e) => setTestPhone(e.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                void testCall();
+              }}
             />
             <Button
               type="button"
               onClick={testCall}
-              disabled={!agentId || calling || !testPhone.trim()}
+              disabled={
+                !agentId ||
+                !value.voice_enabled ||
+                !value.voice_id ||
+                !vozElegidaDisponible ||
+                calling ||
+                testCallDisabled ||
+                !testPhone.trim()
+              }
             >
               {calling ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1105,13 +1232,13 @@ function VoiceList({
   trainingLabel: string;
   failedLabel: string;
 }) {
+  const t = useT();
   return (
     <div>
       <p className="text-muted-foreground mb-2 text-xs font-medium">{title}</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {voices.map((voice) => {
-          const available =
-            voice.state !== 'created' && voice.state !== 'failed';
+          const available = !voice.state || voice.state === 'trained';
           const selected = selectedId === voice.voice_id;
           return (
             <div
@@ -1144,12 +1271,23 @@ function VoiceList({
                 variant="ghost"
                 disabled={!available}
                 onClick={() => onPreview(voice.voice_id)}
+                className="gap-1.5"
+                aria-label={
+                  previewingId === voice.voice_id
+                    ? t('voice.voicePreviewStop')
+                    : t('voice.voicePreview')
+                }
               >
                 {previewingId === voice.voice_id ? (
-                  <Square className="h-4 w-4" />
+                  <Square className="size-3.5" />
                 ) : (
-                  <Play className="h-4 w-4" />
+                  <Play className="size-3.5" />
                 )}
+                <span className="hidden lg:inline">
+                  {previewingId === voice.voice_id
+                    ? t('voice.voicePreviewStop')
+                    : t('voice.voicePreview')}
+                </span>
               </Button>
             </div>
           );

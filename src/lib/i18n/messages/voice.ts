@@ -110,7 +110,10 @@ export const voice = {
     en: 'Create and configure who speaks by phone here. Then link it to a chat assistant or an automation.',
   },
   voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
-  voiceAgentFirst: { es: 'Crear mi primer agente', en: 'Create my first agent' },
+  voiceAgentFirst: {
+    es: 'Crear mi primer agente',
+    en: 'Create my first agent',
+  },
   voiceAgentCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceAgentNewTitle: { es: 'Nuevo agente de voz', en: 'New voice agent' },
   voiceAgentDialogHint: {
@@ -123,7 +126,10 @@ export const voice = {
     es: 'Elige una voz para continuar.',
     en: 'Choose a voice to continue.',
   },
-  voiceAgentsEmptyTitle: { es: 'Dale una voz a tu negocio', en: 'Give your business a voice' },
+  voiceAgentsEmptyTitle: {
+    es: 'Dale una voz a tu negocio',
+    en: 'Give your business a voice',
+  },
   voiceAgentsEmpty: {
     es: 'Elige cómo habla, qué dice y cuándo está disponible.',
     en: 'Choose how it speaks, what it says, and when it is available.',
@@ -213,6 +219,10 @@ export const voice = {
     es: 'No se pudo reproducir la vista previa.',
     en: "Couldn't play the preview.",
   },
+  voicePreview: { es: 'Escuchar', en: 'Listen' },
+  voicePreviewStop: { es: 'Detener', en: 'Stop' },
+  voiceSelected: { es: 'Voz seleccionada', en: 'Selected voice' },
+  voiceNone: { es: 'Elige una voz', en: 'Choose a voice' },
   voiceCustom: { es: 'Tus voces', en: 'Your voices' },
   voiceCreate: { es: 'Crear voz', en: 'Create voice' },
   voiceCreateTitle: { es: 'Crear una voz propia', en: 'Create your own voice' },
@@ -252,6 +262,10 @@ export const voice = {
     en: "You don't have permission to manage voices.",
   },
   voiceTraining: { es: 'Preparando voz…', en: 'Preparing voice…' },
+  voiceTrainingStarted: {
+    es: 'Estamos preparando tu voz. Podrás elegirla cuando esté lista.',
+    en: "We're preparing your voice. You can select it when it's ready.",
+  },
   voiceTrainingFailed: { es: 'No se pudo preparar', en: "Couldn't prepare" },
   whenGroup: { es: 'Cuándo insiste', en: 'When it keeps trying' },
   whenGroupHint: {
@@ -382,6 +396,10 @@ export const voice = {
   testCall: { es: 'Probar llamada', en: 'Test call' },
   testCallPlaceholder: { es: '+54 9 11 1234 5678', en: '+1 555 123 4567' },
   testCallQueued: { es: 'Llamando ahora', en: 'Calling now' },
+  testCallAccountPaused: {
+    es: 'La cuenta no está habilitada para realizar llamadas.',
+    en: 'The account is not enabled to place calls.',
+  },
   testCallSaveFirst: {
     es: 'Guarda el agente antes de probar la llamada.',
     en: 'Save the agent before testing the call.',

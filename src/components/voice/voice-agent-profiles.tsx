@@ -88,7 +88,7 @@ export function VoiceAgentProfiles({
             agent.voice_enabled ||
             agent.ai_agent_channels?.some(
               (channel) => channel.channel === 'voice'
-          )
+            )
         )
       );
       if (linksRes.ok) {
@@ -155,8 +155,7 @@ export function VoiceAgentProfiles({
           voice_max_retries: newVoice.voice_max_retries,
           voice_retry_delay_minutes: newVoice.voice_retry_delay_minutes,
           voice_accepts_inbound: newVoice.voice_accepts_inbound,
-          voice_transfer_number:
-            newVoice.voice_transfer_number.trim() || null,
+          voice_transfer_number: newVoice.voice_transfer_number.trim() || null,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -180,8 +179,8 @@ export function VoiceAgentProfiles({
     }
   }
 
-  async function save(agent: VoiceAgent) {
-    if (!voice || saving) return;
+  async function save(agent: VoiceAgent, announce = true): Promise<boolean> {
+    if (!voice || saving) return false;
     setSaving(true);
     try {
       const res = await fetchWithCsrf(`/api/ai/agents/${agent.id}`, {
@@ -198,8 +197,7 @@ export function VoiceAgentProfiles({
           voice_max_retries: voice.voice_max_retries,
           voice_retry_delay_minutes: voice.voice_retry_delay_minutes,
           voice_accepts_inbound: voice.voice_accepts_inbound,
-          voice_transfer_number:
-            voice.voice_transfer_number.trim() || null,
+          voice_transfer_number: voice.voice_transfer_number.trim() || null,
         }),
       });
       const json = (await res.json().catch(() => null)) as {
@@ -208,13 +206,17 @@ export function VoiceAgentProfiles({
       } | null;
       if (!res.ok || !json?.agent) {
         toast.error(json?.error ?? t('voice.voiceAgentSaveFailed'));
-        return;
+        return false;
       }
       setAgents((current) =>
         current.map((item) => (item.id === agent.id ? json.agent! : item))
       );
-      toast.success(t('voice.voiceAgentSaved'));
+      if (announce) toast.success(t('voice.voiceAgentSaved'));
       onSaved?.();
+      return true;
+    } catch {
+      toast.error(t('voice.voiceAgentSaveFailed'));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -361,6 +363,8 @@ export function VoiceAgentProfiles({
                       workspaceId={workspaceId}
                       agentId={agent.id}
                       showReadiness={false}
+                      onBeforeTestCall={() => save(agent, false)}
+                      testCallDisabled={saving}
                     />
                     <div className="border-border mt-5 flex justify-end border-t pt-4">
                       <Button

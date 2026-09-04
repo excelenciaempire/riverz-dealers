@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { enqueueCall } from '@/lib/voice/queue';
-import { normalizeForDialing } from '@/lib/whatsapp/phone-utils';
+import { isValidE164, normalizeForDialing } from '@/lib/whatsapp/phone-utils';
 
 /**
  * POST /api/voice/test-call  { workspace_id, agent_id, phone, objective? }
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as {
     workspace_id?: string;
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (!body?.workspace_id || !body.agent_id || !body.phone) {
     return NextResponse.json(
       { error: 'workspace_id, agent_id and phone required' },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -45,7 +46,8 @@ export async function POST(request: Request) {
     .eq('workspace_id', body.workspace_id)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   // País del propio número del comercio, para poder marcar un número escrito en
   // formato local (0111556…) igual que lo haría una llamada real.
@@ -58,6 +60,11 @@ export async function POST(request: Request) {
   const country =
     (conn as { config?: { country?: string } } | null)?.config?.country ?? null;
   const phone = normalizeForDialing(body.phone, country) || body.phone.trim();
+  // No crear un contacto basura para recién después descubrir en `enqueueCall`
+  // que el número no se puede marcar.
+  if (!isValidE164(phone)) {
+    return NextResponse.json({ error: 'invalid_phone' }, { status: 400 });
+  }
 
   try {
     // Reusar el contacto existente antes de crear: llamar a un cliente real
@@ -67,16 +74,24 @@ export async function POST(request: Request) {
       .select('id')
       .eq('workspace_id', body.workspace_id)
       .eq('phone', phone)
+      .limit(1)
       .maybeSingle();
 
     let contactId = (found as { id: string } | null)?.id ?? null;
     if (!contactId) {
       const { data: created, error } = await admin
         .from('contacts')
-        .insert({ workspace_id: body.workspace_id, phone, name: null })
+        .insert({
+          workspace_id: body.workspace_id,
+          channel: 'voice',
+          external_id: phone,
+          phone,
+          name: null,
+        })
         .select('id')
         .single();
-      if (error || !created) return serverError(error, 'test call: contact failed');
+      if (error || !created)
+        return serverError(error, 'test call: contact failed');
       contactId = (created as { id: string }).id;
     }
 
@@ -97,7 +112,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { ok: true, call_id: result.callId, phone },
-      { status: 201 },
+      { status: 201 }
     );
   } catch (err) {
     return serverError(err, 'test call failed');

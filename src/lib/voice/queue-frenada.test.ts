@@ -26,7 +26,10 @@ vi.mock('@/lib/channels/admin-client', () => ({
       for (const m of ['select', 'eq', 'gte', 'not', 'is', 'order', 'limit']) {
         q[m] = () => q;
       }
-      q.maybeSingle = async () => ({ data: tablas[tabla] ?? null, error: null });
+      q.maybeSingle = async () => ({
+        data: tablas[tabla] ?? null,
+        error: null,
+      });
       q.single = async () => ({ data: tablas[tabla] ?? null, error: null });
       q.then = undefined;
       q.insert = (fila: Record<string, unknown>) => {
@@ -53,7 +56,11 @@ const AGENTE = {
   is_active: true,
   deleted_at: null,
   language: 'es',
-  voice_calling_hours: { start: '00:00', end: '23:59', days: [1, 2, 3, 4, 5, 6, 7] },
+  voice_calling_hours: {
+    start: '00:00',
+    end: '23:59',
+    days: [1, 2, 3, 4, 5, 6, 7],
+  },
   voice_max_retries: 0,
 };
 
@@ -64,7 +71,10 @@ const CONTACTO = {
   voice_opt_out: false,
 };
 
-function montar(config: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+function montar(
+  config: Record<string, unknown>,
+  extra: Record<string, unknown> = {}
+) {
   insertados.length = 0;
   tablas.workspaces = { timezone: 'America/Bogota' };
   tablas.channel_connections = { config, status: 'connected' };
@@ -119,8 +129,20 @@ describe('el freno de emergencia', () => {
 });
 
 describe('las otras barreras', () => {
+  it('sin número de salida no promete que la prueba se encoló', async () => {
+    montar({});
+
+    const res = await enqueueCall({ ...PEDIDO, recordSkip: true });
+
+    expect(res).toEqual({ enqueued: false, reason: 'no_number' });
+    expect(insertados[0]).toMatchObject({ error: 'no_number' });
+  });
+
   it('un agente sin la voz activada', async () => {
-    montar({ phone_number: '+1' }, { ai_agents: { ...AGENTE, voice_enabled: false } });
+    montar(
+      { phone_number: '+1' },
+      { ai_agents: { ...AGENTE, voice_enabled: false } }
+    );
 
     const res = await enqueueCall({ ...PEDIDO, recordSkip: true });
 
@@ -129,7 +151,10 @@ describe('las otras barreras', () => {
   });
 
   it('un contacto que pidió no recibir llamadas', async () => {
-    montar({ phone_number: '+1' }, { contacts: { ...CONTACTO, voice_opt_out: true } });
+    montar(
+      { phone_number: '+1' },
+      { contacts: { ...CONTACTO, voice_opt_out: true } }
+    );
 
     const res = await enqueueCall({ ...PEDIDO, recordSkip: true });
 
@@ -138,7 +163,10 @@ describe('las otras barreras', () => {
   });
 
   it('un teléfono ilegible guarda el valor crudo, que es lo que hay que mirar', async () => {
-    montar({ phone_number: '+1' }, { contacts: { ...CONTACTO, phone: 'llamar al local' } });
+    montar(
+      { phone_number: '+1' },
+      { contacts: { ...CONTACTO, phone: 'llamar al local' } }
+    );
 
     const res = await enqueueCall({ ...PEDIDO, recordSkip: true });
 
@@ -170,7 +198,10 @@ describe('cuando no hay barrera', () => {
 
     expect(res).toMatchObject({ enqueued: true, callId: 'llamada-nueva' });
     expect(insertados).toHaveLength(1);
-    expect(insertados[0]).toMatchObject({ status: 'queued', phone: '+573001112233' });
+    expect(insertados[0]).toMatchObject({
+      status: 'queued',
+      phone: '+573001112233',
+    });
     expect(insertados[0].error).toBeUndefined();
   });
 });
