@@ -3,14 +3,38 @@ import type { Namespace } from './types';
 /** Settings page: tabs, appearance and the language picker. */
 export const settings = {
   webhooksTitle: { es: 'Webhooks', en: 'Webhooks' },
-  webhooksDescription: { es: 'Envía eventos de Riverz a tus automatizaciones.', en: 'Send Riverz events to your automations.' },
+  webhooksDescription: {
+    es: 'Envía eventos de Riverz a tus automatizaciones.',
+    en: 'Send Riverz events to your automations.',
+  },
   webhookNew: { es: 'Nuevo webhook', en: 'New webhook' },
-  webhookConnectWith: { es: 'Conectar con {name}', en: 'Connect with {name}' },
   webhookName: { es: 'Nombre del webhook', en: 'Webhook name' },
+  webhookUrl: { es: 'URL de destino', en: 'Destination URL' },
+  webhookEventsLabel: { es: 'Eventos', en: 'Events' },
+  webhookConfigure: { es: 'Configurar', en: 'Configure' },
+  webhookManage: { es: 'Administrar', en: 'Manage' },
+  webhookModalDescription: {
+    es: 'Conecta Make, Zapier, n8n o cualquier URL HTTPS.',
+    en: 'Connect Make, Zapier, n8n or any HTTPS URL.',
+  },
+  webhookConnectedCount: {
+    es: '{count} configurados',
+    en: '{count} configured',
+  },
+  webhookEmpty: {
+    es: 'Todavía no hay webhooks.',
+    en: 'No webhooks yet.',
+  },
   webhookCopied: { es: 'Copiado', en: 'Copied' },
-  webhookInvalid: { es: 'Revisa el nombre, la URL HTTPS y los eventos.', en: 'Check the name, HTTPS URL and events.' },
+  webhookInvalid: {
+    es: 'Revisa el nombre, la URL HTTPS y los eventos.',
+    en: 'Check the name, HTTPS URL and events.',
+  },
   webhookSecretTitle: { es: 'Guarda este secreto', en: 'Save this secret' },
-  webhookSecretDescription: { es: 'Solo se muestra una vez. Úsalo para validar la firma HMAC SHA-256.', en: 'It is shown only once. Use it to validate the HMAC SHA-256 signature.' },
+  webhookSecretDescription: {
+    es: 'Solo se muestra una vez. Úsalo para validar la firma HMAC SHA-256.',
+    en: 'It is shown only once. Use it to validate the HMAC SHA-256 signature.',
+  },
   webhookEvents: { es: 'eventos', en: 'events' },
   webhookSendTest: { es: 'Enviar prueba', en: 'Send test' },
   webhookTestSent: { es: 'Prueba enviada', en: 'Test sent' },
