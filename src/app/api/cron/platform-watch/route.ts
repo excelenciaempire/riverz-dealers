@@ -119,6 +119,24 @@ async function cronHandler(request: Request) {
     actuales.set(`masivo:${kind}`, `· ${comercios} comercios con ${nombreProblema(kind)}`)
   }
 
+  // Un canal silencioso no espera a afectar a tres comercios para escalarse:
+  // puede ser el primer síntoma de un webhook caído, una renovación fallida o
+  // una regresión del proveedor. El comercio recibe su propio aviso, pero el
+  // equipo tiene que enterarse al mismo tiempo para confirmar la causa y no
+  // dejar que otros canales caigan por el mismo motivo.
+  for (const [workspaceId, issues] of porWorkspace) {
+    for (const issue of issues) {
+      if (issue.kind !== 'channel_silent' && issue.kind !== 'connection_error') continue
+      const channel = issue.refId ?? 'canal'
+      const key = `canal:${workspaceId}:${issue.kind}:${channel}`
+      const label =
+        issue.kind === 'channel_silent'
+          ? `· Canal sin actividad: ${channel}`
+          : `· Conexión con error: ${issue.detail ?? channel}`
+      actuales.set(key, label)
+    }
+  }
+
   // Los trabajos de fondo entran a la misma lista: un cron muerto no le pertenece
   // a ningún comercio, pero es lo que hace que dejen de salir los mensajes.
   //

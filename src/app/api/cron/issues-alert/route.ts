@@ -49,6 +49,7 @@ const PAGE = 100
 const PARA_EL_COMERCIO: ReadonlySet<Issue['kind']> = new Set([
   'whatsapp_blocked',
   'connection_error',
+  'channel_silent',
 ])
 
 async function cronHandler(request: Request) {
@@ -213,6 +214,8 @@ function describe(issue: Issue, t: TFn): string {
         ? t('health.mailConnectionNamed', { channels: canales })
         : t('health.mailConnectionPlain', { n: issue.count })
     }
+    case 'channel_silent':
+      return t('health.channel_silent')
     default:
       return t('health.needsAttention')
   }
