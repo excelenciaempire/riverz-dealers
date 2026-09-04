@@ -12,6 +12,7 @@ import {
 } from '@/lib/voice/voice-connection-store';
 
 const FISH_MODEL_URL = 'https://api.fish.audio/model';
+const FISH_LIBRARY_PAGE_SIZE = 48;
 const MAX_SAMPLE_BYTES = 10 * 1024 * 1024;
 const MAX_SAMPLES = 3;
 const AUDIO_TYPES = new Set([
@@ -67,14 +68,17 @@ function fishGender(tags?: string[]): 'female' | 'male' | 'neutral' {
 async function fishLibraryPage(
   apiKey: string | null,
   page: number,
-  query?: string
+  query: string | undefined,
+  tags: string[],
+  sortBy: 'score' | 'task_count' | 'created_at'
 ) {
   const url = new URL(FISH_MODEL_URL);
-  url.searchParams.set('page_size', '24');
+  url.searchParams.set('page_size', String(FISH_LIBRARY_PAGE_SIZE));
   url.searchParams.set('page_number', String(page));
   url.searchParams.set('language', 'es');
-  url.searchParams.set('sort_by', 'score');
+  url.searchParams.set('sort_by', sortBy);
   if (query) url.searchParams.set('title', query);
+  for (const tag of tags) url.searchParams.append('tag', tag);
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : undefined;
   const res = await fetch(url, {
     headers,
@@ -82,6 +86,7 @@ async function fishLibraryPage(
   });
   if (!res.ok) throw new Error(`Fish library ${res.status}`);
   const payload = (await res.json()) as {
+    total?: number;
     items?: FishModel[];
     has_more?: boolean | null;
   };
@@ -106,7 +111,19 @@ async function fishLibraryPage(
         )?.audio,
       })),
     hasMore: Boolean(payload.has_more),
+    total: Number.isFinite(payload.total) ? Number(payload.total) : null,
   };
+}
+
+function allowedParam<T extends string>(
+  value: string | null,
+  allowed: readonly T[]
+): T | null {
+  return allowed.includes(value as T) ? (value as T) : null;
+}
+
+function isPresent<T>(value: T | null): value is T {
+  return value !== null;
 }
 
 async function refreshCustomVoiceStates(
@@ -218,13 +235,36 @@ export async function GET(request: Request) {
     state: voice.state,
   }));
 
-  const search = new URL(request.url).searchParams
-    .get('search')
-    ?.trim()
-    .slice(0, 80);
-  const requestedPage = Number(
-    new URL(request.url).searchParams.get('page') ?? '1'
-  );
+  const searchParams = new URL(request.url).searchParams;
+  const search = searchParams.get('search')?.trim().slice(0, 80);
+  const tags = [
+    allowedParam(searchParams.get('gender'), ['female', 'male'] as const),
+    allowedParam(searchParams.get('age'), [
+      'young',
+      'middle-aged',
+      'old',
+    ] as const),
+    allowedParam(searchParams.get('style'), [
+      'conversational',
+      'professional',
+      'narration',
+      'advertisement',
+      'character-voice',
+    ] as const),
+    allowedParam(searchParams.get('tone'), [
+      'calm',
+      'energetic',
+      'warm',
+      'deep',
+    ] as const),
+  ].filter(isPresent);
+  const sortBy =
+    allowedParam(searchParams.get('sort'), [
+      'score',
+      'task_count',
+      'created_at',
+    ] as const) ?? 'score';
+  const requestedPage = Number(searchParams.get('page') ?? '1');
   const page = Number.isInteger(requestedPage)
     ? Math.max(1, Math.min(100, requestedPage))
     : 1;
@@ -234,13 +274,15 @@ export async function GET(request: Request) {
   }));
   let libraryStatus: 'fish' | 'fallback' | 'unavailable' = 'fallback';
   let hasMore = false;
+  let total: number | null = null;
   try {
     // El catálogo público de Fish no necesita una llave. Antes se ocultaba
     // completo cuando no había secreto local y además se enviaba `licensed`,
     // un filtro que Fish ya no soporta y que devolvía cero resultados.
-    const listed = await fishLibraryPage(apiKey, page, search);
+    const listed = await fishLibraryPage(apiKey, page, search, tags, sortBy);
     library = listed.voices;
     hasMore = listed.hasMore;
+    total = listed.total;
     libraryStatus = 'fish';
   } catch (error) {
     // La biblioteca no puede impedir elegir una voz propia o llamar. Las
@@ -253,7 +295,9 @@ export async function GET(request: Request) {
     voices: [...custom, ...library],
     library_status: libraryStatus,
     has_more: hasMore,
+    total,
     page,
+    page_size: FISH_LIBRARY_PAGE_SIZE,
   });
 }
 

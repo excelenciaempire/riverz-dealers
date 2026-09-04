@@ -235,6 +235,7 @@ export function VoiceSettings({
   const greetingRef = useRef<HTMLTextAreaElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const previewRequestRef = useRef<AbortController | null>(null);
+  const voiceListRequestRef = useRef<AbortController | null>(null);
   const [setupText, setSetupText] = useState('');
   const [setupLoading, setSetupLoading] = useState(false);
   const [verSetup, setVerSetup] = useState(false);
@@ -276,9 +277,18 @@ export function VoiceSettings({
     | 'conversational'
     | 'professional'
     | 'narration'
-    | 'calm'
-    | 'energetic'
+    | 'advertisement'
+    | 'character-voice'
   >('all');
+  const [filtroEdad, setFiltroEdad] = useState<
+    'all' | 'young' | 'middle-aged' | 'old'
+  >('all');
+  const [filtroTono, setFiltroTono] = useState<
+    'all' | 'calm' | 'energetic' | 'warm' | 'deep'
+  >('all');
+  const [ordenVoces, setOrdenVoces] = useState<
+    'score' | 'task_count' | 'created_at'
+  >('score');
 
   const { readiness, loading: cargandoEstado } = useVoiceReadiness(
     value.voice_enabled && showReadiness ? workspaceId : undefined,
@@ -289,6 +299,9 @@ export function VoiceSettings({
   // selector ofrecía una elección que el motor descartaba.
   const cargarVoces = useCallback(async () => {
     if (!workspaceId) return;
+    voiceListRequestRef.current?.abort();
+    const controller = new AbortController();
+    voiceListRequestRef.current = controller;
     setCargandoVoces(true);
     try {
       const params = new URLSearchParams({
@@ -296,8 +309,14 @@ export function VoiceSettings({
         page: String(paginaBiblioteca),
       });
       if (busquedaAplicada) params.set('search', busquedaAplicada);
+      if (filtroGenero !== 'all') params.set('gender', filtroGenero);
+      if (filtroEdad !== 'all') params.set('age', filtroEdad);
+      if (filtroEstilo !== 'all') params.set('style', filtroEstilo);
+      if (filtroTono !== 'all') params.set('tone', filtroTono);
+      params.set('sort', ordenVoces);
       const res = await fetch(`/api/voice/voices?${params}`, {
         cache: 'no-store',
+        signal: controller.signal,
       });
       if (!res.ok) {
         setEstadoBiblioteca('unavailable');
@@ -310,15 +329,35 @@ export function VoiceSettings({
         has_more?: boolean;
       };
       setProveedorVoz(json.provider ?? null);
-      setVoces(json.voices ?? []);
+      setVoces((current) => {
+        const incoming = json.voices ?? [];
+        if (paginaBiblioteca === 1 || !current) return incoming;
+        const merged = new Map(
+          current.map((voice) => [voice.voice_id, voice] as const)
+        );
+        for (const voice of incoming) merged.set(voice.voice_id, voice);
+        return Array.from(merged.values());
+      });
       setEstadoBiblioteca(json.library_status ?? null);
       setMasVoces(Boolean(json.has_more));
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setEstadoBiblioteca('unavailable');
     } finally {
-      setCargandoVoces(false);
+      if (voiceListRequestRef.current === controller) {
+        setCargandoVoces(false);
+      }
     }
-  }, [workspaceId, paginaBiblioteca, busquedaAplicada]);
+  }, [
+    workspaceId,
+    paginaBiblioteca,
+    busquedaAplicada,
+    filtroGenero,
+    filtroEdad,
+    filtroEstilo,
+    filtroTono,
+    ordenVoces,
+  ]);
 
   useEffect(() => {
     void cargarVoces();
@@ -341,6 +380,7 @@ export function VoiceSettings({
   useEffect(
     () => () => {
       previewRequestRef.current?.abort();
+      voiceListRequestRef.current?.abort();
       audioRef.current?.pause();
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     },
@@ -648,11 +688,7 @@ export function VoiceSettings({
     !vozElegida || !vozElegida.state || vozElegida.state === 'trained';
   const vocesPropias = (voces ?? []).filter((v) => v.source === 'custom');
   const vocesBiblioteca = (voces ?? []).filter((v) => v.source !== 'custom');
-  const vocesFiltradas = vocesBiblioteca.filter((voice) => {
-    if (filtroGenero !== 'all' && voice.gender !== filtroGenero) return false;
-    if (filtroEstilo === 'all') return true;
-    return (voice.tags ?? []).some((tag) => tag.toLowerCase() === filtroEstilo);
-  });
+  const vocesFiltradas = vocesBiblioteca;
   const objetivoActivo = value.voice_objectives[tipoObjetivo];
 
   function insertGreetingVariable(variable: string) {
@@ -826,9 +862,10 @@ export function VoiceSettings({
                   failedLabel={t('voice.voiceTrainingFailed')}
                 />
               )}
-              {vistaVoces === 'library' && vocesBiblioteca.length > 0 && (
-                <div className="space-y-3">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              {vistaVoces === 'library' &&
+                estadoBiblioteca !== 'unavailable' &&
+                voces !== null && (
+                  <div className="space-y-3">
                     <div className="flex gap-2">
                       <Input
                         className="bg-background text-foreground"
@@ -854,16 +891,17 @@ export function VoiceSettings({
                         {t('voice.voiceLibrarySearchAction')}
                       </Button>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                       <Select
                         value={filtroGenero}
-                        onValueChange={(next) =>
-                          setFiltroGenero(next as typeof filtroGenero)
-                        }
+                        onValueChange={(next) => {
+                          setPaginaBiblioteca(1);
+                          setFiltroGenero(next as typeof filtroGenero);
+                        }}
                       >
                         <SelectTrigger
                           size="default"
-                          className="bg-background h-9 min-w-28 text-xs"
+                          className="bg-background h-9 w-full text-xs"
                           aria-label={t('voice.voiceFilterGender')}
                         >
                           <SelectValue
@@ -874,7 +912,7 @@ export function VoiceSettings({
                             }}
                           />
                         </SelectTrigger>
-                        <SelectContent align="end">
+                        <SelectContent>
                           <SelectItem value="all">
                             {t('voice.voiceFilterAll')}
                           </SelectItem>
@@ -887,14 +925,51 @@ export function VoiceSettings({
                         </SelectContent>
                       </Select>
                       <Select
-                        value={filtroEstilo}
-                        onValueChange={(next) =>
-                          setFiltroEstilo(next as typeof filtroEstilo)
-                        }
+                        value={filtroEdad}
+                        onValueChange={(next) => {
+                          setPaginaBiblioteca(1);
+                          setFiltroEdad(next as typeof filtroEdad);
+                        }}
                       >
                         <SelectTrigger
                           size="default"
-                          className="bg-background h-9 min-w-36 text-xs"
+                          className="bg-background h-9 w-full text-xs"
+                          aria-label={t('voice.voiceFilterAge')}
+                        >
+                          <SelectValue
+                            labels={{
+                              all: t('voice.voiceFilterAnyAge'),
+                              young: t('voice.voiceAgeYoung'),
+                              'middle-aged': t('voice.voiceAgeMiddle'),
+                              old: t('voice.voiceAgeOld'),
+                            }}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">
+                            {t('voice.voiceFilterAnyAge')}
+                          </SelectItem>
+                          <SelectItem value="young">
+                            {t('voice.voiceAgeYoung')}
+                          </SelectItem>
+                          <SelectItem value="middle-aged">
+                            {t('voice.voiceAgeMiddle')}
+                          </SelectItem>
+                          <SelectItem value="old">
+                            {t('voice.voiceAgeOld')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={filtroEstilo}
+                        onValueChange={(next) => {
+                          setPaginaBiblioteca(1);
+                          setFiltroEstilo(next as typeof filtroEstilo);
+                        }}
+                      >
+                        <SelectTrigger
+                          size="default"
+                          className="bg-background h-9 w-full text-xs"
                           aria-label={t('voice.voiceFilterStyle')}
                         >
                           <SelectValue
@@ -905,12 +980,12 @@ export function VoiceSettings({
                               ),
                               professional: t('voice.voiceStyleProfessional'),
                               narration: t('voice.voiceStyleNarration'),
-                              calm: t('voice.voiceStyleCalm'),
-                              energetic: t('voice.voiceStyleEnergetic'),
+                              advertisement: t('voice.voiceStyleAdvertisement'),
+                              'character-voice': t('voice.voiceStyleCharacter'),
                             }}
                           />
                         </SelectTrigger>
-                        <SelectContent align="end">
+                        <SelectContent>
                           <SelectItem value="all">
                             {t('voice.voiceFilterAnyStyle')}
                           </SelectItem>
@@ -923,65 +998,137 @@ export function VoiceSettings({
                           <SelectItem value="narration">
                             {t('voice.voiceStyleNarration')}
                           </SelectItem>
+                          <SelectItem value="advertisement">
+                            {t('voice.voiceStyleAdvertisement')}
+                          </SelectItem>
+                          <SelectItem value="character-voice">
+                            {t('voice.voiceStyleCharacter')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={filtroTono}
+                        onValueChange={(next) => {
+                          setPaginaBiblioteca(1);
+                          setFiltroTono(next as typeof filtroTono);
+                        }}
+                      >
+                        <SelectTrigger
+                          size="default"
+                          className="bg-background h-9 w-full text-xs"
+                          aria-label={t('voice.voiceFilterTone')}
+                        >
+                          <SelectValue
+                            labels={{
+                              all: t('voice.voiceFilterAnyTone'),
+                              calm: t('voice.voiceStyleCalm'),
+                              energetic: t('voice.voiceStyleEnergetic'),
+                              warm: t('voice.voiceStyleWarm'),
+                              deep: t('voice.voiceStyleDeep'),
+                            }}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">
+                            {t('voice.voiceFilterAnyTone')}
+                          </SelectItem>
                           <SelectItem value="calm">
                             {t('voice.voiceStyleCalm')}
                           </SelectItem>
                           <SelectItem value="energetic">
                             {t('voice.voiceStyleEnergetic')}
                           </SelectItem>
+                          <SelectItem value="warm">
+                            {t('voice.voiceStyleWarm')}
+                          </SelectItem>
+                          <SelectItem value="deep">
+                            {t('voice.voiceStyleDeep')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={ordenVoces}
+                        onValueChange={(next) => {
+                          setPaginaBiblioteca(1);
+                          setOrdenVoces(next as typeof ordenVoces);
+                        }}
+                      >
+                        <SelectTrigger
+                          size="default"
+                          className="bg-background h-9 w-full text-xs"
+                          aria-label={t('voice.voiceFilterSort')}
+                        >
+                          <SelectValue
+                            labels={{
+                              score: t('voice.voiceSortRecommended'),
+                              task_count: t('voice.voiceSortPopular'),
+                              created_at: t('voice.voiceSortNewest'),
+                            }}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="score">
+                            {t('voice.voiceSortRecommended')}
+                          </SelectItem>
+                          <SelectItem value="task_count">
+                            {t('voice.voiceSortPopular')}
+                          </SelectItem>
+                          <SelectItem value="created_at">
+                            {t('voice.voiceSortNewest')}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    {estadoBiblioteca === 'fallback' && (
+                      <p className="text-muted-foreground text-xs">
+                        {t('voice.voiceLibraryFallback')}
+                      </p>
+                    )}
+                    {vocesFiltradas.length > 0 ? (
+                      <VoiceList
+                        voices={vocesFiltradas}
+                        selectedId={value.voice_id}
+                        previewingId={previewing}
+                        onSelect={(id) => {
+                          set({ voice_id: id });
+                          setVerVoces(false);
+                        }}
+                        onPreview={preview}
+                        trainingLabel={t('voice.voiceTraining')}
+                        failedLabel={t('voice.voiceTrainingFailed')}
+                      />
+                    ) : !cargandoVoces ? (
+                      <p className="text-muted-foreground py-5 text-center text-xs">
+                        {t('voice.voiceLibraryNoResults')}
+                      </p>
+                    ) : null}
+                    {estadoBiblioteca === 'fish' && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground text-xs">
+                          {t('voice.voiceLibraryCount', {
+                            count: String(vocesBiblioteca.length),
+                          })}
+                        </span>
+                        {masVoces && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={cargandoVoces}
+                            onClick={() =>
+                              setPaginaBiblioteca((page) => page + 1)
+                            }
+                          >
+                            {cargandoVoces && (
+                              <Loader2 className="mr-1 size-3.5 animate-spin" />
+                            )}
+                            {t('voice.voiceLibraryLoadMore')}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {estadoBiblioteca === 'fallback' && (
-                    <p className="text-muted-foreground text-xs">
-                      {t('voice.voiceLibraryFallback')}
-                    </p>
-                  )}
-                  {vocesFiltradas.length > 0 ? (
-                    <VoiceList
-                      voices={vocesFiltradas}
-                      selectedId={value.voice_id}
-                      previewingId={previewing}
-                      onSelect={(id) => {
-                        set({ voice_id: id });
-                        setVerVoces(false);
-                      }}
-                      onPreview={preview}
-                      trainingLabel={t('voice.voiceTraining')}
-                      failedLabel={t('voice.voiceTrainingFailed')}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground py-5 text-center text-xs">
-                      {t('voice.voiceLibraryNoResults')}
-                    </p>
-                  )}
-                  {estadoBiblioteca === 'fish' && (
-                    <div className="flex items-center justify-between gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={paginaBiblioteca === 1 || cargandoVoces}
-                        onClick={() =>
-                          setPaginaBiblioteca((page) => Math.max(1, page - 1))
-                        }
-                      >
-                        {t('voice.voiceLibraryPrevious')}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={!masVoces || cargandoVoces}
-                        onClick={() => setPaginaBiblioteca((page) => page + 1)}
-                      >
-                        {t('voice.voiceLibraryNext')}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
               {vistaVoces === 'library' &&
                 estadoBiblioteca === 'unavailable' && (
                   <div className="border-border rounded-lg border border-dashed p-3">
@@ -998,15 +1145,6 @@ export function VoiceSettings({
                       {t('voice.voiceLibraryRetry')}
                     </Button>
                   </div>
-                )}
-              {!cargandoVoces &&
-                vistaVoces === 'library' &&
-                estadoBiblioteca !== 'unavailable' &&
-                voces !== null &&
-                vocesBiblioteca.length === 0 && (
-                  <p className="text-muted-foreground py-2 text-xs">
-                    {t('voice.voiceLibraryNoResults')}
-                  </p>
                 )}
               {vistaVoces === 'custom' && proveedorVoz === 'fish' && (
                 <div className="border-border bg-muted/20 rounded-xl border p-3.5">
