@@ -360,6 +360,7 @@ export function VoiceAgentProfiles({
                       language={agent.language ?? locale}
                       workspaceId={workspaceId}
                       agentId={agent.id}
+                      showReadiness={false}
                     />
                     <div className="border-border mt-5 flex justify-end border-t pt-4">
                       <Button

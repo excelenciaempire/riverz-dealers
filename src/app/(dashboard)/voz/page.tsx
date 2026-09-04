@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Loader2,
   Megaphone,
-  PhoneCall,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -162,73 +161,63 @@ export default function VoicePage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-9">
-      <header className="border-border bg-card relative overflow-hidden rounded-2xl border shadow-sm">
-        <div className="bg-accent/10 pointer-events-none absolute -top-20 -right-16 size-64 rounded-full blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
-          <div className="flex items-start gap-3.5">
-            <span className="bg-accent text-accent-foreground grid size-11 shrink-0 place-items-center rounded-2xl shadow-sm">
-              <PhoneCall className="size-5" />
-            </span>
-            <div>
-              <h1 className="app-page-title">{t('nav.voice')}</h1>
-              <p className="text-muted-foreground mt-1 max-w-lg text-[13px]">
-                {t('voice.pageDesc')}
-              </p>
-              {usage && usage.calls > 0 && (
-                <p className="text-muted-foreground border-border bg-background/70 mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
-                  <AudioLines className="text-accent-ink size-3" />
-                  {t('voice.usageThisMonth', {
-                    minutes: String(usage.minutes_used),
-                  })}
-                  {usage.minutes_limit > 0
-                    ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
-                    : ''}
-                  {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
-                </p>
-              )}
-            </div>
-          </div>
-          {(readiness?.ready || !!usage?.calls || parado) && (
-            <Button
-              variant={parado ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => frenar(!parado)}
-              disabled={parando}
-              className="shrink-0"
-            >
-              {parando ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : parado ? (
-                t('voice.stoppedResume')
-              ) : (
-                <>
-                  <Ban className="mr-1 size-3.5" />
-                  {t('voice.stopAction')}
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-
-        <div className="border-border/70 border-t">
-          {parado ? (
-            <p className="bg-destructive/5 text-destructive flex flex-wrap items-center gap-x-2 gap-y-1 px-5 py-3 text-sm sm:px-6">
-              <Ban className="size-4 shrink-0" />
-              <span className="font-medium">{t('voice.stopped')}</span>
-              <span className="text-muted-foreground text-xs">
-                {t('voice.stopHint')}
-              </span>
+    <div className="mx-auto max-w-5xl space-y-8">
+      <div className="space-y-3">
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="app-page-title">{t('nav.voice')}</h1>
+            <p className="text-muted-foreground mt-1 max-w-lg text-[13px]">
+              {t('voice.pageDesc')}
             </p>
-          ) : (
-            <VoiceStatusLine
-              readiness={readiness}
-              loading={cargandoEstado}
-              className="rounded-none border-0 px-5 py-3 sm:px-6"
-            />
-          )}
-        </div>
-      </header>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {usage && usage.calls > 0 && (
+              <p className="text-muted-foreground border-border bg-card inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
+                <AudioLines className="text-accent-ink size-3" />
+                {t('voice.usageThisMonth', {
+                  minutes: String(usage.minutes_used),
+                })}
+                {usage.minutes_limit > 0
+                  ? ` ${t('voice.usageOf', { limit: String(usage.minutes_limit) })}`
+                  : ''}
+                {usage.spend_usd > 0 && ` · $${usage.spend_usd.toFixed(2)}`}
+              </p>
+            )}
+            {(readiness?.ready || !!usage?.calls || parado) && (
+              <Button
+                variant={parado ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => frenar(!parado)}
+                disabled={parando}
+                className="shrink-0"
+              >
+                {parando ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : parado ? (
+                  t('voice.stoppedResume')
+                ) : (
+                  <>
+                    <Ban className="mr-1 size-3.5" />
+                    {t('voice.stopAction')}
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </header>
+
+        {parado ? (
+          <p className="border-destructive/40 bg-destructive/5 text-destructive flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-sm">
+            <Ban className="size-4 shrink-0" />
+            <span className="font-medium">{t('voice.stopped')}</span>
+            <span className="text-muted-foreground text-xs">
+              {t('voice.stopHint')}
+            </span>
+          </p>
+        ) : (
+          <VoiceStatusLine readiness={readiness} loading={cargandoEstado} />
+        )}
+      </div>
 
       {/* ── Armarlo. Se hace una vez. ── */}
       <section className="space-y-4">

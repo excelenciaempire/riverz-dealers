@@ -203,7 +203,7 @@ export function VoiceSettings({
   const [cargandoVoces, setCargandoVoces] = useState(false);
 
   const { readiness, loading: cargandoEstado } = useVoiceReadiness(
-    value.voice_enabled ? workspaceId : undefined,
+    value.voice_enabled && showReadiness ? workspaceId : undefined,
     agentId
   );
 
