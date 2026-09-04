@@ -417,6 +417,10 @@ export const admin = {
     es: "Trae los comentarios nuevos de TikTok",
     en: "Brings in new TikTok comments",
   },
+  cronSelfHeal: {
+    es: "Recupera colas y suscripciones detenidas",
+    en: "Recovers stalled queues and subscriptions",
+  },
   cronTiktokWebhook: {
     es: "Registra en TikTok a dónde avisar los comentarios",
     en: "Tells TikTok where to send comment events",

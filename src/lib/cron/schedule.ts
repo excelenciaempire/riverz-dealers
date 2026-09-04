@@ -90,6 +90,10 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // (/api/conversations/:id/tiktok-refresh) y el barrido profundo de 6 h cubre
   // el catálogo entero.
   { name: "tiktok-comments", whatKey: "admin.cronTiktokComments", path: "/api/cron/tiktok-comments", schedule: "*/5 * * * *" },
+  // Repara reclamos internos abandonados por un reinicio y verifica la
+  // suscripción de TikTok. Los backfills de cada canal los retoma el scheduler
+  // con sus sincronizadores incrementales, sin repetir envíos salientes.
+  { name: "self-heal", whatKey: "admin.cronSelfHeal", path: "/api/cron/self-heal", schedule: "*/5 * * * *" },
   // Lo que DICE cada video, que es el contexto sin el cual un comentario no se
   // puede contestar. Cron propio y no de prestado dentro del poll: en el panel
   // se ve si se atrasa, y un video recién publicado —que es cuando llegan casi
