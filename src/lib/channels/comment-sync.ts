@@ -36,6 +36,11 @@ const RECONCILE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_PER_RUN = 300;
 /** Parallel Graph reads. Small enough to stay well under Meta's rate limits. */
 const CONCURRENCY = 6;
+/** Accounts use different page tokens. A small amount of account-level
+ * parallelism keeps the full safety sweep inside the cron budget. */
+const CONNECTION_CONCURRENCY = 2;
+/** A provider socket must never leave the whole reconciliation running forever. */
+const GRAPH_TIMEOUT_MS = 30_000;
 
 export type Lifecycle = "delete" | "hide" | "unhide" | "edit" | "like" | "unlike";
 
@@ -248,7 +253,7 @@ async function probeComment(channel: "fb_comment" | "ig_comment", commentId: str
   const url = withAppsecretProof(`${GRAPH}/${commentId}?fields=${field}&access_token=${encodeURIComponent(token)}`, token);
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
   } catch {
     return { kind: "error" };
   }
@@ -299,21 +304,18 @@ export async function reconcileAllCommentConnections(db: SupabaseClient): Promis
     channels: ["fb_comment", "ig_comment"],
   });
 
-  let checked = 0;
-  let deleted = 0;
-  let hiddenChanged = 0;
-  let failed = 0;
-  for (const c of list) {
+  const results = await mapWithConcurrency(list, CONNECTION_CONCURRENCY, async (c) => {
     try {
-      const r = await reconcileCommentsForConnection(db, c);
-      checked += r.checked;
-      deleted += r.deleted;
-      hiddenChanged += r.hiddenChanged;
+      return { result: await reconcileCommentsForConnection(db, c), failed: false };
     } catch (err) {
       console.error("[comment-sync] connection failed:", c.id, err);
-      failed++;
+      return { result: null, failed: true };
     }
-  }
+  });
+  const checked = results.reduce((sum, row) => sum + (row.result?.checked ?? 0), 0);
+  const deleted = results.reduce((sum, row) => sum + (row.result?.deleted ?? 0), 0);
+  const hiddenChanged = results.reduce((sum, row) => sum + (row.result?.hiddenChanged ?? 0), 0);
+  const failed = results.filter((row) => row.failed).length;
   return {
     ok: failed === 0,
     connections: list.length,

@@ -42,6 +42,10 @@ import { selectAll } from '@/lib/db/paginate';
 const GRAPH = 'https://graph.facebook.com/v21.0';
 /** No dejar una recuperación manual ocupada indefinidamente por un edge de Meta. */
 const GRAPH_TIMEOUT_MS = 30_000;
+/** Varias cuentas no deben convertir un respaldo corto en una cola de minutos.
+ * Dos en paralelo conserva margen frente a los límites de Meta y evita que una
+ * cuenta lenta bloquee a todas las demás. */
+const CONNECTION_CONCURRENCY = 2;
 /** Ventana de publicaciones a revisar — igual que la del reconciliador. */
 const WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 /** Tope de publicaciones por corrida (la siguiente sigue, más nuevas primero). */
@@ -380,22 +384,18 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
     channels: ['ig_comment', 'fb_comment'],
   });
 
-  let ingestedInbound = 0;
-  let ingested = 0;
-  let seen = 0;
-  const detail: Array<{ connection_id: string } & PullResult> = [];
-  for (const c of list) {
+  const detail = await mapWithConcurrency(list, CONNECTION_CONCURRENCY, async (c) => {
     try {
       const r = await pullCommentsForConnection(db, c);
-      ingestedInbound += r.ingestedInbound;
-      ingested += r.ingested;
-      seen += r.seen;
-      detail.push({ connection_id: c.id, ...r });
+      return { connection_id: c.id, ...r };
     } catch (err) {
       console.error('[comment-pull] conexión falló:', c.id, err);
-      detail.push({ connection_id: c.id, ...failedConnectionResult(c) });
+      return { connection_id: c.id, ...failedConnectionResult(c) };
     }
-  }
+  });
+  const ingestedInbound = detail.reduce((sum, row) => sum + row.ingestedInbound, 0);
+  const ingested = detail.reduce((sum, row) => sum + row.ingested, 0);
+  const seen = detail.reduce((sum, row) => sum + row.seen, 0);
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
 }
 
@@ -452,6 +452,26 @@ function failedConnectionResult(connection: ChannelConnection): PullResult {
     reason: 'partial',
     errors: ['connection_failed'],
   };
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index]);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => worker())
+  );
+  return results;
 }
 
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no

@@ -148,4 +148,27 @@ describe('qué publicaciones se rastrean', () => {
     // es para lo que existe el módulo.
     expect(pull).toContain('const mitad = Math.ceil(options.maxPosts / 2)')
   })
+
+  it('procesa varias cuentas con concurrencia acotada', () => {
+    const pull = readFileSync(
+      join(process.cwd(), 'src', 'lib', 'channels', 'comment-pull.ts'),
+      'utf8',
+    )
+    expect(pull).toContain('mapWithConcurrency(list, CONNECTION_CONCURRENCY')
+  })
+})
+
+describe('límites de la reconciliación', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src', 'lib', 'channels', 'comment-sync.ts'),
+    'utf8',
+  )
+
+  it('ninguna llamada a Graph puede quedar esperando indefinidamente', () => {
+    expect(src).toContain('AbortSignal.timeout(GRAPH_TIMEOUT_MS)')
+  })
+
+  it('reconcilia cuentas en paralelo con un límite explícito', () => {
+    expect(src).toContain('mapWithConcurrency(list, CONNECTION_CONCURRENCY')
+  })
 })
