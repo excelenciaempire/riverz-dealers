@@ -7,7 +7,14 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken, resolveMlNickname } from "./adapter";
 import { ingestRawMedia } from "../media-ingest";
 import { getLogger } from "@/lib/log/logger";
-import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
+import {
+  mercadoLibreFailure,
+  type MercadoLibreSyncFailure,
+} from "./sync-result";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.claims");
@@ -85,20 +92,24 @@ export async function pollAllMercadoLibreClaims(): Promise<{
   let claims = 0;
   let ingested = 0;
   const failures: MercadoLibreSyncFailure[] = [];
-  for (const conn of conns) {
-    try {
-      const token = await getFreshMLToken(conn);
-      const r = await syncClaimsForConnection(db, conn, token);
-      claims += r.claims;
-      ingested += r.ingested;
-    } catch (err) {
-      log.warn("ml claims poll failed", {
-        connectionId: conn.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      failures.push(mercadoLibreFailure(conn.id, err));
-    }
-  }
+  await forEachWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const token = await getFreshMLToken(conn);
+        const r = await syncClaimsForConnection(db, conn, token);
+        claims += r.claims;
+        ingested += r.ingested;
+      } catch (err) {
+        log.warn("ml claims poll failed", {
+          connectionId: conn.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        failures.push(mercadoLibreFailure(conn.id, err));
+      }
+    },
+  );
   return { sellers: conns.length, claims, ingested, failures };
 }
 
@@ -110,10 +121,12 @@ export async function pollAllMercadoLibreClaims(): Promise<{
 export async function syncClaimsForConnection(
   db: SupabaseClient,
   conn: ChannelConnection,
-  token: string
+  token: string,
 ): Promise<{ claims: number; ingested: number }> {
   const auth = { Authorization: `Bearer ${token}` };
-  const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
+  const sellerId = String(
+    (conn.config as Record<string, unknown> | null)?.seller_id ?? "",
+  );
   if (!sellerId) throw new Error("conexión sin seller_id");
   const cutoff = Date.now() - MAX_AGE_DAYS * 86_400_000;
 
@@ -125,7 +138,12 @@ export async function syncClaimsForConnection(
     const id = String(c.id ?? "");
     if (id) found.set(id, c);
   }
-  for (const c of await searchClaims(auth, sellerId, "closed", new Date(cutoff))) {
+  for (const c of await searchClaims(
+    auth,
+    sellerId,
+    "closed",
+    new Date(cutoff),
+  )) {
     const id = String(c.id ?? "");
     if (id) found.set(id, c);
   }
@@ -136,8 +154,10 @@ export async function syncClaimsForConnection(
     .from("ml_claims")
     .select("claim_id")
     .eq("workspace_id", conn.workspace_id)
+    .eq("connection_id", conn.id)
     .neq("status", "closed");
-  if (openRowsError) throw new Error(`ml_claims open: ${openRowsError.message}`);
+  if (openRowsError)
+    throw new Error(`ml_claims open: ${openRowsError.message}`);
   for (const row of (openRows ?? []) as Array<{ claim_id: string }>) {
     if (found.has(row.claim_id)) continue;
     const c = await fetchClaim(row.claim_id, auth);
@@ -151,8 +171,10 @@ export async function syncClaimsForConnection(
     .from("ml_claims")
     .select("claim_id, raw")
     .eq("workspace_id", conn.workspace_id)
+    .eq("connection_id", conn.id)
     .in("claim_id", ids);
-  if (storedRowsError) throw new Error(`ml_claims stored: ${storedRowsError.message}`);
+  if (storedRowsError)
+    throw new Error(`ml_claims stored: ${storedRowsError.message}`);
   const previous = new Map<string, string>();
   for (const row of (storedRows ?? []) as Array<{
     claim_id: string;
@@ -172,15 +194,25 @@ export async function syncClaimsForConnection(
     if (ourRole(claim, sellerId) !== "respondent") continue;
 
     const open = claim.status !== "closed";
-    const changed = !previous.has(claimId) || previous.get(claimId) !== String(claim.last_updated ?? "");
+    const changed =
+      !previous.has(claimId) ||
+      previous.get(claimId) !== String(claim.last_updated ?? "");
 
     // Los mensajes se releen si el reclamo sigue abierto (ahí es donde puede
     // haber algo nuevo cada minuto) o si Mercado Libre lo tocó desde la última
     // vez. Un reclamo cerrado y quieto no se vuelve a pedir.
     const recent = (Date.parse(claim.date_created ?? "") || 0) > cutoff;
-    const messages = recent && (open || changed) ? await readClaimMessages(claimId, auth) : [];
+    const messages =
+      recent && (open || changed) ? await readClaimMessages(claimId, auth) : [];
     if (messages.length) {
-      ingested += await ingestClaimMessages(db, conn, claim, messages, auth, token);
+      ingested += await ingestClaimMessages(
+        db,
+        conn,
+        claim,
+        messages,
+        auth,
+        token,
+      );
     }
 
     const last = messages.length ? messages[messages.length - 1] : null;
@@ -189,18 +221,23 @@ export async function syncClaimsForConnection(
         workspace_id: conn.workspace_id,
         connection_id: conn.id,
         claim_id: claimId,
-        resource_id: claim.resource_id != null ? String(claim.resource_id) : null,
-        order_id: claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null,
+        resource_id:
+          claim.resource_id != null ? String(claim.resource_id) : null,
+        order_id:
+          claim.resource === "order" && claim.resource_id
+            ? String(claim.resource_id)
+            : null,
         stage: claim.stage != null ? String(claim.stage) : null,
         status: claim.status != null ? String(claim.status) : null,
         type: claim.type != null ? String(claim.type) : null,
         reason: claim.reason_id != null ? String(claim.reason_id) : null,
-        opened_at: claim.date_created != null ? String(claim.date_created) : null,
+        opened_at:
+          claim.date_created != null ? String(claim.date_created) : null,
         ...(last ? { last_message: (last.message ?? "").slice(0, 500) } : {}),
         raw: claim,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "workspace_id,claim_id" }
+      { onConflict: "workspace_id,claim_id" },
     );
     if (error) throw new Error(`ml_claims upsert ${claimId}: ${error.message}`);
     claims++;
@@ -227,10 +264,17 @@ function ourRole(claim: MlClaim, sellerId: string): string | null {
  * el comercio la vea junto a las que abre el agente por chat, en vez de tener
  * que acordarse de mirar dos sitios.
  */
-async function mirrorReturn(db: SupabaseClient, conn: ChannelConnection, claim: MlClaim): Promise<void> {
+async function mirrorReturn(
+  db: SupabaseClient,
+  conn: ChannelConnection,
+  claim: MlClaim,
+): Promise<void> {
   const claimId = String(claim.id ?? "");
   if (!claimId) return;
-  const orderId = claim.resource === "order" && claim.resource_id ? String(claim.resource_id) : null;
+  const orderId =
+    claim.resource === "order" && claim.resource_id
+      ? String(claim.resource_id)
+      : null;
 
   // El pedido espejado, si está: la fila queda enlazada al pedido y no suelta.
   let orderRowId: string | null = null;
@@ -240,7 +284,10 @@ async function mirrorReturn(db: SupabaseClient, conn: ChannelConnection, claim: 
       .from("orders")
       .select("id, contact_id")
       .eq("workspace_id", conn.workspace_id)
-      .eq("shop_domain", `mercadolibre:${(conn.config as Record<string, unknown> | null)?.seller_id}`)
+      .eq(
+        "shop_domain",
+        `mercadolibre:${(conn.config as Record<string, unknown> | null)?.seller_id}`,
+      )
       .eq("shopify_order_id", orderId)
       .maybeSingle();
     const row = data as { id?: string; contact_id?: string | null } | null;
@@ -261,11 +308,12 @@ async function mirrorReturn(db: SupabaseClient, conn: ChannelConnection, claim: 
       reason: claim.reason_id ?? null,
       // El estado lo manda la plataforma: en Riverz esta fila no se decide.
       status: claim.status === "closed" ? "resuelta" : "abierta",
-      resolution: claim.status === "closed" ? (claim.resolution?.reason ?? null) : null,
+      resolution:
+        claim.status === "closed" ? (claim.resolution?.reason ?? null) : null,
       created_by: "sync",
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "workspace_id,platform,external_id" }
+    { onConflict: "workspace_id,platform,external_id" },
   );
   if (error) throw new Error(`returns upsert ${claimId}: ${error.message}`);
 }
@@ -275,7 +323,7 @@ async function searchClaims(
   auth: Record<string, string>,
   sellerId: string,
   status: "opened" | "closed",
-  updatedAfter?: Date
+  updatedAfter?: Date,
 ): Promise<MlClaim[]> {
   const out: MlClaim[] = [];
   for (let offset = 0; offset < MAX_CLAIMS; offset += CLAIMS_PAGE) {
@@ -301,7 +349,8 @@ async function searchClaims(
     };
     const page = j.data ?? j.results ?? [];
     out.push(...page);
-    if (page.length < CLAIMS_PAGE || out.length >= Number(j.paging?.total ?? 0)) break;
+    if (page.length < CLAIMS_PAGE || out.length >= Number(j.paging?.total ?? 0))
+      break;
   }
   return out;
 }
@@ -310,7 +359,10 @@ function mlClaimDate(date: Date): string {
   return date.toISOString().replace("Z", "+00:00");
 }
 
-async function fetchClaim(claimId: string, auth: Record<string, string>): Promise<MlClaim | null> {
+async function fetchClaim(
+  claimId: string,
+  auth: Record<string, string>,
+): Promise<MlClaim | null> {
   const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}`, {
     headers: auth,
   });
@@ -320,7 +372,10 @@ async function fetchClaim(claimId: string, auth: Record<string, string>): Promis
 }
 
 /** Los mensajes del reclamo, del más viejo al más nuevo. */
-async function readClaimMessages(claimId: string, auth: Record<string, string>): Promise<MlClaimMessage[]> {
+async function readClaimMessages(
+  claimId: string,
+  auth: Record<string, string>,
+): Promise<MlClaimMessage[]> {
   const r = await fetch(`${ML}/post-purchase/v1/claims/${claimId}/messages`, {
     headers: auth,
   });
@@ -342,12 +397,14 @@ async function ingestClaimMessages(
   claim: MlClaim,
   messages: MlClaimMessage[],
   auth: Record<string, string>,
-  token: string
+  token: string,
 ): Promise<number> {
   const claimId = String(claim.id ?? "");
   // El "cliente" del hilo es quien reclama. El vendedor es la otra parte, y
   // sus mensajes son salientes los haya escrito Riverz o Mercado Libre.
-  const buyerId = String(claim.players?.find((p) => p.role === "complainant")?.user_id ?? "");
+  const buyerId = String(
+    claim.players?.find((p) => p.role === "complainant")?.user_id ?? "",
+  );
   if (!claimId || !buyerId) return 0;
   const nickname = await resolveMlNickname(buyerId, auth);
 
@@ -370,8 +427,11 @@ async function ingestClaimMessages(
       // El `hash` es estable entre corridas: es el corte que evita duplicar.
       externalMessageId: m.hash ?? `claim:${claimId}:${i}`,
       externalThreadId: `claim:${claimId}`,
-      subject: claim.reason_id ? `Reclamo · ${claim.reason_id}` : `Reclamo ${claimId}`,
-      text: (m.message ?? "").trim() || (attachments.length ? "" : "[unsupported]"),
+      subject: claim.reason_id
+        ? `Reclamo · ${claim.reason_id}`
+        : `Reclamo ${claimId}`,
+      text:
+        (m.message ?? "").trim() || (attachments.length ? "" : "[unsupported]"),
       attachments: attachments.length ? attachments : undefined,
       receivedAt: m.message_date ?? m.date_created ?? new Date().toISOString(),
       outbound: m.sender_role === "respondent",
@@ -409,14 +469,15 @@ async function ingestClaimAttachments(args: {
     try {
       const r = await fetch(
         `${ML}/post-purchase/v1/claims/${args.claimId}/attachments/${encodeURIComponent(name)}/download`,
-        { headers: { Authorization: `Bearer ${args.token}` } }
+        { headers: { Authorization: `Bearer ${args.token}` } },
       );
       if (!r.ok) continue;
       const buffer = Buffer.from(await r.arrayBuffer());
       if (!buffer.length || buffer.length > ATTACHMENT_MAX_BYTES) continue;
       const ingested = await ingestRawMedia({
         buffer,
-        mime: a.type || r.headers.get("content-type") || "application/octet-stream",
+        mime:
+          a.type || r.headers.get("content-type") || "application/octet-stream",
         workspaceId: args.workspaceId,
         conversationId: args.externalContactId,
         id: `${args.externalMessageId}-${i}`,

@@ -12,6 +12,7 @@ import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
+import { mapWithConcurrency } from "@/lib/async/concurrency";
 
 /**
  * Gmail does not push inbound mail without a Pub/Sub topic. To avoid
@@ -27,6 +28,7 @@ import { detectAutomatedSender } from "../email/automated-sender";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const CONNECTION_CONCURRENCY = 3;
 
 interface PollSummary {
   connectionId: string;
@@ -43,22 +45,22 @@ export async function pollAllGmailConnections(): Promise<PollSummary[]> {
   const connections = await listConnections(admin, { channel: "gmail" });
   if (connections.length === 0) return [];
 
-  const out: PollSummary[] = [];
-  for (const c of connections) {
-    const email = String((c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "");
+  return mapWithConcurrency(connections, CONNECTION_CONCURRENCY, async (c) => {
+    const email = String(
+      (c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "",
+    );
     try {
       const ingested = await pollOne(admin, c);
-      out.push({ connectionId: c.id, email, ingested });
+      return { connectionId: c.id, email, ingested };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      out.push({ connectionId: c.id, email, ingested: 0, error: msg });
       await admin
         .from("channel_connections")
         .update({ last_error: msg.slice(0, 500) })
         .eq("id", c.id);
+      return { connectionId: c.id, email, ingested: 0, error: msg };
     }
-  }
-  return out;
+  });
 }
 
 async function pollOne(
@@ -81,10 +83,16 @@ async function pollOne(
   // startGmailWatch writes at connect time, so keying on it defeated the 7d
   // backlog on the very first poll.
   const window = ventanaDeBusqueda(connection.last_synced_at);
-  const inboxIds = await listMessageIdsViaQuery(accessToken, `in:inbox ${window}`);
+  const inboxIds = await listMessageIdsViaQuery(
+    accessToken,
+    `in:inbox ${window}`,
+  );
   // Also pull recently-sent mail so the agent's own replies (including
   // ones sent straight from Gmail, outside this app) show in the thread.
-  const sentIds = await listMessageIdsViaQuery(accessToken, `in:sent ${window}`);
+  const sentIds = await listMessageIdsViaQuery(
+    accessToken,
+    `in:sent ${window}`,
+  );
 
   if (inboxIds.length === 0 && sentIds.length === 0) {
     await admin
@@ -174,7 +182,10 @@ async function getFreshAccessToken(
     const detail = await r.text().catch(() => "");
     throw new Error(`refresh failed (${r.status}): ${detail}`);
   }
-  const json = (await r.json()) as { access_token?: string; expires_in?: number };
+  const json = (await r.json()) as {
+    access_token?: string;
+    expires_in?: number;
+  };
   const fresh = json.access_token;
   if (!fresh) throw new Error("refresh response missing access_token");
 
@@ -330,7 +341,9 @@ interface GmailAttachmentRef {
 
 /** Walk the MIME tree for parts that are real file attachments (have a
  *  filename + a fetchable attachmentId). */
-export function collectGmailAttachments(payload?: GmailPayload): GmailAttachmentRef[] {
+export function collectGmailAttachments(
+  payload?: GmailPayload,
+): GmailAttachmentRef[] {
   const out: GmailAttachmentRef[] = [];
   const walk = (p?: GmailPayload) => {
     if (!p) return;
@@ -365,7 +378,9 @@ export async function fetchGmailAttachments(
     try {
       const r = await fetch(
         `${GMAIL_API}/users/me/messages/${gmailMessageId}/attachments/${ref.attachmentId}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
       );
       if (!r.ok) continue;
       const j = (await r.json()) as { data?: string; size?: number };
@@ -476,7 +491,8 @@ function extractBody(payload?: GmailPayload): { text: string; html: string } {
 function decodeBody(data: string): string {
   // Gmail uses URL-safe base64 without padding.
   const padded = data.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = padded.length % 4 ? padded + "=".repeat(4 - (padded.length % 4)) : padded;
+  const pad =
+    padded.length % 4 ? padded + "=".repeat(4 - (padded.length % 4)) : padded;
   return Buffer.from(pad, "base64").toString("utf8");
 }
 
@@ -496,7 +512,9 @@ function decodeBody(data: string): string {
  * Sin `last_synced_at` es un buzón recién conectado: 7 días, para que el
  * comercio vea un historial de verdad y no una bandeja vacía el primer día.
  */
-export function ventanaDeBusqueda(lastSyncedAt: string | null | undefined): string {
+export function ventanaDeBusqueda(
+  lastSyncedAt: string | null | undefined,
+): string {
   if (!lastSyncedAt) return "newer_than:7d";
   const desde = Date.parse(lastSyncedAt);
   if (!Number.isFinite(desde)) return "newer_than:1d";

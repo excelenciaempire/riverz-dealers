@@ -3,7 +3,14 @@ import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
 import type { InboundEvent } from "../types";
-import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
+import {
+  mercadoLibreFailure,
+  type MercadoLibreSyncFailure,
+} from "./sync-result";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const ML = "https://api.mercadolibre.com";
 /** Preguntas por corrida. Ordenadas de la más nueva a la más vieja. */
@@ -61,64 +68,72 @@ export async function pollAllMercadoLibreConnections(): Promise<{
   let answers = 0;
   const failures: MercadoLibreSyncFailure[] = [];
 
-  for (const conn of conns) {
-    try {
-      const sellerId = String((conn.config as Record<string, unknown> | null)?.seller_id ?? "");
-      if (!sellerId) throw new Error("conexión sin seller_id");
-      const token = await getFreshMLToken(conn);
-      const r = await fetch(
-        `${ML}/questions/search?seller_id=${sellerId}&api_version=4` +
-          `&sort_fields=date_created&sort_types=DESC&limit=${PAGE}`,
-        { headers: { authorization: `Bearer ${token}` } }
-      );
-      if (!r.ok) {
-        const body = (await r.text().catch(() => "")).slice(0, 160);
-        throw new Error(`questions/search HTTP ${r.status}${body ? `: ${body}` : ""}`);
-      }
-      const j = (await r.json()) as { questions?: MlQuestion[] };
-      for (const q of j.questions ?? []) {
-        if (!q.id || !q.text) continue;
-        const buyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
-        const askedAt = q.date_created ?? new Date().toISOString();
-        const base = {
-          channel: "mercadolibre" as const,
-          connection: conn,
-          externalContactId: buyerId,
-          externalThreadId: `q:${q.id}`,
-          subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
-        };
-
-        // La pregunta. Ya contestada ⇒ nadie tiene que volver a contestarla.
-        const answered = Boolean(q.answer?.text);
-        const stale = !(Date.now() - Date.parse(askedAt) < LIVE_WINDOW_MS);
-        const question: InboundEvent = {
-          ...base,
-          externalMessageId: `q:${q.id}`,
-          text: q.text,
-          receivedAt: askedAt,
-          suppressAutoReply: answered || stale,
-          raw: q,
-        };
-        if (await ingestInboundEvent(db, question)) ingested++;
-
-        // La respuesta del vendedor, escrita desde donde sea. Saliente: es
-        // nuestra. Si salió de Riverz ya está guardada y el corte la descarta.
-        if (q.answer?.text) {
-          const answer: InboundEvent = {
-            ...base,
-            externalMessageId: `a:${q.id}`,
-            text: q.answer.text,
-            receivedAt: q.answer.date_created ?? askedAt,
-            outbound: true,
-            raw: q.answer,
-          };
-          if (await ingestInboundEvent(db, answer)) answers++;
+  await forEachWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const sellerId = String(
+          (conn.config as Record<string, unknown> | null)?.seller_id ?? "",
+        );
+        if (!sellerId) throw new Error("conexión sin seller_id");
+        const token = await getFreshMLToken(conn);
+        const r = await fetch(
+          `${ML}/questions/search?seller_id=${sellerId}&api_version=4` +
+            `&sort_fields=date_created&sort_types=DESC&limit=${PAGE}`,
+          { headers: { authorization: `Bearer ${token}` } },
+        );
+        if (!r.ok) {
+          const body = (await r.text().catch(() => "")).slice(0, 160);
+          throw new Error(
+            `questions/search HTTP ${r.status}${body ? `: ${body}` : ""}`,
+          );
         }
+        const j = (await r.json()) as { questions?: MlQuestion[] };
+        for (const q of j.questions ?? []) {
+          if (!q.id || !q.text) continue;
+          const buyerId = String(q.from?.id ?? q.buyer_id ?? "ml");
+          const askedAt = q.date_created ?? new Date().toISOString();
+          const base = {
+            channel: "mercadolibre" as const,
+            connection: conn,
+            externalContactId: buyerId,
+            externalThreadId: `q:${q.id}`,
+            subject: q.item_id ? `Pregunta · ${q.item_id}` : undefined,
+          };
+
+          // La pregunta. Ya contestada ⇒ nadie tiene que volver a contestarla.
+          const answered = Boolean(q.answer?.text);
+          const stale = !(Date.now() - Date.parse(askedAt) < LIVE_WINDOW_MS);
+          const question: InboundEvent = {
+            ...base,
+            externalMessageId: `q:${q.id}`,
+            text: q.text,
+            receivedAt: askedAt,
+            suppressAutoReply: answered || stale,
+            raw: q,
+          };
+          if (await ingestInboundEvent(db, question)) ingested++;
+
+          // La respuesta del vendedor, escrita desde donde sea. Saliente: es
+          // nuestra. Si salió de Riverz ya está guardada y el corte la descarta.
+          if (q.answer?.text) {
+            const answer: InboundEvent = {
+              ...base,
+              externalMessageId: `a:${q.id}`,
+              text: q.answer.text,
+              receivedAt: q.answer.date_created ?? askedAt,
+              outbound: true,
+              raw: q.answer,
+            };
+            if (await ingestInboundEvent(db, answer)) answers++;
+          }
+        }
+      } catch (err) {
+        console.error("[mercadolibre/poll] failed for", conn.id, err);
+        failures.push(mercadoLibreFailure(conn.id, err));
       }
-    } catch (err) {
-      console.error("[mercadolibre/poll] failed for", conn.id, err);
-      failures.push(mercadoLibreFailure(conn.id, err));
-    }
-  }
+    },
+  );
   return { total: conns.length, ingested, answers, failures };
 }

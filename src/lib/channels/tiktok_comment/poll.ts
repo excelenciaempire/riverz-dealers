@@ -1,10 +1,19 @@
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { listConnections } from "../connections";
-import { applyCommentLifecycle, patchFor, type CommentRow } from "../comment-sync";
+import {
+  applyCommentLifecycle,
+  patchFor,
+  type CommentRow,
+} from "../comment-sync";
 import { guardarVideos } from "./videos";
 import { getFreshTikTokToken } from "./adapter";
 import type { ChannelConnection } from "@/types";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+  mapWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const TT = "https://business-api.tiktok.com/open_api/v1.3";
 const VIDEOS_PER_RUN = 10; // rate-limit friendly: newest videos carry ~all fresh comments
@@ -60,7 +69,9 @@ const UNSUPPORTED_TEXT = "[unsupported]";
  *    sobre un video viejo no entraba nunca — así se perdieron 171 de los 193
  *    comentarios de la primera cuenta conectada.
  */
-export async function pollAllTikTokConnections(opts: { deep?: boolean } = {}): Promise<{
+export async function pollAllTikTokConnections(
+  opts: { deep?: boolean } = {},
+): Promise<{
   total: number;
   ingested: number;
   videos: number;
@@ -85,80 +96,97 @@ export async function pollAllTikTokConnections(opts: { deep?: boolean } = {}): P
     error?: string;
   }> = [];
 
-  for (const conn of conns) {
-    try {
-      const cfg = (conn.config ?? {}) as Record<string, unknown>;
-      const businessId = String(cfg.business_id ?? "");
-      if (!businessId) {
-        await recordPollResult(conn, { error: "missing_config" });
+  await forEachWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const cfg = (conn.config ?? {}) as Record<string, unknown>;
+        const businessId = String(cfg.business_id ?? "");
+        if (!businessId) {
+          await recordPollResult(conn, { error: "missing_config" });
+          connections.push({
+            connection_id: conn.id,
+            ingested: 0,
+            videos: 0,
+            error: "missing_config",
+          });
+          return;
+        }
+        const token = await getFreshTikTokToken(conn);
+
+        const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
+        // Cuáles de estos videos vemos por PRIMERA vez. Se pregunta antes de
+        // guardarlos, que es la única forma de saberlo: después del upsert todos
+        // figuran conocidos. Sus comentarios son historia —un video puede llegar
+        // con cientos de meses atrás— y no se contestan solos.
+        const yaConocidos = await videosYaIndexados(db, conn, nuevos);
+        // Los videos, guardados: de ahí sale el contexto que necesita quien
+        // contesta un comentario (el texto del video y, después, lo que se dice
+        // en él). Best-effort: si falla, el poll sigue igual que siempre.
+        await guardarVideos(db, conn, nuevos).catch(() => 0);
+
+        // Los 10 más nuevos NO son los que reciben comentarios: en la primera
+        // cuenta conectada el video con más tráfico estaba en la posición 18
+        // (43 mensajes) y el poll de 5 minutos no lo miraba nunca — sus
+        // comentarios esperaban al barrido de 6 h. Se suman los videos que YA
+        // tienen actividad reciente en la bandeja, que salen de la base y no
+        // cuestan una llamada extra a TikTok para descubrirlos.
+        const list = opts.deep
+          ? nuevos
+          : await conVideosActivos(db, conn, nuevos);
+        videos += list.length;
+        let connectionIngested = 0;
+        for (const video of list) {
+          const videoId = String(video.item_id ?? video.video_id ?? "");
+          if (!videoId) continue;
+          const caption = String(video.caption ?? "").slice(0, 80);
+          connectionIngested += await ingestVideoComments(
+            db,
+            conn,
+            businessId,
+            token,
+            videoId,
+            caption,
+            {
+              // Marcar borrados sólo en el barrido profundo: es el único que lee el
+              // video entero, y sin la lista completa "no vino" no prueba nada.
+              reconcile: Boolean(opts.deep),
+              videoNuevo: !yaConocidos.has(videoId),
+            },
+          );
+        }
+        ingested += connectionIngested;
+        await recordPollResult(conn, {
+          ingested: connectionIngested,
+          videos: list.length,
+        });
+        connections.push({
+          connection_id: conn.id,
+          ingested: connectionIngested,
+          videos: list.length,
+        });
+      } catch (err) {
+        console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
+        const message = err instanceof Error ? err.message : String(err);
+        await recordPollResult(conn, { error: message });
         connections.push({
           connection_id: conn.id,
           ingested: 0,
           videos: 0,
-          error: "missing_config",
-        });
-        continue;
-      }
-      const token = await getFreshTikTokToken(conn);
-
-      const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
-      // Cuáles de estos videos vemos por PRIMERA vez. Se pregunta antes de
-      // guardarlos, que es la única forma de saberlo: después del upsert todos
-      // figuran conocidos. Sus comentarios son historia —un video puede llegar
-      // con cientos de meses atrás— y no se contestan solos.
-      const yaConocidos = await videosYaIndexados(db, conn, nuevos);
-      // Los videos, guardados: de ahí sale el contexto que necesita quien
-      // contesta un comentario (el texto del video y, después, lo que se dice
-      // en él). Best-effort: si falla, el poll sigue igual que siempre.
-      await guardarVideos(db, conn, nuevos).catch(() => 0);
-
-      // Los 10 más nuevos NO son los que reciben comentarios: en la primera
-      // cuenta conectada el video con más tráfico estaba en la posición 18
-      // (43 mensajes) y el poll de 5 minutos no lo miraba nunca — sus
-      // comentarios esperaban al barrido de 6 h. Se suman los videos que YA
-      // tienen actividad reciente en la bandeja, que salen de la base y no
-      // cuestan una llamada extra a TikTok para descubrirlos.
-      const list = opts.deep ? nuevos : await conVideosActivos(db, conn, nuevos);
-      videos += list.length;
-      let connectionIngested = 0;
-      for (const video of list) {
-        const videoId = String(video.item_id ?? video.video_id ?? "");
-        if (!videoId) continue;
-        const caption = String(video.caption ?? "").slice(0, 80);
-        connectionIngested += await ingestVideoComments(db, conn, businessId, token, videoId, caption, {
-          // Marcar borrados sólo en el barrido profundo: es el único que lee el
-          // video entero, y sin la lista completa "no vino" no prueba nada.
-          reconcile: Boolean(opts.deep),
-          videoNuevo: !yaConocidos.has(videoId),
+          error: message,
         });
       }
-      ingested += connectionIngested;
-      await recordPollResult(conn, {
-        ingested: connectionIngested,
-        videos: list.length,
-      });
-      connections.push({
-        connection_id: conn.id,
-        ingested: connectionIngested,
-        videos: list.length,
-      });
-    } catch (err) {
-      console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
-      const message = err instanceof Error ? err.message : String(err);
-      await recordPollResult(conn, { error: message });
-      connections.push({
-        connection_id: conn.id,
-        ingested: 0,
-        videos: 0,
-        error: message,
-      });
-    }
-  }
+    },
+  );
   return { total: conns.length, ingested, videos, connections };
 }
 
 /** Persisted telemetry separates "TikTok was quiet" from "we could not read TikTok". */
-async function recordPollResult(connection: ChannelConnection, result: { ingested?: number; videos?: number; error?: string }): Promise<void> {
+async function recordPollResult(
+  connection: ChannelConnection,
+  result: { ingested?: number; videos?: number; error?: string },
+): Promise<void> {
   const db = supabaseAdmin();
   const config = (connection.config ?? {}) as Record<string, unknown>;
   const now = new Date().toISOString();
@@ -179,7 +207,9 @@ async function recordPollResult(connection: ChannelConnection, result: { ingeste
       };
   const patch: Record<string, unknown> = {
     config: telemetry,
-    last_error: result.error ? `TikTok poll failed: ${result.error.slice(0, 450)}` : null,
+    last_error: result.error
+      ? `TikTok poll failed: ${result.error.slice(0, 450)}`
+      : null,
   };
   if (result.error) patch.status = "error";
   await db.from("channel_connections").update(patch).eq("id", connection.id);
@@ -189,7 +219,7 @@ async function recordPollResult(connection: ChannelConnection, result: { ingeste
  * TikTok y guarda únicamente el rango pedido; jamás activa el agente. */
 export async function backfillTikTokCommentsForWorkspace(
   workspaceId: string,
-  opts: { sinceMs: number; untilMs: number }
+  opts: { sinceMs: number; untilMs: number },
 ): Promise<{
   connections: number;
   ingested: number;
@@ -207,60 +237,64 @@ export async function backfillTikTokCommentsForWorkspace(
     channel: "tiktok_comment",
     statuses: ["connected"],
   });
-  let ingested = 0;
-  let videos = 0;
-  const detail: Array<{
-    connection_id: string;
-    ingested: number;
-    videos: number;
-    error?: string;
-  }> = [];
-
-  for (const conn of conns) {
-    try {
-      const businessId = String((conn.config as Record<string, unknown> | null)?.business_id ?? "");
-      if (!businessId) {
-        detail.push({
+  const detail = await mapWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const businessId = String(
+          (conn.config as Record<string, unknown> | null)?.business_id ?? "",
+        );
+        if (!businessId) {
+          return {
+            connection_id: conn.id,
+            ingested: 0,
+            videos: 0,
+            error: "missing_config",
+          };
+        }
+        const token = await getFreshTikTokToken(conn);
+        const list = await listVideos(businessId, token, true);
+        await guardarVideos(db, conn, list).catch(() => 0);
+        let connectionIngested = 0;
+        for (const video of list) {
+          const videoId = String(video.item_id ?? video.video_id ?? "");
+          if (!videoId) continue;
+          connectionIngested += await ingestVideoComments(
+            db,
+            conn,
+            businessId,
+            token,
+            videoId,
+            String(video.caption ?? "").slice(0, 80),
+            {
+              fromMs: opts.sinceMs,
+              untilMs: opts.untilMs,
+              suppressAutoReply: true,
+            },
+          );
+        }
+        return {
+          connection_id: conn.id,
+          ingested: connectionIngested,
+          videos: list.length,
+        };
+      } catch (error) {
+        console.error("[tiktok/backfill] connection failed", {
+          connectionId: conn.id,
+          error,
+        });
+        return {
           connection_id: conn.id,
           ingested: 0,
           videos: 0,
-          error: "missing_config",
-        });
-        continue;
+          error: "tiktok_graph_failed",
+        };
       }
-      const token = await getFreshTikTokToken(conn);
-      const list = await listVideos(businessId, token, true);
-      await guardarVideos(db, conn, list).catch(() => 0);
-      let connectionIngested = 0;
-      for (const video of list) {
-        const videoId = String(video.item_id ?? video.video_id ?? "");
-        if (!videoId) continue;
-        connectionIngested += await ingestVideoComments(db, conn, businessId, token, videoId, String(video.caption ?? "").slice(0, 80), {
-          fromMs: opts.sinceMs,
-          untilMs: opts.untilMs,
-          suppressAutoReply: true,
-        });
-      }
-      ingested += connectionIngested;
-      videos += list.length;
-      detail.push({
-        connection_id: conn.id,
-        ingested: connectionIngested,
-        videos: list.length,
-      });
-    } catch (error) {
-      console.error("[tiktok/backfill] connection failed", {
-        connectionId: conn.id,
-        error,
-      });
-      detail.push({
-        connection_id: conn.id,
-        ingested: 0,
-        videos: 0,
-        error: "tiktok_graph_failed",
-      });
-    }
-  }
+    },
+  );
+  const ingested = detail.reduce((sum, result) => sum + result.ingested, 0);
+  const videos = detail.reduce((sum, result) => sum + result.videos, 0);
   return { connections: conns.length, ingested, videos, detail };
 }
 
@@ -276,12 +310,24 @@ export async function backfillTikTokCommentsForWorkspace(
  * de callarse con quien está preguntando ahora es peor que el de contestar
  * un comentario viejo de más.
  */
-async function videosYaIndexados(db: ReturnType<typeof supabaseAdmin>, conn: ChannelConnection, videos: Array<Record<string, unknown>>): Promise<Set<string>> {
-  const ids = videos.map((v) => String(v.item_id ?? v.video_id ?? "")).filter(Boolean);
+async function videosYaIndexados(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  videos: Array<Record<string, unknown>>,
+): Promise<Set<string>> {
+  const ids = videos
+    .map((v) => String(v.item_id ?? v.video_id ?? ""))
+    .filter(Boolean);
   if (ids.length === 0) return new Set();
-  const { data, error } = await db.from("tiktok_videos").select("video_id").eq("workspace_id", conn.workspace_id).in("video_id", ids);
+  const { data, error } = await db
+    .from("tiktok_videos")
+    .select("video_id")
+    .eq("workspace_id", conn.workspace_id)
+    .in("video_id", ids);
   if (error) return new Set(ids);
-  return new Set(((data ?? []) as Array<{ video_id: string }>).map((r) => r.video_id));
+  return new Set(
+    ((data ?? []) as Array<{ video_id: string }>).map((r) => r.video_id),
+  );
 }
 
 /**
@@ -294,10 +340,23 @@ async function videosYaIndexados(db: ReturnType<typeof supabaseAdmin>, conn: Cha
  * El tope existe para que una cuenta con muchos videos activos no convierta el
  * poll liviano en el barrido profundo.
  */
-async function conVideosActivos(db: ReturnType<typeof supabaseAdmin>, conn: ChannelConnection, nuevos: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
-  const yaEstan = new Set(nuevos.map((v) => String(v.item_id ?? v.video_id ?? "")).filter(Boolean));
+async function conVideosActivos(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  nuevos: Array<Record<string, unknown>>,
+): Promise<Array<Record<string, unknown>>> {
+  const yaEstan = new Set(
+    nuevos.map((v) => String(v.item_id ?? v.video_id ?? "")).filter(Boolean),
+  );
   const desde = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
-  const { data } = await db.from("conversations").select("thread_external_id, last_message_at").eq("channel", "tiktok_comment").eq("connection_id", conn.id).gte("last_message_at", desde).order("last_message_at", { ascending: false }).limit(200);
+  const { data } = await db
+    .from("conversations")
+    .select("thread_external_id, last_message_at")
+    .eq("channel", "tiktok_comment")
+    .eq("connection_id", conn.id)
+    .gte("last_message_at", desde)
+    .order("last_message_at", { ascending: false })
+    .limit(200);
 
   const extra: Array<Record<string, unknown>> = [];
   const vistos = new Set<string>();
@@ -320,14 +379,25 @@ async function conVideosActivos(db: ReturnType<typeof supabaseAdmin>, conn: Chan
  * página; en modo profundo pagina con el cursor que devuelve TikTok hasta
  * agotar el catálogo (o el techo de seguridad).
  */
-async function listVideos(businessId: string, token: string, deep: boolean): Promise<Array<Record<string, unknown>>> {
+async function listVideos(
+  businessId: string,
+  token: string,
+  deep: boolean,
+): Promise<Array<Record<string, unknown>>> {
   const headers = { "Access-Token": token };
-  const fields = encodeURIComponent(JSON.stringify(["item_id", "caption", "create_time", "share_url"]));
+  const fields = encodeURIComponent(
+    JSON.stringify(["item_id", "caption", "create_time", "share_url"]),
+  );
   const out: Array<Record<string, unknown>> = [];
   let cursor: string | number | undefined;
 
   for (let page = 0; page < (deep ? MAX_VIDEO_PAGES : 1); page++) {
-    const url = `${TT}/business/video/list/?business_id=${encodeURIComponent(businessId)}` + `&fields=${fields}&max_count=${deep ? VIDEOS_PER_PAGE : VIDEOS_PER_RUN}` + (cursor === undefined ? "" : `&cursor=${encodeURIComponent(String(cursor))}`);
+    const url =
+      `${TT}/business/video/list/?business_id=${encodeURIComponent(businessId)}` +
+      `&fields=${fields}&max_count=${deep ? VIDEOS_PER_PAGE : VIDEOS_PER_RUN}` +
+      (cursor === undefined
+        ? ""
+        : `&cursor=${encodeURIComponent(String(cursor))}`);
     const res = await fetch(url, { headers });
     const json = (await res.json().catch(() => ({}))) as {
       code?: number;
@@ -338,7 +408,9 @@ async function listVideos(businessId: string, token: string, deep: boolean): Pro
       };
     };
     if (!res.ok || (json.code ?? 0) !== 0) {
-      throw new Error(`video/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`);
+      throw new Error(
+        `video/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`,
+      );
     }
     out.push(...(json.data?.videos ?? []));
     if (!json.data?.has_more || json.data.cursor === undefined) break;
@@ -386,8 +458,17 @@ async function listVideos(businessId: string, token: string, deep: boolean): Pro
  * respuesta anidada dentro de un hilo largo— y entonces manda el camino
  * completo, que es el único que las ve.
  */
-export async function ingestarUnComentario(db: ReturnType<typeof supabaseAdmin>, conn: ChannelConnection, businessId: string, token: string, videoId: string, commentId: string): Promise<boolean> {
-  const url = `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` + `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
+export async function ingestarUnComentario(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  businessId: string,
+  token: string,
+  videoId: string,
+  commentId: string,
+): Promise<boolean> {
+  const url =
+    `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
+    `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
   const r = await fetch(url, { headers: { "Access-Token": token } });
   const j = (await r.json().catch(() => ({}))) as {
     code?: number;
@@ -395,13 +476,22 @@ export async function ingestarUnComentario(db: ReturnType<typeof supabaseAdmin>,
   };
   if (!r.ok || (j.code ?? 0) !== 0) return false;
 
-  const c = (j.data?.comments ?? []).find((x) => String(x.comment_id ?? x.id ?? "") === commentId);
+  const c = (j.data?.comments ?? []).find(
+    (x) => String(x.comment_id ?? x.id ?? "") === commentId,
+  );
   if (!c) return false;
 
   // El caption del video sale de lo que ya tenemos guardado: pedírselo a
   // TikTok sería otra llamada encadenada, que es justo lo que se vino a sacar.
-  const { data: v } = await db.from("tiktok_videos").select("caption").eq("workspace_id", conn.workspace_id).eq("video_id", videoId).maybeSingle();
-  const caption = String((v as { caption?: string } | null)?.caption ?? "").slice(0, 80);
+  const { data: v } = await db
+    .from("tiktok_videos")
+    .select("caption")
+    .eq("workspace_id", conn.workspace_id)
+    .eq("video_id", videoId)
+    .maybeSingle();
+  const caption = String(
+    (v as { caption?: string } | null)?.caption ?? "",
+  ).slice(0, 80);
 
   await ingestOne(db, conn, c, {
     videoId,
@@ -424,7 +514,7 @@ export async function ingestVideoComments(
     fromMs?: number;
     untilMs?: number;
     suppressAutoReply?: boolean;
-  } = {}
+  } = {},
 ): Promise<number> {
   let ingested = 0;
   let cursor: string | number | undefined;
@@ -438,7 +528,12 @@ export async function ingestVideoComments(
     // Solo los parámetros requeridos: business_id + video_id + max_count
     // (<=30) + cursor. Sin sort — el poll es idempotente, el orden no importa,
     // y cada parámetro extra es otra validación que puede rebotar con 40002.
-    const cUrl = `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` + `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}` + (cursor === undefined ? "" : `&cursor=${encodeURIComponent(String(cursor))}`);
+    const cUrl =
+      `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
+      `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}` +
+      (cursor === undefined
+        ? ""
+        : `&cursor=${encodeURIComponent(String(cursor))}`);
     const cr = await fetch(cUrl, { headers: { "Access-Token": token } });
     const cj = (await cr.json().catch(() => ({}))) as {
       code?: number;
@@ -532,9 +627,15 @@ function parseCreateTime(raw: unknown): number {
   return Number.isNaN(ms) ? Date.now() : ms;
 }
 
-function isWithinRange(comment: Record<string, unknown>, opts: { fromMs?: number; untilMs?: number }): boolean {
+function isWithinRange(
+  comment: Record<string, unknown>,
+  opts: { fromMs?: number; untilMs?: number },
+): boolean {
   const createdMs = parseCreateTime(comment.create_time);
-  return (opts.fromMs === undefined || createdMs >= opts.fromMs) && (opts.untilMs === undefined || createdMs <= opts.untilMs);
+  return (
+    (opts.fromMs === undefined || createdMs >= opts.fromMs) &&
+    (opts.untilMs === undefined || createdMs <= opts.untilMs)
+  );
 }
 
 /** Guarda un comentario (propio o del cliente) en el hilo que le corresponde. */
@@ -555,7 +656,7 @@ async function ingestOne(
     videoNuevo?: boolean;
     /** Recuperaciones manuales nunca deben iniciar una respuesta automática. */
     suppressAutoReply?: boolean;
-  }
+  },
 ): Promise<boolean> {
   const commentId = String(c.comment_id ?? c.id ?? "");
   if (!commentId) return false;
@@ -566,7 +667,8 @@ async function ingestOne(
   // que la plataforma no entrega legible; la burbuja lo pinta traducido.
   const text = String(c.text ?? "").trim() || UNSUPPORTED_TEXT;
   const username = String(c.username ?? c.user_name ?? "");
-  const contactId = ctx.contactIdOverride || String(c.user_id ?? username ?? "tiktok");
+  const contactId =
+    ctx.contactIdOverride || String(c.user_id ?? username ?? "tiktok");
   if (!contactId) return false;
   const createdMs = parseCreateTime(c.create_time);
 
@@ -577,7 +679,9 @@ async function ingestOne(
       externalContactId: contactId,
       // El nombre sólo lo pisa quien es dueño del hilo: si lo trajera una
       // respuesta nuestra, el contacto pasaría a llamarse como el comercio.
-      contactName: ctx.outbound ? undefined : String(c.display_name ?? username ?? "") || undefined,
+      contactName: ctx.outbound
+        ? undefined
+        : String(c.display_name ?? username ?? "") || undefined,
       externalMessageId: commentId,
       // One conversation per (video, top-level comment) — replies to the
       // same comment thread together; sendText parses this key.
@@ -586,7 +690,9 @@ async function ingestOne(
       text,
       comment: {
         postId: ctx.videoId,
-        parentCommentId: c.parent_comment_id ? String(c.parent_comment_id) : undefined,
+        parentCommentId: c.parent_comment_id
+          ? String(c.parent_comment_id)
+          : undefined,
       },
       receivedAt: new Date(createdMs).toISOString(),
       outbound: ctx.outbound,
@@ -599,9 +705,12 @@ async function ingestOne(
       // se calla siempre. El otro es un comentario de un video que ya seguimos
       // y que tardamos en ver por nuestra propia demora: a ese se le contesta,
       // hasta las 48 horas.
-      suppressAutoReply: ctx.suppressAutoReply || ctx.videoNuevo || Date.now() - createdMs > VENTANA_RESPUESTA_MS,
+      suppressAutoReply:
+        ctx.suppressAutoReply ||
+        ctx.videoNuevo ||
+        Date.now() - createdMs > VENTANA_RESPUESTA_MS,
       raw: c,
-    })
+    }),
   );
 }
 
@@ -610,7 +719,11 @@ async function ingestOne(
  * me gusta desde la app deja de ser invisible para la bandeja. `status` es
  * PUBLIC mientras esté a la vista; cualquier otro valor es que lo ocultaron.
  */
-async function convergeState(db: ReturnType<typeof supabaseAdmin>, conn: ChannelConnection, c: Record<string, unknown>): Promise<void> {
+async function convergeState(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  c: Record<string, unknown>,
+): Promise<void> {
   const commentId = String(c.comment_id ?? c.id ?? "");
   if (!commentId) return;
   const status = typeof c.status === "string" ? c.status.toUpperCase() : null;
@@ -621,8 +734,17 @@ async function convergeState(db: ReturnType<typeof supabaseAdmin>, conn: Channel
   // veces a applyCommentLifecycle (una por oculto y otra por me gusta) hacía
   // dos consultas por comentario en cada corrida del poll: sobre 425
   // comentarios y 288 corridas por día eso solo es ruido.
-  const { data } = await db.from("messages").select("id, sender_type, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)").eq("channel", "tiktok_comment").eq("message_id", commentId).eq("conversations.workspace_id", conn.workspace_id);
-  for (const row of (data ?? []) as unknown as Array<CommentRow & { sender_type: string | null }>) {
+  const { data } = await db
+    .from("messages")
+    .select(
+      "id, sender_type, is_hidden, is_liked, status, content_text, conversations!inner(workspace_id)",
+    )
+    .eq("channel", "tiktok_comment")
+    .eq("message_id", commentId)
+    .eq("conversations.workspace_id", conn.workspace_id);
+  for (const row of (data ?? []) as unknown as Array<
+    CommentRow & { sender_type: string | null }
+  >) {
     // NUESTRA propia respuesta publicada no se tacha por un `status` que no
     // entendemos.
     //
@@ -635,10 +757,15 @@ async function convergeState(db: ReturnType<typeof supabaseAdmin>, conn: Channel
     // seguían publicadas. Ocultar a mano sí funciona: ese camino sella
     // `hidden_by` y `hidden_at`.
     const propio = row.sender_type !== null && row.sender_type !== "customer";
-    const visibilidad = status === null || (propio && status !== "PUBLIC") ? {} : (patchFor(row, status === "PUBLIC" ? "unhide" : "hide") ?? {});
+    const visibilidad =
+      status === null || (propio && status !== "PUBLIC")
+        ? {}
+        : (patchFor(row, status === "PUBLIC" ? "unhide" : "hide") ?? {});
     const patch = {
       ...visibilidad,
-      ...(liked === null ? {} : (patchFor(row, liked ? "like" : "unlike") ?? {})),
+      ...(liked === null
+        ? {}
+        : (patchFor(row, liked ? "like" : "unlike") ?? {})),
     };
     // Con QUÉ palabra lo dijo TikTok.
     //
@@ -651,7 +778,9 @@ async function convergeState(db: ReturnType<typeof supabaseAdmin>, conn: Channel
     // que ya existe.
     const raro = status !== null && status !== "PUBLIC";
     if (Object.keys(patch).length === 0 && !raro) continue;
-    const conMotivo = raro ? { ...patch, meta_status_raw: { tiktok_status: status } } : patch;
+    const conMotivo = raro
+      ? { ...patch, meta_status_raw: { tiktok_status: status } }
+      : patch;
     await db.from("messages").update(conMotivo).eq("id", row.id);
   }
 }
@@ -661,8 +790,15 @@ async function convergeState(db: ReturnType<typeof supabaseAdmin>, conn: Channel
  * arreglo trae sólo las primeras: si `replies` dice que hay más, se piden
  * paginadas por su endpoint propio.
  */
-async function fetchReplies(businessId: string, token: string, videoId: string, parent: Record<string, unknown>): Promise<Array<Record<string, unknown>>> {
-  const inline = Array.isArray(parent.reply_list) ? (parent.reply_list as Array<Record<string, unknown>>) : [];
+async function fetchReplies(
+  businessId: string,
+  token: string,
+  videoId: string,
+  parent: Record<string, unknown>,
+): Promise<Array<Record<string, unknown>>> {
+  const inline = Array.isArray(parent.reply_list)
+    ? (parent.reply_list as Array<Record<string, unknown>>)
+    : [];
   const total = Number(parent.replies ?? inline.length) || 0;
   if (total <= inline.length) return inline;
 
@@ -674,7 +810,13 @@ async function fetchReplies(businessId: string, token: string, videoId: string, 
   let cursor: string | number | undefined;
   let complete = false;
   for (let page = 0; page < MAX_COMMENT_PAGES; page++) {
-    const url = `${TT}/business/comment/reply/list/?business_id=${encodeURIComponent(businessId)}` + `&video_id=${encodeURIComponent(videoId)}&comment_id=${encodeURIComponent(parentId)}` + `&max_count=${COMMENTS_PER_VIDEO}` + (cursor === undefined ? "" : `&cursor=${encodeURIComponent(String(cursor))}`);
+    const url =
+      `${TT}/business/comment/reply/list/?business_id=${encodeURIComponent(businessId)}` +
+      `&video_id=${encodeURIComponent(videoId)}&comment_id=${encodeURIComponent(parentId)}` +
+      `&max_count=${COMMENTS_PER_VIDEO}` +
+      (cursor === undefined
+        ? ""
+        : `&cursor=${encodeURIComponent(String(cursor))}`);
     const res = await fetch(url, { headers: { "Access-Token": token } });
     const json = (await res.json().catch(() => ({}))) as {
       code?: number;
@@ -685,7 +827,9 @@ async function fetchReplies(businessId: string, token: string, videoId: string, 
       };
     };
     if (!res.ok || (json.code ?? 0) !== 0) {
-      throw new Error(`comment/reply/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`);
+      throw new Error(
+        `comment/reply/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`,
+      );
     }
     for (const r of json.data?.comments ?? []) {
       const id = String(r.comment_id ?? "");
@@ -697,7 +841,8 @@ async function fetchReplies(businessId: string, token: string, videoId: string, 
     }
     cursor = json.data.cursor;
   }
-  if (!complete) throw new Error(`comment/reply/list superó ${MAX_COMMENT_PAGES} páginas`);
+  if (!complete)
+    throw new Error(`comment/reply/list superó ${MAX_COMMENT_PAGES} páginas`);
   out.delete("");
   return [...out.values()];
 }
@@ -707,8 +852,22 @@ async function fetchReplies(businessId: string, token: string, videoId: string, 
  * del video: si la lectura se cortó a mitad de camino, "no vino" no significa
  * "lo borraron", y marcar de más vaciaría hilos que están sanos.
  */
-async function marcarBorrados(db: ReturnType<typeof supabaseAdmin>, conn: ChannelConnection, videoId: string, vistos: Set<string>): Promise<void> {
-  const { data } = await db.from("messages").select("id, message_id, meta_status_raw, conversations!inner(workspace_id, thread_external_id)").eq("channel", "tiktok_comment").eq("conversations.workspace_id", conn.workspace_id).like("conversations.thread_external_id", `video:${videoId}|%`).not("message_id", "is", null).neq("status", "failed");
+async function marcarBorrados(
+  db: ReturnType<typeof supabaseAdmin>,
+  conn: ChannelConnection,
+  videoId: string,
+  vistos: Set<string>,
+): Promise<void> {
+  const { data } = await db
+    .from("messages")
+    .select(
+      "id, message_id, meta_status_raw, conversations!inner(workspace_id, thread_external_id)",
+    )
+    .eq("channel", "tiktok_comment")
+    .eq("conversations.workspace_id", conn.workspace_id)
+    .like("conversations.thread_external_id", `video:${videoId}|%`)
+    .not("message_id", "is", null)
+    .neq("status", "failed");
   const locales = (data ?? []) as Array<{
     id: string;
     message_id: string | null;
@@ -719,7 +878,10 @@ async function marcarBorrados(db: ReturnType<typeof supabaseAdmin>, conn: Channe
     const id = row.message_id;
     if (!id) continue;
     const marca = row.meta_status_raw ?? {};
-    const faltaDesde = typeof marca.tiktok_falta_desde === "string" ? marca.tiktok_falta_desde : null;
+    const faltaDesde =
+      typeof marca.tiktok_falta_desde === "string"
+        ? marca.tiktok_falta_desde
+        : null;
 
     if (vistos.has(id)) {
       // Reapareció: se limpia la falta para que dos ausencias sueltas y
@@ -727,7 +889,10 @@ async function marcarBorrados(db: ReturnType<typeof supabaseAdmin>, conn: Channe
       if (faltaDesde) {
         const resto = { ...marca };
         delete resto.tiktok_falta_desde;
-        await db.from("messages").update({ meta_status_raw: resto }).eq("id", row.id);
+        await db
+          .from("messages")
+          .update({ meta_status_raw: resto })
+          .eq("id", row.id);
       }
       continue;
     }
@@ -765,7 +930,10 @@ async function marcarBorrados(db: ReturnType<typeof supabaseAdmin>, conn: Channe
  * dispara "dentro de 5 min"), así que mirar un hilo lo mantiene al día sin
  * subir la frecuencia del cron para toda la cuenta.
  */
-export async function refreshTikTokVideo(conn: ChannelConnection, videoId: string): Promise<number> {
+export async function refreshTikTokVideo(
+  conn: ChannelConnection,
+  videoId: string,
+): Promise<number> {
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const businessId = String(cfg.business_id ?? "");
   if (!businessId || !videoId) return 0;

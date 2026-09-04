@@ -7,6 +7,9 @@ import { ingestInboundEvent } from '../inbox-writer';
 import { htmlToText } from '../html-to-text';
 import { detectAutomatedSender } from '../email/automated-sender';
 import { getFreshZohoAccessToken, mailApiUrl } from './auth';
+import { mapWithConcurrency } from '@/lib/async/concurrency';
+
+const CONNECTION_CONCURRENCY = 3;
 
 interface PollSummary {
   connectionId: string;
@@ -32,32 +35,35 @@ interface ZohoMessage {
 export async function pollAllZohoConnections(): Promise<PollSummary[]> {
   const admin = supabaseAdmin();
   const connections = await listConnections(admin, { channel: 'zoho' });
-  const results: PollSummary[] = [];
-  for (const connection of connections) {
-    const email = String(
-      (connection.config ?? {}).email ?? connection.external_account_id ?? ''
-    );
-    try {
-      results.push({
-        connectionId: connection.id,
-        email,
-        ingested: await pollOne(admin, connection),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      results.push({
-        connectionId: connection.id,
-        email,
-        ingested: 0,
-        error: message,
-      });
-      await admin
-        .from('channel_connections')
-        .update({ last_error: message.slice(0, 500) })
-        .eq('id', connection.id);
+  return mapWithConcurrency(
+    connections,
+    CONNECTION_CONCURRENCY,
+    async (connection) => {
+      const email = String(
+        (connection.config ?? {}).email ?? connection.external_account_id ?? ''
+      );
+      try {
+        return {
+          connectionId: connection.id,
+          email,
+          ingested: await pollOne(admin, connection),
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const result = {
+          connectionId: connection.id,
+          email,
+          ingested: 0,
+          error: message,
+        };
+        await admin
+          .from('channel_connections')
+          .update({ last_error: message.slice(0, 500) })
+          .eq('id', connection.id);
+        return result;
+      }
     }
-  }
-  return results;
+  );
 }
 
 async function pollOne(

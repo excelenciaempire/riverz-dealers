@@ -17,6 +17,10 @@ import {
 } from "@/lib/channels/meta-graph";
 import type { ChannelConnection, Channel } from "@/types";
 import { withCronRun } from "@/lib/cron/heartbeat";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const log = getLogger("cron.meta-webhook-subscriptions");
 
@@ -66,84 +70,96 @@ async function cronHandler(request: Request) {
   let healthy = 0;
   let skipped = 0; // connections we couldn't even attempt (no/bad token, no page)
 
-  for (const c of list) {
-    const secrets = (c.secrets ?? {}) as Record<string, unknown>;
-    const enc = String(secrets.access_token ?? "");
-    if (!enc) {
-      skipped++;
-      continue;
-    }
-    let token: string;
-    try {
-      token = decrypt(enc);
-    } catch {
-      log.warn("could not decrypt page token", { id: c.id, channel: c.channel });
-      skipped++;
-      continue;
-    }
+  await forEachWithConcurrency(
+    list,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (c) => {
+      const secrets = (c.secrets ?? {}) as Record<string, unknown>;
+      const enc = String(secrets.access_token ?? "");
+      if (!enc) {
+        skipped++;
+        return;
+      }
+      let token: string;
+      try {
+        token = decrypt(enc);
+      } catch {
+        log.warn("could not decrypt page token", {
+          id: c.id,
+          channel: c.channel,
+        });
+        skipped++;
+        return;
+      }
 
-    const cfg = (c.config ?? {}) as Record<string, unknown>;
-    const pageId = String(cfg.page_id ?? c.external_account_id ?? "");
-    const igUserId = cfg.ig_user_id as string | undefined;
-    if (!pageId) {
-      skipped++;
-      continue;
-    }
+      const cfg = (c.config ?? {}) as Record<string, unknown>;
+      const pageId = String(cfg.page_id ?? c.external_account_id ?? "");
+      const igUserId = cfg.ig_user_id as string | undefined;
+      if (!pageId) {
+        skipped++;
+        return;
+      }
 
-    // 1. Re-apply (best-effort; failure is logged, not fatal).
-    let reapplied = false;
-    try {
-      await subscribePageToWebhooks({
-        channel: c.channel,
-        pageId,
-        pageAccessToken: token,
-        igUserId,
-      });
-      reapplied = true;
-    } catch (err) {
-      log.warn("re-subscribe failed", {
+      // 1. Re-apply (best-effort; failure is logged, not fatal).
+      let reapplied = false;
+      try {
+        await subscribePageToWebhooks({
+          channel: c.channel,
+          pageId,
+          pageAccessToken: token,
+          igUserId,
+        });
+        reapplied = true;
+      } catch (err) {
+        log.warn("re-subscribe failed", {
+          id: c.id,
+          channel: c.channel,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      // 2. Verify the page now carries this channel's required fields. A
+      //    null read means the verify GET itself failed (transient) — that
+      //    is NOT the same as "fields missing", so don't flip the cron red on
+      //    it (would be a false alarm); only a confirmed missing field counts.
+      const expected = pageFieldsForChannel(c.channel);
+      const actual = await getSubscribedFields(pageId, token);
+      const verified = actual !== null;
+      const missing = verified
+        ? expected.filter((f) => !actual.includes(f))
+        : [];
+      if (verified && missing.length > 0) {
+        log.warn("page still missing webhook fields after re-subscribe", {
+          id: c.id,
+          channel: c.channel,
+          pageId,
+          missing,
+          actual,
+        });
+      } else if (!verified) {
+        log.warn(
+          "could not verify webhook subscription (transient Graph error)",
+          {
+            id: c.id,
+            channel: c.channel,
+            pageId,
+          },
+        );
+      } else {
+        healthy++;
+      }
+
+      results.push({
         id: c.id,
         channel: c.channel,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    // 2. Verify the page now carries this channel's required fields. A
-    //    null read means the verify GET itself failed (transient) — that
-    //    is NOT the same as "fields missing", so don't flip the cron red on
-    //    it (would be a false alarm); only a confirmed missing field counts.
-    const expected = pageFieldsForChannel(c.channel);
-    const actual = await getSubscribedFields(pageId, token);
-    const verified = actual !== null;
-    const missing = verified ? expected.filter((f) => !actual.includes(f)) : [];
-    if (verified && missing.length > 0) {
-      log.warn("page still missing webhook fields after re-subscribe", {
-        id: c.id,
-        channel: c.channel,
         pageId,
+        reapplied,
+        verified,
+        subscribed: actual ?? [],
         missing,
-        actual,
       });
-    } else if (!verified) {
-      log.warn("could not verify webhook subscription (transient Graph error)", {
-        id: c.id,
-        channel: c.channel,
-        pageId,
-      });
-    } else {
-      healthy++;
-    }
-
-    results.push({
-      id: c.id,
-      channel: c.channel,
-      pageId,
-      reapplied,
-      verified,
-      subscribed: actual ?? [],
-      missing,
-    });
-  }
+    },
+  );
 
   // WhatsApp WABAs — reconcile the per-WABA app subscription. Embedded Signup
   // registers the app on the WABA at connect, but best-effort and never
@@ -158,32 +174,39 @@ async function cronHandler(request: Request) {
     subscribed: boolean | null;
   }> = [];
   let waMissing = 0;
-  for (const c of (waConns ?? []) as ChannelConnection[]) {
-    const secrets = (c.secrets ?? {}) as Record<string, unknown>;
-    const enc = String(secrets.access_token ?? "");
-    const cfg = (c.config ?? {}) as Record<string, unknown>;
-    const wabaId = String(cfg.waba_id ?? "");
-    if (!enc || !wabaId) {
-      skipped++;
-      continue;
-    }
-    let token: string;
-    try {
-      token = decrypt(enc);
-    } catch {
-      skipped++;
-      continue;
-    }
-    const reapplied = await subscribeWabaToWebhooks(wabaId, token);
-    const subscribed = await isWabaSubscribed(wabaId, token);
-    if (subscribed === false) {
-      waMissing++;
-      log.warn("WABA not subscribed to the app after re-apply", { id: c.id, wabaId });
-    } else if (subscribed === true) {
-      healthy++;
-    }
-    waResults.push({ id: c.id, wabaId, reapplied, subscribed });
-  }
+  await forEachWithConcurrency(
+    (waConns ?? []) as ChannelConnection[],
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (c) => {
+      const secrets = (c.secrets ?? {}) as Record<string, unknown>;
+      const enc = String(secrets.access_token ?? "");
+      const cfg = (c.config ?? {}) as Record<string, unknown>;
+      const wabaId = String(cfg.waba_id ?? "");
+      if (!enc || !wabaId) {
+        skipped++;
+        return;
+      }
+      let token: string;
+      try {
+        token = decrypt(enc);
+      } catch {
+        skipped++;
+        return;
+      }
+      const reapplied = await subscribeWabaToWebhooks(wabaId, token);
+      const subscribed = await isWabaSubscribed(wabaId, token);
+      if (subscribed === false) {
+        waMissing++;
+        log.warn("WABA not subscribed to the app after re-apply", {
+          id: c.id,
+          wabaId,
+        });
+      } else if (subscribed === true) {
+        healthy++;
+      }
+      waResults.push({ id: c.id, wabaId, reapplied, subscribed });
+    },
+  );
 
   // APP-LEVEL subscription check. Per-page subscribed_apps (above) covers FB
   // `feed` + DM fields, but IG `comments` is subscribed ONLY at the app level
@@ -193,12 +216,17 @@ async function cronHandler(request: Request) {
   const appSubs = await getAppWebhookSubscriptions();
   let appGaps = appSubs ? appSubscriptionGaps(appSubs) : [];
   if (appSubs === null) {
-    log.warn("could not read app-level webhook subscriptions (no creds or transient)");
+    log.warn(
+      "could not read app-level webhook subscriptions (no creds or transient)",
+    );
   } else if (appGaps.length > 0) {
-    log.warn("app-level webhook subscription GAPS — some channels stop receiving for ALL merchants", {
-      gaps: appGaps,
-      expectedBase: appWebhookBaseUrl(),
-    });
+    log.warn(
+      "app-level webhook subscription GAPS — some channels stop receiving for ALL merchants",
+      {
+        gaps: appGaps,
+        expectedBase: appWebhookBaseUrl(),
+      },
+    );
   }
 
   // AUTO-REPARACIÓN del callback_url. Cuando el servicio cambia de dominio, la
@@ -208,7 +236,12 @@ async function cronHandler(request: Request) {
   // acá en vez de esperar a que alguien lo note. Los otros huecos (campo
   // faltante, objeto inactivo) NO se auto-reparan: se configuran en el
   // dashboard y adivinarlos sería pisar una decisión del panel.
-  const callbackFixes: Array<{ object: string; from: string; to: string; ok: boolean }> = [];
+  const callbackFixes: Array<{
+    object: string;
+    from: string;
+    to: string;
+    ok: boolean;
+  }> = [];
   for (const gap of appGaps) {
     if (!gap.wrongCallback || !appSubs) continue;
     const sub = appSubs[gap.object];
@@ -227,7 +260,11 @@ async function cronHandler(request: Request) {
       ok
         ? "app-level callback_url repuntado al dominio actual"
         : "no se pudo repuntar el callback_url app-level",
-      { object: gap.object, from: gap.callbackUrl, to: gap.expectedCallbackUrl },
+      {
+        object: gap.object,
+        from: gap.callbackUrl,
+        to: gap.expectedCallbackUrl,
+      },
     );
   }
   // Releer para no reportar un hueco que acabamos de cerrar (y para que el 207
@@ -241,7 +278,8 @@ async function cronHandler(request: Request) {
   // verify failure doesn't cry wolf. Matches the gmail/outlook polls' use of
   // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
   // most severe case (all merchants), never a false alarm (we read it live).
-  const anyMissing = results.some((r) => r.verified && r.missing.length > 0) || waMissing > 0;
+  const anyMissing =
+    results.some((r) => r.verified && r.missing.length > 0) || waMissing > 0;
   const anyAppGap = appGaps.length > 0;
   return NextResponse.json(
     {

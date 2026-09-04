@@ -7,7 +7,14 @@ import { syncClaimsForConnection } from "./claims-poll";
 import { upsertContact } from "../inbox-writer";
 import { recordPurchases } from "@/lib/contacts/purchases";
 import { getLogger } from "@/lib/log/logger";
-import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
+import {
+  mercadoLibreFailure,
+  type MercadoLibreSyncFailure,
+} from "./sync-result";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.orders");
@@ -72,7 +79,7 @@ interface MlShipment {
  * hacia atrás para que el comercio vea historia y no una pantalla vacía.
  */
 export async function syncAllMercadoLibreOrders(
-  options: { includeClaims?: boolean } = {}
+  options: { includeClaims?: boolean } = {},
 ): Promise<{
   sellers: number;
   orders: number;
@@ -85,26 +92,30 @@ export async function syncAllMercadoLibreOrders(
   let orders = 0;
   let claims = 0;
   const failures: MercadoLibreSyncFailure[] = [];
-  for (const conn of conns) {
-    try {
-      const r = await syncOneSeller(db, conn, options);
-      orders += r.orders;
-      claims += r.claims;
-    } catch (err) {
-      log.warn("ml orders sync failed", {
-        connectionId: conn.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      failures.push(mercadoLibreFailure(conn.id, err));
-    }
-  }
+  await forEachWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const r = await syncOneSeller(db, conn, options);
+        orders += r.orders;
+        claims += r.claims;
+      } catch (err) {
+        log.warn("ml orders sync failed", {
+          connectionId: conn.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        failures.push(mercadoLibreFailure(conn.id, err));
+      }
+    },
+  );
   return { sellers: conns.length, orders, claims, failures };
 }
 
 async function syncOneSeller(
   db: SupabaseClient,
   conn: ChannelConnection,
-  options: { includeClaims?: boolean }
+  options: { includeClaims?: boolean },
 ): Promise<{ orders: number; claims: number }> {
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
@@ -160,7 +171,10 @@ async function syncOneSeller(
     .eq("id", conn.id);
   if (cursorError) throw new Error(`orders cursor: ${cursorError.message}`);
 
-  const claims = options.includeClaims === false ? 0 : (await syncClaimsForConnection(db, conn, token)).claims;
+  const claims =
+    options.includeClaims === false
+      ? 0
+      : (await syncClaimsForConnection(db, conn, token)).claims;
 
   return { orders: count, claims };
 }
@@ -169,9 +183,11 @@ async function upsertOrder(
   db: SupabaseClient,
   conn: ChannelConnection,
   o: MlOrder,
-  auth: Record<string, string>
+  auth: Record<string, string>,
 ): Promise<void> {
-  const shipment = o.shipping?.id ? await fetchShipment(o.shipping.id, auth) : null;
+  const shipment = o.shipping?.id
+    ? await fetchShipment(o.shipping.id, auth)
+    : null;
 
   // El comprador SE CREA como contacto si no existe.
   //
@@ -239,14 +255,18 @@ async function upsertOrder(
     status: lifecycle(o, shipment),
     tracking_number: shipment?.tracking_number ?? null,
     tracking_company: shipment?.tracking_method ?? null,
-    tracking_url: shipment?.tracking_number ? `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle` : null,
+    tracking_url: shipment?.tracking_number
+      ? `https://www.mercadolibre.com.ar/ventas/${o.id}/detalle`
+      : null,
     shipping_status: shipment?.status ?? null,
     created_by: "sync",
     created_at: o.date_created ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await db.from("orders").upsert(row, { onConflict: "workspace_id,shop_domain,shopify_order_id" });
+  const { error } = await db
+    .from("orders")
+    .upsert(row, { onConflict: "workspace_id,shop_domain,shopify_order_id" });
   // Se propaga a propósito. La primera versión ignoraba este error y contaba
   // el pedido igual: el endpoint informaba 42 pedidos con 0 filas escritas
   // (el índice único era parcial y ON CONFLICT lo rechazaba). Un contador que
@@ -279,7 +299,10 @@ async function upsertOrder(
   }
 }
 
-async function fetchShipment(id: number, auth: Record<string, string>): Promise<MlShipment | null> {
+async function fetchShipment(
+  id: number,
+  auth: Record<string, string>,
+): Promise<MlShipment | null> {
   try {
     const r = await fetch(`${ML}/shipments/${id}`, { headers: auth });
     if (!r.ok) return null;

@@ -7,6 +7,7 @@ import { findMessageByExternalId } from './message-lookup';
 import { listConnections } from './connections';
 import { ingestInboundEvent } from './inbox-writer';
 import { selectAll } from '@/lib/db/paginate';
+import { mapWithConcurrency } from '@/lib/async/concurrency';
 
 /**
  * Comentarios de Instagram y Facebook — lado pull (RED DE SEGURIDAD del webhook).
@@ -384,16 +385,23 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
     channels: ['ig_comment', 'fb_comment'],
   });
 
-  const detail = await mapWithConcurrency(list, CONNECTION_CONCURRENCY, async (c) => {
-    try {
-      const r = await pullCommentsForConnection(db, c);
-      return { connection_id: c.id, ...r };
-    } catch (err) {
-      console.error('[comment-pull] conexión falló:', c.id, err);
-      return { connection_id: c.id, ...failedConnectionResult(c) };
+  const detail = await mapWithConcurrency(
+    list,
+    CONNECTION_CONCURRENCY,
+    async (c) => {
+      try {
+        const r = await pullCommentsForConnection(db, c);
+        return { connection_id: c.id, ...r };
+      } catch (err) {
+        console.error('[comment-pull] conexión falló:', c.id, err);
+        return { connection_id: c.id, ...failedConnectionResult(c) };
+      }
     }
-  });
-  const ingestedInbound = detail.reduce((sum, row) => sum + row.ingestedInbound, 0);
+  );
+  const ingestedInbound = detail.reduce(
+    (sum, row) => sum + row.ingestedInbound,
+    0
+  );
   const ingested = detail.reduce((sum, row) => sum + row.ingested, 0);
   const seen = detail.reduce((sum, row) => sum + row.seen, 0);
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
@@ -415,34 +423,38 @@ export async function pullCommentsForWorkspace(
     workspaceId,
     channels: options.channels ?? ['ig_comment', 'fb_comment'],
   });
-  let ingestedInbound = 0;
-  let ingested = 0;
-  let seen = 0;
-  const detail: Array<{ connection_id: string } & PullResult> = [];
-  for (const connection of list) {
-    try {
-      const result = await pullCommentsForConnection(db, connection, options);
-      ingestedInbound += result.ingestedInbound;
-      ingested += result.ingested;
-      seen += result.seen;
-      detail.push({ connection_id: connection.id, ...result });
-    } catch (err) {
-      console.error('[comment-pull] conexión falló:', connection.id, err);
-      // El caller necesita saber que faltó una fuente; omitirla acá hacía que
-      // la ruta HTTP pudiera anunciar una recuperación completa por error.
-      detail.push({
-        connection_id: connection.id,
-        ...failedConnectionResult(connection),
-      });
+  const detail = await mapWithConcurrency(
+    list,
+    CONNECTION_CONCURRENCY,
+    async (connection) => {
+      try {
+        const result = await pullCommentsForConnection(db, connection, options);
+        return { connection_id: connection.id, ...result };
+      } catch (err) {
+        console.error('[comment-pull] conexión falló:', connection.id, err);
+        // El caller necesita saber que faltó una fuente; omitirla acá hacía que
+        // la ruta HTTP pudiera anunciar una recuperación completa por error.
+        return {
+          connection_id: connection.id,
+          ...failedConnectionResult(connection),
+        };
+      }
     }
-  }
+  );
+  const ingestedInbound = detail.reduce(
+    (sum, result) => sum + result.ingestedInbound,
+    0
+  );
+  const ingested = detail.reduce((sum, result) => sum + result.ingested, 0);
+  const seen = detail.reduce((sum, result) => sum + result.seen, 0);
   return { connections: list.length, ingestedInbound, ingested, seen, detail };
 }
 
 function failedConnectionResult(connection: ChannelConnection): PullResult {
   const channel = connection.channel;
   return {
-    channel: channel === 'ig_comment' || channel === 'fb_comment' ? channel : null,
+    channel:
+      channel === 'ig_comment' || channel === 'fb_comment' ? channel : null,
     ingestedInbound: 0,
     ingested: 0,
     posts: 0,
@@ -452,26 +464,6 @@ function failedConnectionResult(connection: ChannelConnection): PullResult {
     reason: 'partial',
     errors: ['connection_failed'],
   };
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    while (true) {
-      const index = next++;
-      if (index >= items.length) return;
-      results[index] = await fn(items[index]);
-    }
-  }
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => worker())
-  );
-  return results;
 }
 
 /** ¿Lo escribió la cuenta del comercio? Se mira el id (fiable) y, si Graph no

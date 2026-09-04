@@ -5,6 +5,10 @@ import { startOutlookWatch } from "@/lib/channels/outlook/watch";
 import { baseUrl } from "@/lib/channels/oauth";
 import { assertCronAuth } from "@/lib/auth/cron";
 import type { ChannelConnection } from "@/types";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  mapWithConcurrency,
+} from "@/lib/async/concurrency";
 import { withCronRun } from "@/lib/cron/heartbeat";
 
 /**
@@ -36,19 +40,27 @@ async function cronHandler(request: Request) {
     return NextResponse.json({ ok: true, watched: 0 });
   }
 
-  const results: Array<{
-    id: string;
-    ok: boolean;
-    expiration?: string;
-    error?: string;
-  }> = [];
-  for (const c of connections as ChannelConnection[]) {
-    const r = await startOutlookWatch(admin, c, notificationUrl);
-    if (r.error) results.push({ id: c.id, ok: false, error: r.error });
-    else results.push({ id: c.id, ok: true, expiration: r.expiration });
-  }
+  const results = await mapWithConcurrency(
+    connections as ChannelConnection[],
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (
+      c,
+    ): Promise<{
+      id: string;
+      ok: boolean;
+      expiration?: string;
+      error?: string;
+    }> => {
+      const r = await startOutlookWatch(admin, c, notificationUrl);
+      if (r.error) return { id: c.id, ok: false, error: r.error };
+      return { id: c.id, ok: true, expiration: r.expiration };
+    },
+  );
   const failed = results.filter((result) => !result.ok).length;
-  return NextResponse.json({ ok: failed === 0, failed, results }, { status: failed ? 207 : 200 });
+  return NextResponse.json(
+    { ok: failed === 0, failed, results },
+    { status: failed ? 207 : 200 },
+  );
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */

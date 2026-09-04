@@ -8,6 +8,10 @@ import { listUserPages } from '@/lib/channels/meta-graph';
 import { META_ASSET_ACCESS_ERROR } from '@/lib/channels/meta-auth';
 import type { ChannelConnection, Channel } from '@/types';
 import { withCronRun } from '@/lib/cron/heartbeat';
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from '@/lib/async/concurrency';
 
 const log = getLogger('cron.meta-token-refresh');
 
@@ -87,128 +91,158 @@ async function cronHandler(request: Request) {
   let refreshed = 0;
   let failed = 0;
 
-  for (const c of list) {
-    const secrets = (c.secrets ?? {}) as Record<string, unknown>;
+  await forEachWithConcurrency(
+    list,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (c) => {
+      const secrets = (c.secrets ?? {}) as Record<string, unknown>;
 
-    // Only act on connections nearing expiry. Prefer the stored expiry; fall
-    // back to an age estimate off the row's last write timestamp.
-    const expiresAt = estimateExpiry(secrets, c);
-    if (expiresAt - now > REFRESH_WINDOW_DAYS * DAY_MS) {
-      results.push({
-        id: c.id,
-        channel: c.channel,
-        refreshed: false,
-        skipped: true,
-        reason: 'not_due',
-      });
-      continue;
-    }
-
-    // We extend the USER token (the long-lived one that keeps page tokens
-    // alive). Without it there is nothing to re-exchange.
-    const encUserToken = String(secrets.user_access_token ?? '');
-    if (!encUserToken) {
-      log.warn('no user_access_token to refresh', {
-        id: c.id,
-        channel: c.channel,
-      });
-      results.push({
-        id: c.id,
-        channel: c.channel,
-        refreshed: false,
-        skipped: true,
-        reason: 'no_user_token',
-      });
-      continue;
-    }
-
-    let userToken: string;
-    try {
-      userToken = decrypt(encUserToken);
-    } catch {
-      log.warn('could not decrypt user token', {
-        id: c.id,
-        channel: c.channel,
-      });
-      results.push({
-        id: c.id,
-        channel: c.channel,
-        refreshed: false,
-        skipped: true,
-        reason: 'decrypt_failed',
-      });
-      continue;
-    }
-
-    try {
-      // 1. Re-exchange the long-lived user token for a fresh ~60-day one.
-      const fresh = await exchangeLongLivedToken(userToken, appId, appSecret);
-      if (!fresh) {
-        failed++;
+      // Only act on connections nearing expiry. Prefer the stored expiry; fall
+      // back to an age estimate off the row's last write timestamp.
+      const expiresAt = estimateExpiry(secrets, c);
+      if (expiresAt - now > REFRESH_WINDOW_DAYS * DAY_MS) {
         results.push({
           id: c.id,
           channel: c.channel,
           refreshed: false,
-          skipped: false,
-          reason: 'exchange_failed',
+          skipped: true,
+          reason: 'not_due',
         });
-        continue;
+        return;
       }
 
-      // 2. Re-derive the page-scoped token from /me/accounts with the fresh
-      //    user token. Page tokens are minted per page and stay valid only as
-      //    long as the user token behind them, so refreshing the user token
-      //    without re-minting would leave a page token on the old clock.
-      const pageToken = await derivePageToken(fresh, c);
+      // We extend the USER token (the long-lived one that keeps page tokens
+      // alive). Without it there is nothing to re-exchange.
+      const encUserToken = String(secrets.user_access_token ?? '');
+      if (!encUserToken) {
+        log.warn('no user_access_token to refresh', {
+          id: c.id,
+          channel: c.channel,
+        });
+        results.push({
+          id: c.id,
+          channel: c.channel,
+          refreshed: false,
+          skipped: true,
+          reason: 'no_user_token',
+        });
+        return;
+      }
 
-      // The new user token does not authorize this exact Page (or its linked
-      // Instagram account). Keeping it beside the old page token makes the
-      // row look refreshed while its assets belong to different brands.
-      // Leave both secrets untouched and make the owner renew this asset.
-      if (!pageToken) {
-        await admin
+      let userToken: string;
+      try {
+        userToken = decrypt(encUserToken);
+      } catch {
+        log.warn('could not decrypt user token', {
+          id: c.id,
+          channel: c.channel,
+        });
+        results.push({
+          id: c.id,
+          channel: c.channel,
+          refreshed: false,
+          skipped: true,
+          reason: 'decrypt_failed',
+        });
+        return;
+      }
+
+      try {
+        // 1. Re-exchange the long-lived user token for a fresh ~60-day one.
+        const fresh = await exchangeLongLivedToken(userToken, appId, appSecret);
+        if (!fresh) {
+          failed++;
+          results.push({
+            id: c.id,
+            channel: c.channel,
+            refreshed: false,
+            skipped: false,
+            reason: 'exchange_failed',
+          });
+          return;
+        }
+
+        // 2. Re-derive the page-scoped token from /me/accounts with the fresh
+        //    user token. Page tokens are minted per page and stay valid only as
+        //    long as the user token behind them, so refreshing the user token
+        //    without re-minting would leave a page token on the old clock.
+        const pageToken = await derivePageToken(fresh, c);
+
+        // The new user token does not authorize this exact Page (or its linked
+        // Instagram account). Keeping it beside the old page token makes the
+        // row look refreshed while its assets belong to different brands.
+        // Leave both secrets untouched and make the owner renew this asset.
+        if (!pageToken) {
+          await admin
+            .from('channel_connections')
+            .update({ last_error: META_ASSET_ACCESS_ERROR })
+            .eq('id', c.id);
+          failed++;
+          results.push({
+            id: c.id,
+            channel: c.channel,
+            refreshed: false,
+            skipped: false,
+            reason: 'asset_access_lost',
+          });
+          log.warn('fresh Meta token cannot access connection asset', {
+            id: c.id,
+            channel: c.channel,
+          });
+          return;
+        }
+
+        // 3. Re-encrypt with the same AES-256-GCM scheme connect uses and write
+        //    back, stamping a new 60-day expiry. We only reach this point after
+        //    verifying the fresh token can mint a token for this exact asset.
+        const nextSecrets: Record<string, unknown> = {
+          ...secrets,
+          user_access_token: encrypt(fresh),
+          access_token_expires_at: new Date(
+            now + LONG_LIVED_TOKEN_DAYS * DAY_MS
+          ).toISOString(),
+        };
+        nextSecrets.access_token = encrypt(pageToken);
+
+        const { error: updErr } = await admin
           .from('channel_connections')
-          .update({ last_error: META_ASSET_ACCESS_ERROR })
+          .update({
+            secrets: nextSecrets,
+            updated_at: new Date(now).toISOString(),
+          })
           .eq('id', c.id);
-        failed++;
+        if (updErr) {
+          log.warn('token refresh DB update failed', {
+            id: c.id,
+            channel: c.channel,
+            error: updErr.message,
+          });
+          failed++;
+          results.push({
+            id: c.id,
+            channel: c.channel,
+            refreshed: false,
+            skipped: false,
+            reason: 'db_update_failed',
+          });
+          return;
+        }
+
+        refreshed++;
         results.push({
           id: c.id,
           channel: c.channel,
-          refreshed: false,
+          refreshed: true,
           skipped: false,
-          reason: 'asset_access_lost',
+          reason: undefined,
         });
-        log.warn('fresh Meta token cannot access connection asset', {
+        log.info('refreshed Meta token', { id: c.id, channel: c.channel });
+      } catch (err) {
+        // Fail-soft: a single connection's failure must not abort the loop.
+        log.warn('token refresh failed', {
           id: c.id,
           channel: c.channel,
-        });
-        continue;
-      }
-
-      // 3. Re-encrypt with the same AES-256-GCM scheme connect uses and write
-      //    back, stamping a new 60-day expiry. We only reach this point after
-      //    verifying the fresh token can mint a token for this exact asset.
-      const nextSecrets: Record<string, unknown> = {
-        ...secrets,
-        user_access_token: encrypt(fresh),
-        access_token_expires_at: new Date(
-          now + LONG_LIVED_TOKEN_DAYS * DAY_MS
-        ).toISOString(),
-      };
-      nextSecrets.access_token = encrypt(pageToken);
-
-      const { error: updErr } = await admin
-        .from('channel_connections')
-        .update({
-          secrets: nextSecrets,
-          updated_at: new Date(now).toISOString(),
-        })
-        .eq('id', c.id);
-      if (updErr) {
-        log.warn('token refresh DB update failed', {
-          id: c.id,
-          channel: c.channel,
-          error: updErr.message,
+          error: err instanceof Error ? err.message : String(err),
         });
         failed++;
         results.push({
@@ -216,37 +250,11 @@ async function cronHandler(request: Request) {
           channel: c.channel,
           refreshed: false,
           skipped: false,
-          reason: 'db_update_failed',
+          reason: 'error',
         });
-        continue;
       }
-
-      refreshed++;
-      results.push({
-        id: c.id,
-        channel: c.channel,
-        refreshed: true,
-        skipped: false,
-        reason: undefined,
-      });
-      log.info('refreshed Meta token', { id: c.id, channel: c.channel });
-    } catch (err) {
-      // Fail-soft: a single connection's failure must not abort the loop.
-      log.warn('token refresh failed', {
-        id: c.id,
-        channel: c.channel,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      failed++;
-      results.push({
-        id: c.id,
-        channel: c.channel,
-        refreshed: false,
-        skipped: false,
-        reason: 'error',
-      });
     }
-  }
+  );
 
   // 207 on any genuine failure (an attempt that errored), so the Render cron
   // surfaces a partial failure — matching the gmail/outlook polls and the

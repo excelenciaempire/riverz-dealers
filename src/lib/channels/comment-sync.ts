@@ -4,6 +4,7 @@ import { decrypt } from "./encryption";
 import { withAppsecretProof } from "./meta-graph";
 import { COMMENT_DELETED_TEXT } from "./display";
 import { listConnections } from "./connections";
+import { mapWithConcurrency } from "@/lib/async/concurrency";
 
 /**
  * Two-way comment sync — reflect on Facebook/Instagram back into the inbox.
@@ -42,7 +43,13 @@ const CONNECTION_CONCURRENCY = 2;
 /** A provider socket must never leave the whole reconciliation running forever. */
 const GRAPH_TIMEOUT_MS = 30_000;
 
-export type Lifecycle = "delete" | "hide" | "unhide" | "edit" | "like" | "unlike";
+export type Lifecycle =
+  | "delete"
+  | "hide"
+  | "unhide"
+  | "edit"
+  | "like"
+  | "unlike";
 
 export interface CommentRow {
   id: string;
@@ -71,9 +78,16 @@ export async function applyCommentLifecycle(
     kind: Lifecycle;
     /** New body for `edit`. */
     text?: string;
-  }
+  },
 ): Promise<boolean> {
-  const { data: rows } = await db.from("messages").select("id, is_hidden, is_liked, status, content_text, edited_at, conversations!inner(workspace_id)").eq("channel", input.channel).eq("message_id", input.commentExternalId).eq("conversations.workspace_id", input.workspaceId);
+  const { data: rows } = await db
+    .from("messages")
+    .select(
+      "id, is_hidden, is_liked, status, content_text, edited_at, conversations!inner(workspace_id)",
+    )
+    .eq("channel", input.channel)
+    .eq("message_id", input.commentExternalId)
+    .eq("conversations.workspace_id", input.workspaceId);
   const list = (rows ?? []) as unknown as CommentRow[];
   if (list.length === 0) return false;
 
@@ -96,7 +110,10 @@ export async function applyCommentLifecycle(
               hidden_at: null,
             }
           : patch;
-    const { error } = await db.from("messages").update(conRastro).eq("id", row.id);
+    const { error } = await db
+      .from("messages")
+      .update(conRastro)
+      .eq("id", row.id);
     if (error) {
       console.warn("[comment-sync] update failed:", error.message);
       continue;
@@ -115,8 +132,14 @@ function editadoRecienPorNosotros(row: CommentRow): boolean {
   return Number.isFinite(at) && Date.now() - at < EDICION_RECIENTE_MS;
 }
 
-export function patchFor(row: CommentRow, kind: Lifecycle, text?: string): Record<string, unknown> | null {
-  const isDeleted = row.status === "failed" && (row.content_text ?? "").trim() === COMMENT_DELETED_TEXT;
+export function patchFor(
+  row: CommentRow,
+  kind: Lifecycle,
+  text?: string,
+): Record<string, unknown> | null {
+  const isDeleted =
+    row.status === "failed" &&
+    (row.content_text ?? "").trim() === COMMENT_DELETED_TEXT;
   switch (kind) {
     case "delete":
       if (isDeleted) return null;
@@ -161,7 +184,7 @@ export function patchFor(row: CommentRow, kind: Lifecycle, text?: string): Recor
  */
 export async function reconcileCommentsForConnection(
   db: SupabaseClient,
-  connection: ChannelConnection
+  connection: ChannelConnection,
 ): Promise<{
   checked: number;
   deleted: number;
@@ -205,7 +228,8 @@ export async function reconcileCommentsForConnection(
   }));
 
   const notFound = probes.filter((p) => p.result.kind === "gone").length;
-  const suspiciousMassLoss = probes.length >= 5 && notFound / probes.length > 0.5;
+  const suspiciousMassLoss =
+    probes.length >= 5 && notFound / probes.length > 0.5;
 
   let deleted = 0;
   let hiddenChanged = 0;
@@ -235,7 +259,10 @@ export async function reconcileCommentsForConnection(
   }
 
   if (suspiciousMassLoss) {
-    console.warn(`[comment-sync] ${notFound}/${probes.length} comments not found on ${channel} ` + `(connection ${connection.id}) — skipped deletions (likely a scope/token issue).`);
+    console.warn(
+      `[comment-sync] ${notFound}/${probes.length} comments not found on ${channel} ` +
+        `(connection ${connection.id}) — skipped deletions (likely a scope/token issue).`,
+    );
   }
   return { checked: probes.length, deleted, hiddenChanged, skipped: false };
 }
@@ -244,13 +271,23 @@ function connWorkspaceId(connection: ChannelConnection): string {
   return connection.workspace_id;
 }
 
-type Probe = { kind: "ok"; hidden: boolean | null } | { kind: "gone" } | { kind: "error" };
+type Probe =
+  | { kind: "ok"; hidden: boolean | null }
+  | { kind: "gone" }
+  | { kind: "error" };
 
 /** GET the comment node and read its hidden state, or classify it as deleted. */
-async function probeComment(channel: "fb_comment" | "ig_comment", commentId: string, token: string): Promise<Probe> {
+async function probeComment(
+  channel: "fb_comment" | "ig_comment",
+  commentId: string,
+  token: string,
+): Promise<Probe> {
   // FB comments expose `is_hidden`; IG comments expose `hidden`.
   const field = channel === "ig_comment" ? "hidden" : "is_hidden";
-  const url = withAppsecretProof(`${GRAPH}/${commentId}?fields=${field}&access_token=${encodeURIComponent(token)}`, token);
+  const url = withAppsecretProof(
+    `${GRAPH}/${commentId}?fields=${field}&access_token=${encodeURIComponent(token)}`,
+    token,
+  );
   let res: Response;
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) });
@@ -271,7 +308,9 @@ async function probeComment(channel: "fb_comment" | "ig_comment", commentId: str
   let code: number | undefined;
   let subcode: number | undefined;
   try {
-    const err = (JSON.parse(text) as { error?: { code?: number; error_subcode?: number } }).error;
+    const err = (
+      JSON.parse(text) as { error?: { code?: number; error_subcode?: number } }
+    ).error;
     code = err?.code;
     subcode = err?.error_subcode;
   } catch {
@@ -288,7 +327,9 @@ async function probeComment(channel: "fb_comment" | "ig_comment", commentId: str
 }
 
 /** Reconcile every connected FB/IG comment connection. Entry point for the cron. */
-export async function reconcileAllCommentConnections(db: SupabaseClient): Promise<{
+export async function reconcileAllCommentConnections(
+  db: SupabaseClient,
+): Promise<{
   ok: boolean;
   connections: number;
   checked: number;
@@ -304,17 +345,33 @@ export async function reconcileAllCommentConnections(db: SupabaseClient): Promis
     channels: ["fb_comment", "ig_comment"],
   });
 
-  const results = await mapWithConcurrency(list, CONNECTION_CONCURRENCY, async (c) => {
-    try {
-      return { result: await reconcileCommentsForConnection(db, c), failed: false };
-    } catch (err) {
-      console.error("[comment-sync] connection failed:", c.id, err);
-      return { result: null, failed: true };
-    }
-  });
-  const checked = results.reduce((sum, row) => sum + (row.result?.checked ?? 0), 0);
-  const deleted = results.reduce((sum, row) => sum + (row.result?.deleted ?? 0), 0);
-  const hiddenChanged = results.reduce((sum, row) => sum + (row.result?.hiddenChanged ?? 0), 0);
+  const results = await mapWithConcurrency(
+    list,
+    CONNECTION_CONCURRENCY,
+    async (c) => {
+      try {
+        return {
+          result: await reconcileCommentsForConnection(db, c),
+          failed: false,
+        };
+      } catch (err) {
+        console.error("[comment-sync] connection failed:", c.id, err);
+        return { result: null, failed: true };
+      }
+    },
+  );
+  const checked = results.reduce(
+    (sum, row) => sum + (row.result?.checked ?? 0),
+    0,
+  );
+  const deleted = results.reduce(
+    (sum, row) => sum + (row.result?.deleted ?? 0),
+    0,
+  );
+  const hiddenChanged = results.reduce(
+    (sum, row) => sum + (row.result?.hiddenChanged ?? 0),
+    0,
+  );
   const failed = results.filter((row) => row.failed).length;
   return {
     ok: failed === 0,
@@ -324,22 +381,6 @@ export async function reconcileAllCommentConnections(db: SupabaseClient): Promis
     hiddenChanged,
     failed,
   };
-}
-
-/** Run `fn` over `items` with a bounded number of concurrent promises. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    while (true) {
-      const i = next++;
-      if (i >= items.length) return;
-      results[i] = await fn(items[i]);
-    }
-  }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
 }
 
 /**
@@ -370,15 +411,18 @@ async function candidatosAReconciliar(
     connection: ChannelConnection;
     channel: "fb_comment" | "ig_comment";
     sinceIso: string;
-  }
+  },
 ): Promise<{ list: CommentRow[]; siguienteCursor: string | null }> {
   const cfg = (args.connection.config ?? {}) as Record<string, unknown>;
-  const cursor = typeof cfg.reconcile_cursor === "string" ? cfg.reconcile_cursor : null;
+  const cursor =
+    typeof cfg.reconcile_cursor === "string" ? cfg.reconcile_cursor : null;
 
   const base = () => {
     let q = db
       .from("messages")
-      .select("id, message_id, is_hidden, status, content_text, edited_at, created_at, conversations!inner(connection_id)")
+      .select(
+        "id, message_id, is_hidden, status, content_text, edited_at, created_at, conversations!inner(connection_id)",
+      )
       .eq("channel", args.channel)
       .not("message_id", "is", null)
       .neq("status", "failed") // las ya borradas no hace falta re-consultarlas
@@ -388,39 +432,71 @@ async function candidatosAReconciliar(
     return q.order("created_at", { ascending: false }).limit(MAX_PER_RUN);
   };
 
-  const { data } = await base().eq("conversations.connection_id", args.connection.id);
-  const porConversacion = (data ?? []) as unknown as Array<CommentRow & { created_at: string }>;
+  const { data } = await base().eq(
+    "conversations.connection_id",
+    args.connection.id,
+  );
+  const porConversacion = (data ?? []) as unknown as Array<
+    CommentRow & { created_at: string }
+  >;
 
   // Y las que esta conexión posee de verdad, aunque su conversación sea de otra.
-  const { data: propias } = await db.from("comments_meta").select("message_id").eq("connection_id", args.connection.id);
-  const idsPropios = new Set(((propias ?? []) as Array<{ message_id: string }>).map((r) => r.message_id));
+  const { data: propias } = await db
+    .from("comments_meta")
+    .select("message_id")
+    .eq("connection_id", args.connection.id);
+  const idsPropios = new Set(
+    ((propias ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
+  );
   let porMeta: Array<CommentRow & { created_at: string }> = [];
   if (idsPropios.size > 0) {
     const { data: extra } = await base().in("id", [...idsPropios]);
-    porMeta = (extra ?? []) as unknown as Array<CommentRow & { created_at: string }>;
+    porMeta = (extra ?? []) as unknown as Array<
+      CommentRow & { created_at: string }
+    >;
   }
 
   // Unión, y fuera los que `comments_meta` dice que son de OTRA conexión: ésos
   // los reconcilia su dueña, con su token.
-  const { data: ajenos } = await db.from("comments_meta").select("message_id, connection_id").neq("connection_id", args.connection.id).not("connection_id", "is", null);
-  const deOtro = new Set(((ajenos ?? []) as Array<{ message_id: string }>).map((r) => r.message_id));
+  const { data: ajenos } = await db
+    .from("comments_meta")
+    .select("message_id, connection_id")
+    .neq("connection_id", args.connection.id)
+    .not("connection_id", "is", null);
+  const deOtro = new Set(
+    ((ajenos ?? []) as Array<{ message_id: string }>).map((r) => r.message_id),
+  );
 
   const porId = new Map<string, CommentRow & { created_at: string }>();
   for (const fila of [...porConversacion, ...porMeta]) {
     if (deOtro.has(fila.id) && !idsPropios.has(fila.id)) continue;
     porId.set(fila.id, fila);
   }
-  const list = [...porId.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, MAX_PER_RUN);
+  const list = [...porId.values()]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, MAX_PER_RUN);
 
-  const siguienteCursor = list.length === MAX_PER_RUN ? (list[list.length - 1]?.created_at ?? null) : null;
+  const siguienteCursor =
+    list.length === MAX_PER_RUN
+      ? (list[list.length - 1]?.created_at ?? null)
+      : null;
   return { list, siguienteCursor };
 }
 
 /** Dónde quedó la reconciliación. `null` = volver a empezar por lo más nuevo. */
-async function guardarCursor(db: SupabaseClient, connection: ChannelConnection, cursor: string | null): Promise<void> {
+async function guardarCursor(
+  db: SupabaseClient,
+  connection: ChannelConnection,
+  cursor: string | null,
+): Promise<void> {
   try {
-    const { data } = await db.from("channel_connections").select("config").eq("id", connection.id).maybeSingle();
-    const cfg = ((data as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
+    const { data } = await db
+      .from("channel_connections")
+      .select("config")
+      .eq("id", connection.id)
+      .maybeSingle();
+    const cfg = ((data as { config?: Record<string, unknown> } | null)
+      ?.config ?? {}) as Record<string, unknown>;
     await db
       .from("channel_connections")
       .update({ config: { ...cfg, reconcile_cursor: cursor } })

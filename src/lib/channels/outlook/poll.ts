@@ -8,6 +8,7 @@ import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
+import { mapWithConcurrency } from "@/lib/async/concurrency";
 
 /**
  * Microsoft Graph polls every connected Outlook/Hotmail mailbox via
@@ -25,7 +26,9 @@ import { detectAutomatedSender } from "../email/automated-sender";
  */
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
-const OAUTH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const OAUTH_TOKEN_URL =
+  "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const CONNECTION_CONCURRENCY = 3;
 
 interface PollSummary {
   connectionId: string;
@@ -41,24 +44,22 @@ export async function pollAllOutlookConnections(): Promise<PollSummary[]> {
   const connections = await listConnections(admin, { channel: "outlook" });
   if (connections.length === 0) return [];
 
-  const out: PollSummary[] = [];
-  for (const c of connections) {
+  return mapWithConcurrency(connections, CONNECTION_CONCURRENCY, async (c) => {
     const email = String(
       (c.config ?? {}).email ?? c.external_account_id ?? c.label ?? "",
     );
     try {
       const ingested = await pollOne(admin, c);
-      out.push({ connectionId: c.id, email, ingested });
+      return { connectionId: c.id, email, ingested };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      out.push({ connectionId: c.id, email, ingested: 0, error: msg });
       await admin
         .from("channel_connections")
         .update({ last_error: msg.slice(0, 500) })
         .eq("id", c.id);
+      return { connectionId: c.id, email, ingested: 0, error: msg };
     }
-  }
-  return out;
+  });
 }
 
 async function pollOne(
@@ -76,7 +77,12 @@ async function pollOne(
     : Date.now() - 7 * 24 * 60 * 60 * 1000;
   const since = new Date(sinceMs).toISOString();
 
-  const inbox = await listFolder(accessToken, "inbox", since, "receivedDateTime");
+  const inbox = await listFolder(
+    accessToken,
+    "inbox",
+    since,
+    "receivedDateTime",
+  );
   // Enviados: cursor PROPIO (last_sent_at). Antes se filtraban con el mismo
   // `since` anclado al último ENTRANTE, así que si el comercio respondía desde
   // el celular pero el cliente no contestaba, el cursor no avanzaba y la
@@ -264,8 +270,8 @@ async function buildOutboundEvent(
   // owner. Take the first recipient.
   const to = msg.toRecipients?.[0]?.emailAddress?.address?.toLowerCase();
   if (!to) return null;
-  const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
-  const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
+  const html = msg.body?.contentType === "html" ? (msg.body.content ?? "") : "";
+  const text = msg.body?.contentType === "text" ? (msg.body.content ?? "") : "";
   const event: InboundEvent = {
     channel: "outlook",
     connection,
@@ -275,7 +281,8 @@ async function buildOutboundEvent(
     subject: msg.subject ?? "",
     text: text || htmlToText(html) || msg.bodyPreview || "",
     htmlBody: html || undefined,
-    receivedAt: msg.sentDateTime ?? msg.receivedDateTime ?? new Date().toISOString(),
+    receivedAt:
+      msg.sentDateTime ?? msg.receivedDateTime ?? new Date().toISOString(),
     outbound: true,
     raw: { graphId: msg.id, sent: true },
   };
@@ -318,8 +325,8 @@ function buildInboundEvent(
   const email = from?.address?.toLowerCase();
   if (!email) return null;
 
-  const html = msg.body?.contentType === "html" ? msg.body.content ?? "" : "";
-  const text = msg.body?.contentType === "text" ? msg.body.content ?? "" : "";
+  const html = msg.body?.contentType === "html" ? (msg.body.content ?? "") : "";
+  const text = msg.body?.contentType === "text" ? (msg.body.content ?? "") : "";
   // Rebotes, autorespuestas y boletines entran a la bandeja pero NADIE los
   // contesta solo. Ver `email/automated-sender.ts`.
   const machine = detectAutomatedSender({

@@ -8,6 +8,10 @@ import {
 } from '@/lib/channels/meta-ads-sync';
 import { withCronRun } from '@/lib/cron/heartbeat';
 import type { ChannelConnection } from '@/types';
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  mapWithConcurrency,
+} from '@/lib/async/concurrency';
 
 /**
  * GET /api/meta/ads-sync
@@ -34,30 +38,32 @@ async function handler(req: Request): Promise<Response> {
     statuses: ['connected'],
   });
 
-  let totalInserted = 0;
-  let totalUpdated = 0;
-  const results: Array<{
-    id: string;
-    inserted: number;
-    updated: number;
-    status?: string;
-    errors?: string[];
-    error?: string;
-  }> = [];
-
-  for (const c of (connections ?? []) as ChannelConnection[]) {
-    try {
-      const r = await syncAdPostsForConnection(db, c);
-      totalInserted += r.inserted;
-      totalUpdated += r.updated;
-      results.push({ id: c.id, ...r });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'unknown';
-      results.push({ id: c.id, inserted: 0, updated: 0, error: msg });
+  const results = await mapWithConcurrency(
+    (connections ?? []) as ChannelConnection[],
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (
+      c
+    ): Promise<{
+      id: string;
+      inserted: number;
+      updated: number;
+      status?: string;
+      errors?: string[];
+      error?: string;
+    }> => {
+      try {
+        const r = await syncAdPostsForConnection(db, c);
+        return { id: c.id, ...r };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'unknown';
+        return { id: c.id, inserted: 0, updated: 0, error: msg };
+      }
     }
-  }
+  );
 
   const failed = results.filter(isAdSyncFailure).length;
+  const totalInserted = results.reduce((sum, row) => sum + row.inserted, 0);
+  const totalUpdated = results.reduce((sum, row) => sum + row.updated, 0);
 
   return NextResponse.json(
     {

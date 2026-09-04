@@ -6,7 +6,14 @@ import { ingestInboundEvent } from "../inbox-writer";
 import { listConnections } from "../connections";
 import { buildPackEvents, getFreshMLToken } from "./adapter";
 import { getLogger } from "@/lib/log/logger";
-import { mercadoLibreFailure, type MercadoLibreSyncFailure } from "./sync-result";
+import {
+  mercadoLibreFailure,
+  type MercadoLibreSyncFailure,
+} from "./sync-result";
+import {
+  DEFAULT_CONNECTION_CONCURRENCY,
+  forEachWithConcurrency,
+} from "@/lib/async/concurrency";
 
 const ML = "https://api.mercadolibre.com";
 const log = getLogger("channels.mercadolibre.messages-poll");
@@ -88,26 +95,30 @@ export async function pollAllMercadoLibreMessages(): Promise<{
   let skipped = 0;
   let ingested = 0;
   const failures: MercadoLibreSyncFailure[] = [];
-  for (const conn of conns) {
-    try {
-      const r = await pollOneSeller(db, conn);
-      packs += r.packs;
-      skipped += r.skipped;
-      ingested += r.ingested;
-    } catch (err) {
-      log.warn("ml messages poll failed", {
-        connectionId: conn.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      failures.push(mercadoLibreFailure(conn.id, err));
-    }
-  }
+  await forEachWithConcurrency(
+    conns,
+    DEFAULT_CONNECTION_CONCURRENCY,
+    async (conn) => {
+      try {
+        const r = await pollOneSeller(db, conn);
+        packs += r.packs;
+        skipped += r.skipped;
+        ingested += r.ingested;
+      } catch (err) {
+        log.warn("ml messages poll failed", {
+          connectionId: conn.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        failures.push(mercadoLibreFailure(conn.id, err));
+      }
+    },
+  );
   return { sellers: conns.length, packs, skipped, ingested, failures };
 }
 
 async function pollOneSeller(
   db: SupabaseClient,
-  conn: ChannelConnection
+  conn: ChannelConnection,
 ): Promise<{ packs: number; skipped: number; ingested: number }> {
   const cfg = (conn.config ?? {}) as Record<string, unknown>;
   const sellerId = String(cfg.seller_id ?? "");
@@ -182,7 +193,7 @@ async function rememberQuietPacks(
   previous: Record<string, number>,
   read: string[],
   nowQuiet: string[],
-  now: number
+  now: number,
 ): Promise<void> {
   const next = { ...previous };
   // Lo que acabamos de leer se reevalúa entero: un hilo que estaba cerrado y
@@ -198,8 +209,13 @@ async function rememberQuietPacks(
   // Relectura antes de escribir: el refresco de token reescribe `config` y
   // pisar la fila con una copia vieja borraría el `refresh_token` recién
   // rotado.
-  const { data } = await db.from("channel_connections").select("config").eq("id", conn.id).maybeSingle();
-  const fresh = ((data as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
+  const { data } = await db
+    .from("channel_connections")
+    .select("config")
+    .eq("id", conn.id)
+    .maybeSingle();
+  const fresh = ((data as { config?: Record<string, unknown> } | null)
+    ?.config ?? {}) as Record<string, unknown>;
   await db
     .from("channel_connections")
     .update({ config: { ...fresh, quiet_packs: trimmed } })
@@ -233,7 +249,10 @@ function markRescued(events: InboundEvent[]): InboundEvent[] {
 }
 
 /** Hilos con mensajes sin leer. Una llamada, y es lo que llega primero. */
-async function unreadPackIds(sellerId: string, auth: Record<string, string>): Promise<string[]> {
+async function unreadPackIds(
+  sellerId: string,
+  auth: Record<string, string>,
+): Promise<string[]> {
   const r = await fetch(`${ML}/messages/unread?role=seller&tag=post_sale`, {
     headers: auth,
   });
@@ -247,7 +266,8 @@ async function unreadPackIds(sellerId: string, auth: Record<string, string>): Pr
   for (const row of j.results ?? []) {
     // Mercado Libre no es consistente en cómo nombra el hilo según el
     // recurso; aceptamos las tres formas que devuelve en vez de asumir una.
-    const id = row.pack_id ?? row.id ?? extractPackId(String(row.resource ?? ""));
+    const id =
+      row.pack_id ?? row.id ?? extractPackId(String(row.resource ?? ""));
     if (id) ids.push(String(id));
   }
   return ids;
@@ -257,13 +277,18 @@ async function unreadPackIds(sellerId: string, auth: Record<string, string>): Pr
  * Hilos de los pedidos recientes. Sin `pack_id` el hilo se identifica con el id
  * del pedido: en una compra de un solo producto Mercado Libre no crea paquete.
  */
-async function recentOrderPackIds(sellerId: string, auth: Record<string, string>): Promise<string[]> {
-  const from = new Date(Date.now() - WINDOW_MS).toISOString().replace(/\.\d{3}Z$/, ".000-00:00");
+async function recentOrderPackIds(
+  sellerId: string,
+  auth: Record<string, string>,
+): Promise<string[]> {
+  const from = new Date(Date.now() - WINDOW_MS)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, ".000-00:00");
   const r = await fetch(
     `${ML}/orders/search?seller=${sellerId}` +
       `&order.date_last_updated.from=${encodeURIComponent(from)}` +
       `&sort=date_desc&limit=${ORDERS_PAGE}`,
-    { headers: auth }
+    { headers: auth },
   );
   if (!r.ok) {
     throw new Error(`orders/search HTTP ${r.status}`);
