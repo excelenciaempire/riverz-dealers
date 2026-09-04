@@ -501,29 +501,32 @@ export function ProfileForm() {
             <Label htmlFor="profile-phone" className="text-foreground">
               {t('settings.phoneLabel')}
             </Label>
-            <CampoTelefono
-              id="profile-phone"
-              value={phone}
-              onChange={setPhone}
-              disabled={saving}
-            />
-            <select
-              value={primaryScope}
-              onChange={(e) =>
-                setPrimaryScope(e.target.value as AlertDestinationScope)
-              }
-              disabled={saving || !phone.trim()}
-              className="border-input bg-background text-foreground h-9 rounded-md border px-3 text-sm disabled:opacity-50"
-              aria-label={t('settings.alertScopeLabel')}
-            >
-              <option value="both">{t('settings.alertScopeBoth')}</option>
-              <option value="escalations">
-                {t('settings.alertScopeEscalations')}
-              </option>
-              <option value="notifications">
-                {t('settings.alertScopeNotifications')}
-              </option>
-            </select>
+            <div className="flex items-center gap-2">
+              <CampoTelefono
+                id="profile-phone"
+                value={phone}
+                onChange={setPhone}
+                disabled={saving}
+                className="flex-1"
+              />
+              <select
+                value={primaryScope}
+                onChange={(e) =>
+                  setPrimaryScope(e.target.value as AlertDestinationScope)
+                }
+                disabled={saving || !phone.trim()}
+                className="border-input bg-background text-foreground h-9 rounded-md border px-3 text-sm disabled:opacity-50"
+                aria-label={t('settings.alertScopeLabel')}
+              >
+                <option value="both">{t('settings.alertScopeBoth')}</option>
+                <option value="escalations">
+                  {t('settings.alertScopeEscalations')}
+                </option>
+                <option value="notifications">
+                  {t('settings.alertScopeNotifications')}
+                </option>
+              </select>
+            </div>
             <p className="text-muted-foreground text-xs">
               {t('settings.phoneHint')}
             </p>
