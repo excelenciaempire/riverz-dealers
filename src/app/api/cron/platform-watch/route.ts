@@ -103,9 +103,14 @@ async function cronHandler(request: Request) {
 
   const admin = supabaseAdmin()
 
-  const [porWorkspace, salud] = await Promise.all([
+  const [porWorkspace, salud, dropi] = await Promise.all([
     collectPlatformIssues(admin),
     admin.rpc('admin_cron_health'),
+    admin
+      .from('dropi_connections')
+      .select('workspace_id, config')
+      .eq('status', 'connected')
+      .not('config->>last_error', 'is', null),
   ])
   const runs = salud.data as
     | Array<{ name: string; status: string; started_at: string | null }>
@@ -137,6 +142,25 @@ async function cronHandler(request: Request) {
           ? `· Canal sin actividad: ${channel}`
           : `· Conexión con error: ${issue.detail ?? channel}`
       actuales.set(key, label)
+    }
+  }
+
+  // Dropi es salida, no sincronización: crea un despacho. Ante una respuesta
+  // incierta no se reintenta a ciegas porque podría duplicar el pedido. La
+  // falla queda en la conexión y sólo llega acá si ningún envío posterior la
+  // limpió antes del siguiente tick.
+  if (dropi.error) {
+    log.warn('no se pudo leer la salud de Dropi', { error: dropi.error.message })
+  } else {
+    for (const row of (dropi.data ?? []) as Array<{
+      workspace_id: string
+      config?: { last_error?: string | null } | null
+    }>) {
+      if (!row.config?.last_error) continue
+      actuales.set(
+        `integracion:${row.workspace_id}:dropi`,
+        '· Integración con error: Dropi',
+      )
     }
   }
 

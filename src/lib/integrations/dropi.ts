@@ -18,6 +18,10 @@ export interface DropiConfig {
   orders_path?: string;
   /** Country integration id / warehouse, if the account needs it. */
   integration_id?: string;
+  /** Salud del último envío. No contiene la API key ni datos del cliente. */
+  last_error?: string | null;
+  last_error_at?: string | null;
+  last_success_at?: string | null;
 }
 
 export interface DropiConnection {
@@ -91,11 +95,54 @@ export async function pushOrderToDropi(
     });
     if (!res.ok) {
       console.error('[dropi] push returned', res.status);
+      await recordDropiHealth(db, workspaceId, conn.config, `HTTP ${res.status}`);
       return false;
     }
+    await recordDropiHealth(db, workspaceId, conn.config, null);
     return true;
   } catch (err) {
     console.error('[dropi] push failed:', err);
+    await recordDropiHealth(
+      db,
+      workspaceId,
+      conn.config,
+      err instanceof Error ? err.message : String(err),
+    );
     return false;
+  }
+}
+
+/**
+ * Dropi crea un despacho: repetir una respuesta incierta puede duplicarlo.
+ * Por eso el sistema persiste la falla para avisar, en vez de reintentar a
+ * ciegas. El siguiente envío exitoso limpia la señal automáticamente.
+ */
+async function recordDropiHealth(
+  db: SupabaseClient,
+  workspaceId: string,
+  config: DropiConfig,
+  error: string | null,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const next: DropiConfig = error
+    ? {
+        ...config,
+        last_error: error.slice(0, 300),
+        last_error_at: now,
+      }
+    : {
+        ...config,
+        last_error: null,
+        last_error_at: null,
+        last_success_at: now,
+      };
+  try {
+    const { error: updateError } = await db
+      .from('dropi_connections')
+      .update({ config: next, updated_at: now })
+      .eq('workspace_id', workspaceId);
+    if (updateError) console.error('[dropi] health update failed:', updateError.message);
+  } catch (updateError) {
+    console.error('[dropi] health update failed:', updateError);
   }
 }
