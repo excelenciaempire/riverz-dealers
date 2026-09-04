@@ -30,10 +30,6 @@ export const voice = {
     es: 'Describe el objetivo de la llamada…',
     en: 'Describe the call objective…',
   },
-  objFollowupSharedDelay: {
-    es: 'Usa el mismo tiempo de espera que el seguimiento por mensaje, en Avanzado.',
-    en: 'Uses the same wait time as the message follow-up, under Advanced.',
-  },
   callingHours: { es: 'Horario de llamadas', en: 'Calling hours' },
   callingHoursHint: {
     es: 'Solo se llama dentro de esta franja (zona horaria del espacio de trabajo).',
@@ -50,13 +46,14 @@ export const voice = {
     en: 'Choose at least one day.',
   },
   retries: { es: 'Si no contesta', en: 'If nobody answers' },
-  retriesHint: {
-    es: 'Con un par de horas entre intento e intento.',
-    en: 'A couple of hours between attempts.',
-  },
   retriesNone: { es: 'No insistir', en: "Don't retry" },
   retriesOnce: { es: 'Insistir 1 vez', en: 'Retry once' },
   retriesTwice: { es: 'Insistir 2 veces', en: 'Retry twice' },
+  retryDelay: { es: 'Esperar entre intentos', en: 'Wait between attempts' },
+  retryDelay30: { es: '30 minutos', en: '30 minutes' },
+  retryDelay120: { es: '2 horas', en: '2 hours' },
+  retryDelay360: { es: '6 horas', en: '6 hours' },
+  retryDelay1440: { es: '24 horas', en: '24 hours' },
 
   // AI-assisted setup + "AI decides"
   setupTitle: { es: 'Configurar con IA', en: 'Set up with AI' },
@@ -116,16 +113,12 @@ export const voice = {
   },
   voiceAgentCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceAgentNewTitle: { es: 'Nuevo agente de voz', en: 'New voice agent' },
-  voiceAgentDialogHint: {
-    es: 'Voz y operación',
-    en: 'Voice and operations',
+  voiceAgentChooseVoice: {
+    es: 'Selecciona una voz.',
+    en: 'Select a voice.',
   },
   voiceAgentNameLabel: { es: 'Nombre', en: 'Name' },
   voiceAgentName: { es: 'Ej. Ventas', en: 'E.g. Sales' },
-  voiceAgentChooseVoice: {
-    es: 'Elige una voz para continuar.',
-    en: 'Choose a voice to continue.',
-  },
   voiceAgentsEmptyTitle: {
     es: 'Dale una voz a tu negocio',
     en: 'Give your business a voice',
@@ -151,9 +144,10 @@ export const voice = {
   },
   voiceNavGeneral: { es: 'General', en: 'General' },
   voiceNavVoice: { es: 'Voz', en: 'Voice' },
-  voiceNavOperations: { es: 'Operación', en: 'Operations' },
-  voiceNavSchedule: { es: 'Horario', en: 'Schedule' },
-  voiceNavControl: { es: 'Control', en: 'Controls' },
+  voiceNavOperations: { es: 'Entrantes', en: 'Inbound' },
+  voiceNavSchedule: { es: 'Salientes', en: 'Outbound' },
+  voiceNavControl: { es: 'Capacidad', en: 'Capacity' },
+  voiceNavRecording: { es: 'Grabación', en: 'Recording' },
   voiceNavScripts: { es: 'Objetivos', en: 'Objectives' },
   voiceNavTest: { es: 'Probar llamada', en: 'Test call' },
   voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
@@ -230,8 +224,6 @@ export const voice = {
     es: 'La voz de las llamadas la define la plataforma.',
     en: 'The calling voice is set by the platform.',
   },
-  voiceLibrary: { es: 'Biblioteca de voces', en: 'Voice library' },
-  voiceAvailable: { es: 'Voces disponibles', en: 'Available voices' },
   voiceLibrarySearch: { es: 'Buscar en Fish Audio', en: 'Search Fish Audio' },
   voiceLibrarySearchAction: { es: 'Buscar', en: 'Search' },
   voiceLibraryPrevious: { es: 'Anterior', en: 'Previous' },
@@ -268,15 +260,18 @@ export const voice = {
   voicePreviewStop: { es: 'Detener', en: 'Stop' },
   voiceSelected: { es: 'Voz seleccionada', en: 'Selected voice' },
   voiceNone: { es: 'Elige una voz', en: 'Choose a voice' },
-  voiceCustom: { es: 'Tus voces', en: 'Your voices' },
-  voiceCreate: { es: 'Crear voz', en: 'Create voice' },
-  voiceCreateTitle: { es: 'Crear una voz propia', en: 'Create your own voice' },
+  voiceLibraryTab: { es: 'Biblioteca', en: 'Library' },
+  voiceCreatedTab: { es: 'Voces creadas', en: 'Created voices' },
+  voiceCreatedEmpty: { es: 'Aún no has creado voces.', en: 'No voices yet.' },
+  voiceCreate: {
+    es: 'Crear voz personalizada',
+    en: 'Create custom voice',
+  },
   voiceName: { es: 'Nombre de la voz', en: 'Voice name' },
-  voiceNamePlaceholder: { es: 'Ej: Voz de Laura', en: "E.g. Laura's voice" },
-  voiceSamples: { es: 'Audios de referencia', en: 'Reference audio' },
+  voiceSamples: { es: 'Audios', en: 'Audio' },
   voiceSamplesHint: {
-    es: '1 a 3 audios claros, de una sola persona. MP3, WAV, M4A u OGG; hasta 10 MB cada uno.',
-    en: '1 to 3 clear, single-speaker clips. MP3, WAV, M4A, or OGG; up to 10 MB each.',
+    es: '1 a 3 archivos · MP3, WAV, M4A, OGG u OPUS.',
+    en: '1 to 3 files · MP3, WAV, M4A, OGG, or OPUS.',
   },
   voiceConsent: {
     es: 'Confirmo que tengo permiso para usar y clonar esta voz.',
@@ -293,7 +288,8 @@ export const voice = {
     es: 'Si un dato no está disponible, se omite.',
     en: 'Missing data is omitted.',
   },
-  voiceCreateAction: { es: 'Crear voz', en: 'Create voice' },
+  voiceCreateAction: { es: 'Crear', en: 'Create' },
+  voiceBack: { es: 'Volver', en: 'Back' },
   voiceCancel: { es: 'Cancelar', en: 'Cancel' },
   voiceCreating: { es: 'Creando…', en: 'Creating…' },
   voiceCreated: { es: 'Voz creada', en: 'Voice created' },
@@ -831,16 +827,13 @@ export const voice = {
 
   // ── Upsell (agent · order confirmation) ──
   upsellLabel: {
-    es: 'Ofrecer más unidades (upsell)',
-    en: 'Offer more units (upsell)',
+    es: 'Ofrecer más unidades',
+    en: 'Offer more units',
   },
-  upsellOfferPlaceholder: {
-    es: 'Ej: ofrece llevar 2 unidades con envío gratis.',
-    en: 'E.g. offer to take 2 units with free shipping.',
-  },
-  upsellDiscountPlaceholder: {
-    es: 'Descuento a mencionar (opcional)',
-    en: 'Discount to mention (optional)',
+  upsellOfferLabel: { es: 'Oferta', en: 'Offer' },
+  upsellDiscountLabel: {
+    es: 'Descuento (opcional)',
+    en: 'Discount (optional)',
   },
 
   // ── Voice campaigns ──

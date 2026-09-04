@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3,
+  CircleDot,
   Clock3,
   FileText,
   Headphones,
@@ -52,6 +53,7 @@ type EditorSection =
   | 'operations'
   | 'schedule'
   | 'control'
+  | 'recording'
   | 'scripts'
   | 'test'
   | 'stats';
@@ -482,7 +484,7 @@ export function VoiceAgentProfiles({
                       </label>
                       <label className="border-border flex h-9 cursor-pointer items-center gap-3 rounded-lg border px-3">
                         <span className="text-foreground text-xs font-medium">
-                          {t('voice.enable')}
+                          {t('voice.voiceAgentActive')}
                         </span>
                         <Switch
                           checked={voice.voice_enabled}
@@ -574,19 +576,14 @@ export function VoiceAgentProfiles({
           className="border-border bg-card text-foreground grid max-h-[90dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl"
           showCloseButton={false}
         >
-          <div className="border-border flex items-start justify-between gap-4 border-b px-4 py-4 sm:px-6">
+          <div className="border-border flex items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <span className="bg-accent/15 text-accent-ink grid size-9 shrink-0 place-items-center rounded-xl">
                 <Mic2 className="size-4" />
               </span>
-              <div className="min-w-0">
-                <DialogTitle className="text-foreground text-base font-semibold">
-                  {t('voice.voiceAgentNewTitle')}
-                </DialogTitle>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {t('voice.voiceAgentDialogHint')}
-                </p>
-              </div>
+              <DialogTitle className="text-foreground text-base font-semibold">
+                {t('voice.voiceAgentNewTitle')}
+              </DialogTitle>
             </div>
             <button
               type="button"
@@ -636,11 +633,6 @@ export function VoiceAgentProfiles({
           </div>
 
           <div className="border-border bg-card/60 flex flex-wrap items-center justify-end gap-2 border-t px-4 py-4 sm:px-6">
-            {!newVoice.voice_id && (
-              <p className="text-muted-foreground mr-auto text-xs">
-                {t('voice.voiceAgentChooseVoice')}
-              </p>
-            )}
             <Button
               type="button"
               variant="outline"
@@ -745,8 +737,17 @@ function EditorNav({
       label: t('voice.voiceNavOperations'),
       icon: PhoneIncoming,
     },
-    { key: 'schedule', label: t('voice.voiceNavSchedule'), icon: Clock3 },
+    {
+      key: 'schedule',
+      label: t('voice.voiceNavSchedule'),
+      icon: Clock3,
+    },
     { key: 'control', label: t('voice.voiceNavControl'), icon: Settings2 },
+    {
+      key: 'recording',
+      label: t('voice.voiceNavRecording'),
+      icon: CircleDot,
+    },
     { key: 'scripts', label: t('voice.voiceNavScripts'), icon: FileText },
     ...(showTest
       ? [
