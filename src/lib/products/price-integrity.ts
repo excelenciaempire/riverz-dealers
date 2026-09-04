@@ -103,3 +103,42 @@ export function unauthorizedQuotedPrices(
     (amount) => ![...allowed].some((valid) => Math.abs(valid - amount) < 0.01),
   )
 }
+
+/**
+ * Una pregunta de precio sin producto identificado no autoriza a citar
+ * importes: el catálogo puede tener varias referencias y una cifra adivinada
+ * es peor que pedir la precisión mínima. Esta salida reemplaza únicamente una
+ * propuesta del modelo que ya intentó cotizar un valor sin verificar.
+ */
+export function replyForUnidentifiedPrice(
+  language: string | null | undefined,
+  productUrls: Array<string | null | undefined>,
+): string {
+  const storeUrl = productUrls.find((url) => {
+    if (!url) return false
+    try {
+      const parsed = new URL(url)
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+    } catch {
+      return false
+    }
+  })
+
+  let catalogUrl: string | null = null
+  if (storeUrl) {
+    try {
+      catalogUrl = new URL(storeUrl).origin
+    } catch {
+      catalogUrl = null
+    }
+  }
+
+  const lang = (language ?? 'es').toLowerCase().slice(0, 2)
+  if (lang === 'en') {
+    return `We have several models with different prices. Tell me which scratcher you mean and I’ll share the exact current price.${catalogUrl ? ` You can also browse the catalog here: ${catalogUrl}` : ''}`
+  }
+  if (lang === 'pt') {
+    return `Temos vários modelos com preços diferentes. Diga qual arranhador você quer e eu confirmo o preço atual exato.${catalogUrl ? ` Você também pode ver o catálogo aqui: ${catalogUrl}` : ''}`
+  }
+  return `Tenemos varios modelos con precios diferentes. Dime cuál rascador te interesa y te comparto el precio vigente exacto.${catalogUrl ? ` También puedes ver el catálogo aquí: ${catalogUrl}` : ''}`
+}

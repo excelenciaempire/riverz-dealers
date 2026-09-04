@@ -112,6 +112,7 @@ import {
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import {
   asksForPrice,
+  replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
   withoutHistoricalPriceLines,
 } from '@/lib/products/price-integrity';
@@ -2749,6 +2750,25 @@ async function generateReply(
     { priceQuestion: priceIntegrity.priceQuestion },
   );
   if (invalidPrices.length > 0) {
+    // La consulta sólo dijo “¿precio?” y no pudimos asociarla a un producto.
+    // No se escala por una cifra que el modelo eligió listar: se recupera con
+    // una pregunta concreta y el catálogo, sin citar ningún importe.
+    if (priceIntegrity.priceQuestion && !productMatch) {
+      return {
+        text: replyForUnidentifiedPrice(
+          agent.language,
+          products.map((product) => product.url),
+        ),
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        cacheReadTokens: result.cacheReadTokens,
+        cacheWriteTokens: result.cacheWriteTokens,
+        truncated: result.truncated,
+        keySource,
+        herramientas: result.herramientas,
+        model: opciones.model,
+      };
+    }
     throw new Error(`price_integrity: ${invalidPrices.join(',')}`);
   }
   const trimmed =

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   asksForPrice,
   authorizedPrices,
+  replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
   withoutHistoricalPriceLines,
 } from './price-integrity'
@@ -57,5 +58,12 @@ describe('integridad de precios', () => {
         'Modo de uso: dos gotas.\nPrecio: $99.900 ARS.\nApto para piel sensible.',
       ),
     ).toBe('Modo de uso: dos gotas.\nApto para piel sensible.')
+  })
+
+  it('recupera una pregunta de precio sin producto sin inventar un importe', () => {
+    const reply = replyForUnidentifiedPrice('es', ['https://rasmiaw.shop/products/bolirasmiaw'])
+    expect(reply).toContain('cuál rascador')
+    expect(reply).toContain('https://rasmiaw.shop')
+    expect(reply).not.toMatch(/\d{3,}/)
   })
 })

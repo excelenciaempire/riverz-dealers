@@ -345,6 +345,10 @@ async function mirrorReplyToCommentThread(
       last_message_text: args.preview,
       last_message_at: args.now,
       last_sender_type: 'agent',
+      // Una respuesta pública ya atendió este comentario. Sin esto el punto de
+      // no leído queda prendido aunque el hilo termine con nuestra respuesta,
+      // y la bandeja lo presenta como trabajo pendiente.
+      unread_count: 0,
       updated_at: args.now,
     })
     .eq('id', convId);
