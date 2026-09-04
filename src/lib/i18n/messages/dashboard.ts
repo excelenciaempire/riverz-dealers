@@ -25,23 +25,29 @@ export const dashboard = {
   },
 
   // Tarjetas de retorno: qué devolvió Riverz, no cuánto se movió.
-  roiRevenue: { es: "Ventas por Riverz", en: "Sales from Riverz" },
+  roiRevenue: { es: "Ingresos comprobados por Riverz", en: "Revenue proven from Riverz" },
   roiRevenueSub: {
-    es: "{orders} pedidos · {share}% de las ventas",
-    en: "{orders} orders · {share}% of sales",
+    es: "{orders} pedidos comprobados · {share}% de las ventas",
+    en: "{orders} proven orders · {share}% of sales",
   },
-  roiRevenueNone: { es: "Todavía sin ventas atribuidas", en: "No attributed sales yet" },
+  roiRevenueNone: { es: "Todavía sin ingresos comprobados", en: "No proven revenue yet" },
+  roiAssistedRevenue: { es: "Ventas influenciadas", en: "Influenced sales" },
+  roiAssistedRevenueSub: {
+    es: "{orders} pedidos tras una interacción con Riverz",
+    en: "{orders} orders after an interaction with Riverz",
+  },
+  roiAssistedRevenueNone: { es: "Todavía sin ventas influenciadas", en: "No influenced sales yet" },
 
   // La cifra, abierta: qué está probado y qué no.
   attrDetailTitle: { es: "De dónde sale esta cifra", en: "Where this number comes from" },
   attrRange: { es: "Del {desde} al {hasta}", en: "From {desde} to {hasta}" },
   attrModel: {
-    es: "La cifra suma lo que Riverz cerró y lo que ayudó a cerrar. Abajo, cada pedido con lo que pasó: entra al chat desde cualquier renglón.",
-    en: "The number adds up what Riverz closed and what it helped close. Below, every order with what happened: open the chat from any row.",
+    es: "Los ingresos comprobados tienen evidencia directa. Las ventas influenciadas se muestran aparte: Riverz habló con la persona, pero no se afirma causalidad. Abre el chat desde cualquier pedido.",
+    en: "Proven revenue has direct evidence. Influenced sales are shown separately: Riverz spoke with the person, but causality is not claimed. Open the chat from any order.",
   },
   attrTotalLine: { es: "{total} en {orders} pedidos", en: "{total} across {orders} orders" },
 
-  attrProvenTitle: { es: "Probadas", en: "Proven" },
+  attrProvenTitle: { es: "Comprobadas", en: "Proven" },
   attrProvenHelp: {
     es: "El pedido salió de un link, un pedido, un carrito o un cupón que generó Riverz. No puede ser de otro.",
     en: "The order came from a link, order, cart or coupon Riverz generated. It can't belong to anyone else.",

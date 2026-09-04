@@ -122,6 +122,7 @@ export async function POST(request: Request) {
         workspace_id: workspaceId,
         shop_domain: shopDomain,
         checkout_id: clave,
+        recovery_source: 'draft',
         customer_email: email,
         customer_phone: phone,
         customer_name: name ?? null,

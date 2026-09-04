@@ -103,6 +103,7 @@ export async function POST(request: Request) {
           workspace_id: workspaceId,
           shop_domain: shopDomain,
           checkout_id: checkoutToken,
+          recovery_source: 'checkout',
           customer_email: email,
           customer_phone: phone,
           customer_name: name ?? null,

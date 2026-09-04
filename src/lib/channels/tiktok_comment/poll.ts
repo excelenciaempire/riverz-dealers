@@ -66,7 +66,12 @@ const UNSUPPORTED_TEXT = '[unsupported]';
  */
 export async function pollAllTikTokConnections(
   opts: { deep?: boolean } = {}
-): Promise<{ total: number; ingested: number; videos: number }> {
+): Promise<{
+  total: number
+  ingested: number
+  videos: number
+  connections: Array<{ connection_id: string; ingested: number; videos: number; error?: string }>
+}> {
   const db = supabaseAdmin();
   // error/expired incluidos: getFreshTikTokToken refresca y sana la fila. Mirar
   // sólo 'connected' auto-excluía para siempre a una conexión cuyo refresco
@@ -74,12 +79,22 @@ export async function pollAllTikTokConnections(
   const conns = await listConnections(db, { channel: 'tiktok_comment' });
   let ingested = 0;
   let videos = 0;
+  const connections: Array<{
+    connection_id: string
+    ingested: number
+    videos: number
+    error?: string
+  }> = []
 
   for (const conn of conns) {
     try {
       const cfg = (conn.config ?? {}) as Record<string, unknown>;
       const businessId = String(cfg.business_id ?? '');
-      if (!businessId) continue;
+      if (!businessId) {
+        await recordPollResult(conn, { error: 'missing_config' })
+        connections.push({ connection_id: conn.id, ingested: 0, videos: 0, error: 'missing_config' })
+        continue
+      }
       const token = await getFreshTikTokToken(conn);
 
       const nuevos = await listVideos(businessId, token, Boolean(opts.deep));
@@ -103,11 +118,12 @@ export async function pollAllTikTokConnections(
         ? nuevos
         : await conVideosActivos(db, conn, nuevos);
       videos += list.length;
+      let connectionIngested = 0
       for (const video of list) {
         const videoId = String(video.item_id ?? video.video_id ?? '');
         if (!videoId) continue;
         const caption = String(video.caption ?? '').slice(0, 80);
-        ingested += await ingestVideoComments(
+        connectionIngested += await ingestVideoComments(
           db,
           conn,
           businessId,
@@ -122,11 +138,48 @@ export async function pollAllTikTokConnections(
           }
         );
       }
+      ingested += connectionIngested
+      await recordPollResult(conn, { ingested: connectionIngested, videos: list.length })
+      connections.push({ connection_id: conn.id, ingested: connectionIngested, videos: list.length })
     } catch (err) {
       console.error(`[tiktok/poll] connection ${conn.id} failed:`, err);
+      const message = err instanceof Error ? err.message : String(err)
+      await recordPollResult(conn, { error: message })
+      connections.push({ connection_id: conn.id, ingested: 0, videos: 0, error: message })
     }
   }
-  return { total: conns.length, ingested, videos };
+  return { total: conns.length, ingested, videos, connections };
+}
+
+/** Persisted telemetry separates "TikTok was quiet" from "we could not read TikTok". */
+async function recordPollResult(
+  connection: ChannelConnection,
+  result: { ingested?: number; videos?: number; error?: string },
+): Promise<void> {
+  const db = supabaseAdmin()
+  const config = (connection.config ?? {}) as Record<string, unknown>
+  const now = new Date().toISOString()
+  const telemetry = result.error
+    ? {
+        ...config,
+        last_poll_at: now,
+        last_poll_error_at: now,
+        last_poll_error: result.error.slice(0, 500),
+      }
+    : {
+        ...config,
+        last_poll_at: now,
+        last_successful_poll_at: now,
+        last_poll_ingested: result.ingested ?? 0,
+        last_poll_videos: result.videos ?? 0,
+        last_poll_error: null,
+      }
+  const patch: Record<string, unknown> = {
+    config: telemetry,
+    last_error: result.error ? `TikTok poll failed: ${result.error.slice(0, 450)}` : null,
+  }
+  if (result.error) patch.status = 'error'
+  await db.from('channel_connections').update(patch).eq('id', connection.id)
 }
 
 /** Recuperación manual de un solo comercio. Recorre el catálogo completo de

@@ -8,6 +8,10 @@ import { applyCategoryTags } from '@/lib/contacts/tags'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { withCronRun } from "@/lib/cron/heartbeat";
 import { getLogger } from '@/lib/log/logger'
+import {
+  cartRecoverySource,
+  compareCartRecoveryCandidates,
+} from '@/lib/shopify/cart-recovery'
 
 const log = getLogger('cron.shopify-cart-recovery')
 
@@ -148,19 +152,10 @@ async function cronHandler(request: Request) {
     if (flowOwnsWait.has(row.workspace_id)) return true
     const born = Date.parse(row.created_at)
     return !Number.isNaN(born) && born < twoHoursAgo
-  })
+  }).sort(compareCartRecoveryCandidates)
   if (ready.length === 0) {
     return NextResponse.json({ processed: 0 })
   }
-
-  // Dedupe by recipient WITHIN this run. Shopify mints a NEW checkout token
-  // every time the same customer re-enters checkout, so one abandoner routinely
-  // owns several open `shopify_checkouts` rows (same phone, different
-  // checkout_id). Without this, the cron claims each row and fires an identical
-  // "dejaste tu carrito" to the same person two or three times in a row. Keyed
-  // by the normalized phone; the first row wins, the siblings are claimed
-  // (so the next tick skips them) but never re-sent.
-  const dispatchedPhones = new Set<string>()
 
   let processed = 0
   let dispatched = 0
@@ -197,9 +192,36 @@ async function cronHandler(request: Request) {
       .maybeSingle()
     if (!claim) continue
 
-    // Same person, multiple open checkout tokens → send once. The row is
-    // already claimed above, so skipping here just means "no second message".
+    // Shared, atomic dedupe for checkouts AND draft orders. Unlike the former
+    // in-memory/query guards it is safe when two cron invocations overlap.
+    // The SQL function also refuses a checkout whenever a live draft exists
+    // for the same recipient, so the invoice URL wins deterministically.
     const phoneKey = (r.customer_phone || '').replace(/\D/g, '')
+
+    const activa = await hayAutomatizacionDeCarrito(admin, r.workspace_id)
+    if (!activa) {
+      await admin
+        .from('shopify_checkouts')
+        .update({ recovery_dispatched_at: null })
+        .eq('id', r.id)
+      processed++
+      continue
+    }
+
+    const { data: wonClaim, error: claimError } = await admin.rpc(
+      'claim_shopify_cart_recovery',
+      {
+        p_workspace_id: r.workspace_id,
+        p_phone: r.customer_phone,
+        p_checkout_id: r.checkout_id,
+        p_source: cartRecoverySource(r.checkout_id),
+      },
+    )
+    if (claimError) throw claimError
+    if (!wonClaim) {
+      processed++
+      continue
+    }
 
     // A quien se le rechazó el PAGO no le mandamos además "dejaste tu
     // carrito". Es la misma persona y el mismo intento de compra visto
@@ -225,33 +247,6 @@ async function cronHandler(request: Request) {
         .limit(1)
         .maybeSingle()
       if (rejected) {
-        processed++
-        continue
-      }
-    }
-
-    if (phoneKey) {
-      if (dispatchedPhones.has(phoneKey)) {
-        processed++
-        continue
-      }
-      dispatchedPhones.add(phoneKey)
-
-      // Cross-run guard: a sibling checkout for the same phone may have been
-      // recovered in a PREVIOUS tick (within the last day). If so, don't
-      // re-message — the abandoner already got the nudge.
-      const last8 = phoneKey.slice(-8)
-      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const { data: recent } = await admin
-        .from('shopify_checkouts')
-        .select('id')
-        .eq('workspace_id', r.workspace_id)
-        .neq('id', r.id)
-        .like('customer_phone', `%${last8}`)
-        .gte('recovery_dispatched_at', dayAgo)
-        .limit(1)
-        .maybeSingle()
-      if (recent) {
         processed++
         continue
       }
@@ -325,16 +320,6 @@ async function cronHandler(request: Request) {
       // arriba ya quedó puesto: si no se libera, ese carrito no se recupera
       // NUNCA, ni siquiera cuando el comercio prenda la receta más tarde.
       // Los crons de pagos y de encuesta ya liberaban; éste era la excepción.
-      const activa = await hayAutomatizacionDeCarrito(admin, r.workspace_id)
-      if (!activa) {
-        await admin
-          .from('shopify_checkouts')
-          .update({ recovery_dispatched_at: null })
-          .eq('id', r.id)
-        processed++
-        continue
-      }
-
       // La llamada de recuperación ya no sale de acá. Dependía del objetivo
       // de voz del agente, así que el teléfono sonaba sin que hubiera ningún
       // paso visible que lo ordenara: ahora se agrega un nodo «Llamar con IA»

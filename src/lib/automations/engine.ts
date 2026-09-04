@@ -308,6 +308,10 @@ export async function resumePendingExecution(pending: {
       ownerUserId,
     })
     await markPending(pending.id, 'done')
+    // A resumed wait can reach the end of a branch without writing another
+    // result. Do not leave its original `partial` log as a false incident once
+    // no pending child remains for this execution.
+    await finalizeResumedLogIfSettled(pending.log_id)
   } catch (err) {
     console.error('[automations] resume failed:', err)
     await markPending(pending.id, 'failed')
@@ -1661,6 +1665,19 @@ async function markPending(id: string, status: 'done' | 'failed') {
     .from('automation_pending_executions')
     .update({ status })
     .eq('id', id)
+}
+
+async function finalizeResumedLogIfSettled(logId: string | null): Promise<void> {
+  if (!logId) return
+  const db = supabaseAdmin()
+  const { count, error } = await db
+    .from('automation_pending_executions')
+    .select('id', { count: 'exact', head: true })
+    .eq('log_id', logId)
+    .in('status', ['pending', 'running'])
+  if (!error && (count ?? 0) === 0) {
+    await finalizeLog(logId, 'success', null)
+  }
 }
 
 // `resolveWorkspaceOwnerUserId` lives in `@/lib/workspaces/owner` so

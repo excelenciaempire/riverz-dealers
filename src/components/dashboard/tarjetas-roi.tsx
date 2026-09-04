@@ -51,28 +51,10 @@ export function TarjetasRoi({
   const cargando = atribucion === null || Boolean(atribucion.error)
   const sinTienda = atribucion?.not_connected === true
   const ventasTienda = atribucion?.totals?.revenue.current ?? 0
-  // Lo que Riverz cerró Y lo que ayudó a cerrar, en una sola cifra.
-  //
-  // El comercio instala Riverz para automatizar la atención: si le hablamos a
-  // alguien y esa persona compró, eso es retorno aunque el pedido no traiga
-  // marca nuestra. Separarlo en dos números dejaba la mitad del trabajo
-  // invisible.
-  //
-  // Lo que NO entra —y es la línea que no se cruza— es la venta donde no pasó
-  // nada: ni un mensaje, ni una conversación. Esa no la cerramos ni la
-  // ayudamos, y contarla es lo que hace que la cifra se caiga el día que el
-  // comercio la discute. El detalle sigue mostrando las dos mitades por
-  // separado, con su explicación.
+  // La cifra principal exige prueba directa. Las ventas influenciadas quedan
+  // visibles, pero separadas: una conversación previa no demuestra causalidad.
   const probadas = atribucion?.attributed
   const influidas = atribucion?.assisted
-  const porRiverz =
-    probadas || influidas
-      ? {
-          revenue: (probadas?.revenue ?? 0) + (influidas?.revenue ?? 0),
-          orders: (probadas?.orders ?? 0) + (influidas?.orders ?? 0),
-          currency: probadas?.currency || influidas?.currency,
-        }
-      : undefined
 
   const salientes = metrics.messagesSent.current
 
@@ -91,26 +73,49 @@ export function TarjetasRoi({
               : // Sin centavos: el "00" de una cifra grande no cambia
                 // ninguna decisión y le roba peso al número que importa.
                 fmt.money(
-                  porRiverz?.revenue ?? 0,
-                  porRiverz?.currency ?? atribucion?.totals?.currency,
+                  probadas?.revenue ?? 0,
+                  probadas?.currency ?? atribucion?.totals?.currency,
                 )
           }
           icon={Sparkles}
           // Se abre para ver pedido por pedido de dónde sale. Una cifra que no
           // se puede verificar no se termina de creer.
-          onClick={(porRiverz?.orders ?? 0) > 0 ? () => setDetalle(true) : undefined}
+          onClick={(probadas?.orders ?? 0) > 0 ? () => setDetalle(true) : undefined}
           subtitle={
             cargando
               ? undefined
-              : porRiverz && porRiverz.orders > 0
+              : probadas && probadas.orders > 0
                 ? t('dashboard.roiRevenueSub', {
-                    orders: porRiverz.orders,
+                    orders: probadas.orders,
                     share:
                       ventasTienda > 0
-                        ? Math.round((porRiverz.revenue / ventasTienda) * 100)
+                        ? Math.round((probadas.revenue / ventasTienda) * 100)
                         : 0,
                   })
                 : t('dashboard.roiRevenueNone')
+          }
+        />
+      )}
+
+      {!sinTienda && (
+        <MetricCard
+          title={t('dashboard.roiAssistedRevenue')}
+          value={
+            cargando
+              ? '—'
+              : fmt.money(
+                  influidas?.revenue ?? 0,
+                  influidas?.currency ?? atribucion?.totals?.currency,
+                )
+          }
+          icon={Sparkles}
+          onClick={(influidas?.orders ?? 0) > 0 ? () => setDetalle(true) : undefined}
+          subtitle={
+            cargando
+              ? undefined
+              : influidas && influidas.orders > 0
+                ? t('dashboard.roiAssistedRevenueSub', { orders: influidas.orders })
+                : t('dashboard.roiAssistedRevenueNone')
           }
         />
       )}
