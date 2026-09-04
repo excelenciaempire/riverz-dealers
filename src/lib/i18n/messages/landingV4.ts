@@ -65,7 +65,7 @@ export const landingV4 = {
   navCapabilities: { es: 'Qué hace', en: 'What it does' },
   navOperator: { es: 'Operator', en: 'Operator' },
   navChannels: { es: 'Canales', en: 'Channels' },
-  navCta: { es: 'Conectar mi tienda', en: 'Connect my store' },
+  navCta: { es: 'Solicitar acceso', en: 'Request access' },
   skipToContent: { es: 'Ir al contenido', en: 'Skip to content' },
 
   // ── Hero ──
