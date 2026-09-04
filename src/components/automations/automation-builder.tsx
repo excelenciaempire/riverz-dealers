@@ -3245,7 +3245,7 @@ function StepEditor({
               checked={Boolean(abTest)}
               onCheckedChange={(enabled) => {
                 if (!enabled) set({ ab_test: undefined })
-                else set({ ab_test: { id: `ab_${crypto.randomUUID()}`, variants: [
+                else set({ ab_test: { id: `ab_${cid()}`, variants: [
                   { id: "a", ...seedFor(String(cfg.template_name ?? "")), weight: 50 },
                   { id: "b", ...seedFor(""), weight: 50 },
                 ] } })
