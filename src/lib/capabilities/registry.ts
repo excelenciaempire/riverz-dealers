@@ -23,6 +23,7 @@ import { ORDER_CAPABILITIES } from './orders'
 import { OUTBOUND_CAPABILITIES } from './outbound'
 import { PRODUCT_CAPABILITIES } from './products'
 import { PROSPECTING_CAPABILITIES } from './prospecting'
+import { RASMIAW_CAPABILITIES } from './rasmiaw'
 import { VOICE_CAPABILITIES } from './voice'
 import { WORKSPACE_CAPABILITIES } from './workspace'
 import type { AnyCapability, Capability, CapabilitySchema } from './types'
@@ -45,6 +46,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   ...COMMENT_CAPABILITIES,
   ...VOICE_CAPABILITIES,
   ...PROSPECTING_CAPABILITIES,
+  ...RASMIAW_CAPABILITIES,
   ...INTEGRATION_CAPABILITIES,
   ...WORKSPACE_CAPABILITIES,
 ]

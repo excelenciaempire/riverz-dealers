@@ -13,7 +13,7 @@ import type { Locale } from '@/lib/i18n/config'
  * y el Operator no puedan tener criterios distintos sobre qué se puede prender.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AutomationTriggerType } from '@/types'
+import type { AutomationActivationState, AutomationTriggerType } from '@/types'
 import { loadStepsTree } from './steps-tree'
 import {
   validateStepsForActivation,
@@ -25,6 +25,36 @@ interface StepLike {
   step_type: string
   step_config: Record<string, unknown>
   branches?: { yes?: StepLike[]; no?: StepLike[] }
+}
+
+export interface AutomationReadiness {
+  state: AutomationActivationState
+  issues: ValidationIssue[]
+}
+
+/** Regla pura para pruebas y para no volver a separar toggle técnico y estado. */
+export function operationalStateFor(
+  requested: AutomationActivationState,
+  issues: ValidationIssue[],
+): AutomationActivationState {
+  if (requested === 'draft') return 'draft'
+  return issues.length === 0 ? 'active' : 'armed'
+}
+
+function issueWhatsappPayment(): ValidationIssue {
+  return {
+    path: 'whatsapp.health',
+    message: 'Meta requires a payment method before business-initiated WhatsApp messages can send',
+    key: 'automations.issueWhatsAppPagoPendiente',
+  }
+}
+
+function issueWhatsappUnavailable(): ValidationIssue {
+  return {
+    path: 'whatsapp.health',
+    message: 'WhatsApp is not ready to send business-initiated messages',
+    key: 'automations.issueWhatsAppNoDisponible',
+  }
 }
 
 /** Todo lo que impide activar esta configuración. Vacío = se puede prender. */
@@ -129,8 +159,117 @@ export async function activationIssuesById(
         key: 'automations.issuePlantillaNoAprobada',
       })
     }
+
+    // Los flujos proactivos de Rasmiaw se envían por WhatsApp. La salud de
+    // Meta es una dependencia del flujo, no sólo un detalle del canal: el
+    // código 141006 bloquea precisamente estos mensajes hasta agregar tarjeta.
+    const { data: connection } = await db
+      .from('channel_connections')
+      .select('status, health_can_send, health_blockers')
+      .eq('workspace_id', workspaceId)
+      .eq('channel', 'whatsapp')
+      .eq('status', 'connected')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const health = connection as {
+      health_can_send?: string | null
+      health_blockers?: Array<{ code?: number | null }> | null
+    } | null
+    if (!health) {
+      issues.push(issueWhatsappUnavailable())
+    } else {
+      const blockers = health.health_blockers ?? []
+      if (blockers.some((blocker) => blocker.code === 141006)) {
+        issues.push(issueWhatsappPayment())
+      } else if (String(health.health_can_send ?? '').toUpperCase() === 'BLOCKED') {
+        issues.push(issueWhatsappUnavailable())
+      }
+    }
   }
   return issues
+}
+
+function serializedIssues(issues: ValidationIssue[]) {
+  return issues.map(({ path, key, message }) => ({ path, key, message }))
+}
+
+/**
+ * Recalcula un flujo solicitado y deja `is_active` en sincronía con su estado
+ * operativo. Es la única puerta que puede encender el motor.
+ */
+export async function reconcileAutomationReadiness(
+  db: SupabaseClient,
+  automationId: string,
+  workspaceId: string,
+): Promise<AutomationReadiness> {
+  const { data: current, error: currentError } = await db
+    .from('automations')
+    .select('id, activation_state')
+    .eq('id', automationId)
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (currentError) throw new Error(currentError.message)
+  if (!current) throw new Error('esa automatización no existe en esta cuenta')
+
+  const currentState = String((current as { activation_state?: string | null }).activation_state ?? 'draft') as AutomationActivationState
+  if (currentState === 'draft') {
+    await db.from('automations').update({ is_active: false, activation_blockers: [] }).eq('id', automationId)
+    return { state: 'draft', issues: [] }
+  }
+
+  const issues = await activationIssuesById(db, automationId, workspaceId)
+  const state = operationalStateFor(currentState, issues)
+  const { error } = await db
+    .from('automations')
+    .update({
+      activation_state: state,
+      is_active: state === 'active',
+      activation_blockers: serializedIssues(issues),
+    })
+    .eq('id', automationId)
+    .eq('workspace_id', workspaceId)
+  if (error) throw new Error(error.message)
+  return { state, issues }
+}
+
+/** Arma un flujo sin enviar nada; si ya está listo, queda activo de inmediato. */
+export async function armAutomation(
+  db: SupabaseClient,
+  automationId: string,
+  workspaceId: string,
+): Promise<AutomationReadiness> {
+  const { error } = await db
+    .from('automations')
+    .update({
+      activation_state: 'armed',
+      is_active: false,
+      activation_requested_at: new Date().toISOString(),
+    })
+    .eq('id', automationId)
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
+  if (error) throw new Error(error.message)
+  return reconcileAutomationReadiness(db, automationId, workspaceId)
+}
+
+/** Revisa todos los flujos solicitados de una cuenta después de un cambio Meta. */
+export async function reconcileWorkspaceAutomationReadiness(
+  db: SupabaseClient,
+  workspaceId: string,
+): Promise<Array<{ id: string; state: AutomationActivationState; issues: ValidationIssue[] }>> {
+  const { data, error } = await db
+    .from('automations')
+    .select('id, activation_state')
+    .eq('workspace_id', workspaceId)
+    .is('deleted_at', null)
+    .in('activation_state', ['armed', 'active'])
+  if (error) throw new Error(error.message)
+  return Promise.all((data ?? []).map(async (automation) => ({
+    id: String(automation.id),
+    ...(await reconcileAutomationReadiness(db, String(automation.id), workspaceId)),
+  })))
 }
 
 /** Como la anterior, pero corta con un mensaje legible en vez de devolver la lista. */

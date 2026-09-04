@@ -789,6 +789,11 @@ export type AutomationStepType =
   | 'voice_call';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
+/**
+ * Estado operativo. `is_active` queda como la compuerta física del motor:
+ * sólo es true cuando el estado es `active`.
+ */
+export type AutomationActivationState = 'draft' | 'armed' | 'active';
 
 export interface KeywordMatchTriggerConfig {
   keywords: string[];
@@ -1002,6 +1007,9 @@ export interface Automation {
   /** Optional saved segment that scopes which contacts the trigger fires for. */
   audience_segment_id?: string | null;
   is_active: boolean;
+  activation_state?: AutomationActivationState;
+  activation_blockers?: Array<{ path: string; key?: string; message: string }>;
+  activation_requested_at?: string | null;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;

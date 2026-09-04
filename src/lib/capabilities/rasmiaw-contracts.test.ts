@@ -12,4 +12,10 @@ describe('contratos seguros del Operador', () => {
     expect(esInerte(getCapability('plantillas.enviar_lote_a_meta'), {})).toBe(false)
     expect(esInerte(getCapability('automatizaciones.activar_lote'), {})).toBe(false)
   })
+
+  it('arma la operación de Rasmiaw sin abrir el motor', () => {
+    expect(esInerte(getCapability('rasmiaw.armar_operacion_rasmiaw'), {})).toBe(true)
+    expect(esInerte(getCapability('rasmiaw.armar_grupo_de_automatizaciones'), {})).toBe(true)
+    expect(esInerte(getCapability('rasmiaw.verificar_preparacion_cuenta'), {})).toBe(true)
+  })
 })

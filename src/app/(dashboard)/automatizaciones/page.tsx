@@ -144,24 +144,23 @@ export default function AutomationsPage() {
   }, [workspace?.id])
 
   async function toggleActive(a: Automation, next: boolean) {
-    // Optimistic flip so the switch feels instant.
-    setAutomations((prev) =>
-      prev?.map((x) => (x.id === a.id ? { ...x, is_active: next } : x)) ?? prev,
-    )
     const res = await fetchWithCsrf(`/api/automations/${a.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ is_active: next }),
     })
     if (!res.ok) {
-      setAutomations((prev) =>
-        prev?.map((x) => (x.id === a.id ? { ...x, is_active: !next } : x)) ?? prev,
-      )
       const body = await res.json().catch(() => ({}))
       toast.error(body?.error ?? t("automations.updateFailed"))
       return
     }
-    toast.success(next ? t("automations.toastActivated") : t("automations.toastPaused"))
+    const body = await res.json().catch(() => ({}))
+    if (workspace?.id) await load(workspace.id)
+    toast.success(
+      next && body?.readiness?.activation_state === 'armed'
+        ? t('automations.armedWaitingMeta')
+        : next ? t("automations.toastActivated") : t("automations.toastPaused"),
+    )
   }
 
   async function duplicate(a: Automation) {
@@ -454,6 +453,15 @@ function AutomationCard({
   onDelete: () => void
 }) {
   const t = useT()
+  const blockers = automation.activation_blockers ?? []
+  const isArmed = automation.activation_state === 'armed'
+  const stateLabel = automation.is_active
+    ? t('automations.active')
+    : isArmed && blockers.some((b) => b.key === 'automations.issueMercadoPagoPendiente')
+      ? t('automations.pendingMercadoPago')
+      : isArmed && blockers.some((b) => b.key === 'automations.issuePlantillaNoAprobada')
+        ? t('automations.pendingTemplate')
+        : isArmed ? t('automations.armedWaitingMeta') : t('automations.paused')
   return (
     <li className="group relative flex h-full flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30">
       <div className="flex items-start justify-between gap-3">
@@ -480,9 +488,9 @@ function AutomationCard({
 
         <div className="flex shrink-0 items-center gap-1">
           <Switch
-            checked={automation.is_active}
+            checked={automation.is_active || isArmed}
             onCheckedChange={(v) => onToggle(!!v)}
-            aria-label={automation.is_active ? t("automations.deactivate") : t("automations.activate")}
+            aria-label={automation.is_active || isArmed ? t("automations.deactivate") : t("automations.activate")}
           />
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -509,6 +517,13 @@ function AutomationCard({
           </DropdownMenu>
         </div>
       </div>
+
+      <p className={cn(
+        'mt-2 text-xs',
+        automation.is_active ? 'text-emerald-700 dark:text-emerald-300' : isArmed ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
+      )}>
+        {stateLabel}
+      </p>
 
       {/* Footer: compact run summary (data, not redundant text) + a visible
           shortcut to the run history. */}

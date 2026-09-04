@@ -24,6 +24,7 @@ import { RunJourney } from '@/components/automations/run-journey';
 import { cn } from '@/lib/utils';
 import { useT } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 
 /**
  * Detail / visualizador de data de una automatización.
@@ -178,6 +179,7 @@ export default function AutomationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useLocalizedRouter();
   const t = useT();
+  const fetchWithCsrf = useFetchWithCsrf();
   const automationId = params.id;
 
   const [automation, setAutomation] = useState<Automation | null>(null);
@@ -266,17 +268,27 @@ export default function AutomationDetailPage() {
     if (!automation) return;
     setToggling(true);
     try {
-      const supabase = createClient();
-      const { error: err } = await supabase
-        .from('automations')
-        .update({ is_active: !automation.is_active })
-        .eq('id', automation.id);
-      if (err) throw err;
-      setAutomation({ ...automation, is_active: !automation.is_active });
+      const wantsEnabled = !(automation.is_active || automation.activation_state === 'armed');
+      const res = await fetchWithCsrf(`/api/automations/${automation.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ is_active: wantsEnabled }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? 'update failed');
+      const readiness = body?.readiness;
+      setAutomation({
+        ...automation,
+        is_active: readiness ? readiness.is_active : false,
+        activation_state: readiness ? readiness.activation_state : 'draft',
+        activation_blockers: readiness ? readiness.activation_blockers : [],
+      });
       toast.success(
-        automation.is_active
+        !wantsEnabled
           ? t('automations.automationPaused')
-          : t('automations.automationActivated'),
+          : readiness?.activation_state === 'armed'
+            ? t('automations.armedWaitingMeta')
+            : t('automations.automationActivated'),
       );
     } catch (err) {
       toast.error(t('automations.updateFailed'));
@@ -307,6 +319,15 @@ export default function AutomationDetailPage() {
   }
 
   const lastRun = logs[0]?.created_at;
+  const isArmed = automation.activation_state === 'armed';
+  const blockers = automation.activation_blockers ?? [];
+  const stateLabel = automation.is_active
+    ? t('automations.active')
+    : isArmed && blockers.some((b) => b.key === 'automations.issueMercadoPagoPendiente')
+      ? t('automations.pendingMercadoPago')
+      : isArmed && blockers.some((b) => b.key === 'automations.issuePlantillaNoAprobada')
+        ? t('automations.pendingTemplate')
+        : isArmed ? t('automations.armedWaitingMeta') : t('automations.paused');
 
   return (
     <div className="space-y-5">
@@ -335,7 +356,7 @@ export default function AutomationDetailPage() {
                     : 'border-border bg-muted text-muted-foreground',
                 )}
               >
-                {automation.is_active ? t('automations.active') : t('automations.paused')}
+                {stateLabel}
               </span>
             </div>
             {automation.description && (
@@ -350,16 +371,14 @@ export default function AutomationDetailPage() {
               pausar se vea y se entienda igual en los dos lugares. */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
-              {automation.is_active
-                ? t('automations.active')
-                : t('automations.paused')}
+              {stateLabel}
             </span>
             <Switch
-              checked={automation.is_active}
+              checked={automation.is_active || isArmed}
               onCheckedChange={handleToggle}
               disabled={toggling}
               aria-label={
-                automation.is_active
+                automation.is_active || isArmed
                   ? t('automations.deactivate')
                   : t('automations.activate')
               }

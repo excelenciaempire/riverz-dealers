@@ -108,6 +108,39 @@ async function activarLote(ctx: CapabilityContext, args: Record<string, unknown>
   return { activadas: data ?? [], total: ids.length }
 }
 
+/** Solicita un grupo sin abrir el motor: seguro para aprovisionar una cuenta. */
+async function armarLote(ctx: CapabilityContext, args: Record<string, unknown>) {
+  const ids = Array.isArray(args.automation_ids)
+    ? [...new Set(args.automation_ids.map((id) => String(id)).filter(Boolean))]
+    : []
+  if (!ids.length) throw new Error('Elige al menos una automatización para armar.')
+
+  const armadas = await Promise.all(ids.map(async (id) => {
+    const { data, error } = await ctx.db
+      .from('automations')
+      .update({
+        activation_state: 'armed',
+        activation_requested_at: new Date().toISOString(),
+        is_active: false,
+      })
+      .eq('id', id)
+      .eq('workspace_id', ctx.workspaceId)
+      .is('deleted_at', null)
+      .select('id, name')
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error('Una automatización ya no existe en esta cuenta.')
+    const issues = await activationIssuesById(ctx.db, id, ctx.workspaceId)
+    const { error: blockersError } = await ctx.db
+      .from('automations')
+      .update({ activation_blockers: issues.map(({ path, key, message }) => ({ path, key, message })) })
+      .eq('id', id)
+    if (blockersError) throw new Error(blockersError.message)
+    return { ...data, state: 'armed' as const, issues }
+  }))
+  return { armadas, total: armadas.length }
+}
+
 async function editarEspera(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { data: paso } = await ctx.db
     .from('automation_steps')
@@ -954,6 +987,28 @@ export const AUTOMATION_CAPABILITIES: Capability[] = [
     },
     artifact: (ctx) => vistaActivar(ctx, { activa: true }),
     run: activarLote,
+  },
+
+  {
+    key: 'automatizaciones.armar_grupo',
+    description:
+      'Deja varias automatizaciones armadas y apagadas hasta que sus dependencias externas estén listas. No envía mensajes ni activa el motor.',
+    descriptionEn:
+      'Arms several automations while keeping the engine off until external dependencies are ready. It does not send messages or activate the engine.',
+    risk: 'reversible',
+    inerte: () => true,
+    schema: {
+      type: 'object',
+      properties: { automation_ids: { type: 'array', items: { type: 'string' } } },
+      required: ['automation_ids'],
+    },
+    async preview(ctx, args) {
+      const ids = Array.isArray(args.automation_ids) ? args.automation_ids.map(String).filter(Boolean) : []
+      const nombres = await Promise.all(ids.map((id) => nombreDe(ctx, id)))
+      return `Armaría ${nombres.length} automatizaciones sin enviar mensajes: ${nombres.join(', ')}.`
+    },
+    run: armarLote,
+    artifact: (ctx) => vistaActivar(ctx, { activa: false }),
   },
 
   {

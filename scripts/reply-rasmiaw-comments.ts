@@ -138,6 +138,7 @@ async function main() {
       'comment_sin_llave',
       'comment_precio_no_verificado',
       'comment_precio_no_autorizado',
+      'comment_prometia_averiguar',
     ].includes(result)
     if (!canUseSafeFallback) {
       skipped[result] = (skipped[result] ?? 0) + 1

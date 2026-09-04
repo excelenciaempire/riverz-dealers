@@ -1046,15 +1046,21 @@ async function decidirComentario(
   // no pudimos identificar el producto del post, una persona lo revisa: una
   // respuesta tardía se corrige; un precio equivocado queda publicado.
   if (priceQuestion && (!product || !product.pricingVerified)) {
-    await marcarParaUnaPersona(
-      db,
-      opts.workspaceId,
-      commentChannel,
-      opts.contact.id,
-      engagement,
-      'answer_gap',
-      `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`,
-    );
+    // En una revisión histórica se publica una orientación segura después de
+    // este retorno. No hay un dato comercial que revisar ni un caso privado:
+    // convertirlo en "Revisar ya" sería una escalación falsa y, peor, abriría
+    // un DM que ese modo prometió no abrir.
+    if (!opts.publicOnly) {
+      await marcarParaUnaPersona(
+        db,
+        opts.workspaceId,
+        commentChannel,
+        opts.contact.id,
+        engagement,
+        'answer_gap',
+        `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`,
+      );
+    }
     return 'comment_precio_no_verificado';
   }
 
@@ -1153,15 +1159,17 @@ async function decidirComentario(
   );
   if (invalidPrices.length > 0) {
     console.warn('[ig-agent] respuesta descartada por precio no autorizado:', invalidPrices);
-    await marcarParaUnaPersona(
-      db,
-      opts.workspaceId,
-      commentChannel,
-      opts.contact.id,
-      engagement,
-      'answer_gap',
-      `La IA intentó publicar un precio no verificado (${invalidPrices.join(', ')}).`,
-    );
+    if (!opts.publicOnly) {
+      await marcarParaUnaPersona(
+        db,
+        opts.workspaceId,
+        commentChannel,
+        opts.contact.id,
+        engagement,
+        'answer_gap',
+        `La IA intentó publicar un precio no verificado (${invalidPrices.join(', ')}).`,
+      );
+    }
     return 'comment_precio_no_autorizado';
   }
 
@@ -1188,13 +1196,15 @@ async function decidirComentario(
       '[ig-agent] respuesta descartada, prometía averiguar y volver:',
       text.slice(0, 160),
     );
-    await marcarParaUnaPersona(
-      db,
-      opts.workspaceId,
-      commentChannel,
-      opts.contact.id,
-      engagement,
-    );
+    if (!opts.publicOnly) {
+      await marcarParaUnaPersona(
+        db,
+        opts.workspaceId,
+        commentChannel,
+        opts.contact.id,
+        engagement,
+      );
+    }
     return 'comment_prometia_averiguar';
   }
 

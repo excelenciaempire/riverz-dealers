@@ -10,7 +10,7 @@ import {
   type BuilderStepInput,
 } from '@/lib/automations/steps-tree'
 import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
-import { activationIssues } from '@/lib/automations/activation'
+import { armAutomation } from '@/lib/automations/activation'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
@@ -126,11 +126,12 @@ export async function PATCH(
     id,
     user.id,
     locale,
-    'id, user_id, workspace_id, is_active, trigger_type, trigger_config',
+    'id, user_id, workspace_id, is_active, activation_state, trigger_type, trigger_config',
   )
   if (!loaded.ok) return loaded.response
   const existing = loaded.automation as {
     is_active: boolean
+    activation_state?: 'draft' | 'armed' | 'active'
     trigger_type: string
     trigger_config: unknown
     workspace_id: string
@@ -148,35 +149,17 @@ export async function PATCH(
     if (k in body) update[k] = body[k]
   }
 
-  // If this PATCH leaves the automation active (either explicitly
-  // activating it OR editing an already-active one), validate the
-  // merged configuration first. Activation is the natural gate — drafts
-  // are still allowed to be incomplete.
-  const willBeActive =
-    typeof update.is_active === 'boolean' ? update.is_active : existing.is_active
-  if (willBeActive) {
-    const mergedTriggerType = (update.trigger_type ?? existing.trigger_type) as string
-    const mergedTriggerConfig = update.trigger_config ?? existing.trigger_config
-    const mergedSteps = Array.isArray(body.steps)
-      ? (body.steps as { step_type: string; step_config: Record<string, unknown> }[])
-      : await loadStepsTree(id)
-    // Por `activationIssues` y no por los dos validadores sueltos: es la misma
-    // puerta que cruzan el MCP y el Operator cuando prenden una automatización
-    // sin pasar por esta pantalla.
-    const issues = activationIssues({
-      triggerType: mergedTriggerType,
-      triggerConfig: mergedTriggerConfig,
-      steps: mergedSteps,
-    })
-    if (issues.length > 0) {
-      return NextResponse.json(
-        {
-          error: translate(locale, 'errFlows.automationCannotKeepActiveInvalid'),
-          issues,
-        },
-        { status: 400 },
-      )
-    }
+  const requestedState = existing.activation_state ?? (existing.is_active ? 'active' : 'draft')
+  const shouldRemainRequested =
+    update.is_active === true ||
+    (update.is_active !== false && (requestedState === 'armed' || requestedState === 'active'))
+
+  // Desactiva el motor antes de cambiar un flujo ya solicitado. Así ni siquiera
+  // una carrera breve puede ejecutar pasos con una plantilla recién cambiada.
+  if (shouldRemainRequested) update.is_active = false
+  if (update.is_active === false) {
+    update.activation_state = 'draft'
+    update.activation_blockers = []
   }
 
   if (Object.keys(update).length > 0) {
@@ -193,6 +176,21 @@ export async function PATCH(
       await resolverEtiquetas(admin, existing.workspace_id, body.steps as BuilderStepInput[]),
     )
     if (err) return serverError(err)
+  }
+
+  if (shouldRemainRequested) {
+    // Una solicitud de activación queda armada si Meta o una integración no
+    // están listas. La misma función revisa plantillas, WhatsApp y Mercado
+    // Pago para UI, Operador y motor.
+    const readiness = await armAutomation(admin, id, existing.workspace_id)
+    return NextResponse.json({
+      ok: true,
+      readiness: {
+        activation_state: readiness.state,
+        activation_blockers: readiness.issues,
+        is_active: readiness.state === 'active',
+      },
+    })
   }
 
   return NextResponse.json({ ok: true })

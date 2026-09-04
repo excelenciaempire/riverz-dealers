@@ -188,6 +188,15 @@ export async function persistWhatsAppHealthSnapshot(
       patch.quality_rating = qualityRating;
     }
     await db.from("channel_connections").update(patch).eq("id", connectionId);
+    const { data: connection } = await db
+      .from("channel_connections")
+      .select("workspace_id")
+      .eq("id", connectionId)
+      .maybeSingle();
+    if (connection?.workspace_id) {
+      const { reconcileWorkspaceAutomationReadiness } = await import('@/lib/automations/activation');
+      await reconcileWorkspaceAutomationReadiness(db, connection.workspace_id);
+    }
   } catch (err) {
     console.warn("[whatsapp] persist health snapshot failed:", err);
   }

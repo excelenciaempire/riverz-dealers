@@ -10,10 +10,7 @@ import {
 } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
 import { resolverEtiquetas } from '@/lib/automations/resolve-tag-seeds'
-import {
-  validateStepsForActivation,
-  validateTriggerForActivation,
-} from '@/lib/automations/validate'
+import { armAutomation } from '@/lib/automations/activation'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
@@ -121,28 +118,6 @@ export async function POST(request: Request) {
     )
   }
 
-  // Block activation of a clearly broken automation up-front instead of
-  // letting every trigger silently produce a failed log row. Drafts
-  // (is_active=false) are allowed to be incomplete so users can save
-  // progress mid-build.
-  if (is_active) {
-    const issues = [
-      ...validateTriggerForActivation(effectiveTriggerType, effectiveTriggerConfig ?? {}),
-      ...validateStepsForActivation(
-        (effectiveSteps ?? []) as unknown as { step_type: string; step_config: Record<string, unknown> }[],
-      ),
-    ]
-    if (issues.length > 0) {
-      return NextResponse.json(
-        {
-          error: translate(locale, 'errFlows.automationCannotActivateInvalid'),
-          issues,
-        },
-        { status: 400 },
-      )
-    }
-  }
-
   const admin = supabaseAdmin()
 
   // Resolve the workspace this automation belongs to. The engine
@@ -185,7 +160,10 @@ export async function POST(request: Request) {
       trigger_type: effectiveTriggerType,
       trigger_config: effectiveTriggerConfig ?? {},
       audience_segment_id: audience_segment_id ?? null,
-      is_active: !!is_active,
+      // Se crea apagada primero. Las dependencias que necesitan consultar Meta
+      // sólo existen después de insertar sus pasos.
+      is_active: false,
+      activation_state: is_active ? 'armed' : 'draft',
     })
     .select()
     .single()
@@ -200,6 +178,18 @@ export async function POST(request: Request) {
       await resolverEtiquetas(admin, resolvedWorkspaceId, effectiveSteps),
     )
     if (err) return serverError(err)
+  }
+
+  if (is_active) {
+    const readiness = await armAutomation(admin, automation.id, resolvedWorkspaceId)
+    return NextResponse.json({
+      automation: {
+        ...automation,
+        activation_state: readiness.state,
+        activation_blockers: readiness.issues,
+        is_active: readiness.state === 'active',
+      },
+    }, { status: 201 })
   }
 
   return NextResponse.json({ automation }, { status: 201 })
