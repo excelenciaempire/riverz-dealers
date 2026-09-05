@@ -62,10 +62,7 @@ interface AgenteVoz {
  * activada). Que sea la misma función importa: si acá eligiéramos por otro
  * criterio, la misma cuenta atendería con una voz y llamaría con otra.
  */
-async function resolverAgente(
-  ctx: CapabilityContext,
-  args: Record<string, unknown>,
-): Promise<AgenteVoz> {
+async function resolverAgente(ctx: CapabilityContext, args: Record<string, unknown>): Promise<AgenteVoz> {
   const pedido = typeof args.agente_id === 'string' ? args.agente_id.trim() : ''
   if (pedido) {
     const { data } = await ctx.db
@@ -92,9 +89,7 @@ async function resolverAgente(
 
   const elegido = await pickVoiceAgent(ctx.db, ctx.workspaceId)
   if (!elegido) {
-    throw new Error(
-      'No hay ningún agente con voz activada en esta cuenta: no se puede llamar.',
-    )
+    throw new Error('No hay ningún agente con voz activada en esta cuenta: no se puede llamar.')
   }
   return {
     id: elegido.id,
@@ -134,7 +129,7 @@ async function listar(ctx: CapabilityContext, args: Record<string, unknown>) {
   const { data, error } = await ctx.db
     .from('voice_calls')
     .select(
-      `id, direction, call_type, phone, scheduled_at, summary, attempt, max_attempts, error, ${VOICE_STATS_COLUMNS}, contacto:contacts(name), agente:ai_agents(name)`,
+      `id, direction, call_type, phone, scheduled_at, summary, attempt, max_attempts, error, ${VOICE_STATS_COLUMNS}, contacto:contacts(name), agente:ai_agents(name)`
     )
     .eq('workspace_id', ctx.workspaceId)
     .gte('created_at', since(dias))
@@ -203,9 +198,7 @@ interface FilaCampana {
 async function campanas(ctx: CapabilityContext) {
   const { data, error } = await ctx.db
     .from('voice_campaigns')
-    .select(
-      'id, name, status, call_type, objective, agent_id, segment_id, stats, created_at, updated_at',
-    )
+    .select('id, name, status, call_type, objective, agent_id, segment_id, stats, created_at, updated_at')
     .eq('workspace_id', ctx.workspaceId)
     .order('created_at', { ascending: false })
     .limit(50)
@@ -223,17 +216,15 @@ async function campanas(ctx: CapabilityContext) {
       .select('id, name')
       .eq('workspace_id', ctx.workspaceId)
       .in('id', limpios)
-    return new Map(
-      ((rows ?? []) as { id: string; name: string }[]).map((r) => [r.id, r.name]),
-    )
+    return new Map(((rows ?? []) as { id: string; name: string }[]).map((r) => [r.id, r.name]))
   }
   const agentes = await nombres(
     'ai_agents',
-    filas.map((c) => c.agent_id),
+    filas.map((c) => c.agent_id)
   )
   const segmentos = await nombres(
     'contact_segments',
-    filas.map((c) => c.segment_id ?? ''),
+    filas.map((c) => c.segment_id ?? '')
   )
 
   return {
@@ -277,6 +268,7 @@ async function llamar(ctx: CapabilityContext, args: Record<string, unknown>) {
     // llamada pedida por el chat no la puede saltar.
     context: objetivo ? { objective_override: objetivo } : {},
     origin: 'operator',
+    recordSkip: true,
   })
   if (!res.enqueued) throw new Error(`No se encoló la llamada. ${motivo(res.reason)}`)
 
@@ -303,7 +295,7 @@ async function detalleLlamada(ctx: CapabilityContext, args: Record<string, unkno
   const { data } = await ctx.db
     .from('voice_calls')
     .select(
-      'id, direction, call_type, phone, language, status, outcome, outcome_details, summary, context, scheduled_at, started_at, answered_at, ended_at, duration_seconds, cost, recording_url, error, attempt, max_attempts, city, upsell_amount, conversation_id, contacts(name), ai_agents(name)',
+      'id, direction, call_type, phone, language, status, outcome, outcome_details, summary, context, scheduled_at, started_at, answered_at, ended_at, duration_seconds, cost, recording_url, error, attempt, max_attempts, city, upsell_amount, conversation_id, contacts(name), ai_agents(name)'
     )
     .eq('workspace_id', ctx.workspaceId)
     .eq('id', id)
@@ -370,7 +362,6 @@ async function detalleLlamada(ctx: CapabilityContext, args: Record<string, unkno
   }
 }
 
-
 /**
  * Las llamadas, dibujadas.
  *
@@ -395,7 +386,11 @@ function vistaLlamadas(ctx: CapabilityContext, r: unknown): Artefacto {
       { clave: 'cuando', titulo: tt(ctx, 'operation.vColCuando') },
       { clave: 'resultado', titulo: tt(ctx, 'operation.vColResultado') },
       { clave: 'resumen', titulo: tt(ctx, 'operation.vColResumen') },
-      { clave: 'duracion', titulo: tt(ctx, 'operation.vColDuracion'), alineado: 'der' },
+      {
+        clave: 'duracion',
+        titulo: tt(ctx, 'operation.vColDuracion'),
+        alineado: 'der',
+      },
     ],
     filas: filas.map((c) => ({
       quien: corto(c.contacto ?? c.telefono, 22),
@@ -408,10 +403,7 @@ function vistaLlamadas(ctx: CapabilityContext, r: unknown): Artefacto {
   })
 }
 
-function vistaLlamada(
-  ctx: CapabilityContext,
-  r: Awaited<ReturnType<typeof detalleLlamada>>,
-): Artefacto | null {
+function vistaLlamada(ctx: CapabilityContext, r: Awaited<ReturnType<typeof detalleLlamada>>): Artefacto | null {
   if (!tieneCampos(r, 'llamada_id')) return null
   const t = (k: string) => tt(ctx, `operation.${k}`)
   return ficha({
@@ -419,7 +411,10 @@ function vistaLlamada(
     subtitulo: [r.agente, r.tipo].filter(Boolean).map(String).join(' · ') || undefined,
     chips: [r.estado, r.resultado].filter(Boolean).map(String),
     campos: [
-      { etiqueta: t('vColCuando'), valor: r.empezo ? fecha(ctx, r.empezo) : '' },
+      {
+        etiqueta: t('vColCuando'),
+        valor: r.empezo ? fecha(ctx, r.empezo) : '',
+      },
       {
         etiqueta: t('vColDuracion'),
         valor: r.duracion_segundos != null ? segundos(r.duracion_segundos) : '',
@@ -427,7 +422,10 @@ function vistaLlamada(
       { etiqueta: t('vColResumen'), valor: corto(r.resumen, 240) },
       { etiqueta: t('vColMotivo'), valor: corto(r.error, 120) },
       // La grabación es lo único que zanja una discusión sobre qué se dijo.
-      { etiqueta: t('vColGrabacion'), valor: r.grabacion ? String(r.grabacion) : '' },
+      {
+        etiqueta: t('vColGrabacion'),
+        valor: r.grabacion ? String(r.grabacion) : '',
+      },
     ],
   })
 }
@@ -459,8 +457,16 @@ function vistaCampanasVoz(ctx: CapabilityContext, r: unknown): Artefacto {
     columnas: [
       { clave: 'nombre', titulo: tt(ctx, 'operation.vColCampana') },
       { clave: 'estado', titulo: tt(ctx, 'operation.vColEstado') },
-      { clave: 'llamadas', titulo: tt(ctx, 'operation.vColLlamadas'), alineado: 'der' },
-      { clave: 'faltan', titulo: tt(ctx, 'operation.vColFaltan'), alineado: 'der' },
+      {
+        clave: 'llamadas',
+        titulo: tt(ctx, 'operation.vColLlamadas'),
+        alineado: 'der',
+      },
+      {
+        clave: 'faltan',
+        titulo: tt(ctx, 'operation.vColFaltan'),
+        alineado: 'der',
+      },
     ],
     filas: filas.map((c) => ({
       nombre: corto(c.nombre ?? c.name, 28),
@@ -499,7 +505,10 @@ export const VOICE_CAPABILITIES: Capability[] = [
     schema: {
       type: 'object',
       properties: {
-        llamada_id: { type: 'string', description: 'El id que devuelve voz.listar.' },
+        llamada_id: {
+          type: 'string',
+          description: 'El id que devuelve voz.listar.',
+        },
       },
       required: ['llamada_id'],
     },
@@ -516,7 +525,10 @@ export const VOICE_CAPABILITIES: Capability[] = [
     schema: {
       type: 'object',
       properties: {
-        dias: { type: 'number', description: 'Ventana hacia atrás. Por defecto 7, máximo 90.' },
+        dias: {
+          type: 'number',
+          description: 'Ventana hacia atrás. Por defecto 7, máximo 90.',
+        },
         limite: {
           type: 'number',
           description: `Cuántas llamadas devolver. Por defecto 50, máximo ${TOPE_LISTADO}.`,
@@ -549,7 +561,10 @@ export const VOICE_CAPABILITIES: Capability[] = [
     schema: {
       type: 'object',
       properties: {
-        contacto_id: { type: 'string', description: 'Id del contacto al que llamar.' },
+        contacto_id: {
+          type: 'string',
+          description: 'Id del contacto al que llamar.',
+        },
         agente_id: {
           type: 'string',
           description: 'Con qué agente. Por defecto, el de voz de mayor prioridad.',
@@ -589,10 +604,7 @@ export const VOICE_CAPABILITIES: Capability[] = [
       if (contacto.voice_opt_out) {
         throw new Error(`${quien} pidió no recibir llamadas.`)
       }
-      const telefono =
-        (typeof args.telefono === 'string' ? args.telefono.trim() : '') ||
-        contacto.phone?.trim() ||
-        ''
+      const telefono = (typeof args.telefono === 'string' ? args.telefono.trim() : '') || contacto.phone?.trim() || ''
       if (!telefono) throw new Error(`${quien} no tiene teléfono cargado.`)
 
       // Si falta el agente o no tiene voz, decirlo ACÁ evita que alguien

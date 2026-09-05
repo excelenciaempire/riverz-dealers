@@ -48,10 +48,7 @@ export async function POST(request: Request) {
     conversation_id?: string;
   } | null;
   if (!body?.workspace_id || !body.contact_id) {
-    return NextResponse.json(
-      { error: 'workspace_id and contact_id required' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'workspace_id and contact_id required' }, { status: 400 });
   }
   if (!(await requireMember(user.id, body.workspace_id))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
@@ -78,14 +75,12 @@ export async function POST(request: Request) {
       context: body.objective ? { objective_override: body.objective } : {},
       origin: 'manual',
       sourceConversationId: body.conversation_id,
+      recordSkip: true,
     });
     if (!result.enqueued) {
       return NextResponse.json({ error: result.reason }, { status: 409 });
     }
-    return NextResponse.json(
-      { ok: true, call_id: result.callId, scheduled_at: result.scheduledAt },
-      { status: 201 },
-    );
+    return NextResponse.json({ ok: true, call_id: result.callId, scheduled_at: result.scheduledAt }, { status: 201 });
   } catch (err) {
     return serverError(err, 'enqueue call failed');
   }
@@ -151,7 +146,10 @@ export async function GET(request: Request) {
   // recorta el embed, no las llamadas.
   // `or()` de PostgREST separa condiciones por coma y agrupa con paréntesis:
   // esos caracteres (y las comillas) se sacan del término antes de armarlo.
-  const q = url.searchParams.get('q')?.replace(/[(),"']/g, ' ').trim();
+  const q = url.searchParams
+    .get('q')
+    ?.replace(/[(),"']/g, ' ')
+    .trim();
   if (q) {
     const like = `%${escapeLike(q)}%`;
     const { data: matches } = await admin
@@ -161,9 +159,7 @@ export async function GET(request: Request) {
       .or(`name.ilike.${like},phone.ilike.${like}`)
       .limit(1000);
     const ids = (matches ?? []).map((c: { id: string }) => c.id);
-    query = ids.length
-      ? query.or(`phone.ilike.${like},contact_id.in.(${ids.join(',')})`)
-      : query.ilike('phone', like);
+    query = ids.length ? query.or(`phone.ilike.${like},contact_id.in.(${ids.join(',')})`) : query.ilike('phone', like);
   }
 
   const { data, error, count } = await query

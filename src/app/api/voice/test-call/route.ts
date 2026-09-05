@@ -107,6 +107,7 @@ export async function POST(request: Request) {
         ? { objective_override: body.objective.trim(), test_call: true }
         : { test_call: true },
       origin: 'test',
+      recordSkip: true,
     });
     if (!result.enqueued) {
       return NextResponse.json({ error: result.reason }, { status: 409 });

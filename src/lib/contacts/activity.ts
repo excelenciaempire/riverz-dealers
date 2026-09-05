@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { VoiceCallDirection, VoiceCallOutcome, VoiceCallStatus, VoiceCallType } from '@/types'
 
 /**
  * Unified per-contact activity timeline. Aggregates every per-contact,
  * timestamped event across the schema (orders, abandoned carts, messages,
- * broadcasts, automations, tags, notes, flows) into one chronological list.
+ * broadcasts, automations, calls, tags, notes, flows) into one chronological list.
  *
  * Robustness: every source uses `select('*')` (so a column-name drift can't
  * error) and is wrapped so one failing source never blanks the whole
@@ -25,6 +26,21 @@ export type ContactActivityKind =
   | 'tag'
   | 'note'
   | 'flow'
+  | 'voice_call'
+
+export interface ContactVoiceActivity {
+  callId: string
+  agentName: string
+  direction: VoiceCallDirection
+  callType: VoiceCallType
+  status: VoiceCallStatus
+  outcome: VoiceCallOutcome | null
+  durationSeconds: number | null
+  summary: string
+  error: string
+  attempt: number
+  maxAttempts: number
+}
 
 export interface ContactActivityEvent {
   id: string
@@ -35,6 +51,8 @@ export interface ContactActivityEvent {
   detail: string
   /** Optional status chip (order status, broadcast/automation outcome). */
   status?: string | null
+  /** Present only for phone calls. Opens the canonical call detail. */
+  voice?: ContactVoiceActivity
 }
 
 type Row = Record<string, unknown>
@@ -52,11 +70,16 @@ function pick(row: Row, ...keys: string[]): string {
 
 export async function loadContactActivity(
   db: SupabaseClient,
-  contact: { id: string; phone?: string | null; workspace_id?: string | null },
+  contact: { id: string; phone?: string | null; workspace_id?: string | null }
 ): Promise<ContactActivityEvent[]> {
   const id = contact.id
   const ws = contact.workspace_id ?? undefined
   const phone = contact.phone ?? undefined
+
+  // La ficha puede ser una de varias identidades del mismo cliente (WhatsApp,
+  // Instagram, voz). La actividad pertenece a la persona, no a la fila que se
+  // abrió, por eso se consulta el grupo unificado completo.
+  const contactIds = await resolveContactIds(db, id)
 
   const safe = (p: Promise<ContactActivityEvent[]>) => p.catch(() => [])
 
@@ -67,7 +90,7 @@ export async function loadContactActivity(
         const { data } = await db
           .from('orders')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('created_at', { ascending: false })
           .limit(50)
         return (data ?? []).map((r: Row) => {
@@ -75,9 +98,7 @@ export async function loadContactActivity(
           const total = pick(r, 'total_price', 'total')
           const cur = pick(r, 'currency')
           const detail =
-            [num && `#${num}`, total && `${total} ${cur}`.trim()]
-              .filter(Boolean)
-              .join(' · ') || ''
+            [num && `#${num}`, total && `${total} ${cur}`.trim()].filter(Boolean).join(' · ') || ''
           return {
             id: `order-${str(r.id)}`,
             at: pick(r, 'created_at'),
@@ -86,7 +107,7 @@ export async function loadContactActivity(
             status: pick(r, 'status', 'financial_status') || null,
           }
         })
-      })(),
+      })()
     ),
 
     // ── Compras en la tienda (migración 172) ───────────────────
@@ -98,7 +119,7 @@ export async function loadContactActivity(
         const { data } = await db
           .from('contact_purchases')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('placed_at', { ascending: false })
           .limit(50)
         return (data ?? []).map((r: Row) => {
@@ -112,13 +133,12 @@ export async function loadContactActivity(
             at: pick(r, 'placed_at', 'created_at'),
             kind: 'order' as const,
             detail:
-              [num && `#${num}`, total && `${total} ${cur}`.trim()]
-                .filter(Boolean)
-                .join(' · ') || '',
+              [num && `#${num}`, total && `${total} ${cur}`.trim()].filter(Boolean).join(' · ') ||
+              '',
             status: pick(r, 'fulfillment_status', 'financial_status') || null,
           }
         })
-      })(),
+      })()
     ),
 
     // ── Abandoned carts (matched by phone) ─────────────────────
@@ -145,7 +165,7 @@ export async function loadContactActivity(
               status: null,
             }
           })
-      })(),
+      })()
     ),
 
     // ── Messages (via conversations) ───────────────────────────
@@ -154,7 +174,7 @@ export async function loadContactActivity(
         const { data: convs } = await db
           .from('conversations')
           .select('id')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
         const convIds = (convs ?? []).map((c: Row) => str(c.id)).filter(Boolean)
         if (convIds.length === 0) return []
         const { data } = await db
@@ -166,10 +186,8 @@ export async function loadContactActivity(
         return (data ?? []).map((r: Row) => {
           const dir = pick(r, 'direction')
           const sender = pick(r, 'sender_type', 'sender', 'role')
-          const inbound =
-            dir === 'inbound' || sender === 'customer' || sender === 'contact'
-          const body =
-            pick(r, 'content', 'body', 'text', 'message', 'caption') || '—'
+          const inbound = dir === 'inbound' || sender === 'customer' || sender === 'contact'
+          const body = pick(r, 'content', 'body', 'text', 'message', 'caption') || '—'
           return {
             id: `msg-${str(r.id)}`,
             at: pick(r, 'created_at'),
@@ -177,7 +195,7 @@ export async function loadContactActivity(
             detail: body.slice(0, 140),
           }
         })
-      })(),
+      })()
     ),
 
     // ── Broadcasts received ────────────────────────────────────
@@ -186,11 +204,15 @@ export async function loadContactActivity(
         const { data } = await db
           .from('broadcast_recipients')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('created_at', { ascending: false })
           .limit(30)
         const rows = (data ?? []) as Row[]
-        const names = await lookupNames(db, 'broadcasts', rows.map((r) => str(r.broadcast_id)))
+        const names = await lookupNames(
+          db,
+          'broadcasts',
+          rows.map((r) => str(r.broadcast_id))
+        )
         return rows.map((r) => ({
           id: `bc-${str(r.id)}`,
           at: pick(r, 'sent_at', 'created_at'),
@@ -198,7 +220,7 @@ export async function loadContactActivity(
           detail: names.get(str(r.broadcast_id)) ?? '',
           status: pick(r, 'status') || null,
         }))
-      })(),
+      })()
     ),
 
     // ── Automations fired ──────────────────────────────────────
@@ -207,11 +229,15 @@ export async function loadContactActivity(
         const { data } = await db
           .from('automation_logs')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('created_at', { ascending: false })
           .limit(30)
         const rows = (data ?? []) as Row[]
-        const names = await lookupNames(db, 'automations', rows.map((r) => str(r.automation_id)))
+        const names = await lookupNames(
+          db,
+          'automations',
+          rows.map((r) => str(r.automation_id))
+        )
         return rows.map((r) => ({
           id: `auto-${str(r.id)}`,
           at: pick(r, 'created_at'),
@@ -219,7 +245,7 @@ export async function loadContactActivity(
           detail: names.get(str(r.automation_id)) ?? pick(r, 'trigger_event') ?? '',
           status: pick(r, 'status') || null,
         }))
-      })(),
+      })()
     ),
 
     // ── Tags applied ───────────────────────────────────────────
@@ -228,18 +254,22 @@ export async function loadContactActivity(
         const { data } = await db
           .from('contact_tags')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('created_at', { ascending: false })
           .limit(50)
         const rows = (data ?? []) as Row[]
-        const names = await lookupNames(db, 'tags', rows.map((r) => str(r.tag_id)))
+        const names = await lookupNames(
+          db,
+          'tags',
+          rows.map((r) => str(r.tag_id))
+        )
         return rows.map((r) => ({
           id: `tag-${str(r.id)}`,
           at: pick(r, 'created_at'),
           kind: 'tag' as const,
           detail: names.get(str(r.tag_id)) ?? '',
         }))
-      })(),
+      })()
     ),
 
     // ── Notes ──────────────────────────────────────────────────
@@ -248,7 +278,7 @@ export async function loadContactActivity(
         const { data } = await db
           .from('contact_notes')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('created_at', { ascending: false })
           .limit(30)
         return (data ?? []).map((r: Row) => ({
@@ -257,7 +287,7 @@ export async function loadContactActivity(
           kind: 'note' as const,
           detail: pick(r, 'note_text', 'text', 'note').slice(0, 160),
         }))
-      })(),
+      })()
     ),
 
     // ── Flow runs ──────────────────────────────────────────────
@@ -266,7 +296,7 @@ export async function loadContactActivity(
         const { data } = await db
           .from('flow_runs')
           .select('*')
-          .eq('contact_id', id)
+          .in('contact_id', contactIds)
           .order('started_at', { ascending: false })
           .limit(20)
         return (data ?? []).map((r: Row) => ({
@@ -276,7 +306,47 @@ export async function loadContactActivity(
           detail: pick(r, 'flow_name', 'name') || '',
           status: pick(r, 'status') || null,
         }))
-      })(),
+      })()
+    ),
+
+    // ── Phone calls ────────────────────────────────────────────
+    // `voice_calls` is one durable row per attempt. Retries are separate rows,
+    // so the timeline preserves the full chain instead of collapsing it into
+    // the latest result. Recording/transcript remain in the canonical detail.
+    safe(
+      (async () => {
+        const { data } = await db
+          .from('voice_calls')
+          .select('*')
+          .in('contact_id', contactIds)
+          .order('created_at', { ascending: false })
+          .limit(100)
+        const rows = (data ?? []) as Row[]
+        const names = await lookupNames(
+          db,
+          'ai_agents',
+          rows.map((r) => str(r.agent_id))
+        )
+        return rows.map((r) => ({
+          id: `voice-${str(r.id)}`,
+          at: pick(r, 'created_at'),
+          kind: 'voice_call' as const,
+          detail: pick(r, 'summary'),
+          voice: {
+            callId: str(r.id),
+            agentName: names.get(str(r.agent_id)) ?? '',
+            direction: pick(r, 'direction') as VoiceCallDirection,
+            callType: pick(r, 'call_type') as VoiceCallType,
+            status: pick(r, 'status') as VoiceCallStatus,
+            outcome: (pick(r, 'outcome') || null) as VoiceCallOutcome | null,
+            durationSeconds: typeof r.duration_seconds === 'number' ? r.duration_seconds : null,
+            summary: pick(r, 'summary'),
+            error: pick(r, 'error'),
+            attempt: Number(r.attempt) || 1,
+            maxAttempts: Number(r.max_attempts) || 1,
+          },
+        }))
+      })()
     ),
   ]
 
@@ -296,11 +366,36 @@ export async function loadContactActivity(
   return deduped.slice(0, 200)
 }
 
+/** Current row + every channel identity linked to the same primary contact. */
+async function resolveContactIds(db: SupabaseClient, id: string): Promise<string[]> {
+  try {
+    const { data: current } = await db
+      .from('contacts')
+      .select('id, unified_contact_id')
+      .eq('id', id)
+      .maybeSingle()
+    const row = current as {
+      id: string
+      unified_contact_id: string | null
+    } | null
+    if (!row) return [id]
+    const primaryId = row.unified_contact_id ?? row.id
+    const { data: group } = await db
+      .from('contacts')
+      .select('id')
+      .or(`id.eq.${primaryId},unified_contact_id.eq.${primaryId}`)
+    const ids = (group ?? []).map((item: Row) => str(item.id)).filter(Boolean)
+    return [...new Set([id, primaryId, ...ids])]
+  } catch {
+    return [id]
+  }
+}
+
 /** Batch-fetch `id → name` for a table, tolerant of an absent `name` column. */
 async function lookupNames(
   db: SupabaseClient,
   table: string,
-  ids: string[],
+  ids: string[]
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>()
   const unique = [...new Set(ids.filter(Boolean))]

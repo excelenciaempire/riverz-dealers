@@ -65,10 +65,16 @@ export const contacts = {
   selectPage: { es: "Seleccionar página", en: "Select page" },
   selectOne: { es: "Seleccionar contacto", en: "Select contact" },
   selectedCount: { es: "{count} seleccionados", en: "{count} selected" },
-  selectAllMatching: { es: "Seleccionar los {count}", en: "Select all {count}" },
+  selectAllMatching: {
+    es: "Seleccionar los {count}",
+    en: "Select all {count}",
+  },
   clearSelection: { es: "Quitar selección", en: "Clear selection" },
   exportCsv: { es: "Exportar CSV", en: "Export CSV" },
-  exported: { es: "{count} contactos exportados", en: "{count} contacts exported" },
+  exported: {
+    es: "{count} contactos exportados",
+    en: "{count} contacts exported",
+  },
   exportError: { es: "No se pudo exportar", en: "Export failed" },
   shopTotalSpent: { es: "Total gastado", en: "Total spent" },
   shopOrders: { es: "Pedidos", en: "Orders" },
@@ -102,8 +108,14 @@ export const contacts = {
   infoCreated: { es: "Alta", en: "Added" },
   infoLastActivity: { es: "Última actividad", en: "Last activity" },
   colChannel: { es: "Canal", en: "Channel" },
-  exportColumnsTitle: { es: "Elige las columnas a exportar", en: "Choose columns to export" },
-  exportColumnsHint: { es: "{count} contactos · marca las columnas del CSV", en: "{count} contacts · pick the CSV columns" },
+  exportColumnsTitle: {
+    es: "Elige las columnas a exportar",
+    en: "Choose columns to export",
+  },
+  exportColumnsHint: {
+    es: "{count} contactos · marca las columnas del CSV",
+    en: "{count} contacts · pick the CSV columns",
+  },
   selectAllCols: { es: "Todas", en: "All" },
   selectNoneCols: { es: "Ninguna", en: "None" },
 
@@ -137,7 +149,10 @@ export const contacts = {
   fieldCompany: { es: "Empresa", en: "Company" },
   phonePlaceholder: { es: "+57 300 123 4567", en: "+57 300 123 4567" },
   tagsLabel: { es: "Etiquetas", en: "Tags" },
-  noTagsCreatePrefix: { es: "No hay etiquetas. Créalas en", en: "No tags yet. Create them in" },
+  noTagsCreatePrefix: {
+    es: "No hay etiquetas. Créalas en",
+    en: "No tags yet. Create them in",
+  },
   contactsTagsLink: { es: "Contactos → Etiquetas", en: "Contacts → Tags" },
   cancel: { es: "Cancelar", en: "Cancel" },
   create: { es: "Crear", en: "Create" },
@@ -171,7 +186,10 @@ export const contacts = {
     es: "No se pudo actualizar el contacto",
     en: "Couldn't update the contact",
   },
-  addNoteError: { es: "No se pudo añadir la nota", en: "Couldn't add the note" },
+  addNoteError: {
+    es: "No se pudo añadir la nota",
+    en: "Couldn't add the note",
+  },
   noteAdded: { es: "Nota añadida", en: "Note added" },
   deleteNoteError: {
     es: "No se pudo eliminar la nota",
@@ -214,25 +232,31 @@ export const contacts = {
   importDescriptionPrefix: { es: "CSV con columna", en: "CSV with column" },
   importDescriptionOptional: { es: ". Opcionales:", en: ". Optional:" },
   importNoValidRows: {
-    es: 'No se pudieron leer filas del archivo. Revisa que sea un CSV.',
+    es: "No se pudieron leer filas del archivo. Revisa que sea un CSV.",
     en: "Couldn't read rows from the file. Make sure it's a CSV.",
   },
   importIntro: {
-    es: 'Sube un CSV (o tu Excel guardado como CSV). Después eliges qué columna corresponde a cada dato.',
-    en: 'Upload a CSV (or your Excel saved as CSV). Then choose which column maps to each field.',
+    es: "Sube un CSV (o tu Excel guardado como CSV). Después eliges qué columna corresponde a cada dato.",
+    en: "Upload a CSV (or your Excel saved as CSV). Then choose which column maps to each field.",
   },
-  downloadTemplate: { es: 'Descargar plantilla', en: 'Download template' },
-  templateFileName: { es: 'plantilla-contactos.csv', en: 'contacts-template.csv' },
-  mapColumns: { es: 'Asignar columnas', en: 'Map columns' },
-  columnNone: { es: ', Ninguna, ', en: ', None, ' },
+  downloadTemplate: { es: "Descargar plantilla", en: "Download template" },
+  templateFileName: {
+    es: "plantilla-contactos.csv",
+    en: "contacts-template.csv",
+  },
+  mapColumns: { es: "Asignar columnas", en: "Map columns" },
+  columnNone: { es: ", Ninguna, ", en: ", None, " },
   importNeedPhone: {
-    es: 'Asigna la columna de teléfono para continuar.',
-    en: 'Map the phone column to continue.',
+    es: "Asigna la columna de teléfono para continuar.",
+    en: "Map the phone column to continue.",
   },
-  skippedCount: { es: '{count} omitidos (ya existían)', en: '{count} skipped (already existed)' },
+  skippedCount: {
+    es: "{count} omitidos (ya existían)",
+    en: "{count} skipped (already existed)",
+  },
   importAllSkipped: {
-    es: 'Todos ya existían ({count} omitidos)',
-    en: 'All already existed ({count} skipped)',
+    es: "Todos ya existían ({count} omitidos)",
+    en: "All already existed ({count} skipped)",
   },
   importRowsDetected: {
     es: "{count} filas detectadas",
@@ -256,7 +280,10 @@ export const contacts = {
   },
   importFailed: { es: "Falló la importación", en: "Import failed" },
   close: { es: "Cerrar", en: "Close" },
-  importCount: { es: "Importar {count} contactos", en: "Import {count} contacts" },
+  importCount: {
+    es: "Importar {count} contactos",
+    en: "Import {count} contacts",
+  },
   importEmpty: { es: "Importar", en: "Import" },
 
   // Tags panel
@@ -296,7 +323,10 @@ export const contacts = {
   },
   editTag: { es: "Editar etiqueta", en: "Edit tag" },
   newTagTitle: { es: "Nueva etiqueta", en: "New tag" },
-  tagNamePlaceholder: { es: "VIP, Mayorista, Lima…", en: "VIP, Wholesale, Lima…" },
+  tagNamePlaceholder: {
+    es: "VIP, Mayorista, Lima…",
+    en: "VIP, Wholesale, Lima…",
+  },
   colorWord: { es: "Color", en: "Color" },
   tagNameRequired: {
     es: "Ponle un nombre a la etiqueta",
@@ -395,7 +425,10 @@ export const contacts = {
     es: "El nombre, correo, teléfono o empresa contiene algo.",
     en: "The name, email, phone or company contains something.",
   },
-  ruleHasFieldLabel: { es: "Tiene un dato cargado", en: "Has a field filled in" },
+  ruleHasFieldLabel: {
+    es: "Tiene un dato cargado",
+    en: "Has a field filled in",
+  },
   ruleShopifyLabel: { es: "Cliente de la tienda", en: "Store customer" },
   ruleOfferLabel: { es: "Oferta elegida", en: "Offer chosen" },
   ruleOfferDesc: {
@@ -510,6 +543,8 @@ export const contacts = {
   actTag: { es: "Etiqueta añadida", en: "Tag added" },
   actNote: { es: "Nota", en: "Note" },
   actFlow: { es: "Flujo", en: "Flow" },
+  actCall: { es: "Llamada", en: "Call" },
+  actCalls: { es: "Llamadas", en: "Calls" },
 
   // Historial de compras del contacto (migración 172).
   tabPurchases: { es: "Compras", en: "Purchases" },

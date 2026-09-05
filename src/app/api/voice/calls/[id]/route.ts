@@ -29,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const { data: callRow, error } = await supabaseAdmin()
       .from('voice_calls')
-      .select('*, contact:contacts(id, name, phone)')
+      .select('*, contact:contacts(id, name, phone), agent:ai_agents(id, name), automation:automations(id, name)')
       .eq('id', id)
       .maybeSingle();
     if (error) return serverError(error);

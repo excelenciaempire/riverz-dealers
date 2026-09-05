@@ -73,9 +73,9 @@ export interface EnqueueInput {
    * nada" y no tiene forma de saber por qué. Con esto queda una fila
    * `canceled` con el motivo, que el registro muestra como «No se llamó · …».
    *
-   * Lo prenden las puertas donde hay una persona o una automatización
-   * esperando un resultado (el nodo del lienzo, el botón de la bandeja); NO
-   * los reintentos ni las campañas, que repetirían la misma fila en bucle.
+   * Lo prenden todos los disparadores iniciales. Los reintentos no: ya están
+   * representados por la llamada padre y sólo existirán como fila cuando se
+   * hayan programado de verdad.
    */
   recordSkip?: boolean;
 }

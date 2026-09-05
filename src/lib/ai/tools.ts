@@ -18,21 +18,10 @@ import { armarLinkDeCompra } from '@/lib/commerce/create-checkout'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lookupCustomerOrders } from '@/lib/shopify/order-lookup'
-import {
-  resolveStoreForLookup,
-  lookupOrderNonShopify,
-} from '@/lib/commerce/order-lookup'
+import { resolveStoreForLookup, lookupOrderNonShopify } from '@/lib/commerce/order-lookup'
 import { informarPago } from '@/lib/payments/reported-payment'
-import {
-  createCheckoutLink,
-  fmtMoney,
-  type CheckoutConfig,
-  type PaymentHint,
-} from '@/lib/shopify/create-checkout'
-import {
-  type CreateOrderInput,
-  type ShippingAddressInput,
-} from '@/lib/shopify/create-order'
+import { createCheckoutLink, fmtMoney, type CheckoutConfig, type PaymentHint } from '@/lib/shopify/create-checkout'
+import { type CreateOrderInput, type ShippingAddressInput } from '@/lib/shopify/create-order'
 import { crearPedidoConEspejo } from '@/lib/orders/crear'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
 import { enqueueCall } from '@/lib/voice/queue'
@@ -44,12 +33,7 @@ import { emitirCupon } from '@/lib/shopify/discounts'
 import { crearPedidoLocalConEspejo } from '@/lib/orders/crear'
 import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
 import { registrarHueco } from './answer-gaps'
-import {
-  cerrarConversacion,
-  etiquetarContacto,
-  verContacto,
-  verProducto,
-} from './bandeja'
+import { cerrarConversacion, etiquetarContacto, verContacto, verProducto } from './bandeja'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -258,7 +242,10 @@ export const REEMBOLSAR_TOOL: Anthropic.Tool = {
         type: 'number',
         description: 'Cuánto devolver. Omitilo para devolver todo lo cobrado.',
       },
-      reason: { type: 'string', description: 'Qué pasó, en las palabras de la clienta.' },
+      reason: {
+        type: 'string',
+        description: 'Qué pasó, en las palabras de la clienta.',
+      },
     },
     required: [],
   },
@@ -277,7 +264,10 @@ export const ABRIR_DEVOLUCION_TOOL: Anthropic.Tool = {
         enum: ['devolucion', 'cambio'],
         description: 'Qué quiere: devolver el producto o cambiarlo por otro.',
       },
-      reason: { type: 'string', description: 'El motivo, resumido en pocas palabras.' },
+      reason: {
+        type: 'string',
+        description: 'El motivo, resumido en pocas palabras.',
+      },
       customer_note: {
         type: 'string',
         description: 'Lo que la clienta escribió, tal cual, sin resumir.',
@@ -301,8 +291,14 @@ export const ETIQUETAR_CONTACTO_TOOL: Anthropic.Tool = {
   input_schema: {
     type: 'object' as const,
     properties: {
-      etiqueta: { type: 'string', description: 'Nombre corto, en minúsculas y con guiones.' },
-      quitar: { type: 'boolean', description: 'true para sacarla en vez de ponerla.' },
+      etiqueta: {
+        type: 'string',
+        description: 'Nombre corto, en minúsculas y con guiones.',
+      },
+      quitar: {
+        type: 'boolean',
+        description: 'true para sacarla en vez de ponerla.',
+      },
     },
     required: ['etiqueta'],
   },
@@ -369,10 +365,9 @@ export const VER_PRODUCTO_TOOL: Anthropic.Tool = {
 async function verificarPrecios(
   db: SupabaseClient,
   workspaceId: string,
-  items: Array<{ title?: string; quantity?: number; unit_price?: number }>,
+  items: Array<{ title?: string; quantity?: number; unit_price?: number }>
 ): Promise<
-  | { items: Array<{ title: string; quantity: number; unit_price: number }> }
-  | { error: true; message: string }
+  { items: Array<{ title: string; quantity: number; unit_price: number }> } | { error: true; message: string }
 > {
   if (!items.length) {
     return { error: true, message: 'Di qué le estás cobrando.' }
@@ -383,9 +378,16 @@ async function verificarPrecios(
     const propuesto = Number(i.unit_price)
     const quantity = Math.max(1, Math.floor(Number(i.quantity ?? 1)) || 1)
     if (!title || !Number.isFinite(propuesto) || propuesto <= 0) {
-      return { error: true, message: 'Faltan el nombre o el precio del producto.' }
+      return {
+        error: true,
+        message: 'Faltan el nombre o el precio del producto.',
+      }
     }
-    const [hit] = await searchProducts(db, { workspaceId, query: title, limit: 1 })
+    const [hit] = await searchProducts(db, {
+      workspaceId,
+      query: title,
+      limit: 1,
+    })
     const real = hit?.price_min ?? null
     if (real == null) {
       return {
@@ -430,7 +432,10 @@ export const CREAR_LINK_DE_PAGO_TOOL: Anthropic.Tool = {
           properties: {
             title: { type: 'string', description: 'Nombre del producto.' },
             quantity: { type: 'integer', minimum: 1, default: 1 },
-            unit_price: { type: 'number', description: 'Precio POR UNIDAD, no el total.' },
+            unit_price: {
+              type: 'number',
+              description: 'Precio POR UNIDAD, no el total.',
+            },
           },
           required: ['title', 'unit_price'],
         },
@@ -455,10 +460,9 @@ export function buildDescuentoTool(tope: number, fijo?: number | null): Anthropi
   const exacto = Number.isFinite(fijo) && Number(fijo) > 0 ? Number(fijo) : null
   return {
     name: 'ofrecer_descuento',
-    description:
-      exacto
-        ? `Genera el cupón personal de ${exacto}% ya autorizado por esta recuperación. Es de un solo uso y sólo para esta clienta; no cambies el porcentaje.`
-        : `Genera un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Puedes ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Úsalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repítele ESE código en vez de pedir otro.`,
+    description: exacto
+      ? `Genera el cupón personal de ${exacto}% ya autorizado por esta recuperación. Es de un solo uso y sólo para esta clienta; no cambies el porcentaje.`
+      : `Genera un cupón de descuento personal para la clienta cuando dude por el precio o pida una rebaja. Puedes ofrecer hasta ${tope}%. Es de un solo uso y sólo para ella. Úsalo con criterio: es para destrabar una venta que si no se pierde, no para regalarlo apenas alguien pregunta. Si ya le diste uno en esta conversación, repítele ESE código en vez de pedir otro.`,
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -467,7 +471,9 @@ export function buildDescuentoTool(tope: number, fijo?: number | null): Anthropi
           minimum: 1,
           maximum: tope,
           ...(exacto ? { enum: [exacto] } : {}),
-          description: exacto ? `Debe ser exactamente ${exacto}%.` : `Cuánto descontar. El máximo autorizado es ${tope}%.`,
+          description: exacto
+            ? `Debe ser exactamente ${exacto}%.`
+            : `Cuánto descontar. El máximo autorizado es ${tope}%.`,
         },
         reason: {
           type: 'string',
@@ -494,8 +500,7 @@ export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
       },
       reason: {
         type: 'string',
-        description:
-          'Por qué llamas esta tool (tracking, estado, devolución, etc.). Una frase corta.',
+        description: 'Por qué llamas esta tool (tracking, estado, devolución, etc.). Una frase corta.',
       },
     },
     required: ['reason'],
@@ -526,16 +531,13 @@ export function buildCheckoutTool(
    * modelo lo pasaba, y si ese código existía de una campaña vieja se aplicaba
    * igual — la garantía de "tope 0 = no se regala nada" no se sostenía.
    */
-  permiteDescuentos = false,
+  permiteDescuentos = false
 ): Anthropic.Tool {
   const offers = config?.offers ?? null
   const bundleMode = !!(config?.enabled && offers && offers.length > 0)
   const currency = config?.currency || 'ARS'
 
-  const transferAmount =
-    typeof config?.transfer_discount_amount === 'number'
-      ? config.transfer_discount_amount
-      : null
+  const transferAmount = typeof config?.transfer_discount_amount === 'number' ? config.transfer_discount_amount : null
   const transferLabel = config?.transfer_discount_label || 'transferencia'
   const hasTransferDiscount = transferAmount != null && transferAmount > 0
 
@@ -548,9 +550,7 @@ export function buildCheckoutTool(
   }
 
   if (bundleMode) {
-    const enumeration = (offers ?? [])
-      .map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`)
-      .join('. ')
+    const enumeration = (offers ?? []).map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`).join('. ')
     return {
       name: 'create_checkout',
       description: hasTransferDiscount
@@ -571,7 +571,10 @@ export function buildCheckoutTool(
             items: {
               type: 'object',
               properties: {
-                variant_id: { type: 'string', description: 'variant_id del producto.' },
+                variant_id: {
+                  type: 'string',
+                  description: 'variant_id del producto.',
+                },
                 quantity: { type: 'integer', minimum: 1, default: 1 },
               },
               required: ['variant_id'],
@@ -610,7 +613,10 @@ export function buildCheckoutTool(
           items: {
             type: 'object',
             properties: {
-              variant_id: { type: 'string', description: 'variant_id del producto.' },
+              variant_id: {
+                type: 'string',
+                description: 'variant_id del producto.',
+              },
               quantity: { type: 'integer', minimum: 1, default: 1 },
             },
             required: ['variant_id'],
@@ -662,10 +668,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
   const bundleMode = !!(config?.enabled && offers && offers.length > 0)
   const currency = config?.currency || 'ARS'
 
-  const transferAmount =
-    typeof config?.transfer_discount_amount === 'number'
-      ? config.transfer_discount_amount
-      : null
+  const transferAmount = typeof config?.transfer_discount_amount === 'number' ? config.transfer_discount_amount : null
   const transferLabel = config?.transfer_discount_label || 'transferencia'
   const hasTransferDiscount = transferAmount != null && transferAmount > 0
 
@@ -677,7 +680,10 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
       items: {
         type: 'object',
         properties: {
-          variant_id: { type: 'string', description: 'variant_id del producto.' },
+          variant_id: {
+            type: 'string',
+            description: 'variant_id del producto.',
+          },
           quantity: { type: 'integer', minimum: 1, default: 1 },
         },
         required: ['variant_id'],
@@ -685,13 +691,11 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     },
     customer_name: {
       type: 'string',
-      description:
-        'Nombre y apellido del cliente para el pedido. Pídelo si no lo sabes.',
+      description: 'Nombre y apellido del cliente para el pedido. Pídelo si no lo sabes.',
     },
     customer_phone: {
       type: 'string',
-      description:
-        'Teléfono del cliente. Opcional, si no lo pasas se usa el del chat.',
+      description: 'Teléfono del cliente. Opcional, si no lo pasas se usa el del chat.',
     },
     customer_email: {
       type: 'string',
@@ -699,8 +703,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     },
     shipping_address: {
       type: 'object',
-      description:
-        'Dirección de envío. Pedila para productos físicos antes de crear el pedido.',
+      description: 'Dirección de envío. Pedila para productos físicos antes de crear el pedido.',
       properties: {
         address1: { type: 'string', description: 'Calle y número.' },
         address2: { type: 'string', description: 'Piso/depto (opcional).' },
@@ -722,8 +725,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
     },
     note: {
       type: 'string',
-      description:
-        'Nota interna para el equipo (opcional): aclaraciones del cliente, referencias, etc.',
+      description: 'Nota interna para el equipo (opcional): aclaraciones del cliente, referencias, etc.',
     },
     confirmed: {
       type: 'boolean',
@@ -735,9 +737,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
   const required: string[] = ['customer_name', 'confirmed']
 
   if (bundleMode) {
-    const enumeration = (offers ?? [])
-      .map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`)
-      .join('. ')
+    const enumeration = (offers ?? []).map((o) => `${o.key} = ${o.label} (${fmtMoney(o.total, currency)})`).join('. ')
     properties.offer = {
       type: 'string',
       enum: (offers ?? []).map((o) => o.key),
@@ -810,7 +810,7 @@ const DEJA_HUELLA = new Set([
 function pruebaDeIdentidad(
   canal: string | null | undefined,
   email: string | null | undefined,
-  telefono: string | null | undefined,
+  telefono: string | null | undefined
 ): { email?: string; phone?: string } {
   if ((canal ?? '') === 'webchat') return {}
   return { email: email ?? undefined, phone: telefono ?? undefined }
@@ -867,11 +867,7 @@ export interface LocalOrdersContext {
  * herramienta sería catorce lugares donde olvidarse de uno, y el que se olvide
  * es el que va a mover dinero sin que nadie lo haya querido.
  */
-async function pedirPermiso(
-  ctx: LocalOrdersContext,
-  toolName: string,
-  toolInput: unknown,
-): Promise<string> {
+async function pedirPermiso(ctx: LocalOrdersContext, toolName: string, toolInput: unknown): Promise<string> {
   const { askForApproval } = await import('@/lib/approvals/ask')
   const { resumirHerramienta } = await import('./tool-labels')
   const { titulo, cuerpo, comoContarlo } = resumirHerramienta(toolName, toolInput)
@@ -947,8 +943,7 @@ export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
       },
       destino: {
         type: 'string',
-        description:
-          'A qué cuenta fue: alias, CBU, banco o titular que aparece como destinatario.',
+        description: 'A qué cuenta fue: alias, CBU, banco o titular que aparece como destinatario.',
       },
       titular: {
         type: 'string',
@@ -968,9 +963,7 @@ export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
  * Tienda conectada que NO es Shopify (Tiendanube, WooCommerce), con los
  * datos del cliente de esta conversación para poder buscar su pedido.
  */
-export type OtherStoreContext = NonNullable<
-  Awaited<ReturnType<typeof resolveStoreForLookup>>
-> & {
+export type OtherStoreContext = NonNullable<Awaited<ReturnType<typeof resolveStoreForLookup>>> & {
   customerEmail?: string | null
   customerPhone?: string | null
 }
@@ -981,7 +974,7 @@ export async function runTool(
   shopify: ShopifyToolContext | null,
   voice: VoiceEscalationContext | null = null,
   localOrders: LocalOrdersContext | null = null,
-  otherStore: OtherStoreContext | null = null,
+  otherStore: OtherStoreContext | null = null
 ): Promise<string> {
   // El freno, antes que nada: lo que el comercio puso "con aprobación" no se
   // ejecuta acá, se deja pedido. Ver `pedirPermiso`.
@@ -995,13 +988,16 @@ export async function runTool(
     return JSON.stringify({
       simulado: true,
       ok: true,
-      message:
-        'Simulación: la acción no se ejecutó de verdad. Sigue la conversación como si hubiera salido bien.',
+      message: 'Simulación: la acción no se ejecutó de verdad. Sigue la conversación como si hubiera salido bien.',
     })
   }
 
-  if (toolName === 'ver_contacto' || toolName === 'etiquetar_contacto' ||
-      toolName === 'cerrar_conversacion' || toolName === 'ver_producto') {
+  if (
+    toolName === 'ver_contacto' ||
+    toolName === 'etiquetar_contacto' ||
+    toolName === 'cerrar_conversacion' ||
+    toolName === 'ver_producto'
+  ) {
     if (!localOrders) {
       return JSON.stringify({
         error: 'sin_contexto',
@@ -1040,7 +1036,7 @@ export async function runTool(
         agentId: localOrders.agentId ?? null,
         channel: localOrders.channel ?? null,
       },
-      (toolInput ?? {}) as { pregunta?: string; falta?: string },
+      (toolInput ?? {}) as { pregunta?: string; falta?: string }
     )
   }
 
@@ -1059,7 +1055,7 @@ export async function runTool(
         conversationId: localOrders.conversationId ?? null,
         agentId: localOrders.agentId ?? null,
       },
-      (toolInput ?? {}) as AbrirDevolucionInput,
+      (toolInput ?? {}) as AbrirDevolucionInput
     )
   }
 
@@ -1112,8 +1108,7 @@ export async function runTool(
     if ('error' in res) {
       return JSON.stringify({
         ok: false,
-        message:
-          'No pude generar el descuento. No le prometas ninguna rebaja; sigue con el precio de lista.',
+        message: 'No pude generar el descuento. No le prometas ninguna rebaja; sigue con el precio de lista.',
       })
     }
     return JSON.stringify({
@@ -1141,11 +1136,7 @@ export async function runTool(
     // vendedor me confirmó que sale 100" es exactamente el mensaje que va a
     // recibir. Se contrasta contra el catálogo antes de cobrar, igual que el
     // descuento se recorta contra el tope del comercio.
-    const verificados = await verificarPrecios(
-      localOrders.db,
-      localOrders.workspaceId,
-      input.items ?? [],
-    )
+    const verificados = await verificarPrecios(localOrders.db, localOrders.workspaceId, input.items ?? [])
     if ('error' in verificados) {
       return JSON.stringify({
         ok: false,
@@ -1217,9 +1208,7 @@ export async function runTool(
       amount?: number
       reason?: string
     }
-    return toolName === 'cancelar_pedido'
-      ? proponerCancelacion(ctx, input)
-      : proponerReembolso(ctx, input)
+    return toolName === 'cancelar_pedido' ? proponerCancelacion(ctx, input) : proponerReembolso(ctx, input)
   }
 
   if (toolName === 'registrar_pago') {
@@ -1289,7 +1278,10 @@ export async function runTool(
       })
     }
     if (res.kind === 'error') {
-      return JSON.stringify({ ok: false, message: `No se pudo registrar: ${res.error}` })
+      return JSON.stringify({
+        ok: false,
+        message: `No se pudo registrar: ${res.error}`,
+      })
     }
     if (res.kind === 'cobrado') {
       return JSON.stringify({
@@ -1343,19 +1335,18 @@ export async function runTool(
       sourceAssistantId: voice.assistantId,
       sourceConversationId: voice.conversationId,
       language: voice.language,
+      recordSkip: true,
     })
     if (!res.enqueued) {
       return JSON.stringify({
         scheduled: false,
         reason: res.reason,
-        message:
-          'No se pudo programar la llamada ahora (horario, opt-out o límite). Sigue ayudando por texto.',
+        message: 'No se pudo programar la llamada ahora (horario, opt-out o límite). Sigue ayudando por texto.',
       })
     }
     return JSON.stringify({
       scheduled: true,
-      message:
-        'Llamada programada. Avísale al cliente con naturalidad que lo vas a llamar en breve.',
+      message: 'Llamada programada. Avísale al cliente con naturalidad que lo vas a llamar en breve.',
     })
   }
   if (toolName === 'update_order') {
@@ -1426,9 +1417,13 @@ export async function runTool(
       })
     }
     const result = await addUnitsToFirstLineItem(
-      { shopDomain: shopify.shopDomain, accessToken: shopify.accessToken, apiVersion: shopify.apiVersion },
+      {
+        shopDomain: shopify.shopDomain,
+        accessToken: shopify.accessToken,
+        apiVersion: shopify.apiVersion,
+      },
       pedido,
-      addUnits,
+      addUnits
     )
     // Un permiso que la tienda no otorgó no se arregla reintentando ni lo
     // resuelve el equipo mirando el pedido: hay que reconectar la tienda. Si el
@@ -1472,24 +1467,12 @@ export async function runTool(
             numero,
             // En Tiendanube y Woo el número es correlativo y no prueba de quién
             // es el pedido. Ver esDeQuienPregunta() y pruebaDeIdentidad().
-            pruebaDeIdentidad(
-              localOrders?.channel,
-              otherStore.customerEmail,
-              otherStore.customerPhone,
-            ),
+            pruebaDeIdentidad(localOrders?.channel, otherStore.customerEmail, otherStore.customerPhone)
           )
         : otherStore.customerEmail
-          ? await lookupOrderNonShopify(
-              otherStore,
-              'order_by_email',
-              otherStore.customerEmail,
-            )
+          ? await lookupOrderNonShopify(otherStore, 'order_by_email', otherStore.customerEmail)
           : otherStore.customerPhone
-            ? await lookupOrderNonShopify(
-                otherStore,
-                'order_by_phone',
-                otherStore.customerPhone,
-              )
+            ? await lookupOrderNonShopify(otherStore, 'order_by_phone', otherStore.customerPhone)
             : { found: false as const }
       if (!r.found) {
         // Igual que en Shopify: quien compró por el chat web todavía no tiene
@@ -1531,7 +1514,7 @@ export async function runTool(
     const quien = pruebaDeIdentidad(
       shopify.channel ?? localOrders?.channel,
       shopify.customerEmail,
-      shopify.customerPhone,
+      shopify.customerPhone
     )
     const result = await lookupCustomerOrders({
       shopDomain: shopify.shopDomain,
@@ -1580,8 +1563,7 @@ export async function runTool(
       if (!id) {
         return JSON.stringify({
           error: 'sin_producto',
-          message:
-            'Falta cuál producto. Usa buscar_producto para encontrarlo y vuelve a intentar con su id.',
+          message: 'Falta cuál producto. Usa buscar_producto para encontrarlo y vuelve a intentar con su id.',
         })
       }
       const cantidad = Number(primero?.quantity ?? input.quantity ?? 1)
@@ -1596,11 +1578,7 @@ export async function runTool(
         .from('shopify_products')
         .select('url, title, external_id, raw')
         .eq('workspace_id', localOrders.workspaceId)
-        .or(
-          /^\d+$/.test(id)
-            ? `external_id.eq.${id},raw.cs.{"variants":[{"id":${id}}]}`
-            : `id.eq.${id}`,
-        )
+        .or(/^\d+$/.test(id) ? `external_id.eq.${id},raw.cs.{"variants":[{"id":${id}}]}` : `id.eq.${id}`)
         .limit(1)
         .maybeSingle()
       const p = fila as {
@@ -1613,11 +1591,7 @@ export async function runTool(
         ? String(p?.external_id ?? id)
         : // Woo quiere la VARIACIÓN. Si llegó el id del producto, se usa su
           // primera variante, que es la misma que ofrece `buscar_producto`.
-          String(
-            /^\d+$/.test(id) && String(p?.external_id ?? '') !== id
-              ? id
-              : (p?.raw?.variants?.[0]?.id ?? id),
-          )
+          String(/^\d+$/.test(id) && String(p?.external_id ?? '') !== id ? id : (p?.raw?.variants?.[0]?.id ?? id))
       const link = armarLinkDeCompra({
         tienda: otherStore,
         id: idParaLaTienda,
@@ -1656,11 +1630,7 @@ export async function runTool(
       payment_hint?: PaymentHint
     }
     const config = shopify.config ?? null
-    const bundleMode = !!(
-      config?.enabled &&
-      config.offers &&
-      config.offers.length > 0
-    )
+    const bundleMode = !!(config?.enabled && config.offers && config.offers.length > 0)
     // Con `items` la clienta armó su propio carrito: no eligió ninguna de las
     // ofertas del combo, así que exigirle una acá sería rechazar la compra.
     const armaSuCarrito = Array.isArray(input.items) && input.items.length > 0
@@ -1693,17 +1663,12 @@ export async function runTool(
         // primera línea y el comercio veía 0 pedidos y 0 ingresos por el canal.
         // El runner lo venía cargando y esta línea faltaba.
         visitorId: shopify.visitorId ?? null,
-      },
+      }
     )
     // Registrar "pago pendiente" en la conversación: hace al asistente
     // consciente de que mandó el link y habilita el follow-up de
     // recuperación si el cliente no paga. Fail-soft. No en dry-run.
-    if (
-      !shopify.dryRun &&
-      shopify.conversationId &&
-      !('error' in result) &&
-      result.checkout_url
-    ) {
+    if (!shopify.dryRun && shopify.conversationId && !('error' in result) && result.checkout_url) {
       try {
         await supabaseAdmin()
           .from('conversations')
@@ -1773,7 +1738,7 @@ export async function runTool(
           conversationId: localOrders.conversationId ?? null,
           channel: localOrders.channel ?? null,
           createdBy: 'ai',
-        },
+        }
       )
       if ('error' in res) {
         // Al modelo se le dice poco a propósito: el detalle de por qué la
@@ -1781,9 +1746,7 @@ export async function runTool(
         // Pero en algún lado tiene que quedar. Sin esto, un comercio cuya
         // tienda rechaza todos los pedidos ve "no pude crear el pedido" y no
         // hay forma de averiguar el motivo: ni consola, ni fila, ni nada.
-        console.error(
-          `[create_order] ${localOrders.workspaceId}: ${res.error}, ${res.message}`,
-        )
+        console.error(`[create_order] ${localOrders.workspaceId}: ${res.error}, ${res.message}`)
         return JSON.stringify({
           ok: false,
           message:
@@ -1859,8 +1822,7 @@ export async function runTool(
     if (shopify.dryRun) {
       return JSON.stringify({
         dry_run: true,
-        message:
-          '(Simulación) En producción crearía el pedido real en Shopify con estos datos. No se creó nada.',
+        message: '(Simulación) En producción crearía el pedido real en Shopify con estos datos. No se creó nada.',
         echo: orderInput,
       })
     }
@@ -1886,7 +1848,7 @@ export async function runTool(
         conversationId: shopify.conversationId,
         channel: shopify.channel,
         createdBy: 'ai',
-      },
+      }
     )
 
     return JSON.stringify(result)
@@ -1907,14 +1869,11 @@ export async function runTool(
  * que es lo que hacemos cuando no hay Shopify conectado.
  */
 /** Pedidos espejados del contacto, en el mismo formato que la búsqueda viva. */
-async function lookupLocalOrders(
-  ctx: LocalOrdersContext,
-  numero?: string,
-): Promise<string> {
+async function lookupLocalOrders(ctx: LocalOrdersContext, numero?: string): Promise<string> {
   let q = ctx.db
     .from('orders')
     .select(
-      'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, shipping_status, order_status_url, created_at',
+      'order_number, currency, total_price, line_items, financial_status, fulfillment_status, status, tracking_number, tracking_company, shipping_status, order_status_url, created_at'
     )
     .eq('workspace_id', ctx.workspaceId)
     .eq('contact_id', ctx.contactId)
@@ -1960,7 +1919,7 @@ export async function runWithTools(
     /** Cuántas herramientas con efecto real corrieron. Lo mira quien reintenta:
      *  volver a empezar después de crear un pedido crea el segundo. */
     efectos?: { ejecutados: number }
-  },
+  }
 ): Promise<{
   text: string
   promptTokens: number
@@ -2012,7 +1971,13 @@ export async function runWithTools(
   const CACHE_MIN_CHARS = 8000
   const system: Anthropic.TextBlockParam[] | string =
     args.system.length >= CACHE_MIN_CHARS
-      ? [{ type: 'text', text: args.system, cache_control: { type: 'ephemeral' } }]
+      ? [
+          {
+            type: 'text',
+            text: args.system,
+            cache_control: { type: 'ephemeral' },
+          },
+        ]
       : args.system
 
   // Las pausas NO gastan vuelta.
@@ -2053,11 +2018,9 @@ export async function runWithTools(
       // rejects PDFs exceeding the document block's page/size caps
       // with a 400; without this rescue, the customer sees nothing.
       const isFirstIter = iter === 1
-      const isApiError =
-        err instanceof Anthropic.APIError && err.status === 400
+      const isApiError = err instanceof Anthropic.APIError && err.status === 400
       const msg = err instanceof Error ? err.message : String(err)
-      const looksLikePdfReject =
-        /document|page|too large|exceeds|invalid.*pdf/i.test(msg)
+      const looksLikePdfReject = /document|page|too large|exceeds|invalid.*pdf/i.test(msg)
       if (isFirstIter && isApiError && looksLikePdfReject) {
         messages = rewriteLastUserDocumentToText(messages)
         response = await client.messages.create({
@@ -2094,9 +2057,7 @@ export async function runWithTools(
 
     if (response.stop_reason !== 'tool_use') {
       const text = response.content
-        .filter(
-          (b): b is Anthropic.TextBlock => b.type === 'text',
-        )
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
         .map((b) => b.text)
         .join('')
         .trim()
@@ -2116,10 +2077,7 @@ export async function runWithTools(
     // historial completo (assistant con los content blocks tal cual)
     // + un user-turn con los tool_result respectivos, y volvemos al
     // top del loop.
-    messages = [
-      ...messages,
-      { role: 'assistant', content: response.content },
-    ]
+    messages = [...messages, { role: 'assistant', content: response.content }]
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
@@ -2133,7 +2091,7 @@ export async function runWithTools(
         args.shopify,
         args.voice ?? null,
         args.localOrders ?? null,
-        args.otherStore ?? null,
+        args.otherStore ?? null
       )
       toolResults.push({
         type: 'tool_result',
@@ -2197,9 +2155,7 @@ export async function runWithTools(
  * PDF that exceeds the document-block limits — without this, the
  * customer sees an empty reply because the outer catch logs failed.
  */
-function rewriteLastUserDocumentToText(
-  messages: Anthropic.MessageParam[],
-): Anthropic.MessageParam[] {
+function rewriteLastUserDocumentToText(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (m.role !== 'user') continue
@@ -2250,7 +2206,7 @@ function anotarDeServidor(content: Anthropic.ContentBlock[], destino: string[]):
  */
 async function pasarAUnaPersona(
   ctx: LocalOrdersContext,
-  escalada: { clase: 'cobro'; urgencia: 'ahora'; porQue: string },
+  escalada: { clase: 'cobro'; urgencia: 'ahora'; porQue: string }
 ): Promise<void> {
   try {
     if (!ctx.conversationId) return
@@ -2270,10 +2226,7 @@ async function pasarAUnaPersona(
       .eq('id', ctx.conversationId)
       .is('needs_human_at', null)
     if (error) {
-      console.error(
-        '[tools] la escalada del comprobante no se pudo escribir:',
-        error.message,
-      )
+      console.error('[tools] la escalada del comprobante no se pudo escribir:', error.message)
     }
 
     const { data: c } = await ctx.db
@@ -2281,7 +2234,9 @@ async function pasarAUnaPersona(
       .select('id, contacts(name, phone)')
       .eq('id', ctx.conversationId)
       .maybeSingle()
-    const fila = c as { contacts?: { name?: string; phone?: string } | Array<{ name?: string; phone?: string }> } | null
+    const fila = c as {
+      contacts?: { name?: string; phone?: string } | Array<{ name?: string; phone?: string }>
+    } | null
     const contacto = Array.isArray(fila?.contacts) ? fila?.contacts[0] : fila?.contacts
 
     const { avisarEscalada } = await import('./aviso-escalada')

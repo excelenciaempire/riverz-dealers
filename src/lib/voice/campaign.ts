@@ -33,7 +33,7 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
     db,
     c.workspace_id,
     (seg as { rules: SegmentRule[] }).rules ?? [],
-    (seg as { match_mode: SegmentMatchMode }).match_mode,
+    (seg as { match_mode: SegmentMatchMode }).match_mode
   );
 
   const already = c.stats?.enqueued ?? 0;
@@ -50,6 +50,7 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
         ...(c.objective ? { objective_override: c.objective } : {}),
       },
       origin: 'campaign',
+      recordSkip: true,
     });
     if (res.enqueued) enqueued++;
   }
@@ -68,9 +69,7 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
 }
 
 /** Advance every running campaign by one batch. Never throws. */
-export async function runVoiceCampaigns(
-  db: SupabaseClient,
-): Promise<{ campaigns: number; enqueued: number }> {
+export async function runVoiceCampaigns(db: SupabaseClient): Promise<{ campaigns: number; enqueued: number }> {
   let enqueued = 0;
   let campaigns = 0;
   try {

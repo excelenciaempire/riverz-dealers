@@ -138,7 +138,8 @@ export async function resolveInboundCall(
 
   const contact = await resolveContact(db, conn.workspace_id, caller);
   if (!contact) return { ok: false, reason: 'contact_failed' };
-  if (contact.voice_opt_out) return { ok: false, reason: 'opt_out' };
+  // `voice_opt_out` significa «no me llamen». No debe rechazar una llamada
+  // que la propia persona inició hacia el negocio.
 
   // Idempotency is tied to the physical SIP leg, never the caller. A customer
   // may genuinely call twice at the same time from one switchboard number.

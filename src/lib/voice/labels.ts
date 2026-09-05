@@ -6,12 +6,8 @@
  * la vista de la bandeja mostraban los mismos valores con tres copias del mismo
  * mapa: agregar un estado obligaba a acordarse de las tres.
  */
-import type {
-  VoiceCallDirection,
-  VoiceCallOutcome,
-  VoiceCallStatus,
-  VoiceCallType,
-} from '@/types';
+import type { VoiceCallDirection, VoiceCallOutcome, VoiceCallStatus, VoiceCallType } from '@/types';
+import type { VoiceCallOrigin } from './execution-context';
 
 export const VOICE_STATUS_KEY: Record<VoiceCallStatus, string> = {
   queued: 'voice.statusQueued',
@@ -47,6 +43,16 @@ export const VOICE_TYPE_KEY: Record<VoiceCallType, string> = {
 export const VOICE_DIRECTION_KEY: Record<VoiceCallDirection, string> = {
   outbound: 'voice.directionOutbound',
   inbound: 'voice.directionInbound',
+};
+
+export const VOICE_ORIGIN_KEY: Record<VoiceCallOrigin, string> = {
+  assistant: 'voice.originAssistant',
+  automation: 'voice.originAutomation',
+  manual: 'voice.originManual',
+  campaign: 'voice.originCampaign',
+  inbound: 'voice.originInbound',
+  operator: 'voice.originOperator',
+  test: 'voice.originTest',
 };
 
 /**
@@ -117,13 +123,9 @@ export const BLOCKER_ORDER: VoiceBlockerCode[] = [
 ];
 
 /** El motivo que se muestra cuando sólo entra uno. */
-export function primaryBlocker<T extends { code: VoiceBlockerCode }>(
-  list: T[],
-): T | null {
+export function primaryBlocker<T extends { code: VoiceBlockerCode }>(list: T[]): T | null {
   if (list.length === 0) return null;
-  return [...list].sort(
-    (a, b) => BLOCKER_ORDER.indexOf(a.code) - BLOCKER_ORDER.indexOf(b.code),
-  )[0];
+  return [...list].sort((a, b) => BLOCKER_ORDER.indexOf(a.code) - BLOCKER_ORDER.indexOf(b.code))[0];
 }
 
 export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
@@ -170,9 +172,7 @@ export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
 
 /** Convierte un `reason` de `enqueueCall` en un código conocido. */
 export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
-  const code = reason.startsWith('insert_failed')
-    ? 'insert_failed'
-    : (reason as VoiceBlockerCode);
+  const code = reason.startsWith('insert_failed') ? 'insert_failed' : (reason as VoiceBlockerCode);
   return code in VOICE_BLOCKED_KEY ? code : 'insert_failed';
 }
 
@@ -183,10 +183,10 @@ export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
  * una barrera. Mostrarla como «Cancelada» a secas dejaba al comercio sin la
  * única información que importa, que es por qué.
  */
-export function voiceStatusLabel(call: {
-  status: VoiceCallStatus;
-  error?: string | null;
-}): { statusKey: string; reasonKey: string | null } {
+export function voiceStatusLabel(call: { status: VoiceCallStatus; error?: string | null }): {
+  statusKey: string;
+  reasonKey: string | null;
+} {
   if (call.status === 'canceled' && call.error) {
     return {
       statusKey: 'voice.statusNotPlaced',
