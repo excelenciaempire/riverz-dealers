@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { crearPlantilla } from '@/lib/templates/create'
+import type { TemplateButtonInput } from '@/lib/whatsapp/template-components'
 
 /**
  * Las plantillas que un comercio necesita el primer día.
@@ -19,28 +20,39 @@ import { crearPlantilla } from '@/lib/templates/create'
  * {{1}}, {{2}} y una muestra de cada uno, porque sin muestra Meta rechaza la
  * plantilla entera sin decir cuál faltaba.
  *
- * **UTILITY y no MARKETING** en las cuatro que siguen a algo que la persona
- * hizo —un carrito, un pago, un pedido—. Utility se aprueba casi siempre y se
- * entrega aunque la cuenta tenga el marketing frenado; marketing es justo lo
- * que Meta retiene en silencio.
+ * La categoría sigue el propósito real. Un carrito no completado busca cerrar
+ * una venta y Meta lo trata como MARKETING; los avisos sobre una transacción
+ * ya existente siguen como UTILITY. Declararlo bien protege la aprobación y la
+ * calidad del número.
  */
 export interface PlantillaBase {
   nombre: string
   categoria: 'UTILITY' | 'MARKETING'
   bodyText: string
+  footerText?: string
   /** Una muestra por variable, en orden. Sin esto Meta rechaza. */
   bodySamples: string[]
+  /** Botones aprobados junto con la plantilla. */
+  buttons?: TemplateButtonInput[]
+  /** Pre-mapeo para que una automatización no obligue a asignar cada {{n}}. */
+  variableFields?: Record<string, string>
 }
 
 export const PLANTILLAS_BASE: PlantillaBase[] = [
   {
     nombre: 'riverz_carrito_abandonado',
-    categoria: 'UTILITY',
+    categoria: 'MARKETING',
     bodyText:
-      'Hola {{1}}, te guardamos el carrito tal como lo dejaste.\n\n' +
-      'No tienes que elegir nada de nuevo: lo retomas donde ibas en {{2}} y en un minuto queda.\n\n' +
-      '¿Lo terminamos?',
-    bodySamples: ['Ana', 'tienda.com/checkout/abc'],
+      'Hola {{1}}, tu carrito sigue listo.\n\n' +
+      'Puedes terminar la compra desde el botón. Si algo te frenó —el envío, el pago o una duda— te ayudamos por aquí.\n\n' +
+      '¿Quieres retomarlo?',
+    bodySamples: ['Ana'],
+    footerText: 'Responde BAJA para no recibir más mensajes.',
+    buttons: [
+      { type: 'URL', text: 'Finalizar compra', url_variable: 'abandoned_checkout' },
+      { type: 'QUICK_REPLY', text: 'Necesito ayuda' },
+    ],
+    variableFields: { '1': 'customer_name' },
   },
   {
     nombre: 'riverz_pago_rechazado',
@@ -123,7 +135,10 @@ export async function asegurarPlantillasBase(
         idioma: 'es',
         categoria: p.categoria,
         bodyText: p.bodyText,
+        footerText: p.footerText,
         bodySamples: p.bodySamples,
+        buttons: p.buttons,
+        variableFields: p.variableFields,
       })
       if (r.ok) out.creadas.push(p.nombre)
       else out.fallaron.push({ nombre: p.nombre, motivo: r.claveI18n ?? 'error' })

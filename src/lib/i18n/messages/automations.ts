@@ -45,8 +45,8 @@ export const automations = {
   // copy stay in the catalog (customer-facing copy the merchant edits).
   "tpl_carrito-abandonado_name": { es: "Carrito abandonado", en: "Abandoned cart" },
   "tpl_carrito-abandonado_desc": {
-    es: "A los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo. Marca como recuperado solo a quien compra después.",
-    en: "15 minutes after the cart is abandoned, if they still haven't purchased, we send the link to pick it back up. Only those who buy afterwards get tagged as recovered.",
+    es: "A la hora de abandonar el carrito, si todavía no compró, le damos una forma directa de retomarlo o pedir ayuda. Marca como recuperado solo a quien compra después.",
+    en: "One hour after the cart is abandoned, if they still haven't purchased, we give them a direct way to finish or ask for help. Only those who buy afterwards get tagged as recovered.",
   },
   "tpl_pago-rechazado_name": { es: "Pago rechazado", en: "Declined payment" },
   "tpl_pago-rechazado_desc": {

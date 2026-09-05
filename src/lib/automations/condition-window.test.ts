@@ -75,7 +75,7 @@ describe('receta de carrito abandonado', () => {
     expect(nombreEtiqueta(primero)).toBe('carrito-abandonado')
     expect(primero.parent_index ?? null).toBeNull()
     expect(segundo.step_type).toBe('wait')
-    expect(segundo.step_config).toMatchObject({ amount: 15, unit: 'minutes' })
+    expect(segundo.step_config).toMatchObject({ amount: 1, unit: 'hours' })
   })
 
   it('encadena las tres preguntas que lo separan del otro rescate', () => {
@@ -116,7 +116,7 @@ describe('receta de carrito abandonado', () => {
     // nadie compró todavía y la etiqueta no se pondría nunca.
     const esperas = tpl.steps.filter((s) => s.step_type === 'wait')
     expect(esperas.map((s) => s.step_config)).toEqual([
-      { amount: 15, unit: 'minutes' },
+      { amount: 1, unit: 'hours' },
       { amount: 48, unit: 'hours' },
     ])
     const atribucion = esperas[1]

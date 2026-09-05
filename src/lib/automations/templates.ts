@@ -98,14 +98,14 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'carrito-abandonado',
     name: 'Carrito abandonado',
     description:
-      'Recupera ventas: a los 15 minutos de abandonar el carrito, si todavía no compró, le mandamos el link para retomarlo. Marca como recuperado solo a quien compra después.',
+      'Recupera ventas: a la hora de abandonar el carrito, si todavía no compró, le damos una forma directa de retomarlo o pedir ayuda. Marca como recuperado solo a quien compra después.',
     category: 'shopify',
     icon: 'shopping-cart',
-    tags: ['Shopify', 'Espera 15 min'],
+    tags: ['Shopify', 'Espera 1 h'],
     trigger_type: 'shopify_abandoned_checkout',
     trigger_config: {},
     suggested_template_body:
-      'Hola {{customer_name}}, te guardamos el carrito tal como lo dejaste.\n\nNo tienes que elegir nada de nuevo: lo retomas donde ibas en {{checkout_url}} y en un minuto queda.\n\n¿Lo terminamos?',
+      'Hola {{customer_name}}, tu carrito sigue listo.\n\nPuedes terminar la compra desde el botón. Si algo te frenó —el envío, el pago o una duda— te ayudamos por aquí.\n\n¿Quieres retomarlo?',
     steps: [
       {
         // 1. Marcar el carrito abandonado, antes de todo. Es un hecho, no un
@@ -121,7 +121,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         // 2. Esperar. La espera vive acá y no en el cron: el flujo se arma
         //    con las piezas de la plataforma y se ve entero en el lienzo.
         step_type: 'wait',
-        step_config: { amount: 15, unit: 'minutes' },
+        step_config: { amount: 1, unit: 'hours' },
       },
       {
         // 3. ¿Compró en el medio? Quien volvió y pagó no recibe nada.
@@ -148,8 +148,9 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         parent_index: 3,
       },
       {
-        // 6. Recién ahí, el mensaje. Va plantilla y no texto libre porque el
-        //    envío cae fuera de la ventana de 24 h de Meta.
+        // 6. Recién ahí, el mensaje. Va como plantilla Marketing aprobada:
+        //    iniciar el contacto exige plantilla aunque sólo haya pasado una
+        //    hora, porque el checkout no abre por sí mismo la ventana de 24 h.
         step_type: 'send_template',
         step_config: { template_name: '', language: 'es', variables: {} },
         branch: 'yes',
@@ -528,7 +529,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
  */
 const SUGGESTED_BODIES_EN: Partial<Record<TemplateSlug, string>> = {
   'carrito-abandonado':
-    'Hi {{customer_name}}, we saved your cart exactly as you left it.\n\nNothing to pick again: you carry on right where you were at {{checkout_url}} and it takes a minute.\n\nShall we finish it?',
+    'Hi {{customer_name}}, your cart is still ready.\n\nYou can finish your purchase from the button. If shipping, payment, or a question got in the way, we can help here.\n\nWould you like to pick it back up?',
   'pago-rechazado':
     "Hi {{customer_name}}, your {{total_price}} payment didn't go through. It's usually the card limit or a mistyped digit, so your order is still held for you.\n\nYou can try again with the same card or another one, and you keep everything you picked.\n\nWant me to send the payment link?",
   'pago-pendiente':
