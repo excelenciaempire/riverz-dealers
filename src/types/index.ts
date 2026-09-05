@@ -896,6 +896,12 @@ export interface SendTemplateStepConfig {
   template_name: string;
   language?: string;
   variables?: Record<string, string>;
+  /**
+   * Enfriamiento de salida para este paso. Permite una secuencia deliberada
+   * dentro de la misma automatización sin desactivar las bajas ni los cupos.
+   * Ausente conserva el valor seguro del motivo (24 h para rescates).
+   */
+  cooldown_hours?: number;
   /** Optional, stable A/B experiment owned by this send step. */
   ab_test?: {
     id: string;

@@ -890,6 +890,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         buttonUrlIndex,
         automationName: args.automation.name,
         reason: motivoDelDisparador(args.automation.trigger_type),
+        // Los seguimientos de una misma secuencia pueden tener una cadencia
+        // menor al enfriamiento general de rescates. El override vive en el
+        // paso para que no relaje la protección de ninguna otra automatización;
+        // las bajas, los cupos y la ventana de Meta se siguen evaluando.
+        cooldownHours: configured.cooldown_hours,
       })
       if (!whatsapp_message_id) exigirQueHayaSalido()
       if (variant && configured.ab_test) {
