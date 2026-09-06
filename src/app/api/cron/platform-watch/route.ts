@@ -257,6 +257,28 @@ async function cronHandler(request: Request) {
   // no puede convertirse en "quedate tranquilo" ni en una alarma falsa.
   try {
     const { proveedores } = await leerProveedores()
+    const checkedAt = new Date().toISOString()
+    // Persist only the sanitized operational snapshot. Merchant APIs consume
+    // an aggregate readiness result; provider names, keys and raw errors never
+    // leave the service-role boundary.
+    const { error: snapshotError } = await admin
+      .from('platform_provider_health')
+      .upsert(
+        proveedores.map((p) => ({
+          provider: p.id,
+          category: p.categoria,
+          state: p.estado,
+          balance: p.saldo,
+          unit: p.unidad,
+          checked_at: checkedAt,
+        })),
+        { onConflict: 'provider' }
+      )
+    if (snapshotError) {
+      log.warn('no se pudo guardar la salud de proveedores', {
+        error: snapshotError.message,
+      })
+    }
     for (const p of proveedores) {
       // Sólo los que se recargan: que Supabase no publique saldo no es una
       // alarma, es que no tiene saldo que publicar.

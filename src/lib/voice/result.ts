@@ -242,6 +242,7 @@ const OUTCOME_WORDING: Record<
     memory: 'pidió que lo llamen después',
     tag: 'volver-a-llamar',
   },
+  transferred: { memory: 'fue transferido a una persona', tag: 'transferido' },
   opt_out: { memory: 'pidió no recibir más llamadas', tag: 'no-llamar' },
   no_outcome: { memory: 'sin resultado claro', tag: 'sin-resultado' },
 };
@@ -404,7 +405,10 @@ export function llamadaRota(input: {
   const hablo = input.transcript.some(
     (t) => t.role === 'agent' && (t.text ?? '').trim() !== ''
   );
-  if (!hablo && !input.summary) {
+  // A generated summary is metadata, not proof that the caller heard the
+  // agent. The real production failure had customer speech + a summary but no
+  // agent transcript at all and was incorrectly finalized as completed.
+  if (!hablo) {
     return 'agent_silent: el modelo no respondió durante la llamada';
   }
 
@@ -488,11 +492,13 @@ export async function persistCallResult(
     .maybeSingle();
   if (!claimed) return { ok: true, reason: 'already_finalized' };
 
-  const { data: agentRow } = await db
-    .from('ai_agents')
-    .select('*')
-    .eq('id', call.agent_id)
-    .maybeSingle();
+  const { data: agentRow } = call.agent_id
+    ? await db
+        .from('ai_agents')
+        .select('*')
+        .eq('id', call.agent_id)
+        .maybeSingle()
+    : { data: null };
   const agent = (agentRow as AiAgent | null) ?? null;
 
   const durationSeconds = payload.duration_seconds ?? null;
@@ -512,7 +518,8 @@ export async function persistCallResult(
     transcript: payload.transcript ?? [],
     summary: payload.summary ?? null,
   });
-  const mudo = roto !== null;
+  // A successful human fallback intentionally has no AI-agent turn.
+  const mudo = payload.outcome !== 'transferred' && roto !== null;
   const statusFinal = mudo ? 'failed' : payload.status;
   const errorFinal = mudo ? payload.error || roto : (payload.error ?? null);
   if (mudo) {

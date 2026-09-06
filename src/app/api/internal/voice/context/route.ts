@@ -64,6 +64,18 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: resolved.reason }, { status: 409 });
       }
       call = resolved.call;
+      if (resolved.mode === 'fallback') {
+        return NextResponse.json({
+          mode: 'fallback',
+          call_id: call.id,
+          language: resolved.language,
+          fallback: {
+            reason: resolved.reason,
+            transfer_number: resolved.transferNumber,
+          },
+          recording: { enabled: true },
+        });
+      }
     } else {
       return NextResponse.json(
         { error: 'call_id or did+caller required' },

@@ -13,6 +13,30 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const wallet = vi.hoisted(() => ({
+  puede: true,
+  motivo: null as string | null,
+}));
+const platform = vi.hoisted(() => ({
+  livekit: true,
+  workerDown: false,
+  providerDown: false,
+}));
+vi.mock('@/lib/wallet/puerta', () => ({
+  puertaDeIa: async () => ({
+    puede: wallet.puede,
+    motivo: wallet.motivo,
+    saldoCentavos: wallet.puede ? 1000 : 0,
+  }),
+}));
+vi.mock('./livekit', () => ({ isLiveKitConfigured: () => platform.livekit }));
+vi.mock('./readiness', () => ({
+  voiceWorkerDown: async () => platform.workerDown,
+}));
+vi.mock('./provider-health', () => ({
+  voiceProviderHealth: async () => ({ blocking: platform.providerDown }),
+}));
+
 /** Lo que se intentó guardar en `voice_calls` durante la prueba. */
 const insertados: Record<string, unknown>[] = [];
 
@@ -46,7 +70,7 @@ vi.mock('@/lib/channels/admin-client', () => ({
   }),
 }));
 
-import { enqueueCall } from './queue';
+import { enqueueCall, voiceBalanceHoldExpiry, voiceHoldExpired } from './queue';
 
 const AGENTE = {
   id: 'agente-1',
@@ -93,6 +117,73 @@ const PEDIDO = {
 
 beforeEach(() => {
   insertados.length = 0;
+  wallet.puede = true;
+  wallet.motivo = null;
+  platform.livekit = true;
+  platform.workerDown = false;
+  platform.providerDown = false;
+});
+
+describe('saldo por origen', () => {
+  it.each(['manual', 'test', 'operator', 'assistant'] as const)(
+    '%s falla inmediatamente y deja un motivo visible',
+    async (origin) => {
+      montar({ phone_number: '+12099793169' });
+      wallet.puede = false;
+      wallet.motivo = 'sin_saldo';
+
+      const res = await enqueueCall({ ...PEDIDO, origin, recordSkip: true });
+
+      expect(res).toEqual({ enqueued: false, reason: 'sin_saldo' });
+      expect(insertados[0]).toMatchObject({
+        status: 'canceled',
+        error: 'sin_saldo',
+      });
+    }
+  );
+
+  it.each(['automation', 'campaign'] as const)(
+    '%s queda visible en espera durante 24 horas',
+    async (origin) => {
+      montar({ phone_number: '+12099793169' });
+      wallet.puede = false;
+      wallet.motivo = 'sin_saldo';
+
+      const res = await enqueueCall({ ...PEDIDO, origin });
+
+      expect(res).toMatchObject({ enqueued: true, held: true });
+      expect(insertados[0]).toMatchObject({
+        status: 'queued',
+        hold_reason: 'sin_saldo',
+      });
+      const expiry = String(insertados[0].hold_expires_at);
+      expect(new Date(expiry).getTime() - Date.now()).toBeGreaterThanOrEqual(
+        24 * 60 * 60 * 1000 - 100
+      );
+    }
+  );
+
+  it('un reintento también queda en espera', async () => {
+    montar({ phone_number: '+12099793169' });
+    wallet.puede = false;
+    wallet.motivo = 'sin_saldo';
+    const res = await enqueueCall({ ...PEDIDO, parentCallId: 'anterior' });
+    expect(res).toMatchObject({ enqueued: true, held: true });
+  });
+
+  it('vence exactamente a las 24 horas', () => {
+    const now = new Date('2026-09-06T12:00:00.000Z');
+    const expiry = voiceBalanceHoldExpiry(now);
+    expect(
+      voiceHoldExpired(
+        expiry,
+        new Date(now.getTime() + 24 * 60 * 60 * 1000 - 1)
+      )
+    ).toBe(false);
+    expect(
+      voiceHoldExpired(expiry, new Date(now.getTime() + 24 * 60 * 60 * 1000))
+    ).toBe(true);
+  });
 });
 
 describe('el freno de emergencia', () => {
@@ -125,6 +216,35 @@ describe('el freno de emergencia', () => {
 
     expect(res).toEqual({ enqueued: false, reason: 'kill_switch' });
     expect(insertados).toHaveLength(0);
+  });
+});
+
+describe('infraestructura compartida', () => {
+  it.each([
+    [
+      'platform_unavailable',
+      () => {
+        platform.livekit = false;
+      },
+    ],
+    [
+      'worker_down',
+      () => {
+        platform.workerDown = true;
+      },
+    ],
+    [
+      'provider_unavailable',
+      () => {
+        platform.providerDown = true;
+      },
+    ],
+  ] as const)('frena con %s antes de encolar', async (reason, arrange) => {
+    montar({ phone_number: '+12099793169' });
+    arrange();
+    const res = await enqueueCall({ ...PEDIDO, recordSkip: true });
+    expect(res).toEqual({ enqueued: false, reason });
+    expect(insertados[0]).toMatchObject({ status: 'canceled', error: reason });
   });
 });
 

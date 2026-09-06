@@ -6,7 +6,12 @@
  * la vista de la bandeja mostraban los mismos valores con tres copias del mismo
  * mapa: agregar un estado obligaba a acordarse de las tres.
  */
-import type { VoiceCallDirection, VoiceCallOutcome, VoiceCallStatus, VoiceCallType } from '@/types';
+import type {
+  VoiceCallDirection,
+  VoiceCallOutcome,
+  VoiceCallStatus,
+  VoiceCallType,
+} from '@/types';
 import type { VoiceCallOrigin } from './execution-context';
 
 export const VOICE_STATUS_KEY: Record<VoiceCallStatus, string> = {
@@ -28,6 +33,7 @@ export const VOICE_OUTCOME_KEY: Record<VoiceCallOutcome, string> = {
   recovered: 'voice.outcomeRecovered',
   declined: 'voice.outcomeDeclined',
   callback_requested: 'voice.outcomeCallback',
+  transferred: 'voice.outcomeTransferred',
   opt_out: 'voice.outcomeOptOut',
   no_outcome: 'voice.outcomeNone',
 };
@@ -67,12 +73,18 @@ export const VOICE_ORIGIN_KEY: Record<VoiceCallOrigin, string> = {
  */
 export type VoiceBlockerCode =
   | 'platform_unavailable'
+  | 'provider_unavailable'
+  | 'provider_warning'
   | 'worker_down'
+  | 'motor_apagado'
+  | 'sin_saldo'
+  | 'suscripcion_vencida'
   | 'no_voice_connection'
   | 'no_number'
   | 'voice_disconnected'
   | 'kill_switch'
   | 'monthly_limit_reached'
+  | 'capacity_unavailable'
   | 'no_voice_agent'
   | 'agent_not_found'
   | 'agent_deleted'
@@ -104,7 +116,11 @@ export const VOICE_WORKER_SCHEDULE = '* * * * *';
  */
 export const BLOCKER_ORDER: VoiceBlockerCode[] = [
   'platform_unavailable',
+  'provider_unavailable',
   'worker_down',
+  'motor_apagado',
+  'suscripcion_vencida',
+  'sin_saldo',
   'no_voice_connection',
   'voice_disconnected',
   'no_number',
@@ -115,6 +131,7 @@ export const BLOCKER_ORDER: VoiceBlockerCode[] = [
   'agent_paused',
   'kill_switch',
   'monthly_limit_reached',
+  'capacity_unavailable',
   'contact_not_found',
   'opt_out',
   'invalid_phone',
@@ -123,19 +140,29 @@ export const BLOCKER_ORDER: VoiceBlockerCode[] = [
 ];
 
 /** El motivo que se muestra cuando sólo entra uno. */
-export function primaryBlocker<T extends { code: VoiceBlockerCode }>(list: T[]): T | null {
+export function primaryBlocker<T extends { code: VoiceBlockerCode }>(
+  list: T[]
+): T | null {
   if (list.length === 0) return null;
-  return [...list].sort((a, b) => BLOCKER_ORDER.indexOf(a.code) - BLOCKER_ORDER.indexOf(b.code))[0];
+  return [...list].sort(
+    (a, b) => BLOCKER_ORDER.indexOf(a.code) - BLOCKER_ORDER.indexOf(b.code)
+  )[0];
 }
 
 export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
   platform_unavailable: 'voice.blockedPlatform',
+  provider_unavailable: 'voice.blockedProvider',
+  provider_warning: 'voice.warningProvider',
   worker_down: 'voice.blockedWorkerDown',
+  motor_apagado: 'voice.blockedMotor',
+  sin_saldo: 'voice.blockedBalance',
+  suscripcion_vencida: 'voice.blockedSubscription',
   no_voice_connection: 'voice.blockedNoConnection',
   no_number: 'voice.blockedNoNumber',
   voice_disconnected: 'voice.blockedDisconnected',
   kill_switch: 'voice.blockedKillSwitch',
   monthly_limit_reached: 'voice.blockedMonthlyLimit',
+  capacity_unavailable: 'voice.blockedCapacity',
   no_voice_agent: 'voice.blockedNoVoiceAgent',
   agent_not_found: 'voice.blockedAgentNotFound',
   agent_deleted: 'voice.blockedAgentDeleted',
@@ -151,13 +178,19 @@ export const VOICE_BLOCKED_KEY: Record<VoiceBlockerCode, string> = {
 /** Dónde se destraba cada motivo. `null` = no lo arregla el comercio. */
 export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
   platform_unavailable: null,
+  provider_unavailable: null,
+  provider_warning: null,
   // El worker es de la plataforma: el comercio no tiene dónde ir a arreglarlo.
   worker_down: null,
+  motor_apagado: '/',
+  sin_saldo: '/ajustes?tab=billing',
+  suscripcion_vencida: '/ajustes?tab=billing',
   no_voice_connection: '/voz',
   no_number: '/voz',
   voice_disconnected: '/voz',
   kill_switch: '/voz',
   monthly_limit_reached: '/voz',
+  capacity_unavailable: '/voz',
   no_voice_agent: '/asistente',
   agent_not_found: '/asistente',
   agent_deleted: '/asistente',
@@ -172,7 +205,9 @@ export const VOICE_BLOCKED_FIX_HREF: Record<VoiceBlockerCode, string | null> = {
 
 /** Convierte un `reason` de `enqueueCall` en un código conocido. */
 export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
-  const code = reason.startsWith('insert_failed') ? 'insert_failed' : (reason as VoiceBlockerCode);
+  const code = reason.startsWith('insert_failed')
+    ? 'insert_failed'
+    : (reason as VoiceBlockerCode);
   return code in VOICE_BLOCKED_KEY ? code : 'insert_failed';
 }
 
@@ -183,10 +218,20 @@ export function blockerCodeFromReason(reason: string): VoiceBlockerCode {
  * una barrera. Mostrarla como «Cancelada» a secas dejaba al comercio sin la
  * única información que importa, que es por qué.
  */
-export function voiceStatusLabel(call: { status: VoiceCallStatus; error?: string | null }): {
+export function voiceStatusLabel(call: {
+  status: VoiceCallStatus;
+  error?: string | null;
+  hold_reason?: string | null;
+}): {
   statusKey: string;
   reasonKey: string | null;
 } {
+  if (call.status === 'queued' && call.hold_reason) {
+    return {
+      statusKey: 'voice.statusOnHold',
+      reasonKey: VOICE_BLOCKED_KEY[blockerCodeFromReason(call.hold_reason)],
+    };
+  }
   if (call.status === 'canceled' && call.error) {
     return {
       statusKey: 'voice.statusNotPlaced',

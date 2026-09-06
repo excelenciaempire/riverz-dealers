@@ -22,6 +22,8 @@ Las versiones recientes también exponen `AgentServer` + `@server.rtc_session(..
 from __future__ import annotations
 
 import asyncio
+import base64
+import gzip
 import json
 import logging
 import os
@@ -33,7 +35,7 @@ from datetime import datetime, timezone
 import httpx
 
 from dotenv import load_dotenv
-from livekit import api as lkapi
+from livekit import api as lkapi, rtc
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -57,6 +59,7 @@ from rioplatense import sheismo_stream
 from speakable import speakable_stream
 from riverz_api import RiverzAPI
 from tools import CallState, build_tools, hangup as _hangup
+from fallback_audio import FALLBACK_NOTICE_GZIP_BASE64
 
 # Noise cancellation (BVCTelephony) mejora mucho el audio en telefonía, pero es un
 # plugin aparte y opcional; si no está instalado, seguimos sin él (fail-soft).
@@ -1219,6 +1222,83 @@ async def _run_inbound(ctx: JobContext, api: RiverzAPI, call_state: CallState, v
     call_state.answered_at = _now_iso()
     # El participante telefónico ya está en la room -> guardamos su identity para transferir.
     call_state.phone_identity = participant_identity
+
+    if context.get("mode") == "fallback":
+        fallback = context.get("fallback") or {}
+        transfer_number = fallback.get("transfer_number")
+        # This path never invokes an LLM or TTS provider. The fixed 8 kHz PCM
+        # notice is embedded in the worker image and published straight into
+        # the room before SIP REFER.
+        ctx.add_shutdown_callback(
+            lambda *_: _finalize(api, call_state, None, context, lk_api=ctx.api)
+        )
+        await _start_recording(ctx, context, call_state)
+        try:
+            language = "en" if context.get("language") == "en" else "es"
+            encoded = FALLBACK_NOTICE_GZIP_BASE64[language]
+            pcm = gzip.decompress(base64.b64decode(encoded))
+            sample_rate = 8000
+            channels = 1
+            source = rtc.AudioSource(sample_rate, channels)
+            track = rtc.LocalAudioTrack.create_audio_track("fallback-notice", source)
+            await ctx.room.local_participant.publish_track(
+                track,
+                rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE),
+            )
+            chunk_bytes = (sample_rate // 50) * 2
+            for offset in range(0, len(pcm), chunk_bytes):
+                chunk = pcm[offset : offset + chunk_bytes]
+                if len(chunk) % 2:
+                    chunk += b"\0"
+                await source.capture_frame(
+                    rtc.AudioFrame(
+                        data=chunk,
+                        sample_rate=sample_rate,
+                        num_channels=channels,
+                        samples_per_channel=len(chunk) // 2,
+                    )
+                )
+            await source.wait_for_playout()
+        except Exception:
+            logger.warning("no se pudo reproducir el aviso de fallback", exc_info=True)
+
+        if transfer_number:
+            try:
+                await ctx.api.sip.transfer_sip_participant(
+                    lkapi.TransferSIPParticipantRequest(
+                        room_name=ctx.room.name,
+                        participant_identity=participant_identity,
+                        transfer_to=f"tel:{transfer_number}",
+                    )
+                )
+                call_state.outcome = "transferred"
+                call_state.outcome_details = {
+                    "transferred": True,
+                    "transfer_to": transfer_number,
+                    "fallback_reason": fallback.get("reason"),
+                }
+                call_state.status = "completed"
+                logger.info("fallback entrante transferido")
+                return
+            except Exception as exc:
+                call_state.status = "failed"
+                call_state.outcome_details = {
+                    "transferred": False,
+                    "transfer_to": transfer_number,
+                    "fallback_reason": fallback.get("reason"),
+                    "error": "transfer_failed",
+                }
+                logger.warning("falló la transferencia de fallback: %s", exc)
+        else:
+            call_state.status = "failed"
+            call_state.outcome_details = {
+                "transferred": False,
+                "fallback_reason": fallback.get("reason"),
+                "error": "fallback_number_missing",
+            }
+
+        await _hangup()
+        return
 
     session = _build_session(context, vad)
     usage_collector = metrics.UsageCollector()

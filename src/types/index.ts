@@ -1148,6 +1148,7 @@ export type VoiceCallOutcome =
   | 'recovered'
   | 'declined'
   | 'callback_requested'
+  | 'transferred'
   | 'opt_out'
   | 'no_outcome';
 
@@ -1196,7 +1197,8 @@ export interface VoiceCallCost {
 export interface VoiceCall {
   id: string;
   workspace_id: string;
-  agent_id: string;
+  /** Null when an inbound call is handled only by the human fallback. */
+  agent_id: string | null;
   contact_id: string;
   conversation_id: string | null;
   automation_id: string | null;
@@ -1217,6 +1219,10 @@ export interface VoiceCall {
   dedupe_key: string | null;
   /** Physical SIP session id for exact inbound idempotency. */
   external_call_id: string | null;
+  /** Why an automatic call is parked instead of silently disappearing. */
+  hold_reason: string | null;
+  /** Automatic holds expire after 24 hours. */
+  hold_expires_at: string | null;
   scheduled_at: string;
   attempt: number;
   max_attempts: number;
@@ -1270,6 +1276,10 @@ export interface VoiceConnectionConfig {
   recording_disclosure?: boolean;
   /** E.164 number the agent can warm/cold-transfer a call to (human handoff). */
   transfer_number?: string;
+  /** Workspace-level human destination used when inbound AI cannot answer. */
+  fallback_transfer_number?: string;
+  /** Language of the prerecorded inbound fallback notice. */
+  fallback_language?: 'es' | 'en';
   /** Segundos de espera antes de que el agente hable (0–10; sin apuro para el cliente). */
   greeting_delay_seconds?: number;
   /** Segundos de silencio del cliente antes de avisar "¿sigues ahí?" y luego colgar

@@ -3,7 +3,7 @@ import { llamadaRota } from './result';
 import type { VoiceTranscriptTurn } from './result';
 
 const t = (role: 'agent' | 'customer', text: string): VoiceTranscriptTurn =>
-  ({ role, text } as VoiceTranscriptTurn);
+  ({ role, text }) as VoiceTranscriptTurn;
 
 /** La llamada real del 2026-08-28 que motivó todo esto. */
 const LA_ROTA = [
@@ -22,7 +22,7 @@ describe('llamadaRota', () => {
         connected: true,
         transcript: LA_ROTA,
         summary: 'un resumen cualquiera',
-      }),
+      })
     ).toMatch(/dejó de responder/);
   });
 
@@ -33,7 +33,18 @@ describe('llamadaRota', () => {
         connected: true,
         transcript: [t('customer', '¿Hola?')],
         summary: null,
-      }),
+      })
+    ).toMatch(/no respondió/);
+  });
+
+  it('un resumen generado no convierte silencio del agente en respuesta', () => {
+    expect(
+      llamadaRota({
+        status: 'completed',
+        connected: true,
+        transcript: [t('customer', 'Hola'), t('customer', '¿Me escuchas?')],
+        summary: 'El cliente saludó dos veces y no recibió respuesta.',
+      })
     ).toMatch(/no respondió/);
   });
 
@@ -48,7 +59,7 @@ describe('llamadaRota', () => {
           t('agent', 'Listo, gracias.'),
         ],
         summary: 'pedido confirmado',
-      }),
+      })
     ).toBeNull();
   });
 
@@ -64,16 +75,26 @@ describe('llamadaRota', () => {
           t('customer', 'Sí, listo, gracias.'),
         ],
         summary: 'ok',
-      }),
+      })
     ).toBeNull();
   });
 
   it('no opina sobre una llamada que no conectó ni sobre una ya fallida', () => {
     expect(
-      llamadaRota({ status: 'no_answer', connected: false, transcript: [], summary: null }),
+      llamadaRota({
+        status: 'no_answer',
+        connected: false,
+        transcript: [],
+        summary: null,
+      })
     ).toBeNull();
     expect(
-      llamadaRota({ status: 'failed', connected: true, transcript: LA_ROTA, summary: null }),
+      llamadaRota({
+        status: 'failed',
+        connected: true,
+        transcript: LA_ROTA,
+        summary: null,
+      })
     ).toBeNull();
   });
 });

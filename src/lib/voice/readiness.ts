@@ -13,8 +13,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VoiceConnectionConfig } from '@/types';
 import { isStale } from '@/lib/cron/schedule';
-import { listVoiceAgents } from './agents';
+import { listInboundVoiceAgents, listVoiceAgents } from './agents';
 import { isLiveKitConfigured } from './livekit';
+import { estadoDelMotor } from '@/lib/workspaces/motor';
+import { puertaDeIa } from '@/lib/wallet/puerta';
+import { voiceProviderHealth } from './provider-health';
 import {
   blockerCodeFromReason,
   VOICE_BLOCKED_FIX_HREF,
@@ -48,6 +51,21 @@ export interface VoiceReadiness {
   agents: { id: string; name: string }[];
   /** ¿Ya se completó alguna llamada? Lo usa el camino de puesta en marcha. */
   firstCallDone: boolean;
+  directions: {
+    outbound: {
+      ready: boolean;
+      blockers: VoiceBlocker[];
+      warnings: VoiceBlocker[];
+    };
+    inbound: {
+      ready: boolean;
+      mode: 'ai' | 'fallback' | 'unavailable';
+      blockers: VoiceBlocker[];
+      warnings: VoiceBlocker[];
+    };
+  };
+  wallet: { balanceCents: number; reason: string | null };
+  capacity: { availableInboundAgents: number };
 }
 
 /** Convierte un `reason` de `enqueueCall` en un bloqueo con su clave y su link. */
@@ -124,18 +142,43 @@ export async function voiceReadiness(
 ): Promise<VoiceReadiness> {
   const blockers: VoiceBlocker[] = [];
   const warnings: VoiceBlocker[] = [];
+  const inboundBlockers: VoiceBlocker[] = [];
+  const inboundWarnings: VoiceBlocker[] = [];
   const add = (code: VoiceBlockerCode, agentName?: string) =>
     blockers.push({
       code,
       fixHref: VOICE_BLOCKED_FIX_HREF[code],
       ...(agentName ? { agentName } : {}),
     });
+  const addInbound = (
+    target: VoiceBlocker[],
+    code: VoiceBlockerCode,
+    agentName?: string
+  ) =>
+    target.push({
+      code,
+      fixHref: VOICE_BLOCKED_FIX_HREF[code],
+      ...(agentName ? { agentName } : {}),
+    });
+  const addBoth = (code: VoiceBlockerCode) => {
+    add(code);
+    addInbound(inboundBlockers, code);
+  };
 
-  if (!isLiveKitConfigured()) add('platform_unavailable');
+  if (!isLiveKitConfigured()) addBoth('platform_unavailable');
 
   // Las tres consultas que no dependen entre sí, juntas: esto lo llaman cinco
   // pantallas y encadenarlas se nota.
-  const [connRes, agentes, workerDown, primera] = await Promise.all([
+  const [
+    connRes,
+    agentes,
+    inboundAgents,
+    workerDown,
+    primera,
+    motor,
+    wallet,
+    providers,
+  ] = await Promise.all([
     db
       .from('channel_connections')
       .select('config, status')
@@ -145,15 +188,28 @@ export async function voiceReadiness(
     // `*` mantiene compatibilidad durante el despliegue gradual de la columna
     // per-agent (migración 244): PostgREST no falla si todavía no existe.
     listVoiceAgents(db, workspaceId),
+    listInboundVoiceAgents(db, workspaceId),
     voiceWorkerDown(db),
     db
       .from('voice_calls')
       .select('id', { count: 'exact', head: true })
       .eq('workspace_id', workspaceId)
       .eq('status', 'completed'),
+    estadoDelMotor(db, workspaceId),
+    puertaDeIa(db, workspaceId),
+    voiceProviderHealth(db),
   ]);
 
-  if (workerDown) add('worker_down');
+  if (workerDown) addBoth('worker_down');
+  if (motor.apagado) addBoth('motor_apagado');
+  if (!wallet.puede) add(wallet.motivo ?? 'sin_saldo');
+  if (providers.blocking) add('provider_unavailable');
+  if (providers.telephonyBlocking)
+    addInbound(inboundBlockers, 'provider_unavailable');
+  if (providers.warning) {
+    warnings.push({ code: 'provider_warning', fixHref: null });
+    inboundWarnings.push({ code: 'provider_warning', fixHref: null });
+  }
 
   // ── La cuenta: conexión, número, freno, tope ──
   const conn = connRes.data as {
@@ -163,13 +219,13 @@ export async function voiceReadiness(
   const cfg = conn?.config ?? {};
 
   if (!conn) {
-    add('no_voice_connection');
+    addBoth('no_voice_connection');
   } else {
-    if (conn.status === 'disconnected') add('voice_disconnected');
-    if (!cfg.phone_number) add('no_number');
-    if (cfg.kill_switch) add('kill_switch');
-    // Entrantes apagadas es una preferencia del agente, no una alerta global.
-    // Se muestra dentro de su configuración; el canal saliente sigue sano.
+    if (conn.status === 'disconnected') addBoth('voice_disconnected');
+    if (!cfg.phone_number) addBoth('no_number');
+    if (cfg.kill_switch) addBoth('kill_switch');
+    if (cfg.inbound_enabled === false)
+      addInbound(inboundBlockers, 'inbound_disabled');
   }
 
   // ── El agente ──
@@ -212,6 +268,26 @@ export async function voiceReadiness(
     add('no_voice_agent');
   }
 
+  const allInboundEligible = agentes.filter(
+    (agent) => agent.voice_accepts_inbound !== false
+  );
+  let inboundMode: 'ai' | 'fallback' | 'unavailable' = 'ai';
+  if (!wallet.puede) {
+    addInbound(inboundWarnings, wallet.motivo ?? 'sin_saldo');
+    inboundMode = 'fallback';
+  }
+  if (providers.aiBlocking) {
+    addInbound(inboundWarnings, 'provider_unavailable');
+    inboundMode = 'fallback';
+  }
+  if (inboundAgents.length === 0) {
+    const code =
+      allInboundEligible.length > 0 ? 'capacity_unavailable' : 'no_voice_agent';
+    addInbound(inboundWarnings, code);
+    inboundMode = 'fallback';
+  }
+  if (inboundBlockers.length > 0) inboundMode = 'unavailable';
+
   return {
     ready: blockers.length === 0,
     blockers,
@@ -219,5 +295,16 @@ export async function voiceReadiness(
     phoneNumber: cfg.phone_number ?? null,
     agents: agentes.map((a) => ({ id: a.id, name: a.name })),
     firstCallDone: (primera.count ?? 0) > 0,
+    directions: {
+      outbound: { ready: blockers.length === 0, blockers, warnings },
+      inbound: {
+        ready: inboundBlockers.length === 0,
+        mode: inboundMode,
+        blockers: inboundBlockers,
+        warnings: inboundWarnings,
+      },
+    },
+    wallet: { balanceCents: wallet.saldoCentavos, reason: wallet.motivo },
+    capacity: { availableInboundAgents: inboundAgents.length },
   };
 }

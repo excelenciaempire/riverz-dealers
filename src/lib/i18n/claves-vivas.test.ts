@@ -25,6 +25,7 @@ import { MESSAGES } from './messages/registry'
 const VIGILADOS: { prefijo: string; carpetas: string[] }[] = [
   { prefijo: 'operation', carpetas: ['src/components/operacion', 'src/lib/operator'] },
   { prefijo: 'admin', carpetas: ['src/app/admin'] },
+  { prefijo: 'voice', carpetas: ['src/components/voice'] },
 ]
 
 function archivos(dir: string): string[] {

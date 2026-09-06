@@ -19,6 +19,10 @@ import type {
 } from '@/types';
 import type { AiAgent } from '@/lib/ai/types';
 import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDeIa } from '@/lib/wallet/puerta';
+import { isLiveKitConfigured } from './livekit';
+import { voiceWorkerDown } from './readiness';
+import { voiceProviderHealth } from './provider-health';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import {
   DEFAULT_CALLING_HOURS,
@@ -37,6 +41,18 @@ import {
 } from './execution-context';
 
 const DEFAULT_TZ = 'America/Bogota';
+export const VOICE_BALANCE_HOLD_MS = 24 * 60 * 60 * 1000;
+
+export function voiceBalanceHoldExpiry(now = new Date()): string {
+  return new Date(now.getTime() + VOICE_BALANCE_HOLD_MS).toISOString();
+}
+
+export function voiceHoldExpired(
+  expiresAt: string | null,
+  now = new Date()
+): boolean {
+  return Boolean(expiresAt && new Date(expiresAt).getTime() <= now.getTime());
+}
 
 export interface EnqueueInput {
   workspaceId: string;
@@ -81,7 +97,13 @@ export interface EnqueueInput {
 }
 
 export type EnqueueResult =
-  | { enqueued: true; callId: string; scheduledAt: string; duplicate?: boolean }
+  | {
+      enqueued: true;
+      callId: string;
+      scheduledAt: string;
+      duplicate?: boolean;
+      held?: boolean;
+    }
   | { enqueued: false; reason: string };
 
 /** ISO weekday (1 = Mon … 7 = Sun) of `instant` in `tz`. */
@@ -310,6 +332,13 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
   // apagado esperando aprobación, el teléfono no suena.
   if (await motorApagado(db, input.workspaceId))
     return blocked('motor_apagado');
+  if (!isLiveKitConfigured()) return blocked('platform_unavailable');
+  const [workerUnavailable, providers] = await Promise.all([
+    voiceWorkerDown(db),
+    voiceProviderHealth(db),
+  ]);
+  if (workerUnavailable) return blocked('worker_down');
+  if (providers.blocking) return blocked('provider_unavailable');
 
   // ── Barreras, en orden de qué apaga qué ──
   if (!conn) return blocked('no_voice_connection');
@@ -345,6 +374,21 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     );
     if (used >= limit) return blocked('monthly_limit_reached');
   }
+
+  // Human-triggered calls fail immediately so the UI can offer a recharge.
+  // Background work remains visible for up to 24 hours and is released by the
+  // dispatcher as soon as the account can spend again.
+  const wallet = await puertaDeIa(db, input.workspaceId);
+  const mayHoldForBalance =
+    wallet.motivo === 'sin_saldo' &&
+    (input.origin === 'automation' ||
+      input.origin === 'campaign' ||
+      Boolean(input.parentCallId));
+  if (!wallet.puede && !mayHoldForBalance) {
+    return blocked(wallet.motivo ?? 'sin_saldo');
+  }
+  const holdReason = mayHoldForBalance ? 'sin_saldo' : null;
+  const holdExpiresAt = mayHoldForBalance ? voiceBalanceHoldExpiry() : null;
 
   // Schedule. `delayMinutes` pushes the earliest moment forward before the
   // calling window is applied — used to let a text message have its turn
@@ -438,6 +482,9 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
       attempt: input.attempt ?? 1,
       max_attempts: maxAttempts,
       parent_call_id: input.parentCallId ?? null,
+      ...(holdReason
+        ? { hold_reason: holdReason, hold_expires_at: holdExpiresAt }
+        : {}),
     })
     .select('id')
     .single();
@@ -474,6 +521,7 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     enqueued: true,
     callId: (inserted as { id: string }).id,
     scheduledAt: scheduledAt.toISOString(),
+    ...(holdReason ? { held: true } : {}),
   };
 }
 

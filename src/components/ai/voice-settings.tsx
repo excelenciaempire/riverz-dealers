@@ -11,7 +11,6 @@ import {
   Sparkles,
   Loader2,
   Megaphone,
-  PhoneCall,
   PhoneIncoming,
   Plus,
   ShieldCheck,
@@ -31,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { VoiceStatusLine } from '@/components/voice/voice-status-line';
+import { TestCallDialog } from '@/components/voice/test-call-dialog';
 import { useT, useLocale } from '@/hooks/use-locale';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
@@ -48,11 +48,7 @@ import {
   DEFAULT_OBJECTIVES,
   DEFAULT_RETRY_DELAY_MINUTES,
 } from '@/lib/voice/constants';
-import {
-  blockerCodeFromReason,
-  VOICE_BLOCKED_KEY,
-  VOICE_TYPE_KEY,
-} from '@/lib/voice/labels';
+import { VOICE_TYPE_KEY } from '@/lib/voice/labels';
 
 export interface VoiceState {
   voice_enabled: boolean;
@@ -229,8 +225,6 @@ export function VoiceSettings({
   const { locale } = useLocale();
   const fetchWithCsrf = useFetchWithCsrf();
   const [previewing, setPreviewing] = useState<string | null>(null);
-  const [testPhone, setTestPhone] = useState('');
-  const [calling, setCalling] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const greetingRef = useRef<HTMLTextAreaElement | null>(null);
   const sampleInputRef = useRef<HTMLInputElement | null>(null);
@@ -587,49 +581,6 @@ export function VoiceSettings({
       }
     } finally {
       setGuardandoVoz(false);
-    }
-  }
-
-  async function testCall() {
-    if (
-      !workspaceId ||
-      !agentId ||
-      !value.voice_enabled ||
-      !value.voice_id ||
-      !testPhone.trim()
-    )
-      return;
-    setCalling(true);
-    try {
-      if (onBeforeTestCall && !(await onBeforeTestCall())) return;
-      const res = await fetchWithCsrf('/api/voice/test-call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspace_id: workspaceId,
-          agent_id: agentId,
-          phone: testPhone.trim(),
-        }),
-      });
-      const json = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      if (!res.ok) {
-        const reason = json?.error;
-        toast.error(
-          reason === 'motor_apagado'
-            ? t('voice.testCallAccountPaused')
-            : reason
-              ? t(VOICE_BLOCKED_KEY[blockerCodeFromReason(reason)])
-              : t('voice.callFailed')
-        );
-        return;
-      }
-      toast.success(t('voice.testCallQueued'));
-    } catch {
-      toast.error(t('voice.callFailed'));
-    } finally {
-      setCalling(false);
     }
   }
 
@@ -1914,43 +1865,19 @@ export function VoiceSettings({
               {t('voice.testCallSaveFirst')}
             </p>
           )}
-          <div className="flex gap-2">
-            <Input
-              type="tel"
-              className="bg-background text-foreground"
-              placeholder={t('voice.testCallPlaceholder')}
-              value={testPhone}
-              disabled={!agentId}
-              onChange={(e) => setTestPhone(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                void testCall();
-              }}
-            />
-            <Button
-              type="button"
-              onClick={testCall}
-              disabled={
-                !agentId ||
-                !value.voice_enabled ||
-                !value.voice_id ||
-                !vozElegidaDisponible ||
-                calling ||
-                testCallDisabled ||
-                !testPhone.trim()
-              }
-            >
-              {calling ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <PhoneCall className="mr-1 h-3.5 w-3.5" />
-                  {t('voice.testCall')}
-                </>
-              )}
-            </Button>
-          </div>
+          <TestCallDialog
+            workspaceId={workspaceId}
+            agents={agentId ? [{ id: agentId, name: '' }] : []}
+            fixedAgentId={agentId}
+            onBeforeCall={onBeforeTestCall}
+            disabled={
+              !agentId ||
+              !value.voice_enabled ||
+              !value.voice_id ||
+              !vozElegidaDisponible ||
+              testCallDisabled
+            }
+          />
         </div>
       )}
     </div>

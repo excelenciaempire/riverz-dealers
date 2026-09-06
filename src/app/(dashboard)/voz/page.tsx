@@ -17,6 +17,9 @@ import { CallLog } from '@/components/voice/call-log';
 import { VoiceAnalytics } from '@/components/voice/voice-analytics';
 import { VoiceAgentProfiles } from '@/components/voice/voice-agent-profiles';
 import { VoiceOrderSettings } from '@/components/voice/voice-order-settings';
+import { TestCallDialog } from '@/components/voice/test-call-dialog';
+import { VoiceReadinessCard } from '@/components/voice/voice-readiness-card';
+import { VoiceFallbackSettings } from '@/components/voice/voice-fallback-settings';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useVoiceReadiness } from '@/hooks/use-voice-readiness';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -166,6 +169,10 @@ export default function VoicePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <TestCallDialog
+              workspaceId={workspaceId}
+              agents={readiness?.agents ?? []}
+            />
             {usage && usage.calls > 0 && (
               <p className="text-muted-foreground border-border bg-card inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]">
                 <AudioLines className="text-accent-ink size-3" />
@@ -225,7 +232,14 @@ export default function VoicePage() {
           </div>
         </div>
 
+        <VoiceReadinessCard readiness={readiness} />
+
         <VoiceNumberCard />
+
+        <VoiceFallbackSettings
+          workspaceId={workspaceId}
+          onSaved={releerEstado}
+        />
 
         <VoiceAgentProfiles
           workspaceId={workspaceId}

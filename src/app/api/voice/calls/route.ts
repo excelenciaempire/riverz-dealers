@@ -78,7 +78,10 @@ export async function POST(request: Request) {
       recordSkip: true,
     });
     if (!result.enqueued) {
-      return NextResponse.json({ error: result.reason }, { status: 409 });
+      const status = ['sin_saldo', 'suscripcion_vencida'].includes(result.reason)
+        ? 402
+        : 409;
+      return NextResponse.json({ error: result.reason }, { status });
     }
     return NextResponse.json({ ok: true, call_id: result.callId, scheduled_at: result.scheduledAt }, { status: 201 });
   } catch (err) {

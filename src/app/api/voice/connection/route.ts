@@ -6,6 +6,7 @@ import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
 import { normalizeVoiceCapacity } from '@/lib/voice/capacity';
+import { isValidE164 } from '@/lib/whatsapp/phone-utils';
 
 /**
  * Voice channel connection config (per workspace). Stores the merchant's DID,
@@ -133,6 +134,16 @@ export async function PUT(request: Request) {
     }
     if (owns('transfer_number')) {
       cfg.transfer_number = incoming.transfer_number?.trim() || undefined;
+    }
+    if (owns('fallback_transfer_number')) {
+      const number = incoming.fallback_transfer_number?.trim() || '';
+      if (number && !isValidE164(number)) {
+        return NextResponse.json({ error: 'invalid_phone' }, { status: 400 });
+      }
+      cfg.fallback_transfer_number = number || undefined;
+    }
+    if (owns('fallback_language')) {
+      cfg.fallback_language = incoming.fallback_language === 'en' ? 'en' : 'es';
     }
     if (owns('order_writeback')) {
       cfg.order_writeback = incoming.order_writeback

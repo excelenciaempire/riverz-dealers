@@ -16,6 +16,19 @@ export interface VoiceReadinessView {
   phoneNumber: string | null;
   agents: { id: string; name: string }[];
   firstCallDone: boolean;
+  outbound: {
+    ready: boolean;
+    blockers: VoiceBlockerView[];
+    warnings: VoiceBlockerView[];
+  };
+  inbound: {
+    ready: boolean;
+    mode: 'ai' | 'fallback' | 'unavailable';
+    blockers: VoiceBlockerView[];
+    warnings: VoiceBlockerView[];
+  };
+  wallet: { balanceCents: number; reason: string | null };
+  capacity: { availableInboundAgents: number };
 }
 
 /**
@@ -32,7 +45,7 @@ export interface VoiceReadinessView {
  */
 export function useVoiceReadiness(
   workspaceId: string | undefined,
-  agentId?: string | null,
+  agentId?: string | null
 ) {
   const [data, setData] = useState<VoiceReadinessView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +63,9 @@ export function useVoiceReadiness(
     try {
       const qs = new URLSearchParams({ workspace_id: workspaceId });
       if (agentId) qs.set('agent_id', agentId);
-      const res = await fetch(`/api/voice/readiness?${qs}`, { cache: 'no-store' });
+      const res = await fetch(`/api/voice/readiness?${qs}`, {
+        cache: 'no-store',
+      });
       if (!res.ok || mine !== epoch.current) return;
       const json = (await res.json()) as {
         ready: boolean;
@@ -59,6 +74,10 @@ export function useVoiceReadiness(
         phone_number: string | null;
         agents?: { id: string; name: string }[];
         first_call_done?: boolean;
+        outbound?: VoiceReadinessView['outbound'];
+        inbound?: VoiceReadinessView['inbound'];
+        wallet?: { balance_cents?: number; reason?: string | null };
+        capacity?: { available_inbound_agents?: number };
       };
       if (mine !== epoch.current) return;
       setData({
@@ -68,6 +87,24 @@ export function useVoiceReadiness(
         phoneNumber: json.phone_number,
         agents: json.agents ?? [],
         firstCallDone: Boolean(json.first_call_done),
+        outbound: json.outbound ?? {
+          ready: json.ready,
+          blockers: json.blockers ?? [],
+          warnings: json.warnings ?? [],
+        },
+        inbound: json.inbound ?? {
+          ready: false,
+          mode: 'unavailable',
+          blockers: [],
+          warnings: [],
+        },
+        wallet: {
+          balanceCents: json.wallet?.balance_cents ?? 0,
+          reason: json.wallet?.reason ?? null,
+        },
+        capacity: {
+          availableInboundAgents: json.capacity?.available_inbound_agents ?? 0,
+        },
       });
     } catch {
       /* sin respuesta se deja lo anterior: un cartel que parpadea a «no puede

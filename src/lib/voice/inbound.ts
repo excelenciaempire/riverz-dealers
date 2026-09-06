@@ -11,8 +11,15 @@ import { selectAll } from '@/lib/db/paginate';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, VoiceCall, VoiceConnectionConfig } from '@/types';
 import { normalizeToWhatsApp, phonesMatch } from '@/lib/whatsapp/phone-utils';
-import { pickInboundVoiceAgent, pickVoiceAgent } from './agents';
+import {
+  listVoiceAgents,
+  pickInboundVoiceAgent,
+  pickVoiceAgent,
+} from './agents';
 import { withVoiceExecutionMeta } from './execution-context';
+import { motorApagado } from '@/lib/workspaces/motor';
+import { puertaDeIa } from '@/lib/wallet/puerta';
+import { voiceProviderHealth } from './provider-health';
 
 function toE164(raw: string): string {
   const t = raw.trim();
@@ -86,7 +93,15 @@ async function resolveContact(
 }
 
 export type InboundResolution =
-  | { ok: true; call: VoiceCall }
+  | { ok: true; mode: 'ai'; call: VoiceCall }
+  | {
+      ok: true;
+      mode: 'fallback';
+      call: VoiceCall;
+      reason: string;
+      transferNumber: string | null;
+      language: 'es' | 'en';
+    }
   | { ok: false; reason: string };
 
 /**
@@ -126,14 +141,6 @@ export async function resolveInboundCall(
   const cfg = conn.config ?? {};
   if (cfg.kill_switch) return { ok: false, reason: 'kill_switch' };
 
-  const agent = await pickInboundVoiceAgent(db, conn.workspace_id);
-  if (
-    !agent ||
-    (agent.voice_accepts_inbound === undefined && !cfg.inbound_enabled)
-  ) {
-    return { ok: false, reason: 'inbound_disabled' };
-  }
-
   const caller = callerToE164(input.caller, cfg.country);
 
   const contact = await resolveContact(db, conn.workspace_id, caller);
@@ -149,21 +156,75 @@ export async function resolveInboundCall(
       .select('*')
       .eq('external_call_id', input.sessionId)
       .maybeSingle();
-    if (existing) return { ok: true, call: existing as VoiceCall };
+    if (existing) {
+      const call = existing as VoiceCall;
+      const fallbackReason = String(
+        call.context?.fallback_reason ?? 'unavailable'
+      );
+      return call.agent_id
+        ? { ok: true, mode: 'ai', call }
+        : {
+            ok: true,
+            mode: 'fallback',
+            call,
+            reason: fallbackReason,
+            transferNumber: cfg.fallback_transfer_number ?? null,
+            language: cfg.fallback_language === 'en' ? 'en' : 'es',
+          };
+    }
   }
+
+  const [agent, allAgents, wallet, motorOff, providers] = await Promise.all([
+    pickInboundVoiceAgent(db, conn.workspace_id),
+    listVoiceAgents(db, conn.workspace_id),
+    puertaDeIa(db, conn.workspace_id),
+    motorApagado(db, conn.workspace_id),
+    voiceProviderHealth(db),
+  ]);
+  const hasInboundAgent = allAgents.some(
+    (candidate) => candidate.voice_accepts_inbound !== false
+  );
+  const legacyInboundDisabled =
+    !cfg.inbound_enabled &&
+    allAgents.length > 0 &&
+    allAgents.every(
+      (candidate) => candidate.voice_accepts_inbound === undefined
+    );
+  const fallbackReason =
+    cfg.inbound_enabled === false || legacyInboundDisabled
+      ? 'inbound_disabled'
+      : motorOff
+        ? 'motor_apagado'
+        : !wallet.puede
+          ? (wallet.motivo ?? 'sin_saldo')
+          : providers.aiBlocking
+            ? 'provider_unavailable'
+            : !agent && hasInboundAgent
+              ? 'capacity_unavailable'
+              : !agent
+                ? 'no_voice_agent'
+                : null;
+  const fallback = Boolean(fallbackReason);
 
   const { data: inserted, error } = await db
     .from('voice_calls')
     .insert({
       workspace_id: conn.workspace_id,
-      agent_id: agent.id,
+      agent_id: fallback ? null : agent!.id,
       contact_id: contact.id,
       direction: 'inbound',
       call_type: 'inbound',
       phone: caller,
-      language: agent.language || 'es',
+      language: fallback
+        ? cfg.fallback_language === 'en'
+          ? 'en'
+          : 'es'
+        : agent!.language || 'es',
       status: 'in_progress',
-      context: withVoiceExecutionMeta({}, { origin: 'inbound' }),
+      context: withVoiceExecutionMeta(
+        fallback ? { fallback_reason: fallbackReason } : {},
+        { origin: 'inbound' }
+      ),
       dispatch_priority: 500,
       external_call_id: input.sessionId ?? null,
       attempt: 1,
@@ -180,12 +241,34 @@ export async function resolveInboundCall(
         .select('*')
         .eq('external_call_id', input.sessionId)
         .maybeSingle();
-      if (winner) return { ok: true, call: winner as VoiceCall };
+      if (winner) {
+        const call = winner as VoiceCall;
+        return call.agent_id
+          ? { ok: true, mode: 'ai', call }
+          : {
+              ok: true,
+              mode: 'fallback',
+              call,
+              reason: fallbackReason ?? 'unavailable',
+              transferNumber: cfg.fallback_transfer_number ?? null,
+              language: cfg.fallback_language === 'en' ? 'en' : 'es',
+            };
+      }
     }
     return {
       ok: false,
       reason: `insert_failed:${error?.message ?? 'unknown'}`,
     };
   }
-  return { ok: true, call: inserted as VoiceCall };
+  const call = inserted as VoiceCall;
+  return fallback
+    ? {
+        ok: true,
+        mode: 'fallback',
+        call,
+        reason: fallbackReason!,
+        transferNumber: cfg.fallback_transfer_number ?? null,
+        language: cfg.fallback_language === 'en' ? 'en' : 'es',
+      }
+    : { ok: true, mode: 'ai', call };
 }

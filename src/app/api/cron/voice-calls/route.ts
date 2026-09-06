@@ -4,7 +4,7 @@ import { serverError } from '@/lib/api/errors';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { withCronRun } from '@/lib/cron/heartbeat';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { puertaDeIa } from '@/lib/wallet/puerta';
 import {
   dispatchVoiceCall,
   isLiveKitConfigured,
@@ -18,6 +18,14 @@ import {
 } from '@/lib/voice/rescate';
 import { persistCallResult } from '@/lib/voice/result';
 import { fairVoiceQueue } from '@/lib/voice/capacity';
+import {
+  nextAllowedTime,
+  voiceBalanceHoldExpiry,
+  voiceHoldExpired,
+} from '@/lib/voice/queue';
+import { voiceExecutionMeta } from '@/lib/voice/execution-context';
+import { DEFAULT_CALLING_HOURS } from '@/lib/voice/constants';
+import { voiceProviderHealth } from '@/lib/voice/provider-health';
 
 /**
  * Voice calls cron (every minute):
@@ -77,7 +85,13 @@ async function customerRepliedSince(
  */
 async function cancelCall(
   call: VoiceCall,
-  reason: 'kill_switch' | 'opt_out' | 'customer_replied'
+  reason:
+    | 'kill_switch'
+    | 'opt_out'
+    | 'customer_replied'
+    | 'sin_saldo'
+    | 'suscripcion_vencida'
+    | 'saldo_timeout'
 ): Promise<void> {
   await persistCallResult({
     call_id: call.id,
@@ -117,6 +131,9 @@ async function cronHandler(request: Request) {
   if (await workerDown(db)) {
     return NextResponse.json({ skipped: 'worker_down' });
   }
+  if ((await voiceProviderHealth(db)).blocking) {
+    return NextResponse.json({ skipped: 'provider_unavailable' });
+  }
   const nowIso = new Date().toISOString();
   let dispatched = 0;
   let failed = 0;
@@ -140,6 +157,50 @@ async function cronHandler(request: Request) {
     );
     for (const row of fairVoiceQueue((due ?? []) as VoiceCall[])) {
       if (dispatched >= CLAIM_BATCH) break;
+
+      if (row.hold_reason) {
+        if (voiceHoldExpired(row.hold_expires_at)) {
+          await cancelCall(row, 'saldo_timeout');
+          continue;
+        }
+        const wallet = await puertaDeIa(db, row.workspace_id);
+        if (!wallet.puede) continue;
+
+        // A recharge can happen after today's calling window closed. Reapply
+        // the same agent hours before releasing the parked call.
+        const [{ data: agentHours }, { data: workspace }] = await Promise.all([
+          db
+            .from('ai_agents')
+            .select('voice_calling_hours')
+            .eq('id', row.agent_id)
+            .maybeSingle(),
+          db
+            .from('workspaces')
+            .select('timezone')
+            .eq('id', row.workspace_id)
+            .maybeSingle(),
+        ]);
+        const next = nextAllowedTime(
+          (workspace as { timezone?: string } | null)?.timezone ||
+            'America/Bogota',
+          (
+            agentHours as {
+              voice_calling_hours?: typeof DEFAULT_CALLING_HOURS;
+            } | null
+          )?.voice_calling_hours || DEFAULT_CALLING_HOURS,
+          new Date()
+        );
+        await db
+          .from('voice_calls')
+          .update({
+            hold_reason: null,
+            hold_expires_at: null,
+            scheduled_at: next.toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', row.id);
+        if (next.getTime() > Date.now() + 1000) continue;
+      }
 
       // Capacity + queued→dialing happen inside one database transaction.
       // When all slots are busy the row stays queued; lack of capacity is not
@@ -194,13 +255,25 @@ async function cronHandler(request: Request) {
       // Sin saldo o con la suscripcion vencida no se marca: una llamada gasta
       // telefonia, modelo y voz, y es el gasto mas caro de todos. Vuelve a la
       // cola en vez de cancelarse — en cuanto recargue, sale sola.
-      if (!(await puedeUsarIa(db, row.workspace_id))) {
+      const wallet = await puertaDeIa(db, row.workspace_id);
+      if (!wallet.puede) {
+        const origin = voiceExecutionMeta(row.context)?.origin;
+        const automatic =
+          origin === 'automation' ||
+          origin === 'campaign' ||
+          Boolean(row.parent_call_id);
+        if (!automatic || wallet.motivo !== 'sin_saldo') {
+          await cancelCall(row, wallet.motivo ?? 'sin_saldo');
+          continue;
+        }
         await db
           .from('voice_calls')
           .update({
             status: 'queued',
             started_at: null,
             room_name: null,
+            hold_reason: 'sin_saldo',
+            hold_expires_at: voiceBalanceHoldExpiry(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', row.id);

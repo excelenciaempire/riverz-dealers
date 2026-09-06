@@ -206,6 +206,7 @@ export const voice = {
 
   // Statuses
   statusQueued: { es: 'En cola', en: 'Queued' },
+  statusOnHold: { es: 'En espera', en: 'On hold' },
   statusDialing: { es: 'Marcando', en: 'Dialing' },
   statusInProgress: { es: 'En curso', en: 'In progress' },
   statusCompleted: { es: 'Completada', en: 'Completed' },
@@ -368,6 +369,26 @@ export const voice = {
     es: 'El servicio de llamadas no está disponible en este momento.',
     en: 'The calling service is unavailable right now.',
   },
+  blockedProvider: {
+    es: 'La capa activa de llamadas no tiene un proveedor disponible ni un respaldo sano.',
+    en: 'The active calling layer has no available provider or healthy backup.',
+  },
+  warningProvider: {
+    es: 'Un proveedor de llamadas está en alerta; hay respaldo disponible.',
+    en: 'A calling provider has an alert; a backup is available.',
+  },
+  blockedMotor: {
+    es: 'El motor de la cuenta está apagado.',
+    en: 'The account engine is off.',
+  },
+  blockedBalance: {
+    es: 'No hay saldo suficiente para usar IA.',
+    en: 'There is not enough balance to use AI.',
+  },
+  blockedSubscription: {
+    es: 'La suscripción necesita atención.',
+    en: 'The subscription needs attention.',
+  },
   // El worker de voz dejó de latir. Es de la plataforma, no del comercio: la
   // frase no promete que lo pueda arreglar, y por eso no lleva enlace.
   blockedWorkerDown: {
@@ -393,6 +414,10 @@ export const voice = {
   blockedMonthlyLimit: {
     es: 'Se llegó al tope de minutos del mes.',
     en: 'The monthly minutes cap has been reached.',
+  },
+  blockedCapacity: {
+    es: 'Todos los agentes de voz están ocupados.',
+    en: 'All voice agents are busy.',
   },
   blockedNoVoiceAgent: {
     es: 'Ningún agente tiene la voz activada.',
@@ -452,6 +477,10 @@ export const voice = {
     es: 'Pidió que lo vuelvan a llamar',
     en: 'Asked for a callback',
   },
+  outcomeTransferred: {
+    es: 'Transferida a una persona',
+    en: 'Transferred to a person',
+  },
   outcomeOptOut: { es: 'Pidió no ser llamado', en: 'Asked not to be called' },
   outcomeNone: { es: 'Sin resultado', en: 'No outcome' },
 
@@ -468,6 +497,14 @@ export const voice = {
   monthlyLimit: { es: 'Límite de minutos al mes', en: 'Monthly minutes limit' },
   monthlyLimitHint: { es: '0 = sin límite', en: '0 = unlimited' },
   testCall: { es: 'Probar llamada', en: 'Test call' },
+  testCallDialogDesc: {
+    es: 'Revisa el estado y llama con el agente elegido.',
+    en: 'Review readiness and call with the selected agent.',
+  },
+  testCallPhone: { es: 'Teléfono', en: 'Phone' },
+  testCallObjective: { es: 'Objetivo opcional', en: 'Optional objective' },
+  testCallStart: { es: 'Iniciar prueba', en: 'Start test' },
+  testCallViewDetail: { es: 'Ver detalle', en: 'View details' },
   testCallPlaceholder: { es: '+54 9 11 1234 5678', en: '+1 555 123 4567' },
   testCallQueued: { es: 'Llamando ahora', en: 'Calling now' },
   testCallAccountPaused: {
@@ -511,6 +548,47 @@ export const voice = {
   pageDesc: {
     es: 'Tu agente llama y contesta por teléfono.',
     en: 'Your agent calls and answers the phone.',
+  },
+  readinessOutbound: { es: 'Salientes listas', en: 'Outbound ready' },
+  readinessInbound: { es: 'Entrantes listos', en: 'Inbound ready' },
+  readinessReady: { es: 'Listo', en: 'Ready' },
+  readinessFallback: {
+    es: 'Listo con respaldo humano',
+    en: 'Ready with human fallback',
+  },
+  readinessUnavailable: { es: 'No disponible', en: 'Unavailable' },
+  readinessOriginManual: {
+    es: 'Manual desde bandeja o contacto',
+    en: 'Manual from inbox or contact',
+  },
+  readinessOriginTest: { es: 'Prueba', en: 'Test' },
+  readinessOriginAssistant: {
+    es: 'Decisión del asistente',
+    en: 'Assistant decision',
+  },
+  readinessOriginAutomation: {
+    es: 'Paso “Llamar con IA”',
+    en: '“Call with AI” step',
+  },
+  readinessOriginCampaign: { es: 'Campaña de voz', en: 'Voice campaign' },
+  readinessOriginOperator: { es: 'Operador', en: 'Operator' },
+  readinessOriginRetry: { es: 'Reintento', en: 'Retry' },
+  readinessOriginInbound: {
+    es: 'Entrante al número de Riverz',
+    en: 'Inbound to the Riverz number',
+  },
+  fallbackTitle: { es: 'Respaldo humano', en: 'Human fallback' },
+  fallbackDesc: {
+    es: 'Si la IA no puede atender una entrante, avisa y transfiere a este número.',
+    en: 'If AI cannot answer an inbound call, it announces and transfers to this number.',
+  },
+  fallbackNumber: { es: 'Número humano', en: 'Human number' },
+  fallbackLanguage: { es: 'Idioma del aviso', en: 'Notice language' },
+  fallbackSpanish: { es: 'Español', en: 'Spanish' },
+  fallbackEnglish: { es: 'Inglés', en: 'English' },
+  fallbackInvalid: {
+    es: 'Escribe un número E.164 válido.',
+    en: 'Enter a valid E.164 number.',
   },
   usageThisMonth: {
     es: '{minutes} min este mes',
@@ -943,6 +1021,7 @@ export const voice = {
   originInbound: { es: 'Entrante', en: 'Inbound' },
   originOperator: { es: 'Operador', en: 'Operator' },
   originTest: { es: 'Prueba', en: 'Test' },
+  originRetry: { es: 'Reintento', en: 'Retry' },
   city: { es: 'Ciudad', en: 'City' },
   upsellAmount: { es: 'Upsell', en: 'Upsell' },
   openInInbox: { es: 'Ver en bandeja', en: 'View in inbox' },
