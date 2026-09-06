@@ -57,6 +57,7 @@ export async function persistShopifyConnection(
   const row: Record<string, unknown> = {
     user_id: args.userId,
     workspace_id: args.workspaceId,
+    platform: 'shopify',
     shop_domain: args.shopDomain,
     shop_name: args.shopName ?? null,
     access_token: encrypt(args.accessToken),
@@ -93,11 +94,49 @@ export async function persistShopifyConnection(
       : null;
   }
 
-  const { data, error } = await db
+  // El índice de seguridad permite una sola conexión activa por tienda. Un
+  // upsert por (user_id, shop_domain) intenta INSERT cuando reconecta otro
+  // miembro del mismo workspace y choca contra ese índice antes de actualizar
+  // el token. Localizamos primero la fila autorizada y la actualizamos por id.
+  const { data: active, error: activeError } = await db
     .from('shopify_connections')
-    .upsert(row, { onConflict: 'user_id,shop_domain' })
-    .select('id')
-    .single();
+    .select('id, user_id, workspace_id')
+    .eq('platform', 'shopify')
+    .eq('shop_domain', args.shopDomain)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (activeError) {
+    throw new Error(`Failed to resolve Shopify connection: ${activeError.message}`);
+  }
+  if (active && active.workspace_id !== args.workspaceId) {
+    throw new Error('Shopify shop is already connected to another workspace');
+  }
+
+  let target = active;
+  if (!target) {
+    const { data: prior, error: priorError } = await db
+      .from('shopify_connections')
+      .select('id, user_id, workspace_id')
+      .eq('platform', 'shopify')
+      .eq('workspace_id', args.workspaceId)
+      .eq('shop_domain', args.shopDomain)
+      .order('installed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (priorError) {
+      throw new Error(`Failed to resolve Shopify connection: ${priorError.message}`);
+    }
+    target = prior;
+  }
+
+  // Conserva quién creó originalmente la conexión cuando otro miembro la
+  // renueva. Evita además colisionar con el UNIQUE histórico por usuario/tienda.
+  if (target?.user_id) row.user_id = target.user_id;
+
+  const mutation = target
+    ? db.from('shopify_connections').update(row).eq('id', target.id)
+    : db.from('shopify_connections').insert(row);
+  const { data, error } = await mutation.select('id').single();
 
   if (error || !data) {
     throw new Error(`Failed to persist Shopify connection: ${error?.message}`);
