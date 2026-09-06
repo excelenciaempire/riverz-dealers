@@ -18,7 +18,7 @@ interface ProductNode {
   handle: string
   title: string
   status: string
-  variants?: { nodes?: Array<{ id?: string }> }
+  variants?: { nodes?: Array<{ id?: string; inventoryPolicy?: string }> }
 }
 
 function arg(name: string): string {
@@ -133,6 +133,43 @@ async function main() {
     }
     target = updated.productUpdate.product
   }
+
+  // Shopify duplica las variantes, pero no el stock disponible. Un producto
+  // de laboratorio recién creado queda visible por enlace y aun así responde
+  // 422 "agotado" al probar su carrito. Sólo en este duplicado UNLISTED se
+  // permite vender sin inventario para poder validar el checkout de punta a
+  // punta sin tocar las existencias del Serum real.
+  const variantData = await graphql<{
+    product?: { variants?: { nodes?: Array<{ id?: string; inventoryPolicy?: string }> } }
+  }>(
+    'query RiverzLabVariants($id: ID!) { product(id: $id) { variants(first: 250) { nodes { id inventoryPolicy } } } }',
+    { id: target.id },
+  )
+  const variants = (variantData.product?.variants?.nodes ?? []).filter(
+    (variant): variant is { id: string; inventoryPolicy?: string } => Boolean(variant.id),
+  )
+  const blocked = variants.filter((variant) => variant.inventoryPolicy !== 'CONTINUE')
+  if (blocked.length > 0) {
+    const updated = await graphql<{
+      productVariantsBulkUpdate: {
+        productVariants?: Array<{ id?: string; inventoryPolicy?: string }>
+        userErrors?: Array<{ message?: string }>
+      }
+    }>(
+      'mutation RiverzKeepLabPurchasable($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { productVariants { id inventoryPolicy } userErrors { message } } }',
+      {
+        productId: target.id,
+        variants: blocked.map((variant) => ({
+          id: variant.id,
+          inventoryPolicy: 'CONTINUE',
+        })),
+      },
+    )
+    const variantError = updated.productVariantsBulkUpdate.userErrors?.[0]?.message
+    if (variantError) throw new Error(variantError)
+  }
+
+  target.variants = { nodes: variants }
 
   await syncShopifyProducts(db, {
     userId: connection.user_id,
