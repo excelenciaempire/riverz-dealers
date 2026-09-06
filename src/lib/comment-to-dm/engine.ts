@@ -10,6 +10,7 @@ import {
   recordPublicCommentReply,
 } from '@/lib/instagram-agent/record-dm';
 import { composeDmText } from './rules';
+import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
 
 /**
  * Comentario → DM (auto-DM on comments) — ManyChat's signature growth tool.
@@ -157,37 +158,47 @@ export async function processCommentForDmRules(
   //    busy post don't all read identically — looks human, dodges spam heuristics).
   const templates = (rule.public_reply_templates ?? []).filter((t) => t.trim());
   if (rule.public_reply_enabled && templates.length > 0) {
-    const text = templates[Math.floor(Math.random() * templates.length)];
-    try {
-      const res = await getAdapter(ev.channel).sendText({
-        channel: ev.channel,
-        connection: ev.connection,
-        conversation: {
-          id: '',
-          thread_external_id: threadDeRespuesta(ev),
-        } as unknown as Conversation,
-        contact: { id: ev.contact.id } as unknown as Contact,
-        text,
-        replyToExternalId: ev.commentId,
-      } satisfies OutboundText);
-      publicReplyStatus = 'sent';
-      publicReplyExternalId = res.externalMessageId ?? null;
-      // Que se vea YA en la bandeja. Meta no manda webhook por los comentarios
-      // de la propia cuenta, así que hasta ahora esta respuesta sólo aparecía
-      // cuando pasaba la conciliación, diez minutos más tarde.
-      await recordPublicCommentReply(db, {
-        workspaceId: ev.workspaceId,
-        commentContactId: ev.contact.id,
-        commentChannel: ev.channel,
-        text,
-        externalId: publicReplyExternalId,
-        origin: 'comment_rule',
-        originName: rule.name ?? null,
-      });
-    } catch (err) {
-      publicReplyStatus = 'failed';
-      errMsg =
-        err instanceof Error ? err.message.slice(0, 400) : 'public reply failed';
+    const text = stripPublicCommentUrls(
+      templates[Math.floor(Math.random() * templates.length)],
+    );
+    // Una plantilla que era sólo un enlace queda vacía. El DM sigue saliendo,
+    // pero no se publica un comentario sin contenido.
+    if (!text) {
+      publicReplyStatus = 'skipped';
+    } else {
+      try {
+        const res = await getAdapter(ev.channel).sendText({
+          channel: ev.channel,
+          connection: ev.connection,
+          conversation: {
+            id: '',
+            thread_external_id: threadDeRespuesta(ev),
+          } as unknown as Conversation,
+          contact: { id: ev.contact.id } as unknown as Contact,
+          text,
+          replyToExternalId: ev.commentId,
+        } satisfies OutboundText);
+        publicReplyStatus = 'sent';
+        publicReplyExternalId = res.externalMessageId ?? null;
+        // Que se vea YA en la bandeja. Meta no manda webhook por los comentarios
+        // de la propia cuenta, así que hasta ahora esta respuesta sólo aparecía
+        // cuando pasaba la conciliación, diez minutos más tarde.
+        await recordPublicCommentReply(db, {
+          workspaceId: ev.workspaceId,
+          commentContactId: ev.contact.id,
+          commentChannel: ev.channel,
+          text,
+          externalId: publicReplyExternalId,
+          origin: 'comment_rule',
+          originName: rule.name ?? null,
+        });
+      } catch (err) {
+        publicReplyStatus = 'failed';
+        errMsg =
+          err instanceof Error
+            ? err.message.slice(0, 400)
+            : 'public reply failed';
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { brandBrief, type BrandContext } from './brand-context';
 import { linksBrief, type StoreLinks } from './store-links';
+import { enforceKnownUrls } from '@/lib/ai/url-integrity';
 
 /**
  * Replace the name token in a base message with the contact's first name
@@ -141,6 +142,17 @@ export function stripLinkPlaceholders(
   return replaced.trim();
 }
 
+/** Sólo deja los enlaces que Riverz cargó desde la tienda o su catálogo. */
+export function enforceKnownStoreLinks(
+  text: string,
+  links: StoreLinks | null,
+): string {
+  return enforceKnownUrls(text, [
+    ...(links?.products.map((product) => product.url) ?? []),
+    ...(links?.storeUrl ? [links.storeUrl] : []),
+  ]);
+}
+
 /**
  * Write a 1:1 Instagram DM for one person, grounded in the brand voice and
  * in what they actually said — this is the Blueberry-style personalization,
@@ -156,7 +168,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     if (input.offer?.code && !t.toUpperCase().includes(input.offer.code.toUpperCase())) {
       t += `\n\n🎁 ${input.offer.code}${input.offer.discount ? `, ${input.offer.discount}` : ''}`;
     }
-    return t.trim();
+    return enforceKnownStoreLinks(t.trim(), input.links ?? null);
   };
 
   const brief = brandBrief(input.brand);
@@ -222,6 +234,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     text = humanizarTexto(text.replace(/^["'“”]|["'“”]$/g, ''));
     text = personalize(text, input.name); // resolve any {{nombre}} it echoed
     text = stripLinkPlaceholders(text, input.links ?? null);
+    text = enforceKnownStoreLinks(text, input.links ?? null);
     text = enforceOffer(text, input.offer ?? null);
     if (!text) return fallback();
     // IG DM hard limit is 1000 chars; keep margin.

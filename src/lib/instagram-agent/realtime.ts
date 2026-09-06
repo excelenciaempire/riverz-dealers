@@ -64,6 +64,7 @@ import { asksForPrice, unauthorizedQuotedPrices } from '@/lib/products/price-int
 import { briefDePublicacionPorId, briefDePublicacionPorOrigen } from '@/lib/channels/publicacion';
 import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
 import { limitByKey } from '@/lib/rate-limit';
+import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
 import {
   getShopifyAdmin,
   ensureCampaignPriceRule,
@@ -1503,7 +1504,10 @@ function isTikTokChannel(channel?: CommentChannel): boolean {
  * si no entra ni la primera.
  */
 function oracionesQueEntran(texto: string, tope: number): string {
-  const partes = texto.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) ?? [];
+  // El punto sólo cierra una oración cuando lo sigue un espacio o el final.
+  // Así `$39.990` permanece entero en vez de convertir `990...` en la
+  // supuesta oración siguiente.
+  const partes = texto.match(/.+?(?:[.!?]+(?:\s+|$)|$)/g) ?? [];
   let salida = '';
   for (const parte of partes) {
     const siguiente = salida + parte;
@@ -1526,7 +1530,10 @@ export function publicReplyFrom(
       ? 'Te escribí por privado para revisarlo contigo 💬'
       : 'Por favor, escríbenos por mensaje privado para revisarlo contigo 💬'
   }
-  const clean = dmText.trim();
+  // Instagram y Facebook no convierten los enlaces de comentarios en enlaces
+  // clicables. El vínculo real ya salió por DM; repetirlo acá sólo deja texto
+  // inútil y además hacía que el recortador partiera el dominio por sus puntos.
+  const clean = stripPublicCommentUrls(dmText);
   if (!dmSent) {
     if (!clean) return '';
     return recortarSalida(clean, 480);

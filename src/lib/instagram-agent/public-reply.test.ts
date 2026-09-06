@@ -34,4 +34,24 @@ describe('publicReplyFrom — la respuesta pública del comentario', () => {
   it('sin DM y sin texto, no publica nada', () => {
     expect(publicReplyFrom('   ', false)).toBe('')
   })
+
+  it('nunca publica la URL que ya se envió por privado', () => {
+    const out = publicReplyFrom(
+      'Jaja, filtro no vendemos, pero el frasco sí 😄 Uno sale $39.990 y te dura como un mes: https://pilarargentina.store/products/serum-pilar',
+    )
+    expect(out).toBe(
+      'Jaja, filtro no vendemos, pero el frasco sí 😄 Uno sale $39.990 y te dura como un mes 💬 Te escribí por privado.',
+    )
+    expect(out).not.toContain('store/products')
+    expect(out).not.toContain('http')
+  })
+
+  it('tampoco publica enlaces cuando la respuesta queda sólo en el comentario', () => {
+    expect(
+      publicReplyFrom(
+        'Puedes verlo en https://pilarargentina.store/products/serum-pilar',
+        false,
+      ),
+    ).toBe('Puedes verlo en')
+  })
 })

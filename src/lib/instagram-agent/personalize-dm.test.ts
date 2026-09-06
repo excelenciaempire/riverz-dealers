@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { stripLinkPlaceholders, enforceOffer } from './personalize-dm';
+import {
+  stripLinkPlaceholders,
+  enforceOffer,
+  enforceKnownStoreLinks,
+} from './personalize-dm';
 
 /**
  * Caso real: el DM que salió a una clienta decía "puedes comprarlo desde
@@ -45,6 +49,43 @@ describe('stripLinkPlaceholders', () => {
   it('no confunde corchetes de otro tipo', () => {
     const text = 'Te queda [1 unidad] disponible';
     expect(stripLinkPlaceholders(text, LINKS)).toBe(text);
+  });
+});
+
+describe('enforceKnownStoreLinks', () => {
+  it('conserva una URL real del catálogo', () => {
+    const text = `Míralo aquí: ${LINKS.products[0].url}`;
+    expect(enforceKnownStoreLinks(text, LINKS)).toBe(text);
+  });
+
+  it('reemplaza una URL inventada por la URL real', () => {
+    expect(
+      enforceKnownStoreLinks(
+        'Míralo aquí: https://tienda-falsa.com/products/serum',
+        LINKS,
+      ),
+    ).toBe(
+      'Míralo aquí: https://tienda.myshopify.com/products/serum-pilar',
+    );
+  });
+
+  it('repara una ruta incompleta con el enlace real', () => {
+    expect(
+      enforceKnownStoreLinks('Míralo: store/products/serum-pilar', LINKS),
+    ).toBe(
+      'Míralo: https://tienda.myshopify.com/products/serum-pilar',
+    );
+  });
+
+  it('elimina URLs cuando no existe un enlace verificado', () => {
+    expect(
+      enforceKnownStoreLinks('Míralo: https://tienda-falsa.com/producto', null),
+    ).toBe('Míralo');
+  });
+
+  it('no confunde un correo electrónico con una URL', () => {
+    const text = 'Escríbenos a ayuda@tienda.com';
+    expect(enforceKnownStoreLinks(text, LINKS)).toBe(text);
   });
 });
 
