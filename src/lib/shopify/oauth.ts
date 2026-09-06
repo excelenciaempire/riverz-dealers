@@ -226,12 +226,15 @@ export async function exchangeCodeForToken(args: {
 }): Promise<TokenDeShopify> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body: new URLSearchParams({
       client_id: args.apiKey,
       client_secret: args.apiSecret,
       code: args.code,
-      expiring: 1,
+      expiring: '1',
     }),
   });
   if (!res.ok) {
@@ -255,8 +258,11 @@ export async function refreshShopifyToken(args: {
 }): Promise<TokenDeShopify> {
   const res = await fetch(`https://${args.shop}/admin/oauth/access_token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    },
+    body: new URLSearchParams({
       client_id: args.apiKey,
       client_secret: args.apiSecret,
       grant_type: 'refresh_token',
