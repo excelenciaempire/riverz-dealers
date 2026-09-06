@@ -378,3 +378,20 @@ export function detectProductByUrl(
     via: 'page_url',
   };
 }
+
+/**
+ * En chat web, "este producto" apunta a la ficha abierta. El texto puede
+ * contener además el nombre corto del producto y hacer match con otra fila
+ * parecida del catálogo (por ejemplo el original y un duplicado de prueba).
+ * En ese caso la URL sigue siendo la referencia inequívoca.
+ */
+export function refersToCurrentPage(message: string): boolean {
+  const text = normalize(message);
+  return (
+    /\b(?:este|esta|esto|ese|esa)\b/.test(text) ||
+    /\b(?:el|la) (?:producto|articulo) que (?:estoy )?viendo\b/.test(text) ||
+    /\blo que (?:estoy )?viendo\b/.test(text) ||
+    /\b(?:this|that)(?: product| item)?\b/.test(text) ||
+    /\bthe (?:product|item) (?:i am|im) (?:looking at|viewing)\b/.test(text)
+  );
+}

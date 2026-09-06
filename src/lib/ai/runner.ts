@@ -74,6 +74,7 @@ import {
 } from './business-hours';
 import {
   detectProductByUrl,
+  refersToCurrentPage,
   detectProductMention,
   type CandidateProduct,
   type ProductMatch,
@@ -1362,9 +1363,11 @@ export async function detectInboundProduct(
   // El texto gana cuando es contundente: quien está en la ficha del serum y
   // pregunta por la crema está preguntando por la crema. Pero un match dudoso
   // NO le gana a la página — ahí la página es lo único que sabemos de verdad.
-  if (porTexto?.confidence === 'high') return porTexto;
-
   const porUrl = detectProductByUrl(pageUrl, candidatos);
+  // "Este Serum" puede coincidir por título con otra fila casi idéntica del
+  // catálogo. La deixis convierte la ficha abierta en la señal decisiva.
+  if (porUrl && refersToCurrentPage(messageText)) return porUrl;
+  if (porTexto?.confidence === 'high') return porTexto;
   return porUrl ?? porTexto;
 }
 

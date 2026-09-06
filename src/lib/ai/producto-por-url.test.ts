@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   detectProductByUrl,
   handleDeUrl,
+  refersToCurrentPage,
   type CandidateProduct,
 } from './product-routing';
 
@@ -78,5 +79,17 @@ describe('detectProductByUrl', () => {
 
   it('una página que no es de producto no matchea nada', () => {
     expect(detectProductByUrl('https://mitienda.com/pages/envios', CATALOGO)).toBeNull();
+  });
+});
+
+describe('refersToCurrentPage', () => {
+  it('reconoce referencias a la ficha en español e inglés', () => {
+    expect(refersToCurrentPage('Quiero comprar este Serum Pilar')).toBe(true);
+    expect(refersToCurrentPage('Quiero el producto que estoy viendo')).toBe(true);
+    expect(refersToCurrentPage('Can I buy this product?')).toBe(true);
+  });
+
+  it('no convierte el nombre de otro producto en una referencia a la ficha', () => {
+    expect(refersToCurrentPage('Quiero comprar la crema hidratante')).toBe(false);
   });
 });
