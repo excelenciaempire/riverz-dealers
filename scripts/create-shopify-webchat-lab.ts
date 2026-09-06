@@ -18,7 +18,13 @@ interface ProductNode {
   handle: string
   title: string
   status: string
-  variants?: { nodes?: Array<{ id?: string; inventoryPolicy?: string }> }
+  variants?: {
+    nodes?: Array<{
+      id?: string
+      inventoryPolicy?: string
+      inventoryItem?: { tracked?: boolean }
+    }>
+  }
 }
 
 function arg(name: string): string {
@@ -62,6 +68,11 @@ async function main() {
   const scopes = String(connection.scope ?? '').split(',')
   if (!scopes.includes('write_products')) {
     throw new Error('La conexión no tiene write_products; reconecta la app legacy')
+  }
+  for (const required of ['read_inventory', 'write_inventory', 'read_locations']) {
+    if (!scopes.includes(required)) {
+      throw new Error(`La conexión no tiene ${required}; reconecta la app legacy`)
+    }
   }
   const accessToken = decrypt(connection.access_token)
   const endpoint = `https://${shop}/admin/api/${shopifyApiVersion()}/graphql.json`
@@ -134,39 +145,115 @@ async function main() {
     target = updated.productUpdate.product
   }
 
-  // Shopify duplica las variantes, pero no el stock disponible. Un producto
-  // de laboratorio recién creado queda visible por enlace y aun así responde
-  // 422 "agotado" al probar su carrito. Sólo en este duplicado UNLISTED se
-  // permite vender sin inventario para poder validar el checkout de punta a
-  // punta sin tocar las existencias del Serum real.
+  // Shopify copia también el saldo de inventario del producto fuente. En
+  // Pilar ese saldo es negativo, así que el duplicado responde 422 "agotado"
+  // aunque la política permita sobreventa. Este laboratorio recibe un stock
+  // propio y pequeño; nunca se toca el inventario del Serum real.
   const variantData = await graphql<{
-    product?: { variants?: { nodes?: Array<{ id?: string; inventoryPolicy?: string }> } }
+    product?: {
+      variants?: {
+        nodes?: Array<{
+          id?: string
+          inventoryPolicy?: string
+          inventoryItem?: { tracked?: boolean }
+        }>
+      }
+    }
   }>(
-    'query RiverzLabVariants($id: ID!) { product(id: $id) { variants(first: 250) { nodes { id inventoryPolicy } } } }',
+    'query RiverzLabVariants($id: ID!) { product(id: $id) { variants(first: 250) { nodes { id inventoryPolicy inventoryItem { tracked } } } } }',
     { id: target.id },
   )
   const variants = (variantData.product?.variants?.nodes ?? []).filter(
-    (variant): variant is { id: string; inventoryPolicy?: string } => Boolean(variant.id),
+    (
+      variant,
+    ): variant is {
+      id: string
+      inventoryPolicy?: string
+      inventoryItem?: { tracked?: boolean }
+    } => Boolean(variant.id),
   )
-  const blocked = variants.filter((variant) => variant.inventoryPolicy !== 'CONTINUE')
+  const blocked = variants.filter(
+    (variant) =>
+      variant.inventoryPolicy !== 'CONTINUE' || variant.inventoryItem?.tracked !== true,
+  )
   if (blocked.length > 0) {
     const updated = await graphql<{
       productVariantsBulkUpdate: {
-        productVariants?: Array<{ id?: string; inventoryPolicy?: string }>
+        productVariants?: Array<{
+          id?: string
+          inventoryPolicy?: string
+          inventoryItem?: { tracked?: boolean }
+        }>
         userErrors?: Array<{ message?: string }>
       }
     }>(
-      'mutation RiverzKeepLabPurchasable($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { productVariants { id inventoryPolicy } userErrors { message } } }',
+      'mutation RiverzKeepLabPurchasable($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { productVariants { id inventoryPolicy inventoryItem { tracked } } userErrors { message } } }',
       {
         productId: target.id,
         variants: blocked.map((variant) => ({
           id: variant.id,
           inventoryPolicy: 'CONTINUE',
+          inventoryItem: { tracked: true },
         })),
       },
     )
     const variantError = updated.productVariantsBulkUpdate.userErrors?.[0]?.message
     if (variantError) throw new Error(variantError)
+  }
+
+  const inventoryData = await graphql<{
+    product?: {
+      variants?: {
+        nodes?: Array<{
+          id?: string
+          sellableOnlineQuantity?: number
+          inventoryItem?: {
+            id?: string
+            inventoryLevels?: {
+              nodes?: Array<{
+                location?: { id?: string }
+                quantities?: Array<{ name?: string; quantity?: number }>
+              }>
+            }
+          }
+        }>
+      }
+    }
+  }>(
+    'query RiverzLabInventory($id: ID!) { product(id: $id) { variants(first: 250) { nodes { id sellableOnlineQuantity inventoryItem { id inventoryLevels(first: 20) { nodes { location { id } quantities(names: ["available"]) { name quantity } } } } } } } }',
+    { id: target.id },
+  )
+  const stock = 10
+  const quantities = (inventoryData.product?.variants?.nodes ?? []).flatMap((variant) => {
+    const itemId = variant.inventoryItem?.id
+    const level = variant.inventoryItem?.inventoryLevels?.nodes?.[0]
+    const locationId = level?.location?.id
+    const current = level?.quantities?.find((q) => q.name === 'available')?.quantity
+    const sellable = Number(variant.sellableOnlineQuantity ?? 0)
+    if (!itemId || !locationId || current == null || sellable >= stock) return []
+    return [{
+      inventoryItemId: itemId,
+      locationId,
+      quantity: current + (stock - sellable),
+      compareQuantity: current,
+    }]
+  })
+  if (quantities.length > 0) {
+    const inventoried = await graphql<{
+      inventorySetQuantities: { userErrors?: Array<{ message?: string }> }
+    }>(
+      'mutation RiverzStockLab($input: InventorySetQuantitiesInput!) { inventorySetQuantities(input: $input) { inventoryAdjustmentGroup { reason } userErrors { message } } }',
+      {
+        input: {
+          name: 'available',
+          reason: 'correction',
+          referenceDocumentUri: `riverz://webchat-lab/${targetHandle}`,
+          quantities,
+        },
+      },
+    )
+    const inventoryError = inventoried.inventorySetQuantities.userErrors?.[0]?.message
+    if (inventoryError) throw new Error(inventoryError)
   }
 
   target.variants = { nodes: variants }

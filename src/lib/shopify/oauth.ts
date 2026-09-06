@@ -74,8 +74,13 @@ const PUBLIC_SCOPES = [
 const LEGACY_ONLY_SCOPES = [
   // Sólo la app legacy instalada en Pilar los necesita: write_products crea
   // el producto UNLISTED del laboratorio; ScriptTags permite retirar el
-  // cargador anterior al activar la Theme App Extension.
+  // cargador anterior al activar la Theme App Extension. Inventario y
+  // ubicaciones sólo sirven para darle stock propio al duplicado: Shopify
+  // copia el saldo negativo del producto fuente y lo marca como agotado.
   'write_products',
+  'read_inventory',
+  'write_inventory',
+  'read_locations',
   'read_script_tags',
   'write_script_tags',
 ]
