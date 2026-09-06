@@ -74,7 +74,6 @@ async function main() {
   for (const required of [
     'write_inventory',
     'read_locations',
-    'read_publications',
     'write_publications',
   ]) {
     if (!scopes.includes(required)) {

@@ -116,6 +116,7 @@ import {
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import {
   asksForPrice,
+  authorizedPrices,
   replyForUnidentifiedPrice,
   unauthorizedQuotedPrices,
   withoutHistoricalPriceLines,
@@ -2879,11 +2880,17 @@ async function generateReply(
   // mensaje más corto que el tope por nada, y sacarlos antes puede evitar el
   // corte entero.
   const limpio = humanizarTexto(result.text);
-  const invalidPrices = unauthorizedQuotedPrices(
-    limpio,
+  const trustedPrices =
     priceIntegrity.priceQuestion && !priceIntegrity.priceVerified
       ? []
-      : products,
+      : authorizedPrices(products)
+  const transferDiscount = shopify?.config?.transfer_discount_amount
+  if (typeof transferDiscount === 'number' && transferDiscount > 0) {
+    trustedPrices.push(transferDiscount)
+  }
+  const invalidPrices = unauthorizedQuotedPrices(
+    limpio,
+    trustedPrices,
     { priceQuestion: priceIntegrity.priceQuestion }
   );
   if (invalidPrices.length > 0) {
