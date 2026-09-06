@@ -290,7 +290,7 @@ export async function runAiAgent(
     }
 
     const textoEntrante = args.inboundMessage.content_text ?? '';
-    if (containsEscalationKeyword(agent, textoEntrante)) {
+    if (args.channel !== 'webchat' && containsEscalationKeyword(agent, textoEntrante)) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
         pidio: textoEntrante,
       });
@@ -309,16 +309,19 @@ export async function runAiAgent(
     // Lo que las palabras del comercio no cubren: un problema real en curso.
     // Un envío que va a la ciudad equivocada no trae ninguna palabra clave y
     // no puede esperar a que alguien mire la bandeja.
-    const escalada = await detectarEscalada({
-      mensaje: textoEntrante,
-      // El hilo lo lee el clasificador sólo si hace falta; se pide acá para
-      // no armar un contexto caro en cada mensaje.
-      hilo: await ultimosTurnos(db, args.conversation.id),
-      hayPedido: Boolean(args.conversation.subject),
-      db,
-      workspaceId: args.workspaceId,
-      agentKeyEncrypted: agent.api_key_encrypted,
-    }).catch(() => null);
+    const escalada =
+      args.channel === 'webchat'
+        ? null
+        : await detectarEscalada({
+            mensaje: textoEntrante,
+            // El hilo lo lee el clasificador sólo si hace falta; se pide acá para
+            // no armar un contexto caro en cada mensaje.
+            hilo: await ultimosTurnos(db, args.conversation.id),
+            hayPedido: Boolean(args.conversation.subject),
+            db,
+            workspaceId: args.workspaceId,
+            agentKeyEncrypted: agent.api_key_encrypted,
+          }).catch(() => null);
     if (escalada) {
       // Sólo `pide_persona` conserva `escalation_keyword`: ese motivo dice "el
       // cliente pidió hablar con alguien" y la bandeja lo imprime literal. Todo
@@ -361,7 +364,11 @@ export async function runAiAgent(
     // a previous agent's count. The UI editor exposes this as
     // "escalates after N replies" — previously the runner ignored it,
     // turning every merchant config into a silent no-op.
-    if (agent.escalate_after_messages && agent.escalate_after_messages > 0) {
+    if (
+      args.channel !== 'webchat' &&
+      agent.escalate_after_messages &&
+      agent.escalate_after_messages > 0
+    ) {
       const { count: priorSentCount } = await db
         .from('ai_replies')
         .select('id', { count: 'exact', head: true })
@@ -414,7 +421,7 @@ export async function runAiAgent(
             .limit(50)
         : { data: null };
     const burstConvIds = (burstConvs ?? []).map((c: { id: string }) => c.id);
-    if (burstConvIds.length > 0) {
+    if (args.channel !== 'webchat' && burstConvIds.length > 0) {
       const { count: burstCount } = await db
         .from('messages')
         .select('id', { count: 'exact', head: true })
@@ -452,7 +459,10 @@ export async function runAiAgent(
     //
     // Una vez se avisa. A la segunda es una persona: si ya le explicamos y
     // sigue mandando lo mismo, el problema no lo resuelve otro mensaje.
-    if (isUnsupportedSnippet(args.inboundMessage.content_text)) {
+    if (
+      args.channel !== 'webchat' &&
+      isUnsupportedSnippet(args.inboundMessage.content_text)
+    ) {
       const desde = new Date(Date.now() - NO_RECIBIDO_VENTANA_MS).toISOString();
       const { count: yaAvisamos } = await db
         .from('messages')
@@ -721,11 +731,18 @@ export async function runAiAgent(
         genErr
       );
       const lang = (agent.language || 'es').toLowerCase().slice(0, 2);
-      const courtesy: Record<string, string> = {
-        es: 'Gracias por tu mensaje 🙌 En un momento te responde una persona de nuestro equipo.',
-        en: 'Thanks for your message 🙌 Someone from our team will get back to you shortly.',
-        pt: 'Obrigado pela sua mensagem 🙌 Em instantes uma pessoa da nossa equipe vai te responder.',
-      };
+      const courtesy: Record<string, string> =
+        args.channel === 'webchat'
+          ? {
+              es: 'No pude responder en este momento. Intenta nuevamente.',
+              en: "I couldn't answer right now. Please try again.",
+              pt: 'Não consegui responder agora. Tente novamente.',
+            }
+          : {
+              es: 'Gracias por tu mensaje 🙌 En un momento te responde una persona de nuestro equipo.',
+              en: 'Thanks for your message 🙌 Someone from our team will get back to you shortly.',
+              pt: 'Obrigado pela sua mensagem 🙌 Em instantes uma pessoa da nossa equipe vai te responder.',
+            };
       const text = courtesy[lang] ?? courtesy.es;
       // UNA SOLA VEZ POR CAÍDA.
       //
@@ -821,11 +838,18 @@ export async function runAiAgent(
         // ('Disculpá', 'pasás') sounded off-brand for non-AR merchants
         // and ignored agent.language entirely for en/pt workspaces.
         const lang = (agent.language || 'es').toLowerCase().slice(0, 2);
-        const fallbacks: Record<string, string> = {
-          es: 'Disculpa, no pude completar la consulta automática. Para ayudarte mejor, ¿me compartes tu número de pedido o tu teléfono para que un humano lo revise?',
-          en: "Sorry, I couldn't complete the automated lookup. To help you better, could you share your order number or phone so a human can review it?",
-          pt: 'Desculpe, não consegui concluir a consulta automática. Para te ajudar melhor, pode compartilhar seu número de pedido ou telefone para que um humano revise?',
-        };
+        const fallbacks: Record<string, string> =
+          args.channel === 'webchat'
+            ? {
+                es: 'No pude completar esa consulta. Comparte tu número de pedido o teléfono e inténtalo nuevamente.',
+                en: "I couldn't complete that lookup. Share your order number or phone and try again.",
+                pt: 'Não consegui concluir essa consulta. Compartilhe seu número do pedido ou telefone e tente novamente.',
+              }
+            : {
+                es: 'Disculpa, no pude completar la consulta automática. Para ayudarte mejor, ¿me compartes tu número de pedido o tu teléfono para que un humano lo revise?',
+                en: "Sorry, I couldn't complete the automated lookup. To help you better, could you share your order number or phone so a human can review it?",
+                pt: 'Desculpe, não consegui concluir a consulta automática. Para te ajudar melhor, pode compartilhar seu número de pedido ou telefone para que um humano revise?',
+              };
         replyText = fallbacks[lang] ?? fallbacks.es;
         truncatedFallback = true;
       } else {
@@ -872,19 +896,29 @@ export async function runAiAgent(
             'La IA prometió averiguarlo y volver, y no tiene el dato cargado.',
         }
       ).catch(() => {});
-      await flagNeedsHuman(db, args.conversation, 'answer_gap', {
-        pidio: textoEntrante,
-      }).catch(() => {});
-      await avisarDelCaso(db, args, {
-        clase: 'otro',
-        urgencia: 'hoy',
-        porQue: 'Preguntó algo que la IA no sabe: nadie le contestó todavía',
-      }).catch(() => {});
-      await logReply(db, agent, args, {
-        status: 'skipped',
-        skip_reason: 'answer_gap',
-      });
-      return;
+      if (args.channel === 'webchat') {
+        const lang = (agent.language || 'es').toLowerCase().slice(0, 2);
+        const fallbacks: Record<string, string> = {
+          es: 'No tengo ese dato confirmado. Puedo ayudarte con otra consulta sobre el producto o la compra.',
+          en: "I don't have that information confirmed. I can help with another question about the product or purchase.",
+          pt: 'Não tenho essa informação confirmada. Posso ajudar com outra dúvida sobre o produto ou a compra.',
+        };
+        replyText = fallbacks[lang] ?? fallbacks.es;
+      } else {
+        await flagNeedsHuman(db, args.conversation, 'answer_gap', {
+          pidio: textoEntrante,
+        }).catch(() => {});
+        await avisarDelCaso(db, args, {
+          clase: 'otro',
+          urgencia: 'hoy',
+          porQue: 'Preguntó algo que la IA no sabe: nadie le contestó todavía',
+        }).catch(() => {});
+        await logReply(db, agent, args, {
+          status: 'skipped',
+          skip_reason: 'answer_gap',
+        });
+        return;
+      }
     }
 
     // Second guard window: between debounce-end and the actual send we
@@ -948,7 +982,7 @@ export async function runAiAgent(
     // esté lista cuando la persona abre el chat, no que se genere recién
     // cuando la pide. Y va después de los guardas de frescura: proponer una
     // respuesta a un mensaje que el cliente ya reemplazó es ruido.
-    if (agent.requires_approval) {
+    if (agent.requires_approval && args.channel !== 'webchat') {
       const { error: draftErr } = await db.from('ai_pending_replies').upsert(
         {
           workspace_id: args.workspaceId,
@@ -1486,6 +1520,9 @@ async function flagNeedsHuman(
     porQue?: string | null;
   }
 ): Promise<void> {
+  // El webchat es autónomo: sólo una acción explícita desde la bandeja puede
+  // apagar su asistente. Los guardas automáticos no lo derivan.
+  if (conversation.channel === 'webchat') return;
   try {
     const resumen = resumenDeTraspaso(detalle);
     await db
@@ -2671,12 +2708,13 @@ async function generateReply(
     businessCurrency,
     reglas,
     registro,
-    perfilOperativo
+    perfilOperativo,
+    origen.channel
   );
   const handoffContext = recoveryContext;
   if (handoffContext && agent.assigned_only) {
     const etapa = Number(handoffContext.benefit_percent ?? 0);
-    system += `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi: esas consultas se escalan al equipo humano.`;
+    system += `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
   }
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
@@ -3116,7 +3154,8 @@ export function buildSystemPrompt(
   registro: Registro = 'neutro',
   /** Configuración estructurada del comercio. Null conserva el comportamiento
    * histórico para cuentas que todavía no pasaron por la activación guiada. */
-  perfilOperativo: PerfilOperativo | null = null
+  perfilOperativo: PerfilOperativo | null = null,
+  channel: Channel | null = null
 ): string {
   const lines: string[] = [];
   if (agent.persona) lines.push(limpiarPersona(agent.persona));
@@ -3187,6 +3226,11 @@ export function buildSystemPrompt(
   // permitted side of Meta's general-purpose-chatbot ban — independent of
   // the merchant's persona, which must never widen it into an open assistant.
   appendBusinessScopeGuardrails(lines, agent.name);
+  if (channel === 'webchat') {
+    lines.push(
+      'Canal web autónomo: tú atiendes toda la conversación de principio a fin. Nunca ofrezcas pasarla a una persona ni digas que alguien del equipo responderá después. Si un dato no está confirmado, dilo con claridad y sigue ayudando con la información y las herramientas disponibles.'
+    );
+  }
 
   // ── Las reglas del comercio (migración 200) ──
   // Debajo de los guardrails —que son nuestros y no se negocian— y encima de
@@ -3229,11 +3273,11 @@ export function buildSystemPrompt(
         ? ` El único descuento adicional permitido es ${fmtMoney(transferAmount, currency)} por pago con ${transferLabel}.`
         : '';
     lines.push(
-      `Política de ofertas (estricta): las únicas ofertas válidas son ${enumeration}.${transferClause} Si la clienta pide otro descuento, promoción, porcentaje, código, cupón, regalo o precio fuera de esa lista, contesta que no puedes hacer descuentos fuera de esas ofertas y ofrece escalar a un humano. Nunca prometas un precio que no figure arriba.`
+      `Política de ofertas (estricta): las únicas ofertas válidas son ${enumeration}.${transferClause} Si la clienta pide otro descuento, promoción, porcentaje, código, cupón, regalo o precio fuera de esa lista, contesta que no puedes hacer descuentos fuera de esas ofertas${channel === 'webchat' ? ' y continúa con las opciones válidas' : ' y ofrece escalar a un humano'}. Nunca prometas un precio que no figure arriba.`
     );
   } else if (shopify) {
     lines.push(
-      'Política de precios (estricta): cotiza únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasa la cantidad al generar el checkout. Si pide un descuento que no existe, dile con cortesía que no puedes aplicarlo y ofrece escalar a un humano.'
+      `Política de precios (estricta): cotiza únicamente el precio real listado del producto. No inventes descuentos, promociones, porcentajes, códigos ni cupones. Si la clienta quiere varias unidades, pasa la cantidad al generar el checkout. Si pide un descuento que no existe, dile con cortesía que no puedes aplicarlo${channel === 'webchat' ? ' y continúa con las opciones válidas.' : ' y ofrece escalar a un humano.'}`
     );
   }
 
@@ -3277,7 +3321,9 @@ export function buildSystemPrompt(
       const conQuePaga =
         declarados && declarados.length > 0
           ? `Con qué se puede pagar: ${fraseDeMedios(declarados, idioma)}. Si te pregunta, nombra ÉSOS y ninguno más, y no prometas cuotas ni promociones bancarias que no estén en las reglas del negocio.`
-          : 'Si te pregunta con qué puede pagar, no nombres ningún medio por tu cuenta: dile que se los confirmas y pasa la conversación a una persona.';
+          : channel === 'webchat'
+            ? 'Si te pregunta con qué puede pagar, no inventes medios: explica que no están confirmados y genera la caja para que vea las opciones reales disponibles.'
+            : 'Si te pregunta con qué puede pagar, no nombres ningún medio por tu cuenta: dile que se los confirmas y pasa la conversación a una persona.';
 
       // EL CONTRA ENTREGA ES UN DATO, NO UNA DEDUCCIÓN. Tres estados, y el
       // tercero no es "no": suponerlo fue el error del 2026-08-29.
@@ -3287,7 +3333,9 @@ export function buildSystemPrompt(
           ? 'Y sí trabajas con pago al recibir (contra entrega): si lo pide, tomas el pedido aquí mismo, le pides los datos que falten y lo creas tú.'
           : cobraAlRecibir === false
             ? 'Y NO hay pago al recibir (contra entrega): si lo pide, díselo con naturalidad y ofrécele los medios que sí hay, sin disculparte de más.'
-            : 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas tú nunca y no se lo confirmes por tu cuenta. Sólo tomas el pedido aquí si figura en las reglas del negocio o en la ficha del producto; si no figura, dile que lo confirmas y pasa la conversación a una persona.';
+            : channel === 'webchat'
+              ? 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas ni lo confirmes si no figura en las reglas del negocio o en la ficha del producto. En ese caso, indica que no está disponible entre las opciones confirmadas y ofrece los medios declarados.'
+              : 'Sobre el pago al recibir (contra entrega): NO lo ofrezcas tú nunca y no se lo confirmes por tu cuenta. Sólo tomas el pedido aquí si figura en las reglas del negocio o en la ficha del producto; si no figura, dile que lo confirmas y pasa la conversación a una persona.';
       if (modo === 'checkout') {
         lines.push(
           `Cómo se cobra: siempre por la caja de la tienda. Cuando la clienta quiera comprar, genera el enlace de pago y pásaselo. No le pidas la dirección ni los datos de envío por el chat: eso lo pide la caja. ${conQuePaga}`
@@ -3348,11 +3396,13 @@ export function buildSystemPrompt(
     );
   } else if (shopify?.canCreateOrders) {
     lines.push(
-      'Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía y ofrece ayuda de una persona del equipo. Ten 100% de certeza de lo que quiere antes de crear el pedido.'
+      `Cierre de pedidos: puedes crear el pedido tú cuando la clienta quiera comprar. Flujo: (1) confirma qué quiere (producto y cantidad u oferta); (2) reúne los datos necesarios, nombre, y si es un producto físico la dirección de envío completa (calle y número, ciudad, provincia, código postal) y el método de pago; (3) si falta algo, preguntáselo con naturalidad, de a poco; (4) muéstrale un resumen con el total y pídele que confirme; (5) SÓLO cuando confirme explícitamente, llama create_order con confirmed=true. No llames create_order si todavía falta info o no confirmó. Tras crearlo, dale el número de pedido y los próximos pasos. Si la tool devuelve un error, NO digas que el pedido se creó: explica con cortesía${channel === 'webchat' ? ' y permite que lo intente nuevamente.' : ' y ofrece ayuda de una persona del equipo.'} Ten 100% de certeza de lo que quiere antes de crear el pedido.`
     );
   } else if (shopify) {
     lines.push(
-      'Cierre de pedidos: no tienes habilitado crear pedidos por tu cuenta. Puedes ayudar con la info y, si la clienta quiere avanzar con la compra, avísale que una persona del equipo confirma el pedido. No afirmes que el pedido quedó registrado.'
+      channel === 'webchat'
+        ? 'Cierre de pedidos: no tienes habilitado crear pedidos por tu cuenta. Ayuda con la información y genera el enlace de la caja cuando la clienta quiera comprar. No afirmes que el pedido quedó registrado hasta que la tienda lo confirme.'
+        : 'Cierre de pedidos: no tienes habilitado crear pedidos por tu cuenta. Puedes ayudar con la info y, si la clienta quiere avanzar con la compra, avísale que una persona del equipo confirma el pedido. No afirmes que el pedido quedó registrado.'
     );
   }
 
@@ -3936,12 +3986,14 @@ async function logReply(
   // se quedaba sin respuesta con la conversación en verde (ver `desenlace.ts`).
   // Las guardas que ya escalan con un resumen mejor siguen mandando: esto no
   // pisa un escalado existente.
-  await aplicarDesenlace(
-    db,
-    args.conversation.id,
-    patch.skip_reason ?? patch.status,
-    patch.error ?? null
-  );
+  if (args.conversation.channel !== 'webchat') {
+    await aplicarDesenlace(
+      db,
+      args.conversation.id,
+      patch.skip_reason ?? patch.status,
+      patch.error ?? null
+    );
+  }
 }
 
 /**
@@ -4089,7 +4141,9 @@ async function anotarSalida(
       status: 'skipped',
       skip_reason: motivo,
     });
-    await aplicarDesenlace(db, args.conversation.id, motivo);
+    if (args.conversation.channel !== 'webchat') {
+      await aplicarDesenlace(db, args.conversation.id, motivo);
+    }
   } catch (err) {
     console.error('[ai] no se pudo anotar la salida:', motivo, err);
   }

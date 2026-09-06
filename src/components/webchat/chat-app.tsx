@@ -52,7 +52,7 @@ const TEXTOS = {
     reanudando: 'Reanudando…',
     sirvio: '¿Te sirvió?',
     gracias: 'Gracias por avisar.',
-    graciasNo: 'Gracias, se lo paso al equipo.',
+    graciasNo: 'Gracias por contarnos.',
     empezar: 'Empezar',
     correo: 'tu@correo.com',
     telefono: 'Tu teléfono',
@@ -70,8 +70,6 @@ const TEXTOS = {
     equipo: 'Equipo',
     unaPersona: 'Ahora te atiende una persona',
     cerrada: 'Conversación cerrada',
-    hablarPersona: 'Hablar con una persona',
-    avisamos: 'Listo, avisamos al equipo.',
     queFalto: '¿Qué faltó?',
   },
   en: {
@@ -84,7 +82,7 @@ const TEXTOS = {
     reanudando: 'Resuming…',
     sirvio: 'Did this help?',
     gracias: 'Thanks for letting us know.',
-    graciasNo: 'Thanks — passing it to the team.',
+    graciasNo: 'Thanks for the feedback.',
     empezar: 'Start',
     correo: 'you@email.com',
     telefono: 'Your phone number',
@@ -102,8 +100,6 @@ const TEXTOS = {
     equipo: 'Team',
     unaPersona: 'A person has joined the chat',
     cerrada: 'Conversation closed',
-    hablarPersona: 'Talk to a person',
-    avisamos: 'Done — the team has been notified.',
     queFalto: 'What was missing?',
   },
 } as const;
@@ -198,10 +194,8 @@ export function ChatApp() {
   const [califico, setCalifico] = useState<null | boolean>(null);
   const [comentario, setComentario] = useState('');
   const [comentarioEnviado, setComentarioEnviado] = useState(false);
-  /** Estado de la conversación tal como lo ve la bandeja. 'pending' significa
-   *  que ya hay alguien en camino, venga de donde venga el escalamiento. */
+  /** Estado de la conversación tal como lo ve la bandeja. */
   const [estado, setEstado] = useState<'open' | 'pending' | 'closed'>('open');
-  const [pidiendoPersona, setPidiendoPersona] = useState(false);
   const [storeOrigin, setStoreOrigin] = useState<string | null>(null);
   const T = TEXTOS[settings?.locale === 'en' ? 'en' : 'es'];
 
@@ -599,24 +593,6 @@ export function ChatApp() {
     }).catch(() => {});
   }, [comentario, session, comentarioEnviado]);
 
-  /**
-   * "Quiero hablar con una persona".
-   *
-   * Se pinta como hecho antes de que conteste el servidor: quien aprieta esto
-   * ya está incómodo, y un botón que no reacciona durante medio segundo es
-   * exactamente lo que no hay que hacerle. El estado real llega en el próximo
-   * sondeo ('pending') y manda sobre esta suposición.
-   */
-  const pedirPersona = useCallback(async () => {
-    if (!session || pidiendoPersona || estado === 'pending') return;
-    setPidiendoPersona(true);
-    const res = await fetch('/api/widget/handoff', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session}` },
-    }).catch(() => null);
-    if (!res?.ok) setPidiendoPersona(false);
-  }, [session, pidiendoPersona, estado]);
-
   const identify = useCallback(async () => {
     const datos: { email?: string; phone?: string } = {};
     if (email.trim()) datos.email = email.trim();
@@ -856,25 +832,6 @@ export function ChatApp() {
           />
         ) : null}
 
-        {/* Pedir una persona. Va al final del hilo y sólo después de que el
-            visitante escribió: ofrecerlo antes de la primera palabra es
-            anunciar que el chat no sirve. Cuando el hilo ya está esperando a
-            alguien —lo pidió él, o escaló solo— el botón deja lugar al aviso. */}
-        {!expired && estado !== 'closed' && messages.some((m) => m.sender === 'visitor') ? (
-          estado === 'pending' || pidiendoPersona ? (
-            <p className="mt-3 text-center text-[11px] text-neutral-500">{T.avisamos}</p>
-          ) : (
-            <div className="mt-3 flex justify-center">
-              <button
-                type="button"
-                onClick={pedirPersona}
-                className="rounded-md border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 transition hover:bg-neutral-50"
-              >
-                {T.hablarPersona}
-              </button>
-            </div>
-          )
-        ) : null}
       </div>
 
       {/* Fuera de horario. Va arriba del cuadro de texto y NO lo bloquea: la
