@@ -297,6 +297,14 @@ export async function detectarEscalada(
 ): Promise<Escalada | null> {
   const dura = señalDura(ctx.mensaje);
   if (dura) return dura;
+  // Elegir transferencia antes de comprar es una preferencia de pago, no un
+  // incidente. El checkout sabe marcarla y aplicar el crédito configurado;
+  // no la mandamos al clasificador, que no conoce esa configuración y puede
+  // confundir la petición del descuento válido con una excepción manual.
+  const eligeTransferencia =
+    /(?<![\wáéíóúñ])(transferencia|transferir)(?![\wáéíóúñ])/i.test(ctx.mensaje) &&
+    /(?<![\wáéíóúñ])(comprar|pagar|checkout|enlace|link)(?![\wáéíóúñ])/i.test(ctx.mensaje)
+  if (eligeTransferencia) return null;
   const conversacionCargada = ctx.hayPedido || (ctx.hilo?.length ?? 0) >= 3;
   if (!conversacionCargada) return null;
   return clasificar(ctx);

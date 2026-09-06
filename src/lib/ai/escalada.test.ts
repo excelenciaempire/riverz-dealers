@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { señalDura } from './escalada'
+import { detectarEscalada, señalDura } from './escalada'
 import { textoDelAviso } from './aviso-escalada'
 
 describe('señalDura', () => {
@@ -37,6 +37,19 @@ describe('señalDura', () => {
   it('escala una transferencia ya realizada o con comprobante', () => {
     expect(señalDura('ya transferí, ¿lo recibieron?')?.clase).toBe('cobro')
     expect(señalDura('te adjunto el comprobante')?.clase).toBe('cobro')
+  })
+
+  it('no clasifica como incidente un checkout por transferencia', async () => {
+    await expect(
+      detectarEscalada({
+        mensaje:
+          'Quiero comprar y pagar por transferencia con el descuento. Envíame el enlace de checkout.',
+        hilo: ['cliente: hola', 'agente: hola', 'cliente: quiero el serum'],
+        hayPedido: true,
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toBeNull()
   })
 })
 
