@@ -45,7 +45,7 @@ interface MlClaim {
   date_created?: string;
   last_updated?: string;
   players?: Array<{ role?: string; user_id?: number | string }>;
-  resolution?: { reason?: string } | null;
+  resolution?: { reason?: string; date_created?: string } | null;
 }
 
 interface MlClaimMessage {
@@ -61,6 +61,39 @@ interface MlClaimMessage {
     type?: string;
     size?: number;
   }>;
+}
+
+/**
+ * El estado del expediente manda sobre el hilo que lo representa.
+ *
+ * Mercado Libre no crea un mensaje cuando el vendedor resuelve un reclamo
+ * mediante una acción (por ejemplo, reembolsar). Si sólo importamos mensajes,
+ * Riverz deja el hilo abierto y parece que nadie respondió, aunque el reclamo
+ * ya esté cerrado. Además, el compositor sigue disponible y el siguiente
+ * envío termina rechazado por Mercado Libre.
+ */
+export async function closeResolvedClaimConversation(
+  db: SupabaseClient,
+  conn: Pick<ChannelConnection, "id" | "workspace_id">,
+  claim: MlClaim,
+): Promise<void> {
+  if (claim.status !== "closed" || claim.id == null) return;
+
+  const claimId = String(claim.id);
+  const closedAt =
+    claim.resolution?.date_created ??
+    claim.last_updated ??
+    new Date().toISOString();
+  const { error } = await db
+    .from("conversations")
+    .update({ status: "closed", closed_at: closedAt })
+    .eq("workspace_id", conn.workspace_id)
+    .eq("connection_id", conn.id)
+    .eq("thread_external_id", `claim:${claimId}`)
+    .neq("status", "closed");
+  if (error) {
+    throw new Error(`claim conversation close ${claimId}: ${error.message}`);
+  }
 }
 
 /**
@@ -240,6 +273,7 @@ export async function syncClaimsForConnection(
       { onConflict: "workspace_id,claim_id" },
     );
     if (error) throw new Error(`ml_claims upsert ${claimId}: ${error.message}`);
+    await closeResolvedClaimConversation(db, conn, claim);
     claims++;
 
     // Una devolución no se atiende en la bandeja: se decide en /devoluciones,

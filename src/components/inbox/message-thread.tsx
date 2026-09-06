@@ -1527,6 +1527,7 @@ export function MessageThread({
           <MlKindBadge
             channel={conversation.channel}
             threadExternalId={conversation.thread_external_id}
+            status={conversation.status}
             variant="header"
             className="ml-1 hidden sm:inline-flex sm:ml-2"
           />
@@ -2034,7 +2035,8 @@ export function MessageThread({
           {t("inbox.mlReviewNoReply")}
         </div>
       ) : mlThreadKind(conversation.channel, conversation.thread_external_id) ===
-          "claim" && claimOpen === false ? (
+          "claim" &&
+        (claimOpen === false || conversation.status === "closed") ? (
         /* Mediación cerrada: ya no se puede escribir en ella. Mercado Libre
            rechaza el envío, así que se dice antes de que lo escriba. */
         <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Channel } from "@/types";
+import type { Channel, ConversationStatus } from "@/types";
 import { Globe, ShieldAlert, Star } from "lucide-react";
 import { mlThreadKind, type MlThreadKind } from "@/lib/channels/display";
 import { useT } from "@/hooks/use-locale";
@@ -42,11 +42,13 @@ const TONES: Record<MlThreadKind, string> = {
 export function MlKindBadge({
   channel,
   threadExternalId,
+  status,
   variant = "row",
   className,
 }: {
   channel: Channel;
   threadExternalId?: string | null;
+  status?: ConversationStatus;
   variant?: "row" | "header";
   className?: string;
 }) {
@@ -54,14 +56,21 @@ export function MlKindBadge({
   const kind = mlThreadKind(channel, threadExternalId);
   if (!kind) return null;
 
-  const label = t(LABELS[kind][variant === "header" ? "header" : "row"]);
+  const resolved = kind === "claim" && status === "closed";
+  const label = t(
+    resolved
+      ? "inbox.mlClaimResolved"
+      : LABELS[kind][variant === "header" ? "header" : "row"],
+  );
 
   return (
     <span
       title={label}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-        TONES[kind],
+        resolved
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30"
+          : TONES[kind],
         className,
       )}
     >

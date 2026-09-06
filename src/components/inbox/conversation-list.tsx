@@ -673,6 +673,7 @@ const ConversationItem = memo(function ConversationItem({
             <MlKindBadge
               channel={conversation.channel}
               threadExternalId={conversation.thread_external_id}
+              status={conversation.status}
             />
             {/* Nació de una historia. Es un DM, pero no una consulta fría:
                 quien contesta tu historia es la señal más caliente que Meta
