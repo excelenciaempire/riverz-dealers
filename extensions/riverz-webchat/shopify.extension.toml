@@ -1,0 +1,7 @@
+api_version = "2025-10"
+
+[[extensions]]
+name = "Riverz Web Chat"
+handle = "riverz-webchat"
+type = "theme"
+uid = "riverz-webchat"

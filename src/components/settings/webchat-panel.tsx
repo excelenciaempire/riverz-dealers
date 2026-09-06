@@ -119,7 +119,8 @@ export function WebchatPanel() {
   const [cfg, setCfg] = useState<WebchatConfig>({});
   const [snippet, setSnippet] = useState('');
   const [agents, setAgents] = useState<Agente[]>([]);
-  const [instalado, setInstalado] = useState<boolean | null>(null);
+  const [shopifyDisponible, setShopifyDisponible] = useState<boolean | null>(null);
+  const [activationUrl, setActivationUrl] = useState<string | null>(null);
   const [motivoInstalar, setMotivoInstalar] = useState<string | null>(null);
   const [instalando, setInstalando] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -166,7 +167,8 @@ export function WebchatPanel() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelado || !j) return;
-        setInstalado(j.installed);
+        setShopifyDisponible(Boolean(j.available));
+        setActivationUrl(j.activation_url ?? null);
         setMotivoInstalar(j.reason ?? null);
       })
       .catch(() => {});
@@ -198,21 +200,27 @@ export function WebchatPanel() {
     [fetchWithCsrf, t],
   );
 
-  const instalar = async (poner: boolean) => {
+  const instalar = async () => {
     setInstalando(true);
+    const editor = window.open('', '_blank');
     try {
       const res = await fetchWithCsrf('/api/webchat/install', {
-        method: poner ? 'POST' : 'DELETE',
+        method: 'POST',
       });
       const json = await res.json().catch(() => null);
       if (res.ok) {
-        setInstalado(poner);
+        const url = json?.activation_url || activationUrl;
+        setShopifyDisponible(true);
+        setActivationUrl(url ?? null);
         setMotivoInstalar(null);
-        toast.success(t(poner ? 'webchat.installedOk' : 'webchat.uninstalledOk'));
+        toast.success(t('webchat.embedPrepared'));
+        if (editor && url) editor.location.href = url;
+        else if (url) window.location.assign(url);
       } else {
+        editor?.close();
         toast.error(
           t(
-            json?.error === 'sin_permiso'
+            json?.error === 'requiere_reconexion'
               ? 'webchat.installNeedsReconnect'
               : json?.error === 'sin_tienda'
                 ? 'webchat.installNeedsShopify'
@@ -220,13 +228,16 @@ export function WebchatPanel() {
           ),
         );
       }
+    } catch {
+      editor?.close();
+      toast.error(t('webchat.installFailed'));
     } finally {
       setInstalando(false);
     }
   };
 
   // ¿Se puede instalar con un botón? Sólo con una tienda Shopify conectada.
-  const hayBoton = instalado !== null || motivoInstalar === 'sin_permiso';
+  const hayBoton = shopifyDisponible !== null;
   const domains = cfg.allowed_domains ?? [];
   const enabled = Boolean(cfg.enabled);
 
@@ -470,14 +481,12 @@ export function WebchatPanel() {
                       {t('webchat.installAuto')}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {motivoInstalar === 'sin_permiso'
+                      {motivoInstalar === 'requiere_reconexion'
                         ? t('webchat.installNeedsReconnect')
-                        : instalado
-                          ? t('webchat.installAutoOn')
-                          : t('webchat.installAutoHint')}
+                        : t('webchat.installAutoHint')}
                     </p>
                   </div>
-                  {motivoInstalar === 'sin_permiso' ? (
+                  {motivoInstalar === 'requiere_reconexion' ? (
                     <Button
                       render={<Link href="/integraciones#canal-shopify" />}
                       nativeButton={false}
@@ -488,14 +497,13 @@ export function WebchatPanel() {
                   ) : (
                     <Button
                       type="button"
-                      variant={instalado ? 'outline' : 'default'}
                       disabled={instalando}
-                      onClick={() => instalar(!instalado)}
+                      onClick={instalar}
                     >
                       {instalando ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
-                        t(instalado ? 'webchat.uninstall' : 'webchat.installNow')
+                        t('webchat.openThemeEditor')
                       )}
                     </Button>
                   )}

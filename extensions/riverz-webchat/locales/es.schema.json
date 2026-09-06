@@ -1,0 +1,15 @@
+{
+  "name": "Chat web de Riverz",
+  "settings": {
+    "display_scope": {
+      "label": "Mostrar en",
+      "options": {
+        "all": "Toda la tienda",
+        "product": "Un producto"
+      }
+    },
+    "product": {
+      "label": "Producto"
+    }
+  }
+}

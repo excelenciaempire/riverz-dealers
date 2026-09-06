@@ -1,0 +1,33 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "c5240cc4e696d631cbde0ac22a9d958f"
+application_url = "https://riverz.co/shopify/embedded?app=legacy"
+embedded = true
+name = "Riverz Inbox"
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/customers-data-request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/customers-redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/shopify/webhooks/shop-redact"
+  compliance_topics = [ "shop/redact" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_checkouts,read_customers,read_draft_orders,read_orders,write_orders,read_products,write_products,read_script_tags,write_script_tags"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://riverz.co/api/shopify/oauth/callback",
+  "https://riverz.co/api/shopify/callback"
+]

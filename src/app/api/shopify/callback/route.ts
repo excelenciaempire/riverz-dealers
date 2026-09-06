@@ -242,6 +242,7 @@ export async function GET(request: Request) {
         shopDomain: shop,
         accessToken,
         scope: grantedScope,
+        clientId: pair.apiKey,
       })
       log.info('install_parked_pending_claim', { shop })
 
@@ -285,6 +286,7 @@ export async function GET(request: Request) {
       shopDomain: shop,
       accessToken,
       scope: grantedScope,
+      clientId: pair.apiKey,
       callbackBase,
       expiresIn,
       refreshToken,

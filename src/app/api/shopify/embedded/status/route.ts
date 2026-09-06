@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { verifySessionToken } from '@/lib/shopify/session-token'
 import { hasPendingInstall } from '@/lib/shopify/pending-install'
 import { getLogger } from '@/lib/log/logger'
+import { themeExtensionActivationUrl } from '@/lib/shopify/theme-extension'
 
 const log = getLogger('shopify.embedded-status')
 
@@ -41,12 +42,10 @@ export async function GET(request: Request) {
 
   const auth = request.headers.get('authorization') ?? ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  const verified = token
-    ? pairs.reduce<ReturnType<typeof verifySessionToken>>(
-        (acc, pair) => acc ?? verifySessionToken(token, pair),
-        null,
-      )
+  const verifiedPair = token
+    ? pairs.find((pair) => verifySessionToken(token, pair))
     : null
+  const verified = verifiedPair ? verifySessionToken(token, verifiedPair) : null
   if (!verified) {
     log.warn('session_token_rejected', { hasToken: Boolean(token) })
     return NextResponse.json({ error: 'invalid_session_token' }, { status: 401 })
@@ -68,5 +67,13 @@ export async function GET(request: Request) {
       ? 'pending'
       : 'none'
 
-  return NextResponse.json({ shop: verified.shop, state })
+  return NextResponse.json({
+    shop: verified.shop,
+    state,
+    activation_url: themeExtensionActivationUrl({
+      shopDomain: verified.shop,
+      clientId: verifiedPair!.apiKey,
+      template: 'product',
+    }),
+  })
 }

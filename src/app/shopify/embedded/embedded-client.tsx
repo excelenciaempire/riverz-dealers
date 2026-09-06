@@ -1,20 +1,37 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
 import { signupsOpen } from '@/lib/auth/signups';
 
 declare global {
   interface Window {
-    shopify?: { idToken?: () => Promise<string> };
+    shopify?: {
+      idToken?: () => Promise<string>;
+      app?: {
+        extensions?: () => Promise<
+          Array<{
+            handle: string;
+            type: string;
+            activations?: Array<{ handle?: string; status?: string }>;
+          }>
+        >;
+      };
+    };
   }
 }
 
 type Status =
   | { kind: 'loading' }
   | { kind: 'error' }
-  | { kind: 'ready'; shop: string; state: 'connected' | 'pending' | 'none' };
+  | {
+      kind: 'ready';
+      shop: string;
+      state: 'connected' | 'pending' | 'none';
+      activationUrl: string | null;
+      embed: 'active' | 'pending' | 'unavailable';
+    };
 
 /**
  * Client half of the embedded Shopify admin page. Waits for App Bridge
@@ -64,8 +81,27 @@ export function EmbeddedClient() {
         const data = (await res.json()) as {
           shop: string;
           state: 'connected' | 'pending' | 'none';
+          activation_url?: string;
         };
-        setStatus({ kind: 'ready', shop: data.shop, state: data.state });
+        let embed: 'active' | 'pending' | 'unavailable' = 'unavailable';
+        const extensions = await window.shopify?.app?.extensions?.().catch(() => []);
+        const riverz = extensions?.find(
+          (extension) =>
+            extension.type === 'theme_app_extension' &&
+            extension.handle === 'riverz-webchat',
+        );
+        const block = riverz?.activations?.find(
+          (activation) => activation.handle === 'riverz-webchat',
+        );
+        if (block?.status === 'active') embed = 'active';
+        else if (riverz) embed = 'pending';
+        setStatus({
+          kind: 'ready',
+          shop: data.shop,
+          state: data.state,
+          activationUrl: data.activation_url ?? null,
+          embed,
+        });
       } catch {
         if (!cancelled) setStatus({ kind: 'error' });
       }
@@ -96,16 +132,34 @@ export function EmbeddedClient() {
         {status.kind === 'ready' && status.state === 'connected' && (
           <>
             <p className="flex items-center gap-2 text-sm text-foreground">
-              <CheckCircle2 className="h-4 w-4 text-accent-ink" />
-              {t('settings.shopifyEmbeddedConnected')}
+              {status.embed === 'active' ? (
+                <CheckCircle2 className="h-4 w-4 text-accent-ink" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+              )}
+              {t(
+                status.embed === 'active'
+                  ? 'settings.shopifyEmbeddedChatActive'
+                  : status.embed === 'pending'
+                    ? 'settings.shopifyEmbeddedChatPending'
+                    : 'settings.shopifyEmbeddedChatUnavailable',
+              )}
             </p>
             <a
-              href="/bandeja"
+              href={
+                status.embed === 'active'
+                  ? '/bandeja'
+                  : status.activationUrl || '/integraciones'
+              }
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              {t('settings.shopifyEmbeddedOpen')}
+              {t(
+                status.embed === 'active'
+                  ? 'settings.shopifyEmbeddedOpen'
+                  : 'settings.shopifyEmbeddedEnableChat',
+              )}
             </a>
           </>
         )}

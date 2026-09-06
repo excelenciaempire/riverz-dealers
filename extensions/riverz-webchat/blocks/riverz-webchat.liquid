@@ -1,0 +1,50 @@
+{% liquid
+  assign widget_key = app.metafields.riverz.widget_key.value
+  assign render_widget = false
+
+  if block.settings.display_scope == 'all'
+    assign render_widget = true
+  elsif block.settings.display_scope == 'product'
+    if product != blank and block.settings.product != blank and product.id == block.settings.product.id
+      assign render_widget = true
+    endif
+  endif
+%}
+
+{% if widget_key != blank and render_widget %}
+  <script
+    src="https://riverz.co/widget/v1.js"
+    data-riverz-key="{{ widget_key | escape }}"
+    defer
+  ></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "t:name",
+  "target": "body",
+  "settings": [
+    {
+      "type": "select",
+      "id": "display_scope",
+      "label": "t:settings.display_scope.label",
+      "default": "all",
+      "options": [
+        {
+          "value": "all",
+          "label": "t:settings.display_scope.options.all"
+        },
+        {
+          "value": "product",
+          "label": "t:settings.display_scope.options.product"
+        }
+      ]
+    },
+    {
+      "type": "product",
+      "id": "product",
+      "label": "t:settings.product.label"
+    }
+  ]
+}
+{% endschema %}

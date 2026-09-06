@@ -28,9 +28,7 @@ const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10';
 // scope extra. Los de fulfillment habilitan además despachar desde Riverz y
 // poder validar el flujo end-to-end contra una tienda real (sin ellos la
 // Admin API responde 403 al crear el fulfillment).
-const DEFAULT_SCOPES =
-  process.env.SHOPIFY_SCOPES ||
-  [
+const PUBLIC_SCOPES = [
     'read_orders',
     'write_orders',
     'read_checkouts',
@@ -55,16 +53,6 @@ const DEFAULT_SCOPES =
     'read_price_rules',
     'write_price_rules',
     'write_discounts',
-    // Chat web: instalarlo sin que nadie toque el código del tema. Copiar un
-    // snippet a `theme.liquid` es el paso donde se cae la adopción — el
-    // comercio que conectó la tienda en dos clics tiene que abrir el editor de
-    // código, y la mitad no lo hace.
-    // Los dos: Shopify pide `read_script_tags` para LISTAR los que ya hay,
-    // que es como se sabe si el chat está puesto. Con sólo el de escritura
-    // contesta 403 "requires merchant approval for read_script_tags scope" y
-    // el botón de instalar no puede ni preguntar.
-    'read_script_tags',
-    'write_script_tags',
     // Editar un pedido ya creado (sumarle unidades) NO entra en `write_orders`:
     // Shopify separó `orderEditBegin` en su propio permiso. Con sólo aquél
     // contesta 200 con `errors: ACCESS_DENIED, requires write_order_edits`, que
@@ -81,14 +69,30 @@ const DEFAULT_SCOPES =
     // approval for read_draft_orders scope" y los webhooks del tema ni se
     // pueden registrar, así que esas ventas eran invisibles.
     'read_draft_orders',
-  ].join(',');
+  ]
+
+const LEGACY_ONLY_SCOPES = [
+  // Sólo la app legacy instalada en Pilar los necesita: write_products crea
+  // el producto UNLISTED del laboratorio; ScriptTags permite retirar el
+  // cargador anterior al activar la Theme App Extension.
+  'write_products',
+  'read_script_tags',
+  'write_script_tags',
+]
 
 export function shopifyApiVersion(): string {
   return API_VERSION;
 }
 
-export function shopifyScopes(): string {
-  return DEFAULT_SCOPES;
+export function shopifyScopes(identity: 'public' | 'legacy' = 'public'): string {
+  const configured = process.env.SHOPIFY_SCOPES
+  const base = configured
+    ? configured.split(',').map((scope) => scope.trim()).filter(Boolean)
+    : PUBLIC_SCOPES
+  const publicOnly = base.filter((scope) => !LEGACY_ONLY_SCOPES.includes(scope))
+  return Array.from(
+    new Set(identity === 'legacy' ? [...publicOnly, ...LEGACY_ONLY_SCOPES] : publicOnly),
+  ).join(',')
 }
 
 /**
@@ -114,7 +118,7 @@ export function buildAuthorizeUrl(args: {
 }): string {
   const params = new URLSearchParams({
     client_id: args.apiKey,
-    scope: args.scopes || DEFAULT_SCOPES,
+    scope: args.scopes || shopifyScopes(),
     redirect_uri: args.redirectUri,
     state: args.state,
   });

@@ -41,6 +41,7 @@ export async function createPendingInstall(
     scope?: string | null
     platform?: PendingPlatform
     externalStoreId?: string | null
+    clientId?: string | null
   },
 ): Promise<{ claimToken: string }> {
   const claimToken = randomBytes(32).toString('hex')
@@ -53,6 +54,7 @@ export async function createPendingInstall(
       claim_token_hash: hashToken(claimToken),
       access_token: encrypt(args.accessToken),
       scope: args.scope ?? null,
+      client_id_encrypted: args.clientId ? encrypt(args.clientId) : null,
       created_at: new Date().toISOString(),
     },
     { onConflict: 'platform,shop_domain' },
@@ -68,6 +70,7 @@ export interface ClaimedInstall {
   externalStoreId: string | null
   accessToken: string
   scope: string | null
+  clientId: string | null
 }
 
 /**
@@ -85,7 +88,7 @@ export async function claimPendingInstall(
   const { data: row } = await admin
     .from('shopify_pending_installs')
     .select(
-      'id, platform, shop_domain, shop_name, external_store_id, access_token, scope, created_at',
+      'id, platform, shop_domain, shop_name, external_store_id, access_token, scope, client_id_encrypted, created_at',
     )
     .eq('claim_token_hash', hashToken(rawToken))
     .maybeSingle()
@@ -104,6 +107,7 @@ export async function claimPendingInstall(
     externalStoreId: row.external_store_id ?? null,
     accessToken: decrypt(row.access_token),
     scope: row.scope ?? null,
+    clientId: row.client_id_encrypted ? decrypt(row.client_id_encrypted) : null,
   }
 }
 

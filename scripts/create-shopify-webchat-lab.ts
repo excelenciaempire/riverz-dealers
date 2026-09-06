@@ -1,0 +1,158 @@
+/**
+ * Crea o reutiliza un producto UNLISTED para probar el chat en una tienda real.
+ *
+ * Uso:
+ *   npx tsx scripts/create-shopify-webchat-lab.ts \
+ *     --shop j9kgap-kn.myshopify.com \
+ *     --source serum-pilar \
+ *     --handle serum-pilar-prueba-chat \
+ *     --title "Serum Pilar — Prueba chat"
+ */
+import { createClient } from '@supabase/supabase-js'
+import { decrypt } from '../src/lib/whatsapp/encryption'
+import { shopifyApiVersion } from '../src/lib/shopify/oauth'
+import { syncShopifyProducts } from '../src/lib/shopify/product-sync'
+
+interface ProductNode {
+  id: string
+  handle: string
+  title: string
+  status: string
+  variants?: { nodes?: Array<{ id?: string }> }
+}
+
+function arg(name: string): string {
+  const index = process.argv.indexOf(`--${name}`)
+  return index >= 0 ? String(process.argv[index + 1] ?? '').trim() : ''
+}
+
+async function main() {
+  const shop = arg('shop')
+  const sourceHandle = arg('source')
+  const targetHandle = arg('handle')
+  const title = arg('title')
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+    throw new Error('Falta --shop con un dominio *.myshopify.com válido')
+  }
+  for (const [name, value] of [
+    ['source', sourceHandle],
+    ['handle', targetHandle],
+    ['title', title],
+  ]) {
+    if (!value) throw new Error(`Falta --${name}`)
+  }
+  if (!/^[a-z0-9][a-z0-9-]{1,120}$/.test(targetHandle)) {
+    throw new Error('--handle no es válido')
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) throw new Error('Falta configurar Supabase')
+  const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+  const { data: connection, error } = await db
+    .from('shopify_connections')
+    .select('user_id, workspace_id, access_token, scope')
+    .eq('platform', 'shopify')
+    .eq('shop_domain', shop)
+    .eq('status', 'active')
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error || !connection) throw new Error(error?.message || 'Tienda no conectada')
+  const scopes = String(connection.scope ?? '').split(',')
+  if (!scopes.includes('write_products')) {
+    throw new Error('La conexión no tiene write_products; reconecta la app legacy')
+  }
+  const accessToken = decrypt(connection.access_token)
+  const endpoint = `https://${shop}/admin/api/${shopifyApiVersion()}/graphql.json`
+
+  async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    })
+    const json = (await response.json()) as {
+      data?: T
+      errors?: Array<{ message?: string }>
+    }
+    if (!response.ok || json.errors?.length || !json.data) {
+      throw new Error(json.errors?.[0]?.message || `Shopify GraphQL ${response.status}`)
+    }
+    return json.data
+  }
+
+  async function byHandle(handle: string): Promise<ProductNode | null> {
+    const data = await graphql<{
+      products: { nodes: ProductNode[] }
+    }>(
+      'query RiverzProductByHandle($query: String!) { products(first: 1, query: $query) { nodes { id handle title status variants(first: 1) { nodes { id } } } } }',
+      { query: `handle:${handle}` },
+    )
+    return data.products.nodes[0] ?? null
+  }
+
+  let target = await byHandle(targetHandle)
+  let created = false
+  if (!target) {
+    const source = await byHandle(sourceHandle)
+    if (!source) throw new Error(`No existe el producto fuente ${sourceHandle}`)
+    const duplicated = await graphql<{
+      productDuplicate: {
+        newProduct?: ProductNode
+        userErrors?: Array<{ message?: string }>
+      }
+    }>(
+      'mutation RiverzDuplicateProduct($productId: ID!, $title: String!) { productDuplicate(productId: $productId, newTitle: $title, newStatus: UNLISTED, includeImages: true, includeTranslations: true, synchronous: true) { newProduct { id handle title status variants(first: 1) { nodes { id } } } userErrors { message } } }',
+      { productId: source.id, title },
+    )
+    const duplicateError = duplicated.productDuplicate.userErrors?.[0]?.message
+    if (duplicateError || !duplicated.productDuplicate.newProduct) {
+      throw new Error(duplicateError || 'Shopify no devolvió el producto duplicado')
+    }
+    target = duplicated.productDuplicate.newProduct
+    created = true
+  }
+
+  if (target.handle !== targetHandle || target.status !== 'UNLISTED' || target.title !== title) {
+    const updated = await graphql<{
+      productUpdate: {
+        product?: ProductNode
+        userErrors?: Array<{ message?: string }>
+      }
+    }>(
+      'mutation RiverzNormalizeLabProduct($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id handle title status variants(first: 1) { nodes { id } } } userErrors { message } } }',
+      { product: { id: target.id, handle: targetHandle, title, status: 'UNLISTED' } },
+    )
+    const updateError = updated.productUpdate.userErrors?.[0]?.message
+    if (updateError || !updated.productUpdate.product) {
+      throw new Error(updateError || 'No se pudo normalizar el producto de prueba')
+    }
+    target = updated.productUpdate.product
+  }
+
+  await syncShopifyProducts(db, {
+    userId: connection.user_id,
+    workspaceId: connection.workspace_id,
+    shopDomain: shop,
+    accessToken,
+  })
+
+  console.log(
+    JSON.stringify({
+      created,
+      productId: target.id,
+      variantId: target.variants?.nodes?.[0]?.id ?? null,
+      status: target.status,
+      url: `https://pilarargentina.store/products/${target.handle}`,
+    }),
+  )
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error)
+  process.exitCode = 1
+})

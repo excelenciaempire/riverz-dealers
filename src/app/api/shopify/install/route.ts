@@ -10,6 +10,8 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { publicBaseUrl } from '@/lib/base-url'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { supabaseAdmin } from '@/lib/channels/admin-client'
+import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
  * Kick off Shopify OAuth. Requires a logged-in user; stores the user id +
@@ -40,14 +42,6 @@ export async function GET(request: Request) {
 
   const locale = await getLocale()
 
-  const apiKey = process.env.SHOPIFY_API_KEY
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
-      { status: 503 },
-    )
-  }
-
   const url = new URL(request.url)
   const shop = normalizeShopDomain(url.searchParams.get('shop') || '')
   if (!shop) {
@@ -68,6 +62,45 @@ export async function GET(request: Request) {
     )
   }
 
+  // Durante la transición hay dos apps. Una reconexión conserva la identidad
+  // que ya instaló la tienda; `app=legacy` sólo se acepta para una conexión
+  // existente del mismo workspace, nunca para instalar la app privada en otra
+  // tienda por conocer el parámetro.
+  const { data: current } = await supabaseAdmin()
+    .from('shopify_connections')
+    .select('id, client_id_encrypted')
+    .eq('workspace_id', workspaceId)
+    .eq('platform', 'shopify')
+    .eq('shop_domain', shop)
+    .order('installed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const requestedLegacy = url.searchParams.get('app') === 'legacy'
+  if (requestedLegacy && !current?.id) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+  let savedClientId: string | null = null
+  try {
+    savedClientId = current?.client_id_encrypted
+      ? decrypt(current.client_id_encrypted)
+      : null
+  } catch {
+    savedClientId = null
+  }
+  const legacyKey = process.env.SHOPIFY_API_KEY_LEGACY
+  const identity: 'public' | 'legacy' =
+    requestedLegacy || (legacyKey && savedClientId === legacyKey)
+      ? 'legacy'
+      : 'public'
+  const apiKey =
+    identity === 'legacy' ? legacyKey : process.env.SHOPIFY_API_KEY
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: translate(locale, 'errProducts.shopifyNotConfigured') },
+      { status: 503 },
+    )
+  }
+
   const redirectUri =
     process.env.SHOPIFY_OAUTH_REDIRECT_URI ||
     `${process.env.NEXT_PUBLIC_SITE_URL}/api/shopify/callback`
@@ -78,7 +111,7 @@ export async function GET(request: Request) {
     state,
     apiKey,
     redirectUri,
-    scopes: shopifyScopes(),
+    scopes: shopifyScopes(identity),
   })
 
   const res = NextResponse.redirect(authorizeUrl)

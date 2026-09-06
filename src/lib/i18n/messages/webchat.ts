@@ -40,8 +40,13 @@ export const webchat = {
   },
   installAuto: { es: "Instalar en la tienda", en: "Install on the store" },
   installAutoHint: {
-    es: "Lo ponemos nosotros en Shopify. No hace falta tocar el código del tema.",
-    en: "We add it to Shopify for you. No need to touch your theme code.",
+    es: "Actívalo en el editor del tema y guarda el cambio.",
+    en: "Enable it in the theme editor and save the change.",
+  },
+  openThemeEditor: { es: "Abrir Shopify", en: "Open Shopify" },
+  embedPrepared: {
+    es: "El chat está listo para activarse en Shopify.",
+    en: "The chat is ready to enable in Shopify.",
   },
   installAutoOn: {
     es: "Ya está puesto en tu tienda.",

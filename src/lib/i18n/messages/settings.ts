@@ -672,6 +672,22 @@ export const settings = {
     es: 'Tienda conectada a Riverz',
     en: 'Store connected to Riverz',
   },
+  shopifyEmbeddedChatActive: {
+    es: 'Chat web activo',
+    en: 'Web chat active',
+  },
+  shopifyEmbeddedChatPending: {
+    es: 'Chat web pendiente',
+    en: 'Web chat pending',
+  },
+  shopifyEmbeddedChatUnavailable: {
+    es: 'Chat web requiere acción',
+    en: 'Web chat requires action',
+  },
+  shopifyEmbeddedEnableChat: {
+    es: 'Activar chat',
+    en: 'Enable chat',
+  },
   shopifyEmbeddedPending: {
     es: 'Falta vincular tu cuenta Riverz',
     en: 'Riverz account not linked yet',

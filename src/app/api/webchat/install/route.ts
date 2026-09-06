@@ -5,16 +5,16 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { csrfGuard } from '@/lib/csrf';
 import { widgetKey } from '@/lib/channels/webchat/token';
 import {
-  desinstalarWidget,
-  instalarWidget,
-  widgetInstalado,
-} from '@/lib/shopify/script-tag';
+  getThemeExtensionSetup,
+  prepareThemeExtension,
+} from '@/lib/shopify/theme-extension';
 
 /**
- * Poner o sacar el chat de la tienda, sin tocar el código del tema.
+ * Preparar el app embed sin tocar código del tema.
  *
- * GET  — ¿está puesto? `null` cuando no hay Shopify o no se pudo preguntar.
- * POST — lo pone. DELETE — lo saca.
+ * GET  — devuelve si se puede activar y el deep link del editor.
+ * POST — sincroniza el metafield y devuelve el mismo deep link.
+ * DELETE — conserva el embed; el switch del canal lo deja inerte.
  *
  * Copiar un snippet a `theme.liquid` es el paso donde se cae la adopción: el
  * comercio conectó la tienda en dos clics y de golpe tiene que abrir el editor
@@ -37,7 +37,15 @@ async function contexto() {
 export async function GET() {
   const ctx = await contexto();
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  return NextResponse.json(await widgetInstalado(ctx.admin, ctx.workspaceId));
+  const resolved = await getThemeExtensionSetup(ctx.admin, ctx.workspaceId);
+  if (!resolved.ok) {
+    return NextResponse.json({ available: false, reason: resolved.error });
+  }
+  return NextResponse.json({
+    available: true,
+    activation_url: resolved.setup.activationUrl,
+    shop: resolved.setup.shopDomain,
+  });
 }
 
 export async function POST(request: Request) {
@@ -46,17 +54,21 @@ export async function POST(request: Request) {
   const ctx = await contexto();
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  // El origen sale de la petición y no de una variable de entorno: así el
-  // widget instalado apunta al mismo dominio desde el que el comercio lo
-  // instaló, y una vista previa no le mete el de producción en su tienda.
-  const base = new URL(request.url).origin;
-  const res = await instalarWidget(
+  const res = await prepareThemeExtension(
     ctx.admin,
     ctx.workspaceId,
     widgetKey(ctx.workspaceId),
-    base,
   );
-  return NextResponse.json(res, { status: res.ok ? 200 : 400 });
+  return NextResponse.json(
+    res.ok
+      ? {
+          ok: true,
+          activation_url: res.setup.activationUrl,
+          shop: res.setup.shopDomain,
+        }
+      : res,
+    { status: res.ok ? 200 : 400 },
+  );
 }
 
 export async function DELETE(request: Request) {
@@ -64,6 +76,5 @@ export async function DELETE(request: Request) {
   if (block) return block;
   const ctx = await contexto();
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const res = await desinstalarWidget(ctx.admin, ctx.workspaceId);
-  return NextResponse.json(res, { status: res.ok ? 200 : 400 });
+  return NextResponse.json({ ok: true, embedded: true });
 }

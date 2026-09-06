@@ -22,9 +22,17 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = { title: 'Riverz' }
 
-export default async function ShopifyEmbeddedPage() {
+export default async function ShopifyEmbeddedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ app?: string }>
+}) {
   const nonce = (await headers()).get('x-nonce') ?? undefined
-  const apiKey = process.env.SHOPIFY_API_KEY ?? ''
+  const app = (await searchParams).app
+  const apiKey =
+    app === 'legacy'
+      ? process.env.SHOPIFY_API_KEY_LEGACY ?? ''
+      : process.env.SHOPIFY_API_KEY ?? ''
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}

@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       shopDomain: pending.shopDomain,
       accessToken: pending.accessToken,
       scope: pending.scope,
+      clientId: pending.clientId || process.env.SHOPIFY_API_KEY || '',
       callbackBase,
       shopName: pending.shopName,
     })

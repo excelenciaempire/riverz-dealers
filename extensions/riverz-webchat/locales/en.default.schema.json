@@ -1,0 +1,15 @@
+{
+  "name": "Riverz web chat",
+  "settings": {
+    "display_scope": {
+      "label": "Show on",
+      "options": {
+        "all": "Entire store",
+        "product": "One product"
+      }
+    },
+    "product": {
+      "label": "Product"
+    }
+  }
+}

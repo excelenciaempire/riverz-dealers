@@ -8,6 +8,8 @@ import { enrichProducts } from '@/lib/products/enrich';
 import { unificarLoObvio } from '@/lib/products/unify';
 import { scrapeShopifyCatalogSources } from '@/lib/products/scrape-catalog-sources';
 import { getLogger } from '@/lib/log/logger';
+import { widgetKey } from '@/lib/channels/webchat/token';
+import { syncWebchatAppMetafield } from './theme-extension';
 
 const log = getLogger('shopify.complete');
 
@@ -30,6 +32,8 @@ export async function completeShopifyConnection(
     shopDomain: string;
     accessToken: string;
     scope: string | null;
+    /** Client ID de la identidad Shopify que firmó este OAuth. */
+    clientId: string;
     /** Base URL for webhook callbacks (NEXT_PUBLIC_SITE_URL or request origin). */
     callbackBase: string;
     /** Shop name if already known (claim flow); resolved best-effort otherwise. */
@@ -69,7 +73,23 @@ export async function completeShopifyConnection(
     // Mark the connection authoritatively as OAuth so webhook verification
     // uses the global secret even if this shop was previously admin_token.
     connectionMethod: 'oauth',
+    clientId: args.clientId,
   });
+
+  try {
+    await syncWebchatAppMetafield({
+      shopDomain,
+      accessToken,
+      widgetKey: widgetKey(workspaceId),
+    });
+  } catch (err) {
+    // La conexión sigue siendo válida. El panel mostrará "Requiere acción" y
+    // permitirá repetir esta sincronización antes de abrir el editor del tema.
+    log.warn('webchat_metafield_sync_failed', {
+      shop: shopDomain,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   try {
     await client.registerWebhooks(args.callbackBase);
