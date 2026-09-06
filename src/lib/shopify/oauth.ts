@@ -81,6 +81,8 @@ const LEGACY_ONLY_SCOPES = [
   'read_inventory',
   'write_inventory',
   'read_locations',
+  'read_publications',
+  'write_publications',
   'read_script_tags',
   'write_script_tags',
 ]

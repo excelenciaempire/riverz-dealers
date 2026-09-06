@@ -71,6 +71,7 @@ describe('shopifyScopes', () => {
   it('no amplía permisos de catálogo en la app pública', () => {
     expect(shopifyScopes('public')).not.toContain('write_products')
     expect(shopifyScopes('public')).not.toContain('write_inventory')
+    expect(shopifyScopes('public')).not.toContain('write_publications')
     expect(shopifyScopes('public')).not.toContain('write_script_tags')
   })
 
@@ -79,6 +80,8 @@ describe('shopifyScopes', () => {
     expect(shopifyScopes('legacy')).toContain('read_inventory')
     expect(shopifyScopes('legacy')).toContain('write_inventory')
     expect(shopifyScopes('legacy')).toContain('read_locations')
+    expect(shopifyScopes('legacy')).toContain('read_publications')
+    expect(shopifyScopes('legacy')).toContain('write_publications')
     expect(shopifyScopes('legacy')).toContain('read_script_tags')
     expect(shopifyScopes('legacy')).toContain('write_script_tags')
   })

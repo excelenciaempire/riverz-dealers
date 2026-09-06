@@ -71,7 +71,12 @@ async function main() {
   }
   // Shopify omite a veces el scope de lectura cuando concede el de escritura
   // equivalente; write_inventory ya permite las consultas que hace este script.
-  for (const required of ['write_inventory', 'read_locations']) {
+  for (const required of [
+    'write_inventory',
+    'read_locations',
+    'read_publications',
+    'write_publications',
+  ]) {
     if (!scopes.includes(required)) {
       throw new Error(`La conexión no tiene ${required}; reconecta la app legacy`)
     }
@@ -146,6 +151,28 @@ async function main() {
     }
     target = updated.productUpdate.product
   }
+
+  // UNLISTED controla el descubrimiento; la publicación en Online Store
+  // controla si Shopify deja comprarlo. Sin esta segunda parte el editor lo
+  // previsualiza, pero /cart/add.js responde 422 como si estuviera agotado.
+  const publications = await graphql<{
+    publications?: { nodes?: Array<{ id?: string; name?: string }> }
+  }>(
+    'query RiverzPublications { publications(first: 50) { nodes { id name } } }',
+    {},
+  )
+  const onlineStore = (publications.publications?.nodes ?? []).find(
+    (publication) => publication.name?.trim().toLowerCase() === 'online store',
+  )
+  if (!onlineStore?.id) throw new Error('No se encontró la publicación Online Store')
+  const published = await graphql<{
+    publishablePublish: { userErrors?: Array<{ message?: string }> }
+  }>(
+    'mutation RiverzPublishLab($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { userErrors { message } } }',
+    { id: target.id, input: [{ publicationId: onlineStore.id }] },
+  )
+  const publicationError = published.publishablePublish.userErrors?.[0]?.message
+  if (publicationError) throw new Error(publicationError)
 
   // Shopify copia también el saldo de inventario del producto fuente. En
   // Pilar ese saldo es negativo, así que el duplicado responde 422 "agotado"
