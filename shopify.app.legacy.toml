@@ -24,7 +24,7 @@ api_version = "2026-04"
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_checkouts,read_customers,read_draft_orders,read_orders,write_orders,read_products,write_products,read_script_tags,write_script_tags"
 optional_scopes = [ ]
-use_legacy_install_flow = false
+use_legacy_install_flow = true
 
 [auth]
 redirect_urls = [
