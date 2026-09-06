@@ -69,7 +69,9 @@ async function main() {
   if (!scopes.includes('write_products')) {
     throw new Error('La conexión no tiene write_products; reconecta la app legacy')
   }
-  for (const required of ['read_inventory', 'write_inventory', 'read_locations']) {
+  // Shopify omite a veces el scope de lectura cuando concede el de escritura
+  // equivalente; write_inventory ya permite las consultas que hace este script.
+  for (const required of ['write_inventory', 'read_locations']) {
     if (!scopes.includes(required)) {
       throw new Error(`La conexión no tiene ${required}; reconecta la app legacy`)
     }

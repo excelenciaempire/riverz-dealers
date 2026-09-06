@@ -99,7 +99,8 @@ const SEÑALES: Señal[] = [
       /(?<![\wáéíóúñ])dos veces(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobr|debit)/i,
       /(?<![\wáéíóúñ])no reconozco(?![\wáéíóúñ])[^.!?]{0,20}(?<![\wáéíóúñ])(cobro|cargo|compra)(?![\wáéíóúñ])/i,
       /(?<![\wáéíóúñ])desconoc(er|í|i|e) (el|ese) (cobro|cargo)(?![\wáéíóúñ])/i,
-      /(?<![\wáéíóúñ])(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i,
+      /(?<![\wáéíóúñ])(comprobante|bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i,
+      /(?<![\wáéíóúñ])(ya\s+transfer(?:í|i|iste|imos|ieron)|hice\s+(?:la\s+)?transferencia|transferencia\s+(?:hecha|realizada|enviada))(?![\wáéíóúñ])/i,
     ],
   },
   {

@@ -31,6 +31,12 @@ describe('señalDura', () => {
     expect(señalDura('sirve para el cuello?')).toBeNull()
     expect(señalDura('gracias!')).toBeNull()
     expect(señalDura('me encanta, ya lo compré dos veces')).toBeNull()
+    expect(señalDura('quiero pagar por transferencia')).toBeNull()
+  })
+
+  it('escala una transferencia ya realizada o con comprobante', () => {
+    expect(señalDura('ya transferí, ¿lo recibieron?')?.clase).toBe('cobro')
+    expect(señalDura('te adjunto el comprobante')?.clase).toBe('cobro')
   })
 })
 
