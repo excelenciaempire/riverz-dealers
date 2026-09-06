@@ -24,8 +24,10 @@ Hay **dos formas de conectar**:
 
 ## 2. Scopes
 
-Mínimos para carrito abandonado: `read_orders,read_checkouts,read_customers`
-(configurable con `SHOPIFY_SCOPES`).
+Los permisos vigentes están centralizados en `src/lib/shopify/oauth.ts` y son
+configurables con `SHOPIFY_SCOPES`. No copies una lista reducida desde este
+documento: pedidos, descuentos, fulfillment y la instalación transitoria del
+chat requieren permisos adicionales.
 
 ## 3. Webhooks GDPR obligatorios (en el Partner Dashboard → App setup)
 
@@ -38,13 +40,13 @@ registran automáticamente vía API tras conectar (no hay que configurarlos a ma
 
 ## 4. Variables de entorno (Render)
 
-| Variable | Valor |
-|---|---|
-| `SHOPIFY_API_KEY` | Client ID del Partner Dashboard |
-| `SHOPIFY_API_SECRET` | Client secret |
-| `SHOPIFY_OAUTH_REDIRECT_URI` | `https://<TU_DOMINIO>/api/shopify/callback` |
-| `SHOPIFY_API_VERSION` | `2025-10` (opcional) |
-| `SHOPIFY_SCOPES` | `read_orders,read_checkouts,read_customers` (opcional) |
+| Variable                     | Valor                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| `SHOPIFY_API_KEY`            | Client ID del Partner Dashboard                                    |
+| `SHOPIFY_API_SECRET`         | Client secret                                                      |
+| `SHOPIFY_OAUTH_REDIRECT_URI` | `https://<TU_DOMINIO>/api/shopify/callback`                        |
+| `SHOPIFY_API_VERSION`        | `2025-10` (opcional)                                               |
+| `SHOPIFY_SCOPES`             | Omitir para usar el conjunto vigente de `src/lib/shopify/oauth.ts` |
 
 `NEXT_PUBLIC_SITE_URL` debe apuntar al dominio público (se usa para la base de
 los webhooks). El token se cifra con `ENCRYPTION_KEY` (ya configurada).
@@ -54,7 +56,7 @@ los webhooks). El token se cifra con `ENCRYPTION_KEY` (ya configurada).
 Ajustes → Canales → tarjeta **Shopify** → escribe `tu-tienda.myshopify.com` →
 **Conectar**. Tras aceptar permisos vuelves a Ajustes con la tienda conectada.
 
-## 7. Opción A — Conectar con custom app (token), sin App Store
+## 6. Opción A — Conectar con custom app (token), sin App Store
 
 Para cada merchant (script white-glove). En **su** Shopify Admin:
 
@@ -82,10 +84,23 @@ App Store).
 Migración asociada: `087_shopify_admin_token.sql` (columnas `webhook_secret` +
 `connection_method`). Aplicar vía Management API antes de usar este path.
 
-## 6. Flujo de carrito abandonado
+## 7. Flujo de carrito abandonado
 
 `checkouts/create` → se busca/crea el contacto por teléfono → dispara las
 automatizaciones con trigger **Carrito abandonado (Shopify)**. La plantilla
 "Recuperación de carrito" hace: esperar 15 min → enviar plantilla de WhatsApp →
 etiquetar. Solo `checkouts/create` dispara (los `update` se verifican pero se
 ignoran para no repetir).
+
+## 8. Chat web en Shopify
+
+La instalación automática actual usa ScriptTag sólo como transición. Shopify
+impedirá crear o actualizar ScriptTags desde el **1 de octubre de 2026** y
+dejará de inyectarlos en storefronts desde el **1 de marzo de 2027**.
+
+La app pública debe migrar a un **app embed block** de Theme App Extension.
+Shopify exige theme app extensions para una app de App Store que integre el
+storefront. El recorrido recomendado es OAuth → vincular Riverz → deep link al
+editor del tema con el embed preactivado → guardar.
+
+Diseño y plan de migración: `docs/auditoria-chat-web.md`.

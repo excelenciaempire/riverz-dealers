@@ -18,6 +18,13 @@ export const webchat = {
   enable: { es: "Chat web activo", en: "Web chat live" },
   live: { es: "Activo", en: "Live" },
   off: { es: "Apagado", en: "Off" },
+  readyCount: {
+    es: "Configuración {done}/{total}",
+    en: "Setup {done}/{total}",
+  },
+  readyDomain: { es: "Dominio", en: "Domain" },
+  readyAgent: { es: "Agente", en: "Agent" },
+  readyEnabled: { es: "Activado", en: "Enabled" },
 
   // ── Instalación ──
   install: { es: "Instalación", en: "Install" },
@@ -25,6 +32,11 @@ export const webchat = {
   installNeedsReconnect: {
     es: "Reconecta Shopify para poder instalarlo desde aquí.",
     en: "Reconnect Shopify to install it from here.",
+  },
+  reconnectShopify: { es: "Reconectar Shopify", en: "Reconnect Shopify" },
+  installNeedsShopify: {
+    es: "Conecta Shopify para instalarlo automáticamente.",
+    en: "Connect Shopify to install it automatically.",
   },
   installAuto: { es: "Instalar en la tienda", en: "Install on the store" },
   installAutoHint: {

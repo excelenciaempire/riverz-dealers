@@ -210,7 +210,15 @@ export function WebchatPanel() {
         setMotivoInstalar(null);
         toast.success(t(poner ? 'webchat.installedOk' : 'webchat.uninstalledOk'));
       } else {
-        toast.error(json?.message ?? t('webchat.installFailed'));
+        toast.error(
+          t(
+            json?.error === 'sin_permiso'
+              ? 'webchat.installNeedsReconnect'
+              : json?.error === 'sin_tienda'
+                ? 'webchat.installNeedsShopify'
+                : 'webchat.installFailed',
+          ),
+        );
       }
     } finally {
       setInstalando(false);
@@ -250,6 +258,20 @@ export function WebchatPanel() {
       : !hayQuienConteste
         ? t(cfg.agent_id ? 'webchat.whyAgentPaused' : 'webchat.whyNoAgent')
         : null;
+  const preparacion = [
+    {
+      listo: domains.length > 0,
+      label: t('webchat.readyDomain'),
+      seccion: 'instalacion',
+    },
+    {
+      listo: hayQuienConteste,
+      label: t('webchat.readyAgent'),
+      seccion: 'comportamiento',
+    },
+    { listo: enabled, label: t('webchat.readyEnabled'), seccion: 'instalacion' },
+  ] satisfies { listo: boolean; label: string; seccion: Seccion }[];
+  const preparados = preparacion.filter((paso) => paso.listo).length;
 
   return (
     <div className="space-y-4">
@@ -273,6 +295,35 @@ export function WebchatPanel() {
           <Switch checked={enabled} onCheckedChange={(c) => save({ enabled: c })} />
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+          <span className="mr-1 text-xs font-medium text-muted-foreground">
+            {t('webchat.readyCount', {
+              done: String(preparados),
+              total: String(preparacion.length),
+            })}
+          </span>
+          {preparacion.map((paso) => (
+            <button
+              key={paso.label}
+              type="button"
+              onClick={() => setSeccion(paso.seccion)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+                paso.listo
+                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                  : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {paso.listo ? (
+                <Check className="size-3" aria-hidden />
+              ) : (
+                <span className="size-1.5 rounded-full bg-current opacity-40" aria-hidden />
+              )}
+              {paso.label}
+            </button>
+          ))}
+        </div>
+
         {motivoInvisible ? (
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -280,7 +331,12 @@ export function WebchatPanel() {
               {motivoInvisible}
             </p>
             {enabled && domains.length > 0 && !hayQuienConteste ? (
-              <Button render={<Link href="/asistente" />} size="sm" variant="outline">
+              <Button
+                render={<Link href="/asistente" />}
+                nativeButton={false}
+                size="sm"
+                variant="outline"
+              >
                 {t('webchat.whyNoAgentCta')}
               </Button>
             ) : null}
@@ -362,7 +418,12 @@ export function WebchatPanel() {
             <span className="min-w-0 flex-1 text-xs text-muted-foreground">
               {t('webchat.pixelOff')}
             </span>
-            <Button render={<Link href="/integraciones" />} size="sm" variant="outline">
+            <Button
+              render={<Link href="/integraciones" />}
+              nativeButton={false}
+              size="sm"
+              variant="outline"
+            >
               {t('webchat.pixelConnect')}
             </Button>
           </>
@@ -416,18 +477,28 @@ export function WebchatPanel() {
                           : t('webchat.installAutoHint')}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant={instalado ? 'outline' : 'default'}
-                    disabled={instalando || motivoInstalar === 'sin_permiso'}
-                    onClick={() => instalar(!instalado)}
-                  >
-                    {instalando ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      t(instalado ? 'webchat.uninstall' : 'webchat.installNow')
-                    )}
-                  </Button>
+                  {motivoInstalar === 'sin_permiso' ? (
+                    <Button
+                      render={<Link href="/integraciones#canal-shopify" />}
+                      nativeButton={false}
+                      variant="outline"
+                    >
+                      {t('webchat.reconnectShopify')}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant={instalado ? 'outline' : 'default'}
+                      disabled={instalando}
+                      onClick={() => instalar(!instalado)}
+                    >
+                      {instalando ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        t(instalado ? 'webchat.uninstall' : 'webchat.installNow')
+                      )}
+                    </Button>
+                  )}
                 </div>
               ) : null}
 
@@ -592,6 +663,7 @@ export function WebchatPanel() {
                     {saber.sin_ficha > 0 ? (
                       <Button
                         render={<Link href="/productos" />}
+                        nativeButton={false}
                         size="sm"
                         variant="outline"
                         className="ml-auto"

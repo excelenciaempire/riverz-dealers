@@ -196,6 +196,7 @@ export function ShopifyCard() {
 
   return (
     <li
+      id="canal-shopify"
       className={cn(
         'group bg-card flex flex-col gap-3 overflow-hidden rounded-xl border p-4 transition-all',
         isConnected
