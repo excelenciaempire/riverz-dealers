@@ -1020,8 +1020,10 @@ export interface VoiceCallStepConfig {
   /** Which call script/objective to use. Defaults to 'order_confirmation'
    *  when the trigger is an order, else 'manual'. */
   call_type?: VoiceCallType;
-  /** Optional one-off objective that overrides the agent's configured
-   *  voice_objectives[call_type].objective for this automation. */
+  /** Commercial reason for the call. Empty/omitted means infer from trigger. */
+  scenario?: VoiceCallScenario | '';
+  /** Optional detail appended to a preset scenario, or the full custom
+   *  objective when scenario is `custom`. */
   objective_override?: string;
   /** How many times to try the call. Falls back to the agent's config.
    *  (There is deliberately no per-step retry DELAY: the gap between
@@ -1118,6 +1120,15 @@ export type VoiceCallType =
   | 'followup'
   | 'manual'
   | 'inbound';
+
+export type VoiceCallScenario =
+  | 'thank_order'
+  | 'confirm_cod'
+  | 'cart_recovery'
+  | 'payment_recovery'
+  | 'delivery_update'
+  | 'customer_followup'
+  | 'custom';
 
 export type VoiceCallDirection = 'outbound' | 'inbound';
 

@@ -153,7 +153,7 @@ export function VoiceAgentProfiles({
     setCreating(false);
   }
 
-  function openEditor(agent: VoiceAgent, tab: 'general' | 'stats') {
+  function openEditor(agent: VoiceAgent, tab: EditorSection) {
     setEditing(agent);
     setEditorTab(tab);
     setAgentName(agent.name);
@@ -363,7 +363,30 @@ export function VoiceAgentProfiles({
           </Button>
         </div>
       ) : (
-        <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
+        <>
+          <div className="border-border bg-muted/20 mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 sm:mx-4 sm:mt-4">
+            <p className="text-muted-foreground text-xs">
+              {agents.some((agent) => agent.voice_accepts_inbound)
+                ? t('voice.voiceRoutingSummary', {
+                    names: agents
+                      .filter((agent) => agent.voice_accepts_inbound)
+                      .map((agent) => agent.name)
+                      .join(', '),
+                  })
+                : t('voice.voiceNoInboundAgent')}
+            </p>
+            {!agents.some((agent) => agent.voice_accepts_inbound) && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => openEditor(agents[0], 'operations')}
+              >
+                {t('voice.voiceChooseInboundAgent')}
+              </Button>
+            )}
+          </div>
+          <div className="grid gap-3 p-3 sm:grid-cols-2 sm:p-4">
           {agents.map((agent) => {
             const ready =
               agent.is_active && agent.voice_enabled && !!agent.voice_id;
@@ -392,6 +415,15 @@ export function VoiceAgentProfiles({
                             ? t('voice.voiceAgentNeedsVoice')
                             : t('voice.voiceAgentPaused')}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => openEditor(agent, 'operations')}
+                        className="border-border bg-muted/50 text-muted-foreground hover:text-foreground mt-2 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
+                      >
+                        {agent.voice_accepts_inbound
+                          ? t('voice.voiceRoleInboundOutbound')
+                          : t('voice.voiceRoleOutboundOnly')}
+                      </button>
                     </span>
                   </span>
                   <Button
@@ -427,7 +459,8 @@ export function VoiceAgentProfiles({
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
 
       <Dialog
@@ -471,7 +504,8 @@ export function VoiceAgentProfiles({
               {editing && voice && editorTab !== 'stats' ? (
                 <div className="mx-auto max-w-3xl space-y-5">
                   {editorTab === 'general' && (
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <label className="block">
                         <span className="text-foreground mb-1.5 block text-xs font-medium">
                           {t('voice.voiceAgentNameLabel')}
@@ -494,6 +528,14 @@ export function VoiceAgentProfiles({
                           }
                         />
                       </label>
+                      </div>
+                      <AgentRoleChoice
+                        acceptsInbound={voice.voice_accepts_inbound}
+                        onChange={(acceptsInbound) => setVoice({
+                          ...voice,
+                          voice_accepts_inbound: acceptsInbound,
+                        })}
+                      />
                     </div>
                   )}
                   <VoiceSettings
@@ -602,7 +644,8 @@ export function VoiceAgentProfiles({
             <div className="overflow-y-auto px-4 py-5 sm:px-6">
               <div className="mx-auto max-w-3xl space-y-5">
                 {createTab === 'general' && (
-                  <label className="block">
+                  <div className="space-y-4">
+                    <label className="block">
                     <span className="text-foreground mb-1.5 block text-sm font-medium">
                       {t('voice.voiceAgentNameLabel')}
                     </span>
@@ -613,7 +656,15 @@ export function VoiceAgentProfiles({
                       maxLength={80}
                       autoFocus
                     />
-                  </label>
+                    </label>
+                    <AgentRoleChoice
+                      acceptsInbound={newVoice.voice_accepts_inbound}
+                      onChange={(acceptsInbound) => setNewVoice({
+                        ...newVoice,
+                        voice_accepts_inbound: acceptsInbound,
+                      })}
+                    />
+                  </div>
                 )}
 
                 <VoiceSettings
@@ -707,6 +758,59 @@ export function VoiceAgentProfiles({
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+function AgentRoleChoice({
+  acceptsInbound,
+  onChange,
+}: {
+  acceptsInbound: boolean;
+  onChange: (acceptsInbound: boolean) => void;
+}) {
+  const t = useT();
+  const options = [
+    {
+      inbound: false,
+      label: t('voice.voiceRoleOutboundOnly'),
+      hint: t('voice.voiceRoleOutboundHint'),
+    },
+    {
+      inbound: true,
+      label: t('voice.voiceRoleInboundOutbound'),
+      hint: t('voice.voiceRoleInboundHint'),
+    },
+  ];
+  return (
+    <div>
+      <p className="text-foreground mb-1.5 text-xs font-medium">
+        {t('voice.voiceAgentRole')}
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const active = acceptsInbound === option.inbound;
+          return (
+            <button
+              key={String(option.inbound)}
+              type="button"
+              onClick={() => onChange(option.inbound)}
+              className={`rounded-xl border px-3 py-3 text-left transition-colors ${
+                active
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border bg-background hover:bg-muted/40'
+              }`}
+            >
+              <span className="text-foreground block text-xs font-semibold">
+                {option.label}
+              </span>
+              <span className="text-muted-foreground mt-1 block text-[11px]">
+                {option.hint}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

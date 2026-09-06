@@ -197,6 +197,9 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       if (!nonEmpty(c.agent_id)) {
         issues.push({ path: `${path}.agent_id`, message: 'voice agent is required', key: 'automations.issueSinAgenteVoz' })
       }
+      if (c.scenario === 'custom' && !nonEmpty(c.objective_override)) {
+        issues.push({ path: `${path}.objective_override`, message: 'custom voice objective is required', key: 'automations.issueSinObjetivoVoz' })
+      }
       break
     case 'close_conversation':
       // No config required.

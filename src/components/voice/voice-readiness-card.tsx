@@ -99,6 +99,9 @@ export function VoiceReadinessCard({
           issues={inboundIssues}
         />
       </div>
+      <p className="border-border bg-muted/20 text-muted-foreground mt-3 rounded-lg border px-3 py-2 text-xs">
+        {t('voice.voiceRoutingRule')}
+      </p>
       <div className="text-muted-foreground mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
         {origins.map((key) => (
           <span key={key}>{t(key)}</span>

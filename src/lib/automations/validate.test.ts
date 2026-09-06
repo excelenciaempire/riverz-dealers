@@ -230,6 +230,22 @@ describe("validateStepsForActivation", () => {
     ]);
   });
 
+  it("pide un objetivo cuando el motivo de llamada es personalizado", () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: "voice_call",
+          step_config: { agent_id: "agent-uuid", scenario: "custom" },
+        },
+      ]),
+    ).toMatchObject([
+      {
+        path: "steps[0].objective_override",
+        message: "custom voice objective is required",
+      },
+    ]);
+  });
+
   it("valida el paso de llamada tambien dentro de una rama", () => {
     const issues = validateStepsForActivation([
       {

@@ -142,6 +142,12 @@ export function buildOrderVars(
     first_item: order.lineItems[0]?.title ?? '',
     is_repeat_customer: order.customer.ordersCount > 1 ? 'true' : 'false',
     order_status_url: order.orderStatusUrl,
+    payment_gateway: String(
+      order.raw.payment_method_title ??
+        order.raw.payment_method ??
+        order.raw.gateway ??
+        ''
+    ),
     financial_status: order.state.financialStatus ?? '',
     fulfillment_status: order.state.fulfillmentStatus ?? '',
     shipping_address: order.shippingAddress.address,

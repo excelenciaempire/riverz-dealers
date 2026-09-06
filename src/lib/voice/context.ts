@@ -33,6 +33,10 @@ import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import {
+  isVoiceCallScenario,
+  objectiveForVoiceScenario,
+} from '@/lib/voice/scenarios';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import {
   BUSINESS_FALLBACK,
@@ -155,6 +159,20 @@ function resolveObjective(agent: AiAgent, call: VoiceCall): string {
     typeof call.context?.objective_override === 'string'
       ? (call.context.objective_override as string).trim()
       : '';
+  const rawScenario = call.context?.voice_scenario;
+  const scenario = isVoiceCallScenario(rawScenario) ? rawScenario : null;
+  const scenarioObjective = scenario
+    ? objectiveForVoiceScenario(scenario, langOf(agent, call))
+    : null;
+  if (scenario === 'custom' && override) return override;
+  if (scenarioObjective && override) {
+    return `${scenarioObjective}\n\n${
+      langOf(agent, call) === 'en'
+        ? 'Specific instructions for this call:'
+        : 'Instrucciones específicas para esta llamada:'
+    } ${override}`;
+  }
+  if (scenarioObjective) return scenarioObjective;
   if (override) return override;
   const configured =
     agent.voice_objectives?.[call.call_type]?.objective?.trim();

@@ -19,8 +19,8 @@ export const voice = {
     en: 'Objectives by call type',
   },
   objectivesHint: {
-    es: 'Vacío, usa un objetivo por defecto.',
-    en: 'Left empty, a default is used.',
+    es: 'Son objetivos base. El motivo elegido en una automatización tiene prioridad.',
+    en: 'These are base objectives. The reason selected in an automation takes priority.',
   },
   // Los nombres de los cuatro tipos viven en `type*` (abajo) — son los mismos
   // que muestra el registro de llamadas, y tenerlos dos veces hacía que la
@@ -103,8 +103,31 @@ export const voice = {
   },
   voiceAgentsTitle: { es: 'Agentes de voz', en: 'Voice agents' },
   voiceAgentsHint: {
-    es: 'Crea y administra tus agentes telefónicos.',
-    en: 'Create and manage your phone agents.',
+    es: 'El agente define la voz y la identidad. Cada automatización define el motivo.',
+    en: 'The agent defines the voice and identity. Each automation defines the reason.',
+  },
+  voiceRoutingSummary: {
+    es: 'Entrantes: {names}. Salientes: el agente elegido en cada automatización.',
+    en: 'Inbound: {names}. Outbound: the agent selected in each automation.',
+  },
+  voiceNoInboundAgent: {
+    es: 'Ningún agente está asignado a llamadas entrantes.',
+    en: 'No agent is assigned to inbound calls.',
+  },
+  voiceChooseInboundAgent: { es: 'Elegir agente', en: 'Choose agent' },
+  voiceAgentRole: { es: 'Función del agente', en: 'Agent role' },
+  voiceRoleOutboundOnly: { es: 'Solo salientes', en: 'Outbound only' },
+  voiceRoleInboundOutbound: {
+    es: 'Entrantes y salientes',
+    en: 'Inbound and outbound',
+  },
+  voiceRoleOutboundHint: {
+    es: 'Llama cuando lo eligen en una automatización, campaña o acción manual.',
+    en: 'Calls when selected in an automation, campaign, or manual action.',
+  },
+  voiceRoleInboundHint: {
+    es: 'También atiende consultas abiertas cuando llaman a tu número.',
+    en: 'Also handles open-ended questions when customers call your number.',
   },
   voiceAgentCreate: { es: 'Crear agente', en: 'Create agent' },
   voiceAgentFirst: {
@@ -144,11 +167,11 @@ export const voice = {
   },
   voiceNavGeneral: { es: 'General', en: 'General' },
   voiceNavVoice: { es: 'Voz', en: 'Voice' },
-  voiceNavOperations: { es: 'Atención', en: 'Handling' },
-  voiceNavSchedule: { es: 'Salientes', en: 'Outbound' },
+  voiceNavOperations: { es: 'Entrantes', en: 'Inbound' },
+  voiceNavSchedule: { es: 'Horario y reintentos', en: 'Schedule and retries' },
   voiceNavControl: { es: 'Capacidad', en: 'Capacity' },
   voiceNavRecording: { es: 'Grabación', en: 'Recording' },
-  voiceNavScripts: { es: 'Objetivos', en: 'Objectives' },
+  voiceNavScripts: { es: 'Objetivos base', en: 'Base objectives' },
   voiceNavTest: { es: 'Probar llamada', en: 'Test call' },
   voiceAgentPaused: { es: 'Pausado', en: 'Paused' },
   voiceAgentCreated: { es: 'Agente de voz creado', en: 'Voice agent created' },
@@ -551,6 +574,10 @@ export const voice = {
   },
   readinessOutbound: { es: 'Salientes listas', en: 'Outbound ready' },
   readinessInbound: { es: 'Entrantes listos', en: 'Inbound ready' },
+  voiceRoutingRule: {
+    es: 'Un mismo número · Entrantes → agente habilitado · Salientes → agente + motivo',
+    en: 'One number · Inbound → enabled agent · Outbound → agent + reason',
+  },
   readinessReady: { es: 'Listo', en: 'Ready' },
   readinessFallback: {
     es: 'Listo con respaldo humano',

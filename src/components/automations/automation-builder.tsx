@@ -1264,7 +1264,7 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
     case 'voice_call':
       // Ya no se escribe `wait_for_result`: esperar el resultado dejó de ser
       // una opción. Sólo un nodo viejo con `false` guardado sigue sin esperar.
-      return { agent_id: '', objective_override: '' };
+      return { agent_id: '', scenario: '', objective_override: '' };
     default:
       return {};
   }
@@ -4004,10 +4004,32 @@ function StepEditor({
  * «Esperar el resultado» ofrecía, en su posición de apagado, seguir con los
  * pasos siguientes mientras el teléfono todavía sonaba.
  *
- * Quedan: el agente (todos, con lo que le falte al elegido dicho ahí mismo),
- * la rama «si no contesta» en un clic, y el objetivo plegado — por defecto
- * manda el del agente, que es donde se configura la voz.
+ * Quedan: el agente (identidad y voz), el motivo comercial y la rama
+ * «si no contesta». El comercio no necesita escribir un prompt para cada
+ * pedido: los escenarios traen un objetivo seguro y permiten sumar un detalle.
  */
+const VOICE_SCENARIO_OPTIONS = [
+  'automatic',
+  'thank_order',
+  'confirm_cod',
+  'cart_recovery',
+  'payment_recovery',
+  'delivery_update',
+  'customer_followup',
+  'custom',
+] as const;
+
+const VOICE_SCENARIO_LABEL: Record<string, string> = {
+  automatic: 'automations.voiceScenarioAutomatic',
+  thank_order: 'automations.voiceScenarioThankOrder',
+  confirm_cod: 'automations.voiceScenarioConfirmCod',
+  cart_recovery: 'automations.voiceScenarioCartRecovery',
+  payment_recovery: 'automations.voiceScenarioPaymentRecovery',
+  delivery_update: 'automations.voiceScenarioDeliveryUpdate',
+  customer_followup: 'automations.voiceScenarioCustomerFollowup',
+  custom: 'automations.voiceScenarioCustom',
+};
+
 function VoiceCallStepEditor({
   cid: stepCid,
   cfg,
@@ -4099,9 +4121,7 @@ function VoiceCallStepEditor({
   }, [workspace?.id]);
 
   const agentId = (cfg.agent_id as string) ?? '';
-  const [verObjetivo, setVerObjetivo] = useState(
-    Boolean((cfg.objective_override as string) ?? '')
-  );
+  const scenario = (cfg.scenario as string) || 'automatic';
   const yaRamifica = rama?.yaTiene(stepCid) ?? false;
 
   return (
@@ -4143,6 +4163,10 @@ function VoiceCallStepEditor({
         )}
       </FieldBlock>
 
+      <p className="border-border bg-muted/30 text-muted-foreground rounded-lg border px-3 py-2 text-[11px]">
+        {t('automations.voiceCallAgentHint')}
+      </p>
+
       {agentId && (
         <>
       {/* Lo que falta, con el link que lo arregla. Es el reemplazo del
@@ -4157,37 +4181,44 @@ function VoiceCallStepEditor({
         />
       ))}
 
-      {/* El objetivo del agente ya vive en su pestaña de Voz; acá sólo se
-          pisa para ESTA llamada, que es la excepción y no el camino. */}
-      {verObjetivo ? (
-        <FieldBlock label={t('automations.voiceCallObjective')}>
-          <Textarea
-            value={(cfg.objective_override as string) ?? ''}
-            onChange={(e) => set({ objective_override: e.target.value })}
-            placeholder={t('automations.voiceCallObjectivePlaceholder')}
-            className="bg-muted text-foreground min-h-16"
-          />
-          <p className="text-muted-foreground mt-1 text-[11px]">
-            {t('automations.voiceCallObjectiveHint')}
-          </p>
-        </FieldBlock>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setVerObjetivo(true)}
-          className="border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground flex w-full items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-2 text-left text-xs transition-colors"
+      <FieldBlock label={t('automations.voiceCallScenario')}>
+        <select
+          value={scenario}
+          onChange={(event) => set({
+            scenario: event.target.value === 'automatic' ? '' : event.target.value,
+          })}
+          className="border-border bg-muted text-foreground w-full rounded-md border px-2 py-1.5 text-sm"
         >
-          <Plus className="size-3.5 shrink-0" />
-          <span>
-            <span className="block font-medium text-foreground">
-              {t('automations.voiceCallObjective')}
-            </span>
-            <span className="text-[11px]">
-              {t('automations.voiceCallObjectiveHint')}
-            </span>
-          </span>
-        </button>
-      )}
+          {VOICE_SCENARIO_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {t(VOICE_SCENARIO_LABEL[option])}
+            </option>
+          ))}
+        </select>
+        <p className="text-muted-foreground mt-1 text-[11px]">
+          {scenario === 'automatic'
+            ? t('automations.voiceScenarioAutomaticHint')
+            : t('automations.voiceCallScenarioHint')}
+        </p>
+      </FieldBlock>
+
+      <FieldBlock label={scenario === 'custom'
+        ? t('automations.voiceCallObjective')
+        : t('automations.voiceCallDetail')}>
+        <Textarea
+          value={(cfg.objective_override as string) ?? ''}
+          onChange={(e) => set({ objective_override: e.target.value })}
+          placeholder={scenario === 'custom'
+            ? t('automations.voiceCallObjectivePlaceholder')
+            : t('automations.voiceCallDetailPlaceholder')}
+          className="bg-muted text-foreground min-h-16"
+        />
+        <p className="text-muted-foreground mt-1 text-[11px]">
+          {scenario === 'custom'
+            ? t('automations.voiceCallCustomHint')
+            : t('automations.voiceCallDetailHint')}
+        </p>
+      </FieldBlock>
 
       {/* La rama que hace útil a la llamada. */}
       {rama && (
@@ -4388,7 +4419,9 @@ function previewFor(
       if (!(step.step_config.agent_id as string)) {
         return t('automations.voiceCallPreviewPickAgent');
       }
-      return nombre || t('automations.voiceCallPreview');
+      const scenario = (step.step_config.scenario as string) || 'automatic';
+      const reason = t(VOICE_SCENARIO_LABEL[scenario] ?? VOICE_SCENARIO_LABEL.automatic);
+      return `${nombre || t('automations.voiceCallPreview')} · ${reason}`;
     }
     default:
       return '';

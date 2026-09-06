@@ -338,7 +338,11 @@ export const automations = {
   stepVoiceCall: { es: "Llamar con IA", en: "Call with AI" },
 
   // Builder — voice_call step config
-  voiceCallAgent: { es: "¿Quién llama?", en: "Who calls?" },
+  voiceCallAgent: { es: "Agente que hará la llamada", en: "Agent placing the call" },
+  voiceCallAgentHint: {
+    es: "El agente define la voz y la identidad. El motivo se configura aquí.",
+    en: "The agent defines the voice and identity. The reason is configured here.",
+  },
   voiceCallPickAgent: { es: "Elige un agente…", en: "Pick an agent…" },
   // Elegir un agente sin voz dejaba de ser un callejón sin salida: la fila
   // ámbar dice qué falta y lleva a la pestaña donde se activa.
@@ -363,8 +367,38 @@ export const automations = {
     en: "Optional. If unchanged, it uses the agent's objective.",
   },
   voiceCallObjectivePlaceholder: {
-    es: "Ej: confirmar la dirección de envío y el método de pago.",
-    en: "E.g. confirm the shipping address and payment method.",
+    es: "Ej. confirmar la dirección y el método de pago.",
+    en: "E.g. confirm the address and payment method.",
+  },
+  voiceCallScenario: { es: "Motivo de la llamada", en: "Reason for the call" },
+  voiceCallScenarioHint: {
+    es: "Riverz adapta este objetivo a los datos reales del pedido y del cliente.",
+    en: "Riverz adapts this objective to the actual order and customer data.",
+  },
+  voiceScenarioAutomatic: { es: "Automático (recomendado)", en: "Automatic (recommended)" },
+  voiceScenarioAutomaticHint: {
+    es: "Riverz elige según el evento: agradece pedidos pagados y confirma los de contra entrega.",
+    en: "Riverz chooses from the event: it thanks paid orders and confirms cash-on-delivery orders.",
+  },
+  voiceScenarioThankOrder: { es: "Agradecer el pedido", en: "Thank for the order" },
+  voiceScenarioConfirmCod: { es: "Confirmar contra entrega", en: "Confirm cash on delivery" },
+  voiceScenarioCartRecovery: { es: "Recuperar carrito", en: "Recover cart" },
+  voiceScenarioPaymentRecovery: { es: "Recuperar pago", en: "Recover payment" },
+  voiceScenarioDeliveryUpdate: { es: "Informar sobre la entrega", en: "Share delivery update" },
+  voiceScenarioCustomerFollowup: { es: "Dar seguimiento", en: "Follow up" },
+  voiceScenarioCustom: { es: "Objetivo personalizado", en: "Custom objective" },
+  voiceCallDetail: { es: "Detalle opcional", en: "Optional detail" },
+  voiceCallDetailPlaceholder: {
+    es: "Ej. agradecer con un cupón del 10 %.",
+    en: "E.g. thank them with a 10% coupon.",
+  },
+  voiceCallDetailHint: {
+    es: "Añade una instrucción solo para esta automatización.",
+    en: "Add an instruction only for this automation.",
+  },
+  voiceCallCustomHint: {
+    es: "Describe qué debe lograr el agente en esta llamada.",
+    en: "Describe what the agent must accomplish in this call.",
   },
   // La rama que hace útil a la llamada. Armarla a mano pedía saber que
   // existía un nodo «Condición» y cuál de los datos era el resultado.
@@ -693,6 +727,7 @@ export const automations = {
   issueUrlProtocolo: { es: "La dirección tiene que empezar con http o https.", en: "The address has to start with http or https." },
   issueUrlInvalida: { es: "Esa dirección no es válida.", en: "That address is not valid." },
   issueSinAgenteVoz: { es: "Falta elegir qué agente llama.", en: "Pick which agent places the call." },
+  issueSinObjetivoVoz: { es: "Describe el objetivo personalizado de la llamada.", en: "Describe the custom call objective." },
   issueSinPalabras: { es: "Hace falta al menos una palabra clave.", en: "At least one keyword is required." },
   issuePalabrasVacias: { es: "Hay palabras clave vacías.", en: "Some keywords are empty." },
   issueCoincidencia: { es: "La coincidencia es exacta o contiene.", en: "Matching is either exact or contains." },

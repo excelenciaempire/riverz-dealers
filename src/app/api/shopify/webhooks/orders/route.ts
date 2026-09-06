@@ -737,6 +737,9 @@ function buildVarsForOrder(
     first_item: String(firstItem?.title ?? ''),
     is_repeat_customer: ordersCount > 1 ? 'true' : 'false',
     order_status_url: String(order.order_status_url ?? ''),
+    payment_gateway: Array.isArray(order.payment_gateway_names)
+      ? order.payment_gateway_names.map(String).join(', ')
+      : String(order.payment_gateway_names ?? ''),
     financial_status: String(order.financial_status ?? ''),
     fulfillment_status: String(order.fulfillment_status ?? ''),
     // Dirección de envío (la manda Shopify en shipping_address).

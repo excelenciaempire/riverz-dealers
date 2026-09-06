@@ -18,6 +18,11 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { motorApagado } from '@/lib/workspaces/motor'
+import {
+  inferVoiceCallScenario,
+  isVoiceCallScenario,
+  voiceCallTypeForScenario,
+} from '@/lib/voice/scenarios'
 import { enqueueCall } from '@/lib/voice/queue'
 import { blockerCodeFromReason, VOICE_BLOCKED_KEY } from '@/lib/voice/labels'
 import { translate } from '@/lib/i18n/translate'
@@ -1204,11 +1209,20 @@ async function enqueueVoiceCallStep(
       detail: 'voice_call skipped (would loop on voice_call_completed)',
     }
   }
-  const callType: VoiceCallType =
-    cfg.call_type ?? defaultVoiceCallType(args.automation.trigger_type)
+  const inferredScenario = cfg.call_type
+    ? null
+    : inferVoiceCallScenario(
+        args.automation.trigger_type,
+        (args.context.vars ?? {}) as Record<string, unknown>,
+      )
+  const scenario = isVoiceCallScenario(cfg.scenario) ? cfg.scenario : inferredScenario
+  const callType: VoiceCallType = scenario
+    ? voiceCallTypeForScenario(scenario)
+    : cfg.call_type ?? defaultVoiceCallType(args.automation.trigger_type)
   // Surface the trigger's accumulated vars (order/cart payload) to the
   // agent as call context, plus any one-off objective override.
   const context: Record<string, unknown> = { ...(args.context.vars ?? {}) }
+  if (scenario) context.voice_scenario = scenario
   if (cfg.objective_override) context.objective_override = cfg.objective_override
   const result = await enqueueCall({
     workspaceId: args.automation.workspace_id,
