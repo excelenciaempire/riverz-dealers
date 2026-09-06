@@ -254,6 +254,24 @@ export const DATA_POINTS: DataPoint[] = [
     condition: { kind: 'var', varKey: 'financial_status' },
   },
   {
+    // El gateway llega con el pedido. Los valores son internos de la tienda,
+    // por eso se muestran como opciones legibles.
+    id: 'payment_gateway',
+    labelKey: 'automations.dpPaymentMethod',
+    group: 'order',
+    valueKind: 'enum',
+    triggers: ORDER_TRIGGERS,
+    usableInConditions: true,
+    templateVarKey: 'payment_gateway',
+    options: [
+      {
+        value: 'Cash on Delivery',
+        labelKey: 'automations.paymentMethodCashOnDelivery',
+      },
+    ],
+    condition: { kind: 'var', varKey: 'payment_gateway' },
+  },
+  {
     // La versión en vivo del anterior. El webhook trae el estado que el
     // pedido tenía al crearse y ese dato queda congelado en el contexto; la
     // pregunta después de una espera sólo significa algo si se vuelve a

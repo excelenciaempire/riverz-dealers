@@ -94,6 +94,11 @@ import {
   datoDeCfg,
 } from '@/lib/automations/condition-config';
 import {
+  validateStepsForActivation,
+  validateTriggerForActivation,
+  type ValidationIssue,
+} from '@/lib/automations/validate';
+import {
   compileSwitch,
   collapseSwitch,
   type SwitchData,
@@ -105,6 +110,7 @@ import type { TemplateHeaderType } from '@/lib/whatsapp/template-components';
  *  preview without threading props through the recursive step tree. */
 const TemplatesContext = createContext<MessageTemplate[]>([]);
 const AutomationIdContext = createContext<string | null>(null);
+const InvalidStepContext = createContext<string | null>(null);
 
 /** Saved contact segments — used by the audience picker on the trigger
  *  card and by the `in_segment` condition subject inside the step tree. */
@@ -464,6 +470,54 @@ function snapshot(s: BuilderInitial): string {
     is_active: s.is_active,
     steps: s.steps,
   });
+}
+
+interface BuilderValidationIssue extends ValidationIssue {
+  cid?: string;
+  trigger?: boolean;
+}
+
+/** Validate before compiling the visual switch, preserving its card id. */
+function firstBuilderStepIssue(
+  steps: BuilderStep[]
+): BuilderValidationIssue | null {
+  for (const step of steps) {
+    if (step.step_type === 'switch') {
+      const data = step.switchData;
+      if (!data || data.cases.length === 0) {
+        return {
+          cid: step.cid,
+          path: 'steps.condition',
+          message: 'condition subject is required',
+          key: 'automations.issueSinDato',
+        };
+      }
+      for (const item of data.cases) {
+        const issue = validateStepsForActivation([
+          { step_type: 'condition', step_config: item.cfg },
+        ])[0];
+        if (issue) return { ...issue, cid: step.cid };
+        const nested = firstBuilderStepIssue(item.steps ?? []);
+        if (nested) return nested;
+      }
+      const otherwise = firstBuilderStepIssue(data.elseSteps ?? []);
+      if (otherwise) return otherwise;
+      continue;
+    }
+
+    const issue = validateStepsForActivation([
+      { step_type: step.step_type, step_config: step.step_config },
+    ])[0];
+    if (issue) return { ...issue, cid: step.cid };
+
+    if (step.branches) {
+      const yes = firstBuilderStepIssue(step.branches.yes);
+      if (yes) return yes;
+      const no = firstBuilderStepIssue(step.branches.no);
+      if (no) return no;
+    }
+  }
+  return null;
 }
 
 // ------------------------------------------------------------
@@ -1360,6 +1414,11 @@ export function AutomationBuilder({
   );
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [invalidCid, setInvalidCid] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{
+    cid: string;
+    sequence: number;
+  } | null>(null);
   // Plataformas de tienda conectadas. Sirven para ofrecer el filtro por
   // plataforma sólo a quien tiene más de una: para el resto es una pregunta
   // sin respuesta posible.
@@ -1714,6 +1773,40 @@ export function AutomationBuilder({
   }
 
   async function save(): Promise<boolean> {
+    const triggerIssue = validateTriggerForActivation(
+      state.trigger_type,
+      state.trigger_config
+    )[0];
+    const stepIssue =
+      state.steps.length === 0
+        ? validateStepsForActivation([])[0]
+        : firstBuilderStepIssue(state.steps);
+    const firstIssue: BuilderValidationIssue | undefined = triggerIssue
+      ? { ...triggerIssue, trigger: true }
+      : (stepIssue ?? undefined);
+
+    if (firstIssue) {
+      const target = firstIssue.trigger
+        ? '__trigger__'
+        : (firstIssue.cid ?? null);
+      setInvalidCid(target);
+      if (target) {
+        if (target !== '__trigger__') setExpandedId(target);
+        setFocusRequest((previous) => ({
+          cid: target,
+          sequence: (previous?.sequence ?? 0) + 1,
+        }));
+      }
+      toast.error(
+        firstIssue.key ? t(firstIssue.key) : firstIssue.message,
+        target
+          ? { description: t('automations.fixHighlightedStep') }
+          : undefined
+      );
+      return false;
+    }
+
+    setInvalidCid(null);
     setSaving(true);
     try {
       const payload = {
@@ -1808,6 +1901,7 @@ export function AutomationBuilder({
                       <OffersContext.Provider value={offers}>
                         <ProductsContext.Provider value={products}>
                           <WaitingCountsContext.Provider value={waitingCounts}>
+                            <InvalidStepContext.Provider value={invalidCid}>
                             <DragContext.Provider
                               value={{
                                 arrastrando,
@@ -2040,7 +2134,7 @@ export function AutomationBuilder({
             buttons for explicit zoom + reset. Trigger → steps flow
             left-to-right, and a condition's Sí/No lanes fork off to the
             right so the whole thing reads in one direction. */}
-                                  <CanvasViewport>
+                                  <CanvasViewport focusRequest={focusRequest}>
                                     <div className="flex w-max items-start gap-0 px-8 py-10">
                                       <TriggerCard
                                         type={state.trigger_type}
@@ -2081,6 +2175,7 @@ export function AutomationBuilder({
                                 </div>
                               </div>
                             </DragContext.Provider>
+                            </InvalidStepContext.Provider>
                           </WaitingCountsContext.Provider>
                         </ProductsContext.Provider>
                       </OffersContext.Provider>
@@ -2116,14 +2211,21 @@ function TriggerCard({
   storePlatforms: string[];
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const invalid = useContext(InvalidStepContext) === '__trigger__';
+  const [manuallyOpen, setManuallyOpen] = useState(false);
+  const open = invalid || manuallyOpen;
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
-    <div className="z-10 w-full max-w-[320px] sm:w-80">
+    <div
+      data-step-cid="__trigger__"
+      className="z-10 w-full max-w-[320px] sm:w-80"
+    >
       <div
         className={cn(
           'border-border bg-card rounded-lg border border-l-4 shadow-lg',
+          invalid &&
+            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
           type.startsWith('shopify_')
             ? 'border-l-emerald-500'
             : 'border-l-blue-500'
@@ -2131,7 +2233,7 @@ function TriggerCard({
       >
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setManuallyOpen((v) => !v)}
           data-card-head
           className="flex h-[78px] w-full items-center gap-3 px-4 py-3 text-left"
         >
@@ -2508,6 +2610,7 @@ function StepRenderer({
 } & Omit<StepListProps, 'steps' | 'parentPath'>) {
   const t = useT();
   const arrastre = useContext(DragContext);
+  const invalid = useContext(InvalidStepContext) === step.cid;
   // El último tramo del camino DESCRIBE este carril, no un paso: lo puso
   // ConditionBranches con índice 0 para que StepList supiera de qué rama
   // cuelga. Al llegar acá hay que reemplazarlo por el índice real, no sumarle
@@ -2548,11 +2651,13 @@ function StepRenderer({
   const width = 'w-full max-w-[320px] sm:w-80';
 
   const cardEl = (
-    <div className={cn('flex flex-col', width)}>
+    <div data-step-cid={step.cid} className={cn('flex flex-col', width)}>
       <div
         className={cn(
           'border-border bg-card relative rounded-lg border border-l-4 shadow-lg transition-opacity',
           meta.border,
+          invalid &&
+            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
           // La tarjeta que viaja se atenúa: sin eso parece que sigue en su
           // lugar y no se entiende qué se está moviendo.
           arrastre.arrastrando?.cid === step.cid && 'opacity-40'
@@ -3119,15 +3224,21 @@ function LeafStepCard({
 }) {
   const t = useT();
   const arrastre = useContext(DragContext);
+  const invalid = useContext(InvalidStepContext) === step.cid;
   const etiquetas = useContext(TagsContext);
   const meta = STEP_META[step.step_type];
   const Icon = meta.icon;
   return (
-    <div className="flex w-full max-w-[320px] flex-col sm:w-80">
+    <div
+      data-step-cid={step.cid}
+      className="flex w-full max-w-[320px] flex-col sm:w-80"
+    >
       <div
         className={cn(
           'border-border bg-card relative rounded-lg border border-l-4 shadow-sm transition-opacity',
           meta.border,
+          invalid &&
+            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
           arrastre.arrastrando?.cid === step.cid && 'opacity-40'
         )}
       >
@@ -4511,7 +4622,13 @@ function clampScale(s: number) {
 const INTERACTIVE_SELECTOR =
   'input, textarea, select, button, a, label, [role="switch"], [role="combobox"], [role="button"], [role="textbox"], [contenteditable="true"], [data-drag-handle]';
 
-function CanvasViewport({ children }: { children: React.ReactNode }) {
+function CanvasViewport({
+  children,
+  focusRequest,
+}: {
+  children: React.ReactNode;
+  focusRequest: { cid: string; sequence: number } | null;
+}) {
   const t = useT();
   const arrastre = useContext(DragContext);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -4575,6 +4692,39 @@ function CanvasViewport({ children }: { children: React.ReactNode }) {
     });
     return () => cancelAnimationFrame(id);
   }, [fitToView]);
+
+  // Centra la tarjeta incompleta con cualquier zoom o paneo actual.
+  useEffect(() => {
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const container = containerRef.current;
+      const content = contentRef.current;
+      const target = content?.querySelector<HTMLElement>(
+        `[data-step-cid="${focusRequest.cid}"]`
+      );
+      if (!container || !target) return;
+      const viewport = container.getBoundingClientRect();
+      const card = target.getBoundingClientRect();
+      setTx(
+        (value) =>
+          value +
+          viewport.left +
+          viewport.width / 2 -
+          (card.left + card.width / 2)
+      );
+      setTy(
+        (value) =>
+          value +
+          viewport.top +
+          viewport.height / 2 -
+          (card.top + card.height / 2)
+      );
+      target
+        .querySelector<HTMLElement>('select, input, textarea, button')
+        ?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest]);
 
   // Native wheel listener — React's synthetic onWheel is passive in React 19,
   // so preventDefault() inside the handler is a no-op there. Bind manually.

@@ -49,7 +49,7 @@ export function validateStepsForActivation(steps: StepLike[]): ValidationIssue[]
   if (!Array.isArray(steps) || steps.length === 0) {
     issues.push({
       path: 'steps',
-      message: 'active automations need at least one step', key: 'automations.issueSinPasos',
+      message: 'automations need at least one step', key: 'automations.issueSinPasos',
     })
     return issues
   }
@@ -164,6 +164,24 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       // guardarse con un error que no se podía resolver desde la pantalla.
       if (!SUBJECTS_WITHOUT_OPERAND.has(String(c.subject)) && !nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required', key: 'automations.issueSinOperando' })
+      }
+      // Elegir el dato no completa "Método de pago es igual a ___".
+      if (
+        ['context_var', 'contact_field', 'message_content'].includes(String(c.subject)) &&
+        !nonEmpty(c.value)
+      ) {
+        issues.push({
+          path: `${path}.value`,
+          message: 'condition value is required',
+          key: 'automations.issueSinValorCondicion',
+        })
+      }
+      if (c.op === 'between' && !nonEmpty(c.value2)) {
+        issues.push({
+          path: `${path}.value2`,
+          message: 'condition upper value is required',
+          key: 'automations.issueSinValorCondicion',
+        })
       }
       break
     case 'send_webhook':

@@ -14,6 +14,10 @@ import { armAutomation } from '@/lib/automations/activation'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
+import {
+  validateStepsForActivation,
+  validateTriggerForActivation,
+} from '@/lib/automations/validate'
 
 async function requireUser() {
   const supabase = await createClient()
@@ -154,6 +158,37 @@ export async function PATCH(
     update.is_active === true ||
     (update.is_active !== false && (requestedState === 'armed' || requestedState === 'active'))
 
+  const editsDefinition =
+    Array.isArray(body.steps) ||
+    'trigger_type' in body ||
+    'trigger_config' in body
+  const resolvedSteps = Array.isArray(body.steps)
+    ? await resolverEtiquetas(
+        admin,
+        existing.workspace_id,
+        body.steps as BuilderStepInput[],
+      )
+    : null
+
+  // Una definición incompleta no se persiste ni siquiera como borrador. La
+  // API aplica la misma barrera que el editor. Desactivar siempre se permite.
+  if (editsDefinition || update.is_active === true) {
+    const stepsToValidate = resolvedSteps ?? (await loadStepsTree(id))
+    const issues = [
+      ...validateTriggerForActivation(
+        String(update.trigger_type ?? existing.trigger_type),
+        update.trigger_config ?? existing.trigger_config,
+      ),
+      ...validateStepsForActivation(stepsToValidate),
+    ]
+    if (issues.length > 0) {
+      return NextResponse.json(
+        { error: translate(locale, 'automations.saveFailed'), issues },
+        { status: 400 },
+      )
+    }
+  }
+
   // Desactiva el motor antes de cambiar un flujo ya solicitado. Así ni siquiera
   // una carrera breve puede ejecutar pasos con una plantilla recién cambiada.
   if (shouldRemainRequested) update.is_active = false
@@ -171,10 +206,7 @@ export async function PATCH(
   }
 
   if (Array.isArray(body.steps)) {
-    const err = await replaceSteps(
-      id,
-      await resolverEtiquetas(admin, existing.workspace_id, body.steps as BuilderStepInput[]),
-    )
+    const err = await replaceSteps(id, resolvedSteps ?? [])
     if (err) return serverError(err)
   }
 

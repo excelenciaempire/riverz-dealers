@@ -14,6 +14,10 @@ import { armAutomation } from '@/lib/automations/activation'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveWorkspaceIdForUser, isMemberOfLiveWorkspace } from '@/lib/workspaces/resolve'
+import {
+  validateStepsForActivation,
+  validateTriggerForActivation,
+} from '@/lib/automations/validate'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -150,6 +154,22 @@ export async function POST(request: Request) {
     )
   }
 
+  const resolvedSteps = await resolverEtiquetas(
+    admin,
+    resolvedWorkspaceId,
+    effectiveSteps ?? [],
+  )
+  const issues = [
+    ...validateTriggerForActivation(effectiveTriggerType, effectiveTriggerConfig),
+    ...validateStepsForActivation(resolvedSteps),
+  ]
+  if (issues.length > 0) {
+    return NextResponse.json(
+      { error: translate(locale, 'automations.saveFailed'), issues },
+      { status: 400 },
+    )
+  }
+
   const { data: automation, error: insertErr } = await admin
     .from('automations')
     .insert({
@@ -172,11 +192,8 @@ export async function POST(request: Request) {
     return serverError(insertErr)
   }
 
-  if (effectiveSteps && effectiveSteps.length > 0) {
-    const err = await insertSteps(
-      automation.id,
-      await resolverEtiquetas(admin, resolvedWorkspaceId, effectiveSteps),
-    )
+  if (resolvedSteps.length > 0) {
+    const err = await insertSteps(automation.id, resolvedSteps)
     if (err) return serverError(err)
   }
 

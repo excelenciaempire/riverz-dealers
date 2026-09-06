@@ -7,12 +7,12 @@ import {
 describe("validateStepsForActivation", () => {
   it("rejects empty or missing step lists", () => {
     expect(validateStepsForActivation([])).toMatchObject([
-      { path: "steps", message: "active automations need at least one step" },
+      { path: "steps", message: "automations need at least one step" },
     ]);
     expect(
       validateStepsForActivation(undefined as unknown as never[]),
     ).toMatchObject([
-      { path: "steps", message: "active automations need at least one step" },
+      { path: "steps", message: "automations need at least one step" },
     ]);
   });
 
@@ -208,6 +208,27 @@ describe("validateStepsForActivation", () => {
     ]);
   });
 
+  it("rejects a condition whose comparison value is missing", () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: "condition",
+          step_config: {
+            subject: "context_var",
+            operand: "payment_gateway",
+            op: "eq",
+            value: "",
+          },
+        },
+      ]),
+    ).toMatchObject([
+      {
+        path: "steps[0].value",
+        message: "condition value is required",
+      },
+    ]);
+  });
+
   // El paso de llamada no tenia caso propio y caia en el `default`, asi que
   // activar una automatizacion con "Llamar con IA" devolvia 400 "unknown step
   // type". Se podia armar y guardar como borrador, nunca encender.
@@ -250,7 +271,11 @@ describe("validateStepsForActivation", () => {
     const issues = validateStepsForActivation([
       {
         step_type: "condition",
-        step_config: { subject: "context_var", operand: "call_outcome" },
+        step_config: {
+          subject: "context_var",
+          operand: "call_outcome",
+          value: "confirmed",
+        },
         branches: {
           yes: [{ step_type: "voice_call", step_config: {} }],
           no: [],

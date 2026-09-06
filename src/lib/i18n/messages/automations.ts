@@ -233,6 +233,8 @@ export const automations = {
   dpSubtotal: { es: "Subtotal", en: "Subtotal" },
   dpDiscounts: { es: "Descuentos", en: "Discounts" },
   dpFinancialStatus: { es: "Estado de pago", en: "Payment status" },
+  dpPaymentMethod: { es: "Método de pago", en: "Payment method" },
+  paymentMethodCashOnDelivery: { es: "Contraentrega", en: "Cash on delivery" },
   dpFulfillmentStatus: { es: "Estado de envío", en: "Fulfillment status" },
   dpShippingAddress: { es: "Dirección de envío", en: "Shipping address" },
   dpShippingCity: { es: "Ciudad de envío", en: "Shipping city" },
@@ -691,7 +693,7 @@ export const automations = {
   // Por qué una automatización todavía no se puede prender.
   // Salen por dos puertas —el editor y el chat del Operador— y las lee
   // un comercio: en inglés y en jerga no le dicen nada.
-  issueSinPasos: { es: "Una automatización activa necesita al menos un paso.", en: "An active automation needs at least one step." },
+  issueSinPasos: { es: "Añade al menos un paso.", en: "Add at least one step." },
   issueSinTexto: { es: "Falta el texto del mensaje.", en: "The message text is missing." },
   issueSinPlantilla: { es: "Falta decir qué plantilla se manda.", en: "It does not say which template to send." },
   issueAbTest: { es: "La prueba A/B necesita dos plantillas y porcentajes que sumen 100%.", en: "The A/B test needs two templates and percentages that add up to 100%." },
@@ -723,6 +725,8 @@ export const automations = {
   issueSinDato: { es: "Falta decir por qué dato pregunta.", en: "It does not say what the question is about." },
   issueOperandoRaro: { es: "Esa etiqueta o segmento no existe en tu cuenta.", en: "That tag or segment does not exist in your account." },
   issueSinOperando: { es: "Falta con qué se compara.", en: "It does not say what to compare against." },
+  issueSinValorCondicion: { es: "Falta elegir el valor de la condición.", en: "Choose the condition value." },
+  fixHighlightedStep: { es: "Completa la tarjeta resaltada.", en: "Complete the highlighted card." },
   issueSinUrl: { es: "Falta la dirección a la que avisar.", en: "The address to notify is missing." },
   issueUrlProtocolo: { es: "La dirección tiene que empezar con http o https.", en: "The address has to start with http or https." },
   issueUrlInvalida: { es: "Esa dirección no es válida.", en: "That address is not valid." },
