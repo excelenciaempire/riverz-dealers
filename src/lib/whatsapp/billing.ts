@@ -5,34 +5,54 @@
  *
  * Meta blocks *business-initiated* conversations (templates) when the WABA
  * has no valid payment method (Graph health_status error 141006). The fix is
- * merchant-side: add a card in WhatsApp Manager → Configuración → Métodos de
- * pago. We can't do it for them, so we surface a direct link per WABA.
+ * merchant-side: add a card in Meta Billing & payments. We can't do it for
+ * them, so we surface a direct link to the payment account when its ids are
+ * available on the connection.
  */
 
 /** Graph error code for "there is an error with the payment method". */
 export const WA_PAYMENT_ERROR_CODE = 141006;
 
 /**
- * Deep link to the place where a merchant adds/fixes the WhatsApp payment
- * method. When we know the WABA id we land them straight in their WhatsApp
- * Manager (billing lives under Configuración → Métodos de pago); otherwise we
- * fall back to the generic Meta billing hub.
+ * Deep link to the Meta payment account that owns the WhatsApp asset. The
+ * billing hub needs both ids to select the right account; the business id
+ * keeps the correct Business Portfolio selected when a person administers
+ * more than one. Older connections without billing metadata fall back to the
+ * generic payment settings page instead of opening the unrelated WhatsApp
+ * Manager home.
  */
-export function whatsappPaymentUrl(wabaId?: string | null): string {
-  return wabaId
-    ? `https://business.facebook.com/wa/manage/home?waba_id=${encodeURIComponent(wabaId)}`
-    : "https://business.facebook.com/billing_hub/payment_settings";
+export function whatsappPaymentUrl(config?: {
+  wabaId?: string | null;
+  paymentAccountId?: string | null;
+  businessId?: string | null;
+}): string {
+  const wabaId = config?.wabaId?.trim();
+  const paymentAccountId = config?.paymentAccountId?.trim();
+  const businessId = config?.businessId?.trim();
+
+  if (!wabaId || !paymentAccountId) {
+    return 'https://business.facebook.com/latest/billing_hub/payment_settings';
+  }
+
+  const url = new URL(
+    'https://business.facebook.com/latest/billing_hub/accounts/details/'
+  );
+  url.searchParams.set('payment_account_id', paymentAccountId);
+  url.searchParams.set('asset_id', wabaId);
+  if (businessId) url.searchParams.set('business_id', businessId);
+  return url.toString();
 }
 
 /** True when a Meta/WhatsApp send error is the payment-method block (141006). */
 export function isPaymentMethodError(err: unknown): boolean {
   if (!err) return false;
-  if (typeof err === "object") {
+  if (typeof err === 'object') {
     const o = err as Record<string, unknown>;
-    const code = o.code ?? (o.error as Record<string, unknown> | undefined)?.code;
+    const code =
+      o.code ?? (o.error as Record<string, unknown> | undefined)?.code;
     if (Number(code) === WA_PAYMENT_ERROR_CODE) return true;
   }
   return String((err as { message?: string })?.message ?? err).includes(
-    String(WA_PAYMENT_ERROR_CODE),
+    String(WA_PAYMENT_ERROR_CODE)
   );
 }

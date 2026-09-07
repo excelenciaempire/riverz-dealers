@@ -914,8 +914,8 @@ export const settings = {
     en: 'Set up payment method',
   },
   whatsappManagerPaymentTooltip: {
-    es: 'WhatsApp Manager → Configuración → Métodos de pago',
-    en: 'WhatsApp Manager → Settings → Payment methods',
+    es: 'Meta → Facturación y pagos → Métodos de pago',
+    en: 'Meta → Billing & payments → Payment methods',
   },
 
   // Channels panel — estado de entrega de WhatsApp

@@ -595,15 +595,22 @@ export function ChannelsPanel() {
                           )}
                         {/* WhatsApp business-initiated sends (plantillas) need a
                             valid payment method on the WABA, or Meta blocks them
-                            (error 141006). Surface a direct link so the merchant
-                            can add/fix it in WhatsApp Manager. */}
+                            (error 141006). Surface the exact Meta billing account
+                            when the connection has its billing metadata. */}
                         {g.connectChannel === 'whatsapp' &&
                           primary.status === 'connected' &&
                           hasWhatsAppBlocker(primary, 141006) && (
                             <a
-                              href={whatsappPaymentUrl(
-                                primary.config?.waba_id as string | undefined
-                              )}
+                              href={whatsappPaymentUrl({
+                                wabaId: primary.config?.waba_id as
+                                  | string
+                                  | undefined,
+                                paymentAccountId: primary.config
+                                  ?.payment_account_id as string | undefined,
+                                businessId: primary.config?.business_id as
+                                  | string
+                                  | undefined,
+                              })}
                               target="_blank"
                               rel="noopener noreferrer"
                               title={t(
