@@ -6,13 +6,34 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const log = getLogger('health')
+const CHECK_TIMEOUT_MS = 2_000
 
 type CheckResult = 'ok' | 'degraded' | 'down'
+
+async function conTimeout<T>(operacion: (signal: AbortSignal) => PromiseLike<T>): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
+  const agotado = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener(
+      'abort',
+      () => reject(new Error(`health check timed out after ${CHECK_TIMEOUT_MS}ms`)),
+      { once: true },
+    )
+  })
+
+  try {
+    return await Promise.race([Promise.resolve(operacion(controller.signal)), agotado])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 async function checkSupabase(): Promise<CheckResult> {
   try {
     const admin = supabaseAdmin()
-    const { error } = await admin.from('contacts').select('id').limit(1)
+    const { error } = await conTimeout((signal) =>
+      admin.from('contacts').select('id').limit(1).abortSignal(signal),
+    )
     if (error) {
       log.warn('supabase check failed', { error: error.message })
       return 'down'
@@ -30,7 +51,7 @@ async function checkWhatsapp(): Promise<CheckResult> {
   try {
     const res = await fetch('https://graph.facebook.com/v22.0/', {
       method: 'HEAD',
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     })
     if (res.status >= 500) return 'down'
     return 'ok'
@@ -57,9 +78,11 @@ export async function GET() {
     ts: new Date().toISOString(),
   }
 
-  const httpStatus = status === 'down' ? 503 : 200
   return NextResponse.json(body, {
-    status: httpStatus,
+    // Render usa esta ruta como sonda de vida del proceso. Una dependencia
+    // caída debe verse en el cuerpo, pero no sacar también de circulación a
+    // una instancia que sí puede responder (ni bloquear el siguiente deploy).
+    status: 200,
     headers: { 'Cache-Control': 'no-store' },
   })
 }
