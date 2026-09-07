@@ -22,10 +22,6 @@ export const webchat = {
     es: "Configuración {done}/{total}",
     en: "Setup {done}/{total}",
   },
-  readyDomain: { es: "Dominio", en: "Domain" },
-  readyAgent: { es: "Agente", en: "Agent" },
-  readyEnabled: { es: "Activado", en: "Enabled" },
-
   // ── Instalación ──
   install: { es: "Instalación", en: "Install" },
   installManual: { es: "Pegar el código a mano", en: "Paste the code manually" },
@@ -173,7 +169,7 @@ export const webchat = {
   proactiveUrlPlaceholder: { es: "/products/", en: "/products/" },
 
   // ── Comportamiento ──
-  behavior: { es: "Comportamiento", en: "Behavior" },
+  behavior: { es: "Asistente IA", en: "AI assistant" },
 
   // Con que contesta. El chat no responde con lo que sabe un modelo: responde
   // con la ficha que el comercio cargo producto por producto.
@@ -233,9 +229,17 @@ export const webchat = {
 
   // ── Resultados ──
   results: { es: "Resultados", en: "Results" },
+  resultsSummary: {
+    es: "{conversations} conversaciones · {rate}% por IA",
+    en: "{conversations} conversations · {rate}% by AI",
+  },
+  resultsSummaryNoRate: {
+    es: "{conversations} conversaciones",
+    en: "{conversations} conversations",
+  },
   conversations: { es: "Conversaciones", en: "Conversations" },
   resolvedByAi: { es: "Resueltas por IA", en: "Resolved by AI" },
-  resolutionRate: { es: "Resueltas sin humano", en: "Resolved without a human" },
+  resolutionRate: { es: "Resueltas por IA", en: "Resolved by AI" },
   satisfaction: { es: "Quedaron conformes", en: "Were satisfied" },
   ratedCount: { es: "{n} calificaron", en: "{n} rated" },
   firstResponse: { es: "Primera respuesta", en: "First response" },

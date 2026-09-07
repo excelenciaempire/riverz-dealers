@@ -25,9 +25,9 @@ import type { WebchatConfig } from '@/types';
  * pantalla donde nada resalta se lee como complicada aunque cada opción por
  * separado sea simple. Ahora una pregunta a la vez, en pestañas.
  *
- * Arriba, lo único que se mira sin venir a cambiar nada: si está vivo y qué
- * produjo. Y a la derecha, fijo, cómo va quedando — porque el color, el nombre
- * y el saludo se elegían a ciegas.
+ * Arriba queda sólo el estado. La configuración y su vista previa aparecen en
+ * la primera pantalla; los resultados quedan plegados debajo para no empujar
+ * la tarea principal fuera de vista.
  *
  * **Sin texto que repita la etiqueta.** Sólo quedan las ayudas que dicen algo
  * que no se deduce del nombre, y las que avisan de una consecuencia.
@@ -269,26 +269,14 @@ export function WebchatPanel() {
       : !hayQuienConteste
         ? t(cfg.agent_id ? 'webchat.whyAgentPaused' : 'webchat.whyNoAgent')
         : null;
-  const preparacion = [
-    {
-      listo: domains.length > 0,
-      label: t('webchat.readyDomain'),
-      seccion: 'instalacion',
-    },
-    {
-      listo: hayQuienConteste,
-      label: t('webchat.readyAgent'),
-      seccion: 'comportamiento',
-    },
-    { listo: enabled, label: t('webchat.readyEnabled'), seccion: 'instalacion' },
-  ] satisfies { listo: boolean; label: string; seccion: Seccion }[];
-  const preparados = preparacion.filter((paso) => paso.listo).length;
+  const preparacion = [domains.length > 0, hayQuienConteste, enabled];
+  const preparados = preparacion.filter(Boolean).length;
 
   return (
     <div className="space-y-4">
       {/* ── Estado: lo único que se mira sin venir a cambiar nada ── */}
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <span
               className={cn(
@@ -300,39 +288,20 @@ export function WebchatPanel() {
               {t(enabled ? 'webchat.live' : 'webchat.off')}
             </p>
             {domains.length > 0 ? (
-              <span className="truncate text-xs text-muted-foreground">· {domains[0]}</span>
+              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                · {domains[0]}
+              </span>
             ) : null}
           </div>
-          <Switch checked={enabled} onCheckedChange={(c) => save({ enabled: c })} />
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
-          <span className="mr-1 text-xs font-medium text-muted-foreground">
-            {t('webchat.readyCount', {
-              done: String(preparados),
-              total: String(preparacion.length),
-            })}
-          </span>
-          {preparacion.map((paso) => (
-            <button
-              key={paso.label}
-              type="button"
-              onClick={() => setSeccion(paso.seccion)}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
-                paso.listo
-                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                  : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {paso.listo ? (
-                <Check className="size-3" aria-hidden />
-              ) : (
-                <span className="size-1.5 rounded-full bg-current opacity-40" aria-hidden />
-              )}
-              {paso.label}
-            </button>
-          ))}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('webchat.readyCount', {
+                done: String(preparados),
+                total: String(preparacion.length),
+              })}
+            </span>
+            <Switch checked={enabled} onCheckedChange={(c) => save({ enabled: c })} />
+          </div>
         </div>
 
         {motivoInvisible ? (
@@ -355,98 +324,12 @@ export function WebchatPanel() {
         ) : null}
       </div>
 
-      {/* ── Qué produjo ── */}
-      {stats && stats.conversations > 0 ? (
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-medium text-foreground">{t('webchat.results')}</p>
-            <span className="text-xs text-muted-foreground">{t('webchat.period')}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label={t('webchat.conversations')} value={String(stats.conversations)} />
-            <Stat
-              label={t('webchat.resolutionRate')}
-              value={stats.resolution_rate == null ? '—' : `${stats.resolution_rate}%`}
-              // Contra el período anterior: un porcentaje solo no dice si el
-              // canal está mejorando, que es lo único que se hace con esto.
-              extra={
-                stats.resolution_rate != null && stats.resolution_rate_previous != null
-                  ? [
-                      `${stats.resolution_rate >= stats.resolution_rate_previous ? '+' : ''}${
-                        stats.resolution_rate - stats.resolution_rate_previous
-                      } pts`,
-                    ]
-                  : undefined
-              }
-            />
-            <Stat
-              label={t('webchat.satisfaction')}
-              value={stats.satisfaction_rate == null ? '—' : `${stats.satisfaction_rate}%`}
-              extra={
-                stats.rated > 0 ? [t('webchat.ratedCount', { n: String(stats.rated) })] : undefined
-              }
-            />
-            <Stat label={t('webchat.firstResponse')} value={espera(stats.first_response_seconds)} />
-            <Stat label={t('webchat.ordersAttributed')} value={String(stats.orders)} />
-            <Stat
-              label={t('webchat.revenue')}
-              value={
-                stats.currency
-                  ? format.currency(stats.revenue, stats.currency)
-                  : String(Math.round(stats.revenue))
-              }
-              // Las otras monedas debajo, sin inventar un total: sumarlas y
-              // etiquetarlas con la del primer pedido daba un número que no
-              // existe, y es el número con el que se decide si el canal sirve.
-              extra={(stats.revenue_by_currency ?? [])
-                .slice(1)
-                .map((r) =>
-                  r.currency ? format.currency(r.revenue, r.currency) : String(Math.round(r.revenue)),
-                )}
-            />
-          </div>
-
-        </div>
-      ) : null}
-
-      {/* Lo que de todo esto ve Meta.
-          Fila propia y siempre visible: estaba dentro de la tarjeta de
-          resultados, que no se pinta sin conversaciones — así que justo quien
-          todavía no arrancó, el que más necesita conectarlo ANTES de gastar en
-          anuncios, nunca se enteraba de que existía. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-        <Target className="size-3.5 shrink-0 text-[#0866FF]" aria-hidden />
-        <span className="text-xs font-medium text-foreground">{t('webchat.pixel')}</span>
-        {pixel?.connected ? (
-          <span className="text-xs text-muted-foreground">
-            {t('webchat.pixelReported', {
-              contacts: String(pixel.contactos),
-              sales: String(pixel.contadas),
-            })}
-          </span>
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 text-xs text-muted-foreground">
-              {t('webchat.pixelOff')}
-            </span>
-            <Button
-              render={<Link href="/integraciones" />}
-              nativeButton={false}
-              size="sm"
-              variant="outline"
-            >
-              {t('webchat.pixelConnect')}
-            </Button>
-          </>
-        )}
-      </div>
-
       {/* ── Configuración, una pregunta a la vez, con la vista previa al lado ── */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="h-fit overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div
             role="tablist"
-            className="mb-3 flex flex-wrap items-center gap-1 border-b border-border"
+            className="grid grid-cols-2 gap-1 border-b border-border bg-muted/35 p-1.5 sm:grid-cols-4"
           >
             {SECCIONES.map(({ id, key }) => (
               <button
@@ -457,21 +340,25 @@ export function WebchatPanel() {
                 aria-selected={seccion === id}
                 onClick={() => setSeccion(id)}
                 className={cn(
-                  '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                  'inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors',
                   seccion === id
-                    ? 'border-foreground text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border/70'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
                 )}
               >
+                {((id === 'instalacion' && domains.length > 0 && enabled) ||
+                  (id === 'comportamiento' && hayQuienConteste)) ? (
+                  <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                ) : null}
                 {t(key)}
               </button>
             ))}
           </div>
 
-          <div role="tabpanel" aria-labelledby={`webchat-tab-${seccion}`}>
-          {/* ── ¿Está puesto? ── */}
-          {seccion === 'instalacion' && (
-            <Card>
+          <div className="p-4" role="tabpanel" aria-labelledby={`webchat-tab-${seccion}`}>
+            {/* ── ¿Está puesto? ── */}
+            {seccion === 'instalacion' && (
+              <Card>
               {/* El camino bueno primero. Con la tienda conectada es un botón;
                   el código a mano queda plegado para quien no usa Shopify. */}
               {hayBoton ? (
@@ -839,12 +726,102 @@ export function WebchatPanel() {
           <VistaPrevia cfg={cfg} fallbackName={t('webchat.title')} />
         </div>
       </div>
+
+      {/* El configurador es la tarea principal. Los resultados siguen a un
+          clic, sin empujar los controles fuera de la primera pantalla. */}
+      {stats && stats.conversations > 0 ? (
+        <details className="group overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">{t('webchat.results')}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {t(
+                  stats.resolution_rate == null
+                    ? 'webchat.resultsSummaryNoRate'
+                    : 'webchat.resultsSummary',
+                  {
+                    conversations: String(stats.conversations),
+                    rate: String(stats.resolution_rate ?? ''),
+                  },
+                )}
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">{t('webchat.period')}</span>
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="grid grid-cols-2 gap-3 border-t border-border p-4 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label={t('webchat.conversations')} value={String(stats.conversations)} />
+            <Stat
+              label={t('webchat.resolutionRate')}
+              value={stats.resolution_rate == null ? '—' : `${stats.resolution_rate}%`}
+              extra={
+                stats.resolution_rate != null && stats.resolution_rate_previous != null
+                  ? [
+                      `${stats.resolution_rate >= stats.resolution_rate_previous ? '+' : ''}${
+                        stats.resolution_rate - stats.resolution_rate_previous
+                      } pts`,
+                    ]
+                  : undefined
+              }
+            />
+            <Stat
+              label={t('webchat.satisfaction')}
+              value={stats.satisfaction_rate == null ? '—' : `${stats.satisfaction_rate}%`}
+              extra={
+                stats.rated > 0 ? [t('webchat.ratedCount', { n: String(stats.rated) })] : undefined
+              }
+            />
+            <Stat label={t('webchat.firstResponse')} value={espera(stats.first_response_seconds)} />
+            <Stat label={t('webchat.ordersAttributed')} value={String(stats.orders)} />
+            <Stat
+              label={t('webchat.revenue')}
+              value={
+                stats.currency
+                  ? format.currency(stats.revenue, stats.currency)
+                  : String(Math.round(stats.revenue))
+              }
+              extra={(stats.revenue_by_currency ?? [])
+                .slice(1)
+                .map((r) =>
+                  r.currency ? format.currency(r.revenue, r.currency) : String(Math.round(r.revenue)),
+                )}
+            />
+          </div>
+        </details>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+        <Target className="size-3.5 shrink-0 text-[#0866FF]" aria-hidden />
+        <span className="text-xs font-medium text-foreground">{t('webchat.pixel')}</span>
+        {pixel?.connected ? (
+          <span className="text-xs text-muted-foreground">
+            {t('webchat.pixelReported', {
+              contacts: String(pixel.contactos),
+              sales: String(pixel.contadas),
+            })}
+          </span>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+              {t('webchat.pixelOff')}
+            </span>
+            <Button
+              render={<Link href="/integraciones" />}
+              nativeButton={false}
+              size="sm"
+              variant="outline"
+            >
+              {t('webchat.pixelConnect')}
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 function Card({ children }: { children: ReactNode }) {
-  return <div className="rounded-xl border border-border bg-card p-4 shadow-sm">{children}</div>;
+  return <>{children}</>;
 }
 
 function Field({
