@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_OPTIONS } from "@/lib/supabase/server";
 import { getLocale } from "@/lib/i18n/server";
 import { canonicalizePath, localizePath } from "@/lib/i18n/routes";
+import { publicBaseUrl } from "@/lib/base-url";
 
 /**
  * Supabase password-recovery + email-confirmation redirect target.
@@ -43,14 +44,16 @@ export async function GET(request: NextRequest) {
     );
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      const fail = url.clone();
+      const fail = new URL(publicBaseUrl());
       fail.pathname = localizePath("/ingresar", locale);
       fail.search = `?error=${encodeURIComponent(error.message)}`;
       return NextResponse.redirect(fail);
     }
   }
 
-  const dest = url.clone();
+  // Render exposes its internal localhost origin in request.nextUrl.
+  // Auth redirects must use the configured public origin instead.
+  const dest = new URL(publicBaseUrl());
   dest.pathname = localizePath(canonicalizePath(safeNext), locale);
   dest.search = "";
   dest.hash = "";
