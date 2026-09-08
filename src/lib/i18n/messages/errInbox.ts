@@ -8,6 +8,10 @@ import type { Namespace } from './types';
  * results, so they must follow the merchant's locale.
  */
 export const errInbox = {
+  mlAccountInactive: {
+    es: 'Mercado Libre indica que la cuenta está inactiva. Reactiva la cuenta en Mercado Libre para restablecer la sincronización.',
+    en: 'Mercado Libre reports that the account is inactive. Reactivate the account in Mercado Libre to restore synchronization.',
+  },
   // Assignment rules (POST/DELETE) validation + role guards
   missingRuleFields: {
     es: 'Faltan name, kind o workspace_id',

@@ -1,4 +1,6 @@
 import { supabaseAdmin } from "../admin-client";
+import { recordInactiveMLAccount } from './account-health';
+import { safeLocale } from '@/lib/i18n/server';
 import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
 import { getFreshMLToken } from "./adapter";
@@ -84,9 +86,10 @@ export async function pollAllMercadoLibreConnections(): Promise<{
           { headers: { authorization: `Bearer ${token}` } },
         );
         if (!r.ok) {
-          const body = (await r.text().catch(() => "")).slice(0, 160);
+          const body = (await r.text().catch(() => "")).slice(0, 500);
+          const accountError = await recordInactiveMLAccount(db, conn.id, token, r.status, body, await safeLocale());
           throw new Error(
-            `questions/search HTTP ${r.status}${body ? `: ${body}` : ""}`,
+            accountError ?? `questions/search HTTP ${r.status}${body ? `: ${body}` : ""}`,
           );
         }
         const j = (await r.json()) as { questions?: MlQuestion[] };
