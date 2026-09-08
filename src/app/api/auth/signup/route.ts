@@ -21,6 +21,7 @@ import {
 } from "@/lib/auth/signup-codes";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 import { sendAuthEmail } from "@/lib/auth/email";
+import { localizePath } from "@/lib/i18n/routes";
 
 /**
  * POST /api/auth/signup
@@ -30,10 +31,9 @@ import { sendAuthEmail } from "@/lib/auth/email";
  * The API only reports success after the mail provider accepts the message.
  *
  * Anti-enumeration: on email collision we do NOT say "already
- * registered". Instead we silently fire a password-reset email to that
- * address (so the real owner can recover the account) and return the
- * same generic message used on a normal sign-up. Probes can't tell the
- * two branches apart.
+ * registered". Only the email owner receives that information, with a link
+ * to sign in. Password recovery remains an explicit, separate request.
+ * Both branches return the same generic response.
  *
  * Código de invitación: el alta está abierta pero no es pública. Hace falta un
  * código emitido por el equipo (migración 209), que se reserva ANTES de crear
@@ -180,38 +180,27 @@ export async function POST(req: Request) {
     // estar disponible. Sin esto, tipear mal el correo quemaría la invitación.
     if (codeId) await releaseSignupCode(admin, codeId);
 
-    const recovery = await admin.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: { redirectTo: recoveryRedirectTo() },
-    });
-    if (recovery.error || !recovery.data.properties?.action_link) {
-      console.error(
-        JSON.stringify({
-          scope: "auth-signup",
-          event: "recovery_link_failed",
-          code: recovery.error?.code ?? "missing_link",
-        }),
-      );
+    const loginLink = safeRedirectTo(localizePath('/ingresar', locale));
+    if (!loginLink) {
       return NextResponse.json(
         { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
         { status: 503 },
       );
     }
 
+    const loginUrl = new URL(loginLink);
+    const next = redirectTo && new URL(redirectTo).searchParams.get('next');
+    const safeNext = safeRedirectTo(next || undefined);
+    if (safeNext) {
+      const target = new URL(safeNext);
+      loginUrl.searchParams.set('next', target.pathname + target.search + target.hash);
+    }
     const delivery = await sendAuthEmail({
       to: email,
-      actionLink: recovery.data.properties.action_link,
+      actionLink: loginUrl.toString(),
       locale,
-      kind: "recovery",
+      kind: "existing_account",
     });
-    if (!delivery.ok && delivery.reason === "not_configured") {
-      const { error: nativeRecoveryError } =
-        await admin.auth.resetPasswordForEmail(email, {
-          redirectTo: recoveryRedirectTo(),
-        });
-      if (!nativeRecoveryError) return NextResponse.json(genericOk);
-    }
     if (!delivery.ok) {
       return NextResponse.json(
         { error: translate(locale, "errAccount.emailDeliveryUnavailable") },
@@ -349,18 +338,6 @@ async function completeSignup({
     console.warn(
       `[auth/signup] no se pudo guardar el teléfono de ${userId}: ${phoneError.message}`,
     );
-  }
-}
-
-function recoveryRedirectTo(): string | undefined {
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!site) return undefined;
-  try {
-    const url = new URL("/auth/callback", site);
-    url.searchParams.set("next", "/nueva-clave");
-    return safeRedirectTo(url.toString());
-  } catch {
-    return undefined;
   }
 }
 

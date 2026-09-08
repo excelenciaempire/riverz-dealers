@@ -58,9 +58,21 @@ export const auth = {
     en: "You must accept the Terms and Privacy Policy",
   },
   signupError: { es: "No se pudo crear la cuenta", en: "Could not create account" },
-  confirmationLinkSent: {
-    es: "Enviamos un enlace de confirmación a",
-    en: "We sent a confirmation link to",
+  signupInstructionsSent: {
+    es: "Enviamos las instrucciones para continuar a",
+    en: "We sent instructions to continue to",
+  },
+  existingAccountEmailSubject: {
+    es: "Ya tienes una cuenta en Riverz",
+    en: "You already have a Riverz account",
+  },
+  existingAccountEmailTitle: {
+    es: "Tu cuenta ya existe",
+    en: "Your account already exists",
+  },
+  existingAccountEmailBody: {
+    es: "Este correo ya está registrado. Inicia sesión con tu contraseña actual.",
+    en: "This email is already registered. Sign in with your current password.",
   },
   confirmationEmailSubject: {
     es: "Confirma tu cuenta de Riverz",

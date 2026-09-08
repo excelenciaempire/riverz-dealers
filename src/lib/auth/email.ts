@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Locale } from '@/lib/i18n/config';
 import { translate } from '@/lib/i18n/translate';
 
-export type AuthEmailKind = 'confirmation' | 'recovery';
+export type AuthEmailKind = 'confirmation' | 'recovery' | 'existing_account';
 
 type SendAuthEmailInput = {
   to: string;
@@ -28,6 +28,12 @@ const COPY_KEYS: Record<
   AuthEmailKind,
   { subject: string; title: string; body: string; button: string }
 > = {
+  existing_account: {
+    subject: 'auth.existingAccountEmailSubject',
+    title: 'auth.existingAccountEmailTitle',
+    body: 'auth.existingAccountEmailBody',
+    button: 'auth.signIn',
+  },
   confirmation: {
     subject: 'auth.confirmationEmailSubject',
     title: 'auth.confirmationEmailTitle',
@@ -96,7 +102,9 @@ export async function sendAuthEmail({
   const footer = translate(locale, 'auth.authEmailFooter');
   const safeLink = escapeHtml(link.toString());
   const idempotencyKey = `auth/${kind}/${createHash('sha256')
-    .update(link.toString())
+    // Informational emails share a login URL; each request needs its own key.
+    // Token emails still deduplicate retries of the same recipient/link.
+    .update(`${to.toLowerCase()}\n${locale}\n${link.toString()}${kind === 'existing_account' ? randomUUID() : ''}`)
     .digest('hex')}`;
 
   try {

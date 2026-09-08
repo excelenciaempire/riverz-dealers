@@ -122,7 +122,7 @@ function SignupForm() {
           titulo={t("auth.checkYourEmail")}
           bajada={
             <>
-              {t("auth.confirmationLinkSent")}{" "}
+              {t("auth.signupInstructionsSent")}{" "}
               <span className="text-foreground">{email}</span>.
             </>
           }
