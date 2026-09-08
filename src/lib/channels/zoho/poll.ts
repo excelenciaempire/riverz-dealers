@@ -3,6 +3,7 @@ import type { ChannelConnection } from '@/types';
 import type { InboundEvent } from '../types';
 import { supabaseAdmin } from '../admin-client';
 import { listConnections } from '../connections';
+import { savePollState } from '../poll-state';
 import { ingestInboundEvent } from '../inbox-writer';
 import { htmlToText } from '../html-to-text';
 import { detectAutomatedSender } from '../email/automated-sender';
@@ -113,14 +114,9 @@ async function pollOne(
     );
     if (event && (await ingestInboundEvent(admin, event))) ingested++;
   }
-  await admin
-    .from('channel_connections')
-    .update({
-      config: { ...config, last_received_at: new Date(newest).toISOString() },
-      last_synced_at: new Date().toISOString(),
-      last_error: null,
-    })
-    .eq('id', connection.id);
+  await savePollState(admin, connection.id, {
+    last_received_at: new Date(newest).toISOString(),
+  });
   return ingested;
 }
 

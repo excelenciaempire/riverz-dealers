@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
+import { savePollState } from "../poll-state";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 import { mapWithConcurrency } from "@/lib/async/concurrency";
@@ -95,10 +96,7 @@ async function pollOne(
   );
 
   if (inboxIds.length === 0 && sentIds.length === 0) {
-    await admin
-      .from("channel_connections")
-      .update({ last_synced_at: new Date().toISOString(), last_error: null })
-      .eq("id", connection.id);
+    await savePollState(admin, connection.id, {});
     return 0;
   }
 
@@ -130,15 +128,7 @@ async function pollOne(
     if (result) ingested++;
   }
 
-  const newConfig = { ...cfg, history_id: maxHistoryId.toString() };
-  await admin
-    .from("channel_connections")
-    .update({
-      config: newConfig,
-      last_synced_at: new Date().toISOString(),
-      last_error: null,
-    })
-    .eq("id", connection.id);
+  await savePollState(admin, connection.id, { history_id: maxHistoryId.toString() });
   return ingested;
 }
 

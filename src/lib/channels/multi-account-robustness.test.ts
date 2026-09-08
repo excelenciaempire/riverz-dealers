@@ -52,7 +52,7 @@ describe('robustez para varios comercios y varias cuentas por canal', () => {
   it('cada cuenta de Mercado Libre reconcilia solo sus propios reclamos', () => {
     const src = source('lib', 'channels', 'mercadolibre', 'claims-poll.ts');
     expect(src.match(/\.eq\(['"]connection_id['"], conn\.id\)/g)).toHaveLength(
-      2
+        3
     );
   });
 

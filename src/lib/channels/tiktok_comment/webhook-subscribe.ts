@@ -67,6 +67,7 @@ export async function ensureTikTokCommentWebhook(): Promise<WebhookSubscribeResu
   try {
     const r = await fetch(`${TT}/business/webhook/update/`, {
       method: "POST",
+      signal: AbortSignal.timeout(20_000),
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         app_id: appId,

@@ -6,6 +6,7 @@ import { fetchOutlookAttachments } from "./watch";
 import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
+import { savePollState } from "../poll-state";
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 import { mapWithConcurrency } from "@/lib/async/concurrency";
@@ -97,10 +98,7 @@ async function pollOne(
   );
 
   if (inbox.length === 0 && sent.length === 0) {
-    await admin
-      .from("channel_connections")
-      .update({ last_synced_at: new Date().toISOString(), last_error: null })
-      .eq("id", connection.id);
+    await savePollState(admin, connection.id, {});
     return 0;
   }
 
@@ -141,18 +139,10 @@ async function pollOne(
   }
 
   const newConfig = {
-    ...cfg,
     last_received_at: new Date(maxReceived).toISOString(),
     last_sent_at: new Date(maxSent).toISOString(),
   };
-  await admin
-    .from("channel_connections")
-    .update({
-      config: newConfig,
-      last_synced_at: new Date().toISOString(),
-      last_error: null,
-    })
-    .eq("id", connection.id);
+  await savePollState(admin, connection.id, newConfig);
   return ingested;
 }
 

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../admin-client";
 import { ingestInboundEvent } from "../inbox-writer";
 import { listConnections } from "../connections";
+import { savePollState } from "../poll-state";
 import {
   applyCommentLifecycle,
   patchFor,
@@ -188,31 +189,23 @@ async function recordPollResult(
   result: { ingested?: number; videos?: number; error?: string },
 ): Promise<void> {
   const db = supabaseAdmin();
-  const config = (connection.config ?? {}) as Record<string, unknown>;
   const now = new Date().toISOString();
   const telemetry = result.error
     ? {
-        ...config,
         last_poll_at: now,
         last_poll_error_at: now,
         last_poll_error: result.error.slice(0, 500),
       }
     : {
-        ...config,
         last_poll_at: now,
         last_successful_poll_at: now,
         last_poll_ingested: result.ingested ?? 0,
         last_poll_videos: result.videos ?? 0,
         last_poll_error: null,
       };
-  const patch: Record<string, unknown> = {
-    config: telemetry,
-    last_error: result.error
+  await savePollState(db, connection.id, telemetry, result.error
       ? `TikTok poll failed: ${result.error.slice(0, 450)}`
-      : null,
-  };
-  if (result.error) patch.status = "error";
-  await db.from("channel_connections").update(patch).eq("id", connection.id);
+      : null);
 }
 
 /** Recuperación manual de un solo comercio. Recorre el catálogo completo de
@@ -398,7 +391,7 @@ async function listVideos(
       (cursor === undefined
         ? ""
         : `&cursor=${encodeURIComponent(String(cursor))}`);
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
     const json = (await res.json().catch(() => ({}))) as {
       code?: number;
       data?: {
@@ -407,7 +400,7 @@ async function listVideos(
         cursor?: string | number;
       };
     };
-    if (!res.ok || (json.code ?? 0) !== 0) {
+    if (!res.ok || json.code !== 0) {
       throw new Error(
         `video/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`,
       );
@@ -469,12 +462,12 @@ export async function ingestarUnComentario(
   const url =
     `${TT}/business/comment/list/?business_id=${encodeURIComponent(businessId)}` +
     `&video_id=${encodeURIComponent(videoId)}&max_count=${COMMENTS_PER_VIDEO}`;
-  const r = await fetch(url, { headers: { "Access-Token": token } });
+  const r = await fetch(url, { headers: { "Access-Token": token }, signal: AbortSignal.timeout(20_000) });
   const j = (await r.json().catch(() => ({}))) as {
     code?: number;
     data?: { comments?: Array<Record<string, unknown>> };
   };
-  if (!r.ok || (j.code ?? 0) !== 0) return false;
+  if (!r.ok || j.code !== 0) return false;
 
   const c = (j.data?.comments ?? []).find(
     (x) => String(x.comment_id ?? x.id ?? "") === commentId,
@@ -534,7 +527,7 @@ export async function ingestVideoComments(
       (cursor === undefined
         ? ""
         : `&cursor=${encodeURIComponent(String(cursor))}`);
-    const cr = await fetch(cUrl, { headers: { "Access-Token": token } });
+    const cr = await fetch(cUrl, { headers: { "Access-Token": token }, signal: AbortSignal.timeout(20_000) });
     const cj = (await cr.json().catch(() => ({}))) as {
       code?: number;
       data?: {
@@ -543,7 +536,7 @@ export async function ingestVideoComments(
         cursor?: string | number;
       };
     };
-    if (!cr.ok || (cj.code ?? 0) !== 0) {
+    if (!cr.ok || cj.code !== 0) {
       listaCompleta = false;
       break;
     }
@@ -817,7 +810,7 @@ async function fetchReplies(
       (cursor === undefined
         ? ""
         : `&cursor=${encodeURIComponent(String(cursor))}`);
-    const res = await fetch(url, { headers: { "Access-Token": token } });
+    const res = await fetch(url, { headers: { "Access-Token": token }, signal: AbortSignal.timeout(20_000) });
     const json = (await res.json().catch(() => ({}))) as {
       code?: number;
       data?: {
@@ -826,7 +819,7 @@ async function fetchReplies(
         cursor?: string | number;
       };
     };
-    if (!res.ok || (json.code ?? 0) !== 0) {
+    if (!res.ok || json.code !== 0) {
       throw new Error(
         `comment/reply/list HTTP ${res.status}, code ${json.code ?? "desconocido"}`,
       );

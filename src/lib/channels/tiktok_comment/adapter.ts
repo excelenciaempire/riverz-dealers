@@ -113,6 +113,20 @@ export const tikTokCommentAdapter: ChannelAdapter = {
 /** Fresh access token — renews via the 1-year refresh token when the 24h
  *  access token is (nearly) expired, persisting rotated credentials. */
 export async function getFreshTikTokToken(connection: ChannelConnection): Promise<string> {
+  const pending = tokenRefreshes.get(connection.id);
+  if (pending) return pending;
+  const task = refreshTikTokToken(connection);
+  tokenRefreshes.set(connection.id, task);
+  try {
+    return await task;
+  } finally {
+    if (tokenRefreshes.get(connection.id) === task) tokenRefreshes.delete(connection.id);
+  }
+}
+
+const tokenRefreshes = new Map<string, Promise<string>>();
+
+async function refreshTikTokToken(connection: ChannelConnection): Promise<string> {
   const secrets = (connection.secrets ?? {}) as Record<string, unknown>;
   const config = (connection.config ?? {}) as Record<string, unknown>;
   const expiresAt = config.token_expires_at ? Date.parse(String(config.token_expires_at)) : 0;
@@ -123,6 +137,7 @@ export async function getFreshTikTokToken(connection: ChannelConnection): Promis
   if (!refreshEnc) throw new Error("[tiktok] connection missing refresh_token");
   const res = await fetch(`${TT}/tt_user/oauth2/refresh_token/`, {
     method: "POST",
+    signal: AbortSignal.timeout(30_000),
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       client_id: process.env.TIKTOK_APP_ID ?? "",
@@ -145,7 +160,7 @@ export async function getFreshTikTokToken(connection: ChannelConnection): Promis
     throw new Error(`[tiktok] token refresh failed: ${detail}`);
   }
   const newExpiry = new Date(Date.now() + (json.data.expires_in ?? 86_400) * 1000).toISOString();
-  await supabaseAdmin()
+  const saved = await supabaseAdmin()
     .from("channel_connections")
     .update({
       secrets: {
@@ -158,5 +173,6 @@ export async function getFreshTikTokToken(connection: ChannelConnection): Promis
       last_error: null,
     })
     .eq("id", connection.id);
+  if (saved.error) throw new Error(`[tiktok] cannot persist refreshed token: ${saved.error.code}`);
   return json.data.access_token;
 }
