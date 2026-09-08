@@ -58,6 +58,7 @@ export async function POST(req: Request): Promise<Response> {
     page_ids?: string[];
     ad_account_ids_by_page?: Record<string, string[]>;
     include_instagram?: boolean;
+    instagram_account_ids?: string[];
   } | null;
   if (
     !body ||
@@ -167,6 +168,10 @@ export async function POST(req: Request): Promise<Response> {
         accessToken,
         body.channel as Channel
       );
+      const instagramAccounts =
+        body.channel === 'messenger'
+          ? await discoverMetaAccounts(accessToken, 'instagram')
+          : [];
       let adAccounts: Array<{ id: string; label: string }> = [];
       if (body.channel === 'messenger') {
         try {
@@ -184,6 +189,11 @@ export async function POST(req: Request): Promise<Response> {
         accounts: discovered.map((a) => ({
           id: a.external_account_id,
           label: a.label,
+        })),
+        instagramAccounts: instagramAccounts.map((a) => ({
+          id: a.external_account_id,
+          label: a.label,
+          pageId: String(a.config.page_id ?? ''),
         })),
         adAccounts,
       });
@@ -217,8 +227,16 @@ export async function POST(req: Request): Promise<Response> {
         accessToken,
         'instagram'
       );
+      const requestedInstagramIds = body.instagram_account_ids
+        ? new Set(body.instagram_account_ids.map(String))
+        : null;
       const selectedInstagramIds = instagramAccounts
-        .filter((account) => pageIds.includes(String(account.config.page_id)))
+        .filter(
+          (account) =>
+            pageIds.includes(String(account.config.page_id)) &&
+            (!requestedInstagramIds ||
+              requestedInstagramIds.has(account.external_account_id))
+        )
         .map((account) => account.external_account_id);
       if (selectedInstagramIds.length > 0) {
         const instagram = await persistMetaConnections(admin, {

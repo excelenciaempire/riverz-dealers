@@ -81,6 +81,9 @@ export function MetaBusinessLogin({
     code?: string;
   } | null>(null);
   const [accounts, setAccounts] = useState<{ id: string; label: string }[]>([]);
+  const [instagramAccounts, setInstagramAccounts] = useState<
+    { id: string; label: string; pageId: string }[]
+  >([]);
   const [adAccounts, setAdAccounts] = useState<{ id: string; label: string }[]>(
     []
   );
@@ -89,6 +92,9 @@ export function MetaBusinessLogin({
   >({});
   const [showAdAccounts, setShowAdAccounts] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [checkedInstagram, setCheckedInstagram] = useState<Set<string>>(
+    new Set()
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
@@ -159,6 +165,10 @@ export function MetaBusinessLogin({
             workspace_id: workspaceId,
             page_ids: pageIds,
             include_instagram: includeInstagram,
+            instagram_account_ids:
+              includeInstagram && channel === 'messenger'
+                ? [...checkedInstagram]
+                : undefined,
             ad_account_ids_by_page:
               channel === 'messenger' && reconnectAccountIds.length === 0
                 ? Object.fromEntries(
@@ -192,6 +202,7 @@ export function MetaBusinessLogin({
       fetchWithCsrf,
       t,
       adAccountsByPage,
+      checkedInstagram,
       reconnectAccountIds,
       includeInstagram,
     ]
@@ -215,6 +226,7 @@ export function MetaBusinessLogin({
         });
         const j = (await r.json().catch(() => ({}))) as {
           accounts?: { id: string; label: string }[];
+          instagramAccounts?: { id: string; label: string; pageId: string }[];
           adAccounts?: { id: string; label: string }[];
           error?: string;
         };
@@ -255,6 +267,7 @@ export function MetaBusinessLogin({
         }
         setCred(payload);
         setAccounts(found);
+        setInstagramAccounts(j.instagramAccounts ?? []);
         setAdAccounts(j.adAccounts ?? []);
         setAdAccountsByPage(
           Object.fromEntries(
@@ -265,6 +278,7 @@ export function MetaBusinessLogin({
         // Meta can list every Page managed by one profile. New connections
         // start unselected so a workspace never receives assets by accident.
         setChecked(new Set());
+        setCheckedInstagram(new Set());
         setPickerOpen(true);
       } catch (err) {
         toast.error(t('settings.networkError'));
@@ -301,13 +315,26 @@ export function MetaBusinessLogin({
 
   if (!APP_ID || !CONFIG_ID) return null;
 
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    const selecting = !checked.has(id);
     setChecked((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    if (includeInstagram && channel === 'messenger') {
+      setCheckedInstagram((prev) => {
+        const next = new Set(prev);
+        for (const account of instagramAccounts) {
+          if (account.pageId !== id) continue;
+          if (selecting) next.add(account.id);
+          else next.delete(account.id);
+        }
+        return next;
+      });
+    }
+  };
 
   const toggleAdAccount = (pageId: string, adAccountId: string) => {
     setAdAccountsByPage((previous) => {
@@ -365,9 +392,11 @@ export function MetaBusinessLogin({
           <DialogHeader>
             <DialogTitle>
               {t(
-                channel === 'messenger'
-                  ? 'settings.chooseFacebookPagesToConnect'
-                  : 'settings.chooseInstagramAccountsToConnect'
+                includeInstagram && channel === 'messenger'
+                  ? 'settings.chooseMetaAccountsToConnect'
+                  : channel === 'messenger'
+                    ? 'settings.chooseFacebookPagesToConnect'
+                    : 'settings.chooseInstagramAccountsToConnect'
               )}
             </DialogTitle>
           </DialogHeader>
@@ -406,6 +435,49 @@ export function MetaBusinessLogin({
                     </span>
                   </span>
                 </label>
+                {includeInstagram &&
+                  channel === 'messenger' &&
+                  instagramAccounts
+                    .filter((instagram) => instagram.pageId === a.id)
+                    .map((instagram) => (
+                      <label
+                        key={instagram.id}
+                        className="hover:bg-muted ml-9 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary size-4"
+                          checked={checkedInstagram.has(instagram.id)}
+                          onChange={() => {
+                            if (!checkedInstagram.has(instagram.id)) {
+                              setChecked((previous) => {
+                                const next = new Set(previous);
+                                next.add(a.id);
+                                return next;
+                              });
+                            }
+                            setCheckedInstagram((previous) => {
+                              const next = new Set(previous);
+                              if (next.has(instagram.id))
+                                next.delete(instagram.id);
+                              else next.add(instagram.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <ChannelLogo channel="instagram" size={16} />
+                        <span className="flex min-w-0 flex-col text-sm">
+                          <span>
+                            {instagram.label.replace(/\s+\(Instagram\)$/u, '')}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {t('settings.metaInstagramAccountId', {
+                              id: instagram.id,
+                            })}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
               </li>
             ))}
           </ul>

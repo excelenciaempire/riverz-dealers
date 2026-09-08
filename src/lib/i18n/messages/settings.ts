@@ -298,7 +298,15 @@ export const settings = {
     es: 'Elige las páginas de Facebook',
     en: 'Choose Facebook pages',
   },
+  chooseMetaAccountsToConnect: {
+    es: 'Elige las cuentas de Facebook e Instagram',
+    en: 'Choose Facebook and Instagram accounts',
+  },
   metaPageId: {
+    es: 'ID: {id}',
+    en: 'ID: {id}',
+  },
+  metaInstagramAccountId: {
     es: 'ID: {id}',
     en: 'ID: {id}',
   },

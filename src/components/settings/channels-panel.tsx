@@ -68,7 +68,7 @@ const CHANNEL_GROUPS: ChannelGroup[] = [
     label: 'Meta',
     descriptionKey: 'settings.metaCardDescription',
     logoChannel: 'messenger',
-    logoSrc: '/channels/facebook.svg',
+    logoSrc: '/channels/meta.svg',
     members: ['messenger', 'fb_comment', 'instagram', 'ig_comment'],
     connectChannel: 'messenger',
   },
