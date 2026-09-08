@@ -26,9 +26,9 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: '20'
       - key: NEXT_TELEMETRY_DISABLED
-        value: "1"
+        value: '1'
       # Supabase + OAuth secrets se gestionan en el dashboard Render
       # como "Environment Variables" para no exponer en el repo.
       - key: NEXT_PUBLIC_SUPABASE_URL
@@ -43,6 +43,8 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://riverz.co
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET
@@ -74,6 +76,18 @@ services:
       # responde 500. Crear key en https://firecrawl.dev.
       - key: FIRECRAWL_API_KEY
         sync: false
+      # Monthly Firecrawl credits are excluded from wallet charges.
+      - key: FIRECRAWL_USAGE_USD_PER_CREDIT
+        value: '0'
+      # Reservation ceiling only; Apify's actual run receipt is charged.
+      - key: APIFY_PROFILE_MAX_USAGE_USD
+        value: '0.10'
+      - key: VOICE_STT_USD_PER_MIN
+        value: '0.0048'
+      - key: VOICE_TELEPHONY_INBOUND_USD_PER_MIN
+        value: '0.0032'
+      - key: VOICE_TELEPHONY_OUTBOUND_USD_PER_MIN
+        value: '0.0055'
       # Secreto compartido para el cron de campañas programadas
       # (GET /api/broadcasts/cron con header x-cron-secret).
       - key: BROADCAST_CRON_SECRET
@@ -90,9 +104,9 @@ services:
       - key: SHOPIFY_OAUTH_REDIRECT_URI
         sync: false
       - key: SHOPIFY_API_VERSION
-        value: "2025-10"
+        value: '2025-10'
       - key: SHOPIFY_SCOPES
-        value: "read_orders,read_checkouts,read_customers,read_products"
+        value: 'read_orders,read_checkouts,read_customers,read_products'
       # Sentry — observabilidad de errores en producción.
       - key: SENTRY_DSN
         sync: false
@@ -142,7 +156,7 @@ services:
       # final, así que 1 (el proxy frontal) es correcto. Subir SOLO si se
       # agrega otro proxy/CDN (p.ej. Cloudflare) delante de Render.
       - key: TRUSTED_PROXY_HOPS
-        value: "1"
+        value: '1'
       # Pilar automations — IDs configurables sin redeploy. Hay defaults
       # hardcoded en /api/cron/shopify-feedback y /api/cron/reengagement
       # apuntando a los UUIDs del workspace de Pilar; estas vars permiten
@@ -200,7 +214,7 @@ services:
       # Hard platform ceiling for calls dispatched at once. Per-workspace
       # limits are configured in Llamadas and always stay below this guard.
       - key: VOICE_GLOBAL_CONCURRENCY_LIMIT
-        value: "10"
+        value: '10'
       # Platform (super) admin allowlist — EXTRA emails that can open the
       # platform panel (riverz.co/admin), on top of the built-in Riverz team
       # list in src/lib/auth/platform-admin.ts. Optional and additive: leaving
@@ -211,13 +225,13 @@ services:
       - key: NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS
         sync: false
 
-# ============================================================
-# Voice AI worker — LiveKit Agents (Python). Persistent background process
-# (NOT serverless): registers with LiveKit over an outbound WSS connection,
-# receives dispatched jobs, dials via the Telnyx SIP trunk, runs the
-# STT→LLM→TTS pipeline, and reports transcripts/outcomes back to the web
-# service. No public ingress needed.
-# ============================================================
+  # ============================================================
+  # Voice AI worker — LiveKit Agents (Python). Persistent background process
+  # (NOT serverless): registers with LiveKit over an outbound WSS connection,
+  # receives dispatched jobs, dials via the Telnyx SIP trunk, runs the
+  # STT→LLM→TTS pipeline, and reports transcripts/outcomes back to the web
+  # service. No public ingress needed.
+  # ============================================================
   # plan standard obligatorio, no es holgura: en starter (512 MB) Render lo mata
   # con oomKilled a los ~45 s, apenas LiveKit arranca el proceso de inferencia
   # que carga onnxruntime y el detector multilingüe de turnos. La escalera de

@@ -56,9 +56,9 @@ export class FirecrawlError extends Error {
  * Es un proveedor conectado más, así que el costo se le pasa al comercio.
  */
 export const USD_POR_PAGINA = Number(
-  process.env.FIRECRAWL_USAGE_USD_PER_CREDIT
+  process.env.FIRECRAWL_USAGE_USD_PER_CREDIT ?? 0
 );
-// Set this from purchased usage credits, excluding monthly subscriptions.
+// Zero means the credits come from a monthly subscription and are not passed on.
 
 export async function firecrawlScrape(
   url: string,
@@ -101,12 +101,15 @@ export async function firecrawlScrape(
   };
 
   if (!opts?.cobrarA) throw new Error('wallet_billing_context_required');
-  if (!Number.isFinite(USD_POR_PAGINA) || USD_POR_PAGINA <= 0)
+  if (!Number.isFinite(USD_POR_PAGINA) || USD_POR_PAGINA < 0)
     throw new Error('wallet_firecrawl_rate_not_configured');
   const billing = { ...opts.cobrarA, concepto: 'lectura_de_pagina' };
-  const operation = await reservar(billing, 'firecrawl', USD_POR_PAGINA, {
-    url: url.slice(0, 300),
-  });
+  const operation =
+    USD_POR_PAGINA > 0
+      ? await reservar(billing, 'firecrawl', USD_POR_PAGINA, {
+          url: url.slice(0, 300),
+        })
+      : null;
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
@@ -141,7 +144,7 @@ export async function firecrawlScrape(
   }
 
   if (!res.ok || !json.success) {
-    if ([400, 401, 402, 403, 404, 429].includes(res.status))
+    if (operation && [400, 401, 402, 403, 404, 429].includes(res.status))
       await cancelar(billing, operation);
     throw new FirecrawlError(
       json.error ?? `Firecrawl ${res.status}`,
@@ -150,9 +153,10 @@ export async function firecrawlScrape(
     );
   }
 
-  await liquidar(billing, operation, 'firecrawl', USD_POR_PAGINA, {
-    url: url.slice(0, 300),
-  });
+  if (operation)
+    await liquidar(billing, operation, 'firecrawl', USD_POR_PAGINA, {
+      url: url.slice(0, 300),
+    });
   const markdown = (json.data?.markdown ?? '').slice(
     0,
     opts?.maxChars ?? 16_000

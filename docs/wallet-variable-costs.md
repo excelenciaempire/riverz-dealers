@@ -16,10 +16,10 @@ Se excluyen las mensualidades de proveedores, servidores y suscripciones. No se 
 
 1. Migración `supabase/migrations/253_wallet_provider_usage.sql` aplicada a producción y verificada mediante SQL y la API de Supabase. Se recargó la caché de PostgREST y la comprobación del esquema terminó correctamente. Las cinco cuentas existentes quedaron con cobro a costo y sin descubierto.
 2. Configurar las tarifas de consumo contratadas. No dividir una mensualidad por sus créditos incluidos:
-   - `FIRECRAWL_USAGE_USD_PER_CREDIT`: costo de créditos de uso adquiridos.
+   - `FIRECRAWL_USAGE_USD_PER_CREDIT`: costo de créditos de uso adquiridos. Usar `0` cuando proceden de una mensualidad; ese consumo no se carga al usuario.
    - `APIFY_PROFILE_MAX_USAGE_USD`: reserva máxima por perfil (mayor que cero, hasta USD 5); no es el precio final. Los límites de Apify dependen del modelo del actor y no garantizan un techo para todos los cargos de plataforma.
    - `ELEVENLABS_USAGE_USD_PER_CHARACTER`: costo variable del modelo activo, si se usa ElevenLabs.
-   - `VOICE_STT_USD_PER_MIN`, `VOICE_TELEPHONY_USD_PER_MIN`: tarifas variables del stack/ruta activos. Esta implementación calcula por segundos; requiere contratos con esa granularidad. No habilitarla para destinos/tarifas con cargos de conexión o redondeos distintos sin incorporar esas reglas.
+   - `VOICE_STT_USD_PER_MIN`, `VOICE_TELEPHONY_INBOUND_USD_PER_MIN` y `VOICE_TELEPHONY_OUTBOUND_USD_PER_MIN`: tarifas variables del stack/ruta activos. Esta implementación calcula por segundos; requiere contratos con esa granularidad. No habilitarla para destinos/tarifas con cargos de conexión o redondeos distintos sin incorporar esas reglas.
    - `AI_MODEL_USAGE_RATES_JSON`: sobrescrituras `{ "modelo": { "input": USD_por_millon, "output": USD_por_millon } }` para precios negociados/cambiados.
    - `NEXT_PUBLIC_APP_URL` y `VOICE_WORKER_SECRET` consistentes entre web y worker.
 3. Desplegar web y `voice-worker/agent.py` de forma coordinada. El stack de voz medido admite Deepgram + Anthropic + Fish/ElevenLabs; configuraciones distintas se rechazan antes de empezar. Verificar las tarifas y el modelo de Fish activo contra su contrato antes de habilitarlo.

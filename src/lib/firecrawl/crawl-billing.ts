@@ -5,8 +5,8 @@ import {
   type BillingContext,
 } from '@/lib/wallet/operacion';
 export function firecrawlCreditRate() {
-  const rate = Number(process.env.FIRECRAWL_USAGE_USD_PER_CREDIT);
-  if (!Number.isFinite(rate) || rate <= 0)
+  const rate = Number(process.env.FIRECRAWL_USAGE_USD_PER_CREDIT ?? 0);
+  if (!Number.isFinite(rate) || rate < 0)
     throw new Error('wallet_firecrawl_rate_not_configured');
   return rate;
 }
@@ -14,6 +14,7 @@ export function meteredCrawlFetch(ctx: BillingContext): typeof fetch {
   let operation: string | undefined;
   const rate = firecrawlCreditRate();
   return async (input, init) => {
+    if (rate === 0) return fetch(input, init);
     const url = String(input);
     if (init?.method === 'POST') {
       const limit = JSON.parse(String(init.body)).limit;

@@ -18,7 +18,11 @@ export async function reserveVoiceMedia(
   // Rates must come from the account's variable usage agreement, never a monthly plan allocation.
   let rates = {
     stt: configuredRate('VOICE_STT_USD_PER_MIN'),
-    telephony: configuredRate('VOICE_TELEPHONY_USD_PER_MIN'),
+    telephony: configuredRate(
+      call.direction === 'inbound'
+        ? 'VOICE_TELEPHONY_INBOUND_USD_PER_MIN'
+        : 'VOICE_TELEPHONY_OUTBOUND_USD_PER_MIN'
+    ),
   };
   if (sttProvider !== 'deepgram')
     throw new Error('wallet_voice_stt_rate_not_configured');
