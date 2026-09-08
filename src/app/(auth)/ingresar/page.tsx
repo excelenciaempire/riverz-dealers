@@ -32,7 +32,8 @@ export default function LoginPage() {
         const retry = res.headers.get("Retry-After") ?? "60";
         setError(t("auth.tooManyAttempts", { retry }));
       } else {
-        setError(payload.error ?? t("auth.loginError"));
+        // `error` is an internal code; use the server's localized message.
+        setError(payload.message ?? t("auth.loginError"));
       }
       setLoading(false);
       return;
