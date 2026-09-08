@@ -32,7 +32,6 @@ export default function ForgotPasswordPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email,
-        redirect_to: `${window.location.origin}/auth/callback?next=/nueva-clave`,
       }),
     });
     const payload = await res.json().catch(() => ({}));

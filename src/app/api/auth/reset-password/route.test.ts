@@ -31,7 +31,10 @@ vi.mock('@/lib/i18n/server', () => ({ getLocale: async () => 'es' }));
 import { POST } from './route';
 import { __resetRateLimitForTests } from '@/lib/rate-limit';
 
-function recoveryRequest(email = 'owner@example.com') {
+function recoveryRequest(
+  email = 'owner@example.com',
+  redirectTo = 'https://riverz.co/auth/callback?next=/nueva-clave',
+) {
   return new Request('https://riverz.co/api/auth/reset-password', {
     method: 'POST',
     headers: {
@@ -40,7 +43,7 @@ function recoveryRequest(email = 'owner@example.com') {
     },
     body: JSON.stringify({
       email,
-      redirect_to: 'https://riverz.co/auth/callback?next=/nueva-clave',
+      redirect_to: redirectTo,
     }),
   });
 }
@@ -74,6 +77,45 @@ describe('POST /api/auth/reset-password', () => {
     });
     expect(generateLink).not.toHaveBeenCalled();
     expect(sendAuthEmail).not.toHaveBeenCalled();
+  });
+
+  it('uses the configured Riverz callback when the request comes from localhost', async () => {
+    const response = await POST(
+      recoveryRequest(
+        'owner@example.com',
+        'http://localhost:10000/auth/callback?next=/nueva-clave',
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(resetPasswordForEmail).toHaveBeenCalledWith('owner@example.com', {
+      redirectTo: 'https://riverz.co/auth/callback?next=/nueva-clave',
+    });
+  });
+
+  it('uses the configured Riverz callback for Resend recovery links', async () => {
+    authEmailConfigured.mockReturnValue(true);
+    generateLink.mockResolvedValue({
+      data: { properties: { action_link: 'https://auth.example/recovery' } },
+      error: null,
+    });
+    sendAuthEmail.mockResolvedValue({ ok: true });
+
+    const response = await POST(
+      recoveryRequest(
+        'owner@example.com',
+        'http://localhost:10000/auth/callback?next=/nueva-clave',
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(generateLink).toHaveBeenCalledWith({
+      type: 'recovery',
+      email: 'owner@example.com',
+      options: {
+        redirectTo: 'https://riverz.co/auth/callback?next=/nueva-clave',
+      },
+    });
   });
 
   it('does not claim delivery when Supabase rejects the fallback', async () => {

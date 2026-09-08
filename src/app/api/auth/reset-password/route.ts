@@ -11,6 +11,19 @@ import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import { authEmailConfigured, sendAuthEmail } from "@/lib/auth/email";
 
+function defaultRecoveryRedirect() {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!siteUrl) return undefined;
+
+  try {
+    const callback = new URL("/auth/callback", siteUrl);
+    callback.search = "next=/nueva-clave";
+    return safeRedirectTo(callback.toString());
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * POST /api/auth/reset-password
  *
@@ -47,7 +60,9 @@ export async function POST(req: Request) {
   );
   if (!emailCheck.success) return rateLimitResponse(emailCheck);
 
-  const redirectTo = safeRedirectTo(body?.redirect_to);
+  // The browser's origin cannot be trusted here: a recovery request made
+  // from localhost must still produce a link to the configured Riverz site.
+  const redirectTo = safeRedirectTo(body?.redirect_to) ?? defaultRecoveryRedirect();
 
   // En producción Riverz entrega estos correos con Resend. En entornos donde
   // ese proveedor no está configurado, conservamos el flujo usando el correo
