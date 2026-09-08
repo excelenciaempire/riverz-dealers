@@ -4,11 +4,12 @@ import { adminGet } from '@/lib/admin/route';
 import { requireAdmin } from '@/lib/admin/guard';
 import { csrfGuard } from '@/lib/csrf';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { summarizeWalletMargin } from '@/lib/admin/wallet-margin';
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   return adminGet(request, { action: 'view.billing' }, async () => {
     const db = supabaseAdmin();
-    const [totals, pending] = await Promise.all([
+    const [totals, pending, margin, accounts] = await Promise.all([
       db.from('wallet_conciliacion').select('*').limit(1000),
       db
         .from('wallet_operaciones')
@@ -18,10 +19,20 @@ export async function GET(request: Request) {
         .eq('estado', 'reservada')
         .order('created_at')
         .limit(200),
+      db.from('wallet_margen_proveedores').select('*'),
+      db.from('wallet_accounts').select('resto_costo_centavos'),
     ]);
-    if (totals.error || pending.error)
+    if (totals.error || pending.error || margin.error || accounts.error)
       throw new Error('wallet_reconciliation_unavailable');
-    return { totals: totals.data, pending: pending.data };
+    return {
+      totals: totals.data,
+      pending: pending.data,
+      margin: summarizeWalletMargin(
+        margin.data ?? [],
+        pending.data ?? [],
+        accounts.data ?? []
+      ),
+    };
   });
 }
 export async function POST(request: Request) {

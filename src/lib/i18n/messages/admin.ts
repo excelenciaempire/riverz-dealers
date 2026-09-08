@@ -1339,6 +1339,32 @@ export const admin = {
     es: 'Stripe cobra hoy y deposita en dos días hábiles; los proveedores cobran por adelantado. Este es el hueco.',
     en: 'Stripe charges today and deposits in two business days; providers charge upfront. This is the gap.',
   },
+  cashTabMargin: { es: 'Margen del saldo', en: 'Wallet margin' },
+  cashMarginVariableOnly: {
+    es: 'Consumo variable de IA, voz y datos. No incluye mensualidades de proveedores.',
+    en: 'Variable AI, voice and data usage. Provider subscriptions are excluded.',
+  },
+  cashMarginCost: { es: 'Costo real', en: 'Actual cost' },
+  cashMarginCharged: { es: 'Descontado', en: 'Debited' },
+  cashMarginDifference: { es: 'Diferencia neta', en: 'Net difference' },
+  cashMarginDifferenceHint: {
+    es: 'Requiere revisar la conciliación.',
+    en: 'Reconciliation needs review.',
+  },
+  cashMarginBalanced: { es: 'Margen neto 0%.', en: '0% net margin.' },
+  cashMarginReserved: { es: 'Reservado', en: 'Reserved' },
+  cashMarginPending: {
+    es: '{n} operación(es) pendiente(s)',
+    en: '{n} pending operation(s)',
+  },
+  cashMarginProviders: { es: 'Por proveedor', en: 'By provider' },
+  cashMarginUses: { es: 'Movimientos', en: 'Entries' },
+  cashMarginCovered: { es: 'Cubierto', en: 'Covered' },
+  cashMarginReview: { es: 'Revisar', en: 'Review' },
+  cashMarginRounding: {
+    es: 'Fracción acumulada para el próximo descuento: {usd}.',
+    en: 'Fraction carried into the next debit: {usd}.',
+  },
 
   cashFree: { es: 'Caja libre', en: 'Free cash' },
   cashFreeHint: {

@@ -1,10 +1,11 @@
-"use client";
+'use client';
 
-import { useT } from "@/hooks/use-locale";
-import { PageHeader, Tabs, useTabParam } from "../_components/admin-ui";
-import { Hoy } from "./_hoy";
-import { Fijo } from "./_fijo";
-import { Recargas } from "./_recargas";
+import { useT } from '@/hooks/use-locale';
+import { PageHeader, Tabs, useTabParam } from '../_components/admin-ui';
+import { Hoy } from './_hoy';
+import { Fijo } from './_fijo';
+import { Recargas } from './_recargas';
+import { Margen } from './_margen';
 
 /**
  * La caja: cuánta plata hay, cuánto aguanta y qué cuesta recargar.
@@ -23,25 +24,37 @@ import { Recargas } from "./_recargas";
  * gratuita: cuando el bloque venía dentro de la respuesta de proveedores, saber
  * cuánto sale el mes costaba cuatro completions facturables.
  */
-const PESTANAS = ["hoy", "fijo", "recargas"] as const;
+const PESTANAS = ['hoy', 'margen', 'fijo', 'recargas'] as const;
 
 export default function AdminCajaPage() {
   const t = useT();
-  const [tab, setTab] = useTabParam("tab", PESTANAS, "hoy");
+  const [tab, setTab] = useTabParam('tab', PESTANAS, 'hoy');
 
   return (
     <div className="space-y-5">
-      <PageHeader title={t("admin.cashTitle")} description={t("admin.cashDesc")} />
+      <PageHeader
+        title={t('admin.cashTitle')}
+        description={t('admin.cashDesc')}
+      />
       <Tabs
         value={tab}
         onChange={setTab}
         options={[
-          { value: "hoy", label: t("admin.cashTabToday") },
-          { value: "fijo", label: t("admin.cashTabFixed") },
-          { value: "recargas", label: t("admin.cashCostsTitle") },
+          { value: 'hoy', label: t('admin.cashTabToday') },
+          { value: 'margen', label: t('admin.cashTabMargin') },
+          { value: 'fijo', label: t('admin.cashTabFixed') },
+          { value: 'recargas', label: t('admin.cashCostsTitle') },
         ]}
       />
-      {tab === "hoy" ? <Hoy /> : tab === "fijo" ? <Fijo /> : <Recargas />}
+      {tab === 'hoy' ? (
+        <Hoy />
+      ) : tab === 'margen' ? (
+        <Margen />
+      ) : tab === 'fijo' ? (
+        <Fijo />
+      ) : (
+        <Recargas />
+      )}
     </div>
   );
 }
