@@ -1266,6 +1266,12 @@ export const settings = {
   // ── Billetera ──
   tabWallet: { es: 'Saldo', en: 'Balance' },
   walletBalance: { es: 'Saldo disponible', en: 'Available balance' },
+  walletStripeFeeRate: { es: 'Comisión real por recarga', en: 'Actual fee per top-up' },
+  walletStripeFee: { es: 'Comisión de Stripe', en: 'Stripe processing fee' },
+  walletFeeNotice: {
+    es: 'La comisión real de Stripe se descuenta del saldo en cada recarga, incluidas las automáticas. Sin margen adicional.',
+    en: 'The actual Stripe fee is deducted from your balance on every top-up, including automatic top-ups. No added margin.',
+  },
   walletTopUp: { es: 'Recarga', en: 'Top-up' },
   walletTopUpFailed: {
     es: 'No se pudo abrir la recarga.',
@@ -1363,8 +1369,8 @@ export const settings = {
   //    a veces desde un cron donde no hay pantalla ni cookie de idioma.
   walletProductName: { es: 'Saldo Riverz', en: 'Riverz balance' },
   walletProductDesc: {
-    es: 'Saldo para las respuestas de la IA, las llamadas y todo lo que consuma la cuenta.',
-    en: 'Balance for AI replies, calls and everything the account uses.',
+    es: 'Saldo para consumo. La comisión real de Stripe se descuenta del saldo, sin margen adicional.',
+    en: 'Balance for usage. The actual Stripe fee is deducted from the balance, with no added margin.',
   },
   avisoSaldoBajoTitulo: { es: 'Te queda poco saldo', en: "You're running low" },
   avisoSaldoBajoCuerpo: {

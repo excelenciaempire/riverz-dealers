@@ -19,6 +19,7 @@ import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
+import { COMISION_REAL, descontarComision } from './comision'
 import { MAXIMO_CENTAVOS, MINIMO_CENTAVOS } from './recarga'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 
@@ -370,10 +371,18 @@ export async function recargarLasQueHagaFalta(
           workspace_id: f.workspace_id,
           tipo: 'recarga_billetera',
           origen: 'automatica',
+          comision: COMISION_REAL,
         },
       })
       if (pi.status !== 'succeeded') {
         throw new Error(`el pago quedó en ${pi.status}`)
+      }
+      // A successful charge must not become a failed charge when fees are pending.
+      // The signed payment webhook retries fee settlement independently.
+      try {
+        await descontarComision(db, f.workspace_id, pi.id)
+      } catch (error) {
+        console.error('[wallet/auto] fee settlement deferred to webhook', pi.id, error)
       }
       const r = await mover(db, f.workspace_id, {
         tipo: 'recarga',

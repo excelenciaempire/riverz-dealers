@@ -16,6 +16,7 @@ import type Stripe from 'stripe'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripe } from '@/lib/billing/stripe'
 import { mover } from './saldo'
+import { COMISION_REAL, descontarComision } from './comision'
 import { translate } from '@/lib/i18n/translate'
 import { localeDeCuenta } from '@/lib/i18n/cuenta'
 
@@ -110,9 +111,10 @@ export async function urlDeRecarga(
       workspace_id: workspaceId,
       tipo: 'recarga_billetera',
       centavos: String(centavos),
+      comision: COMISION_REAL,
     },
     payment_intent_data: {
-      metadata: { workspace_id: workspaceId, tipo: 'recarga_billetera' },
+      metadata: { workspace_id: workspaceId, tipo: 'recarga_billetera', comision: COMISION_REAL },
     },
     success_url: volverA('/ajustes?tab=saldo&recarga=lista'),
     cancel_url: volverA('/ajustes?tab=saldo&recarga=cancelada'),
@@ -143,6 +145,7 @@ export async function acreditarDesdeEvento(
     if (!workspaceId) return 'recarga sin workspace_id'
     const centavos = Number(pi.amount_received ?? pi.amount ?? 0)
     if (!(centavos > 0)) return `recarga en cero: ${pi.id}`
+    await descontarComision(db, workspaceId, pi.id)
     const r = await mover(db, workspaceId, {
       tipo: 'recarga',
       concepto: 'recarga',
@@ -155,7 +158,7 @@ export async function acreditarDesdeEvento(
       : `${workspaceId}: +${centavos} → ${r.saldoCentavos} (rescatada del webhook)`
   }
 
-  if (evento.type !== 'checkout.session.completed') return null
+  if (evento.type !== 'checkout.session.completed' && evento.type !== 'checkout.session.async_payment_succeeded') return null
 
   const sesion = evento.data.object as Stripe.Checkout.Session
   if (sesion.metadata?.tipo !== 'recarga_billetera') return null
@@ -200,6 +203,7 @@ export async function acreditarDesdeEvento(
     }
   }
 
+  await descontarComision(db, workspaceId, pago)
   const r = await mover(db, workspaceId, {
     tipo: 'recarga',
     concepto: 'recarga',

@@ -60,6 +60,15 @@ const VENTANA_DIAS = 30
  */
 const CATALOGO: Omit<CostoReal, 'medido'>[] = [
   {
+    concepto: 'comision_stripe',
+    nombreEs: 'Comisión de Stripe',
+    nombreEn: 'Stripe processing fee',
+    centavos: 0,
+    unidad: 'recarga',
+    proveedor: 'Stripe',
+    cobro: 'por_uso',
+  },
+  {
     // 6,05 ¢ medido en producción sobre 25 respuestas (2026-08-30), con el
     // modelo por defecto, que es Opus 5. El número viejo —1,44— era el de
     // Haiku, y ningún agente nace en Haiku: le mostraba al comercio la cuarta

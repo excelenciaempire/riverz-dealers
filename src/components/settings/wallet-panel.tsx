@@ -290,6 +290,7 @@ export function WalletPanel() {
 
   const nombreConcepto = useCallback(
     (c: string) => {
+      if (c === 'comision_stripe') return t('settings.walletStripeFee');
       if (c === 'recarga') return t('settings.walletTopUp');
       const tar = e?.tarifas.find((x) => x.concepto === c);
       if (!tar) return c;
@@ -381,6 +382,7 @@ export function WalletPanel() {
             </div>
           )}
         </div>
+        <p className="mt-3 text-sm text-muted-foreground">{t('settings.walletFeeNotice')}</p>
         {enRojo && (
           <p className="mt-3 text-sm text-muted-foreground">
             {e.bloquearSinSaldo
@@ -831,7 +833,7 @@ export function WalletPanel() {
                   </span>
                 </span>
                 <span className="shrink-0 text-right tabular-nums text-foreground">
-                  {c.cobro === 'por_uso' ? (
+                  {c.concepto === 'comision_stripe' ? t('settings.walletStripeFeeRate') : c.cobro === 'por_uso' ? (
                     <>
                       {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
                         maximumFractionDigits: 4,
@@ -845,7 +847,7 @@ export function WalletPanel() {
                         : t('settings.walletInsideOf', { linea: dentroDe ?? '' })}
                     </span>
                   )}
-                  {c.cobro === 'por_uso' && (
+                  {c.cobro === 'por_uso' && c.concepto !== 'comision_stripe' && (
                     <span className="block text-xs text-muted-foreground">
                       {esMedido
                         ? t('settings.walletYourAverage')
