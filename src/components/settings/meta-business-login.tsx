@@ -384,15 +384,24 @@ export function MetaBusinessLogin({
                     checked={checked.has(a.id)}
                     onChange={() => toggle(a.id)}
                   />
-                  <span className="flex items-center gap-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
                     <ChannelLogo
                       channel={logoChannel}
                       src={logoSrc}
                       size={16}
                     />
-                    {channel === 'instagram'
-                      ? a.label.replace(/\s+\(Instagram\)$/u, '')
-                      : a.label}
+                    <span className="flex min-w-0 flex-col text-sm">
+                      <span>
+                        {channel === 'instagram'
+                          ? a.label.replace(/\s+\(Instagram\)$/u, '')
+                          : a.label}
+                      </span>
+                      {channel === 'messenger' && (
+                        <span className="text-muted-foreground text-xs">
+                          {t('settings.metaPageId', { id: a.id })}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </label>
               </li>
