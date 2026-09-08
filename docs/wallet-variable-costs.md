@@ -14,7 +14,7 @@ Se excluyen las mensualidades de proveedores, servidores y suscripciones. No se 
 
 ## Requisitos de activación
 
-1. Aplicar `supabase/migrations/253_wallet_provider_usage.sql`. La credencial de administración disponible respondió HTTP 401 durante esta tarea; la migración NO se aplicó a producción.
+1. Migración `supabase/migrations/253_wallet_provider_usage.sql` aplicada a producción y verificada mediante SQL y la API de Supabase. Se recargó la caché de PostgREST y la comprobación del esquema terminó correctamente. Las cinco cuentas existentes quedaron con cobro a costo y sin descubierto.
 2. Configurar las tarifas de consumo contratadas. No dividir una mensualidad por sus créditos incluidos:
    - `FIRECRAWL_USAGE_USD_PER_CREDIT`: costo de créditos de uso adquiridos.
    - `APIFY_PROFILE_MAX_USAGE_USD`: reserva máxima por perfil (mayor que cero, hasta USD 5); no es el precio final. Los límites de Apify dependen del modelo del actor y no garantizan un techo para todos los cargos de plataforma.
@@ -27,7 +27,7 @@ Se excluyen las mensualidades de proveedores, servidores y suscripciones. No se 
 5. Suscribir el webhook de Stripe a `refund.created`, `refund.updated`, `refund.failed`, `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, además de los eventos existentes de pago/checkout. Verificar un pago y su comisión, reintento, reembolso y reversión en modo test.
 6. Probar una llamada de extremo a extremo después de la migración y despliegue coordinado. La validación local no sustituye esa prueba.
 
-El build de Render comprueba que existe el esquema nuevo y falla antes de sustituir la versión activa si falta. El commit inicial incluye `[skip render]` porque la base aún no está preparada.
+El build de Render comprueba que existe el esquema nuevo y falla antes de sustituir la versión activa si falta. El commit inicial incluyó `[skip render]` mientras faltaba la migración. La base ya está preparada; la activación del código y del worker sigue pendiente de las tarifas verificadas y de las comprobaciones descritas arriba.
 
 ## Conciliación
 
