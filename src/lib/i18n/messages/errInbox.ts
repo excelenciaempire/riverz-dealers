@@ -201,6 +201,10 @@ export const errInbox = {
     es: 'Selecciona al menos un activo de Meta',
     en: 'Select at least one Meta asset',
   },
+  metaAdAccountSelectionRequired: {
+    es: 'Selecciona una cuenta publicitaria para cada página',
+    en: 'Select an ad account for each Page',
+  },
   metaSelectedAssetUnavailable: {
     es: 'Meta no devolvió uno de los activos seleccionados. Revisa sus permisos y vuelve a intentarlo.',
     en: 'Meta did not return one of the selected assets. Check its permissions and try again.',
