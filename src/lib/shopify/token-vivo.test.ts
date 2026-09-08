@@ -31,6 +31,11 @@ describe('cuándo hay que renovar', () => {
     expect(venceProximo('2026-08-24T11:00:00Z', AHORA)).toBe(true)
   })
 
+  it('respeta la ventana preventiva del cron de quince minutos', () => {
+    expect(venceProximo('2026-08-24T12:18:00Z', AHORA, 20 * 60_000)).toBe(true)
+    expect(venceProximo('2026-08-24T12:21:00Z', AHORA, 20 * 60_000)).toBe(false)
+  })
+
   it('una fecha ilegible no dispara una renovación a ciegas', () => {
     expect(venceProximo('cualquier cosa', AHORA)).toBe(false)
   })

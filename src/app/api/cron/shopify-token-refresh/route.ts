@@ -52,7 +52,7 @@ async function cronHandler(request: Request) {
     .from('shopify_connections')
     .select(COLUMNAS_TOKEN)
     .eq('platform', 'shopify')
-    .eq('status', 'active')
+    .in('status', ['active', 'expired'])
     .not('token_expires_at', 'is', null)
     .lte('token_expires_at', limite)
     .limit(200)
@@ -66,7 +66,7 @@ async function cronHandler(request: Request) {
 
   for (const fila of filas) {
     try {
-      const r = await tokenVivo(admin, fila)
+      const r = await tokenVivo(admin, fila, VENTANA_MS)
       if (r.renovado) renovados += 1
       else fallaron += 1
     } catch (err) {

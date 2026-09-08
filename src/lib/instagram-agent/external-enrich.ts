@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
 import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
+import { getProviderCooldown, setProviderCooldown } from './provider-cooldown';
 import {
   completeText,
   describeImage,
@@ -150,6 +151,12 @@ async function scrapeProfile(
   username: string,
   token: string
 ): Promise<ScrapeOutcome> {
+  const cooling = getProviderCooldown(token);
+  if (cooling) return {
+    ok: false, kind: 'error',
+    reason: cooling.reason as ExternalEnrichFailureReason,
+    status: cooling.status,
+  };
   try {
     const res = await fetch(
       `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
@@ -162,13 +169,15 @@ async function scrapeProfile(
     );
     if (!res.ok) {
       const body = await res.text().catch(() => '');
+      const reason = classifyApifyFailure(res.status, body);
+      setProviderCooldown(token, reason, res.status);
       console.error(
         `[ig-external-enrich] Apify respondió ${res.status} — no se marca el intento`
       );
       return {
         ok: false,
         kind: 'error',
-        reason: classifyApifyFailure(res.status, body),
+        reason,
         status: res.status,
       };
     }
@@ -321,11 +330,11 @@ export async function enrichExternalProfile(
       'apify',
       process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null
     );
-    if (!llave) return 'failed:missing_key';
+    if (!llave) return 'skipped';
     const scraped = await scrapeProfile(uname, llave.key);
     // Apify cobra por perfil consultado. Si la llave la puso el comercio ya le
     // cobra Apify; si salió la de Riverz, se le pasa el costo.
-    if (!llave.propia && opts.workspaceId) {
+    if ((scraped.ok || scraped.kind === 'empty') && !llave.propia && opts.workspaceId) {
       void cobrarUsoPorUnidad(db, opts.workspaceId, {
         concepto: 'perfil_externo',
         cantidad: 1,

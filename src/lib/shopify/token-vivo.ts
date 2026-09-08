@@ -53,14 +53,15 @@ interface FilaConexion {
 /** ¿Hay que renovarlo antes de usarlo? */
 export function venceProximo(
   expiraEn: string | null,
-  ahora = Date.now()
+  ahora = Date.now(),
+  margenMs = MARGEN_MS
 ): boolean {
   // Sin fecha es un token de los viejos, que no expira. Siguen andando hasta
   // que Shopify también los corte; forzar una renovación que no tienen cómo
   // hacer los rompería antes de tiempo.
   if (!expiraEn) return false;
   const t = Date.parse(expiraEn);
-  return Number.isFinite(t) ? t - ahora <= MARGEN_MS : false;
+  return Number.isFinite(t) ? t - ahora <= margenMs : false;
 }
 
 /**
@@ -72,10 +73,11 @@ export function venceProximo(
  */
 export async function tokenVivo(
   db: SupabaseClient,
-  fila: FilaConexion
+  fila: FilaConexion,
+  margenMs = MARGEN_MS
 ): Promise<TokenVivo> {
   const actual = decrypt(fila.access_token);
-  if (!venceProximo(fila.token_expires_at)) {
+  if (!venceProximo(fila.token_expires_at, Date.now(), margenMs)) {
     return { accessToken: actual, renovado: false };
   }
 
@@ -89,7 +91,7 @@ export async function tokenVivo(
         clientId: decrypt(fila.client_id_encrypted),
         clientSecret: decrypt(fila.webhook_secret),
       });
-      await db
+      const { error: persistError } = await db
         .from('shopify_connections')
         .update({
           access_token: encrypt(nuevo.access_token),
@@ -100,6 +102,7 @@ export async function tokenVivo(
           last_error: null,
         })
         .eq('id', fila.id);
+      if (persistError) throw new Error(`token persistence: ${persistError.message}`);
       return { accessToken: nuevo.access_token, renovado: true };
     } catch (err) {
       log.warn('client_credentials_refresh_failed', {
@@ -188,7 +191,8 @@ export async function tokenVivo(
           ).toISOString()
         : null;
     }
-    await db.from('shopify_connections').update(parche).eq('id', fila.id);
+    const { error: persistError } = await db.from('shopify_connections').update(parche).eq('id', fila.id);
+    if (persistError) throw new Error(`token persistence: ${persistError.message}`);
 
     return { accessToken: nuevo.access_token, renovado: true };
   } catch (err) {

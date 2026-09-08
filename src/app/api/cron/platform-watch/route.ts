@@ -103,8 +103,29 @@ async function cronHandler(request: Request) {
 
   const admin = supabaseAdmin()
 
+  // An unreadable snapshot is not an empty incident list.
+  const { data: estadoRow, error: estadoError } = await admin
+    .from('platform_watch_state')
+    .select('fingerprint')
+    .eq('id', true)
+    .maybeSingle()
+  if (estadoError) throw new Error(`platform_watch_state: ${estadoError.message}`)
+  const anterior = estadoRow?.fingerprint ?? ''
+  const previas = new Set<string>(anterior ? anterior.split('|') : [])
+  const conservar = new Set<string>()
+  const lecturasFallidas: string[] = []
+  const conservarPrefijo = (prefix: string) => {
+    for (const key of previas) if (key.startsWith(prefix)) conservar.add(key)
+  }
+
   const [porWorkspace, salud, dropi] = await Promise.all([
-    collectPlatformIssues(admin),
+    collectPlatformIssues(admin).catch((err) => {
+      log.warn('no se pudo leer la salud de comercios', { error: String(err) })
+      lecturasFallidas.push('workspace_health')
+      conservarPrefijo('canal:')
+      conservarPrefijo('masivo:')
+      return new Map<string, Issue[]>()
+    }),
     admin.rpc('admin_cron_health'),
     admin
       .from('dropi_connections')
@@ -152,6 +173,8 @@ async function cronHandler(request: Request) {
   // falla queda en la conexión y sólo llega acá si ningún envío posterior la
   // limpió antes del siguiente tick.
   if (dropi.error) {
+    lecturasFallidas.push('dropi_health')
+    conservarPrefijo('integracion:')
     log.warn('no se pudo leer la salud de Dropi', {
       error: dropi.error.message,
     })
@@ -181,6 +204,8 @@ async function cronHandler(request: Request) {
   const cronsRotos: Array<{ name: string; motivo: 'detenido' | 'error' }> = []
   const saludLegible = !salud.error && (runs?.length ?? 0) > 0
   if (!saludLegible) {
+    lecturasFallidas.push('cron_health')
+    conservarPrefijo('cron:')
     log.warn('estado de los trabajos ilegible: no se evalúan crons este tick', {
       error: salud.error?.message ?? null,
       filas: runs?.length ?? 0,
@@ -217,12 +242,19 @@ async function cronHandler(request: Request) {
           // fallidos sin perder el último resultado sano que corta la racha.
           .limit(6)
         if (error) {
+          lecturasFallidas.push(`cron_confirmation:${name}`)
+          if (previas.has(`cron:${name}`)) conservar.add(`cron:${name}`)
           log.warn('no se pudo confirmar un trabajo en error', {
             job: name,
             error: error.message,
           })
           return false
         }
+        // Only a completed success closes an already announced incident.
+        if (data?.[0]?.status === 'error' && previas.has(`cron:${name}`)) {
+          conservar.add(`cron:${name}`)
+        }
+        if (!data?.length && previas.has(`cron:${name}`)) conservar.add(`cron:${name}`)
         return isActionableCronFailure(data ?? [])
       })
     )
@@ -233,6 +265,8 @@ async function cronHandler(request: Request) {
     // lectura, no los trabajos: 41 fallas independientes en el mismo minuto no
     // existen. Se registra y no se avisa.
     if (cronsRotos.length > SCHEDULED_JOBS.length / 2) {
+      lecturasFallidas.push('cron_health_suspicious')
+      conservarPrefijo('cron:')
       log.warn('demasiados trabajos en rojo a la vez: se ignora por sospechoso', {
         rotos: cronsRotos.length,
         total: SCHEDULED_JOBS.length,
@@ -280,6 +314,7 @@ async function cronHandler(request: Request) {
       })
     }
     for (const p of proveedores) {
+      if (p.estado === 'error') conservarPrefijo(`saldo:${p.id}`)
       // Sólo los que se recargan: que Supabase no publique saldo no es una
       // alarma, es que no tiene saldo que publicar.
       if (!p.recargable) continue
@@ -296,46 +331,48 @@ async function cronHandler(request: Request) {
       )
     }
   } catch (err) {
+    lecturasFallidas.push('provider_health')
+    conservarPrefijo('saldo:')
     log.warn('no se pudo leer el saldo de los proveedores', {
       error: err instanceof Error ? err.message : String(err),
     })
   }
 
-  const fingerprint = [...actuales.keys()].sort().join('|')
-
-  const { data: estadoRow } = await admin
-    .from('platform_watch_state')
-    .select('fingerprint')
-    .eq('id', true)
-    .maybeSingle()
-  const anterior = (estadoRow as { fingerprint?: string | null } | null)?.fingerprint ?? ''
+  const fingerprint = [...new Set([...actuales.keys(), ...conservar])].sort().join('|')
+  const respond = (body: Record<string, unknown>) => NextResponse.json({
+    ...body,
+    ...(lecturasFallidas.length ? { error: lecturasFallidas.join(', ') } : {}),
+  }, { status: lecturasFallidas.length ? 207 : 200 })
 
   if (fingerprint === anterior) {
-    return NextResponse.json({
+    return respond({
       problemas: actuales.size,
       nuevos: 0,
       avisado: false,
     })
   }
 
-  const previas = new Set(anterior ? anterior.split('|') : [])
   const nuevas = [...actuales.keys()].filter((k) => !previas.has(k))
 
   // Guardar SIEMPRE, aunque el aviso no salga: si no, un fallo de WhatsApp
   // convierte el próximo tick en el mismo mensaje otra vez, cada 15 minutos.
-  await admin.from('platform_watch_state').upsert(
-    {
+  const snapshot = {
       id: true,
       fingerprint,
       notified_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' }
-  )
+    }
+  // Compare-and-set prevents two overlapping monitors announcing the same change.
+  const saved = estadoRow
+    ? await admin.from('platform_watch_state').update(snapshot)
+      .eq('id', true).eq('fingerprint', anterior).select('id')
+    : await admin.from('platform_watch_state').insert(snapshot).select('id')
+  if (saved.error) throw new Error(`platform_watch_state: ${saved.error.message}`)
+  if (!saved.data?.length) return respond({ avisado: false, concurrent: true })
 
   // Que desaparezca un problema también cambia la huella, y eso no se avisa.
   if (nuevas.length === 0) {
-    return NextResponse.json({
+    return respond({
       problemas: actuales.size,
       nuevos: 0,
       avisado: false,
@@ -351,7 +388,7 @@ async function cronHandler(request: Request) {
       nuevos: nuevas.length,
       falta: 'PLATFORM_ALERT_PHONE o PLATFORM_ALERT_EMAIL',
     })
-    return NextResponse.json({
+    return respond({
       problemas: actuales.size,
       nuevos: nuevas.length,
       avisado: false,
@@ -396,7 +433,7 @@ async function cronHandler(request: Request) {
     log.warn('había novedades y ningún aviso salió', { nuevos: nuevas.length })
   }
 
-  return NextResponse.json({
+  return respond({
     problemas: actuales.size,
     nuevos: nuevas.length,
     cronsRotos: cronsRotos.length,

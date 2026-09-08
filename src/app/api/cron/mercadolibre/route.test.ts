@@ -112,5 +112,7 @@ describe('Mercado Libre cron', () => {
     expect(body.ok).toBe(false);
     expect(body.failed).toBe(1);
     expect(body.claims.failures).toHaveLength(1);
+    expect(body.claims.error).toContain('Graph 500');
+    expect(body.error).toContain('claims: Graph 500');
   });
 });

@@ -112,7 +112,10 @@ async function cronHandler(request: Request) {
       ok: failed === 0,
       ...out,
       failed,
-      ...(failed ? { error: `${failed} sincronizaciones de Mercado Libre con errores` } : {}),
+      ...(failed ? { error: Object.entries(out)
+        .filter(([, value]) => hasMercadoLibreFailures(value) || hasError(value))
+        .map(([name, value]) => `${name}: ${failureDetail(value)}`)
+        .join('; ').slice(0, 450) } : {}),
     },
     { status: failed ? 207 : 200 }
   );
@@ -122,6 +125,11 @@ function hasError(value: unknown): boolean {
   return Boolean(value && typeof value === "object" && "error" in value);
 }
 
+function failureDetail(value: unknown): string {
+  const result = value as { error?: string; failures?: Array<{ error: string }> };
+  return result.failures?.map((failure) => failure.error).join('; ') || result.error || 'sync_failed';
+}
+
 /** Conserva el resultado parcial, pero registra el subtrabajo como error. */
 async function runSubtask<T>(name: string, task: () => Promise<T>): Promise<T | { error: string }> {
   let result: T | undefined;
@@ -129,8 +137,7 @@ async function runSubtask<T>(name: string, task: () => Promise<T>): Promise<T | 
     return await withCronTask(name, async () => {
       result = await task();
       if (hasMercadoLibreFailures(result)) {
-        const count = (result as { failures: unknown[] }).failures.length;
-        throw new Error(`${count} conexiones con errores`);
+        throw new Error(failureDetail(result).slice(0, 450));
       }
       return result;
     });
