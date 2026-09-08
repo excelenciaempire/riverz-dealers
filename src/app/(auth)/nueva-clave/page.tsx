@@ -5,6 +5,7 @@ import { useLocalizedRouter } from "@/hooks/use-localized-router";
 import Link from "@/components/i18n/locale-link";
 import { useT } from "@/hooks/use-locale";
 import { createClient } from "@/lib/supabase/client";
+import { restoreRecoverySession } from "@/lib/auth/recovery-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,20 +30,22 @@ export default function NewPasswordPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Legacy implicit flow lands here with `#access_token=...&type=recovery`
-    // in the URL fragment. supabase-js parses that automatically on the
-    // first `getSession()` call and sets the recovery session; we just
-    // need to wait for it before showing the form.
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        // PKCE flow exchange happens in /auth/callback, so by the time
-        // the user lands here a session should already exist. If not,
-        // the link probably expired.
+      const established = await restoreRecoverySession(
+        supabase.auth,
+        window.location.href,
+      );
+      if (!established) {
         setError(t("auth.linkExpired"));
       }
-      setReady(true);
-    })();
+      // The recovery tokens are no longer needed in the address bar once
+      // stored by Supabase, and must not be copied into browser history.
+      window.history.replaceState({}, "", window.location.pathname);
+      setReady(established);
+    })().catch(() => {
+      setError(t("auth.linkExpired"));
+      setReady(false);
+    });
   }, [supabase, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,7 +66,7 @@ export default function NewPasswordPage() {
     setLoading(false);
 
     if (updErr) {
-      setError(updErr.message);
+      setError(t("auth.linkExpired"));
       return;
     }
     setDone(true);
