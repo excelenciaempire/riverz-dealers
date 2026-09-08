@@ -33,7 +33,7 @@ import { __resetRateLimitForTests } from '@/lib/rate-limit';
 
 function recoveryRequest(
   email = 'owner@example.com',
-  redirectTo = 'https://riverz.co/auth/callback?next=/nueva-clave',
+  redirectTo = 'https://riverz.co/nueva-clave',
 ) {
   return new Request('https://riverz.co/api/auth/reset-password', {
     method: 'POST',
@@ -73,27 +73,27 @@ describe('POST /api/auth/reset-password', () => {
       message: 'Si la cuenta existe, recibirás un correo con instrucciones.',
     });
     expect(resetPasswordForEmail).toHaveBeenCalledWith('owner@example.com', {
-      redirectTo: 'https://riverz.co/auth/callback?next=/nueva-clave',
+      redirectTo: 'https://riverz.co/nueva-clave',
     });
     expect(generateLink).not.toHaveBeenCalled();
     expect(sendAuthEmail).not.toHaveBeenCalled();
   });
 
-  it('uses the configured Riverz callback when the request comes from localhost', async () => {
+  it('uses the configured Riverz password page when the request comes from localhost', async () => {
     const response = await POST(
       recoveryRequest(
         'owner@example.com',
-        'http://localhost:10000/auth/callback?next=/nueva-clave',
+        'http://localhost:10000/nueva-clave',
       ),
     );
 
     expect(response.status).toBe(200);
     expect(resetPasswordForEmail).toHaveBeenCalledWith('owner@example.com', {
-      redirectTo: 'https://riverz.co/auth/callback?next=/nueva-clave',
+      redirectTo: 'https://riverz.co/nueva-clave',
     });
   });
 
-  it('uses the configured Riverz callback for Resend recovery links', async () => {
+  it('uses the configured Riverz password page for Resend recovery links', async () => {
     authEmailConfigured.mockReturnValue(true);
     generateLink.mockResolvedValue({
       data: { properties: { action_link: 'https://auth.example/recovery' } },
@@ -104,7 +104,7 @@ describe('POST /api/auth/reset-password', () => {
     const response = await POST(
       recoveryRequest(
         'owner@example.com',
-        'http://localhost:10000/auth/callback?next=/nueva-clave',
+        'http://localhost:10000/nueva-clave',
       ),
     );
 
@@ -113,7 +113,7 @@ describe('POST /api/auth/reset-password', () => {
       type: 'recovery',
       email: 'owner@example.com',
       options: {
-        redirectTo: 'https://riverz.co/auth/callback?next=/nueva-clave',
+        redirectTo: 'https://riverz.co/nueva-clave',
       },
     });
   });

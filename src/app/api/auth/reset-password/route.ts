@@ -16,9 +16,10 @@ function defaultRecoveryRedirect() {
   if (!siteUrl) return undefined;
 
   try {
-    const callback = new URL("/auth/callback", siteUrl);
-    callback.search = "next=/nueva-clave";
-    return safeRedirectTo(callback.toString());
+    // Recovery tokens use the URL fragment. A server callback cannot read or
+    // forward that fragment, so it would discard the session before the form
+    // can consume it. Send the browser straight to the client recovery page.
+    return safeRedirectTo(new URL("/nueva-clave", siteUrl).toString());
   } catch {
     return undefined;
   }
