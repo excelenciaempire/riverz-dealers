@@ -35,7 +35,11 @@ export const auth = {
 
   // Login
   loginTitle: { es: "Iniciar sesión", en: "Sign in" },
-  loginError: { es: "No se pudo iniciar sesión", en: "Could not sign in" },
+    loginError: { es: "No se pudo iniciar sesión", en: "Could not sign in" },
+    loginConnectionError: {
+      es: "No pudimos completar el inicio de sesión. Inténtalo de nuevo.",
+      en: "We couldn't complete sign-in. Please try again.",
+    },
   forgotPassword: { es: "¿Olvidaste tu contraseña?", en: "Forgot your password?" },
   signingIn: { es: "Iniciando sesión...", en: "Signing in..." },
   signIn: { es: "Iniciar sesión", en: "Sign in" },
