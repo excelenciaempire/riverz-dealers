@@ -36,6 +36,9 @@ describe('normalizeTemplateName', () => {
   it('collapses repeats and trims underscores', () => {
     expect(normalizeTemplateName('  __Hola   Mundo__  ')).toBe('hola_mundo')
   })
+  it('turns accents and ordinary separators into Meta-safe underscores', () => {
+    expect(normalizeTemplateName('Confirmación - pedido Nº 2')).toBe('confirmacion_pedido_n_2')
+  })
 })
 
 describe('buildTemplateComponents', () => {

@@ -232,6 +232,15 @@ describe('crearPlantilla', () => {
     expect(r.ok && r.name).toBe('carrito_abandonado')
   })
 
+  it('normaliza acentos y separadores escritos de forma natural', async () => {
+    const r = await crearPlantilla(fakeDb(), {
+      ...BASE,
+      nombre: 'Confirmación - pedido Nº 2',
+    })
+    expect(r.ok && r.name).toBe('confirmacion_pedido_n_2')
+    expect(enviadasAMeta[0].name).toBe('confirmacion_pedido_n_2')
+  })
+
   it('sin conexión propia cae a la del workspace (Embedded Signup)', async () => {
     estado.config = null
     meta.conexionDelWorkspace = { config: { waba_id: 'waba-2' }, secrets: { access_token: 'c2' } }

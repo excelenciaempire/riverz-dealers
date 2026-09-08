@@ -82,11 +82,13 @@ export function validateVariableSequence(text: string): string | null {
 /** Normalize a free-text name into Meta's lowercase snake_case requirement. */
 export function normalizeTemplateName(raw: string): string {
   return raw
-    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
-    .replace(/[^a-z0-9_\s]/g, '')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
+    // A person writes words; Meta requires their separators to be `_`.
+    // Treat spaces, hyphens and punctuation alike so the field never makes
+    // someone rewrite the same title in a machine-only format.
+    .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '')
     .slice(0, 512)
 }

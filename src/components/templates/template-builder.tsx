@@ -35,6 +35,7 @@ import {
 import { WhatsappPreview } from '@/components/templates/whatsapp-preview';
 import {
   extractVariables,
+  normalizeTemplateName,
   type TemplateButtonInput,
   type TemplateHeaderType,
 } from '@/lib/whatsapp/template-components';
@@ -336,7 +337,7 @@ export function TemplateBuilder() {
               <Input
                 placeholder={t('templates.namePlaceholder')}
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(normalizeTemplateName(e.target.value))}
                 className="bg-background"
               />
             </Field>
