@@ -167,15 +167,25 @@ export async function POST(req: Request): Promise<Response> {
         accessToken,
         body.channel as Channel
       );
+      let adAccounts: Array<{ id: string; label: string }> = [];
+      if (body.channel === 'messenger') {
+        try {
+          adAccounts = await listUserAdAccounts(accessToken);
+        } catch (error) {
+          // Ad accounts are optional. Missing marketing permissions must not
+          // prevent the user from connecting the Pages they selected.
+          console.warn(
+            '[meta/sdk-connect] ad account discovery skipped:',
+            error
+          );
+        }
+      }
       return NextResponse.json({
         accounts: discovered.map((a) => ({
           id: a.external_account_id,
           label: a.label,
         })),
-        adAccounts:
-          body.channel === 'messenger'
-            ? await listUserAdAccounts(accessToken)
-            : [],
+        adAccounts,
       });
     }
 

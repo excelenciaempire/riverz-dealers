@@ -87,6 +87,7 @@ export function MetaBusinessLogin({
   const [adAccountsByPage, setAdAccountsByPage] = useState<
     Record<string, Set<string>>
   >({});
+  const [showAdAccounts, setShowAdAccounts] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -260,6 +261,7 @@ export function MetaBusinessLogin({
             found.map((account) => [account.id, new Set<string>()])
           )
         );
+        setShowAdAccounts(false);
         // Meta can list every Page managed by one profile. New connections
         // start unselected so a workspace never receives assets by accident.
         setChecked(new Set());
@@ -408,47 +410,59 @@ export function MetaBusinessLogin({
             ))}
           </ul>
 
-          {channel === 'messenger' && (
-            <div className="max-h-48 space-y-3 overflow-y-auto border-t pt-3">
-              <p className="text-foreground text-sm font-medium">
-                {t('settings.chooseFacebookAdAccounts')}
-              </p>
-              {adAccounts.length === 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  {t('settings.noFacebookAdAccountsFound')}
-                </p>
-              ) : (
-                accounts
-                  .filter((account) => checked.has(account.id))
-                  .map((page) => (
-                    <div key={page.id} className="space-y-1">
-                      <p className="text-muted-foreground px-3 text-xs">
-                        {page.label}
-                      </p>
-                      {adAccounts.map((adAccount) => (
-                        <label
-                          key={adAccount.id}
-                          className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5"
-                        >
-                          <input
-                            type="checkbox"
-                            className="accent-primary size-4"
-                            checked={
-                              adAccountsByPage[page.id]?.has(adAccount.id) ??
-                              false
-                            }
-                            onChange={() =>
-                              toggleAdAccount(page.id, adAccount.id)
-                            }
-                          />
-                          <span className="text-sm">{adAccount.label}</span>
-                        </label>
+          {channel === 'messenger' &&
+            checked.size > 0 &&
+            adAccounts.length > 0 && (
+              <div className="border-t pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdAccounts((visible) => !visible)}
+                  className="text-foreground text-sm font-medium"
+                >
+                  {t('settings.configureFacebookAdAccounts')}
+                </button>
+                {showAdAccounts && (
+                  <div className="mt-3 max-h-48 space-y-3 overflow-y-auto">
+                    {accounts
+                      .filter((account) => checked.has(account.id))
+                      .map((page) => (
+                        <div key={page.id} className="space-y-1">
+                          <p className="text-muted-foreground px-3 text-xs">
+                            {page.label}
+                          </p>
+                          {adAccounts.map((adAccount) => (
+                            <label
+                              key={adAccount.id}
+                              className="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-3 py-1.5"
+                            >
+                              <input
+                                type="checkbox"
+                                className="accent-primary size-4"
+                                checked={
+                                  adAccountsByPage[page.id]?.has(
+                                    adAccount.id
+                                  ) ?? false
+                                }
+                                onChange={() =>
+                                  toggleAdAccount(page.id, adAccount.id)
+                                }
+                              />
+                              <span className="flex flex-col text-sm">
+                                <span>{adAccount.label}</span>
+                                <span className="text-muted-foreground text-xs">
+                                  {t('settings.metaAdAccountId', {
+                                    id: adAccount.id,
+                                  })}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
                       ))}
-                    </div>
-                  ))
-              )}
-            </div>
-          )}
+                  </div>
+                )}
+              </div>
+            )}
 
           <DialogFooter showCloseButton>
             <Button
