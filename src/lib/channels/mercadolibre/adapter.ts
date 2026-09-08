@@ -8,6 +8,7 @@ import { attachmentFilename, fetchAttachmentBytes, ingestRawMedia } from "../med
 import { safeLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/config";
+import { isInactiveMLAccountError } from './account-health';
 
 /**
  * MercadoLibre — pre-sale QUESTIONS + post-sale MESSAGES in the unified inbox.
@@ -566,8 +567,10 @@ export async function getFreshMLToken(connection: ChannelConnection): Promise<st
         ...(json.refresh_token ? { refresh_token: encrypt(json.refresh_token) } : {}),
       },
       config: { ...config, token_expires_at: newExpiry },
-      status: "connected",
-      last_error: null,
+      // Renewing OAuth does not reactivate a seller disabled by Mercado Libre.
+      // Only a successful resource read can clear that confirmed account error.
+      status: isInactiveMLAccountError(connection.last_error) ? "error" : "connected",
+      last_error: isInactiveMLAccountError(connection.last_error) ? connection.last_error : null,
     })
     .eq("id", connection.id);
   return json.access_token;

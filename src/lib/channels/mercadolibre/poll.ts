@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../admin-client";
-import { recordInactiveMLAccount } from './account-health';
+import { isInactiveMLAccountError, recordInactiveMLAccount } from './account-health';
 import { safeLocale } from '@/lib/i18n/server';
 import { listConnections } from "../connections";
 import { ingestInboundEvent } from "../inbox-writer";
@@ -93,6 +93,12 @@ export async function pollAllMercadoLibreConnections(): Promise<{
           );
         }
         const j = (await r.json()) as { questions?: MlQuestion[] };
+        if (isInactiveMLAccountError(conn.last_error)) {
+          const { error } = await db.from('channel_connections')
+            .update({ status: 'connected', last_error: null })
+            .eq('id', conn.id).eq('last_error', conn.last_error!);
+          if (error) throw new Error(`ML account recovery persistence: ${error.message}`);
+        }
         for (const q of j.questions ?? []) {
           if (!q.id || !q.text) continue;
           const buyerId = String(q.from?.id ?? q.buyer_id ?? "ml");

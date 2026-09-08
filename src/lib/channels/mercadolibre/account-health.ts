@@ -2,6 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Locale } from '@/lib/i18n/config';
 import { translate } from '@/lib/i18n/translate';
 
+export function isInactiveMLAccountError(message?: string | null): boolean {
+  return ['es', 'en'].some(locale => message === translate(locale as Locale, 'errInbox.mlAccountInactive'));
+}
+
 /** A resource-level 403 does not prove the seller account is inactive. */
 export async function recordInactiveMLAccount(
   db: SupabaseClient,

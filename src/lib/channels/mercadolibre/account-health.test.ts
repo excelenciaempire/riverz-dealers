@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { recordInactiveMLAccount } from './account-health';
+import { isInactiveMLAccountError, recordInactiveMLAccount } from './account-health';
 
 afterEach(() => vi.unstubAllGlobals());
 function database() {
@@ -12,8 +12,13 @@ describe('ML account health', () => {
       const { db, update } = database();
       const message = await recordInactiveMLAccount(db as never, 'connection', 'token', 403, 'user is not active', locale);
       expect(message).toContain(locale === 'es' ? 'inactiva' : 'inactive');
+      expect(isInactiveMLAccountError(message)).toBe(true);
       expect(update).toHaveBeenCalledWith({ status: 'error', last_error: message });
     }
+  });
+  it('does not retain unrelated connection failures after a token renewal', () => {
+    expect(isInactiveMLAccountError(null)).toBe(false);
+    expect(isInactiveMLAccountError('token expired')).toBe(false);
   });
   it('does not label a resource permission denial as an inactive account', async () => {
     const { db, update } = database();
