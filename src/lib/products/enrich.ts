@@ -1,10 +1,10 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Locale } from '@/lib/i18n/config';
 import { firecrawlScrape, workspaceDelProducto } from '@/lib/firecrawl/client';
+import type { Locale } from '@/lib/i18n/config';
 import { isPublicHttpsUrl } from '@/lib/security/url-guard';
 import { detectOffersFromScrapedContent } from '@/lib/shopify/offer-learning';
-import { buildResearchPrompt, parseResearchResponse } from './research';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { anthropicModel, type ModelFn } from './model-provider';
+import { buildResearchPrompt, parseResearchResponse } from './research';
 
 /**
  * Full per-product enrichment: scrape the page if we haven't, detect its
@@ -20,7 +20,7 @@ import { anthropicModel, type ModelFn } from './model-provider';
  */
 
 const RESEARCH_COLUMNS =
-  'id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, bundle_metadata, allowed_offers, offers_auto_detected, say_guidelines, never_say, escalation_triggers, websites, prelanding_urls, url';
+  'id, workspace_id, title, description, scraped_content, product_type, vendor, tags, custom_notes, custom_faqs, structured_research, price_min, price_max, bundle_app, bundle_metadata, allowed_offers, offers_auto_detected, say_guidelines, never_say, escalation_triggers, websites, prelanding_urls, url';
 
 export interface EnrichResult {
   ok: boolean;
@@ -140,7 +140,14 @@ export async function enrichProduct(
 
   const prompt = buildResearchPrompt(product, scrapedContent, locale);
   try {
-    const text = await (model ?? anthropicModel)(prompt);
+    const text = await (
+      model ??
+      anthropicModel({
+        db,
+        workspaceId: String(product.workspace_id),
+        concepto: 'investigacion',
+      })
+    )(prompt);
     const { update, faqsCount } = parseResearchResponse(
       text,
       product,

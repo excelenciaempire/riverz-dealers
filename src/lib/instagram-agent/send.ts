@@ -1,30 +1,30 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import type { ChannelConnection, Contact, Conversation } from '@/types';
-import type { OutboundText } from '@/lib/channels/types';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
-import type { InstagramCampaign } from './types';
-import { loadBrandContext } from './brand-context';
-import { latestInbound, resolveIgReach } from './engagement';
-import { claimCommentPrivateReply } from './private-reply-lock';
-import { craftPersonalizedDM } from './personalize-dm';
-import { loadIgProfile } from './profile-enrich';
-import { resolveIgSegment, type LeadScore } from './segment';
-import { proactiveGate, logProactiveSend, featureEnabled } from './controls';
-import { loadStoreLinks } from './store-links';
-import { recordProactiveDm } from './record-dm';
-import { loadCustomerContext } from './customer-context';
-import { loadProductBrain } from './product-brain';
 import {
   sendToSubscriber,
   type MarketingOptin,
 } from '@/lib/channels/marketing-optin';
+import type { OutboundText } from '@/lib/channels/types';
+import type { ChannelConnection, Contact, Conversation } from '@/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { loadBrandContext } from './brand-context';
+import { featureEnabled, logProactiveSend, proactiveGate } from './controls';
+import { loadCustomerContext } from './customer-context';
 import {
-  getShopifyAdmin,
   ensureCampaignPriceRule,
+  getShopifyAdmin,
   mintUniqueCode,
   parsePercent,
 } from './discounts';
+import { latestInbound, resolveIgReach } from './engagement';
+import { craftPersonalizedDM } from './personalize-dm';
+import { claimCommentPrivateReply } from './private-reply-lock';
+import { loadProductBrain } from './product-brain';
+import { loadIgProfile } from './profile-enrich';
+import { recordProactiveDm } from './record-dm';
+import { resolveIgSegment, type LeadScore } from './segment';
+import { loadStoreLinks } from './store-links';
+import type { InstagramCampaign } from './types';
 
 /**
  * Permiso vigente de Marketing Messages de esta persona, si lo dio y no está
@@ -33,7 +33,7 @@ import {
 async function findSubscription(
   db: SupabaseClient,
   workspaceId: string,
-  externalContactId: string,
+  externalContactId: string
 ): Promise<MarketingOptin | null> {
   const nowIso = new Date().toISOString();
   const { data } = await db
@@ -62,12 +62,15 @@ async function findSubscription(
  */
 export async function sendCampaignBatch(
   db: SupabaseClient,
-  campaign: Pick<InstagramCampaign, 'id' | 'workspace_id' | 'plan' | 'offer_code'> & {
+  campaign: Pick<
+    InstagramCampaign,
+    'id' | 'workspace_id' | 'plan' | 'offer_code'
+  > & {
     goal?: string | null;
     shopify_price_rule_id?: number | null;
     ai_agent_id?: string | null;
   },
-  limit = 25,
+  limit = 25
 ): Promise<{
   sent: number;
   failed: number;
@@ -87,7 +90,12 @@ export async function sendCampaignBatch(
     .order('updated_at', { ascending: false });
   const igConns = (connRows ?? []) as ChannelConnection[];
   if (igConns.length === 0) {
-    return { sent: 0, failed: 0, remaining: 0, skipped: 'instagram_not_connected' };
+    return {
+      sent: 0,
+      failed: 0,
+      remaining: 0,
+      skipped: 'instagram_not_connected',
+    };
   }
   const connection = igConns[0];
 
@@ -106,7 +114,9 @@ export async function sendCampaignBatch(
   //    (holdout) y el spam; priorizamos por lead score (high primero).
   const { data: recipients } = await db
     .from('instagram_campaign_recipients')
-    .select('id, contact_id, lead_score, contacts(id, external_id, name, opted_out)')
+    .select(
+      'id, contact_id, lead_score, contacts(id, external_id, name, opted_out)'
+    )
     .eq('campaign_id', campaign.id)
     .eq('status', 'queued')
     .eq('is_holdout', false)
@@ -128,7 +138,10 @@ export async function sendCampaignBatch(
   const rank: Record<string, number> = { high: 0, medium: 1, low: 2 };
   const ranked = allRows
     .slice()
-    .sort((a, b) => (rank[a.lead_score ?? 'low'] ?? 3) - (rank[b.lead_score ?? 'low'] ?? 3))
+    .sort(
+      (a, b) =>
+        (rank[a.lead_score ?? 'low'] ?? 3) - (rank[b.lead_score ?? 'low'] ?? 3)
+    )
     .slice(0, limit);
 
   // Suppress opt-outs (STOP / unsubscribe): honor the contact's request and
@@ -158,23 +171,30 @@ export async function sendCampaignBatch(
     igConns.length > 1
       ? await resolveRecipientConnections(
           db,
-          rows.map((r) => r.contact_id).filter((id): id is string => Boolean(id)),
-          igConns,
+          rows
+            .map((r) => r.contact_id)
+            .filter((id): id is string => Boolean(id)),
+          igConns
         )
       : new Map<string, ChannelConnection>();
 
   // Brand voice + knowledge once per batch, from the SAME linked agent that
   // answers reactively, so every DM sounds on-brand and consistent.
-  const brand = await loadBrandContext(db, campaign.workspace_id, campaign.ai_agent_id ?? null);
+  const brand = await loadBrandContext(
+    db,
+    campaign.workspace_id,
+    campaign.ai_agent_id ?? null
+  );
   // Enlaces reales de la tienda, una vez por tanda: sin ellos el modelo
   // escribía "[enlace de la tienda web]" y eso llegaba al cliente.
   const links = await loadStoreLinks(
     db,
     campaign.workspace_id,
-    campaign.plan.recommended_products,
+    campaign.plan.recommended_products
   );
   const apiKey =
-    (await resolveAnthropicKey(db, { workspaceId: campaign.workspace_id }))?.key ?? null;
+    (await resolveAnthropicKey(db, { workspaceId: campaign.workspace_id }))
+      ?.key ?? null;
   const offer = campaign.plan.offer
     ? { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount }
     : campaign.offer_code
@@ -190,10 +210,16 @@ export async function sendCampaignBatch(
   if (pct && offer) {
     const shop = await getShopifyAdmin(db, campaign.workspace_id);
     if (shop) {
-      const priceRuleId = await ensureCampaignPriceRule(db, campaign, shop.client);
+      const priceRuleId = await ensureCampaignPriceRule(
+        db,
+        campaign,
+        shop.client
+      );
       if (priceRuleId) {
         for (const r of rows) {
-          const contact = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
+          const contact = Array.isArray(r.contacts)
+            ? r.contacts[0]
+            : r.contacts;
           if (!contact?.external_id) continue;
           const code = await mintUniqueCode(shop.client, priceRuleId, {
             name: contact.name,
@@ -240,7 +266,7 @@ export async function sendCampaignBatch(
       // the sanctioned route is a private reply carrying the comment id (7 days).
       // Someone who actually DM'd us gets the richer free-form DM instead.
       const reach = await resolveIgReach(db, contact.id).catch(
-        () => ({ kind: 'none', reason: 'no_engagement' }) as const,
+        () => ({ kind: 'none', reason: 'no_engagement' }) as const
       );
       // Sin ventana abierta queda la lista: si esta persona dio permiso de
       // Marketing Messages, se le puede escribir igual. Es la única vía que no
@@ -248,7 +274,11 @@ export async function sendCampaignBatch(
       // interactuó hace meses en vez de sólo a los de esta semana.
       const subscription =
         reach.kind === 'none'
-          ? await findSubscription(db, campaign.workspace_id, contact.external_id)
+          ? await findSubscription(
+              db,
+              campaign.workspace_id,
+              contact.external_id
+            )
           : null;
       if (reach.kind === 'none' && !subscription) {
         return {
@@ -260,7 +290,10 @@ export async function sendCampaignBatch(
       }
       const personalCode = codeByRecipient.get(r.id);
       const recipientOffer = personalCode
-        ? { code: personalCode, discount: offer?.discount || (pct ? `${pct}%` : '') }
+        ? {
+            code: personalCode,
+            discount: offer?.discount || (pct ? `${pct}%` : ''),
+          }
         : offer;
       // Who they are (enriched at their first DM) → segment → tailored tone/offer.
       const profile = await loadIgProfile(db, contact.id).catch(() => null);
@@ -278,6 +311,11 @@ export async function sendCampaignBatch(
         leadScore: (r.lead_score as LeadScore | null) ?? null,
       });
       const text = await craftPersonalizedDM({
+        billing: {
+          db,
+          workspaceId: campaign.workspace_id,
+          concepto: 'ia_asistencia',
+        },
         apiKey,
         base: campaign.plan.message.text,
         brand,
@@ -302,7 +340,7 @@ export async function sendCampaignBatch(
         commentId: reach.kind === 'private_reply' ? reach.commentId : undefined,
         subscription: subscription ?? undefined,
       };
-    }),
+    })
   );
 
   let sent = 0;
@@ -320,7 +358,10 @@ export async function sendCampaignBatch(
     if (!p.contact) {
       await db
         .from('instagram_campaign_recipients')
-        .update({ status: 'skipped', error: 'contacto sin external_id de Instagram' })
+        .update({
+          status: 'skipped',
+          error: 'contacto sin external_id de Instagram',
+        })
         .eq('id', p.id);
       continue;
     }
@@ -333,7 +374,7 @@ export async function sendCampaignBatch(
         db,
         campaign.workspace_id,
         p.commentId,
-        'campaign',
+        'campaign'
       );
       if (!won) {
         await db
@@ -423,7 +464,8 @@ export async function sendCampaignBatch(
         .from('instagram_campaign_recipients')
         .update({
           status: 'failed',
-          error: err instanceof Error ? err.message.slice(0, 500) : 'send failed',
+          error:
+            err instanceof Error ? err.message.slice(0, 500) : 'send failed',
         })
         .eq('id', p.id);
       failed += 1;
@@ -453,7 +495,7 @@ export async function sendCampaignBatch(
 async function resolveRecipientConnections(
   db: SupabaseClient,
   contactIds: string[],
-  igConns: ChannelConnection[],
+  igConns: ChannelConnection[]
 ): Promise<Map<string, ChannelConnection>> {
   const out = new Map<string, ChannelConnection>();
   if (contactIds.length === 0) return out;
@@ -466,15 +508,22 @@ async function resolveRecipientConnections(
     .not('connection_id', 'is', null)
     .order('last_message_at', { ascending: false });
   const newestConnByContact = new Map<string, string>();
-  for (const row of (data ?? []) as Array<{ contact_id: string; connection_id: string }>) {
+  for (const row of (data ?? []) as Array<{
+    contact_id: string;
+    connection_id: string;
+  }>) {
     if (!newestConnByContact.has(row.contact_id)) {
       newestConnByContact.set(row.contact_id, row.connection_id);
     }
   }
   if (newestConnByContact.size === 0) return out;
 
-  const byId = new Map<string, ChannelConnection>(igConns.map((c) => [c.id, c]));
-  const missing = [...new Set(newestConnByContact.values())].filter((id) => !byId.has(id));
+  const byId = new Map<string, ChannelConnection>(
+    igConns.map((c) => [c.id, c])
+  );
+  const missing = [...new Set(newestConnByContact.values())].filter(
+    (id) => !byId.has(id)
+  );
   if (missing.length > 0) {
     const { data: extra } = await db
       .from('channel_connections')
@@ -491,7 +540,9 @@ async function resolveRecipientConnections(
       continue;
     }
     const sibling = igConns.find(
-      (c) => String(c.external_account_id ?? '') === String(src.external_account_id ?? ''),
+      (c) =>
+        String(c.external_account_id ?? '') ===
+        String(src.external_account_id ?? '')
     );
     out.set(contactId, sibling ?? src);
   }

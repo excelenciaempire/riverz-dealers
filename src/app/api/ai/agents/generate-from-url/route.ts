@@ -1,16 +1,18 @@
-import { NextResponse } from 'next/server';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { csrfGuard } from '@/lib/csrf';
-import { serverError } from '@/lib/api/errors';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
-import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
+import { serverError } from '@/lib/api/errors';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { meteredCrawlFetch } from '@/lib/firecrawl/crawl-billing';
+import type { Locale } from '@/lib/i18n/config';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import type { Locale } from '@/lib/i18n/config';
-import type { AiAgent, AiResponseMode, AiTone } from '@/lib/ai/types';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { createClient } from '@/lib/supabase/server';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/ai/agents/generate-from-url
@@ -63,7 +65,6 @@ interface AgentConfigSuggestion {
   language: string;
 }
 
-
 function aggregateMarkdown(pages: FirecrawlCrawlPage[]): string {
   const chunks: string[] = [];
   let total = 0;
@@ -71,7 +72,9 @@ function aggregateMarkdown(pages: FirecrawlCrawlPage[]): string {
     const md = (page?.markdown ?? '').trim();
     if (!md) continue;
     const title = page?.metadata?.title ?? page?.metadata?.sourceURL ?? '';
-    const header = title ? `# ${title}\n${page?.metadata?.sourceURL ?? ''}\n\n` : '';
+    const header = title
+      ? `# ${title}\n${page?.metadata?.sourceURL ?? ''}\n\n`
+      : '';
     const block = `${header}${md}`.trim();
     if (total + block.length + 4 > KNOWLEDGE_CHAR_CAP) {
       const remaining = KNOWLEDGE_CHAR_CAP - total;
@@ -88,12 +91,17 @@ async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
-async function scrapeSite(url: string, locale: Locale): Promise<string> {
+async function scrapeSite(
+  url: string,
+  locale: Locale,
+  billing: BillingContext
+): Promise<string> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
     throw new Error(translate(locale, 'errAi.firecrawlMissingKey'));
   }
-  const startRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl`, {
+  const billedFetch = meteredCrawlFetch(billing);
+  const startRes = await billedFetch(`${FIRECRAWL_BASE}/v1/crawl`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -105,11 +113,15 @@ async function scrapeSite(url: string, locale: Locale): Promise<string> {
       scrapeOptions: { formats: ['markdown'], onlyMainContent: true },
     }),
   });
-  const startJson = (await startRes.json().catch(() => ({}))) as FirecrawlCrawlStart;
+  const startJson = (await startRes
+    .json()
+    .catch(() => ({}))) as FirecrawlCrawlStart;
   if (!startRes.ok || !startJson?.id) {
     throw new Error(
       startJson?.error ??
-        translate(locale, 'errAi.firecrawlRejectedAlt', { status: startRes.status }),
+        translate(locale, 'errAi.firecrawlRejectedAlt', {
+          status: startRes.status,
+        })
     );
   }
 
@@ -119,14 +131,21 @@ async function scrapeSite(url: string, locale: Locale): Promise<string> {
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
     try {
-      const statusRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl/${crawlId}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      const json = (await statusRes.json().catch(() => ({}))) as FirecrawlCrawlStatus;
+      const statusRes = await billedFetch(
+        `${FIRECRAWL_BASE}/v1/crawl/${crawlId}`,
+        {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        }
+      );
+      const json = (await statusRes
+        .json()
+        .catch(() => ({}))) as FirecrawlCrawlStatus;
       lastStatus = json;
       if (json.status === 'completed') break;
       if (json.status === 'failed') {
-        throw new Error(json.error ?? translate(locale, 'errAi.firecrawlFailed'));
+        throw new Error(
+          json.error ?? translate(locale, 'errAi.firecrawlFailed')
+        );
       }
     } catch {
       // transient — keep polling
@@ -142,7 +161,9 @@ async function scrapeSite(url: string, locale: Locale): Promise<string> {
 // trabajara en inglés). Nota: se quitó el "Argentine Spanish / voseo" — el
 // proyecto usa español NEUTRO sin voseo.
 function personaLangLabel(locale: Locale): string {
-  return locale === 'en' ? 'natural English (en-US)' : 'español neutro (sin voseo)';
+  return locale === 'en'
+    ? 'natural English (en-US)'
+    : 'español neutro (sin voseo)';
 }
 
 function metaSystem(locale: Locale): string {
@@ -183,11 +204,17 @@ Devolvé ÚNICAMENTE un objeto JSON con esta forma exacta, sin texto antes ni de
 Escribe el name y la persona SIEMPRE en ${langLabel}, sin importar el idioma de la web. NUNCA inventes productos o políticas que no estén en el contenido.`;
 };
 
-function safeParseConfig(text: string, locale: Locale): AgentConfigSuggestion | null {
+function safeParseConfig(
+  text: string,
+  locale: Locale
+): AgentConfigSuggestion | null {
   // Strip fenced code blocks the model may add despite instructions.
   let cleaned = text.trim();
   if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    cleaned = cleaned
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
   }
   // Find first { … last }
   const start = cleaned.indexOf('{');
@@ -197,10 +224,14 @@ function safeParseConfig(text: string, locale: Locale): AgentConfigSuggestion | 
   try {
     const parsed = JSON.parse(slice) as Partial<AgentConfigSuggestion>;
     if (!parsed.name || !parsed.persona) return null;
-    const tone = ['friendly', 'formal', 'casual', 'concise'].includes(parsed.tone as string)
+    const tone = ['friendly', 'formal', 'casual', 'concise'].includes(
+      parsed.tone as string
+    )
       ? (parsed.tone as AiTone)
       : 'friendly';
-    const mode = ['single', 'multi', 'dynamic'].includes(parsed.response_mode as string)
+    const mode = ['single', 'multi', 'dynamic'].includes(
+      parsed.response_mode as string
+    )
       ? (parsed.response_mode as AiResponseMode)
       : 'dynamic';
     const debounce = Number(parsed.inbound_debounce_seconds);
@@ -272,7 +303,7 @@ export async function POST(request: Request) {
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const body = (await request.json().catch(() => null)) as {
@@ -283,7 +314,7 @@ export async function POST(request: Request) {
   if (!rawUrl) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlWorkspaceRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -300,18 +331,19 @@ export async function POST(request: Request) {
   // Sigue aceptándose en el cuerpo para la cuenta que no es la de casa.
   const admin = supabaseAdmin();
   const workspaceId =
-    body?.workspace_id?.trim() || (await resolveWorkspaceIdForUser(admin, user.id));
+    body?.workspace_id?.trim() ||
+    (await resolveWorkspaceIdForUser(admin, user.id));
   if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlWorkspaceRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
   const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlInvalidHttps') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -335,7 +367,7 @@ export async function POST(request: Request) {
   if (!member && !duenio)
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
 
   const overBudget = await aiBudgetGuard(workspaceId, 'heavy');
@@ -344,14 +376,20 @@ export async function POST(request: Request) {
   // 1) Scrape
   let knowledge = '';
   try {
-    knowledge = await scrapeSite(parsed.toString(), locale);
+    knowledge = await scrapeSite(parsed.toString(), locale, {
+      db: admin,
+      workspaceId,
+      concepto: 'lectura_de_pagina',
+    });
   } catch (err) {
     return NextResponse.json(
       {
         error:
-          err instanceof Error ? err.message : translate(locale, 'errAi.scrapeFailed'),
+          err instanceof Error
+            ? err.message
+            : translate(locale, 'errAi.scrapeFailed'),
       },
-      { status: 502 },
+      { status: 502 }
     );
   }
 
@@ -360,13 +398,20 @@ export async function POST(request: Request) {
   let config: AgentConfigSuggestion = fallbackConfig(parsed.toString(), locale);
   if (anthropicKey && knowledge.trim().length > 200) {
     try {
-      const client = getAnthropic(anthropicKey);
+      const client = getAnthropic(anthropicKey, {
+        db: admin,
+        workspaceId,
+        concepto: 'ia_asistencia',
+      });
       const completion = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 2000,
         system: metaSystem(locale),
         messages: [
-          { role: 'user', content: metaUser(knowledge, parsed.toString(), locale) },
+          {
+            role: 'user',
+            content: metaUser(knowledge, parsed.toString(), locale),
+          },
         ],
       });
       const text = completion.content
@@ -422,7 +467,11 @@ export async function POST(request: Request) {
     .select()
     .single();
   if (error || !created) {
-    return serverError(error, translate(locale, 'errAi.agentCreateFailed'), 500);
+    return serverError(
+      error,
+      translate(locale, 'errAi.agentCreateFailed'),
+      500
+    );
   }
 
   const { data: fresh } = await admin
@@ -443,6 +492,6 @@ export async function POST(request: Request) {
       was_generated: true,
       knowledge_chars: knowledge.length,
     },
-    { status: 201 },
+    { status: 201 }
   );
 }

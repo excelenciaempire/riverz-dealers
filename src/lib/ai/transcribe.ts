@@ -1,3 +1,6 @@
+import type { BillingContext } from '@/lib/wallet/operacion';
+import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
+import { parseBuffer } from 'music-metadata';
 /**
  * Transcripción de audios y voice notes vía Whisper.
  *
@@ -16,13 +19,11 @@
  * todavía no quieren pagar transcripción.
  */
 
-const GROQ_ENDPOINT =
-  "https://api.groq.com/openai/v1/audio/transcriptions";
-const OPENAI_ENDPOINT =
-  "https://api.openai.com/v1/audio/transcriptions";
+const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const OPENAI_ENDPOINT = 'https://api.openai.com/v1/audio/transcriptions';
 
 type Provider = {
-  name: "groq" | "openai";
+  name: 'groq' | 'openai';
   endpoint: string;
   model: string;
   apiKey: string;
@@ -42,17 +43,17 @@ export interface TranscriptionResult {
    *  le puede pasar el costo al comercio. */
   segundos?: number;
   /** Qué proveedor lo hizo: cobran distinto. */
-  proveedor?: "groq" | "openai";
+  proveedor?: 'groq' | 'openai';
 }
 
 /**
  * Lo que cobra cada proveedor por minuto de audio.
  *
- * Groq (whisper-large-v3): 0,04 USD la hora. OpenAI (whisper-1): 0,006 USD el
+ * Groq (whisper-large-v3): 0,111 USD la hora. OpenAI (whisper-1): 0,006 USD el
  * minuto. Son los precios de lista, que es lo que se le pasa al comercio.
  */
-export const USD_POR_MINUTO: Record<"groq" | "openai", number> = {
-  groq: 0.04 / 60,
+export const USD_POR_MINUTO: Record<'groq' | 'openai', number> = {
+  groq: 0.111 / 60,
   openai: 0.006,
 };
 
@@ -60,18 +61,18 @@ function pickProvider(): Provider | null {
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     return {
-      name: "groq",
+      name: 'groq',
       endpoint: GROQ_ENDPOINT,
-      model: "whisper-large-v3",
+      model: 'whisper-large-v3',
       apiKey: groqKey,
     };
   }
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     return {
-      name: "openai",
+      name: 'openai',
       endpoint: OPENAI_ENDPOINT,
-      model: "whisper-1",
+      model: 'whisper-1',
       apiKey: openaiKey,
     };
   }
@@ -90,19 +91,22 @@ function pickProvider(): Provider | null {
  */
 export async function transcribeAudio(
   audioUrl: string,
+  billing: BillingContext
 ): Promise<TranscriptionResult | null> {
   const provider = pickProvider();
   if (!provider) {
     console.warn(
-      "[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.",
+      '[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.'
     );
     return null;
   }
   try {
-    const audioRes = await fetch(audioUrl, { signal: AbortSignal.timeout(15000) });
+    const audioRes = await fetch(audioUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
     if (!audioRes.ok) {
       console.warn(
-        `[transcribe] no se pudo bajar el audio (${audioRes.status}): ${audioUrl}`,
+        `[transcribe] no se pudo bajar el audio (${audioRes.status}): ${audioUrl}`
       );
       return null;
     }
@@ -110,14 +114,14 @@ export async function transcribeAudio(
     // Inferimos un filename con extensión para que Whisper detecte el
     // codec. La mayoría de los voice notes WhatsApp son ogg/opus —
     // Whisper acepta ogg directamente.
-    const mime =
-      audioRes.headers.get("content-type") || "audio/ogg";
+    const mime = audioRes.headers.get('content-type') || 'audio/ogg';
     return await transcribeBuffer(buffer, {
+      billing,
       mime,
       filename: `voice.${mimeToWhisperExt(mime)}`,
     });
   } catch (err) {
-    console.warn("[transcribe] excepción:", err);
+    console.warn('[transcribe] excepción:', err);
     return null;
   }
 }
@@ -135,41 +139,68 @@ export async function transcribeAudio(
  */
 export async function transcribeBuffer(
   buffer: Buffer,
-  opts: { mime?: string; filename?: string; timeoutMs?: number } = {},
+  opts: {
+    billing: BillingContext;
+    mime?: string;
+    filename?: string;
+    timeoutMs?: number;
+  }
 ): Promise<TranscriptionResult | null> {
   const provider = pickProvider();
   if (!provider) {
     console.warn(
-      "[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.",
+      '[transcribe] ni GROQ_API_KEY ni OPENAI_API_KEY configuradas — saltando transcripción.'
     );
     return null;
   }
-  const mime = opts.mime || "audio/ogg";
+  const mime = opts.mime || 'audio/ogg';
   const filename = opts.filename || `audio.${mimeToWhisperExt(mime)}`;
   try {
     const form = new FormData();
-    form.append("file", new Blob([new Uint8Array(buffer)], { type: mime }), filename);
-    form.append("model", provider.model);
+    form.append(
+      'file',
+      new Blob([new Uint8Array(buffer)], { type: mime }),
+      filename
+    );
+    form.append('model', provider.model);
     // Forzamos español: el voice note típico en este producto es
     // cliente colombiano / hispanohablante. Whisper igual tolera mezcla,
     // y esto le da al modelo un prior más fuerte para no confundir
     // codeswitch con inglés.
-    form.append("language", "es");
+    form.append('language', 'es');
     // Con esto la respuesta trae `duration`, que es lo que cobra Whisper.
     // Sin el número no hay forma de pasarle el costo al comercio.
-    form.append("response_format", "verbose_json");
+    form.append('response_format', 'verbose_json');
 
+    // Reserve a bounded audio budget; files over the provider limit never leave Riverz.
+    if (buffer.length > 25 * 1024 * 1024) throw new Error('audio_too_large');
+    const metadata = await parseBuffer(
+      buffer,
+      { mimeType: mime },
+      { duration: true }
+    );
+    const duration = metadata.format.duration;
+    if (!duration || !Number.isFinite(duration) || duration > 3600)
+      throw new Error('wallet_audio_duration_unavailable');
+    const id = await reservar(
+      opts.billing,
+      provider.name,
+      (Math.max(10, Math.ceil(duration)) / 60) * USD_POR_MINUTO[provider.name],
+      { modelo: provider.model }
+    );
     const res = await fetch(provider.endpoint, {
-      method: "POST",
+      method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}` },
       body: form,
       // Un voice note son segundos; un video de un minuto tarda más de 10.
       signal: AbortSignal.timeout(opts.timeoutMs ?? 15000),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
+      if ([400, 401, 403, 413, 422, 429].includes(res.status))
+        await cancelar(opts.billing, id);
+      const detail = await res.text().catch(() => '');
       console.warn(
-        `[transcribe] ${provider.name} respondió ${res.status}: ${detail.slice(0, 200)}`,
+        `[transcribe] ${provider.name} respondió ${res.status}: ${detail.slice(0, 200)}`
       );
       return null;
     }
@@ -178,30 +209,43 @@ export async function transcribeBuffer(
       language?: string;
       duration?: number;
     };
-    const text = (json.text ?? "").trim();
+    if (!Number.isFinite(json.duration) || json.duration! < 0)
+      throw new Error('wallet_missing_duration');
+    const seconds =
+      provider.name === 'groq'
+        ? Math.max(10, json.duration!)
+        : Math.ceil(json.duration!);
+    await liquidar(
+      opts.billing,
+      id,
+      provider.name,
+      (seconds / 60) * USD_POR_MINUTO[provider.name],
+      { modelo: provider.model, segundos: json.duration }
+    );
+    const text = (json.text ?? '').trim();
     if (!text) return null;
     return {
       text,
       language: json.language,
-      segundos: typeof json.duration === "number" ? json.duration : undefined,
+      segundos: typeof json.duration === 'number' ? json.duration : undefined,
       proveedor: provider.name,
     };
   } catch (err) {
-    console.warn("[transcribe] excepción:", err);
+    console.warn('[transcribe] excepción:', err);
     return null;
   }
 }
 
 function mimeToWhisperExt(mime: string): string {
-  const lower = mime.toLowerCase().split(";")[0].trim();
+  const lower = mime.toLowerCase().split(';')[0].trim();
   const map: Record<string, string> = {
-    "audio/ogg": "ogg",
-    "audio/mpeg": "mp3",
-    "audio/mp4": "m4a",
-    "audio/aac": "aac",
-    "audio/wav": "wav",
-    "audio/webm": "webm",
-    "audio/amr": "amr",
+    'audio/ogg': 'ogg',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'audio/aac': 'aac',
+    'audio/wav': 'wav',
+    'audio/webm': 'webm',
+    'audio/amr': 'amr',
   };
-  return map[lower] ?? "ogg";
+  return map[lower] ?? 'ogg';
 }

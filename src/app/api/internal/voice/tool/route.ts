@@ -1,23 +1,23 @@
-import { NextResponse } from 'next/server';
-import type { Contact, VoiceCall } from '@/types';
-import type { AiAgent } from '@/lib/ai/types';
-import { serverError } from '@/lib/api/errors';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
-import { resolveShopifyContext } from '@/lib/ai/runner';
-import { AGENT_TOOLBOX, toolEnabled, toolMode } from '@/lib/ai/toolbox';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { buscarEnInternet } from '@/lib/ai/busqueda-web';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { resolveShopifyContext } from '@/lib/ai/runner';
+import { AGENT_TOOLBOX, toolEnabled, toolMode } from '@/lib/ai/toolbox';
 import { runTool } from '@/lib/ai/tools';
+import type { AiAgent } from '@/lib/ai/types';
+import { serverError } from '@/lib/api/errors';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { assertVoiceWorkerAuth } from '@/lib/voice/auth';
 import {
   resolveVoiceBrainAgent,
   resolveVoiceContextConversation,
 } from '@/lib/voice/context';
+import { sendWhatsAppDuringCall } from '@/lib/voice/whatsapp-during-call';
+import type { Contact, VoiceCall } from '@/types';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/internal/voice/tool
@@ -41,7 +41,10 @@ export async function POST(request: Request) {
     input?: unknown;
   } | null;
   if (!body?.call_id || !body.tool) {
-    return NextResponse.json({ error: 'call_id and tool required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'call_id and tool required' },
+      { status: 400 }
+    );
   }
 
   const db = supabaseAdmin();
@@ -51,7 +54,8 @@ export async function POST(request: Request) {
       .select('*')
       .eq('id', body.call_id)
       .maybeSingle();
-    if (!callRow) return NextResponse.json({ error: 'call_not_found' }, { status: 404 });
+    if (!callRow)
+      return NextResponse.json({ error: 'call_not_found' }, { status: 404 });
     const call = callRow as VoiceCall;
 
     const { data: contactRow } = await db
@@ -59,7 +63,8 @@ export async function POST(request: Request) {
       .select('*')
       .eq('id', call.contact_id)
       .maybeSingle();
-    if (!contactRow) return NextResponse.json({ error: 'contact_not_found' }, { status: 404 });
+    if (!contactRow)
+      return NextResponse.json({ error: 'contact_not_found' }, { status: 404 });
     const contact = contactRow as Contact;
 
     // El agente ENTERO: la pizarra de herramientas vive en sus columnas, y sin
@@ -107,7 +112,7 @@ export async function POST(request: Request) {
         call,
         contact,
         text,
-        input?.scenario ?? null,
+        input?.scenario ?? null
       );
       return NextResponse.json(sent);
     }
@@ -120,7 +125,8 @@ export async function POST(request: Request) {
     if (body.tool === 'buscar_en_internet') {
       const input = body.input as { consulta?: string; query?: string } | null;
       const consulta = (input?.consulta ?? input?.query ?? '').trim();
-      if (!consulta) return NextResponse.json({ ok: false, error: 'consulta_required' });
+      if (!consulta)
+        return NextResponse.json({ ok: false, error: 'consulta_required' });
       if (!agente || !toolEnabled(agente, 'buscar_en_internet')) {
         return NextResponse.json({ ok: false, error: 'tool_disabled' });
       }
@@ -128,9 +134,15 @@ export async function POST(request: Request) {
         workspaceId: call.workspace_id,
         agentKeyEncrypted: agente.api_key_encrypted ?? null,
       });
-      if (!resolved) return NextResponse.json({ ok: false, error: 'no_api_key' });
+      if (!resolved)
+        return NextResponse.json({ ok: false, error: 'no_api_key' });
       const texto = await buscarEnInternet({
-        client: getAnthropic(resolved.key),
+        client: getAnthropic(resolved.key, {
+          db,
+          workspaceId: call.workspace_id,
+          concepto: 'busqueda_web',
+          origenDeLaClave: resolved.source,
+        }),
         model: agente.model || 'claude-sonnet-5',
         consulta,
         idioma: agente.language || undefined,
@@ -138,7 +150,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, result: texto });
     }
 
-    const shopify = await resolveShopifyContext(db, call.workspace_id, contact, null);
+    const shopify = await resolveShopifyContext(
+      db,
+      call.workspace_id,
+      contact,
+      null
+    );
     if (shopify) {
       const currency = await resolveWorkspaceCurrency(db, call.workspace_id);
       shopify.canCreateOrders = canCreateOrders;
@@ -183,18 +200,28 @@ export async function POST(request: Request) {
       // ponerles el freno encima pediría dos confirmaciones por lo mismo.
       requiereAprobacion: agente
         ? AGENT_TOOLBOX.filter(
-            (t) => !t.proponeSolo && toolMode(agente, t.key) === 'aprobacion',
+            (t) => !t.proponeSolo && toolMode(agente, t.key) === 'aprobacion'
           ).map((t) => t.key)
         : [],
     };
 
-    const result = await runTool(body.tool, body.input ?? {}, shopify, null, localOrders, store);
+    const result = await runTool(
+      body.tool,
+      body.input ?? {},
+      shopify,
+      null,
+      localOrders,
+      store
+    );
 
     // Stamp in-call upsell revenue for analytics. Estimate the delta from the
     // order's unit price (total_price / item_count) × extra units.
     if (body.tool === 'update_order') {
       try {
-        const parsed = JSON.parse(result) as { ok?: boolean; added_units?: number };
+        const parsed = JSON.parse(result) as {
+          ok?: boolean;
+          added_units?: number;
+        };
         if (parsed.ok && parsed.added_units) {
           const ctx = call.context ?? {};
           const total = Number(ctx.total_price ?? 0);

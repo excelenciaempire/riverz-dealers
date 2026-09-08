@@ -1,17 +1,7 @@
-import { NextResponse } from 'next/server';
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { csrfGuard } from '@/lib/csrf';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
-import { serverError } from '@/lib/api/errors';
-import { getLocale } from '@/lib/i18n/server';
-import { translate } from '@/lib/i18n/translate';
-import { decrypt } from '@/lib/whatsapp/encryption';
-import type { AiAgent } from '@/lib/ai/types';
-import { CHANNELS, type Channel, type Contact } from '@/types';
 import {
   buildSystemPrompt,
   construirHerramientas,
@@ -20,15 +10,24 @@ import {
   productosPermitidos,
   splitReplyForMode,
 } from '@/lib/ai/runner';
-import { topeDeDescuento } from '@/lib/shopify/discounts';
-import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
-import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
-import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
 import { runWithTools, type ShopifyToolContext } from '@/lib/ai/tools';
-import { shopifyApiVersion } from '@/lib/shopify/oauth';
+import type { AiAgent } from '@/lib/ai/types';
+import { serverError } from '@/lib/api/errors';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import type { CheckoutConfig } from '@/lib/shopify/create-checkout';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
+import { shopifyApiVersion } from '@/lib/shopify/oauth';
+import { createClient } from '@/lib/supabase/server';
+import { decrypt } from '@/lib/whatsapp/encryption';
+import { CHANNELS, type Channel, type Contact } from '@/types';
+import { NextResponse } from 'next/server';
 
 /**
  * Probar el agente sin tocar ningún canal.
@@ -62,7 +61,7 @@ const MAX_HISTORIAL = 20;
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -75,7 +74,7 @@ export async function POST(
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const body = (await request.json().catch(() => null)) as {
@@ -88,7 +87,7 @@ export async function POST(
   if (!message) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.messageRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -101,7 +100,7 @@ export async function POST(
   if (!agent)
     return NextResponse.json(
       { error: translate(locale, 'errAi.notFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   const { data: member } = await admin
@@ -113,7 +112,7 @@ export async function POST(
   if (!member)
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
 
   const overBudget = await aiBudgetGuard((agent as AiAgent).workspace_id);
@@ -129,7 +128,7 @@ export async function POST(
     if (!apiKey) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.missingApiKey') },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -139,16 +138,26 @@ export async function POST(
 
     // El mismo enganche de producto que producción: es lo que fija el producto
     // y trae su material de entrenamiento al prompt.
-    const productMatch = await detectInboundProduct(admin, a.workspace_id, message);
-    const [products, businessCurrency, permitidos, reglas, topeDescuento, perfilOperativo] =
-      await Promise.all([
-        loadProductCatalog(admin, a, a.workspace_id, productMatch),
-        resolveWorkspaceCurrency(admin, a.workspace_id),
-        productosPermitidos(admin, a, a.workspace_id),
-        cargarReglas(admin, a.workspace_id, a.id).then(reglasATexto),
-        topeDeDescuento(admin, a.workspace_id).catch(() => 0),
-        cargarPerfilOperativo(admin, a.workspace_id),
-      ]);
+    const productMatch = await detectInboundProduct(
+      admin,
+      a.workspace_id,
+      message
+    );
+    const [
+      products,
+      businessCurrency,
+      permitidos,
+      reglas,
+      topeDescuento,
+      perfilOperativo,
+    ] = await Promise.all([
+      loadProductCatalog(admin, a, a.workspace_id, productMatch),
+      resolveWorkspaceCurrency(admin, a.workspace_id),
+      productosPermitidos(admin, a, a.workspace_id),
+      cargarReglas(admin, a.workspace_id, a.id).then(reglasATexto),
+      topeDeDescuento(admin, a.workspace_id).catch(() => 0),
+      cargarPerfilOperativo(admin, a.workspace_id),
+    ]);
 
     // Un contacto de mentira, con la forma de uno real. No se guarda en ningún
     // lado: existe para que el prompt tenga a quién nombrar.
@@ -166,7 +175,7 @@ export async function POST(
     const shopify = await resolveShopifyContextForWorkspace(
       admin,
       a.workspace_id,
-      body?.simulated_phone,
+      body?.simulated_phone
     );
     if (shopify) {
       shopify.dryRun = true;
@@ -197,7 +206,7 @@ export async function POST(
       businessCurrency,
       reglas,
       undefined,
-      perfilOperativo,
+      perfilOperativo
     );
 
     // La misma lista que produccion, resuelta por la pizarra del comercio.
@@ -213,12 +222,17 @@ export async function POST(
       topeDescuento,
     });
 
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, {
+      db: admin,
+      workspaceId: a.workspace_id,
+      concepto: 'ia_asistencia',
+      origenDeLaClave: resolvedKey?.source,
+    });
     const result = await runWithTools(client, {
       model: a.model || 'claude-haiku-4-5-20251001',
       max_tokens: Math.max(
         64,
-        Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2)),
+        Math.min(2048, Math.ceil((a.max_response_chars || 500) / 2))
       ),
       system,
       messages: [...historial, { role: 'user' as const, content: message }],
@@ -238,20 +252,6 @@ export async function POST(
     });
 
     // Probar cuesta lo mismo que contestar: es el agente entero corriendo.
-    void cobrarUsoDeIa(admin, a.workspace_id, {
-      concepto: 'ia_asistencia',
-      modelo: a.model || 'claude-haiku-4-5-20251001',
-      uso: {
-        prompt: result.promptTokens ?? 0,
-        salida: result.completionTokens ?? 0,
-        cacheLeida: result.cacheReadTokens ?? 0,
-        cacheEscrita: result.cacheWriteTokens ?? 0,
-      },
-      origenDeLaClave: resolvedKey?.source ?? null,
-      referenciaTipo: 'agent',
-      referenciaId: a.id,
-      detalle: { para: 'probar_agente' },
-    });
 
     const text = result.text;
     return NextResponse.json({
@@ -273,7 +273,9 @@ export async function POST(
 }
 
 /** El hilo previo que manda la pantalla, acotado y con la forma que pide la API. */
-function normalizarHistorial(valor: unknown): Array<{ role: 'user' | 'assistant'; content: string }> {
+function normalizarHistorial(
+  valor: unknown
+): Array<{ role: 'user' | 'assistant'; content: string }> {
   if (!Array.isArray(valor)) return [];
   const turnos = valor
     .map((t) => {
@@ -290,13 +292,18 @@ function normalizarHistorial(valor: unknown): Array<{ role: 'user' | 'assistant'
 }
 
 function canalSimulado(value: unknown): Channel {
-  return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value)
-    ? value as Channel
+  return typeof value === 'string' &&
+    (CHANNELS as readonly string[]).includes(value)
+    ? (value as Channel)
     : 'webchat';
 }
 
 function esComentarioPublico(channel: Channel): boolean {
-  return channel === 'ig_comment' || channel === 'fb_comment' || channel === 'tiktok_comment';
+  return (
+    channel === 'ig_comment' ||
+    channel === 'fb_comment' ||
+    channel === 'tiktok_comment'
+  );
 }
 
 /**
@@ -312,7 +319,7 @@ function esComentarioPublico(channel: Channel): boolean {
 async function resolveShopifyContextForWorkspace(
   admin: ReturnType<typeof supabaseAdmin>,
   workspaceId: string,
-  simulatedPhone: string | undefined,
+  simulatedPhone: string | undefined
 ): Promise<ShopifyToolContext | null> {
   // Primary: shopify_connections.workspace_id.
   let conn: { shop_domain: string; access_token: string } | null = null;

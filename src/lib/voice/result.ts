@@ -1,3 +1,4 @@
+import { settleVoiceMedia } from './media-billing';
 /**
  * Voice AI — call result persistence.
  *
@@ -11,7 +12,14 @@
  *   4. Fire the `voice_call_completed` automation trigger once the call
  *      reaches its FINAL state (so "no contestó → WhatsApp" chains work).
  */
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AiAgent } from '@/lib/ai/types';
+import {
+  resumeAfterVoiceCall,
+  runAutomationsForTrigger,
+} from '@/lib/automations/engine';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { applyTags, ensureTag } from '@/lib/contacts/tags';
+import { cobrar } from '@/lib/wallet/saldo';
 import type {
   VoiceCall,
   VoiceCallCost,
@@ -19,17 +27,10 @@ import type {
   VoiceCallStatus,
 } from '@/types';
 import { VOICE_UNANSWERED_STATUSES } from '@/types';
-import type { AiAgent } from '@/lib/ai/types';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import {
-  runAutomationsForTrigger,
-  resumeAfterVoiceCall,
-} from '@/lib/automations/engine';
-import { ensureTag, applyTags } from '@/lib/contacts/tags';
-import { cobrar } from '@/lib/wallet/saldo';
-import { nextAllowedTime, retryDelayMinutes } from './queue';
-import { DEFAULT_CALLING_HOURS } from './constants';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { maybeCodWriteback } from './cod';
+import { DEFAULT_CALLING_HOURS } from './constants';
+import { nextAllowedTime, retryDelayMinutes } from './queue';
 
 const DEFAULT_TZ = 'America/Bogota';
 
@@ -477,6 +478,14 @@ export async function persistCallResult(
     return { ok: true, reason: 'requeued_for_capacity' };
   }
 
+  // Settle before the finalization claim: a retried result can recover billing independently.
+  const meteredCost = await settleVoiceMedia(
+    db,
+    call,
+    payload.duration_seconds ?? 0,
+    payload.usage?.stt_seconds ?? payload.duration_seconds ?? 0
+  );
+
   // Idempotency: fast path for the already-finalized read, plus an ATOMIC
   // claim so two concurrent POSTs (the worker may retry) can't both proceed —
   // otherwise we'd double-schedule retries and fire the completion trigger
@@ -502,7 +511,7 @@ export async function persistCallResult(
   const agent = (agentRow as AiAgent | null) ?? null;
 
   const durationSeconds = payload.duration_seconds ?? null;
-  const cost = estimateCost(payload.usage, durationSeconds);
+  const cost = meteredCost ?? estimateCost(payload.usage, durationSeconds);
   const connected =
     call.direction === 'inbound' || (payload.transcript?.length ?? 0) > 0;
 
@@ -556,14 +565,15 @@ export async function persistCallResult(
   // y nadie atiende no le costó nada al comercio y cobrarlo sería inexplicable.
   // `cobrar` nunca lanza, así que esto no puede romper el cierre de la llamada.
   const minutosCobrables = cost.minutes ?? 0;
-  if (minutosCobrables > 0) {
-    void cobrar(db, call.workspace_id, {
+  if (!meteredCost && minutosCobrables > 0) {
+    await cobrar(db, call.workspace_id, {
       concepto: 'llamada_voz',
       cantidad: minutosCobrables,
       costoUsd: cost.total_usd ?? 0,
       referenciaTipo: 'voice_call',
       referenciaId: call.id,
       detalle: {
+        operacionId: `voice_legacy:${call.id}`,
         direccion: call.direction,
         resultado: payload.outcome ?? null,
         segundos: durationSeconds,

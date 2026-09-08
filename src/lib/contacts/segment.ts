@@ -1,5 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import Anthropic from '@anthropic-ai/sdk';
 
 /**
  * AI-enriched contact segment — Blueberry's CRM card ("Segment: Engaged
@@ -23,7 +24,9 @@ Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin texto extra):
 
 Reglas: básate solo en la evidencia; si hay poca información sé conservador (label genérico, 2 traits). Nada de relleno.`;
 
-function parseSegment(text: string): { label: string; traits: string[] } | null {
+function parseSegment(
+  text: string
+): { label: string; traits: string[] } | null {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start === -1 || end === -1 || end < start) return null;
@@ -32,9 +35,13 @@ function parseSegment(text: string): { label: string; traits: string[] } | null 
       label?: unknown;
       traits?: unknown;
     };
-    const label = typeof o.label === 'string' ? o.label.trim().slice(0, 60) : '';
+    const label =
+      typeof o.label === 'string' ? o.label.trim().slice(0, 60) : '';
     const traits = Array.isArray(o.traits)
-      ? o.traits.map((t) => String(t).trim()).filter(Boolean).slice(0, 4)
+      ? o.traits
+          .map((t) => String(t).trim())
+          .filter(Boolean)
+          .slice(0, 4)
       : [];
     if (!label && traits.length === 0) return null;
     return { label: label || 'Cliente', traits };
@@ -61,7 +68,12 @@ export interface UsoDelModelo {
 
 export async function generateContactSegment(
   apiKey: string,
-  input: { name?: string | null; messages: string[]; purchaseSummary?: string | null },
+  input: {
+    billing: BillingContext;
+    name?: string | null;
+    messages: string[];
+    purchaseSummary?: string | null;
+  }
 ): Promise<{ label: string; traits: string[]; uso?: UsoDelModelo } | null> {
   const msgs = input.messages
     .map((m) => m.replace(/\s+/g, ' ').trim())
@@ -81,13 +93,19 @@ export async function generateContactSegment(
     .join('\n');
 
   try {
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, input.billing);
     const res = await client.messages.create({
       // Sin los parámetros de esfuerzo: Haiku los rechaza con 400 y esto
       // llevaba meses contestando siempre que no se pudo.
       model: MODELO,
       max_tokens: 400,
-      system: [{ type: 'text', text: SEG_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      system: [
+        {
+          type: 'text',
+          text: SEG_SYSTEM,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: userPrompt }],
     });
     const text = res.content
@@ -112,7 +130,9 @@ export async function generateContactSegment(
 }
 
 /** A cached segment is fresh enough to skip recompute for ~14 days. */
-export function isSegmentFresh(seg: ContactSegment | null | undefined): boolean {
+export function isSegmentFresh(
+  seg: ContactSegment | null | undefined
+): boolean {
   if (!seg?.computed_at) return false;
   const age = Date.now() - new Date(seg.computed_at).getTime();
   return Number.isFinite(age) && age < 14 * 24 * 60 * 60 * 1000;

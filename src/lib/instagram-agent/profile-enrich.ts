@@ -1,10 +1,11 @@
-import { createHash } from 'crypto';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ChannelConnection } from '@/types';
-import { decrypt } from '@/lib/channels/encryption';
-import { withAppsecretProof } from '@/lib/channels/meta-graph';
 import { describeImage, toImageMediaType } from '@/lib/ai/llm-client';
+import { decrypt } from '@/lib/channels/encryption';
 import { ingestRawMedia } from '@/lib/channels/media-ingest';
+import { withAppsecretProof } from '@/lib/channels/meta-graph';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import type { ChannelConnection } from '@/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 
 /**
  * Per-person Instagram enrichment — the "understand who they are" step behind
@@ -44,9 +45,10 @@ interface ProfileResponse {
 }
 
 async function visionProfilePic(
+  billing: BillingContext,
   url: string,
   prevHash: string | null,
-  prevHint: string | null,
+  prevHint: string | null
 ): Promise<{ hint: string | null; hash: string | null }> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { hint: prevHint, hash: prevHash };
@@ -58,6 +60,7 @@ async function visionProfilePic(
     // Unchanged pic → keep the cached hint, skip the (paid) vision call.
     if (prevHash && hash === prevHash) return { hint: prevHint, hash };
     const out = await describeImage({
+      billing,
       base64: buf.toString('base64'),
       mediaType: toImageMediaType(res.headers.get('content-type')),
       system: VISION_SYSTEM,
@@ -66,7 +69,8 @@ async function visionProfilePic(
       anthropicKey: key,
     });
     const clean = out.text.replace(/^["'“”]|["'“”]$/g, '').trim();
-    const hint = !clean || clean.toLowerCase() === 'null' ? null : clean.slice(0, 120);
+    const hint =
+      !clean || clean.toLowerCase() === 'null' ? null : clean.slice(0, 120);
     return { hint, hash };
   } catch {
     return { hint: prevHint, hash: prevHash };
@@ -84,7 +88,7 @@ async function visionProfilePic(
 async function persistAvatarToStorage(
   workspaceId: string,
   contactId: string,
-  url: string,
+  url: string
 ): Promise<string | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
@@ -111,7 +115,7 @@ async function persistAvatarToStorage(
  */
 export async function enrichContactProfile(
   db: SupabaseClient,
-  opts: { contactId: string; igsid: string; connection: ChannelConnection },
+  opts: { contactId: string; igsid: string; connection: ChannelConnection }
 ): Promise<void> {
   try {
     const { data: existing } = await db
@@ -119,10 +123,15 @@ export async function enrichContactProfile(
       .select('enriched_at, pic_hash, persona_hint')
       .eq('contact_id', opts.contactId)
       .maybeSingle();
-    const prev = existing as
-      | { enriched_at: string | null; pic_hash: string | null; persona_hint: string | null }
-      | null;
-    if (prev?.enriched_at && Date.now() - new Date(prev.enriched_at).getTime() < TTL_MS) {
+    const prev = existing as {
+      enriched_at: string | null;
+      pic_hash: string | null;
+      persona_hint: string | null;
+    } | null;
+    if (
+      prev?.enriched_at &&
+      Date.now() - new Date(prev.enriched_at).getTime() < TTL_MS
+    ) {
       return; // fresh — nothing to do
     }
 
@@ -136,9 +145,9 @@ export async function enrichContactProfile(
     const r = await fetch(
       withAppsecretProof(
         `${GRAPH}/${opts.igsid}?fields=${fields}&access_token=${encodeURIComponent(token)}`,
-        token,
+        token
       ),
-      { signal: AbortSignal.timeout(10_000) },
+      { signal: AbortSignal.timeout(10_000) }
     );
     if (!r.ok) return; // not eligible (comment-only) / token issue → degrade
     const p = (await r.json()) as ProfileResponse;
@@ -146,7 +155,16 @@ export async function enrichContactProfile(
     let personaHint: string | null = prev?.persona_hint ?? null;
     let picHash: string | null = prev?.pic_hash ?? null;
     if (p.profile_pic) {
-      const v = await visionProfilePic(p.profile_pic, prev?.pic_hash ?? null, prev?.persona_hint ?? null);
+      const v = await visionProfilePic(
+        {
+          db,
+          workspaceId: opts.connection.workspace_id,
+          concepto: 'ia_clasificacion',
+        },
+        p.profile_pic,
+        prev?.pic_hash ?? null,
+        prev?.persona_hint ?? null
+      );
       personaHint = v.hint;
       picHash = v.hash;
     }
@@ -162,7 +180,7 @@ export async function enrichContactProfile(
         pic_hash: picHash,
         enriched_at: new Date().toISOString(),
       },
-      { onConflict: 'contact_id' },
+      { onConflict: 'contact_id' }
     );
 
     // Re-hospedar la foto en Storage y guardar una URL ESTABLE. Antes se
@@ -173,10 +191,13 @@ export async function enrichContactProfile(
       const stable = await persistAvatarToStorage(
         opts.connection.workspace_id,
         opts.contactId,
-        p.profile_pic,
+        p.profile_pic
       );
       if (stable) {
-        await db.from('contacts').update({ avatar_url: stable }).eq('id', opts.contactId);
+        await db
+          .from('contacts')
+          .update({ avatar_url: stable })
+          .eq('id', opts.contactId);
       }
     }
   } catch {
@@ -196,12 +217,12 @@ export interface IgProfileEnrichment {
 /** Load a contact's Instagram enrichment for segmentation + DM personalization. */
 export async function loadIgProfile(
   db: SupabaseClient,
-  contactId: string,
+  contactId: string
 ): Promise<IgProfileEnrichment | null> {
   const { data } = await db
     .from('contact_ig_profile')
     .select(
-      'follower_count, is_verified, follows_business, persona_hint, external_hint, opener_hint',
+      'follower_count, is_verified, follows_business, persona_hint, external_hint, opener_hint'
     )
     .eq('contact_id', contactId)
     .maybeSingle();
@@ -213,7 +234,7 @@ export async function loadIgProfile(
   const persona_hint =
     d.external_hint && d.persona_hint
       ? `${d.external_hint}; ${d.persona_hint}`
-      : d.external_hint ?? d.persona_hint ?? null;
+      : (d.external_hint ?? d.persona_hint ?? null);
   return {
     follower_count: d.follower_count,
     is_verified: d.is_verified,

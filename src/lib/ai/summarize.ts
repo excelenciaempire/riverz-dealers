@@ -21,15 +21,13 @@
  * del agente si la tiene, sino la global ANTHROPIC_API_KEY.
  */
 
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import type { Contact, Conversation } from '@/types';
 import Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
 import { resolveAnthropicKey, type KeySource } from './platform-key';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Conversation, Contact } from '@/types';
 import type { AiAgent } from './types';
-import { cobrar } from '@/lib/wallet/saldo';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
-import { costForModel } from '@/lib/admin/cost';
 
 const SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -43,7 +41,7 @@ const SUMMARIZE_EVERY_N = 30;
 
 async function getApiKey(
   db: SupabaseClient,
-  agent: AiAgent,
+  agent: AiAgent
 ): Promise<{ key: string; source: KeySource } | null> {
   const resolved = await resolveAnthropicKey(db, {
     workspaceId: agent.workspace_id,
@@ -63,7 +61,7 @@ async function getApiKey(
 export async function summarizeConversationIfNeeded(
   db: SupabaseClient,
   conversation: Conversation,
-  agent: AiAgent,
+  agent: AiAgent
 ): Promise<void> {
   try {
     // Sin saldo no se resume. Es la llamada más silenciosa de todas: corre
@@ -108,12 +106,14 @@ export async function summarizeConversationIfNeeded(
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: true })
       .limit(oldCount);
-    const rows = ((oldRows ?? []) as {
-      id: string;
-      sender_type: string;
-      content_text: string | null;
-      created_at: string;
-    }[]).filter((r) => r.content_text && r.content_text.trim());
+    const rows = (
+      (oldRows ?? []) as {
+        id: string;
+        sender_type: string;
+        content_text: string | null;
+        created_at: string;
+      }[]
+    ).filter((r) => r.content_text && r.content_text.trim());
     if (rows.length < 5) return;
 
     const lastCoveredId = rows[rows.length - 1].id;
@@ -129,7 +129,12 @@ export async function summarizeConversationIfNeeded(
       })
       .join('\n');
 
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, {
+      db,
+      workspaceId: conversation.workspace_id,
+      concepto: 'ia_resumen',
+      origenDeLaClave: clave.source,
+    });
     const prompt = `Eres el módulo de memoria de un asistente de servicio al cliente. Recibís un transcripto y devolvés un resumen muy comprimido (máximo 200 palabras) que conserve TODO lo que un siguiente turno del asistente necesitaría: pedido del cliente, productos mencionados, decisiones tomadas, datos compartidos (números de pedido, direcciones, montos), tono y estado emocional. No uses listas con guiones; escribilo como un párrafo denso en español. No incluyas saludos ni meta-comentarios, sólo el resumen.\n\nTranscripto:\n${transcript}`;
 
     const res = await client.messages.create({
@@ -139,8 +144,6 @@ export async function summarizeConversationIfNeeded(
         'Sos un compresor de contexto. Devolvés un único párrafo en español de máximo 200 palabras, sin viñetas.',
       messages: [{ role: 'user', content: prompt }],
     });
-    if (clave.source !== 'agent')
-      cobrarResumen(db, conversation.workspace_id, res, 'conversation', conversation.id);
 
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -175,7 +178,7 @@ export async function summarizeContactIfNeeded(
   contact: Contact,
   conversation: Conversation,
   agent: AiAgent,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean }
 ): Promise<void> {
   try {
     if (!(await puedeUsarIa(db, conversation.workspace_id))) return;
@@ -210,10 +213,12 @@ export async function summarizeContactIfNeeded(
       .in('conversation_id', convIds)
       .order('created_at', { ascending: false })
       .limit(60);
-    const rows = ((msgs ?? []) as {
-      sender_type: string;
-      content_text: string | null;
-    }[])
+    const rows = (
+      (msgs ?? []) as {
+        sender_type: string;
+        content_text: string | null;
+      }[]
+    )
       .filter((m) => m.content_text && m.content_text.trim())
       .reverse();
     if (rows.length < 5) return;
@@ -234,7 +239,12 @@ export async function summarizeContactIfNeeded(
       ? `Resumen previo del cliente (mantené lo útil y actualizá):\n${contact.ai_summary}\n\n`
       : '';
 
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, {
+      db,
+      workspaceId: conversation.workspace_id,
+      concepto: 'ia_resumen',
+      origenDeLaClave: clave.source,
+    });
     const res = await client.messages.create({
       model: SUMMARY_MODEL,
       max_tokens: 350,
@@ -247,8 +257,6 @@ export async function summarizeContactIfNeeded(
         },
       ],
     });
-    if (clave.source !== 'agent')
-      cobrarResumen(db, conversation.workspace_id, res, 'contact', contact.id);
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
@@ -266,36 +274,4 @@ export async function summarizeContactIfNeeded(
   } catch (err) {
     console.error('[ai/summarize] contact summarize failed:', err);
   }
-}
-
-/**
- * El resumen se cobra como lo que es: una llamada al modelo con la clave de
- * Riverz.
- *
- * Va aparte de la respuesta y no sumado a ella porque son dos cosas distintas y
- * el comercio tiene derecho a ver cuál le sale cuánto. `cobrar` no lanza nunca:
- * un error de contabilidad no puede tumbar la memoria de una conversación.
- */
-function cobrarResumen(
-  db: SupabaseClient,
-  workspaceId: string,
-  res: Anthropic.Message,
-  refTipo: string,
-  refId: string,
-): void {
-  void cobrar(db, workspaceId, {
-    concepto: 'ia_resumen',
-    cantidad: 1,
-    costoUsd: costForModel(
-      SUMMARY_MODEL,
-      res.usage?.input_tokens ?? 0,
-      res.usage?.output_tokens ?? 0,
-      {
-        read: res.usage?.cache_read_input_tokens ?? 0,
-        write: res.usage?.cache_creation_input_tokens ?? 0,
-      },
-    ),
-    referenciaTipo: refTipo,
-    referenciaId: refId,
-  });
 }

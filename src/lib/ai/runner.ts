@@ -1,58 +1,136 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { getAnthropic } from './anthropic-client';
+import type { OtherStoreContext } from '@/lib/ai/tools';
 import {
-  claveRechazada,
-  resolveAnthropicKey,
-  type KeySource,
-} from './platform-key';
+  esCanalDeComentarios,
+  esError as esErrorDestinoComentario,
+  resolveCommentReplyTarget,
+} from '@/lib/channels/comment-reply-target';
 import {
-  RIOPLATENSE_TEXTO,
-  resolverRegistro,
-  type Registro,
-} from './registro-rioplatense';
-import { cargarReglas, reglasATexto } from './guidance';
+  briefDeQueHablaPorId,
+  puedeAportarContexto,
+} from '@/lib/channels/de-que-habla';
+import { isUnsupportedSnippet } from '@/lib/channels/display';
+import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
+import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
 import {
-  herramientaDeBusqueda,
-  REGLAS_DE_BUSQUEDA,
-  USD_POR_BUSQUEDA_WEB,
-} from './busqueda-web';
-import { limpiarPersona } from './persona-limpia';
-export { limpiarPersona };
+  marcarPresencia,
+  soportaPresencia,
+} from '@/lib/channels/meta-presencia';
+import {
+  briefDePublicacionPorId,
+  REGLAS_COMENTARIO_PUBLICO,
+} from '@/lib/channels/publicacion';
+import { getAdapter } from '@/lib/channels/registry';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
-import { cobrar } from '@/lib/wallet/saldo';
+import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import {
+  cargarPerfilOperativo,
+  perfilOperativoAPrompt,
+  requiereModuloRegulado,
+  type PerfilOperativo,
+} from '@/lib/operacion/perfil-operativo';
+import { expandirGrupos } from '@/lib/products/agrupar';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import {
+  asksForPrice,
+  authorizedPrices,
+  replyForUnidentifiedPrice,
+  unauthorizedQuotedPrices,
+  withoutHistoricalPriceLines,
+} from '@/lib/products/price-integrity';
+import { unidadesDelTitulo } from '@/lib/products/unify';
+import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
+import { refreshLivePricing } from '@/lib/shopify/live-pricing';
+import { shopifyApiVersion } from '@/lib/shopify/oauth';
 import { puertaDeIa } from '@/lib/wallet/puerta';
-import { costForModel } from '@/lib/admin/cost';
-import { appendBusinessScopeGuardrails } from './guardrails';
-import { estiloHumano, humanizarTexto } from './estilo-humano';
-import { detectarEscalada, type Escalada } from './escalada';
-import { recoveryAction, recoveryCheckoutAllowed } from './recovery-policy';
-import { avisarEscalada } from './aviso-escalada';
-import { prometeAveriguar } from './salida';
-import { registrarHueco } from './answer-gaps';
-import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
-import { ROLE_BEHAVIOR, agentCan, pickByRole, roleForInbound } from './roles';
-import type { AgentRole } from './roles';
-import { transcribeAudio, USD_POR_MINUTO } from './transcribe';
+import { decrypt } from '@/lib/whatsapp/encryption';
+import { motorApagado } from '@/lib/workspaces/motor';
 import type {
   Channel,
   ChannelConnection,
   Contact,
   ContactNote,
   Conversation,
-  NeedsHumanReason,
   Message,
+  NeedsHumanReason,
   ShopifyCustomerSnapshot,
 } from '@/types';
-import { getAdapter } from '@/lib/channels/registry';
+import Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { registrarHueco } from './answer-gaps';
+import { getAnthropic } from './anthropic-client';
+import { avisarEscalada } from './aviso-escalada';
 import {
-  esCanalDeComentarios,
-  esError as esErrorDestinoComentario,
-  resolveCommentReplyTarget,
-} from '@/lib/channels/comment-reply-target';
-import { marcarParaCanal } from '@/lib/marketing/enlaces';
-import { decrypt } from '@/lib/whatsapp/encryption';
+  containsEscalationKeyword as hasEscalationKeyword,
+  withinBusinessHours,
+} from './business-hours';
+import { herramientaDeBusqueda, REGLAS_DE_BUSQUEDA } from './busqueda-web';
+import { aplicarDesenlace } from './desenlace';
+import { detectarEscalada, type Escalada } from './escalada';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
+import { estiloHumano, humanizarTexto } from './estilo-humano';
+import { appendBusinessScopeGuardrails } from './guardrails';
+import { cargarReglas, reglasATexto } from './guidance';
+import {
+  aceptaContraentrega,
+  frase as fraseDeMedios,
+  mediosDeclarados,
+} from './medios-pago';
+import { limpiarPersona } from './persona-limpia';
+import {
+  claveRechazada,
+  resolveAnthropicKey,
+  type KeySource,
+} from './platform-key';
+import {
+  detectProductByUrl,
+  detectProductMention,
+  refersToCurrentPage,
+  type CandidateProduct,
+  type ProductMatch,
+} from './product-routing';
+import { recoveryAction, recoveryCheckoutAllowed } from './recovery-policy';
+import {
+  resolverRegistro,
+  RIOPLATENSE_TEXTO,
+  type Registro,
+} from './registro-rioplatense';
+import { esperaParaEsteTurno } from './ritmo-de-escritura';
+import type { AgentRole } from './roles';
+import { pickByRole, ROLE_BEHAVIOR, roleForInbound } from './roles';
+import { prometeAveriguar } from './salida';
+import {
+  summarizeContactIfNeeded,
+  summarizeConversationIfNeeded,
+} from './summarize';
+import { herramientasQueRequierenAprobacion, toolEnabled } from './toolbox';
+import {
+  ABRIR_DEVOLUCION_TOOL,
+  buildCheckoutTool,
+  buildDescuentoTool,
+  buildOrderTool,
+  BUSCAR_PRODUCTO_TOOL,
+  CANCELAR_PEDIDO_TOOL,
+  CERRAR_CONVERSACION_TOOL,
+  CREAR_LINK_DE_PAGO_TOOL,
+  ESCALATE_TO_CALL_TOOL,
+  ETIQUETAR_CONTACTO_TOOL,
+  LOOKUP_ORDER_TOOL,
+  NO_SE_TOOL,
+  REEMBOLSAR_TOOL,
+  REGISTRAR_PAGO_TOOL,
+  runWithTools,
+  UPDATE_ORDER_TOOL,
+  VER_CONTACTO_TOOL,
+  VER_PRODUCTO_TOOL,
+  type ShopifyToolContext,
+  type VoiceEscalationContext,
+} from './tools';
+import { transcribeAudio } from './transcribe';
 import type { AiAgent, AiResponseMode, AiTone } from './types';
 import {
   BURST_MAX_REPLIES,
@@ -62,92 +140,7 @@ import {
   NO_RECIBIDO_VENTANA_MS,
   WEBCHAT_DEBOUNCE_SECONDS,
 } from './types';
-import { isUnsupportedSnippet } from '@/lib/channels/display';
-import { aplicarDesenlace } from './desenlace';
-import {
-  marcarPresencia,
-  soportaPresencia,
-} from '@/lib/channels/meta-presencia';
-import {
-  withinBusinessHours,
-  containsEscalationKeyword as hasEscalationKeyword,
-} from './business-hours';
-import {
-  detectProductByUrl,
-  refersToCurrentPage,
-  detectProductMention,
-  type CandidateProduct,
-  type ProductMatch,
-} from './product-routing';
-import { toolEnabled, herramientasQueRequierenAprobacion } from './toolbox';
-import { unidadesDelTitulo } from '@/lib/products/unify';
-import { expandirGrupos } from '@/lib/products/agrupar';
-import {
-  buildCheckoutTool,
-  buildOrderTool,
-  ABRIR_DEVOLUCION_TOOL,
-  BUSCAR_PRODUCTO_TOOL,
-  CERRAR_CONVERSACION_TOOL,
-  ETIQUETAR_CONTACTO_TOOL,
-  NO_SE_TOOL,
-  VER_CONTACTO_TOOL,
-  VER_PRODUCTO_TOOL,
-  buildDescuentoTool,
-  CANCELAR_PEDIDO_TOOL,
-  CREAR_LINK_DE_PAGO_TOOL,
-  LOOKUP_ORDER_TOOL,
-  REEMBOLSAR_TOOL,
-  UPDATE_ORDER_TOOL,
-  ESCALATE_TO_CALL_TOOL,
-  REGISTRAR_PAGO_TOOL,
-  runWithTools,
-  type ShopifyToolContext,
-  type VoiceEscalationContext,
-} from './tools';
-import { shopifyApiVersion } from '@/lib/shopify/oauth';
-import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
-import { topeDeDescuento } from '@/lib/shopify/discounts';
-import { esperaParaEsteTurno } from './ritmo-de-escritura';
-import {
-  aceptaContraentrega,
-  frase as fraseDeMedios,
-  mediosDeclarados,
-} from './medios-pago';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import {
-  asksForPrice,
-  authorizedPrices,
-  replyForUnidentifiedPrice,
-  unauthorizedQuotedPrices,
-  withoutHistoricalPriceLines,
-} from '@/lib/products/price-integrity';
-import { refreshLivePricing } from '@/lib/shopify/live-pricing';
-import { loadPrimaryContact } from '@/lib/contacts/dedupe';
-import { enrichContactFromShopify } from '@/lib/contacts/enrich';
-import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import {
-  briefDeQueHablaPorId,
-  puedeAportarContexto,
-} from '@/lib/channels/de-que-habla';
-import {
-  briefDePublicacionPorId,
-  REGLAS_COMENTARIO_PUBLICO,
-} from '@/lib/channels/publicacion';
-import {
-  summarizeConversationIfNeeded,
-  summarizeContactIfNeeded,
-} from './summarize';
-import { resolveMediaFetchUrl } from '@/lib/channels/media-url';
-import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
-import { motorApagado } from '@/lib/workspaces/motor';
-import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import type { OtherStoreContext } from '@/lib/ai/tools';
-import {
-  cargarPerfilOperativo,
-  perfilOperativoAPrompt,
-  requiereModuloRegulado,
-  type PerfilOperativo,
-} from '@/lib/operacion/perfil-operativo';
+export { limpiarPersona };
 
 /**
  * 24/7 AI customer-service responder. Called fire-and-forget by
@@ -290,7 +283,10 @@ export async function runAiAgent(
     }
 
     const textoEntrante = args.inboundMessage.content_text ?? '';
-    if (args.channel !== 'webchat' && containsEscalationKeyword(agent, textoEntrante)) {
+    if (
+      args.channel !== 'webchat' &&
+      containsEscalationKeyword(agent, textoEntrante)
+    ) {
       await flagNeedsHuman(db, args.conversation, 'escalation_keyword', {
         pidio: textoEntrante,
       });
@@ -1109,54 +1105,10 @@ export async function runAiAgent(
         : {}),
     });
 
-    // ── La billetera ──
-    // Se cobra la respuesta que SALIÓ, no el intento. Y sólo si la pagó una
-    // llave de Riverz: al comercio que trae su propia clave de Anthropic ya le
-    // cobra Anthropic, cobrarle también acá sería cobrarle dos veces.
-    // `cobrar` nunca lanza: el cliente ya tiene su respuesta y un error de
-    // contabilidad no puede convertirse en un error de mensajería.
-    if (reply.keySource !== 'agent') {
-      void cobrar(db, args.workspaceId, {
-        concepto: 'ia_respuesta',
-        cantidad: 1,
-        costoUsd: costForModel(
-          reply.model,
-          reply.promptTokens ?? 0,
-          reply.completionTokens ?? 0,
-          {
-            read: reply.cacheReadTokens ?? 0,
-            write: reply.cacheWriteTokens ?? 0,
-          }
-        ),
-        referenciaTipo: 'conversation',
-        referenciaId: args.conversation.id,
-        detalle: {
-          canal: args.conversation.channel,
-          modelo: reply.model ?? null,
-          agente: agent.name ?? null,
-        },
-      });
-    }
-
     // Las búsquedas en internet las cobra Anthropic APARTE de los tokens
     // —10 USD cada mil— y `costForModel` sólo sabe de tokens, así que hasta
     // ahora salían gratis para el comercio y las pagaba Riverz. Se cuentan de
     // `herramientas`, que ya anota las de servidor.
-    const busquedas = (reply.herramientas ?? []).filter(
-      (h) => h === 'web_search'
-    ).length;
-    if (busquedas > 0 && reply.keySource !== 'agent') {
-      void cobrar(db, args.workspaceId, {
-        concepto: 'busqueda_web',
-        cantidad: busquedas,
-        // El precio de Anthropic, tal cual: 10 USD cada mil búsquedas.
-        costoUsd: busquedas * USD_POR_BUSQUEDA_WEB,
-        referenciaTipo: 'conversation',
-        referenciaId: args.conversation.id,
-        detalle: { canal: args.conversation.channel },
-      });
-    }
-
     // ── Memoria rodante (background, fail-soft) ──
     // No esperamos — el cliente ya recibió la respuesta. Si fallan,
     // el log de error queda en consola y reintentamos en el próximo
@@ -2627,7 +2579,12 @@ async function generateReply(
   const apiKey = resolved.key;
   let keySource = resolved.source;
 
-  const client = getAnthropic(apiKey);
+  const client = getAnthropic(apiKey, {
+    db,
+    workspaceId: agent.workspace_id,
+    concepto: 'ia_respuesta',
+    origenDeLaClave: resolved.source,
+  });
   // "One brain": on Instagram, feed the reactive agent the same per-person
   // context the proactive engine uses (segment, persona, follow relationship,
   // live campaign + offer) so it never answers an enriched person blind.
@@ -2734,21 +2691,10 @@ async function generateReply(
         return;
       if (msg.media.transcription) return;
       const result = await transcribeAudio(
-        await resolveMediaFetchUrl(msg.media.url)
+        await resolveMediaFetchUrl(msg.media.url),
+        { db, workspaceId: agent.workspace_id, concepto: 'transcripcion' }
       );
       if (!result) return;
-      // Whisper cobra por minuto de audio, y esto corría gratis. Es un
-      // proveedor conectado más: se le pasa al comercio.
-      if (result.segundos && result.proveedor) {
-        void cobrarUsoPorUnidad(db, agent.workspace_id, {
-          concepto: 'transcripcion',
-          cantidad: result.segundos / 60,
-          usdPorUnidad: USD_POR_MINUTO[result.proveedor],
-          referenciaTipo: 'conversation',
-          referenciaId: origen.conversationId,
-          detalle: { proveedor: result.proveedor, para: 'nota_de_voz' },
-        });
-      }
       msg.media.transcription = result.text;
       if (msg.messageId) {
         try {
@@ -2910,7 +2856,15 @@ async function generateReply(
     console.warn(
       `[ai] clave del agente ${agent.id} rechazada; se reintenta con la de ${respaldo.source}`
     );
-    result = await runWithTools(getAnthropic(respaldo.key), opciones);
+    result = await runWithTools(
+      getAnthropic(respaldo.key, {
+        db,
+        workspaceId: agent.workspace_id,
+        concepto: 'ia_respuesta',
+        origenDeLaClave: respaldo.source,
+      }),
+      opciones
+    );
     keySource = respaldo.source;
   }
 
@@ -2921,16 +2875,14 @@ async function generateReply(
   const trustedPrices =
     priceIntegrity.priceQuestion && !priceIntegrity.priceVerified
       ? []
-      : authorizedPrices(products)
-  const transferDiscount = shopify?.config?.transfer_discount_amount
+      : authorizedPrices(products);
+  const transferDiscount = shopify?.config?.transfer_discount_amount;
   if (typeof transferDiscount === 'number' && transferDiscount > 0) {
-    trustedPrices.push(transferDiscount)
+    trustedPrices.push(transferDiscount);
   }
-  const invalidPrices = unauthorizedQuotedPrices(
-    limpio,
-    trustedPrices,
-    { priceQuestion: priceIntegrity.priceQuestion }
-  );
+  const invalidPrices = unauthorizedQuotedPrices(limpio, trustedPrices, {
+    priceQuestion: priceIntegrity.priceQuestion,
+  });
   if (invalidPrices.length > 0) {
     // La consulta sólo dijo “¿precio?” y no pudimos asociarla a un producto.
     // No se escala por una cifra que el modelo eligió listar: se recupera con

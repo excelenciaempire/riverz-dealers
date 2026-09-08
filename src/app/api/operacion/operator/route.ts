@@ -1,23 +1,25 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { csrfGuard } from '@/lib/csrf'
-import { puertaDeIa } from '@/lib/wallet/puerta'
-import { cobrar } from '@/lib/wallet/saldo'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { getFeatureFlags, isOperatorFleet, isRiverz2 } from '@/lib/admin/feature-flags'
-import { limitByKey } from '@/lib/rate-limit'
-import { runOperator } from '@/lib/operator/loop'
-import { encodeEvent, type OperatorEvent } from '@/lib/operator/events'
-import { grabador } from '@/lib/operator/bloques'
-import { planQueEspera } from '@/lib/operator/fleet/plan'
+import {
+  getFeatureFlags,
+  isOperatorFleet,
+  isRiverz2,
+} from '@/lib/admin/feature-flags';
+import { claveRechazada } from '@/lib/ai/platform-key';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { grabador } from '@/lib/operator/bloques';
 import {
   abrirCorrida,
   cerrarCorrida,
   corridaViva,
   latido,
   pidieronDetener,
-} from '@/lib/operator/corridas'
+} from '@/lib/operator/corridas';
+import { encodeEvent, type OperatorEvent } from '@/lib/operator/events';
+import { planQueEspera } from '@/lib/operator/fleet/plan';
+import { guardarGasto } from '@/lib/operator/gasto';
+import { runOperator } from '@/lib/operator/loop';
 import {
   appendMessage,
   borrarHilo,
@@ -26,11 +28,12 @@ import {
   loadActions,
   loadMessages,
   toAnthropic,
-} from '@/lib/operator/threads'
-import { guardarGasto } from '@/lib/operator/gasto'
-import { getLocale } from '@/lib/i18n/server'
-import { translate } from '@/lib/i18n/translate'
-import { claveRechazada } from '@/lib/ai/platform-key'
+} from '@/lib/operator/threads';
+import { limitByKey } from '@/lib/rate-limit';
+import { createClient } from '@/lib/supabase/server';
+import { puertaDeIa } from '@/lib/wallet/puerta';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { NextResponse } from 'next/server';
 
 /**
  * Hablar con el Operator.
@@ -42,8 +45,8 @@ import { claveRechazada } from '@/lib/ai/platform-key'
  * tiene su propio techo de ritmo: sin él, mantener apretado "enviar" gasta el
  * saldo de la plataforma tan rápido como aguante la red.
  */
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
  * Cuántos mensajes por minuto.
@@ -54,23 +57,23 @@ export const dynamic = 'force-dynamic'
  * real de llamadas al modelo lo pone `MAX_LLAMADAS_TURNO`, que cuenta lo que
  * este cubo no puede ver: un pedido HTTP no dice cuántas llamadas hay adentro.
  */
-const RATE = { limit: 10, windowMs: 60_000 }
+const RATE = { limit: 10, windowMs: 60_000 };
 
 async function contexto() {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = supabaseAdmin()
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id)
-  if (!workspaceId) return null
-  const flags = await getFeatureFlags(admin, workspaceId)
-  if (!isRiverz2(flags)) return null
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const admin = supabaseAdmin();
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  if (!workspaceId) return null;
+  const flags = await getFeatureFlags(admin, workspaceId);
+  if (!isRiverz2(flags)) return null;
   // El equipo es otro flag, y arranca apagado. `riverz_2` ya está prendido para
   // toda la base: sin esta segunda puerta, cada commit del equipo le llegaría a
   // comercios reales antes de estar terminado.
-  return { admin, userId: user.id, workspaceId, flota: isOperatorFleet(flags) }
+  return { admin, userId: user.id, workspaceId, flota: isOperatorFleet(flags) };
 }
 
 /**
@@ -105,16 +108,17 @@ async function contexto() {
 // no alcanza a nadie. El loop sólo ejecuta esas capacidades marcadas como
 // inertes; publicar, activar, enviar, cobrar o borrar sigue quedando como una
 // propuesta que requiere confirmación explícita.
-const CONSTRUIR_INERTE_AUTOMATICAMENTE = true
+const CONSTRUIR_INERTE_AUTOMATICAMENTE = true;
 
 export async function GET(request: Request) {
-  const ctx = await contexto()
-  if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
+  const ctx = await contexto();
+  if (!ctx)
+    return NextResponse.json({ error: 'not_available' }, { status: 404 });
 
-  const threadId = new URL(request.url).searchParams.get('thread')
+  const threadId = new URL(request.url).searchParams.get('thread');
   // La lista de hilos viaja siempre: la pantalla la necesita tanto al abrir una
   // conversación como al arrancar en blanco, y son dos consultas baratas.
-  const hilos = await listarHilos(ctx.admin, ctx.workspaceId)
+  const hilos = await listarHilos(ctx.admin, ctx.workspaceId);
 
   /**
    * Sin `thread`, se abre la última.
@@ -124,13 +128,20 @@ export async function GET(request: Request) {
    * conversación. Dos esperas en fila con el chat en blanco, por algo que el
    * servidor ya tiene en la mano.
    */
-  const abrir = threadId ?? hilos[0]?.id ?? null
+  const abrir = threadId ?? hilos[0]?.id ?? null;
 
   if (!abrir) {
     return NextResponse.json(
-      { thread: null, mensajes: [], acciones: [], hilos, plan: null, corrida: null },
-      { headers: { 'Cache-Control': 'no-store' } },
-    )
+      {
+        thread: null,
+        mensajes: [],
+        acciones: [],
+        hilos,
+        plan: null,
+        corrida: null,
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   }
 
   const [mensajes, acciones, plan, corrida] = await Promise.all([
@@ -144,7 +155,7 @@ export async function GET(request: Request) {
     // cancela el turno, así que al volver hay que engancharse de nuevo — y
     // preguntarlo aparte era otra espera por un booleano.
     corridaViva(ctx.admin, abrir, ctx.workspaceId),
-  ])
+  ]);
   return NextResponse.json(
     {
       thread: abrir,
@@ -166,8 +177,8 @@ export async function GET(request: Request) {
           }
         : null,
     },
-    { headers: { 'Cache-Control': 'no-store' } },
-  )
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }
 
 /**
@@ -178,47 +189,54 @@ export async function GET(request: Request) {
  * limpiar el historial, y su registro de auditoría tiene que sobrevivir a eso.
  */
 export async function DELETE(request: Request) {
-  const block = await csrfGuard(request)
-  if (block) return block
-  const ctx = await contexto()
-  if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const ctx = await contexto();
+  if (!ctx)
+    return NextResponse.json({ error: 'not_available' }, { status: 404 });
 
-  const threadId = new URL(request.url).searchParams.get('thread')
-  if (!threadId) return NextResponse.json({ error: 'falta thread' }, { status: 400 })
+  const threadId = new URL(request.url).searchParams.get('thread');
+  if (!threadId)
+    return NextResponse.json({ error: 'falta thread' }, { status: 400 });
 
-  const ok = await borrarHilo(ctx.admin, threadId, ctx.workspaceId)
-  if (!ok) return NextResponse.json({ error: 'no existe' }, { status: 404 })
-  return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
+  const ok = await borrarHilo(ctx.admin, threadId, ctx.workspaceId);
+  if (!ok) return NextResponse.json({ error: 'no existe' }, { status: 404 });
+  return NextResponse.json(
+    { ok: true },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }
 
 export async function POST(request: Request) {
-  const block = await csrfGuard(request)
-  if (block) return block
+  const block = await csrfGuard(request);
+  if (block) return block;
 
-  const ctx = await contexto()
-  if (!ctx) return NextResponse.json({ error: 'not_available' }, { status: 404 })
+  const ctx = await contexto();
+  if (!ctx)
+    return NextResponse.json({ error: 'not_available' }, { status: 404 });
 
-  const rl = await limitByKey(`operator:${ctx.workspaceId}`, RATE)
+  const rl = await limitByKey(`operator:${ctx.workspaceId}`, RATE);
   if (!rl.success) {
-    return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
   }
 
   const body = (await request.json().catch(() => null)) as {
-    texto?: string
-    thread?: string | null
-  } | null
-  const texto = (body?.texto ?? '').trim().slice(0, 4000)
-  if (!texto) return NextResponse.json({ error: 'texto_required' }, { status: 400 })
+    texto?: string;
+    thread?: string | null;
+  } | null;
+  const texto = (body?.texto ?? '').trim().slice(0, 4000);
+  if (!texto)
+    return NextResponse.json({ error: 'texto_required' }, { status: 400 });
 
   // El Operador es la IA mas cara de la casa: un turno son varias llamadas al
   // modelo. Sin saldo o con la suscripcion vencida no arranca, y el motivo
   // vuelve al cliente para que la pantalla diga cual de los dos es.
-  const puerta = await puertaDeIa(ctx.admin, ctx.workspaceId)
+  const puerta = await puertaDeIa(ctx.admin, ctx.workspaceId);
   if (!puerta.puede) {
-    return NextResponse.json({ error: puerta.motivo }, { status: 402 })
+    return NextResponse.json({ error: puerta.motivo }, { status: 402 });
   }
 
-  const locale = await getLocale()
+  const locale = await getLocale();
 
   /**
    * El turno se transmite mientras ocurre.
@@ -247,49 +265,53 @@ export async function POST(request: Request) {
     workspaceId: ctx.workspaceId,
     userId: ctx.userId,
     firstText: texto,
-  })
+  });
 
-  const { id: runId, yaHabia } = await abrirCorrida(ctx.admin, threadId, ctx.workspaceId)
+  const { id: runId, yaHabia } = await abrirCorrida(
+    ctx.admin,
+    threadId,
+    ctx.workspaceId
+  );
   // Dos turnos a la vez sobre el mismo hilo se pisan el contexto. Quien pide
   // uno mientras hay otro corriendo recibe el que ya está.
   if (yaHabia) {
     return NextResponse.json(
       { error: 'ya_corriendo', run: runId, thread: threadId },
-      { status: 409 },
-    )
+      { status: 409 }
+    );
   }
 
-  const turnoVisto = grabador()
-  const cola: OperatorEvent[] = []
+  const turnoVisto = grabador();
+  const cola: OperatorEvent[] = [];
   // En una caja y no en un `let`: el compilador no ve la asignacion que pasa
   // dentro del stream y estrecha la variable a `null`, asi que llamarla desde
   // el trabajo no compila. La caja lo deja mutar desde los dos lados.
-  const espera: { avisar: (() => void) | null } = { avisar: null }
-  let terminado = false
-  let textoAcumulado = ''
-  const foto = latido(ctx.admin, runId)
+  const espera: { avisar: (() => void) | null } = { avisar: null };
+  let terminado = false;
+  let textoAcumulado = '';
+  const foto = latido(ctx.admin, runId);
 
   const push = (e: OperatorEvent) => {
-    turnoVisto.ver(e)
-    if (e.t === 'text') textoAcumulado += e.delta
-    cola.push(e)
-    espera.avisar?.()
+    turnoVisto.ver(e);
+    if (e.t === 'text') textoAcumulado += e.delta;
+    cola.push(e);
+    espera.avisar?.();
     // La foto, para quien vuelva. Como mucho una por segundo.
-    void foto.ver(textoAcumulado, turnoVisto.bloques)
-  }
+    void foto.ver(textoAcumulado, turnoVisto.bloques);
+  };
 
   /** El trabajo. NO se espera acá: por eso sobrevive al navegador. */
   const trabajo = (async () => {
     try {
       // El historial se lee ANTES de anotar el mensaje nuevo: el turno actual
       // va aparte, así no se duplica al armar el contexto.
-      const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId)
+      const previos = await loadMessages(ctx.admin, threadId, ctx.workspaceId);
       await appendMessage(ctx.admin, {
         threadId,
         workspaceId: ctx.workspaceId,
         role: 'user',
         text: texto,
-      })
+      });
 
       const turno = await runOperator({
         db: ctx.admin,
@@ -303,7 +325,7 @@ export async function POST(request: Request) {
         flota: ctx.flota,
         pedido: texto,
         detener: () => pidieronDetener(ctx.admin, runId),
-      })
+      });
 
       /**
        * Se guarda lo que se VIO, no la última frase.
@@ -322,52 +344,39 @@ export async function POST(request: Request) {
         bloques: turnoVisto.bloques,
         promptTokens: turno.promptTokens,
         completionTokens: turno.completionTokens,
-      })
-
-      // ── La billetera ──
-      // El Operador corre siempre con la llave de Riverz: no hay BYOK en este
-      // camino. Se cobra el turno que se ejecuto, con el costo real de todos
-      // los modelos que participaron. `cobrar` nunca lanza.
-      if (turno.costoUsd > 0) {
-        void cobrar(ctx.admin, ctx.workspaceId, {
-          concepto: 'ia_operador',
-          cantidad: 1,
-          costoUsd: turno.costoUsd,
-          referenciaTipo: 'operator_thread',
-          referenciaId: threadId,
-          detalle: { equipo: Boolean(ctx.flota) },
-        })
-      }
+      });
 
       if (turno.porAgente) {
         await guardarGasto(ctx.admin, {
           workspaceId: ctx.workspaceId,
           threadId,
           porAgente: turno.porAgente,
-        })
+        });
       }
 
       // Se manda al final por si el cupo diario cortó el turno antes de llamar
       // al modelo: ahí no hubo deltas y esto es todo lo que hay.
-      if (turno.overBudget) push({ t: 'text', delta: turno.text })
-      push({ t: 'done', thread: threadId })
+      if (turno.overBudget) push({ t: 'text', delta: turno.text });
+      push({ t: 'done', thread: threadId });
 
-      const detenido = await pidieronDetener(ctx.admin, runId)
+      const detenido = await pidieronDetener(ctx.admin, runId);
       await cerrarCorrida(ctx.admin, runId, detenido ? 'detenido' : 'listo', {
         texto: turno.text || textoAcumulado,
         bloques: turnoVisto.bloques,
-      })
+      });
     } catch (err) {
       // Lo que salía era el JSON crudo de Anthropic, en inglés y en rojo. Nadie
       // que venda cremas tiene por qué leer eso: el único caso que le sirve
       // saber es que la plataforma se quedó sin saldo, y eso se dice con
       // palabras. El detalle técnico queda en el log.
-      if (err) console.error('[operator] turno caído', err)
+      if (err) console.error('[operator] turno caído', err);
       const message = translate(
         locale,
-        claveRechazada(err) ? 'operation.operatorSinSaldo' : 'operation.operatorError',
-      )
-      push({ t: 'error', message })
+        claveRechazada(err)
+          ? 'operation.operatorSinSaldo'
+          : 'operation.operatorError'
+      );
+      push({ t: 'error', message });
 
       /**
        * Un turno que se cae igual deja rastro en el hilo.
@@ -389,39 +398,39 @@ export async function POST(request: Request) {
           role: 'assistant',
           text: textoAcumulado.trim() || message,
           bloques: turnoVisto.bloques,
-        }).catch(() => undefined)
+        }).catch(() => undefined);
       }
 
       await cerrarCorrida(ctx.admin, runId, 'fallido', {
         texto: textoAcumulado,
         bloques: turnoVisto.bloques,
         error: err instanceof Error ? err.message : String(err),
-      })
+      });
     } finally {
-      terminado = true
-      espera.avisar?.()
+      terminado = true;
+      espera.avisar?.();
     }
-  })()
+  })();
   // Que no se pierda un rechazo sin manejar si nadie llega a leerla.
-  void trabajo.catch(() => undefined)
+  void trabajo.catch(() => undefined);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const enc = new TextEncoder()
+      const enc = new TextEncoder();
       try {
         // Se vacía la cola hasta que el trabajo diga que terminó. Si el cliente
         // se va, `enqueue` tira y se sale del bucle — el trabajo ni se entera.
         for (;;) {
           while (cola.length > 0) {
-            controller.enqueue(enc.encode(encodeEvent(cola.shift()!)))
+            controller.enqueue(enc.encode(encodeEvent(cola.shift()!)));
           }
-          if (terminado) break
+          if (terminado) break;
           await new Promise<void>((resolve) => {
             const seguir = () => {
-              espera.avisar = null
-              clearTimeout(reloj)
-              resolve()
-            }
+              espera.avisar = null;
+              clearTimeout(reloj);
+              resolve();
+            };
             /**
              * El aviso perdido.
              *
@@ -436,23 +445,23 @@ export async function POST(request: Request) {
              * despierta igual en un cuarto de segundo en vez de dormir para
              * siempre.
              */
-            const reloj = setTimeout(seguir, 250)
-            espera.avisar = seguir
-            if (cola.length > 0 || terminado) seguir()
-          })
+            const reloj = setTimeout(seguir, 250);
+            espera.avisar = seguir;
+            if (cola.length > 0 || terminado) seguir();
+          });
         }
       } catch {
         // El navegador se fue. El turno sigue.
       } finally {
-        espera.avisar = null
+        espera.avisar = null;
         try {
-          controller.close()
+          controller.close();
         } catch {
           /* ya estaba cerrado */
         }
       }
     },
-  })
+  });
 
   return new Response(stream, {
     headers: {
@@ -467,5 +476,5 @@ export async function POST(request: Request) {
       // ofrecer el botón de detener, y volver a engancharse si se va y regresa.
       'x-riverz-run': runId,
     },
-  })
+  });
 }

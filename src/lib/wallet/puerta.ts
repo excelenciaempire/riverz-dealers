@@ -14,17 +14,17 @@
  * lo que haga falta. Cortarle el acceso a sus propias conversaciones porque nos
  * debe plata sería tomarle de rehén a sus clientes, que no deben nada.
  */
-import { NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { acceso, leerSuscripcion } from '@/lib/billing/plan'
-import { puedeGastar, leerBilletera, type Billetera } from './saldo'
+import { acceso, leerSuscripcion } from '@/lib/billing/plan';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { leerBilletera, puedeGastar, type Billetera } from './saldo';
 
-export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | null
+export type Motivo = 'sin_saldo' | 'suscripcion_vencida' | null;
 
 export interface Puerta {
-  puede: boolean
-  motivo: Motivo
-  saldoCentavos: number
+  puede: boolean;
+  motivo: Motivo;
+  saldoCentavos: number;
 }
 
 /**
@@ -34,16 +34,20 @@ export interface Puerta {
  */
 export async function puertaDeIa(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<Puerta> {
   try {
     const [sus, billetera] = await Promise.all([
       leerSuscripcion(db, workspaceId),
       leerBilletera(db, workspaceId),
-    ])
+    ]);
 
     if (sus?.estado === 'cortesia') {
-      return { puede: true, motivo: null, saldoCentavos: billetera.saldoCentavos }
+      return {
+        puede: true,
+        motivo: null,
+        saldoCentavos: billetera.saldoCentavos,
+      };
     }
 
     if (sus && !acceso(sus).puede) {
@@ -51,7 +55,7 @@ export async function puertaDeIa(
         puede: false,
         motivo: 'suscripcion_vencida',
         saldoCentavos: billetera.saldoCentavos,
-      }
+      };
     }
 
     if (!puedeGastar(billetera)) {
@@ -59,27 +63,30 @@ export async function puertaDeIa(
         puede: false,
         motivo: 'sin_saldo',
         saldoCentavos: billetera.saldoCentavos,
-      }
+      };
     }
 
-    return { puede: true, motivo: null, saldoCentavos: billetera.saldoCentavos }
+    return {
+      puede: true,
+      motivo: null,
+      saldoCentavos: billetera.saldoCentavos,
+    };
   } catch (e) {
-    // Ante un error nuestro, se atiende. Un fallo de lectura no puede dejar
-    // mudo a un comercio que sí pagó.
-    console.error('[wallet] no se pudo leer la puerta', e)
-    return { puede: true, motivo: null, saldoCentavos: 0 }
+    // No se autoriza un gasto externo sin poder comprobar el saldo.
+    console.error('[wallet] no se pudo leer la puerta', e);
+    return { puede: false, motivo: 'sin_saldo', saldoCentavos: 0 };
   }
 }
 
 /** Atajo booleano para los caminos que no necesitan el motivo. */
 export async function puedeUsarIa(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<boolean> {
-  return (await puertaDeIa(db, workspaceId)).puede
+  return (await puertaDeIa(db, workspaceId)).puede;
 }
 
-export type Aviso = 'gracia' | 'sin_saldo' | null
+export type Aviso = 'gracia' | 'sin_saldo' | null;
 
 /**
  * El saldo tal como se muestra de un vistazo, en cualquier pantalla.
@@ -92,31 +99,31 @@ export type Aviso = 'gracia' | 'sin_saldo' | null
  * teléfono.
  */
 export interface Vistazo {
-  centavos: number
-  moneda: string
+  centavos: number;
+  moneda: string;
   /** Cuenta de cortesía: no gasta saldo, no se le muestra ninguno. */
-  exenta: boolean
+  exenta: boolean;
   /** Si llegar a cero apaga la IA. */
-  bloquea: boolean
+  bloquea: boolean;
   /** Por debajo de esto, el número se pinta como advertencia. */
-  umbralCentavos: number
+  umbralCentavos: number;
   /** Con tarjeta y recarga automática no hace falta advertir: se repone solo. */
-  autoConTarjeta: boolean
+  autoConTarjeta: boolean;
 }
 
 /** El mismo piso que usa el aviso por WhatsApp cuando la cuenta no fijó el suyo. */
-export const UMBRAL_VISTAZO_CENTAVOS = 500
+export const UMBRAL_VISTAZO_CENTAVOS = 500;
 
 export interface EstadoDeCobro {
   /** La cuenta se cerró: pasaron las 48 horas y sigue sin pagar. */
-  bloqueado: boolean
+  bloqueado: boolean;
   /** Qué cartel corresponde arriba de la pantalla. */
-  aviso: Aviso
+  aviso: Aviso;
   /** Horas que quedan de gracia, cuando el aviso es de gracia. */
-  horas: number | null
-  saldoCentavos: number
+  horas: number | null;
+  saldoCentavos: number;
   /** El saldo para mostrarlo siempre a la vista, no sólo cuando duele. */
-  vistazo: Vistazo
+  vistazo: Vistazo;
 }
 
 function vistazoDe(b: Billetera, exenta: boolean): Vistazo {
@@ -127,7 +134,7 @@ function vistazoDe(b: Billetera, exenta: boolean): Vistazo {
     bloquea: b.bloquearSinSaldo && !exenta,
     umbralCentavos: b.autoUmbralCentavos ?? UMBRAL_VISTAZO_CENTAVOS,
     autoConTarjeta: b.tieneTarjeta && (b.autoRecargaCentavos ?? 0) > 0,
-  }
+  };
 }
 
 const VISTAZO_VACIO: Vistazo = {
@@ -137,7 +144,7 @@ const VISTAZO_VACIO: Vistazo = {
   bloquea: false,
   umbralCentavos: UMBRAL_VISTAZO_CENTAVOS,
   autoConTarjeta: false,
-}
+};
 
 /**
  * Lo que la pantalla necesita saber, en una sola lectura.
@@ -150,15 +157,15 @@ const VISTAZO_VACIO: Vistazo = {
  */
 export async function estadoDeCobro(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<EstadoDeCobro> {
   try {
     const [sus, billetera] = await Promise.all([
       leerSuscripcion(db, workspaceId),
       leerBilletera(db, workspaceId),
-    ])
+    ]);
 
-    const vistazo = vistazoDe(billetera, sus?.estado === 'cortesia')
+    const vistazo = vistazoDe(billetera, sus?.estado === 'cortesia');
 
     if (sus?.estado === 'cortesia') {
       return {
@@ -167,10 +174,10 @@ export async function estadoDeCobro(
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,
-      }
+      };
     }
 
-    const a = acceso(sus)
+    const a = acceso(sus);
     if (!a.puede) {
       return {
         bloqueado: true,
@@ -178,7 +185,7 @@ export async function estadoDeCobro(
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,
-      }
+      };
     }
     if (a.estado === 'vencida' && a.horasDeGracia !== null) {
       return {
@@ -187,7 +194,7 @@ export async function estadoDeCobro(
         horas: a.horasDeGracia,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,
-      }
+      };
     }
     if (!puedeGastar(billetera)) {
       return {
@@ -196,7 +203,7 @@ export async function estadoDeCobro(
         horas: null,
         saldoCentavos: billetera.saldoCentavos,
         vistazo,
-      }
+      };
     }
     return {
       bloqueado: false,
@@ -204,18 +211,18 @@ export async function estadoDeCobro(
       horas: null,
       saldoCentavos: billetera.saldoCentavos,
       vistazo,
-    }
+    };
   } catch (e) {
     // Un error de lectura no puede cerrarle la cuenta a nadie. Sin dato, el
     // vistazo se calla: un "US$0" inventado asusta peor que no mostrar nada.
-    console.error('[wallet] no se pudo leer el estado de cobro', e)
+    console.error('[wallet] no se pudo leer el estado de cobro', e);
     return {
       bloqueado: false,
       aviso: null,
       horas: null,
       saldoCentavos: 0,
       vistazo: VISTAZO_VACIO,
-    }
+    };
   }
 }
 
@@ -232,12 +239,15 @@ export async function estadoDeCobro(
  */
 export async function exigirSaldo(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<NextResponse | null> {
-  const puerta = await puertaDeIa(db, workspaceId)
-  if (puerta.puede) return null
+  const puerta = await puertaDeIa(db, workspaceId);
+  if (puerta.puede) return null;
   return NextResponse.json(
-    { error: puerta.motivo ?? 'sin_saldo', saldoCentavos: puerta.saldoCentavos },
-    { status: 402 },
-  )
+    {
+      error: puerta.motivo ?? 'sin_saldo',
+      saldoCentavos: puerta.saldoCentavos,
+    },
+    { status: 402 }
+  );
 }

@@ -1266,7 +1266,16 @@ export const settings = {
   // ── Billetera ──
   tabWallet: { es: 'Saldo', en: 'Balance' },
   walletBalance: { es: 'Saldo disponible', en: 'Available balance' },
-  walletStripeFeeRate: { es: 'Comisión real por recarga', en: 'Actual fee per top-up' },
+  walletStripeFeeRate: {
+    es: 'Comisión real por recarga',
+    en: 'Actual fee per top-up',
+  },
+  walletActualUsageRate: { es: 'Costo real por uso', en: 'Actual usage cost' },
+  walletReserved: {
+    es: '{amount} reservado para operaciones en curso.',
+    en: '{amount} reserved for operations in progress.',
+  },
+  walletTopupAdjustment: { es: 'Ajuste de recarga', en: 'Top-up adjustment' },
   walletStripeFee: { es: 'Comisión de Stripe', en: 'Stripe processing fee' },
   walletFeeNotice: {
     es: 'La comisión real de Stripe se descuenta del saldo en cada recarga, incluidas las automáticas. Sin margen adicional.',

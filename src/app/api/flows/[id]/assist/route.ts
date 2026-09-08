@@ -1,13 +1,9 @@
-import { NextResponse } from "next/server";
-import { cobrarUsoDeIa } from "@/lib/wallet/cobrar-uso";
-import Anthropic from "@anthropic-ai/sdk";
-import { getAnthropic } from "@/lib/ai/anthropic-client";
-import { ESTILO_HUMANO } from "@/lib/ai/estilo-humano";
-import { createClient } from "@/lib/supabase/server";
-import { csrfGuard } from "@/lib/csrf";
-import { getLocale } from "@/lib/i18n/server";
-import { translate } from "@/lib/i18n/translate";
-import type { Locale } from "@/lib/i18n/config";
+import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { ESTILO_HUMANO } from '@/lib/ai/estilo-humano';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
+import { csrfGuard } from '@/lib/csrf';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 import {
   ASSIST_TOOL_NAME,
   ASSIST_TOOL_SCHEMA,
@@ -17,10 +13,13 @@ import {
   validatePatchedSnapshot,
   type AiPatch,
   type AssistResponse,
-} from "@/lib/flows/ai-patches";
-import { supabaseAdmin } from "@/lib/flows/admin-client";
-import { resolveAnthropicKey } from "@/lib/ai/platform-key";
-import { aiBudgetGuard } from "@/lib/ai/rate-limit";
+} from '@/lib/flows/ai-patches';
+import type { Locale } from '@/lib/i18n/config';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { createClient } from '@/lib/supabase/server';
+import Anthropic from '@anthropic-ai/sdk';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/flows/[id]/assist
@@ -48,7 +47,7 @@ interface AssistRequestBody {
   message: string;
   flow_snapshot: {
     name?: string;
-    trigger_type: "keyword" | "first_inbound_message" | "manual";
+    trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
     trigger_config: Record<string, unknown>;
     trigger_position?: { x: number; y: number };
     entry_node_id: string | null;
@@ -62,12 +61,12 @@ interface AssistRequestBody {
   };
   /** Productos sincronizados del workspace para que la IA pueda referenciarlos. */
   products?: Array<{ title: string; handle: string }>;
-  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -80,30 +79,32 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const { data: flow } = await supabase
-    .from("flows")
-    .select("id, workspace_id")
-    .eq("id", id)
+    .from('flows')
+    .select('id, workspace_id')
+    .eq('id', id)
     .maybeSingle();
   if (!flow) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const workspaceId = (flow as { workspace_id: string }).workspace_id;
 
-  const body = (await request.json().catch(() => null)) as AssistRequestBody | null;
+  const body = (await request
+    .json()
+    .catch(() => null)) as AssistRequestBody | null;
   if (!body || !body.message?.trim() || !body.flow_snapshot) {
     return NextResponse.json(
-      { error: translate(locale, "errFlows.assistMissingFields") },
-      { status: 400 },
+      { error: translate(locale, 'errFlows.assistMissingFields') },
+      { status: 400 }
     );
   }
 
   // Cada turno del constructor es una llamada al modelo, y el lienzo invita a
   // tipear sin parar. Sin techo, una cuenta sola vacía el saldo de la
   // plataforma y el que se queda sin respuestas automáticas es el resto.
-  const over = await aiBudgetGuard(workspaceId, "standard");
+  const over = await aiBudgetGuard(workspaceId, 'standard');
   if (over) return over;
 
   // Por la cadena normal (clave del comercio → clave de plataforma → env) y no
@@ -114,15 +115,24 @@ export async function POST(
   if (!resolved) {
     return NextResponse.json(
       {
-        error: translate(locale, "errFlows.assistAnthropicNotConfigured"),
+        error: translate(locale, 'errFlows.assistAnthropicNotConfigured'),
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
   // ── Llamada a Claude con tool-use forzado ──
-  const client = getAnthropic(resolved.key);
-  const system = buildSystemPrompt(body.flow_snapshot, body.products ?? [], locale);
+  const client = getAnthropic(resolved.key, {
+    db: supabaseAdmin(),
+    workspaceId,
+    concepto: 'ia_asistencia',
+    origenDeLaClave: resolved.source,
+  });
+  const system = buildSystemPrompt(
+    body.flow_snapshot,
+    body.products ?? [],
+    locale
+  );
 
   const historyTurns = (body.history ?? []).slice(-10);
   const messages: Anthropic.MessageParam[] = [
@@ -130,13 +140,13 @@ export async function POST(
       role: t.role,
       content: t.content,
     })),
-    { role: "user", content: body.message },
+    { role: 'user', content: body.message },
   ];
 
   let response: Anthropic.Message;
   try {
     response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system,
       messages,
@@ -144,52 +154,38 @@ export async function POST(
         {
           name: ASSIST_TOOL_NAME,
           description:
-            "Responde al usuario y devuelve la lista de cambios a aplicar al flujo (puede estar vacía si el usuario solo hizo una pregunta).",
+            'Responde al usuario y devuelve la lista de cambios a aplicar al flujo (puede estar vacía si el usuario solo hizo una pregunta).',
           input_schema: ASSIST_TOOL_SCHEMA,
         },
       ],
-      tool_choice: { type: "tool", name: ASSIST_TOOL_NAME },
+      tool_choice: { type: 'tool', name: ASSIST_TOOL_NAME },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Anthropic API failed";
+    const msg = err instanceof Error ? err.message : 'Anthropic API failed';
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
   // A la billetera, a lo que costó.
-  void cobrarUsoDeIa(supabaseAdmin(), workspaceId, {
-    concepto: "ia_asistencia",
-    modelo: "claude-haiku-4-5-20251001",
-    uso: {
-      prompt: response.usage?.input_tokens ?? 0,
-      salida: response.usage?.output_tokens ?? 0,
-      cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
-      cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
-    },
-    origenDeLaClave: resolved?.source ?? null,
-    referenciaTipo: "flow",
-    referenciaId: (flow as { id: string }).id,
-    detalle: { para: "asistente_de_flujos" },
-  });
 
   // El tool_choice forzado garantiza que viene un tool_use; si no,
   // algo cambió en el lado de Anthropic y devolvemos error claro.
   const toolUse = response.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
   );
   if (!toolUse) {
     return NextResponse.json(
       {
-        error: translate(locale, "errFlows.assistUnexpectedAiResponse"),
+        error: translate(locale, 'errFlows.assistUnexpectedAiResponse'),
       },
-      { status: 502 },
+      { status: 502 }
     );
   }
 
   const parsed = toolUse.input as Partial<AssistResponse>;
   const reply =
-    typeof parsed.reply === "string" && parsed.reply.trim()
+    typeof parsed.reply === 'string' && parsed.reply.trim()
       ? parsed.reply.trim()
-      : translate(locale, "errFlows.assistDefaultReply");
+      : translate(locale, 'errFlows.assistDefaultReply');
   const patches = Array.isArray(parsed.patches)
     ? (parsed.patches.filter(isPatch) as AiPatch[])
     : [];
@@ -211,17 +207,17 @@ export async function POST(
           config: n.config,
         })),
       },
-      patches,
+      patches
     );
     if (newIssues.length > 0) {
-      const detail = newIssues.map((i) => i.message).join(" ");
+      const detail = newIssues.map((i) => i.message).join(' ');
       return NextResponse.json(
         {
-          error: translate(locale, "errFlows.assistPatchesWouldBreak", {
+          error: translate(locale, 'errFlows.assistPatchesWouldBreak', {
             detail,
           }),
         },
-        { status: 422 },
+        { status: 422 }
       );
     }
   }
@@ -237,12 +233,12 @@ export async function POST(
  * merchant de habla inglesa obtiene chat y mensajes de flujo en inglés.
  */
 function buildSystemPrompt(
-  snapshot: AssistRequestBody["flow_snapshot"],
+  snapshot: AssistRequestBody['flow_snapshot'],
   products: Array<{ title: string; handle: string }>,
-  locale: Locale,
+  locale: Locale
 ): string {
   const langLabel =
-    locale === "en"
+    locale === 'en'
       ? 'natural English (en-US)'
       : 'español neutro, sin voseo (usa "tú" o impersonal)';
   const productsBlock =
@@ -250,8 +246,8 @@ function buildSystemPrompt(
       ? `\nProductos sincronizados del merchant (úsalos cuando el usuario te pida links a productos específicos):\n${products
           .slice(0, 30)
           .map((p) => `- ${p.title} (handle: ${p.handle})`)
-          .join("\n")}\n`
-      : "\nEl merchant todavía no tiene productos sincronizados desde Shopify. Si el usuario pide links de productos, sugiérele agregarlos primero en /productos.\n";
+          .join('\n')}\n`
+      : '\nEl merchant todavía no tiene productos sincronizados desde Shopify. Si el usuario pide links de productos, sugiérele agregarlos primero en /productos.\n';
 
   return `Eres una IA asistente embebida en el editor de flujos de WhatsApp de Riverz.
 El usuario te habla en lenguaje natural y tú editas el flujo aplicando "patches" estructurados con la herramienta \`${ASSIST_TOOL_NAME}\`.

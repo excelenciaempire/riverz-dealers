@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ key: vi.fn(), charge: vi.fn() }));
-vi.mock('@/lib/integrations/workspace-key', () => ({ resolveWorkspaceKeyConOrigen: mocks.key }));
-vi.mock('@/lib/wallet/cobrar-uso', () => ({ cobrarUsoPorUnidad: mocks.charge }));
+const mocks = vi.hoisted(() => ({ key: vi.fn(), rpc: vi.fn() }));
+vi.mock('@/lib/integrations/workspace-key', () => ({
+  resolveWorkspaceKeyConOrigen: mocks.key,
+}));
 import {
   classifyApifyFailure,
   enrichExternalProfile,
@@ -9,28 +10,52 @@ import {
   type ExternalEnrichResult,
 } from './external-enrich';
 
-afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.clearAllMocks();
+});
 
 describe('failed enrichment billing and retry', () => {
   it('does not charge or call Apify again for another contact with a rejected key', async () => {
-    mocks.key.mockResolvedValue({ key: 'rejected-enrichment-test', propia: false });
-    const fetcher = vi.fn().mockResolvedValue(new Response('{}', { status: 401 }));
+    vi.stubEnv('APIFY_PROFILE_MAX_USAGE_USD', '0.05');
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
+    mocks.key.mockResolvedValue({
+      key: 'rejected-enrichment-test',
+      propia: false,
+    });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 401 }));
     vi.stubGlobal('fetch', fetcher);
     for (const contactId of ['one', 'two']) {
-      expect(await enrichExternalProfile({} as never, {
-        contactId, workspaceId: 'workspace', username: '@test',
-      })).toBe('failed:authentication:http_401');
+      expect(
+        await enrichExternalProfile({ rpc: mocks.rpc } as never, {
+          contactId,
+          workspaceId: 'workspace',
+          username: '@test',
+        })
+      ).toBe('failed:authentication:http_401');
     }
     expect(fetcher).toHaveBeenCalledOnce();
-    expect(mocks.charge).not.toHaveBeenCalled();
+    expect(mocks.rpc.mock.calls.map((c) => c[0])).toEqual([
+      'wallet_reservar',
+      'wallet_cancelar_reserva',
+    ]);
+    expect(mocks.rpc.mock.calls.some((c) => c[0] === 'wallet_liquidar')).toBe(
+      false
+    );
   });
 
   it('treats an unconfigured optional provider as skipped', async () => {
     mocks.key.mockResolvedValue(null);
-    expect(await enrichExternalProfile({} as never, {
-      contactId: 'one', username: '@test',
-    })).toBe('skipped');
-    expect(mocks.charge).not.toHaveBeenCalled();
+    expect(
+      await enrichExternalProfile({ rpc: mocks.rpc } as never, {
+        contactId: 'one',
+        username: '@test',
+      })
+    ).toBe('skipped');
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
 

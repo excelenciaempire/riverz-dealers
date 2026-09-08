@@ -1,6 +1,7 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { latestInboundText } from './engagement';
 
 /**
@@ -84,6 +85,7 @@ export function parseScoreResponse(text: string, count: number): ScoredLead[] {
 export async function scoreLeads(
   apiKey: string | null,
   texts: string[],
+  billing: BillingContext
 ): Promise<ScoredLead[]> {
   if (texts.length === 0) return [];
   const userPrompt = texts
@@ -91,6 +93,7 @@ export async function scoreLeads(
     .join('\n');
 
   const text = await completeText({
+    billing,
     tier: 'triage',
     system: SCORE_SYSTEM,
     user: userPrompt,
@@ -109,7 +112,7 @@ export async function scoreLeads(
 export async function scoreCampaignRecipients(
   db: SupabaseClient,
   campaignId: string,
-  limit = 40,
+  limit = 40
 ): Promise<{ scored: number; spam: number }> {
   // La clave como en todos lados: la de plataforma primero, el entorno último.
   // Leyendo el entorno directo, un comercio cubierto por la clave de
@@ -119,7 +122,8 @@ export async function scoreCampaignRecipients(
     .select('workspace_id')
     .eq('id', campaignId)
     .maybeSingle();
-  const wsCampaña = (camp as { workspace_id?: string } | null)?.workspace_id ?? '';
+  const wsCampaña =
+    (camp as { workspace_id?: string } | null)?.workspace_id ?? '';
   const apiKey = wsCampaña
     ? ((await resolveAnthropicKey(db, { workspaceId: wsCampaña }))?.key ?? null)
     : null;
@@ -136,12 +140,16 @@ export async function scoreCampaignRecipients(
   if (rows.length === 0) return { scored: 0, spam: 0 };
 
   const texts = await Promise.all(
-    rows.map((r) => latestInboundText(db, r.contact_id)),
+    rows.map((r) => latestInboundText(db, r.contact_id))
   );
 
   let scored: ScoredLead[];
   try {
-    scored = await scoreLeads(apiKey, texts.map((t) => t ?? '(sin mensaje)'));
+    scored = await scoreLeads(
+      apiKey,
+      texts.map((t) => t ?? '(sin mensaje)'),
+      { db, workspaceId: wsCampaña, concepto: 'ia_clasificacion' }
+    );
   } catch {
     return { scored: 0, spam: 0 };
   }

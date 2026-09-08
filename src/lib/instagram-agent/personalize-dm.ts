@@ -1,8 +1,9 @@
-import { completeText, hasLlm } from '@/lib/ai/llm-client';
 import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
+import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { enforceKnownUrls } from '@/lib/ai/url-integrity';
+import type { BillingContext } from '@/lib/wallet/operacion';
 import { brandBrief, type BrandContext } from './brand-context';
 import { linksBrief, type StoreLinks } from './store-links';
-import { enforceKnownUrls } from '@/lib/ai/url-integrity';
 
 /**
  * Replace the name token in a base message with the contact's first name
@@ -42,6 +43,7 @@ Reglas (estrictas):
 - ${ESTILO_HUMANO}`;
 
 export interface CraftDMInput {
+  billing?: BillingContext;
   apiKey: string | null;
   /** plan.message.text — referencia de intención y tono. */
   base: string;
@@ -90,7 +92,7 @@ const CODE_MENTION =
  */
 export function enforceOffer(
   text: string,
-  offer: { code: string; discount: string } | null | undefined,
+  offer: { code: string; discount: string } | null | undefined
 ): string {
   CODE_MENTION.lastIndex = 0;
   if (!CODE_MENTION.test(text)) return text;
@@ -99,7 +101,7 @@ export function enforceOffer(
   if (offer?.code) {
     return text.replace(
       CODE_MENTION,
-      (_m, label: string, middle: string) => `${label}${middle}${offer.code}`,
+      (_m, label: string, middle: string) => `${label}${middle}${offer.code}`
     );
   }
   // Sin oferta: fuera la frase entera que la menciona.
@@ -125,7 +127,7 @@ const LINK_PLACEHOLDER =
  */
 export function stripLinkPlaceholders(
   text: string,
-  links: StoreLinks | null,
+  links: StoreLinks | null
 ): string {
   const real = links?.products[0]?.url ?? links?.storeUrl ?? null;
   if (!LINK_PLACEHOLDER.test(text)) {
@@ -145,7 +147,7 @@ export function stripLinkPlaceholders(
 /** Sólo deja los enlaces que Riverz cargó desde la tienda o su catálogo. */
 export function enforceKnownStoreLinks(
   text: string,
-  links: StoreLinks | null,
+  links: StoreLinks | null
 ): string {
   return enforceKnownUrls(text, [
     ...(links?.products.map((product) => product.url) ?? []),
@@ -161,11 +163,16 @@ export function enforceKnownStoreLinks(
  * Robust by design: with no API key, no signal to personalize on, or any
  * model error, it falls back to the plain name-merge so sending never breaks.
  */
-export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> {
+export async function craftPersonalizedDM(
+  input: CraftDMInput
+): Promise<string> {
   const fallback = () => {
     let t = personalize(input.base, input.name);
     // Make sure the discount code rides along even in the fallback.
-    if (input.offer?.code && !t.toUpperCase().includes(input.offer.code.toUpperCase())) {
+    if (
+      input.offer?.code &&
+      !t.toUpperCase().includes(input.offer.code.toUpperCase())
+    ) {
       t += `\n\n🎁 ${input.offer.code}${input.offer.discount ? `, ${input.offer.discount}` : ''}`;
     }
     return enforceKnownStoreLinks(t.trim(), input.links ?? null);
@@ -186,7 +193,9 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
     brief,
     input.goal ? `OBJETIVO DE LA CAMPAÑA:\n${input.goal}` : '',
     `MENSAJE BASE (referencia de intención y tono, NO lo copies literal):\n${input.base}`,
-    input.products?.length ? `PRODUCTOS A DESTACAR: ${input.products.join(', ')}` : '',
+    input.products?.length
+      ? `PRODUCTOS A DESTACAR: ${input.products.join(', ')}`
+      : '',
     linksBrief(input.links ?? null),
     input.customer ?? '',
     input.thread ?? '',
@@ -204,7 +213,9 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
       : '',
     input.isVerified ? '- Cuenta verificada / figura pública' : '',
     `- Su interacción reciente (respóndele a esto de forma personal): ${
-      input.engagement ? `"${input.engagement.slice(0, 400).replace(/\s+/g, ' ').trim()}"` : '(sin texto, sé cálido y genérico)'
+      input.engagement
+        ? `"${input.engagement.slice(0, 400).replace(/\s+/g, ' ').trim()}"`
+        : '(sin texto, sé cálido y genérico)'
     }`,
     input.openerHint
       ? `- GANCHO PARA ABRIR (algo suyo, público y reciente): ${input.openerHint}. Ábrele por aquí de forma natural y en tono de pregunta; si no encaja, ignóralo.`
@@ -220,6 +231,7 @@ export async function craftPersonalizedDM(input: CraftDMInput): Promise<string> 
 
   try {
     let text = await completeText({
+      billing: input.billing!,
       // Este mensaje ES el producto y va a un cliente real con el nombre de la
       // marca encima: el modelo de triage se inventaba códigos y datos. Vale el
       // costo del modelo bueno.

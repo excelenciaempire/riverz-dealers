@@ -1,15 +1,14 @@
-import { NextResponse } from 'next/server';
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
 import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { ESTILO_HUMANO, humanizarTexto } from '@/lib/ai/estilo-humano';
 import { claveRechazada, resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { createClient } from '@/lib/supabase/server';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { createClient } from '@/lib/supabase/server';
 import type { Conversation, Message } from '@/types';
+import { NextResponse } from 'next/server';
 
 /**
  * Mejorar el borrador del asesor antes de enviarlo.
@@ -85,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!user) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
@@ -97,13 +96,13 @@ export async function POST(request: Request): Promise<Response> {
   if (!text) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.textRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
   if (text.length > MAX_INPUT_CHARS) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.textTooLong') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -123,7 +122,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!conversation) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.notFound') },
-        { status: 404 },
+        { status: 404 }
       );
     }
     workspaceId = conversation.workspace_id;
@@ -134,12 +133,13 @@ export async function POST(request: Request): Promise<Response> {
       .eq('user_id', user.id)
       .limit(1)
       .maybeSingle();
-    workspaceId = (data as { workspace_id?: string } | null)?.workspace_id ?? null;
+    workspaceId =
+      (data as { workspace_id?: string } | null)?.workspace_id ?? null;
   }
   if (!workspaceId) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
   }
 
@@ -152,7 +152,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!membership) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.forbidden') },
-      { status: 403 },
+      { status: 403 }
     );
   }
 
@@ -201,7 +201,7 @@ export async function POST(request: Request): Promise<Response> {
   if (keys.length === 0) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.missingApiKey') },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
@@ -215,11 +215,13 @@ export async function POST(request: Request): Promise<Response> {
       .not('content_text', 'is', null)
       .order('created_at', { ascending: false })
       .limit(CONTEXT_MESSAGES);
-    const msgs = ((rows ?? []) as Pick<Message, 'sender_type' | 'content_text'>[])
+    const msgs = (
+      (rows ?? []) as Pick<Message, 'sender_type' | 'content_text'>[]
+    )
       .reverse()
       .map(
         (m) =>
-          `${m.sender_type === 'customer' ? 'Cliente' : 'Tienda'}: ${(m.content_text ?? '').slice(0, 500)}`,
+          `${m.sender_type === 'customer' ? 'Cliente' : 'Tienda'}: ${(m.content_text ?? '').slice(0, 500)}`
       );
     if (msgs.length) context = msgs.join('\n');
   }
@@ -233,17 +235,20 @@ export async function POST(request: Request): Promise<Response> {
       ReturnType<ReturnType<typeof getAnthropic>['messages']['create']>
     > | null = null;
     let lastErr: unknown = null;
-    let usada = -1;
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
       try {
-        response = await getAnthropic(key).messages.create({
+        response = await getAnthropic(key, {
+          db: admin,
+          workspaceId,
+          concepto: 'ia_asistencia',
+          origenDeLaClave: deAgente[i] ? 'agent' : 'platform',
+        }).messages.create({
           model: MODEL,
           max_tokens: 1200,
           system: SYSTEM,
           messages: [{ role: 'user', content: prompt }],
         });
-        usada = i;
         break;
       } catch (err) {
         lastErr = err;
@@ -266,29 +271,18 @@ export async function POST(request: Request): Promise<Response> {
     if (!improved) {
       return NextResponse.json(
         { error: translate(locale, 'errAi.improveFailed') },
-        { status: 502 },
+        { status: 502 }
       );
     }
     // A la billetera, a lo que costó. Esta ruta ya frenaba sin saldo —o sea,
     // ya sabía que cuesta plata— y no descontaba nada.
-    void cobrarUsoDeIa(admin, workspaceId, {
-      concepto: 'ia_asistencia',
-      modelo: MODEL,
-      uso: {
-        prompt: response.usage?.input_tokens ?? 0,
-        salida: response.usage?.output_tokens ?? 0,
-        cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
-        cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
-      },
-      origenDeLaClave: deAgente[usada] ? 'agent' : 'plataforma',
-      detalle: { para: 'mejorar_texto' },
-    });
+
     return NextResponse.json({ text: improved });
   } catch (err) {
     console.error('[improve-text] fallo', err);
     return NextResponse.json(
       { error: translate(locale, 'errAi.improveFailed') },
-      { status: 502 },
+      { status: 502 }
     );
   }
 }

@@ -1,76 +1,87 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { avisarEscalada } from '@/lib/ai/aviso-escalada';
+import { aplicarDesenlace } from '@/lib/ai/desenlace';
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import {
-  salidaParaCliente,
-  recortarSalida,
   prometeAveriguar,
+  recortarSalida,
+  salidaParaCliente,
 } from '@/lib/ai/salida';
+import { composeSuperAgentReply } from '@/lib/ai/super-agent';
+import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
+import { setCommentHidden } from '@/lib/channels/comment-moderation';
+import { instagramAdapter } from '@/lib/channels/instagram/adapter';
+import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
+import { findMessageByExternalId } from '@/lib/channels/message-lookup';
+import { messengerAdapter } from '@/lib/channels/messenger/adapter';
 import {
-  afirmaLoQueNoSabe,
-  instruccionPara,
-  mereceRespuesta,
-  esCriticaPublica,
-} from './merece-respuesta';
+  briefDePublicacionPorId,
+  briefDePublicacionPorOrigen,
+} from '@/lib/channels/publicacion';
+import { getAdapter } from '@/lib/channels/registry';
+import type { OutboundText } from '@/lib/channels/types';
+import { loadCommentConversation } from '@/lib/comments/hilo';
+import {
+  asksForPrice,
+  unauthorizedQuotedPrices,
+} from '@/lib/products/price-integrity';
+import { limitByKey } from '@/lib/rate-limit';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type {
   ChannelConnection,
   Contact,
   Conversation,
   NeedsHumanReason,
 } from '@/types';
-import type { OutboundText } from '@/lib/channels/types';
-import { instagramAdapter } from '@/lib/channels/instagram/adapter';
-import { messengerAdapter } from '@/lib/channels/messenger/adapter';
-import { getAdapter } from '@/lib/channels/registry';
-import { coercePlan, type InstagramPlan } from './types';
-import { loadBrandContext, brandBrief, type BrandContext } from './brand-context';
-import { craftPersonalizedDM } from './personalize-dm';
-import { composeSuperAgentReply } from '@/lib/ai/super-agent';
-import { scoreLeads, type LeadScore } from './lead-scoring';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  resolveIgAgent,
-  igAgentCanAutoReply,
   commentAgentCanReply,
+  igAgentCanAutoReply,
+  resolveIgAgent,
 } from './agent-link';
-import { claimCommentPrivateReply } from './private-reply-lock';
-import { loadIgProfile } from './profile-enrich';
-import { resolveIgSegment } from './segment';
-import { setCommentHidden } from '@/lib/channels/comment-moderation';
-import { findMessageByExternalId } from '@/lib/channels/message-lookup';
-import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { loadCommentConversation } from '@/lib/comments/hilo';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
-import { aplicarDesenlace } from '@/lib/ai/desenlace';
-import { maybeRequestOptIn } from '@/lib/channels/marketing-optin';
 import {
-  proactiveGate,
-  logProactiveSend,
+  brandBrief,
+  loadBrandContext,
+  type BrandContext,
+} from './brand-context';
+import { loadCommentThread } from './comment-thread';
+import {
   autoReplyCommentsEnabled,
   featureEnabled,
   loadCommentSettings,
+  logProactiveSend,
+  proactiveGate,
 } from './controls';
-import { decideCommentDm } from './dm-opportunity';
+import { loadCustomerContext } from './customer-context';
+import {
+  ensureCampaignPriceRule,
+  getShopifyAdmin,
+  mintUniqueCode,
+  parsePercent,
+} from './discounts';
 import type { DmDecision } from './dm-opportunity';
-import { avisarEscalada } from '@/lib/ai/aviso-escalada';
+import { decideCommentDm } from './dm-opportunity';
+import { scoreLeads, type LeadScore } from './lead-scoring';
+import {
+  afirmaLoQueNoSabe,
+  esCriticaPublica,
+  instruccionPara,
+  mereceRespuesta,
+} from './merece-respuesta';
+import { loadOrderStatus } from './order-status';
+import { craftPersonalizedDM } from './personalize-dm';
+import { claimCommentPrivateReply } from './private-reply-lock';
+import { loadProductBrain } from './product-brain';
+import { loadIgProfile } from './profile-enrich';
 import {
   recordProactiveDm,
   recordPublicCommentReply,
   type CommentChannel,
 } from './record-dm';
-import { loadCustomerContext } from './customer-context';
-import { loadOrderStatus } from './order-status';
-import { loadCommentThread } from './comment-thread';
-import { loadProductBrain } from './product-brain';
-import { asksForPrice, unauthorizedQuotedPrices } from '@/lib/products/price-integrity';
-import { briefDePublicacionPorId, briefDePublicacionPorOrigen } from '@/lib/channels/publicacion';
-import { loadStoreLinks, linksBrief, type StoreLinks } from './store-links';
-import { limitByKey } from '@/lib/rate-limit';
-import { stripPublicCommentUrls } from '@/lib/ai/url-integrity';
-import {
-  getShopifyAdmin,
-  ensureCampaignPriceRule,
-  mintUniqueCode,
-  parsePercent,
-} from './discounts';
+import { resolveIgSegment } from './segment';
+import { linksBrief, loadStoreLinks, type StoreLinks } from './store-links';
+import { coercePlan, type InstagramPlan } from './types';
 
 /**
  * Real-time loop — the Blueberry behavior that batch sending can't give:
@@ -97,7 +108,11 @@ interface ActiveCampaign {
   ai_agent_id: string | null;
 }
 
-type ContactLite = { id: string; external_id: string | null; name: string | null };
+type ContactLite = {
+  id: string;
+  external_id: string | null;
+  name: string | null;
+};
 
 /**
  * Campaña que debe hacerse cargo de esta persona.
@@ -112,16 +127,20 @@ type ContactLite = { id: string; external_id: string | null; name: string | null
 async function campaignForContact(
   db: SupabaseClient,
   workspaceId: string,
-  contactId: string,
+  contactId: string
 ): Promise<ActiveCampaign | null> {
   const { data } = await db
     .from('instagram_campaigns')
-    .select('id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, holdout_pct, ai_agent_id')
+    .select(
+      'id, workspace_id, goal, plan, offer_code, shopify_price_rule_id, holdout_pct, ai_agent_id'
+    )
     .eq('workspace_id', workspaceId)
     .eq('status', 'active')
     .order('launched_at', { ascending: false })
     .limit(10);
-  const rows = (data ?? []) as Array<Omit<ActiveCampaign, 'plan'> & { plan: unknown }>;
+  const rows = (data ?? []) as Array<
+    Omit<ActiveCampaign, 'plan'> & { plan: unknown }
+  >;
   if (rows.length === 0) return null;
 
   const { data: enrolled } = await db
@@ -130,10 +149,12 @@ async function campaignForContact(
     .eq('contact_id', contactId)
     .in(
       'campaign_id',
-      rows.map((r) => r.id),
+      rows.map((r) => r.id)
     );
   const taken = new Set(
-    ((enrolled ?? []) as Array<{ campaign_id: string }>).map((r) => r.campaign_id),
+    ((enrolled ?? []) as Array<{ campaign_id: string }>).map(
+      (r) => r.campaign_id
+    )
   );
 
   for (const row of rows) {
@@ -164,14 +185,18 @@ async function marcarParaUnaPersona(
   pregunta: string,
   /** Por qué escala. Por defecto, el caso original: la IA no supo contestar. */
   motivo: NeedsHumanReason = 'answer_gap',
-  resumen?: string,
+  resumen?: string
 ): Promise<void> {
   try {
     // El hilo de COMENTARIOS de esa red. Antes tomaba "la conversación más
     // reciente de este contacto, cualquier canal" y sin filtrar workspace: un
     // "quiero hablar con una persona" bajo un post de Instagram escalaba —y
     // con POLITICA.comment_pide_humano, APAGABA— el chat de WhatsApp.
-    const hilo = await loadCommentConversation(db, { workspaceId, contactId, channel });
+    const hilo = await loadCommentConversation(db, {
+      workspaceId,
+      contactId,
+      channel,
+    });
     const convId = hilo?.id;
     if (!convId) return;
     // Mismo cuidado que en `ai/desenlace.ts`: el error viene EN el resultado,
@@ -188,7 +213,10 @@ async function marcarParaUnaPersona(
       .eq('id', convId)
       .is('needs_human_at', null);
     if (error) {
-      console.error('[ig-agent] la marca para una persona no se escribio:', error.message);
+      console.error(
+        '[ig-agent] la marca para una persona no se escribio:',
+        error.message
+      );
     } else {
       await avisarEscalada(db, {
         workspaceId,
@@ -210,7 +238,10 @@ async function marcarParaUnaPersona(
 }
 
 /** Has this contact asked to stop receiving messages? (compliance gate) */
-async function isOptedOut(db: SupabaseClient, contactId: string): Promise<boolean> {
+async function isOptedOut(
+  db: SupabaseClient,
+  contactId: string
+): Promise<boolean> {
   const { data } = await db
     .from('contacts')
     .select('opted_out')
@@ -233,7 +264,7 @@ async function isOptedOut(db: SupabaseClient, contactId: string): Promise<boolea
 async function dmConnection(
   db: SupabaseClient,
   workspaceId: string,
-  channel: 'instagram' | 'messenger' = 'instagram',
+  channel: 'instagram' | 'messenger' = 'instagram'
 ): Promise<ChannelConnection | null> {
   const { data } = await db
     .from('channel_connections')
@@ -262,7 +293,7 @@ async function dmConnectionFor(
   db: SupabaseClient,
   workspaceId: string,
   source: ChannelConnection | null | undefined,
-  channel: 'instagram' | 'messenger' = 'instagram',
+  channel: 'instagram' | 'messenger' = 'instagram'
 ): Promise<ChannelConnection | null> {
   if (!source) return dmConnection(db, workspaceId, channel);
   if (source.channel === channel) return source;
@@ -280,12 +311,17 @@ async function dmConnectionFor(
 }
 
 function offerFrom(
-  campaign: Pick<ActiveCampaign, 'plan' | 'offer_code'>,
+  campaign: Pick<ActiveCampaign, 'plan' | 'offer_code'>
 ): { code: string; discount: string } | null {
   if (campaign.plan.offer) {
-    return { code: campaign.plan.offer.code, discount: campaign.plan.offer.discount };
+    return {
+      code: campaign.plan.offer.code,
+      discount: campaign.plan.offer.discount,
+    };
   }
-  return campaign.offer_code ? { code: campaign.offer_code, discount: '' } : null;
+  return campaign.offer_code
+    ? { code: campaign.offer_code, discount: '' }
+    : null;
 }
 
 /**
@@ -312,7 +348,7 @@ export async function maybeInstantOutreach(
     engagementText: string | null;
     /** De qué red viene el comentario (Instagram si no se dice). */
     commentChannel?: CommentChannel;
-  },
+  }
 ): Promise<void> {
   if (!opts.contact.external_id) return;
   // Respect opt-out — never re-engage a contact who asked to stop.
@@ -343,7 +379,7 @@ export async function maybeInstantOutreach(
   const campaign = await campaignForContact(
     db,
     opts.workspaceId,
-    opts.contact.id,
+    opts.contact.id
   );
   if (!campaign || !(await featureEnabled(db, opts.workspaceId, 'outreach'))) {
     await replyToComment(db, opts);
@@ -368,7 +404,7 @@ export async function maybeInstantOutreach(
         status: 'queued',
         is_holdout: isHoldout,
       },
-      { onConflict: 'campaign_id,contact_id', ignoreDuplicates: true },
+      { onConflict: 'campaign_id,contact_id', ignoreDuplicates: true }
     )
     .select('id');
   const recipientId = (upserted as Array<{ id: string }> | null)?.[0]?.id;
@@ -386,13 +422,18 @@ export async function maybeInstantOutreach(
   if (!gate.success) return;
 
   const apiKey =
-    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ?? null;
+    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ??
+    null;
 
   // Spam / intent gate on what they actually said.
   let leadScore: LeadScore = 'medium';
   if (hasLlm(apiKey) && opts.engagementText) {
     try {
-      const [s] = await scoreLeads(apiKey, [opts.engagementText]);
+      const [s] = await scoreLeads(apiKey, [opts.engagementText], {
+        db,
+        workspaceId: opts.workspaceId,
+        concepto: 'ia_clasificacion',
+      });
       // Mismo criterio que el piso autónomo: lo que el triage llama spam se
       // oculta y no se contesta, crítica incluida. Ver el comentario largo en
       // `autonomousCommentReply`.
@@ -402,9 +443,16 @@ export async function maybeInstantOutreach(
         if (opts.commentId) {
           // Hide it on the account that OWNS the comment (the connection
           // the webhook attributed it to), not an arbitrary IG row.
-          const conn = opts.connection ?? (await igConnection(db, opts.workspaceId));
+          const conn =
+            opts.connection ?? (await igConnection(db, opts.workspaceId));
           if (conn)
-            await setCommentHidden(conn, 'ig_comment', opts.commentId, true, 'spam');
+            await setCommentHidden(
+              conn,
+              'ig_comment',
+              opts.commentId,
+              true,
+              'spam'
+            );
         }
         await db
           .from('instagram_campaign_recipients')
@@ -433,7 +481,11 @@ export async function maybeInstantOutreach(
   // hybrid_intent | approval — always within Meta policy, this decides whether
   // the DM goes out now or waits for a human. Brand voice comes from the SAME
   // linked agent, so proactive copy matches the reactive assistant.
-  const agent = await resolveIgAgent(db, opts.workspaceId, campaign.ai_agent_id);
+  const agent = await resolveIgAgent(
+    db,
+    opts.workspaceId,
+    campaign.ai_agent_id
+  );
   // Mismo contrato que la respuesta reactiva (pausado / alcance / horario /
   // "quiero un humano"). Antes el alcance de campaña ignoraba todo esto.
   if (!igAgentCanAutoReply(agent, opts.engagementText ?? '')) return;
@@ -443,7 +495,7 @@ export async function maybeInstantOutreach(
   const links = await loadStoreLinks(
     db,
     opts.workspaceId,
-    campaign.plan.recommended_products,
+    campaign.plan.recommended_products
   );
 
   // Who they are → segment → tailored tone/offer. Comment-only contacts aren't
@@ -490,7 +542,7 @@ export async function maybeInstantOutreach(
       db,
       opts.workspaceId,
       opts.commentId,
-      'campaign',
+      'campaign'
     );
     if (!won) {
       await db
@@ -511,7 +563,11 @@ export async function maybeInstantOutreach(
     .select('id');
   if (!(claimed as Array<{ id: string }> | null)?.length) return; // lost the race
 
-  const connection = await dmConnectionFor(db, opts.workspaceId, opts.connection);
+  const connection = await dmConnectionFor(
+    db,
+    opts.workspaceId,
+    opts.connection
+  );
   if (!connection) {
     await db
       .from('instagram_campaign_recipients')
@@ -526,7 +582,11 @@ export async function maybeInstantOutreach(
   if (pct) {
     const shop = await getShopifyAdmin(db, opts.workspaceId);
     if (shop) {
-      const priceRuleId = await ensureCampaignPriceRule(db, campaign, shop.client);
+      const priceRuleId = await ensureCampaignPriceRule(
+        db,
+        campaign,
+        shop.client
+      );
       if (priceRuleId) {
         const code = await mintUniqueCode(shop.client, priceRuleId, {
           name: opts.contact.name,
@@ -545,6 +605,7 @@ export async function maybeInstantOutreach(
   }
 
   const text = await craftPersonalizedDM({
+    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
     apiKey,
     base: campaign.plan.message.text,
     brand,
@@ -614,6 +675,7 @@ Reglas:
 - Devuelve SOLO el texto del DM, sin comillas ni explicaciones.`;
 
 async function generateCloserReply(input: {
+  billing: BillingContext;
   apiKey: string | null;
   plan: InstagramPlan;
   brand: BrandContext | null;
@@ -650,7 +712,9 @@ async function generateCloserReply(input: {
       ? `Pista de perfil (SOLO para el tono; no digas que viste su perfil): ${input.personaHint}`
       : '',
     `SU RESPUESTA (responde a esto y cierra): ${
-      input.inbound ? `"${input.inbound.slice(0, 500).replace(/\s+/g, ' ').trim()}"` : '(sin texto)'
+      input.inbound
+        ? `"${input.inbound.slice(0, 500).replace(/\s+/g, ' ').trim()}"`
+        : '(sin texto)'
     }`,
     '',
     'Escribe el DM de cierre.',
@@ -661,6 +725,7 @@ async function generateCloserReply(input: {
   try {
     const text = (
       await completeText({
+        billing: input.billing,
         // Hot lead → top model to close; the rest, triage.
         tier: input.leadScore === 'high' ? 'premium' : 'triage',
         system: CLOSE_SYSTEM,
@@ -707,7 +772,7 @@ async function generateCloserReply(input: {
 async function registrarSkipComentario(
   db: SupabaseClient,
   opts: OpcionesComentario,
-  motivo: string,
+  motivo: string
 ): Promise<void> {
   try {
     // El hilo de comentarios de ESA red: el motivo y el desenlace tienen que
@@ -747,17 +812,20 @@ async function estaOculto(
   db: SupabaseClient,
   workspaceId: string,
   channel: CommentChannel,
-  commentId: string | null | undefined,
+  commentId: string | null | undefined
 ): Promise<boolean> {
   if (!commentId) return false;
   // Con alcance de workspace: la misma cuenta puede estar conectada en dos
   // comercios y el id del comentario es el mismo para los dos.
-  const fila = await findMessageByExternalId<{ is_hidden: boolean | null }>(db, {
-    workspaceId,
-    channel,
-    externalMessageId: commentId,
-    select: 'is_hidden',
-  });
+  const fila = await findMessageByExternalId<{ is_hidden: boolean | null }>(
+    db,
+    {
+      workspaceId,
+      channel,
+      externalMessageId: commentId,
+      select: 'is_hidden',
+    }
+  );
   return Boolean(fila?.is_hidden);
 }
 
@@ -790,7 +858,7 @@ interface OpcionesComentario {
  */
 export async function replyToComment(
   db: SupabaseClient,
-  opts: OpcionesComentario,
+  opts: OpcionesComentario
 ): Promise<string | null> {
   const motivo = await decidirComentario(db, opts);
   if (motivo) await registrarSkipComentario(db, opts, motivo);
@@ -799,7 +867,7 @@ export async function replyToComment(
 
 async function decidirComentario(
   db: SupabaseClient,
-  opts: OpcionesComentario,
+  opts: OpcionesComentario
 ): Promise<string | null> {
   // Solo aplica al camino comentario → DM privado: sin id de comentario no hay
   // ruta permitida por Meta para escribirle.
@@ -823,14 +891,18 @@ async function decidirComentario(
   // lo que se conteste ahí se publica bajo el video, y las ramas del DM —el
   // candado, el tope, el opt-in de Meta— simplemente no corren.
   const isTikTok = commentChannel === 'tiktok_comment';
-  const dmChannel = isFacebook ? ('messenger' as const) : ('instagram' as const);
+  const dmChannel = isFacebook
+    ? ('messenger' as const)
+    : ('instagram' as const);
   const adapter = isFacebook ? messengerAdapter : instagramAdapter;
 
   // La clave, como en todo el resto: la del agente, la de plataforma, y recién
   // después el entorno. Acá se leía SÓLO la variable de entorno, así que un
   // comercio cubierto por la clave de plataforma quedaba mudo en comentarios
   // PARA SIEMPRE, con un motivo que decía "sin clave" cuando la clave existía.
-  const resuelta = await resolveAnthropicKey(db, { workspaceId: opts.workspaceId });
+  const resuelta = await resolveAnthropicKey(db, {
+    workspaceId: opts.workspaceId,
+  });
   const apiKey = resuelta?.key ?? null;
   if (!hasLlm(apiKey)) return 'comment_sin_llave';
 
@@ -891,7 +963,7 @@ async function decidirComentario(
     db,
     opts.workspaceId,
     opts.contact.id,
-    engagement,
+    engagement
   );
 
   // A quién contesta, y cuánto insiste en un hilo: lo decide el comercio en
@@ -910,7 +982,11 @@ async function decidirComentario(
   // porque contestarle a un bot no es una decisión de negocio.
   let score: LeadScore = 'medium';
   try {
-    const [s] = await scoreLeads(apiKey, [engagement]);
+    const [s] = await scoreLeads(apiKey, [engagement], {
+      db,
+      workspaceId: opts.workspaceId,
+      concepto: 'ia_clasificacion',
+    });
     if (!s) return 'comment_sin_clasificar';
     // El spam se oculta y se calla. DECISIÓN DEL COMERCIO, 2026-08-28.
     //
@@ -940,14 +1016,15 @@ async function decidirComentario(
       // contestar, que es lo que importa.
       if (!isTikTok) {
         const conn =
-          opts.connection ?? (await dmConnection(db, opts.workspaceId, dmChannel));
+          opts.connection ??
+          (await dmConnection(db, opts.workspaceId, dmChannel));
         const oculto = conn
           ? await setCommentHidden(
               conn,
               commentChannel,
               opts.commentId,
               true,
-              s.spam ? 'spam' : 'critica',
+              s.spam ? 'spam' : 'critica'
             )
           : false;
         // SI NO SE PUDO OCULTAR, NO SE HACE COMO QUE SÍ.
@@ -967,7 +1044,7 @@ async function decidirComentario(
             opts.contact.id,
             engagement,
             'comment_sin_moderar',
-            `No se pudo ocultar en ${commentChannel}. Sigue publicado y sin respuesta: "${engagement.slice(0, 160)}". Revisa el permiso de la cuenta en Canales.`,
+            `No se pudo ocultar en ${commentChannel}. Sigue publicado y sin respuesta: "${engagement.slice(0, 160)}". Revisa el permiso de la cuenta en Canales.`
           );
           return 'comment_no_se_pudo_ocultar';
         }
@@ -990,7 +1067,8 @@ async function decidirComentario(
   } catch {
     // Sin clasificar no arriesgamos un DM no pedido… salvo que el comercio haya
     // pedido explícitamente contestar a todos.
-    if (!orderStatus && commentCfg.audience === 'intent') return 'comment_clasificador_fallo';
+    if (!orderStatus && commentCfg.audience === 'intent')
+      return 'comment_clasificador_fallo';
   }
 
   // Del agente se toma la VOZ, nunca el permiso: Asistentes IA gobierna las
@@ -1023,16 +1101,18 @@ async function decidirComentario(
   const priceQuestion = asksForPrice(engagement) && !orderStatus;
   // “Precio?” no nombra el producto: el producto está en la publicación. Sin
   // sumar ese contexto, el verificador no sabría qué página comprobar.
-  const postBrief = opts.sourcePostId && (commentChannel === 'ig_comment' || commentChannel === 'fb_comment')
-    ? await briefDePublicacionPorOrigen(db, {
-        workspaceId: opts.workspaceId,
-        channel: commentChannel,
-        postId: opts.sourcePostId,
-        connectionId: opts.connection?.id ?? null,
-      }).catch(() => null)
-    : hilo
-      ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
-      : null;
+  const postBrief =
+    opts.sourcePostId &&
+    (commentChannel === 'ig_comment' || commentChannel === 'fb_comment')
+      ? await briefDePublicacionPorOrigen(db, {
+          workspaceId: opts.workspaceId,
+          channel: commentChannel,
+          postId: opts.sourcePostId,
+          connectionId: opts.connection?.id ?? null,
+        }).catch(() => null)
+      : hilo
+        ? await briefDePublicacionPorId(db, hilo.id).catch(() => null)
+        : null;
   const [brand, links, profile, customer, thread, product] = await Promise.all([
     loadBrandContext(db, opts.workspaceId, agent.id),
     loadStoreLinks(db, opts.workspaceId, []),
@@ -1066,7 +1146,7 @@ async function decidirComentario(
         opts.contact.id,
         engagement,
         'answer_gap',
-        `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`,
+        `No se pudo verificar el precio vigente antes de responder: "${engagement.slice(0, 160)}".`
       );
     }
     return 'comment_precio_no_verificado';
@@ -1137,13 +1217,15 @@ async function decidirComentario(
   // sin respuesta por culpa de esto.
   if (!text?.trim()) {
     text = await craftPersonalizedDM({
+      billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
       apiKey,
       base: orderStatus
         ? 'Responde su duda sobre el pedido con los datos reales. No vendas nada.'
         : 'Responde a su comentario, resuelve su duda concreta y ofrécele avanzar con la compra.',
       brand,
       links,
-      customer: [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
+      customer:
+        [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
       thread: thread?.brief ?? null,
       product: product?.brief ?? null,
       goal: null,
@@ -1163,10 +1245,13 @@ async function decidirComentario(
   const invalidPrices = unauthorizedQuotedPrices(
     text,
     product?.authorizedPriceValues ?? [],
-    { priceQuestion },
+    { priceQuestion }
   );
   if (invalidPrices.length > 0) {
-    console.warn('[ig-agent] respuesta descartada por precio no autorizado:', invalidPrices);
+    console.warn(
+      '[ig-agent] respuesta descartada por precio no autorizado:',
+      invalidPrices
+    );
     if (!opts.publicOnly) {
       await marcarParaUnaPersona(
         db,
@@ -1175,7 +1260,7 @@ async function decidirComentario(
         opts.contact.id,
         engagement,
         'answer_gap',
-        `La IA intentó publicar un precio no verificado (${invalidPrices.join(', ')}).`,
+        `La IA intentó publicar un precio no verificado (${invalidPrices.join(', ')}).`
       );
     }
     return 'comment_precio_no_autorizado';
@@ -1190,7 +1275,7 @@ async function decidirComentario(
   if (afirmaLoQueNoSabe(text)) {
     console.warn(
       '[ig-agent] respuesta descartada, afirmaba lo que no le consta:',
-      text.slice(0, 160),
+      text.slice(0, 160)
     );
     return 'comment_afirma_lo_que_no_sabe';
   }
@@ -1202,7 +1287,7 @@ async function decidirComentario(
   if (prometeAveriguar(text)) {
     console.warn(
       '[ig-agent] respuesta descartada, prometía averiguar y volver:',
-      text.slice(0, 160),
+      text.slice(0, 160)
     );
     if (!opts.publicOnly) {
       await marcarParaUnaPersona(
@@ -1210,7 +1295,7 @@ async function decidirComentario(
         opts.workspaceId,
         commentChannel,
         opts.contact.id,
-        engagement,
+        engagement
       );
     }
     return 'comment_prometia_averiguar';
@@ -1238,7 +1323,7 @@ async function decidirComentario(
         content_text: text,
         created_at: new Date().toISOString(),
       },
-      { onConflict: 'conversation_id' },
+      { onConflict: 'conversation_id' }
     );
     return 'comment_espera_aprobacion';
   }
@@ -1248,8 +1333,16 @@ async function decidirComentario(
   // clasificador: la respuesta privada es UNA sola por comentario y gastarla en
   // un "qué linda foto" es perderla para el que sí quería comprar.
   const decision = opts.publicOnly
-    ? { dm: false, reason: orderStatus ? ('pedido' as const) : ('ninguna' as const) }
+    ? {
+        dm: false,
+        reason: orderStatus ? ('pedido' as const) : ('ninguna' as const),
+      }
     : await decideCommentDm({
+        billing: {
+          db,
+          workspaceId: opts.workspaceId,
+          concepto: 'ia_clasificacion',
+        },
         // En TikTok la única respuesta posible es la pública, así que no se le
         // pregunta al clasificador algo que no se puede ejecutar.
         mode: isTikTok ? 'public' : commentCfg.replyMode,
@@ -1261,11 +1354,18 @@ async function decidirComentario(
 
   // Pedido, pago o reclamo: se atiende fuera del post y queda visible para el
   // equipo. La marca y el aviso son idempotentes por conversación.
-  const esPagoManual = /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i.test(engagement);
+  const esPagoManual =
+    /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i.test(
+      engagement
+    );
   const decisionForPublic = esPagoManual
     ? { ...decision, reason: 'privado' as const }
     : decision;
-  if (decision.reason === 'pedido' || decision.reason === 'reclamo' || esPagoManual) {
+  if (
+    decision.reason === 'pedido' ||
+    decision.reason === 'reclamo' ||
+    esPagoManual
+  ) {
     await marcarParaUnaPersona(
       db,
       opts.workspaceId,
@@ -1273,7 +1373,7 @@ async function decidirComentario(
       opts.contact.id,
       engagement,
       'problema_detectado',
-      'Caso privado de pedido, pago o reclamo recibido desde un comentario.',
+      'Caso privado de pedido, pago o reclamo recibido desde un comentario.'
     );
   }
 
@@ -1282,13 +1382,16 @@ async function decidirComentario(
   // DM. `external_id` es lo que hace falta para escribirle: sin él (un caso
   // raro de Graph) queda la respuesta pública, que sigue siendo una respuesta.
   const wantsDm =
-    !opts.publicOnly && decision.dm && Boolean(opts.contact.external_id) && Boolean(connection);
+    !opts.publicOnly &&
+    decision.dm &&
+    Boolean(opts.contact.external_id) &&
+    Boolean(connection);
   const wonPrivateReply = wantsDm
     ? await claimCommentPrivateReply(
         db,
         opts.workspaceId,
         opts.commentId,
-        'campaign',
+        'campaign'
       )
     : false;
 
@@ -1383,10 +1486,11 @@ async function decidirComentario(
           text: publicText,
         });
       } catch (pubErr) {
-        const detalle = pubErr instanceof Error ? pubErr.message : String(pubErr);
+        const detalle =
+          pubErr instanceof Error ? pubErr.message : String(pubErr);
         console.error(
           '[ig-agent] respuesta pública falló (¿permisos de Meta?):',
-          pubErr,
+          pubErr
         );
         // Que se sepa desde AFUERA, no sólo en el log.
         //
@@ -1398,7 +1502,11 @@ async function decidirComentario(
           await db
             .from('channel_connections')
             .update({
-              last_error: `no se pudo publicar la respuesta (${commentChannel}): ${detalle}`.slice(0, 500),
+              last_error:
+                `no se pudo publicar la respuesta (${commentChannel}): ${detalle}`.slice(
+                  0,
+                  500
+                ),
             })
             .eq('id', publicConnection.id)
             .then(undefined, () => {});
@@ -1423,7 +1531,7 @@ async function decidirComentario(
             opts.contact.id,
             engagement,
             'comment_sin_moderar',
-            `No se pudo contestar en ${commentChannel}: ${detalle.slice(0, 160)}`,
+            `No se pudo contestar en ${commentChannel}: ${detalle.slice(0, 160)}`
           );
           falloAlPublicar = true;
         }
@@ -1520,15 +1628,19 @@ function oracionesQueEntran(texto: string, tope: number): string {
 export function publicReplyFrom(
   dmText: string,
   dmSent = true,
-  decision?: Pick<DmDecision, 'reason'>,
+  decision?: Pick<DmDecision, 'reason'>
 ): string {
   // Un pedido, reclamo o dato que deba ir por privado no puede reutilizar la
   // primera frase del borrador: esa frase puede contener guía, importe u otro
   // dato del cliente. La respuesta pública sólo invita al DM.
-  if (decision?.reason === 'pedido' || decision?.reason === 'reclamo' || decision?.reason === 'privado') {
+  if (
+    decision?.reason === 'pedido' ||
+    decision?.reason === 'reclamo' ||
+    decision?.reason === 'privado'
+  ) {
     return dmSent
       ? 'Te escribí por privado para revisarlo contigo 💬'
-      : 'Por favor, escríbenos por mensaje privado para revisarlo contigo 💬'
+      : 'Por favor, escríbenos por mensaje privado para revisarlo contigo 💬';
   }
   // Instagram y Facebook no convierten los enlaces de comentarios en enlaces
   // clicables. El vínculo real ya salió por DM; repetirlo acá sólo deja texto
@@ -1540,9 +1652,10 @@ export function publicReplyFrom(
   }
   const first = clean.split('\n')[0]?.trim() ?? '';
   const short = oracionesQueEntran(first, 120);
-  return short ? `${short} 💬 Te escribí por privado.` : 'Te escribí por privado 💬';
+  return short
+    ? `${short} 💬 Te escribí por privado.`
+    : 'Te escribí por privado 💬';
 }
-
 
 /**
  * Alguien de una campaña respondió: lo marcamos en el embudo (sent → replied).
@@ -1551,7 +1664,7 @@ export function publicReplyFrom(
  */
 export async function markCampaignReply(
   db: SupabaseClient,
-  contactId: string,
+  contactId: string
 ): Promise<void> {
   const { data } = await db
     .from('instagram_campaign_recipients')
@@ -1579,7 +1692,7 @@ export async function markCampaignReply(
  */
 export async function hasInstagramAgent(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<boolean> {
   const { data } = await db
     .from('ai_agents')
@@ -1600,7 +1713,7 @@ export async function hasInstagramAgent(
   return rows.some(
     (a) =>
       a.scope === 'workspace' ||
-      (a.ai_agent_channels ?? []).some((c) => c.channel === 'instagram'),
+      (a.ai_agent_channels ?? []).some((c) => c.channel === 'instagram')
   );
 }
 
@@ -1628,7 +1741,7 @@ export async function maybeRunCloser(
     };
     /** Mensaje entrante que disparó este run — para el debounce anti-ráfaga. */
     inboundMessage: { id: string; created_at: string };
-  },
+  }
 ): Promise<boolean> {
   const { data: recRow } = await db
     .from('instagram_campaign_recipients')
@@ -1638,15 +1751,13 @@ export async function maybeRunCloser(
     .order('sent_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const rec = recRow as
-    | {
-        id: string;
-        status: string;
-        discount_code: string | null;
-        lead_score: LeadScore | null;
-        campaign_id: string;
-      }
-    | null;
+  const rec = recRow as {
+    id: string;
+    status: string;
+    discount_code: string | null;
+    lead_score: LeadScore | null;
+    campaign_id: string;
+  } | null;
   if (!rec) return false;
 
   const { data: campRow } = await db
@@ -1654,22 +1765,21 @@ export async function maybeRunCloser(
     .select('id, status, goal, plan, offer_code, ai_agent_id')
     .eq('id', rec.campaign_id)
     .maybeSingle();
-  const camp = campRow as
-    | {
-        id: string;
-        status: string;
-        goal: string | null;
-        plan: unknown;
-        offer_code: string | null;
-        ai_agent_id: string | null;
-      }
-    | null;
+  const camp = campRow as {
+    id: string;
+    status: string;
+    goal: string | null;
+    plan: unknown;
+    offer_code: string | null;
+    ai_agent_id: string | null;
+  } | null;
   if (!camp || camp.status !== 'active') return false;
   const plan = coercePlan(camp.plan);
   if (!plan) return false;
 
   const apiKey =
-    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ?? null;
+    (await resolveAnthropicKey(db, { workspaceId: opts.workspaceId }))?.key ??
+    null;
   // If we genuinely can't close (no model / no messageable id), DON'T claim
   // this DM — return false so the generic assistant answers instead of the
   // customer getting silence.
@@ -1686,7 +1796,11 @@ export async function maybeRunCloser(
   // estos casos → silencio; y si reply_when_assigned está ON, responde el
   // agente genérico, no el cerrador de campaña).
   const conv = opts.conversation;
-  if (conv.ai_enabled === false || conv.assigned_agent_id || conv.status === 'closed') {
+  if (
+    conv.ai_enabled === false ||
+    conv.assigned_agent_id ||
+    conv.status === 'closed'
+  ) {
     return false;
   }
 
@@ -1710,12 +1824,12 @@ export async function maybeRunCloser(
       .eq('sender_type', 'customer')
       .or(
         `created_at.gt.${opts.inboundMessage.created_at},` +
-          `and(created_at.eq.${opts.inboundMessage.created_at},id.gt.${opts.inboundMessage.id})`,
+          `and(created_at.eq.${opts.inboundMessage.created_at},id.gt.${opts.inboundMessage.id})`
       )
       .limit(20);
     return (data ?? []).some(
       (m: { content_text?: string | null; media_url?: string | null }) =>
-        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url),
+        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url)
     );
   };
 
@@ -1736,11 +1850,16 @@ export async function maybeRunCloser(
     leadScore: rec.lead_score,
   });
   const reply = await generateCloserReply({
+    billing: { db, workspaceId: opts.workspaceId, concepto: 'ia_asistencia' },
     apiKey,
     plan,
     brand,
     goal: camp.goal,
-    links: await loadStoreLinks(db, opts.workspaceId, plan.recommended_products),
+    links: await loadStoreLinks(
+      db,
+      opts.workspaceId,
+      plan.recommended_products
+    ),
     offer,
     name: opts.contact.name,
     inbound: opts.inboundText,
@@ -1764,15 +1883,21 @@ export async function maybeRunCloser(
     .select('ai_enabled, assigned_agent_id, status')
     .eq('id', conv.id)
     .maybeSingle();
-  const fc = freshConv as
-    | { ai_enabled?: boolean | null; assigned_agent_id?: string | null; status?: string | null }
-    | null;
-  if (fc && (fc.ai_enabled === false || fc.assigned_agent_id || fc.status === 'closed')) {
+  const fc = freshConv as {
+    ai_enabled?: boolean | null;
+    assigned_agent_id?: string | null;
+    status?: string | null;
+  } | null;
+  if (
+    fc &&
+    (fc.ai_enabled === false || fc.assigned_agent_id || fc.status === 'closed')
+  ) {
     return false;
   }
   if (await newerAnswerableInbound()) return true;
 
-  let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null = null;
+  let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null =
+    null;
   try {
     closerRes = await instagramAdapter.sendText({
       channel: 'instagram',

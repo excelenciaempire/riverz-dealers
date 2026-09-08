@@ -1,39 +1,44 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
-import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
-import type Anthropic from '@anthropic-ai/sdk';
-import type { Contact, Conversation } from '@/types';
-import type { AiAgent } from './types';
-import { getAnthropic } from './anthropic-client';
-import { MIN_DEBOUNCE_SECONDS } from './types';
-import { claveRechazada, resolveAnthropicKey } from './platform-key';
 import {
-  buildSystemPrompt,
-  loadContext,
-  loadProductCatalog,
-  loadRecentContactNotes,
-  detectInboundProduct,
-  construirHerramientas,
-  getStickyAgentId,
-  paginaDeLaConversacion,
-  pickAgent,
-  resolveShopifyContext,
-  resolveOtherStore,
-} from './runner';
-import { runWithTools } from './tools';
-import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
-import { resolverRegistro } from './registro-rioplatense';
-import { cargarReglas, reglasATexto } from './guidance';
+  briefDeQueHabla,
+  puedeAportarContexto,
+} from '@/lib/channels/de-que-habla';
+import {
+  briefDePublicacion,
+  REGLAS_COMENTARIO_PUBLICO,
+} from '@/lib/channels/publicacion';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { briefDePublicacion, REGLAS_COMENTARIO_PUBLICO } from '@/lib/channels/publicacion';
-import { briefDeQueHabla, puedeAportarContexto } from '@/lib/channels/de-que-habla';
 import {
   instruccionPara,
   mereceRespuesta,
 } from '@/lib/instagram-agent/merece-respuesta';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import type { Contact, Conversation } from '@/types';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { getAnthropic } from './anthropic-client';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
+import { ESTILO_HUMANO, humanizarTexto } from './estilo-humano';
+import { cargarReglas, reglasATexto } from './guidance';
+import { claveRechazada, resolveAnthropicKey } from './platform-key';
+import { resolverRegistro } from './registro-rioplatense';
+import {
+  buildSystemPrompt,
+  construirHerramientas,
+  detectInboundProduct,
+  getStickyAgentId,
+  loadContext,
+  loadProductCatalog,
+  loadRecentContactNotes,
+  paginaDeLaConversacion,
+  pickAgent,
+  resolveOtherStore,
+  resolveShopifyContext,
+} from './runner';
+import { runWithTools } from './tools';
+import type { AiAgent } from './types';
+import { MIN_DEBOUNCE_SECONDS } from './types';
 
 /** El borrador lo escribe Sonnet aunque el agente use otro modelo: ver la
  *  nota en la llamada. */
@@ -79,7 +84,7 @@ export interface BorradorResultado {
 
 export async function componerBorrador(
   db: SupabaseClient,
-  input: { workspaceId: string; conversation: Conversation },
+  input: { workspaceId: string; conversation: Conversation }
 ): Promise<BorradorResultado> {
   try {
     const conversation = input.conversation;
@@ -104,7 +109,7 @@ export async function componerBorrador(
       .limit(1)
       .maybeSingle();
     const ultimoCliente = String(
-      (ultimoRow as { content_text?: string | null } | null)?.content_text ?? '',
+      (ultimoRow as { content_text?: string | null } | null)?.content_text ?? ''
     );
 
     const productMatch = await detectInboundProduct(
@@ -114,17 +119,22 @@ export async function componerBorrador(
       // El borrador se arma con lo mismo que ve el agente que contesta solo:
       // en el chat web, la ficha en la que está parado quien pregunta.
       conversation.channel === 'webchat'
-        ? (await paginaDeLaConversacion(db, conversation.id))?.url ?? null
-        : null,
+        ? ((await paginaDeLaConversacion(db, conversation.id))?.url ?? null)
+        : null
     );
     // Mismo arbitraje que cuando contesta solo: el agente que ya venía
     // atendiendo este hilo, y si no el que corresponde al canal y al producto.
     const stickyAgentId = await getStickyAgentId(db, conversation.id);
-    const agent = await agenteParaBorrador(db, input.workspaceId, conversation.channel, {
-      productMatch,
-      stickyAgentId,
-      inboundText: ultimoCliente,
-    });
+    const agent = await agenteParaBorrador(
+      db,
+      input.workspaceId,
+      conversation.channel,
+      {
+        productMatch,
+        stickyAgentId,
+        inboundText: ultimoCliente,
+      }
+    );
 
     // Con qué se paga esto, y con qué se reintenta.
     //
@@ -140,25 +150,38 @@ export async function componerBorrador(
     });
     if (resolvedKey?.key) claves.push(resolvedKey.key);
     if (resolvedKey?.source !== 'platform') {
-      const plataforma = await resolveAnthropicKey(db, { workspaceId: input.workspaceId });
-      if (plataforma?.key && !claves.includes(plataforma.key)) claves.push(plataforma.key);
+      const plataforma = await resolveAnthropicKey(db, {
+        workspaceId: input.workspaceId,
+      });
+      if (plataforma?.key && !claves.includes(plataforma.key))
+        claves.push(plataforma.key);
     }
     const delServidor = process.env.ANTHROPIC_API_KEY;
     if (delServidor && !claves.includes(delServidor)) claves.push(delServidor);
     if (claves.length === 0) return { text: null, error: 'sin_clave' };
 
     const primaryContact = await loadPrimaryContact(db, contact);
-    const [shopifySnapshot, recentNotes, context, products, businessCurrency, igContext] =
-      await Promise.all([
-        enrichContactFromShopify(db, primaryContact).catch(() => null),
-        loadRecentContactNotes(db, primaryContact.id),
-        loadContext(db, conversation, agent.context_messages || 30),
-        loadProductCatalog(db, agent, input.workspaceId, productMatch),
-        resolveWorkspaceCurrency(db, input.workspaceId),
-        contextoDeLaPublicacion(db, input.workspaceId, conversation, contact.id, ultimoCliente).catch(
-          () => null,
-        ),
-      ]);
+    const [
+      shopifySnapshot,
+      recentNotes,
+      context,
+      products,
+      businessCurrency,
+      igContext,
+    ] = await Promise.all([
+      enrichContactFromShopify(db, primaryContact).catch(() => null),
+      loadRecentContactNotes(db, primaryContact.id),
+      loadContext(db, conversation, agent.context_messages || 30),
+      loadProductCatalog(db, agent, input.workspaceId, productMatch),
+      resolveWorkspaceCurrency(db, input.workspaceId),
+      contextoDeLaPublicacion(
+        db,
+        input.workspaceId,
+        conversation,
+        contact.id,
+        ultimoCliente
+      ).catch(() => null),
+    ]);
 
     // El contexto de Shopify entra para que el prompt tenga la ficha del
     // cliente y el precio real, pero SIN permiso de crear nada.
@@ -166,7 +189,7 @@ export async function componerBorrador(
       db,
       input.workspaceId,
       contact,
-      productMatch,
+      productMatch
     );
     // La tienda que no es Shopify: sin esto el botón de borrador no podía
     // consultar el pedido de un comercio de Tiendanube o Woo, y quien atiende
@@ -175,7 +198,7 @@ export async function componerBorrador(
       db,
       input.workspaceId,
       Boolean(shopify),
-      primaryContact,
+      primaryContact
     );
     if (shopify) {
       shopify.canCreateOrders = false;
@@ -212,14 +235,17 @@ export async function componerBorrador(
         idioma: agent.language,
         contact,
         primaryContact,
-      }),
+      })
     );
     system += `\n\n## Esto es un BORRADOR\n${REGLAS_BORRADOR}`;
     system += `\n${reglasDeSuperficie(conversation.channel)}`;
 
     // La API exige que el primer turno sea del usuario.
-    let messages = context.messages.filter((m) => m.role === 'user' || m.content);
-    while (messages.length && messages[0].role !== 'user') messages = messages.slice(1);
+    let messages = context.messages.filter(
+      (m) => m.role === 'user' || m.content
+    );
+    while (messages.length && messages[0].role !== 'user')
+      messages = messages.slice(1);
     if (messages.length === 0) return { text: null, error: 'vacio' };
     const claudeMessages: Anthropic.MessageParam[] = messages.map((m) => ({
       role: m.role,
@@ -243,41 +269,50 @@ export async function componerBorrador(
     let ultimoFallo: unknown = null;
     for (const clave of claves) {
       try {
-        result = await runWithTools(getAnthropic(clave), {
-          // Sonnet, no el modelo del agente.
-          //
-          // El agente contesta miles de mensajes solo y por eso corre en Haiku,
-          // que es la decisión correcta ahí. Acá es una llamada suelta, a pedido y
-          // que alguien va a leer antes de mandar: lo que importa es que suene a
-          // persona y que respete lo que NO hay que hacer —no vender en un
-          // comentario, no pedir datos en público, no explicar de más—. Medido
-          // sobre las conversaciones reales de un comercio, Haiku se saltaba esas
-          // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
-          // de ingredientes.
-          model: MODELO_BORRADOR,
-          // Lo que el modelo piensa sale del mismo presupuesto que la
-          // respuesta: sin aire se queda sin lugar para contestar.
-          max_tokens:
-            Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
-            (reguladoPorEsfuerzo(MODELO_BORRADOR) ? 4000 : 0),
-          system,
-          messages: claudeMessages,
-          // El mismo constructor que usa el agente cuando contesta solo, en
-          // modo `borrador`: de lectura. Antes era una lista aparte con UNA
-          // herramienta, asi que cada capacidad nueva -- buscar en internet,
-          // ver la ficha de quien escribe -- nacia sin llegar nunca aca.
-          tools: construirHerramientas({
-            agent,
-            hayContacto: Boolean(primaryContact.id),
-            shopify,
-            otherStore,
-            voiceCtx: null,
-            topeDescuento: 0,
-            modo: 'borrador',
+        result = await runWithTools(
+          getAnthropic(clave, {
+            db,
+            workspaceId: input.workspaceId,
+            concepto: 'ia_asistencia',
+            origenDeLaClave:
+              clave === resolvedKey?.key ? resolvedKey.source : 'platform',
           }),
-          shopify,
-          voice: null,
-        });
+          {
+            // Sonnet, no el modelo del agente.
+            //
+            // El agente contesta miles de mensajes solo y por eso corre en Haiku,
+            // que es la decisión correcta ahí. Acá es una llamada suelta, a pedido y
+            // que alguien va a leer antes de mandar: lo que importa es que suene a
+            // persona y que respete lo que NO hay que hacer —no vender en un
+            // comentario, no pedir datos en público, no explicar de más—. Medido
+            // sobre las conversaciones reales de un comercio, Haiku se saltaba esas
+            // reglas una de cada dos veces y contestaba "Habla mucho" con un folleto
+            // de ingredientes.
+            model: MODELO_BORRADOR,
+            // Lo que el modelo piensa sale del mismo presupuesto que la
+            // respuesta: sin aire se queda sin lugar para contestar.
+            max_tokens:
+              Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
+              (reguladoPorEsfuerzo(MODELO_BORRADOR) ? 4000 : 0),
+            system,
+            messages: claudeMessages,
+            // El mismo constructor que usa el agente cuando contesta solo, en
+            // modo `borrador`: de lectura. Antes era una lista aparte con UNA
+            // herramienta, asi que cada capacidad nueva -- buscar en internet,
+            // ver la ficha de quien escribe -- nacia sin llegar nunca aca.
+            tools: construirHerramientas({
+              agent,
+              hayContacto: Boolean(primaryContact.id),
+              shopify,
+              otherStore,
+              voiceCtx: null,
+              topeDescuento: 0,
+              modo: 'borrador',
+            }),
+            shopify,
+            voice: null,
+          }
+        );
         break;
       } catch (err) {
         ultimoFallo = err;
@@ -286,26 +321,13 @@ export async function componerBorrador(
       }
     }
     if (!result) {
-      if (claveRechazada(ultimoFallo)) return { text: null, error: 'sin_saldo' };
+      if (claveRechazada(ultimoFallo))
+        return { text: null, error: 'sin_saldo' };
       throw ultimoFallo ?? new Error('ninguna clave sirvió');
     }
 
     // A la billetera, a lo que costó. El borrador ya frenaba sin saldo y no
     // descontaba nada: es una llamada a Sonnet con herramientas, no barata.
-    void cobrarUsoDeIa(db, input.workspaceId, {
-      concepto: 'ia_asistencia',
-      modelo: MODELO_BORRADOR,
-      uso: {
-        prompt: result.promptTokens ?? 0,
-        salida: result.completionTokens ?? 0,
-        cacheLeida: result.cacheReadTokens ?? 0,
-        cacheEscrita: result.cacheWriteTokens ?? 0,
-      },
-      origenDeLaClave: resolvedKey?.source ?? null,
-      referenciaTipo: 'conversation',
-      referenciaId: conversation.id,
-      detalle: { para: 'borrador' },
-    });
 
     const text = humanizarTexto(result.text);
     if (!text) return { text: null, error: 'vacio' };
@@ -333,14 +355,16 @@ async function contextoDeLaPublicacion(
   conversation: Conversation,
   contactId: string,
   /** Lo último que dijo la persona: de ahí sale con qué reglas se contesta. */
-  ultimoCliente: string,
+  ultimoCliente: string
 ): Promise<string | null> {
   void workspaceId;
   const partes: string[] = [];
 
   // De qué post/video cuelga el comentario (TikTok trae además lo que se
   // dice en el video).
-  const publicacion = await briefDePublicacion(db, conversation).catch(() => null);
+  const publicacion = await briefDePublicacion(db, conversation).catch(
+    () => null
+  );
   if (publicacion) partes.push(publicacion);
 
   // Las mismas reglas que sigue el agente cuando contesta solo. Sin esto, el
@@ -359,7 +383,10 @@ async function contextoDeLaPublicacion(
 
   // Quién es esta persona en Instagram ("un solo cerebro"): sirve tanto en el
   // DM como debajo del post.
-  if (conversation.channel === 'instagram' || conversation.channel === 'ig_comment') {
+  if (
+    conversation.channel === 'instagram' ||
+    conversation.channel === 'ig_comment'
+  ) {
     const ig = await loadInstagramContext(db, contactId).catch(() => null);
     if (ig) partes.push(ig);
   }
@@ -422,7 +449,7 @@ async function agenteParaBorrador(
     productMatch: Awaited<ReturnType<typeof detectInboundProduct>>;
     stickyAgentId: string | null;
     inboundText: string;
-  },
+  }
 ): Promise<AiAgent> {
   const activo = await pickAgent(db, workspaceId, channel, routing);
   if (activo && activo.provider === 'anthropic') return activo;
@@ -449,12 +476,18 @@ async function agenteParaBorrador(
     .select('name')
     .eq('id', workspaceId)
     .maybeSingle();
-  return redactorGenerico(workspaceId, (ws as { name?: string } | null)?.name ?? null);
+  return redactorGenerico(
+    workspaceId,
+    (ws as { name?: string } | null)?.name ?? null
+  );
 }
 
 /** El agente que no existe: sólo lo suficiente para armar el prompt. Nunca se
  *  guarda ni se muestra en ningún lado. */
-function redactorGenerico(workspaceId: string, nombreDelComercio: string | null): AiAgent {
+function redactorGenerico(
+  workspaceId: string,
+  nombreDelComercio: string | null
+): AiAgent {
   const ahora = new Date().toISOString();
   return {
     id: '00000000-0000-0000-0000-000000000000',

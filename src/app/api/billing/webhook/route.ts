@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { ajustarRecargaDesdeEvento } from '@/lib/wallet/ajustes-stripe';
+import { NextResponse } from 'next/server';
 
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe'
-import { acreditarDesdeEvento } from '@/lib/wallet/recarga'
-import { guardarTarjetaDesdeEvento } from '@/lib/wallet/auto'
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { aplicarEvento, stripe, stripeDisponible } from '@/lib/billing/stripe';
+import { guardarTarjetaDesdeEvento } from '@/lib/wallet/auto';
+import { acreditarDesdeEvento } from '@/lib/wallet/recarga';
 
 /**
  * Lo que Stripe cuenta después.
@@ -20,44 +21,46 @@ import { guardarTarjetaDesdeEvento } from '@/lib/wallet/auto'
  * devuelve error hace que Stripe reintente durante días y termine desactivando
  * el endpoint.
  */
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  const secreto = process.env.STRIPE_WEBHOOK_SECRET
+  const secreto = process.env.STRIPE_WEBHOOK_SECRET;
   if (!stripeDisponible() || !secreto) {
-    return NextResponse.json({ ok: true, nota: 'facturación sin configurar' })
+    return NextResponse.json({ ok: true, nota: 'facturación sin configurar' });
   }
 
-  const firma = request.headers.get('stripe-signature')
-  if (!firma) return NextResponse.json({ error: 'sin firma' }, { status: 400 })
+  const firma = request.headers.get('stripe-signature');
+  if (!firma) return NextResponse.json({ error: 'sin firma' }, { status: 400 });
 
-  const crudo = await request.text()
-  let evento
+  const crudo = await request.text();
+  let evento;
   try {
-    evento = stripe().webhooks.constructEvent(crudo, firma, secreto)
+    evento = stripe().webhooks.constructEvent(crudo, firma, secreto);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'firma inválida' },
-      { status: 400 },
-    )
+      { status: 400 }
+    );
   }
 
   try {
-    const db = supabaseAdmin()
+    const db = supabaseAdmin();
     // Por el mismo endpoint entran dos cosas distintas: el estado de la
     // suscripción y las recargas de saldo. Cada una ignora lo que no es suyo.
-    const tarjeta = await guardarTarjetaDesdeEvento(db, evento)
-    if (tarjeta) return NextResponse.json({ ok: true, que: tarjeta })
-    const recarga = await acreditarDesdeEvento(db, evento)
-    if (recarga) return NextResponse.json({ ok: true, que: recarga })
-    const que = await aplicarEvento(db, evento)
-    return NextResponse.json({ ok: true, que })
+    const ajuste = await ajustarRecargaDesdeEvento(db, evento);
+    if (ajuste) return NextResponse.json({ ok: true, que: ajuste });
+    const tarjeta = await guardarTarjetaDesdeEvento(db, evento);
+    if (tarjeta) return NextResponse.json({ ok: true, que: tarjeta });
+    const recarga = await acreditarDesdeEvento(db, evento);
+    if (recarga) return NextResponse.json({ ok: true, que: recarga });
+    const que = await aplicarEvento(db, evento);
+    return NextResponse.json({ ok: true, que });
   } catch (e) {
     // 500 para que Stripe reintente: el evento es válido y algo nuestro falló.
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'no se pudo aplicar' },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

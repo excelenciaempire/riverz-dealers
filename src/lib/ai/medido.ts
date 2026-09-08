@@ -1,9 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { completeTextConUso, hasLlm, type CompleteTextOptions } from './llm-client'
-import { costForModel } from '@/lib/admin/cost'
-import { resolveAnthropicKey } from './platform-key'
-import { puedeUsarIa } from '@/lib/wallet/puerta'
-import { cobrar } from '@/lib/wallet/saldo'
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  completeTextConUso,
+  hasLlm,
+  type CompleteTextOptions,
+} from './llm-client';
+import { resolveAnthropicKey } from './platform-key';
 
 /**
  * Una llamada al modelo que SE COBRA y que no corre sin saldo.
@@ -30,46 +32,54 @@ import { cobrar } from '@/lib/wallet/saldo'
  */
 export async function completeTextMedido(
   db: SupabaseClient,
-  args: Omit<CompleteTextOptions, 'anthropicKey'> & {
-    workspaceId: string
+  args: Omit<CompleteTextOptions, 'anthropicKey' | 'billing'> & {
+    workspaceId: string;
     /** La clave del agente, si la trae. */
-    agentKeyEncrypted?: string | null
-    concepto: 'ia_clasificacion' | 'ia_resumen' | 'ia_seguimiento' | 'ia_asistencia'
-    referenciaTipo?: string
-    referenciaId?: string | null
-    detalle?: Record<string, unknown>
-  },
+    agentKeyEncrypted?: string | null;
+    concepto:
+      | 'ia_clasificacion'
+      | 'ia_resumen'
+      | 'ia_seguimiento'
+      | 'ia_asistencia';
+    referenciaTipo?: string;
+    referenciaId?: string | null;
+    detalle?: Record<string, unknown>;
+  }
 ): Promise<string | null> {
-  const { workspaceId, agentKeyEncrypted, concepto, referenciaTipo, referenciaId, detalle, ...opts } =
-    args
+  const {
+    workspaceId,
+    agentKeyEncrypted,
+    concepto,
+    referenciaTipo,
+    referenciaId,
+    detalle,
+    ...opts
+  } = args;
 
-  if (!(await puedeUsarIa(db, workspaceId))) return null
+  if (!(await puedeUsarIa(db, workspaceId))) return null;
 
-  const resuelta = await resolveAnthropicKey(db, { workspaceId, agentKeyEncrypted })
-  if (!resuelta || !hasLlm(resuelta.key)) return null
+  const resuelta = await resolveAnthropicKey(db, {
+    workspaceId,
+    agentKeyEncrypted,
+  });
+  if (!resuelta || !hasLlm(resuelta.key)) return null;
 
-  let salida: Awaited<ReturnType<typeof completeTextConUso>>
+  let salida: Awaited<ReturnType<typeof completeTextConUso>>;
   try {
-    salida = await completeTextConUso({ ...opts, anthropicKey: resuelta.key })
+    salida = await completeTextConUso({
+      ...opts,
+      anthropicKey: resuelta.key,
+      billing: {
+        db,
+        workspaceId,
+        concepto,
+        origenDeLaClave: resuelta.source,
+        detalle: { ...detalle, referenciaTipo, referenciaId },
+      },
+    });
   } catch {
-    return null
+    return null;
   }
 
-  // Se cobra lo que se pensó, aunque quien llama después descarte el texto: el
-  // gasto ya ocurrió. Al que trae su propia clave le cobra Anthropic.
-  if (resuelta.source !== 'agent') {
-    void cobrar(db, workspaceId, {
-      concepto,
-      cantidad: 1,
-      costoUsd: costForModel(salida.modelo, salida.uso.prompt, salida.uso.salida, {
-        read: salida.uso.cacheLeida,
-        write: salida.uso.cacheEscrita,
-      }),
-      referenciaTipo,
-      referenciaId: referenciaId ?? null,
-      detalle: { ...detalle, modelo: salida.modelo, proveedor: salida.proveedor },
-    })
-  }
-
-  return salida.text
+  return salida.text;
 }

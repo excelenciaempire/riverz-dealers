@@ -1,18 +1,16 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
 import {
   generateContactSegment,
   isSegmentFresh,
   type ContactSegment,
 } from '@/lib/contacts/segment';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { cobrar } from '@/lib/wallet/saldo';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
-import { costForModel } from '@/lib/admin/cost';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { createClient } from '@/lib/supabase/server';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/contacts/[id]/segment[?refresh=1]
@@ -24,7 +22,7 @@ import { translate } from '@/lib/i18n/translate';
  */
 export async function GET(
   request: Request,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
   const locale = await getLocale();
@@ -35,7 +33,7 @@ export async function GET(
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errInbox.notAuthenticated') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const { data: contact } = await supabase
@@ -46,7 +44,7 @@ export async function GET(
   if (!contact)
     return NextResponse.json(
       { error: translate(locale, 'errInbox.notFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   const c = contact as {
@@ -95,8 +93,14 @@ export async function GET(
   const justComputed = computedAt > 0 && Date.now() - computedAt < 60_000;
 
   // Serve the cache unless stale or forced.
-  if ((!forceRefresh && isSegmentFresh(c.ai_segment)) || (forceRefresh && justComputed)) {
-    return NextResponse.json({ segment: c.ai_segment, recent_activity: recentActivity });
+  if (
+    (!forceRefresh && isSegmentFresh(c.ai_segment)) ||
+    (forceRefresh && justComputed)
+  ) {
+    return NextResponse.json({
+      segment: c.ai_segment,
+      recent_activity: recentActivity,
+    });
   }
 
   // La clave sale del mismo lugar que el resto de la IA —la del comercio si la
@@ -104,7 +108,10 @@ export async function GET(
   // directo, y eso era gasto de Riverz que ninguna cuenta veía ni pagaba.
   const admin = supabaseAdmin();
   const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
-  const cache = { segment: c.ai_segment ?? null, recent_activity: recentActivity };
+  const cache = {
+    segment: c.ai_segment ?? null,
+    recent_activity: recentActivity,
+  };
   if (!workspaceId) return NextResponse.json(cache);
 
   // Sin saldo se sirve lo que haya en caché: es una etiqueta de apoyo, no algo
@@ -115,26 +122,26 @@ export async function GET(
   if (!resolved) return NextResponse.json(cache);
 
   const generated = await generateContactSegment(resolved.key, {
+    billing: {
+      db: admin,
+      workspaceId,
+      concepto: 'ia_clasificacion',
+      origenDeLaClave: resolved.source,
+    },
     name: c.name,
     messages,
     purchaseSummary: c.ai_summary,
   });
   if (generated?.uso && resolved.source !== 'agent') {
-    void cobrar(admin, workspaceId, {
-      concepto: 'ia_clasificacion',
-      cantidad: 1,
-      costoUsd: costForModel(
-        generated.uso.modelo,
-        generated.uso.entrada,
-        generated.uso.salida,
-        { read: generated.uso.cacheLectura, write: generated.uso.cacheEscritura },
-      ),
-      referenciaTipo: 'contact',
-      referenciaId: id,
-    });
+    {
+      /* Usage is settled at the provider boundary. */
+    }
   }
   if (!generated) {
-    return NextResponse.json({ segment: c.ai_segment ?? null, recent_activity: recentActivity });
+    return NextResponse.json({
+      segment: c.ai_segment ?? null,
+      recent_activity: recentActivity,
+    });
   }
 
   const segment: ContactSegment = {

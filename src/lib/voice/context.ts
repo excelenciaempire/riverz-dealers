@@ -1,3 +1,4 @@
+import { reserveVoiceMedia } from './media-billing';
 /**
  * Voice AI — system prompt + context builder.
  *
@@ -7,7 +8,33 @@
  * behavior block + the call objective + the order/cart context on top.
  * The Python worker pulls the result from GET /api/internal/voice/context.
  */
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { BUSCAR_EN_INTERNET_TOOL } from '@/lib/ai/busqueda-web';
+import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
+import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
+import {
+  buildSystemPrompt,
+  construirHerramientas,
+  loadContext,
+  loadProductCatalog,
+  loadRecentContactNotes,
+  resolveShopifyContext,
+  type LoadedContext,
+} from '@/lib/ai/runner';
+import { toolEnabled } from '@/lib/ai/toolbox';
+import type { AiAgent } from '@/lib/ai/types';
+import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
+import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { topeDeDescuento } from '@/lib/shopify/discounts';
+import {
+  isVoiceCallScenario,
+  objectiveForVoiceScenario,
+} from '@/lib/voice/scenarios';
+import {
+  countryOfPhone,
+  normalizeForDialing,
+} from '@/lib/whatsapp/phone-utils';
 import type {
   Contact,
   Conversation,
@@ -15,29 +42,8 @@ import type {
   VoiceCall,
   VoiceCallType,
 } from '@/types';
-import type { AiAgent } from '@/lib/ai/types';
-import {
-  buildSystemPrompt,
-  construirHerramientas,
-  loadContext,
-  loadRecentContactNotes,
-  loadProductCatalog,
-  resolveShopifyContext,
-  type LoadedContext,
-} from '@/lib/ai/runner';
-import { BUSCAR_EN_INTERNET_TOOL } from '@/lib/ai/busqueda-web';
-import { toolEnabled } from '@/lib/ai/toolbox';
-import { cargarReglas, reglasATexto } from '@/lib/ai/guidance';
-import { resolverRegistro } from '@/lib/ai/registro-rioplatense';
-import { cargarPerfilOperativo } from '@/lib/operacion/perfil-operativo';
-import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
-import { topeDeDescuento } from '@/lib/shopify/discounts';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import {
-  isVoiceCallScenario,
-  objectiveForVoiceScenario,
-} from '@/lib/voice/scenarios';
-import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { normalizeStack, resolveVoiceId } from './compat';
 import {
   BUSINESS_FALLBACK,
   DEFAULT_GREETING_AR,
@@ -46,17 +52,13 @@ import {
   DEFAULT_RECORDING_DISCLOSURE,
   RIOPLATENSE_SPEECH,
 } from './constants';
+import { publicVoiceContext, voiceExecutionMeta } from './execution-context';
 import { getVoiceModelResolved, type VoiceMode } from './model-config';
 import { effectiveBaseUrl } from './providers';
-import { normalizeStack, resolveVoiceId } from './compat';
-import {
-  countryOfPhone,
-  normalizeForDialing,
-} from '@/lib/whatsapp/phone-utils';
-import { publicVoiceContext, voiceExecutionMeta } from './execution-context';
 
 /** A model layer's runtime coordinates for the worker. */
 interface LayerCfg {
+  billing_url?: string;
   provider: string;
   model: string;
   /** OpenAI-compatible endpoint (Modal) — null = use the built-in provider. */
@@ -668,9 +670,11 @@ export async function buildVoiceContext(
     contact,
     primaryContact,
     paisEnLaTienda:
-      (shopifySnapshot?.default_address as
-        | { country_code?: string | null }
-        | undefined)?.country_code ??
+      (
+        shopifySnapshot?.default_address as
+          | { country_code?: string | null }
+          | undefined
+      )?.country_code ??
       shopifySnapshot?.default_address?.country ??
       null,
   });
@@ -948,6 +952,20 @@ export async function buildVoiceContext(
     greeting = `${DEFAULT_RECORDING_DISCLOSURE[lang]} ${greeting}`;
   }
 
+  if (
+    !['pipeline'].includes(model.mode) ||
+    model.llm_provider !== 'anthropic' ||
+    model.llm_base_url ||
+    model.tts_base_url ||
+    !['fish', 'elevenlabs'].includes(model.tts_provider)
+  )
+    throw new Error('wallet_voice_stack_not_configured');
+  await reserveVoiceMedia(
+    db,
+    call,
+    voiceAgent.voice_max_call_seconds || 300,
+    model.stt_provider
+  );
   return {
     call_id: call.id,
     direction: call.direction,
@@ -967,6 +985,7 @@ export async function buildVoiceContext(
     system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
     mode: model.mode,
     voice: {
+      billing_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://riverzai.com'}/api/internal/voice/speech/${call.id}`,
       provider: model.tts_provider,
       // La voz del agente manda, salvo que no sea del proveedor activo (un id
       // de ElevenLabs en Fish deja la llamada muda) → default de la plataforma
@@ -1000,6 +1019,7 @@ export async function buildVoiceContext(
         model.llm_base_url
       );
       return {
+        billing_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://riverzai.com'}/api/internal/voice/model/${call.id}`,
         provider: model.llm_provider,
         // Con endpoint OpenAI-compat el NOMBRE de modelo lo dicta ese endpoint →
         // usamos el de la config, NO el agent.model (que puede ser de otro
@@ -1038,7 +1058,7 @@ export async function buildVoiceContext(
       // El valor antiguo de la conexión queda como fallback de compatibilidad.
       number: voiceAgent.voice_transfer_number ?? opts.transferNumber ?? null,
     },
-    max_call_seconds: voiceAgent.voice_max_call_seconds || 300,
+    max_call_seconds: Math.min(3600, voiceAgent.voice_max_call_seconds || 300),
     sip: { trunk_id: opts.trunkId, caller_number: opts.callerNumber },
     contact: { id: contact.id, name: contact.name ?? null },
     tools_enabled: toolsEnabled,

@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic } from '@/lib/ai/anthropic-client'
-import { resolveAnthropicKey } from '@/lib/ai/platform-key'
-import { supabaseAdmin } from './admin-client'
-import { cobrar } from '@/lib/wallet/saldo'
-import { puedeUsarIa } from '@/lib/wallet/puerta'
-import { costForModel } from '@/lib/admin/cost'
+import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import Anthropic from '@anthropic-ai/sdk';
+import { supabaseAdmin } from './admin-client';
 
 /**
  * Classify a customer's free-text reply into one of the declared intents
@@ -16,16 +14,16 @@ import { costForModel } from '@/lib/admin/cost'
  * Never throws on AI failures — the caller routes to fallback_next_key.
  */
 export async function classifyIntent(args: {
-  workspaceId: string
-  message: string
-  intents: Array<{ intent_key: string; description: string }>
+  workspaceId: string;
+  message: string;
+  intents: Array<{ intent_key: string; description: string }>;
 }): Promise<string | null> {
-  if (args.intents.length === 0) return null
-  const db = supabaseAdmin()
+  if (args.intents.length === 0) return null;
+  const db = supabaseAdmin();
 
   // Sin saldo no se clasifica: el flujo sale por su rama de respaldo, que es
   // exactamente lo que hace cuando el modelo no entiende.
-  if (!(await puedeUsarIa(db, args.workspaceId))) return null
+  if (!(await puedeUsarIa(db, args.workspaceId))) return null;
 
   const { data: agent } = await db
     .from('ai_agents')
@@ -36,22 +34,30 @@ export async function classifyIntent(args: {
     .order('priority', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
-  const row = agent as { model: string; api_key_encrypted: string | null } | null
+    .maybeSingle();
+  const row = agent as {
+    model: string;
+    api_key_encrypted: string | null;
+  } | null;
 
   const resolved = await resolveAnthropicKey(db, {
     workspaceId: args.workspaceId,
     agentKeyEncrypted: row?.api_key_encrypted,
-  })
-  const apiKey = resolved?.key
-  if (!apiKey) return null
+  });
+  const apiKey = resolved?.key;
+  if (!apiKey) return null;
 
-  const model = row?.model || 'claude-haiku-4-5-20251001'
+  const model = row?.model || 'claude-haiku-4-5-20251001';
   const optionList = args.intents
     .map((i) => `- ${i.intent_key}: ${i.description}`)
-    .join('\n')
+    .join('\n');
 
-  const client = getAnthropic(apiKey)
+  const client = getAnthropic(apiKey, {
+    db,
+    workspaceId: args.workspaceId,
+    concepto: 'ia_clasificacion',
+    origenDeLaClave: resolved?.source,
+  });
   try {
     const response = await client.messages.create({
       model,
@@ -63,41 +69,21 @@ export async function classifyIntent(args: {
       messages: [
         {
           role: 'user',
-          content:
-            `Opciones:\n${optionList}\n\nMensaje del cliente:\n${args.message}\n\nintent_key:`,
+          content: `Opciones:\n${optionList}\n\nMensaje del cliente:\n${args.message}\n\nintent_key:`,
         },
       ],
-    })
-    // Se cobra la clasificacion, no el acierto: pensarla costo igual. Al que
-    // trae su clave de Anthropic ya le cobra Anthropic.
-    if (resolved.source !== 'agent') {
-      void cobrar(db, args.workspaceId, {
-        concepto: 'ia_clasificacion',
-        cantidad: 1,
-        costoUsd: costForModel(
-          model,
-          response.usage?.input_tokens ?? 0,
-          response.usage?.output_tokens ?? 0,
-          {
-            read: response.usage?.cache_read_input_tokens ?? 0,
-            write: response.usage?.cache_creation_input_tokens ?? 0,
-          },
-        ),
-        referenciaTipo: 'flow',
-      })
-    }
+    });
 
     const raw = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
       .trim()
-      .toLowerCase()
-    if (!raw || raw === 'none') return null
-    const match = args.intents.find((i) => i.intent_key.toLowerCase() === raw)
-    return match?.intent_key ?? null
+      .toLowerCase();
+    if (!raw || raw === 'none') return null;
+    const match = args.intents.find((i) => i.intent_key.toLowerCase() === raw);
+    return match?.intent_key ?? null;
   } catch {
-    return null
+    return null;
   }
 }
-

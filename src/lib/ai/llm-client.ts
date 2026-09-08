@@ -1,6 +1,9 @@
+import { costForModel, rateFor } from '@/lib/admin/cost';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
 import Anthropic from '@anthropic-ai/sdk';
-import { esfuerzo } from './esfuerzo';
 import { getAnthropic } from './anthropic-client';
+import { esfuerzo } from './esfuerzo';
 
 /**
  * Provider-agnostic text completion for the Instagram brain.
@@ -101,6 +104,7 @@ export interface Completado {
 }
 
 export interface CompleteTextOptions {
+  billing: BillingContext;
   tier: LlmTier;
   system: string;
   user: string;
@@ -113,9 +117,9 @@ export interface CompleteTextOptions {
 
 async function completeAnthropic(
   key: string,
-  o: CompleteTextOptions,
+  o: CompleteTextOptions
 ): Promise<Completado> {
-  const client = getAnthropic(key);
+  const client = getAnthropic(key, o.billing);
   const model = ANTHROPIC_MODELS[o.tier];
   const res = await client.messages.create({
     model,
@@ -147,8 +151,17 @@ async function completeAnthropic(
 
 async function completeOpenAICompat(
   p: OpenAICompatProvider,
-  o: CompleteTextOptions,
+  o: CompleteTextOptions
 ): Promise<Completado> {
+  const rate = rateFor(p.model[o.tier]);
+  const id = await reservar(
+    o.billing,
+    p.name,
+    ((Buffer.byteLength(o.system + o.user, 'utf8') + 256) * rate.input +
+      o.maxTokens * rate.output) /
+      1e6,
+    { modelo: p.model[o.tier] }
+  );
   const res = await fetch(`${p.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -166,13 +179,33 @@ async function completeOpenAICompat(
     signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) {
+    if ([400, 401, 403, 404, 422, 429].includes(res.status))
+      await cancelar(o.billing, id);
     const detail = await res.text().catch(() => '');
     throw new Error(`${p.name} ${res.status}: ${detail.slice(0, 200)}`);
   }
   const json = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      cost?: number;
+    };
   };
+  if (!json.usage) throw new Error('wallet_missing_usage');
+  await liquidar(
+    o.billing,
+    id,
+    p.name,
+    p.name === 'openrouter' && typeof json.usage.cost === 'number'
+      ? json.usage.cost
+      : costForModel(
+          p.model[o.tier],
+          json.usage.prompt_tokens ?? 0,
+          json.usage.completion_tokens ?? 0
+        ),
+    { modelo: p.model[o.tier], usage: json.usage }
+  );
   return {
     text: (json.choices?.[0]?.message?.content ?? '').trim(),
     proveedor: p.name,
@@ -208,6 +241,7 @@ export function toImageMediaType(contentType: string | null): ImageMediaType {
  * key; callers degrade gracefully (no hint) when it's absent or errors.
  */
 export async function describeImage(o: {
+  billing: BillingContext;
   base64: string;
   mediaType: ImageMediaType;
   system: string;
@@ -215,7 +249,7 @@ export async function describeImage(o: {
   maxTokens: number;
   anthropicKey: string;
 }): Promise<Completado> {
-  const client = getAnthropic(o.anthropicKey);
+  const client = getAnthropic(o.anthropicKey, o.billing);
   const res = await client.messages.create({
     model: ANTHROPIC_MODELS.triage,
     max_tokens: o.maxTokens,
@@ -271,7 +305,9 @@ export async function completeText(o: CompleteTextOptions): Promise<string> {
  * privado— tenía que caer a una tarifa de lista, que es un promedio y no el
  * gasto. Ahora sale el número exacto.
  */
-export async function completeTextConUso(o: CompleteTextOptions): Promise<Completado> {
+export async function completeTextConUso(
+  o: CompleteTextOptions
+): Promise<Completado> {
   const errors: string[] = [];
 
   if (o.anthropicKey) {
@@ -290,7 +326,7 @@ export async function completeTextConUso(o: CompleteTextOptions): Promise<Comple
       if (r.text) {
         if (errors.length) {
           console.warn(
-            `[llm] Anthropic unavailable, served by ${p.name}. (${errors.join(' | ')})`,
+            `[llm] Anthropic unavailable, served by ${p.name}. (${errors.join(' | ')})`
           );
         }
         return r;
@@ -302,6 +338,6 @@ export async function completeTextConUso(o: CompleteTextOptions): Promise<Comple
   }
 
   throw new Error(
-    `No LLM provider available. ${errors.join(' | ') || 'no keys configured'}`,
+    `No LLM provider available. ${errors.join(' | ') || 'no keys configured'}`
   );
 }

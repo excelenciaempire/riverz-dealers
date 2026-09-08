@@ -1,15 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { createClient } from '@/lib/supabase/server'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { leerBilletera } from '@/lib/wallet/saldo'
-import { leerSuscripcion } from '@/lib/billing/plan'
-import { rangoDe, resumen } from '@/lib/wallet/movimientos'
-import { listarTarifas } from '@/lib/wallet/tarifas'
-import { costosReales } from '@/lib/wallet/costos'
-import { stripeDisponible } from '@/lib/billing/stripe'
-import { SUGERIDOS_CENTAVOS } from '@/lib/wallet/recarga'
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { leerSuscripcion } from '@/lib/billing/plan';
+import { stripeDisponible } from '@/lib/billing/stripe';
+import { createClient } from '@/lib/supabase/server';
+import { costosReales } from '@/lib/wallet/costos';
+import { rangoDe, resumen } from '@/lib/wallet/movimientos';
+import { SUGERIDOS_CENTAVOS } from '@/lib/wallet/recarga';
+import { leerBilletera } from '@/lib/wallet/saldo';
+import { listarTarifas } from '@/lib/wallet/tarifas';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 
 /**
  * El saldo y en qué se fue, para el panel.
@@ -19,22 +19,27 @@ import { SUGERIDOS_CENTAVOS } from '@/lib/wallet/recarga'
  * pregunta para quien mira y partirlas en tres viajes sólo hace parpadear la
  * pantalla.
  */
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  } = await supabase.auth.getUser();
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const admin = supabaseAdmin()
-  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id)
-  if (!workspaceId) return NextResponse.json({ error: 'no_workspace' }, { status: 400 })
+  const admin = supabaseAdmin();
+  const workspaceId = await resolveWorkspaceIdForUser(admin, user.id);
+  if (!workspaceId)
+    return NextResponse.json({ error: 'no_workspace' }, { status: 400 });
 
-  const url = new URL(request.url)
-  const rango = rangoDe(url.searchParams.get('desde'), url.searchParams.get('hasta'))
+  const url = new URL(request.url);
+  const rango = rangoDe(
+    url.searchParams.get('desde'),
+    url.searchParams.get('hasta')
+  );
 
   const [billetera, datos, tarifas, sus, costos] = await Promise.all([
     leerBilletera(admin, workspaceId),
@@ -42,16 +47,19 @@ export async function GET(request: Request) {
     listarTarifas(admin),
     leerSuscripcion(admin, workspaceId),
     costosReales(admin, workspaceId),
-  ])
+  ]);
 
   // La cuenta de cortesía no gasta saldo: la puerta la deja pasar siempre. Sin
   // esto el panel le avisaba que la IA dejó de responder a alguien a quien
   // nunca se le va a apagar — un susto inventado.
-  const exenta = sus?.estado === 'cortesia'
+  const exenta = sus?.estado === 'cortesia';
 
   return NextResponse.json(
     {
       saldoCentavos: billetera.saldoCentavos,
+      reservadoCentavos: billetera.reservadoCentavos ?? 0,
+      disponibleCentavos:
+        billetera.saldoCentavos - (billetera.reservadoCentavos ?? 0),
       moneda: billetera.moneda,
       bloquearSinSaldo: billetera.bloquearSinSaldo && !exenta,
       exenta,
@@ -87,6 +95,6 @@ export async function GET(request: Request) {
       puedeRecargar: stripeDisponible(),
       sugeridos: SUGERIDOS_CENTAVOS,
     },
-    { headers: { 'Cache-Control': 'no-store' } },
-  )
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }

@@ -1,21 +1,20 @@
-import { NextResponse } from 'next/server'
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso'
-import { aiBudgetGuard } from '@/lib/ai/rate-limit'
-import { supabaseAdmin } from '@/lib/channels/admin-client'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { OFICIO_PLANTILLA } from '@/lib/templates/oficio'
-import { darFormaAlCuerpo } from '@/lib/templates/forma'
-import Anthropic from '@anthropic-ai/sdk'
-import { getAnthropic } from '@/lib/ai/anthropic-client'
-import { createClient } from '@/lib/supabase/server'
+import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 import {
   checkRateLimit,
-  rateLimitResponse,
   RATE_LIMITS,
-} from '@/lib/rate-limit'
-import { csrfGuard } from '@/lib/csrf'
-import { getLocale } from '@/lib/i18n/server'
-import { translate } from '@/lib/i18n/translate'
+  rateLimitResponse,
+} from '@/lib/rate-limit';
+import { createClient } from '@/lib/supabase/server';
+import { darFormaAlCuerpo } from '@/lib/templates/forma';
+import { OFICIO_PLANTILLA } from '@/lib/templates/oficio';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import Anthropic from '@anthropic-ai/sdk';
+import { NextResponse } from 'next/server';
 
 /**
  * Draft a WhatsApp template body with Claude from a short brief.
@@ -38,56 +37,66 @@ Reglas estrictas:
 - Responde en el idioma que se indique.
 - No incluyas razonamiento ni notas: solo el cuerpo final.
 
-${OFICIO_PLANTILLA}`
+${OFICIO_PLANTILLA}`;
 
 export async function POST(request: Request) {
-  const block = await csrfGuard(request)
-  if (block) return block
-  const locale = await getLocale()
+  const block = await csrfGuard(request);
+  if (block) return block;
+  const locale = await getLocale();
   try {
-    const supabase = await createClient()
+    const supabase = await createClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.notAuthenticated') },
-        { status: 401 },
-      )
+        { status: 401 }
+      );
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.aiNotConfigured') },
-        { status: 503 },
-      )
+        { status: 503 }
+      );
     }
 
-    const limit = checkRateLimit(`template-ai:${user.id}`, RATE_LIMITS.broadcast)
-    if (!limit.success) return rateLimitResponse(limit)
+    const limit = checkRateLimit(
+      `template-ai:${user.id}`,
+      RATE_LIMITS.broadcast
+    );
+    if (!limit.success) return rateLimitResponse(limit);
 
     // El saldo, igual que en el resto de los botones de IA. Sin esto, redactar
     // plantillas era el único camino a pedido que gastaba sin puerta.
-    const workspaceId = await resolveWorkspaceIdForUser(supabaseAdmin(), user.id)
-    const sinSaldo = await aiBudgetGuard(workspaceId, 'standard')
-    if (sinSaldo) return sinSaldo
+    const workspaceId = await resolveWorkspaceIdForUser(
+      supabaseAdmin(),
+      user.id
+    );
+    const sinSaldo = await aiBudgetGuard(workspaceId, 'standard');
+    if (sinSaldo) return sinSaldo;
 
-    const body = await request.json()
-    const brief: string = (body.brief ?? '').toString().trim()
-    const language: string = (body.language ?? 'es').toString()
-    const category: string = (body.category ?? 'MARKETING').toString()
-    const tone: string = (body.tone ?? '').toString().trim()
+    const body = await request.json();
+    const brief: string = (body.brief ?? '').toString().trim();
+    const language: string = (body.language ?? 'es').toString();
+    const category: string = (body.category ?? 'MARKETING').toString();
+    const tone: string = (body.tone ?? '').toString().trim();
 
     if (!brief) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.describeMessage') },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
-    const client = getAnthropic(apiKey)
+    const client = getAnthropic(apiKey, {
+      db: supabaseAdmin(),
+      workspaceId: workspaceId ?? '',
+      concepto: 'ia_asistencia',
+    });
 
     const userPrompt = [
       `Idioma: ${language}`,
@@ -98,7 +107,7 @@ export async function POST(request: Request) {
       'Escribe el cuerpo de la plantilla.',
     ]
       .filter(Boolean)
-      .join('\n')
+      .join('\n');
 
     const response = await client.messages.create({
       model: 'claude-opus-4-8',
@@ -116,42 +125,30 @@ export async function POST(request: Request) {
         },
       ],
       messages: [{ role: 'user', content: userPrompt }],
-    })
-
-    void cobrarUsoDeIa(supabaseAdmin(), workspaceId ?? '', {
-      concepto: 'ia_asistencia',
-      modelo: 'claude-opus-4-8',
-      uso: {
-        prompt: response.usage?.input_tokens ?? 0,
-        salida: response.usage?.output_tokens ?? 0,
-        cacheLeida: response.usage?.cache_read_input_tokens ?? 0,
-        cacheEscrita: response.usage?.cache_creation_input_tokens ?? 0,
-      },
-      detalle: { para: 'redactar_plantilla' },
-    })
+    });
 
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
-      .trim()
+      .trim();
 
     if (!text) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.aiReturnedNoText') },
-        { status: 502 },
-      )
+        { status: 502 }
+      );
     }
 
     // Meta hard-caps the body at 1024 chars; clamp defensively. La forma en
     // bloques no se deja librada al modelo: si volvió un párrafo compacto,
     // `darFormaAlCuerpo` lo parte antes de que llegue al editor, que es el
     // último momento en que corregirlo sale gratis.
-    const bodyText = darFormaAlCuerpo(text.slice(0, 1024))
+    const bodyText = darFormaAlCuerpo(text.slice(0, 1024));
 
-    return NextResponse.json({ success: true, body_text: bodyText })
+    return NextResponse.json({ success: true, body_text: bodyText });
   } catch (error) {
-    console.error('Error generating template with AI:', error)
+    console.error('Error generating template with AI:', error);
     const message =
       error instanceof Anthropic.APIError
         ? translate(locale, 'errWhatsapp.claudeApiError', {
@@ -160,7 +157,7 @@ export async function POST(request: Request) {
           })
         : error instanceof Error
           ? error.message
-          : translate(locale, 'errWhatsapp.generateMessageFailed')
-    return NextResponse.json({ error: message }, { status: 500 })
+          : translate(locale, 'errWhatsapp.generateMessageFailed');
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

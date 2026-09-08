@@ -1,4 +1,4 @@
-import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
+import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
 import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * Firecrawl client — scrape product URLs to enrich the AI knowledge.
@@ -37,7 +37,7 @@ export class FirecrawlError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly body?: unknown,
+    readonly body?: unknown
   ) {
     super(message);
     this.name = 'FirecrawlError';
@@ -55,7 +55,10 @@ export class FirecrawlError extends Error {
  * Firecrawl cobra un crédito por URL; en el plan que usamos eso es ~0,001 USD.
  * Es un proveedor conectado más, así que el costo se le pasa al comercio.
  */
-export const USD_POR_PAGINA = 0.001;
+export const USD_POR_PAGINA = Number(
+  process.env.FIRECRAWL_USAGE_USD_PER_CREDIT
+);
+// Set this from purchased usage credits, excluding monthly subscriptions.
 
 export async function firecrawlScrape(
   url: string,
@@ -75,7 +78,7 @@ export async function firecrawlScrape(
      * queda un aviso, que es mejor que un cobro silencioso a nadie.
      */
     cobrarA?: { db: SupabaseClient; workspaceId: string };
-  },
+  }
 ): Promise<FirecrawlScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
@@ -97,6 +100,13 @@ export async function firecrawlScrape(
     timeout: 30_000,
   };
 
+  if (!opts?.cobrarA) throw new Error('wallet_billing_context_required');
+  if (!Number.isFinite(USD_POR_PAGINA) || USD_POR_PAGINA <= 0)
+    throw new Error('wallet_firecrawl_rate_not_configured');
+  const billing = { ...opts.cobrarA, concepto: 'lectura_de_pagina' };
+  const operation = await reservar(billing, 'firecrawl', USD_POR_PAGINA, {
+    url: url.slice(0, 300),
+  });
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
@@ -124,18 +134,29 @@ export async function firecrawlScrape(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new FirecrawlError(`Firecrawl returned non-JSON: ${text.slice(0, 200)}`, res.status);
-  }
-
-  if (!res.ok || !json.success) {
     throw new FirecrawlError(
-      json.error ?? `Firecrawl ${res.status}`,
-      res.status,
-      json,
+      `Firecrawl returned non-JSON: ${text.slice(0, 200)}`,
+      res.status
     );
   }
 
-  const markdown = (json.data?.markdown ?? '').slice(0, opts?.maxChars ?? 16_000);
+  if (!res.ok || !json.success) {
+    if ([400, 401, 402, 403, 404, 429].includes(res.status))
+      await cancelar(billing, operation);
+    throw new FirecrawlError(
+      json.error ?? `Firecrawl ${res.status}`,
+      res.status,
+      json
+    );
+  }
+
+  await liquidar(billing, operation, 'firecrawl', USD_POR_PAGINA, {
+    url: url.slice(0, 300),
+  });
+  const markdown = (json.data?.markdown ?? '').slice(
+    0,
+    opts?.maxChars ?? 16_000
+  );
   // Firecrawl puede devolver 200 + success:true con markdown vacío
   // cuando la URL está bloqueada por Cloudflare, requiere JS sin SSR,
   // o está gated. Lo tratamos como fallo explícito para que la UI no
@@ -145,23 +166,15 @@ export async function firecrawlScrape(
     throw new FirecrawlError(
       'Firecrawl devolvió contenido vacío (página probablemente bloqueada por Cloudflare o sin contenido visible)',
       204,
-      json,
+      json
     );
   }
   // Keep the raw HTML bounded — we only scan it for embedded offer config.
-  const html = json.data?.rawHtml ? json.data.rawHtml.slice(0, 1_500_000) : null;
+  const html = json.data?.rawHtml
+    ? json.data.rawHtml.slice(0, 1_500_000)
+    : null;
   // La página se leyó: se cobra. Sólo cuando salió bien — un error no le dio
   // nada a nadie.
-  if (opts?.cobrarA) {
-    void cobrarUsoPorUnidad(opts.cobrarA.db, opts.cobrarA.workspaceId, {
-      concepto: 'lectura_de_pagina',
-      cantidad: 1,
-      usdPorUnidad: USD_POR_PAGINA,
-      detalle: { url: url.slice(0, 300) },
-    });
-  } else {
-    console.warn('[firecrawl] página leída sin cuenta a la que cobrarla:', url.slice(0, 120));
-  }
   return {
     markdown,
     html,
@@ -180,8 +193,9 @@ export async function firecrawlScrape(
  */
 export function workspaceDelProducto(
   db: SupabaseClient,
-  product: Record<string, unknown>,
+  product: Record<string, unknown>
 ): { db: SupabaseClient; workspaceId: string } | undefined {
-  const ws = typeof product.workspace_id === 'string' ? product.workspace_id : '';
+  const ws =
+    typeof product.workspace_id === 'string' ? product.workspace_id : '';
   return ws ? { db, workspaceId: ws } : undefined;
 }

@@ -1,17 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
-import { toast } from 'sonner';
-import { useLocale, useT } from '@/hooks/use-locale';
-import { useFormat } from '@/hooks/use-format';
-import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { avisarSaldoCambio } from '@/hooks/use-saldo';
+import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { useFormat } from '@/hooks/use-format';
+import { useLocale, useT } from '@/hooks/use-locale';
+import { avisarSaldoCambio } from '@/hooks/use-saldo';
+import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { cn } from '@/lib/utils';
-import { LogoTarjeta } from '@/components/billing/logo-tarjeta';
+import { ChevronDown, CreditCard, Loader2, Plus, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * El saldo, y en qué se fue.
@@ -36,6 +36,7 @@ interface Tarifa {
 }
 
 interface Estado {
+  reservadoCentavos?: number;
   saldoCentavos: number;
   moneda: string;
   bloquearSinSaldo: boolean;
@@ -132,8 +133,8 @@ export function WalletPanel() {
   const [hayMas, setHayMas] = useState(false);
   const [movimientosAbiertos, setMovimientosAbiertos] = useState(true);
   const [autoDeseado, setAutoDeseado] = useState<boolean | null>(null);
-  const [autoMonto, setAutoMonto] = useState("");
-  const [autoUmbral, setAutoUmbral] = useState("");
+  const [autoMonto, setAutoMonto] = useState('');
+  const [autoUmbral, setAutoUmbral] = useState('');
 
   const rango = useMemo(() => {
     // Hoy y ayer son DÍAS, no ventanas de 24 horas: "hoy" arranca a la
@@ -160,8 +161,13 @@ export function WalletPanel() {
     void (async () => {
       setCargando(true);
       try {
-        const q = new URLSearchParams({ desde: rango.desde, hasta: rango.hasta });
-        const res = await fetch(`/api/wallet/estado?${q}`, { cache: 'no-store' });
+        const q = new URLSearchParams({
+          desde: rango.desde,
+          hasta: rango.hasta,
+        });
+        const res = await fetch(`/api/wallet/estado?${q}`, {
+          cache: 'no-store',
+        });
         if (vivo) setE(res.ok ? ((await res.json()) as Estado) : null);
         // El número del menú viene de otra lectura: al volver de Stripe esta
         // pantalla ya muestra el saldo nuevo y el menú seguiría con el viejo.
@@ -187,9 +193,14 @@ export function WalletPanel() {
           pagina: String(pagina),
         });
         if (concepto) q.set('concepto', concepto);
-        const res = await fetch(`/api/wallet/movimientos?${q}`, { cache: 'no-store' });
+        const res = await fetch(`/api/wallet/movimientos?${q}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) return;
-        const json = (await res.json()) as { filas: Movimiento[]; hayMas: boolean };
+        const json = (await res.json()) as {
+          filas: Movimiento[];
+          hayMas: boolean;
+        };
         if (!vivo) return;
         setMovs(json.filas);
         setHayMas(json.hayMas);
@@ -222,7 +233,7 @@ export function WalletPanel() {
         setYendo(false);
       }
     },
-    [fetchWithCsrf, t],
+    [fetchWithCsrf, t]
   );
 
   /** Guardar la tarjeta, o cambiarla. No cobra nada: es una autorización. */
@@ -259,8 +270,13 @@ export function WalletPanel() {
           return;
         }
         toast.success(t('settings.walletAutoSaved'));
-        const q = new URLSearchParams({ desde: rango.desde, hasta: rango.hasta });
-        const nuevo = await fetch(`/api/wallet/estado?${q}`, { cache: 'no-store' });
+        const q = new URLSearchParams({
+          desde: rango.desde,
+          hasta: rango.hasta,
+        });
+        const nuevo = await fetch(`/api/wallet/estado?${q}`, {
+          cache: 'no-store',
+        });
         if (nuevo.ok) setE((await nuevo.json()) as Estado);
       } catch {
         toast.error(t('settings.walletTopUpFailed'));
@@ -268,7 +284,7 @@ export function WalletPanel() {
         setYendo(false);
       }
     },
-    [fetchWithCsrf, rango.desde, rango.hasta, t],
+    [fetchWithCsrf, rango.desde, rango.hasta, t]
   );
 
   /**
@@ -285,24 +301,25 @@ export function WalletPanel() {
         // se lee como un número roto, no como diez centavos.
         minimumFractionDigits: centavos % 100 === 0 ? 0 : 2,
       }),
-    [fmt, e?.moneda],
+    [fmt, e?.moneda]
   );
 
   const nombreConcepto = useCallback(
     (c: string) => {
+      if (c === 'recarga_ajuste') return t('settings.walletTopupAdjustment');
       if (c === 'comision_stripe') return t('settings.walletStripeFee');
       if (c === 'recarga') return t('settings.walletTopUp');
       const tar = e?.tarifas.find((x) => x.concepto === c);
       if (!tar) return c;
       return locale === 'en' ? tar.nombreEn : tar.nombreEs;
     },
-    [e?.tarifas, locale, t],
+    [e?.tarifas, locale, t]
   );
 
   if (cargando && !e) {
     return (
       <div className="flex justify-center py-10">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground size-5 animate-spin" />
       </div>
     );
   }
@@ -318,17 +335,17 @@ export function WalletPanel() {
   return (
     <div className="space-y-6">
       {/* ── Saldo y recarga ─────────────────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="border-border bg-card rounded-xl border p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <Wallet className="size-4" />
               {t('settings.walletBalance')}
             </p>
             <p
               className={cn(
                 'mt-1 text-3xl font-semibold tabular-nums',
-                enRojo ? 'text-destructive' : 'text-foreground',
+                enRojo ? 'text-destructive' : 'text-foreground'
               )}
             >
               {plata(e.saldoCentavos)}
@@ -355,12 +372,14 @@ export function WalletPanel() {
                 {/* El signo adentro del campo: sin él, «10» al lado de botones
                     que dicen «10,00 US$» se lee como otra cosa. */}
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm">
                     $
                   </span>
                   <Input
                     value={otro}
-                    onChange={(ev) => setOtro(ev.target.value.replace(/[^\d]/g, ''))}
+                    onChange={(ev) =>
+                      setOtro(ev.target.value.replace(/[^\d]/g, ''))
+                    }
                     placeholder={t('settings.walletOther')}
                     title={t('settings.walletMin')}
                     inputMode="numeric"
@@ -382,9 +401,18 @@ export function WalletPanel() {
             </div>
           )}
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">{t('settings.walletFeeNotice')}</p>
+        <p className="text-muted-foreground mt-3 text-sm">
+          {t('settings.walletFeeNotice')}
+        </p>
+        {(e.reservadoCentavos ?? 0) > 0 && (
+          <p className="text-muted-foreground mt-2 text-sm">
+            {t('settings.walletReserved', {
+              amount: plata(e.reservadoCentavos ?? 0),
+            })}
+          </p>
+        )}
         {enRojo && (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-3 text-sm">
             {e.bloquearSinSaldo
               ? t('settings.walletEmptyBlocking')
               : t('settings.walletEmpty')}
@@ -394,11 +422,11 @@ export function WalletPanel() {
 
       {/* ── Recarga automática ──────────────────────────────────────── */}
       {e.puedeRecargar && (
-        <section className="rounded-xl border border-border bg-card p-5">
+        <section className="border-border bg-card rounded-xl border p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-3">
-                <h3 className="text-sm font-semibold text-foreground">
+                <h3 className="text-foreground text-sm font-semibold">
                   {t('settings.walletAutoTitle')}
                 </h3>
                 <Switch
@@ -422,7 +450,7 @@ export function WalletPanel() {
                     setAutoMonto(String((auto.recargaCentavos ?? 1000) / 100));
                     setAutoUmbral(String((auto.umbralCentavos ?? 100) / 100));
                     void guardarAuto({ apagar: true }).finally(() =>
-                      setAutoDeseado(null),
+                      setAutoDeseado(null)
                     );
                   }}
                 />
@@ -430,40 +458,40 @@ export function WalletPanel() {
             </div>
             {autoVisible && (
               <div className="flex items-center gap-3">
-              {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
+                {/* Cuál tarjeta quedó. "Hay una tarjeta" no le sirve a quien
                   tiene tres: sin la marca y los últimos cuatro, ante la duda la
                   cambia — o no la cambia porque no sabe si hace falta. */}
-              {auto.tieneTarjeta && auto.ultimos4 && (
-                <span className="flex items-center gap-2 text-sm text-foreground">
-                  <LogoTarjeta marca={auto.marca} />
-                  <span className="tabular-nums">···· {auto.ultimos4}</span>
-                </span>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={yendo}
-                onClick={() => void irPorTarjeta()}
-              >
-                <CreditCard className="size-4" />
-                {auto.tieneTarjeta
-                  ? t('settings.walletCardChange')
-                  : t('settings.walletCardAdd')}
-              </Button>
-              {auto.tieneTarjeta && (
+                {auto.tieneTarjeta && auto.ultimos4 && (
+                  <span className="text-foreground flex items-center gap-2 text-sm">
+                    <LogoTarjeta marca={auto.marca} />
+                    <span className="tabular-nums">···· {auto.ultimos4}</span>
+                  </span>
+                )}
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   disabled={yendo}
-                  onClick={() => {
-                    if (confirm(t('settings.walletCardRemoveConfirm'))) {
-                      void guardarAuto({ borrarTarjeta: true });
-                    }
-                  }}
+                  onClick={() => void irPorTarjeta()}
                 >
-                  {t('settings.walletCardRemove')}
+                  <CreditCard className="size-4" />
+                  {auto.tieneTarjeta
+                    ? t('settings.walletCardChange')
+                    : t('settings.walletCardAdd')}
                 </Button>
-              )}
+                {auto.tieneTarjeta && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={yendo}
+                    onClick={() => {
+                      if (confirm(t('settings.walletCardRemoveConfirm'))) {
+                        void guardarAuto({ borrarTarjeta: true });
+                      }
+                    }}
+                  >
+                    {t('settings.walletCardRemove')}
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -473,12 +501,14 @@ export function WalletPanel() {
           {autoVisible && auto.tieneTarjeta && (
             <div className="mt-4 flex flex-wrap items-end gap-2">
               <label className="text-sm">
-                <span className="block text-muted-foreground">
+                <span className="text-muted-foreground block">
                   {t('settings.walletAutoAmount')}
                 </span>
                 <Input
                   value={autoMonto}
-                  onChange={(ev) => setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))}
+                  onChange={(ev) =>
+                    setAutoMonto(ev.target.value.replace(/[^\d]/g, ''))
+                  }
                   placeholder={
                     auto.recargaCentavos !== null
                       ? String(auto.recargaCentavos / 100)
@@ -489,12 +519,14 @@ export function WalletPanel() {
                 />
               </label>
               <label className="text-sm">
-                <span className="block text-muted-foreground">
+                <span className="text-muted-foreground block">
                   {t('settings.walletAutoThreshold')}
                 </span>
                 <Input
                   value={autoUmbral}
-                  onChange={(ev) => setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))}
+                  onChange={(ev) =>
+                    setAutoUmbral(ev.target.value.replace(/[^\d]/g, ''))
+                  }
                   placeholder={
                     auto.umbralCentavos !== null
                       ? String(auto.umbralCentavos / 100)
@@ -510,9 +542,11 @@ export function WalletPanel() {
                 onClick={() =>
                   void guardarAuto({
                     recargaCentavos:
-                      (Number(autoMonto) || (auto.recargaCentavos ?? 0) / 100) * 100,
+                      (Number(autoMonto) || (auto.recargaCentavos ?? 0) / 100) *
+                      100,
                     umbralCentavos:
-                      (Number(autoUmbral) || (auto.umbralCentavos ?? 0) / 100) * 100,
+                      (Number(autoUmbral) || (auto.umbralCentavos ?? 0) / 100) *
+                      100,
                   })
                 }
               >
@@ -521,190 +555,199 @@ export function WalletPanel() {
             </div>
           )}
           {autoVisible && autoActivo && (
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-3 text-sm">
               {t('settings.walletAutoOn', {
                 monto: plata(auto.recargaCentavos ?? 0),
                 umbral: plata(auto.umbralCentavos ?? 0),
               })}
             </p>
           )}
-
         </section>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         {/* ── Uso en el período ───────────────────────────────────────── */}
-        <section className="rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-foreground">
-            {t('settings.walletUsage')}
-          </h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {DIAS.map((d) => (
+        <section className="border-border bg-card rounded-xl border p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-foreground text-sm font-semibold">
+              {t('settings.walletUsage')}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              {DIAS.map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant={dias === d ? 'default' : 'outline'}
+                  onClick={() => {
+                    setDias(d);
+                    setPagina(0);
+                  }}
+                >
+                  {d === 0
+                    ? t('settings.walletToday')
+                    : d === -1
+                      ? t('settings.walletYesterday')
+                      : t('settings.walletLastDays', { n: d })}
+                </Button>
+              ))}
               <Button
-                key={d}
                 size="sm"
-                variant={dias === d ? 'default' : 'outline'}
+                variant={dias === null ? 'default' : 'outline'}
                 onClick={() => {
-                  setDias(d);
+                  setDias(null);
                   setPagina(0);
                 }}
               >
-                {d === 0
-                  ? t('settings.walletToday')
-                  : d === -1
-                    ? t('settings.walletYesterday')
-                    : t('settings.walletLastDays', { n: d })}
+                {t('settings.walletCustomRange')}
               </Button>
-            ))}
-            <Button
-              size="sm"
-              variant={dias === null ? 'default' : 'outline'}
-              onClick={() => {
-                setDias(null);
-                setPagina(0);
-              }}
-            >
-              {t('settings.walletCustomRange')}
-            </Button>
+            </div>
           </div>
-        </div>
 
-        {dias === null && (
-          <div className="mt-3 flex w-full items-center gap-2 sm:w-auto">
-            <Input
-              type="date"
-              value={desde}
-              onChange={(ev) => {
-                setDesde(ev.target.value);
-                setPagina(0);
-              }}
-              className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
-            />
-            <span className="text-muted-foreground">–</span>
-            <Input
-              type="date"
-              value={hasta}
-              onChange={(ev) => {
-                setHasta(ev.target.value);
-                setPagina(0);
-              }}
-              className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
-            />
-          </div>
-        )}
+          {dias === null && (
+            <div className="mt-3 flex w-full items-center gap-2 sm:w-auto">
+              <Input
+                type="date"
+                value={desde}
+                onChange={(ev) => {
+                  setDesde(ev.target.value);
+                  setPagina(0);
+                }}
+                className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
+              />
+              <span className="text-muted-foreground">–</span>
+              <Input
+                type="date"
+                value={hasta}
+                onChange={(ev) => {
+                  setHasta(ev.target.value);
+                  setPagina(0);
+                }}
+                className="h-9 min-w-0 flex-1 sm:w-40 sm:flex-none"
+              />
+            </div>
+          )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-lg bg-muted p-4">
-            <p className="text-sm text-muted-foreground">{t('settings.walletSpent')}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-              {plata(resumen.gastadoCentavos)}
-            </p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="bg-muted rounded-lg p-4">
+              <p className="text-muted-foreground text-sm">
+                {t('settings.walletSpent')}
+              </p>
+              <p className="text-foreground mt-1 text-2xl font-semibold tabular-nums">
+                {plata(resumen.gastadoCentavos)}
+              </p>
+            </div>
+            <div className="bg-muted rounded-lg p-4">
+              <p className="text-muted-foreground text-sm">
+                {t('settings.walletLoaded')}
+              </p>
+              <p className="text-foreground mt-1 text-2xl font-semibold tabular-nums">
+                {plata(resumen.cargadoCentavos)}
+              </p>
+            </div>
           </div>
-          <div className="rounded-lg bg-muted p-4">
-            <p className="text-sm text-muted-foreground">{t('settings.walletLoaded')}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-              {plata(resumen.cargadoCentavos)}
-            </p>
-          </div>
-        </div>
 
-        {resumen.porDia.length > 1 && (
-          <div className="mt-6">
-            <h4 className="text-sm font-medium text-foreground">
-              {t('settings.walletByDay')}
-            </h4>
-            <div className="mt-3 flex h-28 items-end gap-1">
-              {resumen.porDia.map((d) => (
-                <div
-                  key={d.dia}
-                  className="group relative flex h-full flex-1 items-end"
-                  title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
-                >
+          {resumen.porDia.length > 1 && (
+            <div className="mt-6">
+              <h4 className="text-foreground text-sm font-medium">
+                {t('settings.walletByDay')}
+              </h4>
+              <div className="mt-3 flex h-28 items-end gap-1">
+                {resumen.porDia.map((d) => (
                   <div
-                    className="w-full rounded-t bg-primary transition-colors"
-                    style={{
-                      height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
-                    }}
-                  />
-                </div>
-              ))}
+                    key={d.dia}
+                    className="group relative flex h-full flex-1 items-end"
+                    title={`${fmt.date(d.dia)} · ${plata(d.gastadoCentavos)}`}
+                  >
+                    <div
+                      className="bg-primary w-full rounded-t transition-colors"
+                      style={{
+                        height: `${Math.max(2, (d.gastadoCentavos / maxDia) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="text-muted-foreground mt-2 flex justify-between text-xs">
+                <span>{fmt.date(resumen.porDia[0].dia)}</span>
+                <span>
+                  {fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}
+                </span>
+              </div>
             </div>
-            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-              <span>{fmt.date(resumen.porDia[0].dia)}</span>
-              <span>{fmt.date(resumen.porDia[resumen.porDia.length - 1].dia)}</span>
-            </div>
-          </div>
-        )}
+          )}
         </section>
 
         {/* ── En qué se fue ───────────────────────────────────────────── */}
-        <section className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('settings.walletByConcept')}
-        </h3>
-        {resumen.porConcepto.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t('settings.walletNoSpend')}
-          </p>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            {resumen.porConcepto.map((c) => {
-              const pct = Math.round((c.centavos / Math.max(1, resumen.gastadoCentavos)) * 100);
-              const activo = concepto === c.concepto;
-              return (
-                <li key={c.concepto}>
-                  <button
-                    type="button"
-                    className="w-full text-left"
-                    onClick={() => {
-                      setConcepto(activo ? null : c.concepto);
-                      setPagina(0);
-                    }}
-                  >
-                    <div className="flex items-baseline justify-between gap-3 text-sm">
-                      <span
-                        className={cn(
-                          'truncate',
-                          activo ? 'font-medium text-foreground' : 'text-foreground',
-                        )}
-                      >
-                        {nombreConcepto(c.concepto)}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
-                        {plata(c.centavos)} · {pct}%
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${Math.max(2, pct)}%` }}
-                      />
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <section className="border-border bg-card rounded-xl border p-5">
+          <h3 className="text-foreground text-sm font-semibold">
+            {t('settings.walletByConcept')}
+          </h3>
+          {resumen.porConcepto.length === 0 ? (
+            <p className="text-muted-foreground mt-3 text-sm">
+              {t('settings.walletNoSpend')}
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {resumen.porConcepto.map((c) => {
+                const pct = Math.round(
+                  (c.centavos / Math.max(1, resumen.gastadoCentavos)) * 100
+                );
+                const activo = concepto === c.concepto;
+                return (
+                  <li key={c.concepto}>
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => {
+                        setConcepto(activo ? null : c.concepto);
+                        setPagina(0);
+                      }}
+                    >
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span
+                          className={cn(
+                            'truncate',
+                            activo
+                              ? 'text-foreground font-medium'
+                              : 'text-foreground'
+                          )}
+                        >
+                          {nombreConcepto(c.concepto)}
+                        </span>
+                        <span className="text-muted-foreground shrink-0 tabular-nums">
+                          {plata(c.centavos)} · {pct}%
+                        </span>
+                      </div>
+                      <div className="bg-muted mt-1 h-1.5 w-full overflow-hidden rounded-full">
+                        <div
+                          className="bg-primary h-full rounded-full"
+                          style={{ width: `${Math.max(2, pct)}%` }}
+                        />
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       </div>
 
       {/* ── El detalle ──────────────────────────────────────────────── */}
       <details
-        className="group rounded-xl border border-border bg-card"
+        className="group border-border bg-card rounded-xl border"
         open={movimientosAbiertos}
         onToggle={(ev) => setMovimientosAbiertos(ev.currentTarget.open)}
       >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 group-open:border-b group-open:border-border">
-          <span className="text-sm font-semibold text-foreground">
+        <summary className="group-open:border-border flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 group-open:border-b">
+          <span className="text-foreground text-sm font-semibold">
             {t('settings.walletLedger')}
           </span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          <ChevronDown className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
 
         {concepto && (
-          <div className="flex justify-end border-b border-border px-4 py-2">
+          <div className="border-border flex justify-end border-b px-4 py-2">
             <Button
               size="sm"
               variant="ghost"
@@ -720,15 +763,15 @@ export function WalletPanel() {
 
         {!movs ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground size-4 animate-spin" />
           </div>
         ) : movs.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground px-5 py-8 text-center text-sm">
             {t('settings.walletNoMovements')}
           </p>
         ) : (
           <ul
-            className="divide-y divide-border overflow-y-auto scrollbar-thin"
+            className="divide-border scrollbar-thin divide-y overflow-y-auto"
             style={{ maxHeight: '32rem' }}
           >
             {movs.map((m) => (
@@ -737,8 +780,10 @@ export function WalletPanel() {
                 className="flex items-center justify-between gap-4 px-5 py-3 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-foreground">{nombreConcepto(m.concepto)}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-foreground truncate">
+                    {nombreConcepto(m.concepto)}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
                     {fmt.dateTime(m.creadoEn)}
                     {m.cantidad !== null && m.unidad
                       ? ` · ${fmt.number(m.cantidad)} ${m.unidad}`
@@ -749,13 +794,13 @@ export function WalletPanel() {
                   <p
                     className={cn(
                       'tabular-nums',
-                      m.centavos >= 0 ? 'text-primary' : 'text-foreground',
+                      m.centavos >= 0 ? 'text-primary' : 'text-foreground'
                     )}
                   >
                     {m.centavos >= 0 ? '+' : '−'}
                     {plata(Math.abs(m.centavos))}
                   </p>
-                  <p className="text-xs tabular-nums text-muted-foreground">
+                  <p className="text-muted-foreground text-xs tabular-nums">
                     {t('settings.walletBalanceAfter', {
                       saldo: plata(m.saldoDespuesCentavos),
                     })}
@@ -767,7 +812,7 @@ export function WalletPanel() {
         )}
 
         {(pagina > 0 || hayMas) && (
-          <footer className="flex items-center justify-between border-t border-border px-5 py-3">
+          <footer className="border-border flex items-center justify-between border-t px-5 py-3">
             <Button
               size="sm"
               variant="outline"
@@ -789,24 +834,24 @@ export function WalletPanel() {
       </details>
 
       {/* ── Cuánto sale cada cosa ───────────────────────────────────── */}
-      <details className="group rounded-xl border border-border bg-card">
+      <details className="group border-border bg-card rounded-xl border">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
           <span>
-            <span className="block text-sm font-semibold text-foreground">
+            <span className="text-foreground block text-sm font-semibold">
               {t('settings.walletRates')}
             </span>
             {e.aCosto && (
-              <span className="mt-1 block text-sm text-muted-foreground">
+              <span className="text-muted-foreground mt-1 block text-sm">
                 {t('settings.walletAtCostNote')}
               </span>
             )}
           </span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          <ChevronDown className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
         {/* Con el costo pasado sin margen, la lista de abajo deja de ser lo que
             se cobra. Decirlo es lo único honesto: si no, el primer resumen que
             no coincida con esta tabla parece un error de facturación. */}
-        <ul className="space-y-3 border-t border-border px-5 py-4 text-sm">
+        <ul className="border-border space-y-3 border-t px-5 py-4 text-sm">
           {e.costos.map((c) => {
             // Tres números posibles, y se elige el más cierto que haya:
             //   1. lo que ya se le cobró por unidad en este rango,
@@ -814,7 +859,7 @@ export function WalletPanel() {
             //   3. la tarifa de lista, marcada como estimado.
             const tar = e.tarifas.find((x) => x.concepto === c.concepto);
             const cobrado = resumen.porConcepto.find(
-              (x) => x.concepto === c.concepto,
+              (x) => x.concepto === c.concepto
             )?.porUnidadCentavos;
             const centavos =
               cobrado ??
@@ -828,32 +873,43 @@ export function WalletPanel() {
                   <span className="text-foreground">
                     {locale === 'en' ? c.nombreEn : c.nombreEs}
                   </span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="text-muted-foreground block text-xs">
                     {c.proveedor}
                   </span>
                 </span>
-                <span className="shrink-0 text-right tabular-nums text-foreground">
-                  {c.concepto === 'comision_stripe' ? t('settings.walletStripeFeeRate') : c.cobro === 'por_uso' ? (
+                <span className="text-foreground shrink-0 text-right tabular-nums">
+                  {c.concepto === 'comision_stripe' ? (
+                    t('settings.walletStripeFeeRate')
+                  ) : !esMedido && c.centavos === 0 ? (
+                    t('settings.walletActualUsageRate')
+                  ) : c.cobro === 'por_uso' ? (
                     <>
-                      {fmt.currency(centavos / 100, (e.moneda ?? 'usd').toUpperCase(), {
-                        maximumFractionDigits: 4,
-                      })}{' '}
+                      {fmt.currency(
+                        centavos / 100,
+                        (e.moneda ?? 'usd').toUpperCase(),
+                        {
+                          maximumFractionDigits: 4,
+                        }
+                      )}{' '}
                       / {c.unidad}
                     </>
                   ) : (
                     <span className="text-muted-foreground">
                       {c.cobro === 'sin_cargo'
                         ? t('settings.walletNoCharge')
-                        : t('settings.walletInsideOf', { linea: dentroDe ?? '' })}
+                        : t('settings.walletInsideOf', {
+                            linea: dentroDe ?? '',
+                          })}
                     </span>
                   )}
-                  {c.cobro === 'por_uso' && c.concepto !== 'comision_stripe' && (
-                    <span className="block text-xs text-muted-foreground">
-                      {esMedido
-                        ? t('settings.walletYourAverage')
-                        : t('settings.walletEstimate')}
-                    </span>
-                  )}
+                  {c.cobro === 'por_uso' &&
+                    c.concepto !== 'comision_stripe' && (
+                      <span className="text-muted-foreground block text-xs">
+                        {esMedido
+                          ? t('settings.walletYourAverage')
+                          : t('settings.walletEstimate')}
+                      </span>
+                    )}
                 </span>
               </li>
             );

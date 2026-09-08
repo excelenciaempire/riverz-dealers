@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { getVoiceModelResolved } from '@/lib/voice/model-config';
+import { createClient } from '@/lib/supabase/server';
 import { normalizeStack, resolveVoiceId } from '@/lib/voice/compat';
+import { getVoiceModelResolved } from '@/lib/voice/model-config';
+import { synthesizeBilled } from '@/lib/voice/tts-billing';
 import { isVoiceMember } from '@/lib/voice/voice-connection-store';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/voice/preview  { voice_id, text?, language? }
@@ -17,49 +19,6 @@ const SAMPLE = {
   es: 'Hola, te llamo de la tienda para confirmar tu pedido. ¿Tienes un minuto?',
   en: 'Hi, I am calling from the store to confirm your order. Do you have a minute?',
 };
-
-/** Fish Audio TTS (S2.1). `reference_id` es el voice_id; devuelve mp3. */
-async function fishTts(opts: {
-  apiKey: string;
-  model: string;
-  voiceId: string | null;
-  text: string;
-}): Promise<Response> {
-  return fetch('https://api.fish.audio/v1/tts', {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${opts.apiKey}`,
-      'content-type': 'application/json',
-      // El modelo va en un HEADER, no en el body (contrato de Fish).
-      model: opts.model,
-    },
-    body: JSON.stringify({
-      text: opts.text,
-      format: 'mp3',
-      ...(opts.voiceId ? { reference_id: opts.voiceId } : {}),
-    }),
-  });
-}
-
-async function elevenLabsTts(opts: {
-  apiKey: string;
-  model: string;
-  voiceId: string;
-  text: string;
-}): Promise<Response> {
-  return fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}`,
-    {
-      method: 'POST',
-      headers: {
-        'xi-api-key': opts.apiKey,
-        'content-type': 'application/json',
-        accept: 'audio/mpeg',
-      },
-      body: JSON.stringify({ text: opts.text, model_id: opts.model }),
-    }
-  );
-}
 
 export async function POST(request: Request) {
   const block = await csrfGuard(request);
@@ -89,6 +48,8 @@ export async function POST(request: Request) {
   if (!(await isVoiceMember(user.id, workspaceId))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
+  const budget = await aiBudgetGuard(workspaceId);
+  if (budget) return budget;
   const lang = (body?.language ?? 'es').toLowerCase().startsWith('en')
     ? 'en'
     : 'es';
@@ -109,19 +70,24 @@ export async function POST(request: Request) {
           { status: 503 }
         );
       }
-      res = await fishTts({
-        apiKey,
-        model: model?.tts_model || 's2.1-pro',
-        // Misma regla que en las llamadas: una voz de otro proveedor no sirve
-        // acá → cae a la default de la plataforma, o a la de Fish.
-        voiceId: resolveVoiceId(
-          'tts',
-          'fish',
-          voiceId,
-          model?.tts_default_voice_id
-        ),
-        text,
-      });
+      res = await synthesizeBilled(
+        { db: supabaseAdmin(), workspaceId, concepto: 'voz_tts' },
+        {
+          provider: 'fish',
+          key: apiKey,
+          model: model?.tts_model || 's2.1-pro',
+          // Misma regla que en las llamadas: una voz de otro proveedor no sirve
+          // acá → cae a la default de la plataforma, o a la de Fish.
+          voice:
+            resolveVoiceId(
+              'tts',
+              'fish',
+              voiceId,
+              model?.tts_default_voice_id
+            ) ?? voiceId,
+          text,
+        }
+      );
     } else {
       const apiKey = process.env.ELEVENLABS_API_KEY;
       if (!apiKey) {
@@ -130,12 +96,16 @@ export async function POST(request: Request) {
           { status: 503 }
         );
       }
-      res = await elevenLabsTts({
-        apiKey,
-        model: 'eleven_flash_v2_5',
-        voiceId,
-        text,
-      });
+      res = await synthesizeBilled(
+        { db: supabaseAdmin(), workspaceId, concepto: 'voz_tts' },
+        {
+          provider: 'elevenlabs',
+          key: apiKey,
+          model: 'eleven_flash_v2_5',
+          voice: voiceId,
+          text,
+        }
+      );
     }
 
     if (!res.ok) {

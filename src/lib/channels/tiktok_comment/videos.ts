@@ -1,11 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ChannelConnection } from "@/types";
-import {
-  transcribeBuffer,
-  transcripcionDisponible,
-  USD_POR_MINUTO,
-} from "@/lib/ai/transcribe";
-import { cobrarUsoPorUnidad } from "@/lib/wallet/cobrar-uso";
+import { transcribeBuffer, transcripcionDisponible } from '@/lib/ai/transcribe';
+import type { ChannelConnection } from '@/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * QUÉ DICE EL VIDEO.
@@ -33,7 +28,7 @@ import { cobrarUsoPorUnidad } from "@/lib/wallet/cobrar-uso";
  */
 
 const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36';
 /** Techo del archivo. Whisper de Groq corta en 25 MB y un TikTok de un minuto
  *  pesa ~4 MB: lo que pase de acá es otra cosa y no vale la pena bajarlo. */
 const MAX_BYTES = 24 * 1024 * 1024;
@@ -69,11 +64,11 @@ export interface VideoTikTok {
 export async function guardarVideos(
   db: SupabaseClient,
   conn: ChannelConnection,
-  videos: Array<Record<string, unknown>>,
+  videos: Array<Record<string, unknown>>
 ): Promise<number> {
   const filas = videos
     .map((v) => {
-      const videoId = String(v.item_id ?? v.video_id ?? "");
+      const videoId = String(v.item_id ?? v.video_id ?? '');
       if (!videoId) return null;
       const creado = Number(v.create_time ?? 0);
       return {
@@ -92,11 +87,12 @@ export async function guardarVideos(
   // `ignoreDuplicates: false` actualiza caption y share_url —el comercio puede
   // editar el texto del video— pero el upsert NO toca las columnas de
   // transcripción, que no viajan en la fila.
-  const { error } = await db
-    .from("tiktok_videos")
-    .upsert(filas, { onConflict: "workspace_id,video_id", ignoreDuplicates: false });
+  const { error } = await db.from('tiktok_videos').upsert(filas, {
+    onConflict: 'workspace_id,video_id',
+    ignoreDuplicates: false,
+  });
   if (error) {
-    console.warn("[tiktok/videos] no se pudieron guardar:", error.message);
+    console.warn('[tiktok/videos] no se pudieron guardar:', error.message);
     return 0;
   }
   return filas.length;
@@ -113,7 +109,7 @@ export async function guardarVideos(
  */
 export async function transcribirPendientes(
   db: SupabaseClient,
-  opts: { limite?: number } = {},
+  opts: { limite?: number } = {}
 ): Promise<{ intentados: number; transcriptos: number }> {
   // Sin clave de transcripción no se toca nada: los videos quedan pendientes
   // y se transcriben el día que la clave exista. Marcarlos "sin audio" acá
@@ -125,12 +121,14 @@ export async function transcribirPendientes(
   // pasó la espera.
   const listo = new Date(Date.now() - ESPERA_ENTRE_INTENTOS_MS).toISOString();
   const { data } = await db
-    .from("tiktok_videos")
-    .select("id, video_id, share_url, transcript_attempts, workspace_id")
-    .or(`transcript_status.eq.pending,and(transcript_status.eq.error,updated_at.lt.${listo})`)
-    .lt("transcript_attempts", MAX_INTENTOS)
-    .not("share_url", "is", null)
-    .order("posted_at", { ascending: false, nullsFirst: false })
+    .from('tiktok_videos')
+    .select('id, video_id, share_url, transcript_attempts, workspace_id')
+    .or(
+      `transcript_status.eq.pending,and(transcript_status.eq.error,updated_at.lt.${listo})`
+    )
+    .lt('transcript_attempts', MAX_INTENTOS)
+    .not('share_url', 'is', null)
+    .order('posted_at', { ascending: false, nullsFirst: false })
     .limit(limite);
   const pendientes = (data ?? []) as Array<{
     id: string;
@@ -146,70 +144,68 @@ export async function transcribirPendientes(
     const intento = (v.transcript_attempts ?? 0) + 1;
     try {
       const descarga = await bajarVideo(v.share_url);
-      if (descarga.tipo === "sin_video") {
+      if (descarga.tipo === 'sin_video') {
         // Publicación de FOTOS: un carrusel con música, sin video. No hay nada
         // que transcribir y no tiene sentido reintentarlo cada quince minutos.
         await db
-          .from("tiktok_videos")
+          .from('tiktok_videos')
           .update({
-            transcript_status: "sin_audio",
-            transcript_error: "publicación de fotos, sin video",
+            transcript_status: 'sin_audio',
+            transcript_error: 'publicación de fotos, sin video',
             transcript_attempts: intento,
             transcribed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("id", v.id);
+          .eq('id', v.id);
         continue;
       }
-      if (descarga.tipo !== "ok") {
-        await marcarError(db, v.id, intento, "no se pudo bajar el video");
+      if (descarga.tipo !== 'ok') {
+        await marcarError(db, v.id, intento, 'no se pudo bajar el video');
         continue;
       }
       const r = await transcribeBuffer(descarga.archivo, {
-        mime: "video/mp4",
+        billing: {
+          db,
+          workspaceId: v.workspace_id ?? '',
+          concepto: 'transcripcion',
+        },
+        mime: 'video/mp4',
         filename: `${v.video_id}.mp4`,
         timeoutMs: TIMEOUT_TRANSCRIPCION_MS,
       });
-      // Whisper cobra por minuto: es un proveedor conectado más y se le pasa
-      // al comercio, igual que la nota de voz de un cliente.
-      if (r?.segundos && r.proveedor && v.workspace_id) {
-        void cobrarUsoPorUnidad(db, v.workspace_id, {
-          concepto: "transcripcion",
-          cantidad: r.segundos / 60,
-          usdPorUnidad: USD_POR_MINUTO[r.proveedor],
-          referenciaTipo: "video",
-          referenciaId: v.video_id,
-          detalle: { proveedor: r.proveedor, para: "video_de_tiktok" },
-        });
-      }
       if (!r?.text) {
         // Sin texto puede ser un video sin voz (música y placas) — eso no es
         // un fallo y no se reintenta eternamente.
         await db
-          .from("tiktok_videos")
+          .from('tiktok_videos')
           .update({
-            transcript_status: "sin_audio",
+            transcript_status: 'sin_audio',
             transcript_attempts: intento,
             transcribed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("id", v.id);
+          .eq('id', v.id);
         continue;
       }
       await db
-        .from("tiktok_videos")
+        .from('tiktok_videos')
         .update({
           transcript: r.text.slice(0, 20000),
-          transcript_status: "ok",
+          transcript_status: 'ok',
           transcript_error: null,
           transcript_attempts: intento,
           transcribed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", v.id);
+        .eq('id', v.id);
       transcriptos++;
     } catch (err) {
-      await marcarError(db, v.id, intento, err instanceof Error ? err.message : String(err));
+      await marcarError(
+        db,
+        v.id,
+        intento,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
   return { intentados: pendientes.length, transcriptos };
@@ -219,17 +215,17 @@ async function marcarError(
   db: SupabaseClient,
   id: string,
   intento: number,
-  motivo: string,
+  motivo: string
 ): Promise<void> {
   await db
-    .from("tiktok_videos")
+    .from('tiktok_videos')
     .update({
-      transcript_status: "error",
+      transcript_status: 'error',
       transcript_error: motivo.slice(0, 500),
       transcript_attempts: intento,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq('id', id);
 }
 
 /**
@@ -241,19 +237,21 @@ async function marcarError(
  * devuelve null y el llamador lo anota como error reintentable.
  */
 type Descarga =
-  | { tipo: "ok"; archivo: Buffer }
+  | { tipo: 'ok'; archivo: Buffer }
   /** La publicación no tiene video: es un carrusel de fotos. */
-  | { tipo: "sin_video" }
-  | { tipo: "fallo" };
+  | { tipo: 'sin_video' }
+  | { tipo: 'fallo' };
 
 async function bajarVideo(shareUrl: string): Promise<Descarga> {
   for (let intento = 0; intento < INTENTOS_DESCARGA; intento++) {
     if (intento > 0) {
-      await new Promise((r) => setTimeout(r, ESPERA_ENTRE_PEDIDOS_MS * intento));
+      await new Promise((r) =>
+        setTimeout(r, ESPERA_ENTRE_PEDIDOS_MS * intento)
+      );
     }
     try {
       const pagina = await fetch(shareUrl, {
-        headers: { "user-agent": UA, "accept-language": "es-ES,es;q=0.9" },
+        headers: { 'user-agent': UA, 'accept-language': 'es-ES,es;q=0.9' },
         signal: AbortSignal.timeout(20_000),
       });
       if (!pagina.ok) continue;
@@ -264,7 +262,7 @@ async function bajarVideo(shareUrl: string): Promise<Descarga> {
       // de fotos. Distinto de "TikTok no me dio la página", que sí conviene
       // reintentar. Sin esta distinción los carruseles se reintentaban seis
       // veces y quedaban marcados como error para siempre.
-      if (!m[1]) return { tipo: "sin_video" };
+      if (!m[1]) return { tipo: 'sin_video' };
       let directa: string;
       try {
         // Viene con los "/" escapados como /: JSON.parse lo deshace sin
@@ -273,30 +271,30 @@ async function bajarVideo(shareUrl: string): Promise<Descarga> {
       } catch {
         continue;
       }
-      if (!directa.startsWith("https://")) return { tipo: "sin_video" };
+      if (!directa.startsWith('https://')) return { tipo: 'sin_video' };
       const cookies = (pagina.headers.getSetCookie?.() ?? [])
-        .map((c) => c.split(";")[0])
-        .join("; ");
+        .map((c) => c.split(';')[0])
+        .join('; ');
 
       const archivo = await fetch(directa, {
         headers: {
-          "user-agent": UA,
-          referer: "https://www.tiktok.com/",
+          'user-agent': UA,
+          referer: 'https://www.tiktok.com/',
           ...(cookies ? { cookie: cookies } : {}),
         },
         signal: AbortSignal.timeout(60_000),
       });
       if (!archivo.ok) continue;
-      const largo = Number(archivo.headers.get("content-length") ?? 0);
-      if (largo > MAX_BYTES) return { tipo: "fallo" };
+      const largo = Number(archivo.headers.get('content-length') ?? 0);
+      if (largo > MAX_BYTES) return { tipo: 'fallo' };
       const buf = Buffer.from(await archivo.arrayBuffer());
-      if (buf.length === 0 || buf.length > MAX_BYTES) return { tipo: "fallo" };
-      return { tipo: "ok", archivo: buf };
+      if (buf.length === 0 || buf.length > MAX_BYTES) return { tipo: 'fallo' };
+      return { tipo: 'ok', archivo: buf };
     } catch {
       /* siguiente intento */
     }
   }
-  return { tipo: "fallo" };
+  return { tipo: 'fallo' };
 }
 
 /**
@@ -307,13 +305,13 @@ async function bajarVideo(shareUrl: string): Promise<Descarga> {
 export async function briefDeVideo(
   db: SupabaseClient,
   workspaceId: string,
-  videoId: string,
+  videoId: string
 ): Promise<string | null> {
   const { data } = await db
-    .from("tiktok_videos")
-    .select("caption, transcript, transcript_status")
-    .eq("workspace_id", workspaceId)
-    .eq("video_id", videoId)
+    .from('tiktok_videos')
+    .select('caption, transcript, transcript_status')
+    .eq('workspace_id', workspaceId)
+    .eq('video_id', videoId)
     .maybeSingle();
   const v = data as {
     caption: string | null;
@@ -323,24 +321,26 @@ export async function briefDeVideo(
   if (!v) return null;
 
   const lineas = [
-    "## El video que están comentando",
-    "Este comentario está debajo de un video de TikTok de la tienda. La persona le habla al VIDEO, no a una conversación previa: si su comentario parece suelto, es porque se entiende leyendo lo de abajo.",
+    '## El video que están comentando',
+    'Este comentario está debajo de un video de TikTok de la tienda. La persona le habla al VIDEO, no a una conversación previa: si su comentario parece suelto, es porque se entiende leyendo lo de abajo.',
   ];
   if (v.caption?.trim()) lineas.push(`Texto del video: ${v.caption.trim()}`);
   if (v.transcript?.trim()) {
-    lineas.push(`Lo que se dice en el video: "${v.transcript.trim().slice(0, 4000)}"`);
     lineas.push(
-      "El video sirve para ENTENDER de qué está hablando la persona, no como fuente de datos. Los ingredientes, los precios, las promociones y los envíos salen de la ficha del producto: si el video dice algo distinto, manda la ficha y no repitas lo del video.",
+      `Lo que se dice en el video: "${v.transcript.trim().slice(0, 4000)}"`
+    );
+    lineas.push(
+      'El video sirve para ENTENDER de qué está hablando la persona, no como fuente de datos. Los ingredientes, los precios, las promociones y los envíos salen de la ficha del producto: si el video dice algo distinto, manda la ficha y no repitas lo del video.'
     );
   }
   // Sólo el caption no alcanza para nada más que ubicar el tema; se dice para
   // que el modelo no invente lo que el video "seguro decía".
   if (!v.transcript?.trim()) {
     lineas.push(
-      "No hay transcripción del audio: no supongas qué se dijo en el video más allá de su texto.",
+      'No hay transcripción del audio: no supongas qué se dijo en el video más allá de su texto.'
     );
   }
-  return lineas.join("\n");
+  return lineas.join('\n');
 }
 
 /**
@@ -350,23 +350,25 @@ export async function briefDeVideo(
 export async function briefDeVideoPorConversacion(
   db: SupabaseClient,
   workspaceId: string,
-  conversationId: string,
+  conversationId: string
 ): Promise<string | null> {
   const { data } = await db
-    .from("conversations")
-    .select("thread_external_id")
-    .eq("id", conversationId)
+    .from('conversations')
+    .select('thread_external_id')
+    .eq('id', conversationId)
     .maybeSingle();
   const videoId = videoDelHilo(
-    (data as { thread_external_id?: string | null } | null)?.thread_external_id,
+    (data as { thread_external_id?: string | null } | null)?.thread_external_id
   );
   return videoId ? briefDeVideo(db, workspaceId, videoId) : null;
 }
 
 /** El id del video que hay dentro de "video:<id>|comment:<id>". */
-export function videoDelHilo(threadExternalId: string | null | undefined): string | null {
-  const t = String(threadExternalId ?? "");
-  if (!t.startsWith("video:")) return null;
-  const id = t.slice(6).split("|")[0];
+export function videoDelHilo(
+  threadExternalId: string | null | undefined
+): string | null {
+  const t = String(threadExternalId ?? '');
+  if (!t.startsWith('video:')) return null;
+  const id = t.slice(6).split('|')[0];
   return id || null;
 }

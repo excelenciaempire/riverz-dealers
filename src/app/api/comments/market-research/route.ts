@@ -1,25 +1,24 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { selectAll } from '@/lib/db/paginate';
-import { csrfGuard } from '@/lib/csrf';
-import { getLocale } from '@/lib/i18n/server';
-import { translate } from '@/lib/i18n/translate';
-import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { completeTextConUso, hasLlm } from '@/lib/ai/llm-client';
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
+import { resolveAnthropicKey } from '@/lib/ai/platform-key';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
 import {
   analyzeCommentMetrics,
-  buildMarketResearchPrompt,
   buildEvidenceActions,
+  buildMarketResearchPrompt,
   COMMENT_CATEGORIES,
-  filterCommentsByCategory,
   fallbackResearch,
+  filterCommentsByCategory,
   parseMarketResearchResponse,
   type CommentCategory,
   type CommentChannel,
   type ResearchComment,
 } from '@/lib/comments/market-research';
+import { csrfGuard } from '@/lib/csrf';
+import { selectAll } from '@/lib/db/paginate';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 
 const COMMENT_CHANNELS: CommentChannel[] = [
   'ig_comment',
@@ -50,7 +49,10 @@ type ResearchStreamEvent =
     }
   | { type: 'error'; error: string };
 
-type ResearchReport = Extract<ResearchStreamEvent, { type: 'result' }>['report'];
+type ResearchReport = Extract<
+  ResearchStreamEvent,
+  { type: 'result' }
+>['report'];
 
 type StoredResearchRow = {
   report: ResearchReport | null;
@@ -77,7 +79,9 @@ function commentsFromRows(rows: readonly CommentRow[]): ResearchComment[] {
 }
 
 /** Lee la fuente completa una sola vez y mantiene el criterio de comentario igual en POST y GET. */
-async function readWorkspaceComments(workspaceId: string): Promise<ResearchComment[]> {
+async function readWorkspaceComments(
+  workspaceId: string
+): Promise<ResearchComment[]> {
   const admin = supabaseAdmin();
   const rows = await selectAll<CommentRow>(
     admin,
@@ -103,11 +107,15 @@ async function assertWorkspaceMember(workspaceId: string, userId: string) {
     .eq('workspace_id', workspaceId)
     .eq('user_id', userId)
     .maybeSingle();
-  return Boolean(membership && ['owner', 'admin'].includes(String(membership.role)));
+  return Boolean(
+    membership && ['owner', 'admin'].includes(String(membership.role))
+  );
 }
 
 /** El último análisis se conserva por comercio; los detalles siempre se leen de la fuente viva. */
-async function latestResearch(workspaceId: string): Promise<StoredResearchRow | null> {
+async function latestResearch(
+  workspaceId: string
+): Promise<StoredResearchRow | null> {
   const { data, error } = await supabaseAdmin()
     .from('workspace_comment_research')
     .select('report, analyzed_at')
@@ -118,7 +126,10 @@ async function latestResearch(workspaceId: string): Promise<StoredResearchRow | 
   return row?.report ? row : null;
 }
 
-async function saveResearch(workspaceId: string, report: ResearchReport): Promise<string> {
+async function saveResearch(
+  workspaceId: string,
+  report: ResearchReport
+): Promise<string> {
   const analyzedAt = new Date().toISOString();
   const { error } = await supabaseAdmin()
     .from('workspace_comment_research')
@@ -160,10 +171,14 @@ export async function GET(request: Request) {
   const workspaceId = url.searchParams.get('workspace_id')?.trim();
   const requested = url.searchParams.get('category');
   const wantsReport = requested === null;
-  const category = requested && (COMMENT_CATEGORIES as readonly string[]).includes(requested)
-    ? (requested as CommentCategory)
-    : null;
-  const page = Math.max(0, Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0);
+  const category =
+    requested && (COMMENT_CATEGORIES as readonly string[]).includes(requested)
+      ? (requested as CommentCategory)
+      : null;
+  const page = Math.max(
+    0,
+    Number.parseInt(url.searchParams.get('page') ?? '0', 10) || 0
+  );
   const pageSize = 50;
   if (!workspaceId || (!wantsReport && !category))
     return NextResponse.json(
@@ -179,7 +194,10 @@ export async function GET(request: Request) {
   try {
     if (wantsReport) {
       const stored = await latestResearch(workspaceId);
-      return NextResponse.json({ report: stored?.report ?? null, analyzed_at: stored?.analyzed_at ?? null });
+      return NextResponse.json({
+        report: stored?.report ?? null,
+        analyzed_at: stored?.analyzed_at ?? null,
+      });
     }
     // La validación de arriba lo garantiza; este guard además conserva el
     // narrowing de TypeScript si cambia la forma de los parámetros después.
@@ -203,7 +221,10 @@ export async function GET(request: Request) {
       has_more: start + pageSize < matched.length,
     });
   } catch (error) {
-    console.error('[comments/market-research] detail failed', { workspaceId, error });
+    console.error('[comments/market-research] detail failed', {
+      workspaceId,
+      error,
+    });
     return NextResponse.json(
       { error: translate(locale, 'errAi.marketResearchFailed') },
       { status: 500 }
@@ -272,7 +293,10 @@ export async function POST(request: Request) {
 
         progress('calculating', 55);
         const metrics = analyzeCommentMetrics(comments);
-        const qualitative = representativeSample(comments, MAX_QUALITATIVE_SAMPLE);
+        const qualitative = representativeSample(
+          comments,
+          MAX_QUALITATIVE_SAMPLE
+        );
         const language = locale === 'en' ? 'en' : 'es';
         let insight = fallbackResearch(metrics, language);
         let generatedWithAi = false;
@@ -282,6 +306,7 @@ export async function POST(request: Request) {
         if (hasLlm(clave?.key)) {
           try {
             const completado = await completeTextConUso({
+              billing: { db: admin, workspaceId, concepto: 'investigacion' },
               tier: 'premium',
               system:
                 'You produce evidence-based market research from customer comments. Never make up facts.',
@@ -297,17 +322,9 @@ export async function POST(request: Request) {
             // La síntesis se genera para este comercio: si usa la clave de
             // Riverz, su consumo queda en su saldo. Con una clave propia, el
             // proveedor ya le factura directamente y no se duplica el cobro.
-            await cobrarUsoDeIa(admin, workspaceId, {
-              concepto: 'investigacion',
-              modelo: completado.modelo,
-              uso: completado.uso,
-              origenDeLaClave: clave?.source,
-              referenciaTipo: 'analisis_comentarios',
-              detalle: {
-                proveedor: completado.proveedor,
-                comentariosAnalizados: qualitative.length,
-              },
-            });
+            {
+              /* Usage is settled at the provider boundary. */
+            }
             const parsed = parseMarketResearchResponse(completado.text);
             if (parsed) {
               // Las conclusiones se pueden redactar con IA, pero los próximos
@@ -336,7 +353,10 @@ export async function POST(request: Request) {
         // Sólo reemplazamos el reporte anterior después de completar y guardar
         // éste. Un fallo de IA, red o base deja disponible el análisis previo.
         const analyzedAt = await saveResearch(workspaceId, report);
-        send({ type: 'result', report: { ...report, analyzed_at: analyzedAt } });
+        send({
+          type: 'result',
+          report: { ...report, analyzed_at: analyzedAt },
+        });
       } catch (error) {
         console.error('[comments/market-research] failed', {
           workspaceId,

@@ -1,13 +1,14 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
-import { cobrarUsoPorUnidad } from '@/lib/wallet/cobrar-uso';
-import { getProviderCooldown, setProviderCooldown } from './provider-cooldown';
 import {
   completeText,
   describeImage,
-  toImageMediaType,
   hasLlm,
+  toImageMediaType,
 } from '@/lib/ai/llm-client';
+import { resolveWorkspaceKeyConOrigen } from '@/lib/integrations/workspace-key';
+import type { BillingContext } from '@/lib/wallet/operacion';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { runProfileBilled } from './apify-billing';
+import { getProviderCooldown, setProviderCooldown } from './provider-cooldown';
 
 /**
  * External Instagram enrichment — the "see their public profile/gallery" step
@@ -149,24 +150,29 @@ export function classifyApifyFailure(
 
 async function scrapeProfile(
   username: string,
-  token: string
+  token: string,
+  billing?: BillingContext
 ): Promise<ScrapeOutcome> {
   const cooling = getProviderCooldown(token);
-  if (cooling) return {
-    ok: false, kind: 'error',
-    reason: cooling.reason as ExternalEnrichFailureReason,
-    status: cooling.status,
-  };
+  if (cooling)
+    return {
+      ok: false,
+      kind: 'error',
+      reason: cooling.reason as ExternalEnrichFailureReason,
+      status: cooling.status,
+    };
   try {
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernames: [username], resultsLimit: 6 }),
-        signal: AbortSignal.timeout(90_000),
-      }
-    );
+    const res = billing
+      ? await runProfileBilled(billing, token, APIFY_ACTOR, username)
+      : await fetch(
+          `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usernames: [username], resultsLimit: 6 }),
+            signal: AbortSignal.timeout(90_000),
+          }
+        );
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       const reason = classifyApifyFailure(res.status, body);
@@ -186,13 +192,22 @@ async function scrapeProfile(
       return { ok: false, kind: 'empty' };
     }
     return { ok: true, profile: items[0] };
-  } catch {
-    return { ok: false, kind: 'error', reason: 'network' };
+  } catch (error) {
+    const billingError =
+      error instanceof Error && /wallet_|sin_saldo/.test(error.message);
+    return {
+      ok: false,
+      kind: 'error',
+      reason: billingError ? 'billing' : 'network',
+    };
   }
 }
 
 /** Derive a non-sensitive interest persona from bio + captions + one photo. */
-async function analyze(p: ApifyProfile): Promise<string | null> {
+async function analyze(
+  p: ApifyProfile,
+  billing: BillingContext
+): Promise<string | null> {
   const key = process.env.ANTHROPIC_API_KEY ?? null;
   if (!hasLlm(key)) return null;
   const ps = postsOf(p);
@@ -221,6 +236,7 @@ async function analyze(p: ApifyProfile): Promise<string | null> {
       if (r.ok) {
         const buf = Buffer.from(await r.arrayBuffer());
         const out = await describeImage({
+          billing,
           base64: buf.toString('base64'),
           mediaType: toImageMediaType(r.headers.get('content-type')),
           system: EXTERNAL_SYSTEM,
@@ -234,6 +250,7 @@ async function analyze(p: ApifyProfile): Promise<string | null> {
     // Text-only fallback (works through any provider).
     if (textContext) {
       const out = await completeText({
+        billing,
         tier: 'triage',
         system: EXTERNAL_SYSTEM,
         user: `Perfil:\n${textContext}\n\nDa la pista de interés.`,
@@ -249,7 +266,10 @@ async function analyze(p: ApifyProfile): Promise<string | null> {
 }
 
 /** El gancho concreto para abrir (solo texto: nace de lo que ella publicó). */
-async function findOpener(p: ApifyProfile): Promise<string | null> {
+async function findOpener(
+  p: ApifyProfile,
+  billing: BillingContext
+): Promise<string | null> {
   const key = process.env.ANTHROPIC_API_KEY ?? null;
   if (!hasLlm(key)) return null;
   const captions = postsOf(p)
@@ -261,6 +281,7 @@ async function findOpener(p: ApifyProfile): Promise<string | null> {
   if (!captions.trim()) return null;
   try {
     const out = await completeText({
+      billing,
       // Este texto se le dice a la persona en la primera línea: si el modelo se
       // equivoca de tono, quedamos como intrusos. Vale el modelo bueno.
       tier: 'premium',
@@ -331,18 +352,18 @@ export async function enrichExternalProfile(
       process.env.APIFY_TOKEN ?? process.env.APIFY_API_TOKEN ?? null
     );
     if (!llave) return 'skipped';
-    const scraped = await scrapeProfile(uname, llave.key);
-    // Apify cobra por perfil consultado. Si la llave la puso el comercio ya le
-    // cobra Apify; si salió la de Riverz, se le pasa el costo.
-    if ((scraped.ok || scraped.kind === 'empty') && !llave.propia && opts.workspaceId) {
-      void cobrarUsoPorUnidad(db, opts.workspaceId, {
-        concepto: 'perfil_externo',
-        cantidad: 1,
-        usdPorUnidad: USD_POR_PERFIL,
-        referenciaTipo: 'contact',
-        referenciaId: opts.contactId,
-      });
-    }
+    const scraped = await scrapeProfile(
+      uname,
+      llave.key,
+      llave.propia
+        ? undefined
+        : {
+            db,
+            workspaceId: opts.workspaceId ?? '',
+            concepto: 'perfil_externo',
+            detalle: { referenciaId: opts.contactId },
+          }
+    );
     if (!scraped.ok) {
       // Solo un "no existe" cuenta como investigado. Un fallo de transporte se
       // deja sin marcar para que el siguiente pase lo reintente.
@@ -362,7 +383,18 @@ export async function enrichExternalProfile(
       await mark(db, opts.contactId, { external_hint: null, is_public: false });
       return 'private';
     }
-    const [hint, opener] = await Promise.all([analyze(p), findOpener(p)]);
+    const [hint, opener] = await Promise.all([
+      analyze(p, {
+        db,
+        workspaceId: opts.workspaceId ?? '',
+        concepto: 'ia_clasificacion',
+      }),
+      findOpener(p, {
+        db,
+        workspaceId: opts.workspaceId ?? '',
+        concepto: 'ia_asistencia',
+      }),
+    ]);
     await mark(db, opts.contactId, {
       external_hint: hint,
       opener_hint: opener,

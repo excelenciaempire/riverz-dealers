@@ -1,4 +1,5 @@
 import { completeText, hasLlm } from '@/lib/ai/llm-client';
+import type { BillingContext } from '@/lib/wallet/operacion';
 
 /**
  * ¿Este comentario merece además un DM?
@@ -42,25 +43,90 @@ const VALID_REASONS: DmReason[] = [
 /* ── Heurística (sin modelo) ─────────────────────────────────────────────── */
 
 const BUY_WORDS = [
-  'precio', 'cuanto', 'cuánto', 'vale', 'cuesta', 'comprar', 'compro',
-  'quiero', 'lo llevo', 'stock', 'talla', 'talle', 'color', 'envio', 'envío',
-  'envian', 'envían', 'pagar', 'pago', 'cuotas', 'descuento', 'cupon', 'cupón',
-  'link', 'enlace', 'donde consigo', 'dónde consigo', 'disponible',
-  'price', 'how much', 'cost', 'buy', 'order it', 'want it', 'in stock',
-  'size', 'shipping', 'ship to', 'discount', 'coupon', 'available', 'checkout',
+  'precio',
+  'cuanto',
+  'cuánto',
+  'vale',
+  'cuesta',
+  'comprar',
+  'compro',
+  'quiero',
+  'lo llevo',
+  'stock',
+  'talla',
+  'talle',
+  'color',
+  'envio',
+  'envío',
+  'envian',
+  'envían',
+  'pagar',
+  'pago',
+  'cuotas',
+  'descuento',
+  'cupon',
+  'cupón',
+  'link',
+  'enlace',
+  'donde consigo',
+  'dónde consigo',
+  'disponible',
+  'price',
+  'how much',
+  'cost',
+  'buy',
+  'order it',
+  'want it',
+  'in stock',
+  'size',
+  'shipping',
+  'ship to',
+  'discount',
+  'coupon',
+  'available',
+  'checkout',
 ];
 
 const ORDER_WORDS = [
-  'mi pedido', 'mi orden', 'mi compra', 'no me llego', 'no me llegó',
-  'no llego', 'no ha llegado', 'seguimiento', 'rastreo', 'guia', 'guía',
-  'my order', 'my package', 'tracking', "hasn't arrived", 'not arrived',
+  'mi pedido',
+  'mi orden',
+  'mi compra',
+  'no me llego',
+  'no me llegó',
+  'no llego',
+  'no ha llegado',
+  'seguimiento',
+  'rastreo',
+  'guia',
+  'guía',
+  'my order',
+  'my package',
+  'tracking',
+  "hasn't arrived",
+  'not arrived',
   'where is my',
 ];
 
 const COMPLAINT_WORDS = [
-  'reclamo', 'queja', 'estafa', 'devolucion', 'devolución', 'reembolso',
-  'roto', 'defectuoso', 'malo', 'pesimo', 'pésimo', 'no funciona', 'error',
-  'refund', 'broken', 'damaged', 'scam', 'complaint', 'terrible',
+  'reclamo',
+  'queja',
+  'estafa',
+  'devolucion',
+  'devolución',
+  'reembolso',
+  'roto',
+  'defectuoso',
+  'malo',
+  'pesimo',
+  'pésimo',
+  'no funciona',
+  'error',
+  'refund',
+  'broken',
+  'damaged',
+  'scam',
+  'complaint',
+  'terrible',
 ];
 
 /** Un código de descuento tipo VERANO20 / RIVERZ10 dentro de la respuesta. */
@@ -83,7 +149,7 @@ function hasAny(hay: string, needles: string[]): boolean {
  */
 export function heuristicDmDecision(
   comment: string,
-  reply: string,
+  reply: string
 ): DmDecision {
   const c = norm(comment);
   if (hasAny(c, ORDER_WORDS)) return { dm: true, reason: 'pedido' };
@@ -141,6 +207,7 @@ export function parseDmDecision(text: string): DmDecision | null {
  * respuesta y no gastan una llamada al modelo.
  */
 export async function decideCommentDm(input: {
+  billing?: BillingContext;
   mode: CommentReplyMode;
   apiKey: string | null;
   comment: string;
@@ -164,6 +231,7 @@ export async function decideCommentDm(input: {
 
   try {
     const out = await completeText({
+      billing: input.billing!,
       tier: 'triage',
       system: SYSTEM,
       user: [

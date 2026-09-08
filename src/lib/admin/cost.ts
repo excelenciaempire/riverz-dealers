@@ -57,11 +57,24 @@ const DEFAULT_MODEL = 'claude-haiku-4-5';
  * Los ids llevan sufijo de fecha (`claude-haiku-4-5-20251001`); la tarifa está
  * indexada por el alias. Se recorta el sufijo antes de buscar.
  */
-function rateFor(model: string | null | undefined): Rate {
+export function rateFor(model: string | null | undefined): Rate {
   const id = (model ?? DEFAULT_MODEL).trim();
+  const overrides = JSON.parse(
+    process.env.AI_MODEL_USAGE_RATES_JSON || '{}'
+  ) as Record<string, Rate>;
+  const custom = overrides[id];
+  if (custom) {
+    if (
+      ![custom.input, custom.output].every((n) => Number.isFinite(n) && n >= 0)
+    )
+      throw new Error('wallet_invalid_model_rate');
+    return custom;
+  }
   if (RATES[id]) return RATES[id];
   const withoutDate = id.replace(/-\d{8}$/, '');
-  return RATES[withoutDate] ?? RATES[DEFAULT_MODEL];
+  const rate = RATES[withoutDate];
+  if (!rate) throw new Error(`wallet_unknown_model_rate: ${id}`);
+  return rate;
 }
 
 export function costForModel(
@@ -77,7 +90,7 @@ export function costForModel(
    * porque las filas anteriores a la migración 215 no los tienen y no se pueden
    * inventar.
    */
-  cache?: { read?: number; write?: number },
+  cache?: { read?: number; write?: number }
 ): number {
   const rate = rateFor(model);
   return (
@@ -87,4 +100,3 @@ export function costForModel(
     ((cache?.write ?? 0) / 1_000_000) * rate.input * CACHE_WRITE
   );
 }
-

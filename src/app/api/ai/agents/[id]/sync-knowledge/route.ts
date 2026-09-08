@@ -1,13 +1,14 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { aiBudgetGuard } from '@/lib/ai/rate-limit';
+import type { AiAgent } from '@/lib/ai/types';
+import { serverError } from '@/lib/api/errors';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { csrfGuard } from '@/lib/csrf';
-import { aiBudgetGuard } from '@/lib/ai/rate-limit';
-import { serverError } from '@/lib/api/errors';
-import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { meteredCrawlFetch } from '@/lib/firecrawl/crawl-billing';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
-import type { AiAgent } from '@/lib/ai/types';
+import { isPublicHttpsUrl } from '@/lib/security/url-guard';
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 
 /**
  * POST /api/ai/agents/[id]/sync-knowledge
@@ -76,7 +77,9 @@ function aggregateMarkdown(pages: FirecrawlCrawlPage[]): string {
     const md = (page?.markdown ?? '').trim();
     if (!md) continue;
     const title = page?.metadata?.title ?? page?.metadata?.sourceURL ?? '';
-    const header = title ? `# ${title}\n${page?.metadata?.sourceURL ?? ''}\n\n` : '';
+    const header = title
+      ? `# ${title}\n${page?.metadata?.sourceURL ?? ''}\n\n`
+      : '';
     const block = `${header}${md}`.trim();
     if (total + block.length + 4 > KNOWLEDGE_CHAR_CAP) {
       // Acepta lo que entre en lo que queda.
@@ -96,7 +99,7 @@ async function sleep(ms: number) {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const block = await csrfGuard(request);
   if (block) return block;
@@ -109,32 +112,34 @@ export async function POST(
   if (!user)
     return NextResponse.json(
       { error: translate(locale, 'errAi.unauthorized') },
-      { status: 401 },
+      { status: 401 }
     );
 
   const target = await requireMember(id, user.id);
   if (!target)
     return NextResponse.json(
       { error: translate(locale, 'errAi.notFound') },
-      { status: 404 },
+      { status: 404 }
     );
 
   const overBudget = await aiBudgetGuard(target.workspace_id, 'heavy');
   if (overBudget) return overBudget;
 
-  const body = (await request.json().catch(() => null)) as { url?: string } | null;
+  const body = (await request.json().catch(() => null)) as {
+    url?: string;
+  } | null;
   const rawUrl = body?.url?.trim();
   if (!rawUrl) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlRequired') },
-      { status: 400 },
+      { status: 400 }
     );
   }
   const parsed = isPublicHttpsUrl(rawUrl);
   if (!parsed) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.urlInvalidHttps') },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -142,14 +147,20 @@ export async function POST(
   if (!apiKey) {
     return NextResponse.json(
       { error: translate(locale, 'errAi.firecrawlMissingKey') },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
   // 1) Disparar el crawl.
   let startJson: FirecrawlCrawlStart;
+  let billedFetch: typeof fetch;
   try {
-    const startRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl`, {
+    billedFetch = meteredCrawlFetch({
+      db: supabaseAdmin(),
+      workspaceId: target.workspace_id,
+      concepto: 'lectura_de_pagina',
+    });
+    const startRes = await billedFetch(`${FIRECRAWL_BASE}/v1/crawl`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -164,7 +175,9 @@ export async function POST(
         },
       }),
     });
-    startJson = (await startRes.json().catch(() => ({}))) as FirecrawlCrawlStart;
+    startJson = (await startRes
+      .json()
+      .catch(() => ({}))) as FirecrawlCrawlStart;
     if (!startRes.ok || !startJson?.id) {
       return NextResponse.json(
         {
@@ -174,11 +187,15 @@ export async function POST(
               status: startRes.status,
             }),
         },
-        { status: 502 },
+        { status: 502 }
       );
     }
   } catch (err) {
-    return serverError(err, translate(locale, 'errAi.firecrawlUnreachable'), 502);
+    return serverError(
+      err,
+      translate(locale, 'errAi.firecrawlUnreachable'),
+      502
+    );
   }
 
   const crawlId = startJson.id;
@@ -189,16 +206,21 @@ export async function POST(
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
     try {
-      const statusRes = await fetch(`${FIRECRAWL_BASE}/v1/crawl/${crawlId}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      const json = (await statusRes.json().catch(() => ({}))) as FirecrawlCrawlStatus;
+      const statusRes = await billedFetch(
+        `${FIRECRAWL_BASE}/v1/crawl/${crawlId}`,
+        {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        }
+      );
+      const json = (await statusRes
+        .json()
+        .catch(() => ({}))) as FirecrawlCrawlStatus;
       lastStatus = json;
       if (json.status === 'completed') break;
       if (json.status === 'failed') {
         return NextResponse.json(
           { error: json.error ?? translate(locale, 'errAi.firecrawlFailed') },
-          { status: 502 },
+          { status: 502 }
         );
       }
     } catch {
@@ -247,6 +269,6 @@ export async function POST(
       knowledge_synced_at: syncedAt,
       agent: safe,
     },
-    { status: finished ? 200 : 202 },
+    { status: finished ? 200 : 202 }
   );
 }

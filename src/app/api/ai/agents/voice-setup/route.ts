@@ -1,13 +1,12 @@
-import { NextResponse } from 'next/server';
+import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
-import { cobrarUsoDeIa } from '@/lib/wallet/cobrar-uso';
-import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/channels/admin-client';
-import { csrfGuard } from '@/lib/csrf';
 import { aiBudgetGuard } from '@/lib/ai/rate-limit';
 import { serverError } from '@/lib/api/errors';
-import { getAnthropic } from '@/lib/ai/anthropic-client';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { csrfGuard } from '@/lib/csrf';
+import { createClient } from '@/lib/supabase/server';
 import { DEFAULT_OBJECTIVES } from '@/lib/voice/constants';
+import { NextResponse } from 'next/server';
 
 /**
  * AI-assisted voice setup: the merchant describes, in plain language, when
@@ -23,7 +22,8 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as {
     workspace_id?: string;
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   if (!body?.workspace_id || !body.description?.trim()) {
     return NextResponse.json(
       { error: 'workspace_id and description required' },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -43,7 +43,8 @@ export async function POST(request: Request) {
     .eq('workspace_id', body.workspace_id)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  if (!member)
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const overBudget = await aiBudgetGuard(body.workspace_id);
   if (overBudget) return overBudget;
@@ -54,9 +55,12 @@ export async function POST(request: Request) {
     workspaceId: body.workspace_id,
   });
   const apiKey = resuelta?.key;
-  if (!apiKey) return NextResponse.json({ error: 'ai_not_configured' }, { status: 503 });
+  if (!apiKey)
+    return NextResponse.json({ error: 'ai_not_configured' }, { status: 503 });
 
-  const lang = (body.language ?? 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
+  const lang = (body.language ?? 'es').toLowerCase().startsWith('en')
+    ? 'en'
+    : 'es';
   // Ojo: NO se le pide que "active" tipos de llamada. `objectives[tipo].enabled`
   // no lo lee nadie desde que el nodo del lienzo quedó como única vía
   // automática — quién llama y cuándo lo deciden las reglas, no el agente. Lo
@@ -71,31 +75,30 @@ Devuelve SOLO un JSON válido con esta forma exacta, sin texto extra:
 Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio que describe el comerciante; el saludo usa {{contact_name}} para el nombre; escribe todo en '${lang}'.`;
 
   try {
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, {
+      db: supabaseAdmin(),
+      workspaceId: body.workspace_id,
+      concepto: 'ia_asistencia',
+      origenDeLaClave: resuelta?.source,
+    });
     const resp = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 700,
       system,
-      messages: [{ role: 'user', content: body.description.trim().slice(0, 2000) }],
+      messages: [
+        { role: 'user', content: body.description.trim().slice(0, 2000) },
+      ],
     });
-    void cobrarUsoDeIa(supabaseAdmin(), body.workspace_id, {
-      concepto: 'ia_asistencia',
-      modelo: 'claude-haiku-4-5-20251001',
-      uso: {
-        prompt: resp.usage?.input_tokens ?? 0,
-        salida: resp.usage?.output_tokens ?? 0,
-        cacheLeida: resp.usage?.cache_read_input_tokens ?? 0,
-        cacheEscrita: resp.usage?.cache_creation_input_tokens ?? 0,
-      },
-      origenDeLaClave: resuelta?.source ?? null,
-      detalle: { para: 'configurar_voz' },
-    });
+
     const text = resp.content
       .map((b) => (b.type === 'text' ? b.text : ''))
       .join('')
       .trim();
     // Defensive parse — strip any code fences the model might add.
-    const jsonStr = text.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const jsonStr = text
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(jsonStr);
@@ -104,21 +107,35 @@ Reglas: escribe los CUATRO objetivos, cortos y accionables, adaptados al negocio
     }
 
     // Normalize into our shape with safe fallbacks.
-    const objIn = (parsed.objectives ?? {}) as Record<string, { objective?: string }>;
-    const objectives: Record<string, { enabled: boolean; objective: string }> = {};
-    for (const key of ['order_confirmation', 'cart_recovery', 'followup', 'inbound'] as const) {
+    const objIn = (parsed.objectives ?? {}) as Record<
+      string,
+      { objective?: string }
+    >;
+    const objectives: Record<string, { enabled: boolean; objective: string }> =
+      {};
+    for (const key of [
+      'order_confirmation',
+      'cart_recovery',
+      'followup',
+      'inbound',
+    ] as const) {
       const o = objIn[key] ?? {};
       objectives[key] = {
         // Se sigue escribiendo en true por compatibilidad con las filas que ya
         // están en la base; nadie lo lee. El guion es lo único que decide.
         enabled: true,
-        objective: (o.objective && String(o.objective).trim()) || DEFAULT_OBJECTIVES[key][lang],
+        objective:
+          (o.objective && String(o.objective).trim()) ||
+          DEFAULT_OBJECTIVES[key][lang],
       };
     }
     return NextResponse.json({
       config: {
         voice_enabled: parsed.voice_enabled !== false,
-        voice_greeting: typeof parsed.voice_greeting === 'string' ? parsed.voice_greeting : '',
+        voice_greeting:
+          typeof parsed.voice_greeting === 'string'
+            ? parsed.voice_greeting
+            : '',
         objectives,
       },
     });

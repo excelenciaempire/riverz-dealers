@@ -348,7 +348,7 @@ async def _summarize(context: dict, transcript: list[dict]) -> str | None:
         return None
     try:
         import anthropic as anthropic_sdk
-        client = anthropic_sdk.AsyncAnthropic(api_key=key)
+        client = anthropic_sdk.AsyncAnthropic(api_key=os.environ["VOICE_WORKER_SECRET"] if llm_cfg.get("billing_url") else key, base_url=llm_cfg.get("billing_url"), max_retries=0)
         resp = await client.messages.create(
             model=llm_cfg.get("model") or "claude-haiku-4-5",
             max_tokens=200,
@@ -538,6 +538,12 @@ def _llm_key(cfg: dict) -> str | None:
 
 
 def _make_llm(cfg: dict):
+    if cfg.get("billing_url"):
+        import anthropic as anthropic_sdk
+        if cfg.get("provider") != "anthropic":
+            raise ValueError("wallet_voice_llm_provider_not_configured")
+        client = anthropic_sdk.AsyncAnthropic(base_url=cfg["billing_url"], api_key=os.environ["VOICE_WORKER_SECRET"], max_retries=0)
+        return anthropic.LLM(model=cfg.get("model") or "claude-haiku-4-5", caching="ephemeral", client=client)
     """LLM: Anthropic (Claude, default). Un `base_url` usa el plugin
     OpenAI-COMPATIBLE como protocolo para un endpoint self-hosted (vLLM/Modal),
     no OpenAI la empresa."""
@@ -581,6 +587,9 @@ def _make_llm(cfg: dict):
 
 
 def _make_tts(cfg: dict):
+    if cfg.get("billing_url"):
+        return openai.TTS(base_url=cfg["billing_url"], api_key=os.environ["VOICE_WORKER_SECRET"], model=cfg.get("model") or "s2-pro", voice=cfg.get("voice_id") or "default", response_format="mp3")
+
     """TTS por provider: elevenlabs (default) · fish · cartesia · google. Un
     `base_url` fuerza el plugin OpenAI-compatible (VoxCPM en Modal, etc.)."""
     base_url = cfg.get("base_url")

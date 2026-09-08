@@ -1,4 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type { BillingContext } from '@/lib/wallet/operacion';
+import Anthropic from '@anthropic-ai/sdk';
+import { meteredAnthropicFetch } from './metered-fetch';
 
 /**
  * Shared Anthropic client factory.
@@ -24,8 +26,20 @@ function techoMs(): number {
   return Number.isFinite(crudo) && crudo > 0 ? crudo : 45_000;
 }
 
-export function getAnthropic(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, timeout: techoMs(), maxRetries: 1 });
+export function getAnthropic(
+  apiKey: string,
+  billing?: BillingContext
+): Anthropic {
+  return new Anthropic({
+    apiKey,
+    fetch: billing
+      ? meteredAnthropicFetch(billing)
+      : async () => {
+          throw new Error('wallet_billing_context_required');
+        },
+    timeout: techoMs(),
+    maxRetries: 0,
+  });
 }
 
 /**
@@ -42,8 +56,20 @@ export function getAnthropic(apiKey: string): Anthropic {
  * quien lo pidió. Sin reintentos: reintentar un stream a medio camino
  * duplicaría lo que ya se mostró.
  */
-export function getAnthropicStreaming(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, timeout: 10 * 60_000, maxRetries: 0 });
+export function getAnthropicStreaming(
+  apiKey: string,
+  billing?: BillingContext
+): Anthropic {
+  return new Anthropic({
+    apiKey,
+    fetch: billing
+      ? meteredAnthropicFetch(billing)
+      : async () => {
+          throw new Error('wallet_billing_context_required');
+        },
+    timeout: 10 * 60_000,
+    maxRetries: 0,
+  });
 }
 
 /**
@@ -57,6 +83,18 @@ export function getAnthropicStreaming(apiKey: string): Anthropic {
  *
  * Sin reintentos, por lo mismo que el de arriba.
  */
-export function getAnthropicSubagent(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, timeout: 2 * 60_000, maxRetries: 0 });
+export function getAnthropicSubagent(
+  apiKey: string,
+  billing?: BillingContext
+): Anthropic {
+  return new Anthropic({
+    apiKey,
+    fetch: billing
+      ? meteredAnthropicFetch(billing)
+      : async () => {
+          throw new Error('wallet_billing_context_required');
+        },
+    timeout: 2 * 60_000,
+    maxRetries: 0,
+  });
 }

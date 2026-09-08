@@ -1,33 +1,31 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
-import { salidaParaCliente, recortarSalida } from './salida';
-import type Anthropic from '@anthropic-ai/sdk';
+import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { enrichContactFromShopify } from '@/lib/contacts/enrich';
+import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
+import { resolveWorkspaceCurrency } from '@/lib/products/currency';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { Contact, Conversation } from '@/types';
-import type { AiAgent } from './types';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAnthropic } from './anthropic-client';
+import { MODELO_POR_DEFECTO, reguladoPorEsfuerzo } from './esfuerzo';
+import { cargarReglas, reglasATexto } from './guidance';
 import { resolveAnthropicKey } from './platform-key';
+import { resolverRegistro } from './registro-rioplatense';
 import {
   buildSystemPrompt,
   construirHerramientas,
+  detectInboundProduct,
   loadContext,
   loadProductCatalog,
   loadRecentContactNotes,
-  detectInboundProduct,
-  resolveShopifyContext,
   productosPermitidos,
   resolveOtherStore,
+  resolveShopifyContext,
 } from './runner';
+import { recortarSalida, salidaParaCliente } from './salida';
+import { herramientasQueRequierenAprobacion, toolEnabled } from './toolbox';
 import { runWithTools } from './tools';
-import { toolEnabled, herramientasQueRequierenAprobacion } from './toolbox';
-import { resolverRegistro } from './registro-rioplatense';
-import { cargarReglas, reglasATexto } from './guidance';
-import { loadPrimaryContact } from '@/lib/contacts/dedupe';
-import { enrichContactFromShopify } from '@/lib/contacts/enrich';
-import { resolveWorkspaceCurrency } from '@/lib/products/currency';
-import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { cobrar } from '@/lib/wallet/saldo';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
-import { costForModel } from '@/lib/admin/cost';
+import type { AiAgent } from './types';
 
 /**
  * SUPER AGENTE — el mismo cerebro del Asistente escribe también el PRIMER
@@ -87,7 +85,7 @@ export interface SuperAgentInput {
 
 export async function composeSuperAgentReply(
   db: SupabaseClient,
-  input: SuperAgentInput,
+  input: SuperAgentInput
 ): Promise<string | null> {
   try {
     const { data: agentRow } = await db
@@ -138,30 +136,36 @@ export async function composeSuperAgentReply(
     const productMatch = await detectInboundProduct(
       db,
       input.workspaceId,
-      input.commentText,
+      input.commentText
     );
 
-    const [shopifySnapshot, recentNotes, context, products, businessCurrency, igContext] =
-      await Promise.all([
-        enrichContactFromShopify(db, primaryContact).catch(() => null),
-        loadRecentContactNotes(db, primaryContact.id),
-        loadContext(db, conversation, 100),
-        loadProductCatalog(db, agent, input.workspaceId, productMatch),
-        resolveWorkspaceCurrency(db, input.workspaceId),
-        loadInstagramContext(db, primaryContact.id).catch(() => null),
-      ]);
+    const [
+      shopifySnapshot,
+      recentNotes,
+      context,
+      products,
+      businessCurrency,
+      igContext,
+    ] = await Promise.all([
+      enrichContactFromShopify(db, primaryContact).catch(() => null),
+      loadRecentContactNotes(db, primaryContact.id),
+      loadContext(db, conversation, 100),
+      loadProductCatalog(db, agent, input.workspaceId, productMatch),
+      resolveWorkspaceCurrency(db, input.workspaceId),
+      loadInstagramContext(db, primaryContact.id).catch(() => null),
+    ]);
 
     const shopify = await resolveShopifyContext(
       db,
       input.workspaceId,
       contact,
-      productMatch,
+      productMatch
     );
     const otherStore = await resolveOtherStore(
       db,
       input.workspaceId,
       Boolean(shopify),
-      primaryContact,
+      primaryContact
     );
     if (shopify) {
       // Por `agentCan` y no por la columna suelta: con `permissions` cargado
@@ -209,7 +213,7 @@ export async function composeSuperAgentReply(
         idioma: agent.language,
         contact,
         primaryContact,
-      }),
+      })
     );
     system += `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`;
     if (input.extraBrief?.trim()) {
@@ -219,8 +223,11 @@ export async function composeSuperAgentReply(
     // La API exige que el primer turno sea del usuario. El comentario recién
     // insertado ya lo es, pero un hilo que arranque con una respuesta nuestra
     // (o vacío, si hubo una carrera con el insert) hay que sanearlo.
-    let messages = context.messages.filter((m) => m.role === 'user' || m.content);
-    while (messages.length && messages[0].role !== 'user') messages = messages.slice(1);
+    let messages = context.messages.filter(
+      (m) => m.role === 'user' || m.content
+    );
+    while (messages.length && messages[0].role !== 'user')
+      messages = messages.slice(1);
     const claudeMessages: Anthropic.MessageParam[] =
       messages.length > 0
         ? messages.map((m) => ({
@@ -280,43 +287,28 @@ export async function composeSuperAgentReply(
       : null;
 
     const maxChars = Math.min(agent.max_response_chars || 500, IG_DM_MAX_CHARS);
-    const result = await runWithTools(getAnthropic(apiKey), {
-      localOrders,
-      model: agent.model || MODELO_POR_DEFECTO,
-      // Lo que el modelo piensa sale del mismo presupuesto que la
-      // respuesta: sin aire se queda sin lugar para contestar.
-      max_tokens:
-        Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
-        (reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4000 : 0),
-      system,
-      messages: claudeMessages,
-      tools,
-      shopify,
-      voice: null,
-    });
-
-    // Por la única puerta: acá se limpian los tics del modelo (los asteriscos
-    // de Markdown llegaron a publicarse debajo de una foto) y se descarta lo
-    // que no vale la pena mandar. Va DENTRO del compositor y no en cada
-    // llamador a propósito: cuando era decisión del llamador, la superficie
-    // nueva se olvidó y nadie se enteró hasta leer lo que se publicó.
-    // La billetera: se cobra lo que se penso, aunque despues se descarte el
-    // texto. Al que trae su propia clave ya le cobra Anthropic.
-    if (resolvedKey.source !== 'agent') {
-      void cobrar(db, input.workspaceId, {
+    const result = await runWithTools(
+      getAnthropic(apiKey, {
+        db,
+        workspaceId: input.workspaceId,
         concepto: 'ia_respuesta',
-        cantidad: 1,
-        costoUsd: costForModel(
-          agent.model || MODELO_POR_DEFECTO,
-          result.promptTokens,
-          result.completionTokens,
-          { read: result.cacheReadTokens, write: result.cacheWriteTokens },
-        ),
-        referenciaTipo: 'contact',
-        referenciaId: input.commentContactId,
-        detalle: { canal: input.commentChannel ?? 'ig_comment' },
-      });
-    }
+        origenDeLaClave: resolvedKey.source,
+      }),
+      {
+        localOrders,
+        model: agent.model || MODELO_POR_DEFECTO,
+        // Lo que el modelo piensa sale del mismo presupuesto que la
+        // respuesta: sin aire se queda sin lugar para contestar.
+        max_tokens:
+          Math.max(64, Math.min(2048, Math.ceil(maxChars / 2))) +
+          (reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4000 : 0),
+        system,
+        messages: claudeMessages,
+        tools,
+        shopify,
+        voice: null,
+      }
+    );
 
     const text = salidaParaCliente(result.text);
     if (!text) return null;
@@ -338,5 +330,3 @@ const SURFACE_RULES = [
   'No prometas nada que no puedas verificar con tus herramientas.',
   'Si su duda ya está resuelta, ofrécele avanzar con la compra en una frase. Si no, no vendas.',
 ].join('\n');
-
-

@@ -18,8 +18,8 @@
  * ("¿esto a quién se lo estoy pagando?") y contestarla de antemano es la
  * diferencia entre una factura y una caja negra.
  */
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { costForModel } from '@/lib/admin/cost'
+import { costForModel } from '@/lib/admin/cost';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Cómo se cobra cada cosa.
@@ -28,27 +28,27 @@ import { costForModel } from '@/lib/admin/cost'
  * lista lo que descuenta deja al comercio adivinando qué más está corriendo con
  * nuestras llaves, y esa duda es peor que cualquier número.
  */
-export type FormaDeCobro = 'por_uso' | 'incluido' | 'sin_cargo'
+export type FormaDeCobro = 'por_uso' | 'incluido' | 'sin_cargo';
 
 export interface CostoReal {
-  concepto: string
-  nombreEs: string
-  nombreEn: string
+  concepto: string;
+  nombreEs: string;
+  nombreEn: string;
   /** Centavos por unidad. Cero en lo que no se cobra. */
-  centavos: number
-  unidad: string
+  centavos: number;
+  unidad: string;
   /** Quién cobra ese consumo. */
-  proveedor: string
+  proveedor: string;
   /** Si sale de lo que consumió ESTA cuenta, o es la tarifa de lista. */
-  medido: boolean
-  cobro: FormaDeCobro
+  medido: boolean;
+  cobro: FormaDeCobro;
   /** Dentro de qué otra línea viaja, cuando es `incluido`. */
-  dentroDeEs?: string
-  dentroDeEn?: string
+  dentroDeEs?: string;
+  dentroDeEn?: string;
 }
 
 /** Cuántos días de historia se miran para promediar. */
-const VENTANA_DIAS = 30
+const VENTANA_DIAS = 30;
 
 /**
  * TODO lo que corre con las llaves de Riverz, se cobre o no.
@@ -59,6 +59,24 @@ const VENTANA_DIAS = 30
  * dejar al comercio preguntándose qué más estamos usando en su nombre.
  */
 const CATALOGO: Omit<CostoReal, 'medido'>[] = [
+  {
+    concepto: 'recarga_ajuste',
+    nombreEs: 'Ajustes de recargas',
+    nombreEn: 'Top-up adjustments',
+    centavos: 0,
+    unidad: 'ajuste',
+    proveedor: 'Stripe',
+    cobro: 'por_uso',
+  },
+  {
+    concepto: 'llamada_ia',
+    nombreEs: 'IA de llamadas',
+    nombreEn: 'Call AI',
+    centavos: 0,
+    unidad: 'petición',
+    proveedor: 'Anthropic',
+    cobro: 'por_uso',
+  },
   {
     concepto: 'comision_stripe',
     nombreEs: 'Comisión de Stripe',
@@ -96,9 +114,9 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'llamada_voz',
     nombreEs: 'Llamadas',
     nombreEn: 'Calls',
-    centavos: 5.5,
+    centavos: 0,
     unidad: 'minuto',
-    proveedor: 'Telnyx + Deepgram + Fish Audio',
+    proveedor: 'Telnyx + Deepgram',
     cobro: 'por_uso',
   },
   {
@@ -152,12 +170,10 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'voz_tts',
     nombreEs: 'La voz con la que habla el agente',
     nombreEn: "The agent's voice",
-    centavos: 5,
-    unidad: '1k caracteres',
+    centavos: 0,
+    unidad: 'petición',
     proveedor: 'Fish Audio',
-    cobro: 'incluido',
-    dentroDeEs: 'Llamadas',
-    dentroDeEn: 'Calls',
+    cobro: 'por_uso',
   },
   {
     concepto: 'voz_stt',
@@ -173,7 +189,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
   {
     concepto: 'imagen_entrante',
     nombreEs: 'Mirar la foto que manda tu cliente',
-    nombreEn: "Looking at the photo your customer sends",
+    nombreEn: 'Looking at the photo your customer sends',
     centavos: 0,
     unidad: 'foto',
     proveedor: 'Anthropic',
@@ -191,7 +207,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'transcripcion',
     nombreEs: 'Pasar audio a texto',
     nombreEn: 'Audio to text',
-    centavos: 0.067,
+    centavos: 0.185,
     unidad: 'minuto',
     proveedor: 'Groq / OpenAI (Whisper)',
     cobro: 'por_uso',
@@ -221,7 +237,7 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'lectura_de_pagina',
     nombreEs: 'Leer una página web',
     nombreEn: 'Reading a web page',
-    centavos: 0.1,
+    centavos: 0,
     unidad: 'página',
     proveedor: 'Firecrawl',
     cobro: 'por_uso',
@@ -232,15 +248,17 @@ const CATALOGO: Omit<CostoReal, 'medido'>[] = [
     concepto: 'perfil_externo',
     nombreEs: 'Consultar un perfil público',
     nombreEn: 'Looking up a public profile',
-    centavos: 0.23,
+    centavos: 0,
     unidad: 'perfil',
     proveedor: 'Apify',
     cobro: 'por_uso',
   },
-]
+];
 
 function desde(): string {
-  return new Date(Date.now() - VENTANA_DIAS * 24 * 60 * 60 * 1000).toISOString()
+  return new Date(
+    Date.now() - VENTANA_DIAS * 24 * 60 * 60 * 1000
+  ).toISOString();
 }
 
 /**
@@ -252,23 +270,25 @@ function desde(): string {
  */
 async function costoPorRespuesta(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<number | null> {
   const { data } = await db
     .from('ai_replies')
-    .select('prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model')
+    .select(
+      'prompt_tokens, completion_tokens, cache_read_tokens, cache_write_tokens, model'
+    )
     .eq('workspace_id', workspaceId)
     .eq('status', 'sent')
     .gte('created_at', desde())
-    .limit(2000)
+    .limit(2000);
   const filas = (data ?? []) as {
-    prompt_tokens: number | null
-    completion_tokens: number | null
-    cache_read_tokens: number | null
-    cache_write_tokens: number | null
-    model: string | null
-  }[]
-  if (filas.length === 0) return null
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    cache_read_tokens: number | null;
+    cache_write_tokens: number | null;
+    model: string | null;
+  }[];
+  if (filas.length === 0) return null;
   const usd = filas.reduce(
     (n, r) =>
       n +
@@ -276,15 +296,15 @@ async function costoPorRespuesta(
         read: r.cache_read_tokens ?? 0,
         write: r.cache_write_tokens ?? 0,
       }),
-    0,
-  )
-  return (usd * 100) / filas.length
+    0
+  );
+  return (usd * 100) / filas.length;
 }
 
 /** Lo que le salió a ESTA cuenta cada minuto hablado. Null sin llamadas. */
 async function costoPorMinuto(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<number | null> {
   const { data } = await db
     .from('voice_calls')
@@ -292,17 +312,23 @@ async function costoPorMinuto(
     .eq('workspace_id', workspaceId)
     .gte('created_at', desde())
     .not('duration_seconds', 'is', null)
-    .limit(1000)
+    .limit(1000);
   const filas = (data ?? []) as {
-    duration_seconds: number | null
-    cost: { total_usd?: number } | null
-  }[]
-  const conDuracion = filas.filter((f) => (f.duration_seconds ?? 0) > 0)
-  if (conDuracion.length === 0) return null
-  const minutos = conDuracion.reduce((n, f) => n + (f.duration_seconds ?? 0) / 60, 0)
-  const usd = conDuracion.reduce((n, f) => n + Number(f.cost?.total_usd ?? 0), 0)
-  if (!(minutos > 0) || !(usd > 0)) return null
-  return (usd * 100) / minutos
+    duration_seconds: number | null;
+    cost: { total_usd?: number } | null;
+  }[];
+  const conDuracion = filas.filter((f) => (f.duration_seconds ?? 0) > 0);
+  if (conDuracion.length === 0) return null;
+  const minutos = conDuracion.reduce(
+    (n, f) => n + (f.duration_seconds ?? 0) / 60,
+    0
+  );
+  const usd = conDuracion.reduce(
+    (n, f) => n + Number(f.cost?.total_usd ?? 0),
+    0
+  );
+  if (!(minutos > 0) || !(usd > 0)) return null;
+  return (usd * 100) / minutos;
 }
 
 /**
@@ -317,11 +343,15 @@ async function costoPorMinuto(
  */
 async function costoPorConcepto(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<Record<string, number>> {
   // PostgREST corta en 1000 filas sin avisar: se pide de a páginas hasta
   // juntar un mes o quedarse sin filas.
-  const filas: { concepto: string; costo_centavos: number; cantidad: number | null }[] = []
+  const filas: {
+    concepto: string;
+    costo_centavos: number;
+    cantidad: number | null;
+  }[] = [];
   for (let pagina = 0; pagina < 3; pagina++) {
     const { data } = await db
       .from('wallet_movimientos')
@@ -330,39 +360,41 @@ async function costoPorConcepto(
       .eq('tipo', 'consumo')
       .gte('creado_en', desde())
       .order('creado_en', { ascending: false })
-      .range(pagina * 1000, pagina * 1000 + 999)
-    const lote = (data ?? []) as typeof filas
-    filas.push(...lote)
-    if (lote.length < 1000) break
+      .range(pagina * 1000, pagina * 1000 + 999);
+    const lote = (data ?? []) as typeof filas;
+    filas.push(...lote);
+    if (lote.length < 1000) break;
   }
 
-  const acum = new Map<string, { usd: number; unidades: number }>()
+  const acum = new Map<string, { usd: number; unidades: number }>();
   for (const f of filas) {
-    const a = acum.get(f.concepto) ?? { usd: 0, unidades: 0 }
-    a.usd += Number(f.costo_centavos ?? 0)
-    a.unidades += Number(f.cantidad ?? 0)
-    acum.set(f.concepto, a)
+    const a = acum.get(f.concepto) ?? { usd: 0, unidades: 0 };
+    a.usd += Number(f.costo_centavos ?? 0);
+    a.unidades += Number(f.cantidad ?? 0);
+    acum.set(f.concepto, a);
   }
 
-  const out: Record<string, number> = {}
+  const out: Record<string, number> = {};
   for (const [concepto, a] of acum) {
     // Sin costo anotado no hay nada que promediar: mejor la tarifa de lista
     // que un cero que se leería como "esto es gratis".
-    if (a.unidades > 0 && a.usd > 0) out[concepto] = a.usd / a.unidades
+    if (a.unidades > 0 && a.usd > 0) out[concepto] = a.usd / a.unidades;
   }
-  return out
+  return out;
 }
 
 /** El costo real de cada concepto, para esta cuenta. */
 export async function costosReales(
   db: SupabaseClient,
-  workspaceId: string,
+  workspaceId: string
 ): Promise<CostoReal[]> {
   const [porRespuesta, porMinuto, porConcepto] = await Promise.all([
     costoPorRespuesta(db, workspaceId).catch(() => null),
     costoPorMinuto(db, workspaceId).catch(() => null),
-    costoPorConcepto(db, workspaceId).catch(() => ({}) as Record<string, number>),
-  ])
+    costoPorConcepto(db, workspaceId).catch(
+      () => ({}) as Record<string, number>
+    ),
+  ]);
 
   return CATALOGO.map((c) => {
     const medidoCentavos =
@@ -370,13 +402,13 @@ export async function costosReales(
         ? porRespuesta
         : c.concepto === 'llamada_voz'
           ? porMinuto
-          : (porConcepto[c.concepto] ?? null)
+          : (porConcepto[c.concepto] ?? null);
     return {
       ...c,
       centavos: medidoCentavos ?? c.centavos,
       medido: medidoCentavos !== null,
-    }
-  })
+    };
+  });
 }
 
 /**
@@ -387,5 +419,5 @@ export async function costosReales(
  * plata descontada a ciegas.
  */
 export const CONCEPTOS_DEL_CATALOGO: ReadonlySet<string> = new Set(
-  CATALOGO.map((c) => c.concepto),
-)
+  CATALOGO.map((c) => c.concepto)
+);

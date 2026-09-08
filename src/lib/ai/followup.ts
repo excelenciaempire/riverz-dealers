@@ -1,23 +1,21 @@
+import { getAdapter } from '@/lib/channels/registry';
+import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import { puedeUsarIa } from '@/lib/wallet/puerta';
+import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { MODELO_POR_DEFECTO, esfuerzo, reguladoPorEsfuerzo } from './esfuerzo';
 import { getAnthropic } from './anthropic-client';
-import { resolveAnthropicKey } from './platform-key';
-import { cargarReglas, reglasATexto } from './guidance';
-import { appendBusinessScopeGuardrails } from './guardrails';
+import { MODELO_POR_DEFECTO, esfuerzo, reguladoPorEsfuerzo } from './esfuerzo';
 import { estiloHumano, humanizarTexto } from './estilo-humano';
+import { appendBusinessScopeGuardrails } from './guardrails';
+import { cargarReglas, reglasATexto } from './guidance';
+import { resolveAnthropicKey } from './platform-key';
 import {
   RIOPLATENSE_TEXTO,
   resolverRegistro,
   type Registro,
 } from './registro-rioplatense';
-import { toolEnabled } from './toolbox'
-import { getAdapter } from '@/lib/channels/registry';
-import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import { toolEnabled } from './toolbox';
 import type { AiAgent } from './types';
-import { cobrar } from '@/lib/wallet/saldo';
-import { puedeUsarIa } from '@/lib/wallet/puerta';
-import { costForModel } from '@/lib/admin/cost';
-import type { ChannelConnection, Contact, Conversation } from '@/types';
 
 /**
  * Follow-up inteligente: cuando el cliente deja de responder tras nuestro
@@ -50,7 +48,6 @@ export interface FollowUpResult {
   reason?: string;
 }
 
-
 function describeSilence(hours: number): string {
   if (hours < 1) return 'menos de una hora';
   if (hours < 24) {
@@ -70,13 +67,15 @@ function buildSystem(
    *  lo puede decir por su cuenta. */
   reglas?: string | null,
   /** De vos o de tú, según de dónde sea el cliente. Ver `registro-rioplatense`. */
-  registro: Registro = 'neutro',
+  registro: Registro = 'neutro'
 ): string {
   const tone = TONE_HINT[agent.tone] ?? 'natural';
   const lang = LANG_NAME[agent.language] ?? 'español';
   const esEspanol = (agent.language || 'es').toLowerCase().slice(0, 2) === 'es';
   const parts: string[] = [];
-  parts.push(agent.persona?.trim() || 'Eres un asistente de atención al cliente.');
+  parts.push(
+    agent.persona?.trim() || 'Eres un asistente de atención al cliente.'
+  );
   if (agent.knowledge?.trim()) {
     parts.push(`\nInformación del negocio:\n${agent.knowledge.trim()}`);
   }
@@ -107,7 +106,7 @@ function buildSystem(
           ]
         : []),
       '- Si NO hay nada útil ni natural que agregar (la conversación ya cerró, fue una despedida, o un follow-up sería molesto), responde EXACTAMENTE con la palabra SKIP y nada más.',
-    ].join('\n'),
+    ].join('\n')
   );
   // Si la persona llegó por una campaña de Instagram viva, el seguimiento debe
   // continuar ESA conversación (su oferta, su código, el seguimiento que el
@@ -121,7 +120,9 @@ function buildSystem(
   return parts.join('\n');
 }
 
-function extractText(resp: { content?: Array<{ type?: string; text?: string }> }): string {
+function extractText(resp: {
+  content?: Array<{ type?: string; text?: string }>;
+}): string {
   const blocks = resp.content ?? [];
   return blocks
     .filter((b) => b.type === 'text' && typeof b.text === 'string')
@@ -138,7 +139,10 @@ function extractText(resp: { content?: Array<{ type?: string; text?: string }> }
  * escribió "no me escribas más" —marcado en `inbox-writer`— seguía siendo
  * elegible para un mensaje que sale solo.
  */
-async function estaDadoDeBaja(db: SupabaseClient, contactId: string): Promise<boolean> {
+async function estaDadoDeBaja(
+  db: SupabaseClient,
+  contactId: string
+): Promise<boolean> {
   const { data } = await db
     .from('contacts')
     .select('opted_out')
@@ -158,7 +162,7 @@ export async function runFollowUp(
     silenceHours: number;
     /** Qué decir si la persona viene de una campaña de Instagram viva. */
     campaignHint?: string | null;
-  },
+  }
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
   // Sin saldo no se manda un seguimiento. Es un mensaje que sale SOLO, sin que
@@ -211,7 +215,7 @@ export async function runFollowUp(
       const text = marcarParaCanal(
         `Hola${first ? ' ' + first : ''} 🙂 ¿Pudiste completar tu compra? ` +
           `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`,
-        conversation.channel,
+        conversation.channel
       );
       // "Aprobar cada mensaje" vale también acá. Esta rama estaba ANTES del
       // chequeo de más abajo, así que un comercio que aprueba todo igual tenía
@@ -228,7 +232,7 @@ export async function runFollowUp(
             content_text: text,
             created_at: new Date().toISOString(),
           },
-          { onConflict: 'conversation_id' },
+          { onConflict: 'conversation_id' }
         );
         await db
           .from('conversations')
@@ -281,10 +285,12 @@ export async function runFollowUp(
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(limit);
-    const history = ((rows ?? []) as Array<{
-      sender_type: string;
-      content_text: string | null;
-    }>)
+    const history = (
+      (rows ?? []) as Array<{
+        sender_type: string;
+        content_text: string | null;
+      }>
+    )
       .reverse()
       .filter((m) => (m.content_text ?? '').trim());
 
@@ -294,13 +300,13 @@ export async function runFollowUp(
 
     // 2. Mensajes para el modelo. Debe arrancar con 'user' — recortamos
     //    cualquier mensaje 'assistant' al inicio.
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = history.map(
-      (m) => ({
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> =
+      history.map((m) => ({
         role: m.sender_type === 'customer' ? 'user' : 'assistant',
         content: (m.content_text ?? '').trim(),
-      }),
-    );
-    while (messages.length && messages[0].role === 'assistant') messages.shift();
+      }));
+    while (messages.length && messages[0].role === 'assistant')
+      messages.shift();
     if (messages.length === 0) return { sent: false, reason: 'no_history' };
     // Instrucción final como turno de usuario para que el modelo produzca
     // el siguiente mensaje del asistente (el follow-up).
@@ -318,12 +324,19 @@ export async function runFollowUp(
     if (!resolvedKey) return { sent: false, reason: 'no_api_key' };
     const apiKey = resolvedKey.key;
 
-    const client = getAnthropic(apiKey);
+    const client = getAnthropic(apiKey, {
+      db,
+      workspaceId: agent.workspace_id,
+      concepto: 'ia_seguimiento',
+      origenDeLaClave: resolvedKey.source,
+    });
     const resp = await client.messages.create({
       model: agent.model || MODELO_POR_DEFECTO,
       // 400 alcanzaba para el mensaje; con un modelo que piensa antes de
       // escribir, lo que piensa sale del mismo presupuesto.
-      max_tokens: reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO) ? 4400 : 400,
+      max_tokens: reguladoPorEsfuerzo(agent.model || MODELO_POR_DEFECTO)
+        ? 4400
+        : 400,
       system: buildSystem(
         agent,
         silenceHours,
@@ -334,43 +347,32 @@ export async function runFollowUp(
           workspaceId: agent.workspace_id,
           idioma: agent.language,
           contact,
-        }),
+        })
       ),
       messages,
-      ...esfuerzo(agent.model || MODELO_POR_DEFECTO, { effort: 'low', pensar: 'adaptive' }),
+      ...esfuerzo(agent.model || MODELO_POR_DEFECTO, {
+        effort: 'low',
+        pensar: 'adaptive',
+      }),
     });
     // El seguimiento se cobra aunque el modelo decida no escribir: pensarlo
     // costo igual, y el comercio recibio el servicio de que alguien mirara la
     // conversacion y decidiera.
-    const uso = (resp as unknown as { usage?: Record<string, number> }).usage;
     // Al que trae su clave de Anthropic ya le cobra Anthropic: cobrarle aca
     // seria cobrarle dos veces.
-    if (resolvedKey.source !== 'agent')
-      void cobrar(db, args.agent.workspace_id, {
-      concepto: 'ia_seguimiento',
-      cantidad: 1,
-      costoUsd: costForModel(
-        args.agent.model || MODELO_POR_DEFECTO,
-        uso?.input_tokens ?? 0,
-        uso?.output_tokens ?? 0,
-        {
-          read: uso?.cache_read_input_tokens ?? 0,
-          write: uso?.cache_creation_input_tokens ?? 0,
-        },
-      ),
-      referenciaTipo: 'conversation',
-      referenciaId: args.conversation.id,
-    });
 
     const text = extractText(
-      resp as unknown as { content?: Array<{ type?: string; text?: string }> },
+      resp as unknown as { content?: Array<{ type?: string; text?: string }> }
     );
-    if (!text || /^skip\.?$/i.test(text)) return { sent: false, reason: 'model_skip' };
+    if (!text || /^skip\.?$/i.test(text))
+      return { sent: false, reason: 'model_skip' };
     // Marcado antes de recortar y de guardar: lo que se envía y lo que queda
     // en el hilo tienen que ser el mismo texto.
     const finalText = marcarParaCanal(
-      humanizarTexto(text).slice(0, agent.max_response_chars || 500).trim(),
-      conversation.channel,
+      humanizarTexto(text)
+        .slice(0, agent.max_response_chars || 500)
+        .trim(),
+      conversation.channel
     );
     if (!finalText) return { sent: false, reason: 'empty' };
 
@@ -386,7 +388,7 @@ export async function runFollowUp(
           content_text: finalText,
           created_at: new Date().toISOString(),
         },
-        { onConflict: 'conversation_id' },
+        { onConflict: 'conversation_id' }
       );
       return { sent: false, reason: 'awaiting_approval' };
     }
@@ -426,7 +428,11 @@ export async function runFollowUp(
 
     return { sent: true };
   } catch (err) {
-    console.error('[ai/followup] failed for conversation', conversation.id, err);
+    console.error(
+      '[ai/followup] failed for conversation',
+      conversation.id,
+      err
+    );
     return { sent: false, reason: 'error' };
   }
 }

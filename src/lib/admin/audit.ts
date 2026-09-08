@@ -15,6 +15,7 @@ import type { AdminActor } from './guard';
  */
 
 export type AdminAction =
+  | 'reconcile.wallet_usage'
   | 'view.overview'
   | 'view.workspaces'
   | 'view.workspace'
@@ -109,7 +110,7 @@ interface AuditEntry {
 export async function recordAdminAction(
   actor: AdminActor,
   request: Request,
-  entry: AuditEntry,
+  entry: AuditEntry
 ): Promise<void> {
   try {
     const { error } = await supabaseAdmin()
@@ -139,7 +140,7 @@ export async function recordAdminAction(
 export function recordAdminView(
   actor: AdminActor,
   request: Request,
-  entry: AuditEntry,
+  entry: AuditEntry
 ): void {
   void recordAdminAction(actor, request, entry);
 }
