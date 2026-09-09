@@ -68,7 +68,7 @@ export async function upsertSingleWhatsAppConnection(
 ): Promise<UpsertWhatsAppResult> {
   const { data: rows, error: selErr } = await admin
     .from("channel_connections")
-    .select("id, status, external_account_id, label")
+    .select("id, status, external_account_id, label, config")
     .eq("workspace_id", args.workspaceId)
     .eq("channel", "whatsapp");
   if (selErr) throw new Error(`lookup failed: ${selErr.message}`);
@@ -86,7 +86,29 @@ export async function upsertSingleWhatsAppConnection(
   }
 
   const label = buildLabel(args);
+  // Keep metadata across reconnects only for the same WhatsApp account.
+  const previous = existing.find((r) =>
+    r.external_account_id === args.phoneNumberId && r.config?.waba_id === args.wabaId
+  )?.config ?? {};
+  let businessId: string | undefined;
+  try {
+    const url = new URL(`https://graph.facebook.com/v25.0/${args.wabaId}`);
+    url.searchParams.set('fields', 'owner_business_info');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${args.token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (response.ok) {
+      const body = await response.json();
+      const id = body.owner_business_info?.id;
+      if (typeof id === 'string' && /^\d+$/.test(id)) businessId = id;
+    }
+  } catch {
+    // Missing billing metadata must not prevent messaging from connecting.
+  }
   const config = {
+    ...previous,
+    ...(businessId ? { business_id: businessId } : {}),
     phone_number_id: args.phoneNumberId,
     waba_id: args.wabaId,
     display_phone_number: args.displayPhoneNumber,

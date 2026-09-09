@@ -17,9 +17,8 @@ export const WA_PAYMENT_ERROR_CODE = 141006;
  * Deep link to the Meta payment account that owns the WhatsApp asset. The
  * billing hub needs both ids to select the right account; the business id
  * keeps the correct Business Portfolio selected when a person administers
- * more than one. Older connections without billing metadata fall back to the
- * generic payment settings page instead of opening the unrelated WhatsApp
- * Manager home.
+ * more than one. Without a payment-account id, open the selected WABA in
+ * WhatsApp Manager instead of letting Billing reuse an unrelated account.
  */
 export function whatsappPaymentUrl(config?: {
   wabaId?: string | null;
@@ -30,15 +29,15 @@ export function whatsappPaymentUrl(config?: {
   const paymentAccountId = config?.paymentAccountId?.trim();
   const businessId = config?.businessId?.trim();
 
-  if (!wabaId || !paymentAccountId) {
-    return 'https://business.facebook.com/latest/billing_hub/payment_settings';
-  }
-
   const url = new URL(
-    'https://business.facebook.com/latest/billing_hub/accounts/details/'
+    wabaId && paymentAccountId
+      ? 'https://business.facebook.com/latest/billing_hub/accounts/details/'
+      : wabaId
+        ? 'https://business.facebook.com/latest/whatsapp_manager/overview/'
+        : 'https://business.facebook.com/latest/billing_hub/payment_settings'
   );
-  url.searchParams.set('payment_account_id', paymentAccountId);
-  url.searchParams.set('asset_id', wabaId);
+  if (wabaId && paymentAccountId) url.searchParams.set('payment_account_id', paymentAccountId);
+  if (wabaId) url.searchParams.set('asset_id', wabaId);
   if (businessId) url.searchParams.set('business_id', businessId);
   return url.toString();
 }

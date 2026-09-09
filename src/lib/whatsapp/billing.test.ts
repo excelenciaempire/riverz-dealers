@@ -25,9 +25,9 @@ describe('whatsappPaymentUrl', () => {
     );
   });
 
-  it('cae a la configuración general si falta la cuenta de pago', () => {
-    expect(whatsappPaymentUrl({ wabaId: '1389249320069111' })).toBe(
-      'https://business.facebook.com/latest/billing_hub/payment_settings'
+  it('conserva el WABA y su propietario cuando falta la cuenta de pago', () => {
+    expect(whatsappPaymentUrl({ wabaId: '1278275831007208', businessId: '119532902989084' })).toBe(
+      'https://business.facebook.com/latest/whatsapp_manager/overview/?asset_id=1278275831007208&business_id=119532902989084'
     );
   });
 });
