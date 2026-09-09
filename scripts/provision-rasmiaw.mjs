@@ -87,7 +87,7 @@ Válido durante las próximas 24 horas. 🏃`,
 Nuestro rascador te ayudará a que tu gato desgaste sus uñas, libere estrés, se mantenga activo y tenga su propio espacio para rascar, jugar y descansar. 😻
 
 Completa tu compra de forma fácil y rápida y vive la experiencia Rasmiaw.`,
-    buttons: [{ type: 'URL', text: 'Volver a mi carrito', url: dynamicCheckoutButtonUrl, url_variable: 'abandoned_checkout' }],
+    buttons: [{ type: 'URL', text: 'Volver a mi carrito', url: dynamicCheckoutButtonUrl, url_variable: 'product' }],
   },
   {
     name: 'rasmiaw_carrito_abandonado_2', category: 'Marketing', body: `¡Tu michi todavía está esperando!

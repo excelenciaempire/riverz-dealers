@@ -29,6 +29,7 @@ import { translate } from '@/lib/i18n/translate'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import type { SendReason } from '@/lib/outreach/send-gate'
 import { createShortLink } from '@/lib/links/short-link'
+import { cartProductUrl } from '@/lib/shopify/cart-product-url'
 import {
   resolveButtonUrlFromVars,
   isButtonUrlVariable,
@@ -870,6 +871,10 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         const urlVar = tplButtons[dynIdx].url_variable
         if (isButtonUrlVariable(urlVar)) {
           const target = resolveButtonUrlFromVars(urlVar, args.context.vars)
+            || (urlVar === 'product' ? await cartProductUrl(
+              db, args.automation.workspace_id,
+              resolveButtonUrlFromVars('abandoned_checkout', args.context.vars) ?? '',
+            ) : null)
           if (!target) {
             throw new Error(
               `send_template: falta el link para el botón dinámico (${urlVar}) — no llegó en el contexto`,
