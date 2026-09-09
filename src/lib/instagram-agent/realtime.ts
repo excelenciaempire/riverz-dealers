@@ -21,6 +21,7 @@ import {
 import { getAdapter } from '@/lib/channels/registry';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import type { OutboundText } from '@/lib/channels/types';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import {
   asksForPrice,
@@ -618,6 +619,12 @@ export async function maybeInstantOutreach(
     engagement: opts.engagementText,
     ...personaFields,
   });
+  const textoPreparado = await prepararTextoParaCanal(db, {
+    texto: text,
+    canal: 'instagram',
+    workspaceId: opts.workspaceId,
+    contactId: opts.contact.id,
+  });
 
   try {
     await assertStoredConnectionCanSend(db, connection.id);
@@ -632,14 +639,14 @@ export async function maybeInstantOutreach(
       // Comment-sourced → private reply by comment id (the user's
       // comment-author id is not a messageable IGSID).
       commentId: opts.commentId ?? undefined,
-      text,
+      text: textoPreparado,
     } satisfies OutboundText);
     await recordProactiveDm(db, {
       workspaceId: opts.workspaceId,
       contactId: opts.contact.id,
       externalId: opts.contact.external_id,
       connection,
-      text,
+      text: textoPreparado,
       dmMessageId: dmRes?.externalMessageId ?? null,
       commentContactId: opts.commentId ? opts.contact.id : null,
       origin: 'ig_outreach',
@@ -650,7 +657,7 @@ export async function maybeInstantOutreach(
       campaignId: campaign.id,
       contactId: opts.contact.id,
       kind: 'outreach',
-      text,
+      text: textoPreparado,
     });
   } catch (err) {
     await db
@@ -1409,6 +1416,12 @@ async function decidirComentario(
   let falloAlPublicar = false;
   try {
     if (wonPrivateReply && connection) {
+      const dmText = await prepararTextoParaCanal(db, {
+        texto: text,
+        canal: dmChannel,
+        workspaceId: opts.workspaceId,
+        contactId: opts.contact.id,
+      });
       await assertStoredConnectionCanSend(db, connection.id);
       const dmRes = await adapter.sendText({
         channel: dmChannel,
@@ -1419,7 +1432,7 @@ async function decidirComentario(
           external_id: opts.contact.external_id,
         } as unknown as Contact,
         commentId: opts.commentId,
-        text,
+        text: dmText,
       } satisfies OutboundText);
       dmSent = true;
       await recordProactiveDm(db, {
@@ -1429,7 +1442,7 @@ async function decidirComentario(
         dmChannel,
         commentChannel,
         connection,
-        text,
+        text: dmText,
         dmMessageId: dmRes?.externalMessageId ?? null,
         commentContactId: willPublish ? null : opts.contact.id,
         // Para que el hilo privado no se abra con nuestro mensaje a secas.
@@ -1900,6 +1913,13 @@ export async function maybeRunCloser(
   }
   if (await newerAnswerableInbound()) return true;
 
+  const replyPreparado = await prepararTextoParaCanal(db, {
+    texto: reply,
+    canal: 'instagram',
+    workspaceId: opts.workspaceId,
+    contactId: opts.contact.id,
+  });
+
   let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null =
     null;
   try {
@@ -1912,7 +1932,7 @@ export async function maybeRunCloser(
         id: opts.contact.id,
         external_id: opts.contact.external_id,
       } as unknown as Contact,
-      text: reply,
+      text: replyPreparado,
     } satisfies OutboundText);
   } catch (err) {
     // NO tragar el fallo de envío: devolvemos false para que el asistente
@@ -1934,7 +1954,7 @@ export async function maybeRunCloser(
     contactId: opts.contact.id,
     externalId: opts.contact.external_id,
     connection: opts.connection,
-    text: reply,
+    text: replyPreparado,
     dmMessageId: closerRes?.externalMessageId ?? null,
     origin: 'ig_outreach',
     originName: plan.campaign_name ?? null,
@@ -1944,7 +1964,7 @@ export async function maybeRunCloser(
     campaignId: camp.id,
     contactId: opts.contact.id,
     kind: 'closer',
-    text: reply,
+    text: replyPreparado,
   });
   return true;
 }

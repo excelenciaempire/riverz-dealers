@@ -1,6 +1,6 @@
 /**
  * Short links: tokens cortos que redirigen al link real de cada cliente.
- * Backing de los botones URL dinámicos de plantillas (ver `dynamic-links.ts`).
+ * Los usan los botones URL dinámicos y los enlaces dentro de mensajes de texto.
  * Solo servidor — usa el cliente service-role y el endpoint público `/r/:token`.
  */
 

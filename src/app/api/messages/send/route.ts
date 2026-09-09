@@ -6,7 +6,7 @@ import {
   esError,
   resolveCommentReplyTarget,
 } from "@/lib/channels/comment-reply-target";
-import { marcarParaCanal } from "@/lib/marketing/enlaces";
+import { prepararTextoParaCanal } from "@/lib/marketing/enlaces-salientes";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
 import { getLocale } from "@/lib/i18n/server";
@@ -253,7 +253,12 @@ export async function POST(req: Request): Promise<Response> {
   // cliente. Va antes de todo lo que lee `body.text` para que no haya dos
   // versiones dando vueltas.
   if (typeof body.text === "string") {
-    body.text = marcarParaCanal(body.text, channel);
+    body.text = await prepararTextoParaCanal(admin, {
+      texto: body.text,
+      canal: channel,
+      workspaceId: (conversation as Conversation).workspace_id,
+      contactId: (contact as Contact).id,
+    });
   }
   const caption = body.text?.trim() || undefined;
   // Media fields shared by the failed + success inserts.

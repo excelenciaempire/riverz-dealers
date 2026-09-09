@@ -97,8 +97,14 @@ const MEDIO_DEL_CANAL: Record<string, Medio> = {
   webchat: 'webchat',
   gmail: 'email',
   outlook: 'email',
+  zoho: 'email',
   mercadolibre: 'mercadolibre',
 };
+
+/** Medio atribuible del canal, o null cuando los enlaces no deben tocarse. */
+export function medioParaCanal(canal: string): Medio | null {
+  return MEDIO_DEL_CANAL[canal] ?? null;
+}
 
 /**
  * Marca los links de un mensaje que sale por un canal.
@@ -112,7 +118,7 @@ const MEDIO_DEL_CANAL: Record<string, Medio> = {
  * un camino de envío nuevo. Marcar dos veces no cambia nada: es idempotente.
  */
 export function marcarParaCanal(texto: string, canal: string): string {
-  const medio = MEDIO_DEL_CANAL[canal];
+  const medio = medioParaCanal(canal);
   return medio ? marcarEnlaces(texto, { medio }) : texto;
 }
 

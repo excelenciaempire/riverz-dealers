@@ -4,7 +4,7 @@ import {
   isChannelDisconnectedError,
   storedConnectionCanSend,
 } from '@/lib/channels/send-guard';
-import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -220,11 +220,14 @@ export async function runFollowUp(
         if (openCheckout) return { sent: false, reason: 'cart_recovery_owns' };
       }
       const first = (contact.name || '').trim().split(/\s+/)[0];
-      const text = marcarParaCanal(
-        `Hola${first ? ' ' + first : ''} 🙂 ¿Pudiste completar tu compra? ` +
+      const text = await prepararTextoParaCanal(db, {
+        texto:
+          `Hola${first ? ' ' + first : ''} 🙂 ¿Pudiste completar tu compra? ` +
           `Te dejo el link de pago de nuevo por si lo necesitas: ${pendingUrl}`,
-        conversation.channel
-      );
+        canal: conversation.channel,
+        workspaceId: agent.workspace_id,
+        contactId: contact.id,
+      });
       // "Aprobar cada mensaje" vale también acá. Esta rama estaba ANTES del
       // chequeo de más abajo, así que un comercio que aprueba todo igual tenía
       // la recuperación de carrito saliendo sola. Se limpia el pendiente junto
@@ -377,12 +380,14 @@ export async function runFollowUp(
       return { sent: false, reason: 'model_skip' };
     // Marcado antes de recortar y de guardar: lo que se envía y lo que queda
     // en el hilo tienen que ser el mismo texto.
-    const finalText = marcarParaCanal(
-      humanizarTexto(text)
+    const finalText = await prepararTextoParaCanal(db, {
+      texto: humanizarTexto(text)
         .slice(0, agent.max_response_chars || 500)
         .trim(),
-      conversation.channel
-    );
+      canal: conversation.channel,
+      workspaceId: agent.workspace_id,
+      contactId: contact.id,
+    });
     if (!finalText) return { sent: false, reason: 'empty' };
 
     // Un agente que necesita aprobación tampoco manda seguimientos solo: el

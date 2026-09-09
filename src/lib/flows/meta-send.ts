@@ -6,6 +6,7 @@ import {
   type InteractiveListSection,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -61,7 +62,7 @@ export async function engineSendText(
 
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, workspace_id')
     .eq('id', args.contactId)
     .eq('user_id', args.userId)
     .maybeSingle()
@@ -84,13 +85,19 @@ export async function engineSendText(
   }
 
   const accessToken = decrypt(config.access_token)
+  const texto = await prepararTextoParaCanal(db, {
+    texto: args.text,
+    canal: 'whatsapp',
+    workspaceId: contact.workspace_id,
+    contactId: contact.id,
+  })
 
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendTextMessage({
       phoneNumberId: config.phone_number_id,
       accessToken,
       to: phone,
-      text: args.text,
+      text: texto,
     })
     return r.messageId
   }
@@ -121,7 +128,7 @@ export async function engineSendText(
     conversation_id: args.conversationId,
     sender_type: 'bot',
     content_type: 'text',
-    content_text: args.text,
+    content_text: texto,
     message_id: waMessageId,
     status: 'sent',
     origin: 'flow',
@@ -134,7 +141,7 @@ export async function engineSendText(
   await db
     .from('conversations')
     .update({
-      last_message_text: args.text,
+      last_message_text: texto,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

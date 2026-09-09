@@ -28,6 +28,14 @@ vi.mock('./whatsapp/adapter', () => ({
   },
 }));
 
+vi.mock('@/lib/links/short-link', () => ({
+  createShortLink: vi.fn().mockResolvedValue('AbC123xy'),
+}));
+
+vi.mock('./admin-client', () => ({
+  supabaseAdmin: () => ({}),
+}));
+
 const { getAdapter } = await import('./registry');
 
 const CANALES: Channel[] = [
@@ -48,7 +56,7 @@ const CANALES: Channel[] = [
 function entrada(channel: Channel, text: string): OutboundText {
   return {
     channel,
-    connection: { id: 'c' } as never,
+    connection: { id: 'c', workspace_id: 'workspace-a' } as never,
     conversation: { id: 'v' } as never,
     contact: { id: 'k' } as never,
     text,
@@ -79,13 +87,13 @@ describe('getAdapter', () => {
 });
 
 describe('lo que le llega al canal', () => {
-  it('marca los links del mensaje', async () => {
+  it('marca y acorta los links del mensaje', async () => {
     enviados.length = 0;
     await getAdapter('whatsapp').sendText(
       entrada('whatsapp', 'Miralo acá: https://tienda.com/products/remera'),
     );
     expect(enviados).toHaveLength(1);
-    expect(enviados[0].text).toContain('riverz=whatsapp');
+    expect(enviados[0].text).toContain('https://riverz.co/r/AbC123xy');
     expect(enviados[0].text).toContain('Miralo acá:');
   });
 

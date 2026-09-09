@@ -6,7 +6,7 @@ import {
   assertStoredConnectionCanSend,
   storedConnectionCanSend,
 } from '@/lib/channels/send-guard';
-import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
 import {
@@ -265,12 +265,14 @@ export async function processCommentForDmRules(
 
     // Marcado antes de enviar y de persistir: el hilo tiene que mostrar el
     // mismo texto que recibió la persona.
-    const dmText = marcarParaCanal(
-      attachmentFallbackUrl
+    const dmText = await prepararTextoParaCanal(db, {
+      texto: attachmentFallbackUrl
         ? `${composeDmText(rule)}\n\n${attachmentFallbackUrl}`
         : composeDmText(rule),
-      dmChannel,
-    );
+      canal: dmChannel,
+      workspaceId: ev.workspaceId,
+      contactId: ev.contact.id,
+    });
     try {
       await assertStoredConnectionCanSend(db, ev.connection.id);
       const res = await getAdapter(dmChannel).sendText({

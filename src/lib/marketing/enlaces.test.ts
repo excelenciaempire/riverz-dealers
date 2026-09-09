@@ -15,6 +15,7 @@ describe('marcarParaCanal', () => {
       'riverz=webchat',
     );
     expect(marcarParaCanal('https://tienda.com/p', 'gmail')).toContain('riverz=email');
+    expect(marcarParaCanal('https://tienda.com/p', 'zoho')).toContain('riverz=email');
   });
 
   it('no toca un comentario público ni una llamada', () => {

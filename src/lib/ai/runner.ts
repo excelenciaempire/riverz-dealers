@@ -30,7 +30,7 @@ import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { registrarCalificacion } from '@/lib/inbox/opinion';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
-import { marcarParaCanal } from '@/lib/marketing/enlaces';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import {
   cargarPerfilOperativo,
   perfilOperativoAPrompt,
@@ -1117,10 +1117,13 @@ export async function runAiAgent(
     // Los links del asistente salen marcados, y se guardan marcados: el hilo
     // de la bandeja tiene que decir exactamente lo que recibió el cliente. Va
     // antes de partir en chunks para no marcar dos versiones distintas.
-    const chunks = splitReplyForMode(
-      marcarParaCanal(replyText, args.channel),
-      agent.response_mode
-    );
+    const textoPreparado = await prepararTextoParaCanal(db, {
+      texto: replyText,
+      canal: args.channel,
+      workspaceId: args.workspaceId,
+      contactId: args.contact.id,
+    });
+    const chunks = splitReplyForMode(textoPreparado, agent.response_mode);
 
     const outboundTarget = await resolveAiOutboundTarget(db, args);
     const adapter = getAdapter(args.channel);

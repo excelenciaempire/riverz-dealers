@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { recordProactiveDm } from '@/lib/instagram-agent/record-dm';
 
@@ -112,6 +113,12 @@ export async function sendCommentDm(
   if (!connection) throw new CommentDmError('channel_not_connected');
 
   const commentExternalId = message.message_id;
+  const textoPreparado = await prepararTextoParaCanal(db, {
+    texto: text,
+    canal: dmChannel,
+    workspaceId: conversation.workspace_id,
+    contactId: contact.id,
+  });
   const adapter = getAdapter(dmChannel);
   const base = {
     channel: dmChannel,
@@ -121,7 +128,7 @@ export async function sendCommentDm(
       id: contact.id,
       external_id: contact.external_id,
     } as unknown as Contact,
-    text,
+    text: textoPreparado,
   };
 
   let via: CommentDmResult['via'] = 'private_reply';
@@ -169,7 +176,7 @@ export async function sendCommentDm(
     dmChannel,
     commentChannel,
     connection,
-    text,
+    text: textoPreparado,
     dmMessageId: dmExternalId,
     // Refleja el mensaje también bajo el comentario: ahí es donde el equipo
     // está mirando cuando decide escribir.

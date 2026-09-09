@@ -18,6 +18,7 @@ import { csrfGuard } from '@/lib/csrf'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
 import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import type { MessageButton } from '@/types'
 
 export async function POST(request: Request) {
@@ -106,6 +107,16 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    const outboundContentText =
+      message_type === 'text'
+        ? await prepararTextoParaCanal(supabaseAdmin(), {
+            texto: content_text,
+            canal: 'whatsapp',
+            workspaceId: conversation.workspace_id,
+            contactId: contact.id,
+          })
+        : content_text
 
     // Sanitize and validate phone
     const sanitizedPhone = sanitizePhoneForMeta(contact.phone)
@@ -207,7 +218,7 @@ export async function POST(request: Request) {
         phoneNumberId: config.phone_number_id,
         accessToken,
         to: phone,
-        text: content_text,
+        text: outboundContentText,
         contextMessageId,
       })
       return result.messageId
@@ -287,7 +298,7 @@ export async function POST(request: Request) {
         conversation_id,
         sender_type: 'agent',
         content_type: message_type,
-        content_text: content_text || null,
+        content_text: outboundContentText || null,
         media_url: media_url || null,
         template_name: template_name || null,
         buttons,
@@ -314,7 +325,7 @@ export async function POST(request: Request) {
     await supabase
       .from('conversations')
       .update({
-        last_message_text: content_text || `[${message_type}]`,
+        last_message_text: outboundContentText || `[${message_type}]`,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

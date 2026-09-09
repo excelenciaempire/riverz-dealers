@@ -13,6 +13,7 @@
  * ser.
  */
 import { getAdapter } from '@/lib/channels/registry'
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import {
   esCanalDeComentarios,
   esError,
@@ -44,8 +45,8 @@ export async function enviarTextoEnConversacion(
   db: SupabaseClient,
   input: EnvioDeTexto,
 ): Promise<ResultadoDeEnvio> {
-  const texto = input.texto.trim()
-  if (!texto) throw new Error('No hay texto que mandar.')
+  const textoCrudo = input.texto.trim()
+  if (!textoCrudo) throw new Error('No hay texto que mandar.')
 
   const { data: convRow } = await db
     .from('conversations')
@@ -63,6 +64,12 @@ export async function enviarTextoEnConversacion(
     .maybeSingle()
   if (!contactRow) throw new Error('Esa conversación no tiene contacto.')
   const contact = contactRow as Contact
+  const texto = await prepararTextoParaCanal(db, {
+    texto: textoCrudo,
+    canal: conversation.channel,
+    workspaceId: input.workspaceId,
+    contactId: contact.id,
+  })
 
   // Un comentario no se contesta como un DM: hay que apuntarle al COMENTARIO
   // (no al post) y con la conexión DUEÑA de ese comentario (no la de la

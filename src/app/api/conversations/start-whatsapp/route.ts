@@ -6,6 +6,7 @@ import { decrypt } from "@/lib/channels/encryption";
 import { sendTextMessage, sendTemplateMessage } from "@/lib/whatsapp/meta-api";
 import { sanitizePhoneForMeta, isValidE164 } from "@/lib/whatsapp/phone-utils";
 import { resolveWorkspaceIdForUser } from "@/lib/workspaces/resolve";
+import { prepararTextoParaCanal } from "@/lib/marketing/enlaces-salientes";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import {
@@ -178,7 +179,7 @@ export async function POST(req: Request): Promise<Response> {
     ? Date.now() - new Date(lastCustomer.created_at as string).getTime() < DAY_MS
     : false;
 
-  const text = body?.text?.trim();
+  const rawText = body?.text?.trim();
   const templateName = body?.template_name?.trim();
 
   // The inbox selects the returned conversation straight into the thread, so
@@ -187,7 +188,7 @@ export async function POST(req: Request): Promise<Response> {
   const conversationWithContact = { ...conversation, contact };
 
   // Phase 1: resolve only.
-  if (!text && !templateName) {
+  if (!rawText && !templateName) {
     return NextResponse.json({
       conversation: conversationWithContact,
       window_open: windowOpen,
@@ -195,12 +196,21 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   // Phase 2: send. A cold number (window closed) can only get a template.
-  if (text && !windowOpen) {
+  if (rawText && !windowOpen) {
     return NextResponse.json(
       { error: translate(locale, "errWhatsapp.windowClosedNeedsTemplate") },
       { status: 400 },
     );
   }
+
+  const text = rawText
+    ? await prepararTextoParaCanal(admin, {
+        texto: rawText,
+        canal: "whatsapp",
+        workspaceId,
+        contactId: contact.id,
+      })
+    : undefined;
 
   const phoneNumberId = String(
     (connection.config as Record<string, unknown> | null)?.phone_number_id ??

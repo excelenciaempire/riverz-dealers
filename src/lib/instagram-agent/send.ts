@@ -1,6 +1,7 @@
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
 import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 import {
   sendToSubscriber,
   type MarketingOptin,
@@ -406,6 +407,12 @@ export async function sendCampaignBatch(
 
     try {
       const conn = connByContact.get(p.contact.id) ?? connection;
+      const textoPreparado = await prepararTextoParaCanal(db, {
+        texto: p.text,
+        canal: 'instagram',
+        workspaceId: campaign.workspace_id,
+        contactId: p.contact.id,
+      });
       await assertStoredConnectionCanSend(db, conn.id);
       let dmExternalId: string | null = null;
       if (p.subscription) {
@@ -419,7 +426,7 @@ export async function sendCampaignBatch(
           // API de mensajes de Instagram (igual que `instagramAdapter.sendText`).
           senderId: String(connCfg.page_id ?? ''),
           accessTokenEncrypted: String(connSecrets.access_token ?? ''),
-          text: p.text,
+          text: textoPreparado,
         });
         if (!res.ok) throw new Error(res.reason ?? 'marketing_send_failed');
       } else {
@@ -436,7 +443,7 @@ export async function sendCampaignBatch(
           // Comment-sourced → private reply by comment id (their comment-author
           // id is not messageable and the 24h window is closed).
           commentId: p.commentId,
-          text: p.text,
+          text: textoPreparado,
         } satisfies OutboundText);
         dmExternalId = dmRes?.externalMessageId ?? null;
       }
@@ -449,7 +456,7 @@ export async function sendCampaignBatch(
         contactId: p.contact.id,
         externalId: p.contact.external_id,
         connection: connByContact.get(p.contact.id) ?? connection,
-        text: p.text,
+        text: textoPreparado,
         dmMessageId: dmExternalId,
         origin: 'ig_outreach',
         originName: campaign.plan?.campaign_name ?? null,
@@ -459,7 +466,7 @@ export async function sendCampaignBatch(
         campaignId: campaign.id,
         contactId: p.contact.id,
         kind: 'batch',
-        text: p.text,
+        text: textoPreparado,
       });
     } catch (err) {
       await db

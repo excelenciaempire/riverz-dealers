@@ -16,6 +16,7 @@ import {
 import { US_MARKETING_BLOCKED_CODE } from '@/lib/whatsapp/delivery-errors'
 import { resolveTemplateButtons } from '@/lib/whatsapp/template-buttons'
 import { checkSendGate, type SendReason } from '@/lib/outreach/send-gate'
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -204,6 +205,15 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   }
 
   const accessToken = decrypt(encryptedToken)
+  const textoPreparado =
+    input.kind === 'text'
+      ? await prepararTextoParaCanal(db, {
+          texto: input.text,
+          canal: 'whatsapp',
+          workspaceId: input.workspaceId,
+          contactId: input.contactId,
+        })
+      : null
 
   const sendOnce = async (phone: string): Promise<MetaSendResult> => {
     if (input.kind === 'template') {
@@ -222,7 +232,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       phoneNumberId,
       accessToken,
       to: phone,
-      text: input.text,
+      text: textoPreparado as string,
     })
   }
 
@@ -290,7 +300,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // + los params posicionales que ya tenemos a mano.
   const content_type = input.kind === 'template' ? 'template' : 'text'
   const template_name = input.kind === 'template' ? input.templateName : null
-  let content_text: string | null = input.kind === 'text' ? input.text : null
+  let content_text: string | null = input.kind === 'text' ? textoPreparado : null
   // Botones resueltos de la plantilla, para que la bandeja los muestre con el
   // enlace real (no el placeholder {{1}}). Sin esto la burbuja mostraba el
   // cuerpo pero no el botón — el comercio no veía el link de "Terminar Pedido".
@@ -358,7 +368,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       last_message_text:
         input.kind === 'template'
           ? content_text ?? `[${input.templateName}]`
-          : input.text,
+          : textoPreparado,
       last_message_at: sentAt,
       last_sender_type: 'bot',
       updated_at: sentAt,

@@ -1,6 +1,7 @@
 import type { Channel } from "@/types";
 import type { ChannelAdapter } from "./types";
-import { marcarParaCanal } from "@/lib/marketing/enlaces";
+import { prepararTextoParaCanal } from "@/lib/marketing/enlaces-salientes";
+import { supabaseAdmin } from "./admin-client";
 import { whatsappAdapter } from "./whatsapp/adapter";
 import { instagramAdapter } from "./instagram/adapter";
 import { messengerAdapter } from "./messenger/adapter";
@@ -34,8 +35,8 @@ export function getAdapter(channel: Channel): ChannelAdapter {
   const adapter = ADAPTERS[channel];
   if (!adapter) throw new Error(`No adapter registered for channel "${channel}"`);
 
-  // Red de seguridad: si manana aparece un camino de envio que no marca sus
-  // links en el origen, el cliente igual los recibe marcados.
+  // Red de seguridad: si mañana aparece un camino de envío que no prepara sus
+  // links en el origen, el cliente igual los recibe marcados y cortos.
   //
   // No alcanza por si sola, y ese fue el error de la primera version: el chat
   // web IGNORA el texto que recibe aca —el mensaje lo inserta quien llama— asi
@@ -46,9 +47,17 @@ export function getAdapter(channel: Channel): ChannelAdapter {
     ...adapter,
     sendText: async (input: Parameters<typeof adapter.sendText>[0]) => {
       assertConnectionCanSend(input.connection);
+      const text = input.text.includes("http")
+        ? await prepararTextoParaCanal(supabaseAdmin(), {
+            texto: input.text,
+            canal: channel,
+            workspaceId: input.connection.workspace_id,
+            contactId: input.contact.id,
+          })
+        : input.text;
       return adapter.sendText({
         ...input,
-        text: marcarParaCanal(input.text, channel),
+        text,
       });
     },
   };

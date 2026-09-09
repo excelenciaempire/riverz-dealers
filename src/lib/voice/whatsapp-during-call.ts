@@ -14,6 +14,7 @@ import type { Contact, VoiceCall } from '@/types';
 import { sendTemplateMessage, sendTextMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { prepararTextoParaCanal } from '@/lib/marketing/enlaces-salientes';
 
 /** Lo que ve el modelo como resultado de la tool. */
 export interface ToolResult {
@@ -252,13 +253,20 @@ export async function sendWhatsAppDuringCall(
     return { ok: false, error: 'fuera_de_ventana_sin_plantilla' };
   }
 
+  const textoPreparado = await prepararTextoParaCanal(db, {
+    texto: text,
+    canal: 'whatsapp',
+    workspaceId: call.workspace_id,
+    contactId: contact.id,
+  });
+
   try {
     const res = abierta
       ? await sendTextMessage({
           phoneNumberId: config.phone_number_id,
           accessToken,
           to,
-          text,
+          text: textoPreparado,
         })
       : await sendTemplateMessage({
           // Fuera de la ventana Meta SÓLO acepta plantillas. El texto libre se
@@ -271,7 +279,7 @@ export async function sendWhatsAppDuringCall(
           language: 'es',
           params: [
             (contact.name ?? '').trim().split(/\s+/)[0] || 'Hola',
-            enUnaLinea(text),
+            enUnaLinea(textoPreparado),
           ],
         });
 
@@ -290,7 +298,7 @@ export async function sendWhatsAppDuringCall(
           channel: 'whatsapp',
           sender_type: 'bot',
           content_type: 'text',
-          content_text: text,
+          content_text: textoPreparado,
           message_id: res.messageId,
           status: 'sent',
           origin: 'voice_agent',

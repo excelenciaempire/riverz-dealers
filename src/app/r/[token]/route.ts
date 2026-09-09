@@ -4,9 +4,8 @@ import { marcarEnlace } from '@/lib/marketing/enlaces';
 
 /**
  * Redirector público de short links: `/r/:token` → 302 al link real del
- * cliente. Es el destino fijo de los botones URL dinámicos de plantillas
- * (`https://riverz.co/r/{{1}}`), aprobado UNA vez por Meta y reutilizado para
- * cualquier link por cliente (carrito, estado del pedido, tracking).
+ * cliente. Lo usan tanto los botones URL dinámicos de plantillas como los
+ * enlaces incluidos en mensajes de texto.
  *
  * Público a propósito (lo abre el cliente desde WhatsApp). No es un
  * open-redirect: solo redirige a URLs que nosotros mismos guardamos al enviar,
@@ -64,9 +63,8 @@ export async function GET(
     })
     .eq('token', token);
 
-  // Se marca acá y no al crear el link: éste es el único punto por el que pasa
-  // TODO botón de plantilla, y marcar en el salto significa que la tienda
-  // guarda en el pedido la URL con nuestra huella. Sin esto, una campaña que
-  // vende no tiene con qué probarlo y su plata queda en «influidas».
+  // Los mensajes de texto guardan como destino una URL ya marcada con su canal;
+  // `marcarEnlace` es idempotente y la conserva. Los botones históricos de
+  // plantilla guardaron el destino sin marca, así que reciben `plantilla` acá.
   return NextResponse.redirect(marcarEnlace(target, { medio: 'plantilla' }), 302);
 }
