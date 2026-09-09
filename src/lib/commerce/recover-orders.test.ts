@@ -13,12 +13,14 @@ vi.mock('./providers/woocommerce', () => ({
 import { recoverCommerceOrders } from './recover-orders';
 afterEach(() => vi.resetAllMocks());
 describe('commerce recovery page checkpoints', () => {
-  it.each([{ page: 1, size: 25 }, { page: 3, size: 100 }])(
-    'preserves page width for page $page', async ({ page, size }) => {
+  it.each([{ page: 1, size: 25, empty404: false }, { page: 3, size: 100, empty404: false },
+    { page: 1, size: 25, empty404: true }])(
+    'preserves page width for page $page (empty response $empty404)', async ({ page, size, empty404 }) => {
       mocks.stores.mockResolvedValue([{ id: 'store', workspace_id: 'workspace', platform: 'tiendanube',
         shop_domain: 'store.test', external_store_id: '1', access_token: 'token', sync_state: { page },
       }]);
-      mocks.get.mockResolvedValue([]);
+      if (empty404) mocks.get.mockRejectedValue(new Error('Tiendanube API 404: {"code":404,"description":"Last page is 0"}'));
+      else mocks.get.mockResolvedValue([]);
       const chain = { eq: vi.fn(), in: vi.fn().mockResolvedValue({ error: null }) };
       chain.eq.mockReturnValue(chain);
       mocks.update.mockReturnValue(chain);

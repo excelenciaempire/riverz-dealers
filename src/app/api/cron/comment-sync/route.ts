@@ -155,7 +155,7 @@ function commentFailures(...values: unknown[]): number {
     if (!value || typeof value !== "object") continue;
     if ("error" in value) failed++;
     const detail = (value as { detail?: Array<{ errors?: unknown[] }> }).detail;
-    if (detail?.some((row) => (row.errors?.length ?? 0) > 0)) failed++;
+    if (detail?.some((row) => row.errors?.some(error => error !== 'comments_sync_pending'))) failed++;
   }
   return failed;
 }

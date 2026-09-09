@@ -7,6 +7,18 @@ import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido';
 import { TiendanubeClient, normalizeTiendanubeOrder } from './providers/tiendanube';
 import { WooCommerceClient, normalizeWooOrder } from './providers/woocommerce';
 
+function emptyTiendanubePage(error: unknown, page: number): unknown[] {
+  const message = error instanceof Error ? error.message : '';
+  if (message.startsWith('Tiendanube API 404: ')) {
+    try {
+      const body = JSON.parse(message.slice('Tiendanube API 404: '.length));
+      const lastPage = /^Last page is (\d+)$/.exec(body.description ?? '');
+      if (body.code === 404 && lastPage && Number(lastPage[1]) < page) return [];
+    } catch { /* Other 404s remain real integration errors. */ }
+  }
+  throw error;
+}
+
 /** Passive mirror only: never call ingestOrder, which schedules outbound flows. */
 export async function recoverCommerceOrders(db: SupabaseClient) {
   const stores = await selectAll<{
@@ -30,6 +42,7 @@ export async function recoverCommerceOrders(db: SupabaseClient) {
       const raw = store.platform === 'tiendanube'
         ? await new TiendanubeClient(store.external_store_id, token, store.shop_domain)
           .get<unknown[]>(`/orders?updated_at_min=${encodeURIComponent(since)}&per_page=${pageSize}&page=${page}`)
+          .catch(error => emptyTiendanubePage(error, page))
         : await new WooCommerceClient(store.shop_domain, token, decrypt(store.api_secret))
           .get<unknown[]>('/orders', { modified_after: since, per_page: pageSize, page });
       if (!Array.isArray(raw)) throw new Error('invalid_orders_response');
