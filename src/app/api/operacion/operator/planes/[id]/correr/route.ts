@@ -23,6 +23,8 @@ import {
 } from '@/lib/operator/fleet/plan';
 import { anthropicRunner } from '@/lib/operator/fleet/runner';
 import { guardarGasto } from '@/lib/operator/gasto';
+import { operatorErrorMessage } from '@/lib/operator/error-message';
+import { exigirSaldo } from '@/lib/wallet/puerta';
 import { appendMessage } from '@/lib/operator/threads';
 import { limitByKey } from '@/lib/rate-limit';
 import { createClient } from '@/lib/supabase/server';
@@ -87,6 +89,14 @@ export async function POST(
   const plan = await cargarPlan(admin, planId, workspaceId);
   if (!plan) return NextResponse.json({ error: 'no existe' }, { status: 404 });
 
+  const saldoBlock = await exigirSaldo(admin, workspaceId);
+  if (saldoBlock) return saldoBlock;
+  // Resolve prerequisites before claiming, so a rejected request remains retryable.
+  const locale = await getLocale();
+  const resolved = await resolveAnthropicKey(admin, { workspaceId });
+  if (!resolved)
+    return NextResponse.json({ error: operatorErrorMessage(locale, null) }, { status: 400 });
+
   // El UPDATE condicionado es lo que impide correrlo dos veces: dos clicks
   // seguidos, o dos pestañas abiertas, y el segundo se encuentra con que ya no
   // está esperando aprobación.
@@ -98,11 +108,6 @@ export async function POST(
     );
   }
 
-  const resolved = await resolveAnthropicKey(admin, { workspaceId });
-  if (!resolved)
-    return NextResponse.json({ error: 'sin clave de IA' }, { status: 400 });
-
-  const locale = await getLocale();
   const ctx: CapabilityContext = {
     db: admin,
     workspaceId,
@@ -163,6 +168,7 @@ export async function POST(
               db: ctx.db,
               workspaceId: ctx.workspaceId,
               concepto: 'ia_operador',
+              detalle: { operatorThreadId: threadId, operatorPlanId: planId },
               origenDeLaClave: resolved.source,
             })
           ),
@@ -173,7 +179,7 @@ export async function POST(
         // El cierre en el hilo: qué quedó hecho y qué quedó esperando. Sin
         // esto, la conversación termina con el plan propuesto y nunca cuenta
         // cómo salió.
-        cierre = resumirCierre(r);
+        cierre = resumirCierre(r, locale);
         push({ t: 'text', delta: cierre });
 
         /**
@@ -185,23 +191,18 @@ export async function POST(
          * hilo al abrirlo, un plan ya aprobado y ya ejecutado volvía a aparecer
          * pidiendo aprobación cada vez que entrabas.
          */
-        const fallidos = r.pasos.filter(
-          (paso) => paso.estado === 'fallido'
-        ).length;
         await marcarPlan(
           admin,
           planId,
           workspaceId,
-          fallidos === 0
-            ? 'terminado'
-            : fallidos === r.pasos.length
-              ? 'fallido'
-              : 'parcial'
+          r.estado
         );
       } catch (err) {
+        console.error('[operator] plan failed', err);
+        push({ t: 'plan_estado', planId, estado: 'fallido' });
         push({
           t: 'error',
-          message: err instanceof Error ? err.message : 'failed',
+          message: operatorErrorMessage(locale, err),
         });
         // Un plan que se cayó tampoco sigue esperando aprobación.
         await marcarPlan(admin, planId, workspaceId, 'fallido').catch(
@@ -295,7 +296,7 @@ function enMinuscula(s: string): string {
  * llamada en redactarlo sería pagar por adornar una suma. Con negritas en las
  * cifras, que es como se escribe en esta casa.
  */
-function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>): string {
+function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>, locale: Locale): string {
   const ok = r.pasos.filter((p) => p.estado === 'ok').length;
   const fallidos = r.pasos.filter((p) => p.estado === 'fallido');
   const saltados = r.pasos.filter((p) => p.estado === 'saltado').length;
@@ -312,16 +313,16 @@ function resumirCierre(r: Awaited<ReturnType<typeof ejecutarPlan>>): string {
   // que no había pasado nada: el recuento contaba turnos del modelo, no
   // trabajo. Lo que sí pasó lo cuenta cada paso con su resumen.
   if (r.propuestas === 0 && r.construidas > 0 && ok > 0) {
-    partes.push(`**${ok}** ${ok === 1 ? 'paso listo' : 'pasos listos'}`);
+    partes.push(translate(locale, ok === 1 ? 'operation.planPasoListo' : 'operation.planPasosListos', { n: ok }));
   }
   if (fallidos.length > 0) {
     partes.push(
-      `**${fallidos.length}** ${fallidos.length === 1 ? 'falló' : 'fallaron'}`
+      translate(locale, fallidos.length === 1 ? 'operation.planPasoFallido' : 'operation.planPasosFallidos', { n: fallidos.length })
     );
   }
   if (saltados > 0) {
     partes.push(
-      `**${saltados}** no se ${saltados === 1 ? 'intentó' : 'intentaron'}`
+      translate(locale, saltados === 1 ? 'operation.planPasoSaltado' : 'operation.planPasosSaltados', { n: saltados })
     );
   }
 

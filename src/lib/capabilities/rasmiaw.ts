@@ -1,6 +1,42 @@
 /** Operación reproducible de Rasmiaw, sin mezclar catálogo ni políticas de Pilar. */
 import { activationIssuesById } from '@/lib/automations/activation'
 import type { Capability, CapabilityContext } from './types'
+import { cambio, ficha, numero, tieneCampos, tt } from './vistas'
+
+function preparacionVista(ctx: CapabilityContext, _args: Record<string, unknown>, result: unknown) {
+  if (!tieneCampos(result, 'shopify', 'whatsapp', 'templates')) return null
+  const r = result as Awaited<ReturnType<typeof verificarPreparacion>>
+  const estado = (ready: boolean) => tt(ctx, ready ? 'operation.rasmiawListo' : 'operation.rasmiawPendiente')
+  return ficha({
+    titulo: tt(ctx, 'operation.rasmiawPreparacion'),
+    campos: [
+      { etiqueta: 'Shopify', valor: estado(r.shopify.connected) },
+      { etiqueta: 'WhatsApp', valor: estado(r.whatsapp.ready) },
+      { etiqueta: 'Mercado Pago', valor: estado(r.mercadopago_connected) },
+      { etiqueta: tt(ctx, 'operation.rasmiawPlantillas'), valor: `${numero(ctx, r.templates.approved)} / ${numero(ctx, r.templates.expected)}` },
+    ],
+  })
+}
+
+function armadoVista(ctx: CapabilityContext, args: Record<string, unknown>, result?: unknown) {
+  const r = result as { total?: number; group?: { total?: number } } | undefined
+  const total = r?.total ?? r?.group?.total
+  return cambio({
+    titulo: tt(ctx, 'operation.domRasmiaw'),
+    que: tt(ctx, 'operation.rasmiawPreparar'),
+    aviso: tt(ctx, 'operation.rasmiawPausadas'),
+    campos: total === undefined ? undefined : [{
+      etiqueta: tt(ctx, 'operation.rasmiawFlujos'), despues: numero(ctx, total),
+    }],
+    alcance: Array.isArray(args.automation_ids) && args.automation_ids.length > 0
+      ? numero(ctx, args.automation_ids.length) : undefined,
+  })
+}
+
+async function previewArmado(ctx: CapabilityContext) {
+  requireRasmiaw(ctx)
+  return `${tt(ctx, 'operation.rasmiawPreparar')}. ${tt(ctx, 'operation.rasmiawPausadas')}`
+}
 
 const RASMIAW_WORKSPACE_ID = 'b814e934-d832-4be9-bad4-79cca51c1e23'
 const TEMPLATE_NAMES = [
@@ -119,6 +155,7 @@ export const RASMIAW_CAPABILITIES: Capability[] = [
     risk: 'lectura',
     schema: { type: 'object', properties: {} },
     run: verificarPreparacion,
+    vista: preparacionVista,
   },
   {
     key: 'rasmiaw.armar_grupo_de_automatizaciones',
@@ -128,6 +165,8 @@ export const RASMIAW_CAPABILITIES: Capability[] = [
     inerte: true,
     schema: { type: 'object', properties: { automation_ids: { type: 'array', items: { type: 'string' } } } },
     run: armarGrupo,
+    preview: previewArmado,
+    artifact: armadoVista,
   },
   {
     key: 'rasmiaw.armar_operacion_rasmiaw',
@@ -137,5 +176,7 @@ export const RASMIAW_CAPABILITIES: Capability[] = [
     inerte: true,
     schema: { type: 'object', properties: {} },
     run: armarOperacion,
+    preview: previewArmado,
+    artifact: armadoVista,
   },
 ]

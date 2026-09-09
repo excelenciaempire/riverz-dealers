@@ -224,6 +224,7 @@ export async function runOperator(args: {
     db,
     workspaceId,
     concepto: 'ia_operador',
+    detalle: { operatorThreadId: args.threadId },
     origenDeLaClave: resolved.source,
   });
 
@@ -256,6 +257,7 @@ export async function runOperator(args: {
             db,
             workspaceId,
             concepto: 'ia_operador',
+            detalle: { operatorThreadId: args.threadId },
             origenDeLaClave: resolved.source,
           })
         ),

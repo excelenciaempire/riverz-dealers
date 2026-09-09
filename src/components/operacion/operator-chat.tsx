@@ -26,6 +26,7 @@ import {
 import { useFormat } from '@/hooks/use-format'
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf'
 import { drainEvents } from '@/lib/operator/events'
+import { operatorErrorKey } from '@/lib/operator/error-message'
 import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
 import { useMesa, useMesaDispatch } from './mesa-contexto'
@@ -71,7 +72,7 @@ interface Accion {
 
 /** Las que cambian algo: la línea viva dice «Armando», no «Mirando». */
 const VERBOS_QUE_ESCRIBEN =
-  /\.(crear|editar|activar|enviar|lanzar|borrar|etiquetar|decidir|desconectar|invitar|llamar|checkout|registrar)/
+  /\.(crear|editar|activar|armar|enviar|lanzar|borrar|etiquetar|decidir|desconectar|invitar|llamar|checkout|registrar)/
 
 function escribe(key: string): boolean {
   return VERBOS_QUE_ESCRIBEN.test(key)
@@ -134,7 +135,7 @@ interface PlanPendiente {
   planId: string
   porque: string
   pasos: { i: number; agente: string; que: string; encargo: string; dependeDe: number[] }[]
-  estado: 'esperando' | 'corriendo' | 'listo' | 'rechazado'
+  estado: 'esperando' | 'corriendo' | 'listo' | 'rechazado' | 'parcial' | 'fallido'
 }
 
 /** El turno en curso. */
@@ -527,6 +528,11 @@ export function OperatorChat({
           setError(t('operation.operatorRateLimited'))
           return
         }
+        if (res.status === 402) {
+          const body = await res.json().catch(() => ({}))
+          setError(t(operatorErrorKey(body.error)))
+          return
+        }
         // Ya había un turno corriendo sobre este hilo: en vez de abrir otro
         // —dos se pisan el contexto— se mira el que está.
         if (res.status === 409) {
@@ -884,6 +890,9 @@ export function OperatorChat({
    */
   const correrPlan = useCallback(
     async (planId: string) => {
+      setError(null)
+      let aceptado = false
+      let resultado: PlanPendiente['estado'] = 'corriendo'
       setPlan((p) => (p ? { ...p, estado: 'corriendo' } : p))
       setPensando(true)
       setArrancoEn(Date.now())
@@ -893,7 +902,15 @@ export function OperatorChat({
           `/api/operacion/operator/planes/${planId}/correr`,
           { method: 'POST' },
         )
+        if (res.status === 402 || res.status === 429) {
+          const body = await res.json().catch(() => ({}))
+          setError(t(operatorErrorKey(res.status === 429 ? 'rate_limited' : body.error)))
+          setPlan((p) => p ? { ...p, estado: 'esperando' } : p)
+          return
+        }
         if (!res.ok || !res.body) throw new Error('failed')
+
+        aceptado = true
 
         const reader = res.body.getReader()
         const dec = new TextDecoder()
@@ -911,6 +928,10 @@ export function OperatorChat({
             aLaMesa({ tipo: 'evento', e })
             if (e.t === 'text') final += e.delta
             if (e.t === 'error') setError(e.message)
+            if (e.t === 'plan_estado' && e.planId === planId) {
+              if (e.estado === 'terminado') resultado = 'listo'
+              if (e.estado === 'parcial' || e.estado === 'fallido') resultado = e.estado
+            }
             // Al correr un plan no hay `tool_start` antes de cada paso: el
             // reductor lo abre con la etiqueta que trae el evento, en vez de
             // imprimir la clave cruda de la capacidad.
@@ -926,7 +947,8 @@ export function OperatorChat({
           ])
         }
         setVivo(null)
-        setPlan((p) => (p ? { ...p, estado: 'listo' } : p))
+        if (resultado === 'corriendo') setError(t('operation.operatorError'))
+        setPlan((p) => (p ? { ...p, estado: resultado } : p))
 
         // Un plan aprobado CONSTRUYE lo inerte sin volver a preguntar, así que
         // acá no hay tarjeta de decisión que resolver — y es justo el camino
@@ -952,7 +974,7 @@ export function OperatorChat({
         }
       } catch {
         setError(t('operation.operatorError'))
-        setPlan((p) => (p ? { ...p, estado: 'esperando' } : p))
+        setPlan((p) => (p ? { ...p, estado: aceptado ? resultado : 'esperando' } : p))
       } finally {
         setVivo(null)
         setPensando(false)
@@ -1395,7 +1417,7 @@ function TarjetaPlan({
 }) {
   const t = useT()
   const corriendo = plan.estado === 'corriendo'
-  const listo = plan.estado === 'listo'
+  const listo = ['listo', 'parcial', 'fallido'].includes(plan.estado)
 
   return (
     <div className="rounded-xl border border-accent-ink/30 bg-primary/5 p-3.5">
@@ -1428,6 +1450,11 @@ function TarjetaPlan({
         ))}
       </ol>
 
+      {(plan.estado === 'parcial' || plan.estado === 'fallido') && (
+        <p role="status" className="mt-3 text-xs text-destructive">
+          {t(plan.estado === 'parcial' ? 'operation.planParcial' : 'operation.planFallido')}
+        </p>
+      )}
       {!listo && (
         <div className="mt-3 flex gap-2">
           <button

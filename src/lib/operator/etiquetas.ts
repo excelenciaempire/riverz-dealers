@@ -39,6 +39,7 @@ const DOMINIO: Record<string, string> = {
   plantillas: 'operation.domPlantillas',
   productos: 'operation.domProductos',
   prospeccion: 'operation.domProspeccion',
+  rasmiaw: 'operation.domRasmiaw',
   segmentos: 'operation.domSegmentos',
   voz: 'operation.domVoz',
 }

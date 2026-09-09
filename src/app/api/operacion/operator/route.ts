@@ -19,6 +19,7 @@ import {
 import { encodeEvent, type OperatorEvent } from '@/lib/operator/events';
 import { planQueEspera } from '@/lib/operator/fleet/plan';
 import { guardarGasto } from '@/lib/operator/gasto';
+import { operatorErrorMessage } from '@/lib/operator/error-message';
 import { runOperator } from '@/lib/operator/loop';
 import {
   appendMessage,
@@ -370,12 +371,9 @@ export async function POST(request: Request) {
       // saber es que la plataforma se quedó sin saldo, y eso se dice con
       // palabras. El detalle técnico queda en el log.
       if (err) console.error('[operator] turno caído', err);
-      const message = translate(
-        locale,
-        claveRechazada(err)
-          ? 'operation.operatorSinSaldo'
-          : 'operation.operatorError'
-      );
+      const message = claveRechazada(err)
+        ? translate(locale, 'operation.operatorSinSaldo')
+        : operatorErrorMessage(locale, err);
       push({ t: 'error', message });
 
       /**

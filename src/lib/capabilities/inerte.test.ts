@@ -17,6 +17,9 @@ import { ALL_CAPABILITIES, esInerte, getCapability } from './registry'
 
 /** Lo que sí puede construirse solo, con su motivo. */
 const INERTES: Record<string, string> = {
+  'automatizaciones.armar_grupo': 'guarda dependencias y mantiene el motor apagado',
+  'rasmiaw.armar_grupo_de_automatizaciones': 'prepara flujos existentes con is_active false',
+  'rasmiaw.armar_operacion_rasmiaw': 'audita y prepara flujos existentes sin publicar ni enviar',
   'automatizaciones.crear': 'nace pausada',
   'automatizaciones.crear_desde_receta': 'nace pausada y sin plantilla',
   'plantillas.crear_borrador': 'guarda texto local; no sale a Meta ni a clientes',

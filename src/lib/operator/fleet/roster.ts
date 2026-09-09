@@ -49,11 +49,12 @@ export const ROSTER: SubagentSpec[] = [
     id: 'automatizaciones',
     nombreKey: 'operation.subAutomatizaciones',
     alcance:
-      'Arma, edita, prende y pausa automatizaciones: lo que pasa solo cuando ocurre un evento (un carrito abandonado, un pedido nuevo, una etiqueta). NO manda campañas ni crea plantillas; si le falta una plantilla aprobada, se la pide al de plantillas.',
-    capacidades: ['automatizaciones.'],
+      'Arma, edita, prende y pausa automatizaciones: lo que pasa solo cuando ocurre un evento (un carrito abandonado, un pedido nuevo, una etiqueta). También verifica y prepara la operación existente de Rasmiaw. NO manda campañas ni crea plantillas; si le falta una plantilla aprobada, se la pide al de plantillas.',
+    capacidades: ['automatizaciones.', 'rasmiaw.'],
     tier: 'constructor',
     maxIters: 7,
     instrucciones: [
+      'Para preparar la operación existente de Rasmiaw, usa las capacidades rasmiaw: primero verifica la cuenta y después arma sus flujos. Sólo corresponden a esa cuenta y nunca publican ni activan.',
       'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
       'Una automatización nace pausada, siempre. NO la prendas tú después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llama a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
       'Para `send_template` hace falta el nombre exacto de una plantilla aprobada. Para un borrador seguro puede quedar preparada con su nombre, pero NO se puede prender hasta que Meta la apruebe.',
