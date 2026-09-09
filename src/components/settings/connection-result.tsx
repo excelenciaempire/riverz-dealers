@@ -66,6 +66,7 @@ function connectionErrorDetail(
   detail: string | null,
   t: (key: string) => string,
 ): string {
+  if (detail?.includes('channel_connections_channel_check')) return t('settings.zohoSchemaUnavailable');
   if (detail === 'zoho_mailbox_required') return t('settings.zohoMailboxRequired');
   if (detail === 'zoho_inbox_required') return t('settings.zohoInboxRequired');
   if (detail === 'zoho_authorization_denied') return t('settings.zohoAuthorizationDenied');

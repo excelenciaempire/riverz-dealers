@@ -195,6 +195,10 @@ export const settings = {
     es: 'Esta cuenta de Zoho Mail no tiene una bandeja de entrada disponible.',
     en: 'This Zoho Mail account does not have an available inbox.',
   },
+  zohoSchemaUnavailable: {
+    es: 'Riverz necesita actualizar su base de datos para conectar Zoho. El problema no está en tu correo.',
+    en: 'Riverz needs a database update to connect Zoho. The issue is not with your email account.',
+  },
   zohoAuthorizationDenied: {
     es: 'Zoho no autorizó el acceso al buzón. Marca la casilla de permiso y acepta.',
     en: 'Zoho did not authorize mailbox access. Select the permission checkbox and accept.',
