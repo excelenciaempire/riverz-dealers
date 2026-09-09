@@ -39,7 +39,7 @@ export async function selectAll<T>(
   db: SupabaseClient,
   table: string,
   build: (q: Filtrable) => Filtrable,
-  opts?: { select?: string; pageSize?: number; orderBy?: string; maxPages?: number },
+  opts?: { select?: string; pageSize?: number; orderBy?: string; maxPages?: number; strict?: boolean },
 ): Promise<T[]> {
   const pageSize = Math.min(opts?.pageSize ?? TOPE_POSTGREST, TOPE_POSTGREST)
   const orderBy = opts?.orderBy ?? 'id'
@@ -53,6 +53,7 @@ export async function selectAll<T>(
       .order(orderBy, { ascending: true })
       .range(desde, desde + pageSize - 1)
     if (error) {
+      if (opts?.strict) throw new Error(`pagination_failed:${table}:${error.message}`);
       log.warn('lectura paginada falló', { table, pagina, error: error.message })
       break
     }
@@ -61,6 +62,7 @@ export async function selectAll<T>(
     if (filas.length < pageSize) return out
   }
 
+  if (opts?.strict) throw new Error(`pagination_incomplete:${table}`);
   log.warn(
     'lectura paginada llegó al tope de páginas: puede haber filas sin leer',
     { table, leidas: out.length, maxPaginas },

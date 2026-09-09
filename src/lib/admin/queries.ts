@@ -4,6 +4,7 @@ import { resolveShortId } from '@/lib/short-id';
 import { collectPlatformIssues, collectWorkspaceIssues, type Issue } from '@/lib/health/issues';
 import { getFeatureFlags, getWorkspaceOverrides } from './feature-flags';
 import { assertMetadataOnly } from './pii';
+import { selectAll } from '@/lib/db/paginate';
 
 /**
  * Capa de lectura del panel de plataforma — la única del código que cruza
@@ -34,6 +35,11 @@ function db(): SupabaseClient {
 export function safeSelect(client: SupabaseClient, table: string, columns: string) {
   assertMetadataOnly(table, columns);
   return client.from(table).select(columns);
+}
+
+async function allConnectionMetadata(client: SupabaseClient, table: string, columns: string, orderBy = 'id') {
+  assertMetadataOnly(table, columns);
+  return { data: await selectAll(client, table, q => q, { select: columns, orderBy, strict: true }), error: null };
 }
 
 async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T[]> {
@@ -549,6 +555,8 @@ export async function listUsage(from: Date, to: Date): Promise<UsageRow[]> {
 // ────────────────────────────────────────────────────────────────
 
 export interface ChannelRow {
+  sync_pending?: boolean;
+  sync_history_unavailable?: boolean;
   id: string;
   workspace_id: string;
   workspace_name: string | null;
@@ -601,24 +609,21 @@ export async function listChannels(opts: {
   // bloquea), pero se recorta acá para no arrastrar el resto al navegador.
   const columns =
     'id, workspace_id, channel, label, status, external_account_id, last_synced_at, last_error, health_can_send, health_review_status, health_blockers, quality_rating, messaging_limit_tier, created_at, config';
-  let q = safeSelect(db(), 'channel_connections', columns).order('updated_at', {
-    ascending: false,
-  });
-  if (opts.channel) q = q.eq('channel', opts.channel);
-  if (opts.status) q = q.eq('status', opts.status);
-
-  const { data, error } = await q.limit(500);
-  if (error) throw new Error(`[admin] listChannels: ${error.message}`);
+  const { data } = await allConnectionMetadata(db(), 'channel_connections', columns);
   const rows = (data ?? []) as unknown as Array<
     Omit<ChannelRow, 'workspace_name' | 'health_status' | 'last_push_at'> & {
-      config?: { health_status?: string | null; last_push_at?: string | null } | null;
+      config?: { health_status?: string | null; health_sync_error?: string | null; last_push_at?: string | null; dm_backfill_complete?: boolean; comment_sync_complete?: boolean; poll_sync_complete?: boolean; sync_requested_at?: string } | null;
     }
   >;
 
   const mensajeria = rows.map(({ config, ...r }) => ({
     ...r,
     health_status: config?.health_status ?? null,
+    last_error: r.last_error ?? config?.health_sync_error ?? null,
     last_push_at: config?.last_push_at ?? null,
+    sync_pending: config?.poll_sync_complete === false || config?.dm_backfill_complete === false || config?.comment_sync_complete === false ||
+      Boolean(config?.sync_requested_at && (!r.last_synced_at || config.sync_requested_at > r.last_synced_at)),
+    sync_history_unavailable: ['whatsapp', 'webchat', 'voice'].includes(r.channel),
   }));
 
   // La otra mitad de Riverz. Las tiendas y los medios de pago viven en tablas
@@ -630,12 +635,7 @@ export async function listChannels(opts: {
 
   // Los catálogos se arman SIN los filtros: si no, elegir un canal dejaría la
   // lista con una sola opción y sin forma de volver.
-  const { data: tipos } = await safeSelect(
-    db(),
-    'channel_connections',
-    'channel, status',
-  ).limit(2000);
-  const crudos = (tipos ?? []) as unknown as { channel: string; status: string }[];
+  const crudos = rows;
 
   const channels = [
     ...new Set([...crudos.map((r) => r.channel), ...comercio.map((r) => r.channel)]),
@@ -656,7 +656,7 @@ export async function listChannels(opts: {
       (!opts.status || f.status === opts.status),
   );
 
-  const todas = [...mensajeria, ...filtradas];
+  const todas = [...mensajeria.filter(r => (!opts.channel || r.channel === opts.channel) && (!opts.status || r.status === opts.status)), ...filtradas];
   const names = await workspaceNames(todas.map((r) => r.workspace_id));
   return {
     rows: todas.map((r) => ({
@@ -678,24 +678,25 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
   const client = db();
 
   const [tiendas, integraciones, dropi] = await Promise.all([
-    safeSelect(
+    allConnectionMetadata(
       client,
       'shopify_connections',
-      'id, workspace_id, platform, shop_domain, status, currency, created_at, updated_at',
-    ).limit(500),
-    safeSelect(
+      'id, workspace_id, platform, shop_domain, status, currency, created_at, updated_at, sync_state',
+    ),
+    allConnectionMetadata(
       client,
       'workspace_integrations',
       'id, workspace_id, provider, external_account_id, expires_at, created_at, updated_at',
-    ).limit(500),
+    ),
     // Dropi (entrega contra reembolso) vive en su propia tabla, con
     // `workspace_id` de clave primaria y sin columna `id`. Faltaba: era la
     // única conexión de un comercio que el panel no veía de ninguna forma.
-    safeSelect(
+    allConnectionMetadata(
       client,
       'dropi_connections',
       'workspace_id, status, created_at, updated_at',
-    ).limit(500),
+      'workspace_id',
+    ),
   ]);
 
   const vacio = {
@@ -715,6 +716,7 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
 
   const filas: Omit<ChannelRow, 'workspace_name'>[] = [
     ...((tiendas.data ?? []) as unknown as Array<{
+      sync_state?: { mark?: string; complete?: boolean; error?: string };
       id: string;
       workspace_id: string;
       platform: string | null;
@@ -730,6 +732,9 @@ async function listCommerceConnections(): Promise<Omit<ChannelRow, 'workspace_na
       status: s.status,
       external_account_id: s.shop_domain,
       label: s.currency,
+      last_synced_at: s.sync_state?.mark ?? null,
+      last_error: s.sync_state?.error ?? null,
+      sync_pending: s.status !== 'uninstalled' && s.sync_state?.complete !== true,
       created_at: s.created_at,
     })),
     ...((integraciones.data ?? []) as unknown as Array<{

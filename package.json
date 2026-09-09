@@ -29,7 +29,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-wallet-schema.cjs && next build",
+    "build": "node scripts/check-wallet-schema.cjs && node scripts/check-integration-schema.cjs && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

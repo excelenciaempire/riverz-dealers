@@ -149,7 +149,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: 'contacts-sync',
     whatKey: 'admin.cronContactsSync',
     path: '/api/cron/contacts-sync',
-    schedule: '*/10 * * * *',
+    schedule: '*/5 * * * *',
     retryOnFailure: true,
   },
   // La recarga automática de la billetera. Cada 5 minutos: entre que el saldo
@@ -327,7 +327,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: 'meta-webhook-subscriptions',
     whatKey: 'admin.cronMetaWebhookSubs',
     path: '/api/cron/meta-webhook-subscriptions',
-    schedule: '0 */6 * * *',
+    schedule: '*/15 * * * *',
     retryOnFailure: true,
   },
   // El mismo desvío de dominio, del lado de las tiendas: Shopify, Tiendanube y
@@ -336,7 +336,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: 'commerce-webhooks',
     whatKey: 'admin.cronCommerceWebhooks',
     path: '/api/cron/commerce-webhooks',
-    schedule: '30 */6 * * *',
+    schedule: '*/15 * * * *',
     retryOnFailure: true,
   },
   // De madrugada: leer la página de un producto tarda segundos y el research
@@ -366,7 +366,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   // webhook (incluido el eco de lo que el comercio contesta desde la app de
   // Meta) y esto sólo cierra lo que Meta no entregó.
   //
-  // Cada 2 h y barato. Las dos versiones anteriores recorrían TODOS los
+  // Cada cinco minutos, con presupuesto de tres y cursores persistentes.
+  // Las dos versiones anteriores recorrían TODOS los
   // contactos de TODAS las cuentas: la primera tardaba ~22 min y el reloj le
   // cortaba el `fetch` antes de que `withCronRun` escribiera la fila (mudo del
   // 2026-08-26 al 2026-08-29, sin un solo error registrado); la segunda lo
@@ -381,8 +382,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: 'meta-dm-backfill',
     whatKey: 'admin.cronMetaDmBackfill',
     path: '/api/cron/meta-dm-backfill',
-    schedule: '0 */2 * * *',
-    timeoutMs: 900_000,
+    schedule: '*/5 * * * *',
+    timeoutMs: 240_000,
     retryOnFailure: true,
   },
 
@@ -471,7 +472,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     name: 'mercadolibre-orders',
     whatKey: 'admin.cronMlOrders',
     path: '/api/cron/mercadolibre',
-    schedule: '*/15 * * * *',
+    schedule: '*/5 * * * *',
     parent: 'mercadolibre',
   },
   {

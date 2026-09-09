@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { syncAllWorkspaces } from '@/lib/contacts/bulk-sync';
+import { sincronizarPedidosDeShopify } from '@/lib/shopify/sincronizar-pedidos';
+import { recoverCommerceOrders } from '@/lib/commerce/recover-orders';
 import { assertCronAuth } from '@/lib/auth/cron';
 import { withCronRun } from "@/lib/cron/heartbeat";
 
@@ -29,7 +31,11 @@ async function cronHandler(request: Request) {
   }
 
   try {
-    const results = await syncAllWorkspaces(supabaseAdmin());
+    const [results, orders, commerce] = await Promise.all([
+      syncAllWorkspaces(supabaseAdmin()),
+      sincronizarPedidosDeShopify(supabaseAdmin()),
+      recoverCommerceOrders(supabaseAdmin()),
+    ]);
     const totals = results.reduce(
       (acc, r) => ({
         processed: acc.processed + r.processed,
@@ -39,7 +45,8 @@ async function cronHandler(request: Request) {
       }),
       { processed: 0, matched: 0, unmatched: 0, pending: 0 },
     );
-    return NextResponse.json({ ok: true, ...totals, workspaces: results }, { status: 200 });
+    const ok = orders.every(order => !order.error) && commerce.every(order => !order.error);
+    return NextResponse.json({ ok, ...totals, workspaces: results, orders, commerce }, { status: ok ? 200 : 207 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

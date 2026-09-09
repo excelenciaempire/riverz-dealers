@@ -2,6 +2,8 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  syncPending: { es: 'Sincronización pendiente', en: 'Sync pending' },
+  syncLiveOnly: { es: 'Eventos en vivo; sin historial recuperable', en: 'Live events; history unavailable' },
   cronWalletReconciliation: {
     es: 'Revisa consumos pendientes y recupera recargas cobradas.',
     en: 'Checks pending usage and recovers paid top-ups.',

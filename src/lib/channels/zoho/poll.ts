@@ -4,6 +4,7 @@ import type { InboundEvent } from '../types';
 import { supabaseAdmin } from '../admin-client';
 import { listConnections } from '../connections';
 import { savePollState } from '../poll-state';
+import { recoveredEvent } from '../recovered-event';
 import { ingestInboundEvent } from '../inbox-writer';
 import { htmlToText } from '../html-to-text';
 import { detectAutomatedSender } from '../email/automated-sender';
@@ -81,7 +82,7 @@ async function pollOne(
     `${mailApiUrl(connection)}/api/accounts/${encodeURIComponent(accountId)}/messages/view`
   );
   url.searchParams.set('folderId', folderId);
-  url.searchParams.set('start', '1');
+  url.searchParams.set('start', String(config.zoho_sync_start ?? 1));
   url.searchParams.set('limit', '200');
   url.searchParams.set('sortBy', 'date');
   url.searchParams.set('sortorder', 'false');
@@ -99,7 +100,7 @@ async function pollOne(
   const lastReceived = config.last_received_at
     ? new Date(String(config.last_received_at)).getTime()
     : Date.now() - 7 * 24 * 60 * 60 * 1000;
-  let newest = lastReceived;
+  let newest = Number(config.zoho_sync_newest ?? lastReceived);
   let ingested = 0;
   for (const message of listed.data ?? []) {
     const receivedAt = messageTime(message);
@@ -112,11 +113,18 @@ async function pollOne(
       message,
       receivedAt
     );
-    if (event && (await ingestInboundEvent(admin, event))) ingested++;
+    if (event && (await ingestInboundEvent(admin, recoveredEvent(event)))) ingested++;
   }
-  await savePollState(admin, connection.id, {
-    last_received_at: new Date(newest).toISOString(),
+  const complete = (listed.data?.length ?? 0) < 200 || (listed.data ?? []).some(m => {
+    const at = messageTime(m);
+    return at && at <= lastReceived;
   });
+  await savePollState(admin, connection.id, {
+    ...(complete ? { last_received_at: new Date(newest).toISOString() } : {}),
+    zoho_sync_start: complete ? 1 : Number(config.zoho_sync_start ?? 1) + 200,
+    zoho_sync_newest: complete ? null : newest,
+    poll_sync_complete: complete,
+  }, null, { complete });
   return ingested;
 }
 

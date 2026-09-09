@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listConnections } from "@/lib/channels/connections";
+import { savePollState } from "@/lib/channels/poll-state";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { selectAll } from "@/lib/db/paginate";
 import { decrypt } from "@/lib/channels/encryption";
@@ -38,7 +39,7 @@ const MAX_PAGINAS_LISTA = 20;
  * Techo de reloj de la corrida entera. Por debajo del timeout del reloj, para
  * terminar siempre por decisión propia y dejar la fila escrita en `cron_runs`.
  */
-const PRESUPUESTO_MS = 8 * 60_000;
+const PRESUPUESTO_MS = 3 * 60_000;
 
 interface ConversacionGraph {
   id?: string;
@@ -88,11 +89,11 @@ async function cronHandler(request: Request) {
   const admin = supabaseAdmin();
   const connections = await listConnections(admin, {
     channels: ["messenger", "instagram"],
-    statuses: ["connected"],
   });
   if (connections.length === 0) {
     return NextResponse.json({ ok: true, results: [] });
   }
+  connections.sort((a, b) => String(a.config?.dm_backfill_attempt_at ?? '').localeCompare(String(b.config?.dm_backfill_attempt_at ?? '')));
 
   const results: Array<{
     connection_id: string;
@@ -121,7 +122,11 @@ async function cronHandler(request: Request) {
       results.push({ connection_id: c.id, channel: c.channel, ingested: 0, error: "no token" });
       continue;
     }
-    const token = decrypt(enc);
+    let token: string;
+    try { token = decrypt(enc); } catch {
+      results.push({ connection_id: c.id, channel: c.channel, ingested: 0, error: 'invalid token' });
+      continue;
+    }
 
     const isMessenger = c.channel === "messenger";
     // Graph lista las conversaciones de la PÁGINA en los dos canales (el de
@@ -137,6 +142,8 @@ async function cronHandler(request: Request) {
     }
 
     const arranque = new Date().toISOString();
+    const connectionDeadline = Math.min(limite, Date.now() + 45_000);
+    await savePollState(admin, c.id, { dm_backfill_attempt_at: arranque }, null, { complete: false });
     const pend = readMetaDmBackfillPending(cfg[META_DM_BACKFILL_PENDING]);
     const objetivo = pend?.objetivo ?? arranque;
     const marca =
@@ -158,19 +165,20 @@ async function cronHandler(request: Request) {
     let alDia = false;
     let paginas = 0;
     let fallo: string | null = null;
+    let listAfter = String(cfg.dm_backfill_list_after ?? '');
     let url: string | null =
       `${GRAPH}/${pageId}/conversations?platform=${platform}` +
       `&fields=id,updated_time,participants&limit=50` +
       `&access_token=${encodeURIComponent(token)}`;
+    if (listAfter) url += `&after=${encodeURIComponent(listAfter)}`;
 
     try {
       while (url && paginas < MAX_PAGINAS_LISTA) {
-        if (Date.now() > limite) {
-          sinTiempo = true;
+        if (Date.now() > connectionDeadline) {
           break;
         }
         // `paging.next` no lleva el proof — se re-adjunta en cada página.
-        const r = await fetchMetaGraph(withAppsecretProof(url, token), {}, { deadlineMs: limite });
+        const r = await fetchMetaGraph(withAppsecretProof(url, token), {}, { deadlineMs: connectionDeadline });
         if (!r.ok) {
           // Un token revocado o sin los permisos de Página necesarios no se
           // recupera reintentando cada dos horas. Marcar sólo esa conexión la
@@ -194,8 +202,7 @@ async function cronHandler(request: Request) {
         }
 
         for (const conv of lote) {
-          if (Date.now() > limite) {
-            sinTiempo = true;
+          if (Date.now() > connectionDeadline) {
             break;
           }
           const cuando = conv.updated_time ? new Date(conv.updated_time).getTime() : NaN;
@@ -207,7 +214,7 @@ async function cronHandler(request: Request) {
             break;
           }
           // Pasada reanudada: este tramo ya se miró en la corrida anterior.
-          if (!isInsideMetaDmResumeWindow(cuando, pend)) continue;
+          if (!isInsideMetaDmResumeWindow(cuando, pend) && cfg.dm_backfill_thread_id !== conv.id) continue;
 
           ultimoMirado = conv.updated_time ?? ultimoMirado;
 
@@ -246,6 +253,14 @@ async function cronHandler(request: Request) {
               // crea.
               createIfMissing: !contacto,
               sinceIso: pisoIso,
+              deadlineMs: connectionDeadline,
+              after: cfg.dm_backfill_thread_id === conv.id ? String(cfg.dm_backfill_thread_after ?? '') || undefined : undefined,
+              onCheckpoint: async (after) => {
+                await savePollState(admin, c.id, {
+                  dm_backfill_thread_id: after ? conv.id : null,
+                  dm_backfill_thread_after: after,
+                }, null, { complete: false });
+              },
             });
           } catch (err) {
             // No seguir hacia atrás: `ultimoMirado` queda en ESTE hilo y el
@@ -256,8 +271,9 @@ async function cronHandler(request: Request) {
           }
         }
 
-        if (alDia || sinTiempo || fallo) break;
+        if (alDia || Date.now() > connectionDeadline || fallo) break;
         url = j.paging?.next ?? null;
+        listAfter = url ? new URL(url).searchParams.get('after') ?? '' : '';
         paginas++;
         // Se acabaron las páginas sin cruzar el piso: no hay más historia.
         if (!url) alDia = true;
@@ -273,17 +289,21 @@ async function cronHandler(request: Request) {
       objective: objetivo,
       resumeAt: ultimoMirado,
     });
-    if (JSON.stringify(nuevoCfg) !== JSON.stringify(cfg)) {
-      await admin.from("channel_connections").update({ config: nuevoCfg }).eq("id", c.id);
-    }
+    const pending = fallo?.endsWith(': meta_thread_sync_pending');
+    await savePollState(admin, c.id, {
+      [META_DM_BACKFILL_MARK]: nuevoCfg[META_DM_BACKFILL_MARK] ?? null,
+      [META_DM_BACKFILL_PENDING]: nuevoCfg[META_DM_BACKFILL_PENDING] ?? null,
+      dm_backfill_complete: alDia && !fallo,
+      dm_backfill_list_after: alDia && !fallo ? null : listAfter,
+    }, pending ? null : fallo, { complete: alDia && !fallo });
 
     results.push({
       connection_id: c.id,
       channel: c.channel,
       ingested,
       hilos,
-      al_dia: alDia,
-      ...(fallo ? { error: fallo } : {}),
+      al_dia: alDia && !fallo,
+      ...(fallo && !pending ? { error: fallo } : {}),
     });
     if (sinTiempo) break;
   }

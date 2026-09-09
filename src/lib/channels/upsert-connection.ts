@@ -33,6 +33,7 @@ export async function upsertConnectionRow(
   admin: SupabaseClient,
   row: ConnectionRowInput,
 ): Promise<UpsertConnectionResult> {
+  row = { ...row, config: { ...row.config, sync_requested_at: new Date().toISOString() } };
   const revived = await reviveExisting(admin, row);
   if (revived) return revived;
 

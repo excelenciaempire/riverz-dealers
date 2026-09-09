@@ -11,6 +11,7 @@ import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
 import { savePollState } from "../poll-state";
+import { recoveredEvent } from '../recovered-event';
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 import { mapWithConcurrency } from "@/lib/async/concurrency";
@@ -83,20 +84,33 @@ async function pollOne(
   // last_synced_at (has the POLLER ever run?) — NOT on history_id, which
   // startGmailWatch writes at connect time, so keying on it defeated the 7d
   // backlog on the very first poll.
-  const window = ventanaDeBusqueda(connection.last_synced_at);
-  const inboxIds = await listMessageIdsViaQuery(
+  const days = Number(ventanaDeBusqueda(connection.last_synced_at).match(/\d+/)?.[0] ?? 7);
+  const window = String(cfg.gmail_sync_query ?? `after:${Math.floor((Date.now() - days * 86_400_000) / 1000)}`);
+  const inboxPage = cfg.gmail_inbox_done ? { ids: [], next: '' } : await listMessageIdsViaQuery(
     accessToken,
     `in:inbox ${window}`,
+    String(cfg.gmail_inbox_next ?? ''),
   );
   // Also pull recently-sent mail so the agent's own replies (including
   // ones sent straight from Gmail, outside this app) show in the thread.
-  const sentIds = await listMessageIdsViaQuery(
+  const sentPage = cfg.gmail_sent_done ? { ids: [], next: '' } : await listMessageIdsViaQuery(
     accessToken,
     `in:sent ${window}`,
+    String(cfg.gmail_sent_next ?? ''),
   );
+  const inboxIds = inboxPage.ids;
+  const sentIds = sentPage.ids;
+  const complete = !inboxPage.next && !sentPage.next;
+  const progress = {
+    gmail_sync_query: complete ? null : window,
+    gmail_inbox_next: inboxPage.next, gmail_sent_next: sentPage.next,
+    gmail_inbox_done: !complete && !inboxPage.next,
+    gmail_sent_done: !complete && !sentPage.next,
+    poll_sync_complete: complete,
+  };
 
   if (inboxIds.length === 0 && sentIds.length === 0) {
-    await savePollState(admin, connection.id, {});
+    await savePollState(admin, connection.id, progress, null, { complete });
     return 0;
   }
 
@@ -111,7 +125,7 @@ async function pollOne(
     }
     const event = await buildInboundEvent(connection, msg, accessToken);
     if (!event) continue;
-    const result = await ingestInboundEvent(admin, event);
+    const result = await ingestInboundEvent(admin, recoveredEvent(event));
     if (result) ingested++;
   }
   for (const id of sentIds) {
@@ -128,7 +142,7 @@ async function pollOne(
     if (result) ingested++;
   }
 
-  await savePollState(admin, connection.id, { history_id: maxHistoryId.toString() });
+  await savePollState(admin, connection.id, { ...progress, history_id: maxHistoryId.toString() }, null, { complete });
   return ingested;
 }
 
@@ -196,13 +210,14 @@ async function getFreshAccessToken(
 async function listMessageIdsViaQuery(
   accessToken: string,
   q: string,
-): Promise<string[]> {
+  initialPage = '',
+): Promise<{ ids: string[]; next: string }> {
   // Paginamos siguiendo nextPageToken hasta un tope prudente: antes
   // maxResults=50 sin paginar descartaba todo lo que excediera 50 por
   // consulta y corrida (se perdían entrantes y salientes en buzones activos).
   const CAP = 250;
   const ids: string[] = [];
-  let pageToken = "";
+  let pageToken = initialPage;
   while (ids.length < CAP) {
     const u = new URL(`${GMAIL_API}/users/me/messages`);
     u.searchParams.set("q", q);
@@ -217,10 +232,10 @@ async function listMessageIdsViaQuery(
       nextPageToken?: string;
     };
     for (const m of j.messages ?? []) ids.push(m.id);
-    if (!j.nextPageToken) break;
-    pageToken = j.nextPageToken;
+    pageToken = j.nextPageToken ?? '';
+    if (!pageToken) break;
   }
-  return ids;
+  return { ids, next: pageToken };
 }
 
 interface GmailMessage {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { listConnections } from "@/lib/channels/connections";
+import { savePollState } from '@/lib/channels/poll-state';
+import { reconcileTemplateStatus } from '@/lib/whatsapp/reconcile-template-status';
 import { decrypt } from "@/lib/channels/encryption";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { getLogger } from "@/lib/log/logger";
@@ -154,6 +156,10 @@ async function cronHandler(request: Request) {
         healthy++;
       }
 
+      await savePollState(admin, c.id, {
+        health_sync_checked_at: new Date().toISOString(),
+        health_sync_error: !verified ? 'webhook_verification_unavailable' : missing.length ? `missing_webhook_fields:${missing.join(',')}` : null,
+      }, null, { complete: false });
       results.push({
         id: c.id,
         channel: c.channel,
@@ -181,10 +187,12 @@ async function cronHandler(request: Request) {
     healthCanSend: string | null;
   }> = [];
   let waMissing = 0;
+  const waErrors: Array<{ id: string; error: string }> = [];
   await forEachWithConcurrency(
     (waConns ?? []) as ChannelConnection[],
     DEFAULT_CONNECTION_CONCURRENCY,
     async (c) => {
+      try {
       const secrets = (c.secrets ?? {}) as Record<string, unknown>;
       const enc = String(secrets.access_token ?? "");
       const cfg = (c.config ?? {}) as Record<string, unknown>;
@@ -204,6 +212,7 @@ async function cronHandler(request: Request) {
         return;
       }
       const reapplied = await subscribeWabaToWebhooks(wabaId, token);
+      await reconcileTemplateStatus(admin, { workspaceId: c.workspace_id, wabaId, accessToken: token });
       const subscribed = await isWabaSubscribed(wabaId, token);
       if (subscribed === false) {
         waMissing++;
@@ -238,6 +247,15 @@ async function cronHandler(request: Request) {
         healthRefreshed,
         healthCanSend,
       });
+      await savePollState(admin, c.id, {
+        health_sync_checked_at: new Date().toISOString(),
+        health_sync_error: subscribed === true ? null : 'waba_subscription_unverified',
+      }, null, { complete: false });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        waErrors.push({ id: c.id, error: message });
+        await savePollState(admin, c.id, { health_sync_error: message }, null, { complete: false });
+      }
     },
   );
 
@@ -339,7 +357,7 @@ async function cronHandler(request: Request) {
   // 207 for partial failure. A confirmed app-level gap is also a 207 — it's the
   // most severe case (all merchants), never a false alarm (we read it live).
   const anyMissing =
-    results.some((r) => r.verified && r.missing.length > 0) || waMissing > 0;
+    results.some((r) => !r.verified || r.missing.length > 0) || waResults.some(r => r.subscribed !== true) || waMissing > 0 || waErrors.length > 0 || skipped > 0;
   const anyAppGap = appGaps.length > 0;
   return NextResponse.json(
     {
@@ -349,6 +367,7 @@ async function cronHandler(request: Request) {
       skipped,
       results,
       waResults,
+      waErrors,
       appSubscriptions: appSubs,
       appGaps,
       subscriptionFixes,

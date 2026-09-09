@@ -28,6 +28,13 @@ function database(rows: Array<{ config: unknown; status: string }>, writes = [tr
 }
 
 describe('poll recovery state', () => {
+  it('does not claim completion or clear a blocker while only saving progress', async () => {
+    const { db, patches } = database([{ config: {}, status: 'error' }]);
+    await savePollState(db, 'c', { cursor: 'next' }, null, { complete: false });
+    expect(patches[0]).not.toHaveProperty('last_synced_at');
+    expect(patches[0]).not.toHaveProperty('status');
+    expect(patches[0]).not.toHaveProperty('last_error');
+  });
   it('restores a successful connection without rolling back renewed token metadata', async () => {
     const { db, patches } = database([{ config: { token_expires_at: 'new-expiry' }, status: 'error' }]);
     await savePollState(db, 'c', { last_poll_error: null });

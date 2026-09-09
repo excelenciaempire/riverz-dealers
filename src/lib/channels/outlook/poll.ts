@@ -7,6 +7,7 @@ import { decrypt, encrypt } from "../encryption";
 import { supabaseAdmin } from "../admin-client";
 import { listConnections } from "../connections";
 import { savePollState } from "../poll-state";
+import { recoveredEvent } from '../recovered-event';
 import { htmlToText } from "../html-to-text";
 import { detectAutomatedSender } from "../email/automated-sender";
 import { mapWithConcurrency } from "@/lib/async/concurrency";
@@ -78,11 +79,12 @@ async function pollOne(
     : Date.now() - 7 * 24 * 60 * 60 * 1000;
   const since = new Date(sinceMs).toISOString();
 
-  const inbox = await listFolder(
+  const inboxPage = cfg.outlook_inbox_done ? { messages: [], next: null } : await listFolder(
     accessToken,
     "inbox",
     since,
     "receivedDateTime",
+    cfg.outlook_inbox_next as string | undefined,
   );
   // Enviados: cursor PROPIO (last_sent_at). Antes se filtraban con el mismo
   // `since` anclado al último ENTRANTE, así que si el comercio respondía desde
@@ -90,15 +92,24 @@ async function pollOne(
   // ventana de enviados crecía sin control contra el tope de páginas.
   const sentCursor = cfg.last_sent_at ? String(cfg.last_sent_at) : "";
   const sentSinceMs = sentCursor ? new Date(sentCursor).getTime() : sinceMs;
-  const sent = await listFolder(
+  const sentPage = cfg.outlook_sent_done ? { messages: [], next: null } : await listFolder(
     accessToken,
     "sentitems",
     new Date(sentSinceMs).toISOString(),
     "sentDateTime",
+    cfg.outlook_sent_next as string | undefined,
   );
+  const inbox = inboxPage.messages;
+  const sent = sentPage.messages;
+  const complete = !inboxPage.next && !sentPage.next;
+  const progress = {
+    outlook_inbox_next: inboxPage.next, outlook_sent_next: sentPage.next,
+    outlook_inbox_done: !complete && !inboxPage.next, outlook_sent_done: !complete && !sentPage.next,
+    poll_sync_complete: complete,
+  };
 
   if (inbox.length === 0 && sent.length === 0) {
-    await savePollState(admin, connection.id, {});
+    await savePollState(admin, connection.id, progress, null, { complete });
     return 0;
   }
 
@@ -123,7 +134,7 @@ async function pollOne(
       );
       if (atts.length) event.attachments = atts;
     }
-    const result = await ingestInboundEvent(admin, event);
+    const result = await ingestInboundEvent(admin, recoveredEvent(event));
     if (result) ingested++;
   }
   let maxSent = sentSinceMs;
@@ -139,10 +150,11 @@ async function pollOne(
   }
 
   const newConfig = {
+    ...progress,
     last_received_at: new Date(maxReceived).toISOString(),
     last_sent_at: new Date(maxSent).toISOString(),
   };
-  await savePollState(admin, connection.id, newConfig);
+  await savePollState(admin, connection.id, newConfig, null, { complete });
   return ingested;
 }
 
@@ -217,7 +229,8 @@ async function listFolder(
   folder: "inbox" | "sentitems",
   since: string,
   dateField: "receivedDateTime" | "sentDateTime",
-): Promise<GraphMessage[]> {
+  nextPage?: string,
+): Promise<{ messages: GraphMessage[]; next: string | null }> {
   const u = new URL(`${GRAPH_API}/me/mailFolders/${folder}/messages`);
   u.searchParams.set(
     "$select",
@@ -232,6 +245,11 @@ async function listFolder(
   const CAP = 250;
   const out: GraphMessage[] = [];
   let url: string | null = u.toString();
+  if (nextPage) {
+    const next = new URL(nextPage);
+    if (next.origin !== new URL(GRAPH_API).origin || !next.pathname.startsWith('/v1.0/me/')) throw new Error('invalid_outlook_cursor');
+    url = next.toString();
+  }
   while (url && out.length < CAP) {
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -248,7 +266,7 @@ async function listFolder(
     // nextLink ya trae el $filter/$orderby embebidos: se refetchea tal cual.
     url = j["@odata.nextLink"] ?? null;
   }
-  return out;
+  return { messages: out, next: url };
 }
 
 async function buildOutboundEvent(

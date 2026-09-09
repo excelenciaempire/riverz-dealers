@@ -71,6 +71,10 @@ export interface ThreadSyncArgs {
   untilIso?: string;
   /** Páginas de 50 mensajes como máximo. */
   maxPages?: number;
+  /** Persist only the opaque cursor, never an access token or provider URL. */
+  after?: string;
+  onCheckpoint?: (after: string | null) => Promise<void>;
+  deadlineMs?: number;
 }
 
 /**
@@ -100,10 +104,12 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
   let url: string | null =
     `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
   let pages = 0;
+  if (args.after) url += `&after=${encodeURIComponent(args.after)}`;
   let ingested = 0;
   let reachedCutoff = false;
 
   while (url && pages < maxPages) {
+    if (args.deadlineMs && Date.now() >= args.deadlineMs) throw new Error('meta_thread_sync_pending');
     // `paging.next` no lleva el proof — se re-adjunta en cada página.
     let r: Response = await graphFetch(withAppsecretProof(url, args.token));
     // Un campo no soportado tumba la request entera: reintentamos una vez con
@@ -111,6 +117,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
     if (!r.ok && fields === RICH_FIELDS && pages === 0) {
       fields = BASIC_FIELDS;
       url = `${GRAPH}/${args.threadId}/messages?fields=${fields}&limit=50&access_token=${encodeURIComponent(args.token)}`;
+      if (args.after) url += `&after=${encodeURIComponent(args.after)}`;
       r = await graphFetch(withAppsecretProof(url, args.token));
     }
     if (!r.ok) {
@@ -160,10 +167,18 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
       if (guardado) ingested++;
     }
 
-    if (reachedCutoff) break;
+    if (reachedCutoff) {
+      url = null;
+      break;
+    }
     url = j.paging?.next ?? null;
+    if (args.onCheckpoint) {
+      await args.onCheckpoint(url ? new URL(url).searchParams.get('after') : null);
+    }
     pages++;
   }
+  if (url && args.onCheckpoint) throw new Error('meta_thread_sync_pending');
+  if (!url && args.onCheckpoint) await args.onCheckpoint(null);
   return ingested;
 }
 

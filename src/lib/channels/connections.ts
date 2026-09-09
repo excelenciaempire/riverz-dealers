@@ -47,7 +47,7 @@ export async function listConnections(
       if (statuses.length) out = out.in('status', statuses)
       return out
     },
-    { select: opts.select },
+    { select: opts.select, strict: true },
   )
 }
 

@@ -44,7 +44,7 @@ const JOB_CLAIMS = "mercadolibre-claims";
 
 // Umbrales por debajo del intervalo nominal: con el cron cada 5 minutos, un
 // umbral de exactamente 15 se pasaría de largo hasta la corrida siguiente.
-const EVERY_ORDERS_MS = 14 * 60_000;
+const EVERY_ORDERS_MS = 4 * 60_000;
 const EVERY_SLOW_MS = 58 * 60_000;
 // Los reclamos, cada ~10 min: más seguido que los pedidos porque acá cada
 // respuesta cuenta, y menos que las preguntas porque son dos búsquedas por

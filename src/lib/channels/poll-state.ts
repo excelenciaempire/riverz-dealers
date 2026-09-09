@@ -9,6 +9,7 @@ export async function savePollState(
   id: string,
   configPatch: Record<string, unknown>,
   error: string | null = null,
+  options: { complete?: boolean } = {},
 ): Promise<void> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const current = await db.from('channel_connections')
@@ -18,9 +19,11 @@ export async function savePollState(
     if (!row || !ESTADOS_VIVOS.some(s => s === row.status)) return;
     let query = db.from('channel_connections').update({
       config: { ...(row.config ?? {}), ...configPatch },
-      status: error ? 'error' : 'connected',
-      last_error: error,
-      ...(error ? {} : { last_synced_at: new Date().toISOString() }),
+      ...(error || options.complete !== false ? {
+        status: error ? 'error' : 'connected',
+        last_error: error,
+      } : {}),
+      ...(error || options.complete === false ? {} : { last_synced_at: new Date().toISOString() }),
     }).eq('id', id).in('status', [...ESTADOS_VIVOS]);
     query = row.config === null
       ? query.is('config', null)

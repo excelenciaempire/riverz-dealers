@@ -32,6 +32,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type ResultadoDelEspejo = 'creado' | 'actualizado' | 'sin_id'
 
 interface ArgsDelEspejo {
+  platform?: 'shopify' | 'tiendanube' | 'woocommerce'
   workspaceId: string
   shopDomain: string
   /** El pedido tal como lo manda Shopify (webhook o Admin API). */
@@ -169,7 +170,7 @@ async function contactoDelPedido(
  */
 export async function espejarPedidoDeShopify(
   db: SupabaseClient,
-  { workspaceId, shopDomain, order }: ArgsDelEspejo,
+  { workspaceId, shopDomain, order, platform = 'shopify' }: ArgsDelEspejo,
 ): Promise<ResultadoDelEspejo> {
   const orderId = String(order.id ?? '').trim()
   if (!orderId || orderId === '0') return 'sin_id'
@@ -215,7 +216,7 @@ export async function espejarPedidoDeShopify(
 
   const fila = {
     workspace_id: workspaceId,
-    platform: 'shopify',
+    platform,
     shop_domain: shopDomain,
     shopify_order_id: orderId,
     order_number: String(order.name ?? order.order_number ?? orderId),

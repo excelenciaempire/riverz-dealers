@@ -9,6 +9,19 @@ afterEach(() => {
 });
 
 describe('syncThreadMessages', () => {
+  it('persists the opaque cursor and reports unfinished history at the page cap', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [], paging: { next: 'https://graph.facebook.com/v22.0/thread/messages?after=next-page&access_token=secret' },
+    }))));
+    const checkpoint = vi.fn();
+    await expect(syncThreadMessages({
+      token: 'page-token', selfId: 'page', connection: {} as never,
+      threadId: 'thread', externalId: 'customer', createIfMissing: false,
+      maxPages: 1, onCheckpoint: checkpoint,
+    })).rejects.toThrow('meta_thread_sync_pending');
+    expect(checkpoint).toHaveBeenCalledWith('next-page');
+    expect(checkpoint).not.toHaveBeenCalledWith(null);
+  });
   it('fails loudly when Graph cannot read a thread, so its checkpoint is not advanced', async () => {
     const request = vi
       .fn()

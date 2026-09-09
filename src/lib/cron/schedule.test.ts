@@ -164,17 +164,18 @@ describe("isStale", () => {
     // 2026-08-04) y con schedule horario se apilaba encima de sí mismo. Ahora
     // el handler procesa un lote fijo por conexión y guarda cursor, así que
     // puede correr seguido — pero nunca tan seguido como para pisarse: el
-    // techo de reloj del handler es de 8 min.
+    // techo de reloj del handler es de 3 min.
     const backfill = SCHEDULED_JOBS.find((j) => j.name === "meta-dm-backfill");
     expect(backfill).toBeDefined();
     const veces = Array.from({ length: 24 }, (_, h) => Array.from({ length: 60 }, (_, m) => isDue(backfill!.schedule, utc(2026, 8, 3, h, m))))
       .flat()
       .filter(Boolean).length;
     expect(veces).toBeGreaterThan(1);
-    expect(veces).toBeLessThanOrEqual(24);
-    // Holgura sobre el techo de 8 min del handler: tiene que poder terminar y
+    expect(veces).toBe(288);
+    // Holgura sobre el techo de 3 min del handler: tiene que poder terminar y
     // dejar su fila en cron_runs en vez de que el reloj le corte el fetch.
-    expect(backfill!.timeoutMs).toBeGreaterThan(8 * 60 * 1000);
+    expect(backfill!.timeoutMs).toBeGreaterThan(3 * 60 * 1000);
+    expect(backfill!.timeoutMs).toBeLessThan(5 * 60 * 1000);
   });
 
   it("la conciliación de comentarios termina antes de su siguiente ventana", () => {

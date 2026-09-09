@@ -144,12 +144,14 @@ export default function AdminChannelsPage() {
       {
         key: "sync",
         header: t("admin.lastSync"),
-        cell: (r) =>
-          r.last_synced_at ? (
-            format.dateTime(r.last_synced_at)
-          ) : (
-            <Muted>{t("admin.never")}</Muted>
-          ),
+        cell: (r) => r.sync_history_unavailable ? (
+          <Muted>{t('admin.syncLiveOnly')}</Muted>
+        ) : (
+          <div>
+            {r.last_synced_at ? format.dateTime(r.last_synced_at) : <Muted>{t('admin.never')}</Muted>}
+            {r.sync_pending && <div><StatusPill tone="warn" label={t('admin.syncPending')} /></div>}
+          </div>
+        ),
       },
       {
         key: "error",

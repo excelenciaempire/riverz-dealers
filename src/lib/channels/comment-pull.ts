@@ -5,6 +5,7 @@ import { withAppsecretProof } from './meta-graph';
 import { buildSelfCommentEvent } from './comment-echo';
 import { findMessageByExternalId } from './message-lookup';
 import { listConnections } from './connections';
+import { savePollState } from './poll-state';
 import { ingestInboundEvent } from './inbox-writer';
 import { selectAll } from '@/lib/db/paginate';
 import { mapWithConcurrency } from '@/lib/async/concurrency';
@@ -197,6 +198,9 @@ export interface CommentPullOptions {
   maxPosts?: number;
   /** No dispara reglas, IA ni respuestas aunque el comentario sea reciente. */
   suppressAutoReply?: boolean;
+  /** Durable post queue for the scheduled recovery, independent of manual imports. */
+  resumable?: boolean;
+  deadlineMs?: number;
   /** Limita la recuperación a los canales elegidos desde Comentarios. */
   channels?: CommentChannel[];
   /** Límite superior inclusivo para una recuperación con rango de fechas. */
@@ -239,7 +243,7 @@ export async function pullCommentsForConnection(
       (channel === 'ig_comment' ? connection.external_account_id : '') ??
       ''
   );
-  const pageId = String(cfg.page_id ?? '');
+  const pageId = String(cfg.page_id ?? (channel === 'fb_comment' ? connection.external_account_id : '') ?? '');
   // Instagram cuelga los comentarios de la cuenta profesional; Facebook, de la
   // página.
   const target = channel === 'ig_comment' ? igUserId : pageId;
@@ -265,7 +269,8 @@ export async function pullCommentsForConnection(
     selfUsername = u;
   }
 
-  const postsToRead = await postsToScan(
+  const queued = options.resumable && Array.isArray(cfg.comment_sync_posts) ? cfg.comment_sync_posts as string[] : [];
+  const postsToRead = queued.length ? { ids: queued, errors: [] } : await postsToScan(
     db,
     connection,
     channel,
@@ -273,11 +278,12 @@ export async function pullCommentsForConnection(
     token,
     {
       windowMs,
-      maxPosts,
+      maxPosts: options.resumable ? 10_000 : maxPosts,
       includeOlderPosts: options.includeOlderPosts,
     }
   );
-  const postIds = postsToRead.ids;
+  const postIds = postsToRead.ids.slice(0, maxPosts);
+  const remaining = postsToRead.ids.slice(maxPosts);
   if (postIds.length === 0) {
     return empty(
       postsToRead.errors.length > 0 ? 'graph_denegado' : 'sin_publicaciones',
@@ -291,14 +297,30 @@ export async function pullCommentsForConnection(
   let sinHilo = 0;
   let yaEstaba = 0;
   const errors = [...postsToRead.errors];
+  const commentCursors = { ...(cfg.comment_sync_cursors as Record<string, string> ?? {}) };
+  const replyCursors = { ...(cfg.comment_sync_reply_cursors as Record<string, string> ?? {}) };
   for (const postId of postIds) {
+    if (options.deadlineMs && Date.now() >= options.deadlineMs) {
+      remaining.push(...postIds.slice(postIds.indexOf(postId)));
+      break;
+    }
     const fetched = await fetchCommentsWithReplies(
       channel,
       postId,
       token,
-      options.maxCommentPages ?? MAX_COMMENT_PAGES
+      options.maxCommentPages ?? MAX_COMMENT_PAGES,
+      options.resumable ? commentCursors[postId] : undefined,
+      options.resumable ? replyCursors : undefined,
+      options.deadlineMs,
     );
-    if (fetched.failed) errors.push('comments_graph_failed');
+    if (options.resumable && fetched.pending) {
+      remaining.push(postId);
+      commentCursors[postId] = fetched.after ?? '';
+    } else if (!fetched.failed) delete commentCursors[postId];
+    if (fetched.failed) {
+      errors.push('comments_graph_failed');
+      if (options.resumable) remaining.push(postId);
+    }
     const comments = fetched.comments;
     for (const comment of comments) {
       if (!isWithinWindow(comment, windowMs, options.untilMs)) continue;
@@ -368,6 +390,14 @@ export async function pullCommentsForConnection(
       }
     }
   }
+  if (options.resumable) {
+    await savePollState(db, connection.id, {
+      comment_sync_posts: [...new Set(remaining)],
+      comment_sync_cursors: commentCursors,
+      comment_sync_reply_cursors: replyCursors,
+    }, null, { complete: false });
+    if (remaining.length) errors.push('comments_sync_pending');
+  }
   return {
     channel,
     ingestedInbound,
@@ -392,13 +422,29 @@ export async function pullCommentsAll(db: SupabaseClient): Promise<{
   const list = await listConnections(db, {
     channels: ['ig_comment', 'fb_comment'],
   });
+  list.sort((a, b) => String(a.config?.comment_sync_attempt_at ?? '').localeCompare(String(b.config?.comment_sync_attempt_at ?? '')));
+  const deadline = Date.now() + 3 * 60_000;
 
   const detail = await mapWithConcurrency(
     list,
     CONNECTION_CONCURRENCY,
     async (c) => {
       try {
-        const r = await pullCommentsForConnection(db, c);
+        const lastSync = Date.parse(c.last_synced_at ?? '');
+        const requested = Date.parse(String(c.config?.sync_requested_at ?? '')) || 0;
+        if (c.config?.comment_sync_complete === true && requested <= lastSync && Date.now() - lastSync < 10 * 60_000) {
+          return { connection_id: c.id, channel: c.channel as CommentChannel,
+            ingestedInbound: 0, ingested: 0, posts: 0, seen: 0, sinHilo: 0, yaEstaba: 0,
+            reason: 'ok' as const, errors: [] };
+        }
+        if (Date.now() >= deadline) return { connection_id: c.id, ...failedConnectionResult(c) };
+        await savePollState(db, c.id, { comment_sync_attempt_at: new Date().toISOString() }, null, { complete: false });
+        const r = await pullCommentsForConnection(db, c, {
+          suppressAutoReply: true, resumable: true, deadlineMs: Math.min(deadline, Date.now() + 45_000),
+        });
+        const complete = r.reason === 'ok' || r.reason === 'sin_publicaciones';
+        await savePollState(db, c.id, { comment_sync_complete: complete },
+          complete || (r.errors.length > 0 && r.errors.every(e => e === 'comments_sync_pending')) ? null : `comment_sync:${r.reason}:${r.errors.join(',')}`, { complete });
         return { connection_id: c.id, ...r };
       } catch (err) {
         console.error('[comment-pull] conexión falló:', c.id, err);
@@ -544,6 +590,7 @@ async function ingestCustomerComment(
     },
     receivedAt,
     suppressAutoReply,
+    historical: forceSuppressAutoReply,
   });
   // Ya venía oculto de la red. Sin anotarlo acá el comentario entra como
   // visible y se ve así hasta que pase la conciliación —diez minutos— justo
@@ -695,11 +742,10 @@ async function postIdsWithSavedComments(
   // Por la conexión DUEÑA del comentario (`comments_meta`), no por la de la
   // conversación: con dos páginas del mismo comercio, la conversación es de la
   // primera y la publicación de la segunda no se volvía a escanear nunca.
-  const { data: propios } = await db
-    .from('comments_meta')
-    .select('message_id, post_id')
-    .eq('connection_id', connection.id)
-    .limit(1000);
+  const propios = await selectAll<{ message_id: string; post_id: string | null }>(
+    db, 'comments_meta', q => q.eq('connection_id', connection.id),
+    { select: 'message_id, post_id', orderBy: 'message_id', strict: true },
+  );
   const deMeta = (propios ?? []) as Array<{
     message_id: string;
     post_id: string | null;
@@ -776,17 +822,23 @@ async function fetchCommentsWithReplies(
   channel: CommentChannel,
   postId: string,
   token: string,
-  maxPages: number
-): Promise<{ comments: RawComment[]; failed: boolean }> {
+  maxPages: number,
+  after?: string,
+  replyCursors?: Record<string, string>,
+  deadlineMs?: number,
+): Promise<{ comments: RawComment[]; failed: boolean; pending?: boolean; after?: string }> {
   let url: string | null = withAppsecretProof(
     `${GRAPH}/${postId}/comments?fields=${encodeURIComponent(DIALECT[channel].commentFields)}` +
       `&limit=${COMMENTS_PER_POST}&access_token=${encodeURIComponent(token)}`,
     token
   );
   const comments: RawComment[] = [];
+  if (after) url += `&after=${encodeURIComponent(after)}`;
   let failed = false;
+  let repliesPending = false;
   try {
     for (let page = 0; url && page < maxPages; page++) {
+      if (deadlineMs && Date.now() >= deadlineMs) break;
       const res = await fetch(url, {
         signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
       });
@@ -815,18 +867,32 @@ async function fetchCommentsWithReplies(
     // que un backfill sea realmente completo, tanto en Facebook como IG.
     for (const comment of comments) {
       if (!comment.id) continue;
+      if (replyCursors?.[comment.id] === '__complete__') continue;
+      if (deadlineMs && Date.now() >= deadlineMs) { repliesPending = true; break; }
       const replyResult = await fetchAllReplies(
         channel,
         comment.id,
         token,
-        maxPages
+        maxPages,
+        replyCursors?.[comment.id],
       );
+      if (replyResult.after && replyCursors) {
+        replyCursors[comment.id] = replyResult.after;
+        repliesPending = true;
+      } else if (!replyResult.failed && replyCursors) replyCursors[comment.id] = '__complete__';
       if (replyResult.failed) failed = true;
       const replies = replyResult.replies ?? repliesOf(comment);
       if (channel === 'ig_comment') comment.replies = { data: replies };
       else comment.comments = { data: replies };
     }
-    return { comments, failed };
+    if (!repliesPending && !failed && replyCursors) {
+      for (const comment of comments) if (comment.id) delete replyCursors[comment.id];
+    }
+    return {
+      comments, failed,
+      pending: Boolean(url) || repliesPending,
+      after: failed || repliesPending ? after : url ? new URL(url).searchParams.get('after') ?? undefined : undefined,
+    };
   } catch (error) {
     console.warn('[comment-pull] comments discovery failed', {
       channel,
@@ -841,8 +907,9 @@ async function fetchAllReplies(
   channel: CommentChannel,
   commentId: string,
   token: string,
-  maxPages: number
-): Promise<{ replies: RawComment[] | null; failed: boolean }> {
+  maxPages: number,
+  after?: string,
+): Promise<{ replies: RawComment[] | null; failed: boolean; after?: string }> {
   const edge = channel === 'ig_comment' ? 'replies' : 'comments';
   let url: string | null = withAppsecretProof(
     `${GRAPH}/${commentId}/${edge}?fields=${encodeURIComponent(REPLY_FIELDS[channel])}` +
@@ -850,6 +917,7 @@ async function fetchAllReplies(
     token
   );
   const replies: RawComment[] = [];
+  if (after) url += `&after=${encodeURIComponent(after)}`;
   try {
     for (let page = 0; url && page < maxPages; page++) {
       const res = await fetch(url, {
@@ -877,7 +945,7 @@ async function fetchAllReplies(
     // este edge puntual falla, en vez de perder todo el comentario padre.
     return { replies: null, failed: true };
   }
-  return { replies, failed: false };
+  return { replies, failed: false, after: url ? new URL(url).searchParams.get('after') ?? undefined : undefined };
 }
 
 /** Meta Graph: objeto eliminado/inaccesible, código 100 y subcódigo 33. */

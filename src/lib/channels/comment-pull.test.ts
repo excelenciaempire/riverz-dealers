@@ -14,8 +14,10 @@ vi.mock("./inbox-writer", () => ({
 }));
 vi.mock("./encryption", () => ({ decrypt: (v: string) => v }));
 vi.mock("./comment-echo", () => ({ buildSelfCommentEvent: async () => null }));
+vi.mock('./poll-state', () => ({ savePollState: vi.fn() }));
 
 import { pullCommentsForConnection } from "./comment-pull";
+import { savePollState } from './poll-state';
 
 const IG_ID = "17841471409531708";
 const POST = "post-1";
@@ -80,6 +82,26 @@ const fbConnection = {
 describe("pullCommentsForConnection", () => {
   beforeEach(() => {
     ingested.length = 0;
+    vi.mocked(savePollState).mockClear();
+  });
+
+  it('a scheduled recovery is passive even for a recent comment and retains a page cursor', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const data = url.includes(`/${POST}/comments`) ? {
+        data: [{ id: 'recent', text: 'Precio', timestamp: iso(1000), from: { id: 'customer' } }],
+        paging: { next: `https://graph.facebook.com/v22.0/${POST}/comments?after=page-two` },
+      } : url.includes('/media') ? { data: [{ id: POST, timestamp: iso(0) }] }
+        : url.includes('/replies') ? { data: [] } : { username: 'pilaroficial_arg' };
+      return new Response(JSON.stringify(data));
+    }));
+    const result = await pullCommentsForConnection(fakeDb(), connection, {
+      suppressAutoReply: true, resumable: true, maxCommentPages: 1,
+    });
+    expect(ingested[0]).toMatchObject({ historical: true, suppressAutoReply: true });
+    expect(result.reason).toBe('partial');
+    expect(savePollState).toHaveBeenCalledWith(expect.anything(), connection.id,
+      expect.objectContaining({ comment_sync_posts: [POST], comment_sync_cursors: { [POST]: 'page-two' } }),
+      null, { complete: false });
   });
   afterEach(() => {
     vi.unstubAllGlobals();
