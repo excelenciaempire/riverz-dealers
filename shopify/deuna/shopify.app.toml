@@ -1,0 +1,18 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "8fbdba8df6253551f995bf6777e777a9"
+name = "Riverz CRM"
+application_url = "https://riverz.co/integraciones"
+embedded = false
+
+[webhooks]
+api_version = "2026-07"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_checkouts,read_customers,read_price_rules,write_price_rules,write_discounts,read_draft_orders,write_draft_orders,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_order_edits,read_order_edits,read_orders,write_orders,read_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ ]

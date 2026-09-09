@@ -1,5 +1,19 @@
 # DeUNA Shop: verificación del 9 de septiembre de 2026
 
+## Actualización posterior: permiso y página nueva
+
+- Pago de WhatsApp desbloqueado: Meta permite enviar con capacidad limitada por revisión del nombre visible. Las once plantillas DeUNA siguen PENDING; las cinco automatizaciones siguen preparadas y bloqueadas únicamente por plantillas.
+- App privada Riverz CRM actualizada a `riverz-crm-4`; `write_draft_orders` aceptado en Shopify Admin. Token renovado y permisos guardados en Riverz.
+- Borrador real de QA `1575484490092`: creación exitosa, webhook recibido en Riverz y borrador eliminado. Línea técnica de cero pesos, sin cliente, teléfono, producto físico ni despacho. No equivale a una prueba de entrega de WhatsApp.
+- La apertura de la app privada ahora apunta a `/integraciones`: el navegador llegó al acceso de Riverz correctamente. La raíz disparaba OAuth de otra identidad de app y rechazaba la firma de esta app privada.
+- Página vigente: https://deunashop.shop/products/pelota-saltarina. Sincronización Shopify completada. Aún muestra NIVELSHOP en el contenido público; la IA conserva DeUNA Shop y no incorpora esa identidad.
+- Corregidas también las objeciones estructuradas, que se inyectan aparte del texto de formación y todavía afirmaban descuentos y baterías no verificados.
+- No hay API oficial de Dropi ni prueba de entrega real de WhatsApp. La aprobación de Meta y la comprobación logística siguen siendo pendientes reales.
+
+Configuración privada aislada en `shopify/deuna/`; desplegar con `shopify app deploy --path shopify/deuna --allow-updates`. No mezclar con las extensiones de las apps pública y legacy del directorio raíz. Scripts: `refresh-deuna-product.ts` actualiza catálogo/formación; `verify-deuna-shopify-draft.ts` verifica permiso, crea un borrador técnico y lo elimina sin completarlo.
+
+Las secciones siguientes documentan la verificación inicial; los bloqueos de pago y permiso allí indicados ya quedaron resueltos según esta actualización.
+
 ## Cambios aplicados
 
 - Foto de perfil enviada a Meta; respuesta success=true y URL de perfil presente.
