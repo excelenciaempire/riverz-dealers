@@ -32,6 +32,13 @@ export interface AutomationReadiness {
   issues: ValidationIssue[]
 }
 
+/** Reduced Approved also includes paused templates; the raw Meta state wins. */
+export function isTemplateReady(template: { status?: unknown; meta_status?: unknown }): boolean {
+  if (String(template.status ?? '').toLowerCase() !== 'approved') return false
+  const raw = String(template.meta_status ?? '').trim().toUpperCase()
+  return raw === '' || raw === 'APPROVED'
+}
+
 /** Regla pura para pruebas y para no volver a separar toggle técnico y estado. */
 export function operationalStateFor(
   requested: AutomationActivationState,
@@ -149,12 +156,12 @@ export async function activationIssuesById(
   if (nombres.size > 0) {
     const { data: templates } = await db
       .from('message_templates')
-      .select('name, status')
+      .select('name, status, meta_status')
       .eq('workspace_id', workspaceId)
       .in('name', [...nombres])
     const approved = new Set(
       (templates ?? [])
-        .filter((t) => String(t.status ?? '').toLowerCase() === 'approved')
+        .filter(isTemplateReady)
         .map((t) => String(t.name)),
     )
     if ([...nombres].some((name) => !approved.has(name))) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { operationalStateFor } from './activation'
+import { isTemplateReady, operationalStateFor } from './activation'
 
 const templatePending = [{
   path: 'steps',
@@ -8,6 +8,15 @@ const templatePending = [{
 }]
 
 describe('estado operativo de automatizaciones', () => {
+  it.each(['PAUSED', 'FLAGGED', 'DISABLED', 'REJECTED', 'PENDING'])('bloquea una plantilla con estado Meta %s aunque el resumen diga Approved', (meta_status) => {
+    expect(isTemplateReady({ status: 'Approved', meta_status })).toBe(false)
+  })
+
+  it('acepta aprobadas y registros antiguos sin estado crudo', () => {
+    expect(isTemplateReady({ status: 'Approved', meta_status: 'APPROVED' })).toBe(true)
+    expect(isTemplateReady({ status: 'Approved', meta_status: null })).toBe(true)
+    expect(isTemplateReady({ status: 'Pending', meta_status: 'APPROVED' })).toBe(false)
+  })
   it('pasa de borrador a armado y a activo según sus dependencias', () => {
     expect(operationalStateFor('draft', [])).toBe('draft')
     expect(operationalStateFor('armed', templatePending)).toBe('armed')

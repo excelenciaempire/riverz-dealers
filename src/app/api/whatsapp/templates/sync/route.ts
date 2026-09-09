@@ -7,6 +7,7 @@ import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 import { withAppsecretProof } from '@/lib/channels/meta-graph'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { reconcileWorkspaceAutomationReadiness } from '@/lib/automations/activation'
 
 /**
  * Sync message templates from Meta → local message_templates table.
@@ -346,6 +347,9 @@ export async function POST(req: Request) {
       .or(`waba_id.is.null,waba_id.neq.${wabaId}`)
       .select('id')
     if (!purgeErr && purgedRows) purged = purgedRows.length
+
+    // Manual sync also repairs a missed Meta status webhook.
+    await reconcileWorkspaceAutomationReadiness(supabaseAdmin(), workspaceId)
 
     return NextResponse.json({
       success: errors.length === 0,

@@ -48,15 +48,26 @@ export async function handleTemplateStatusUpdate(
   value: TemplateWebhookValue,
 ): Promise<void> {
   const name = value.message_template_name
-  if (!name) return
+  // A WABA is mandatory: never update equally named templates in other accounts.
+  if (!name || !wabaId) return
   const patch: Record<string, unknown> = { meta_status: value.event ?? null }
   const status = normalizeTemplateStatusEvent(value.event)
   if (status) patch.status = status
   let q = db.from('message_templates').update(patch).eq('name', name)
   if (value.message_template_language) q = q.eq('language', value.message_template_language)
   if (wabaId) q = q.eq('waba_id', wabaId)
-  const { error } = await q
-  if (error) console.error('[webhook] template status update failed:', error.message)
+  const { data, error } = await q.select('workspace_id')
+  if (error) {
+    console.error('[webhook] template status update failed:', error.message)
+    return
+  }
+  // Approval can be the last missing dependency; pauses must also stop active
+  // flows. Reuse the activation gate, which preserves drafts and payment checks.
+  const { reconcileWorkspaceAutomationReadiness } = await import('@/lib/automations/activation')
+  const workspaces = new Set((data ?? []).map(row => row.workspace_id).filter(Boolean))
+  for (const workspaceId of workspaces) {
+    await reconcileWorkspaceAutomationReadiness(db, workspaceId)
+  }
 }
 
 /** message_template_quality_update: guarda el nuevo quality_score

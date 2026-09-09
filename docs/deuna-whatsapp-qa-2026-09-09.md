@@ -1,5 +1,15 @@
 # DeUNA Shop: verificación del 9 de septiembre de 2026
 
+## Continuación: marca, ofertas y activación por Meta
+
+- Eliminadas las referencias visibles a NIVELSHOP de los dos snippets activos `riverz-landing-pniv0908a1-p1/p2.liquid`. La respuesta pública devuelve 200, cero coincidencias de la marca anterior y doce saludos con DeUNA Shop. Se conservó el diseño. Copias originales en `tmp/deuna-theme-fix/brand-backup-1788934218900/`.
+- Estos archivos se generan desde Riverz Landing Lab: una republicación del original puede sobrescribirlos. `scripts/fix-deuna-storefront-brand.mjs` conserva la transformación mínima y las copias previas; no sustituye una edición del proyecto fuente en Landing Lab.
+- El formulario real usa la configuración pública `riverzai.com/api/landing-lab/cod-config?project_id=pniv0908a1`, con 1/110000 COP, 2/198000 COP y 3/264000 COP, envío gratis y pago contraentrega. Se verificó que sus variantes coinciden con el producto Shopify conectado antes de guardar las ofertas en Riverz.
+- QA del formulario en navegador aislado: botón de compra abre el formulario COD; pack-2 calcula 198000 y muestra dos selectores; pack-3 calcula 264000 y muestra tres. Panda Blanco y Capibara Café están deshabilitados. No se enviaron datos ni se creó pedido.
+- El asistente tiene las ofertas específicas del producto y dirige combos/modelos mezclados al formulario para aplicar su total. No se configuraron ofertas globales que afecten futuros productos. La creación de combos por Admin API del chat no se acredita: no aplica automáticamente los precios especiales de este formulario.
+- Corregido el manejador de estados Meta para reevaluar los flujos del workspace afectado después de aprobar, pausar o deshabilitar una plantilla. Exige WABA para no actualizar cuentas ajenas. Sincronización manual también reevalúa los flujos. El estado crudo PAUSED/FLAGGED bloquea aunque el resumen local diga Approved.
+- 29 pruebas focalizadas pasaron, además de ESLint y TypeScript. La consulta de Meta sigue devolviendo once plantillas PENDING y ningún bloqueo de pago. Los cinco flujos continúan armados hasta aprobación. No se probó entrega real de WhatsApp ni se conectó una API oficial de Dropi.
+
 ## Actualización posterior: permiso y página nueva
 
 - Pago de WhatsApp desbloqueado: Meta permite enviar con capacidad limitada por revisión del nombre visible. Las once plantillas DeUNA siguen PENDING; las cinco automatizaciones siguen preparadas y bloqueadas únicamente por plantillas.
