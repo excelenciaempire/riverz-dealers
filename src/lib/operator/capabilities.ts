@@ -45,9 +45,14 @@ export const OPERATOR_CAPABILITIES: Capability[] = ALL_CAPABILITIES.filter(
   (c) => !FUERA_DE_ALCANCE.has(c.key),
 )
 
-export function operatorCanUse(key: string): boolean {
+export function operatorCapabilitiesForWorkspace(workspaceId: string): Capability[] {
+  return OPERATOR_CAPABILITIES.filter((c) => !c.workspaceIds || c.workspaceIds.includes(workspaceId))
+}
+
+export function operatorCanUse(key: string, workspaceId?: string): boolean {
   if (FUERA_DE_ALCANCE.has(key)) return false
-  return ALL_CAPABILITIES.some((c) => c.key === key)
+  return ALL_CAPABILITIES.some((c) => c.key === key &&
+    (workspaceId === undefined || !c.workspaceIds || c.workspaceIds.includes(workspaceId)))
 }
 
 /** Por qué el chat no puede usar algo, cuando no puede. Para los mensajes de error. */

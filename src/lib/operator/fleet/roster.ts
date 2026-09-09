@@ -49,12 +49,12 @@ export const ROSTER: SubagentSpec[] = [
     id: 'automatizaciones',
     nombreKey: 'operation.subAutomatizaciones',
     alcance:
-      'Arma, edita, prende y pausa automatizaciones: lo que pasa solo cuando ocurre un evento (un carrito abandonado, un pedido nuevo, una etiqueta). También verifica y prepara la operación existente de Rasmiaw. NO manda campañas ni crea plantillas; si le falta una plantilla aprobada, se la pide al de plantillas.',
+      'Arma, edita, prende y pausa automatizaciones: lo que pasa solo cuando ocurre un evento (un carrito abandonado, un pedido nuevo, una etiqueta). También verifica y prepara grupos de automatizaciones existentes. NO manda campañas ni crea plantillas; si le falta una plantilla aprobada, se la pide al de plantillas.',
     capacidades: ['automatizaciones.', 'rasmiaw.'],
     tier: 'constructor',
     maxIters: 7,
     instrucciones: [
-      'Para preparar la operación existente de Rasmiaw, usa las capacidades rasmiaw: primero verifica la cuenta y después arma sus flujos. Sólo corresponden a esa cuenta y nunca publican ni activan.',
+      'Para preparar una operación existente, primero verifica sus dependencias y después arma sus flujos. Usa sólo las recetas disponibles para esta cuenta; preparar no significa publicar ni activar.',
       'Antes de armar algo, mira qué automatizaciones ya existen: casi siempre lo que piden es editar una, no crear la número siete.',
       'Una automatización nace pausada, siempre. NO la prendas tú después de crearla: al cerrar, la pantalla le pregunta a la persona si la prende. Llama a `automatizaciones.activar` sólo si te lo piden explícitamente sobre una que ya existía.',
       'Para `send_template` hace falta el nombre exacto de una plantilla aprobada. Para un borrador seguro puede quedar preparada con su nombre, pero NO se puede prender hasta que Meta la apruebe.',
@@ -306,9 +306,10 @@ export function subagentForCapability(key: string): SubagentId | null {
 }
 
 /** Las capacidades reales de un subagente, ya resueltas contra el catálogo. */
-export function capacidadesDe(id: SubagentId): Capability[] {
+export function capacidadesDe(id: SubagentId, workspaceId?: string): Capability[] {
   const spec = specDe(id)
-  return ALL_CAPABILITIES.filter((c) => cubre(spec, c.key) && !SIN_DUENO[c.key])
+  return ALL_CAPABILITIES.filter((c) => cubre(spec, c.key) && !SIN_DUENO[c.key] &&
+    (workspaceId === undefined || !c.workspaceIds || c.workspaceIds.includes(workspaceId)))
 }
 
 /**

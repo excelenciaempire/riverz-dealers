@@ -150,6 +150,7 @@ async function armarOperacion(ctx: CapabilityContext) {
 export const RASMIAW_CAPABILITIES: Capability[] = [
   {
     key: 'rasmiaw.verificar_preparacion_cuenta',
+    workspaceIds: [RASMIAW_WORKSPACE_ID],
     description: 'Verifica la preparación real de Rasmiaw: Shopify, productos, salud de WhatsApp, plantillas, Mercado Pago, asistentes y estado operativo de cada flujo.',
     descriptionEn: 'Verifies Rasmiaw readiness: Shopify, products, WhatsApp health, templates, Mercado Pago, agents, and each flow operational state.',
     risk: 'lectura',
@@ -159,6 +160,7 @@ export const RASMIAW_CAPABILITIES: Capability[] = [
   },
   {
     key: 'rasmiaw.armar_grupo_de_automatizaciones',
+    workspaceIds: [RASMIAW_WORKSPACE_ID],
     description: 'Arma las automatizaciones de Rasmiaw sin encender el motor ni enviar mensajes. Guarda la dependencia exacta de cada flujo.',
     descriptionEn: 'Arms Rasmiaw automations without enabling the engine or sending messages. Stores each flow exact dependency.',
     risk: 'reversible',
@@ -170,6 +172,7 @@ export const RASMIAW_CAPABILITIES: Capability[] = [
   },
   {
     key: 'rasmiaw.armar_operacion_rasmiaw',
+    workspaceIds: [RASMIAW_WORKSPACE_ID],
     description: 'Audita y deja armada la operación ya construida de Rasmiaw: plantillas, asistentes, reglas y los cuatro flujos. No publica, no activa ni envía.',
     descriptionEn: 'Audits and arms Rasmiaw existing operation: templates, agents, rules, and its four flows. It does not publish, activate, or send.',
     risk: 'reversible',

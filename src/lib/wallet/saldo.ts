@@ -89,31 +89,18 @@ export async function leerBilletera(
   if (error) throw new Error(error.message);
   if (data) return aBilletera(data as unknown as FilaCuenta);
 
-  await db
+  const { error: createError } = await db
     .from('wallet_accounts')
-    .upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id' });
-  const { data: creada } = await db
+    .upsert({ workspace_id: workspaceId }, { onConflict: 'workspace_id', ignoreDuplicates: true });
+  if (createError) throw new Error(createError.message);
+  const { data: creada, error: readError } = await db
     .from('wallet_accounts')
     .select(COLUMNAS)
     .eq('workspace_id', workspaceId)
     .maybeSingle();
-  return creada
-    ? aBilletera(creada as unknown as FilaCuenta)
-    : {
-        workspaceId,
-        saldoCentavos: 0,
-        moneda: 'usd',
-        descubiertoCentavos: 0,
-        bloquearSinSaldo: true,
-        autoRecargaCentavos: null,
-        autoUmbralCentavos: null,
-        tieneTarjeta: false,
-        tarjetaMarca: null,
-        tarjetaUltimos4: null,
-        cobrarACosto: true,
-        autoFallos: 0,
-        autoUltimoError: null,
-      };
+  if (readError) throw new Error(readError.message);
+  if (!creada) throw new Error('wallet_initialization_failed');
+  return aBilletera(creada as unknown as FilaCuenta);
 }
 
 export interface Movimiento {

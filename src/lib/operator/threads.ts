@@ -57,14 +57,17 @@ export async function loadMessages(
   threadId: string,
   workspaceId: string,
 ): Promise<ThreadMessage[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from('operator_messages')
     .select('id, role, content, created_at')
     .eq('thread_id', threadId)
     .eq('workspace_id', workspaceId)
     .in('role', ['user', 'assistant'])
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(200)
+
+  if (error) throw new Error(`operator_history_failed: ${error.message}`)
 
   const desenlaces = await desenlaceDeCadaAccion(db, threadId, workspaceId)
 
@@ -73,7 +76,7 @@ export async function loadMessages(
     role: 'user' | 'assistant'
     content: { text?: string; bloques?: Bloque[] }
     created_at: string
-  }>).map((r) => ({
+  }>).reverse().map((r) => ({
     id: r.id,
     role: r.role,
     text: r.content?.text ?? '',

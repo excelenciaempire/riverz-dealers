@@ -24,7 +24,7 @@ import type { Capability, CapabilityContext } from '@/lib/capabilities/types';
 import { translate } from '@/lib/i18n/translate';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { OPERATOR_CAPABILITIES, operatorCanUse } from './capabilities';
+import { operatorCapabilitiesForWorkspace, operatorCanUse } from './capabilities';
 import { construir, proponer, vistaDe } from './escribir';
 import { etiquetaDe } from './etiquetas';
 import type { EmitFn } from './events';
@@ -292,7 +292,7 @@ export async function runOperator(args: {
   // herramienta sí ejecuta hacía que contara como propuesta algo ya creado.
   const system = systemPrompt();
   const tools = capabilitiesAsAnthropicTools(
-    OPERATOR_CAPABILITIES
+    operatorCapabilitiesForWorkspace(workspaceId)
   ) as Anthropic.Tool[];
   const messages: Anthropic.MessageParam[] = [...args.history];
   const proposedIds: string[] = [];
@@ -435,7 +435,7 @@ export async function runOperator(args: {
 
       // La lista de habilitadas se vuelve a mirar acá y no sólo al armar las
       // tools: el nombre lo elige el modelo.
-      if (!operatorCanUse(key)) {
+      if (!operatorCanUse(key, workspaceId)) {
         results.push({
           type: 'tool_result',
           tool_use_id: block.id,

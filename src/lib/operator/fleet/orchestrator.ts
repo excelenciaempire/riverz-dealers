@@ -31,7 +31,7 @@ import { pliegoDeLaCuenta } from '@/lib/operacion/contexto'
 import { DEFAULT_LOCALE } from '@/lib/i18n/config'
 import type { EmitFn } from '../events'
 import { recortarResultado, vistaDe } from '../escribir'
-import { OPERATOR_CAPABILITIES } from '../capabilities'
+import { operatorCapabilitiesForWorkspace, operatorCanUse } from '../capabilities'
 import { crearSemaforo, type Presupuesto } from './budget'
 import { ejecutarPlan } from './ejecutar-plan'
 import { leerIntencion, pistaComoTexto } from './intencion'
@@ -81,7 +81,7 @@ export async function runOrquestador(args: {
   const { ctx, emit, presupuesto } = args
 
   // Las lecturas, y nada más: construir es trabajo de los especialistas.
-  const lecturas = OPERATOR_CAPABILITIES.filter((c) => c.risk === 'lectura')
+  const lecturas = operatorCapabilitiesForWorkspace(ctx.workspaceId).filter((c) => c.risk === 'lectura')
   const tools = [
     ...(capabilitiesAsAnthropicTools(lecturas) as Anthropic.Tool[]),
     ...TOOLS_EQUIPO,
@@ -182,7 +182,7 @@ export async function runOrquestador(args: {
       const cap = findCapability(key)
       // El portero se vuelve a preguntar acá y no sólo al armar las tools: el
       // nombre lo elige el modelo. Y el orquestador sólo lee.
-      if (!cap || cap.risk !== 'lectura') {
+      if (!cap || cap.risk !== 'lectura' || !operatorCanUse(key, ctx.workspaceId)) {
         results.push({
           type: 'tool_result',
           tool_use_id: uso.id,

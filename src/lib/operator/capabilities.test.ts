@@ -6,6 +6,7 @@ import {
   OPERATOR_CAPABILITIES,
   motivoFueraDeAlcance,
   operatorCanUse,
+  operatorCapabilitiesForWorkspace,
 } from './capabilities'
 
 /**
@@ -16,6 +17,20 @@ import {
  * que lo excluido siga excluido, y que nada quede huérfano por olvido.
  */
 describe('capacidades del Operator', () => {
+  it('ofrece las mismas capacidades generales a cuentas antiguas y nuevas', () => {
+    const generales = ALL_CAPABILITIES.filter(c => !c.workspaceIds).map(c => c.key)
+    for (const workspace of ['legacy-account', 'new-account']) {
+      expect(operatorCapabilitiesForWorkspace(workspace).map(c => c.key)).toEqual(generales)
+      for (const key of generales) expect(operatorCanUse(key, workspace)).toBe(true)
+    }
+  })
+
+  it('no ofrece ni permite recetas de una marca en otra cuenta', () => {
+    const key = 'rasmiaw.armar_operacion_rasmiaw'
+    expect(operatorCanUse(key, 'another-account')).toBe(false)
+    expect(operatorCanUse(key, 'b814e934-d832-4be9-bad4-79cca51c1e23')).toBe(true)
+    expect(operatorCapabilitiesForWorkspace('another-account').some(c => c.key.startsWith('rasmiaw.'))).toBe(false)
+  })
   it('puede escribirle a un cliente, y por eso mismo siempre pide permiso', () => {
     // La lista de capacidades nunca fue la barrera: la barrera es `esInerte`.
     // Mandar un mensaje es irreversible y no inerte, así que tenerla a mano no

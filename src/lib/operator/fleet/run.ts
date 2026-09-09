@@ -75,7 +75,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
   // Schema cerrado y el tipo del SDK pide una firma de índice abierta.
   const puedePedir = (e.profundidad ?? 0) === 0 && spec.puedePedirle.length > 0
   const tools = [
-    ...capacidadesAnthropic(e.agente),
+    ...capacidadesAnthropic(e.agente, e.ctx.workspaceId),
     ...(puedePedir ? [herramientaDePedir(spec.puedePedirle)] : []),
   ]
 
@@ -151,7 +151,7 @@ export async function runSubagent(e: EntradaSubagente): Promise<ResultadoSubagen
           continue
         }
         const key = capabilityKeyFromToolName(uso.name)
-        const propia = capacidadesDe(e.agente).some((c) => c.key === key)
+        const propia = capacidadesDe(e.agente, e.ctx.workspaceId).some((c) => c.key === key)
         const cap = findCapability(key)
         if (!propia || !cap) {
           resultados.push({
@@ -511,8 +511,8 @@ async function pedirle(
   }
 }
 
-function capacidadesAnthropic(agente: SubagentId): Anthropic.Tool[] {
-  return capabilitiesAsAnthropicTools(capacidadesDe(agente)) as Anthropic.Tool[]
+function capacidadesAnthropic(agente: SubagentId, workspaceId: string): Anthropic.Tool[] {
+  return capabilitiesAsAnthropicTools(capacidadesDe(agente, workspaceId)) as Anthropic.Tool[]
 }
 
 function textoDe(res: Anthropic.Message): string {

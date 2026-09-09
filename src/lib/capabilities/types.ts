@@ -68,6 +68,8 @@ export interface CapabilitySchema {
 export interface Capability<A = Record<string, unknown>, R = unknown> {
   /** Clave estable, con dominio: `metricas.resumen`, `automatizaciones.activar`. */
   key: string
+  /** Optional account-specific recipe; general capabilities omit this restriction. */
+  workspaceIds?: readonly string[]
   /** En español: es lo que lee el modelo. */
   description: string
   /** Para la documentación pública. */

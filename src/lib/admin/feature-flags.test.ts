@@ -10,6 +10,8 @@ import {
   isFeatureEnabled,
   isOptInEnabled,
   isRiverz2,
+  isOperatorFleet,
+  type FeatureFlags,
 } from './feature-flags';
 
 /**
@@ -57,7 +59,7 @@ describe('experiencias opt-in', () => {
   // base a la experiencia nueva de golpe. Por eso se fija acá.
   it('sin fila, la experiencia está APAGADA', () => {
     expect(isOptInEnabled({}, 'riverz_2')).toBe(false);
-    expect(isRiverz2({})).toBe(false);
+    expect(isOptInEnabled({}, 'future_pilot')).toBe(false);
   });
 
   it('sólo el true explícito la prende', () => {
@@ -77,6 +79,26 @@ describe('experiencias opt-in', () => {
   it('no gatean ninguna URL', () => {
     // Su gate es server-side (`isRiverz2`), no el mapa de rutas.
     expect(featureForPath('/operacion')).toBeNull();
+  });
+});
+
+describe('Operador disponible para todas las generaciones de cuentas', () => {
+  it.each<FeatureFlags>([{}, { riverz_2: true, operator_flota: true }])('funciona sin configuración de piloto: %j', (flags) => {
+    expect(isRiverz2(flags)).toBe(true);
+    expect(isOperatorFleet(flags)).toBe(true);
+  });
+
+  it('usa el mismo valor predeterminado en el panel y el servidor', () => {
+    for (const key of ['riverz_2', 'operator_flota']) {
+      expect(FEATURES.some(f => f.key === key)).toBe(true);
+      expect(OPT_IN_FEATURES.some(f => f.key === key)).toBe(false);
+      expect(isFeatureEnabled({}, key)).toBe(true);
+    }
+  });
+
+  it('conserva el apagado explícito de emergencia', () => {
+    expect(isRiverz2({ riverz_2: false })).toBe(false);
+    expect(isOperatorFleet({ operator_flota: false })).toBe(false);
   });
 });
 

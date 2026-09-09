@@ -40,7 +40,7 @@ export interface FeatureDef {
  * Asistente, Productos, Integraciones, Ajustes): apagarlas dejaría la app sin
  * nada utilizable.
  */
-export const FEATURES: FeatureDef[] = [
+const SECTION_FEATURES: FeatureDef[] = [
   {
     key: 'flows',
     labelKey: 'admin.featureFlows',
@@ -97,19 +97,8 @@ export const FEATURES: FeatureDef[] = [
   },
 ];
 
-/**
- * Experiencias opt-in — la ausencia de fila significa lo CONTRARIO que arriba.
- *
- * Un flag de `FEATURES` apaga algo que todos los comercios ya usan, así que
- * ausente = habilitada. Estrenar una experiencia nueva necesita la regla
- * inversa: si `riverz_2` viviera en ese catálogo, el día que se sumara al
- * código toda la base saltaría a la versión nueva sin que nadie lo decidiera.
- *
- * Por eso van en un catálogo aparte y se leen con `isOptInEnabled`, que exige
- * el `true` explícito. Comparten tabla, API y panel con las otras; lo único
- * distinto es cómo se interpreta que no haya fila.
- */
-export const OPT_IN_FEATURES: FeatureDef[] = [
+/** Experiencias generales: misma disponibilidad para cuentas antiguas y nuevas. */
+const CORE_EXPERIENCES: FeatureDef[] = [
   {
     key: 'riverz_2',
     labelKey: 'admin.featureRiverz2',
@@ -119,19 +108,18 @@ export const OPT_IN_FEATURES: FeatureDef[] = [
     sections: [],
   },
   {
-    // El Operator con equipo: reparte el pedido entre especialistas en vez de
-    // resolverlo con veinticinco herramientas en una sola caja.
-    //
-    // Hace falta un flag NUEVO y no alcanza con `riverz_2`, que ya está
-    // prendido para el 100% de la base: sin éste, cada commit intermedio del
-    // equipo le llegaría a comercios reales. Con éste apagado, el chat corre
-    // exactamente el loop de siempre.
+    // Disponible por defecto en cuentas nuevas y antiguas. El false explícito
+    // se conserva como interruptor de emergencia de la plataforma.
     key: 'operator_flota',
     labelKey: 'admin.featureFlota',
     descKey: 'admin.featureFlotaDesc',
     sections: [],
   },
 ];
+
+/** Operador ya es una experiencia general, no requiere inscripción al piloto. */
+export const FEATURES: FeatureDef[] = [...SECTION_FEATURES, ...CORE_EXPERIENCES];
+export const OPT_IN_FEATURES: FeatureDef[] = [];
 
 /** Catálogo completo, para validar una clave que llega de afuera. */
 export const ALL_FEATURES: FeatureDef[] = [...FEATURES, ...OPT_IN_FEATURES];
@@ -150,12 +138,12 @@ export function isOptInEnabled(flags: FeatureFlags, key: string): boolean {
 
 /** ¿Este comercio usa la experiencia Riverz 2.0 (Operación IA)? */
 export function isRiverz2(flags: FeatureFlags): boolean {
-  return isOptInEnabled(flags, 'riverz_2');
+  return isFeatureEnabled(flags, 'riverz_2');
 }
 
 /** ¿Este comercio ya opera con el equipo de especialistas? */
 export function isOperatorFleet(flags: FeatureFlags): boolean {
-  return isOptInEnabled(flags, 'operator_flota');
+  return isFeatureEnabled(flags, 'operator_flota');
 }
 
 /** Feature que cubre esta ruta (o null si ninguna la gatea). */

@@ -21,6 +21,11 @@ import { SUBAGENT_IDS } from './types'
  */
 
 describe('la partición del catálogo', () => {
+  it('los especialistas también respetan las recetas de cada cuenta', () => {
+    expect(capacidadesDe('automatizaciones', 'other').some(c => c.key.startsWith('rasmiaw.'))).toBe(false)
+    expect(capacidadesDe('automatizaciones', 'b814e934-d832-4be9-bad4-79cca51c1e23').filter(c => c.key.startsWith('rasmiaw.'))).toHaveLength(3)
+    expect(capacidadesDe('automatizaciones', 'legacy').some(c => c.key === 'automatizaciones.crear')).toBe(true)
+  })
   it('toda capacidad tiene dueño, o está declarada sin dueño con su motivo', () => {
     for (const c of ALL_CAPABILITIES) {
       const dueno = subagentForCapability(c.key)

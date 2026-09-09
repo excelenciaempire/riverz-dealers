@@ -105,7 +105,7 @@ export async function decideOperatorAction(
     return { ok: true, status: 'rechazado', message: 'Listo, no se hizo nada.' }
   }
 
-  const cap = operatorCanUse(fila.capability_key)
+  const cap = operatorCanUse(fila.capability_key, input.workspaceId)
     ? findCapability(fila.capability_key)
     : undefined
   if (!cap) {

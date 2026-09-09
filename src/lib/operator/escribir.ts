@@ -122,6 +122,7 @@ export async function proponer(
   args: Record<string, unknown>,
 ): Promise<Escritura> {
   const cap = findCapability(key)!
+  if (!cap || (cap.workspaceIds && !cap.workspaceIds.includes(ctx.workspaceId))) throw new Error('operator_capability_unavailable')
   // Si la capacidad no puede describir lo que haría, no hay nada que aprobar.
   //
   // Esto se tragaba el error y guardaba el motivo COMO vista previa, así que
@@ -231,6 +232,7 @@ export async function construir(
   args: Record<string, unknown>,
 ): Promise<Escritura> {
   const cap = findCapability(key)!
+  if (!cap || (cap.workspaceIds && !cap.workspaceIds.includes(ctx.workspaceId))) throw new Error('operator_capability_unavailable')
   let preview: string | null = null
   try {
     preview = cap.preview ? await cap.preview(ctx, args) : null
