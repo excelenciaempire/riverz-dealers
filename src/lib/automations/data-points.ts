@@ -68,6 +68,15 @@ const FULFILLED: AutomationTriggerType[] = [
 ]
 
 export const DATA_POINTS: DataPoint[] = [
+  ...[
+    ['order_items', 'automations.dpOrderItems'],
+    ['delivery_address', 'automations.dpDeliveryAddress'],
+    ['delivery_phone', 'automations.dpDeliveryPhone'],
+    ['recipient_name', 'automations.dpRecipientName'],
+  ].map(([id, labelKey]): DataPoint => ({
+    id, labelKey, group: 'order', valueKind: 'text', triggers: ORDER_TRIGGERS,
+    usableInConditions: false, templateVarKey: id, condition: { kind: 'var', varKey: id },
+  })),
   // ── Order data (set by buildVarsForOrder + offer_* in the orders webhook) ──
   {
     id: 'offer_units',

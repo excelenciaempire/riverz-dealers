@@ -4,6 +4,12 @@ import { extractText, type WhatsAppMessage } from "./adapter";
 const msg = (m: Partial<WhatsAppMessage> & { type: string }) => m as WhatsAppMessage;
 
 describe("extractText", () => {
+  it.each(['CONFIRMAR', 'CORREGIR'])('preserva la respuesta de plantilla %s', (label) => {
+    expect(extractText(msg({ type: 'button', button: { text: label } }))).toBe(label);
+    expect(extractText(msg({ type: 'interactive', interactive: {
+      type: 'button_reply', button_reply: { id: label.toLowerCase(), title: label },
+    } }))).toBe(label);
+  });
   it("muestra el texto tal cual", () => {
     expect(extractText(msg({ type: "text", text: { body: "¿Precio?" } }))).toBe("¿Precio?");
   });

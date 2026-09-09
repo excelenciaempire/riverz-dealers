@@ -884,6 +884,16 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         }
       }
 
+      // Keep the reply context even after the last reminder (no pending wait).
+      // Human assignment is intentionally untouched.
+      const handoffId = String((args.automation.trigger_config as Record<string, unknown>)?.handoff_ai_agent_id ?? '').trim()
+      if (handoffId) {
+        const { error } = await db.from('conversations').update({
+          assigned_ai_agent_id: handoffId,
+          automation_context: args.context.vars ?? {},
+        }).eq('id', conversationId).eq('workspace_id', args.automation.workspace_id)
+        if (error) throw new Error(`automation reply context: ${error.message}`)
+      }
       const { whatsapp_message_id } = await engineSendTemplate({
         workspaceId: args.automation.workspace_id,
         conversationId,

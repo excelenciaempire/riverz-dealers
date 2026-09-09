@@ -26,6 +26,7 @@ import { resolveOfferChosen } from '@/lib/shopify/offers'
 import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
 import { marcarCuponesUsados } from '@/lib/shopify/discounts'
 import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido'
+import { confirmationSummary } from '@/lib/shopify/confirmation-summary'
 import { emitWebhook } from '@/lib/webhooks/outbound'
 import type {
   AutomationTriggerType,
@@ -723,6 +724,7 @@ function buildVarsForOrder(
   const shipping = order.shipping_address as Record<string, unknown> | undefined
 
   const base: Record<string, string> = {
+    ...confirmationSummary(order),
     customer_name: name ?? '',
     // Numeric Shopify order id — needed to write the call outcome back as a tag
     // (COD confirmation) and to edit the order on an in-call upsell.
