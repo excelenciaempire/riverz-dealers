@@ -4,7 +4,7 @@ import { syncAllWorkspaces } from '@/lib/contacts/bulk-sync';
 import { sincronizarPedidosDeShopify } from '@/lib/shopify/sincronizar-pedidos';
 import { recoverCommerceOrders } from '@/lib/commerce/recover-orders';
 import { assertCronAuth } from '@/lib/auth/cron';
-import { withCronRun } from "@/lib/cron/heartbeat";
+import { withCronRun } from '@/lib/cron/heartbeat';
 
 /**
  * GET /api/cron/contacts-sync
@@ -43,10 +43,34 @@ async function cronHandler(request: Request) {
         unmatched: acc.unmatched + r.unmatched,
         pending: acc.pending + r.pending,
       }),
-      { processed: 0, matched: 0, unmatched: 0, pending: 0 },
+      { processed: 0, matched: 0, unmatched: 0, pending: 0 }
     );
-    const ok = orders.every(order => !order.error) && commerce.every(order => !order.error);
-    return NextResponse.json({ ok, ...totals, workspaces: results, orders, commerce }, { status: ok ? 200 : 207 });
+    const failures = [
+      ...results
+        .filter((result) => result.error)
+        .map((result) => `contacts ${result.workspace_id}: ${result.error}`),
+      ...orders
+        .filter((order) => order.error)
+        .map((order) => `shopify ${order.shopDomain}: ${order.error}`),
+      ...commerce
+        .filter((order) => order.error)
+        .map((order) => `${order.platform} ${order.id}: ${order.error}`),
+    ];
+    const ok = failures.length === 0;
+    return NextResponse.json(
+      {
+        ok,
+        ...totals,
+        // `withCronRun` prioriza este campo al registrar un 207. Sin el resumen,
+        // los 500 caracteres se agotaban en `workspaces` y el panel cortaba justo
+        // antes del proveedor y del error que explicaban la falla.
+        ...(ok ? {} : { error: failures.join('; ').slice(0, 450) }),
+        workspaces: results,
+        orders,
+        commerce,
+      },
+      { status: ok ? 200 : 207 }
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -54,4 +78,4 @@ async function cronHandler(request: Request) {
 }
 
 /** Registra la corrida en cron_runs con duración y resultado reales. */
-export const GET = withCronRun("contacts-sync", cronHandler);
+export const GET = withCronRun('contacts-sync', cronHandler);
