@@ -69,14 +69,19 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
+  // Some browsers renew or omit the session cookie while returning from an
+  // external OAuth consent screen. The initiating user is included in the
+  // short-lived, HMAC-signed state, so it is safe to recover that identity
+  // without turning an expired Riverz session into a failed connection.
+  const initiatingUserId = user?.id ?? state.userId;
+  if (!initiatingUserId) {
     return redirectWithStatus(req, 'error', 'not signed in');
   }
   const { data: membership } = await supabaseAdmin()
     .from('workspace_members')
     .select('id')
     .eq('workspace_id', state.workspaceId)
-    .eq('user_id', user.id)
+    .eq('user_id', initiatingUserId)
     .eq('role', 'admin')
     .maybeSingle();
   if (!membership) {
@@ -346,7 +351,7 @@ export async function GET(
         accessToken,
         channel,
         workspaceId: state.workspaceId,
-        userId: user.id,
+        userId: initiatingUserId,
         baseSecrets,
         pageIds,
       });
@@ -426,7 +431,7 @@ export async function GET(
       external_account_id: externalAccountId,
       config: rowConfig,
       secrets,
-      created_by: user.id,
+      created_by: initiatingUserId,
     });
     if (up.error || !up.id) {
       console.error(`[oauth/${provider}] persist failed:`, up.error);
@@ -451,7 +456,7 @@ export async function GET(
         external_account_id: externalAccountId,
         config: rowConfig,
         secrets,
-        created_by: user.id,
+        created_by: initiatingUserId,
       })
       .select('*')
       .maybeSingle();

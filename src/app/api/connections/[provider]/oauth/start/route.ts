@@ -105,6 +105,7 @@ export async function GET(
   const state = encodeState({
     workspaceId,
     channel,
+    userId: user.id,
     ...(pkce ? { codeVerifier: pkce.verifier } : {}),
   });
   const redirectUri = `${baseUrl(req)}/api/connections/${provider}/oauth/callback`;
