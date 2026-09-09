@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { recoveryAction, recoveryCheckoutAllowed } from './recovery-policy';
+import {
+  recoveryAction,
+  recoveryButtonKind,
+  recoveryButtonLosesToConfirmation,
+  recoveryCheckoutAllowed,
+  recoveryHasExistingOrder,
+} from './recovery-policy';
 import { señalDura } from './escalada';
 import { publicReplyFrom } from '@/lib/instagram-agent/realtime';
 import { heuristicDmDecision } from '@/lib/instagram-agent/dm-opportunity';
@@ -28,6 +34,63 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     expect(
       recoveryAction({ assignedOnly: true, text: 'SI', benefitPercent: 10 })
     ).toBe('benefit');
+  });
+
+  it('trata BENEFICIO como cambio de pago cuando el pedido ya existe', () => {
+    const context = {
+      order_id: '7757884784938',
+      financial_status: 'pending',
+      payment_gateway: 'Pago Contra Entrega',
+      benefit_percent: 5,
+    };
+    expect(recoveryHasExistingOrder(context)).toBe(true);
+    const action = recoveryAction({
+      assignedOnly: true,
+      text: 'BENEFICIO',
+      benefitPercent: context.benefit_percent,
+      existingOrder: recoveryHasExistingOrder(context),
+    });
+    expect(action).toBe('manual_payment');
+    expect(recoveryCheckoutAllowed(action)).toBe(false);
+  });
+
+  it('tampoco crea cupón con SI para un pedido existente', () => {
+    const action = recoveryAction({
+      assignedOnly: true,
+      text: 'SI',
+      benefitPercent: 10,
+      existingOrder: true,
+    });
+    expect(action).toBe('manual_payment');
+    expect(recoveryCheckoutAllowed(action)).toBe(false);
+  });
+
+  it('reconoce los botones contradictorios para priorizar CONFIRMAR', () => {
+    expect(recoveryButtonKind('CONFIRMAR')).toBe('confirm');
+    expect(recoveryButtonKind('BENEFICIO')).toBe('payment_change');
+    expect(recoveryButtonKind('SI')).toBe('payment_change');
+    expect(recoveryButtonKind('Necesito ayuda')).toBeNull();
+    expect(
+      recoveryButtonLosesToConfirmation({
+        currentText: 'BENEFICIO',
+        competingText: 'CONFIRMAR',
+        existingOrder: true,
+      })
+    ).toBe(true);
+    expect(
+      recoveryButtonLosesToConfirmation({
+        currentText: 'CONFIRMAR',
+        competingText: 'BENEFICIO',
+        existingOrder: true,
+      })
+    ).toBe(false);
+    expect(
+      recoveryButtonLosesToConfirmation({
+        currentText: 'BENEFICIO',
+        competingText: 'CONFIRMAR',
+        existingOrder: false,
+      })
+    ).toBe(false);
   });
 
   it('manda transferencias y comprobantes a revisión humana', () => {

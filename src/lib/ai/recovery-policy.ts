@@ -8,22 +8,71 @@ export type RecoveryAction =
 const MANUAL_PAYMENT =
   /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i;
 
+function normalizedButton(text: string): string {
+  return text.trim().normalize('NFC').toUpperCase();
+}
+
+export function recoveryButtonKind(
+  text: string,
+): 'confirm' | 'payment_change' | null {
+  const normalized = normalizedButton(text);
+  if (normalized === 'CONFIRMAR') return 'confirm';
+  if (normalized === 'BENEFICIO' || normalized === 'SI') {
+    return 'payment_change';
+  }
+  return null;
+}
+
+export function recoveryButtonLosesToConfirmation(input: {
+  currentText: string;
+  competingText: string;
+  existingOrder: boolean;
+}): boolean {
+  return (
+    input.existingOrder &&
+    recoveryButtonKind(input.currentText) === 'payment_change' &&
+    recoveryButtonKind(input.competingText) === 'confirm'
+  );
+}
+
 export function recoveryAction(input: {
   assignedOnly: boolean;
   text: string;
   benefitPercent?: unknown;
+  existingOrder?: boolean;
 }): RecoveryAction {
   if (!input.assignedOnly) return 'none';
 
-  const text = input.text.trim().normalize('NFC').toUpperCase();
+  const text = normalizedButton(input.text);
   if (text === 'CONFIRMAR') return 'confirm_cod';
   if (MANUAL_PAYMENT.test(input.text)) return 'manual_payment';
 
   const benefit = Number(input.benefitPercent ?? 0);
-  if (text === 'BENEFICIO' && (benefit === 5 || benefit === 10))
-    return 'benefit';
-  if (text === 'SI' && benefit === 10) return 'benefit';
+  const requestedBenefit =
+    (text === 'BENEFICIO' && (benefit === 5 || benefit === 10)) ||
+    (text === 'SI' && benefit === 10);
+  // En un pedido que ya existe, esos botones no abren una venta nueva:
+  // solicitan cambiar la forma de pago del pedido actual. Un cupón personal
+  // para "la próxima compra" no aplica y además deja el pedido intacto.
+  if (requestedBenefit && input.existingOrder) return 'manual_payment';
+  if (requestedBenefit) return 'benefit';
   return 'none';
+}
+
+/**
+ * Contexto de una recuperación que ya tiene un pedido concreto detrás.
+ * Las integraciones históricas no usan siempre la misma clave, por eso se
+ * aceptan los tres identificadores que ya llegan desde los disparadores.
+ */
+export function recoveryHasExistingOrder(
+  context: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!context) return false;
+  return Boolean(
+    String(context.order_id ?? '').trim() ||
+      String(context.order_number ?? '').trim() ||
+      String(context.order_name ?? '').trim(),
+  );
 }
 
 export function recoveryCheckoutAllowed(action: RecoveryAction): boolean {

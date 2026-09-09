@@ -98,7 +98,13 @@ import {
   type CandidateProduct,
   type ProductMatch,
 } from './product-routing';
-import { recoveryAction, recoveryCheckoutAllowed } from './recovery-policy';
+import {
+  recoveryAction,
+  recoveryButtonKind,
+  recoveryButtonLosesToConfirmation,
+  recoveryCheckoutAllowed,
+  recoveryHasExistingOrder,
+} from './recovery-policy';
 import {
   resolverRegistro,
   RIOPLATENSE_TEXTO,
@@ -270,6 +276,12 @@ export async function runAiAgent(
     const forcedAgentId =
       (handoff as { assigned_ai_agent_id?: string | null } | null)
         ?.assigned_ai_agent_id ?? null;
+    const automationContext =
+      (
+        handoff as {
+          automation_context?: Record<string, unknown> | null;
+        } | null
+      )?.automation_context ?? null;
 
     const agent = await pickAgent(db, args.workspaceId, args.channel, {
       productMatch,
@@ -296,6 +308,13 @@ export async function runAiAgent(
     }
 
     const textoEntrante = args.inboundMessage.content_text ?? '';
+    const existingOrderRecovery = recoveryHasExistingOrder(automationContext);
+    const recoveryIntent = recoveryAction({
+      assignedOnly: Boolean(agent.assigned_only),
+      text: textoEntrante,
+      benefitPercent: automationContext?.benefit_percent,
+      existingOrder: existingOrderRecovery,
+    });
     if (
       args.channel !== 'webchat' &&
       containsEscalationKeyword(agent, textoEntrante)
@@ -543,9 +562,44 @@ export async function runAiAgent(
     // has the lexicographically-greatest id at the latest created_at)
     // proceeds. Avoids the all-skip silence we'd get from a naive
     // gt(created_at) check on ties.
+    const currentRecoveryButton = recoveryButtonKind(textoEntrante);
+    const { data: sameTimestampRows } =
+      existingOrderRecovery && currentRecoveryButton
+        ? await db
+            .from('messages')
+            .select('id, content_text')
+            .eq('conversation_id', args.conversation.id)
+            .eq('sender_type', 'customer')
+            .eq('created_at', inboundTs)
+            .neq('id', inboundId)
+            .limit(20)
+        : { data: null };
+    const losesToSameTimestampConfirmation = (sameTimestampRows ?? []).some(
+      (m: { content_text?: string | null }) =>
+        recoveryButtonLosesToConfirmation({
+          currentText: textoEntrante,
+          competingText: m.content_text ?? '',
+          existingOrder: existingOrderRecovery,
+        })
+    );
+    // Meta timestamps have one-second precision. If the person taps both
+    // mutually exclusive buttons in that second, UUID order is arbitrary;
+    // the safe choice is CONFIRMAR (keep the existing COD order), never the
+    // payment-change branch and never a coupon.
+    if (
+      currentRecoveryButton === 'payment_change' &&
+      losesToSameTimestampConfirmation
+    ) {
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'debounced_by_newer_inbound',
+      });
+      return;
+    }
+
     const { data: laterRows } = await db
       .from('messages')
-      .select('id, content_text, media_url')
+      .select('id, content_text, media_url, created_at')
       .eq('conversation_id', args.conversation.id)
       .eq('sender_type', 'customer')
       .or(
@@ -558,13 +612,47 @@ export async function runAiAgent(
     // run (gate en inbox-writer), así que contarlo dejaría al DM real sin
     // responder.
     const laterAnswerable = (laterRows ?? []).some(
-      (m: { content_text?: string | null; media_url?: string | null }) =>
-        Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url)
+      (m: {
+        content_text?: string | null;
+        media_url?: string | null;
+        created_at?: string | null;
+      }) => {
+        const isLosingSameSecondChoice =
+          currentRecoveryButton === 'confirm' &&
+          m.created_at === inboundTs &&
+          recoveryButtonLosesToConfirmation({
+            currentText: m.content_text ?? '',
+            competingText: textoEntrante,
+            existingOrder: existingOrderRecovery,
+          });
+        if (isLosingSameSecondChoice) return false;
+        return Boolean((m.content_text ?? '').trim()) || Boolean(m.media_url);
+      }
     );
     if (laterAnswerable) {
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'debounced_by_newer_inbound',
+      });
+      return;
+    }
+
+    if (args.channel !== 'webchat' && recoveryIntent === 'manual_payment') {
+      const porQue = existingOrderRecovery
+        ? 'Quiere cambiar la forma de pago de un pedido existente'
+        : 'Necesita ayuda con una forma de pago manual';
+      await flagNeedsHuman(db, args.conversation, 'problema_detectado', {
+        pidio: textoEntrante,
+        porQue,
+      });
+      await avisarDelCaso(db, args, {
+        clase: 'cobro',
+        urgencia: 'hoy',
+        porQue,
+      });
+      await logReply(db, agent, args, {
+        status: 'skipped',
+        skip_reason: 'problema_detectado',
       });
       return;
     }
@@ -698,11 +786,7 @@ export async function runAiAgent(
           inboundText: args.inboundMessage.content_text ?? '',
         },
         { priceQuestion, priceVerified },
-        (
-          handoff as {
-            automation_context?: Record<string, unknown> | null;
-          } | null
-        )?.automation_context ?? null
+        automationContext
       );
     } catch (genErr) {
       // El modelo falló (p. ej. Anthropic 401/402 sin crédito, 429, o 5xx).
@@ -2692,7 +2776,10 @@ async function generateReply(
   const handoffContext = recoveryContext;
   if (handoffContext && agent.assigned_only) {
     const etapa = Number(handoffContext.benefit_percent ?? 0);
-    system += `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
+    const pedidoExistente = recoveryHasExistingOrder(handoffContext);
+    system += pedidoExistente
+      ? `\n\nRECUPERACIÓN ASIGNADA\nEste chat corresponde a un pedido que ya existe. CONFIRMAR conserva el pago contra entrega. BENEFICIO${etapa === 10 ? ' o SI' : ''} solicita cambiar la forma de pago del pedido actual y aplicar el beneficio anunciado: NO genera cupón, NO genera otro checkout y NO es para una compra futura. La gestión se escala al equipo humano. No inventes datos de Transferencia, Llave, Bold ni Addi.`
+      : `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
   }
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
@@ -2760,6 +2847,7 @@ async function generateReply(
     assignedOnly: Boolean(agent.assigned_only),
     text: origen.inboundText,
     benefitPercent: etapaBeneficio,
+    existingOrder: recoveryHasExistingOrder(handoffContext),
   });
   const descuentoFijo =
     accionRecuperacion === 'benefit' && [5, 10].includes(etapaBeneficio)
