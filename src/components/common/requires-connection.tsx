@@ -4,12 +4,17 @@ import Link from "@/components/i18n/locale-link";
 import { Plug2, Loader2 } from "lucide-react";
 import { useT } from "@/hooks/use-locale";
 import { useActiveConnections } from "@/hooks/use-active-connections";
+import type { Channel } from "@/types";
 
 interface RequiresConnectionProps {
   /** Short title shown above the explanation. */
   title: string;
   /** One-sentence description of WHY this module needs a connection. */
   description: string;
+  /** When set, this specific channel must be connected. */
+  requiredChannel?: Channel;
+  /** Optional channel-specific label for the settings link. */
+  actionLabel?: string;
   children: React.ReactNode;
 }
 
@@ -20,9 +25,18 @@ interface RequiresConnectionProps {
  * settings. As soon as the admin connects something, the wrapped
  * content takes over.
  */
-export function RequiresConnection({ title, description, children }: RequiresConnectionProps) {
+export function RequiresConnection({
+  title,
+  description,
+  requiredChannel,
+  actionLabel,
+  children,
+}: RequiresConnectionProps) {
   const t = useT();
-  const { hasAny, loading } = useActiveConnections();
+  const { channels, hasAny, loading } = useActiveConnections();
+  const hasRequiredConnection = requiredChannel
+    ? channels.has(requiredChannel)
+    : hasAny;
 
   if (loading) {
     return (
@@ -32,7 +46,7 @@ export function RequiresConnection({ title, description, children }: RequiresCon
     );
   }
 
-  if (!hasAny) {
+  if (!hasRequiredConnection) {
     return (
       <div className="mx-auto max-w-xl py-12">
         <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-primary/10 p-8 text-center">
@@ -48,7 +62,7 @@ export function RequiresConnection({ title, description, children }: RequiresCon
               className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 lg:min-h-0"
             >
               <Plug2 className="size-4" />
-              {t("metrics.connectChannel")}
+              {actionLabel ?? t("metrics.connectChannel")}
             </Link>
           </div>
         </div>

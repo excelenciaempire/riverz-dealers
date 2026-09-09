@@ -11,6 +11,8 @@ export default async function TemplatesLayout({
     <RequiresConnection
       title={t('templates.connectToManage')}
       description={t('templates.connectDescription')}
+      requiredChannel="whatsapp"
+      actionLabel={t('templates.connectWhatsapp')}
     >
       {children}
     </RequiresConnection>

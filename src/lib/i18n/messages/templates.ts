@@ -268,6 +268,7 @@ export const templates = {
     es: "Las plantillas se envían a Meta para su aprobación.",
     en: "Templates are sent to Meta for approval.",
   },
+  connectWhatsapp: { es: "Conectar WhatsApp", en: "Connect WhatsApp" },
 
   // ── Live validation messages (template-validate.ts → builder issues panel) ──
   tplValidate_name_required: {
