@@ -16,7 +16,7 @@ import { mapWithConcurrency } from '@/lib/async/concurrency'
  *      la tabla arranca vacía y el historial del comercio empieza hoy.
  *   2. Los que el webhook se perdió. Shopify reintenta 19 veces en 48 h y
  *      después abandona; si el servicio estuvo caído esa noche, esa venta no
- *      vuelve nunca. Una pasada por hora la recupera sin que nadie mire.
+ *      vuelve nunca. La recuperación incremental la incorpora sin enviar avisos.
  *
  * Se pide por `updated_at_min` y no por fecha de creación: así una venta
  * vieja que cambió de estado (se pagó, se despachó, se devolvió) también
@@ -90,6 +90,7 @@ export async function sincronizarPedidosDeUnaTienda(
     dias?: number
     /** Tope de páginas, para que una tienda grande no se coma la corrida. */
     maxPaginas?: number
+    pageSize?: number
     since?: string
     nextPage?: string | null
   },
@@ -97,6 +98,7 @@ export async function sincronizarPedidosDeUnaTienda(
   const { workspaceId, shopDomain, accessToken } = args
   const dias = args.dias ?? 60
   const maxPaginas = args.maxPaginas ?? 20
+  const pageSize = Math.max(1, Math.min(250, args.pageSize ?? 250))
   const desde = args.since ?? new Date(Date.now() - dias * 86_400_000).toISOString()
 
   const resumen: ResumenDeSincronizacion = {
@@ -108,13 +110,14 @@ export async function sincronizarPedidosDeUnaTienda(
 
   let url =
     `https://${shopDomain}/admin/api/${shopifyApiVersion()}/orders.json` +
-    `?status=any&limit=250&updated_at_min=${encodeURIComponent(desde)}` +
+    `?status=any&limit=${pageSize}&updated_at_min=${encodeURIComponent(desde)}` +
     `&fields=${encodeURIComponent(CAMPOS)}`
   if (args.nextPage) {
     const next = new URL(args.nextPage);
     if (next.protocol !== 'https:' || next.host !== shopDomain || !next.pathname.endsWith('/orders.json')) {
       throw new Error('invalid_shopify_sync_cursor');
     }
+    if (args.pageSize) next.searchParams.set('limit', String(pageSize));
     url = next.toString();
   }
 
@@ -198,7 +201,9 @@ export async function sincronizarPedidosDeShopify(
     vistas.add(clave)
     return true;
   }).sort((a, b) => String(a.sync_state?.attempted_at ?? '').localeCompare(String(b.sync_state?.attempted_at ?? '')));
+  const deadline = Date.now() + 90_000;
   await mapWithConcurrency(unique, 3, async c => {
+    if (Date.now() >= deadline) return;
     const state = c.sync_state ?? {};
     const objective = state.objective ?? new Date().toISOString();
     const since = state.since ?? new Date(state.mark ? Date.parse(state.mark) - 15 * 60_000 : Date.now() - (opciones.dias ?? 60) * 86_400_000).toISOString();
@@ -210,7 +215,8 @@ export async function sincronizarPedidosDeShopify(
           dias: opciones.dias,
           since,
           nextPage: state.nextPage,
-          maxPaginas: 2,
+          maxPaginas: 1,
+          pageSize: 25,
         });
       const { error } = await db.from('shopify_connections').update({ sync_state: {
         mark: result.complete ? objective : state.mark,

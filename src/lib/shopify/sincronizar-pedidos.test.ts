@@ -6,6 +6,17 @@ import { sincronizarPedidosDeUnaTienda } from './sincronizar-pedidos';
 afterEach(() => { vi.unstubAllGlobals(); mirror.mockReset().mockResolvedValue('creado'); });
 const args = { workspaceId: 'workspace-a', shopDomain: 'a.myshopify.com', accessToken: 'token', maxPaginas: 1 };
 describe('resumable passive order recovery', () => {
+  it('uses a small batch when resuming an existing cursor', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ orders: [] })));
+    vi.stubGlobal('fetch', request);
+    await sincronizarPedidosDeUnaTienda({} as never, {
+      ...args, pageSize: 25,
+      nextPage: 'https://a.myshopify.com/admin/api/2025-10/orders.json?page_info=cursor&limit=250',
+    });
+    const url = new URL(request.mock.calls[0][0]);
+    expect(url.searchParams.get('limit')).toBe('25');
+    expect(url.searchParams.get('page_info')).toBe('cursor');
+  });
   it('retains the next page instead of reporting a capped pass as complete', async () => {
     const next = 'https://a.myshopify.com/admin/api/2025-10/orders.json?page_info=cursor';
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ orders: [{ id: 1 }] }), {
