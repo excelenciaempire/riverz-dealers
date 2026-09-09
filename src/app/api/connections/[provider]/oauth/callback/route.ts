@@ -53,15 +53,27 @@ export async function GET(
   const stateToken = url.searchParams.get('state');
   const oauthError = url.searchParams.get('error');
   if (oauthError) {
-    return redirectWithStatus(req, 'error', oauthError);
+    return redirectWithStatus(
+      req,
+      'error',
+      provider === 'zoho' ? 'zoho_authorization_denied' : oauthError
+    );
   }
   if (!code || !stateToken) {
-    return redirectWithStatus(req, 'error', 'missing code or state');
+    return redirectWithStatus(
+      req,
+      'error',
+      provider === 'zoho' ? 'zoho_authorization_expired' : 'missing code or state'
+    );
   }
 
   const state = decodeState(stateToken);
   if (!state) {
-    return redirectWithStatus(req, 'error', 'invalid or expired state');
+    return redirectWithStatus(
+      req,
+      'error',
+      provider === 'zoho' ? 'zoho_authorization_expired' : 'invalid or expired state'
+    );
   }
 
   // Confirm caller is the admin who initiated the flow.
@@ -166,13 +178,21 @@ export async function GET(
     }
   } catch (err) {
     console.error(`[oauth/${provider}] token exchange failed:`, err);
-    return redirectWithStatus(req, 'error', 'token exchange failed');
+    return redirectWithStatus(
+      req,
+      'error',
+      provider === 'zoho' ? 'zoho_token_exchange_failed' : 'token exchange failed'
+    );
   }
 
   const accessToken = String(tokenJson.access_token ?? '');
   const refreshToken = String(tokenJson.refresh_token ?? '');
   if (!accessToken) {
-    return redirectWithStatus(req, 'error', 'no access_token in response');
+    return redirectWithStatus(
+      req,
+      'error',
+      provider === 'zoho' ? 'zoho_token_exchange_failed' : 'no access_token in response'
+    );
   }
 
   // Discover the connected account label/email so the connection card

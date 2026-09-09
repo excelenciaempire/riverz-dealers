@@ -68,6 +68,9 @@ function connectionErrorDetail(
 ): string {
   if (detail === 'zoho_mailbox_required') return t('settings.zohoMailboxRequired');
   if (detail === 'zoho_inbox_required') return t('settings.zohoInboxRequired');
+  if (detail === 'zoho_authorization_denied') return t('settings.zohoAuthorizationDenied');
+  if (detail === 'zoho_authorization_expired') return t('settings.zohoAuthorizationExpired');
+  if (detail === 'zoho_token_exchange_failed') return t('settings.zohoTokenExchangeFailed');
   if (detail === 'mailbox_address_unavailable') return t('settings.mailboxAddressUnavailable');
   return t('settings.connectResultErrorDetail');
 }

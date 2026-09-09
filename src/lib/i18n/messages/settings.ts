@@ -195,6 +195,18 @@ export const settings = {
     es: 'Esta cuenta de Zoho Mail no tiene una bandeja de entrada disponible.',
     en: 'This Zoho Mail account does not have an available inbox.',
   },
+  zohoAuthorizationDenied: {
+    es: 'Zoho no autorizó el acceso al buzón. Marca la casilla de permiso y acepta.',
+    en: 'Zoho did not authorize mailbox access. Select the permission checkbox and accept.',
+  },
+  zohoAuthorizationExpired: {
+    es: 'La autorización de Zoho venció antes de completarse. Vuelve a conectarla y acepta de inmediato.',
+    en: 'Zoho authorization expired before it was completed. Reconnect and accept right away.',
+  },
+  zohoTokenExchangeFailed: {
+    es: 'Zoho autorizó la cuenta, pero no entregó un acceso usable. Vuelve a conectar la misma cuenta de Zoho Mail.',
+    en: 'Zoho authorized the account but did not provide usable access. Reconnect the same Zoho Mail account.',
+  },
   connectResultCancelled: {
     es: 'Conexión cancelada',
     en: 'Connection cancelled',
