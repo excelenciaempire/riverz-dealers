@@ -9,6 +9,7 @@ import { decrypt } from "@/lib/channels/encryption";
 import { withAppsecretProof } from "@/lib/channels/meta-graph";
 import { describeMetaSendError, parseMetaError } from "@/lib/channels/meta-errors";
 import { puedeEditarse } from "@/lib/inbox/editable";
+import { conversationPreviewFromMessage } from "@/lib/inbox/conversation-preview";
 import type { ChannelConnection, Conversation, Message } from "@/types";
 
 /**
@@ -59,7 +60,7 @@ export async function DELETE(
   const admin = supabaseAdmin();
   const { data: row } = await admin
     .from("messages")
-    .select("id, conversation:conversations(workspace_id)")
+    .select("id, conversation_id, created_at, conversation:conversations(workspace_id)")
     .eq("id", id)
     .maybeSingle();
   if (!row) {
@@ -93,7 +94,39 @@ export async function DELETE(
   if (error) {
     return serverError(error);
   }
-  return NextResponse.json({ ok: true });
+
+  // La lista no lee `messages`: usa el resumen desnormalizado que vive en la
+  // conversación. Si se borró el último, hay que rebobinarlo al anterior; de
+  // lo contrario la burbuja desaparece pero su texto queda en el preview.
+  const deleted = row as {
+    conversation_id: string;
+    created_at: string;
+  };
+  const { data: latest, error: latestError } = await admin
+    .from("messages")
+    .select(
+      "content_text, content_type, subject, media_type, created_at, sender_type, status, is_hidden",
+    )
+    .eq("conversation_id", deleted.conversation_id)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestError) return serverError(latestError);
+
+  // El guard evita que una llegada concurrente más nueva sea pisada por este
+  // rebobinado. Si el borrado fue de un mensaje viejo, tampoco toca el preview.
+  const preview = conversationPreviewFromMessage(
+    (latest as Message | null) ?? null,
+  );
+  const { error: previewError } = await admin
+    .from("conversations")
+    .update(preview)
+    .eq("id", deleted.conversation_id)
+    .lte("last_message_at", deleted.created_at);
+  if (previewError) return serverError(previewError);
+
+  return NextResponse.json({ ok: true, preview });
 }
 
 /**

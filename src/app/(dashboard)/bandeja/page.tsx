@@ -647,6 +647,9 @@ export default function InboxPage() {
 
   const handleDeleteMessage = useCallback((id: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== id));
+    // El DELETE también rebobina el resumen de la conversación. La
+    // resincronización actualiza el preview incluso si Realtime está dormido.
+    setResyncToken((n) => n + 1);
   }, []);
 
   const handleStatusChange = useCallback(
