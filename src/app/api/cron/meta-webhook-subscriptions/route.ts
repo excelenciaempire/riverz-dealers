@@ -10,6 +10,7 @@ import {
   pageFieldsForChannel,
   getAppWebhookSubscriptions,
   appSubscriptionGaps,
+  APP_WEBHOOK_EXPECTATIONS,
   appWebhookBaseUrl,
   setAppWebhookSubscription,
   subscribeWabaToWebhooks,
@@ -21,6 +22,10 @@ import {
   DEFAULT_CONNECTION_CONCURRENCY,
   forEachWithConcurrency,
 } from "@/lib/async/concurrency";
+import {
+  fetchWhatsAppAccountHealth,
+  persistWhatsAppHealthSnapshot,
+} from "@/lib/whatsapp/account-health";
 
 const log = getLogger("cron.meta-webhook-subscriptions");
 
@@ -172,6 +177,8 @@ async function cronHandler(request: Request) {
     wabaId: string;
     reapplied: boolean;
     subscribed: boolean | null;
+    healthRefreshed: boolean;
+    healthCanSend: string | null;
   }> = [];
   let waMissing = 0;
   await forEachWithConcurrency(
@@ -182,6 +189,9 @@ async function cronHandler(request: Request) {
       const enc = String(secrets.access_token ?? "");
       const cfg = (c.config ?? {}) as Record<string, unknown>;
       const wabaId = String(cfg.waba_id ?? "");
+      const phoneNumberId = String(
+        cfg.phone_number_id ?? c.external_account_id ?? "",
+      );
       if (!enc || !wabaId) {
         skipped++;
         return;
@@ -204,7 +214,30 @@ async function cronHandler(request: Request) {
       } else if (subscribed === true) {
         healthy++;
       }
-      waResults.push({ id: c.id, wabaId, reapplied, subscribed });
+      // La salud cambia sin webhook (por ejemplo, cuando el comercio termina
+      // de configurar la facturación). Si sólo se leyera al conectar, una
+      // cuenta recuperada seguiría bloqueando sus automatizaciones para
+      // siempre. El snapshot también reevalúa los flujos armados.
+      let healthRefreshed = false;
+      let healthCanSend: string | null = null;
+      if (phoneNumberId) {
+        const health = await fetchWhatsAppAccountHealth({
+          phoneNumberId,
+          wabaId,
+          accessToken: token,
+        });
+        await persistWhatsAppHealthSnapshot(admin, c.id, health);
+        healthRefreshed = true;
+        healthCanSend = health.canSendMessage;
+      }
+      waResults.push({
+        id: c.id,
+        wabaId,
+        reapplied,
+        subscribed,
+        healthRefreshed,
+        healthCanSend,
+      });
     },
   );
 
@@ -229,13 +262,17 @@ async function cronHandler(request: Request) {
     );
   }
 
-  // AUTO-REPARACIÓN del callback_url. Cuando el servicio cambia de dominio, la
-  // suscripción sigue "activa" apuntando al host viejo: Meta entrega a un
-  // servidor muerto y la bandeja deja de recibir sin un solo error. Reescribir
-  // la suscripción es el mismo POST idempotente del portal, así que lo hacemos
-  // acá en vez de esperar a que alguien lo note. Los otros huecos (campo
-  // faltante, objeto inactivo) NO se auto-reparan: se configuran en el
-  // dashboard y adivinarlos sería pisar una decisión del panel.
+  // AUTO-REPARACIÓN app-level. El catálogo de campos esperados es explícito y
+  // versionado arriba, así que unir esos campos a la suscripción viva no
+  // adivina nada ni elimina decisiones del dashboard. También reactiva el
+  // objeto y conserva cualquier campo adicional ya configurado.
+  const subscriptionFixes: Array<{
+    object: string;
+    missing: string[];
+    inactive: boolean;
+    fields: string[];
+    ok: boolean;
+  }> = [];
   const callbackFixes: Array<{
     object: string;
     from: string;
@@ -243,33 +280,56 @@ async function cronHandler(request: Request) {
     ok: boolean;
   }> = [];
   for (const gap of appGaps) {
-    if (!gap.wrongCallback || !appSubs) continue;
+    if (!appSubs) continue;
     const sub = appSubs[gap.object];
+    // Si el objeto entero no existe no conocemos su ruta de callback. Se
+    // conserva como hueco confirmado para intervención, sin inventarla.
+    if (!sub?.callbackUrl) continue;
+    const fields = Array.from(
+      new Set([
+        ...sub.fields,
+        ...(APP_WEBHOOK_EXPECTATIONS[gap.object] ?? []),
+      ]),
+    );
+    const callbackUrl = gap.wrongCallback
+      ? gap.expectedCallbackUrl
+      : sub.callbackUrl;
     const ok = await setAppWebhookSubscription(
       gap.object,
-      sub.fields,
-      gap.expectedCallbackUrl,
+      fields,
+      callbackUrl,
     );
-    callbackFixes.push({
+    subscriptionFixes.push({
       object: gap.object,
-      from: gap.callbackUrl,
-      to: gap.expectedCallbackUrl,
+      missing: gap.missing,
+      inactive: gap.inactive,
+      fields,
       ok,
     });
-    log[ok ? "warn" : "error"](
-      ok
-        ? "app-level callback_url repuntado al dominio actual"
-        : "no se pudo repuntar el callback_url app-level",
-      {
+    if (gap.wrongCallback) {
+      callbackFixes.push({
         object: gap.object,
         from: gap.callbackUrl,
         to: gap.expectedCallbackUrl,
+        ok,
+      });
+    }
+    log[ok ? "warn" : "error"](
+      ok
+        ? "suscripción app-level reparada"
+        : "no se pudo reparar la suscripción app-level",
+      {
+        object: gap.object,
+        missing: gap.missing,
+        inactive: gap.inactive,
+        from: gap.callbackUrl,
+        to: callbackUrl,
       },
     );
   }
   // Releer para no reportar un hueco que acabamos de cerrar (y para que el 207
   // refleje lo que quedó, no lo que había).
-  if (callbackFixes.some((f) => f.ok)) {
+  if (subscriptionFixes.some((f) => f.ok)) {
     const reread = await getAppWebhookSubscriptions();
     if (reread) appGaps = appSubscriptionGaps(reread);
   }
@@ -291,6 +351,7 @@ async function cronHandler(request: Request) {
       waResults,
       appSubscriptions: appSubs,
       appGaps,
+      subscriptionFixes,
       callbackFixes,
     },
     { status: anyMissing || anyAppGap ? 207 : 200 },

@@ -230,7 +230,15 @@ export async function pullCommentsForConnection(
   });
   if (!isComment) return empty('sin_config');
   const cfg = (connection.config ?? {}) as Record<string, unknown>;
-  const igUserId = String(cfg.ig_user_id ?? '');
+  // Conexiones hermanas creadas por versiones viejas podían conservar el
+  // activo de Instagram sólo en `external_account_id`. Ese id ES el usuario
+  // profesional y alcanza para el pull; exigir además la copia en config hacía
+  // que una conexión visible como "conectada" devolviera `sin_config`.
+  const igUserId = String(
+    cfg.ig_user_id ??
+      (channel === 'ig_comment' ? connection.external_account_id : '') ??
+      ''
+  );
   const pageId = String(cfg.page_id ?? '');
   // Instagram cuelga los comentarios de la cuenta profesional; Facebook, de la
   // página.

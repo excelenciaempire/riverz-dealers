@@ -695,7 +695,15 @@ export const APP_WEBHOOK_EXPECTATIONS: Record<string, string[]> = {
   // WhatsApp inbound + `smb_message_echoes` = messages the merchant sends from
   // their own WhatsApp app (coexistence) syncing back into Riverz. Both are
   // app-level fields; losing the echo field silently breaks app→Riverz sync.
-  whatsapp_business_account: ['messages', 'smb_message_echoes'],
+  whatsapp_business_account: [
+    'messages',
+    'smb_message_echoes',
+    // La aprobación o pausa de una plantilla cambia fuera de Riverz. Sin
+    // estos eventos, el catálogo queda en Pending para siempre y los flujos
+    // armados nunca se activan aunque Meta ya permita enviarlos.
+    'message_template_status_update',
+    'message_template_quality_update',
+  ],
 };
 
 /** Una suscripción app-level tal como la devuelve Graph. */

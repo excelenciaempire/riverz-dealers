@@ -404,9 +404,24 @@ export async function POST(request: Request) {
     }
     if (!contactId) return NextResponse.json({ ok: true })
 
-    // El pedido se guardó recién, cuando todavía no había contacto. Ahora que
-    // existe, se le engancha —junto con las compras anteriores del mismo
-    // email o teléfono que hubieran quedado sueltas.
+    // El espejo se escribe antes de resolver el teléfono. Sellar ahora el
+    // contacto sobre `orders` hace que el pedido aparezca en el panel Shopify
+    // de esta conversación; antes la fila quedaba huérfana aunque el webhook
+    // sí hubiera creado el contacto y enviado la automatización.
+    if (orderId > 0) {
+      const { error: orderContactError } = await admin
+        .from('orders')
+        .update({ contact_id: contactId })
+        .eq('workspace_id', workspaceId)
+        .eq('shop_domain', shopDomain)
+        .eq('shopify_order_id', String(orderId))
+      if (orderContactError) {
+        console.error('[shopify] order contact link failed:', orderContactError)
+      }
+    }
+
+    // También se enganchan las compras históricas del mismo email o teléfono
+    // que hubieran quedado sueltas.
     await linkOrphanPurchases(admin, workspaceId, {
       id: contactId,
       email: (order.email as string) ?? null,

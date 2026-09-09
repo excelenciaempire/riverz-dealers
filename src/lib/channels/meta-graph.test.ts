@@ -132,7 +132,12 @@ describe("appSubscriptionGaps", () => {
     },
     whatsapp_business_account: {
       active: true,
-      fields: ["messages", "smb_message_echoes"],
+      fields: [
+        "messages",
+        "smb_message_echoes",
+        "message_template_status_update",
+        "message_template_quality_update",
+      ],
       callbackUrl: "https://riverz.co/api/channels/whatsapp/webhook",
     },
   });
@@ -172,5 +177,16 @@ describe("appSubscriptionGaps", () => {
     const gaps = appSubscriptionGaps(subs);
     expect(gaps).toHaveLength(1);
     expect(gaps[0].missing).toEqual(["messaging_optins"]);
+  });
+
+  it("reporta los eventos de plantillas de WhatsApp cuando faltan", () => {
+    const subs = healthy();
+    subs.whatsapp_business_account.fields = ["messages", "smb_message_echoes"];
+    const gaps = appSubscriptionGaps(subs);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].missing).toEqual([
+      "message_template_status_update",
+      "message_template_quality_update",
+    ]);
   });
 });
