@@ -54,6 +54,7 @@ type SchedulerState = {
 
 /** No reanudamos cuarenta procesos a la vez después de un despliegue largo. */
 const MAX_RECOVERY_JOBS_PER_TICK = 6;
+const COORDINATION_TIMEOUT_MS = 10_000;
 
 const STATE_KEY = '__riverzScheduler';
 
@@ -139,24 +140,23 @@ function holder(): string {
 /**
  * ¿Le toca a esta instancia disparar este minuto?
  *
- * Fail-open a propósito: si la base no contesta, se dispara igual. Con una sola
- * instancia —lo que corre hoy— fallar cerrado convertiría un hipo de red en
- * campañas que no salen y carritos que no se recuperan, que es mucho peor que
- * el riesgo teórico de un disparo doble.
+ * Si la base no confirma el turno, esperamos al siguiente minuto. Durante un
+ * despliegue pueden convivir dos instancias: ejecutar sin coordinación puede
+ * duplicar envíos. La recuperación de trabajos vencidos retoma lo pendiente.
  */
 async function claimTick(at: Date): Promise<boolean> {
   try {
     const { data, error } = await supabaseAdmin().rpc('claim_scheduler_tick', {
       p_minute: at.toISOString(),
       p_holder: holder(),
-    });
+    }).abortSignal(AbortSignal.timeout(COORDINATION_TIMEOUT_MS));
     if (error) throw new Error(error.message);
-    return data !== false;
+    return data === true;
   } catch (err) {
-    log.warn('no se pudo pedir el turno; se dispara igual', {
+    log.warn('scheduler coordination unavailable; retrying next minute', {
       error: err instanceof Error ? err.message : String(err),
     });
-    return true;
+    return false;
   }
 }
 
@@ -167,7 +167,8 @@ async function claimTick(at: Date): Promise<boolean> {
  */
 async function recoveryJobs(now: Date): Promise<ScheduledJob[]> {
   try {
-    const { data, error } = await supabaseAdmin().rpc('admin_cron_health');
+    const { data, error } = await supabaseAdmin().rpc('admin_cron_health')
+      .abortSignal(AbortSignal.timeout(COORDINATION_TIMEOUT_MS));
     if (error) throw new Error(error.message);
     const latest = new Map(
       ((data ?? []) as Array<{ name: string; started_at: string | null }>).map(
@@ -229,13 +230,19 @@ function tick(secret: string): void {
       return;
     }
     const jobs = uniqueJobs([...dueJobs(now), ...(await recoveryJobs(now))]);
+    if (state().draining) return;
     if (jobs.length === 0) return;
     // Sin await: un trabajo lento no debe correr el tick del minuto siguiente.
     // Cada uno registra su propio resultado.
     for (const job of jobs) {
       void runJob(job, secret);
     }
-  })();
+  })().catch((err) => {
+    // Async failures must not become unhandled rejections that kill the clock.
+    log.error('scheduler tick failed; retrying next minute', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 }
 
 /** Programa el próximo tick justo en el segundo 0 del minuto siguiente. */
