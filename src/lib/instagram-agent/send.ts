@@ -1,5 +1,6 @@
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { instagramAdapter } from '@/lib/channels/instagram/adapter';
+import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import {
   sendToSubscriber,
   type MarketingOptin,
@@ -405,6 +406,7 @@ export async function sendCampaignBatch(
 
     try {
       const conn = connByContact.get(p.contact.id) ?? connection;
+      await assertStoredConnectionCanSend(db, conn.id);
       let dmExternalId: string | null = null;
       if (p.subscription) {
         // Sin ventana abierta: se escribe contra el token de Marketing

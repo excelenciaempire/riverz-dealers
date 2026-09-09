@@ -242,8 +242,11 @@ async function loadConnection(
       .from('channel_connections')
       .select('*')
       .eq('id', conv.connection_id)
+      .neq('status', 'disconnected')
       .maybeSingle();
-    if (data) return data as ChannelConnection;
+    // Never reroute a historical conversation through another account of the
+    // same channel when its owning connection was explicitly disconnected.
+    return (data as ChannelConnection | null) ?? null;
   }
   const { data } = await admin
     .from('channel_connections')

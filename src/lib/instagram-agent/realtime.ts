@@ -19,6 +19,7 @@ import {
   briefDePublicacionPorOrigen,
 } from '@/lib/channels/publicacion';
 import { getAdapter } from '@/lib/channels/registry';
+import { assertStoredConnectionCanSend } from '@/lib/channels/send-guard';
 import type { OutboundText } from '@/lib/channels/types';
 import { loadCommentConversation } from '@/lib/comments/hilo';
 import {
@@ -619,6 +620,7 @@ export async function maybeInstantOutreach(
   });
 
   try {
+    await assertStoredConnectionCanSend(db, connection.id);
     const dmRes = await instagramAdapter.sendText({
       channel: 'instagram',
       connection,
@@ -1407,6 +1409,7 @@ async function decidirComentario(
   let falloAlPublicar = false;
   try {
     if (wonPrivateReply && connection) {
+      await assertStoredConnectionCanSend(db, connection.id);
       const dmRes = await adapter.sendText({
         channel: dmChannel,
         connection,
@@ -1448,6 +1451,7 @@ async function decidirComentario(
       const publicConnection = opts.connection ?? connection;
       try {
         if (!publicConnection) throw new Error('sin conexión de comentarios');
+        await assertStoredConnectionCanSend(db, publicConnection.id);
         const res = await getAdapter(commentChannel).sendText({
           channel: commentChannel,
           connection: publicConnection,
@@ -1899,6 +1903,7 @@ export async function maybeRunCloser(
   let closerRes: Awaited<ReturnType<typeof instagramAdapter.sendText>> | null =
     null;
   try {
+    await assertStoredConnectionCanSend(db, opts.connection.id);
     closerRes = await instagramAdapter.sendText({
       channel: 'instagram',
       connection: opts.connection,

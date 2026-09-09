@@ -96,6 +96,7 @@ export const POLITICA = {
   // hilo— pero deja de ser invisible.
   sin_agente: NO_ESCALA('no hay ningún asistente para ese canal'),
   comment_red_apagada: NO_ESCALA('esa red está apagada en Comentarios'),
+  canal_desconectado: NO_ESCALA('el canal fue desconectado por el comercio'),
 
   // ── La IA se corre a propósito ──────────────────────────────────────────
   escalation_keyword: ESCALA('escalation_keyword', 'lo pidió el cliente'),

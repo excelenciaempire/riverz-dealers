@@ -437,6 +437,10 @@ export const inbox = {
 
   // Message thread — send / react / load
   sendFailed: { es: "No se envió: {reason}", en: "Not sent: {reason}" },
+  channelDisconnectedAlert: {
+    es: "Este canal está desconectado. Reconéctalo para enviar o recibir mensajes.",
+    en: "This channel is disconnected. Reconnect it to send or receive messages.",
+  },
   networkErrorReason: { es: "error de red", en: "network error" },
   reactFailed: { es: "No se reaccionó: {reason}", en: "Reaction failed: {reason}" },
   waitForSend: { es: "Espera a que se envíe", en: "Wait until it's sent" },

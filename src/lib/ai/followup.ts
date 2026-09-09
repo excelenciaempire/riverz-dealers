@@ -1,4 +1,9 @@
 import { getAdapter } from '@/lib/channels/registry';
+import {
+  assertStoredConnectionCanSend,
+  isChannelDisconnectedError,
+  storedConnectionCanSend,
+} from '@/lib/channels/send-guard';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { puedeUsarIa } from '@/lib/wallet/puerta';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
@@ -165,6 +170,9 @@ export async function runFollowUp(
   }
 ): Promise<FollowUpResult> {
   const { agent, conversation, contact, connection, silenceHours } = args;
+  if (!(await storedConnectionCanSend(db, connection.id))) {
+    return { sent: false, reason: 'channel_disconnected' };
+  }
   // Sin saldo no se manda un seguimiento. Es un mensaje que sale SOLO, sin que
   // nadie lo pida: cobrarselo a Riverz porque el comercio no recargo es
   // exactamente lo que la puerta existe para evitar.
@@ -241,6 +249,7 @@ export async function runFollowUp(
         return { sent: false, reason: 'awaiting_approval' };
       }
       const adapter = getAdapter(conversation.channel);
+      await assertStoredConnectionCanSend(db, connection.id);
       const sendResult = await adapter.sendText({
         channel: conversation.channel,
         connection,
@@ -395,6 +404,7 @@ export async function runFollowUp(
 
     // 4. Envío por el canal (solo DM: whatsapp / instagram / messenger).
     const adapter = getAdapter(conversation.channel);
+    await assertStoredConnectionCanSend(db, connection.id);
     const sendResult = await adapter.sendText({
       channel: conversation.channel,
       connection,
@@ -428,6 +438,9 @@ export async function runFollowUp(
 
     return { sent: true };
   } catch (err) {
+    if (isChannelDisconnectedError(err)) {
+      return { sent: false, reason: 'channel_disconnected' };
+    }
     console.error(
       '[ai/followup] failed for conversation',
       conversation.id,

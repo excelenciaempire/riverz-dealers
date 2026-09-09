@@ -2,6 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import type { OutboundText } from '@/lib/channels/types';
 import { getAdapter } from '@/lib/channels/registry';
+import {
+  assertStoredConnectionCanSend,
+  storedConnectionCanSend,
+} from '@/lib/channels/send-guard';
 import { marcarParaCanal } from '@/lib/marketing/enlaces';
 import { claimCommentPrivateReply } from '@/lib/instagram-agent/private-reply-lock';
 import { proactiveGate, logProactiveSend } from '@/lib/instagram-agent/controls';
@@ -107,6 +111,10 @@ export async function processCommentForDmRules(
   );
   if (!rule) return false;
 
+  // The webhook may already be in flight when the user disconnects. Stop
+  // before claiming the rule and recheck at each actual send below.
+  if (!(await storedConnectionCanSend(db, ev.connection.id))) return false;
+
   // El freno de emergencia y el tope diario del workspace mandan también aquí.
   // No lo hacían: "Pausar todo" frenaba a la IA y a las campañas, pero las
   // reglas seguían mandando DMs — o sea, el interruptor prometía parar algo que
@@ -167,6 +175,7 @@ export async function processCommentForDmRules(
       publicReplyStatus = 'skipped';
     } else {
       try {
+        await assertStoredConnectionCanSend(db, ev.connection.id);
         const res = await getAdapter(ev.channel).sendText({
           channel: ev.channel,
           connection: ev.connection,
@@ -229,6 +238,7 @@ export async function processCommentForDmRules(
       const dmAdapter = getAdapter(dmChannel);
       try {
         if (!dmAdapter.sendMedia) throw new Error('canal sin adjuntos');
+        await assertStoredConnectionCanSend(db, ev.connection.id);
         await dmAdapter.sendMedia({
           channel: dmChannel,
           connection: ev.connection,
@@ -262,6 +272,7 @@ export async function processCommentForDmRules(
       dmChannel,
     );
     try {
+      await assertStoredConnectionCanSend(db, ev.connection.id);
       const res = await getAdapter(dmChannel).sendText({
         channel: dmChannel,
         connection: ev.connection,

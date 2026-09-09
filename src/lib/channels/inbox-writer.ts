@@ -30,6 +30,7 @@ import {
 } from "@/lib/whatsapp/opt-out";
 import { getAdapter } from "./registry";
 import { originFromProactiveKind } from "@/lib/inbox/message-origin";
+import { storedConnectionCanSend } from "./send-guard";
 
 /**
  * ¿Este saliente que llega de la plataforma lo mandó una funcionalidad nuestra?
@@ -107,6 +108,16 @@ export async function ingestInboundEvent(
   db: SupabaseClient,
   event: InboundEvent,
 ): Promise<{ contact: Contact; conversation: Conversation; message: Message } | null> {
+  // Defense in depth: routers and pollers already exclude disconnected rows,
+  // but their snapshot can become stale while an event is in flight. Re-read
+  // the stored status at the ingestion chokepoint before writing anything.
+  if (
+    event.connection.status === "disconnected" ||
+    !(await storedConnectionCanSend(db, event.connection.id))
+  ) {
+    return null;
+  }
+
   const workspaceId = event.connection.workspace_id;
   const channel: Channel = event.channel;
 

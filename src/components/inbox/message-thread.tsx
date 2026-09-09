@@ -29,6 +29,7 @@ import {
   PanelRight,
   Bot,
   UserRound,
+  WifiOff,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -56,6 +57,7 @@ import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
 import { originLabelKey } from "@/lib/inbox/message-origin";
 import { toast } from "sonner";
+import { CHANNEL_DISCONNECTED_CODE } from "@/lib/channels/send-guard";
 
 interface ReplyDraft {
   id: string;
@@ -233,6 +235,26 @@ export function MessageThread({
   const t = useT();
   const { locale } = useLocale();
   const [loading, setLoading] = useState(false);
+  const [channelDisconnected, setChannelDisconnected] = useState(false);
+  const connectionId = conversation?.connection_id;
+  useEffect(() => {
+    if (!connectionId) {
+      setChannelDisconnected(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await createClient()
+        .from("channel_connections")
+        .select("status")
+        .eq("id", connectionId)
+        .maybeSingle();
+      if (!cancelled) setChannelDisconnected(data?.status === "disconnected");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectionId, resyncToken]);
   // Toggle de IA por conversación (migración 082). Se sincroniza con la
   // conversación; en false el asistente no responde en este chat (se suma
   // a la regla de "responder aunque haya agente asignado" del runner).
@@ -896,6 +918,9 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
+          if (payload?.code === CHANNEL_DISCONNECTED_CODE) {
+            setChannelDisconnected(true);
+          }
           toast.error(t("inbox.sendFailed", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           return;
@@ -978,11 +1003,19 @@ export function MessageThread({
           }),
         });
         const payload = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(payload?.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+          if (payload?.code === CHANNEL_DISCONNECTED_CODE) {
+            setChannelDisconnected(true);
+          }
+          throw new Error(payload?.error || `HTTP ${res.status}`);
+        }
         // Swap the blob preview for the persisted public URL.
         onUpdateMessage(tempId, { status: "sent", media_url: upJson.url });
       } catch (err) {
-        const reason = t("inbox.networkErrorReason");
+        const reason =
+          err instanceof Error && err.message
+            ? err.message
+            : t("inbox.networkErrorReason");
         toast.error(t("inbox.sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       } finally {
@@ -1126,6 +1159,9 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send template:", reason);
+          if (payload?.code === CHANNEL_DISCONNECTED_CODE) {
+            setChannelDisconnected(true);
+          }
           toast.error(t("inbox.sendFailed", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           return;
@@ -2041,6 +2077,14 @@ export function MessageThread({
            rechaza el envío, así que se dice antes de que lo escriba. */
         <div className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
           {t("inbox.mlClaimClosed")}
+        </div>
+      ) : channelDisconnected ? (
+        <div
+          role="alert"
+          className="flex items-center justify-center gap-2 border-t border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-800 dark:text-amber-200"
+        >
+          <WifiOff className="size-4 shrink-0" />
+          <span>{t("inbox.channelDisconnectedAlert")}</span>
         </div>
       ) : (
         /* Composer — the 24h session-window check only applies to

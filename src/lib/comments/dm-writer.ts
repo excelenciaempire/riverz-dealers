@@ -204,6 +204,7 @@ async function dmConnectionFor(
   source: ChannelConnection | null,
   channel: 'instagram' | 'messenger',
 ): Promise<ChannelConnection | null> {
+  if (source?.status === 'disconnected') return null;
   if (source?.channel === channel) return source;
   const pick = async (accountId: string | null) => {
     let query = db

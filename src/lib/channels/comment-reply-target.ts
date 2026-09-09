@@ -168,7 +168,11 @@ export async function resolveCommentConnection(
       .eq('id', connectionId)
       .eq('workspace_id', input.workspaceId)
       .maybeSingle()
-    if (data) return data as ChannelConnection
+    // Always return the explicit owner, including its disconnected status, so
+    // the shared send guard can report the precise reason to the chat. Never
+    // fall through to another account in the workspace: that would publish
+    // from the wrong brand/page and make "Disconnect" ineffective.
+    return (data as ChannelConnection | null) ?? null
   }
 
   const { data: sueltas } = await db

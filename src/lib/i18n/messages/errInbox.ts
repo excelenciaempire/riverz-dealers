@@ -144,6 +144,10 @@ export const errInbox = {
     es: 'Conexión no encontrada',
     en: 'Connection not found',
   },
+  channelDisconnected: {
+    es: 'El canal está desconectado',
+    en: 'The channel is disconnected',
+  },
 
   // messages/moderate — FB/IG comment moderation
   moderateMissingFields: {

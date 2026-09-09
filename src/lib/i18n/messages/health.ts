@@ -348,6 +348,10 @@ export const health: Namespace = {
     es: "no hay ningún asistente para ese canal",
     en: "there's no assistant for that channel",
   },
+  skip_canal_desconectado: {
+    es: "el canal está desconectado",
+    en: "the channel is disconnected",
+  },
   skip_comment_red_apagada: {
     es: "esa red está apagada en Comentarios",
     en: "that network is off in Comments",

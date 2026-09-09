@@ -14,6 +14,11 @@ import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection, Contact, Conversation, Message } from "@/types";
 import { isButtonUrlVariable } from "@/lib/whatsapp/dynamic-links";
 import { emitWebhook } from '@/lib/webhooks/outbound';
+import {
+  CHANNEL_DISCONNECTED_CODE,
+  assertConnectionCanSend,
+  isChannelDisconnectedError,
+} from "@/lib/channels/send-guard";
 
 /**
  * ¿La plantilla lleva un botón de enlace VARIABLE (carrito, seguimiento…)?
@@ -216,6 +221,25 @@ export async function POST(req: Request): Promise<Response> {
     // hilo, que es de la primera — y su token no puede tocar el comentario de
     // la otra. `/moderate` y la edición ya lo hacían así; el envío no.
     connection = destino.connection;
+  }
+
+  // Disconnect is a hard stop. The row and its secrets stay in the database
+  // so the historical conversation remains readable and reconnect can reuse
+  // the identity, but neither a human nor an automated caller may send with
+  // those retained credentials.
+  try {
+    assertConnectionCanSend(connection as ChannelConnection);
+  } catch (error) {
+    if (isChannelDisconnectedError(error)) {
+      return NextResponse.json(
+        {
+          error: translate(locale, "errInbox.channelDisconnected"),
+          code: CHANNEL_DISCONNECTED_CODE,
+        },
+        { status: 409 },
+      );
+    }
+    throw error;
   }
 
   // Send through the channel adapter. On failure we still persist the

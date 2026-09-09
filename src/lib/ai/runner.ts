@@ -20,6 +20,11 @@ import {
   REGLAS_COMENTARIO_PUBLICO,
 } from '@/lib/channels/publicacion';
 import { getAdapter } from '@/lib/channels/registry';
+import {
+  assertStoredConnectionCanSend,
+  isChannelDisconnectedError,
+  storedConnectionCanSend,
+} from '@/lib/channels/send-guard';
 import { resolveStoreForLookup } from '@/lib/commerce/order-lookup';
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
@@ -165,6 +170,14 @@ export async function runAiAgent(
   }
 ): Promise<void> {
   try {
+    // A disconnect is a hard stop and is checked before spending any model
+    // tokens. The connection object came from the inbound delivery and may be
+    // older than the current database state.
+    if (!(await storedConnectionCanSend(db, args.connection.id))) {
+      await anotarSalida(db, args, 'canal_desconectado');
+      return;
+    }
+
     // Motor apagado —suspendida por cobro, o esperando que el comercio
     // apruebe la instalación—: el asistente no contesta. Antes de elegir
     // agente y antes de gastar la clave de IA, que casi siempre paga Riverz.
@@ -775,6 +788,7 @@ export async function runAiAgent(
       try {
         const outboundTarget = await resolveAiOutboundTarget(db, args);
         const adapter = getAdapter(args.channel);
+        await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
         const sendResult = await adapter.sendText({
           channel: args.channel,
           connection: outboundTarget.connection,
@@ -1029,6 +1043,9 @@ export async function runAiAgent(
     const insertedIds: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+      // Recheck every chunk: disconnecting while the model was composing (or
+      // between two bubbles) must stop the remaining automatic sends.
+      await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
       const sendResult = await adapter.sendText({
         channel: args.channel,
         connection: outboundTarget.connection,
@@ -1132,6 +1149,10 @@ export async function runAiAgent(
       /* swallow */
     });
   } catch (err) {
+    if (isChannelDisconnectedError(err)) {
+      await anotarSalida(db, args, 'canal_desconectado');
+      return;
+    }
     console.error('[ai] runner failed:', err);
     try {
       // En la rama de catch no nos preocupa el routing fino — sólo

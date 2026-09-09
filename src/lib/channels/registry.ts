@@ -13,6 +13,7 @@ import { mercadoLibreAdapter } from "./mercadolibre/adapter";
 import { tikTokCommentAdapter } from "./tiktok_comment/adapter";
 import { voiceAdapter } from "./voice/adapter";
 import { webchatAdapter } from "./webchat/adapter";
+import { assertConnectionCanSend } from "./send-guard";
 
 const ADAPTERS: Record<Channel, ChannelAdapter> = {
   whatsapp: whatsappAdapter,
@@ -41,11 +42,29 @@ export function getAdapter(channel: Channel): ChannelAdapter {
   // que marcar solo en el adaptador lo dejaba sin marca, y en los demas canales
   // la bandeja guardaba un texto distinto del que le llego al cliente. Por eso
   // se marca tambien donde se compone. Marcar dos veces no cambia nada.
-  return {
+  const guarded = {
     ...adapter,
-    sendText: (input) =>
-      adapter.sendText({ ...input, text: marcarParaCanal(input.text, channel) }),
+    sendText: async (input: Parameters<typeof adapter.sendText>[0]) => {
+      assertConnectionCanSend(input.connection);
+      return adapter.sendText({
+        ...input,
+        text: marcarParaCanal(input.text, channel),
+      });
+    },
   };
+  if (adapter.sendMedia) {
+    guarded.sendMedia = async (input) => {
+      assertConnectionCanSend(input.connection);
+      return adapter.sendMedia!(input);
+    };
+  }
+  if (adapter.sendTemplate) {
+    guarded.sendTemplate = async (input) => {
+      assertConnectionCanSend(input.connection);
+      return adapter.sendTemplate!(input);
+    };
+  }
+  return guarded;
 }
 
 export function listAdapters(): ChannelAdapter[] {
