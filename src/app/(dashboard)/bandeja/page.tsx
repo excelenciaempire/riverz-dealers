@@ -23,6 +23,7 @@ import {
   MESSAGE_CHANNELS,
   COMMENT_CHANNELS,
   channelBelongsToTab,
+  visibleChannelsForTab,
 } from "@/components/inbox/inbox-tabs";
 import { ResizablePane } from "@/components/inbox/resizable-pane";
 import Link from "@/components/i18n/locale-link";
@@ -91,6 +92,9 @@ export default function InboxPage() {
   }, []);
   const [hasAnyConnection, setHasAnyConnection] = useState<boolean | null>(
     null,
+  );
+  const [connectedChannels, setConnectedChannels] = useState<Set<Channel>>(
+    () => new Set(),
   );
   /**
    * Bumped whenever we want children (ConversationList, MessageThread)
@@ -227,9 +231,10 @@ export default function InboxPage() {
     setMessages([]);
   }, []);
 
-  // Check WhatsApp connection status on mount
+  // Load the channels available to this user in the active workspace.
   useEffect(() => {
     const checkConnection = async () => {
+      if (!workspace?.id) return;
       const supabase = createClient();
       const {
         data: { session },
@@ -245,6 +250,7 @@ export default function InboxPage() {
       const { data: rows } = await supabase
         .from("channel_connections")
         .select("channel, created_by")
+        .eq("workspace_id", workspace.id)
         .eq("status", "connected");
 
       const channels = new Set<Channel>();
@@ -254,11 +260,12 @@ export default function InboxPage() {
           channels.add(r.channel as Channel);
         }
       }
+      setConnectedChannels(channels);
       setHasAnyConnection(channels.size > 0);
     };
 
     checkConnection();
-  }, []);
+  }, [workspace?.id]);
 
   // Handle realtime message events
   const handleMessageEvent = useCallback(
@@ -703,16 +710,10 @@ export default function InboxPage() {
         ? tabCounts.comments
         : tabCounts.messages;
   // Channels that belong to the current tab — drives which chips are
-  // shown in the secondary filter row below the tabs. We render a chip
-  // for EVERY channel of the active tab, connected or not and even with
-  // zero messages/comments, so the filter row stays complete and
-  // consistent instead of icons appearing/disappearing as traffic lands.
-  const tabChannels: Channel[] =
-    inboxTab === "all"
-      ? [...MESSAGE_CHANNELS, ...COMMENT_CHANNELS]
-      : inboxTab === "comments"
-        ? COMMENT_CHANNELS
-        : MESSAGE_CHANNELS;
+  // shown in the secondary filter row below the tabs. Long-standing channels
+  // stay visible even without traffic; Zoho is personal and only appears for
+  // the user who connected that mailbox in this workspace.
+  const tabChannels = visibleChannelsForTab(inboxTab, connectedChannels);
   const visibleAvailableChannels = new Set<Channel>(tabChannels);
   // Memoize the filtered list so a single realtime UPDATE doesn't
   // rebuild the array (and force every ConversationItem to re-render)

@@ -13,10 +13,34 @@ export const MESSAGE_CHANNELS: Channel[] = [
   "messenger",
   "gmail",
   "outlook",
+  "zoho",
   "mercadolibre",
   "webchat",
 ];
 export const COMMENT_CHANNELS: Channel[] = ["fb_comment", "ig_comment", "tiktok_comment"];
+
+/**
+ * Channels whose filter chip belongs in the current inbox mode.
+ *
+ * Zoho is personal like Gmail/Outlook, but unlike the long-standing filters
+ * it should only appear after this user connects it. Its conversations remain
+ * part of the Messages tab even after disconnecting, so historical mail stays
+ * readable through "All channels" without advertising a dead connection.
+ */
+export function visibleChannelsForTab(
+  tab: InboxTab,
+  connectedChannels: ReadonlySet<Channel>,
+): Channel[] {
+  const channels =
+    tab === "all"
+      ? [...MESSAGE_CHANNELS, ...COMMENT_CHANNELS]
+      : tab === "comments"
+        ? COMMENT_CHANNELS
+        : MESSAGE_CHANNELS;
+  return channels.filter(
+    (channel) => channel !== "zoho" || connectedChannels.has("zoho"),
+  );
+}
 
 export function channelBelongsToTab(channel: Channel, tab: InboxTab): boolean {
   if (tab === "all")
