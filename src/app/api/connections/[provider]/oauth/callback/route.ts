@@ -102,6 +102,12 @@ export async function GET(
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       });
+      // Zoho requires the granted scopes to accompany the authorization-code
+      // exchange. Omitting them made the consent screen succeed but could
+      // leave the callback without a usable Mail token.
+      if (provider === 'zoho' && cfg.scopes.length > 0) {
+        params.set('scope', cfg.scopes.join(','));
+      }
       // MercadoLibre exige PKCE: el code_verifier viajó en el state firmado y
       // sin él el canje devuelve "code_verifier is a required parameter".
       if (provider === 'mercadolibre' && state.codeVerifier) {
