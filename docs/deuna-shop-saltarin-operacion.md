@@ -1,7 +1,9 @@
 # DeUNA Shop: investigación y operación del Saltarín LED
 
-Fecha: 8 de septiembre de 2026  
-Mercado inicial: Colombia  
+Fecha: 8 de septiembre de 2026
+
+Mercado inicial: Colombia
+
 Canal de pago actual: 100 % contraentrega
 
 ## Decisiones ejecutivas
