@@ -345,10 +345,6 @@ export function MetaBusinessLogin({
     });
   };
 
-  const missingAdAccounts =
-    channel === 'messenger' &&
-    [...checked].some((pageId) => (adAccountsByPage[pageId]?.size ?? 0) === 0);
-
   return (
     <>
       <button
@@ -490,7 +486,7 @@ export function MetaBusinessLogin({
                 {t('settings.chooseFacebookAdAccounts')}
               </p>
               {adAccounts.length === 0 ? (
-                <p className="text-destructive mt-2 text-xs">
+                <p className="text-muted-foreground mt-2 text-xs">
                   {t('settings.noFacebookAdAccountsFound')}
                 </p>
               ) : (
@@ -532,18 +528,13 @@ export function MetaBusinessLogin({
                     ))}
                 </div>
               )}
-              {missingAdAccounts && adAccounts.length > 0 && (
-                <p className="text-destructive mt-2 text-xs">
-                  {t('settings.metaAdAccountsRequired')}
-                </p>
-              )}
             </div>
           )}
 
           <DialogFooter showCloseButton>
             <Button
               onClick={() => cred && void persist(cred, [...checked])}
-              disabled={busy || checked.size === 0 || missingAdAccounts}
+              disabled={busy || checked.size === 0}
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
               {t('settings.connectSelected', { n: checked.size })}

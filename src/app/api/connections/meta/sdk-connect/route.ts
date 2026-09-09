@@ -87,22 +87,6 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400 }
     );
   }
-  if (
-    !body.list_only &&
-    body.channel === 'messenger' &&
-    body.ad_account_ids_by_page !== undefined
-  ) {
-    const selected = normalizeAdAccountIdsByPage(body.ad_account_ids_by_page);
-    const pages = (body.page_ids ?? []).filter(
-      (id): id is string => typeof id === 'string' && Boolean(id.trim())
-    );
-    if (pages.some((pageId) => (selected[pageId]?.length ?? 0) === 0)) {
-      return NextResponse.json(
-        { error: translate(locale, 'errInbox.metaAdAccountSelectionRequired') },
-        { status: 400 }
-      );
-    }
-  }
 
   const admin = supabaseAdmin();
   const { data: membership } = await admin

@@ -315,16 +315,12 @@ export const settings = {
     en: 'Choose Instagram accounts',
   },
   chooseFacebookAdAccounts: {
-    es: 'Cuentas publicitarias',
-    en: 'Ad accounts',
+    es: 'Cuentas publicitarias (opcional)',
+    en: 'Ad accounts (optional)',
   },
   noFacebookAdAccountsFound: {
     es: 'No se encontraron cuentas publicitarias.',
     en: 'No ad accounts found.',
-  },
-  metaAdAccountsRequired: {
-    es: 'Selecciona una cuenta para cada página.',
-    en: 'Select an ad account for each Page.',
   },
   metaAdAccountId: {
     es: 'ID: {id}',
