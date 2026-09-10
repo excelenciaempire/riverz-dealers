@@ -40,6 +40,7 @@ import {
   type PitchDraft,
 } from './pitch-data';
 import styles from './presentation.module.css';
+import { AutomationCanvas } from './automation-canvas';
 
 export function Onboarding({ brand }: { brand?: Brand }) {
   const t = useT();
@@ -102,7 +103,7 @@ function Studio({ brand }: { brand: Brand }) {
     owner: '',
     reviewed: false,
   }));
-  const [tab, setTab] = useState('flows');
+  const [tab, setTab] = useState('canvas');
   const [source, setSource] = useState(
     brand === 'contraentrega' ? 'design' : 'current'
   );
@@ -501,29 +502,51 @@ function Studio({ brand }: { brand: Brand }) {
         </div>
       </div>
       <nav className={styles.tabs} aria-label={t('pitch.title')}>
-        {['overview', 'flows', 'messages', 'ai', 'agreement'].map((view) => (
-          <button
-            key={view}
-            aria-pressed={tab === view}
-            onClick={() => {
-              setTab(view);
-              setQuery('');
-              setGroup(-1);
-              setEditing(false);
-              setNotice('');
-            }}
-          >
-            {t(`pitch.${view}`)}
-            {view === 'messages' && (
-              <span>
-                {brand === 'contraentrega'
-                  ? proposals.length
-                  : (originals[brand] ?? []).length}
-              </span>
-            )}
-          </button>
-        ))}
+        {['canvas', 'overview', 'flows', 'messages', 'ai', 'agreement'].map(
+          (view) => (
+            <button
+              key={view}
+              aria-pressed={tab === view}
+              onClick={() => {
+                setTab(view);
+                setQuery('');
+                setGroup(-1);
+                setEditing(false);
+                setNotice('');
+              }}
+            >
+              {t(`pitch.${view}`)}
+              {view === 'messages' && (
+                <span>
+                  {brand === 'contraentrega'
+                    ? proposals.length
+                    : (originals[brand] ?? []).length}
+                </span>
+              )}
+            </button>
+          )
+        )}
       </nav>
+      {tab === 'canvas' && (
+        <AutomationCanvas
+          brand={brand}
+          cases={[
+            ...actual,
+            ...proposedCases({
+              ...draft,
+              features: {
+                cart: true,
+                discount: true,
+                comments: true,
+                aftercare: true,
+                voice: true,
+              },
+            }),
+          ]}
+          draft={draft}
+          values={values}
+        />
+      )}
       {['flows', 'ai', 'messages'].includes(tab) && (
         <div className={styles.filters}>
           {tab === 'flows' && (

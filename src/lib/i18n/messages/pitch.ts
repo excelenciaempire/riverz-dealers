@@ -1,5 +1,128 @@
 import type { Namespace } from './types';
 export const pitch = {
+  canvas: { es: 'Canvas completo', en: 'Complete canvas' },
+  canvasNavigate: {
+    es: 'Ir a una automatización o etapa',
+    en: 'Go to an automation or stage',
+  },
+  canvasSearch: {
+    es: 'Buscar escenario o mensaje',
+    en: 'Find a scenario or message',
+  },
+  canvasNodes: { es: 'nodos', en: 'nodes' },
+  canvasCases: { es: 'escenarios', en: 'scenarios' },
+  canvasControls: {
+    es: 'Mapa de automatizaciones. Flechas para mover, más y menos para zoom, cero para ver todo.',
+    en: 'Automation map. Arrow keys to pan, plus and minus to zoom, zero to fit all.',
+  },
+  canvasFocus: { es: 'Acercar', en: 'Focus' },
+  canvasMatches: { es: 'coincidencias', en: 'matches' },
+  canvasPrevious: { es: 'Escenario anterior', en: 'Previous scenario' },
+  canvasNext: { es: 'Siguiente escenario', en: 'Next scenario' },
+  canvasZoomOut: { es: 'Alejar', en: 'Zoom out' },
+  canvasZoomIn: { es: 'Acercar mapa', en: 'Zoom in' },
+  canvasFit: { es: 'Ver todo el canvas', en: 'Fit entire canvas' },
+  canvasMinimap: {
+    es: 'Minimapa: pulsa para desplazarte',
+    en: 'Minimap: click to navigate',
+  },
+  canvasHint: {
+    es: 'Arrastra el fondo · Ctrl + rueda para zoom · Los ejemplos ilustran la configuración; no son un historial de envíos.',
+    en: 'Drag the background · Ctrl + wheel to zoom · Examples illustrate configuration; they are not a delivery log.',
+  },
+  canvasResult: { es: 'Resultado', en: 'Outcome' },
+  canvasStep: { es: 'Paso', en: 'Step' },
+  canvasEnd: { es: 'Fin de esta ejecución', en: 'End of this run' },
+  canvasNoMessage: {
+    es: 'Sin mensaje automático en este caso',
+    en: 'No automated message in this case',
+  },
+  canvasStopReply: {
+    es: 'Si el cliente responde, se detiene la secuencia pendiente.',
+    en: 'If the customer replies, the pending sequence stops.',
+  },
+  canvasWait: { es: 'Esperar', en: 'Wait' },
+  canvasBenefit: {
+    es: 'Guardar beneficio en contexto:',
+    en: 'Store benefit in context:',
+  },
+  canvas_seconds: { es: 'segundos', en: 'seconds' },
+  canvas_minutes: { es: 'minutos', en: 'minutes' },
+  canvas_hours: { es: 'horas', en: 'hours' },
+  canvas_yes: { es: 'Sí', en: 'Yes' },
+  canvas_no: { es: 'No', en: 'No' },
+  canvas_example: { es: 'Ejemplo / relación', en: 'Example / relationship' },
+  canvas_paid: { es: '¿El pedido está pagado?', en: 'Is the order paid?' },
+  canvas_pending: { es: '¿El pago está pendiente?', en: 'Is payment pending?' },
+  'canvas_Cash on Delivery': {
+    es: '¿El medio de pago es contraentrega?',
+    en: 'Is the payment method cash on delivery?',
+  },
+  canvas_purchased_false: {
+    es: '¿Sigue sin comprar desde que empezó el flujo?',
+    en: 'Still no purchase since the flow started?',
+  },
+  canvas_purchased_true: {
+    es: '¿Compró desde que empezó el flujo?',
+    en: 'Purchased since the flow started?',
+  },
+  canvas_order_paid_false: {
+    es: '¿El pedido sigue sin pagar?',
+    en: 'Is the order still unpaid?',
+  },
+  canvas_messaged_false: {
+    es: '¿No recibió otra plantilla en este período?',
+    en: 'No other template received in this period?',
+  },
+  canvas_rejected_open_false: {
+    es: '¿No tiene un pago rechazado sin resolver?',
+    en: 'No unresolved rejected payment?',
+  },
+  canvas_rejected_open_true: {
+    es: '¿Tiene un pago rechazado sin resolver?',
+    en: 'Has an unresolved rejected payment?',
+  },
+  canvas_add_tag: {
+    es: 'Actualizar etiqueta de seguimiento',
+    en: 'Update follow-up tag',
+  },
+  canvas_send_template: {
+    es: 'Enviar plantilla de WhatsApp',
+    en: 'Send WhatsApp template',
+  },
+  canvas_voice_call: {
+    es: 'Llamada de prueba para confirmar contraentrega',
+    en: 'Test call to confirm cash on delivery',
+  },
+  canvas_shopify_order_created: {
+    es: 'Shopify: se crea un pedido',
+    en: 'Shopify: an order is created',
+  },
+  canvas_shopify_abandoned_checkout: {
+    es: 'Shopify: checkout abandonado',
+    en: 'Shopify: abandoned checkout',
+  },
+  canvas_payment_rejected: {
+    es: 'Evento: pago rechazado',
+    en: 'Event: payment rejected',
+  },
+  canvas_shopify_order_fulfilled: {
+    es: 'Shopify: pedido preparado / despachado',
+    en: 'Shopify: order fulfilled',
+  },
+  canvasOrder: { es: 'Nuevo pedido', en: 'New order' },
+  canvasCart: { es: 'Carrito abandonado', en: 'Abandoned cart' },
+  canvasCartDraft: {
+    es: 'Carrito · propuesta de tres intentos',
+    en: 'Cart · three-attempt draft',
+  },
+  canvasRejected: { es: 'Pago rechazado', en: 'Rejected payment' },
+  canvasShipping: { es: 'Envío y seguimiento', en: 'Shipping and tracking' },
+  canvasPending: { es: 'Pago pendiente', en: 'Pending payment' },
+  canvasVoiceTest: {
+    es: 'Confirmación por voz · prueba',
+    en: 'Voice confirmation · test',
+  },
   internalMessage: { es: 'Alerta para el equipo', en: 'Team alert' },
   voiceScript: { es: 'Guion de llamada', en: 'Call script' },
   buttonResume: { es: 'Retomar compra', en: 'Resume purchase' },
