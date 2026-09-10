@@ -105,10 +105,10 @@ describe('escenarios sintéticos de Rasmiaw', () => {
       'will be dispatched soon'
     );
     expect(recoveryButtonReply('payment_change', 'es')).toContain(
-      'diferente al pago contra entrega'
+      '¿Qué método de pago prefieres?'
     );
     expect(recoveryButtonReply('payment_change', 'en')).toContain(
-      'other than cash on delivery'
+      'Which payment method do you prefer?'
     );
   });
 

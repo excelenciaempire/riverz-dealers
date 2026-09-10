@@ -36,8 +36,8 @@ export function recoveryButtonReply(
   }
 
   return english
-    ? 'Which payment method do you prefer? To receive the benefit, please choose a method other than cash on delivery. Our team will help you continue here.'
-    : '¿Qué método de pago prefieres? Para recibir el beneficio, elige uno diferente al pago contra entrega. Nuestro equipo te ayudará a continuar por este medio.';
+    ? 'Which payment method do you prefer? Our team will help you continue here.'
+    : '¿Qué método de pago prefieres? Nuestro equipo te ayudará a continuar por este medio.';
 }
 
 export function recoveryButtonLosesToConfirmation(input: {
