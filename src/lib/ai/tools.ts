@@ -489,14 +489,22 @@ export function buildDescuentoTool(tope: number, fijo?: number | null): Anthropi
 export const LOOKUP_ORDER_TOOL: Anthropic.Tool = {
   name: 'lookup_order',
   description:
-    'Busca un pedido del cliente en la tienda del negocio. Úsalo cuando la clienta pregunte por el estado de su pedido, dónde está, cuándo llega, su tracking, o si quiere ver qué compró. Puedes buscar por número de pedido (si lo da) o por su teléfono. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
+    'Busca un pedido del cliente en la tienda conectada. Úsalo cuando pregunte por el estado, entrega, tracking o qué compró. Distingue el dato que escribió: un teléfono va en customer_phone, un correo en customer_email y un número real de pedido en order_number. Devuelve un resumen del pedido con estado de pago, envío, productos y tracking si existe.',
   input_schema: {
     type: 'object' as const,
     properties: {
       order_number: {
         type: 'string',
+        description: 'Número de pedido (ej. "1042" o "#1042"). No pongas aquí un teléfono ni un correo.',
+      },
+      customer_phone: {
+        type: 'string',
         description:
-          'Número de pedido (ej. "1042" o "#1042"). Opcional, si no lo tienes, igual busca por el teléfono del cliente.',
+          'Teléfono que el cliente acaba de confirmar en esta conversación. Ej. "3003364305". No lo confundas con el número de pedido.',
+      },
+      customer_email: {
+        type: 'string',
+        description: 'Correo que el cliente acaba de confirmar en esta conversación.',
       },
       reason: {
         type: 'string',
@@ -814,6 +822,45 @@ function pruebaDeIdentidad(
 ): { email?: string; phone?: string } {
   if ((canal ?? '') === 'webchat') return {}
   return { email: email ?? undefined, phone: telefono ?? undefined }
+}
+
+function telefonoDeclarado(value: unknown): string | undefined {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  const digits = raw.replace(/\D/g, '')
+  return digits.length >= 8 && digits.length <= 15 ? raw : undefined
+}
+
+function correoDeclarado(value: unknown): string | undefined {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? raw : undefined
+}
+
+/**
+ * Respaldo para el error exacto de Juan Carlos: el modelo envió un celular
+ * colombiano de diez dígitos como `order_number`. Una almohadilla mantiene la
+ * intención de pedido; sin ella, 3XXXXXXXXX (o 57 + ese número) es teléfono.
+ */
+function telefonoColombianoEnCampoPedido(value: unknown): string | undefined {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw || raw.startsWith('#')) return undefined
+  const digits = raw.replace(/\D/g, '')
+  return /^3\d{9}$/.test(digits) || /^573\d{9}$/.test(digits) ? raw : undefined
+}
+
+function instruccionNoEncontrado(usado: { numero?: string; phone?: string; email?: string }): string {
+  const por = usado.phone
+    ? 'ese teléfono'
+    : usado.email
+      ? 'ese correo'
+      : usado.numero
+        ? 'ese número de pedido'
+        : 'esos datos'
+  const pedir = usado.phone
+    ? 'el correo de la compra o el número de pedido'
+    : usado.email
+      ? 'el teléfono de la compra o el número de pedido'
+      : 'el teléfono o correo usado al comprar'
+  return `No se encontró ningún pedido con ${por}. NO inventes información del pedido (estado, tracking, fecha de envío). Dile al cliente exactamente qué dato buscaste y pídele ${pedir}; no vuelvas a pedirle el mismo dato.`
 }
 
 export interface LocalOrdersContext {
@@ -1450,16 +1497,30 @@ export async function runTool(
     })
   }
   if (toolName === 'lookup_order') {
+    const input = (toolInput ?? {}) as {
+      order_number?: string
+      customer_phone?: string
+      customer_email?: string
+      reason?: string
+    }
+    // Los teléfonos colombianos suelen llegar como diez dígitos. Si el modelo
+    // los puso por error en `order_number`, se corrige aquí para que no termine
+    // diciendo que "no existe ese pedido" cuando el cliente sí dio su teléfono.
+    const telefonoEnNumero = telefonoColombianoEnCampoPedido(input.order_number)
+    const numero = telefonoEnNumero ? undefined : input.order_number?.trim()
+    const telefono = telefonoDeclarado(input.customer_phone) ?? telefonoEnNumero
+    const correo = correoDeclarado(input.customer_email)
+
     // Sin Shopify pero con Tiendanube o WooCommerce, se consulta la API de
     // ESA plataforma. El comercio conectó una tienda: que su bot conteste
     // "no tengo Shopify" ante "¿dónde está mi pedido?" es una respuesta
     // cierta e inservible.
     if (!shopify && otherStore) {
-      const entrada = (toolInput ?? {}) as {
-        order_number?: string
-        customer_email?: string
-      }
-      const numero = entrada.order_number?.trim()
+      const quien = pruebaDeIdentidad(
+        localOrders?.channel,
+        correo ?? otherStore.customerEmail,
+        telefono ?? otherStore.customerPhone
+      )
       const r = numero
         ? await lookupOrderNonShopify(
             otherStore,
@@ -1467,12 +1528,12 @@ export async function runTool(
             numero,
             // En Tiendanube y Woo el número es correlativo y no prueba de quién
             // es el pedido. Ver esDeQuienPregunta() y pruebaDeIdentidad().
-            pruebaDeIdentidad(localOrders?.channel, otherStore.customerEmail, otherStore.customerPhone)
+            quien
           )
-        : otherStore.customerEmail
-          ? await lookupOrderNonShopify(otherStore, 'order_by_email', otherStore.customerEmail)
-          : otherStore.customerPhone
-            ? await lookupOrderNonShopify(otherStore, 'order_by_phone', otherStore.customerPhone)
+        : quien.email
+          ? await lookupOrderNonShopify(otherStore, 'order_by_email', quien.email)
+          : quien.phone
+            ? await lookupOrderNonShopify(otherStore, 'order_by_phone', quien.phone)
             : { found: false as const }
       if (!r.found) {
         // Igual que en Shopify: quien compró por el chat web todavía no tiene
@@ -1485,8 +1546,12 @@ export async function runTool(
         return JSON.stringify({
           found: false,
           orders: [],
-          instruction:
-            'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Dile al cliente que no lo encontraste y pídele el número de pedido o que confirme el teléfono/correo con el que compró.',
+          searched_by: quien.phone ? 'phone' : quien.email ? 'email' : numero ? 'order_number' : 'none',
+          instruction: instruccionNoEncontrado({
+            numero,
+            phone: quien.phone,
+            email: quien.email,
+          }),
         })
       }
       return JSON.stringify({ found: true, orders: [r.vars] })
@@ -1496,7 +1561,7 @@ export async function runTool(
     // conectado" a una compradora de Mercado Libre preguntando por SU pedido,
     // que es una respuesta a la vez cierta e inútil.
     if (!shopify && localOrders) {
-      return await lookupLocalOrders(localOrders)
+      return await lookupLocalOrders(localOrders, numero)
     }
     if (!shopify) {
       return JSON.stringify({
@@ -1504,17 +1569,13 @@ export async function runTool(
         message: 'El workspace no tiene ninguna tienda conectada.',
       })
     }
-    const input = (toolInput ?? {}) as {
-      order_number?: string
-      reason?: string
-    }
     // La identidad que se le pasa a Shopify es la que el canal PROBÓ. En el
     // chat web el correo lo escribió el visitante, así que no sirve de prueba;
     // su pedido sale de la fila espejo, más abajo.
     const quien = pruebaDeIdentidad(
       shopify.channel ?? localOrders?.channel,
-      shopify.customerEmail,
-      shopify.customerPhone
+      correo ?? shopify.customerEmail,
+      telefono ?? shopify.customerPhone
     )
     const result = await lookupCustomerOrders({
       shopDomain: shopify.shopDomain,
@@ -1522,7 +1583,7 @@ export async function runTool(
       apiVersion: shopify.apiVersion,
       customerPhone: quien.phone,
       customerEmail: quien.email,
-      orderNumber: input.order_number,
+      orderNumber: numero,
     })
     // Shopify sólo devuelve los pedidos que se le pueden ATRIBUIR a esta
     // persona por teléfono o correo, y quien escribe por el chat web no tiene
@@ -1531,7 +1592,7 @@ export async function runTool(
     // "no se encontró ningún pedido". La fila espejo sí sabe de quién es —
     // está atada al contacto — así que se contesta con ella.
     if (!result.found && localOrders) {
-      const local = await lookupLocalOrders(localOrders, input.order_number)
+      const local = await lookupLocalOrders(localOrders, numero)
       if ((JSON.parse(local) as { found?: boolean }).found) return local
     }
     if (!result.found) {
@@ -1542,8 +1603,12 @@ export async function runTool(
       return JSON.stringify({
         found: false,
         orders: [],
-        instruction:
-          'No se encontró ningún pedido con esos datos. NO inventes información del pedido (estado, tracking, fecha de envío). Dile al cliente que no lo encontraste y pídele el número de pedido (ej. #1042) o que confirme el teléfono/correo con el que compró.',
+        searched_by: quien.phone ? 'phone' : quien.email ? 'email' : numero ? 'order_number' : 'none',
+        instruction: instruccionNoEncontrado({
+          numero,
+          phone: quien.phone,
+          email: quien.email,
+        }),
       })
     }
     return JSON.stringify(result)

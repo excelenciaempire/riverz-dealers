@@ -24,7 +24,7 @@ vi.mock('@/lib/channels/admin-client', () => ({
   }),
 }))
 
-import { runTool } from './tools'
+import { LOOKUP_ORDER_TOOL, runTool } from './tools'
 
 const shopify = {
   shopDomain: 'demo.myshopify.com',
@@ -92,5 +92,70 @@ describe('lookup_order en el chat web', () => {
     // vacía: es lo único que evita que "found:false" se parafrasee como
     // "tu pedido está en camino".
     expect(salida.instruction).toContain('NO inventes')
+  })
+})
+
+describe('lookup_order distingue los datos del cliente', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('expone campos separados para pedido, teléfono y correo', () => {
+    const properties = LOOKUP_ORDER_TOOL.input_schema.properties as Record<string, unknown>
+    expect(properties).toHaveProperty('order_number')
+    expect(properties).toHaveProperty('customer_phone')
+    expect(properties).toHaveProperty('customer_email')
+  })
+
+  it('corrige un celular colombiano enviado por error como número de pedido', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const local = baseCon([])
+    const salida = JSON.parse(
+      await runTool(
+        'lookup_order',
+        { order_number: '3003364305' },
+        { ...shopify, channel: 'messenger' } as never,
+        null,
+        local as never
+      )
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = decodeURIComponent(String(fetchMock.mock.calls[0]?.[0]))
+    expect(url).toContain('/customers/search.json')
+    expect(url).toContain('query=phone:3003364305')
+    expect(url).not.toContain('/orders.json')
+    expect(salida.searched_by).toBe('phone')
+    expect(salida.instruction).toContain('ese teléfono')
+    expect(salida.instruction).toContain('no vuelvas a pedirle el mismo dato')
+  })
+
+  it('busca un correo confirmado como correo, no como pedido', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const salida = JSON.parse(
+      await runTool(
+        'lookup_order',
+        { customer_email: 'cliente@example.com' },
+        { ...shopify, channel: 'instagram' } as never,
+        null,
+        baseCon([]) as never
+      )
+    )
+
+    const url = decodeURIComponent(String(fetchMock.mock.calls[0]?.[0]))
+    expect(url).toContain('query=email:cliente@example.com')
+    expect(salida.searched_by).toBe('email')
+    expect(salida.instruction).toContain('ese correo')
+  })
+
+  it('no toma como prueba un teléfono declarado en el chat web anónimo', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const salida = JSON.parse(
+      await runTool('lookup_order', { customer_phone: '3003364305' }, shopify as never, null, baseCon([]) as never)
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(salida.searched_by).toBe('none')
   })
 })
