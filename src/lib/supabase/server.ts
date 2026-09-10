@@ -1,5 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 // SameSite=lax: the cookie travels on top-level GET navigations (clicking
 // a link, OAuth provider redirects back to us) but is BLOCKED on cross-site
@@ -29,25 +29,31 @@ export const SESSION_COOKIE_OPTIONS = {
   sameSite: 'lax',
   secure: process.env.NODE_ENV === 'production',
   path: '/',
-} as const
+} as const;
 
-export async function createClient() {
-  const cookieStore = await cookies()
+export async function createClient(options?: {
+  fetch?: typeof globalThis.fetch;
+}) {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...(options?.fetch ? { global: { fetch: options.fetch } } : {}),
       cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, { ...options, ...SESSION_COOKIE_OPTIONS })
-            )
+              cookieStore.set(name, value, {
+                ...options,
+                ...SESSION_COOKIE_OPTIONS,
+              })
+            );
           } catch {
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing sessions.
@@ -55,5 +61,5 @@ export async function createClient() {
         },
       },
     }
-  )
+  );
 }
