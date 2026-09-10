@@ -28,6 +28,12 @@ export interface AdminSectionMeta {
 
 export const ADMIN_SECTION_LIST: AdminSectionMeta[] = [
   {
+    href: "/admin/onboarding",
+    label: "onboarding.title",
+    description: "onboarding.description",
+    group: "comercios",
+  },
+  {
     href: "/admin/ia",
     label: "admin.sectionAiKey",
     description: "admin.sectionAiKeyDesc",

@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   Ticket,
   Wallet,
+  Workflow,
 } from "lucide-react";
 
 import {
@@ -39,6 +40,7 @@ export interface AdminSection extends AdminSectionMeta {
 }
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "/admin/onboarding": Workflow,
   "/admin/ia": KeyRound,
   "/admin/whatsapp": MessageCircle,
   "/admin/comercios": Store,

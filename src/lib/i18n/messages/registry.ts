@@ -5,6 +5,7 @@ import type { MessageEntry, Namespace } from "./types";
 // file). The flat MESSAGES map is keyed "<namespace>.<key>".
 // Keep this list alphabetized for easy merges.
 import { admin } from "./admin";
+import { onboarding } from "./onboarding";
 import { assistant } from "./assistant";
 import { auth } from "./auth";
 import { automations } from "./automations";
@@ -45,6 +46,7 @@ import { webchat } from "./webchat";
 import { returns, gaps, unify, approvals, reglas } from "./returns";
 
 const NAMESPACES: Record<string, Namespace> = {
+  onboarding,
   admin,
   assistant,
   auth,
