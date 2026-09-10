@@ -34,7 +34,7 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     ).toBe('none');
     expect(
       recoveryAction({ assignedOnly: true, text: 'SI', benefitPercent: 10 })
-    ).toBe('benefit');
+    ).toBe('none');
   });
 
   it('trata BENEFICIO como cambio de pago cuando el pedido ya existe', () => {
@@ -55,14 +55,14 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     expect(recoveryCheckoutAllowed(action)).toBe(false);
   });
 
-  it('tampoco crea cupón con SI para un pedido existente', () => {
+  it('no interpreta un Sí genérico como solicitud de cambiar el pago', () => {
     const action = recoveryAction({
       assignedOnly: true,
       text: 'SI',
       benefitPercent: 10,
       existingOrder: true,
     });
-    expect(action).toBe('manual_payment');
+    expect(action).toBe('none');
     expect(recoveryCheckoutAllowed(action)).toBe(false);
   });
 
@@ -71,7 +71,7 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     expect(recoveryButtonKind('MANTENER CONTRAENTREGA')).toBe('confirm');
     expect(recoveryButtonKind('BENEFICIO')).toBe('payment_change');
     expect(recoveryButtonKind('RECIBIR BENEFICIO')).toBe('payment_change');
-    expect(recoveryButtonKind('SI')).toBe('payment_change');
+    expect(recoveryButtonKind('SI')).toBeNull();
     expect(recoveryButtonKind('Necesito ayuda')).toBeNull();
     expect(
       recoveryButtonLosesToConfirmation({

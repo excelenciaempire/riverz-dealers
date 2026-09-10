@@ -34,7 +34,8 @@ const MAESTRO = fila({
 });
 const ML1 = fila({
   id: 'ml1',
-  title: 'Pilar Serum Reafirmante Antiedad Regeneracion 30 Ml Todo Tipo De Piel Día/noche',
+  title:
+    'Pilar Serum Reafirmante Antiedad Regeneracion 30 Ml Todo Tipo De Piel Día/noche',
   platform: 'mercadolibre',
   price_min: 45000,
   currency: 'ARS',
@@ -42,7 +43,8 @@ const ML1 = fila({
 });
 const ML2 = fila({
   id: 'ml2',
-  title: 'Pilar Serum Reafirmante Antiedad Regeneracion 30 Ml X2 Todo Tipo De Piel Día/noche',
+  title:
+    'Pilar Serum Reafirmante Antiedad Regeneracion 30 Ml X2 Todo Tipo De Piel Día/noche',
   platform: 'mercadolibre',
   price_min: 75000,
   currency: 'ARS',
@@ -79,7 +81,11 @@ describe('unificarFilas', () => {
   });
 
   it('no toca lo que no está unificado', () => {
-    const bici = fila({ id: 'bici', title: 'Bicicleta', platform: 'mercadolibre' });
+    const bici = fila({
+      id: 'bici',
+      title: 'Bicicleta',
+      platform: 'mercadolibre',
+    });
     const out = unificarFilas([MAESTRO, ML1, bici]);
     expect(out.map((p) => p.id).sort()).toEqual(['bici', 'shop']);
   });
@@ -111,5 +117,40 @@ describe('lo que se le muestra al modelo', () => {
     const linea = formatProductLine(MAESTRO);
     expect(linea).not.toContain('precio por canal');
     expect(linea).not.toContain('también se vende');
+  });
+
+  it('incluye cada variante publicada y distingue las agotadas', () => {
+    const linea = formatProductLine(
+      fila({
+        id: 'pelota',
+        title: 'Pelota saltarina LED Juego',
+        platform: 'shopify',
+        raw: {
+          status: 'active',
+          published_at: '2026-09-08T22:51:03-04:00',
+          options: [{ name: 'Modelo' }],
+          variants: [
+            {
+              id: 1,
+              title: 'Color Niña',
+              option1: 'Color Niña',
+              inventory_management: 'shopify',
+              inventory_policy: 'continue',
+              inventory_quantity: 0,
+            },
+            {
+              id: 2,
+              title: 'Panda Blanco',
+              option1: 'Panda Blanco',
+              inventory_management: 'shopify',
+              inventory_policy: 'deny',
+              inventory_quantity: 0,
+            },
+          ],
+        },
+      })
+    );
+    expect(linea).toContain('Variantes disponibles: Modelo: Color Niña');
+    expect(linea).toContain('Variantes agotadas: Modelo: Panda Blanco');
   });
 });

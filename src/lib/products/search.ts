@@ -5,6 +5,10 @@ import {
   type FilaAgrupable,
 } from '@/lib/products/agrupar';
 import { unidadesDelTitulo } from '@/lib/products/unify';
+import {
+  shopifyCatalogVariants,
+  type CatalogVariant,
+} from '@/lib/products/variants';
 
 /**
  * Buscar en el catálogo, para el agente.
@@ -34,6 +38,8 @@ export interface ProductHit {
   tags: string[];
   /** Primera variante: es lo que hace falta para armar un carrito. */
   variant_id: string | null;
+  /** Todas las variantes publicadas y su disponibilidad; nunca sólo la primera. */
+  variants: CatalogVariant[];
   /** Recorte de la descripción, para que el modelo sepa de qué se trata. */
   summary: string;
   /**
@@ -64,7 +70,13 @@ interface Row {
   currency: string | null;
   tags: string[] | null;
   description: string | null;
-  raw: { variants?: Array<{ id?: number | string }>; images?: Array<{ src?: string }> } | null;
+  raw: {
+    status?: unknown;
+    published_at?: unknown;
+    options?: unknown;
+    variants?: Array<{ id?: number | string }>;
+    images?: Array<{ src?: string }>;
+  } | null;
   /** La fila que manda cuando el producto se vende en varias plataformas. */
   master_id?: string | null;
   platform?: string | null;
@@ -77,11 +89,7 @@ const COLUMNAS =
 
 /** Quita tildes y baja a minúsculas: así es como la gente escribe al preguntar. */
 function plano(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 function num(v: unknown): number | null {
@@ -121,7 +129,7 @@ export async function searchProducts(
      * fila exacta que se está cotizando.
      */
     agrupar?: boolean;
-  },
+  }
 ): Promise<ProductHit[]> {
   const q = plano(args.query).slice(0, 120);
   if (q.length < 2) return [];
@@ -135,7 +143,8 @@ export async function searchProducts(
   // Por encima de doscientos la lista no entra cómoda en una URL, y a esa
   // altura "específico" ya es prácticamente todo el catálogo: se filtra en
   // memoria, más abajo.
-  const acotar = permitidos && permitidos.size <= 200 ? Array.from(permitidos) : null;
+  const acotar =
+    permitidos && permitidos.size <= 200 ? Array.from(permitidos) : null;
 
   // `%` es un comodín de `ilike`, y `,` separa las ramas del `.or()` de
   // PostgREST: sin escaparlos, una búsqueda con esos caracteres devolvía
@@ -180,7 +189,10 @@ export async function searchProducts(
     // ningún catálogo: la rama que este bloque promete —encontrar por
     // etiqueta— no acertaba nunca, ni siquiera cuando la persona escribía el
     // nombre de una etiqueta y algo más.
-    const palabras = seguro.split(/\s+/).filter((t) => t.length > 2).slice(0, 4);
+    const palabras = seguro
+      .split(/\s+/)
+      .filter((t) => t.length > 2)
+      .slice(0, 4);
     if (palabras.length > 1) {
       // Y por cada palabra en el TÍTULO, en cualquier orden.
       //
@@ -219,7 +231,9 @@ export async function searchProducts(
 
   // Lo que este agente puede nombrar. Se filtra también acá y no sólo en la
   // consulta: la segunda búsqueda por etiqueta agrega filas por su cuenta.
-  const visibles = permitidos ? filas.filter((f) => permitidos.has(f.id)) : filas;
+  const visibles = permitidos
+    ? filas.filter((f) => permitidos.has(f.id))
+    : filas;
 
   // Las principales que la búsqueda no trajo.
   //
@@ -234,8 +248,11 @@ export async function searchProducts(
       new Set(
         visibles
           .map((f) => f.master_id)
-          .filter((m): m is string => !!m && !presentes.has(m) && (!permitidos || permitidos.has(m))),
-      ),
+          .filter(
+            (m): m is string =>
+              !!m && !presentes.has(m) && (!permitidos || permitidos.has(m))
+          )
+      )
     ).slice(0, 50);
     if (faltan.length > 0) {
       const { data: principales } = await db
@@ -262,7 +279,9 @@ export async function searchProducts(
     // Cuántas palabras de la pregunta aparecen en el título: es lo que separa
     // "serum vitamina c" de un producto que sólo comparte la palabra "serum".
     const enTitulo = tokens.filter((x) => t.includes(x)).length;
-    const enTags = tokens.filter((x) => tags.some((g) => plano(g).includes(x))).length;
+    const enTags = tokens.filter((x) =>
+      tags.some((g) => plano(g).includes(x))
+    ).length;
     return enTitulo * 10 + enTags * 3;
   };
   // Puntúa por el MEJOR de sus títulos. El del marketplace es el que se parece
@@ -271,7 +290,10 @@ export async function searchProducts(
   // propia búsqueda.
   const puntaje = (f: Agrupado<FilaAgrupable>): number => {
     const tags = ((f as unknown as Row).tags ?? []) as string[];
-    const titulos = [f.title ?? '', ...(f.listings ?? []).map((l) => l.title ?? '')];
+    const titulos = [
+      f.title ?? '',
+      ...(f.listings ?? []).map((l) => l.title ?? ''),
+    ];
     return Math.max(...titulos.map((t) => puntajeDe(t, tags)));
   };
 
@@ -284,7 +306,9 @@ export async function searchProducts(
     .sort((a, b) => puntaje(b) - puntaje(a))
     .slice(0, limite)
     .map((g) => {
-      const f = g as unknown as Row & { listings?: Agrupado<FilaAgrupable>['listings'] };
+      const f = g as unknown as Row & {
+        listings?: Agrupado<FilaAgrupable>['listings'];
+      };
       return {
         id: f.id,
         title: f.title ?? '',
@@ -296,8 +320,17 @@ export async function searchProducts(
         currency: f.currency,
         tags: f.tags ?? [],
         variant_id:
-          f.raw?.variants?.[0]?.id != null ? String(f.raw.variants[0].id) : null,
-        summary: (f.description ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
+          f.raw?.variants?.[0]?.id != null
+            ? String(f.raw.variants[0].id)
+            : null,
+        variants:
+          (f.platform ?? 'shopify') === 'shopify'
+            ? shopifyCatalogVariants(f.raw)
+            : [],
+        summary: (f.description ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 200),
         // Dónde más se vende y a cuánto. El precio de cada canal es distinto y
         // los dos son ciertos: el agente necesita el del canal por el que le
         // están escribiendo.

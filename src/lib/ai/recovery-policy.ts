@@ -19,11 +19,7 @@ export function recoveryButtonKind(
   if (normalized === 'CONFIRMAR' || normalized === 'MANTENER CONTRAENTREGA') {
     return 'confirm';
   }
-  if (
-    normalized === 'BENEFICIO' ||
-    normalized === 'RECIBIR BENEFICIO' ||
-    normalized === 'SI'
-  ) {
+  if (normalized === 'BENEFICIO' || normalized === 'RECIBIR BENEFICIO') {
     return 'payment_change';
   }
   return null;
@@ -72,9 +68,8 @@ export function recoveryAction(input: {
 
   const benefit = Number(input.benefitPercent ?? 0);
   const requestedBenefit =
-    ((text === 'BENEFICIO' || text === 'RECIBIR BENEFICIO') &&
-      (benefit === 5 || benefit === 10)) ||
-    (text === 'SI' && benefit === 10);
+    (text === 'BENEFICIO' || text === 'RECIBIR BENEFICIO') &&
+    (benefit === 5 || benefit === 10);
   // En un pedido que ya existe, esos botones no abren una venta nueva:
   // solicitan cambiar la forma de pago del pedido actual. Un cupón personal
   // para "la próxima compra" no aplica y además deja el pedido intacto.

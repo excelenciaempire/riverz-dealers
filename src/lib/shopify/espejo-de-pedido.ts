@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * EL ESPEJO DE LOS PEDIDOS DE SHOPIFY.
@@ -29,14 +29,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  */
 
 /** Lo que hizo el espejo con este pedido. */
-export type ResultadoDelEspejo = 'creado' | 'actualizado' | 'sin_id'
+export type ResultadoDelEspejo = 'creado' | 'actualizado' | 'sin_id';
 
 interface ArgsDelEspejo {
-  platform?: 'shopify' | 'tiendanube' | 'woocommerce'
-  workspaceId: string
-  shopDomain: string
+  platform?: 'shopify' | 'tiendanube' | 'woocommerce';
+  workspaceId: string;
+  shopDomain: string;
   /** El pedido tal como lo manda Shopify (webhook o Admin API). */
-  order: Record<string, unknown>
+  order: Record<string, unknown>;
 }
 
 /**
@@ -49,19 +49,19 @@ interface ArgsDelEspejo {
  * escritura entera fallaba.
  */
 function estadoDelPedido(order: Record<string, unknown>): string {
-  const financial = (order.financial_status as string | null) ?? null
-  const fulfillment = (order.fulfillment_status as string | null) ?? null
-  if (order.cancelled_at) return 'cancelled'
-  if (financial === 'refunded' || financial === 'voided') return 'cancelled'
-  if (fulfillment === 'fulfilled') return 'fulfilled'
-  if (financial === 'paid') return 'paid'
-  return 'created'
+  const financial = (order.financial_status as string | null) ?? null;
+  const fulfillment = (order.fulfillment_status as string | null) ?? null;
+  if (order.cancelled_at) return 'cancelled';
+  if (financial === 'refunded' || financial === 'voided') return 'cancelled';
+  if (fulfillment === 'fulfilled') return 'fulfilled';
+  if (financial === 'paid') return 'paid';
+  return 'created';
 }
 
 function aNumero(v: unknown): number | null {
-  if (v == null) return null
-  const n = typeof v === 'number' ? v : parseFloat(String(v))
-  return Number.isNaN(n) ? null : n
+  if (v == null) return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isNaN(n) ? null : n;
 }
 
 /**
@@ -70,52 +70,59 @@ function aNumero(v: unknown): number | null {
  * esa persona, así que buscarlo en uno solo perdía la mitad de los casos.
  */
 function telefonoDelPedido(order: Record<string, unknown>): string | null {
-  const cliente = (order.customer ?? null) as Record<string, unknown> | null
-  const envio = (order.shipping_address ?? null) as Record<string, unknown> | null
-  const candidatos = [order.phone, cliente?.phone, envio?.phone]
+  const cliente = (order.customer ?? null) as Record<string, unknown> | null;
+  const envio = (order.shipping_address ?? null) as Record<
+    string,
+    unknown
+  > | null;
+  const candidatos = [order.phone, cliente?.phone, envio?.phone];
   for (const c of candidatos) {
-    const s = String(c ?? '').trim()
-    if (s) return s
+    const s = String(c ?? '').trim();
+    if (s) return s;
   }
-  return null
+  return null;
 }
 
 function nombreDelCliente(order: Record<string, unknown>): string | null {
-  const cliente = (order.customer ?? null) as Record<string, unknown> | null
+  const cliente = (order.customer ?? null) as Record<string, unknown> | null;
   const nombre = [cliente?.first_name, cliente?.last_name]
     .map((p) => String(p ?? '').trim())
     .filter(Boolean)
-    .join(' ')
-  if (nombre) return nombre
-  const envio = (order.shipping_address ?? null) as Record<string, unknown> | null
-  const deEnvio = String(envio?.name ?? '').trim()
-  return deEnvio || null
+    .join(' ');
+  if (nombre) return nombre;
+  const envio = (order.shipping_address ?? null) as Record<
+    string,
+    unknown
+  > | null;
+  const deEnvio = String(envio?.name ?? '').trim();
+  return deEnvio || null;
 }
 
 function emailDelPedido(order: Record<string, unknown>): string | null {
-  const cliente = (order.customer ?? null) as Record<string, unknown> | null
-  const e = String(order.email ?? cliente?.email ?? '').trim()
-  return e || null
+  const cliente = (order.customer ?? null) as Record<string, unknown> | null;
+  const e = String(order.email ?? cliente?.email ?? '').trim();
+  return e || null;
 }
 
 /** El seguimiento, si Shopify ya lo cargó. */
 function envioDelPedido(order: Record<string, unknown>): {
-  numero: string | null
-  empresa: string | null
-  url: string | null
+  numero: string | null;
+  empresa: string | null;
+  url: string | null;
 } {
   const fs = Array.isArray(order.fulfillments)
     ? (order.fulfillments as Array<Record<string, unknown>>)
-    : []
-  const f = fs[0]
-  if (!f) return { numero: null, empresa: null, url: null }
-  const numeros = Array.isArray(f.tracking_numbers) ? f.tracking_numbers : []
-  const urls = Array.isArray(f.tracking_urls) ? f.tracking_urls : []
+    : [];
+  const f = fs[0];
+  if (!f) return { numero: null, empresa: null, url: null };
+  const numeros = Array.isArray(f.tracking_numbers) ? f.tracking_numbers : [];
+  const urls = Array.isArray(f.tracking_urls) ? f.tracking_urls : [];
   return {
-    numero: (f.tracking_number as string | null) ?? (numeros[0] as string) ?? null,
+    numero:
+      (f.tracking_number as string | null) ?? (numeros[0] as string) ?? null,
     empresa: (f.tracking_company as string | null) ?? null,
     url: (f.tracking_url as string | null) ?? (urls[0] as string) ?? null,
-  }
+  };
 }
 
 /**
@@ -129,7 +136,7 @@ async function contactoDelPedido(
   db: SupabaseClient,
   workspaceId: string,
   email: string | null,
-  telefono: string | null,
+  telefono: string | null
 ): Promise<string | null> {
   if (email) {
     const { data } = await db
@@ -138,15 +145,15 @@ async function contactoDelPedido(
       .eq('workspace_id', workspaceId)
       .ilike('email', email)
       .limit(1)
-      .maybeSingle()
-    const fila = data as { id: string } | null
-    if (fila?.id) return fila.id
+      .maybeSingle();
+    const fila = data as { id: string } | null;
+    if (fila?.id) return fila.id;
   }
   if (telefono) {
     // Por los últimos 8 dígitos, que es la regla que ya usa el resto del
     // producto para el mismo número escrito de cinco formas distintas
     // (con +54, sin el 9, con el 15 del celular argentino).
-    const cola = telefono.replace(/\D/g, '').slice(-8)
+    const cola = telefono.replace(/\D/g, '').slice(-8);
     if (cola.length === 8) {
       const { data } = await db
         .from('contacts')
@@ -154,12 +161,12 @@ async function contactoDelPedido(
         .eq('workspace_id', workspaceId)
         .like('phone', `%${cola}`)
         .limit(1)
-        .maybeSingle()
-      const fila = data as { id: string } | null
-      if (fila?.id) return fila.id
+        .maybeSingle();
+      const fila = data as { id: string } | null;
+      if (fila?.id) return fila.id;
     }
   }
-  return null
+  return null;
 }
 
 /**
@@ -170,10 +177,10 @@ async function contactoDelPedido(
  */
 export async function espejarPedidoDeShopify(
   db: SupabaseClient,
-  { workspaceId, shopDomain, order, platform = 'shopify' }: ArgsDelEspejo,
+  { workspaceId, shopDomain, order, platform = 'shopify' }: ArgsDelEspejo
 ): Promise<ResultadoDelEspejo> {
-  const orderId = String(order.id ?? '').trim()
-  if (!orderId || orderId === '0') return 'sin_id'
+  const orderId = String(order.id ?? '').trim();
+  if (!orderId || orderId === '0') return 'sin_id';
 
   const { data: existente } = await db
     .from('orders')
@@ -181,38 +188,57 @@ export async function espejarPedidoDeShopify(
     .eq('workspace_id', workspaceId)
     .eq('shop_domain', shopDomain)
     .eq('shopify_order_id', orderId)
-    .maybeSingle()
+    .maybeSingle();
 
-  const financial = (order.financial_status as string | null) ?? null
-  const fulfillment = (order.fulfillment_status as string | null) ?? null
-  const checkoutToken = String(order.checkout_token ?? order.cart_token ?? '').trim()
-  const envio = envioDelPedido(order)
+  const financial = (order.financial_status as string | null) ?? null;
+  const fulfillment = (order.fulfillment_status as string | null) ?? null;
+  const checkoutToken = String(
+    order.checkout_token ?? order.cart_token ?? ''
+  ).trim();
+  const envio = envioDelPedido(order);
+  const lineItems = (
+    Array.isArray(order.line_items) ? order.line_items : []
+  ).map((li) => {
+    const item = li as Record<string, unknown>;
+    return {
+      title: String(item.title ?? ''),
+      variant_title: String(item.variant_title ?? ''),
+      variant_id: item.variant_id == null ? null : String(item.variant_id),
+      quantity: Number(item.quantity ?? 1),
+      price: aNumero(item.price) ?? 0,
+      properties: Array.isArray(item.properties) ? item.properties : [],
+    };
+  });
 
   if (existente) {
     // La fila ya es de Riverz: se toca lo que Shopify sabe y nada más.
-    const parche: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (financial) parche.financial_status = financial
-    if (fulfillment) parche.fulfillment_status = fulfillment
-    if (order.order_status_url) parche.order_status_url = order.order_status_url
-    if (checkoutToken) parche.checkout_token = checkoutToken
-    const total = aNumero(order.total_price)
-    if (total != null) parche.total_price = total
-    if (envio.numero) parche.tracking_number = envio.numero
-    if (envio.empresa) parche.tracking_company = envio.empresa
-    if (envio.url) parche.tracking_url = envio.url
-    parche.status = estadoDelPedido(order)
+    const parche: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (financial) parche.financial_status = financial;
+    if (fulfillment) parche.fulfillment_status = fulfillment;
+    if (order.order_status_url)
+      parche.order_status_url = order.order_status_url;
+    if (checkoutToken) parche.checkout_token = checkoutToken;
+    const total = aNumero(order.total_price);
+    if (total != null) parche.total_price = total;
+    parche.line_items = lineItems;
+    if (envio.numero) parche.tracking_number = envio.numero;
+    if (envio.empresa) parche.tracking_company = envio.empresa;
+    if (envio.url) parche.tracking_url = envio.url;
+    parche.status = estadoDelPedido(order);
 
     const { error } = await db
       .from('orders')
       .update(parche)
-      .eq('id', (existente as { id: string }).id)
-    if (error) throw new Error(`espejo (update): ${error.message}`)
-    return 'actualizado'
+      .eq('id', (existente as { id: string }).id);
+    if (error) throw new Error(`espejo (update): ${error.message}`);
+    return 'actualizado';
   }
 
-  const email = emailDelPedido(order)
-  const telefono = telefonoDelPedido(order)
-  const contactId = await contactoDelPedido(db, workspaceId, email, telefono)
+  const email = emailDelPedido(order);
+  const telefono = telefonoDelPedido(order);
+  const contactId = await contactoDelPedido(db, workspaceId, email, telefono);
 
   const fila = {
     workspace_id: workspaceId,
@@ -224,16 +250,7 @@ export async function espejarPedidoDeShopify(
     contact_id: contactId,
     currency: (order.currency as string | null) ?? null,
     total_price: aNumero(order.total_price) ?? 0,
-    line_items: (Array.isArray(order.line_items) ? order.line_items : []).map(
-      (li) => {
-        const item = li as Record<string, unknown>
-        return {
-          title: String(item.title ?? ''),
-          quantity: Number(item.quantity ?? 1),
-          price: aNumero(item.price) ?? 0,
-        }
-      },
-    ),
+    line_items: lineItems,
     customer_name: nombreDelCliente(order),
     customer_email: email,
     customer_phone: telefono,
@@ -250,11 +267,11 @@ export async function espejarPedidoDeShopify(
     created_by: 'sync',
     created_at: (order.created_at as string | null) ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  }
+  };
 
   const { error } = await db
     .from('orders')
-    .upsert(fila, { onConflict: 'workspace_id,shop_domain,shopify_order_id' })
-  if (error) throw new Error(`espejo (insert): ${error.message}`)
-  return 'creado'
+    .upsert(fila, { onConflict: 'workspace_id,shop_domain,shopify_order_id' });
+  if (error) throw new Error(`espejo (insert): ${error.message}`);
+  return 'creado';
 }

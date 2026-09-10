@@ -47,6 +47,7 @@ import {
   withoutHistoricalPriceLines,
 } from '@/lib/products/price-integrity';
 import { unidadesDelTitulo } from '@/lib/products/unify';
+import { formatShopifyVariants } from '@/lib/products/variants';
 import { fmtMoney, type CheckoutConfig } from '@/lib/shopify/create-checkout';
 import { topeDeDescuento } from '@/lib/shopify/discounts';
 import { refreshLivePricing } from '@/lib/shopify/live-pricing';
@@ -252,23 +253,6 @@ export async function runAiAgent(
           null)
         : null;
     const inboundText = args.inboundMessage.content_text ?? '';
-    const priceQuestion = asksForPrice(inboundText);
-    const publicationForRouting =
-      args.channel === 'ig_comment' ||
-      args.channel === 'fb_comment' ||
-      args.channel === 'tiktok_comment'
-        ? await briefDePublicacionPorId(db, args.conversation.id).catch(
-            () => null
-          )
-        : null;
-    const productMatch = await detectInboundProduct(
-      db,
-      args.workspaceId,
-      [inboundText, publicationForRouting].filter(Boolean).join('\n'),
-      paginaActual
-    );
-    let priceVerified = !priceQuestion;
-    const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
     const { data: handoff } = await db
       .from('conversations')
       .select('assigned_ai_agent_id, automation_context')
@@ -283,6 +267,30 @@ export async function runAiAgent(
           automation_context?: Record<string, unknown> | null;
         } | null
       )?.automation_context ?? null;
+    const priceQuestion = asksForPrice(inboundText);
+    const publicationForRouting =
+      args.channel === 'ig_comment' ||
+      args.channel === 'fb_comment' ||
+      args.channel === 'tiktok_comment'
+        ? await briefDePublicacionPorId(db, args.conversation.id).catch(
+            () => null
+          )
+        : null;
+    const productMatch = await detectInboundProduct(
+      db,
+      args.workspaceId,
+      [
+        inboundText,
+        publicationForRouting,
+        automationContext?.first_item,
+        automationContext?.order_items,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      paginaActual
+    );
+    let priceVerified = !priceQuestion;
+    const stickyAgentId = await getStickyAgentId(db, args.conversation.id);
 
     const agent = await pickAgent(db, args.workspaceId, args.channel, {
       productMatch,
@@ -563,7 +571,12 @@ export async function runAiAgent(
     // has the lexicographically-greatest id at the latest created_at)
     // proceeds. Avoids the all-skip silence we'd get from a naive
     // gt(created_at) check on ties.
-    const currentRecoveryButton = recoveryButtonKind(textoEntrante);
+    // Estos botones pertenecen exclusivamente al agente de recuperación.
+    // Un “sí” o una palabra parecida dentro de una venta normal nunca puede
+    // abrir el flujo de pagos de otra campaña.
+    const currentRecoveryButton = agent.assigned_only
+      ? recoveryButtonKind(textoEntrante)
+      : null;
     const { data: sameTimestampRows } =
       existingOrderRecovery && currentRecoveryButton
         ? await db
@@ -2152,7 +2165,7 @@ export async function loadProductCatalog(
     const { data: pinned } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency'
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency, raw'
       )
       .eq('id', productMatch.product_id)
       .eq('workspace_id', workspaceId)
@@ -2175,7 +2188,7 @@ export async function loadProductCatalog(
     const { data: products } = await db
       .from('shopify_products')
       .select(
-        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency'
+        'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, structured_research, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform, currency, raw'
       )
       .in('id', Array.from(ownedIds));
     const rest = ((products ?? []) as ProductRow[]).filter(
@@ -2188,7 +2201,7 @@ export async function loadProductCatalog(
   const { data: products } = await db
     .from('shopify_products')
     .select(
-      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform, currency'
+      'id, title, description, price_min, price_max, url, product_type, vendor, tags, training_material, master_id, platform, currency, raw'
     )
     .eq('workspace_id', workspaceId)
     .order('synced_at', { ascending: false })
@@ -2298,6 +2311,8 @@ export interface ProductRow {
   escalation_triggers?: unknown[] | null;
   allowed_offers?: unknown[] | null;
   health_sensitive?: boolean | null;
+  /** Volcado de la publicación; contiene opciones, variantes e inventario. */
+  raw?: unknown;
 }
 
 /**
@@ -2830,8 +2845,12 @@ async function generateReply(
     const etapa = Number(handoffContext.benefit_percent ?? 0);
     const pedidoExistente = recoveryHasExistingOrder(handoffContext);
     system += pedidoExistente
-      ? `\n\nRECUPERACIÓN ASIGNADA\nEste chat corresponde a un pedido que ya existe. CONFIRMAR conserva el pago contra entrega. BENEFICIO${etapa === 10 ? ' o SI' : ''} solicita cambiar la forma de pago del pedido actual y aplicar el beneficio anunciado: NO genera cupón, NO genera otro checkout y NO es para una compra futura. La gestión se escala al equipo humano. No inventes datos de Transferencia, Llave, Bold ni Addi.`
-      : `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Si responde BENEFICIO${etapa === 10 ? ' o SI' : ''}, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
+      ? `\n\nRECUPERACIÓN ASIGNADA\nEste chat corresponde a un pedido que ya existe. CONFIRMAR conserva el pago contra entrega. BENEFICIO o RECIBIR BENEFICIO solicita cambiar la forma de pago del pedido actual y aplicar el beneficio anunciado: NO genera cupón, NO genera otro checkout y NO es para una compra futura. La gestión se escala al equipo humano. Un “sí” genérico nunca activa este flujo. No inventes datos de Transferencia, Llave, Bold ni Addi.`
+      : `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Sólo si responde BENEFICIO o RECIBIR BENEFICIO, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} Un “sí” genérico nunca activa este flujo. No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
+  }
+  if (handoffContext && recoveryHasExistingOrder(handoffContext)) {
+    const safeOrder = JSON.stringify(handoffContext).slice(0, 4000);
+    system += `\n\nPEDIDO ACTUAL\n<current_order>${escapeXmlInner(safeOrder)}</current_order>\nLo anterior es información de un pedido que YA existe. Si la persona corrige color, modelo, cantidad, dirección u otro dato, no tomes ni crees otro pedido y no digas que el cambio quedó aplicado. Usa las variantes publicadas del producto para entender a qué se refiere. Si hay más de una coincidencia, pregunta cuál nombre exacto prefiere. Cuando quede claro, indica que el equipo verificará y aplicará el cambio antes del despacho.`;
   }
 
   const messages = normalizarLimitesDeConversacion(context.messages, {
@@ -3638,6 +3657,10 @@ export function buildSystemPrompt(
     // llegaban sin el precio del marketplace, y el agente le cotizaba el de la
     // tienda a quien escribía desde ahí.
     const canales = lineaDeCanales(p);
+    const variantes =
+      (p.platform ?? 'shopify') === 'shopify'
+        ? formatShopifyVariants(p.raw)
+        : '';
     // El ENLACE va siempre, igual que el precio por canal y por la misma
     // razón. La línea de catálogo lo lleva (`<url>`), pero esa línea sólo se
     // usa cuando el producto NO tiene ficha compilada — así que justo los
@@ -3651,6 +3674,7 @@ export function buildSystemPrompt(
           ? tmRaw.slice(0, perCap) + '\n…[truncado]'
           : tmRaw) +
         (canales ? `\n${canales.trim()}` : '') +
+        (variantes ? `\n${variantes}` : '') +
         enlace
       : formatProductLine(p);
     lines.push(
@@ -3694,6 +3718,9 @@ export function buildSystemPrompt(
       lines.push('</catalog>');
     }
   }
+  lines.push(
+    'Los nombres de variantes y opciones de Shopify son datos exactos del catálogo. Interpreta expresiones naturales del cliente contra esos nombres (por ejemplo, “para niña” puede referirse a “Color Niña”), pero no inventes equivalencias: si coinciden varias variantes, pregunta cuál prefiere. Sólo ofrece las marcadas como disponibles y nunca afirmes que cambiaste una variante de un pedido sin que la operación se haya ejecutado.'
+  );
 
   // La tienda, para cuando la consulta no es de un producto concreto. Sale del
   // primer enlace de producto que haya: es el mismo dominio y ahorra una
@@ -3899,9 +3926,11 @@ export function formatProductLine(p: ProductRow): string {
   // dice dónde más se vende y nada más: que le falte un precio es recuperable,
   // que diga el equivocado no.
   const otros = lineaDeCanales(p);
+  const variantes =
+    (p.platform ?? 'shopify') === 'shopify' ? formatShopifyVariants(p.raw) : '';
   return `- ${p.title}${meta ? ` (${meta})` : ''}${desc ? `, ${desc}` : ''}${otros}${
-    p.url ? ` <${p.url}>` : ''
-  }`;
+    variantes ? ` [${variantes}]` : ''
+  }${p.url ? ` <${p.url}>` : ''}`;
 }
 
 /**

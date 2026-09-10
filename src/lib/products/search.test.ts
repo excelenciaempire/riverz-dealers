@@ -37,7 +37,23 @@ const producto = (over: Fila = {}): Fila => ({
   currency: 'COP',
   tags: ['rostro'],
   description: 'Ilumina y unifica el tono. Ideal para piel sensible.',
-  raw: { variants: [{ id: 123456 }], images: [{ src: 'https://cdn/x.jpg' }] },
+  raw: {
+    status: 'active',
+    published_at: '2026-09-08T22:51:03-04:00',
+    options: [{ name: 'Modelo' }],
+    variants: [
+      {
+        id: 123456,
+        title: 'Cerdita Rosa',
+        option1: 'Cerdita Rosa',
+        price: '69000',
+        inventory_management: 'shopify',
+        inventory_policy: 'continue',
+        inventory_quantity: 0,
+      },
+    ],
+    images: [{ src: 'https://cdn/x.jpg' }],
+  },
   ...over,
 });
 
@@ -52,6 +68,14 @@ describe('searchProducts', () => {
     expect(hit.currency).toBe('COP');
     // Sin la variante no se puede armar el carrito, que es el punto de buscar.
     expect(hit.variant_id).toBe('123456');
+    expect(hit.variants).toEqual([
+      expect.objectContaining({
+        id: '123456',
+        title: 'Cerdita Rosa',
+        options: { Modelo: 'Cerdita Rosa' },
+        available: true,
+      }),
+    ]);
   });
 
   it('usa la foto del volcado crudo cuando falta image_url', async () => {
@@ -68,7 +92,7 @@ describe('searchProducts', () => {
         producto({ id: 'a', title: 'Kit Serum y Crema' }),
         producto({ id: 'b', title: 'serum' }),
       ]),
-      { workspaceId: 'w', query: 'Serum' },
+      { workspaceId: 'w', query: 'Serum' }
     );
     expect(hits[0].id).toBe('b');
   });
@@ -79,22 +103,34 @@ describe('searchProducts', () => {
         producto({ id: 'otro', title: 'Serum de Rosas', tags: [] }),
         producto({ id: 'justo', title: 'Serum Vitamina C 30ml', tags: [] }),
       ]),
-      { workspaceId: 'w', query: 'serum vitamina c' },
+      { workspaceId: 'w', query: 'serum vitamina c' }
     );
     expect(hits[0].id).toBe('justo');
   });
 
   it('respeta el tope pedido', async () => {
     const muchos = Array.from({ length: 30 }, (_, i) =>
-      producto({ id: `p${i}`, title: `Serum ${i}` }),
+      producto({ id: `p${i}`, title: `Serum ${i}` })
     );
-    expect((await searchProducts(db(muchos), { workspaceId: 'w', query: 'serum', limit: 3 })).length).toBe(3);
+    expect(
+      (
+        await searchProducts(db(muchos), {
+          workspaceId: 'w',
+          query: 'serum',
+          limit: 3,
+        })
+      ).length
+    ).toBe(3);
   });
 
   it('no busca con una consulta demasiado corta', async () => {
     // Con una letra el resultado sería el catálogo entero: es ruido, no ayuda.
-    expect(await searchProducts(db([producto()]), { workspaceId: 'w', query: 'a' })).toEqual([]);
-    expect(await searchProducts(db([producto()]), { workspaceId: 'w', query: '  ' })).toEqual([]);
+    expect(
+      await searchProducts(db([producto()]), { workspaceId: 'w', query: 'a' })
+    ).toEqual([]);
+    expect(
+      await searchProducts(db([producto()]), { workspaceId: 'w', query: '  ' })
+    ).toEqual([]);
   });
 
   it('neutraliza los caracteres que romperían la consulta', async () => {
@@ -111,11 +147,15 @@ describe('searchProducts', () => {
     const roto = {
       from: () => {
         const q: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'or', 'order', 'contains', 'overlaps']) q[m] = () => q;
-        q.limit = () => Promise.resolve({ data: null, error: { message: 'boom' } });
+        for (const m of ['select', 'eq', 'or', 'order', 'contains', 'overlaps'])
+          q[m] = () => q;
+        q.limit = () =>
+          Promise.resolve({ data: null, error: { message: 'boom' } });
         return q;
       },
     } as never;
-    expect(await searchProducts(roto, { workspaceId: 'w', query: 'serum' })).toEqual([]);
+    expect(
+      await searchProducts(roto, { workspaceId: 'w', query: 'serum' })
+    ).toEqual([]);
   });
 });
