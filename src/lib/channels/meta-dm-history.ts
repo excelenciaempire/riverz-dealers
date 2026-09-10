@@ -4,6 +4,7 @@ import { ingestMetaAttachment } from "./media-ingest";
 import { appsecretProof, withAppsecretProof } from "./meta-graph";
 import { fetchMetaGraph } from "./meta-fetch";
 import type { ChannelConnection, MessageAttachment } from "@/types";
+import { isMetaCommentContextNotice } from "./meta-comment-context";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 /** Una página o mensaje de Graph no puede dejar un backfill colgado. */
@@ -137,6 +138,7 @@ export async function syncThreadMessages(args: ThreadSyncArgs): Promise<number> 
       if (!m.id) continue;
       const outbound = m.from?.id === args.selfId;
       const parsed = await mapGraphMessage(m, args.connection.workspace_id, args.externalId);
+      if (outbound && isMetaCommentContextNotice(parsed.text)) continue;
       // Nada que mostrar (Graph a veces devuelve el mensaje sin cuerpo ni
       // adjunto legible): mejor no dejar una burbuja en blanco en el hilo.
       if (!parsed.text && parsed.media.length === 0) continue;

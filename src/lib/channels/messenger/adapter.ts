@@ -29,6 +29,7 @@ import { withAppsecretProof, withAppsecretProofBody } from "../meta-graph";
 import { supabaseAdmin } from "../admin-client";
 import { marcarEntrega } from "../estado-de-entrega";
 import { isMarketingOptin, recordOptIn } from "../marketing-optin";
+import { isMetaCommentContextNotice } from "../meta-comment-context";
 
 /**
  * Map a Meta Messenger/Instagram `referral` (or postback.referral) to the
@@ -324,6 +325,7 @@ export const messengerAdapter: ChannelAdapter = {
         // mensajes escritos realmente desde el teléfono.
         const isEcho = Boolean(message.is_echo) || selfIds.has(String(sender.id));
         if (isEcho) {
+          if (isMetaCommentContextNotice(message.text)) continue;
           const recipient = m.recipient as { id?: string } | undefined;
           const customerId = recipient?.id ? String(recipient.id) : "";
           if (!customerId || selfIds.has(customerId)) continue;
