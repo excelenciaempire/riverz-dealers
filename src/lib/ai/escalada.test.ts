@@ -57,6 +57,25 @@ describe('señalDura', () => {
     ).resolves.toMatchObject({ clase: 'pago_asistido' })
     await expect(
       detectarEscalada({
+        mensaje: 'Addi',
+        hilo: [],
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toMatchObject({ clase: 'pago_asistido' })
+    await expect(
+      detectarEscalada({
+        mensaje: 'envíame el link de Bold',
+        hilo: [],
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toMatchObject({ clase: 'pago_asistido' })
+  })
+
+  it('deja que la IA presente opciones antes de que elijan el medio', async () => {
+    await expect(
+      detectarEscalada({
         mensaje: 'Quiero el grande de la promoción',
         hilo: [
           'Cliente: ¿Recibes pagos con Addi?',
@@ -66,7 +85,15 @@ describe('señalDura', () => {
         db: {} as never,
         workspaceId: 'w1',
       }),
-    ).resolves.toMatchObject({ clase: 'pago_asistido' })
+    ).resolves.toBeNull()
+    await expect(
+      detectarEscalada({
+        mensaje: 'quiero pagar por transferencia',
+        hilo: [],
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toBeNull()
   })
 
   it('no clasifica como incidente un checkout por transferencia', async () => {

@@ -51,8 +51,15 @@ describe('escenarios sintéticos de Rasmiaw', () => {
       benefitPercent: context.benefit_percent,
       existingOrder: recoveryHasExistingOrder(context),
     });
-    expect(action).toBe('manual_payment');
+    expect(action).toBe('payment_options');
     expect(recoveryCheckoutAllowed(action)).toBe(false);
+    expect(
+      recoveryAction({
+        assignedOnly: true,
+        text: 'BENEFICIO',
+        existingOrder: true,
+      })
+    ).toBe('payment_options');
   });
 
   it('no interpreta un Sí genérico como solicitud de cambiar el pago', () => {
@@ -112,7 +119,7 @@ describe('escenarios sintéticos de Rasmiaw', () => {
         benefitPercent: 5,
         existingOrder: true,
       })
-    ).toBe('manual_payment');
+    ).toBe('payment_options');
   });
 
   it('responde los botones de recuperación con mensajes claros y bilingües', () => {
@@ -133,11 +140,18 @@ describe('escenarios sintéticos de Rasmiaw', () => {
     );
   });
 
-  it('manda transferencias y comprobantes a revisión humana', () => {
+  it('presenta transferencias y manda comprobantes a revisión humana', () => {
     expect(
       recoveryAction({
         assignedOnly: true,
         text: 'Quiero pagar por transferencia',
+        benefitPercent: 5,
+      })
+    ).toBe('payment_options');
+    expect(
+      recoveryAction({
+        assignedOnly: true,
+        text: 'Te adjunto el comprobante',
         benefitPercent: 5,
       })
     ).toBe('manual_payment');

@@ -190,9 +190,9 @@ async function main() {
   const agentPayload = {
     workspace_id: WORKSPACE_ID, name: 'Rasmiaw Recuperación', is_active: false, assigned_only: true,
     role: 'recuperacion', scope: 'channels', language: 'es', tone: 'friendly', reply_when_assigned: true,
-    persona: 'Recuperas compras asignadas con claridad y calidez. Confirmar conserva contra entrega. En un pedido ya creado, BENEFICIO o SI solicita cambiar la forma de pago actual: nunca generas un cupón ni otro checkout y escalas la gestión al equipo. Sólo generas cupón cuando una recuperación sin pedido existente lo autorizó. No inventas datos de Transferencia, Llave, Bold ni Addi.',
+    persona: 'Recuperas compras asignadas con claridad y calidez. Confirmar conserva contra entrega. En un pedido ya creado, BENEFICIO o RECIBIR BENEFICIO solicita cambiar la forma de pago actual: presentas el menú de pago personalizado declarado por Rasmiaw sin generar cupón ni otro checkout. Escalas cuando elija Bold o Addi, envíe un comprobante o reporte un problema. Sólo generas cupón cuando una recuperación sin pedido existente lo autorizó. No inventas datos de pago.',
     permissions: { crear_checkout: true }, tools: { crear_checkout: 'auto', ofrecer_descuento: 'off', registrar_pago: 'off' },
-    medios_pago: null, created_by: ownerId,
+    medios_pago: ['transferencia', 'link_de_pago'], created_by: ownerId,
   }
   const { data: agent, error: agentError } = existingAgent
     ? await db.from('ai_agents').update(agentPayload).eq('id', existingAgent.id).select('id').single()

@@ -652,38 +652,9 @@ export async function runAiAgent(
     }
 
     const deterministicRecoveryReply =
-      currentRecoveryButton === 'confirm' ||
-      (currentRecoveryButton === 'payment_change' && existingOrderRecovery)
+      currentRecoveryButton === 'confirm'
         ? recoveryButtonReply(currentRecoveryButton, agent.language)
         : null;
-
-    if (
-      args.channel !== 'webchat' &&
-      currentRecoveryButton === 'payment_change' &&
-      existingOrderRecovery
-    ) {
-      const porQue = 'Quiere cambiar la forma de pago de un pedido existente';
-      await flagNeedsHuman(db, args.conversation, 'problema_detectado', {
-        pidio: textoEntrante,
-        porQue,
-      });
-      await avisarDelCaso(db, args, {
-        clase: 'cobro',
-        urgencia: 'hoy',
-        porQue,
-      });
-      const messageId = await sendDeterministicAgentReply(
-        db,
-        agent,
-        args,
-        recoveryButtonReply('payment_change', agent.language)
-      );
-      await logReply(db, agent, args, {
-        status: 'sent',
-        message_id: messageId,
-      });
-      return;
-    }
 
     if (args.channel !== 'webchat' && recoveryIntent === 'manual_payment') {
       const porQue = existingOrderRecovery
@@ -2845,7 +2816,7 @@ async function generateReply(
     const etapa = Number(handoffContext.benefit_percent ?? 0);
     const pedidoExistente = recoveryHasExistingOrder(handoffContext);
     system += pedidoExistente
-      ? `\n\nRECUPERACIÓN ASIGNADA\nEste chat corresponde a un pedido que ya existe. CONFIRMAR conserva el pago contra entrega. BENEFICIO o RECIBIR BENEFICIO solicita cambiar la forma de pago del pedido actual y aplicar el beneficio anunciado: NO genera cupón, NO genera otro checkout y NO es para una compra futura. La gestión se escala al equipo humano. Un “sí” genérico nunca activa este flujo. No inventes datos de Transferencia, Llave, Bold ni Addi.`
+      ? `\n\nRECUPERACIÓN ASIGNADA\nEste chat corresponde a un pedido que ya existe. CONFIRMAR conserva el pago contra entrega. BENEFICIO o RECIBIR BENEFICIO solicita cambiar la forma de pago del pedido actual y aplicar el beneficio anunciado: NO genera cupón, NO genera otro checkout y NO es para una compra futura. Presenta en un solo mensaje las opciones de pago declaradas por el comercio, personalizadas con el nombre, pedido, importe y beneficio conocidos, y pregunta cuál elige. No escales sólo por presentar las opciones; el sistema escalará cuando elija una que necesite gestión humana o envíe un comprobante. Un “sí” genérico nunca activa este flujo. No inventes datos de Transferencia, Llave, Bold ni Addi.`
       : `\n\nRECUPERACIÓN ASIGNADA\nEste chat fue entregado por una secuencia de recuperación. CONFIRMAR conserva el pago contra entrega y NO genera cupón. ${etapa > 0 ? `Sólo si responde BENEFICIO o RECIBIR BENEFICIO, genera exactamente el cupón personal de ${etapa}% y un checkout.` : 'No ofrezcas cupón.'} Un “sí” genérico nunca activa este flujo. No inventes datos de transferencia, Llave, Bold ni Addi${origen.channel === 'webchat' ? '; si no están confirmados, dilo con claridad y continúa ayudando con las opciones disponibles.' : ': esas consultas se escalan al equipo humano.'}`;
   }
   if (handoffContext && recoveryHasExistingOrder(handoffContext)) {

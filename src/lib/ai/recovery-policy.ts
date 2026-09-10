@@ -2,11 +2,14 @@
 export type RecoveryAction =
   | 'confirm_cod'
   | 'benefit'
+  | 'payment_options'
   | 'manual_payment'
   | 'none';
 
+const PAYMENT_TOPIC =
+  /\b(transferencia|transferir|bancolombia|nequi|llave|bold|addi)\b/i;
 const MANUAL_PAYMENT =
-  /\b(transferencia|transferir|comprobante|bancolombia|nequi|llave|bold|addi)\b/i;
+  /\b(comprobante|ya\s+(?:pagué|pague|transferí|transferi)|pago\s+(?:hecho|realizado)|cobro\s+(?:doble|duplicado))\b/i;
 
 function normalizedButton(text: string): string {
   return text.trim().normalize('NFC').toUpperCase();
@@ -63,7 +66,9 @@ export function recoveryAction(input: {
   if (!input.assignedOnly) return 'none';
 
   const text = normalizedButton(input.text);
-  if (recoveryButtonKind(text) === 'confirm') return 'confirm_cod';
+  const button = recoveryButtonKind(text);
+  if (button === 'confirm') return 'confirm_cod';
+  if (button === 'payment_change' && input.existingOrder) return 'payment_options';
   if (MANUAL_PAYMENT.test(input.text)) return 'manual_payment';
 
   const benefit = Number(input.benefitPercent ?? 0);
@@ -73,8 +78,8 @@ export function recoveryAction(input: {
   // En un pedido que ya existe, esos botones no abren una venta nueva:
   // solicitan cambiar la forma de pago del pedido actual. Un cupón personal
   // para "la próxima compra" no aplica y además deja el pedido intacto.
-  if (requestedBenefit && input.existingOrder) return 'manual_payment';
   if (requestedBenefit) return 'benefit';
+  if (PAYMENT_TOPIC.test(input.text)) return 'payment_options';
   return 'none';
 }
 

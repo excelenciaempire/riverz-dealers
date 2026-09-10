@@ -166,26 +166,21 @@ const SEÑALES: Señal[] = [
   },
 ];
 
-const MEDIO_PAGO_ASISTIDO = /(?<![\wáéíóúñ])(bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i;
-const INTENCION_PAGO = /(?<![\wáéíóúñ])(quiero|deseo|necesito|voy a|list[oa] para)\s+(pagar|hacer el pago|comprar)(?![\wáéíóúñ])/i;
-const PIDE_ENLACE = /(?<![\wáéíóúñ])(env[ií]ame|mándame|mandame|pásame|pasame)(?![\wáéíóúñ])[^.!?]{0,30}(?<![\wáéíóúñ])(link|enlace)(?![\wáéíóúñ])/i;
-const ELIGE_PRODUCTO = /(?<![\wáéíóúñ])quiero\s+(el|la|los|las|un|una)(?![\wáéíóúñ])/i;
+const MEDIO_CON_ENLACE_HUMANO = /(?<![\wáéíóúñ])(bold|addi)(?![\wáéíóúñ])/i;
+const ELIGE_MEDIO = /(?<![\wáéíóúñ])(elijo|escojo|prefiero|quiero|deseo|voy a|me quedo con|usar[ée]?|pago (con|por))(?![\wáéíóúñ])/i;
+const PIDE_ENLACE = /(?<![\wáéíóúñ])(env[ií]ame|mándame|mandame|pásame|pasame|necesito)(?![\wáéíóúñ])[^.!?]{0,30}(?<![\wáéíóúñ])(link|enlace)(?![\wáéíóúñ])/i;
 
-function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje' | 'hilo'>): Escalada | null {
+function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje'>): Escalada | null {
   const mensaje = (ctx.mensaje ?? '').normalize('NFC');
-  const cliente = (ctx.hilo ?? [])
-    .filter((turno) => turno.startsWith('Cliente:'))
-    .slice(-4)
-    .join('\n');
-  const contexto = `${cliente}\n${mensaje}`;
-  if (!MEDIO_PAGO_ASISTIDO.test(contexto)) return null;
-  if (!INTENCION_PAGO.test(contexto) && !PIDE_ENLACE.test(contexto) && !ELIGE_PRODUCTO.test(mensaje)) {
+  if (!MEDIO_CON_ENLACE_HUMANO.test(mensaje)) return null;
+  const soloMedio = /^(bold|addi)[\s.!?]*$/i.test(mensaje.trim());
+  if (!soloMedio && !ELIGE_MEDIO.test(mensaje) && !PIDE_ENLACE.test(mensaje)) {
     return null;
   }
   return {
     clase: 'pago_asistido',
     urgencia: 'hoy',
-    porQue: 'Quiere pagar por un medio cuyo enlace debe enviar una persona',
+    porQue: 'Eligió un medio cuyo enlace o solicitud debe gestionar una persona',
   };
 }
 
