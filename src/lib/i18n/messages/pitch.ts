@@ -1,5 +1,6 @@
 import type { Namespace } from './types';
 export const pitch = {
+  canvasStart: { es: 'Volver al inicio del mapa', en: 'Return to map start' },
   canvas: { es: 'Canvas completo', en: 'Complete canvas' },
   canvasNavigate: {
     es: 'Ir a una automatización o etapa',

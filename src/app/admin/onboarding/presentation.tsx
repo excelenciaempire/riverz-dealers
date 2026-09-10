@@ -440,92 +440,86 @@ function Studio({ brand }: { brand: Brand }) {
   );
   return (
     <section
-      className={`${styles.studio} ${presenting ? styles.presenting : ''}`}
+      className={`${styles.studio} ${presenting ? styles.presenting : ''} ${tab === 'canvas' ? styles.canvasMode : ''}`}
     >
-      <header className={styles.topbar}>
-        <Link className={styles.logo} href="/admin/onboarding">
-          riverz<span> / {t('pitch.title')}</span>
-        </Link>
-        <div className={styles.toolbar}>
-          <button onClick={() => setSettings(true)}>
-            <Settings2 size={14} />
-            {t('pitch.settings')}
+      <header className={styles.compactHeader}>
+        <div className={styles.brandIdentity}>
+          <Link href="/admin/onboarding" aria-label={t('pitch.title')}>
+            <ChevronLeft size={18} />
+          </Link>
+          <h1>{draft.name}</h1>
+          {website && (
+            <a
+              className={styles.brandWebsite}
+              href={website}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {new URL(website).hostname}
+              <ExternalLink size={11} />
+            </a>
+          )}
+        </div>
+        <div className={styles.compactActions}>
+          <select
+            aria-label={t('pitch.model')}
+            value={draft.model}
+            onChange={(e) =>
+              update({ model: e.target.value as PitchDraft['model'] })
+            }
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {t(`pitch.${m}`)}
+              </option>
+            ))}
+          </select>
+          <button
+            aria-label={t('pitch.settings')}
+            title={t('pitch.settings')}
+            onClick={() => setSettings(true)}
+          >
+            <Settings2 size={17} />
           </button>
-          <button onClick={download}>
-            <Download size={14} />
-            {t('pitch.download')}
+          <button
+            aria-label={t('pitch.download')}
+            title={t('pitch.download')}
+            onClick={download}
+          >
+            <Download size={17} />
           </button>
-          <button onClick={() => setPresenting(!presenting)}>
-            {presenting ? <X size={14} /> : <Maximize2 size={14} />}
-            <span>{t(presenting ? 'pitch.exit' : 'pitch.present')}</span>
+          <button
+            aria-label={t(presenting ? 'pitch.exit' : 'pitch.present')}
+            title={t(presenting ? 'pitch.exit' : 'pitch.present')}
+            onClick={() => setPresenting(!presenting)}
+          >
+            {presenting ? <X size={17} /> : <Maximize2 size={17} />}
           </button>
         </div>
       </header>
-      <div className={styles.brandbar}>
-        <div className={styles.monogram}>
-          {draft.name.slice(0, 1).toUpperCase()}
-        </div>
-        <div>
-          <h1>{draft.name}</h1>
-          <p>
-            {t(`pitch.${brand}Sector`)}
-            {website && (
-              <>
-                {' '}
-                ·{' '}
-                <a href={website} target="_blank" rel="noreferrer">
-                  {new URL(website).hostname}
-                  <ExternalLink size={10} />
-                </a>
-              </>
-            )}
-          </p>
-        </div>
-        <div className={styles.model}>
-          <span>{t('pitch.model')}</span>
-          <div>
-            {models.map((m) => (
-              <button
-                key={m}
-                aria-pressed={draft.model === m}
-                onClick={() => {
-                  update({ model: m });
-                  setSource('design');
-                  setGroup(-1);
-                  setTab('flows');
-                }}
-              >
-                {t(`pitch.${m}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
       <nav className={styles.tabs} aria-label={t('pitch.title')}>
-        {['canvas', 'overview', 'flows', 'messages', 'ai', 'agreement'].map(
-          (view) => (
-            <button
-              key={view}
-              aria-pressed={tab === view}
-              onClick={() => {
-                setTab(view);
-                setQuery('');
-                setGroup(-1);
-                setEditing(false);
-                setNotice('');
-              }}
-            >
-              {t(`pitch.${view}`)}
-              {view === 'messages' && (
-                <span>
-                  {brand === 'contraentrega'
-                    ? proposals.length
-                    : (originals[brand] ?? []).length}
-                </span>
-              )}
-            </button>
-          )
-        )}
+        {['canvas', 'messages', 'agreement'].map((view) => (
+          <button
+            key={view}
+            aria-pressed={tab === view}
+            onClick={() => {
+              setTab(view);
+              setQuery('');
+              setGroup(-1);
+              setEditing(false);
+              setNotice('');
+            }}
+          >
+            {t(`pitch.${view}`)}
+            {view === 'messages' && (
+              <span>
+                {brand === 'contraentrega'
+                  ? proposals.length
+                  : (originals[brand] ?? []).length}
+              </span>
+            )}
+          </button>
+        ))}
       </nav>
       {tab === 'canvas' && (
         <AutomationCanvas

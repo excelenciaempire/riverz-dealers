@@ -1,13 +1,17 @@
-"use client";
+'use client';
 
-import { Suspense, useState } from "react";
-import { usePathname } from "next/navigation";
-import { ArrowLeft, ChevronLeft, Lock } from "lucide-react";
-import Link from "@/components/i18n/locale-link";
-import { CsrfProvider } from "@/components/auth/csrf-provider";
-import { LocaleToggleButton, ThemeToggleButton } from "@/components/settings/toggles";
-import { useT } from "@/hooks/use-locale";
-import { limpiarCacheAdmin } from "./_components/admin-ui";
+import { Suspense, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ArrowLeft, ChevronLeft, Lock } from 'lucide-react';
+import Link from '@/components/i18n/locale-link';
+import { CsrfProvider } from '@/components/auth/csrf-provider';
+import {
+  LocaleToggleButton,
+  ThemeToggleButton,
+} from '@/components/settings/toggles';
+import { useT } from '@/hooks/use-locale';
+import { limpiarCacheAdmin } from './_components/admin-ui';
+import { canonicalizePath } from '@/lib/i18n/routes';
 
 /**
  * Shell del panel de plataforma.
@@ -26,28 +30,39 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const t = useT();
+  const pathname = canonicalizePath(usePathname() || '/');
+  const wideCanvas =
+    /^\/(?:admin\/)?onboarding\/(pilar|rasmiaw|contraentrega)\/?$/.test(
+      pathname
+    );
 
   return (
     <CsrfProvider>
-      <div className="min-h-dvh bg-background">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
+      <div className="bg-background min-h-dvh">
+        <header className="border-border bg-background/90 sticky top-0 z-10 border-b backdrop-blur">
+          <div
+            className={`mx-auto flex h-14 items-center gap-4 px-4 sm:px-6 ${wideCanvas ? '' : 'max-w-7xl'}`}
+          >
             <Link
               href="/admin"
               className="flex shrink-0 items-baseline gap-1.5"
-              aria-label={`riverz ${t("admin.title")}`}
+              aria-label={`riverz ${t('admin.title')}`}
             >
-              <span className="text-[20px] font-semibold lowercase leading-none tracking-[0.04em] text-accent-ink">
+              <span className="text-accent-ink text-[20px] leading-none font-semibold tracking-[0.04em] lowercase">
                 riverz
               </span>
-              <span className="text-xs lowercase text-muted-foreground">admin</span>
+              <span className="text-muted-foreground text-xs lowercase">
+                admin
+              </span>
             </Link>
 
             <VolverAlIndice />
 
             <div className="flex-1" />
 
-            <span className="hidden text-xs text-muted-foreground sm:block">{email}</span>
+            <span className="text-muted-foreground hidden text-xs sm:block">
+              {email}
+            </span>
             {/* El panel vive en admin.riverz.co, que es OTRO origen: ni la
                 cookie del idioma (host-only) ni el localStorage del tema viajan
                 desde la app. Sin estos dos botones, acá no había forma de
@@ -59,11 +74,11 @@ export function AdminShell({
                 que un href relativo se queda en el subdominio y no lleva a la
                 app. Con el host propio, volver a la app es salir del origen. */}
             <a
-              href={`${process.env.NEXT_PUBLIC_SITE_URL || "https://riverz.co"}/panel`}
-              className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              href={`${process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co'}/panel`}
+              className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">{t("admin.backToApp")}</span>
+              <span className="hidden sm:inline">{t('admin.backToApp')}</span>
             </a>
           </div>
         </header>
@@ -72,14 +87,17 @@ export function AdminShell({
             pantallas con pestañas leen `useSearchParams`, y sin un límite
             arriba Next obliga a poner uno en cada una. Una vez acá lo cubre
             para todo el panel. */}
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <main
+          className={
+            wideCanvas ? 'w-full' : 'mx-auto max-w-7xl px-4 py-8 sm:px-6'
+          }
+        >
           <Suspense fallback={null}>{children}</Suspense>
         </main>
       </div>
     </CsrfProvider>
   );
 }
-
 
 /**
  * Volver al índice del panel.
@@ -96,16 +114,16 @@ function VolverAlIndice() {
   const t = useT();
   const pathname = usePathname();
   // En admin.riverz.co el índice es "/"; en el dominio viejo, "/admin".
-  const enElIndice = pathname === "/" || pathname === "/admin";
+  const enElIndice = pathname === '/' || pathname === '/admin';
   if (enElIndice) return null;
 
   return (
     <Link
       href="/admin"
-      className="flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      className="border-border text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition-colors"
     >
       <ChevronLeft className="h-4 w-4" />
-      <span className="hidden sm:inline">{t("admin.backToIndex")}</span>
+      <span className="hidden sm:inline">{t('admin.backToIndex')}</span>
     </Link>
   );
 }
@@ -127,9 +145,9 @@ function LockButton() {
       onClick={async () => {
         setBusy(true);
         try {
-          await fetch("/api/admin/unlock", {
-            method: "DELETE",
-            credentials: "same-origin",
+          await fetch('/api/admin/unlock', {
+            method: 'DELETE',
+            credentials: 'same-origin',
           });
           // Cerrar el panel vuelve a pedir la contraseña: lo que se había
           // guardado para pintar rápido no puede sobrevivir a eso.
@@ -140,9 +158,9 @@ function LockButton() {
         }
       }}
       disabled={busy}
-      title={t("admin.lockPanel")}
-      aria-label={t("admin.lockPanel")}
-      className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+      title={t('admin.lockPanel')}
+      aria-label={t('admin.lockPanel')}
+      className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm transition-colors disabled:opacity-50"
     >
       <Lock className="h-4 w-4" />
     </button>

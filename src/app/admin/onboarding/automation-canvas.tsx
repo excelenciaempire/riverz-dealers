@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   GitBranch,
+  Home,
   Maximize,
   MessageCircle,
   Minus,
@@ -42,7 +43,7 @@ export function AutomationCanvas({
   const [view, setView] = useState({ x: 30, y: 25, zoom: 0.6 });
   const viewRef = useRef(view);
   viewRef.current = view;
-  const [size, setSize] = useState({ width: 1000, height: 500 });
+  const [size, setSize] = useState({ width: 0, height: 0 });
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState('');
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(
@@ -81,6 +82,13 @@ export function AutomationCanvas({
       1
     );
     setView({ zoom, x: (size.width - graph.width * zoom) / 2, y: 30 });
+  }
+  function goToStart() {
+    const first =
+      graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
+      graph.nodes.find((n) => n.kind === 'hub');
+    if (first)
+      setView({ zoom: 0.75, x: 40 - first.x * 0.75, y: 85 - first.y * 0.75 });
   }
   function zoomAt(factor: number, x = size.width / 2, y = size.height / 2) {
     setView((v) => {
@@ -139,7 +147,7 @@ export function AutomationCanvas({
       graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
       graph.nodes.find((n) => n.kind === 'hub');
     if (first)
-      setView({ zoom: 0.65, x: 80 - first.x * 0.65, y: 50 - first.y * 0.65 });
+      setView({ zoom: 0.75, x: 40 - first.x * 0.75, y: 85 - first.y * 0.75 });
   }, [graph, size.height]);
 
   const miniScale = Math.min(180 / graph.width, 145 / graph.height);
@@ -286,7 +294,7 @@ export function AutomationCanvas({
                 refY="4"
                 orient="auto"
               >
-                <path d="M0,0 L8,4 L0,8" fill="#8a9b90" />
+                <path d="M0,0 L8,4 L0,8" fill="#555d65" />
               </marker>
             </defs>
             {graph.edges.map((e, i) => {
@@ -304,10 +312,10 @@ export function AutomationCanvas({
                 : `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`;
               let labelX = side ? (x1 + x2) / 2 : (x1 + x2) / 2;
               let labelY = side ? (y1 + y2) / 2 : y1 + 30;
-                if (a.id === 'brand') {
-                  // Shared navigation bus stays outside every automation lane.
-                  path = `M${a.x},${a.y + a.height / 2} H20 V${b.y - 25} H${b.x + NODE_WIDTH / 2} V${b.y}`;
-                } else if (e.example && a.x === b.x && y2 - y1 > 110) {
+              if (a.id === 'brand') {
+                // Shared navigation bus stays outside every automation lane.
+                path = `M${a.x},${a.y + a.height / 2} H20 V${b.y - 25} H${b.x + NODE_WIDTH / 2} V${b.y}`;
+              } else if (e.example && a.x === b.x && y2 - y1 > 110) {
                 // Parallel scenarios share a left-side bus, never a line through
                 // the intervening scenario cards.
                 const bus = a.x - 55;
@@ -332,7 +340,7 @@ export function AutomationCanvas({
                   <path
                     d={path}
                     fill="none"
-                    stroke={e.label === 'no' ? '#c39076' : '#8a9b90'}
+                    stroke={e.label === 'no' ? '#847451' : '#555d65'}
                     strokeWidth={2}
                     strokeDasharray={e.example ? '7 6' : undefined}
                     markerEnd="url(#canvas-arrow)"
@@ -345,13 +353,13 @@ export function AutomationCanvas({
                         width="80"
                         height="24"
                         rx="12"
-                        fill="#f5f3ec"
+                        fill="#101113"
                       />
                       <text
                         textAnchor="middle"
                         y="5"
                         fontSize="13"
-                        fill="#52675c"
+                        fill="#aeb5bc"
                       >
                         {t(`pitch.canvas_${e.label}`)}
                       </text>
@@ -458,6 +466,13 @@ export function AutomationCanvas({
           <span>┄ {t('pitch.canvas_example')}</span>
         </div>
         <div className={css.navigation}>
+          <button
+            aria-label={t('pitch.canvasStart')}
+            title={t('pitch.canvasStart')}
+            onClick={goToStart}
+          >
+            <Home size={17} />
+          </button>
           <button
             aria-label={t('pitch.canvasPrevious')}
             onClick={() =>
