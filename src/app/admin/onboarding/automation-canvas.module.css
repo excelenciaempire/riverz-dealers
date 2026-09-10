@@ -6,6 +6,53 @@
   background: #101113;
   color: #e5e7e8;
 }
+.mode {
+  display: flex;
+  padding-right: 8px;
+  border-right: 1px solid #34383d;
+  gap: 2px;
+}
+.mode button {
+  color: #929ba3;
+  padding: 7px 9px;
+  border-radius: 5px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.mode button[aria-pressed='true'] {
+  background: #303729;
+  color: #e7f09f;
+}
+.expandJourney {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #383e37;
+  color: #dce89d;
+  font-size: 12px;
+}
+.node[data-kind='journey'] {
+  border-color: #47543b;
+  background: #1d221c;
+}
+.node[data-kind='journey'] h3 {
+  font-size: 19px;
+}
+.node[data-kind='journey'] .body {
+  color: #b8c1b0;
+}
+@media (max-width: 700px) {
+  .canvas .toolbar {
+    flex-wrap: wrap;
+  }
+  .mode {
+    width: 100%;
+    border: 0;
+  }
+}
 .toolbar {
   display: flex;
   gap: 14px;

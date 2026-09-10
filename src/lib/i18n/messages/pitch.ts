@@ -1,5 +1,156 @@
 import type { Namespace } from './types';
 export const pitch = {
+  clientView: { es: 'Cliente', en: 'Client' },
+  technicalView: { es: 'Detalle técnico', en: 'Technical detail' },
+  clientGoal: { es: 'Objetivo para tu negocio', en: 'Goal for your business' },
+  clientAction: { es: 'Qué hará Riverz', en: 'What Riverz will do' },
+  clientBlueprint: { es: 'Diseño del servicio', en: 'Service design' },
+  clientVariants: { es: 'Casos y respuestas', en: 'Cases and responses' },
+  clientExpand: {
+    es: 'Ver casos y excepciones',
+    en: 'View cases and exceptions',
+  },
+  clientCollapse: { es: 'Resumir', en: 'Collapse' },
+  journey_advice: {
+    es: 'Asesorar y ayudar a comprar',
+    en: 'Advise and help customers buy',
+  },
+  value_advice: {
+    es: 'Atender dudas a tiempo y facilitar la compra.',
+    en: 'Answer questions promptly and make purchasing easier.',
+  },
+  action_advice: {
+    es: 'Consulta el catálogo, recomienda según la necesidad y comparte el enlace de compra. Las preguntas que requieren criterio especializado pasan al equipo.',
+    en: 'Check the catalog, recommend based on the need and share a purchase link. Questions requiring specialist judgment go to the team.',
+  },
+  journey_social: {
+    es: 'Atender comentarios y mensajes',
+    en: 'Handle comments and messages',
+  },
+  value_social: {
+    es: 'Aprovechar el interés que llega desde las redes.',
+    en: 'Act on interest coming from social media.',
+  },
+  action_social: {
+    es: 'Distingue consultas de compra, quejas y spam. Responde y continúa por privado cuando el canal lo permite.',
+    en: 'Distinguish purchase questions, complaints and spam. Respond and continue privately when the channel allows it.',
+  },
+  journey_recovery: {
+    es: 'Recuperar compras pendientes',
+    en: 'Recover incomplete purchases',
+  },
+  value_recovery: {
+    es: 'Retomar oportunidades que quedaron sin completar.',
+    en: 'Follow up on purchase opportunities left incomplete.',
+  },
+  action_recovery: {
+    es: 'Agrupa carrito abandonado, pago rechazado y promociones. Revisa si ya compró o respondió antes de continuar, según las reglas que acordemos.',
+    en: 'Group abandoned carts, rejected payments and promotions. Check whether the customer purchased or replied before continuing, according to the agreed rules.',
+  },
+  journey_orders: {
+    es: 'Confirmar el pedido y el pago',
+    en: 'Confirm the order and payment',
+  },
+  value_orders: {
+    es: 'Reducir errores antes de preparar un pedido.',
+    en: 'Reduce errors before preparing an order.',
+  },
+  action_orders: {
+    es: 'Adapta la confirmación a pago anticipado, contraentrega o híbrido. Valida datos y deriva comprobantes o decisiones de pago cuando necesitan revisión.',
+    en: 'Adapt confirmation to prepaid, cash-on-delivery or hybrid payments. Validate details and route receipts or payment decisions for review when needed.',
+  },
+  journey_delivery: { es: 'Acompañar la entrega', en: 'Support delivery' },
+  value_delivery: {
+    es: 'Reducir consultas sobre el envío y atender novedades.',
+    en: 'Reduce shipping questions and address delivery issues.',
+  },
+  action_delivery: {
+    es: 'Comparte el seguimiento disponible y recoge incidencias. En contraentrega, diferencia entrega, recaudo y liquidación.',
+    en: 'Share available tracking and collect delivery issues. For cash on delivery, distinguish delivery, collection and settlement.',
+  },
+  journey_changes: {
+    es: 'Resolver cambios y devoluciones',
+    en: 'Handle changes and returns',
+  },
+  value_changes: {
+    es: 'Recibir cada solicitud con la información necesaria.',
+    en: 'Receive each request with the necessary information.',
+  },
+  action_changes: {
+    es: 'Identifica el pedido y el motivo, recoge evidencia y aplica la política acordada. Las aprobaciones y los reembolsos se escalan al responsable.',
+    en: 'Identify the order and reason, collect evidence and apply the agreed policy. Approvals and refunds are escalated to the owner.',
+  },
+  journey_loyalty: {
+    es: 'Cuidar la postventa y la recompra',
+    en: 'Support aftercare and repeat purchases',
+  },
+  value_loyalty: {
+    es: 'Dar seguimiento a la experiencia y facilitar la próxima compra.',
+    en: 'Follow up on the experience and make the next purchase easier.',
+  },
+  action_loyalty: {
+    es: 'Planifica acompañamiento, satisfacción y recompra según el producto, los tiempos y el consentimiento del cliente.',
+    en: 'Plan aftercare, satisfaction and repeat-purchase follow-ups based on the product, timing and customer consent.',
+  },
+  journey_protection: {
+    es: 'Dar paso al equipo cuando hace falta',
+    en: 'Bring in the team when needed',
+  },
+  value_protection: {
+    es: 'Mantener el control y evitar mensajes inoportunos.',
+    en: 'Maintain control and avoid ill-timed messages.',
+  },
+  action_protection: {
+    es: 'Respeta la baja de mensajes, evita contactos repetidos y entrega al equipo las conversaciones que requieren intervención.',
+    en: 'Respect opt-outs, avoid repeated contact and hand conversations requiring intervention to the team.',
+  },
+  concept_catalog: { es: 'Consulta de producto', en: 'Product question' },
+  concept_checkout: { es: 'Intención de compra', en: 'Purchase intent' },
+  concept_health: { es: 'Consulta especializada', en: 'Specialist question' },
+  concept_comments: { es: 'Comentarios en redes', en: 'Social comments' },
+  concept_cart: { es: 'Carrito abandonado', en: 'Abandoned cart' },
+  concept_rejected: { es: 'Pago rechazado', en: 'Rejected payment' },
+  concept_offer: { es: 'Promoción autorizada', en: 'Approved promotion' },
+  concept_order: {
+    es: 'Pedido, confirmación y beneficio',
+    en: 'Order, confirmation and benefit',
+  },
+  concept_receipt: { es: 'Comprobante de pago', en: 'Payment receipt' },
+  concept_voice: { es: 'Confirmación por llamada', en: 'Confirmation call' },
+  concept_address: { es: 'Datos de entrega', en: 'Delivery details' },
+  concept_codpayment: { es: 'Pago al recibir', en: 'Payment on delivery' },
+  concept_tracking: { es: 'Estado del envío', en: 'Shipping status' },
+  concept_incident: { es: 'Novedad de entrega', en: 'Delivery issue' },
+  concept_pickup: { es: 'Retiro en sucursal', en: 'Branch pickup' },
+  concept_refusal: { es: 'Entrega rechazada', en: 'Refused delivery' },
+  concept_collection: {
+    es: 'Recaudo y liquidación',
+    en: 'Collection and settlement',
+  },
+  concept_returns: {
+    es: 'Cambio, cancelación o devolución',
+    en: 'Change, cancellation or return',
+  },
+  concept_care: {
+    es: 'Acompañamiento después de la compra',
+    en: 'After-purchase care',
+  },
+  concept_satisfaction: { es: 'Satisfacción', en: 'Satisfaction' },
+  concept_repeat: { es: 'Recompra', en: 'Repeat purchase' },
+  concept_silence: {
+    es: 'Cliente que deja de responder',
+    en: 'Customer stops replying',
+  },
+  concept_handoff: { es: 'Atención humana', en: 'Human support' },
+  concept_optout: { es: 'Baja de mensajes', en: 'Message opt-out' },
+  concept_guard: {
+    es: 'Evitar mensajes repetidos',
+    en: 'Prevent repeated messages',
+  },
+  concept_deliveryfailure: {
+    es: 'Error al enviar un mensaje',
+    en: 'Message delivery failure',
+  },
   canvasStart: { es: 'Volver al inicio del mapa', en: 'Return to map start' },
   canvas: { es: 'Canvas completo', en: 'Complete canvas' },
   canvasNavigate: {

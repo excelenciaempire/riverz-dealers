@@ -24,6 +24,7 @@ import { buildCanvas, NODE_WIDTH, type MapNode } from './canvas-graph';
 import css from './automation-canvas.module.css';
 import { horizontalEdge } from './horizontal-layout';
 import { LINE_W } from '@/components/automations/canvas-geometry';
+import { buildClientCanvas } from './client-journeys';
 
 export function AutomationCanvas({
   brand,
@@ -37,9 +38,15 @@ export function AutomationCanvas({
   values: Record<string, string>;
 }) {
   const t = useT();
+  const [mode, setMode] = useState<'client' | 'technical'>('client');
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const pendingJourney = useRef<string | null>(null);
   const graph = useMemo(
-    () => buildCanvas(brand, cases, draft, t, values),
-    [brand, cases, draft, t, values]
+    () =>
+      mode === 'client'
+        ? buildClientCanvas(brand, cases, draft, t, values, expanded)
+        : buildCanvas(brand, cases, draft, t, values),
+    [brand, cases, draft, t, values, mode, expanded]
   );
   const viewport = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 30, y: 25, zoom: 0.6 });
@@ -51,7 +58,7 @@ export function AutomationCanvas({
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(
     null
   );
-  const initialized = useRef(false);
+  const initialized = useRef<string | null>(null);
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const results = graph.nodes.filter(
     (n) =>
@@ -60,9 +67,10 @@ export function AutomationCanvas({
         .toLocaleLowerCase()
         .includes(query.toLocaleLowerCase())
   );
-  const caseNodes = cases
-    .map((c) => byId.get(c.id))
-    .filter((n): n is MapNode => !!n);
+  const caseNodes =
+    mode === 'client'
+      ? graph.nodes.filter((n) => n.kind === 'journey')
+      : cases.map((c) => byId.get(c.id)).filter((n): n is MapNode => !!n);
   function focus(n: MapNode) {
     const childIds =
       n.kind === 'condition'
@@ -71,6 +79,9 @@ export function AutomationCanvas({
     const row = graph.nodes.filter(
       (item) =>
         item.id === n.id ||
+        (n.kind === 'journey' &&
+          !expanded.includes(n.id) &&
+          item.id.startsWith(`${n.id}-`)) ||
         childIds.includes(item.id) ||
         item.id.startsWith(`${n.id}-path-`) ||
         item.id.startsWith(`${n.id}-message-`) ||
@@ -101,6 +112,7 @@ export function AutomationCanvas({
   }
   function goToStart() {
     const first =
+      graph.nodes.find((n) => n.kind === 'journey') ??
       graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
       graph.nodes.find((n) => n.kind === 'hub');
     if (first)
@@ -157,14 +169,21 @@ export function AutomationCanvas({
     };
   }, []);
   useEffect(() => {
-    if (initialized.current || !size.height) return;
-    initialized.current = true;
+    if (
+      !size.height ||
+      (initialized.current === mode && !pendingJourney.current)
+    )
+      return;
+    initialized.current = mode;
     const first =
+      graph.nodes.find((n) => n.id === pendingJourney.current) ??
+      graph.nodes.find((n) => n.kind === 'journey') ??
       graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
       graph.nodes.find((n) => n.kind === 'hub');
     if (first)
       setView({ zoom: 0.75, x: 40 - first.x * 0.75, y: 85 - first.y * 0.75 });
-  }, [graph, size.height]);
+    pendingJourney.current = null;
+  }, [graph, size.height, mode]);
 
   const miniScale = Math.min(180 / graph.width, 145 / graph.height);
   const miniWidth = graph.width * miniScale,
@@ -173,6 +192,23 @@ export function AutomationCanvas({
   return (
     <section className={css.canvas} aria-label={t('pitch.canvas')}>
       <div className={css.toolbar}>
+        <div className={css.mode}>
+          {(['client', 'technical'] as const).map((view) => (
+            <button
+              key={view}
+              aria-pressed={mode === view}
+              onClick={() => {
+                setMode(view);
+                setQuery('');
+                setSelected('');
+              }}
+            >
+              {t(
+                view === 'client' ? 'pitch.clientView' : 'pitch.technicalView'
+              )}
+            </button>
+          ))}
+        </div>
         <span className={css.heading}>
           <Workflow size={17} />
           {t('pitch.canvas')}
@@ -390,13 +426,14 @@ export function AutomationCanvas({
                 <header>
                   <Icon size={17} />
                   <span>
-                    {n.status
-                      ? t(`pitch.${n.status}`)
-                      : t(
-                          n.kind === 'end'
-                            ? 'pitch.canvasResult'
-                            : 'pitch.canvasStep'
-                        )}
+                    {n.caption ??
+                      (n.status
+                        ? t(`pitch.${n.status}`)
+                        : t(
+                            n.kind === 'end'
+                              ? 'pitch.canvasResult'
+                              : 'pitch.canvasStep'
+                          ))}
                   </span>
                   <button
                     aria-label={`${t('pitch.canvasFocus')}: ${n.title}`}
@@ -424,6 +461,27 @@ export function AutomationCanvas({
                       <span key={i}>{b}</span>
                     ))}
                   </div>
+                )}
+                {n.kind === 'journey' && (
+                  <button
+                    className={css.expandJourney}
+                    aria-expanded={expanded.includes(n.id)}
+                    onClick={() => {
+                      pendingJourney.current = n.id;
+                      setExpanded((items) =>
+                        items.includes(n.id)
+                          ? items.filter((id) => id !== n.id)
+                          : [...items, n.id]
+                      );
+                    }}
+                  >
+                    {t(
+                      expanded.includes(n.id)
+                        ? 'pitch.clientCollapse'
+                        : 'pitch.clientExpand'
+                    )}
+                    <ChevronRight size={14} />
+                  </button>
                 )}
               </article>
             );

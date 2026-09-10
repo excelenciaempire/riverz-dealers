@@ -30,6 +30,7 @@ export interface MapNode {
   status?: string;
   buttons?: string[];
   template?: string;
+  caption?: string;
   x: number;
   y: number;
   height: number;
