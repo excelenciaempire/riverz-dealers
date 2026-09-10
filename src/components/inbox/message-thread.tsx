@@ -189,6 +189,7 @@ const NEEDS_HUMAN_REASON_KEY: Record<NeedsHumanReason, string> = {
   visitor_request: "inbox.needsHumanAsked",
   mensaje_no_recibido: "inbox.needsHumanNoRecibido",
   problema_detectado: "inbox.needsHumanProblema",
+  pago_asistido: "inbox.needsHumanPagoAsistido",
   comment_sin_moderar: "inbox.needsHumanSinModerar",
   ia_sin_respuesta: "inbox.needsHumanSinRespuesta",
   ia_caida: "inbox.needsHumanIaCaida",

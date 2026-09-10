@@ -40,7 +40,7 @@ interface Caso {
  * escalada se mostraban como "otro motivo" en el panel que existe justamente
  * para distinguirlas.
  */
-const MOTIVOS: Record<NeedsHumanReason, string> = {
+const MOTIVOS: Record<NeedsHumanReason, string | null> = {
   escalation_keyword: 'Pidió una persona',
   escalate_after_messages: 'Se agotaron las respuestas del asistente',
   flow_handoff: 'Lo derivó un flujo',
@@ -54,6 +54,7 @@ const MOTIVOS: Record<NeedsHumanReason, string> = {
   ia_sin_respuesta: 'El asistente no llegó a responder',
   ia_caida: 'Se prometió una persona y el asistente no pudo',
   problema_detectado: 'Un problema en curso',
+  pago_asistido: null,
 };
 
 export function EscalacionesPanel() {
@@ -122,8 +123,10 @@ export function EscalacionesPanel() {
                   c.pendiente ? 'text-muted-foreground' : 'text-muted-foreground/70',
                 )}
               >
-                {(c.motivo && (MOTIVOS as Record<string, string>)[c.motivo]) ||
-                  t('assistant.escalacionesOtroMotivo')}
+                {c.motivo === 'pago_asistido'
+                  ? t('assistant.escalacionesPagoAsistido')
+                  : (c.motivo && (MOTIVOS as Record<string, string | null>)[c.motivo]) ||
+                    t('assistant.escalacionesOtroMotivo')}
                 {c.resumen ? ` · ${c.resumen.replace(/\s+/g, ' ').slice(0, 90)}` : ''}
               </span>
             </span>

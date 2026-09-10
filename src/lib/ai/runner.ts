@@ -366,10 +366,15 @@ export async function runAiAgent(
       // cobro— es un problema, no un pedido, y decirlo mal le cuesta a quien
       // atiende los primeros treinta segundos del caso.
       const pidioPersona = escalada.clase === 'pide_persona';
+      const necesitaEnlaceDePago = escalada.clase === 'pago_asistido';
       await flagNeedsHuman(
         db,
         args.conversation,
-        pidioPersona ? 'escalation_keyword' : 'problema_detectado',
+        pidioPersona
+          ? 'escalation_keyword'
+          : necesitaEnlaceDePago
+            ? 'pago_asistido'
+            : 'problema_detectado',
         {
           pidio: textoEntrante,
           // Lo que vio el clasificador, en una línea. Es el dato más útil del
@@ -389,7 +394,9 @@ export async function runAiAgent(
         args,
         pidioPersona
           ? { status: 'skipped', skip_reason: 'escalation_keyword' }
-          : { status: 'skipped', skip_reason: 'problema_detectado' }
+          : necesitaEnlaceDePago
+            ? { status: 'skipped', skip_reason: 'pago_asistido' }
+            : { status: 'skipped', skip_reason: 'problema_detectado' }
       );
       return;
     }

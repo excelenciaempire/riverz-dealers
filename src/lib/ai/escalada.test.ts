@@ -41,11 +41,32 @@ describe('señalDura', () => {
     expect(señalDura('el pago por Bold no figura')?.clase).toBe('cobro')
   })
 
-  it('no escala por preguntar o querer pagar con un medio de pago', () => {
+  it('no escala por una pregunta informativa sobre medios de pago', () => {
     expect(señalDura('¿Recibes pagos con Addi?')).toBeNull()
-    expect(señalDura('quiero pagar con Addi')).toBeNull()
     expect(señalDura('¿puedo pagar por Nequi o Bancolombia?')).toBeNull()
-    expect(señalDura('envíame el link de Bold para pagar')).toBeNull()
+  })
+
+  it('escala cuando quiere pagar y una persona debe enviar el enlace', async () => {
+    await expect(
+      detectarEscalada({
+        mensaje: 'quiero pagar con Addi',
+        hilo: [],
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toMatchObject({ clase: 'pago_asistido' })
+    await expect(
+      detectarEscalada({
+        mensaje: 'Quiero el grande de la promoción',
+        hilo: [
+          'Cliente: ¿Recibes pagos con Addi?',
+          'Nosotros: Sí. ¿Cómo puedo ayudarte?',
+          'Cliente: Quiero el grande de la promoción',
+        ],
+        db: {} as never,
+        workspaceId: 'w1',
+      }),
+    ).resolves.toMatchObject({ clase: 'pago_asistido' })
   })
 
   it('no clasifica como incidente un checkout por transferencia', async () => {

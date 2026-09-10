@@ -44,6 +44,7 @@ export interface Escalada {
     | 'legal'
     | 'salud'
     | 'enojo'
+    | 'pago_asistido'
     | 'otro';
   urgencia: Urgencia;
   /** Una línea, en español llano: qué pasa. Va en el aviso. */
@@ -164,6 +165,29 @@ const SEÑALES: Señal[] = [
     ],
   },
 ];
+
+const MEDIO_PAGO_ASISTIDO = /(?<![\wáéíóúñ])(bancolombia|nequi|llave|bold|addi)(?![\wáéíóúñ])/i;
+const INTENCION_PAGO = /(?<![\wáéíóúñ])(quiero|deseo|necesito|voy a|list[oa] para)\s+(pagar|hacer el pago|comprar)(?![\wáéíóúñ])/i;
+const PIDE_ENLACE = /(?<![\wáéíóúñ])(env[ií]ame|mándame|mandame|pásame|pasame)(?![\wáéíóúñ])[^.!?]{0,30}(?<![\wáéíóúñ])(link|enlace)(?![\wáéíóúñ])/i;
+const ELIGE_PRODUCTO = /(?<![\wáéíóúñ])quiero\s+(el|la|los|las|un|una)(?![\wáéíóúñ])/i;
+
+function pagoAsistido(ctx: Pick<ContextoEscalada, 'mensaje' | 'hilo'>): Escalada | null {
+  const mensaje = (ctx.mensaje ?? '').normalize('NFC');
+  const cliente = (ctx.hilo ?? [])
+    .filter((turno) => turno.startsWith('Cliente:'))
+    .slice(-4)
+    .join('\n');
+  const contexto = `${cliente}\n${mensaje}`;
+  if (!MEDIO_PAGO_ASISTIDO.test(contexto)) return null;
+  if (!INTENCION_PAGO.test(contexto) && !PIDE_ENLACE.test(contexto) && !ELIGE_PRODUCTO.test(mensaje)) {
+    return null;
+  }
+  return {
+    clase: 'pago_asistido',
+    urgencia: 'hoy',
+    porQue: 'Quiere pagar por un medio cuyo enlace debe enviar una persona',
+  };
+}
 
 /**
  * Ojo con `` al final de un patrón: en JavaScript es ASCII, así que después
@@ -299,6 +323,8 @@ export async function detectarEscalada(
 ): Promise<Escalada | null> {
   const dura = señalDura(ctx.mensaje);
   if (dura) return dura;
+  const pago = pagoAsistido(ctx);
+  if (pago) return pago;
   // Elegir transferencia antes de comprar es una preferencia de pago, no un
   // incidente. El checkout sabe marcarla y aplicar el crédito configurado;
   // no la mandamos al clasificador, que no conoce esa configuración y puede
