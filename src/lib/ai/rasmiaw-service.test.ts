@@ -3,6 +3,7 @@ import {
   recoveryAction,
   recoveryButtonKind,
   recoveryButtonLosesToConfirmation,
+  recoveryButtonReply,
   recoveryCheckoutAllowed,
   recoveryHasExistingOrder,
 } from './recovery-policy';
@@ -91,6 +92,24 @@ describe('escenarios sintéticos de Rasmiaw', () => {
         existingOrder: false,
       })
     ).toBe(false);
+  });
+
+  it('responde los botones de recuperación con mensajes claros y bilingües', () => {
+    expect(recoveryButtonReply('confirm', 'es')).toContain(
+      'Gracias por tu compra'
+    );
+    expect(recoveryButtonReply('confirm', 'es')).toContain(
+      'pronto será despachado'
+    );
+    expect(recoveryButtonReply('confirm', 'en')).toContain(
+      'will be dispatched soon'
+    );
+    expect(recoveryButtonReply('payment_change', 'es')).toContain(
+      'diferente al pago contra entrega'
+    );
+    expect(recoveryButtonReply('payment_change', 'en')).toContain(
+      'other than cash on delivery'
+    );
   });
 
   it('manda transferencias y comprobantes a revisión humana', () => {

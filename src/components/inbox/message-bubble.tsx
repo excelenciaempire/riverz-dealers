@@ -834,7 +834,7 @@ function TemplateButtons({ message }: { message: Message }) {
               href={b.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-md bg-background/60 px-2 py-1.5 text-xs font-medium text-accent-ink hover:bg-background"
+              className="flex items-center justify-center gap-1.5 rounded-md bg-black px-2 py-1.5 text-xs font-medium text-white hover:bg-black/85"
             >
               <ExternalLink className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{label}</span>
@@ -844,7 +844,7 @@ function TemplateButtons({ message }: { message: Message }) {
         return (
           <div
             key={i}
-            className="flex items-center justify-center gap-1.5 rounded-md bg-background/40 px-2 py-1.5 text-xs font-medium text-muted-foreground"
+            className="flex items-center justify-center gap-1.5 rounded-md bg-black px-2 py-1.5 text-xs font-medium text-white"
           >
             {b.type === "PHONE_NUMBER" ? (
               <Phone className="h-3.5 w-3.5 shrink-0" />

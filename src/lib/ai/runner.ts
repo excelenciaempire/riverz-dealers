@@ -102,6 +102,7 @@ import {
   recoveryAction,
   recoveryButtonKind,
   recoveryButtonLosesToConfirmation,
+  recoveryButtonReply,
   recoveryCheckoutAllowed,
   recoveryHasExistingOrder,
 } from './recovery-policy';
@@ -637,6 +638,40 @@ export async function runAiAgent(
       return;
     }
 
+    const deterministicRecoveryReply =
+      currentRecoveryButton === 'confirm' ||
+      (currentRecoveryButton === 'payment_change' && existingOrderRecovery)
+        ? recoveryButtonReply(currentRecoveryButton, agent.language)
+        : null;
+
+    if (
+      args.channel !== 'webchat' &&
+      currentRecoveryButton === 'payment_change' &&
+      existingOrderRecovery
+    ) {
+      const porQue = 'Quiere cambiar la forma de pago de un pedido existente';
+      await flagNeedsHuman(db, args.conversation, 'problema_detectado', {
+        pidio: textoEntrante,
+        porQue,
+      });
+      await avisarDelCaso(db, args, {
+        clase: 'cobro',
+        urgencia: 'hoy',
+        porQue,
+      });
+      const messageId = await sendDeterministicAgentReply(
+        db,
+        agent,
+        args,
+        recoveryButtonReply('payment_change', agent.language)
+      );
+      await logReply(db, agent, args, {
+        status: 'sent',
+        message_id: messageId,
+      });
+      return;
+    }
+
     if (args.channel !== 'webchat' && recoveryIntent === 'manual_payment') {
       const porQue = existingOrderRecovery
         ? 'Quiere cambiar la forma de pago de un pedido existente'
@@ -653,6 +688,20 @@ export async function runAiAgent(
       await logReply(db, agent, args, {
         status: 'skipped',
         skip_reason: 'problema_detectado',
+      });
+      return;
+    }
+
+    if (deterministicRecoveryReply) {
+      const messageId = await sendDeterministicAgentReply(
+        db,
+        agent,
+        args,
+        deterministicRecoveryReply
+      );
+      await logReply(db, agent, args, {
+        status: 'sent',
+        message_id: messageId,
       });
       return;
     }
@@ -3999,6 +4048,66 @@ async function resolveAiOutboundTarget(
     connection: target.connection,
     replyToExternalId: target.externalId,
   };
+}
+
+async function sendDeterministicAgentReply(
+  db: SupabaseClient,
+  agent: AiAgent,
+  args: {
+    workspaceId: string;
+    channel: Channel;
+    conversation: Conversation;
+    contact: Contact;
+    connection: ChannelConnection;
+    inboundMessage: Message;
+  },
+  text: string
+): Promise<string | null> {
+  const outboundTarget = await resolveAiOutboundTarget(db, args);
+  const adapter = getAdapter(args.channel);
+  await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
+  const sendResult = await adapter.sendText({
+    channel: args.channel,
+    connection: outboundTarget.connection,
+    conversation: args.conversation,
+    contact: args.contact,
+    text,
+    replyToExternalId: outboundTarget.replyToExternalId,
+  });
+  const { data: persistedMessage } = await db
+    .from('messages')
+    .insert({
+      conversation_id: args.conversation.id,
+      channel: args.channel,
+      sender_type: 'bot',
+      content_type:
+        args.channel === 'gmail' ||
+        args.channel === 'outlook' ||
+        args.channel === 'zoho'
+          ? 'email'
+          : args.channel === 'fb_comment' || args.channel === 'ig_comment'
+            ? 'comment'
+            : 'text',
+      content_text: text,
+      message_id: sendResult.externalMessageId,
+      status: sendResult.status ?? 'sent',
+      origin: 'ai_agent',
+      origin_name: agent.name ?? null,
+    })
+    .select('id')
+    .single();
+
+  await db
+    .from('conversations')
+    .update({
+      last_message_text: text.slice(0, 200),
+      last_message_at: new Date().toISOString(),
+      last_sender_type: 'bot',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conversation.id);
+
+  return (persistedMessage as { id?: string } | null)?.id ?? null;
 }
 
 async function logReply(

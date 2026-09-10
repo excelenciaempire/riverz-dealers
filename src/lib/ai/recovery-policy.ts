@@ -13,7 +13,7 @@ function normalizedButton(text: string): string {
 }
 
 export function recoveryButtonKind(
-  text: string,
+  text: string
 ): 'confirm' | 'payment_change' | null {
   const normalized = normalizedButton(text);
   if (normalized === 'CONFIRMAR') return 'confirm';
@@ -21,6 +21,23 @@ export function recoveryButtonKind(
     return 'payment_change';
   }
   return null;
+}
+
+export function recoveryButtonReply(
+  kind: NonNullable<ReturnType<typeof recoveryButtonKind>>,
+  language?: string | null
+): string {
+  const english = language?.toLowerCase().startsWith('en');
+
+  if (kind === 'confirm') {
+    return english
+      ? 'Thank you for your purchase! Your order has been confirmed and will be dispatched soon. If you have any questions, you can message us here.'
+      : '¡Gracias por tu compra! Tu pedido ha sido confirmado y pronto será despachado. Si tienes alguna pregunta, puedes escribirnos por este medio.';
+  }
+
+  return english
+    ? 'Which payment method do you prefer? To receive the benefit, please choose a method other than cash on delivery. Our team will help you continue here.'
+    : '¿Qué método de pago prefieres? Para recibir el beneficio, elige uno diferente al pago contra entrega. Nuestro equipo te ayudará a continuar por este medio.';
 }
 
 export function recoveryButtonLosesToConfirmation(input: {
@@ -65,13 +82,13 @@ export function recoveryAction(input: {
  * aceptan los tres identificadores que ya llegan desde los disparadores.
  */
 export function recoveryHasExistingOrder(
-  context: Record<string, unknown> | null | undefined,
+  context: Record<string, unknown> | null | undefined
 ): boolean {
   if (!context) return false;
   return Boolean(
     String(context.order_id ?? '').trim() ||
-      String(context.order_number ?? '').trim() ||
-      String(context.order_name ?? '').trim(),
+    String(context.order_number ?? '').trim() ||
+    String(context.order_name ?? '').trim()
   );
 }
 
