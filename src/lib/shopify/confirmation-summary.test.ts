@@ -56,6 +56,56 @@ describe('confirmationSummary', () => {
       }).order_items
     ).toBe('1 × Pelota saltarina LED Juego (Modelo: Color Niña)');
   });
+
+  it('muestra varias opciones de una variante compuesta', () => {
+    expect(
+      confirmationSummary({
+        line_items: [
+          {
+            title: 'Camiseta',
+            variant_title: 'Negro / XL',
+            quantity: 2,
+          },
+        ],
+      }).order_items
+    ).toBe('2 × Camiseta (Negro / XL)');
+  });
+
+  it('recupera la variante del nombre si Shopify omite variant_title', () => {
+    expect(
+      confirmationSummary({
+        line_items: [
+          {
+            title: 'Pelota saltarina LED Juego',
+            name: 'Pelota saltarina LED Juego - Cerdita Rosa',
+            variant_title: null,
+            quantity: 1,
+          },
+        ],
+      }).order_items
+    ).toBe('1 × Pelota saltarina LED Juego (Cerdita Rosa)');
+  });
+
+  it('acepta propiedades con key y conserva varios diseños de un combo', () => {
+    expect(
+      confirmationSummary({
+        line_items: [
+          {
+            title: 'Combo 2 unidades',
+            name: 'Combo 2 unidades - Default Title',
+            quantity: null,
+            properties: [
+              { key: 'Diseño 1', value: 'Cerdita Rosa' },
+              { key: 'Diseño 2', value: 'Rana Verde' },
+              { key: '_bundle_id', value: 'interno' },
+            ],
+          },
+        ],
+      }).order_items
+    ).toBe(
+      '1 × Combo 2 unidades (Diseño 1: Cerdita Rosa, Diseño 2: Rana Verde)'
+    );
+  });
   it('removes newlines and tabs from Meta parameter values', () => {
     expect(
       confirmationSummary({
