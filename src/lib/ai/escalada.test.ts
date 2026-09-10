@@ -37,6 +37,15 @@ describe('señalDura', () => {
   it('escala una transferencia ya realizada o con comprobante', () => {
     expect(señalDura('ya transferí, ¿lo recibieron?')?.clase).toBe('cobro')
     expect(señalDura('te adjunto el comprobante')?.clase).toBe('cobro')
+    expect(señalDura('ya pagué con Addi, ¿aparece el pago?')?.clase).toBe('cobro')
+    expect(señalDura('el pago por Bold no figura')?.clase).toBe('cobro')
+  })
+
+  it('no escala por preguntar o querer pagar con un medio de pago', () => {
+    expect(señalDura('¿Recibes pagos con Addi?')).toBeNull()
+    expect(señalDura('quiero pagar con Addi')).toBeNull()
+    expect(señalDura('¿puedo pagar por Nequi o Bancolombia?')).toBeNull()
+    expect(señalDura('envíame el link de Bold para pagar')).toBeNull()
   })
 
   it('no clasifica como incidente un checkout por transferencia', async () => {
