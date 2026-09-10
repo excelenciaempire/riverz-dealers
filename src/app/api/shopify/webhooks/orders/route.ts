@@ -1,40 +1,41 @@
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth'
-import { getConnectionByShop } from '@/lib/shopify/connection'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { attributeExperimentOrder } from '@/lib/automations/template-ab-attribution'
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth';
+import { getConnectionByShop } from '@/lib/shopify/connection';
+import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { attributeExperimentOrder } from '@/lib/automations/template-ab-attribution';
 import {
   extractShopifyLegacyPhone,
   extractShopifyName,
   extractShopifyPhone,
   upsertWhatsappContact,
-} from '@/lib/shopify/contact-upsert'
-import { applyCategoryTags } from '@/lib/contacts/tags'
+} from '@/lib/shopify/contact-upsert';
+import { applyCategoryTags } from '@/lib/contacts/tags';
 import {
   linkOrphanPurchases,
   recordPurchases,
   shopifyOrderToPurchase,
-} from '@/lib/contacts/purchases'
-import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
-import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking'
-import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup'
-import { captureWebhookFailure } from '@/lib/webhooks/capture'
-import { getAdapter } from '@/lib/channels/registry'
-import { fmtMoney } from '@/lib/shopify/create-checkout'
-import { resolveOfferChosen } from '@/lib/shopify/offers'
-import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution'
-import { marcarCuponesUsados } from '@/lib/shopify/discounts'
-import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido'
-import { confirmationSummary } from '@/lib/shopify/confirmation-summary'
-import { emitWebhook } from '@/lib/webhooks/outbound'
+} from '@/lib/contacts/purchases';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
+import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking';
+import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup';
+import { captureWebhookFailure } from '@/lib/webhooks/capture';
+import { getAdapter } from '@/lib/channels/registry';
+import { fmtMoney } from '@/lib/shopify/create-checkout';
+import { resolveOfferChosen } from '@/lib/shopify/offers';
+import { attributeWebchatOrder } from '@/lib/channels/webchat/attribution';
+import { marcarCuponesUsados } from '@/lib/shopify/discounts';
+import { espejarPedidoDeShopify } from '@/lib/shopify/espejo-de-pedido';
+import { confirmationSummary } from '@/lib/shopify/confirmation-summary';
+import { ensureShopifyOrderCustomer } from '@/lib/shopify/order-customer';
+import { emitWebhook } from '@/lib/webhooks/outbound';
 import type {
   AutomationTriggerType,
   Channel,
   ChannelConnection,
   Contact,
   Conversation,
-} from '@/types'
+} from '@/types';
 
 /**
  * Shopify orders webhook receiver. Handles two topics on the same route:
@@ -54,37 +55,37 @@ import type {
  * are verified and acknowledged but not dispatched.
  */
 export async function POST(request: Request) {
-  const rawBody = await request.text()
-  const hmac = request.headers.get('x-shopify-hmac-sha256')
-  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody)
+  const rawBody = await request.text();
+  const hmac = request.headers.get('x-shopify-hmac-sha256');
+  const verdict = await verifyShopifyWebhook(supabaseAdmin(), request, rawBody);
   if (verdict === 'unconfigured') {
-    return NextResponse.json({ error: 'not configured' }, { status: 503 })
+    return NextResponse.json({ error: 'not configured' }, { status: 503 });
   }
   if (verdict === 'invalid') {
-    return new NextResponse('Invalid HMAC', { status: 401 })
+    return new NextResponse('Invalid HMAC', { status: 401 });
   }
 
-  const shopDomain = request.headers.get('x-shopify-shop-domain')
-  const topic = request.headers.get('x-shopify-topic') || ''
-  if (!shopDomain) return NextResponse.json({ ok: true })
+  const shopDomain = request.headers.get('x-shopify-shop-domain');
+  const topic = request.headers.get('x-shopify-topic') || '';
+  if (!shopDomain) return NextResponse.json({ ok: true });
 
   if (topic !== 'orders/create' && topic !== 'orders/updated') {
-    return NextResponse.json({ ok: true, ignored: topic })
+    return NextResponse.json({ ok: true, ignored: topic });
   }
 
   try {
-    const admin = supabaseAdmin()
+    const admin = supabaseAdmin();
 
     // Per-delivery dedupe (migration 059). Shopify retries up to 19x
     // over ~48h, so any post-side-effect crash without dedupe would
     // re-send the order confirmation on every retry.
-    const webhookId = request.headers.get('x-shopify-webhook-id')
+    const webhookId = request.headers.get('x-shopify-webhook-id');
     if (await isDuplicateDelivery(admin, shopDomain, webhookId, topic)) {
-      return NextResponse.json({ ok: true, duplicate: true })
+      return NextResponse.json({ ok: true, duplicate: true });
     }
 
-    const conn = await getConnectionByShop(admin, shopDomain)
-    if (!conn) return NextResponse.json({ ok: true })
+    const conn = await getConnectionByShop(admin, shopDomain);
+    if (!conn) return NextResponse.json({ ok: true });
 
     // Migration 055 made shopify_connections.workspace_id NOT NULL, so we
     // read it straight off the connection. The legacy owner_id lookup is
@@ -92,34 +93,48 @@ export async function POST(request: Request) {
     // rows; harmless overhead once 055 settles.
     const workspaceId =
       conn.row.workspace_id ||
-      (await resolveWorkspaceIdForUser(admin, conn.row.user_id))
+      (await resolveWorkspaceIdForUser(admin, conn.row.user_id));
     if (!workspaceId) {
       console.warn(
         '[shopify] orders webhook: no workspace for connection',
-        conn.row.id,
-      )
-      return NextResponse.json({ ok: true, skipped: 'no_workspace' })
+        conn.row.id
+      );
+      return NextResponse.json({ ok: true, skipped: 'no_workspace' });
     }
-    const order = JSON.parse(rawBody) as Record<string, unknown>
-    const orderId = Number(order.id ?? 0)
+    const order = JSON.parse(rawBody) as Record<string, unknown>;
+    const orderId = Number(order.id ?? 0);
+    if (topic === 'orders/create' && orderId > 0 && !order.customer) {
+      const linked = await ensureShopifyOrderCustomer({
+        shopDomain,
+        accessToken: conn.accessToken,
+        order,
+      });
+      if (linked.customer) order.customer = linked.customer;
+      if (linked.status === 'failed') {
+        console.warn('[shopify] no se pudo vincular el cliente al pedido', {
+          shopDomain,
+          orderId,
+        });
+      }
+    }
     const incomingFulfillment =
-      (order.fulfillment_status as string | null | undefined) ?? null
+      (order.fulfillment_status as string | null | undefined) ?? null;
     const fulfillments = Array.isArray(order.fulfillments)
       ? (order.fulfillments as Record<string, unknown>[])
-      : []
-    const latestFulfillment = fulfillments[fulfillments.length - 1]
-    const shipmentStatus = String(latestFulfillment?.shipment_status ?? '')
-    const trackingNumber = String(latestFulfillment?.tracking_number ?? '')
-    const trackingCompany = String(latestFulfillment?.tracking_company ?? '')
-    const trackingUrl = String(latestFulfillment?.tracking_url ?? '')
+      : [];
+    const latestFulfillment = fulfillments[fulfillments.length - 1];
+    const shipmentStatus = String(latestFulfillment?.shipment_status ?? '');
+    const trackingNumber = String(latestFulfillment?.tracking_number ?? '');
+    const trackingCompany = String(latestFulfillment?.tracking_company ?? '');
+    const trackingUrl = String(latestFulfillment?.tracking_url ?? '');
 
     let previousLogistics: {
-      fulfillment_status?: string | null
-      shipment_status?: string | null
-      tracking_number?: string | null
-      tracking_company?: string | null
-      tracking_url?: string | null
-    } | null = null
+      fulfillment_status?: string | null;
+      shipment_status?: string | null;
+      tracking_number?: string | null;
+      tracking_company?: string | null;
+      tracking_url?: string | null;
+    } | null = null;
 
     if (topic === 'orders/updated' && orderId > 0) {
       const [{ data: mirrored }, { data: state }] = await Promise.all([
@@ -136,11 +151,11 @@ export async function POST(request: Request) {
           .eq('shop_domain', shopDomain)
           .eq('order_id', orderId)
           .maybeSingle(),
-      ])
+      ]);
       previousLogistics = {
         ...((mirrored as Record<string, string | null> | null) ?? {}),
         ...((state as Record<string, string | null> | null) ?? {}),
-      }
+      };
     }
 
     // El espejo en Riverz (tabla `orders`, migración 080). Antes esto era un
@@ -153,7 +168,9 @@ export async function POST(request: Request) {
         workspaceId,
         shopDomain,
         order,
-      }).catch((err) => console.error('[shopify] espejo del pedido falló:', err))
+      }).catch((err) =>
+        console.error('[shopify] espejo del pedido falló:', err)
+      );
     }
 
     // Historial de compras del contacto (migración 172). Va ANTES de decidir
@@ -161,18 +178,18 @@ export async function POST(request: Request) {
     // igual es una compra, y si no se guarda acá se pierde — Shopify sólo deja
     // releer los últimos 60 días sin el permiso `read_all_orders`.
     {
-      const purchase = shopifyOrderToPurchase(shopDomain, order)
+      const purchase = shopifyOrderToPurchase(shopDomain, order);
       if (purchase) {
         await recordPurchases(admin, workspaceId, [purchase]).catch((err) =>
-          console.error('[shopify] historial de compras falló:', err),
-        )
+          console.error('[shopify] historial de compras falló:', err)
+        );
       }
     }
 
     // Una actualización puede traer más de una transición; se emiten todas.
-    let triggerTypes: AutomationTriggerType[] = []
+    let triggerTypes: AutomationTriggerType[] = [];
     if (topic === 'orders/create') {
-      triggerTypes = ['shopify_order_created']
+      triggerTypes = ['shopify_order_created'];
       if (orderId > 0) {
         // Atomic claim — migration 059's RPC. Returns true the FIRST
         // time we see this (shop_domain, order_id) and false on every
@@ -180,13 +197,16 @@ export async function POST(request: Request) {
         // catches retries of the SAME delivery; a brand-new delivery
         // for the SAME order (Shopify's deduper occasionally fails)
         // would still re-fire the "Nuevo pedido" template.
-        const { data: claimed } = await admin.rpc('shopify_claim_order_created', {
-          p_shop_domain: shopDomain,
-          p_order_id: orderId,
-          p_fulfillment_status: incomingFulfillment,
-        })
+        const { data: claimed } = await admin.rpc(
+          'shopify_claim_order_created',
+          {
+            p_shop_domain: shopDomain,
+            p_order_id: orderId,
+            p_fulfillment_status: incomingFulfillment,
+          }
+        );
         if (claimed !== true) {
-          return NextResponse.json({ ok: true, skipped: 'duplicate_order' })
+          return NextResponse.json({ ok: true, skipped: 'duplicate_order' });
         }
       }
       // Si la orden vino de un checkout que ya teníamos persistido,
@@ -195,7 +215,9 @@ export async function POST(request: Request) {
       // con shop_domain+checkout_id alcanza para cerrarlo. Si nunca
       // vimos el checkout (compra rápida), no pasa nada — el update
       // no hace nada con filas inexistentes.
-      const checkoutToken = String(order.checkout_token ?? order.cart_token ?? '').trim()
+      const checkoutToken = String(
+        order.checkout_token ?? order.cart_token ?? ''
+      ).trim();
       if (checkoutToken) {
         await admin
           .from('shopify_checkouts')
@@ -205,7 +227,7 @@ export async function POST(request: Request) {
             updated_at: new Date().toISOString(),
           })
           .eq('shop_domain', shopDomain)
-          .eq('checkout_id', checkoutToken)
+          .eq('checkout_id', checkoutToken);
       }
 
       // Chat web: si el carrito venía estampado con el id del visitante, esta
@@ -223,11 +245,11 @@ export async function POST(request: Request) {
           ? (order.discount_codes as Array<{ code?: string }>)
               .map((d) => String(d?.code ?? ''))
               .filter(Boolean)
-          : []
+          : [];
         if (usados.length > 0) {
           await marcarCuponesUsados(admin, workspaceId, usados).catch((err) =>
-            console.error('[shopify] no se pudieron sellar los cupones:', err),
-          )
+            console.error('[shopify] no se pudieron sellar los cupones:', err)
+          );
         }
       }
 
@@ -236,26 +258,24 @@ export async function POST(request: Request) {
         shopDomain,
         order,
       }).catch((err) =>
-        console.error('[shopify] webchat attribution failed:', err),
-      )
+        console.error('[shopify] webchat attribution failed:', err)
+      );
 
       // Sembrar el estado inicial del pedido (sin disparar) para que la primera
       // actualización real compute transiciones correctas (pagado/cancelado/…)
       // en vez de disparar en el primer avistamiento. No pisa si ya existe.
       if (orderId > 0) {
-        await admin
-          .from('shopify_order_fulfillment_state')
-          .upsert(
-            {
-              shop_domain: shopDomain,
-              order_id: orderId,
-              fulfillment_status: incomingFulfillment,
-              financial_status: (order.financial_status as string | null) ?? null,
-              cancelled: !!order.cancelled_at,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'shop_domain,order_id', ignoreDuplicates: true },
-          )
+        await admin.from('shopify_order_fulfillment_state').upsert(
+          {
+            shop_domain: shopDomain,
+            order_id: orderId,
+            fulfillment_status: incomingFulfillment,
+            financial_status: (order.financial_status as string | null) ?? null,
+            cancelled: !!order.cancelled_at,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'shop_domain,order_id', ignoreDuplicates: true }
+        );
       }
     } else {
       // orders/updated: only dispatch when fulfillment_status flips to
@@ -267,7 +287,7 @@ export async function POST(request: Request) {
       // performs the read + upsert + diff inside a FOR UPDATE row lock,
       // so exactly one delivery observes the null→fulfilled transition.
       if (orderId > 0) {
-        const justDelivered = shipmentStatus === 'delivered'
+        const justDelivered = shipmentStatus === 'delivered';
 
         const { data: transition } = await admin.rpc(
           'shopify_record_fulfillment_transition',
@@ -277,21 +297,22 @@ export async function POST(request: Request) {
             p_fulfillment_status: incomingFulfillment,
             p_shipment_status: shipmentStatus || null,
             p_just_delivered: justDelivered,
-            p_financial_status: (order.financial_status as string | null) ?? null,
+            p_financial_status:
+              (order.financial_status as string | null) ?? null,
             p_cancelled: !!order.cancelled_at,
-          },
-        )
+          }
+        );
         const row = Array.isArray(transition)
           ? (transition[0] as
               | {
-                  transitioned_to_fulfilled?: boolean
-                  transitioned_to_delivered?: boolean
-                  transitioned_to_paid?: boolean
-                  transitioned_to_cancelled?: boolean
-                  transitioned_to_refunded?: boolean
+                  transitioned_to_fulfilled?: boolean;
+                  transitioned_to_delivered?: boolean;
+                  transitioned_to_paid?: boolean;
+                  transitioned_to_cancelled?: boolean;
+                  transitioned_to_refunded?: boolean;
                 }
               | undefined)
-          : null
+          : null;
         // Una actualización puede traer VARIAS transiciones a la vez: Shopify
         // manda un solo `orders/updated` cuando alguien marca pagado y
         // despacha en el mismo movimiento, que es exactamente lo que hace
@@ -304,13 +325,16 @@ export async function POST(request: Request) {
         // avisar "tu pedido salió" de un pedido cancelado es peor que no
         // avisar nada.
         if (row?.transitioned_to_cancelled) {
-          triggerTypes = ['shopify_order_cancelled']
+          triggerTypes = ['shopify_order_cancelled'];
         } else if (row?.transitioned_to_refunded) {
-          triggerTypes = ['shopify_order_refunded']
+          triggerTypes = ['shopify_order_refunded'];
         } else {
-          if (row?.transitioned_to_paid) triggerTypes.push('shopify_order_paid')
-          if (row?.transitioned_to_fulfilled) triggerTypes.push('shopify_order_fulfilled')
-          if (row?.transitioned_to_delivered) triggerTypes.push('shopify_order_delivered')
+          if (row?.transitioned_to_paid)
+            triggerTypes.push('shopify_order_paid');
+          if (row?.transitioned_to_fulfilled)
+            triggerTypes.push('shopify_order_fulfilled');
+          if (row?.transitioned_to_delivered)
+            triggerTypes.push('shopify_order_delivered');
         }
       }
     }
@@ -329,52 +353,55 @@ export async function POST(request: Request) {
       tracking_company: trackingCompany,
       tracking_url:
         trackingUrl ||
-        resolveCarrierTrackingUrl(
-          trackingCompany,
-          trackingNumber,
-        ) ||
+        resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
         String(order.order_status_url ?? ''),
-    }
+    };
     void emitWebhook(
       workspaceId,
       topic === 'orders/create' ? 'order.created' : 'order.updated',
-      eventData,
-    ).catch((error) => console.error('[webhook] Shopify order delivery failed', error))
+      eventData
+    ).catch((error) =>
+      console.error('[webhook] Shopify order delivery failed', error)
+    );
     if (triggerTypes.includes('shopify_order_paid')) {
-      void emitWebhook(workspaceId, 'payment.approved', eventData).catch((error) =>
-        console.error('[webhook] Shopify payment delivery failed', error),
-      )
+      void emitWebhook(workspaceId, 'payment.approved', eventData).catch(
+        (error) =>
+          console.error('[webhook] Shopify payment delivery failed', error)
+      );
     }
     if (topic === 'orders/updated') {
       const shipmentChanged =
         (incomingFulfillment != null &&
           incomingFulfillment !== previousLogistics?.fulfillment_status) ||
-        (shipmentStatus !== '' && shipmentStatus !== previousLogistics?.shipment_status)
+        (shipmentStatus !== '' &&
+          shipmentStatus !== previousLogistics?.shipment_status);
       const trackingChanged =
         trackingNumber !== '' &&
         (trackingNumber !== previousLogistics?.tracking_number ||
           trackingCompany !== (previousLogistics?.tracking_company ?? '') ||
-          trackingUrl !== (previousLogistics?.tracking_url ?? ''))
+          trackingUrl !== (previousLogistics?.tracking_url ?? ''));
 
       if (shipmentChanged) {
-        void emitWebhook(workspaceId, 'shipment.updated', eventData).catch((error) =>
-          console.error('[webhook] Shopify shipment delivery failed', error),
-        )
+        void emitWebhook(workspaceId, 'shipment.updated', eventData).catch(
+          (error) =>
+            console.error('[webhook] Shopify shipment delivery failed', error)
+        );
       }
       if (trackingChanged) {
-        void emitWebhook(workspaceId, 'tracking.updated', eventData).catch((error) =>
-          console.error('[webhook] Shopify tracking delivery failed', error),
-        )
+        void emitWebhook(workspaceId, 'tracking.updated', eventData).catch(
+          (error) =>
+            console.error('[webhook] Shopify tracking delivery failed', error)
+        );
       }
     }
 
     if (triggerTypes.length === 0) {
-      return NextResponse.json({ ok: true, ignored: 'no_transition' })
+      return NextResponse.json({ ok: true, ignored: 'no_transition' });
     }
 
-    const phone = extractShopifyPhone(order)
-    if (!phone) return NextResponse.json({ ok: true, skipped: 'no_phone' })
-    const name = extractShopifyName(order)
+    const phone = extractShopifyPhone(order);
+    if (!phone) return NextResponse.json({ ok: true, skipped: 'no_phone' });
+    const name = extractShopifyName(order);
 
     const contactId = await upsertWhatsappContact(admin, {
       workspaceId,
@@ -382,7 +409,7 @@ export async function POST(request: Request) {
       name,
       email: (order.email as string) || undefined,
       legacyExternalId: extractShopifyLegacyPhone(order),
-    })
+    });
     if (topic === 'orders/create' && contactId && orderId > 0) {
       const { data: mirroredOrder } = await admin
         .from('orders')
@@ -390,19 +417,26 @@ export async function POST(request: Request) {
         .eq('workspace_id', workspaceId)
         .eq('shop_domain', shopDomain)
         .eq('shopify_order_id', String(orderId))
-        .maybeSingle()
+        .maybeSingle();
       if (mirroredOrder) {
         await attributeExperimentOrder(admin, {
           workspaceId,
           contactId,
           orderId: String((mirroredOrder as { id: string }).id),
-          total: Number((mirroredOrder as { total_price?: string | number | null }).total_price ?? 0) || null,
-          currency: (mirroredOrder as { currency?: string | null }).currency ?? null,
+          total:
+            Number(
+              (mirroredOrder as { total_price?: string | number | null })
+                .total_price ?? 0
+            ) || null,
+          currency:
+            (mirroredOrder as { currency?: string | null }).currency ?? null,
           orderedAt: String(order.created_at ?? new Date().toISOString()),
-        }).catch((err) => console.error('[ab-test] order attribution failed:', err))
+        }).catch((err) =>
+          console.error('[ab-test] order attribution failed:', err)
+        );
       }
     }
-    if (!contactId) return NextResponse.json({ ok: true })
+    if (!contactId) return NextResponse.json({ ok: true });
 
     // El espejo se escribe antes de resolver el teléfono. Sellar ahora el
     // contacto sobre `orders` hace que el pedido aparezca en el panel Shopify
@@ -414,9 +448,12 @@ export async function POST(request: Request) {
         .update({ contact_id: contactId })
         .eq('workspace_id', workspaceId)
         .eq('shop_domain', shopDomain)
-        .eq('shopify_order_id', String(orderId))
+        .eq('shopify_order_id', String(orderId));
       if (orderContactError) {
-        console.error('[shopify] order contact link failed:', orderContactError)
+        console.error(
+          '[shopify] order contact link failed:',
+          orderContactError
+        );
       }
     }
 
@@ -426,7 +463,9 @@ export async function POST(request: Request) {
       id: contactId,
       email: (order.email as string) ?? null,
       phone,
-    }).catch((err) => console.error('[shopify] enganche de compras falló:', err))
+    }).catch((err) =>
+      console.error('[shopify] enganche de compras falló:', err)
+    );
 
     // Stamp the contact onto the fulfillment-state row (migration 061)
     // so the post-delivery feedback cron messages the customer who
@@ -437,7 +476,7 @@ export async function POST(request: Request) {
         .from('shopify_order_fulfillment_state')
         .update({ contact_id: contactId })
         .eq('shop_domain', shopDomain)
-        .eq('order_id', orderId)
+        .eq('order_id', orderId);
     }
 
     // Oferta elegida (flujos de recompra): derivamos qué oferta compró el
@@ -445,28 +484,31 @@ export async function POST(request: Request) {
     // el momento de compra, así la IA la conoce en futuras conversaciones de
     // recompra. Se calcula para todos los pedidos (también los del asistente)
     // y se inyecta como var {{vars.offer_chosen}} más abajo.
-    const offer = await resolveOfferChosen(admin, workspaceId, order)
+    const offer = await resolveOfferChosen(admin, workspaceId, order);
     if (triggerTypes.includes('shopify_order_created')) {
       // Producto comprado = título del primer ítem del pedido. Se guarda en el
       // contacto para poder ramificar/personalizar recompras por producto.
-      const lineItems = Array.isArray(order.line_items) ? order.line_items : []
+      const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
       const firstItemTitle = String(
-        (lineItems[0] as Record<string, unknown> | undefined)?.title ?? '',
-      ).trim()
-      const contactUpdate: Record<string, unknown> = {}
+        (lineItems[0] as Record<string, unknown> | undefined)?.title ?? ''
+      ).trim();
+      const contactUpdate: Record<string, unknown> = {};
       if (offer.label) {
-        contactUpdate.last_offer_chosen = offer.label
-        contactUpdate.last_offer_units = offer.units
-        contactUpdate.last_offer_at = new Date().toISOString()
+        contactUpdate.last_offer_chosen = offer.label;
+        contactUpdate.last_offer_units = offer.units;
+        contactUpdate.last_offer_at = new Date().toISOString();
       }
-      if (firstItemTitle) contactUpdate.last_product = firstItemTitle
+      if (firstItemTitle) contactUpdate.last_product = firstItemTitle;
       if (Object.keys(contactUpdate).length > 0) {
         const { error: offerErr } = await admin
           .from('contacts')
           .update(contactUpdate)
-          .eq('id', contactId)
+          .eq('id', contactId);
         if (offerErr)
-          console.error('[shopify] last_offer/product update failed:', offerErr)
+          console.error(
+            '[shopify] last_offer/product update failed:',
+            offerErr
+          );
       }
     }
 
@@ -476,16 +518,16 @@ export async function POST(request: Request) {
     try {
       const ordersCount = Number(
         (order.customer as Record<string, unknown> | undefined)?.orders_count ??
-          1,
-      )
+          1
+      );
       await applyCategoryTags(admin, workspaceId, contactId, {
         ordersCount: ordersCount > 0 ? ordersCount : 1,
         isAbandoned: false,
         offerLabel: offer.label,
         units: offer.units,
-      })
+      });
     } catch (e) {
-      console.error('[shopify] categorize order contact failed:', e)
+      console.error('[shopify] categorize order contact failed:', e);
     }
 
     // Atribución por pedido: si el pedido vino del asistente (link con
@@ -501,7 +543,8 @@ export async function POST(request: Request) {
     // Ahora sólo se saltea lo que duplicaría: las automatizaciones que hablan
     // al instante. Las que esperan siguen su curso.
     const confirmadoPorLaIA =
-      triggerTypes.includes('shopify_order_created') && isAiAttributedOrder(order)
+      triggerTypes.includes('shopify_order_created') &&
+      isAiAttributedOrder(order);
     if (confirmadoPorLaIA) {
       await sendAiOrderConfirmation(admin, {
         workspaceId,
@@ -510,17 +553,17 @@ export async function POST(request: Request) {
         name,
         shopDomain,
       }).catch((err) =>
-        console.error('[shopify] ai order confirmation failed:', err),
-      )
+        console.error('[shopify] ai order confirmation failed:', err)
+      );
     }
 
     // Las variables dependen del evento (el tracking sólo existe en el
     // despacho), así que se arman una vez por disparador.
-    let vars: Record<string, string> = {}
+    let vars: Record<string, string> = {};
     for (const triggerType of triggerTypes) {
-      vars = buildVarsForOrder(triggerType, order, name)
-      vars.offer_chosen = offer.label
-      vars.offer_units = offer.units > 0 ? String(offer.units) : ''
+      vars = buildVarsForOrder(triggerType, order, name);
+      vars.offer_chosen = offer.label;
+      vars.offer_units = offer.units > 0 ? String(offer.units) : '';
 
       runAutomationsForTrigger({
         workspaceId,
@@ -528,7 +571,7 @@ export async function POST(request: Request) {
         contactId,
         context: { vars },
         skipImmediateSenders: confirmadoPorLaIA,
-      }).catch((err) => console.error('[shopify] dispatch failed:', err))
+      }).catch((err) => console.error('[shopify] dispatch failed:', err));
     }
 
     // Acá había un segundo disparador de llamadas, invisible: si un agente
@@ -536,9 +579,9 @@ export async function POST(request: Request) {
     // un teléfono sin que existiera ninguna automatización que lo dijera. Una
     // llamada saliente ahora nace SIEMPRE de un nodo «Llamar con IA» en el
     // lienzo — que es donde el comercio puede verla, editarla y apagarla.
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[shopify] orders webhook error:', err)
+    console.error('[shopify] orders webhook error:', err);
     // Signature already verified above — capture the raw delivery so an
     // exception mid-processing doesn't silently lose the order event
     // (webhook_events_raw, migration 059). We still ack 200 to avoid
@@ -548,8 +591,8 @@ export async function POST(request: Request) {
       rawBody,
       signature: hmac,
       error: err,
-    })
-    return NextResponse.json({ ok: true })
+    });
+    return NextResponse.json({ ok: true });
   }
 }
 
@@ -559,20 +602,20 @@ export async function POST(request: Request) {
 function isAiAttributedOrder(order: Record<string, unknown>): boolean {
   const attrs = Array.isArray(order.note_attributes)
     ? (order.note_attributes as Array<{ name?: string; value?: string }>)
-    : []
+    : [];
   if (attrs.some((a) => a?.name === 'riverz_origin' && a?.value === 'ai')) {
-    return true
+    return true;
   }
   return String(order.tags ?? '')
     .split(',')
     .map((t) => t.trim().toLowerCase())
-    .includes('riverz-ia')
+    .includes('riverz-ia');
 }
 
 function formatOrderTotal(order: Record<string, unknown>): string {
-  const n = parseFloat(String(order.total_price ?? ''))
-  if (Number.isNaN(n)) return ''
-  return fmtMoney(n, String(order.currency ?? 'ARS'))
+  const n = parseFloat(String(order.total_price ?? ''));
+  if (Number.isNaN(n)) return '';
+  return fmtMoney(n, String(order.currency ?? 'ARS'));
 }
 
 /**
@@ -584,14 +627,14 @@ function formatOrderTotal(order: Record<string, unknown>): string {
 async function sendAiOrderConfirmation(
   admin: ReturnType<typeof supabaseAdmin>,
   args: {
-    workspaceId: string
-    contactId: string
-    order: Record<string, unknown>
-    name: string | undefined
-    shopDomain: string
-  },
+    workspaceId: string;
+    contactId: string;
+    order: Record<string, unknown>;
+    name: string | undefined;
+    shopDomain: string;
+  }
 ): Promise<void> {
-  const { workspaceId, contactId, order, name, shopDomain } = args
+  const { workspaceId, contactId, order, name, shopDomain } = args;
 
   // Elegir la conversación correcta:
   //  1) Si el pedido lo creó la tool create_order, la fila de `orders`
@@ -600,23 +643,24 @@ async function sendAiOrderConfirmation(
   //     la conversación con pending_checkout_at.
   //  3) Fallback: la más reciente del contacto.
   // Así nunca limpiamos el pending de una conversación ajena.
-  let conv: Conversation | null = null
-  const shopifyOrderId = order.id != null ? String(order.id) : null
+  let conv: Conversation | null = null;
+  const shopifyOrderId = order.id != null ? String(order.id) : null;
   if (shopifyOrderId) {
     const { data: orderRow } = await admin
       .from('orders')
       .select('conversation_id')
       .eq('shop_domain', shopDomain)
       .eq('shopify_order_id', shopifyOrderId)
-      .maybeSingle()
-    const convId = (orderRow as { conversation_id?: string } | null)?.conversation_id
+      .maybeSingle();
+    const convId = (orderRow as { conversation_id?: string } | null)
+      ?.conversation_id;
     if (convId) {
       const { data } = await admin
         .from('conversations')
         .select('*')
         .eq('id', convId)
-        .maybeSingle()
-      conv = (data as Conversation | null) ?? null
+        .maybeSingle();
+      conv = (data as Conversation | null) ?? null;
     }
   }
   if (!conv) {
@@ -630,26 +674,26 @@ async function sendAiOrderConfirmation(
       // the order-confirmation message doesn't land in an invisible row.
       .is('deleted_at', null)
       .order('last_message_at', { ascending: false })
-      .limit(10)
-    const convs = (convsRaw ?? []) as Conversation[]
-    conv = convs.find((c) => c.pending_checkout_at) ?? convs[0] ?? null
+      .limit(10);
+    const convs = (convsRaw ?? []) as Conversation[];
+    conv = convs.find((c) => c.pending_checkout_at) ?? convs[0] ?? null;
   }
   if (!conv) {
     console.warn(
       '[shopify] ai confirmation: sin conversación para contacto',
-      contactId,
-    )
-    return
+      contactId
+    );
+    return;
   }
 
-  let connection: ChannelConnection | null = null
+  let connection: ChannelConnection | null = null;
   if (conv.connection_id) {
     const { data } = await admin
       .from('channel_connections')
       .select('*')
       .eq('id', conv.connection_id)
-      .maybeSingle()
-    connection = (data as ChannelConnection | null) ?? null
+      .maybeSingle();
+    connection = (data as ChannelConnection | null) ?? null;
   }
   if (!connection) {
     const { data } = await admin
@@ -660,41 +704,44 @@ async function sendAiOrderConfirmation(
       .neq('status', 'disconnected')
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
-    connection = (data as ChannelConnection | null) ?? null
+      .maybeSingle();
+    connection = (data as ChannelConnection | null) ?? null;
   }
   if (!connection) {
-    console.warn('[shopify] ai confirmation: sin conexión de canal', conv.id)
-    return
+    console.warn('[shopify] ai confirmation: sin conexión de canal', conv.id);
+    return;
   }
 
   const { data: contactRow } = await admin
     .from('contacts')
     .select('*')
     .eq('id', contactId)
-    .maybeSingle()
+    .maybeSingle();
   if (!contactRow) {
-    console.warn('[shopify] ai confirmation: contacto no encontrado', contactId)
-    return
+    console.warn(
+      '[shopify] ai confirmation: contacto no encontrado',
+      contactId
+    );
+    return;
   }
-  const contact = contactRow as Contact
+  const contact = contactRow as Contact;
 
-  const first = (name || contact.name || '').trim().split(/\s+/)[0]
-  const orderName = String(order.name ?? '#' + (order.order_number ?? ''))
-  const total = formatOrderTotal(order)
+  const first = (name || contact.name || '').trim().split(/\s+/)[0];
+  const orderName = String(order.name ?? '#' + (order.order_number ?? ''));
+  const total = formatOrderTotal(order);
   const text =
     `¡Listo${first ? ' ' + first : ''}! 🎉 Confirmamos el pago de tu pedido ${orderName}` +
-    `${total ? ' por ' + total : ''}. ¡Gracias por tu compra! Cualquier cosa, escribime por acá.`
+    `${total ? ' por ' + total : ''}. ¡Gracias por tu compra! Cualquier cosa, escribime por acá.`;
 
-  const adapter = getAdapter(conv.channel as Channel)
+  const adapter = getAdapter(conv.channel as Channel);
   const sendResult = await adapter.sendText({
     channel: conv.channel as Channel,
     connection,
     conversation: conv,
     contact,
     text,
-  })
-  const now = new Date().toISOString()
+  });
+  const now = new Date().toISOString();
   await admin.from('messages').insert({
     conversation_id: conv.id,
     channel: conv.channel,
@@ -706,21 +753,21 @@ async function sendAiOrderConfirmation(
     // Lo dispara el pedido de Shopify, no una persona ni el asistente
     // conversando: la bandeja lo dice tal cual (migración 143).
     origin: 'order_update',
-  })
+  });
   const convUpdate: Record<string, unknown> = {
     last_message_text: text.slice(0, 200),
     last_message_at: now,
     last_sender_type: 'bot',
     updated_at: now,
-  }
+  };
   // Solo limpiamos el pago pendiente si ESTA conversación lo tenía — así no
   // pisamos el pending de otra conversación concurrente (p. ej. un
   // create_order que cae en la conversación equivocada).
   if (conv.pending_checkout_at) {
-    convUpdate.pending_checkout_at = null
-    convUpdate.pending_checkout_url = null
+    convUpdate.pending_checkout_at = null;
+    convUpdate.pending_checkout_url = null;
   }
-  await admin.from('conversations').update(convUpdate).eq('id', conv.id)
+  await admin.from('conversations').update(convUpdate).eq('id', conv.id);
 }
 
 // resolveOfferChosen lives in '@/lib/shopify/offers' (shared with the
@@ -729,14 +776,16 @@ async function sendAiOrderConfirmation(
 function buildVarsForOrder(
   trigger: AutomationTriggerType,
   order: Record<string, unknown>,
-  name: string | undefined,
+  name: string | undefined
 ): Record<string, string> {
-  const customer = order.customer as Record<string, unknown> | undefined
-  const ordersCount = Number(customer?.orders_count ?? 0)
-  const lineItems = Array.isArray(order.line_items) ? order.line_items : []
-  const firstItem = lineItems[0] as Record<string, unknown> | undefined
+  const customer = order.customer as Record<string, unknown> | undefined;
+  const ordersCount = Number(customer?.orders_count ?? 0);
+  const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+  const firstItem = lineItems[0] as Record<string, unknown> | undefined;
 
-  const shipping = order.shipping_address as Record<string, unknown> | undefined
+  const shipping = order.shipping_address as
+    | Record<string, unknown>
+    | undefined;
 
   const base: Record<string, string> = {
     ...confirmationSummary(order),
@@ -767,18 +816,21 @@ function buildVarsForOrder(
     shipping_province: String(shipping?.province ?? ''),
     shipping_zip: String(shipping?.zip ?? ''),
     shipping_country: String(shipping?.country ?? ''),
-  }
+  };
 
-  if (trigger === 'shopify_order_fulfilled' || trigger === 'shopify_order_delivered') {
+  if (
+    trigger === 'shopify_order_fulfilled' ||
+    trigger === 'shopify_order_delivered'
+  ) {
     const fulfillments = Array.isArray(order.fulfillments)
       ? (order.fulfillments as Record<string, unknown>[])
-      : []
-    const latest = fulfillments[fulfillments.length - 1]
-    const trackingUrl = String(latest?.tracking_url ?? '')
-    const trackingCompany = String(latest?.tracking_company ?? '')
-    const trackingNumber = String(latest?.tracking_number ?? '')
-    base.tracking_number = trackingNumber
-    base.tracking_company = trackingCompany
+      : [];
+    const latest = fulfillments[fulfillments.length - 1];
+    const trackingUrl = String(latest?.tracking_url ?? '');
+    const trackingCompany = String(latest?.tracking_company ?? '');
+    const trackingNumber = String(latest?.tracking_number ?? '');
+    base.tracking_number = trackingNumber;
+    base.tracking_company = trackingCompany;
     // Shopify only auto-fills tracking_url for carriers in its built-in
     // list. For Andreani / Correo Argentino / OCA the URL is empty and
     // the customer gets a naked number. Fall back to our resolver so
@@ -797,8 +849,8 @@ function buildVarsForOrder(
     base.tracking_url =
       trackingUrl ||
       resolveCarrierTrackingUrl(trackingCompany, trackingNumber) ||
-      String(order.order_status_url ?? '')
+      String(order.order_status_url ?? '');
   }
 
-  return base
+  return base;
 }

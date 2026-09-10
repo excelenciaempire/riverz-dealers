@@ -91,18 +91,21 @@ export async function tokenVivo(
         clientId: decrypt(fila.client_id_encrypted),
         clientSecret: decrypt(fila.webhook_secret),
       });
+      const parche: Record<string, unknown> = {
+        access_token: encrypt(nuevo.access_token),
+        token_expires_at: nuevo.expires_in
+          ? new Date(Date.now() + nuevo.expires_in * 1000).toISOString()
+          : null,
+        status: 'active',
+        last_error: null,
+      };
+      if (nuevo.scope) parche.scope = nuevo.scope;
       const { error: persistError } = await db
         .from('shopify_connections')
-        .update({
-          access_token: encrypt(nuevo.access_token),
-          token_expires_at: nuevo.expires_in
-            ? new Date(Date.now() + nuevo.expires_in * 1000).toISOString()
-            : null,
-          status: 'active',
-          last_error: null,
-        })
+        .update(parche)
         .eq('id', fila.id);
-      if (persistError) throw new Error(`token persistence: ${persistError.message}`);
+      if (persistError)
+        throw new Error(`token persistence: ${persistError.message}`);
       return { accessToken: nuevo.access_token, renovado: true };
     } catch (err) {
       log.warn('client_credentials_refresh_failed', {
@@ -191,8 +194,12 @@ export async function tokenVivo(
           ).toISOString()
         : null;
     }
-    const { error: persistError } = await db.from('shopify_connections').update(parche).eq('id', fila.id);
-    if (persistError) throw new Error(`token persistence: ${persistError.message}`);
+    const { error: persistError } = await db
+      .from('shopify_connections')
+      .update(parche)
+      .eq('id', fila.id);
+    if (persistError)
+      throw new Error(`token persistence: ${persistError.message}`);
 
     return { accessToken: nuevo.access_token, renovado: true };
   } catch (err) {

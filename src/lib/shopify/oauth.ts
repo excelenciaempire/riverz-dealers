@@ -29,47 +29,48 @@ const API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-10';
 // poder validar el flujo end-to-end contra una tienda real (sin ellos la
 // Admin API responde 403 al crear el fulfillment).
 const PUBLIC_SCOPES = [
-    'read_orders',
-    'write_orders',
-    'read_checkouts',
-    'read_customers',
-    'read_products',
-    'read_fulfillments',
-    'write_fulfillments',
-    'read_merchant_managed_fulfillment_orders',
-    'write_merchant_managed_fulfillment_orders',
-    // Descuentos: `ensureCampaignPriceRule` (instagram-agent/discounts.ts) crea
-    // price rules y códigos únicos desde que existe, pero sin este scope Shopify
-    // contesta 403 y el `catch` lo devuelve como null — o sea que la función
-    // estaba fallando en silencio en todas las tiendas conectadas.
-    //
-    // `write_discounts` NO alcanza, y no es un detalle de nombre: gobierna la
-    // API de Discounts (GraphQL), y este código usa la de PriceRules (REST).
-    // Con sólo aquél, crear la regla contesta "requires merchant approval for
-    // write_price_rules scope" y listar las existentes pide la de lectura
-    // aparte — escribir no implica leer, igual que con las etiquetas de script.
-    // Los tres, entonces. Medido el 2026-08-24 sobre la tienda demo ya
-    // reconectada, donde `write_discounts` solo daba 403 en las dos.
-    'read_price_rules',
-    'write_price_rules',
-    'write_discounts',
-    // Editar un pedido ya creado (sumarle unidades) NO entra en `write_orders`:
-    // Shopify separó `orderEditBegin` en su propio permiso. Con sólo aquél
-    // contesta 200 con `errors: ACCESS_DENIED, requires write_order_edits`, que
-    // la capa de arriba devolvía como un "no pude actualizar" genérico — la
-    // herramienta update_order no funcionó nunca en ninguna tienda conectada
-    // por OAuth. Medido el 2026-08-24 sobre la tienda demo, pedido #1002.
-    'read_order_edits',
-    'write_order_edits',
-    // Borradores de pedido ("Pedidos → Borradores"). Un borrador es una venta
-    // que el comercio YA armó —cliente, productos y un `invoice_url` que es un
-    // link de pago listo— esperando que alguien pague. Es un carrito
-    // abandonado más caliente: acá alguien del equipo ya habló con la persona.
-    // Sin este permiso `draft_orders.json` contesta 403 "requires merchant
-    // approval for read_draft_orders scope" y los webhooks del tema ni se
-    // pueden registrar, así que esas ventas eran invisibles.
-    'read_draft_orders',
-  ]
+  'read_orders',
+  'write_orders',
+  'read_checkouts',
+  'read_customers',
+  'write_customers',
+  'read_products',
+  'read_fulfillments',
+  'write_fulfillments',
+  'read_merchant_managed_fulfillment_orders',
+  'write_merchant_managed_fulfillment_orders',
+  // Descuentos: `ensureCampaignPriceRule` (instagram-agent/discounts.ts) crea
+  // price rules y códigos únicos desde que existe, pero sin este scope Shopify
+  // contesta 403 y el `catch` lo devuelve como null — o sea que la función
+  // estaba fallando en silencio en todas las tiendas conectadas.
+  //
+  // `write_discounts` NO alcanza, y no es un detalle de nombre: gobierna la
+  // API de Discounts (GraphQL), y este código usa la de PriceRules (REST).
+  // Con sólo aquél, crear la regla contesta "requires merchant approval for
+  // write_price_rules scope" y listar las existentes pide la de lectura
+  // aparte — escribir no implica leer, igual que con las etiquetas de script.
+  // Los tres, entonces. Medido el 2026-08-24 sobre la tienda demo ya
+  // reconectada, donde `write_discounts` solo daba 403 en las dos.
+  'read_price_rules',
+  'write_price_rules',
+  'write_discounts',
+  // Editar un pedido ya creado (sumarle unidades) NO entra en `write_orders`:
+  // Shopify separó `orderEditBegin` en su propio permiso. Con sólo aquél
+  // contesta 200 con `errors: ACCESS_DENIED, requires write_order_edits`, que
+  // la capa de arriba devolvía como un "no pude actualizar" genérico — la
+  // herramienta update_order no funcionó nunca en ninguna tienda conectada
+  // por OAuth. Medido el 2026-08-24 sobre la tienda demo, pedido #1002.
+  'read_order_edits',
+  'write_order_edits',
+  // Borradores de pedido ("Pedidos → Borradores"). Un borrador es una venta
+  // que el comercio YA armó —cliente, productos y un `invoice_url` que es un
+  // link de pago listo— esperando que alguien pague. Es un carrito
+  // abandonado más caliente: acá alguien del equipo ya habló con la persona.
+  // Sin este permiso `draft_orders.json` contesta 403 "requires merchant
+  // approval for read_draft_orders scope" y los webhooks del tema ni se
+  // pueden registrar, así que esas ventas eran invisibles.
+  'read_draft_orders',
+];
 
 const LEGACY_ONLY_SCOPES = [
   // Sólo la app legacy instalada en Pilar los necesita: write_products crea
@@ -85,21 +86,32 @@ const LEGACY_ONLY_SCOPES = [
   'write_publications',
   'read_script_tags',
   'write_script_tags',
-]
+];
 
 export function shopifyApiVersion(): string {
   return API_VERSION;
 }
 
-export function shopifyScopes(identity: 'public' | 'legacy' = 'public'): string {
-  const configured = process.env.SHOPIFY_SCOPES
+export function shopifyScopes(
+  identity: 'public' | 'legacy' = 'public'
+): string {
+  const configured = process.env.SHOPIFY_SCOPES;
   const base = configured
-    ? configured.split(',').map((scope) => scope.trim()).filter(Boolean)
-    : PUBLIC_SCOPES
-  const publicOnly = base.filter((scope) => !LEGACY_ONLY_SCOPES.includes(scope))
+    ? configured
+        .split(',')
+        .map((scope) => scope.trim())
+        .filter(Boolean)
+    : PUBLIC_SCOPES;
+  const publicOnly = base.filter(
+    (scope) => !LEGACY_ONLY_SCOPES.includes(scope)
+  );
   return Array.from(
-    new Set(identity === 'legacy' ? [...publicOnly, ...LEGACY_ONLY_SCOPES] : publicOnly),
-  ).join(',')
+    new Set(
+      identity === 'legacy'
+        ? [...publicOnly, ...LEGACY_ONLY_SCOPES]
+        : publicOnly
+    )
+  ).join(',');
 }
 
 /**
