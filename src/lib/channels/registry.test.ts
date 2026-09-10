@@ -90,7 +90,10 @@ describe('lo que le llega al canal', () => {
   it('marca y acorta los links del mensaje', async () => {
     enviados.length = 0;
     await getAdapter('whatsapp').sendText(
-      entrada('whatsapp', 'Miralo acá: https://tienda.com/products/remera'),
+      entrada(
+        'whatsapp',
+        'Miralo acá: https://tienda.com/products/remera?variant=123456789&campaign=recuperacion-septiembre',
+      ),
     );
     expect(enviados).toHaveLength(1);
     expect(enviados[0].text).toContain('https://riverz.co/r/AbC123xy');

@@ -1,10 +1,9 @@
 /**
  * Preparación final de enlaces salientes.
  *
- * La tienda recibe la URL real ya marcada (`riverz=<canal>`), pero la persona
- * ve un enlace corto de Riverz. Cada token pertenece a un workspace y, cuando
- * existe, a un contacto: nunca se comparte configuración ni destino entre
- * comercios.
+ * Los enlaces largos se marcan (`riverz=<canal>`) y se muestran mediante un
+ * enlace corto de Riverz. Los enlaces que ya son breves se conservan tal cual:
+ * cambiarlos de dominio empeora la confianza y no ahorra espacio visible.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createShortLink } from '@/lib/links/short-link'
@@ -13,6 +12,8 @@ import { marcarParaCanal, medioParaCanal, PARAM } from './enlaces'
 
 const RE_URL = /https?:\/\/[^\s<>"']+/g
 const COLA = /[.,;:!?)\]}»"']+$/
+
+const LARGO_MINIMO_PARA_ACORTAR = 80
 
 export interface PrepararTextoParaCanalArgs {
   texto: string
@@ -30,7 +31,7 @@ function tieneMarcaRiverz(url: string): boolean {
 }
 
 /**
- * Marca y acorta todos los enlaces externos de un mensaje.
+ * Marca y acorta sólo los enlaces externos realmente largos.
  *
  * Fail-open a propósito: si el servicio de enlaces cortos no puede insertar
  * una fila, se conserva la URL larga ya marcada. El mensaje sigue saliendo y
@@ -41,45 +42,46 @@ export async function prepararTextoParaCanal(
   args: PrepararTextoParaCanalArgs,
 ): Promise<string> {
   if (!medioParaCanal(args.canal)) return args.texto
-  const marcado = marcarParaCanal(args.texto, args.canal)
-  if (!marcado.includes('http')) return marcado
+  if (!args.texto.includes('http')) return args.texto
 
   const reemplazos = new Map<string, string>()
   let salida = ''
   let cursor = 0
 
-  for (const match of marcado.matchAll(RE_URL)) {
+  for (const match of args.texto.matchAll(RE_URL)) {
     const bruto = match[0]
     const inicio = match.index
     const cola = bruto.match(COLA)?.[0] ?? ''
     const url = cola ? bruto.slice(0, -cola.length) : bruto
     let visible = url
 
-    if (tieneMarcaRiverz(url)) {
-      const existente = reemplazos.get(url)
+    if (url.length >= LARGO_MINIMO_PARA_ACORTAR) {
+      const destino = marcarParaCanal(url, args.canal)
+      const existente = reemplazos.get(destino)
       if (existente) {
         visible = existente
-      } else {
+      } else if (tieneMarcaRiverz(destino)) {
         try {
           const token = await createShortLink(db, {
             workspaceId: args.workspaceId,
             contactId: args.contactId ?? null,
             // La marca queda DENTRO del destino. `/r/:token` no necesita
             // adivinar el comercio ni el canal cuando llegue el clic.
-            targetUrl: url,
+            targetUrl: destino,
           })
           visible = shortLinkPublicUrl(token)
-          reemplazos.set(url, visible)
+          reemplazos.set(destino, visible)
         } catch (error) {
           console.error('[short-links] no se pudo acortar el enlace:', error)
-          reemplazos.set(url, url)
+          visible = destino
+          reemplazos.set(destino, destino)
         }
       }
     }
 
-    salida += marcado.slice(cursor, inicio) + visible + cola
+    salida += args.texto.slice(cursor, inicio) + visible + cola
     cursor = inicio + bruto.length
   }
 
-  return salida + marcado.slice(cursor)
+  return salida + args.texto.slice(cursor)
 }

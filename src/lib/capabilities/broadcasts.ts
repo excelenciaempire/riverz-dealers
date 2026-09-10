@@ -612,7 +612,8 @@ export async function artefactoGuardadoDeCampana(
 /**
  * QUÉ SE CLICKEÓ DE VERDAD.
  *
- * Todo enlace que Riverz manda sale acortado, y el acortador cuenta los clicks.
+ * Los enlaces largos que Riverz manda salen acortados, y el acortador cuenta
+ * sus clicks. Los enlaces breves conservan el dominio original.
  * Es la única medida de si el mensaje sirvió que no depende de que el cliente
  * conteste: entregado y leído dicen que llegó; el click dice que le interesó.
  */

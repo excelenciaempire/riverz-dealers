@@ -16,7 +16,8 @@ describe('prepararTextoParaCanal', () => {
 
   it('muestra un enlace corto y guarda como destino la atribución del canal', async () => {
     const texto = await prepararTextoParaCanal(db, {
-      texto: 'Catálogo: https://tienda.example/productos',
+      texto:
+        'Catálogo: https://tienda.example/productos/rascador-grande?variant=rosa&campaign=promocion-septiembre',
       canal: 'instagram',
       workspaceId: 'workspace-a',
       contactId: 'contact-a',
@@ -28,13 +29,25 @@ describe('prepararTextoParaCanal', () => {
       workspaceId: 'workspace-a',
       contactId: 'contact-a',
       targetUrl:
-        'https://tienda.example/productos?riverz=instagram&utm_source=riverz&utm_medium=instagram',
+        'https://tienda.example/productos/rascador-grande?variant=rosa&campaign=promocion-septiembre&riverz=instagram&utm_source=riverz&utm_medium=instagram',
     })
+  })
+
+  it('conserva exactamente una URL de producto que ya es corta', async () => {
+    const texto = await prepararTextoParaCanal(db, {
+      texto: 'Mira https://www.rasmiaw.shop/products/ref-4',
+      canal: 'instagram',
+      workspaceId: 'workspace-a',
+    })
+
+    expect(texto).toBe('Mira https://www.rasmiaw.shop/products/ref-4')
+    expect(createShortLink).not.toHaveBeenCalled()
   })
 
   it('reutiliza el token para el mismo enlace repetido en un mensaje', async () => {
     const texto = await prepararTextoParaCanal(db, {
-      texto: 'Uno https://tienda.example/p. Dos https://tienda.example/p',
+      texto:
+        'Uno https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre. Dos https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre',
       canal: 'whatsapp',
       workspaceId: 'workspace-a',
     })
@@ -51,12 +64,12 @@ describe('prepararTextoParaCanal', () => {
       .mockResolvedValueOnce('ComercioB')
 
     const a = await prepararTextoParaCanal(db, {
-      texto: 'https://tienda.example/p',
+      texto: 'https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre',
       canal: 'instagram',
       workspaceId: 'workspace-a',
     })
     const b = await prepararTextoParaCanal(db, {
-      texto: 'https://tienda.example/p',
+      texto: 'https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre',
       canal: 'instagram',
       workspaceId: 'workspace-b',
     })
@@ -73,18 +86,24 @@ describe('prepararTextoParaCanal', () => {
 
   it('no acorta canales sin atribución ni enlaces propios de Riverz', async () => {
     const comentario = await prepararTextoParaCanal(db, {
-      texto: 'Mira https://tienda.example/p?riverz=instagram',
+      texto:
+        'Mira https://tienda.example/products/rascador?variant=123456789&campaign=contenido-organico&riverz=instagram',
       canal: 'ig_comment',
       workspaceId: 'workspace-a',
     })
     const propio = await prepararTextoParaCanal(db, {
-      texto: 'Mira https://riverz.co/ayuda',
+      texto:
+        'Mira https://riverz.co/ayuda/documentacion/enlaces-y-atribucion-de-conversaciones',
       canal: 'instagram',
       workspaceId: 'workspace-a',
     })
 
-    expect(comentario).toBe('Mira https://tienda.example/p?riverz=instagram')
-    expect(propio).toBe('Mira https://riverz.co/ayuda')
+    expect(comentario).toBe(
+      'Mira https://tienda.example/products/rascador?variant=123456789&campaign=contenido-organico&riverz=instagram',
+    )
+    expect(propio).toBe(
+      'Mira https://riverz.co/ayuda/documentacion/enlaces-y-atribucion-de-conversaciones',
+    )
     expect(createShortLink).not.toHaveBeenCalled()
   })
 
@@ -92,13 +111,14 @@ describe('prepararTextoParaCanal', () => {
     vi.mocked(createShortLink).mockRejectedValueOnce(new Error('db down'))
 
     const texto = await prepararTextoParaCanal(db, {
-      texto: 'Mira https://tienda.example/p',
+      texto:
+        'Mira https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre',
       canal: 'messenger',
       workspaceId: 'workspace-a',
     })
 
     expect(texto).toBe(
-      'Mira https://tienda.example/p?riverz=messenger&utm_source=riverz&utm_medium=messenger',
+      'Mira https://tienda.example/products/rascador?variant=123456789&campaign=recuperacion-septiembre&riverz=messenger&utm_source=riverz&utm_medium=messenger',
     )
   })
 })
