@@ -3235,6 +3235,9 @@ async function resolveDefaultVariantId(
   }
 }
 
+export const VARIANT_INTERPRETATION_RULE =
+  'Los nombres de variantes y opciones de Shopify son datos exactos del catálogo. Frases como “para niña” o “para niño” expresan una preferencia del cliente: no son nombres de variante y no autorizan a asociar género con un color o modelo. Compara la petición con todas las variantes reales publicadas y disponibles. Si el cliente no nombra una variante exacta y única, enumera brevemente las opciones disponibles o pregunta cuál prefiere; nunca inventes variantes genéricas. Nunca afirmes que cambiaste la variante de un pedido sin que la operación se haya ejecutado.';
+
 export function buildSystemPrompt(
   agent: AiAgent,
   contact: Contact,
@@ -3689,9 +3692,7 @@ export function buildSystemPrompt(
       lines.push('</catalog>');
     }
   }
-  lines.push(
-    'Los nombres de variantes y opciones de Shopify son datos exactos del catálogo. Interpreta expresiones naturales del cliente contra esos nombres (por ejemplo, “para niña” puede referirse a “Color Niña”), pero no inventes equivalencias: si coinciden varias variantes, pregunta cuál prefiere. Sólo ofrece las marcadas como disponibles y nunca afirmes que cambiaste una variante de un pedido sin que la operación se haya ejecutado.'
-  );
+  lines.push(VARIANT_INTERPRETATION_RULE);
 
   // La tienda, para cuando la consulta no es de un producto concreto. Sale del
   // primer enlace de producto que haya: es el mismo dominio y ahorra una

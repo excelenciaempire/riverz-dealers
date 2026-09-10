@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 
 const WORKSPACE_ID = '36f81b96-41b9-4d29-b72e-11be3d3070a3'
-const PRODUCT_ID = '66aba81a-e512-4718-b8cd-f25e622877ed'
+const PRODUCT_ID = '0c7b66dd-9b12-4deb-bf4f-303c9e3d81bd'
 const GENERAL_AGENT = 'Asesora de DeUNA Shop'
 const RECOVERY_AGENT = 'DeUNA Shop · Recuperación'
 
@@ -40,7 +40,7 @@ const dynamicCheckoutButtonUrl = `${siteBase}/r/{{1}}`
 const productFaqs = [
   { q: '¿Cómo se usa el Saltarín LED?', a: 'Coloca ambos pies sobre la base, sujeta el mango y comienza con saltos cortos sobre una superficie plana y despejada. Se recomienda supervisión adulta.' },
   { q: '¿Las luces necesitan pilas?', a: 'Las luces se activan con el movimiento. No confirmamos batería ni mecanismo interno si esa información no aparece en la ficha vigente del producto.' },
-  { q: '¿Qué modelos hay disponibles?', a: 'La tienda maneja Panda Blanco, Cerdita Rosa y Rana Verde. La disponibilidad cambia; siempre revisamos el inventario actual antes de confirmar.' },
+  { q: '¿Qué modelos hay disponibles?', a: 'El catálogo maneja Panda Blanco, Cerdita Rosa, Cerdo Blanco, Rana Verde, Oso Rosado y Capibara Café. La disponibilidad cambia; siempre revisamos el inventario actual antes de confirmar.' },
   { q: '¿Qué incluye la compra?', a: 'Incluye el Saltarín LED de la variante elegida. Si necesitas confirmar bomba, repuestos u otros accesorios, revisamos la ficha actual antes de prometerlos.' },
   { q: '¿Sirve para interiores y exteriores?', a: 'Sí, puede usarse en ambos espacios siempre que el piso sea plano, firme, seco y esté libre de objetos o desniveles.' },
   { q: '¿Cómo se infla y se arma?', a: 'Infla con suavidad y sin forzar el tapón. Al armarlo, deja hacia arriba la parte de la esfera donde está el orificio de aire para reducir el riesgo de fuga.' },
@@ -58,7 +58,7 @@ const differentiators = [
   'Luces LED que se encienden durante el salto.',
   'Juego activo que practica equilibrio y coordinación de forma recreativa.',
   'Uso en interiores o exteriores sobre una superficie segura.',
-  'Diseño ligero y transportable en tres modelos visuales.',
+  'Diseño ligero y transportable en seis modelos visuales.',
   'Ofertas vigentes de una, dos y tres unidades para comprar en familia o regalar.',
 ]
 
@@ -66,7 +66,7 @@ const objections = [
   { objection: 'Me preocupa que se rompa o pierda aire.', rebuttal: 'Está hecho en PP y PVC, pero debe inflarse con suavidad, sin forzar el tapón y evitando superficies abrasivas u objetos puntiagudos.' },
   { objection: 'No sé si es adecuado para la edad o el peso del niño.', rebuttal: 'No adivinamos límites. Verificamos la etiqueta o la ficha oficial de la variante y recomendamos supervisión adulta.' },
   { objection: 'No quiero pagar antes de recibir.', rebuttal: 'La tienda trabaja por ahora con pago contraentrega: el pago se realiza al recibir, sujeto a cobertura.' },
-  { objection: 'Quiero un modelo específico.', rebuttal: 'Revisamos el inventario en vivo de Panda Blanco, Cerdita Rosa o Rana Verde antes de confirmar.' },
+  { objection: 'Quiero un modelo específico.', rebuttal: 'Revisamos en vivo cuál de los seis modelos reales está disponible antes de confirmar.' },
   { objection: '¿Realmente reemplaza el ejercicio?', rebuttal: 'Es un juego activo y divertido; no sustituye actividad física variada, deporte ni recomendaciones profesionales.' },
 ]
 
@@ -93,33 +93,36 @@ const customNotes = `Operación DeUNA Shop
 - Antes de crear un pedido confirma nombre, teléfono, dirección completa, ciudad/municipio, departamento, referencia de entrega, variante y cantidad. Resume todo y pide un sí explícito.
 - El envío gratis solo se comunica mientras la ficha vigente lo indique y exista cobertura.
 - Consulta siempre producto, oferta e inventario en vivo. No uses cantidades históricas del catálogo.
+- “Para niña” y “para niño” expresan una preferencia, no son variantes. No asocies género con un color o modelo: muestra los modelos reales disponibles y pide que el cliente elija uno si no indicó un nombre exacto.
 - La tienda venderá varios productos: identifica primero cuál interesa y carga su ficha; no traslades datos del Saltarín a otros productos.
-- Dropi es una herramienta logística interna. No hay integración oficial de Dropi con Riverz; Shopify es la fuente operativa disponible para pedidos y seguimiento.
+- Dropi es una herramienta logística interna. Su integración actual actualiza Shopify al generar la guía, cancelar, rechazar y entregar; Riverz recibe esos cambios desde Shopify. No prometas otro estado hasta verlo allí.
 - Si el cliente reporta novedad logística, daño, devolución o cancelación, abre el caso y pásalo a una persona.`
 
 const templates = [
   {
-    name: 'deuna_confirmacion_contraentrega', category: 'Utility', body: `Hola, recibimos tu pedido {{1}} por {{2}}.
+    name: 'deuna_confirmacion_datos_v2', category: 'Utility', body: `Hola, {{1}}. Recibimos tu pedido {{2}} en DeUNA Shop.
 
-El pago es contraentrega. Antes de enviarlo necesitamos confirmar tus datos.
+Productos: {{3}}
+Total contraentrega: {{4}} COP
+Dirección: {{5}}
+Teléfono: {{6}}
 
-Responde CONFIRMAR si todo está correcto o CORREGIR si necesitas hacer un cambio.`,
+Revisa estos datos. Pulsa CONFIRMAR si son correctos o CORREGIR para indicarnos el cambio. Si falta algún dato, pulsa CORREGIR.`,
     buttons: [{ type: 'QUICK_REPLY', text: 'CONFIRMAR' }, { type: 'QUICK_REPLY', text: 'CORREGIR' }],
-    samples: ['#1001', '$109.900 COP'], variable_fields: { '1': 'order_number', '2': 'total_price' },
+    samples: ['Alicia', '#1001', '1 × Cerdita Rosa', '110000', 'Calle 123, Bogotá', '3001234567'],
+    variable_fields: { '1': 'recipient_name', '2': 'order_number', '3': 'order_items', '4': 'total_price', '5': 'delivery_address', '6': 'delivery_phone' },
   },
   {
-    name: 'deuna_recordatorio_confirmacion', category: 'Utility', body: `Tu pedido {{1}} sigue pendiente de confirmación.
+    name: 'deuna_recordatorio_datos_v2', category: 'Utility', body: `DeUNA Shop: ¿los datos de tu pedido {{1}} son correctos?
 
-Como es contraentrega, necesitamos tu confirmación antes de enviarlo.
-
-Responde CONFIRMAR o CORREGIR.`,
+Revisa el resumen que te enviamos. Pulsa CONFIRMAR o CORREGIR para que podamos ayudarte.`,
     buttons: [{ type: 'QUICK_REPLY', text: 'CONFIRMAR' }, { type: 'QUICK_REPLY', text: 'CORREGIR' }],
     samples: ['#1001'], variable_fields: { '1': 'order_number' },
   },
   {
-    name: 'deuna_ultimo_recordatorio', category: 'Utility', body: `Aún no hemos podido confirmar tu pedido {{1}}.
+    name: 'deuna_revision_datos_v2', category: 'Utility', body: `DeUNA Shop: seguimos disponibles para revisar los datos de tu pedido {{1}}.
 
-Para evitar un envío no solicitado, necesitamos que respondas CONFIRMAR. Si hay un dato incorrecto, responde CORREGIR.`,
+Pulsa CONFIRMAR si el resumen es correcto o CORREGIR si necesitas un cambio. Si deseas cancelarlo, escríbenos para revisar su estado.`,
     buttons: [{ type: 'QUICK_REPLY', text: 'CONFIRMAR' }, { type: 'QUICK_REPLY', text: 'CORREGIR' }],
     samples: ['#1001'], variable_fields: { '1': 'order_number' },
   },
@@ -278,7 +281,7 @@ async function main() {
     fail(error)
   }
 
-  const commonPersona = 'Eres la asesora de DeUNA Shop. Hablas en español neutro de Colombia, con mensajes breves, claros y amables. La tienda tendrá varios productos: primero identifica el producto y consulta su ficha vigente. Nunca inventas precio, inventario, variantes, cobertura, tiempos, especificaciones ni estado de un pedido. Para pedidos contraentrega recopilas nombre, teléfono, dirección completa, ciudad, departamento, referencia, producto, variante y cantidad; muestras un resumen y solo creas el pedido después de un sí explícito. Una solicitud de devolución, garantía, cancelación o reclamo serio se registra y pasa a una persona.'
+  const commonPersona = 'Eres la asesora de DeUNA Shop. Hablas en español neutro de Colombia, con mensajes breves, claros y amables. La tienda tendrá varios productos: primero identifica el producto y consulta su ficha vigente. Nunca inventas precio, inventario, variantes, cobertura, tiempos, especificaciones ni estado de un pedido. “Para niña” y “para niño” son preferencias, no nombres de variante: no asocies género con colores o modelos; si el cliente no indicó un modelo exacto, muestra los modelos reales disponibles y pregunta cuál prefiere. Para pedidos contraentrega recopilas nombre, teléfono, dirección completa, ciudad, departamento, referencia, producto, variante y cantidad; muestras un resumen y solo creas el pedido después de un sí explícito. Una solicitud de devolución, garantía, cancelación o reclamo serio se registra y pasa a una persona. Antes de crear un pedido busca si ya existe: CONFIRMAR un pedido existente nunca crea otro. Una corrección de dirección o cancelación requiere intervención humana y comprobación en Dropi. Nunca afirmes que puedes liberar, retener o cancelar automáticamente el despacho en Dropi. PROTOCOLO DE BOTONES: CONFIRMAR significa que el cliente valida los datos del resumen, no un cambio de estado logístico. Agradece la compra y la confirmación de los datos, indica que se le avisará por este medio cuando exista una actualización de envío y recuérdale que puede escribir si tiene preguntas. No digas que ya fue despachado ni prometas una fecha sin consultar y verificar ese estado. No crees otro pedido. CORREGIR: pregunta qué dato necesita cambiar; no afirmes haberlo cambiado hasta una operación exitosa y recuerda que Dropi requiere revisión humana. Nunca prometas que una derivación ya ocurrió sin ejecutarla.'
   const tools = {
     buscar_producto: 'auto', ver_producto: 'auto', lookup_order: 'auto', crear_pedido: 'auto',
     crear_checkout: 'auto', crear_link_de_pago: 'off', ofrecer_descuento: 'off', registrar_pago: 'off',
@@ -292,7 +295,7 @@ async function main() {
     language: 'es', tone: 'friendly', response_mode: 'dynamic', max_response_chars: 500,
     reply_delay_seconds: 2, inbound_debounce_seconds: 8, context_messages: 30,
     reply_when_assigned: true, reply_outside_hours: true, persona: commonPersona,
-    knowledge: 'DeUNA Shop vende productos de consumo en Colombia. El medio de pago actual es únicamente contraentrega. Shopify es la fuente de productos, pedidos y seguimiento disponible en Riverz. Dropi es una herramienta logística interna sin API oficial conectada a Riverz.',
+    knowledge: 'DeUNA Shop vende productos de consumo en Colombia. El medio de pago actual es únicamente contraentrega. Shopify es la fuente de productos, pedidos y seguimiento disponible en Riverz. Dropi actualiza Shopify cuando genera la guía, cancela, rechaza o entrega un pedido; consulta siempre el estado vigente en Shopify y no prometas un cambio antes de verlo allí.',
     permissions, tools, puede_crear_pedidos: true, cobro_modo: 'chat', medios_pago: ['contraentrega'],
     proactive_send_mode: 'hybrid_intent', requires_approval: false, created_by: ownerId, updated_by: ownerId,
     escalate_keywords: ['lesión', 'accidente', 'denuncia', 'abogado', 'estafa', 'devolución', 'garantía', 'reembolso'],
@@ -316,7 +319,8 @@ async function main() {
     ['deuna_cod', 'Pago contraentrega', 'Cuando pregunten por pago o se cierre una venta', 'El único medio actual es pago contraentrega. No marques ni describas el pedido como pagado antes de que el cobro se registre después de la entrega.'],
     ['deuna_verify', 'Confirmación antes de crear', 'Antes de crear un pedido por chat', 'Verifica todos los datos, resume producto, variante, cantidad y dirección, y pide confirmación explícita.'],
     ['deuna_live_data', 'Datos vigentes', 'Cuando hables de catálogo, envío o pedidos', 'Consulta las herramientas de producto o pedido. No uses inventario, precios, fechas ni estados recordados.'],
-    ['deuna_dropi', 'Dropi es interno', 'Cuando hablen de logística', 'Usa el estado visible en Shopify. No menciones Dropi ni prometas estados que Riverz no puede consultar.'],
+    ['deuna_dropi', 'Dropi es interno', 'Cuando hablen de logística', 'Usa el estado visible en Shopify, que recibe guía, cancelación, rechazo y cierre por entrega desde Dropi. No menciones Dropi ni prometas un estado antes de verlo actualizado.'],
+    ['deuna_variants', 'Preferencias y modelos', 'Cuando el cliente diga para niña, para niño, un color o un modelo', 'Trata niña o niño como una preferencia, no como una variante. Consulta todas las variantes reales publicadas y disponibles. No asocies género con colores o modelos; si no hay una coincidencia exacta y única, muestra las opciones disponibles y pregunta cuál prefiere.'],
     ['deuna_safety', 'Seguridad infantil', 'Cuando pregunten por uso, edad, peso o seguridad', 'Recomienda supervisión adulta, superficie plana y despejada e inflado suave. Escala límites no documentados, accidentes y defectos de seguridad.'],
   ]
   for (let i = 0; i < guidance.length; i++) {
@@ -340,9 +344,12 @@ async function main() {
       description: 'Confirma cada pedido contraentrega y detiene los recordatorios cuando el cliente responde.',
       trigger_type: 'shopify_order_created', trigger_config: { stop_on_inbound: true },
       steps: [
-        template('deuna_confirmacion_contraentrega', { '1': '{{vars.order_number}}', '2': '{{vars.total_price}}' }),
-        wait(3, 'hours'), template('deuna_recordatorio_confirmacion', { '1': '{{vars.order_number}}' }),
-        wait(21, 'hours'), template('deuna_ultimo_recordatorio', { '1': '{{vars.order_number}}' }),
+        template('deuna_confirmacion_datos_v2', {
+          '1': '{{vars.recipient_name}}', '2': '{{vars.order_number}}', '3': '{{vars.order_items}}',
+          '4': '{{vars.total_price}}', '5': '{{vars.delivery_address}}', '6': '{{vars.delivery_phone}}',
+        }),
+        wait(3, 'hours'), template('deuna_recordatorio_datos_v2', { '1': '{{vars.order_number}}' }),
+        wait(21, 'hours'), template('deuna_revision_datos_v2', { '1': '{{vars.order_number}}' }),
       ],
     },
     {
@@ -375,7 +382,8 @@ async function main() {
   ]
   const readiness: Array<{ name: string; state: string; blockers: string[] }> = []
   for (const flow of flows) {
-    const id = await upsertAutomation(ownerId, recoveryId, flow)
+    const agentId = flow.trigger_type === 'shopify_abandoned_checkout' ? recoveryId : generalId
+    const id = await upsertAutomation(ownerId, agentId, flow)
     const result = await armAutomation(db, id, WORKSPACE_ID)
     readiness.push({ name: flow.name, state: result.state, blockers: result.issues.map((issue) => issue.path) })
   }
