@@ -6,6 +6,7 @@ import type { MessageEntry, Namespace } from "./types";
 // Keep this list alphabetized for easy merges.
 import { admin } from "./admin";
 import { onboarding } from "./onboarding";
+import { pitch } from "./pitch";
 import { assistant } from "./assistant";
 import { auth } from "./auth";
 import { automations } from "./automations";
@@ -46,6 +47,7 @@ import { webchat } from "./webchat";
 import { returns, gaps, unify, approvals, reglas } from "./returns";
 
 const NAMESPACES: Record<string, Namespace> = {
+  pitch,
   onboarding,
   admin,
   assistant,

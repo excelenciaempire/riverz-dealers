@@ -1,36 +1,134 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowRight,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
   Download,
+  ExternalLink,
   Maximize2,
-  Printer,
+  MessageCircle,
+  Pencil,
+  Search,
+  Settings2,
   Sparkles,
+  Upload,
+  Workflow,
   X,
 } from 'lucide-react';
 import Link from '@/components/i18n/locale-link';
 import { useT } from '@/hooks/use-locale';
-import { auditCases, brands, questions, scenarios, type Brand } from './data';
+import { brands, questions, type Brand } from './data';
+import { originals, templateSnapshotDate } from './original-templates';
+import {
+  currentCases,
+  defaults,
+  features,
+  models,
+  parseDraft,
+  proposedCases,
+  renderMessage,
+  safeWebsite,
+  templatesForCase,
+  isCaseEnabled,
+  proposedButtons,
+  type PitchCase,
+  type PitchDraft,
+} from './pitch-data';
 import styles from './presentation.module.css';
 
 export function Onboarding({ brand }: { brand?: Brand }) {
   const t = useT();
-  const [tab, setTab] = useState('map');
+  if (!brand)
+    return (
+      <section className={styles.lobby}>
+        <div className={styles.logo}>
+          riverz<span> / {t('pitch.title')}</span>
+        </div>
+        <h1>{t('pitch.tagline')}</h1>
+        <p>{t('pitch.intro')}</p>
+        <div className={styles.brands}>
+          {brands.map((b, i) => (
+            <Link href={`/admin/onboarding/${b}`} key={b}>
+              <span>0{i + 1}</span>
+              <h2>
+                {b === 'contraentrega' ? t('pitch.cod') : t(`pitch.${b}`)}
+              </h2>
+              <p>{t(`pitch.${b}Sector`)}</p>
+              <strong>
+                {t(
+                  `pitch.${b === 'pilar' ? 'ctaPilar' : b === 'rasmiaw' ? 'ctaRasmiaw' : 'ctaCod'}`
+                )}
+                <ArrowRight size={18} />
+              </strong>
+            </Link>
+          ))}
+        </div>
+      </section>
+    );
+  return <Studio key={brand} brand={brand} />;
+}
+
+function Studio({ brand }: { brand: Brand }) {
+  const t = useT();
+  const base = defaults[brand];
+  const [draft, setDraft] = useState<PitchDraft>(() => ({
+    version: 1,
+    brand,
+    name: base.name || t('pitch.contraentrega'),
+    site: base.site,
+    product: t(base.product),
+    customer: 'María',
+    amount: t('pitch.sampleAmount'),
+    order: '#1042',
+    model: base.model,
+    features: {
+      cart: true,
+      discount: brand === 'rasmiaw',
+      comments: true,
+      aftercare: true,
+      voice: false,
+    },
+    discount: 5,
+    excluded: [],
+    edits: {},
+    answers: {},
+    monthly: '',
+    launch: '',
+    owner: '',
+    reviewed: false,
+  }));
+  const [tab, setTab] = useState('flows');
+  const [source, setSource] = useState(
+    brand === 'contraentrega' ? 'design' : 'current'
+  );
   const [group, setGroup] = useState(-1);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState('audit-7');
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [libraryId, setLibraryId] = useState('');
+  const [example, setExample] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [settings, setSettings] = useState(false);
   const [presenting, setPresenting] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [client, setClient] = useState('');
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [notice, setNotice] = useState('');
+  const importRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (settings) dialogRef.current?.showModal();
+    else dialogRef.current?.close();
+  }, [settings]);
   useEffect(() => {
     if (!presenting) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPresenting(false);
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPresenting(false);
     };
     window.addEventListener('keydown', escape);
     return () => {
@@ -38,21 +136,122 @@ export function Onboarding({ brand }: { brand?: Brand }) {
       window.removeEventListener('keydown', escape);
     };
   }, [presenting]);
-  const applicable = scenarios.filter((s) => brand && s.brands.includes(brand));
-  const visible = applicable.filter((s) => group < 0 || s.group === group);
-  const active = visible.find((s) => s.id === selected) ?? visible[0];
-  const questionnaire = questions.filter(
-    (q) => brand && q.brands.includes(brand)
+  const actual = currentCases(brand);
+  const proposals = proposedCases(draft);
+  const all = [...actual, ...proposals];
+  const available =
+    tab === 'ai'
+      ? all.filter((c) => c.ai)
+      : source === 'current'
+        ? actual
+        : proposals;
+  const filtered = available.filter(
+    (c) =>
+      (group === -1 || c.group === group) &&
+      t(c.title).toLocaleLowerCase().includes(query.toLocaleLowerCase())
   );
+  const active = filtered.find((c) => c.id === selected) ?? filtered[0];
+  const library = (originals[brand] ?? []).filter((m) =>
+    (m.name + ' ' + m.body)
+      .toLocaleLowerCase()
+      .includes(query.toLocaleLowerCase())
+  );
+  const libraryMessage = library.find((m) => m.id === libraryId) ?? library[0];
+  const messages = active ? templatesForCase(brand, active) : [];
+  const original =
+    tab === 'messages'
+      ? libraryMessage
+      : messages[Math.min(messageIndex, Math.max(0, messages.length - 1))];
+  const messageKey = original?.id ?? active?.id ?? '';
+  const originalBody =
+    original?.body ?? (active?.example ? t(`pitch.msg_${active.example}`) : '');
+  const body = draft.edits[messageKey] ?? originalBody;
+  const hasMessage = Boolean(original || active?.example);
+  const included = all.filter(
+    (c) => isCaseEnabled(c, draft) && !draft.excluded.includes(c.id)
+  );
+  const questionnaire = questions.filter(
+    (q) =>
+      q.brands.includes(brand) ||
+      (draft.model !== 'prepaid' && q.brands.includes('contraentrega'))
+  );
+  const questionPosition = Math.min(questionIndex, questionnaire.length - 1);
+  const question = questionnaire[questionPosition];
+  const website = safeWebsite(draft.site);
+  const values: Record<string, string> = {
+    brand: draft.name,
+    site: draft.site || '[website]',
+    product: draft.product,
+    customer: draft.customer,
+    amount: draft.amount,
+    order: draft.order,
+    discount: String(draft.discount),
+    address: t('pitch.sampleAddress'),
+    tracking: t('pitch.sampleUrl'),
+    checkout: '[checkout]',
+  };
+  if (original) {
+    for (const [key, binding] of Object.entries(original.variables))
+      values[key] = /tracking/.test(binding)
+        ? t('pitch.sampleUrl')
+        : /order_name/.test(binding)
+          ? draft.order
+          : /total_price/.test(binding)
+            ? draft.amount
+            : /name/.test(binding)
+              ? draft.customer
+              : binding;
+    if (/tracking|envio/.test(original.name))
+      values['1'] = t('pitch.sampleUrl');
+  }
+  const rendered = !original || example ? renderMessage(body, values) : body;
+  const update = (patch: Partial<PitchDraft>) =>
+    setDraft((d) => ({ ...d, ...patch }));
+  function choose(c: PitchCase) {
+    setSelected(c.id);
+    setMessageIndex(0);
+    setEditing(false);
+    setNotice('');
+  }
+  function toggleIncluded(id: string) {
+    update({
+      excluded: draft.excluded.includes(id)
+        ? draft.excluded.filter((x) => x !== id)
+        : [...draft.excluded, id],
+    });
+  }
   function download() {
     const payload = {
-      brand,
-      client,
+      version: 1,
       createdAt: new Date().toISOString(),
+      templateSnapshotDate,
+      draft,
+      scope: included.map((c) => ({
+        id: c.id,
+        title: t(c.title),
+        source: c.source,
+        proposedButtons: proposedButtons(c.example).map((k) => t(k)),
+        path: c.path.map((k) => t(k)),
+        messages: templatesForCase(brand, c).map((m) => ({
+          name: m.name,
+          originalBody: m.body,
+          body: draft.edits[m.id] ?? m.body,
+          edited: draft.edits[m.id] !== undefined,
+          requiresTemplateApproval: draft.edits[m.id] !== undefined,
+          header: m.header,
+          footer: m.footer,
+          buttons: m.buttons,
+        })),
+        example: c.example
+          ? renderMessage(
+              draft.edits[c.id] ?? t(`pitch.msg_${c.example}`),
+              values
+            )
+          : null,
+      })),
       decisions: questionnaire.map((q) => ({
         question: t(q.title),
-        purpose: t(q.why),
-        answer: answers[q.id] || t('onboarding.pending'),
+        answer: draft.answers[q.id] ?? '',
       })),
     };
     const url = URL.createObjectURL(
@@ -60,327 +259,737 @@ export function Onboarding({ brand }: { brand?: Brand }) {
         type: 'application/json;charset=utf-8',
       })
     );
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `riverz-onboarding-${brand}.json`;
-    link.click();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `riverz-propuesta-${brand}.json`;
+    a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  return (
-    <div className={`${styles.root} ${presenting ? styles.presenting : ''}`}>
-      <header className={styles.toolbar}>
-        <Link href="/admin/onboarding" className={styles.wordmark}>
-          riverz<span> / {t('onboarding.title')}</span>
-        </Link>
-        <div className={styles.actions}>
-          {brand && (
-            <button onClick={() => window.print()}>
-              <Printer size={15} />
-              {t('onboarding.print')}
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(rendered);
+      setNotice(t('pitch.copied'));
+    } catch {
+      setNotice(t('pitch.copyError'));
+    }
+  }
+  const caseList = (
+    <aside className={styles.list} aria-label={t('pitch.flows')}>
+      <div className={styles.listHeading}>
+        {t(tab === 'ai' ? 'pitch.ai' : 'pitch.flows')}
+        <span>{filtered.length}</span>
+      </div>
+      {filtered.length === 0 && (
+        <p className={styles.empty}>{t('pitch.noResults')}</p>
+      )}
+      {filtered.map((c) => (
+        <button
+          className={styles.caseButton}
+          aria-pressed={c.id === active?.id}
+          key={c.id}
+          onClick={() => choose(c)}
+        >
+          <span className={styles.caseDot} data-kind={c.source} />
+          <span>
+            {t(c.title).replace(/^\d+ · /, '')}
+            <small>{t(`pitch.${c.source}`)}</small>
+          </span>
+          <ChevronRight size={13} />
+        </button>
+      ))}
+    </aside>
+  );
+  const phone = (
+    <aside className={styles.messagePanel} aria-label={t('pitch.messages')}>
+      <div className={styles.panelHeading}>
+        <MessageCircle size={16} />
+        <strong>{draft.name}</strong>
+        <span>
+          {t(
+            original
+              ? 'pitch.original'
+              : active?.example === 'voice'
+                ? 'pitch.voiceScript'
+                : ['collection', 'deliveryfailure'].includes(
+                      active?.example ?? ''
+                    )
+                  ? 'pitch.internalMessage'
+                  : 'pitch.proposal'
+          )}
+        </span>
+      </div>
+      {hasMessage ? (
+        <>
+          {original && (
+            <div className={styles.messageMode}>
+              <button aria-pressed={!example} onClick={() => setExample(false)}>
+                {t('pitch.original')}
+              </button>
+              <button aria-pressed={example} onClick={() => setExample(true)}>
+                {t('pitch.example')}
+              </button>
+            </div>
+          )}
+          {original && (
+            <div className={styles.templateName}>
+              {original.name}
+              <small>{t(`pitch.${original.usage}`)}</small>
+            </div>
+          )}
+          <div className={styles.chat}>
+            {tab === 'ai' &&
+              active?.example &&
+              [
+                'catalog',
+                'comments',
+                'checkout',
+                'privacy',
+                'health',
+                'tracking',
+                'returns',
+                'handoff',
+                'pickup',
+              ].includes(active.example) && (
+                <div className={styles.inbound}>
+                  {t(`pitch.prompt_${active.example}`)}
+                </div>
+              )}
+            <div className={styles.bubble}>
+              {original?.header && <strong>{original.header}</strong>}
+              {editing ? (
+                <textarea
+                  aria-label={t('pitch.edit')}
+                  value={body}
+                  onChange={(e) =>
+                    update({
+                      edits: { ...draft.edits, [messageKey]: e.target.value },
+                    })
+                  }
+                  maxLength={10000}
+                />
+              ) : (
+                <p>{rendered}</p>
+              )}
+              {original?.footer && <small>{original.footer}</small>}
+              {(original?.buttons ?? []).map((b, i) => (
+                <div
+                  className={styles.chatButton}
+                  key={i}
+                  title={b.url || b.type}
+                >
+                  {b.text}
+                  {b.type === 'URL' && <ExternalLink size={12} />}
+                </div>
+              ))}
+              {original && example && <small>{t('pitch.example')}</small>}
+              {!original &&
+                proposedButtons(active?.example ?? null).map((key) => (
+                  <div className={styles.chatButton} key={key}>
+                    {t(key)}
+                  </div>
+                ))}
+            </div>
+          </div>
+          <div className={styles.messageActions}>
+            <button onClick={copy}>
+              <Copy size={13} />
+              {t('pitch.copy')}
+            </button>
+            <button aria-pressed={editing} onClick={() => setEditing(!editing)}>
+              <Pencil size={13} />
+              {t('pitch.edit')}
+            </button>
+          </div>
+          {draft.edits[messageKey] !== undefined && (
+            <button
+              className={styles.restore}
+              onClick={() => {
+                const edits = { ...draft.edits };
+                delete edits[messageKey];
+                update({ edits });
+                setEditing(false);
+              }}
+            >
+              {t('pitch.restore')}
             </button>
           )}
+          <p className={styles.disclaimer}>
+            {t(
+              draft.edits[messageKey] !== undefined
+                ? 'pitch.editedNote'
+                : original
+                  ? 'pitch.originalNote'
+                  : 'pitch.proposalNote'
+            )}
+          </p>
+        </>
+      ) : (
+        <div className={styles.noMessage}>
+          <Workflow size={32} />
+          <h3>{t('pitch.noMessage')}</h3>
+          <p>{t('pitch.noMessageDesc')}</p>
+        </div>
+      )}
+      {notice && (
+        <p role="status" className={styles.notice}>
+          {notice}
+        </p>
+      )}
+    </aside>
+  );
+  return (
+    <section
+      className={`${styles.studio} ${presenting ? styles.presenting : ''}`}
+    >
+      <header className={styles.topbar}>
+        <Link className={styles.logo} href="/admin/onboarding">
+          riverz<span> / {t('pitch.title')}</span>
+        </Link>
+        <div className={styles.toolbar}>
+          <button onClick={() => setSettings(true)}>
+            <Settings2 size={14} />
+            {t('pitch.settings')}
+          </button>
+          <button onClick={download}>
+            <Download size={14} />
+            {t('pitch.download')}
+          </button>
           <button onClick={() => setPresenting(!presenting)}>
-            {presenting ? <X size={15} /> : <Maximize2 size={15} />}
-            {t(`onboarding.${presenting ? 'exit' : 'present'}`)}
+            {presenting ? <X size={14} /> : <Maximize2 size={14} />}
+            <span>{t(presenting ? 'pitch.exit' : 'pitch.present')}</span>
           </button>
         </div>
       </header>
-      {brand && (
-        <Link className={styles.back} href="/admin/onboarding">
-          <ArrowLeft size={14} />
-          {t('onboarding.back')}
-        </Link>
-      )}
-      <section className={styles.hero}>
+      <div className={styles.brandbar}>
+        <div className={styles.monogram}>
+          {draft.name.slice(0, 1).toUpperCase()}
+        </div>
         <div>
-          <p className={styles.eyebrow}>{t('onboarding.eyebrow')}</p>
-          <h1>{t('onboarding.headline')}</h1>
-          <p className={styles.intro}>{t('onboarding.intro')}</p>
+          <h1>{draft.name}</h1>
+          <p>
+            {t(`pitch.${brand}Sector`)}
+            {website && (
+              <>
+                {' '}
+                ·{' '}
+                <a href={website} target="_blank" rel="noreferrer">
+                  {new URL(website).hostname}
+                  <ExternalLink size={10} />
+                </a>
+              </>
+            )}
+          </p>
         </div>
-        {brand && (
-          <aside className={styles.brandSeal}>
-            <span>{t('onboarding.proposed')}</span>
-            <strong>{client || t(`onboarding.${brand}`)}</strong>
-            <p>{t(`onboarding.${brand}Desc`)}</p>
-          </aside>
-        )}
-      </section>
-      {!brand ? (
-        <div className={styles.brandGrid}>
-          {brands.map((b, i) => (
-            <Link
-              key={b}
-              href={`/admin/onboarding/${b}`}
-              className={styles.brandCard}
-            >
-              <span className={styles.eyebrow}>0{i + 1}</span>
-              <h2>{t(`onboarding.${b}`)}</h2>
-              <p>{t(`onboarding.${b}Desc`)}</p>
-              <span className={styles.open}>
-                {t('onboarding.open')}
-                <ArrowRight size={18} />
-              </span>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <>
-          <nav className={styles.tabs} aria-label={t('onboarding.title')}>
-            {['map', 'audit', 'questions'].map((view) => (
+        <div className={styles.model}>
+          <span>{t('pitch.model')}</span>
+          <div>
+            {models.map((m) => (
               <button
-                key={view}
-                aria-pressed={tab === view}
-                onClick={() => setTab(view)}
+                key={m}
+                aria-pressed={draft.model === m}
+                onClick={() => {
+                  update({ model: m });
+                  setSource('design');
+                  setGroup(-1);
+                  setTab('flows');
+                }}
               >
-                {t(`onboarding.${view}`)}
+                {t(`pitch.${m}`)}
               </button>
             ))}
-          </nav>
-          {tab === 'map' && (
-            <>
-              <div className={styles.sectionTitle}>
-                <p className={styles.eyebrow}>{t(`onboarding.${brand}`)}</p>
-                <h2>{t('onboarding.scope')}</h2>
-                <p>{t(`onboarding.${brand}Focus`)}</p>
-              </div>
-              <section
-                className={styles.canvas}
-                aria-label={t('onboarding.map')}
-              >
-                <div className={styles.sources}>
-                  <span>{t('onboarding.sources')}</span>
-                  <span>{t('onboarding.systems')}</span>
+          </div>
+        </div>
+      </div>
+      <nav className={styles.tabs} aria-label={t('pitch.title')}>
+        {['overview', 'flows', 'messages', 'ai', 'agreement'].map((view) => (
+          <button
+            key={view}
+            aria-pressed={tab === view}
+            onClick={() => {
+              setTab(view);
+              setQuery('');
+              setGroup(-1);
+              setEditing(false);
+              setNotice('');
+            }}
+          >
+            {t(`pitch.${view}`)}
+            {view === 'messages' && (
+              <span>
+                {brand === 'contraentrega'
+                  ? proposals.length
+                  : (originals[brand] ?? []).length}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+      {['flows', 'ai', 'messages'].includes(tab) && (
+        <div className={styles.filters}>
+          {tab === 'flows' && (
+            <div className={styles.segment}>
+              {['current', 'design'].map((s) => (
+                <button
+                  key={s}
+                  disabled={brand === 'contraentrega' && s === 'current'}
+                  aria-pressed={source === s}
+                  onClick={() => {
+                    setSource(s);
+                    setGroup(-1);
+                    setQuery('');
+                  }}
+                >
+                  {t(`pitch.${s}`)}
+                </button>
+              ))}
+            </div>
+          )}
+          {tab !== 'messages' && (
+            <select
+              aria-label={t('pitch.map')}
+              value={group}
+              onChange={(e) => setGroup(Number(e.target.value))}
+            >
+              <option value={-1}>{t('pitch.all')}</option>
+              {[0, 1, 2, 3, 4].map((g) => (
+                <option key={g} value={g}>
+                  {t(`onboarding.step${g}`)}
+                </option>
+              ))}
+            </select>
+          )}
+          <label className={styles.search}>
+            <Search size={14} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('pitch.search')}
+              aria-label={t('pitch.search')}
+            />
+          </label>
+        </div>
+      )}
+      {(['flows', 'ai'].includes(tab) ||
+        (tab === 'messages' && brand === 'contraentrega')) && (
+        <div className={styles.workbench}>
+          {caseList}
+          <main className={styles.canvas}>
+            {active ? (
+              <>
+                <div className={styles.caseHeading}>
+                  <span className={styles.badge} data-kind={active.source}>
+                    {t(`pitch.${active.source}`)}
+                  </span>
+                  <button
+                    className={styles.include}
+                    aria-pressed={
+                      isCaseEnabled(active, draft) &&
+                      !draft.excluded.includes(active.id)
+                    }
+                    disabled={!isCaseEnabled(active, draft)}
+                    onClick={() => toggleIncluded(active.id)}
+                  >
+                    <Check size={13} />
+                    {t(
+                      !isCaseEnabled(active, draft) ||
+                        draft.excluded.includes(active.id)
+                        ? 'pitch.include'
+                        : 'pitch.selected'
+                    )}
+                  </button>
                 </div>
-                <div className={styles.spine}>
-                  <ArrowDown size={20} />
-                </div>
-                <div className={styles.hub}>
-                  <Sparkles size={24} />
-                  <div>
-                    <h3>{t('onboarding.hub')}</h3>
-                    <p>{t('onboarding.hubDesc')}</p>
-                  </div>
-                </div>
-                <div className={styles.spine}>
-                  <ArrowDown size={20} />
-                </div>
-                <div className={styles.lanes}>
-                  {[0, 1, 2, 3, 4].map((g) => (
-                    <div className={styles.lane} key={g}>
-                      <button
-                        className={styles.laneTitle}
-                        onClick={() => {
-                          setGroup(g);
-                          setSelected(null);
-                        }}
-                      >
-                        <span>0{g + 1}</span>
-                        {t(`onboarding.step${g}`)}
-                      </button>
-                      {applicable
-                        .filter((s) => s.group === g)
-                        .map((s) => (
-                          <button
-                            key={s.id}
-                            className={`${styles.node} ${active?.id === s.id ? styles.activeNode : ''}`}
-                            onClick={() => {
-                              setGroup(g);
-                              setSelected(s.id);
-                            }}
-                          >
-                            <span>{t(s.title)}</span>
-                            <ArrowRight size={13} />
-                          </button>
-                        ))}
+                <h2>{t(active.title).replace(/^\d+ · /, '')}</h2>
+                <div className={styles.path}>
+                  {active.path.map((key, i) => (
+                    <div className={styles.pathStep} key={key}>
+                      <div className={styles.pathNumber}>{i + 1}</div>
+                      <article>
+                        <small>
+                          {t(
+                            i === 0
+                              ? 'pitch.when'
+                              : i === 1
+                                ? 'pitch.then'
+                                : 'pitch.branches'
+                          )}
+                        </small>
+                        <p>{t(key)}</p>
+                      </article>
+                      {i < active.path.length - 1 && (
+                        <ArrowDown className={styles.pathArrow} size={15} />
+                      )}
                     </div>
                   ))}
                 </div>
-                <div className={styles.returnLine}>
-                  <ArrowDown size={18} />
-                  <p>{t('onboarding.guard')}</p>
-                </div>
-                <div className={styles.handoff}>
-                  <Check size={20} />
-                  <div>
-                    <h3>{t('onboarding.human')}</h3>
-                    <p>{t('onboarding.humanDesc')}</p>
-                  </div>
-                </div>
-              </section>
-              <section className={styles.explorer}>
-                <div className={styles.filters}>
-                  <button
-                    aria-pressed={group === -1}
-                    onClick={() => setGroup(-1)}
-                  >
-                    {t('onboarding.all')}
-                  </button>
-                  {[0, 1, 2, 3, 4].map((g) => (
-                    <button
-                      key={g}
-                      aria-pressed={group === g}
-                      onClick={() => setGroup(g)}
-                    >
-                      {t(`onboarding.step${g}`)}
-                    </button>
-                  ))}
-                </div>
-                <div className={styles.explorerGrid}>
-                  <div className={styles.caseList}>
-                    {visible.map((s) => (
+                {messages.length > 0 && (
+                  <div className={styles.sequence}>
+                    <h3>{t('pitch.cadence')}</h3>
+                    {messages.map((m, i) => (
                       <button
-                        key={s.id}
-                        aria-pressed={active?.id === s.id}
-                        onClick={() => setSelected(s.id)}
+                        aria-pressed={
+                          i === Math.min(messageIndex, messages.length - 1)
+                        }
+                        key={m.id}
+                        onClick={() => {
+                          setMessageIndex(i);
+                          setEditing(false);
+                        }}
                       >
-                        {t(s.title)}
-                        <ArrowRight size={15} />
+                        <span>{i + 1}</span>
+                        {m.name}
+                        <ChevronRight size={13} />
                       </button>
                     ))}
                   </div>
-                  {active && (
-                    <article className={styles.caseDetail} aria-live="polite">
-                      <p className={styles.eyebrow}>
-                        {t('onboarding.proposed')}
-                      </p>
-                      <h3>{t(active.title)}</h3>
-                      <div className={styles.flow}>
-                        {(['trigger', 'action', 'exception'] as const).map(
-                          (field, i) => (
-                            <div key={field}>
-                              <span className={styles.flowNumber}>
-                                0{i + 1}
-                              </span>
-                              <section>
-                                <h4>
-                                  {t(
-                                    `onboarding.${['when', 'action', 'exception'][i]}`
-                                  )}
-                                </h4>
-                                <p>{t(active[field])}</p>
-                              </section>
-                            </div>
-                          )
-                        )}
-                      </div>
-                      <div className={styles.decision}>
-                        <strong>{t('onboarding.decision')}</strong>
-                        <p>{t(active.question)}</p>
-                      </div>
-                    </article>
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-          {tab === 'audit' && (
-            <section className={styles.audit}>
-              <h2>{t('onboarding.audit')}</h2>
-              <p className={styles.note}>{t('onboarding.snapshot')}</p>
-              {brand === 'contraentrega' && (
-                <p className={styles.decision}>{t('onboarding.notAudited')}</p>
-              )}
-              <div className={styles.readiness}>
-                {brands.map((b) => (
-                  <article key={b}>
-                    <h3>{t(`onboarding.${b}`)}</h3>
-                    <p>{t(`onboarding.${b}Gap`)}</p>
-                  </article>
-                ))}
-              </div>
-              {auditCases.map((c) => (
-                <details key={c.id}>
-                  <summary>
-                    {t(c.title)}
-                    <span>+</span>
-                  </summary>
-                  <div className={styles.comparison}>
-                    {(['pilar', 'rasmiaw'] as const).map((b) => (
-                      <article key={b}>
-                        <h3>{t(`onboarding.${b}`)}</h3>
-                        <p className={styles.status}>
-                          {t(
-                            c[b === 'pilar' ? 'pilarStatus' : 'rasmiawStatus']
-                          )}
-                        </p>
-                        <ol>
-                          {c[b].map((key) => (
-                            <li key={key}>{t(key)}</li>
-                          ))}
-                        </ol>
-                      </article>
-                    ))}
+                )}
+                {active.question && (
+                  <div className={styles.decision}>
+                    <strong>{t('onboarding.decision')}</strong>
+                    <p>{t(active.question)}</p>
                   </div>
-                  <p className={styles.difference}>
-                    <strong>{t('onboarding.difference')}: </strong>
-                    {t(c.difference)}
+                )}
+              </>
+            ) : (
+              <p className={styles.empty}>{t('pitch.noResults')}</p>
+            )}
+          </main>
+          {phone}
+        </div>
+      )}
+      {tab === 'messages' && brand !== 'contraentrega' && (
+        <div className={styles.workbench}>
+          <aside className={styles.list}>
+            <div className={styles.listHeading}>
+              {t('pitch.library')}
+              <span>{library.length}</span>
+            </div>
+            {library.map((m, i) => (
+              <button
+                className={styles.caseButton}
+                aria-pressed={m.id === libraryMessage?.id}
+                key={m.id}
+                onClick={() => {
+                  setLibraryId(m.id);
+                  setEditing(false);
+                }}
+              >
+                <span className={styles.caseDot} data-kind={m.usage} />
+                <span>
+                  {m.name}
+                  <small>
+                    {t(`pitch.${m.usage}`)} · {t('pitch.variant')} {i + 1}
+                  </small>
+                </span>
+              </button>
+            ))}
+            {!library.length && (
+              <p className={styles.empty}>{t('pitch.noTemplates')}</p>
+            )}
+          </aside>
+          <main className={styles.canvas}>
+            {libraryMessage && (
+              <>
+                <span className={styles.badge}>
+                  {t(`pitch.${libraryMessage.usage}`)}
+                </span>
+                <h2>{libraryMessage.name}</h2>
+                <section className={styles.metadata}>
+                  <h3>{t('pitch.usage')}</h3>
+                  {libraryMessage.flows.length ? (
+                    libraryMessage.flows.map((f) => <p key={f}>{f}</p>)
+                  ) : (
+                    <p>{t('pitch.available')}</p>
+                  )}
+                  <h3>{t('pitch.templateStatus')}</h3>
+                  <p>
+                    {libraryMessage.metaStatus} · {libraryMessage.language}
                   </p>
-                </details>
-              ))}
-            </section>
+                  <h3>{t('pitch.variables')}</h3>
+                  {Object.entries(libraryMessage.variables).map(([k, v]) => (
+                    <p key={k}>
+                      <code>{`{{${k}}}`}</code> →{' '}
+                      {v.replace(/\{\{vars\.|\}\}/g, '')}
+                    </p>
+                  ))}
+                  <h3>{t('pitch.buttons')}</h3>
+                  {libraryMessage.buttons.map((b, i) => (
+                    <p key={i}>
+                      {b.text}
+                      <small>{b.urlVariable || b.type}</small>
+                    </p>
+                  ))}
+                  <p className={styles.disclaimer}>{t('pitch.reviewClaims')}</p>
+                </section>
+              </>
+            )}
+          </main>
+          {libraryMessage ? (
+            phone
+          ) : (
+            <aside className={styles.messagePanel}>
+              <p className={styles.empty}>{t('pitch.noTemplates')}</p>
+            </aside>
           )}
-          {tab === 'questions' && (
-            <section className={styles.questionnaire}>
-              <h2>{t('onboarding.questions')}</h2>
-              <p>{t('onboarding.qIntro')}</p>
-              <div className={styles.questionToolbar}>
-                <label>
-                  {t('onboarding.client')}
+        </div>
+      )}
+      {tab === 'overview' && (
+        <main className={styles.overview}>
+          <div className={styles.promise}>
+            <Sparkles size={26} />
+            <div>
+              <h2>{t('pitch.allDone')}</h2>
+              <p>{t('pitch.allDoneDesc')}</p>
+            </div>
+          </div>
+          <div className={styles.stats}>
+            <div>
+              <strong>{all.length}</strong>
+              {t('pitch.statCases')}
+            </div>
+            <div>
+              <strong>{(originals[brand] ?? []).length}</strong>
+              {t('pitch.statTemplates')}
+            </div>
+            <div>
+              <strong>{included.length}</strong>
+              {t('pitch.statIncluded')}
+            </div>
+          </div>
+          <div className={styles.featureRow}>
+            {features.map((f) => (
+              <label key={f}>
+                <input
+                  type="checkbox"
+                  checked={draft.features[f]}
+                  onChange={(e) =>
+                    update({
+                      features: { ...draft.features, [f]: e.target.checked },
+                    })
+                  }
+                />
+                {t(`pitch.${f}`)}
+              </label>
+            ))}
+          </div>
+          <div className={styles.journey}>
+            {[0, 1, 2, 3, 4].map((g) => (
+              <button
+                key={g}
+                onClick={() => {
+                  setTab('flows');
+                  setSource(brand === 'contraentrega' ? 'design' : 'current');
+                  setGroup(g);
+                }}
+              >
+                <span>0{g + 1}</span>
+                <h3>{t(`onboarding.step${g}`)}</h3>
+                <small>
+                  {all.filter((c) => c.group === g).length}{' '}
+                  {t('pitch.statCases')}
+                </small>
+                <ArrowRight size={17} />
+              </button>
+            ))}
+          </div>
+          <div className={styles.overviewBottom}>
+            <div>
+              <h3>{t('pitch.handoff')}</h3>
+              <p>{t('pitch.handoffNote')}</p>
+            </div>
+            <button onClick={() => setTab('agreement')}>
+              {t('pitch.agreement')}
+              <ArrowRight size={16} />
+            </button>
+          </div>
+          <p className={styles.disclaimer}>{t('pitch.sourceModel')}</p>
+        </main>
+      )}
+      {tab === 'agreement' && (
+        <main className={styles.agreement}>
+          <section className={styles.agreementScope}>
+            <h2>{t('pitch.summary')}</h2>
+            <div className={styles.featureRow}>
+              {features.map((f) => (
+                <label key={f}>
                   <input
-                    value={client}
-                    onChange={(e) => setClient(e.target.value)}
-                    maxLength={120}
+                    type="checkbox"
+                    checked={draft.features[f]}
+                    onChange={(e) =>
+                      update({
+                        features: { ...draft.features, [f]: e.target.checked },
+                      })
+                    }
+                  />
+                  {t(`pitch.${f}`)}
+                </label>
+              ))}
+            </div>
+            <label>
+              {t('pitch.discountValue')}
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={draft.discount}
+                onChange={(e) =>
+                  update({
+                    discount: Math.min(
+                      100,
+                      Math.max(0, Number(e.target.value))
+                    ),
+                  })
+                }
+              />
+            </label>
+            {brand === 'pilar' && draft.features.discount && (
+              <p className={styles.disclaimer}>{t('pitch.noDiscount')}</p>
+            )}
+            <div className={styles.scopeList}>
+              {all.map((c) => (
+                <label key={c.id}>
+                  <input
+                    type="checkbox"
+                    checked={
+                      isCaseEnabled(c, draft) && !draft.excluded.includes(c.id)
+                    }
+                    disabled={!isCaseEnabled(c, draft)}
+                    onChange={() => toggleIncluded(c.id)}
+                  />
+                  <span>
+                    {t(c.title).replace(/^\d+ · /, '')}
+                    <small>{t(`pitch.${c.source}`)}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+          <section className={styles.question}>
+            <div className={styles.questionTop}>
+              <strong>{t('pitch.questions')}</strong>
+              <span>
+                {questionPosition + 1} / {questionnaire.length}
+              </span>
+            </div>
+            <h2>{t(question.title)}</h2>
+            <p>{t(question.why)}</p>
+            <textarea
+              aria-label={t('pitch.answer')}
+              placeholder={t('pitch.answer')}
+              value={draft.answers[question.id] ?? ''}
+              maxLength={5000}
+              onChange={(e) =>
+                update({
+                  answers: { ...draft.answers, [question.id]: e.target.value },
+                })
+              }
+            />
+            <div className={styles.questionNav}>
+              <button
+                disabled={questionPosition === 0}
+                onClick={() => setQuestionIndex(questionPosition - 1)}
+              >
+                <ChevronLeft size={15} />
+                {t('pitch.previous')}
+              </button>
+              <button
+                disabled={questionPosition === questionnaire.length - 1}
+                onClick={() => setQuestionIndex(questionPosition + 1)}
+              >
+                {t('pitch.next')}
+                <ChevronRight size={15} />
+              </button>
+            </div>
+            <div className={styles.commercial}>
+              {(['owner', 'monthly', 'launch'] as const).map((field) => (
+                <label key={field}>
+                  {t(`pitch.${field}`)}
+                  <input
+                    value={draft[field]}
+                    onChange={(e) => update({ [field]: e.target.value })}
+                    maxLength={300}
                   />
                 </label>
-                <button onClick={download}>
-                  <Download size={16} />
-                  {t('onboarding.export')}
-                </button>
-              </div>
-              <p className={styles.note}>{t('onboarding.answerHint')}</p>
-              <div className={styles.questionGrid}>
-                {questionnaire.map((q, i) => (
-                  <article key={q.id}>
-                    <span className={styles.eyebrow}>
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <h3>{t(q.title)}</h3>
-                    <p>{t(q.why)}</p>
-                    <label htmlFor={q.id}>{t('onboarding.answer')}</label>
-                    <textarea
-                      id={q.id}
-                      value={answers[q.id] ?? ''}
-                      onChange={(e) =>
-                        setAnswers((prev) => ({
-                          ...prev,
-                          [q.id]: e.target.value,
-                        }))
-                      }
-                      rows={3}
-                      maxLength={5000}
-                    />
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-        </>
+              ))}
+            </div>
+            <label className={styles.reviewed}>
+              <input
+                type="checkbox"
+                checked={draft.reviewed}
+                onChange={(e) => update({ reviewed: e.target.checked })}
+              />
+              {t('pitch.reviewed')}
+            </label>
+            <button className={styles.primary} onClick={download}>
+              <Download size={15} />
+              {t('pitch.download')}
+            </button>
+            <p className={styles.disclaimer}>{t('pitch.handoffNote')}</p>
+          </section>
+        </main>
       )}
-      <section className={styles.delivery}>
-        <h2>{t('onboarding.deliveryTitle')}</h2>
-        <div>
-          {[1, 2, 3, 4].map((n) => (
-            <article key={n}>
-              <h3>{t(`onboarding.delivery${n}`)}</h3>
-              <p>{t(`onboarding.delivery${n}Desc`)}</p>
-            </article>
+      <footer className={styles.footer}>
+        <span>{t('pitch.draftNotice')}</span>
+        <button onClick={() => importRef.current?.click()}>
+          <Upload size={12} />
+          {t('pitch.import')}
+        </button>
+        <input
+          ref={importRef}
+          hidden
+          type="file"
+          accept="application/json,.json"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              if (file.size > 500000) throw new Error('invalid');
+              setDraft(parseDraft(await file.text(), brand));
+              setNotice('');
+              setEditing(false);
+            } catch {
+              setNotice(t('pitch.importError'));
+            }
+            e.target.value = '';
+          }}
+        />
+        {notice && !['flows', 'ai', 'messages'].includes(tab) && (
+          <span role="status">{notice}</span>
+        )}
+      </footer>
+      <dialog
+        ref={dialogRef}
+        className={styles.dialog}
+        onCancel={() => setSettings(false)}
+      >
+        <div className={styles.dialogHeading}>
+          <h2>{t('pitch.customize')}</h2>
+          <button
+            aria-label={t('pitch.close')}
+            onClick={() => setSettings(false)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className={styles.fields}>
+          {(
+            ['name', 'site', 'product', 'customer', 'amount', 'order'] as const
+          ).map((field) => (
+            <label key={field}>
+              {t(`pitch.${field === 'name' ? 'brand' : field}`)}
+              <input
+                value={draft[field]}
+                onChange={(e) => update({ [field]: e.target.value })}
+                maxLength={500}
+              />
+            </label>
           ))}
         </div>
-      </section>
-      <footer className={styles.footer}>
-        <strong>riverz</strong>
-        <span>{t('onboarding.eyebrow')}</span>
-      </footer>
-    </div>
+        <p className={styles.disclaimer}>{t('pitch.draftNotice')}</p>
+        <button className={styles.primary} onClick={() => setSettings(false)}>
+          <Check size={15} />
+          {t('pitch.close')}
+        </button>
+      </dialog>
+    </section>
   );
 }

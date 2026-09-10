@@ -1226,8 +1226,8 @@ export const onboarding = {
     en: '100% cash on delivery',
   },
   pilarDesc: {
-    es: 'Cuidado capilar · asesoría, recuperación de pagos y seguimiento.',
-    en: 'Hair care · advice, payment recovery and tracking.',
+    es: 'Sérum para rostro y cuello · asesoría, recuperación de pagos y seguimiento.',
+    en: 'Face and neck serum · advice, payment recovery and tracking.',
   },
   rasmiawDesc: {
     es: 'Productos para gatos · venta asistida y pedidos pendientes.',
