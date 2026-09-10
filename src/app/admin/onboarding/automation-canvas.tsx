@@ -22,6 +22,8 @@ import type { Brand } from './data';
 import type { PitchCase, PitchDraft } from './pitch-data';
 import { buildCanvas, NODE_WIDTH, type MapNode } from './canvas-graph';
 import css from './automation-canvas.module.css';
+import { horizontalEdge } from './horizontal-layout';
+import { LINE_W } from '@/components/automations/canvas-geometry';
 
 export function AutomationCanvas({
   brand,
@@ -62,16 +64,30 @@ export function AutomationCanvas({
     .map((c) => byId.get(c.id))
     .filter((n): n is MapNode => !!n);
   function focus(n: MapNode) {
-    const message = byId.get(`${n.id}-message-0`);
+    const childIds =
+      n.kind === 'condition'
+        ? graph.edges.filter((e) => e.from === n.id).map((e) => e.to)
+        : [];
+    const row = graph.nodes.filter(
+      (item) =>
+        item.id === n.id ||
+        childIds.includes(item.id) ||
+        item.id.startsWith(`${n.id}-path-`) ||
+        item.id.startsWith(`${n.id}-message-`) ||
+        item.id === `${n.id}-silent`
+    );
+    const top = Math.min(...row.map((item) => item.y));
+    const width = Math.max(...row.map((item) => item.x + NODE_WIDTH)) - n.x;
     const zoom = Math.min(
       1,
-      (size.height - 100) / Math.max(n.height, message?.height ?? 0),
-      (size.width - 60) / (message ? 820 : NODE_WIDTH)
+      (size.height - 140) /
+        (Math.max(...row.map((item) => item.y + item.height)) - top),
+      (size.width - 80) / width
     );
     setView({
       zoom,
-      x: size.width / 2 - (n.x + (message ? 410 : NODE_WIDTH / 2)) * zoom,
-      y: 40 - n.y * zoom,
+      x: size.width / 2 - (n.x + width / 2) * zoom,
+      y: 85 - top * zoom,
     });
     setSelected(n.id);
   }
@@ -285,65 +301,19 @@ export function AutomationCanvas({
             height={graph.height}
             aria-hidden="true"
           >
-            <defs>
-              <marker
-                id="canvas-arrow"
-                markerWidth="8"
-                markerHeight="8"
-                refX="7"
-                refY="4"
-                orient="auto"
-              >
-                <path d="M0,0 L8,4 L0,8" fill="#555d65" />
-              </marker>
-            </defs>
             {graph.edges.map((e, i) => {
               const a = byId.get(e.from),
                 b = byId.get(e.to);
               if (!a || !b) return null;
-              const side = e.example && b.x > a.x + NODE_WIDTH;
-              const x1 = a.x + (side ? NODE_WIDTH : NODE_WIDTH / 2),
-                y1 = a.y + (side ? a.height / 2 : a.height);
-              const x2 = b.x + (side ? 0 : NODE_WIDTH / 2),
-                y2 = b.y + (side ? b.height / 2 : 0);
-              const mid = (y1 + y2) / 2;
-              let path = side
-                ? `M${x1},${y1} C${x1 + 70},${y1} ${x2 - 70},${y2} ${x2},${y2}`
-                : `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`;
-              let labelX = side ? (x1 + x2) / 2 : (x1 + x2) / 2;
-              let labelY = side ? (y1 + y2) / 2 : y1 + 30;
-              if (a.id === 'brand') {
-                // Shared navigation bus stays outside every automation lane.
-                path = `M${a.x},${a.y + a.height / 2} H20 V${b.y - 25} H${b.x + NODE_WIDTH / 2} V${b.y}`;
-              } else if (e.example && a.x === b.x && y2 - y1 > 110) {
-                // Parallel scenarios share a left-side bus, never a line through
-                // the intervening scenario cards.
-                const bus = a.x - 55;
-                path = `M${a.x},${a.y + a.height / 2} H${bus} V${b.y + b.height / 2} H${b.x}`;
-              } else if (!e.example && y2 - y1 > 110) {
-                // An empty branch may skip many steps before a join. Route it
-                // around the lane instead of through those steps.
-                const section = graph.sections.find((s) =>
-                  a.id.startsWith(`${s.id}-step-`)
-                );
-                const bus = section
-                  ? section.x + section.width - 12
-                  : Math.max(a.x, b.x) + NODE_WIDTH + 55;
-                const startY = a.y + a.height / 2,
-                  endY = b.y + b.height / 2;
-                path = `M${a.x + NODE_WIDTH},${startY} H${bus} V${endY} H${b.x + NODE_WIDTH}`;
-                labelX = bus;
-                labelY = startY + 25;
-              }
+              const { path, labelX, labelY } = horizontalEdge(a, b, e);
               return (
                 <g key={i} data-edge-from={e.from} data-edge-to={e.to}>
                   <path
                     d={path}
                     fill="none"
-                    stroke={e.label === 'no' ? '#847451' : '#555d65'}
-                    strokeWidth={2}
+                    stroke="#626a73"
+                    strokeWidth={LINE_W}
                     strokeDasharray={e.example ? '7 6' : undefined}
-                    markerEnd="url(#canvas-arrow)"
                   />
                   {e.label && (
                     <g transform={`translate(${labelX},${labelY})`}>
@@ -353,13 +323,32 @@ export function AutomationCanvas({
                         width="80"
                         height="24"
                         rx="12"
-                        fill="#101113"
+                        fill={
+                          e.label === 'yes'
+                            ? '#182b23'
+                            : e.label === 'no'
+                              ? '#302023'
+                              : '#101113'
+                        }
+                        stroke={
+                          e.label === 'yes'
+                            ? '#3e7056'
+                            : e.label === 'no'
+                              ? '#805057'
+                              : '#333940'
+                        }
                       />
                       <text
                         textAnchor="middle"
                         y="5"
                         fontSize="13"
-                        fill="#aeb5bc"
+                        fill={
+                          e.label === 'yes'
+                            ? '#a9d7b8'
+                            : e.label === 'no'
+                              ? '#e2a6ae'
+                              : '#aeb5bc'
+                        }
                       >
                         {t(`pitch.canvas_${e.label}`)}
                       </text>

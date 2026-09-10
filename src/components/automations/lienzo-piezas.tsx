@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { BuilderStepType } from './automation-builder'
+import { CARD_HALF, LINE_W } from './canvas-geometry'
+export { CARD_HALF, LINE_W } from './canvas-geometry'
 
 /**
  * Las piezas que definen cómo SE VE el lienzo de una automatización.
@@ -156,7 +158,6 @@ export const STEP_META: Record<BuilderStepType, StepMeta> = {
  */
 export const HEAD_H = "h-20"
 /** Media cabecera: la altura exacta a la que corre toda línea horizontal. */
-export const CARD_HALF = 40
 
 /**
  * Color y grosor de las líneas del lienzo.
@@ -170,7 +171,6 @@ export const CARD_HALF = 40
  */
 export const LINE = "bg-foreground/25"
 /** Grosor de la línea; el centro cae en CARD_HALF, así que se dibuja 1 px antes. */
-export const LINE_W = 2
 
 export function BranchFan({
   lanes,

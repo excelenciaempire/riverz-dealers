@@ -3,6 +3,8 @@ import type { PitchCase, PitchDraft } from './pitch-data';
 import { renderMessage, templatesForCase, proposedButtons } from './pitch-data';
 import { originals, type OriginalTemplate } from './original-templates';
 import { automationSnapshot } from './canvas-snapshot';
+import { horizontalLayout } from './horizontal-layout';
+export { NODE_WIDTH } from './horizontal-layout';
 
 export interface SnapshotStep {
   id: string;
@@ -53,7 +55,6 @@ export interface CanvasGraph {
   width: number;
   height: number;
 }
-export const NODE_WIDTH = 320;
 type T = (key: string) => string;
 
 function heightFor(
@@ -170,14 +171,11 @@ export function buildCanvas(
     x: 80,
     y: 40,
   });
-  let rowY = root.y + root.height + 150;
-  let columnX = 80,
-    rowHeight = 0;
   const flows = [...(automationSnapshot[brand] ?? [])].sort(
     (a, b) => Number(b.status === 'active') - Number(a.status === 'active')
   );
   // Each automation occupies its own bounded lane, with its real step tree.
-  for (const [flowIndex, flow] of flows.entries()) {
+  for (const flow of flows) {
     const local: MapNode[] = [];
     const make = (n: Omit<MapNode, 'height' | 'x' | 'y'>) => {
       const node = { ...n, x: 0, y: 0, height: heightFor(n) };
@@ -218,57 +216,28 @@ export function buildCanvas(
     }
     make({ id: `${flow.id}-end`, title: t('pitch.canvasEnd'), kind: 'end' });
     const edges = flowEdges(flow);
-    const ranks = new Map(local.map((n) => [n.id, 0]));
-    // Longest path puts joins AFTER both branches. Snapshots are acyclic trees.
-    for (let i = 0; i < local.length; i++)
-      for (const e of edges)
-        ranks.set(
-          e.to,
-          Math.max(ranks.get(e.to) ?? 0, (ranks.get(e.from) ?? 0) + 1)
-        );
-    const layers = [...new Set(ranks.values())]
-      .sort((a, b) => a - b)
-      .map((rank) => local.filter((n) => ranks.get(n.id) === rank));
-    const width = Math.max(...layers.map((l) => l.length)) * 380 + 80;
-    if (flowIndex && flowIndex % 3 === 0) {
-      rowY += rowHeight + 130;
-      columnX = 80;
-      rowHeight = 0;
-    }
-    let y = rowY + 90;
-    for (const layer of layers) {
-      layer.forEach((n, i) => {
-        n.x = columnX + (width - layer.length * 380) / 2 + i * 380;
-        n.y = y;
-      });
-      y += Math.max(...layer.map((n) => n.height)) + 85;
-    }
-    const section = {
+    graph.sections.push({
       id: flow.id,
       title: t(flow.title),
-      x: columnX,
-      y: rowY,
-      width,
-      height: y - rowY + 20,
-    };
-    graph.sections.push(section);
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+    });
     graph.nodes.push(...local);
     graph.edges.push(...edges, { from: root.id, to: flow.id, example: true });
-    rowHeight = Math.max(rowHeight, section.height);
-    columnX += width + 90;
   }
-  rowY += rowHeight + (flows.length ? 180 : 0);
   // Scenario branches remain visible together. Dashed connectors identify examples,
   // not extra sends secretly appended to the production automation.
   for (let group = 0; group < 5; group++) {
     const groupCases = cases.filter((c) => c.group === group);
-    const x = 80 + group * 1160;
+    const x = 0;
     const hub = add({
       id: `group-${group}`,
       title: t(`onboarding.step${group}`),
       kind: 'hub',
       x,
-      y: rowY + 80,
+      y: 0,
     });
     graph.edges.push({ from: root.id, to: hub.id, example: true });
     let y = hub.y + hub.height + 110;
@@ -354,12 +323,10 @@ export function buildCanvas(
       id: `section-${group}`,
       title: t(`onboarding.step${group}`),
       x: x - 30,
-      y: rowY,
+      y: 0,
       width: 1040,
-      height: y - rowY,
+      height: 0,
     });
   }
-  graph.width = Math.max(...graph.sections.map((s) => s.x + s.width)) + 100;
-  graph.height = Math.max(...graph.sections.map((s) => s.y + s.height)) + 100;
-  return graph;
+  return horizontalLayout(graph, flows, cases);
 }
