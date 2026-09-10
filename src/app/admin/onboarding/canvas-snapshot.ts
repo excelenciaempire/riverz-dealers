@@ -809,7 +809,7 @@ export const automationSnapshot: Record<string, SnapshotFlow[]> = {
         },
         {
           config: {
-            template_name: 'rasmiaw_beneficio_contraentrega',
+            template_name: 'rasmiaw_beneficio_contraentrega_v2',
             variables: {},
           },
           id: 'rasmiaw-flow-3-step-5',
@@ -843,7 +843,7 @@ export const automationSnapshot: Record<string, SnapshotFlow[]> = {
         },
         {
           config: {
-            template_name: 'rasmiaw_recordatorio_contraentrega',
+            template_name: 'rasmiaw_recordatorio_contraentrega_v2',
             variables: {},
           },
           id: 'rasmiaw-flow-3-step-8',
@@ -877,7 +877,7 @@ export const automationSnapshot: Record<string, SnapshotFlow[]> = {
         },
         {
           config: {
-            template_name: 'rasmiaw_ultima_oportunidad_contraentrega',
+            template_name: 'rasmiaw_ultima_oportunidad_contraentrega_v2',
             variables: {},
           },
           id: 'rasmiaw-flow-3-step-11',

@@ -529,20 +529,20 @@ export const originals: Record<string, OriginalTemplate[]> = {
   rasmiaw: [
     {
       id: 'rasmiaw-template-0',
-      name: 'rasmiaw_beneficio_contraentrega',
+      name: 'rasmiaw_beneficio_contraentrega_v2',
       language: 'es',
-      body: '🎈 ¡Tenemos un beneficio para ti!\n\nSi cambias tu forma de pago y eliges pagar por Transferencia, Llave, Bold o Addi, recibirás un 5% de descuento en tu compra. 💛\n\nAsí podremos gestionar tu pedido más rápido, evitar retrasos y lograr que tu michi disfrute de su rascador lo antes posible. 😻\n\nResponde “CONFIRMAR” para que confirmemos tu pedido contra entrega.\n\nResponde “BENEFICIO” para cambiar el método de pago.',
+      body: '🎈 ¡Tenemos un beneficio para ti!\n\nSi cambias tu forma de pago y eliges pagar por Transferencia, Llave, Bold o Addi, recibirás un 5% de descuento en tu compra. 💛\n\nAsí podremos gestionar tu pedido más rápido, evitar retrasos y lograr que tu michi disfrute de su rascador lo antes posible. 😻\n\nResponde “RECIBIR BENEFICIO” para cambiar el método de pago.\n\nResponde “MANTENER CONTRAENTREGA” si prefieres conservar tu pago contra entrega.',
       header: '',
       footer: '',
       buttons: [
         {
-          text: 'CONFIRMAR',
+          text: 'RECIBIR BENEFICIO',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',
         },
         {
-          text: 'BENEFICIO',
+          text: 'MANTENER CONTRAENTREGA',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',
@@ -555,20 +555,20 @@ export const originals: Record<string, OriginalTemplate[]> = {
     },
     {
       id: 'rasmiaw-template-1',
-      name: 'rasmiaw_recordatorio_contraentrega',
+      name: 'rasmiaw_recordatorio_contraentrega_v2',
       language: 'es',
-      body: '¿Te ayudamos a finalizar tu pedido? 😻\n\nAprovecha tu 5% de descuento y recibe tu Rasmiaw sin complicaciones. 💛\n\nResponde “CONFIRMAR” para mantener tu pago contra entrega.\n\nResponde “BENEFICIO” para cambiar tu método de pago y aplicar el descuento.',
+      body: '¿Te ayudamos a finalizar tu pedido? 😻\n\nAprovecha tu 5% de descuento y recibe tu Rasmiaw sin complicaciones. 💛\n\nResponde “RECIBIR BENEFICIO” para cambiar tu método de pago y aplicar el descuento.\n\nResponde “MANTENER CONTRAENTREGA” si prefieres conservar tu pago contra entrega.',
       header: '',
       footer: '',
       buttons: [
         {
-          text: 'CONFIRMAR',
+          text: 'RECIBIR BENEFICIO',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',
         },
         {
-          text: 'BENEFICIO',
+          text: 'MANTENER CONTRAENTREGA',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',
@@ -712,20 +712,20 @@ export const originals: Record<string, OriginalTemplate[]> = {
     },
     {
       id: 'rasmiaw-template-11',
-      name: 'rasmiaw_ultima_oportunidad_contraentrega',
+      name: 'rasmiaw_ultima_oportunidad_contraentrega_v2',
       language: 'es',
-      body: '🚨 ¡Última oportunidad!\n\nSubimos tu beneficio al 10% de descuento 🎉, este beneficio es por tiempo limitado.\n\nSi quieres aprovecharlo, responde “SI” y te ayudaremos a finalizar tu compra.\n\nSi prefieres mantener tu pedido original, responde “CONFIRMAR” para programar tu pago contra entrega.\n\nVálido durante las próximas 24 horas. 🏃',
+      body: '🚨 ¡Última oportunidad!\n\nSubimos tu beneficio al 10% de descuento 🎉, este beneficio es por tiempo limitado.\n\nSi quieres aprovecharlo, responde “RECIBIR BENEFICIO” y te ayudaremos a finalizar tu compra.\n\nSi prefieres mantener tu pedido original, responde “MANTENER CONTRAENTREGA” para conservar tu pago contra entrega.\n\nVálido durante las próximas 24 horas. 🏃',
       header: '',
       footer: '',
       buttons: [
         {
-          text: 'SI',
+          text: 'RECIBIR BENEFICIO',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',
         },
         {
-          text: 'CONFIRMAR',
+          text: 'MANTENER CONTRAENTREGA',
           type: 'QUICK_REPLY',
           url: '',
           urlVariable: '',

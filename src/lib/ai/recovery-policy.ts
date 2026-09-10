@@ -16,8 +16,14 @@ export function recoveryButtonKind(
   text: string
 ): 'confirm' | 'payment_change' | null {
   const normalized = normalizedButton(text);
-  if (normalized === 'CONFIRMAR') return 'confirm';
-  if (normalized === 'BENEFICIO' || normalized === 'SI') {
+  if (normalized === 'CONFIRMAR' || normalized === 'MANTENER CONTRAENTREGA') {
+    return 'confirm';
+  }
+  if (
+    normalized === 'BENEFICIO' ||
+    normalized === 'RECIBIR BENEFICIO' ||
+    normalized === 'SI'
+  ) {
     return 'payment_change';
   }
   return null;
@@ -61,12 +67,13 @@ export function recoveryAction(input: {
   if (!input.assignedOnly) return 'none';
 
   const text = normalizedButton(input.text);
-  if (text === 'CONFIRMAR') return 'confirm_cod';
+  if (recoveryButtonKind(text) === 'confirm') return 'confirm_cod';
   if (MANUAL_PAYMENT.test(input.text)) return 'manual_payment';
 
   const benefit = Number(input.benefitPercent ?? 0);
   const requestedBenefit =
-    (text === 'BENEFICIO' && (benefit === 5 || benefit === 10)) ||
+    ((text === 'BENEFICIO' || text === 'RECIBIR BENEFICIO') &&
+      (benefit === 5 || benefit === 10)) ||
     (text === 'SI' && benefit === 10);
   // En un pedido que ya existe, esos botones no abren una venta nueva:
   // solicitan cambiar la forma de pago del pedido actual. Un cupón personal

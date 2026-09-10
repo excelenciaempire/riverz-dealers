@@ -68,7 +68,9 @@ describe('escenarios sintéticos de Rasmiaw', () => {
 
   it('reconoce los botones contradictorios para priorizar CONFIRMAR', () => {
     expect(recoveryButtonKind('CONFIRMAR')).toBe('confirm');
+    expect(recoveryButtonKind('MANTENER CONTRAENTREGA')).toBe('confirm');
     expect(recoveryButtonKind('BENEFICIO')).toBe('payment_change');
+    expect(recoveryButtonKind('RECIBIR BENEFICIO')).toBe('payment_change');
     expect(recoveryButtonKind('SI')).toBe('payment_change');
     expect(recoveryButtonKind('Necesito ayuda')).toBeNull();
     expect(
@@ -92,6 +94,25 @@ describe('escenarios sintéticos de Rasmiaw', () => {
         existingOrder: false,
       })
     ).toBe(false);
+  });
+
+  it('acepta las nuevas etiquetas de la secuencia de recuperación', () => {
+    expect(
+      recoveryAction({
+        assignedOnly: true,
+        text: 'MANTENER CONTRAENTREGA',
+        benefitPercent: 5,
+        existingOrder: true,
+      })
+    ).toBe('confirm_cod');
+    expect(
+      recoveryAction({
+        assignedOnly: true,
+        text: 'RECIBIR BENEFICIO',
+        benefitPercent: 5,
+        existingOrder: true,
+      })
+    ).toBe('manual_payment');
   });
 
   it('responde los botones de recuperación con mensajes claros y bilingües', () => {

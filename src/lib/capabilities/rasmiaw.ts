@@ -41,9 +41,9 @@ async function previewArmado(ctx: CapabilityContext) {
 const RASMIAW_WORKSPACE_ID = 'b814e934-d832-4be9-bad4-79cca51c1e23'
 const TEMPLATE_NAMES = [
   'rasmiaw_preparando_pedido',
-  'rasmiaw_beneficio_contraentrega',
-  'rasmiaw_recordatorio_contraentrega',
-  'rasmiaw_ultima_oportunidad_contraentrega',
+  'rasmiaw_beneficio_contraentrega_v2',
+  'rasmiaw_recordatorio_contraentrega_v2',
+  'rasmiaw_ultima_oportunidad_contraentrega_v2',
   'rasmiaw_carrito_abandonado_1',
   'rasmiaw_carrito_abandonado_2',
   'rasmiaw_pago_rechazado',

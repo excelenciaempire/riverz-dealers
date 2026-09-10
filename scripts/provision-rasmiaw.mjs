@@ -48,38 +48,38 @@ Te estaremos enviando un mensaje tan pronto esté listo, preparado y despachado 
 Si tienes alguna pregunta escríbenos por este medio`,
   },
   {
-    name: 'rasmiaw_beneficio_contraentrega', category: 'Marketing', body: `🎈 ¡Tenemos un beneficio para ti!
+    name: 'rasmiaw_beneficio_contraentrega_v2', category: 'Marketing', body: `🎈 ¡Tenemos un beneficio para ti!
 
 Si cambias tu forma de pago y eliges pagar por Transferencia, Llave, Bold o Addi, recibirás un 5% de descuento en tu compra. 💛
 
 Así podremos gestionar tu pedido más rápido, evitar retrasos y lograr que tu michi disfrute de su rascador lo antes posible. 😻
 
-Responde “CONFIRMAR” para que confirmemos tu pedido contra entrega.
+Responde “RECIBIR BENEFICIO” para cambiar el método de pago.
 
-Responde “BENEFICIO” para cambiar el método de pago.`,
-    buttons: [{ type: 'QUICK_REPLY', text: 'CONFIRMAR' }, { type: 'QUICK_REPLY', text: 'BENEFICIO' }],
+Responde “MANTENER CONTRAENTREGA” si prefieres conservar tu pago contra entrega.`,
+    buttons: [{ type: 'QUICK_REPLY', text: 'RECIBIR BENEFICIO' }, { type: 'QUICK_REPLY', text: 'MANTENER CONTRAENTREGA' }],
   },
   {
-    name: 'rasmiaw_recordatorio_contraentrega', category: 'Marketing', body: `¿Te ayudamos a finalizar tu pedido? 😻
+    name: 'rasmiaw_recordatorio_contraentrega_v2', category: 'Marketing', body: `¿Te ayudamos a finalizar tu pedido? 😻
 
 Aprovecha tu 5% de descuento y recibe tu Rasmiaw sin complicaciones. 💛
 
-Responde “CONFIRMAR” para mantener tu pago contra entrega.
+Responde “RECIBIR BENEFICIO” para cambiar tu método de pago y aplicar el descuento.
 
-Responde “BENEFICIO” para cambiar tu método de pago y aplicar el descuento.`,
-    buttons: [{ type: 'QUICK_REPLY', text: 'CONFIRMAR' }, { type: 'QUICK_REPLY', text: 'BENEFICIO' }],
+Responde “MANTENER CONTRAENTREGA” si prefieres conservar tu pago contra entrega.`,
+    buttons: [{ type: 'QUICK_REPLY', text: 'RECIBIR BENEFICIO' }, { type: 'QUICK_REPLY', text: 'MANTENER CONTRAENTREGA' }],
   },
   {
-    name: 'rasmiaw_ultima_oportunidad_contraentrega', category: 'Marketing', body: `🚨 ¡Última oportunidad!
+    name: 'rasmiaw_ultima_oportunidad_contraentrega_v2', category: 'Marketing', body: `🚨 ¡Última oportunidad!
 
 Subimos tu beneficio al 10% de descuento 🎉, este beneficio es por tiempo limitado.
 
-Si quieres aprovecharlo, responde “SI” y te ayudaremos a finalizar tu compra.
+Si quieres aprovecharlo, responde “RECIBIR BENEFICIO” y te ayudaremos a finalizar tu compra.
 
-Si prefieres mantener tu pedido original, responde “CONFIRMAR” para programar tu pago contra entrega.
+Si prefieres mantener tu pedido original, responde “MANTENER CONTRAENTREGA” para conservar tu pago contra entrega.
 
 Válido durante las próximas 24 horas. 🏃`,
-    buttons: [{ type: 'QUICK_REPLY', text: 'SI' }, { type: 'QUICK_REPLY', text: 'CONFIRMAR' }],
+    buttons: [{ type: 'QUICK_REPLY', text: 'RECIBIR BENEFICIO' }, { type: 'QUICK_REPLY', text: 'MANTENER CONTRAENTREGA' }],
   },
   {
     name: 'rasmiaw_carrito_abandonado_1', category: 'Marketing', body: `¡No dejes que se te escape!
@@ -214,9 +214,9 @@ async function main() {
         [template('rasmiaw_preparando_pedido')],
         [condition({ subject: 'context_var', operand: 'financial_status', value: 'pending' }, [
           template('rasmiaw_preparando_pedido'), wait(3, 'seconds'),
-          template('rasmiaw_beneficio_contraentrega'), context({ benefit_percent: 5 }), wait(3, 'hours'),
-          template('rasmiaw_recordatorio_contraentrega'), wait(24, 'hours'), context({ benefit_percent: 10 }),
-          template('rasmiaw_ultima_oportunidad_contraentrega'), wait(24, 'hours'),
+          template('rasmiaw_beneficio_contraentrega_v2'), context({ benefit_percent: 5 }), wait(3, 'hours'),
+          template('rasmiaw_recordatorio_contraentrega_v2'), wait(24, 'hours'), context({ benefit_percent: 10 }),
+          template('rasmiaw_ultima_oportunidad_contraentrega_v2'), wait(24, 'hours'),
         ], [])])],
     },
     {
