@@ -349,8 +349,6 @@ export const NEEDS_HUMAN_REASONS = [
    *  un reclamo por un producto que parecía falso salió marcado como un pedido
    *  de persona que nunca existió. */
   'problema_detectado',
-  /** Quiere pagar por un medio cuyo enlace debe preparar o enviar una persona. */
-  'pago_asistido',
 ] as const;
 
 export type NeedsHumanReason = (typeof NEEDS_HUMAN_REASONS)[number];

@@ -105,7 +105,6 @@ export const POLITICA = {
   answer_gap: ESCALA('answer_gap', 'no sabía la respuesta y no la inventó'),
   mensaje_no_recibido: ESCALA('mensaje_no_recibido', 'insiste con algo que no nos llega'),
   problema_detectado: ESCALA('problema_detectado', 'el triaje vio un problema real en curso'),
-  pago_asistido: ESCALA('pago_asistido', 'una persona debe enviar el enlace de pago'),
 
   // ── Nadie contestó, y hay que decirlo ───────────────────────────────────
   // No apagan la IA: el hilo tiene que poder recuperarse solo en el próximo

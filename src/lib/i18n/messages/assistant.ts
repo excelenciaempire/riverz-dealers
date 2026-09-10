@@ -20,10 +20,6 @@ export const assistant = {
   },
   escalacionesSinNombre: { es: "Sin nombre", en: "No name" },
   escalacionesOtroMotivo: { es: "Necesita una persona", en: "Needs a person" },
-  escalacionesPagoAsistido: {
-    es: "Necesita un enlace de pago",
-    en: "Needs a payment link",
-  },
 
   // ── List page ──────────────────────────────────────────────
   pageTitle: { es: "Asistentes con IA", en: "AI assistants" },

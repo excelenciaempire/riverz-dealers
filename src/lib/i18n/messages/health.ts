@@ -249,7 +249,6 @@ export const health: Namespace = {
   reason_reply_burst: { es: "por ráfaga de mensajes", en: "message burst" },
   reason_approval: { es: "esperando aprobación", en: "awaiting approval" },
   reason_sin_motivo: { es: "sin motivo registrado", en: "no reason recorded" },
-  reason_pago_asistido: { es: "necesita un enlace de pago", en: "needs a payment link" },
 
   // Por qué NO contestó. `ai_replies.skip_reason` guarda un código interno y el
   // panel lo mostraba crudo —«debounced_by_newer_inbound» en la cara del
@@ -453,10 +452,6 @@ export const health: Namespace = {
   skip_problema_detectado: {
     es: "había un problema en curso que necesitaba una persona",
     en: "there was an ongoing problem that needed a person",
-  },
-  skip_pago_asistido: {
-    es: "una persona debe enviar el enlace de pago",
-    en: "a person needs to send the payment link",
   },
   reason_problema_detectado: {
     es: "por un problema en curso",
