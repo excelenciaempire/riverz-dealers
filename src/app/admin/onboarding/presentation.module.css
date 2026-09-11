@@ -1360,12 +1360,13 @@
   gap: 8px;
   flex-shrink: 0;
 }
-.studio .compactActions select {
+.modelBadge {
+  padding: 6px 9px;
   border: 1px solid #30343a;
-  background: #191b1e;
-  padding: 7px 9px;
+  border-radius: 6px;
   color: #bbc2c9;
   font-size: 11px;
+  white-space: nowrap;
 }
 .compactActions button {
   display: grid;

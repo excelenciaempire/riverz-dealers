@@ -466,19 +466,9 @@ function Studio({ brand }: { brand: Brand }) {
           )}
         </div>
         <div className={styles.compactActions}>
-          <select
-            aria-label={t('pitch.model')}
-            value={draft.model}
-            onChange={(e) =>
-              update({ model: e.target.value as PitchDraft['model'] })
-            }
-          >
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {t(`pitch.${m}`)}
-              </option>
-            ))}
-          </select>
+          <span className={styles.modelBadge} title={t('pitch.model')}>
+            {t(`pitch.${draft.model}`)}
+          </span>
           <details className={styles.optionsMenu}>
             <summary aria-label={t('pitch.options')} title={t('pitch.options')}>
               <MoreHorizontal size={20} />
@@ -490,21 +480,23 @@ function Studio({ brand }: { brand: Brand }) {
                   e.currentTarget.closest('details')?.removeAttribute('open');
               }}
             >
-              {['canvas', 'messages', 'agreement'].map((view) => (
-                <button
-                  key={view}
-                  aria-pressed={tab === view}
-                  onClick={() => {
-                    setTab(view);
-                    setQuery('');
-                    setGroup(-1);
-                    setEditing(false);
-                    setNotice('');
-                  }}
-                >
-                  {t(`pitch.${view}`)}
-                </button>
-              ))}
+              {(['canvas', 'messages', 'agreement'] as const)
+                .filter((view) => view !== tab)
+                .map((view) => (
+                  <button
+                    key={view}
+                    aria-pressed={tab === view}
+                    onClick={() => {
+                      setTab(view);
+                      setQuery('');
+                      setGroup(-1);
+                      setEditing(false);
+                      setNotice('');
+                    }}
+                  >
+                    {t(`pitch.${view}`)}
+                  </button>
+                ))}
               <button
                 aria-label={t('pitch.settings')}
                 title={t('pitch.settings')}
@@ -512,14 +504,6 @@ function Studio({ brand }: { brand: Brand }) {
               >
                 <Settings2 size={17} />
                 {t('pitch.settings')}
-              </button>
-              <button
-                aria-label={t('pitch.download')}
-                title={t('pitch.download')}
-                onClick={download}
-              >
-                <Download size={17} />
-                {t('pitch.download')}
               </button>
               <LocaleToggleButton />
             </div>
@@ -1012,6 +996,21 @@ function Studio({ brand }: { brand: Brand }) {
               />
             </label>
           ))}
+          <label>
+            {t('pitch.model')}
+            <select
+              value={draft.model}
+              onChange={(e) =>
+                update({ model: e.target.value as PitchDraft['model'] })
+              }
+            >
+              {models.map((model) => (
+                <option key={model} value={model}>
+                  {t(`pitch.${model}`)}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <p className={styles.disclaimer}>{t('pitch.draftNotice')}</p>
         <button className={styles.primary} onClick={() => setSettings(false)}>
