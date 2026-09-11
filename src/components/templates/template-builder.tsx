@@ -437,40 +437,40 @@ export function TemplateBuilder() {
             </div>
 
             <Field label={t('templates.fieldHeader')}>
-              <Select
-                value={headerType}
-                onValueChange={(v) => setHeaderType(v as TemplateHeaderType)}
-              >
-                <SelectTrigger className="w-full bg-background">
-                  <SelectValue labels={headerLabels} />
-                </SelectTrigger>
-                <SelectContent>
-                  {HEADER_TYPES.map((h) => (
-                    <SelectItem key={h.value} value={h.value}>
-                      {t(h.labelKey)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {headerType === 'none' && (
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {[
-                    { type: 'image' as const, label: t('templates.headerImage'), Icon: ImageIcon },
-                    { type: 'video' as const, label: t('templates.headerVideo'), Icon: Video },
-                    { type: 'document' as const, label: t('templates.headerDocument'), Icon: FileText },
-                  ].map(({ type, label, Icon }) => (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {[
+                  { type: 'none' as const, Icon: X },
+                  { type: 'text' as const, Icon: Info },
+                  { type: 'image' as const, Icon: ImageIcon },
+                  { type: 'video' as const, Icon: Video },
+                  { type: 'document' as const, Icon: FileText },
+                ].map(({ type, Icon }) => {
+                  const selected = headerType === type;
+                  return (
                     <button
                       key={type}
                       type="button"
-                      onClick={() => setHeaderType(type)}
-                      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-muted/30 px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted hover:text-foreground"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        if (type !== headerType) {
+                          setHeaderType(type);
+                          setHeaderHandle('');
+                          setHeaderFileName('');
+                        }
+                      }}
+                      className={cn(
+                        'flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 text-xs font-medium transition-colors',
+                        selected
+                          ? 'border-primary bg-primary/10 text-accent-ink'
+                          : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/50 hover:bg-muted hover:text-foreground',
+                      )}
                     >
                       <Icon className="size-4" />
-                      <span>{label}</span>
+                      <span>{headerLabels[type]}</span>
                     </button>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
               {headerType === 'text' && (
                 <Input
                   value={headerText}

@@ -23,17 +23,31 @@ export async function uploadTemplateHeaderMedia(input: {
   const { id } = (await session.json()) as { id?: string };
   if (!id) throw new Error('Meta no creó la carga del archivo');
 
-  const uploaded = await fetch(`${GRAPH}/${encodeURIComponent(id)}`, {
+  const uploaded = await fetch(`${GRAPH}/${id}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${input.accessToken}`,
       'file_offset': '0',
-      'Content-Type': 'application/octet-stream',
+      'Content-Type': input.file.type,
     },
     body: await input.file.arrayBuffer(),
   });
-  if (!uploaded.ok) throw new Error(`Meta no pudo subir el archivo (${uploaded.status})`);
+  if (!uploaded.ok) {
+    const detail = await uploaded.text().catch(() => '');
+    const message = metaErrorMessage(detail);
+    throw new Error(message ? `Meta no pudo subir el archivo: ${message}` : `Meta no pudo subir el archivo (${uploaded.status})`);
+  }
   const { h } = (await uploaded.json()) as { h?: string };
   if (!h) throw new Error('Meta no devolvió el archivo de ejemplo');
   return h;
+}
+
+function metaErrorMessage(raw: string): string | null {
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: unknown } };
+    const message = parsed.error?.message;
+    return typeof message === 'string' && message.trim() ? message.trim().slice(0, 240) : null;
+  } catch {
+    return null;
+  }
 }
