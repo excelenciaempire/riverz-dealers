@@ -915,7 +915,6 @@ export function ChatApp() {
           >
             <input
               type="file"
-              accept="image/*,application/pdf"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];

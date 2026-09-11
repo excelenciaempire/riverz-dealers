@@ -11,9 +11,8 @@ const log = getLogger('widget.upload');
 /**
  * POST /api/widget/upload  (multipart/form-data)
  *
- * El visitante manda una foto. Es la mitad que faltaba del soporte real: la
- * captura del error, el comprobante de la transferencia, la foto del paquete
- * que llegó roto. Sin esto había que pedirle que lo cuente con palabras.
+ * El visitante manda un archivo. Puede ser una nota de voz, una foto, un
+ * video o un comprobante, sin obligarlo a describirlo con palabras.
  *
  * Sube y ADEMÁS ingresa el mensaje, en un solo viaje. Separarlo en dos —como
  * hace la bandeja, que sube y después envía— dejaría archivos huérfanos cada
@@ -29,17 +28,8 @@ const log = getLogger('widget.upload');
  */
 
 /** Tope del widget. Menos que el de la bandeja (25 MB) a propósito: esto es
- *  una puerta abierta a Internet y una foto de teléfono no llega a 10. */
+ *  una puerta abierta a Internet. */
 const MAX_BYTES = 10 * 1024 * 1024;
-
-/**
- * Lo que un cliente necesita mandar de verdad: una foto o un comprobante.
- *
- * Video y audio quedan fuera por ahora — pesan, tardan, y en un chat de tienda
- * casi nunca son la forma de explicar un problema. Abrir el tipo es una línea
- * el día que haga falta; cerrarlo después, no.
- */
-const TIPOS = /^(image\/(jpeg|png|webp|gif|heic|heif)|application\/pdf)$/i;
 
 export async function POST(request: Request) {
   const guard = await requireSession(request, 'send');
@@ -70,18 +60,18 @@ export async function POST(request: Request) {
   }
 
   const file = form.get('file');
-  const clientMessageId = String(form.get('clientMessageId') ?? '').trim().slice(0, 64);
-  const caption = String(form.get('caption') ?? '').trim().slice(0, 1000);
+  const clientMessageId = String(form.get('clientMessageId') ?? '')
+    .trim()
+    .slice(0, 64);
+  const caption = String(form.get('caption') ?? '')
+    .trim()
+    .slice(0, 1000);
   if (!(file instanceof Blob) || !clientMessageId) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: 'too_large' }, { status: 413 });
   }
-  if (!TIPOS.test(file.type || '')) {
-    return NextResponse.json({ error: 'unsupported_type' }, { status: 415 });
-  }
-
   const nombre = 'name' in file ? String((file as File).name || '') : '';
   const buffer = Buffer.from(await file.arrayBuffer());
 
