@@ -71,7 +71,8 @@ async function fishLibraryPage(
   page: number,
   query: string | undefined,
   tags: string[],
-  sortBy: 'score' | 'task_count' | 'created_at'
+  sortBy: 'score' | 'task_count' | 'created_at',
+  defaultLabel: string
 ) {
   const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : undefined;
   const start = (page - 1) * FISH_LIBRARY_PAGE_SIZE;
@@ -122,7 +123,7 @@ async function fishLibraryPage(
       )
       .map((item) => ({
         voice_id: item._id!,
-        label: item.title?.trim() || 'Fish Audio',
+        label: item.title?.trim() || defaultLabel,
         locale: 'es-419' as const,
         gender: fishGender(item.tags),
         source: 'library' as const,
@@ -208,6 +209,8 @@ async function refreshCustomVoiceStates(
  * No expone llaves ni el modelo: sólo el nombre del proveedor y las voces.
  */
 export async function GET(request: Request) {
+  const locale = await getLocale();
+  const t = (key: string) => translate(locale, key);
   const supabase = await createClient();
   const {
     data: { user },
@@ -303,7 +306,14 @@ export async function GET(request: Request) {
     // El catálogo público de Fish no necesita una llave. Antes se ocultaba
     // completo cuando no había secreto local y además se enviaba `licensed`,
     // un filtro que Fish ya no soporta y que devolvía cero resultados.
-    const listed = await fishLibraryPage(apiKey, page, search, tags, sortBy);
+    const listed = await fishLibraryPage(
+      apiKey,
+      page,
+      search,
+      tags,
+      sortBy,
+      t('voice.voiceUnnamed')
+    );
     library = listed.voices;
     hasMore = listed.hasMore;
     total = listed.total;

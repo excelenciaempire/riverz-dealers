@@ -248,17 +248,17 @@ export const voice = {
     es: 'La voz de las llamadas la define la plataforma.',
     en: 'The calling voice is set by the platform.',
   },
-  voiceLibrarySearch: { es: 'Buscar en Fish Audio', en: 'Search Fish Audio' },
+  voiceLibrarySearch: { es: 'Buscar voces', en: 'Search voices' },
   voiceLibrarySearchAction: { es: 'Buscar', en: 'Search' },
   voiceLibraryLoadMore: { es: 'Cargar más voces', en: 'Load more voices' },
   voiceLibraryCount: { es: '{count} voces', en: '{count} voices' },
   voiceLibraryFallback: {
-    es: 'No se pudo cargar Fish Audio. Estas voces verificadas siguen disponibles.',
-    en: "Fish Audio couldn't be loaded. These verified voices are still available.",
+    es: 'No se pudo cargar el catálogo. Estas voces verificadas siguen disponibles.',
+    en: "The catalog couldn't be loaded. These verified voices are still available.",
   },
   voiceLibraryUnavailable: {
-    es: 'No se pudo cargar la biblioteca de Fish Audio.',
-    en: "Couldn't load the Fish Audio library.",
+    es: 'No se pudo cargar la biblioteca de voces.',
+    en: "Couldn't load the voice library.",
   },
   voiceLibraryRetry: { es: 'Reintentar', en: 'Try again' },
   voiceLibraryNoResults: {
@@ -298,6 +298,7 @@ export const voice = {
   voicePreview: { es: 'Escuchar', en: 'Listen' },
   voicePreviewStop: { es: 'Detener', en: 'Stop' },
   voiceSelected: { es: 'Voz seleccionada', en: 'Selected voice' },
+  voiceUnnamed: { es: 'Voz IA', en: 'AI voice' },
   voiceNone: { es: 'Elige una voz', en: 'Choose a voice' },
   voiceLibraryTab: { es: 'Biblioteca', en: 'Library' },
   voiceCreatedTab: { es: 'Voces creadas', en: 'Created voices' },
@@ -348,8 +349,8 @@ export const voice = {
     en: "Couldn't create the voice.",
   },
   voiceFishUnavailable: {
-    es: 'Fish Audio no está listo para crear voces.',
-    en: "Fish Audio isn't ready to create voices.",
+    es: 'El servicio de voz no está listo para crear voces.',
+    en: "The voice service isn't ready to create voices.",
   },
   voiceUnauthorized: {
     es: 'Inicia sesión para continuar.',

@@ -15,11 +15,11 @@ export const voiceNotes: Namespace = {
   },
   title: { es: 'Notas de voz', en: 'Voice notes' },
   textMode: { es: 'Texto', en: 'Text' },
-  fish: { es: 'Generar con Fish', en: 'Generate with Fish' },
+  fish: { es: 'Generar con IA', en: 'Generate with AI' },
   saved: { es: 'Plantilla de voz', en: 'Voice template' },
   upload: { es: 'Audio pregrabado', en: 'Prerecorded audio' },
   voice: { es: 'Voz', en: 'Voice' },
-  voiceId: { es: 'ID de voz de Fish', en: 'Fish voice ID' },
+  voiceId: { es: 'ID de voz', en: 'Voice ID' },
   queued: { es: 'Campaña de voz programada', en: 'Voice campaign scheduled' },
   rateLimit: {
     es: 'Espera un momento antes de generar otro audio.',
@@ -71,8 +71,8 @@ export const voiceNotes: Namespace = {
     en: 'This voice template is no longer available.',
   },
   notConfigured: {
-    es: 'Configura Fish y selecciona una voz para generar el audio.',
-    en: 'Configure Fish and select a voice to generate audio.',
+    es: 'Configura el servicio y selecciona una voz para generar el audio.',
+    en: 'Configure the service and select a voice to generate audio.',
   },
   budget: {
     es: 'No hay saldo disponible para generar el audio.',
@@ -91,8 +91,8 @@ export const voiceNotes: Namespace = {
     en: 'The channel accepted the audio, but its record could not be saved. Do not resend it.',
   },
   agentHint: {
-    es: 'Fish convierte las respuestas en notas de voz. Las respuestas con enlaces se envían en texto.',
-    en: 'Fish turns replies into voice notes. Replies containing links are sent as text.',
+    es: 'La IA convierte las respuestas en notas de voz. Las respuestas con enlaces se envían en texto.',
+    en: 'AI turns replies into voice notes. Replies containing links are sent as text.',
   },
   replyScript: { es: 'Respuesta del agente', en: 'Agent reply' },
   campaignHint: {
