@@ -36,6 +36,27 @@ function fakeShopify(webhooks: Array<{ id: number; topic: string; address: strin
 const client = () => new ShopifyAdminClient(SHOP, "token", "2024-10");
 
 describe("ShopifyAdminClient.reconcileWebhooks", () => {
+  it('does not report successful recovery when Shopify rejects a missing subscription', async () => {
+    const live = SHOPIFY_WEBHOOK_TOPICS.filter(t => t.topic !== 'draft_orders/create')
+      .map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` }));
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: { method?: string }) =>
+      init?.method === 'POST'
+        ? new Response('{"errors":"missing access scope"}', { status: 422 })
+        : new Response(JSON.stringify({ webhooks: live }))));
+    await expect(client().reconcileWebhooks(NEW)).rejects.toThrow('create draft_orders/create');
+  });
+
+  it('does not report success when a stale subscription cannot be deleted', async () => {
+    const live = [
+      ...SHOPIFY_WEBHOOK_TOPICS.map((t, i) => ({ id: i, topic: t.topic, address: `${NEW}${t.path}` })),
+      { id: 999, topic: 'orders/create', address: `${OLD}/api/shopify/webhooks/orders` },
+    ];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: { method?: string }) =>
+      init?.method === 'DELETE'
+        ? new Response('upstream unavailable', { status: 503 })
+        : new Response(JSON.stringify({ webhooks: live }))));
+    await expect(client().reconcileWebhooks(NEW)).rejects.toThrow('delete orders/create');
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });

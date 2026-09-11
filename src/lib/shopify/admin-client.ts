@@ -268,6 +268,7 @@ export class ShopifyAdminClient {
 
     let deleted = 0
     let kept = 0
+    const failures: string[] = []
     const present = new Set<string>()
     for (const w of live) {
       let path: string
@@ -286,6 +287,8 @@ export class ShopifyAdminClient {
         await this.deleteWebhook(w.id)
         deleted++
       } catch (err) {
+        if (err instanceof ShopifyUnauthorizedError) throw err
+        failures.push(`delete ${w.topic}: ${err instanceof Error ? err.message : String(err)}`)
         console.error(`[shopify] delete stale webhook ${w.topic} failed:`, err)
       }
     }
@@ -300,8 +303,13 @@ export class ShopifyAdminClient {
         })
         created++
       } catch (err) {
+        if (err instanceof ShopifyUnauthorizedError) throw err
+        failures.push(`create ${topic}: ${err instanceof Error ? err.message : String(err)}`)
         console.error(`[shopify] re-register webhook ${topic} failed:`, err)
       }
+    }
+    if (failures.length) {
+      throw new Error(`Shopify webhook reconciliation incomplete: ${failures.join('; ').slice(0, 1000)}`)
     }
     return { deleted, created, kept }
   }
