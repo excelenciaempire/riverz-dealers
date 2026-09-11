@@ -89,6 +89,7 @@ describe('client journeys', () => {
             },
           },
         ];
+        const layouts = new Map<string, ReturnType<typeof buildClientCanvas>>();
         for (const { expanded, choices } of variants) {
           const graph = buildClientCanvas(
             brand,
@@ -109,6 +110,25 @@ describe('client journeys', () => {
           );
           if (!expanded.length) expect(graph.nodes.length).toBeLessThan(40);
           const ids = new Set(graph.nodes.map((n) => n.id));
+          if (expanded.length) {
+            if (!choices) layouts.set('base', graph);
+            else {
+              const baseline = layouts.get(
+                Object.keys(choices).length > 1 ? choices[origin] : 'base'
+              )!;
+              const previous = new Map(baseline.nodes.map((n) => [n.id, n]));
+              for (const node of graph.nodes) {
+                const before = previous.get(node.id);
+                if (before)
+                  expect({ x: node.x, y: node.y }).toEqual({
+                    x: before.x,
+                    y: before.y,
+                  });
+              }
+              expect(graph.height).toBe(baseline.height);
+              layouts.set(choices[origin], graph);
+            }
+          }
           expect(ids.size).toBe(graph.nodes.length);
           for (const e of graph.edges) {
             expect(ids.has(e.from)).toBe(true);

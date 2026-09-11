@@ -45,7 +45,7 @@ export function AutomationCanvas({
     journeyIds.map((id) => `journey-${id}`)
   );
   const pendingJourney = useRef<string | null>(null);
-  const pendingInline = useRef<string | null>(null);
+
   const [routeChoices, setRouteChoices] = useState<Record<string, string>>({});
   const graph = useMemo(
     () =>
@@ -96,6 +96,7 @@ export function AutomationCanvas({
     const row = graph.nodes.filter(
       (item) =>
         item.id === n.id ||
+        (n.kind === 'condition' && item.id.startsWith(`${n.id}-inline-`)) ||
         (n.kind === 'scenario' && item.id.startsWith(`${n.id}-`)) ||
         (n.kind === 'journey' &&
           !expanded.includes(n.id) &&
@@ -188,33 +189,6 @@ export function AutomationCanvas({
     };
   }, []);
   useEffect(() => {
-    if (size.height && pendingInline.current) {
-      const origin = pendingInline.current;
-      const children = graph.edges
-        .filter((e) => e.from === origin)
-        .map((e) => e.to);
-      const branch = graph.nodes.filter(
-        (n) =>
-          n.id === origin ||
-          n.id.startsWith(`${origin}-inline-`) ||
-          children.includes(n.id)
-      );
-      if (branch.length) {
-        const left = Math.min(...branch.map((n) => n.x));
-        const top = Math.min(...branch.map((n) => n.y));
-        const width = Math.max(...branch.map((n) => n.x + NODE_WIDTH)) - left;
-        const height = Math.max(...branch.map((n) => n.y + n.height)) - top;
-        const zoom = Math.min(
-          0.8,
-          (size.width - 80) / width,
-          (size.height - 125) / height
-        );
-        setView({ zoom, x: 40 - left * zoom, y: 85 - top * zoom });
-        setSelected(origin);
-      }
-      pendingInline.current = null;
-      return;
-    }
     if (
       !size.height ||
       (initialized.current === mode && !pendingJourney.current)
@@ -590,7 +564,7 @@ export function AutomationCanvas({
                       },
                     ]}
                     onChange={(choice) => {
-                      pendingInline.current = n.id;
+                      setSelected(n.id);
                       setRouteChoices((previous) => ({
                         ...Object.fromEntries(
                           Object.entries(previous).filter(
@@ -603,6 +577,15 @@ export function AutomationCanvas({
                   />
                 )}
                 {n.note && <p className={css.messageNote}>{n.note}</p>}
+                {n.routes && routeChoices[n.id] && (
+                  <button
+                    className={css.expandJourney}
+                    onClick={() => focus(n)}
+                  >
+                    {t('pitch.showContinuation')}
+                    <ChevronRight size={14} />
+                  </button>
+                )}
                 {!!n.buttons?.length && (
                   <div className={css.messageButtons}>
                     {n.buttons.map((b, i) => (

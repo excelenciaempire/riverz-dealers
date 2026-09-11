@@ -126,21 +126,28 @@ export function buildClientCanvas(
     width: 0,
     height: 0,
   };
-  function add(n: Omit<MapNode, 'height'>) {
+  function measure(
+    n: Pick<
+      MapNode,
+      'title' | 'body' | 'note' | 'buttons' | 'template' | 'routes'
+    >
+  ) {
     const lines = (text: string, width: number) =>
       text
         .split('\n')
         .reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / width)), 0);
-    const node = {
-      ...n,
-      height:
-        135 +
-        lines(n.title, 24) * 26 +
-        (n.body ? lines(n.body, 30) * 23 : 0) +
-        (n.note ? 32 + lines(n.note, 34) * 20 : 0) +
-        (n.buttons?.length ?? 0) * 38 +
-        (n.template ? 48 : 0),
-    };
+    return (
+      135 +
+      lines(n.title, 24) * 26 +
+      (n.body ? lines(n.body, 30) * 23 : 0) +
+      (n.note ? 32 + lines(n.note, 34) * 20 : 0) +
+      (n.buttons?.length ?? 0) * 38 +
+      (n.template ? 48 : 0) +
+      (n.routes ? 48 : 0)
+    );
+  }
+  function add(n: Omit<MapNode, 'height'>) {
+    const node = { ...n, height: measure(n) };
     graph.nodes.push(node);
     return node;
   }
@@ -153,6 +160,25 @@ export function buildClientCanvas(
     y: 0,
   });
   let y = 100;
+  // Reserve space for any response before interaction. Expanding horizontally
+  // must never move another lane, an ancestor decision, or the brand hubs.
+  const responseSlot =
+    80 +
+    Math.max(
+      ...operationCatalog.flatMap((scenario) =>
+        ['reply', 'success', 'exception'].map((field) =>
+          measure({
+            title: t('pitch.operationReply'),
+            body: renderMessage(
+              t(
+                `pitch.operation_${scenario.id}_${field}${field === 'reply' && ['recommend', 'care'].includes(scenario.id) ? `_${brand}` : ''}`
+              ),
+              values
+            ),
+          })
+        )
+      )
+    );
   function operationTree(
     scenario: (typeof operationCatalog)[number],
     id: string,
@@ -270,7 +296,6 @@ export function buildClientCanvas(
         y: top + success.height + 80,
         ...outcome('exception'),
       });
-      decision.y = (success.y + exception.y) / 2;
       graph.edges.push(
         { from: decision.id, to: success.id },
         { from: decision.id, to: exception.id }
@@ -281,6 +306,7 @@ export function buildClientCanvas(
     return {
       trigger,
       bottom: Math.max(
+        top + responseSlot * 2,
         bottom,
         ...[trigger, reply, decision].map((n) => n.y + n.height)
       ),
