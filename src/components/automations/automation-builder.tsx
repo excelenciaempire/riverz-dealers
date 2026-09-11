@@ -3496,8 +3496,8 @@ function AddButton({
             {types.flatMap<{ stepType: BuilderStepType; label: string; initialConfig?: Record<string, unknown> }>((stepType) =>
               stepType === 'send_message'
                 ? [
-                    { stepType, label: STEP_META[stepType].label, initialConfig: { voice_only: false } },
-                    { stepType, label: 'automations.stepSendVoiceNote', initialConfig: { voice_only: true } },
+                    { stepType, label: STEP_META[stepType].label, initialConfig: { voice_only: false, voice_note: null } },
+                    { stepType, label: 'automations.stepSendVoiceNote', initialConfig: { voice_only: true, voice_note: { text: '' } } },
                   ]
                 : [{ stepType, label: STEP_META[stepType].label }],
             ).map(({ stepType, label, initialConfig }) => {
@@ -3651,21 +3651,24 @@ function StepEditor({
 
   switch (step.step_type) {
     case 'send_message':
+      if (cfg.voice_only) {
+        return (
+          <VoiceNoteEditor
+            value={(cfg.voice_note as VoiceNoteConfig) ?? null}
+            onChange={(voice_note) => set({ voice_note })}
+            voiceOnly
+            allowSave={false}
+          />
+        );
+      }
       return (
-          <FieldBlock
-            label={
-              cfg.voice_only
-                ? t('automations.stepSendVoiceNote')
-                : t('automations.messageText')
-            }
-          >
-            <VoiceNoteEditor value={(cfg.voice_note as VoiceNoteConfig) ?? null} onChange={voice_note => set({ voice_note })} />
-            {!cfg.voice_note && !cfg.voice_only && <Textarea
+        <FieldBlock label={t('automations.messageText')}>
+          <Textarea
             value={(cfg.text as string) ?? ''}
             onChange={(e) => set({ text: e.target.value })}
-              placeholder={t('automations.messageTextPlaceholder')}
-              className="bg-muted text-foreground min-h-24"
-            />}
+            placeholder={t('automations.messageTextPlaceholder')}
+            className="bg-muted text-foreground min-h-24"
+          />
         </FieldBlock>
       );
     case 'send_template': {

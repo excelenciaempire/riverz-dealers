@@ -23,11 +23,15 @@ export function VoiceNoteEditor({
   onChange,
   agent = false,
   channel,
+  voiceOnly = false,
+  allowSave = true,
 }: {
   value: VoiceNoteConfig | null;
   onChange: (value: VoiceNoteConfig | null) => void;
   agent?: boolean;
   channel?: Channel;
+  voiceOnly?: boolean;
+  allowSave?: boolean;
 }) {
   const { workspace } = useWorkspace();
   const t = useT();
@@ -58,8 +62,13 @@ export function VoiceNoteEditor({
         ? 'upload'
         : value
           ? 'fish'
-          : 'textMode'
+          : voiceOnly
+            ? 'fish'
+            : 'textMode'
   );
+  const modes = voiceOnly
+    ? ['fish', 'saved', 'upload']
+    : ['textMode', 'fish', 'saved', 'upload'];
   useEffect(() => {
     if (!workspace) return;
     let active = true;
@@ -150,7 +159,7 @@ export function VoiceNoteEditor({
             );
           }}
         >
-          {['textMode', 'fish', 'saved', 'upload'].map((k) => (
+          {modes.map((k) => (
             <option key={k} value={k}>
               {t(`voiceNotes.${k}`)}
             </option>
@@ -302,7 +311,7 @@ export function VoiceNoteEditor({
             </Button>
           )}
           {preview && <audio className="w-full" controls src={preview} />}
-          {!agent && mode !== 'saved' && (
+          {!agent && allowSave && mode !== 'saved' && (
             <div className="flex flex-wrap gap-2">
               <Input
                 className="basis-full"
