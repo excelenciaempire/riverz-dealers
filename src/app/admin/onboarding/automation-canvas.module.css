@@ -84,6 +84,9 @@
   background: #d6e98a;
   color: #172010;
 }
+.selectItem[data-selected] * {
+  color: #172010;
+}
 .selectPopup svg {
   width: 15px;
   height: 15px;
