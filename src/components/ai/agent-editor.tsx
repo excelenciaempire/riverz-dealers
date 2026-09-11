@@ -67,6 +67,8 @@ import type {
   ShopifyProductSummary,
 } from '@/lib/ai/types';
 import { MIN_DEBOUNCE_SECONDS } from '@/lib/ai/types';
+import { VoiceNoteEditor } from '@/components/voice/voice-note-editor';
+import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 import { idsDelGrupo } from '@/lib/products/agrupar';
 import {
   AGENT_ROLES,
@@ -389,6 +391,7 @@ export function AgentEditor({
     agent?.escalate_keywords ?? ['humano', 'persona', 'agente']
   );
   const [escalateInput, setEscalateInput] = useState('');
+  const [voiceNote, setVoiceNote] = useState<VoiceNoteConfig | null>(agent?.voice_note ?? null);
   const [responseMode, setResponseMode] = useState<AiResponseMode>(
     agent?.response_mode ?? 'dynamic'
   );
@@ -1010,6 +1013,7 @@ export function AgentEditor({
       // usa loadContext, así que cualquier valor >= ese equivale a "todo".
       context_messages: 100,
       response_mode: responseMode,
+      voice_note: voiceNote,
       requires_approval: requiresApproval,
       inbound_debounce_seconds: inboundDebounce,
       reply_burst_max: burstMax,
@@ -1910,7 +1914,8 @@ export function AgentEditor({
                     </Select>
                   </Field>
 
-                  <Field label={t('assistant.responseModeLabel')}>
+                  <VoiceNoteEditor value={voiceNote} onChange={setVoiceNote} agent />
+                  {!voiceNote && <Field label={t('assistant.responseModeLabel')}>
                     <Select
                       value={responseMode}
                       onValueChange={(v) =>
@@ -1935,7 +1940,7 @@ export function AgentEditor({
                         ))}
                       </SelectContent>
                     </Select>
-                  </Field>
+                  </Field>}
 
                   <Field label={t('assistant.debounceLabel')}>
                     {/* El runner aplica un piso de 8s (agrupa ráfagas del

@@ -1,5 +1,6 @@
 import { CONDITION_SUBJECTS, type AutomationTriggerType } from '@/types'
 import { abTestValidationError } from './template-ab-test'
+import { validVoiceConfig } from '@/lib/voice-notes/types'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -72,7 +73,9 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
   const c = step.step_config ?? {}
   switch (step.step_type) {
     case 'send_message':
-      if (!nonEmpty(c.text)) {
+      if (c.voice_note && !validVoiceConfig(c.voice_note)) {
+        issues.push({ path: `${path}.voice_note`, message: 'invalid voice note', key: 'voiceNotes.invalidText' })
+      } else if (!c.voice_note && !nonEmpty(c.text)) {
         issues.push({ path: `${path}.text`, message: 'message text is required', key: 'automations.issueSinTexto' })
       }
       break

@@ -1,4 +1,6 @@
 'use client';
+import { VoiceNoteEditor } from '@/components/voice/voice-note-editor';
+import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 
 import {
   Fragment,
@@ -3635,13 +3637,14 @@ function StepEditor({
   switch (step.step_type) {
     case 'send_message':
       return (
-        <FieldBlock label={t('automations.messageText')}>
-          <Textarea
+          <FieldBlock label={t('automations.messageText')}>
+            <VoiceNoteEditor value={(cfg.voice_note as VoiceNoteConfig) ?? null} onChange={voice_note => set({ voice_note })} />
+            {!cfg.voice_note && <Textarea
             value={(cfg.text as string) ?? ''}
             onChange={(e) => set({ text: e.target.value })}
-            placeholder={t('automations.messageTextPlaceholder')}
-            className="bg-muted text-foreground min-h-24"
-          />
+              placeholder={t('automations.messageTextPlaceholder')}
+              className="bg-muted text-foreground min-h-24"
+            />}
         </FieldBlock>
       );
     case 'send_template': {

@@ -321,7 +321,7 @@ export default function BroadcastsPage() {
                       {broadcast.name}
                     </TableCell>
                     <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
-                      {broadcast.template_name}
+                      {broadcast.voice_note ? t('voiceNotes.title') : broadcast.template_name}
                     </TableCell>
                     <TableCell className="hidden text-right text-sm tabular-nums text-foreground sm:table-cell">
                       {broadcast.total_recipients || '—'}
@@ -422,4 +422,3 @@ export default function BroadcastsPage() {
     </div>
   );
 }
-

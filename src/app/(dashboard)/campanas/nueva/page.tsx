@@ -25,10 +25,12 @@ import type {
 import type { ContactSegment } from '@/lib/segments/types';
 import { cn } from '@/lib/utils';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
-import { useT } from '@/hooks/use-locale';
+import { useT, useLocale } from '@/hooks/use-locale';
 import { useFormat } from '@/hooks/use-format';
 import type { TFn } from '@/lib/i18n/translate';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { VoiceNoteEditor } from '@/components/voice/voice-note-editor';
+import { validVoiceConfig, type VoiceNoteConfig } from '@/lib/voice-notes/types';
 import { resolveSegment } from '@/lib/segments/resolve';
 import { fetchAllRows } from '@/lib/supabase/paginate';
 import { SegmentEditor } from '@/components/contacts/segments-panel';
@@ -111,6 +113,7 @@ function describeScheduledAt(iso: string | null, t: TFn): string {
 export default function NewBroadcastPage() {
   const router = useLocalizedRouter();
   const t = useT();
+  const { locale } = useLocale();
   const fmt = useFormat();
   const fetchWithCsrf = useFetchWithCsrf();
   const { createAndSendBroadcast, isProcessing } = useBroadcastSending();
@@ -124,6 +127,7 @@ export default function NewBroadcastPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [templateId, setTemplateId] = useState<string>('');
+  const [voiceNote, setVoiceNote] = useState<VoiceNoteConfig | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -255,8 +259,8 @@ export default function NewBroadcastPage() {
   }, [audienceType, selectedTagIds, segmentId, segments]);
 
   const template = useMemo(
-    () => templates.find((t) => t.id === templateId) ?? null,
-    [templates, templateId],
+    () => voiceNote ? null : templates.find((t) => t.id === templateId) ?? null,
+    [templates, templateId, voiceNote],
   );
 
   const templateLabels = useMemo(
@@ -295,11 +299,12 @@ export default function NewBroadcastPage() {
   // applied to the recipient count. Falls back to the category default when no
   // phones are known yet. Recomputes when the template (→ category) changes.
   const estimatedCost = useMemo(() => {
+    if (voiceNote) return null;
     if (recipientCount === null) return null;
     const category = toCategory(template?.category);
     if (samplePhones.length === 0) return recipientCount * rateFor(null, category);
     return estimateFromSample(samplePhones, recipientCount, category);
-  }, [recipientCount, samplePhones, template]);
+  }, [recipientCount, samplePhones, template, voiceNote]);
 
   function toggleTag(id: string) {
     setSelectedTagIds((prev) =>
@@ -309,7 +314,8 @@ export default function NewBroadcastPage() {
 
   function validate(): string | null {
     if (!name.trim()) return t('broadcasts.validationName');
-    if (!template) return t('broadcasts.validationTemplate');
+    if (voiceNote && !validVoiceConfig(voiceNote)) return t('voiceNotes.invalidText');
+    if (!template && !voiceNote) return t('broadcasts.validationTemplate');
     if (audienceType === 'tags' && selectedTagIds.length === 0)
       return t('broadcasts.validationTag');
     if (audienceType === 'segment' && !segmentId) return t('broadcasts.validationSegment');
@@ -325,11 +331,13 @@ export default function NewBroadcastPage() {
   async function handleSend() {
     const err = validate();
     if (err) return toast.error(err);
-    if (!template) return;
+    if (!template && !voiceNote) return;
     try {
       const broadcastId = await createAndSendBroadcast({
         name,
         template,
+        voiceNote,
+        locale,
         audience: {
           type: audienceType,
           tagIds: audienceType === 'tags' ? selectedTagIds : undefined,
@@ -363,7 +371,7 @@ export default function NewBroadcastPage() {
       }
 
       toast.success(
-        sendMode === 'schedule'
+        voiceNote ? t('voiceNotes.queued') : sendMode === 'schedule'
           ? t('broadcasts.campaignScheduled')
           : t('broadcasts.campaignSent'),
       );
@@ -403,7 +411,7 @@ export default function NewBroadcastPage() {
   async function handleSaveDraft() {
     const err = validate();
     if (err) return toast.error(err);
-    if (!template) return;
+    if (!template && !voiceNote) return;
     const supabase = createClient();
     const {
       data: { session },
@@ -416,8 +424,9 @@ export default function NewBroadcastPage() {
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       name: name.trim(),
-      template_name: template.name,
-      template_language: template.language ?? 'es',
+      template_name: template?.name ?? 'voice_note',
+      voice_note: voiceNote,
+      template_language: template?.language ?? locale,
       template_variables: variables,
       variable_mapping: Object.keys(cleanMapping).length > 0 ? cleanMapping : null,
       audience_filter: { type: audienceType, tagIds: selectedTagIds },
@@ -580,7 +589,9 @@ export default function NewBroadcastPage() {
               )}
             </Field>
 
-            <Field label={t('broadcasts.templateField')}>
+            <VoiceNoteEditor value={voiceNote} onChange={setVoiceNote} />
+            {voiceNote && <p className="text-xs text-muted-foreground">{t('voiceNotes.campaignHint')}</p>}
+            {!voiceNote && <Field label={t('broadcasts.templateField')}>
               <Select value={templateId} onValueChange={(v) => setTemplateId(v ?? '')}>
                 <SelectTrigger className="w-full bg-background">
                   <SelectValue labels={templateLabels} placeholder="" />
@@ -598,9 +609,8 @@ export default function NewBroadcastPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-
-            {templateVars.length > 0 && (
+            </Field>}
+            {!voiceNote && templateVars.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/30 p-4">
                 <div className="space-y-2">
                   {templateVars.map((v) => {
@@ -690,7 +700,7 @@ export default function NewBroadcastPage() {
                   type="button"
                   variant="outline"
                   onClick={handleSendTest}
-                  disabled={sendingTest || !template}
+                  disabled={sendingTest || !template || Boolean(voiceNote)}
                   className="border-border"
                 >
                   {sendingTest ? (

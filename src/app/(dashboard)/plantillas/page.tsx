@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import type { MessageTemplate } from '@/types';
+import { VoiceNoteLibrary } from '@/components/voice/voice-note-editor';
 
 // Maps a DB category / status value to its i18n key. Resolved with t() at
 // render time so the visible label follows the active UI language.
@@ -254,6 +255,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-5">
+      <VoiceNoteLibrary />
       {/* ── Header + actions ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -408,4 +410,3 @@ export default function TemplatesPage() {
     </div>
   );
 }
-

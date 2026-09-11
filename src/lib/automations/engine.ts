@@ -27,6 +27,7 @@ import { enqueueCall } from '@/lib/voice/queue'
 import { blockerCodeFromReason, VOICE_BLOCKED_KEY } from '@/lib/voice/labels'
 import { translate } from '@/lib/i18n/translate'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { sendVoiceNote } from '@/lib/voice-notes/service'
 import type { SendReason } from '@/lib/outreach/send-gate'
 import { createShortLink } from '@/lib/links/short-link'
 import { cartProductUrl } from '@/lib/shopify/cart-product-url'
@@ -768,6 +769,14 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
+      if (cfg.voice_note) {
+        const conversationId = await resolveConversationId(args)
+        const result = await sendVoiceNote({ workspaceId: args.automation.workspace_id, conversationId,
+          config: cfg.voice_note, variables: { ...args.context.vars, 'message.text': args.context.message_text },
+          origin: 'automation', originName: args.automation.name, reason: motivoDelDisparador(args.automation.trigger_type),
+        })
+        return `sent voice note (${result.externalMessageId})`
+      }
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)

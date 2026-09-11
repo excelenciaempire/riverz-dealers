@@ -10,6 +10,7 @@ import { escapeLike } from '@/lib/security/like';
 import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
 import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -43,8 +44,10 @@ export type VariableMapping =
   | { type: 'custom_field'; value: string };
 
 interface BroadcastPayload {
+  voiceNote?: VoiceNoteConfig | null;
+  locale?: string;
   name: string;
-  template: MessageTemplate;
+  template: MessageTemplate | null;
   audience: AudienceConfig;
   variables: Record<string, VariableMapping>;
   /** ISO timestamp to send later. Omit / past → send immediately. */
@@ -435,8 +438,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         .insert({
           user_id: user.id,
           name: payload.name,
-          template_name: payload.template.name,
-          template_language: payload.template.language ?? 'en_US',
+          template_name: payload.template?.name ?? 'voice_note',
+          voice_note: payload.voiceNote ?? null,
+          template_language: payload.template?.language ?? (payload.voiceNote ? payload.locale ?? 'es' : 'en_US'),
           template_variables: payload.variables,
           audience_filter: {
             type: payload.audience.type,
@@ -446,8 +450,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             excludeTagIds: payload.audience.excludeTagIds,
           },
           create_conversations: payload.createConversations ?? false,
-          scheduled_at: isScheduled ? scheduledAt!.toISOString() : null,
-          status: isScheduled ? 'scheduled' : 'sending',
+          scheduled_at: isScheduled ? scheduledAt!.toISOString() : payload.voiceNote ? new Date().toISOString() : null,
+          status: payload.voiceNote ? 'draft' : isScheduled ? 'scheduled' : 'sending',
           total_recipients: contacts.length,
           sent_count: 0,
           delivered_count: 0,
@@ -499,12 +503,19 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       // Scheduled: rows are queued with status 'scheduled'. The
       // /api/broadcasts/cron route will fan them out when due. Stop here.
+      if (payload.voiceNote) {
+        const { error } = await supabase.from('broadcasts').update({ status: 'scheduled' }).eq('id', broadcast.id);
+        if (error) throw new Error(error.message);
+        setProgress(100);
+        return broadcast.id;
+      }
       if (isScheduled) {
         setProgress(100);
         return broadcast.id;
       }
 
       // ── Step 4: Fetch recipients (joined contact) for the send loop
+      if (!payload.template) throw new Error('template_required');
       setProgress(30);
       const { data: recipients, error: recipientsFetchError } = await supabase
         .from('broadcast_recipients')

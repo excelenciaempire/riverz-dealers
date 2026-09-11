@@ -46,7 +46,7 @@ export async function synthesizeBilled(
           ? {
               text: opts.text,
               reference_id: opts.voice,
-              format: opts.format === 'wav' ? 'wav' : 'mp3',
+              format: opts.format === 'opus' ? 'opus' : opts.format === 'wav' ? 'wav' : 'mp3',
             }
           : { text: opts.text, model_id: opts.model }
       ),

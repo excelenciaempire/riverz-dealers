@@ -26,6 +26,10 @@ import { withCronRun } from "@/lib/cron/heartbeat";
 import { isOptedOut, markOptedOut } from '@/lib/whatsapp/opt-out'
 import { acquire } from '@/lib/whatsapp/throttle'
 import { motorApagado } from '@/lib/workspaces/motor'
+import { sendVoiceNote } from '@/lib/voice-notes/service'
+import type { VoiceNoteConfig } from '@/lib/voice-notes/types'
+import { translate } from '@/lib/i18n/translate'
+
 import {
   assertWithinTierCap,
   resolveWhatsAppConnectionId,
@@ -41,6 +45,7 @@ import {
  * the params resolved at schedule time.
  */
 
+export const maxDuration = 300
 const SEND_BATCH_SIZE = 10
 const SEND_BATCH_DELAY_MS = 1000
 const MAX_BROADCASTS_PER_RUN = 5
@@ -96,7 +101,9 @@ async function cronHandler(request: Request) {
   if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
   let processed = 0
+  const dispatchStarted = Date.now()
   for (const broadcast of due) {
+    if (Date.now() - dispatchStarted > 60000) break
     // Claim — flip scheduled → sending so overlapping invocations skip it.
     const { data: claim } = await admin
       .from('broadcasts')
@@ -133,6 +140,8 @@ async function sendOneBroadcast(
   broadcast: Record<string, unknown>,
 ): Promise<void> {
   const broadcastId = broadcast.id as string
+  const voiceNote = broadcast.voice_note as VoiceNoteConfig | null
+  const startedAt = Date.now()
   const userId = broadcast.user_id as string
   const templateName = broadcast.template_name as string
   const templateLanguage = (broadcast.template_language as string) || 'en_US'
@@ -145,9 +154,9 @@ async function sendOneBroadcast(
     .select('*')
     .eq('user_id', userId)
     .single()
-  if (!config) throw new Error('WhatsApp not configured for owner')
-  const accessToken = decrypt(config.access_token as string)
-  const phoneNumberId = config.phone_number_id as string
+  if (!config && !voiceNote) throw new Error('WhatsApp not configured for owner')
+  const accessToken = !voiceNote && config ? decrypt(config.access_token as string) : ''
+  const phoneNumberId = config?.phone_number_id as string
 
   // Categoría de la plantilla, para el gate de marketing a EE.UU. (Meta no
   // entrega marketing a +1 US; quedaría en 'sent' para siempre).
@@ -267,6 +276,7 @@ async function sendOneBroadcast(
   outer: for (let i = 0; i < recipients.length; i += SEND_BATCH_SIZE) {
     const batch = recipients.slice(i, i + SEND_BATCH_SIZE)
     for (const recipient of batch) {
+      if (voiceNote && Date.now() - startedAt > 120000) { deferred = true; break outer }
       const contactId = recipient.contact?.id as string | undefined
       const workspaceId = recipient.contact?.workspace_id as string | undefined
       if (contactId && workspaceId) {
@@ -294,6 +304,25 @@ async function sendOneBroadcast(
         continue
       }
 
+      if (voiceNote) {
+        try {
+          const { data: conversation } = await admin.from('conversations').select('id')
+            .eq('workspace_id', workspaceScope).eq('contact_id', contactId)
+            .eq('channel', 'whatsapp').eq('connection_id', connectionId)
+            .order('last_message_at', { ascending: false }).limit(1).maybeSingle()
+          if (!conversation) throw new Error('voiceNotes.window')
+          await acquire(workspaceScope)
+          const result = await sendVoiceNote({ workspaceId: workspaceScope, conversationId: conversation.id,
+            config: voiceNote, reason: 'campana', origin: 'broadcast', originName: String(broadcast.name ?? ''),
+          })
+          await admin.from('broadcast_recipients').update({ status: 'sent', sent_at: new Date().toISOString(), whatsapp_message_id: result.externalMessageId, error_message: null }).eq('id', recipient.id)
+        } catch (error) {
+          failed++
+          const code = error instanceof Error && error.message.startsWith('voiceNotes.') ? error.message : 'voiceNotes.failed'
+          await admin.from('broadcast_recipients').update({ status: 'failed', error_message: translate(templateLanguage.startsWith('en') ? 'en' : 'es', code) }).eq('id', recipient.id)
+        }
+        continue
+      }
       // Gate de marketing a EE.UU.: Meta no lo entrega (quedaría en 'sent' para
       // siempre). Marcamos el destinatario como fallido con motivo claro en vez
       // de quemar cupo y ensuciar la calidad con un envío fantasma.
@@ -441,7 +470,7 @@ async function sendOneBroadcast(
       .from('broadcasts')
       .update({
         status: 'scheduled',
-        scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        scheduled_at: new Date(Date.now() + (voiceNote ? 60000 : 60 * 60 * 1000)).toISOString(),
       })
       .eq('id', broadcastId)
   } else {

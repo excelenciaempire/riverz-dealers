@@ -724,6 +724,7 @@ export type RecipientStatus =
   | 'failed';
 
 export interface Broadcast {
+  voice_note?: import('@/lib/voice-notes/types').VoiceNoteConfig | null;
   id: string;
   workspace_id: string;
   name: string;
@@ -890,6 +891,7 @@ export type AutomationTriggerConfig =
 
 export interface SendMessageStepConfig {
   text: string;
+  voice_note?: import('@/lib/voice-notes/types').VoiceNoteConfig | null;
 }
 
 export interface SendTemplateStepConfig {

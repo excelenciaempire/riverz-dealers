@@ -1,4 +1,5 @@
 import type { OtherStoreContext } from '@/lib/ai/tools';
+import { sendVoiceNote } from '@/lib/voice-notes/service';
 import {
   esCanalDeComentarios,
   esError as esErrorDestinoComentario,
@@ -1117,6 +1118,7 @@ export async function runAiAgent(
           agent_id: agent.id,
           agent_name: agent.name ?? null,
           content_text: replyText,
+          voice_note: args.channel === 'whatsapp' && !/https?:\/\//i.test(replyText) ? agent.voice_note ?? null : null,
           created_at: new Date().toISOString(),
         },
         { onConflict: 'conversation_id' }
@@ -1156,7 +1158,10 @@ export async function runAiAgent(
       workspaceId: args.workspaceId,
       contactId: args.contact.id,
     });
-    const chunks = splitReplyForMode(textoPreparado, agent.response_mode);
+    const useVoiceNote = args.channel === 'whatsapp' && Boolean(agent.voice_note);
+    // URLs need to remain tappable. Keep the reply as text when it contains links.
+    const speakReply = useVoiceNote && !/https?:\/\//i.test(textoPreparado);
+    const chunks = speakReply ? [textoPreparado] : splitReplyForMode(textoPreparado, agent.response_mode);
 
     const outboundTarget = await resolveAiOutboundTarget(db, args);
     const adapter = getAdapter(args.channel);
@@ -1166,6 +1171,14 @@ export async function runAiAgent(
       // Recheck every chunk: disconnecting while the model was composing (or
       // between two bubbles) must stop the remaining automatic sends.
       await assertStoredConnectionCanSend(db, outboundTarget.connection.id);
+      if (speakReply && agent.voice_note) {
+        const result = await sendVoiceNote({ workspaceId: args.workspaceId, conversationId: args.conversation.id,
+          config: agent.voice_note, variables: { reply: chunk }, origin: 'ai_agent', originName: agent.name,
+          replyToExternalId: outboundTarget.replyToExternalId,
+        });
+        insertedIds.push(result.message.id);
+        continue;
+      }
       const sendResult = await adapter.sendText({
         channel: args.channel,
         connection: outboundTarget.connection,
@@ -1206,7 +1219,7 @@ export async function runAiAgent(
       }
     }
 
-    await db
+    if (!speakReply) await db
       .from('conversations')
       .update({
         last_message_text: replyText.slice(0, 200),
@@ -4064,6 +4077,10 @@ async function sendDeterministicAgentReply(
   },
   text: string
 ): Promise<string | null> {
+  if (args.channel === 'whatsapp' && agent.voice_note && !/https?:\/\//i.test(text)) {
+    const result = await sendVoiceNote({ workspaceId: args.workspaceId, conversationId: args.conversation.id, config: agent.voice_note, variables: { reply: text }, origin: 'ai_agent', originName: agent.name });
+    return result.message.id;
+  }
   const outboundTarget = await resolveAiOutboundTarget(db, args);
   const adapter = getAdapter(args.channel);
   await assertStoredConnectionCanSend(db, outboundTarget.connection.id);

@@ -263,7 +263,7 @@ export const whatsappAdapter: ChannelAdapter = {
           });
           break;
         case "audio":
-          result = await sendAudioMessage(common);
+          result = await sendAudioMessage({ ...common, voice: input.voiceNote });
           break;
       }
       await healIfRecovered(input.connection);

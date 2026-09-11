@@ -96,6 +96,9 @@ export async function PATCH(
         { status: 409 }
       );
     }
+    if (fail.code === 'voice_note_invalid') {
+      return NextResponse.json({ error: translate(locale, 'voiceNotes.invalidText') }, { status: 400 });
+    }
     if (fail.code === 'voice_agent_invalid') {
       return NextResponse.json(
         { error: translate(locale, 'errAi.voiceAgentInvalid') },

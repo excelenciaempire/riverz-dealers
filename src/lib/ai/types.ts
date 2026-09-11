@@ -132,6 +132,7 @@ export interface AiAgent {
   context_messages: number;
   /** Cómo el asistente entrega su respuesta. Migration 034. */
   response_mode: AiResponseMode;
+  voice_note?: import('@/lib/voice-notes/types').VoiceNoteConfig | null;
   /** Segundos que el runner espera tras un inbound antes de generar
    *  la réplica. Si llega otro inbound durante la espera, este runner
    *  se cancela. 0 = desactivado. Migration 034. */

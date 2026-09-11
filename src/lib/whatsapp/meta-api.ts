@@ -805,6 +805,7 @@ export async function downloadMedia(
 // request returns (Meta sometimes lazy-fetches).
 
 interface SendMediaArgs {
+  voice?: boolean
   phoneNumberId: string
   accessToken: string
   to: string
@@ -820,6 +821,7 @@ async function sendMedia(
   kind: 'image' | 'video' | 'document' | 'audio',
 ): Promise<MetaSendResult> {
   const payload: Record<string, unknown> = { link: args.url }
+  if (kind === 'audio' && args.voice) payload.voice = true
   // Audio messages (incl. voice notes) reject caption + filename per Meta.
   if (args.caption && kind !== 'audio') payload.caption = args.caption
   if (kind === 'document' && args.filename) payload.filename = args.filename

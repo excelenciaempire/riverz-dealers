@@ -1,4 +1,5 @@
 import { getAdapter } from '@/lib/channels/registry';
+import { sendVoiceNote } from '@/lib/voice-notes/service';
 import {
   assertStoredConnectionCanSend,
   isChannelDisconnectedError,
@@ -399,7 +400,8 @@ export async function runFollowUp(
           conversation_id: conversation.id,
           agent_id: agent.id,
           agent_name: agent.name ?? null,
-          content_text: finalText,
+            content_text: finalText,
+            voice_note: conversation.channel === 'whatsapp' && !/https?:\/\//i.test(finalText) ? agent.voice_note ?? null : null,
           created_at: new Date().toISOString(),
         },
         { onConflict: 'conversation_id' }
@@ -408,6 +410,12 @@ export async function runFollowUp(
     }
 
     // 4. Envío por el canal (solo DM: whatsapp / instagram / messenger).
+    if (conversation.channel === 'whatsapp' && agent.voice_note && !/https?:\/\//i.test(finalText)) {
+      await sendVoiceNote({ workspaceId: agent.workspace_id, conversationId: conversation.id,
+        config: agent.voice_note, variables: { reply: finalText }, origin: 'ai_followup', originName: agent.name,
+      });
+      return { sent: true };
+    }
     const adapter = getAdapter(conversation.channel);
     await assertStoredConnectionCanSend(db, connection.id);
     const sendResult = await adapter.sendText({

@@ -130,6 +130,8 @@ export interface OutboundText {
 }
 
 export interface OutboundMedia {
+  /** WhatsApp voice note. The caller supplies validated mono Ogg/Opus. */
+  voiceNote?: boolean;
   channel: Channel;
   connection: ChannelConnection;
   conversation: Conversation;

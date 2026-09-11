@@ -420,7 +420,7 @@ export default function BroadcastDetailPage() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {t('broadcasts.templateLabel')}{' '}
-              <span className="text-foreground">{broadcast.template_name}</span>
+              <span className="text-foreground">{broadcast.voice_note ? t('voiceNotes.title') : broadcast.template_name}</span>
               {' · '}
               <span>{segmentationLabel(broadcast.audience_filter, t)}</span>
               {' · '}
