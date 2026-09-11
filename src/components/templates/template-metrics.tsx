@@ -8,6 +8,7 @@ import { useFormat } from '@/hooks/use-format';
 interface AnalyticsResponse {
   hasButtons: boolean;
   metaOk: boolean;
+  metricsAvailable: boolean;
   metrics: { sent: number; delivered: number; read: number; clicked: number };
   cart: {
     recovered: number;
@@ -102,7 +103,7 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('templates.metricsLoading')}
         </div>
-      ) : !data || !data.metaOk ? (
+      ) : !data || !data.metricsAvailable ? (
         <p className="py-4 text-sm text-muted-foreground">{t('templates.metricsUnavailable')}</p>
       ) : (
         <>
@@ -122,7 +123,7 @@ export function TemplateMetrics({ templateId }: { templateId: string }) {
               sub={pct(data.metrics.read, data.metrics.delivered)}
             />
             {/* Clics + CTR solo si la plantilla tiene botón */}
-            {data.hasButtons && (
+            {data.hasButtons && data.metaOk && (
               <Tile
                 icon={MousePointerClick}
                 label={t('templates.metricClicks')}

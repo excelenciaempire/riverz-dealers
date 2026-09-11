@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { serverError } from '@/lib/api/errors';
 import { traerTodo } from '@/lib/db/paginar';
+import { summarizeConfirmedTemplateDelivery } from '@/lib/analytics/template-delivery';
 
 /**
  * GET /api/whatsapp/templates/[id]/analytics
@@ -484,9 +485,15 @@ export async function GET(
     const desde30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const propias = await conteosPropios(db, tpl.workspace_id, tpl.name, desde30d);
 
+    // Los acuses almacenados localmente siguen siendo válidos aunque Meta no
+    // responda su endpoint agregado. No ocultarlos: Meta sólo es necesario
+    // para los clics, que no llegan en el webhook de estados.
+    const metricsAvailable = Boolean(propias) || metaOk;
+
     return NextResponse.json({
       hasButtons,
       metaOk,
+      metricsAvailable,
       metrics: {
         sent: propias ? propias.enviados : sent,
         delivered: propias ? propias.entregados : delivered,
@@ -503,10 +510,11 @@ export async function GET(
 /**
  * Lo que de verdad salió de esta plantilla, contado en nuestra base.
  *
- * `sent` = lo que Meta aceptó (todo menos lo fallido). `delivered` = lo que
- * llegó al teléfono: entregado o leído, porque un mensaje leído estuvo
- * entregado antes. Devuelve null si no hay ninguna fila, para caer a lo de
- * Meta en vez de mostrar ceros.
+ * `sent` = lo que el canal confirmó como aceptado. Un registro `sending` no
+ * cuenta todavía: puede terminar fallando. `delivered` = lo que llegó al
+ * teléfono: entregado o leído, porque un mensaje leído estuvo entregado antes.
+ * Devuelve null si no hay ninguna fila confirmada, para caer a Meta en vez de
+ * convertir una ausencia de datos en un cero.
  */
 async function conteosPropios(
   db: SupabaseClient,
@@ -521,18 +529,20 @@ async function conteosPropios(
         .select('status, conversations!inner(workspace_id)')
         .eq('template_name', templateName)
         .eq('conversations.workspace_id', workspaceId)
+        .in('status', ['sent', 'delivered', 'read'])
         .gte('created_at', sinceIso)
         .order('created_at', { ascending: true })
         .range(d, h),
     );
-    const filas = data as Array<{ status: string | null }>;
-    if (filas.length === 0) return null;
-    const enviados = filas.filter((f) => f.status !== 'failed').length;
-    const leidos = filas.filter((f) => f.status === 'read').length;
-    const entregados = filas.filter(
-      (f) => f.status === 'delivered' || f.status === 'read',
-    ).length;
-    return { enviados, entregados, leidos };
+    const counts = summarizeConfirmedTemplateDelivery(
+      data as Array<{ status: string | null }>,
+    );
+    if (!counts) return null;
+    return {
+      enviados: counts.sent,
+      entregados: counts.delivered,
+      leidos: counts.read,
+    };
   } catch {
     return null;
   }
