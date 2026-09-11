@@ -6,6 +6,97 @@
   background: #101113;
   color: #e5e7e8;
 }
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #39434b;
+  border-radius: 7px;
+  background: #191f24;
+  color: #e3e9ed;
+  font-size: 12px;
+  text-align: left;
+}
+.selectTrigger svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: #a5b5be;
+}
+.selectTrigger:focus-visible {
+  outline: 2px solid #d8ed84;
+  outline-offset: 2px;
+}
+.toolbar .selectTrigger {
+  width: 260px;
+  border: 0;
+  background: transparent;
+}
+.node .selectTrigger {
+  margin-top: 12px;
+}
+.selectPopup {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(560px, var(--available-height, 70dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid #3b484c;
+  border-radius: 10px;
+  background: #171e22;
+  color: #e2eaed;
+  box-shadow: 0 16px 48px #0009;
+  scrollbar-color: #516267 #171e22;
+  color-scheme: dark;
+}
+.selectLabel {
+  padding: 12px 10px 6px;
+  color: #c9dd86;
+  background: #171e22;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.selectItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 9px 28px 9px 10px;
+  border-radius: 6px;
+  color: #dce6eb;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.45;
+  cursor: pointer;
+  outline: none;
+}
+.selectItem[data-highlighted],
+.selectItem:hover,
+.selectItem:focus {
+  background: #2c3d36;
+  color: #f2f8e4;
+}
+.selectItem[data-selected] {
+  background: #d6e98a;
+  color: #172010;
+}
+.selectPopup svg {
+  width: 15px;
+  height: 15px;
+}
+.messageNote {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #343e40;
+  color: #a4b1b7;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
 .mode {
   display: flex;
   padding-right: 8px;

@@ -137,6 +137,7 @@ export function buildClientCanvas(
         135 +
         lines(n.title, 24) * 26 +
         (n.body ? lines(n.body, 30) * 23 : 0) +
+        (n.note ? 32 + lines(n.note, 34) * 20 : 0) +
         (n.buttons?.length ?? 0) * 38 +
         (n.template ? 48 : 0),
     };
@@ -160,7 +161,12 @@ export function buildClientCanvas(
     inline = false
   ): { trigger: MapNode; bottom: number; right: number } {
     const text = (field: string) =>
-      renderMessage(t(`pitch.operation_${scenario.id}_${field}`), values);
+      renderMessage(
+        t(
+          `pitch.operation_${scenario.id}_${field}${field === 'reply' && ['recommend', 'care'].includes(scenario.id) ? `_${brand}` : ''}`
+        ),
+        values
+      );
     const trigger = add({
       id,
       title: text('title'),
@@ -173,10 +179,14 @@ export function buildClientCanvas(
     });
     const reply = add({
       id: `${id}-reply`,
-      title: t('pitch.operationReply'),
+      title: t(
+        scenario.id === 'silence'
+          ? 'pitch.canvasNoMessage'
+          : 'pitch.operationReply'
+      ),
       body: text('reply'),
       caption: t('pitch.operationDesign'),
-      kind: 'send_message',
+      kind: scenario.id === 'silence' ? 'wait' : 'send_message',
       status: 'proposal',
       x: x + 480,
       y: top,
@@ -224,25 +234,41 @@ export function buildClientCanvas(
       bottom = branch.bottom;
       right = branch.right;
     } else {
+      function outcome(field: string) {
+        const content = text(field);
+        const title = content.split('\n')[0];
+        const message = content.match(/[«“]([\s\S]*?)[»”]/);
+        return message
+          ? {
+              title,
+              body: message[1],
+              note: content
+                .slice(content.indexOf(message[0]) + message[0].length)
+                .trim(),
+            }
+          : {
+              title,
+              body: content.split('\n').slice(1).join('\n'),
+              kind: 'end',
+            };
+      }
       const success = add({
         id: `${id}-success`,
-        title: t('pitch.operationRoute'),
-        body: text('success'),
         caption: t('pitch.operationDesign'),
         kind: 'send_message',
         status: 'proposal',
         x: x + 1440,
         y: top,
+        ...outcome('success'),
       });
       const exception = add({
         id: `${id}-exception`,
-        title: t('pitch.operationRoute'),
-        body: text('exception'),
         caption: t('pitch.operationDesign'),
         kind: 'send_message',
         status: 'proposal',
         x: x + 1440,
         y: top + success.height + 80,
+        ...outcome('exception'),
       });
       decision.y = (success.y + exception.y) / 2;
       graph.edges.push(

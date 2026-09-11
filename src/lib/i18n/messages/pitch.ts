@@ -1,6 +1,30 @@
 import type { Namespace } from './types';
 import { operationMessages } from './pitch-operations';
 export const pitch = {
+  operation_recommend_reply_pilar: {
+    es: '¡Hola, {{customer}}! Te ayudo a conocer el sérum de Pilar. 🌿\n\nPodemos revisar cómo se usa, su precio y las opciones de envío.\n\n¿Qué te gustaría saber antes de elegir?',
+    en: 'Hi {{customer}}! Let me help you learn about the Pilar serum. 🌿\n\nWe can review how to use it, its price and delivery options.\n\nWhat would you like to know before choosing?',
+  },
+  operation_recommend_reply_rasmiaw: {
+    es: '¡Hola, {{customer}}! Busquemos una opción para tu gato. 🐾\n\nCuéntame dónde suele rascar y qué espacio tienes en casa. Con eso podemos revisar las opciones disponibles de Rasmiaw.\n\n¿Cómo le gusta rascar?',
+    en: 'Hi {{customer}}! Let us find an option for your cat. 🐾\n\nTell me where your cat usually scratches and what space you have at home. Then we can explore the available Rasmiaw options.\n\nHow does your cat like to scratch?',
+  },
+  operation_recommend_reply_contraentrega: {
+    es: '¡Hola, {{customer}}! Te ayudo a elegir {{product}}. 😊\n\nPodemos revisar sus características, el total y la cobertura para pagar al recibir.\n\n¿Qué te gustaría saber primero?',
+    en: 'Hi {{customer}}! I can help you choose {{product}}. 😊\n\nWe can review its features, the total and cash on delivery coverage.\n\nWhat would you like to know first?',
+  },
+  operation_care_reply_pilar: {
+    es: '¡Qué bueno que tu sérum de Pilar ya llegó! 🌿\n\nTe ayudo a revisar las instrucciones de uso y las precauciones de la marca.\n\n¿Es tu primera vez usándolo o tienes alguna duda específica?',
+    en: 'Great to hear your Pilar serum has arrived! 🌿\n\nI can help you review the brand instructions and precautions.\n\nIs this your first time using it, or do you have a specific question?',
+  },
+  operation_care_reply_rasmiaw: {
+    es: '¡Qué bueno que ya llegó tu pedido de Rasmiaw! 🐾\n\nRevisemos las instrucciones del producto y cómo presentárselo a tu gato.\n\n¿Necesitas ayuda para prepararlo o para empezar a usarlo?',
+    en: 'Great to hear your Rasmiaw order has arrived! 🐾\n\nLet us review the product instructions and how to introduce it to your cat.\n\nWould you like help setting it up or getting started?',
+  },
+  operation_care_reply_contraentrega: {
+    es: '¡Qué bueno que ya recibiste {{product}}, {{customer}}! 📦\n\nTe ayudo a revisar las instrucciones de uso de {{brand}}.\n\n¿Qué te gustaría saber para empezar?',
+    en: 'Great to hear you received {{product}}, {{customer}}! 📦\n\nI can help you review the instructions from {{brand}}.\n\nWhat would you like to know to get started?',
+  },
   options: { es: 'Opciones', en: 'Options' },
   explore: { es: 'Explorar escenarios', en: 'Explore scenarios' },
   centerCase: { es: 'Centrar escenario', en: 'Center scenario' },
@@ -790,124 +814,124 @@ export const pitch = {
     en: 'Create COD proposal',
   },
   msg_catalog: {
-    es: 'Hola {{customer}}, soy el asistente de {{brand}}. ¿Qué te gustaría saber sobre {{product}}? Te ayudo con la información del producto, el precio vigente y las opciones de envío.',
-    en: 'Hi {{customer}}, I’m the {{brand}} assistant. What would you like to know about {{product}}? I can help with product information, current pricing and shipping options.',
+    es: '¡Hola, {{customer}}! Soy el asistente de {{brand}}. ✨\n\nTe ayudo a conocer {{product}}, revisar su precio y elegir cómo recibirlo.\n\n¿Qué te gustaría saber primero?',
+    en: 'Hi {{customer}}! I am the {{brand}} assistant. ✨\n\nI can help you learn about {{product}}, check its price and explore delivery options.\n\nWhat would you like to know first?',
   },
   msg_comments: {
-    es: '¡Hola! Gracias por tu interés en {{brand}}. Te compartimos la información por privado si el canal nos lo permite. También puedes escribirnos desde {{site}}.',
-    en: 'Hi! Thanks for your interest in {{brand}}. We’ll share details privately if the channel allows it. You can also reach us through {{site}}.',
+    es: '¡Gracias por tu interés en {{brand}}! ✨\n\nEscríbenos por privado y te ayudamos a conocer el producto y cómo comprarlo.\n\nTambién puedes visitarnos aquí: {{site}}',
+    en: 'Thanks for your interest in {{brand}}! ✨\n\nSend us a private message and we will help with product details and how to buy.\n\nYou can also visit us here: {{site}}',
   },
   msg_checkout: {
-    es: 'Hola {{customer}}, te ayudo a comprar {{product}}. Confirmemos la cantidad y la ciudad de entrega para compartirte las opciones disponibles y el total antes de continuar.',
-    en: 'Hi {{customer}}, I’ll help you buy {{product}}. Let’s confirm quantity and delivery city so I can share available options and the total before proceeding.',
+    es: 'Hola {{customer}}, te ayudo a comprar {{product}}.\n\nConfirmemos la cantidad y la ciudad de entrega para compartirte las opciones disponibles y el total antes de continuar.',
+    en: 'Hi {{customer}}, I’ll help you buy {{product}}.\n\nLet’s confirm quantity and delivery city so I can share available options and the total before proceeding.',
   },
   msg_cart: {
-    es: 'Hola {{customer}}, dejaste {{product}} en tu carrito de {{brand}}. Puedes retomar la compra desde {{checkout}}. Si tienes dudas sobre el producto, el envío o el pago, responde este mensaje y te ayudo.',
-    en: 'Hi {{customer}}, you left {{product}} in your {{brand}} cart. Resume your purchase at {{checkout}}. Reply if you have questions about the product, delivery or payment.',
+    es: '¡Hola, {{customer}}! ¿Te quedó alguna duda sobre {{product}}? 😊\n\nPuedes retomar tu compra de {{brand}} aquí:\n{{checkout}}\n\nSi quieres revisar el envío o la forma de pago, responde este mensaje y te ayudo.',
+    en: 'Hi {{customer}}! Do you have any questions about {{product}}? 😊\n\nYou can resume your {{brand}} purchase here:\n{{checkout}}\n\nReply if you would like help with shipping or payment.',
   },
   msg_rejected: {
-    es: 'Hola {{customer}}, el pago de tu pedido {{order}} por {{amount}} no se completó. Si aún quieres continuar, responde este mensaje y revisamos contigo las opciones de pago disponibles.',
-    en: 'Hi {{customer}}, payment for order {{order}} totaling {{amount}} did not complete. If you want to proceed, reply and we’ll review available payment options together.',
+    es: 'Hola {{customer}}, el pago de tu pedido {{order}} por {{amount}} no se completó.\n\nSi aún quieres continuar, responde este mensaje y revisamos contigo las opciones de pago disponibles.',
+    en: 'Hi {{customer}}, payment for order {{order}} totaling {{amount}} did not complete.\n\nIf you want to proceed, reply and we’ll review available payment options together.',
   },
   msg_pending: {
-    es: 'Hola {{customer}}, tu pedido {{order}} en {{brand}} está pendiente de pago. El total es {{amount}}. Si necesitas los datos para pagar, escríbenos. Si ya pagaste, comparte la referencia para que podamos verificarlo.',
-    en: 'Hi {{customer}}, your {{brand}} order {{order}} is awaiting payment. The total is {{amount}}. Message us if you need payment details. If already paid, share the reference so we can verify it.',
+    es: 'Hola {{customer}}, tu pedido {{order}} en {{brand}} está pendiente de pago.\n\nEl total es {{amount}}.\n\nSi necesitas los datos para pagar, escríbenos.\n\nSi ya pagaste, comparte la referencia para que podamos verificarlo.',
+    en: 'Hi {{customer}}, your {{brand}} order {{order}} is awaiting payment.\n\nThe total is {{amount}}.\n\nMessage us if you need payment details.\n\nIf already paid, share the reference so we can verify it.',
   },
   msg_benefit: {
-    es: 'Hola {{customer}}, podemos revisar si tu pedido {{order}} cumple las condiciones para un beneficio autorizado al cambiar a pago anticipado. Responde BENEFICIO para revisarlo o CONFIRMAR para mantener contraentrega.',
-    en: 'Hi {{customer}}, we can check whether order {{order}} qualifies for an authorized benefit when switching to prepayment. Reply BENEFICIO to review it or CONFIRMAR to keep cash on delivery.',
+    es: '¡Hola, {{customer}}! Revisemos si puedes aprovechar un beneficio al pagar tu pedido {{order}} antes del envío. ✨\n\nTe mostraremos las condiciones y el total antes de que decidas. También puedes mantener el pago al recibir.\n\n¿Quieres que lo consultemos?',
+    en: 'Hi {{customer}}! Let us check whether you can use an offer by paying for order {{order}} before shipment. ✨\n\nWe will show you the terms and total before you decide. You can also keep cash on delivery.\n\nWould you like us to check?',
   },
   msg_receipt: {
-    es: 'Gracias, {{customer}}. Recibimos la información de tu pago del pedido {{order}}. Nuestro equipo la verificará y te confirmará el resultado por este chat.',
-    en: 'Thanks, {{customer}}. We received the payment information for order {{order}}. Our team will verify it and confirm the result in this chat.',
+    es: 'Gracias, {{customer}}.\n\nRecibimos la información de tu pago del pedido {{order}}.\n\nNuestro equipo la verificará y te confirmará el resultado por este chat.',
+    en: 'Thanks, {{customer}}.\n\nWe received the payment information for order {{order}}.\n\nOur team will verify it and confirm the result in this chat.',
   },
   msg_confirm: {
-    es: 'Hola {{customer}}, somos {{brand}}. Recibimos tu pedido {{order}} de {{product}} por {{amount}}, para pagar al recibir. ¿Confirmas que los datos son correctos y que puedes recibirlo en {{address}}? Responde CONFIRMAR o CORREGIR.',
-    en: 'Hi {{customer}}, this is {{brand}}. We received COD order {{order}} for {{product}}, totaling {{amount}}. Are the details correct, and can you receive it at {{address}}? Reply CONFIRM or CORRECT.',
+    es: '¡Hola, {{customer}}! Somos {{brand}}. 📦\n\nEste es tu pedido para pagar al recibir:\n• Pedido: {{order}}\n• Producto: {{product}}\n• Total: {{amount}}\n• Dirección: {{address}}\n\n¿Está todo correcto? Responde CONFIRMAR o CORREGIR.',
+    en: 'Hi {{customer}}! This is {{brand}}. 📦\n\nHere is your cash on delivery order:\n• Order: {{order}}\n• Product: {{product}}\n• Total: {{amount}}\n• Address: {{address}}\n\nIs everything correct? Reply CONFIRM or CORRECT.',
   },
   msg_address: {
-    es: 'Hola {{customer}}, necesitamos completar la dirección de tu pedido {{order}} antes del despacho. Compártenos ciudad, dirección y una referencia para validar la entrega.',
-    en: 'Hi {{customer}}, we need to complete the address for order {{order}} before dispatch. Please share the city, address and a reference so we can validate delivery.',
+    es: 'Hola {{customer}}, necesitamos completar la dirección de tu pedido {{order}} antes del despacho.\n\nCompártenos ciudad, dirección y una referencia para validar la entrega.',
+    en: 'Hi {{customer}}, we need to complete the address for order {{order}} before dispatch.\n\nPlease share the city, address and a reference so we can validate delivery.',
   },
   msg_codpayment: {
-    es: 'Hola {{customer}}, tu pedido {{order}} mantiene el pago al recibir por {{amount}}. Si necesitas revisar alguna condición antes del despacho, cuéntanos por aquí y lo consultamos con el equipo.',
-    en: 'Hi {{customer}}, order {{order}} remains cash on delivery for {{amount}}. If you need to review any terms before dispatch, tell us here and we’ll consult the team.',
+    es: 'Hola {{customer}}, tu pedido {{order}} mantiene el pago al recibir por {{amount}}.\n\nSi necesitas revisar alguna condición antes del despacho, cuéntanos por aquí y lo consultamos con el equipo.',
+    en: 'Hi {{customer}}, order {{order}} remains cash on delivery for {{amount}}.\n\nIf you need to review any terms before dispatch, tell us here and we’ll consult the team.',
   },
   msg_tracking: {
-    es: 'Hola {{customer}}, tu pedido {{order}} de {{brand}} ya fue despachado. Puedes consultar el seguimiento en {{tracking}}. Si necesitas ayuda con la entrega, responde por aquí.',
-    en: 'Hi {{customer}}, your {{brand}} order {{order}} has shipped. Track it at {{tracking}}. Reply here if you need help with delivery.',
+    es: '¡Tu pedido ya está en camino, {{customer}}! 📦\n\nSigue el envío de {{order}} aquí:\n{{tracking}}\n\nSi tienes alguna duda sobre la entrega, escríbenos por aquí. Te ayudamos.',
+    en: 'Your order is on its way, {{customer}}! 📦\n\nTrack order {{order}} here:\n{{tracking}}\n\nIf you have questions about delivery, reply here. We are happy to help.',
   },
   msg_change: {
-    es: 'Hola {{customer}}, cuéntanos qué necesitas cambiar en tu pedido {{order}}. Revisaremos si aún es posible según su estado y te confirmaremos antes de realizar el cambio.',
-    en: 'Hi {{customer}}, tell us what you need to change in order {{order}}. We’ll check whether it’s still possible given its status and confirm before making changes.',
+    es: 'Hola {{customer}}, cuéntanos qué necesitas cambiar en tu pedido {{order}}.\n\nRevisaremos si aún es posible según su estado y te confirmaremos antes de realizar el cambio.',
+    en: 'Hi {{customer}}, tell us what you need to change in order {{order}}.\n\nWe’ll check whether it’s still possible given its status and confirm before making changes.',
   },
   msg_incident: {
-    es: 'Hola {{customer}}, estamos revisando una novedad en la entrega de tu pedido {{order}}. ¿Nos confirmas si los datos de entrega siguen siendo correctos? Gestionaremos el siguiente paso con la transportadora.',
-    en: 'Hi {{customer}}, we’re reviewing a delivery issue with order {{order}}. Can you confirm whether delivery details are still correct? We’ll coordinate the next step with the carrier.',
+    es: 'Hola {{customer}}, estamos revisando una novedad en la entrega de tu pedido {{order}}.\n\n¿Nos confirmas si los datos de entrega siguen siendo correctos?\n\nGestionaremos el siguiente paso con la transportadora.',
+    en: 'Hi {{customer}}, we’re reviewing a delivery issue with order {{order}}.\n\nCan you confirm whether delivery details are still correct?\n\nWe’ll coordinate the next step with the carrier.',
   },
   msg_refusal: {
-    es: 'Hola {{customer}}, no se pudo completar la entrega de tu pedido {{order}}. ¿Quieres que revisemos un nuevo intento o prefieres cancelar? Validaremos las opciones disponibles antes de confirmarte.',
-    en: 'Hi {{customer}}, delivery of order {{order}} could not be completed. Would you like us to review another attempt or would you prefer cancellation? We’ll validate available options before confirming.',
+    es: 'Hola {{customer}}, no se pudo completar la entrega de tu pedido {{order}}.\n\n¿Quieres que revisemos un nuevo intento o prefieres cancelar?\n\nValidaremos las opciones disponibles antes de confirmarte.',
+    en: 'Hi {{customer}}, delivery of order {{order}} could not be completed.\n\nWould you like us to review another attempt or would you prefer cancellation?\n\nWe’ll validate available options before confirming.',
   },
   msg_collection: {
-    es: 'Pedido {{order}}: entrega reportada. Revisar recaudo de {{amount}} y conciliación del abono según el reporte de la transportadora. Responsable: [responsable financiero].',
-    en: 'Order {{order}}: delivery reported. Review collection of {{amount}} and settlement reconciliation against the carrier report. Owner: [finance owner].',
+    es: 'Pedido {{order}}: entrega reportada.\n\nRevisar recaudo de {{amount}} y conciliación del abono según el reporte de la transportadora.\n\nResponsable: [responsable financiero].',
+    en: 'Order {{order}}: delivery reported.\n\nReview collection of {{amount}} and settlement reconciliation against the carrier report.\n\nOwner: [finance owner].',
   },
   msg_returns: {
-    es: 'Hola {{customer}}, lamentamos el inconveniente con tu pedido {{order}}. Cuéntanos qué ocurrió y comparte las evidencias necesarias. Revisaremos tu caso según nuestra política y te confirmaremos las opciones de solución.',
-    en: 'Hi {{customer}}, we’re sorry about the issue with order {{order}}. Tell us what happened and share the necessary evidence. We’ll review the case under our policy and confirm available solutions.',
+    es: 'Hola {{customer}}, lamentamos el inconveniente con tu pedido {{order}}.\n\nCuéntanos qué ocurrió y comparte las evidencias necesarias.\n\nRevisaremos tu caso según nuestra política y te confirmaremos las opciones de solución.',
+    en: 'Hi {{customer}}, we’re sorry about the issue with order {{order}}.\n\nTell us what happened and share the necessary evidence.\n\nWe’ll review the case under our policy and confirm available solutions.',
   },
   msg_care: {
-    es: 'Hola {{customer}}, gracias por elegir {{product}} de {{brand}}. Si necesitas ayuda con su uso o cuidado, responde este mensaje y te compartimos las indicaciones oficiales.',
-    en: 'Hi {{customer}}, thanks for choosing {{product}} from {{brand}}. Reply if you need help using or caring for it and we’ll share the official instructions.',
+    es: 'Hola {{customer}}, gracias por elegir {{product}} de {{brand}}.\n\nSi necesitas ayuda con su uso o cuidado, responde este mensaje y te compartimos las indicaciones oficiales.',
+    en: 'Hi {{customer}}, thanks for choosing {{product}} from {{brand}}.\n\nReply if you need help using or caring for it and we’ll share the official instructions.',
   },
   msg_satisfaction: {
-    es: 'Hola {{customer}}, ¿cómo fue tu experiencia con {{product}} de {{brand}}? Si algo no salió como esperabas, cuéntanos para ayudarte.',
-    en: 'Hi {{customer}}, how was your experience with {{product}} from {{brand}}? If anything fell short, let us know so we can help.',
+    es: 'Hola {{customer}}, ¿cómo fue tu experiencia con {{product}} de {{brand}}?\n\nSi algo no salió como esperabas, cuéntanos para ayudarte.',
+    en: 'Hi {{customer}}, how was your experience with {{product}} from {{brand}}?\n\nIf anything fell short, let us know so we can help.',
   },
   msg_repeat: {
-    es: 'Hola {{customer}}, gracias por confiar en {{brand}}. Si estás pensando en una nueva compra, podemos ayudarte a elegir según lo que necesitas. ¿Quieres que te compartamos las opciones disponibles?',
-    en: 'Hi {{customer}}, thanks for trusting {{brand}}. If you’re considering another purchase, we can help you choose based on your needs. Would you like to see available options?',
+    es: 'Hola {{customer}}, gracias por confiar en {{brand}}.\n\nSi estás pensando en una nueva compra, podemos ayudarte a elegir según lo que necesitas.\n\n¿Quieres que te compartamos las opciones disponibles?',
+    en: 'Hi {{customer}}, thanks for trusting {{brand}}.\n\nIf you’re considering another purchase, we can help you choose based on your needs.\n\nWould you like to see available options?',
   },
   msg_handoff: {
-    es: 'Hola {{customer}}, voy a pasar tu consulta al equipo de {{brand}} con la información que ya nos compartiste. Te responderemos dentro del horario de atención acordado: [horario].',
-    en: 'Hi {{customer}}, I’ll hand your question to the {{brand}} team with the information you already shared. We’ll respond within our agreed service hours: [hours].',
+    es: 'Hola {{customer}}, voy a pasar tu consulta al equipo de {{brand}} con la información que ya nos compartiste.\n\nTe responderemos dentro del horario de atención acordado: [horario].',
+    en: 'Hi {{customer}}, I’ll hand your question to the {{brand}} team with the information you already shared.\n\nWe’ll respond within our agreed service hours: [hours].',
   },
   msg_deliveryfailure: {
-    es: 'No se pudo entregar el mensaje del pedido {{order}}. Revisar conexión, datos del destinatario y permiso de contacto antes de reintentar.',
-    en: 'The message for order {{order}} could not be delivered. Check the connection, recipient details and contact permission before retrying.',
+    es: 'No se pudo entregar el mensaje del pedido {{order}}.\n\nRevisar conexión, datos del destinatario y permiso de contacto antes de reintentar.',
+    en: 'The message for order {{order}} could not be delivered.\n\nCheck the connection, recipient details and contact permission before retrying.',
   },
   msg_offer: {
-    es: 'Hola {{customer}}, tienes un beneficio autorizado de {{discount}}% para {{product}} en {{brand}}, válido hasta [fecha aprobada]. Consulta condiciones y retoma tu compra en {{checkout}}. Si necesitas ayuda, responde aquí.',
-    en: 'Hi {{customer}}, you have an authorized {{discount}}% benefit for {{product}} at {{brand}}, valid until [approved date]. Check terms and resume your purchase at {{checkout}}. Reply here if you need help.',
+    es: '¡Hola, {{customer}}! Tienes un beneficio de {{discount}}% para {{product}} en {{brand}}. ✨\n\nVálido hasta [fecha aprobada], según las condiciones de la oferta.\n\nRevisa el total y retoma tu compra aquí:\n{{checkout}}\n\n¿Te ayudo con alguna duda antes de decidir?',
+    en: 'Hi {{customer}}! You have a {{discount}}% offer for {{product}} at {{brand}}. ✨\n\nValid until [approved date], subject to the offer terms.\n\nReview the total and resume your purchase here:\n{{checkout}}\n\nCan I help with any questions before you decide?',
   },
   msg_voice: {
-    es: 'Hola {{customer}}, soy el asistente de voz de {{brand}}. Te llamo para revisar tu pedido {{order}} de {{product}}. ¿Tienes un momento para confirmar los datos?',
-    en: 'Hi {{customer}}, I’m the {{brand}} voice assistant. I’m calling to review order {{order}} for {{product}}. Do you have a moment to confirm the details?',
+    es: 'Hola {{customer}}, soy el asistente de voz de {{brand}}.\n\nTe llamo para revisar tu pedido {{order}} de {{product}}.\n\n¿Tienes un momento para confirmar los datos?',
+    en: 'Hi {{customer}}, I’m the {{brand}} voice assistant.\n\nI’m calling to review order {{order}} for {{product}}.\n\nDo you have a moment to confirm the details?',
   },
   msg_privacy: {
-    es: 'Para cuidar tus datos, revisemos tu pedido por privado. Escríbenos por mensaje directo y te ayudamos.',
-    en: 'To protect your details, let’s review your order privately. Send us a direct message and we’ll help.',
+    es: 'Para cuidar tus datos, revisemos tu pedido por privado.\n\nEscríbenos por mensaje directo y te ayudamos.',
+    en: 'To protect your details, let’s review your order privately.\n\nSend us a direct message and we’ll help.',
   },
   msg_health: {
-    es: 'Gracias por contarnos lo que sucede. Voy a compartir tu consulta con nuestro equipo para que revise el caso y las indicaciones oficiales del producto.',
-    en: 'Thanks for letting us know. I’ll share your question with our team so they can review the case and official product guidance.',
+    es: 'Gracias por contarnos lo que sucede.\n\nVoy a compartir tu consulta con nuestro equipo para que revise el caso y las indicaciones oficiales del producto.',
+    en: 'Thanks for letting us know.\n\nI’ll share your question with our team so they can review the case and official product guidance.',
   },
   msg_stock: {
     es: 'Voy a verificar la disponibilidad y el precio vigente de {{product}} antes de confirmarte la compra.',
     en: 'I’ll verify availability and the current price of {{product}} before confirming the purchase.',
   },
   msg_optout: {
-    es: 'Entendido. Registramos que no deseas recibir más mensajes de seguimiento.',
-    en: 'Understood. We’ve recorded that you do not want further follow-up messages.',
+    es: 'Entendido.\n\nRegistramos que no deseas recibir más mensajes de seguimiento.',
+    en: 'Understood.\n\nWe’ve recorded that you do not want further follow-up messages.',
   },
   msg_pickup: {
-    es: 'Cuéntanos en qué ciudad quieres retirar tu pedido. Revisaremos las opciones de retiro disponibles antes de confirmarte una sucursal.',
-    en: 'Tell us which city you want to collect your order in. We’ll check available pickup options before confirming a location.',
+    es: 'Cuéntanos en qué ciudad quieres retirar tu pedido.\n\nRevisaremos las opciones de retiro disponibles antes de confirmarte una sucursal.',
+    en: 'Tell us which city you want to collect your order in.\n\nWe’ll check available pickup options before confirming a location.',
   },
   msg_paid: {
-    es: 'Hola {{customer}}, confirmamos el pago de tu pedido {{order}} por {{amount}}. Te avisaremos cuando tengamos el despacho y el seguimiento disponibles.',
-    en: 'Hi {{customer}}, payment for order {{order}} totaling {{amount}} is confirmed. We’ll notify you when dispatch and tracking are available.',
+    es: 'Hola {{customer}}, confirmamos el pago de tu pedido {{order}} por {{amount}}.\n\nTe avisaremos cuando tengamos el despacho y el seguimiento disponibles.',
+    en: 'Hi {{customer}}, payment for order {{order}} totaling {{amount}} is confirmed.\n\nWe’ll notify you when dispatch and tracking are available.',
   },
   prompt_catalog: {
     es: '¿Cuánto cuesta y para qué sirve?',

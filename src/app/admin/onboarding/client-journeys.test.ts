@@ -175,6 +175,10 @@ describe('client journeys', () => {
             expect(new Set(templates).size).toBe(templates.length);
           }
           for (const [i, n] of graph.nodes.entries()) {
+            if (n.note) {
+              expect(n.body).not.toContain(n.note);
+              expect(n.body).not.toMatch(/[«»]/);
+            }
             expect(`${n.title} ${n.body ?? ''} ${n.caption ?? ''}`).not.toMatch(
               /(?:^|\s)(?:pitch|onboarding)\./
             );

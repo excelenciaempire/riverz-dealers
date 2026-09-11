@@ -26,6 +26,7 @@ export interface MapNode {
   id: string;
   title: string;
   body?: string;
+  note?: string;
   kind: string;
   status?: string;
   buttons?: string[];

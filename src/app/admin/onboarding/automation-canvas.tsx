@@ -26,6 +26,7 @@ import { horizontalEdge } from './horizontal-layout';
 import { LINE_W } from '@/components/automations/canvas-geometry';
 import { buildClientCanvas, journeyIds } from './client-journeys';
 import { operationCatalog } from '@/lib/i18n/messages/pitch-operations';
+import { CanvasSelect } from './canvas-select';
 
 export function AutomationCanvas({
   brand,
@@ -298,52 +299,46 @@ export function AutomationCanvas({
             <button onClick={fit}>{t('pitch.viewMap')}</button>
           </div>
         </details>
-        <select
-          aria-label={t('pitch.explore')}
+        <CanvasSelect
+          placeholder={t('pitch.explore')}
           value={selectedSection?.id ?? ''}
-          onChange={(e) => {
-            const section = graph.sections.find((s) => s.id === e.target.value);
+          onChange={(id) => {
             const node =
-              byId.get(section?.id ?? '') ??
-              byId.get((section?.id ?? '').replace('section-', 'group-'));
+              byId.get(id) ?? byId.get(id.replace('section-', 'group-'));
             if (node) focus(node);
           }}
-        >
-          <option value="">{t('pitch.explore')}</option>
-          {mode === 'client' && expanded.length > 0 ? (
-            <>
-              {journeyIds.map((journey) => (
-                <optgroup key={journey} label={t(`pitch.journey_${journey}`)}>
-                  {operationCatalog
-                    .filter(
-                      (s) =>
-                        s.journey === journey && byId.has(`operation-${s.id}`)
-                    )
-                    .map((s) => (
-                      <option key={s.id} value={`operation-${s.id}`}>
-                        {t(`pitch.operation_${s.id}_title`)}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-              <optgroup label={t('pitch.technicalView')}>
-                {graph.sections
-                  .filter((s) => byId.get(s.id)?.kind === 'trigger')
-                  .map((s) => (
-                    <option value={s.id} key={s.id}>
-                      {s.title}
-                    </option>
-                  ))}
-              </optgroup>
-            </>
-          ) : (
-            graph.sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title}
-              </option>
-            ))
-          )}
-        </select>
+          groups={
+            mode === 'client' && expanded.length > 0
+              ? [
+                  ...journeyIds.map((journey) => ({
+                    label: t(`pitch.journey_${journey}`),
+                    options: operationCatalog
+                      .filter(
+                        (s) =>
+                          s.journey === journey && byId.has(`operation-${s.id}`)
+                      )
+                      .map((s) => ({
+                        value: `operation-${s.id}`,
+                        label: t(`pitch.operation_${s.id}_title`),
+                      })),
+                  })),
+                  {
+                    label: t('pitch.technicalView'),
+                    options: graph.sections
+                      .filter((s) => byId.get(s.id)?.kind === 'trigger')
+                      .map((s) => ({ value: s.id, label: s.title })),
+                  },
+                ]
+              : [
+                  {
+                    options: graph.sections.map((s) => ({
+                      value: s.id,
+                      label: s.title,
+                    })),
+                  },
+                ]
+          }
+        />
         <button
           className={css.searchToggle}
           aria-label={t('pitch.canvasSearch')}
@@ -374,6 +369,7 @@ export function AutomationCanvas({
         role="region"
         aria-label={t('pitch.canvasControls')}
         onKeyDown={(e) => {
+          if (!e.currentTarget.contains(e.target as Node)) return;
           if ((e.target as HTMLElement).closest('input,select,button,textarea'))
             return;
           if (
@@ -401,6 +397,7 @@ export function AutomationCanvas({
           if (d) setView((v) => ({ ...v, x: v.x + d[0], y: v.y + d[1] }));
         }}
         onPointerDown={(e) => {
+          if (!e.currentTarget.contains(e.target as Node)) return;
           if (
             e.button !== 0 ||
             (e.target as HTMLElement).closest('article,button,input,select')
@@ -578,12 +575,21 @@ export function AutomationCanvas({
                   </p>
                 )}
                 {n.routes && (
-                  <select
-                    className={css.routeSelect}
+                  <CanvasSelect
                     value={routeChoices[n.id] ?? ''}
-                    aria-label={t('pitch.operationOther')}
-                    onChange={(e) => {
-                      const choice = e.target.value;
+                    placeholder={t('pitch.operationOther')}
+                    clearable
+                    groups={[
+                      {
+                        options: n.routes.map((id) => ({
+                          value: id,
+                          label: t(
+                            `pitch.operation_${id.replace('operation-', '')}_title`
+                          ),
+                        })),
+                      },
+                    ]}
+                    onChange={(choice) => {
                       pendingInline.current = n.id;
                       setRouteChoices((previous) => ({
                         ...Object.fromEntries(
@@ -594,17 +600,9 @@ export function AutomationCanvas({
                         [n.id]: choice,
                       }));
                     }}
-                  >
-                    <option value="">{t('pitch.operationOther')}</option>
-                    {n.routes.map((id) => (
-                      <option value={id} key={id}>
-                        {t(
-                          `pitch.operation_${id.replace('operation-', '')}_title`
-                        )}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 )}
+                {n.note && <p className={css.messageNote}>{n.note}</p>}
                 {!!n.buttons?.length && (
                   <div className={css.messageButtons}>
                     {n.buttons.map((b, i) => (
