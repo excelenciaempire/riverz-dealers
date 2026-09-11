@@ -1305,7 +1305,7 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
     case 'switch':
       return {}; // dpId + cases live on step.switchData (set in addStepAt)
     case 'send_message':
-      return { voice_note: null, voice_only: true };
+      return { voice_note: null, voice_only: false };
     case 'send_template':
       return { template_name: '', language: 'en_US' };
     case 'add_tag':
@@ -1693,12 +1693,13 @@ export function AutomationBuilder({
   function addStepAt(
     parent: ParentScope,
     index: number,
-    type: BuilderStepType
+    type: BuilderStepType,
+    initialConfig?: Record<string, unknown>
   ) {
     const node: BuilderStep = {
       cid: cid(),
       step_type: type,
-      step_config: blankConfig(type),
+      step_config: { ...blankConfig(type), ...initialConfig },
       branches: type === 'condition' ? { yes: [], no: [] } : undefined,
       // Start the unified "Condición" with one empty path so the if/else shape
       // is visible immediately; the user fills its filter, adds more, or leaves
@@ -2519,7 +2520,8 @@ interface StepListProps {
   addStepAt: (
     parent: ParentScope,
     index: number,
-    type: BuilderStepType
+    type: BuilderStepType,
+    initialConfig?: Record<string, unknown>
   ) => void;
   deleteStepAt: (path: StepPath) => void;
   moveStepAt: (path: StepPath, direction: -1 | 1) => void;
@@ -2566,7 +2568,7 @@ function StepList(props: StepListProps) {
       <AddButton
         orientation="h"
         tail={steps.length > 0}
-        onPick={(ty) => props.addStepAt(parentScope, 0, ty)}
+        onPick={(ty, initialConfig) => props.addStepAt(parentScope, 0, ty, initialConfig)}
         onDrop={() => props.moveStepTo(parentScope, 0)}
         dropLabel={rotulo(0)}
       />
@@ -2815,7 +2817,7 @@ function StepRenderer({
         <AddButton
           orientation="h"
           tail={index < total - 1}
-          onPick={(ty) => props.addStepAt(parentScope, index + 1, ty)}
+          onPick={(ty, initialConfig) => props.addStepAt(parentScope, index + 1, ty, initialConfig)}
           onDrop={() => props.moveStepTo(parentScope, index + 1)}
           dropLabel={
             t('automations.dropAfter', {
@@ -2977,12 +2979,12 @@ function SwitchBranches({
             ),
           }
     );
-  const addStep = (lane: string | 'else', type: BuilderStepType, at?: number) =>
+  const addStep = (lane: string | 'else', type: BuilderStepType, at?: number, initialConfig?: Record<string, unknown>) =>
     mutateLane(lane, (steps) => {
       const node = {
         cid: cid(),
         step_type: type,
-        step_config: blankConfig(type),
+        step_config: { ...blankConfig(type), ...initialConfig },
       };
       const i =
         at === undefined
@@ -3083,7 +3085,7 @@ function SwitchBranches({
               steps={c.steps}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
-              onAdd={(type, at) => addStep(c.ckey, type, at)}
+              onAdd={(type, at, initialConfig) => addStep(c.ckey, type, at, initialConfig)}
               onChangeStep={(i, n) => changeStep(c.ckey, i, n)}
               onRemoveStep={(i) => removeStep(c.ckey, i)}
               onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
@@ -3103,7 +3105,7 @@ function SwitchBranches({
               steps={sd.elseSteps}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
-              onAdd={(type, at) => addStep('else', type, at)}
+              onAdd={(type, at, initialConfig) => addStep('else', type, at, initialConfig)}
               onChangeStep={(i, n) => changeStep('else', i, n)}
               onRemoveStep={(i) => removeStep('else', i)}
               onMoveStep={(i, dir) => moveStep('else', i, dir)}
@@ -3135,7 +3137,7 @@ function SwitchLaneSteps({
   steps: BuilderStep[];
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
-  onAdd: (type: BuilderStepType, at: number) => void;
+  onAdd: (type: BuilderStepType, at: number, initialConfig?: Record<string, unknown>) => void;
   onChangeStep: (i: number, n: BuilderStep) => void;
   onRemoveStep: (i: number) => void;
   onMoveStep: (i: number, dir: -1 | 1) => void;
@@ -3165,7 +3167,7 @@ function SwitchLaneSteps({
         orientation="h"
         types={LEAF_STEPS}
         tail={steps.length > 0}
-        onPick={(ty) => onAdd(ty, 0)}
+        onPick={(ty, initialConfig) => onAdd(ty, 0, initialConfig)}
         onDrop={() => onDropAt(0)}
         dropLabel={rotulo(0)}
       />
@@ -3191,7 +3193,7 @@ function SwitchLaneSteps({
             orientation="h"
             types={LEAF_STEPS}
             tail={i < steps.length - 1}
-            onPick={(ty) => onAdd(ty, i + 1)}
+            onPick={(ty, initialConfig) => onAdd(ty, i + 1, initialConfig)}
             onDrop={() => onDropAt(i + 1)}
             dropLabel={rotulo(i + 1)}
           />
@@ -3350,7 +3352,7 @@ function AddButton({
   types = ADDABLE_STEPS,
   tail = true,
 }: {
-  onPick: (t: BuilderStepType) => void;
+  onPick: (t: BuilderStepType, initialConfig?: Record<string, unknown>) => void;
   /** Soltar acá un paso arrastrado. Sin esto el hueco no acepta nada. */
   onDrop?: () => void;
   /** Adónde lleva este hueco, en palabras: "después de Enviar plantilla". */
@@ -3491,19 +3493,22 @@ function AddButton({
             <div className="border-border text-muted-foreground border-b px-2 py-1.5 text-[10px] font-semibold tracking-wide uppercase">
               {t('automations.chooseWhatToDo')}
             </div>
-            {types.map((stepType) => {
+            {types.flatMap((stepType) =>
+              stepType === 'send_message'
+                ? [
+                    { stepType, label: STEP_META[stepType].label, initialConfig: { voice_only: false } },
+                    { stepType, label: 'automations.stepSendVoiceNote', initialConfig: { voice_only: true } },
+                  ]
+                : [{ stepType, label: STEP_META[stepType].label }],
+            ).map(({ stepType, label, initialConfig }) => {
               const m = STEP_META[stepType];
               const Icon = m.icon;
-              const label =
-                stepType === 'send_message'
-                  ? 'automations.stepSendVoiceNote'
-                  : m.label;
               return (
                 <button
-                  key={stepType}
+                  key={`${stepType}-${String(initialConfig?.voice_only ?? 'default')}`}
                   type="button"
                   onClick={() => {
-                    onPick(stepType);
+                    onPick(stepType, initialConfig);
                     setOpen(false);
                   }}
                   className="text-foreground hover:bg-accent flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm"
