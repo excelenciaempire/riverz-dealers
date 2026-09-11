@@ -102,7 +102,8 @@ async function runJob(
         log.info('job ok', { job: job.name, status: res.status, ms, attempt });
         return;
       }
-      if (shouldRetryScheduledResponse({ job, status: res.status, durationMs: ms, attempt })) {
+      if (shouldRetryScheduledResponse({ job, status: res.status, durationMs: ms, attempt,
+        retryable: res.headers.get('x-cron-retryable') !== 'false' })) {
         log.warn('job failed; automatic recovery queued', {
           job: job.name,
           status: res.status,

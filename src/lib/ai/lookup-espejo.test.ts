@@ -106,7 +106,7 @@ describe('lookup_order distingue los datos del cliente', () => {
   })
 
   it('corrige un celular colombiano enviado por error como número de pedido', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const local = baseCon([])
     const salida = JSON.parse(
@@ -130,7 +130,7 @@ describe('lookup_order distingue los datos del cliente', () => {
   })
 
   it('busca un correo confirmado como correo, no como pedido', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ customers: [] }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const salida = JSON.parse(
       await runTool(

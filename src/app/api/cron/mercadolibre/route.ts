@@ -8,7 +8,7 @@ import { pollAllMercadoLibreReviews } from "@/lib/channels/mercadolibre/reviews"
 import { pollAllMercadoLibreClaims } from "@/lib/channels/mercadolibre/claims-poll";
 import { assertCronAuth } from "@/lib/auth/cron";
 import { withCronRun, withCronTask } from "@/lib/cron/heartbeat";
-import { hasMercadoLibreFailures } from "@/lib/channels/mercadolibre/sync-result";
+import { hasMercadoLibreFailures, onlyPermanentMercadoLibreFailures } from "@/lib/channels/mercadolibre/sync-result";
 
 /**
  * TODO Mercado Libre en un solo trabajo.
@@ -117,7 +117,11 @@ async function cronHandler(request: Request) {
         .map(([name, value]) => `${name}: ${failureDetail(value)}`)
         .join('; ').slice(0, 450) } : {}),
     },
-    { status: failed ? 207 : 200 }
+    {
+      status: failed ? 207 : 200,
+      headers: onlyPermanentMercadoLibreFailures(Object.values(out))
+        ? { 'x-cron-retryable': 'false' } : undefined,
+    }
   );
 }
 

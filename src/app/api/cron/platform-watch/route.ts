@@ -158,13 +158,18 @@ async function cronHandler(request: Request) {
   for (const [workspaceId, issues] of porWorkspace) {
     for (const issue of issues) {
       if (issue.kind !== 'channel_silent' && issue.kind !== 'connection_error') continue
-      const channel = issue.refId ?? 'canal'
-      const key = `canal:${workspaceId}:${issue.kind}:${channel}`
-      const label =
-        issue.kind === 'channel_silent'
+      // SQL aggregates broken connections by workspace, ordered by updated_at.
+      // The first label changes on every refresh: it is not an incident ID.
+      const channels = issue.kind === 'connection_error'
+        ? [...new Set((issue.detail || issue.refId || 'canal').split(',').map(value => value.trim()).filter(Boolean))]
+        : [issue.refId || 'canal']
+      for (const channel of channels) {
+        const key = `canal:${workspaceId}:${issue.kind}:${channel}`
+        const label = issue.kind === 'channel_silent'
           ? `· Canal sin actividad: ${channel}`
-          : `· Conexión con error: ${issue.detail ?? channel}`
-      actuales.set(key, label)
+          : `· Conexión con error: ${channel}`
+        actuales.set(key, label)
+      }
     }
   }
 

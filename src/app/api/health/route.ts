@@ -75,6 +75,8 @@ export async function GET() {
   const body = {
     status,
     checks: { supabase, whatsapp },
+    // Lets deployment verification distinguish the live revision from an old healthy instance.
+    revision: process.env.RENDER_GIT_COMMIT ?? null,
     ts: new Date().toISOString(),
   }
 

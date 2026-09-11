@@ -118,4 +118,24 @@ describe('platform incident continuity', () => {
     await GET(request());
     expect(m.send).not.toHaveBeenCalled();
   });
+
+  it('keeps connection incidents stable when SQL reverses their update order', async () => {
+    m.latest = 'ok';
+    m.previous = 'canal:workspace:connection_error:ig_comment|canal:workspace:connection_error:mercadolibre';
+    for (const detail of ['ig_comment, mercadolibre', 'mercadolibre, ig_comment']) {
+      m.collect.mockResolvedValue(new Map([['workspace', [{ kind: 'connection_error', detail, refId: detail.split(',')[0] }]]]));
+      await GET(request());
+    }
+    expect(m.saved).toHaveLength(0);
+    expect(m.send).not.toHaveBeenCalled();
+  });
+
+  it('reports only the new connection instead of repeating the existing one', async () => {
+    m.latest = 'ok';
+    m.previous = 'canal:workspace:connection_error:mercadolibre';
+    m.collect.mockResolvedValue(new Map([['workspace', [{ kind: 'connection_error', detail: 'ig_comment, mercadolibre', refId: 'ig_comment' }]]]));
+    await GET(request());
+    expect(m.send).toHaveBeenCalledWith(expect.objectContaining({ body: '· Conexión con error: ig_comment' }));
+    expect(m.saved[0].fingerprint).toContain(m.previous);
+  });
 });

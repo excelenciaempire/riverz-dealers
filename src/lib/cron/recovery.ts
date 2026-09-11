@@ -38,7 +38,9 @@ export function shouldRetryScheduledResponse(args: {
   status: number;
   durationMs: number;
   attempt: number;
+  retryable?: boolean;
 }): boolean {
+  if (args.retryable === false) return false;
   if (!args.job.retryOnFailure || args.attempt > 1) return false;
   if (args.durationMs > JOB_RECOVERY_MAX_FIRST_RUN_MS) return false;
   return args.status === 207 || args.status === 429 || args.status >= 500;

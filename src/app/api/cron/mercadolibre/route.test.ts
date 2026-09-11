@@ -114,5 +114,15 @@ describe('Mercado Libre cron', () => {
     expect(body.claims.failures).toHaveLength(1);
     expect(body.claims.error).toContain('Graph 500');
     expect(body.error).toContain('claims: Graph 500');
+    expect(response.headers.get('x-cron-retryable')).toBeNull();
+  });
+
+  it('keeps account blocks visible but prevents an immediate repeat of the whole sync', async () => {
+    mocks.questions.mockResolvedValue({ failures: [{ connectionId: 'ml-1', error: 'questions/search HTTP 403' }] });
+    const response = await GET(new Request('http://localhost/api/cron/mercadolibre?force=1'));
+    expect(response.status).toBe(207);
+    expect(response.headers.get('x-cron-retryable')).toBe('false');
+    expect((await response.json()).ok).toBe(false);
+    expect(mocks.messages).toHaveBeenCalledOnce();
   });
 });

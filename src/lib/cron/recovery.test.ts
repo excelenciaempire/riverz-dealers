@@ -11,6 +11,10 @@ import type { ScheduledJob } from './schedule';
 const retryableJob = { retryOnFailure: true } as ScheduledJob;
 
 describe('scheduled job recovery', () => {
+  it('leaves permanent account failures for the next scheduled run', () => {
+    expect(shouldRetryScheduledResponse({ job: retryableJob, status: 207,
+      durationMs: 1000, attempt: 1, retryable: false })).toBe(false);
+  });
   it('retries one short partial or provider failure', () => {
     expect(
       shouldRetryScheduledResponse({
