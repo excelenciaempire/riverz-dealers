@@ -17,7 +17,10 @@ import {
   shopifyOrderToPurchase,
 } from '@/lib/contacts/purchases';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
-import { resolveCarrierTrackingUrl } from '@/lib/shopify/carrier-tracking';
+import {
+  displayCarrierName,
+  resolveCarrierTrackingUrl,
+} from '@/lib/shopify/carrier-tracking';
 import { isDuplicateDelivery } from '@/lib/shopify/webhook-dedup';
 import { captureWebhookFailure } from '@/lib/webhooks/capture';
 import { getAdapter } from '@/lib/channels/registry';
@@ -830,10 +833,10 @@ function buildVarsForOrder(
     const trackingCompany = String(latest?.tracking_company ?? '');
     const trackingNumber = String(latest?.tracking_number ?? '');
     base.tracking_number = trackingNumber;
-    base.tracking_company = trackingCompany;
+    base.tracking_company = displayCarrierName(trackingCompany);
     // Shopify only auto-fills tracking_url for carriers in its built-in
-    // list. For Andreani / Correo Argentino / OCA the URL is empty and
-    // the customer gets a naked number. Fall back to our resolver so
+    // list. Regional carriers often arrive without one and the customer gets
+    // a naked number. Fall back to our resolver so
     // existing {{tracking_url}} templates keep working unchanged.
     //
     // Last resort: the order status page. Leaving this empty is not a

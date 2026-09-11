@@ -19,6 +19,8 @@
  */
 
 type CarrierResolver = {
+  /** Nombre corto que se muestra al cliente. */
+  displayName: string
   /** Substrings (already lowercased) used to detect this carrier in
    *  Shopify's free-text tracking_company. Match via .includes(). */
   patterns: string[]
@@ -29,6 +31,7 @@ type CarrierResolver = {
 
 const CARRIERS: CarrierResolver[] = [
   {
+    displayName: 'Andreani',
     patterns: ['andreani'],
     // Andreani's tracker is a SPA that accepts the number as the
     // anchor route — pasting the URL drops the customer directly
@@ -36,6 +39,7 @@ const CARRIERS: CarrierResolver[] = [
     build: (n) => `https://www.andreani.com/#!/informacionEnvio/${encodeURIComponent(n)}`,
   },
   {
+    displayName: 'Correo Argentino',
     patterns: ['correo argentino', 'correoargentino', 'correo arg', 'correo-argentino'],
     // Correo Argentino's public tracker only accepts the code as a
     // query param on the e-commerce form page. Confirmed against
@@ -43,6 +47,7 @@ const CARRIERS: CarrierResolver[] = [
     build: (n) => `https://www.correoargentino.com.ar/formularios/ondnc?id=${encodeURIComponent(n)}`,
   },
   {
+    displayName: 'OCA',
     patterns: ['oca'],
     // OCA does not have a permalink that accepts the number as a path
     // segment — return the public tracker entrypoint instead of a
@@ -53,19 +58,20 @@ const CARRIERS: CarrierResolver[] = [
   // --- Colombia (Dropi) -------------------------------------------------
   // Dropi writes these names as free text, so casing and accents vary
   // between accounts; every pattern below is matched unaccented AND
-  // accented. None of the deep links are verified yet, so all return the
-  // public tracker entrypoint — the customer still lands on the right
-  // carrier instead of googling the name. Upgrade each to a real deep
-  // link once a live guide confirms the query param.
+  // accented. Where a carrier exposes a verified deep link, include the guide;
+  // otherwise return its public tracker entrypoint instead of guessing params.
   {
+    displayName: 'Inter Rapidísimo',
     patterns: ['interrapidisimo', 'interrapidísimo', 'inter rapidisimo', 'inter rapidísimo'],
     build: () => 'https://interrapidisimo.com/sigue-tu-envio/',
   },
   {
+    displayName: 'Servientrega',
     patterns: ['servientrega'],
     build: () => 'https://www.servientrega.com/wps/portal/rastreo-envio',
   },
   {
+    displayName: 'Coordinadora',
     patterns: ['coordinadora'],
     // URL oficial documentada por Coordinadora. A diferencia del portal
     // anterior, este deep-link conserva la guía para que Pilar y el cliente
@@ -73,18 +79,24 @@ const CARRIERS: CarrierResolver[] = [
     build: (n) => `https://rastreo.coordinadora.com/?guia=${encodeURIComponent(n)}`,
   },
   {
+    displayName: 'Deprisa',
     patterns: ['deprisa'],
     build: () => 'https://www.deprisa.com/Seguimiento',
   },
   // Short/generic patterns go last: the loop returns on first match, so
   // 'tcc' and 'envia' must never shadow a more specific carrier above.
   {
+    displayName: 'TCC',
     patterns: ['tcc'],
     build: () => 'https://tcc.com.co/rastrea-tu-envio/',
   },
   {
+    displayName: 'Envía',
     patterns: ['envia', 'envía'],
-    build: () => 'https://envia.co/',
+    // El rastreador público de Envía acepta la guía en la URL y abre el
+    // detalle de ese envío. No usar envia.co/?guia=...: esa página conserva
+    // el parámetro, pero deja al cliente en el formulario general.
+    build: (n) => `https://hub.envia.co/landingrastreo/Rastreo/Index?guia=${encodeURIComponent(n)}`,
   },
 ]
 
@@ -106,4 +118,20 @@ export function resolveCarrierTrackingUrl(
     }
   }
   return null
+}
+
+/**
+ * Normaliza el nombre libre que llega de Shopify/Dropi para presentarlo en
+ * mensajes. Conserva transportadoras desconocidas y devuelve un valor seguro
+ * cuando Shopify no informa el nombre, evitando que Meta rechace la plantilla
+ * por una variable vacía.
+ */
+export function displayCarrierName(carrier: string | null | undefined): string {
+  const raw = (carrier ?? '').trim()
+  const normalized = raw.toLowerCase()
+  if (!normalized) return 'Transportadora asignada'
+  const known = CARRIERS.find((resolver) =>
+    resolver.patterns.some((pattern) => normalized.includes(pattern)),
+  )
+  return known?.displayName ?? raw
 }
