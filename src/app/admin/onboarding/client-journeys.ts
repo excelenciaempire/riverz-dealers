@@ -116,7 +116,8 @@ export function buildClientCanvas(
   draft: PitchDraft,
   t: T,
   values: Record<string, string>,
-  expanded: string[]
+  expanded: string[],
+  routeChoices: Record<string, string> = {}
 ): CanvasGraph {
   const graph: CanvasGraph = {
     nodes: [],
@@ -151,6 +152,115 @@ export function buildClientCanvas(
     y: 0,
   });
   let y = 100;
+  function operationTree(
+    scenario: (typeof operationCatalog)[number],
+    id: string,
+    x: number,
+    top: number,
+    inline = false
+  ): { trigger: MapNode; bottom: number; right: number } {
+    const text = (field: string) =>
+      renderMessage(t(`pitch.operation_${scenario.id}_${field}`), values);
+    const trigger = add({
+      id,
+      title: text('title'),
+      body: text('customer'),
+      caption: t('pitch.operationCustomer'),
+      kind: inline ? 'inline_route' : 'scenario',
+      status: 'proposal',
+      x,
+      y: top,
+    });
+    const reply = add({
+      id: `${id}-reply`,
+      title: t('pitch.operationReply'),
+      body: text('reply'),
+      caption: t('pitch.operationDesign'),
+      kind: 'send_message',
+      status: 'proposal',
+      x: x + 480,
+      y: top,
+    });
+    const decision = add({
+      id: `${id}-decision`,
+      title: t('pitch.operationDecision'),
+      caption: t('pitch.operationDesign'),
+      kind: 'condition',
+      routes: [
+        'human',
+        'silence',
+        'topic',
+        'media',
+        'optout',
+        'unknown',
+        'failure',
+        'identity',
+      ]
+        .filter((route) => route !== scenario.id)
+        .map((route) => `operation-${route}`),
+      x: x + 960,
+      y: top,
+    });
+    graph.edges.push(
+      { from: trigger.id, to: reply.id },
+      { from: reply.id, to: decision.id }
+    );
+    const chosen = decision.routes?.includes(routeChoices[decision.id])
+      ? operationCatalog.find(
+          (s) => `operation-${s.id}` === routeChoices[decision.id]
+        )
+      : undefined;
+    let bottom: number;
+    let right: number;
+    if (chosen) {
+      const branch = operationTree(
+        chosen,
+        `${decision.id}-inline-${chosen.id}`,
+        x + 1440,
+        top,
+        true
+      );
+      graph.edges.push({ from: decision.id, to: branch.trigger.id });
+      bottom = branch.bottom;
+      right = branch.right;
+    } else {
+      const success = add({
+        id: `${id}-success`,
+        title: t('pitch.operationRoute'),
+        body: text('success'),
+        caption: t('pitch.operationDesign'),
+        kind: 'send_message',
+        status: 'proposal',
+        x: x + 1440,
+        y: top,
+      });
+      const exception = add({
+        id: `${id}-exception`,
+        title: t('pitch.operationRoute'),
+        body: text('exception'),
+        caption: t('pitch.operationDesign'),
+        kind: 'send_message',
+        status: 'proposal',
+        x: x + 1440,
+        y: top + success.height + 80,
+      });
+      decision.y = (success.y + exception.y) / 2;
+      graph.edges.push(
+        { from: decision.id, to: success.id },
+        { from: decision.id, to: exception.id }
+      );
+      bottom = exception.y + exception.height;
+      right = exception.x + NODE_WIDTH;
+    }
+    return {
+      trigger,
+      bottom: Math.max(
+        bottom,
+        ...[trigger, reply, decision].map((n) => n.y + n.height)
+      ),
+      right,
+    };
+  }
   for (const journey of journeyIds) {
     const applicable = cases.filter(
       (c) =>
@@ -297,88 +407,15 @@ export function buildClientCanvas(
             (s.models as readonly string[]).includes(draft.model))
       )) {
         const id = `operation-${scenario.id}`;
-        const text = (field: string) =>
-          renderMessage(t(`pitch.operation_${scenario.id}_${field}`), values);
-        const trigger = add({
-          id,
-          title: text('title'),
-          body: text('customer'),
-          caption: t('pitch.operationCustomer'),
-          kind: 'scenario',
-          status: 'proposal',
-          x: 1040,
-          y,
-        });
-        const reply = add({
-          id: `${id}-reply`,
-          title: t('pitch.operationReply'),
-          body: text('reply'),
-          caption: t('pitch.operationDesign'),
-          kind: 'send_message',
-          status: 'proposal',
-          x: 1520,
-          y,
-        });
-        const decision = add({
-          id: `${id}-decision`,
-          title: t('pitch.operationDecision'),
-          caption: t('pitch.operationDesign'),
-          kind: 'condition',
-          routes: [
-            'human',
-            'silence',
-            'topic',
-            'media',
-            'optout',
-            'unknown',
-            'failure',
-            'identity',
-          ]
-            .filter((route) => route !== scenario.id)
-            .map((route) => `operation-${route}`),
-          x: 2000,
-          y,
-        });
-        const success = add({
-          id: `${id}-success`,
-          title: t('pitch.operationRoute'),
-          body: text('success'),
-          caption: t('pitch.operationDesign'),
-          kind: 'send_message',
-          status: 'proposal',
-          x: 2480,
-          y,
-        });
-        const exception = add({
-          id: `${id}-exception`,
-          title: t('pitch.operationRoute'),
-          body: text('exception'),
-          caption: t('pitch.operationDesign'),
-          kind: 'send_message',
-          status: 'proposal',
-          x: 2480,
-          y: y + success.height + 80,
-        });
-        decision.y = (success.y + exception.y) / 2;
-        graph.edges.push(
-          { from: entry.id, to: trigger.id },
-          { from: trigger.id, to: reply.id },
-          { from: reply.id, to: decision.id },
-          { from: decision.id, to: success.id },
-          { from: decision.id, to: exception.id }
-        );
+        const { trigger, bottom, right } = operationTree(scenario, id, 1040, y);
+        graph.edges.push({ from: entry.id, to: trigger.id });
         anchors.push(trigger.y);
-        const bottom = Math.max(
-          ...[trigger, reply, decision, success, exception].map(
-            (n) => n.y + n.height
-          )
-        );
         graph.sections.push({
           id,
           title: `${entry.title} · ${trigger.title}`,
           x: 1000,
           y: y - 40,
-          width: 1850,
+          width: right - 1000 + 50,
           height: bottom - y + 80,
         });
         y = bottom + 180;

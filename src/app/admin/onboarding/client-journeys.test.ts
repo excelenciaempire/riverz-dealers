@@ -60,7 +60,36 @@ describe('client journeys', () => {
         if (brand !== 'contraentrega')
           expect(cart[0].members.some((c) => c.id === 'audit-7')).toBe(true);
         const t = (k: string) => translate(locale, k);
-        for (const expanded of [[], journeyIds.map((j) => `journey-${j}`)]) {
+        const expandedAll = journeyIds.map((j) => `journey-${j}`);
+        const origin = 'operation-recommend-decision';
+        const variants: {
+          expanded: string[];
+          choices?: Record<string, string>;
+        }[] = [
+          { expanded: [] },
+          { expanded: expandedAll },
+          ...[
+            'human',
+            'silence',
+            'topic',
+            'media',
+            'optout',
+            'unknown',
+            'failure',
+            'identity',
+          ].map((route) => ({
+            expanded: expandedAll,
+            choices: { [origin]: `operation-${route}` },
+          })),
+          {
+            expanded: expandedAll,
+            choices: {
+              [origin]: 'operation-human',
+              [`${origin}-inline-human-decision`]: 'operation-failure',
+            },
+          },
+        ];
+        for (const { expanded, choices } of variants) {
           const graph = buildClientCanvas(
             brand,
             cases,
@@ -72,7 +101,8 @@ describe('client journeys', () => {
               product: 'Product',
               tracking: '[tracking]',
             },
-            expanded
+            expanded,
+            choices
           );
           expect(graph.nodes.filter((n) => n.kind === 'journey')).toHaveLength(
             8
@@ -83,6 +113,17 @@ describe('client journeys', () => {
           for (const e of graph.edges) {
             expect(ids.has(e.from)).toBe(true);
             expect(ids.has(e.to)).toBe(true);
+          }
+          for (const [decision, choice] of Object.entries(choices ?? {})) {
+            const local = `${decision}-inline-${choice.replace('operation-', '')}`;
+            expect(ids.has(local)).toBe(true);
+            expect(graph.edges).toContainEqual({ from: decision, to: local });
+            expect(
+              graph.edges.some((e) => e.from === decision && e.to === choice)
+            ).toBe(false);
+            expect(graph.nodes.find((n) => n.id === local)!.x).toBeGreaterThan(
+              graph.nodes.find((n) => n.id === decision)!.x
+            );
           }
           if (expanded.length) {
             for (const s of operationCatalog) {
@@ -97,7 +138,12 @@ describe('client journeys', () => {
                 'success',
                 'exception',
               ])
-                expect(ids.has(`operation-${s.id}-${suffix}`)).toBe(true);
+                expect(ids.has(`operation-${s.id}-${suffix}`)).toBe(
+                  !(
+                    ['success', 'exception'].includes(suffix) &&
+                    !!choices?.[`operation-${s.id}-decision`]
+                  )
+                );
             }
             for (const n of graph.nodes)
               for (const route of n.routes ?? [])

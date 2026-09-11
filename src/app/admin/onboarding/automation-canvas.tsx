@@ -44,12 +44,22 @@ export function AutomationCanvas({
     journeyIds.map((id) => `journey-${id}`)
   );
   const pendingJourney = useRef<string | null>(null);
+  const pendingInline = useRef<string | null>(null);
+  const [routeChoices, setRouteChoices] = useState<Record<string, string>>({});
   const graph = useMemo(
     () =>
       mode === 'client'
-        ? buildClientCanvas(brand, cases, draft, t, values, expanded)
+        ? buildClientCanvas(
+            brand,
+            cases,
+            draft,
+            t,
+            values,
+            expanded,
+            routeChoices
+          )
         : buildCanvas(brand, cases, draft, t, values),
-    [brand, cases, draft, t, values, mode, expanded]
+    [brand, cases, draft, t, values, mode, expanded, routeChoices]
   );
   const viewport = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 30, y: 25, zoom: 0.6 });
@@ -177,6 +187,33 @@ export function AutomationCanvas({
     };
   }, []);
   useEffect(() => {
+    if (size.height && pendingInline.current) {
+      const origin = pendingInline.current;
+      const children = graph.edges
+        .filter((e) => e.from === origin)
+        .map((e) => e.to);
+      const branch = graph.nodes.filter(
+        (n) =>
+          n.id === origin ||
+          n.id.startsWith(`${origin}-inline-`) ||
+          children.includes(n.id)
+      );
+      if (branch.length) {
+        const left = Math.min(...branch.map((n) => n.x));
+        const top = Math.min(...branch.map((n) => n.y));
+        const width = Math.max(...branch.map((n) => n.x + NODE_WIDTH)) - left;
+        const height = Math.max(...branch.map((n) => n.y + n.height)) - top;
+        const zoom = Math.min(
+          0.8,
+          (size.width - 80) / width,
+          (size.height - 125) / height
+        );
+        setView({ zoom, x: 40 - left * zoom, y: 85 - top * zoom });
+        setSelected(origin);
+      }
+      pendingInline.current = null;
+      return;
+    }
     if (
       !size.height ||
       (initialized.current === mode && !pendingJourney.current)
@@ -193,12 +230,17 @@ export function AutomationCanvas({
       setView({ zoom: 0.75, x: 40 - first.x * 0.75, y: 85 - first.y * 0.75 });
     pendingJourney.current = null;
     if (first) setSelected(first.id);
-  }, [graph, size.height, mode]);
+  }, [graph, size.height, size.width, mode]);
 
   const miniScale = Math.min(180 / graph.width, 145 / graph.height);
   const miniWidth = graph.width * miniScale,
     miniHeight = graph.height * miniScale;
-  const currentCase = caseNodes.findIndex((n) => n.id === selected);
+  const currentCase = caseNodes.findIndex(
+    (n) => n.id === selected || selected.startsWith(`${n.id}-`)
+  );
+  const selectedSection = graph.sections.find(
+    (s) => s.id === selected || selected.startsWith(`${s.id}-`)
+  );
   return (
     <section className={css.canvas} aria-label={t('pitch.canvas')}>
       <div className={css.toolbar}>
@@ -258,7 +300,7 @@ export function AutomationCanvas({
         </details>
         <select
           aria-label={t('pitch.explore')}
-          value={graph.sections.some((s) => s.id === selected) ? selected : ''}
+          value={selectedSection?.id ?? ''}
           onChange={(e) => {
             const section = graph.sections.find((s) => s.id === e.target.value);
             const node =
@@ -538,17 +580,19 @@ export function AutomationCanvas({
                 {n.routes && (
                   <select
                     className={css.routeSelect}
-                    value=""
+                    value={routeChoices[n.id] ?? ''}
                     aria-label={t('pitch.operationOther')}
                     onChange={(e) => {
-                      const target = byId.get(e.target.value);
-                      if (target) focus(target);
-                      else {
-                        pendingJourney.current = e.target.value;
-                        setExpanded((items) => [
-                          ...new Set([...items, 'journey-protection']),
-                        ]);
-                      }
+                      const choice = e.target.value;
+                      pendingInline.current = n.id;
+                      setRouteChoices((previous) => ({
+                        ...Object.fromEntries(
+                          Object.entries(previous).filter(
+                            ([id]) => !id.startsWith(`${n.id}-inline-`)
+                          )
+                        ),
+                        [n.id]: choice,
+                      }));
                     }}
                   >
                     <option value="">{t('pitch.operationOther')}</option>
