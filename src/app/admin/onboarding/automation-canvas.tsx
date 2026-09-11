@@ -24,7 +24,7 @@ import { buildCanvas, NODE_WIDTH, type MapNode } from './canvas-graph';
 import css from './automation-canvas.module.css';
 import { horizontalEdge } from './horizontal-layout';
 import { LINE_W } from '@/components/automations/canvas-geometry';
-import { buildClientCanvas } from './client-journeys';
+import { buildClientCanvas, journeyIds } from './client-journeys';
 
 export function AutomationCanvas({
   brand,
@@ -39,7 +39,9 @@ export function AutomationCanvas({
 }) {
   const t = useT();
   const [mode, setMode] = useState<'client' | 'technical'>('client');
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<string[]>(
+    journeyIds.map((id) => `journey-${id}`)
+  );
   const pendingJourney = useRef<string | null>(null);
   const graph = useMemo(
     () =>
@@ -69,7 +71,9 @@ export function AutomationCanvas({
   );
   const caseNodes =
     mode === 'client'
-      ? graph.nodes.filter((n) => n.kind === 'journey')
+      ? graph.nodes.filter(
+          (n) => n.kind === (expanded.length ? 'scenario' : 'journey')
+        )
       : cases.map((c) => byId.get(c.id)).filter((n): n is MapNode => !!n);
   function focus(n: MapNode) {
     const childIds =
@@ -79,6 +83,7 @@ export function AutomationCanvas({
     const row = graph.nodes.filter(
       (item) =>
         item.id === n.id ||
+        (n.kind === 'scenario' && item.id === `${n.id}-reply`) ||
         (n.kind === 'journey' &&
           !expanded.includes(n.id) &&
           item.id.startsWith(`${n.id}-`)) ||
@@ -112,6 +117,7 @@ export function AutomationCanvas({
   }
   function goToStart() {
     const first =
+      graph.nodes.find((n) => n.kind === 'scenario') ??
       graph.nodes.find((n) => n.kind === 'journey') ??
       graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
       graph.nodes.find((n) => n.kind === 'hub');
@@ -177,6 +183,7 @@ export function AutomationCanvas({
     initialized.current = mode;
     const first =
       graph.nodes.find((n) => n.id === pendingJourney.current) ??
+      graph.nodes.find((n) => n.kind === 'scenario') ??
       graph.nodes.find((n) => n.kind === 'journey') ??
       graph.nodes.find((n) => n.kind === 'trigger' && n.status === 'active') ??
       graph.nodes.find((n) => n.kind === 'hub');
@@ -209,6 +216,27 @@ export function AutomationCanvas({
             </button>
           ))}
         </div>
+        {mode === 'client' && (
+          <button
+            className={css.expandJourney}
+            onClick={() => {
+              const opening = expanded.length !== journeyIds.length;
+              pendingJourney.current = opening
+                ? 'operation-recommend'
+                : 'journey-advice';
+              setExpanded(
+                opening ? journeyIds.map((id) => `journey-${id}`) : []
+              );
+              setQuery('');
+            }}
+          >
+            {t(
+              expanded.length === journeyIds.length
+                ? 'pitch.operationSummary'
+                : 'pitch.operationAll'
+            )}
+          </button>
+        )}
         <span className={css.heading}>
           <Workflow size={17} />
           {t('pitch.canvas')}
@@ -454,6 +482,32 @@ export function AutomationCanvas({
                   >
                     {n.body}
                   </p>
+                )}
+                {n.routes && (
+                  <select
+                    className={css.routeSelect}
+                    value=""
+                    aria-label={t('pitch.operationOther')}
+                    onChange={(e) => {
+                      const target = byId.get(e.target.value);
+                      if (target) focus(target);
+                      else {
+                        pendingJourney.current = e.target.value;
+                        setExpanded((items) => [
+                          ...new Set([...items, 'journey-protection']),
+                        ]);
+                      }
+                    }}
+                  >
+                    <option value="">{t('pitch.operationOther')}</option>
+                    {n.routes.map((id) => (
+                      <option value={id} key={id}>
+                        {t(
+                          `pitch.operation_${id.replace('operation-', '')}_title`
+                        )}
+                      </option>
+                    ))}
+                  </select>
                 )}
                 {!!n.buttons?.length && (
                   <div className={css.messageButtons}>

@@ -1,5 +1,7 @@
 import type { Namespace } from './types';
+import { operationMessages } from './pitch-operations';
 export const pitch = {
+  ...operationMessages,
   clientView: { es: 'Cliente', en: 'Client' },
   technicalView: { es: 'Detalle técnico', en: 'Technical detail' },
   clientGoal: { es: 'Objetivo para tu negocio', en: 'Goal for your business' },

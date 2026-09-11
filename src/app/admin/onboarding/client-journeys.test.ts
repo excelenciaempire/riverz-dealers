@@ -14,6 +14,8 @@ import {
   journeyIds,
 } from './client-journeys';
 import { NODE_WIDTH } from './canvas-graph';
+import { operationCatalog } from '@/lib/i18n/messages/pitch-operations';
+import { automationSnapshot } from './canvas-snapshot';
 
 describe('client journeys', () => {
   for (const brand of brands)
@@ -81,6 +83,42 @@ describe('client journeys', () => {
           for (const e of graph.edges) {
             expect(ids.has(e.from)).toBe(true);
             expect(ids.has(e.to)).toBe(true);
+          }
+          if (expanded.length) {
+            for (const s of operationCatalog) {
+              const applicable =
+                !('models' in s) ||
+                (s.models as readonly string[]).includes(d.model);
+              expect(ids.has(`operation-${s.id}`)).toBe(applicable);
+              if (!applicable) continue;
+              for (const suffix of [
+                'reply',
+                'decision',
+                'success',
+                'exception',
+              ])
+                expect(ids.has(`operation-${s.id}-${suffix}`)).toBe(true);
+            }
+            for (const n of graph.nodes)
+              for (const route of n.routes ?? [])
+                expect(ids.has(route)).toBe(true);
+            for (const flow of automationSnapshot[brand] ?? []) {
+              expect(ids.has(flow.id)).toBe(true);
+              for (const step of flow.steps)
+                expect(ids.has(step.id)).toBe(true);
+            }
+            // Template-bearing cases must not suppress their AI examples, nor
+            // other examples grouped into the same business concept.
+            for (const c of cases.filter((c) => c.example)) {
+              if (
+                d.model === 'prepaid' &&
+                /^audit-(16|17|18|19|20|21)$/.test(c.id)
+              )
+                continue;
+              expect(
+                ids.has(`journey-${journeyFor(c)}-example-${c.example}`)
+              ).toBe(true);
+            }
           }
           for (const journey of journeyIds) {
             const templates = graph.nodes

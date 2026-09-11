@@ -2,7 +2,10 @@ import type { Brand } from './data';
 import type { PitchCase, PitchDraft } from './pitch-data';
 import { proposedButtons, renderMessage, templatesForCase } from './pitch-data';
 import type { CanvasGraph, MapNode } from './canvas-graph';
+import { buildCanvas } from './canvas-graph';
+import { automationSnapshot } from './canvas-snapshot';
 import { NODE_WIDTH } from './horizontal-layout';
+import { operationCatalog } from '@/lib/i18n/messages/pitch-operations';
 
 export const journeyIds = [
   'advice',
@@ -178,12 +181,11 @@ export function buildClientCanvas(
         branch.members.find((c) => c.example) ??
         branch.members[0];
       const isExpanded = expanded.includes(entry.id);
-      const audited = branch.members.filter((c) => c.source !== 'proposal');
       const summaries = [
         ...new Set(
-          (audited.length ? audited : branch.members).map(
+          branch.members.map(
             (c) =>
-              `${t(c.title)}\n${t(`pitch.${c.source}`)} · ${t(c.path[c.path.length - 1])}`
+              `${t(c.title)}\n${t(`pitch.${c.source}`)}\n${c.path.map(t).join('\n')}`
           )
         ),
       ];
@@ -253,25 +255,30 @@ export function buildClientCanvas(
           example: true,
         });
       }
-      if (!originals.length && primary.example) {
-        const example = primary.example;
+      const exampleCases = isExpanded
+        ? branch.members
+        : originals.length
+          ? []
+          : [primary];
+      for (const exampleCase of exampleCases.filter((c) => c.example)) {
+        const example = exampleCase.example!;
         let message = shownMessages.get(example);
         if (!message) {
           message = add({
             id: `${entry.id}-example-${example}`,
-            title: t(primary.ai ? 'pitch.aiExample' : 'pitch.proposal'),
+            title: t(exampleCase.ai ? 'pitch.aiExample' : 'pitch.proposal'),
             body: renderMessage(
-              draft.edits[primary.id] ?? t(`pitch.msg_${example}`),
+              draft.edits[exampleCase.id] ?? t(`pitch.msg_${example}`),
               values
             ),
             buttons: proposedButtons(example).map(t),
             kind: example === 'voice' ? 'voice_call' : 'send_message',
-            status: primary.source,
+            status: exampleCase.source,
             x: 1520,
-            y,
+            y: messageBottom,
           });
           shownMessages.set(example, message);
-          messageBottom = y + message.height;
+          messageBottom += message.height + 70;
         }
         graph.edges.push({
           from: action.id,
@@ -282,6 +289,101 @@ export function buildClientCanvas(
       }
       y = Math.max(y + action.height, messageBottom) + 150;
     }
+    if (expanded.includes(entry.id)) {
+      for (const scenario of operationCatalog.filter(
+        (s) =>
+          s.journey === journey &&
+          (!('models' in s) ||
+            (s.models as readonly string[]).includes(draft.model))
+      )) {
+        const id = `operation-${scenario.id}`;
+        const text = (field: string) =>
+          renderMessage(t(`pitch.operation_${scenario.id}_${field}`), values);
+        const trigger = add({
+          id,
+          title: text('title'),
+          body: text('customer'),
+          caption: t('pitch.operationCustomer'),
+          kind: 'scenario',
+          status: 'proposal',
+          x: 1040,
+          y,
+        });
+        const reply = add({
+          id: `${id}-reply`,
+          title: t('pitch.operationReply'),
+          body: text('reply'),
+          caption: t('pitch.operationDesign'),
+          kind: 'send_message',
+          status: 'proposal',
+          x: 1520,
+          y,
+        });
+        const decision = add({
+          id: `${id}-decision`,
+          title: t('pitch.operationDecision'),
+          caption: t('pitch.operationDesign'),
+          kind: 'condition',
+          routes: [
+            'human',
+            'silence',
+            'topic',
+            'media',
+            'optout',
+            'unknown',
+            'failure',
+            'identity',
+          ]
+            .filter((route) => route !== scenario.id)
+            .map((route) => `operation-${route}`),
+          x: 2000,
+          y,
+        });
+        const success = add({
+          id: `${id}-success`,
+          title: t('pitch.operationRoute'),
+          body: text('success'),
+          caption: t('pitch.operationDesign'),
+          kind: 'send_message',
+          status: 'proposal',
+          x: 2480,
+          y,
+        });
+        const exception = add({
+          id: `${id}-exception`,
+          title: t('pitch.operationRoute'),
+          body: text('exception'),
+          caption: t('pitch.operationDesign'),
+          kind: 'send_message',
+          status: 'proposal',
+          x: 2480,
+          y: y + success.height + 80,
+        });
+        decision.y = (success.y + exception.y) / 2;
+        graph.edges.push(
+          { from: entry.id, to: trigger.id },
+          { from: trigger.id, to: reply.id },
+          { from: reply.id, to: decision.id },
+          { from: decision.id, to: success.id },
+          { from: decision.id, to: exception.id }
+        );
+        anchors.push(trigger.y);
+        const bottom = Math.max(
+          ...[trigger, reply, decision, success, exception].map(
+            (n) => n.y + n.height
+          )
+        );
+        graph.sections.push({
+          id,
+          title: `${entry.title} · ${trigger.title}`,
+          x: 1000,
+          y: y - 40,
+          width: 1850,
+          height: bottom - y + 80,
+        });
+        y = bottom + 180;
+      }
+    }
     entry.y = (anchors[0] + anchors[anchors.length - 1]) / 2;
     y = Math.max(y, entry.y + entry.height + 100);
     graph.sections.push({
@@ -289,10 +391,31 @@ export function buildClientCanvas(
       title: entry.title,
       x: 520,
       y: start - 60,
-      width: 1360,
+      width: expanded.includes(entry.id) ? 2320 : 1360,
       height: y - start + 60,
     });
     y += 80;
+  }
+  // Keep the literal production/draft trees on the same full canvas. The sales
+  // scenarios above are proposed conversation examples, not replacements for them.
+  if (expanded.length) {
+    const flows = automationSnapshot[brand] ?? [];
+    const actual = buildCanvas(brand, [], draft, t, values);
+    const flowNodes = actual.nodes.filter((n) =>
+      flows.some((f) => n.id === f.id || n.id.startsWith(`${f.id}-`))
+    );
+    const ids = new Set(flowNodes.map((n) => n.id));
+    graph.nodes.push(...flowNodes.map((n) => ({ ...n, y: n.y + y })));
+    graph.edges.push(
+      ...actual.edges.filter(
+        (e) => ids.has(e.to) && (ids.has(e.from) || e.from === 'brand')
+      )
+    );
+    graph.sections.push(
+      ...actual.sections
+        .filter((s) => flows.some((f) => f.id === s.id))
+        .map((s) => ({ ...s, y: s.y + y }))
+    );
   }
   graph.width = Math.max(...graph.nodes.map((n) => n.x + NODE_WIDTH)) + 100;
   graph.height = Math.max(...graph.nodes.map((n) => n.y + n.height)) + 100;

@@ -31,6 +31,7 @@ export interface MapNode {
   buttons?: string[];
   template?: string;
   caption?: string;
+  routes?: string[];
   x: number;
   y: number;
   height: number;

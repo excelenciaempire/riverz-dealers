@@ -429,6 +429,23 @@
   top: 0;
   left: 0;
 }
+.routeSelect {
+  width: 100%;
+  background: #16191c;
+  border: 1px solid #343b42;
+  border-radius: 6px;
+  color: #d8dce0;
+  padding: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.toolbar > .expandJourney {
+  width: auto;
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  white-space: nowrap;
+}
 .section {
   border: 0;
   background: transparent;
