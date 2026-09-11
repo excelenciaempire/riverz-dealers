@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/whatsapp/encryption";
 import { publicBaseUrl } from "@/lib/base-url";
 import { getLogger } from "@/lib/log/logger";
-import { ShopifyAdminClient } from "@/lib/shopify/admin-client";
+import { ShopifyAdminClient, ShopifyUnauthorizedError } from "@/lib/shopify/admin-client";
+import { tokenVivo, COLUMNAS_TOKEN } from "@/lib/shopify/token-vivo";
+import { selectAll } from "@/lib/db/paginate";
 import { TiendanubeClient } from "./providers/tiendanube";
 import { WooCommerceClient } from "./providers/woocommerce";
 import type { CommercePlatform } from "./types";
@@ -36,7 +38,7 @@ export interface StoreReconcileResult {
   error?: string;
 }
 
-interface StoreRow {
+type StoreRow = Parameters<typeof tokenVivo>[1] & {
   id: string;
   platform: CommercePlatform | null;
   shop_domain: string;
@@ -44,7 +46,8 @@ interface StoreRow {
   access_token: string;
   api_secret: string | null;
   webhook_secret: string | null;
-}
+  status: string;
+};
 
 export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<{
   stores: number;
@@ -52,13 +55,11 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
   results: StoreReconcileResult[];
 }> {
   const base = publicBaseUrl();
-  const { data } = await db
-    .from("shopify_connections")
-    .select(
-      "id, platform, shop_domain, external_store_id, access_token, api_secret, webhook_secret",
-    )
-    .eq("status", "active");
-  const rows = (data ?? []) as StoreRow[];
+  const rows = await selectAll<StoreRow>(db, "shopify_connections",
+    query => query.in("status", ["active", "expired", "error"]), {
+      select: `${COLUMNAS_TOKEN}, platform, external_store_id, api_secret, status`,
+      strict: true,
+    });
 
   const results: StoreReconcileResult[] = [];
   for (const row of rows) {
@@ -72,7 +73,13 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
       kept: 0,
     };
     try {
-      Object.assign(result, await reconcileOne(row, platform, base));
+      Object.assign(result, await reconcileOne(db, row, platform, base));
+      if (row.status !== "active") {
+        const { error } = await db.from("shopify_connections")
+          .update({ status: "active", last_error: null }).eq("id", row.id)
+          .in("status", ["expired", "error"]);
+        if (error) throw new Error(`webhook recovery persistence: ${error.message}`);
+      }
     } catch (err) {
       result.error = err instanceof Error ? err.message : String(err);
       log.warn("no se pudo reconciliar los webhooks de la tienda", {
@@ -85,7 +92,9 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
       // contra algo que sólo se arregla volviendo a conectar, y para que la
       // interfaz lo diga en vez de mostrarla "activa" para siempre.
       // (Caso real: Shopify dejó de aceptar los tokens que no expiran.)
-      if (/\b(401|403)\b/.test(result.error)) {
+      if (platform === "shopify"
+        ? err instanceof ShopifyUnauthorizedError
+        : /\b401\b/.test(result.error)) {
         // `expired` y no un estado nuevo: la columna tiene un CHECK con
         // ('active','uninstalled','expired','error') y un valor fuera de esa
         // lista hace fallar el UPDATE. Escribir 'revoked' fallaba en silencio
@@ -118,15 +127,17 @@ export async function reconcileAllCommerceWebhooks(db: SupabaseClient): Promise<
 }
 
 async function reconcileOne(
+  db: SupabaseClient,
   row: StoreRow,
   platform: CommercePlatform,
   base: string,
 ): Promise<{ deleted: number; created: number; kept: number }> {
-  const token = decrypt(row.access_token);
-
   if (platform === "shopify") {
-    return new ShopifyAdminClient(row.shop_domain, token).reconcileWebhooks(base);
+    const { accessToken } = await tokenVivo(db, row);
+    return new ShopifyAdminClient(row.shop_domain, accessToken).reconcileWebhooks(base);
   }
+
+  const token = decrypt(row.access_token);
 
   if (platform === "tiendanube") {
     if (!row.external_store_id) throw new Error("tiendanube sin external_store_id");
