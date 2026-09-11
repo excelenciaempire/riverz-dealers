@@ -35,7 +35,7 @@ export const pitch = {
   clientGoal: { es: 'Objetivo para tu negocio', en: 'Goal for your business' },
   clientAction: { es: 'Qué hará Riverz', en: 'What Riverz will do' },
   clientBlueprint: { es: 'Diseño del servicio', en: 'Service design' },
-  clientVariants: { es: 'Casos y respuestas', en: 'Cases and responses' },
+  clientVariants: { es: 'Escenarios cubiertos', en: 'Covered situations' },
   clientExpand: {
     es: 'Ver casos y excepciones',
     en: 'View cases and exceptions',

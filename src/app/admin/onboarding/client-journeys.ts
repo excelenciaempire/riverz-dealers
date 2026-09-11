@@ -348,8 +348,7 @@ export function buildClientCanvas(
       const summaries = [
         ...new Set(
           branch.members.map(
-            (c) =>
-              `${t(c.title)}\n${t(`pitch.${c.source}`)}\n${c.path.map(t).join('\n')}`
+            (c) => `${t(c.title)}\n${c.path.map(t).join('\n')}`
           )
         ),
       ];
