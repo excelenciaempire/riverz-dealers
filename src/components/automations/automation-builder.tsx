@@ -3493,7 +3493,7 @@ function AddButton({
             <div className="border-border text-muted-foreground border-b px-2 py-1.5 text-[10px] font-semibold tracking-wide uppercase">
               {t('automations.chooseWhatToDo')}
             </div>
-            {types.flatMap((stepType) =>
+            {types.flatMap<{ stepType: BuilderStepType; label: string; initialConfig?: Record<string, unknown> }>((stepType) =>
               stepType === 'send_message'
                 ? [
                     { stepType, label: STEP_META[stepType].label, initialConfig: { voice_only: false } },
