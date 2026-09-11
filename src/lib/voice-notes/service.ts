@@ -15,6 +15,7 @@ import { synthesizeBilled } from '@/lib/voice/tts-billing';
 import { exigirSaldo } from '@/lib/wallet/puerta';
 import { toVoiceAudio } from './audio';
 import { motorApagado } from '@/lib/workspaces/motor';
+import { supportsVoiceNotes, voiceRequiresWindow } from './channels';
 import type { ChannelConnection, Contact, Conversation } from '@/types';
 import {
   MAX_VOICE_NOTE_BYTES,
@@ -166,10 +167,14 @@ export async function sendVoiceNote(args: {
     .select('*')
     .eq('id', args.conversationId)
     .eq('workspace_id', args.workspaceId)
-    .eq('channel', 'whatsapp')
+    .is('deleted_at', null)
     .maybeSingle();
   if (!conversation?.connection_id)
     throw new Error('voiceNotes.conversationMissing');
+  const channel = conversation.channel as Conversation['channel'];
+  if (!supportsVoiceNotes(channel)) throw new Error('voiceNotes.unsupportedChannel');
+  const adapter = getAdapter(channel);
+  if (!adapter.sendMedia) throw new Error('voiceNotes.unsupportedChannel');
   const { data: contact } = await db
     .from('contacts')
     .select('*')
@@ -181,9 +186,9 @@ export async function sendVoiceNote(args: {
     .select('*')
     .eq('id', conversation.connection_id)
     .eq('workspace_id', args.workspaceId)
-    .eq('channel', 'whatsapp')
+    .eq('channel', channel)
     .maybeSingle();
-  if (!contact || !connection)
+  if (!contact || !connection || connection.channel !== channel)
     throw new Error('voiceNotes.conversationMissing');
   let initialInbound: string | undefined;
   const check = async () => {
@@ -193,6 +198,7 @@ export async function sendVoiceNote(args: {
       workspaceId: args.workspaceId,
       contactId: contact.id,
       kind: 'text',
+      channel,
       reason: args.reason ?? 'asistente',
       cooldownHours: args.cooldownHours,
     });
@@ -212,19 +218,19 @@ export async function sendVoiceNote(args: {
       .limit(1)
       .maybeSingle();
     if (
-      error ||
+      error || (voiceRequiresWindow(channel) && (
       !last ||
       Date.now() - Date.parse(last.created_at) >= 86400000 ||
-      !Number.isFinite(Date.parse(last.created_at))
+      !Number.isFinite(Date.parse(last.created_at))))
     )
       throw new Error('voiceNotes.window');
     if (
       args.sender !== 'agent' &&
       initialInbound &&
-      initialInbound !== last.created_at
+        initialInbound !== last?.created_at
     )
       throw new Error('voiceNotes.contextChanged');
-    initialInbound = last.created_at;
+    initialInbound = last?.created_at;
   };
   await check();
   const audio = await prepareVoiceNote(args.workspaceId, args.config, {
@@ -232,29 +238,42 @@ export async function sendVoiceNote(args: {
     first_name: String(contact.name ?? '').split(' ')[0],
     ...args.variables,
   });
+  let mediaUrl = audio.url;
+  let mediaMime = 'audio/ogg';
+  if (channel !== 'whatsapp') {
+    const { data, error } = await db.storage.from(MEDIA_BUCKET).download(ownedVoicePath(args.workspaceId, audio.url));
+    if (error || !data) throw new Error('voiceNotes.invalidAudio');
+    const mp3 = await toVoiceAudio(Buffer.from(await data.arrayBuffer()), 'mp3');
+    const path = `${args.workspaceId}/voice-notes/${randomUUID()}.mp3`;
+    const stored = await db.storage.from(MEDIA_BUCKET).upload(path, mp3, { contentType: 'audio/mpeg', upsert: false });
+    if (stored.error) throw new Error('voiceNotes.failed');
+    mediaUrl = appMediaUrl(path);
+    mediaMime = 'audio/mpeg';
+  }
   await check();
-  const adapter = getAdapter('whatsapp');
   const result = await adapter.sendMedia!({
-    channel: 'whatsapp',
+    channel,
     connection: connection as ChannelConnection,
     conversation: conversation as Conversation,
     contact: contact as Contact,
     mediaType: 'audio',
-    mediaUrl: audio.url,
-    voiceNote: true,
+    mediaUrl,
+    voiceNote: channel === 'whatsapp',
+    filename: channel === 'whatsapp' ? 'audio.ogg' : 'audio.mp3',
+    allowHumanAgent: false,
     replyToExternalId: args.replyToExternalId,
   });
   const { data: message, error } = await db
     .from('messages')
     .insert({
       conversation_id: conversation.id,
-      channel: 'whatsapp',
+      channel,
       sender_type: args.sender ?? 'bot',
       content_type: 'audio',
       content_text: audio.text,
-      media_url: audio.url,
+      media_url: mediaUrl,
       media_type: 'audio',
-      media_mime: 'audio/ogg',
+      media_mime: mediaMime,
       media_transcription: audio.text,
       message_id: result.externalMessageId,
       status: result.status ?? 'sent',

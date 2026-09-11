@@ -770,7 +770,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
       if (cfg.voice_note) {
-        const conversationId = await resolveConversationId(args)
+        const conversationId = await resolveVoiceConversationId(args)
         const result = await sendVoiceNote({ workspaceId: args.automation.workspace_id, conversationId,
           config: cfg.voice_note, variables: { ...args.context.vars, 'message.text': args.context.message_text },
           origin: 'automation', originName: args.automation.name, reason: motivoDelDisparador(args.automation.trigger_type),
@@ -1095,6 +1095,20 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
  * manual engine POSTs. Throws if none exists — send steps have
  * no meaningful target without a conversation.
  */
+async function resolveVoiceConversationId(args: ExecuteArgs): Promise<string> {
+  if (args.context.conversation_id) return args.context.conversation_id
+  const db = supabaseAdmin()
+  const { data: contact } = await db.from('contacts').select('channel')
+    .eq('workspace_id', args.automation.workspace_id).eq('id', args.contactId).maybeSingle()
+  if (!contact) throw new Error('voiceNotes.conversationMissing')
+  const { data, error } = await db.from('conversations').select('id')
+    .eq('workspace_id', args.automation.workspace_id).eq('contact_id', args.contactId)
+    .eq('channel', contact.channel).is('deleted_at', null)
+    .order('last_message_at', { ascending: false }).limit(1).maybeSingle()
+  if (error || !data) throw new Error('voiceNotes.conversationMissing')
+  return data.id
+}
+
 async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   const fromCtx = args.context.conversation_id
   if (fromCtx) return fromCtx

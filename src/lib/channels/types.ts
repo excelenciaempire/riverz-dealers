@@ -130,6 +130,8 @@ export interface OutboundText {
 }
 
 export interface OutboundMedia {
+  /** Automated sends must never retry with Meta's human-only exception. */
+  allowHumanAgent?: boolean;
   /** WhatsApp voice note. The caller supplies validated mono Ogg/Opus. */
   voiceNote?: boolean;
   channel: Channel;

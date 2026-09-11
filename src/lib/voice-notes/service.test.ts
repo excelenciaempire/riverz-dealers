@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Channel } from '@/types';
 
 const mocks = vi.hoisted(() => ({
   db: { from: vi.fn(), storage: { from: vi.fn() } },
@@ -31,6 +32,7 @@ vi.mock('@/lib/voice/compat', () => ({
 vi.mock('@/lib/voice/tts-billing', () => ({ synthesizeBilled: mocks.tts }));
 vi.mock('@/lib/wallet/puerta', () => ({ exigirSaldo: async () => null }));
 vi.mock('@/lib/workspaces/motor', () => ({ motorApagado: async () => false }));
+vi.mock('./audio', () => ({ toVoiceAudio: async (buffer: Buffer) => buffer }));
 vi.mock('music-metadata', () => ({
   parseBuffer: async () => ({
     format: {
@@ -46,6 +48,7 @@ import { ownedVoicePath, prepareVoiceNote, sendVoiceNote } from './service';
 
 let lastInbound: string;
 let contactWorkspace: string;
+let activeChannel: Channel;
 const queries: {
   table: string;
   filters: Record<string, unknown>;
@@ -56,6 +59,7 @@ beforeEach(() => {
   queries.length = 0;
   lastInbound = new Date().toISOString();
   contactWorkspace = 'workspace';
+  activeChannel = 'whatsapp';
   mocks.gate.mockResolvedValue({ allow: true });
   mocks.send.mockResolvedValue({
     externalMessageId: 'wamid.voice',
@@ -66,6 +70,7 @@ beforeEach(() => {
   );
   mocks.db.storage.from.mockReturnValue({
     upload: async () => ({ error: null }),
+    download: async () => ({ data: new Blob(['audio']), error: null }),
   });
   mocks.db.from.mockImplementation((table) => {
     const q: (typeof queries)[number] = { table, filters: {} };
@@ -77,7 +82,7 @@ beforeEach(() => {
               id: 'conversation',
               workspace_id: 'workspace',
               contact_id: 'contact',
-              channel: 'whatsapp',
+              channel: activeChannel,
               connection_id: 'connection',
             }
           : table === 'contacts'
@@ -88,7 +93,7 @@ beforeEach(() => {
               ? {
                   id: 'connection',
                   workspace_id: 'workspace',
-                  channel: 'whatsapp',
+                  channel: activeChannel,
                 }
               : table === 'messages'
                 ? q.inserted
@@ -103,6 +108,7 @@ beforeEach(() => {
     };
     const builder = {
       select: () => builder,
+      is: () => builder,
       eq: (key: string, value: unknown) => {
         q.filters[key] = value;
         return builder;
@@ -128,6 +134,29 @@ const args = {
   config: { text: 'Hola {{name}}' },
 };
 describe('voice note delivery guards', () => {
+  it.each(['instagram', 'messenger', 'gmail', 'outlook', 'zoho', 'webchat'] as Channel[])
+    ('delivers MP3 through %s and stores a playable channel-specific record', async channel => {
+      activeChannel = channel;
+      if (['gmail', 'outlook', 'zoho', 'webchat'].includes(channel)) lastInbound = new Date(0).toISOString();
+      const result = await sendVoiceNote(args);
+      expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ channel, mediaType: 'audio',
+        mediaUrl: expect.stringMatching(/\.mp3$/), voiceNote: false, allowHumanAgent: false }));
+      expect(result.message).toMatchObject({ channel, media_mime: 'audio/mpeg', content_type: 'audio' });
+      expect(mocks.gate).toHaveBeenCalledWith(expect.objectContaining({ channel }));
+    });
+  it.each(['instagram', 'messenger'] as Channel[])('blocks expired %s audio before generation', async channel => {
+    activeChannel = channel;
+    lastInbound = new Date(0).toISOString();
+    await expect(sendVoiceNote(args)).rejects.toThrow('voiceNotes.window');
+    expect(mocks.tts).not.toHaveBeenCalled();
+  });
+  it.each(['fb_comment', 'ig_comment', 'tiktok_comment', 'mercadolibre', 'voice'] as Channel[])
+    ('rejects unsupported %s before generation or sending', async channel => {
+      activeChannel = channel;
+      await expect(sendVoiceNote(args)).rejects.toThrow('voiceNotes.unsupportedChannel');
+      expect(mocks.tts).not.toHaveBeenCalled();
+      expect(mocks.send).not.toHaveBeenCalled();
+    });
   it('blocks expired windows before paying Fish or sending to Meta', async () => {
     lastInbound = new Date(Date.now() - 86400001).toISOString();
     await expect(sendVoiceNote(args)).rejects.toThrow('voiceNotes.window');

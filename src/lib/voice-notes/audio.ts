@@ -26,10 +26,10 @@ export async function inspectVoiceAudio(buffer: Buffer) {
   return metadata.format;
 }
 
-export async function toVoiceAudio(buffer: Buffer): Promise<Buffer> {
+export async function toVoiceAudio(buffer: Buffer, target: 'ogg' | 'mp3' = 'ogg'): Promise<Buffer> {
   const format = await inspectVoiceAudio(buffer);
   if (
-    format.container === 'Ogg' &&
+    target === 'ogg' && format.container === 'Ogg' &&
     format.codec?.toLowerCase().includes('opus') &&
     format.numberOfChannels === 1
   )
@@ -37,7 +37,7 @@ export async function toVoiceAudio(buffer: Buffer): Promise<Buffer> {
   if (!ffmpeg) throw new Error('voiceNotes.failed');
   const directory = await mkdtemp(join(tmpdir(), 'riverz-voice-note-'));
   const source = join(directory, 'input');
-  const output = join(directory, 'voice.ogg');
+  const output = join(directory, `voice.${target}`);
   try {
     await writeFile(source, buffer);
     await execute(
@@ -60,7 +60,7 @@ export async function toVoiceAudio(buffer: Buffer): Promise<Buffer> {
         '-ar',
         '48000',
         '-c:a',
-        'libopus',
+        target === 'ogg' ? 'libopus' : 'libmp3lame',
         '-b:a',
         '32k',
         '-threads',

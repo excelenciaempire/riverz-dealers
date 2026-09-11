@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
+import type { Channel } from '@/types';
+import { voiceRequiresWindow } from '@/lib/voice-notes/channels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,10 +22,12 @@ export function VoiceNoteEditor({
   value,
   onChange,
   agent = false,
+  channel,
 }: {
   value: VoiceNoteConfig | null;
   onChange: (value: VoiceNoteConfig | null) => void;
   agent?: boolean;
+  channel?: Channel;
 }) {
   const { workspace } = useWorkspace();
   const t = useT();
@@ -265,7 +269,7 @@ export function VoiceNoteEditor({
       {value && (
         <>
           <p className="text-muted-foreground text-xs">
-            {t('voiceNotes.window')}
+            {t(channel ? (voiceRequiresWindow(channel) ? 'voiceNotes.window' : 'voiceNotes.channelAudio') : 'voiceNotes.supportedChannels')}
           </p>
           {!agent && variableKeys.length > 0 && (
             <fieldset className="space-y-2">
@@ -337,9 +341,11 @@ export function VoiceNoteEditor({
 export function VoiceNoteComposer({
   conversationId,
   disabled,
+  channel,
 }: {
   conversationId: string;
   disabled: boolean;
+  channel: Channel;
 }) {
   const { workspace } = useWorkspace();
   const t = useT();
@@ -362,7 +368,7 @@ export function VoiceNoteComposer({
       </Button>
       {open && (
         <div className="bg-background absolute bottom-full left-0 z-40 mb-2 max-h-[70vh] w-full max-w-md space-y-4 overflow-auto rounded-xl border p-4 shadow-lg">
-          <VoiceNoteEditor value={value} onChange={setValue} />
+          <VoiceNoteEditor value={value} onChange={setValue} channel={channel} />
           <Button
             type="button"
             disabled={

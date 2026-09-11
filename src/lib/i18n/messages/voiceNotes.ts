@@ -1,6 +1,9 @@
 import type { Namespace } from './types';
 
 export const voiceNotes: Namespace = {
+  unsupportedChannel: { es: 'Este canal no admite notas de voz. Usa un paso de texto.', en: 'This channel does not support voice notes. Use a text step.' },
+  channelAudio: { es: 'Se enviará como audio; en correo, como archivo adjunto.', en: 'Sent as audio; in email, as an attachment.' },
+  supportedChannels: { es: 'WhatsApp, Instagram, Messenger, chat web y correo. Meta requiere un mensaje del cliente en las últimas 24 horas. No disponible en comentarios, Mercado Libre ni llamadas.', en: 'WhatsApp, Instagram, Messenger, web chat and email. Meta requires a customer message within the last 24 hours. Unavailable in comments, Mercado Libre or calls.' },
   samples: {
     es: 'Datos para escuchar el ejemplo',
     en: 'Sample values for preview',
@@ -36,8 +39,8 @@ export const voiceNotes: Namespace = {
   savedOk: { es: 'Plantilla guardada', en: 'Template saved' },
   sent: { es: 'Nota de voz enviada', en: 'Voice note sent' },
   window: {
-    es: 'Las notas de voz requieren un mensaje del cliente en las últimas 24 horas.',
-    en: 'Voice notes require a customer message within the last 24 hours.',
+    es: 'WhatsApp, Instagram y Messenger requieren un mensaje del cliente en las últimas 24 horas.',
+    en: 'WhatsApp, Instagram and Messenger require a customer message within the last 24 hours.',
   },
   libraryHint: {
     es: 'Audios reutilizables para conversaciones abiertas. No requieren aprobación de Meta.',
@@ -80,12 +83,12 @@ export const voiceNotes: Namespace = {
     en: 'Sending is paused or the contact does not allow messages.',
   },
   conversationMissing: {
-    es: 'No hay una conversación de WhatsApp disponible.',
-    en: 'No WhatsApp conversation is available.',
+    es: 'No hay una conversación conectada disponible.',
+    en: 'No connected conversation is available.',
   },
   sentNotSaved: {
-    es: 'WhatsApp aceptó el audio, pero no se pudo guardar el registro. No vuelvas a enviarlo.',
-    en: 'WhatsApp accepted the audio, but its record could not be saved. Do not resend it.',
+    es: 'El canal aceptó el audio, pero no se pudo guardar el registro. No vuelvas a enviarlo.',
+    en: 'The channel accepted the audio, but its record could not be saved. Do not resend it.',
   },
   agentHint: {
     es: 'Fish convierte las respuestas en notas de voz. Las respuestas con enlaces se envían en texto.',

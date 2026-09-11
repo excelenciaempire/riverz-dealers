@@ -94,7 +94,7 @@ export async function sendMetaMedia(
   // La respuesta privada a un comentario trae su propia ventana de 7 días y no
   // admite etiqueta: reintentar con HUMAN_AGENT ahí solo cambia un error por
   // otro más confuso.
-  if (!res.ok && !input.commentId) {
+  if (!res.ok && !input.commentId && input.allowHumanAgent !== false) {
     const firstErr = parseMetaError(detail);
     if (describeMetaSendError(channel, res.status, firstErr).category === "outside_window") {
       const retry = await send(true);

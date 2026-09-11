@@ -51,6 +51,8 @@ export interface SendGateInput {
   cooldownHours?: number
   /** Cuántos destinatarios suma esta llamada al cupo de la WABA. */
   recipients?: number
+  /** Non-Meta channels retain opt-out/cooldown without a WhatsApp window. */
+  channel?: import('@/types').Channel
 }
 
 export type SendGateVerdict =
@@ -101,7 +103,7 @@ export async function checkSendGate(input: SendGateInput): Promise<SendGateVerdi
 
   // Texto libre fuera de la ventana de servicio: Meta lo rechaza igual, pero
   // frenarlo acá deja el motivo escrito en vez de un error de la API.
-  if (input.kind === 'text') {
+  if (input.kind === 'text' && (!input.channel || ['whatsapp', 'instagram', 'messenger'].includes(input.channel))) {
     const abierta = await ventanaAbierta(input.db, input.contactId)
     if (!abierta) {
       return {

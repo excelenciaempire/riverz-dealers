@@ -19,6 +19,14 @@ function wav() {
 }
 
 describe('WhatsApp voice note audio compatibility', () => {
+  it('converts stored Ogg to mono MP3 for social, email and web players', async () => {
+    const ogg = await toVoiceAudio(wav());
+    const mp3 = await toVoiceAudio(ogg, 'mp3');
+    const metadata = await inspectVoiceAudio(mp3);
+    expect(metadata.codec).toMatch(/MP3|MPEG/i);
+    expect(metadata.numberOfChannels).toBe(1);
+    expect(metadata.duration).toBeCloseTo(1, 0);
+  });
   it('converts a stereo recording to mono Ogg/Opus without truncating it', async () => {
     const converted = await toVoiceAudio(wav());
     const metadata = await inspectVoiceAudio(converted);

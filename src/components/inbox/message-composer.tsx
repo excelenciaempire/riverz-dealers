@@ -23,6 +23,7 @@ import { useSnippets } from "@/hooks/use-snippets";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import type { Channel } from "@/types";
 import { VoiceNoteComposer } from '@/components/voice/voice-note-editor';
+import { supportsVoiceNotes } from '@/lib/voice-notes/channels';
 
 /** Client-side attachment ceiling — mirrors MAX_ATTACHMENT_BYTES on the server. */
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -699,7 +700,7 @@ export function MessageComposer({
       )}
 
       <div className="relative flex items-end gap-2">
-        {channel === 'whatsapp' && <VoiceNoteComposer key={conversationId} conversationId={conversationId} disabled={sessionExpired || sending} />}
+        {supportsVoiceNotes(channel) && <VoiceNoteComposer key={conversationId} channel={channel} conversationId={conversationId} disabled={sessionExpired || sending} />}
         {canAttachMedia && (
           <>
             <input

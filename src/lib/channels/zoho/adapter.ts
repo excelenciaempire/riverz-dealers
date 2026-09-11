@@ -2,6 +2,7 @@ import type {
   ChannelAdapter,
   InboundEvent,
   OutboundText,
+  OutboundMedia,
   ParsedWebhookContext,
   SendResult,
 } from '../types';
@@ -9,6 +10,9 @@ import type { ChannelConnection } from '@/types';
 import { supabaseAdmin } from '../admin-client';
 import { conFirma } from '../firma-de-correo';
 import { getFreshZohoAccessToken, mailApiUrl } from './auth';
+import { fetchAttachmentBytes } from '../media-ingest';
+import { safeLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * Zoho Mail adapter. Zoho does not provide the webhook subscription used by
@@ -77,6 +81,43 @@ export const zohoAdapter: ChannelAdapter = {
       externalMessageId: messageId == null ? undefined : String(messageId),
       status: 'sent',
     };
+  },
+
+  async sendMedia(input: OutboundMedia): Promise<SendResult> {
+    const locale = await safeLocale();
+    const config = (input.connection.config ?? {}) as Record<string, unknown>;
+    const accountId = String(config.zoho_account_id ?? '');
+    const from = String(config.email ?? input.connection.external_account_id ?? '');
+    const to = input.contact.email || input.contact.external_id;
+    if (!accountId || !from || !to) throw new Error(translate(locale, 'voiceNotes.conversationMissing'));
+    const file = await fetchAttachmentBytes(input.mediaUrl);
+    if (!file) throw new Error(translate(locale, 'errInbox.attachmentUnreadable'));
+    const token = await getFreshZohoAccessToken(supabaseAdmin(), input.connection);
+    const base = `${mailApiUrl(input.connection)}/api/accounts/${encodeURIComponent(accountId)}/messages`;
+    const headers = { Authorization: `Zoho-oauthtoken ${token}`, Accept: 'application/json' };
+    const upload = await fetch(`${base}/attachments?fileName=${encodeURIComponent(input.filename || 'audio.mp3')}&isInline=false`, {
+      method: 'POST', headers: { ...headers, 'content-type': file.mime }, body: new Uint8Array(file.buffer),
+    });
+    if (!upload.ok) throw new Error(translate(locale, 'voiceNotes.failed'));
+    const uploaded = await upload.json();
+    const attachment = Array.isArray(uploaded.data) ? uploaded.data[0] : uploaded.data;
+    if (uploaded.status?.code >= 400 || !attachment?.storeName || !attachment.attachmentName || !attachment.attachmentPath)
+      throw new Error(translate(locale, 'voiceNotes.failed'));
+    // Use Zoho's documented attachment-send endpoint; the reply endpoint does
+    // not document attachments and must not silently discard the audio.
+    const response = await fetch(base, {
+      method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ fromAddress: from, toAddress: to,
+        subject: withRePrefix(input.conversation.subject ?? '(no subject)'),
+        content: conFirma(input.caption ?? '', input.connection), mailFormat: 'plaintext',
+        attachments: [{ storeName: attachment.storeName, attachmentName: attachment.attachmentName, attachmentPath: attachment.attachmentPath }],
+      }),
+    });
+    if (!response.ok) throw new Error(translate(locale, 'voiceNotes.failed'));
+    const sent = await response.json();
+    if (sent.status?.code >= 400) throw new Error(translate(locale, 'voiceNotes.failed'));
+    const id = sent.data?.messageId ?? sent.data?.messageIdList?.[0];
+    return { externalMessageId: id == null ? undefined : String(id), status: 'sent' };
   },
 
   async parseWebhook(
