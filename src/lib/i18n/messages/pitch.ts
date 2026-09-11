@@ -1,6 +1,10 @@
 import type { Namespace } from './types';
 import { operationMessages } from './pitch-operations';
 export const pitch = {
+  options: { es: 'Opciones', en: 'Options' },
+  explore: { es: 'Explorar escenarios', en: 'Explore scenarios' },
+  centerCase: { es: 'Centrar escenario', en: 'Center scenario' },
+  viewMap: { es: 'Ver mapa completo', en: 'View entire map' },
   ...operationMessages,
   clientView: { es: 'Cliente', en: 'Client' },
   technicalView: { es: 'Detalle técnico', en: 'Technical detail' },

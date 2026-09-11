@@ -11,6 +11,7 @@ import {
   Download,
   ExternalLink,
   Maximize2,
+  MoreHorizontal,
   MessageCircle,
   Pencil,
   Search,
@@ -41,6 +42,7 @@ import {
 } from './pitch-data';
 import styles from './presentation.module.css';
 import { AutomationCanvas } from './automation-canvas';
+import { LocaleToggleButton } from '@/components/settings/toggles';
 
 export function Onboarding({ brand }: { brand?: Brand }) {
   const t = useT();
@@ -445,9 +447,12 @@ function Studio({ brand }: { brand: Brand }) {
       <header className={styles.compactHeader}>
         <div className={styles.brandIdentity}>
           <Link href="/admin/onboarding" aria-label={t('pitch.title')}>
-            <ChevronLeft size={18} />
+            <span className={styles.riverzLogo}>riverz</span>
           </Link>
           <h1>{draft.name}</h1>
+          {tab !== 'canvas' && (
+            <span className={styles.currentView}>{t(`pitch.${tab}`)}</span>
+          )}
           {website && (
             <a
               className={styles.brandWebsite}
@@ -474,20 +479,51 @@ function Studio({ brand }: { brand: Brand }) {
               </option>
             ))}
           </select>
-          <button
-            aria-label={t('pitch.settings')}
-            title={t('pitch.settings')}
-            onClick={() => setSettings(true)}
-          >
-            <Settings2 size={17} />
-          </button>
-          <button
-            aria-label={t('pitch.download')}
-            title={t('pitch.download')}
-            onClick={download}
-          >
-            <Download size={17} />
-          </button>
+          <details className={styles.optionsMenu}>
+            <summary aria-label={t('pitch.options')} title={t('pitch.options')}>
+              <MoreHorizontal size={20} />
+            </summary>
+            <div
+              className={styles.optionsPanel}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('button'))
+                  e.currentTarget.closest('details')?.removeAttribute('open');
+              }}
+            >
+              {['canvas', 'messages', 'agreement'].map((view) => (
+                <button
+                  key={view}
+                  aria-pressed={tab === view}
+                  onClick={() => {
+                    setTab(view);
+                    setQuery('');
+                    setGroup(-1);
+                    setEditing(false);
+                    setNotice('');
+                  }}
+                >
+                  {t(`pitch.${view}`)}
+                </button>
+              ))}
+              <button
+                aria-label={t('pitch.settings')}
+                title={t('pitch.settings')}
+                onClick={() => setSettings(true)}
+              >
+                <Settings2 size={17} />
+                {t('pitch.settings')}
+              </button>
+              <button
+                aria-label={t('pitch.download')}
+                title={t('pitch.download')}
+                onClick={download}
+              >
+                <Download size={17} />
+                {t('pitch.download')}
+              </button>
+              <LocaleToggleButton />
+            </div>
+          </details>
           <button
             aria-label={t(presenting ? 'pitch.exit' : 'pitch.present')}
             title={t(presenting ? 'pitch.exit' : 'pitch.present')}
@@ -497,30 +533,6 @@ function Studio({ brand }: { brand: Brand }) {
           </button>
         </div>
       </header>
-      <nav className={styles.tabs} aria-label={t('pitch.title')}>
-        {['canvas', 'messages', 'agreement'].map((view) => (
-          <button
-            key={view}
-            aria-pressed={tab === view}
-            onClick={() => {
-              setTab(view);
-              setQuery('');
-              setGroup(-1);
-              setEditing(false);
-              setNotice('');
-            }}
-          >
-            {t(`pitch.${view}`)}
-            {view === 'messages' && (
-              <span>
-                {brand === 'contraentrega'
-                  ? proposals.length
-                  : (originals[brand] ?? []).length}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
       {tab === 'canvas' && (
         <AutomationCanvas
           brand={brand}

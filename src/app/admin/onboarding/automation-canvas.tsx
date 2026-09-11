@@ -10,11 +10,11 @@ import {
   Home,
   Maximize,
   MessageCircle,
+  MoreHorizontal,
   Minus,
   Plus,
   Search,
   Timer,
-  Workflow,
   Zap,
 } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -25,6 +25,7 @@ import css from './automation-canvas.module.css';
 import { horizontalEdge } from './horizontal-layout';
 import { LINE_W } from '@/components/automations/canvas-geometry';
 import { buildClientCanvas, journeyIds } from './client-journeys';
+import { operationCatalog } from '@/lib/i18n/messages/pitch-operations';
 
 export function AutomationCanvas({
   brand,
@@ -56,6 +57,7 @@ export function AutomationCanvas({
   viewRef.current = view;
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selected, setSelected] = useState('');
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(
     null
@@ -83,7 +85,7 @@ export function AutomationCanvas({
     const row = graph.nodes.filter(
       (item) =>
         item.id === n.id ||
-        (n.kind === 'scenario' && item.id === `${n.id}-reply`) ||
+        (n.kind === 'scenario' && item.id.startsWith(`${n.id}-`)) ||
         (n.kind === 'journey' &&
           !expanded.includes(n.id) &&
           item.id.startsWith(`${n.id}-`)) ||
@@ -190,6 +192,7 @@ export function AutomationCanvas({
     if (first)
       setView({ zoom: 0.75, x: 40 - first.x * 0.75, y: 85 - first.y * 0.75 });
     pendingJourney.current = null;
+    if (first) setSelected(first.id);
   }, [graph, size.height, mode]);
 
   const miniScale = Math.min(180 / graph.width, 145 / graph.height);
@@ -199,51 +202,63 @@ export function AutomationCanvas({
   return (
     <section className={css.canvas} aria-label={t('pitch.canvas')}>
       <div className={css.toolbar}>
-        <div className={css.mode}>
-          {(['client', 'technical'] as const).map((view) => (
-            <button
-              key={view}
-              aria-pressed={mode === view}
-              onClick={() => {
-                setMode(view);
-                setQuery('');
-                setSelected('');
-              }}
-            >
-              {t(
-                view === 'client' ? 'pitch.clientView' : 'pitch.technicalView'
-              )}
-            </button>
-          ))}
-        </div>
-        {mode === 'client' && (
-          <button
-            className={css.expandJourney}
-            onClick={() => {
-              const opening = expanded.length !== journeyIds.length;
-              pendingJourney.current = opening
-                ? 'operation-recommend'
-                : 'journey-advice';
-              setExpanded(
-                opening ? journeyIds.map((id) => `journey-${id}`) : []
-              );
-              setQuery('');
+        <details className={css.canvasMenu}>
+          <summary aria-label={t('pitch.options')}>
+            <MoreHorizontal size={18} />
+          </summary>
+          <div
+            className={css.canvasMenuPanel}
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest('button'))
+                e.currentTarget.closest('details')?.removeAttribute('open');
             }}
           >
-            {t(
-              expanded.length === journeyIds.length
-                ? 'pitch.operationSummary'
-                : 'pitch.operationAll'
+            <div className={css.mode}>
+              {(['client', 'technical'] as const).map((view) => (
+                <button
+                  key={view}
+                  aria-pressed={mode === view}
+                  onClick={() => {
+                    setMode(view);
+                    setQuery('');
+                    setSelected('');
+                  }}
+                >
+                  {t(
+                    view === 'client'
+                      ? 'pitch.clientView'
+                      : 'pitch.technicalView'
+                  )}
+                </button>
+              ))}
+            </div>
+            {mode === 'client' && (
+              <button
+                className={css.expandJourney}
+                onClick={() => {
+                  const opening = expanded.length !== journeyIds.length;
+                  pendingJourney.current = opening
+                    ? 'operation-recommend'
+                    : 'journey-advice';
+                  setExpanded(
+                    opening ? journeyIds.map((id) => `journey-${id}`) : []
+                  );
+                  setQuery('');
+                }}
+              >
+                {t(
+                  expanded.length === journeyIds.length
+                    ? 'pitch.operationSummary'
+                    : 'pitch.operationAll'
+                )}
+              </button>
             )}
-          </button>
-        )}
-        <span className={css.heading}>
-          <Workflow size={17} />
-          {t('pitch.canvas')}
-        </span>
+            <button onClick={fit}>{t('pitch.viewMap')}</button>
+          </div>
+        </details>
         <select
-          aria-label={t('pitch.canvasNavigate')}
-          value=""
+          aria-label={t('pitch.explore')}
+          value={graph.sections.some((s) => s.id === selected) ? selected : ''}
           onChange={(e) => {
             const section = graph.sections.find((s) => s.id === e.target.value);
             const node =
@@ -252,26 +267,63 @@ export function AutomationCanvas({
             if (node) focus(node);
           }}
         >
-          <option value="">{t('pitch.canvasNavigate')}</option>
-          {graph.sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.title}
-            </option>
-          ))}
+          <option value="">{t('pitch.explore')}</option>
+          {mode === 'client' && expanded.length > 0 ? (
+            <>
+              {journeyIds.map((journey) => (
+                <optgroup key={journey} label={t(`pitch.journey_${journey}`)}>
+                  {operationCatalog
+                    .filter(
+                      (s) =>
+                        s.journey === journey && byId.has(`operation-${s.id}`)
+                    )
+                    .map((s) => (
+                      <option key={s.id} value={`operation-${s.id}`}>
+                        {t(`pitch.operation_${s.id}_title`)}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+              <optgroup label={t('pitch.technicalView')}>
+                {graph.sections
+                  .filter((s) => byId.get(s.id)?.kind === 'trigger')
+                  .map((s) => (
+                    <option value={s.id} key={s.id}>
+                      {s.title}
+                    </option>
+                  ))}
+              </optgroup>
+            </>
+          ) : (
+            graph.sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))
+          )}
         </select>
-        <label className={css.search}>
-          <Search size={15} />
-          <input
-            aria-label={t('pitch.canvasSearch')}
-            placeholder={t('pitch.canvasSearch')}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <span className={css.count}>
-          {graph.nodes.length} {t('pitch.canvasNodes')} · {cases.length}{' '}
-          {t('pitch.canvasCases')}
-        </span>
+        <button
+          className={css.searchToggle}
+          aria-label={t('pitch.canvasSearch')}
+          aria-expanded={searchOpen}
+          onClick={() => {
+            setSearchOpen(!searchOpen);
+            setQuery('');
+          }}
+        >
+          <Search size={17} />
+        </button>
+        {searchOpen && (
+          <label className={css.search}>
+            <input
+              autoFocus
+              aria-label={t('pitch.canvasSearch')}
+              placeholder={t('pitch.canvasSearch')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        )}
       </div>
       <div
         ref={viewport}
@@ -586,7 +638,9 @@ export function AutomationCanvas({
           >
             <ChevronLeft size={17} />
           </button>
-          <span>{t('pitch.canvasCases')}</span>
+          <span>
+            {Math.max(1, currentCase + 1)} / {caseNodes.length}
+          </span>
           <button
             aria-label={t('pitch.canvasNext')}
             onClick={() =>
@@ -610,9 +664,12 @@ export function AutomationCanvas({
             <Plus size={17} />
           </button>
           <button
-            aria-label={t('pitch.canvasFit')}
-            title={t('pitch.canvasFit')}
-            onClick={fit}
+            aria-label={t('pitch.centerCase')}
+            title={t('pitch.centerCase')}
+            onClick={() => {
+              const n = caseNodes[currentCase] ?? caseNodes[0];
+              if (n) focus(n);
+            }}
           >
             <Maximize size={17} />
           </button>

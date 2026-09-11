@@ -107,6 +107,59 @@
 .viewport:active {
   cursor: grabbing;
 }
+.canvasMenu {
+  position: relative;
+  order: 4;
+}
+.canvasMenu summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: #aeb5bc;
+}
+.canvasMenu summary::-webkit-details-marker {
+  display: none;
+}
+.canvasMenuPanel {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  width: 205px;
+  padding: 8px;
+  border: 1px solid #343b42;
+  border-radius: 8px;
+  background: #181b1f;
+  box-shadow: 0 10px 30px #0006;
+}
+.canvasMenuPanel .mode {
+  border: 0;
+  padding: 0;
+  margin: 0 0 5px;
+}
+.canvasMenuPanel > button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  padding: 9px 6px;
+  margin: 0;
+  color: #cbd1d8;
+  font-size: 12px;
+}
+.canvasMenuPanel > button:hover {
+  background: #272c32;
+  border-radius: 5px;
+}
+.searchToggle {
+  color: #aeb5bc;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
 .world {
   position: absolute;
   transform-origin: 0 0;

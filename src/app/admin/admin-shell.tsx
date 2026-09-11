@@ -39,49 +39,51 @@ export function AdminShell({
   return (
     <CsrfProvider>
       <div className="bg-background min-h-dvh">
-        <header className="border-border bg-background/90 sticky top-0 z-10 border-b backdrop-blur">
-          <div
-            className={`mx-auto flex h-14 items-center gap-4 px-4 sm:px-6 ${wideCanvas ? '' : 'max-w-7xl'}`}
-          >
-            <Link
-              href="/admin"
-              className="flex shrink-0 items-baseline gap-1.5"
-              aria-label={`riverz ${t('admin.title')}`}
+        {!wideCanvas && (
+          <header className="border-border bg-background/90 sticky top-0 z-10 border-b backdrop-blur">
+            <div
+              className={`mx-auto flex h-14 items-center gap-4 px-4 sm:px-6 ${wideCanvas ? '' : 'max-w-7xl'}`}
             >
-              <span className="text-accent-ink text-[20px] leading-none font-semibold tracking-[0.04em] lowercase">
-                riverz
+              <Link
+                href="/admin"
+                className="flex shrink-0 items-baseline gap-1.5"
+                aria-label={`riverz ${t('admin.title')}`}
+              >
+                <span className="text-accent-ink text-[20px] leading-none font-semibold tracking-[0.04em] lowercase">
+                  riverz
+                </span>
+                <span className="text-muted-foreground text-xs lowercase">
+                  admin
+                </span>
+              </Link>
+
+              <VolverAlIndice />
+
+              <div className="flex-1" />
+
+              <span className="text-muted-foreground hidden text-xs sm:block">
+                {email}
               </span>
-              <span className="text-muted-foreground text-xs lowercase">
-                admin
-              </span>
-            </Link>
-
-            <VolverAlIndice />
-
-            <div className="flex-1" />
-
-            <span className="text-muted-foreground hidden text-xs sm:block">
-              {email}
-            </span>
-            {/* El panel vive en admin.riverz.co, que es OTRO origen: ni la
+              {/* El panel vive en admin.riverz.co, que es OTRO origen: ni la
                 cookie del idioma (host-only) ni el localStorage del tema viajan
                 desde la app. Sin estos dos botones, acá no había forma de
                 cambiar ninguno de los dos. */}
-            <LocaleToggleButton />
-            <ThemeToggleButton />
-            <LockButton />
-            {/* URL absoluta y <a> pelado: el panel vive en admin.riverz.co, asi
+              <LocaleToggleButton />
+              <ThemeToggleButton />
+              <LockButton />
+              {/* URL absoluta y <a> pelado: el panel vive en admin.riverz.co, asi
                 que un href relativo se queda en el subdominio y no lleva a la
                 app. Con el host propio, volver a la app es salir del origen. */}
-            <a
-              href={`${process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co'}/panel`}
-              className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('admin.backToApp')}</span>
-            </a>
-          </div>
-        </header>
+              <a
+                href={`${process.env.NEXT_PUBLIC_SITE_URL || 'https://riverz.co'}/panel`}
+                className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-sm transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">{t('admin.backToApp')}</span>
+              </a>
+            </div>
+          </header>
+        )}
 
         {/* El límite de Suspense es del shell y no de cada sección: las
             pantallas con pestañas leen `useSearchParams`, y sin un límite
