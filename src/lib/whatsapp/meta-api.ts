@@ -213,6 +213,7 @@ export interface SendTemplateMessageArgs {
   buttonUrlParam?: string
   /** Índice del botón dinámico dentro del bloque BUTTONS (0-based). */
   buttonUrlIndex?: number
+  buttonUrlParams?: Array<{ index: number; text: string }>
   /** Meta's message_id of the message being replied to. */
   contextMessageId?: string
 }
@@ -233,6 +234,7 @@ export async function sendTemplateMessage(
     params,
     buttonUrlParam,
     buttonUrlIndex = 0,
+    buttonUrlParams,
     contextMessageId,
   } = args
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
@@ -249,14 +251,14 @@ export async function sendTemplateMessage(
       parameters: params.map((p) => ({ type: 'text', text: String(p) })),
     })
   }
-  if (buttonUrlParam) {
+  for (const button of buttonUrlParams ?? (buttonUrlParam ? [{ index: buttonUrlIndex, text: buttonUrlParam }] : [])) {
     // Botón URL dinámico: {{1}} se llena con el token del short link. `index`
     // es la posición del botón dentro del bloque BUTTONS de la plantilla.
     components.push({
       type: 'button',
       sub_type: 'url',
-      index: String(buttonUrlIndex),
-      parameters: [{ type: 'text', text: buttonUrlParam }],
+      index: String(button.index),
+      parameters: [{ type: 'text', text: button.text }],
     })
   }
   if (components.length > 0) {

@@ -15,6 +15,8 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import type { ChannelConnection, Contact, Conversation } from "@/types";
+import { dynamicUrlButtons, manualButtonValue, validBodyParams } from '@/lib/whatsapp/manual-template';
+import { createShortLink } from '@/lib/links/short-link';
 
 /**
  * POST /api/conversations/start-whatsapp
@@ -56,6 +58,8 @@ export async function POST(req: Request): Promise<Response> {
     name?: string;
     text?: string;
     template_name?: string;
+    template_id?: string;
+    template_button_links?: Record<string, string>;
     template_language?: string;
     template_params?: string[];
     template_preview?: string;
@@ -233,18 +237,39 @@ export async function POST(req: Request): Promise<Response> {
   let storedTemplate: string | null = null;
   try {
     if (templateName) {
+      let query = admin.from('message_templates').select('id, name, language, body_text, buttons')
+        .eq('workspace_id', workspaceId).eq('status', 'Approved');
+      query = body?.template_id ? query.eq('id', body.template_id)
+        : query.eq('name', templateName).eq('language', body?.template_language || 'en_US');
+      const { data: template } = await query.limit(1).maybeSingle();
+      if (!template) return NextResponse.json({ error: translate(locale, 'errWhatsapp.templateNotFound') }, { status: 400 });
+      const params = body?.template_params ?? [];
+      if (!validBodyParams(template.body_text ?? '', params))
+        return NextResponse.json({ error: translate(locale, 'inbox.templateFieldsRequired') }, { status: 400 });
+      const buttonUrlParams: Array<{ index: number; text: string }> = [];
+      // Validate every destination before creating redirect tokens or sending to Meta.
+      const destinations = dynamicUrlButtons(template.buttons).map(button => ({
+        index: button.index,
+        value: manualButtonValue(button.url, body?.template_button_links?.[button.index]),
+      }));
+      for (const button of destinations) {
+        const value = button.value;
+        buttonUrlParams.push({ index: button.index, text: 'suffix' in value ? value.suffix :
+          await createShortLink(admin, { workspaceId, contactId: contact.id, targetUrl: value.targetUrl }) });
+      }
       const res = await sendTemplateMessage({
         phoneNumberId,
         accessToken,
         to: phone,
-        templateName,
-        language: body?.template_language || "en_US",
-        params: Array.isArray(body?.template_params) ? body!.template_params : [],
+        templateName: template.name,
+        language: template.language,
+        params,
+        buttonUrlParams,
       });
       messageId = res.messageId;
       contentType = "template";
-      storedTemplate = templateName;
-      contentText = body?.template_preview?.trim() || null;
+      storedTemplate = template.name;
+      contentText = (template.body_text ?? '').replace(/\{\{\s*(\d+)\s*\}\}/g, (_: string, n: string) => params[Number(n) - 1]);
     } else {
       const res = await sendTextMessage({
         phoneNumberId,
@@ -259,7 +284,9 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     console.error("[start-whatsapp] send failed:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "send failed" },
+      { error: err instanceof Error && err.message.startsWith('inbox.template')
+        ? translate(locale, err.message)
+        : err instanceof Error ? err.message : translate(locale, 'errInbox.sendFailed') },
       { status: 400 },
     );
   }

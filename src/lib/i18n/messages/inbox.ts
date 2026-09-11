@@ -5,6 +5,11 @@ import type { Namespace } from "./types";
  * reactions, moderation, contact + Shopify panels, templates and search.
  */
 export const inbox = {
+  templateButtonLink: { es: 'Enlace de «{button}»', en: 'Link for “{button}”' },
+  templateLinkRequired: { es: 'Completa el enlace del botón.', en: 'Enter the button link.' },
+  templateLinkInvalid: { es: 'Introduce un enlace completo válido.', en: 'Enter a valid full URL.' },
+  templateLinkMismatch: { es: 'El enlace debe coincidir con la dirección aprobada del botón.', en: 'The link must match the approved button URL.' },
+  templateFieldsRequired: { es: 'Completa todas las variables de la plantilla.', en: 'Fill in all template variables.' },
   // Mandó el comprobante y no encontramos su pedido.
   needsHumanComprobante: {
     es: "Mandó el comprobante y no encontramos su pedido",

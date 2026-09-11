@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
+import { useWorkspace } from '@/hooks/use-workspace';
 import {
   Dialog,
   DialogContent,
@@ -24,8 +25,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Conversation } from "@/types";
+import { dynamicUrlButtons, manualButtonValue, validBodyParams } from '@/lib/whatsapp/manual-template';
 
 interface ApprovedTemplate {
+  id: string;
+  buttons: unknown;
   name: string;
   language: string;
   body_text: string;
@@ -55,6 +59,7 @@ export function NewChatModal({
   onConversationCreated,
 }: NewChatModalProps) {
   const t = useT();
+  const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
 
   const [step, setStep] = useState<"phone" | "compose">("phone");
@@ -65,6 +70,7 @@ export function NewChatModal({
   const [templates, setTemplates] = useState<ApprovedTemplate[]>([]);
   const [templateName, setTemplateName] = useState("");
   const [params, setParams] = useState<string[]>([]);
+  const [buttonLinks, setButtonLinks] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   function reset() {
@@ -76,6 +82,7 @@ export function NewChatModal({
     setTemplates([]);
     setTemplateName("");
     setParams([]);
+    setButtonLinks({});
     setBusy(false);
   }
 
@@ -85,10 +92,12 @@ export function NewChatModal({
   }
 
   async function loadTemplates() {
+    if (!workspace) return;
     const supabase = createClient();
     const { data } = await supabase
       .from("message_templates")
-      .select("name, language, body_text, status")
+      .select("id, name, language, body_text, status, buttons")
+      .eq('workspace_id', workspace.id)
       .eq("status", "Approved")
       .order("name", { ascending: true });
     setTemplates((data ?? []) as ApprovedTemplate[]);
@@ -119,7 +128,8 @@ export function NewChatModal({
     }
   }
 
-  const selectedTemplate = templates.find((tpl) => tpl.name === templateName);
+  const selectedTemplate = templates.find((tpl) => tpl.id === templateName);
+  const urlButtons = dynamicUrlButtons(selectedTemplate?.buttons);
   const varCount = selectedTemplate ? countVars(selectedTemplate.body_text) : 0;
 
   async function handleSend() {
@@ -139,9 +149,21 @@ export function NewChatModal({
           return;
         }
         const filled = params.slice(0, varCount);
+        if (!validBodyParams(selectedTemplate.body_text, filled)) {
+          toast.error(t('inbox.templateFieldsRequired'));
+          return;
+        }
+        try {
+          for (const button of urlButtons) manualButtonValue(button.url, buttonLinks[button.index]);
+        } catch (error) {
+          toast.error(t(error instanceof Error ? error.message : 'inbox.templateLinkInvalid'));
+          return;
+        }
         body = {
           ...base,
           template_name: selectedTemplate.name,
+          template_id: selectedTemplate.id,
+          template_button_links: buttonLinks,
           template_language: selectedTemplate.language,
           template_params: filled,
           template_preview: fillTemplate(selectedTemplate.body_text, filled),
@@ -233,15 +255,17 @@ export function NewChatModal({
                     onValueChange={(v) => {
                       setTemplateName(v ?? "");
                       setParams([]);
+                      setButtonLinks({});
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={t("inbox.newChatTemplate")} />
+                      <SelectValue placeholder={t("inbox.newChatTemplate")}
+                        labels={Object.fromEntries(templates.map(tpl => [tpl.id, `${tpl.name} · ${tpl.language}`]))} />
                     </SelectTrigger>
                     <SelectContent>
                       {templates.map((tpl) => (
-                        <SelectItem key={`${tpl.name}:${tpl.language}`} value={tpl.name}>
-                          {tpl.name}
+                        <SelectItem key={tpl.id} value={tpl.id}>
+                          {tpl.name} · {tpl.language}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -269,6 +293,14 @@ export function NewChatModal({
                       disabled={busy}
                     />
                   </div>
+                ))}
+                {urlButtons.map((button) => (
+                  <label key={button.index} className="block space-y-1.5 text-xs font-medium text-muted-foreground">
+                    <span>{t('inbox.templateButtonLink', { button: button.text })}</span>
+                    <Input type="url" placeholder="https://…" value={buttonLinks[button.index] ?? ''}
+                      onChange={(e) => setButtonLinks((old) => ({ ...old, [button.index]: e.target.value }))}
+                      disabled={busy} />
+                  </label>
                 ))}
               </div>
             )}

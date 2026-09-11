@@ -270,6 +270,19 @@ describe("sendInteractiveList — validation", () => {
 });
 
 describe("sendTemplateMessage — dynamic URL button", () => {
+  it('sends body values and multiple URL buttons with their original indexes', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ messages: [{ id: 'wamid.NEW' }] })));
+    vi.stubGlobal('fetch', fetchMock);
+    await sendTemplateMessage({ phoneNumberId: 'test', accessToken: 'test', to: '1234567890',
+      templateName: 'cart', language: 'es', params: ['Juan'],
+      buttonUrlParams: [{ index: 1, text: 'cart-token' }, { index: 2, text: 'order-token' }] });
+    const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(payload.template.components).toEqual([
+      { type: 'body', parameters: [{ type: 'text', text: 'Juan' }] },
+      { type: 'button', sub_type: 'url', index: '1', parameters: [{ type: 'text', text: 'cart-token' }] },
+      { type: 'button', sub_type: 'url', index: '2', parameters: [{ type: 'text', text: 'order-token' }] },
+    ]);
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });
