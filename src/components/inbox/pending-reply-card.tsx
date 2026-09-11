@@ -7,11 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useFetchWithCsrf } from "@/lib/api/fetch-with-csrf";
 import { useT } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
-import { useWorkspace } from '@/hooks/use-workspace';
-import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
 
 interface PendingDraft {
-  voice_note?: VoiceNoteConfig | null;
   id: string;
   text: string;
   agent_name: string | null;
@@ -36,7 +33,6 @@ export function PendingReplyCard({
   onSend: (text: string) => void | Promise<void>;
 }) {
   const t = useT();
-  const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
   const [draft, setDraft] = useState<PendingDraft | null>(null);
   const [text, setText] = useState("");
@@ -87,14 +83,12 @@ export function PendingReplyCard({
             return;
           }
           const row = payload.new as {
-            voice_note?: VoiceNoteConfig | null;
             id: string;
             content_text: string;
             agent_name: string | null;
             created_at: string;
           };
           const next: PendingDraft = {
-            voice_note: row.voice_note,
             id: row.id,
             text: row.content_text,
             agent_name: row.agent_name,
@@ -136,11 +130,7 @@ export function PendingReplyCard({
     if (!body || busy) return;
     setBusy(true);
     try {
-      if (draft?.voice_note && workspace && !/https?:\/\//i.test(body)) {
-        const response = await fetchWithCsrf('/api/voice-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send', workspace_id: workspace.id, conversation_id: conversationId, config: draft.voice_note, text: body }) });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
-      } else await onSend(body);
+      await onSend(body);
       setDraft(null);
       setText("");
       await fetchWithCsrf(`/api/conversations/${conversationId}/pending-reply`, {
@@ -151,7 +141,7 @@ export function PendingReplyCard({
     } finally {
       setBusy(false);
     }
-  }, [text, busy, onSend, fetchWithCsrf, conversationId, t, draft, workspace]);
+  }, [text, busy, onSend, fetchWithCsrf, conversationId, t]);
 
   if (!draft) return null;
 
@@ -194,7 +184,7 @@ export function PendingReplyCard({
           ) : (
             <Send className="mr-1 size-3.5" />
           )}
-          {t(draft.voice_note ? 'voiceNotes.send' : 'inbox.pendingReplySend')}
+          {t("inbox.pendingReplySend")}
         </Button>
       </div>
     </div>

@@ -20,7 +20,6 @@ import type { Conversation } from '@/types';
  */
 
 interface PendingRow {
-  voice_note?: import('@/lib/voice-notes/types').VoiceNoteConfig | null;
   id: string;
   content_text: string;
   agent_name: string | null;
@@ -92,7 +91,7 @@ export async function GET(
 
   const { data } = await supabaseAdmin()
     .from('ai_pending_replies')
-    .select('id, content_text, agent_name, created_at, voice_note')
+    .select('id, content_text, agent_name, created_at')
     .eq('conversation_id', id)
     .maybeSingle();
   const row = data as PendingRow | null;
@@ -101,7 +100,6 @@ export async function GET(
       ? {
           id: row.id,
           text: row.content_text,
-          voice_note: row.voice_note,
           agent_name: row.agent_name,
           created_at: row.created_at,
         }

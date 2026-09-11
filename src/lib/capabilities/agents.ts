@@ -1,5 +1,4 @@
 import { sembrarReglasPorDefecto } from '@/lib/ai/reglas-por-defecto'
-import { translate } from '@/lib/i18n/translate'
 /**
  * Los agentes de IA de la cuenta.
  *
@@ -567,9 +566,6 @@ async function editar(ctx: CapabilityContext, args: Record<string, unknown>) {
     }
     if (salida.fail.code === 'voice_agent_invalid') {
       throw new Error('el agente de voz vinculado ya no está disponible')
-    }
-    if (salida.fail.code === 'voice_note_invalid') {
-      throw new Error(translate(ctx.locale === 'en' ? 'en' : 'es', 'voiceNotes.invalidText'))
     }
     throw new Error((salida.fail.error as { message?: string })?.message ?? 'no se pudo guardar')
   }

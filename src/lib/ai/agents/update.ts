@@ -16,7 +16,6 @@ import { encrypt } from '@/lib/whatsapp/encryption';
 import type { AiAgent } from '../types';
 import { mediosDeclarados } from '@/lib/ai/medios-pago';
 import { sanitizeTools } from '../toolbox';
-import { validVoiceConfig } from '@/lib/voice-notes/types';
 
 /**
  * Los campos que se pueden guardar desde afuera.
@@ -37,7 +36,6 @@ export const AGENT_PATCH_FIELDS: (keyof AiAgent)[] = [
   'reply_delay_seconds',
   'context_messages',
   'response_mode',
-  'voice_note',
   // Autonomia: responde solo o propone y espera (migracion 170)
   'requires_approval',
   'inbound_debounce_seconds',
@@ -103,7 +101,6 @@ export type AgentUpdateFailure =
   | { code: 'channel_conflict'; agentName: string; channels: string[] }
   /** The linked voice profile is missing, deleted, disabled or from another workspace. */
   | { code: 'voice_agent_invalid' }
-  | { code: 'voice_note_invalid' }
   | { code: 'db'; error: unknown };
 
 export async function validVoiceAgentLink(
@@ -234,7 +231,6 @@ export async function updateAgent(
   input: AgentUpdateInput
 ): Promise<AgentUpdateOutcome> {
   const { agentId, workspaceId, patch } = input;
-  if (patch.voice_note != null && !validVoiceConfig(patch.voice_note)) return { ok: false, fail: { code: 'voice_note_invalid' } };
 
   const { data: cur } = await admin
     .from('ai_agents')

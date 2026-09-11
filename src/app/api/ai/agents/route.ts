@@ -24,7 +24,6 @@ const PERMISOS_COMPLETOS: AgentPermissions = Object.fromEntries(
   AGENT_PERMISSIONS.map((p) => [p, true])
 ) as AgentPermissions;
 import type { AiAgent } from '@/lib/ai/types';
-import { validVoiceConfig } from '@/lib/voice-notes/types';
 import { validVoiceAgentLink } from '@/lib/ai/agents/update';
 
 /**
@@ -160,7 +159,6 @@ export async function POST(request: Request) {
     }
   }
 
-  if (body.voice_note != null && !validVoiceConfig(body.voice_note)) return NextResponse.json({ error: translate(locale, 'voiceNotes.invalidText') }, { status: 400 });
   const payload: Record<string, unknown> = {
     workspace_id: body.workspace_id,
     name: body.name.trim(),
@@ -177,7 +175,6 @@ export async function POST(request: Request) {
     reply_delay_seconds: body.reply_delay_seconds ?? 0,
     context_messages: body.context_messages ?? 100,
     response_mode: body.response_mode ?? 'dynamic',
-    voice_note: body.voice_note ?? null,
     requires_approval: body.requires_approval ?? false,
     inbound_debounce_seconds: body.inbound_debounce_seconds ?? 15,
     reply_when_assigned: body.reply_when_assigned ?? false,
