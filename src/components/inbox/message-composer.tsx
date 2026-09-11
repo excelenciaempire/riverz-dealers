@@ -85,11 +85,9 @@ export function MessageComposer({
   const t = useT();
   const fetchWithCsrf = useFetchWithCsrf();
   // Capacidades por canal, según lo que el adapter sabe enviar de verdad.
-  // Mandan archivos: WhatsApp, Instagram y Messenger (Send API de Meta),
-  // Gmail y Outlook (dentro del MIME del correo) y Mercado Libre (subida a su
-  // endpoint, sólo en mensajes post-venta). Instagram no acepta documentos por
-  // DM, sólo imagen, video y audio. En los comentarios y en Voz el envío es
-  // texto: se oculta el clip para no ofrecer algo que el canal no puede hacer.
+  // WhatsApp, Instagram y Messenger envían medios por Meta; los correos
+  // adjuntan el archivo; Chat web entrega el archivo en el widget. Instagram
+  // no acepta documentos por DM. En comentarios y Voz se oculta el clip.
   // Las plantillas (HSM) son de WhatsApp únicamente.
   const canAttachMedia =
     channel === "whatsapp" ||
@@ -97,11 +95,17 @@ export function MessageComposer({
     channel === "messenger" ||
     channel === "gmail" ||
     channel === "outlook" ||
+    channel === "zoho" ||
+    channel === "webchat" ||
     channel === "mercadolibre";
+  // El correo y el chat web aceptan cualquier archivo. Meta mantiene sus
+  // formatos propios para evitar ofrecer adjuntos que el canal rechaza.
   const acceptedFiles =
     channel === "instagram"
       ? "image/*,video/*,audio/*"
-      : "image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx";
+      : channel === "gmail" || channel === "outlook" || channel === "zoho" || channel === "webchat"
+        ? undefined
+        : "image/*,video/*,audio/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx";
   const canUseTemplates = channel === "whatsapp";
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
