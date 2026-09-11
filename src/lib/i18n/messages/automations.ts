@@ -327,6 +327,7 @@ export const automations = {
 
   // Builder — step meta labels
   stepSendMessage: { es: "Enviar mensaje", en: "Send message" },
+  stepSendVoiceNote: { es: "Enviar nota de voz", en: "Send voice note" },
   stepSendTemplate: { es: "Enviar plantilla", en: "Send template" },
   stepAddTag: { es: "Añadir etiqueta", en: "Add tag" },
   stepRemoveTag: { es: "Quitar etiqueta", en: "Remove tag" },

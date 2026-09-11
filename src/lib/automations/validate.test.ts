@@ -35,6 +35,17 @@ describe("validateStepsForActivation", () => {
     expect(issues).toEqual([]);
   });
 
+  it("accepts a configured voice-note send without requiring text", () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: "send_message",
+          step_config: { voice_note: { media_url: "https://cdn.example.com/note.ogg" } },
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("flags every required field that is missing", () => {
     const issues = validateStepsForActivation([
       { step_type: "send_message", step_config: { text: "  " } },

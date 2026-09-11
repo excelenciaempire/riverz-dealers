@@ -526,11 +526,9 @@ function firstBuilderStepIssue(
 // Step metadata — one source of truth for icon + label + border color
 // ------------------------------------------------------------
 
-// `send_message` (free-text) is intentionally NOT in the picker — Meta
-// requires an approved template for any send that may fall outside the
-// 24-hour customer-service window, which is true for every automation
-// that includes a `wait` step. The type stays in the union so legacy
-// rows still load, but new steps must be a template.
+// `send_message` se ofrece sólo como nota de voz. Meta no permite texto libre
+// fuera de la ventana de 24 horas, pero este paso sólo permite configurar
+// un audio reutilizable o generado con Fish.
 // Webhook is for equipos que conectan Make, Zapier o n8n. No se propone por
 // defecto en las plantillas, pero sí se ofrece cuando el comercio lo busca.
 // `update_contact_field` is likewise NOT offered — it overwrites a core
@@ -543,6 +541,7 @@ function firstBuilderStepIssue(
 // renderer stay so any legacy binary condition keeps loading + running; on the
 // next load a flat one folds into the unified card (see collapseSwitch).
 const ADDABLE_STEPS: BuilderStepType[] = [
+  'send_message',
   'send_template',
   'send_webhook',
   'voice_call',
@@ -561,6 +560,7 @@ const ADDABLE_STEPS: BuilderStepType[] = [
 // self-contained (edited via switchData, not the canvas path system). A
 // merchant who needs logic inside a case uses a standalone "Condición" instead.
 const LEAF_STEPS: BuilderStepType[] = [
+  'send_message',
   'send_template',
   // La llamada es una acción más, sin ramas: no había motivo para que el menú
   // de un camino ofreciera menos que el del lienzo. Lo único que no se puede
@@ -572,6 +572,12 @@ const LEAF_STEPS: BuilderStepType[] = [
   'add_tag',
   'remove_tag',
 ];
+
+function stepTitleKey(step: BuilderStep): string {
+  return step.step_type === 'send_message' && step.step_config.voice_only
+    ? 'automations.stepSendVoiceNote'
+    : STEP_META[step.step_type].label;
+}
 
 // Selectable triggers are intentionally limited to Shopify events +
 // "tag added". The other trigger types still exist in the engine/types
@@ -1299,7 +1305,7 @@ function blankConfig(type: BuilderStepType): Record<string, unknown> {
     case 'switch':
       return {}; // dpId + cases live on step.switchData (set in addStepAt)
     case 'send_message':
-      return { text: '' };
+      return { voice_note: null, voice_only: true };
     case 'send_template':
       return { template_name: '', language: 'en_US' };
     case 'add_tag':
@@ -2718,7 +2724,7 @@ function StepRenderer({
                   : t('automations.kindAction')}
             </div>
             <div className="text-foreground truncate text-sm font-medium">
-              {t(meta.label)}
+              {t(stepTitleKey(step))}
             </div>
             <div className="text-muted-foreground truncate text-[11px]">
               {previewFor(step, t, etiquetas)}
@@ -3286,7 +3292,7 @@ function LeafStepCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-foreground truncate text-sm font-medium">
-              {t(meta.label)}
+              {t(stepTitleKey(step))}
             </div>
             <div className="text-muted-foreground truncate text-[11px]">
               {previewFor(step, t, etiquetas)}
@@ -3488,6 +3494,10 @@ function AddButton({
             {types.map((stepType) => {
               const m = STEP_META[stepType];
               const Icon = m.icon;
+              const label =
+                stepType === 'send_message'
+                  ? 'automations.stepSendVoiceNote'
+                  : m.label;
               return (
                 <button
                   key={stepType}
@@ -3523,7 +3533,7 @@ function AddButton({
                       <Icon className="h-3.5 w-3.5" />
                     )}
                   </span>
-                  {t(m.label)}
+                  {t(label)}
                 </button>
               );
             })}
@@ -3637,9 +3647,15 @@ function StepEditor({
   switch (step.step_type) {
     case 'send_message':
       return (
-          <FieldBlock label={t('automations.messageText')}>
+          <FieldBlock
+            label={
+              cfg.voice_only
+                ? t('automations.stepSendVoiceNote')
+                : t('automations.messageText')
+            }
+          >
             <VoiceNoteEditor value={(cfg.voice_note as VoiceNoteConfig) ?? null} onChange={voice_note => set({ voice_note })} />
-            {!cfg.voice_note && <Textarea
+            {!cfg.voice_note && !cfg.voice_only && <Textarea
             value={(cfg.text as string) ?? ''}
             onChange={(e) => set({ text: e.target.value })}
               placeholder={t('automations.messageTextPlaceholder')}
