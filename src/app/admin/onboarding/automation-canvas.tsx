@@ -535,7 +535,7 @@ export function AutomationCanvas({
                     <Maximize size={15} />
                   </button>
                 </header>
-                <h3>{n.title}</h3>
+                {n.title && <h3>{n.title}</h3>}
                 {n.template && (
                   <small className={css.template}>{n.template}</small>
                 )}
@@ -577,15 +577,6 @@ export function AutomationCanvas({
                   />
                 )}
                 {n.note && <p className={css.messageNote}>{n.note}</p>}
-                {n.routes && routeChoices[n.id] && (
-                  <button
-                    className={css.expandJourney}
-                    onClick={() => focus(n)}
-                  >
-                    {t('pitch.showContinuation')}
-                    <ChevronRight size={14} />
-                  </button>
-                )}
                 {!!n.buttons?.length && (
                   <div className={css.messageButtons}>
                     {n.buttons.map((b, i) => (

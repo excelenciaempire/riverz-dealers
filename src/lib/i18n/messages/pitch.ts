@@ -1,7 +1,6 @@
 import type { Namespace } from './types';
 import { operationMessages } from './pitch-operations';
 export const pitch = {
-  showContinuation: { es: 'Ver continuación', en: 'View continuation' },
   operation_recommend_reply_pilar: {
     es: '¡Hola, {{customer}}! Te ayudo a conocer el sérum de Pilar. 🌿\n\nPodemos revisar cómo se usa, su precio y las opciones de envío.\n\n¿Qué te gustaría saber antes de elegir?',
     en: 'Hi {{customer}}! Let me help you learn about the Pilar serum. 🌿\n\nWe can review how to use it, its price and delivery options.\n\nWhat would you like to know before choosing?',

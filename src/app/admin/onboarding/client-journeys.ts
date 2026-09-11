@@ -195,7 +195,9 @@ export function buildClientCanvas(
       );
     const trigger = add({
       id,
-      title: text('title'),
+      // The selector already names the chosen scenario. Keep the example card
+      // focused on the customer's literal message instead of repeating it.
+      title: inline ? '' : text('title'),
       body: text('customer'),
       caption: t('pitch.operationCustomer'),
       kind: inline ? 'inline_route' : 'scenario',
