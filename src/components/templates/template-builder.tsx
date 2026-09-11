@@ -14,6 +14,9 @@ import {
   Phone,
   Reply,
   Upload,
+  Image as ImageIcon,
+  Video,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -449,6 +452,25 @@ export function TemplateBuilder() {
                   ))}
                 </SelectContent>
               </Select>
+              {headerType === 'none' && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[
+                    { type: 'image' as const, label: t('templates.headerImage'), Icon: ImageIcon },
+                    { type: 'video' as const, label: t('templates.headerVideo'), Icon: Video },
+                    { type: 'document' as const, label: t('templates.headerDocument'), Icon: FileText },
+                  ].map(({ type, label, Icon }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setHeaderType(type)}
+                      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-muted/30 px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted hover:text-foreground"
+                    >
+                      <Icon className="size-4" />
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {headerType === 'text' && (
                 <Input
                   value={headerText}
