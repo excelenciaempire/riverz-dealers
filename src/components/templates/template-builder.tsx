@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Phone,
   Reply,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +84,9 @@ const CATEGORIES: {
 const HEADER_TYPES: { value: TemplateHeaderType; labelKey: string }[] = [
   { value: 'none', labelKey: 'templates.headerNone' },
   { value: 'text', labelKey: 'templates.headerTextOption' },
+  { value: 'image', labelKey: 'templates.headerImage' },
+  { value: 'video', labelKey: 'templates.headerVideo' },
+  { value: 'document', labelKey: 'templates.headerDocument' },
 ];
 
 const LANGUAGES: { code: string; labelKey: string }[] = [
@@ -163,6 +167,9 @@ export function TemplateBuilder() {
     useState<'MARKETING' | 'UTILITY' | 'AUTHENTICATION'>('MARKETING');
   const [headerType, setHeaderType] = useState<TemplateHeaderType>('none');
   const [headerText, setHeaderText] = useState('');
+  const [headerHandle, setHeaderHandle] = useState('');
+  const [headerFileName, setHeaderFileName] = useState('');
+  const [uploadingHeader, setUploadingHeader] = useState(false);
   const [bodyText, setBodyText] = useState('');
   const [footerText, setFooterText] = useState('');
   const [buttonsOn, setButtonsOn] = useState(false);
@@ -203,6 +210,7 @@ export function TemplateBuilder() {
         category,
         headerType,
         headerText,
+        headerHandle,
         bodyText,
         footerText,
         buttons: buttonsOn ? buttons : [],
@@ -228,6 +236,27 @@ export function TemplateBuilder() {
   function insertVariable() {
     const next = variables.length > 0 ? Math.max(...variables) + 1 : 1;
     setBodyText((prev) => `${prev}{{${next}}}`);
+  }
+
+  async function uploadHeader(file: File) {
+    setUploadingHeader(true);
+    setHeaderHandle('');
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      form.set('type', headerType);
+      const res = await fetchWithCsrf('/api/whatsapp/templates/header-media', {
+        method: 'POST', body: form,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.handle) throw new Error(data.error || t('templates.headerUploadFailed'));
+      setHeaderHandle(data.handle);
+      setHeaderFileName(data.name || file.name);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('templates.headerUploadFailed'));
+    } finally {
+      setUploadingHeader(false);
+    }
   }
 
   function toggleButtons(on: boolean) {
@@ -284,6 +313,7 @@ export function TemplateBuilder() {
           category,
           headerType,
           headerText: headerType === 'text' ? headerText : undefined,
+          headerHandle: headerType === 'text' || headerType === 'none' ? undefined : headerHandle,
           bodyText,
           footerText,
           buttons: buttonsOn ? normalizeButtons(buttons) : [],
@@ -426,6 +456,26 @@ export function TemplateBuilder() {
                   onChange={(e) => setHeaderText(e.target.value)}
                   className="mt-2 bg-background"
                 />
+              )}
+              {(headerType === 'image' || headerType === 'video' || headerType === 'document') && (
+                <div className="mt-2 rounded-lg border border-dashed border-border bg-muted/30 p-3">
+                  <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+                    <span className="truncate text-muted-foreground">
+                      {headerFileName || t('templates.headerUploadPrompt')}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-accent-ink">
+                      {uploadingHeader ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                      {uploadingHeader ? t('templates.headerUploading') : t('templates.headerChooseFile')}
+                    </span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept={headerType === 'image' ? 'image/jpeg,image/png' : headerType === 'video' ? 'video/mp4' : 'application/pdf'}
+                      disabled={uploadingHeader}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadHeader(file); e.currentTarget.value = ''; }}
+                    />
+                  </label>
+                </div>
               )}
             </Field>
 

@@ -41,6 +41,7 @@ export interface TemplateInput {
   category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
   headerType: 'none' | 'text' | 'image' | 'video' | 'document';
   headerText?: string;
+  headerHandle?: string;
   bodyText: string;
   footerText?: string;
   buttons: Array<{
@@ -141,6 +142,13 @@ export function validateTemplate(input: TemplateInput, t: TFn): TemplateIssue[] 
         message: t('templates.tplValidate_header_too_many_vars'),
       });
     }
+  } else if (['image', 'video', 'document'].includes(input.headerType) && !input.headerHandle?.trim()) {
+    issues.push({
+      field: 'header',
+      severity: 'error',
+      code: 'header_media_required',
+      message: t('templates.tplValidate_header_media_required'),
+    });
   }
 
   // Body

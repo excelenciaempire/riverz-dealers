@@ -23,6 +23,13 @@ export const templates = {
   // ── Header types ──
   headerNone: { es: "Sin encabezado", en: "No header" },
   headerTextOption: { es: "Texto", en: "Text" },
+  headerImage: { es: "Imagen", en: "Image" },
+  headerVideo: { es: "Video", en: "Video" },
+  headerDocument: { es: "Documento PDF", en: "PDF document" },
+  headerUploadPrompt: { es: "Selecciona un archivo de ejemplo", en: "Choose a sample file" },
+  headerChooseFile: { es: "Elegir archivo", en: "Choose file" },
+  headerUploading: { es: "Subiendo…", en: "Uploading…" },
+  headerUploadFailed: { es: "No se pudo subir el archivo", en: "The file could not be uploaded" },
 
   // ── Languages ──
   languageEs: { es: "Español", en: "Spanish" },
@@ -290,6 +297,10 @@ export const templates = {
   tplValidate_header_empty: {
     es: "El encabezado de texto está vacío.",
     en: "The text header is empty.",
+  },
+  tplValidate_header_media_required: {
+    es: "Sube el archivo de ejemplo para el encabezado.",
+    en: "Upload the sample file for the header.",
   },
   tplValidate_header_too_long: {
     es: "El encabezado pasa de {max} caracteres ({len} actuales).",
