@@ -528,17 +528,23 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t("inbox.sessionExpiredBanner")}
+            {t(
+              canUseTemplates
+                ? "inbox.sessionExpiredBanner"
+                : "inbox.metaSessionExpiredBanner",
+            )}
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="mr-1 h-3 w-3" />
-            {t("inbox.templates")}
-          </Button>
+          {canUseTemplates && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+              onClick={onOpenTemplates}
+            >
+              <LayoutTemplate className="mr-1 h-3 w-3" />
+              {t("inbox.templates")}
+            </Button>
+          )}
         </div>
       )}
 
@@ -734,7 +740,15 @@ export function MessageComposer({
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={sessionExpired ? t("inbox.composerExpiredPlaceholder") : t("inbox.typeMessage")}
+          placeholder={
+            sessionExpired
+              ? t(
+                  canUseTemplates
+                    ? "inbox.composerExpiredPlaceholder"
+                    : "inbox.metaComposerExpiredPlaceholder",
+                )
+              : t("inbox.typeMessage")
+          }
           disabled={sessionExpired}
           rows={1}
           className={cn(

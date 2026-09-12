@@ -351,6 +351,10 @@ export const inbox = {
     es: "Sesión de 24 horas expirada. Usa una plantilla.",
     en: "The 24-hour session has expired. Use a template.",
   },
+  metaSessionExpiredBanner: {
+    es: "Pasaron 24 horas. Espera a que el cliente vuelva a escribir.",
+    en: "The 24-hour window has passed. Wait for the customer to write again.",
+  },
   templates: { es: "Plantillas", en: "Templates" },
   quickSnippets: { es: "Atajos rápidos", en: "Quick snippets" },
   snippetHints: {
@@ -419,6 +423,10 @@ export const inbox = {
   composerExpiredPlaceholder: {
     es: "Sesión expirada. Usa una plantilla.",
     en: "Session expired. Use a template.",
+  },
+  metaComposerExpiredPlaceholder: {
+    es: "Espera un nuevo mensaje del cliente.",
+    en: "Wait for a new message from the customer.",
   },
 
   // Message thread — session window

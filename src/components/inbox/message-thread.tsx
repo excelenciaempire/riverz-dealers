@@ -1534,11 +1534,13 @@ export function MessageThread({
               <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
             </div>
           </button>
-          {/* Session timer badge — only meaningful for WhatsApp's 24h
-              customer-care window. For email / IG / comments there's no such
-              window, so "Expirada" was just noise; hide it there. Hidden on
+          {/* Session timer badge — Meta aplica la ventana de 24 h a WhatsApp,
+              Instagram DM y Messenger. Los comentarios y correos no usan esta
+              ventana. Hidden on
               the narrowest phones so the name + back arrow keep their room. */}
-          {conversation.channel === "whatsapp" && (
+          {(conversation.channel === "whatsapp" ||
+            conversation.channel === "instagram" ||
+            conversation.channel === "messenger") && (
             <Badge
               variant="outline"
               // El reloj no se explica solo: dice cuánto queda de la ventana de
@@ -2087,11 +2089,8 @@ export function MessageThread({
           <span>{t("inbox.channelDisconnectedAlert")}</span>
         </div>
       ) : (
-        /* Composer — the 24h session-window check only applies to
-           WhatsApp; for every other channel the agent can reply any
-           time (comments, DMs, emails). Without this gate, fb_comment
-           threads opened a day after a comment landed showed the
-           composer in "expired" state and blocked the reply. */
+        /* Meta limita los mensajes libres de WhatsApp, Instagram DM y
+           Messenger a 24 h. Los comentarios, correos y demás canales no. */
         <>
           {/* Respuesta propuesta por un agente que necesita aprobación. */}
           <PendingReplyCard
@@ -2102,7 +2101,10 @@ export function MessageThread({
             conversationId={conversation.id}
             channel={conversation.channel}
             sessionExpired={
-              conversation.channel === "whatsapp" && sessionInfo.expired
+              (conversation.channel === "whatsapp" ||
+                conversation.channel === "instagram" ||
+                conversation.channel === "messenger") &&
+              sessionInfo.expired
             }
             onSend={handleSend}
             onSendMedia={handleSendMedia}

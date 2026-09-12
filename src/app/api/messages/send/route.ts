@@ -190,6 +190,33 @@ export async function POST(req: Request): Promise<Response> {
         ? "comment"
         : "text";
 
+  // Instagram y Messenger aplican la misma ventana de 24 h que Meta usa para
+  // mensajes libres. La bandeja ya la muestra, pero el servidor vuelve a
+  // comprobarla por si la pestaña quedó abierta mientras vencía: así no crea
+  // una burbuja fallida por un envío que sabemos que Meta rechazará.
+  if ((channel === "instagram" || channel === "messenger") && !templateName) {
+    const { data: lastCustomerMessage } = await admin
+      .from("messages")
+      .select("created_at")
+      .eq("conversation_id", (conversation as Conversation).id)
+      .eq("sender_type", "customer")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastAt = lastCustomerMessage?.created_at
+      ? new Date(lastCustomerMessage.created_at).getTime()
+      : 0;
+    if (!lastAt || Date.now() - lastAt >= 24 * 60 * 60 * 1000) {
+      return NextResponse.json(
+        {
+          error: translate(locale, "inbox.metaSessionExpiredBanner"),
+          code: "META_SESSION_EXPIRED",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   // Comment replies must target a COMMENT id, not the post id. The
   // conversation's thread_external_id is the post/media id (used for
   // grouping), so replying to that 400s ("object does not exist").
