@@ -10,6 +10,7 @@ import type { Namespace } from "./types";
  * mal. Inicio quedó con plata y atención, en el namespace `dashboard`.
  */
 export const operation = {
+  webchatUpdate: { es: "Actualizar configuración del chat web", en: "Update web chat settings" },
   // Operator
   operatorTitle: { es: "Operator", en: "Operator" },
   operatorHint: {

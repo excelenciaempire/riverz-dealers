@@ -65,6 +65,12 @@ describe('normalizeVoiceCapacity', () => {
 });
 
 describe('voice queue policy', () => {
+  it('deduplicates campaign contacts even when the campaign uses the manual script', () => {
+    expect(voiceCallDedupeKey({contactId:'contact-1',callType:'manual',context:{campaign_id:'campaign-1'}})).toBe('campaign:campaign-1:contact:contact-1');
+  });
+  it('allows one distinct retry per parent call without colliding with its original campaign call', () => {
+    expect(voiceCallDedupeKey({contactId:'contact-1',callType:'manual',parentCallId:'original',context:{campaign_id:'campaign-1'}})).toBe('retry:original:contact:contact-1');
+  });
   it('keeps incoming and manual calls ahead of automations and campaigns', () => {
     expect(voiceCallPriority({ callType: 'inbound' })).toBe(500);
     expect(voiceCallPriority({ callType: 'manual' })).toBe(400);

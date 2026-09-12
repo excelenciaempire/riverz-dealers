@@ -5,6 +5,12 @@ import type { Namespace } from './types';
  * metrics. All user-facing; both locales required.
  */
 export const voice = {
+  campaignInvalid: { es: 'Revisa los datos de la campaña y selecciona recursos de este comercio. Las campañas terminadas no se pueden reiniciar.', en: 'Check the campaign details and select resources from this workspace. Finished campaigns cannot be restarted.' },
+  campaignDraft: { es: 'Crear borrador de campaña de llamadas', en: 'Create a call campaign draft' },
+  campaignStatusChange: { es: 'Cambiar el estado de la campaña de llamadas', en: 'Change call campaign status' },
+  campaignStartPreview: { es: 'Iniciar «{name}»: programará llamadas reales al segmento y consumirá saldo según las llamadas realizadas.', en: 'Start “{name}”: schedules real calls to the segment and uses credit based on the calls made.' },
+  campaignPausePreview: { es: 'Pausar «{name}». Las llamadas que ya estén en cola pueden continuar.', en: 'Pause “{name}”. Calls already queued may continue.' },
+  campaignCancelPreview: { es: 'Cancelar «{name}». No se podrá reiniciar. Las llamadas que ya estén en cola pueden continuar.', en: 'Cancel “{name}”. It cannot be restarted. Calls already queued may continue.' },
   // ── Agent editor · Voz tab ──
   tab: { es: 'Llamadas', en: 'Calls' },
   enable: { es: 'Agente de voz', en: 'Voice agent' },

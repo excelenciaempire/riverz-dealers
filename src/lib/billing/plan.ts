@@ -127,10 +127,11 @@ function aPlan(f: FilaPlan): Plan {
 }
 
 export async function listarPlanes(db: SupabaseClient): Promise<Plan[]> {
-  const { data } = await db
+  const { data, error } = await db
     .from('billing_plans')
     .select(COLUMNAS_PLAN)
     .order('orden', { ascending: true })
+  if (error) throw error
   return ((data ?? []) as unknown as FilaPlan[]).map(aPlan)
 }
 
@@ -144,7 +145,7 @@ export async function leerSuscripcion(
   db: SupabaseClient,
   workspaceId: string,
 ): Promise<Suscripcion | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from('workspace_subscriptions')
     .select(
       `workspace_id, plan_id, estado, prueba_hasta, periodo_desde, periodo_hasta,
@@ -154,6 +155,7 @@ export async function leerSuscripcion(
     )
     .eq('workspace_id', workspaceId)
     .maybeSingle()
+  if (error) throw error
   const f = data as unknown as FilaSuscripcion | null
   return f ? aSuscripcion(f) : null
 }
@@ -205,15 +207,16 @@ export async function asegurarSuscripcion(
 
   const plan = await planPorDefecto(db)
   const hasta = new Date(Date.now() + DIAS_DE_PRUEBA * 24 * 60 * 60 * 1000)
-  await db.from('workspace_subscriptions').upsert(
+  const { error } = await db.from('workspace_subscriptions').upsert(
     {
       workspace_id: workspaceId,
       plan_id: plan?.id ?? null,
       estado: 'prueba',
       prueba_hasta: hasta.toISOString(),
     },
-    { onConflict: 'workspace_id' },
+    { onConflict: 'workspace_id', ignoreDuplicates: true },
   )
+  if (error) throw error
   return (
     (await leerSuscripcion(db, workspaceId)) ?? {
       workspaceId,

@@ -43,6 +43,7 @@ const CANALES_CONECTABLES: Channel[] = [
   'ig_comment',
   'gmail',
   'outlook',
+  'zoho',
   'mercadolibre',
   'tiktok_comment',
 ]

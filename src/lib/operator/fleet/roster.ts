@@ -255,8 +255,8 @@ export const ROSTER: SubagentSpec[] = [
     id: 'integraciones',
     nombreKey: 'operation.subIntegraciones',
     alcance:
-      'Cuida las conexiones con WhatsApp, Instagram, la tienda y el resto: cuál se cayó, cuál está por vencer, qué falta conectar. NO puede conectar una cuenta nueva, eso necesita a una persona en el navegador.',
-    capacidades: ['integraciones.'],
+      'Cuida las conexiones con WhatsApp, Instagram, la tienda y el resto: cuál se cayó, cuál está por vencer, qué falta conectar. Puede consultar y configurar el chat web. NO conecta cuentas externas por OAuth: eso necesita a una persona en el navegador.',
+    capacidades: ['integraciones.', 'chatweb.'],
     tier: 'mecanico',
     maxIters: 5,
     instrucciones: [

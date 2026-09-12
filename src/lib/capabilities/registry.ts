@@ -26,6 +26,7 @@ import { PROSPECTING_CAPABILITIES } from './prospecting'
 import { RASMIAW_CAPABILITIES } from './rasmiaw'
 import { VOICE_CAPABILITIES } from './voice'
 import { WORKSPACE_CAPABILITIES } from './workspace'
+import { WEBCHAT_CAPABILITIES } from './webchat'
 import type { AnyCapability, Capability, CapabilitySchema } from './types'
 
 export const ALL_CAPABILITIES: Capability[] = [
@@ -49,6 +50,7 @@ export const ALL_CAPABILITIES: Capability[] = [
   ...RASMIAW_CAPABILITIES,
   ...INTEGRATION_CAPABILITIES,
   ...WORKSPACE_CAPABILITIES,
+  ...WEBCHAT_CAPABILITIES,
 ]
 
 export function findCapability(key: string): AnyCapability | undefined {

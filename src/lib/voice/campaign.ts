@@ -24,6 +24,7 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
     .from('contact_segments')
     .select('rules, match_mode')
     .eq('id', c.segment_id)
+    .eq('workspace_id', c.workspace_id)
     .maybeSingle();
   if (!seg) {
     await db.from('voice_campaigns').update({ status: 'done' }).eq('id', c.id);
@@ -64,7 +65,8 @@ async function runOne(db: SupabaseClient, c: VoiceCampaign): Promise<number> {
       status: done ? 'done' : 'running',
       updated_at: new Date().toISOString(),
     })
-    .eq('id', c.id);
+    .eq('id', c.id)
+    .eq('status', 'running');
   return enqueued;
 }
 

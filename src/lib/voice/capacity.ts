@@ -124,12 +124,14 @@ export function voiceCallDedupeKey(input: {
   contactId: string;
   callType: VoiceCallType;
   automationId?: string | null;
+  parentCallId?: string | null;
   context?: Record<string, unknown>;
 }): string | null {
-  if (input.callType === 'manual' && !input.automationId) return null;
   if (input.context?.test_call === true) return null;
+  if (input.parentCallId) return `retry:${input.parentCallId}:contact:${input.contactId}`;
   const campaignId = String(input.context?.campaign_id ?? '').trim();
   if (campaignId) return `campaign:${campaignId}:contact:${input.contactId}`;
+  if (input.callType === 'manual' && !input.automationId) return null;
   if (input.automationId) {
     return `automation:${input.automationId}:contact:${input.contactId}:type:${input.callType}`;
   }

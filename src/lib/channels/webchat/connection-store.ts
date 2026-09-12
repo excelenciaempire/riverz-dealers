@@ -14,12 +14,13 @@ export async function getWebchatConnection(
   workspaceId: string,
   db: SupabaseClient = supabaseAdmin(),
 ): Promise<ChannelConnection | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from('channel_connections')
     .select('*')
     .eq('workspace_id', workspaceId)
     .eq('channel', 'webchat')
     .maybeSingle();
+  if (error) throw error;
   return (data as ChannelConnection | null) ?? null;
 }
 
@@ -39,32 +40,10 @@ export async function upsertWebchatConnection(
   patch: WebchatConfig,
   db: SupabaseClient = supabaseAdmin(),
 ): Promise<ChannelConnection> {
-  const existing = await getWebchatConnection(workspaceId, db);
-  const config: WebchatConfig = { ...webchatConfig(existing), ...patch };
-  const status = config.enabled ? 'connected' : 'disconnected';
-
-  if (existing) {
-    const { data, error } = await db
-      .from('channel_connections')
-      .update({ config, status, updated_at: new Date().toISOString() })
-      .eq('id', existing.id)
-      .select('*')
-      .single();
-    if (error) throw error;
-    return data as ChannelConnection;
-  }
-
-  const { data, error } = await db
-    .from('channel_connections')
-    .insert({
-      workspace_id: workspaceId,
-      channel: 'webchat',
-      label: 'Chat web',
-      config,
-      status,
-    })
-    .select('*')
-    .single();
+  const { data, error } = await db.rpc('update_webchat_settings', {
+    p_workspace_id: workspaceId,
+    p_patch: patch,
+  }).single();
   if (error) throw error;
   return data as ChannelConnection;
 }

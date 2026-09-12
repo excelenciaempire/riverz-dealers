@@ -20,6 +20,7 @@ import type { Capability } from '@/lib/capabilities/types'
  * forma de sumar una capacidad y dejar un hueco.
  */
 const DOMINIO: Record<string, string> = {
+  chatweb: 'webchat.title',
   agentes: 'operation.domAgentes',
   ajustes: 'operation.domAjustes',
   aprobaciones: 'operation.domAprobaciones',

@@ -17,6 +17,7 @@ import { ALL_CAPABILITIES, esInerte, getCapability } from './registry'
 
 /** Lo que sí puede construirse solo, con su motivo. */
 const INERTES: Record<string, string> = {
+  'voz.crear_campana': 'nace en borrador; ignora start y no encola llamadas',
   'automatizaciones.armar_grupo': 'guarda dependencias y mantiene el motor apagado',
   'rasmiaw.armar_grupo_de_automatizaciones': 'prepara flujos existentes con is_active false',
   'rasmiaw.armar_operacion_rasmiaw': 'audita y prepara flujos existentes sin publicar ni enviar',

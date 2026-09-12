@@ -15,6 +15,7 @@
  * la mañana.
  */
 import { DEFAULT_CALLING_HOURS, OUTBOUND_CALL_TYPES } from '@/lib/voice/constants'
+import { createVoiceCampaign, changeVoiceCampaignStatus } from '@/lib/voice/campaign-settings'
 import { enqueueCall, nextAllowedTime } from '@/lib/voice/queue'
 import { pickVoiceAgent } from '@/lib/voice/inbound'
 import { summarizeVoiceCalls, VOICE_STATS_COLUMNS } from '@/lib/voice/analytics'
@@ -495,6 +496,32 @@ function vistaLlamar(ctx: CapabilityContext, args: Record<string, unknown>): Art
   })
 }
 export const VOICE_CAPABILITIES: Capability[] = [
+  {
+    key: 'voz.crear_campana',
+    description: 'Crea una campaña de llamadas en borrador para un segmento y agente de esta cuenta. No llama ni activa la campaña.',
+    descriptionEn: 'Create a draft call campaign for a segment and agent in this workspace. Does not call or start the campaign.',
+    risk: 'reversible', inerte: true,
+    schema: { type: 'object', properties: { name: { type: 'string' }, agent_id: { type: 'string' }, segment_id: { type: 'string' }, objective: { type: 'string' }, call_type: { type: 'string', enum: OUTBOUND_CALL_TYPES } }, required: ['name', 'agent_id', 'segment_id'] },
+    preview: async (ctx) => tt(ctx, 'voice.campaignDraft'),
+    run: (ctx, args) => createVoiceCampaign(ctx.db, ctx.workspaceId, { ...args, start: false }),
+    artifact: (ctx, args) => cambio({ titulo: String(args.name ?? ''), que: tt(ctx, 'voice.campaignDraft'), campos: [] }),
+  },
+  {
+    key: 'voz.estado_campana',
+    description: 'Inicia, pausa o cancela una campaña de llamadas. Iniciar programa llamadas reales y consume saldo: requiere aprobación. No reinicia campañas terminadas.',
+    descriptionEn: 'Start, pause or cancel a call campaign. Starting schedules real calls and uses credit, so approval is required. Does not restart finished campaigns.',
+    risk: 'irreversible',
+    schema: { type: 'object', properties: { id: { type: 'string' }, status: { type: 'string', enum: ['running', 'paused', 'canceled'] } }, required: ['id', 'status'] },
+    preview: async (ctx, args) => {
+      const { data, error } = await ctx.db.from('voice_campaigns').select('name').eq('id', args.id).eq('workspace_id', ctx.workspaceId).in('status', ['draft', 'running', 'paused']).maybeSingle();
+      if (error) throw error;
+      if (!data || !['running', 'paused', 'canceled'].includes(String(args.status))) throw new Error(tt(ctx, 'voice.campaignInvalid'));
+      const key = args.status === 'running' ? 'campaignStartPreview' : args.status === 'paused' ? 'campaignPausePreview' : 'campaignCancelPreview';
+      return translate(ctx.locale ?? 'es', `voice.${key}`, {name: data.name});
+    },
+    run: (ctx, args) => changeVoiceCampaignStatus(ctx.db, ctx.workspaceId, args.id, args.status),
+    artifact: (ctx) => cambio({ titulo: tt(ctx, 'voice.tab'), que: tt(ctx, 'voice.campaignStatusChange'), campos: [] }),
+  },
   {
     key: 'voz.detalle',
     description:

@@ -414,12 +414,14 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     context: callContext,
   });
   const rawDedupeKey = voiceCallDedupeKey({
+    parentCallId: input.parentCallId,
     contactId: input.contactId,
     callType: input.callType,
     automationId: input.automationId,
     context: callContext,
   });
-  const dedupeKey = capacity.dedupeMinutes > 0 ? rawDedupeKey : null;
+  const campaignCall = Boolean(callContext?.campaign_id);
+  const dedupeKey = capacity.dedupeMinutes > 0 || campaignCall ? rawDedupeKey : null;
 
   // Automatic triggers can arrive twice (webhook retry + cron, or two
   // automation runners). Reuse the live call so both callers wait for the
@@ -456,8 +458,8 @@ export async function enqueueCall(input: EnqueueInput): Promise<EnqueueResult> {
     }
     if (
       existing &&
-      new Date(existing.ended_at ?? existing.created_at).getTime() >=
-        new Date(cutoff).getTime()
+      (campaignCall || new Date(existing.ended_at ?? existing.created_at).getTime() >=
+        new Date(cutoff).getTime())
     ) {
       return { enqueued: false, reason: 'duplicate_recent' };
     }

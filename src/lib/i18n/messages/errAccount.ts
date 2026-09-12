@@ -7,6 +7,10 @@ import type { Namespace } from './types';
  */
 export const errAccount = {
   // Login
+  webchatAgentInvalid: {
+    es: 'Selecciona un agente disponible de este comercio.',
+    en: 'Select an available agent from this workspace.',
+  },
   invalidCredentials: {
     es: 'Email o contraseña incorrectos.',
     en: 'Incorrect email or password.',

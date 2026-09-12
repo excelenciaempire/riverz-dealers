@@ -127,9 +127,10 @@ describe('contrato del dominio', () => {
     }
   })
 
-  it('ninguna se declara inerte: llamar alcanza a una persona', () => {
+  it('solo crear un borrador es inerte: iniciar llamadas requiere aprobación', () => {
     for (const c of VOICE_CAPABILITIES) {
-      expect(c.inerte, c.key).toBeUndefined()
+      if (c.key === 'voz.crear_campana') expect(c.inerte).toBe(true)
+      else expect(c.inerte, c.key).toBeUndefined()
     }
   })
 })
