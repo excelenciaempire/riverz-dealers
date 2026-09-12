@@ -28,6 +28,7 @@ import type { Artefacto } from '@/lib/operator/artifacts'
 import type { Channel } from '@/types'
 import { cambio, corto, fecha, lista, tabla, tablero, tt } from './vistas'
 import type { Capability, CapabilityContext } from './types'
+import { redactModelSecrets } from '@/lib/security/model-secrets'
 
 /**
  * Los canales que se conectan contra un tercero, que son los únicos que se
@@ -144,7 +145,7 @@ async function estado(ctx: CapabilityContext) {
         // no volvió a 'connected' — ahí la renovación no prosperó.
         vence: vence,
         vencido: vence ? Date.parse(vence) < ahora : false,
-        ultimo_error: f.last_error,
+        ultimo_error: f.last_error ? redactModelSecrets(f.last_error) : null,
         ultima_sincronizacion: f.last_synced_at,
       }
     }),

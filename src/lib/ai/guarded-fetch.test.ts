@@ -38,6 +38,20 @@ it('leaves unrelated endpoints untouched', async () => {
   expect(transport).toHaveBeenCalledWith('https://api.anthropic.com/v1/models', init);
 });
 
+it('redacts credentials from model context without changing provider authentication', async () => {
+  const transport = vi.fn<typeof fetch>(async () => new Response('{}'));
+  await guardedAnthropicFetch(transport)('https://api.anthropic.com/v1/messages', {
+    method: 'POST', headers: { 'x-api-key': 'provider-auth-kept' },
+    body: JSON.stringify({ system: [{ type: 'text', text: 'api_key=synthetic-private-key', cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'same-id', content: 'access_token=synthetic-private-key HTTP 401' }] }] }),
+  });
+  const init = transport.mock.calls[0][1];
+  expect(String(init?.body)).not.toContain('synthetic-private-key');
+  expect(String(init?.body)).toContain('HTTP 401');
+  expect(String(init?.body)).toContain('same-id');
+  expect(new Headers(init?.headers).get('x-api-key')).toBe('provider-auth-kept');
+});
+
 it.each(['platform', 'agent'])('protects %s keys before billing and preserves the request', async source => {
   const rpc = vi.fn(async (name: string) => ({ data: name === 'wallet_reservar' ? true : [], error: null }));
   const transport = vi.fn<typeof fetch>(async input => String(input).includes('count_tokens')

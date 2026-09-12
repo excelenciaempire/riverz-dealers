@@ -1,4 +1,5 @@
 import { secureSystemPrompt, UNTRUSTED_CONTENT_POLICY } from './input-security';
+import { redactModelContent } from '@/lib/security/model-secrets';
 
 /** Covers every shared Anthropic client, including streaming and merchant keys.
  * Runs before billing so token counting includes the actual protected prompt.
@@ -11,6 +12,10 @@ export function guardedAnthropicFetch(transport: typeof fetch): typeof fetch {
     const request = new Request(input, init);
     if (request.method !== 'POST') return transport(input, init);
     const body = await request.clone().json();
+    body.system = redactModelContent(body.system);
+    if (Array.isArray(body.messages)) body.messages = body.messages.map((message: { content?: unknown }) => ({
+      ...message, content: redactModelContent(message.content),
+    }));
     if (Array.isArray(body.system)) {
       const last = body.system.at(-1);
       if (typeof last?.text !== 'string' || !last.text.endsWith(UNTRUSTED_CONTENT_POLICY)) {

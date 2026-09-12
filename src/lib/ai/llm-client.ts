@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from './anthropic-client';
 import { esfuerzo } from './esfuerzo';
 import { secureSystemPrompt } from './input-security';
+import { redactModelSecrets } from '@/lib/security/model-secrets';
 
 /**
  * Provider-agnostic text completion for the Instagram brain.
@@ -174,7 +175,7 @@ async function completeOpenAICompat(
       max_tokens: o.maxTokens,
       messages: [
         { role: 'system', content: secureSystemPrompt(o.system) },
-        { role: 'user', content: o.user },
+        { role: 'user', content: redactModelSecrets(o.user) },
       ],
     }),
     signal: AbortSignal.timeout(45_000),

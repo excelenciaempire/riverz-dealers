@@ -84,6 +84,14 @@ describe('contrato de las capacidades', () => {
 })
 
 describe('integraciones.estado', () => {
+  it('does not leak a provider credential embedded in an error message', async () => {
+    const result = await cap('integraciones.estado').run(ctxCon(fakeDb({ channel_connections: [{
+      id: 'c', channel: 'gmail', last_error: 'HTTP 401 access_token=synthetic-provider-secret',
+      config: {}, secrets: {},
+    }] })), {});
+    expect(JSON.stringify(result)).not.toContain('synthetic-provider-secret');
+    expect(JSON.stringify(result)).toContain('HTTP 401');
+  })
   const filas = [
     {
       id: 'c1',
