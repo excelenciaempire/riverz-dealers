@@ -16,6 +16,8 @@ import { titleFrom } from './prompt'
 /** Cuántos turnos se le reenvían al modelo. Alcanza para seguir un hilo. */
 const CONTEXT_TURNS = 20
 
+export class OperatorThreadUnavailable extends Error {}
+
 export interface ThreadMessage {
   id: string
   role: 'user' | 'assistant'
@@ -30,13 +32,16 @@ export async function ensureThread(
   input: { threadId?: string | null; workspaceId: string; userId: string; firstText: string },
 ): Promise<string> {
   if (input.threadId) {
-    const { data } = await db
+    const { data, error } = await db
       .from('operator_threads')
       .select('id')
       .eq('id', input.threadId)
       .eq('workspace_id', input.workspaceId)
       .maybeSingle()
+    if (error?.code === '22P02') throw new OperatorThreadUnavailable('operator_thread_unavailable')
+    if (error) throw error
     if (data) return (data as { id: string }).id
+    throw new OperatorThreadUnavailable('operator_thread_unavailable')
   }
 
   const { data, error } = await db
@@ -266,6 +271,7 @@ export async function appendMessage(
     .from('operator_threads')
     .update({ updated_at: new Date().toISOString() })
     .eq('id', input.threadId)
+    .eq('workspace_id', input.workspaceId)
 }
 
 export async function loadActions(

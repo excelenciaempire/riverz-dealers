@@ -113,6 +113,7 @@ export async function decideOperatorAction(
       .from('operator_actions')
       .update({ status: 'fallido', result: { error: 'capacidad no disponible' } })
       .eq('id', fila.id)
+      .eq('workspace_id', input.workspaceId)
     return {
       ok: false,
       status: 'fallido',
@@ -133,6 +134,7 @@ export async function decideOperatorAction(
       .from('operator_actions')
       .update({ result: result ?? null })
       .eq('id', fila.id)
+      .eq('workspace_id', input.workspaceId)
     await anotar(db, {
       workspaceId: input.workspaceId,
       userId: input.userId,
@@ -149,6 +151,7 @@ export async function decideOperatorAction(
       .from('operator_actions')
       .update({ status: 'fallido', result: { error: motivo } })
       .eq('id', fila.id)
+      .eq('workspace_id', input.workspaceId)
     await anotar(db, {
       workspaceId: input.workspaceId,
       userId: input.userId,

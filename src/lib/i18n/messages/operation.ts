@@ -10,6 +10,8 @@ import type { Namespace } from "./types";
  * mal. Inicio quedó con plata y atención, en el namespace `dashboard`.
  */
 export const operation = {
+  agentUnavailable: { es: 'El agente no está disponible en este comercio.', en: 'The agent is not available in this workspace.' },
+  threadUnavailable: { es: 'La conversación no está disponible en este comercio.', en: 'The conversation is not available in this workspace.' },
   webchatUpdate: { es: "Actualizar configuración del chat web", en: "Update web chat settings" },
   // Operator
   operatorTitle: { es: "Operator", en: "Operator" },

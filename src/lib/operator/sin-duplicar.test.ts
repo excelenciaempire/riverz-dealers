@@ -50,7 +50,7 @@ function fakeDb(filas: Fila[]) {
         update(v: Record<string, unknown>) {
           Object.assign(q, v)
           actualizado.push({ id: 'x', args: (v.args ?? {}) as Record<string, unknown> })
-          return { eq: async () => ({ data: null, error: null }) }
+          return self
         },
         then(res: (v: { data: Fila[] }) => void) {
           res({ data: filas.filter((f) => f.status === 'propuesto') })

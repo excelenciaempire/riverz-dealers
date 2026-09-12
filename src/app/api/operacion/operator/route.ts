@@ -29,6 +29,7 @@ import {
   loadActions,
   loadMessages,
   toAnthropic,
+  OperatorThreadUnavailable,
 } from '@/lib/operator/threads';
 import { limitByKey } from '@/lib/rate-limit';
 import { createClient } from '@/lib/supabase/server';
@@ -117,6 +118,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'not_available' }, { status: 404 });
 
   const threadId = new URL(request.url).searchParams.get('thread');
+  if (threadId) {
+    const { data, error } = await ctx.admin.from('operator_threads').select('id')
+      .eq('id', threadId).eq('workspace_id', ctx.workspaceId).maybeSingle();
+    if (!data || error) return NextResponse.json({ error: translate(await getLocale(), 'operation.threadUnavailable') }, { status: 404 });
+  }
   // La lista de hilos viaja siempre: la pantalla la necesita tanto al abrir una
   // conversación como al arrancar en blanco, y son dos consultas baratas.
   const hilos = await listarHilos(ctx.admin, ctx.workspaceId);
@@ -225,7 +231,8 @@ export async function POST(request: Request) {
     texto?: string;
     thread?: string | null;
   } | null;
-  const texto = (body?.texto ?? '').trim().slice(0, 4000);
+  const texto = typeof body?.texto === 'string' ? body.texto.trim().slice(0, 4000) : '';
+  if (body?.thread != null && typeof body.thread !== 'string') return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   if (!texto)
     return NextResponse.json({ error: 'texto_required' }, { status: 400 });
 
@@ -261,12 +268,18 @@ export async function POST(request: Request) {
    * cola hacia quien esté mirando. Si no hay nadie, la cola se descarta y el
    * trabajo sigue igual — y quien vuelve lo retoma leyendo la corrida.
    */
-  const threadId = await ensureThread(ctx.admin, {
-    threadId: body?.thread,
-    workspaceId: ctx.workspaceId,
-    userId: ctx.userId,
-    firstText: texto,
-  });
+  let threadId: string;
+  try {
+    threadId = await ensureThread(ctx.admin, {
+      threadId: body?.thread,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      firstText: texto,
+    });
+  } catch (error) {
+    if (error instanceof OperatorThreadUnavailable) return NextResponse.json({ error: translate(locale, 'operation.threadUnavailable') }, { status: 404 });
+    throw error;
+  }
 
   const { id: runId, yaHabia } = await abrirCorrida(
     ctx.admin,

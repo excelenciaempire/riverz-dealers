@@ -357,6 +357,15 @@ describe('agentes.editar', () => {
     expect(registro.some((c) => c.op === 'update')).toBe(false)
   })
 
+  it('no vincula una regla nueva a un agente ajeno o eliminado', async () => {
+    for (const row of [agente({workspace_id:'ws-2'}), agente({deleted_at:'2026-09-12'})]) {
+      const registro: Consulta[] = []
+      const db = fakeDb({ai_agents:[row]},registro)
+      await expect(cap('agentes.crear_regla').run(ctxCon(db),{agent_id:'a-1',titulo:'Regla',hacer:'Responder'})).rejects.toThrow(/no está disponible/)
+      expect(registro.some(c=>c.op==='insert')).toBe(false)
+    }
+  })
+
   it('frena si el cambio deja dos agentes del mismo rol en el mismo canal', async () => {
     // Un agente ACTIVO al que se le edita cualquier cosa vuelve a pasar por la
     // misma validación que la pantalla: si otro del mismo rol ya ocupa el

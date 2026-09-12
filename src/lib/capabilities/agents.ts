@@ -695,6 +695,13 @@ async function crearRegla(ctx: CapabilityContext, args: Record<string, unknown>)
   if (!titulo) throw new Error('Falta el título de la regla.')
   if (!hacer) throw new Error('Falta qué tiene que hacer el agente.')
 
+  if (args.agent_id) {
+    const { data: agent, error } = await ctx.db.from('ai_agents').select('id')
+      .eq('id', args.agent_id).eq('workspace_id', ctx.workspaceId).is('deleted_at', null).maybeSingle()
+    if (error) throw error
+    if (!agent) throw new Error(tt(ctx, 'operation.agentUnavailable'))
+  }
+
   const cuando =
     typeof args.cuando === 'string' && args.cuando.trim()
       ? args.cuando.trim().slice(0, MAX_TEXTO)

@@ -168,6 +168,7 @@ export async function proponer(
         .from('operator_actions')
         .update({ args, preview, artifact: artefacto })
         .eq('id', previa.id)
+        .eq('workspace_id', ctx.workspaceId)
       return {
         id: previa.id,
         preview,
