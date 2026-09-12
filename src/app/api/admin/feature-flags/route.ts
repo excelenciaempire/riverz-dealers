@@ -4,6 +4,8 @@ import { csrfGuard } from '@/lib/csrf';
 import { requireAdmin } from '@/lib/admin/guard';
 import { adminGet } from '@/lib/admin/route';
 import { recordAdminAction } from '@/lib/admin/audit';
+import { getT } from '@/lib/i18n/server';
+import { selectAll } from '@/lib/db/paginate';
 import {
   getFeatureFlags,
   FEATURES,
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
   return adminGet(request, { action: 'view.feature_flags' }, async () => {
     const db = supabaseAdmin();
     const [flags, excepciones] = await Promise.all([
-      getFeatureFlags(db),
+      getFeatureFlags(db, null, { strict: true }),
       contarExcepciones(db),
     ]);
     return { flags, features: FEATURES, optInFeatures: OPT_IN_FEATURES, excepciones };
@@ -47,8 +49,11 @@ async function contarExcepciones(
 ): Promise<Record<string, number>> {
   const cuenta: Record<string, number> = {};
   try {
-    const { data } = await db.from('workspace_feature_flags').select('key');
-    for (const f of (data ?? []) as { key: string }[]) {
+    const data = await selectAll<{ key: string }>(
+      db, 'workspace_feature_flags', (q) => q.order('workspace_id', { ascending: true }),
+      { select: 'key', orderBy: 'key', strict: true },
+    );
+    for (const f of data) {
       cuenta[f.key] = (cuenta[f.key] ?? 0) + 1;
     }
   } catch {
@@ -63,6 +68,7 @@ export async function PUT(request: Request) {
   if (block) return block;
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
+  const t = await getT();
 
   const body = (await request.json().catch(() => null)) as {
     key?: string;
@@ -72,10 +78,18 @@ export async function PUT(request: Request) {
     workspaceId?: string;
   } | null;
   if (!body?.key) {
-    return NextResponse.json({ error: 'key required' }, { status: 400 });
+    return NextResponse.json({ error: t('admin.featureInvalidInput') }, { status: 400 });
   }
   if (!ALL_FEATURES.some((f) => f.key === body.key)) {
-    return NextResponse.json({ error: 'unknown feature' }, { status: 400 });
+    return NextResponse.json({ error: t('admin.featureInvalidInput') }, { status: 400 });
+  }
+
+  const workspaceOverride = body.workspaceId !== undefined;
+  if (
+    (workspaceOverride && (typeof body.workspaceId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.workspaceId))) ||
+    (typeof body.enabled !== 'boolean' && !(workspaceOverride && body.enabled === null))
+  ) {
+    return NextResponse.json({ error: t('admin.featureInvalidInput') }, { status: 400 });
   }
 
   const db = supabaseAdmin();
@@ -102,7 +116,7 @@ export async function PUT(request: Request) {
             },
             { onConflict: 'workspace_id,key' },
           );
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: t('admin.featureSaveError') }, { status: 500 });
 
     await recordAdminAction(gate.actor, request, {
       action: 'update.workspace_feature_flag',
@@ -114,10 +128,6 @@ export async function PUT(request: Request) {
   }
 
   // ── Valor global ──
-  if (typeof body.enabled !== 'boolean') {
-    return NextResponse.json({ error: 'enabled required' }, { status: 400 });
-  }
-
   const { error } = await db.from('feature_flags').upsert(
     {
       key: body.key,
@@ -127,7 +137,7 @@ export async function PUT(request: Request) {
     },
     { onConflict: 'key' },
   );
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: t('admin.featureSaveError') }, { status: 500 });
 
   // Apagar una funcionalidad acá la esconde para todos los comercios que no
   // tengan una excepción propia: queda rastro de quién lo hizo y cuándo.

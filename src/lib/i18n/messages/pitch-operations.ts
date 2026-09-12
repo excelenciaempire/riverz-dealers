@@ -372,7 +372,7 @@ export const operationCatalog = [
     journey: 'changes',
     es: [
       'Cambio, garantía o producto dañado',
-      'Me llegó dañado o no es lo que pedí.',
+      'Me llegó dañado o no es lo que pedí.', // no es voseo rioplatense: pretérito de 1ª persona
       'Lamento que tu pedido haya llegado así, {{customer}}. Queremos ayudarte.\n\nEnvíanos la referencia de compra y fotos del producto recibido. Con eso podremos registrar el caso y revisar la solución que corresponda.',
       'Información suficiente\n«Tu solicitud quedó registrada para revisión.»\nAbre devolución o garantía según la política; el equipo aprueba la solución.',
       'Falta evidencia o está fuera de política\n«Necesitamos revisar estos datos antes de confirmar una solución.»\nSolicita lo faltante o deriva la excepción.',

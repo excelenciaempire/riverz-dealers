@@ -17,6 +17,7 @@
  * el cliente (sidebar / SectionGuard) con el mapa de rutas→feature.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { canAccessSection, GATEABLE_KEYS } from '@/lib/rbac/sections';
 
 export interface FeatureDef {
   /** Clave estable guardada en la DB. */
@@ -168,6 +169,23 @@ export function canUsePath(
   return !feat || isFeatureEnabled(flags, feat);
 }
 
+/** A destination must satisfy both member permissions and platform settings. */
+export function sectionRedirect(
+  path: string,
+  allowed: string[] | null,
+  flags: FeatureFlags,
+  isPlatformAdmin: boolean,
+): string | null {
+  const accessible = (candidate: string) =>
+    canAccessSection(allowed, candidate) &&
+    canUsePath(candidate, flags, isPlatformAdmin) &&
+    (candidate !== '/chat' && !candidate.startsWith('/chat/') || isRiverz2(flags));
+  if (accessible(path)) return null;
+  return (allowed ?? ['/panel', ...GATEABLE_KEYS]).find(
+    (candidate) => GATEABLE_KEYS.includes(candidate) && accessible(candidate),
+  ) ?? '/ajustes';
+}
+
 /**
  * Lee los flags que le corresponden a un comercio.
  *
@@ -186,6 +204,7 @@ export function canUsePath(
 export async function getFeatureFlags(
   db: SupabaseClient,
   workspaceId?: string | null,
+  options?: { strict?: boolean },
 ): Promise<FeatureFlags> {
   try {
     const [globalRes, wsRes] = await Promise.all([
@@ -198,6 +217,10 @@ export async function getFeatureFlags(
         : Promise.resolve({ data: [] as { key: string; enabled: boolean }[] }),
     ]);
 
+    if (options?.strict && (globalRes.error || ('error' in wsRes && wsRes.error))) {
+      throw new Error('feature_flags_unavailable');
+    }
+
     const out: FeatureFlags = {};
     for (const row of (globalRes.data ?? []) as { key: string; enabled: boolean }[]) {
       out[row.key] = row.enabled;
@@ -208,7 +231,8 @@ export async function getFeatureFlags(
       out[row.key] = row.enabled;
     }
     return out;
-  } catch {
+  } catch (error) {
+    if (options?.strict) throw error;
     return {};
   }
 }
@@ -217,18 +241,21 @@ export async function getFeatureFlags(
 export async function getWorkspaceOverrides(
   db: SupabaseClient,
   workspaceId: string,
+  options?: { strict?: boolean },
 ): Promise<FeatureFlags> {
   try {
-    const { data } = await db
+    const { data, error } = await db
       .from('workspace_feature_flags')
       .select('key, enabled')
       .eq('workspace_id', workspaceId);
+    if (options?.strict && error) throw new Error('workspace_feature_flags_unavailable');
     const out: FeatureFlags = {};
     for (const row of (data ?? []) as { key: string; enabled: boolean }[]) {
       out[row.key] = row.enabled;
     }
     return out;
-  } catch {
+  } catch (error) {
+    if (options?.strict) throw error;
     return {};
   }
 }

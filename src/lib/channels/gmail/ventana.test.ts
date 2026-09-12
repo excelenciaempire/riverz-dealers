@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { ventanaDeBusqueda } from './poll'
 
 /**
@@ -15,6 +15,11 @@ const HORA = 3_600_000
 const DIA = 24 * HORA
 
 describe('la ventana de búsqueda de Gmail', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-12T12:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
   it('un buzón recién conectado ve una semana', () => {
     // Para que el comercio vea historial de verdad y no una bandeja vacía.
     expect(ventanaDeBusqueda(null)).toBe('newer_than:7d')

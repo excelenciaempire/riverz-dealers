@@ -136,6 +136,18 @@ describe('canUsePath', () => {
 });
 
 describe('getFeatureFlags', () => {
+  it('strict refresh rejects either failed layer instead of enabling features by default', async () => {
+    for (const failed of ['feature_flags', 'workspace_feature_flags']) {
+      const db = {
+        from(table: string) {
+          const response = { data: null, error: table === failed ? { message: 'timeout' } : null };
+          return { select: () => ({ ...response, eq: () => response }) };
+        },
+      } as unknown as SupabaseClient;
+      await expect(getFeatureFlags(db, 'ws-1', { strict: true })).rejects.toThrow('feature_flags_unavailable');
+    }
+  });
+
   it('sin workspace devuelve sólo los globales', async () => {
     const flags = await getFeatureFlags(fakeDb([{ key: 'flows', enabled: false }]));
     expect(flags).toEqual({ flows: false });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Workspace, WorkspaceMember } from "@/types";
+import { selectWorkspaceMembership } from "@/lib/workspaces/select-membership";
 
 interface WorkspaceState {
   workspace: Workspace | null;
@@ -14,7 +15,7 @@ interface WorkspaceState {
 
 /**
  * Returns the user's current workspace + role. Picks the first
- * membership (we don't have a workspace switcher yet; if/when a user
+ * owned workspace, then oldest membership, matching server resolution (if/when a user
  * belongs to multiple workspaces we'll persist their selection in
  * localStorage and add a picker in the header).
  */
@@ -27,38 +28,37 @@ export function useWorkspace(): WorkspaceState {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        if (!cancelled) {
-          setWorkspace(null);
-          setMembership(null);
-          setLoading(false);
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!user) {
+          if (!cancelled) {
+            setWorkspace(null);
+            setMembership(null);
+          }
+          return;
         }
-        return;
+
+        const { data: memberships, error } = await supabase
+          .from("workspace_members")
+          .select("*, workspace:workspaces(*)")
+          .eq("user_id", user.id)
+          .order("joined_at", { ascending: true });
+        if (error) throw error;
+
+        if (cancelled) return;
+        const m = selectWorkspaceMembership(memberships ?? [], user.id);
+        setMembership(m ?? null);
+        setWorkspace(m?.workspace ?? null);
+      } catch {
+        // Keep known workspace data on transient failures; never leave initial loading stuck.
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      const { data: memberships } = await supabase
-        .from("workspace_members")
-        .select("*, workspace:workspaces(*)")
-        .eq("user_id", user.id)
-        .order("joined_at", { ascending: true });
-
-      if (cancelled) return;
-      // Filter out soft-deleted workspaces so the UI doesn't keep
-      // showing one the owner just removed.
-      const live = (memberships ?? []).filter((m) => {
-        const w = (m as WorkspaceMember & { workspace?: Workspace & { deleted_at?: string | null } }).workspace;
-        return w && !w.deleted_at;
-      });
-      const m = live[0] as
-        | (WorkspaceMember & { workspace?: Workspace })
-        | undefined;
-      setMembership(m ?? null);
-      setWorkspace(m?.workspace ?? null);
-      setLoading(false);
     })();
     return () => {
       cancelled = true;

@@ -353,7 +353,7 @@ export const landingV4 = {
   // hizo, junto a "Segmenté" y "Programé"—, no voseo rioplatense. Se marca para
   // que el barrido no lo confunda; cambiarlo rompería la frase.
   opLine2: {
-    es: 'Escribí el mensaje con el producto',
+    es: 'Escribí el mensaje con el producto', // no es voseo rioplatense: pretérito de 1ª persona
     en: 'Wrote the message with the product',
   }, // no es voseo rioplatense: pretérito de 1ª persona
   opLine3: {

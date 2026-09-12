@@ -110,9 +110,9 @@ export default function AdminWorkspaceDetailPage({
         <div className="space-y-3 p-4">
           <p className="text-sm text-foreground">
             <span className="text-2xl font-semibold tabular-nums">
-              US${(data.billetera.saldoCentavos / 100).toFixed(2)}
+              {format.currency(data.billetera.saldoCentavos / 100, data.billetera.moneda)}
             </span>
-            {data.billetera.bloqueaSinSaldo && data.billetera.saldoCentavos <= 0 && (
+            {data.billetera.sinSaldo && (
               <span className="ml-2 text-sm text-destructive">
                 {t("admin.walletOff")}
               </span>
@@ -129,7 +129,7 @@ export default function AdminWorkspaceDetailPage({
                   <div className="min-w-0">
                     <p className="truncate text-foreground">{m.concepto}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(m.creadoEn).toLocaleString()}
+                      {format.dateTime(m.creadoEn)}
                       {m.cantidad !== null && m.unidad
                         ? ` · ${m.cantidad} ${m.unidad}`
                         : ""}
@@ -137,11 +137,10 @@ export default function AdminWorkspaceDetailPage({
                   </div>
                   <div className="shrink-0 text-right tabular-nums">
                     <p className={m.centavos >= 0 ? "text-foreground" : "text-muted-foreground"}>
-                      {m.centavos >= 0 ? "+" : "−"}US$
-                      {(Math.abs(m.centavos) / 100).toFixed(2)}
+                      {format.currency(m.centavos / 100, data.billetera.moneda, { signDisplay: "always" })}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      US${(m.saldoDespuesCentavos / 100).toFixed(2)}
+                      {format.currency(m.saldoDespuesCentavos / 100, data.billetera.moneda)}
                     </p>
                   </div>
                 </li>

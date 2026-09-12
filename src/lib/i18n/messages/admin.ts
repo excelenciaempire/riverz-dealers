@@ -192,6 +192,7 @@ export const admin = {
   },
   featureSaved: { es: 'Guardado', en: 'Saved' },
   featureSaveError: { es: 'No se pudo guardar', en: "Couldn't save" },
+  featureInvalidInput: { es: 'La configuración de la funcionalidad no es válida.', en: 'The feature configuration is invalid.' },
   // Experiencias opt-in: arrancan apagadas y se prenden por comercio
   experiencesTitle: { es: 'Experiencias', en: 'Experiences' },
   experiencesDesc: {

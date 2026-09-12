@@ -5,6 +5,7 @@ import { collectPlatformIssues, collectWorkspaceIssues, type Issue } from '@/lib
 import { getFeatureFlags, getWorkspaceOverrides } from './feature-flags';
 import { assertMetadataOnly } from './pii';
 import { selectAll } from '@/lib/db/paginate';
+import { workspaceWalletSummary } from './workspace-wallet';
 
 /**
  * Capa de lectura del panel de plataforma — la única del código que cruza
@@ -244,6 +245,9 @@ export interface WorkspaceDetail {
    */
   billetera: {
     saldoCentavos: number;
+    disponibleCentavos: number;
+    moneda: string;
+    sinSaldo: boolean;
     bloqueaSinSaldo: boolean;
     movimientos: Array<{
       id: string;
@@ -263,7 +267,7 @@ async function countIn(table: string, workspaceId: string): Promise<number> {
     .from(table)
     .select('id', { count: 'exact', head: true })
     .eq('workspace_id', workspaceId);
-  if (error) return 0;
+  if (error) throw new Error(`workspace_count_unavailable:${table}`);
   return count ?? 0;
 }
 
@@ -362,8 +366,8 @@ export async function getWorkspaceDetail(
       .order('created_at', { ascending: false })
       .limit(5),
     collectWorkspaceIssues(client, id),
-    getFeatureFlags(client),
-    getWorkspaceOverrides(client, id),
+    getFeatureFlags(client, null, { strict: true }),
+    getWorkspaceOverrides(client, id, { strict: true }),
   ]);
 
   // Los miembros vienen de dos tablas: la membresía y el perfil (identidad del
@@ -396,10 +400,10 @@ export async function getWorkspaceDetail(
   // Va fuera del Promise.all de arriba a propósito: son dos consultas chicas y
   // meterlas ahí obligaba a renumerar la desestructuración entera, que es
   // justo el tipo de cambio que rompe un archivo largo sin que se note.
-  const [billeteraRes, movimientosRes] = await Promise.all([
+  const [billeteraRes, movimientosRes, suscripcionRes] = await Promise.all([
     client
       .from('wallet_accounts')
-      .select('saldo_centavos, bloquear_sin_saldo')
+      .select('saldo_centavos, reservado_centavos, moneda')
       .eq('workspace_id', id)
       .maybeSingle(),
     client
@@ -408,10 +412,17 @@ export async function getWorkspaceDetail(
       .eq('workspace_id', id)
       .order('creado_en', { ascending: false })
       .limit(20),
+    safeSelect(client, 'workspace_subscriptions', 'estado')
+      .eq('workspace_id', id)
+      .maybeSingle(),
   ]);
+  if (billeteraRes.error || movimientosRes.error || suscripcionRes.error) {
+    throw new Error('workspace_wallet_unavailable');
+  }
   const cuentaBilletera = billeteraRes.data as {
     saldo_centavos?: number;
-    bloquear_sin_saldo?: boolean;
+    reservado_centavos?: number;
+    moneda?: string;
   } | null;
 
   const recentErrors: WorkspaceDetail['recentErrors'] = [
@@ -435,8 +446,7 @@ export async function getWorkspaceDetail(
 
   return {
     billetera: {
-      saldoCentavos: Number(cuentaBilletera?.saldo_centavos ?? 0),
-      bloqueaSinSaldo: cuentaBilletera?.bloquear_sin_saldo === true,
+      ...workspaceWalletSummary(cuentaBilletera, suscripcionRes.data as { estado?: string } | null),
       movimientos: ((movimientosRes.data ?? []) as unknown as Array<{
         id: string;
         creado_en: string;

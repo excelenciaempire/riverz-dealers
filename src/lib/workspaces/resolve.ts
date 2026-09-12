@@ -38,6 +38,7 @@ export async function resolveWorkspaceIdForUser(
     .eq('owner_id', userId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
     .limit(1)
     .maybeSingle()
   const ownedId = (owned as { id?: string } | null)?.id
