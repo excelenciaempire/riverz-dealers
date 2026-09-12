@@ -74,6 +74,8 @@ export interface ReportedPaymentInput {
   db: SupabaseClient
   workspaceId: string
   contactId: string
+  /** Server-set: model-extracted evidence is not bank/payment-provider verification. */
+  requiereVerificacionHumana?: boolean
   /** Monto leído del comprobante. Sin esto nunca se marca solo. */
   amount?: number | null
   /** Fila de `messages` donde llegó, para poder volver a mirarlo. */
@@ -204,6 +206,10 @@ export async function registerReportedPayment(
       },
     })
     .eq('id', order.id)
+
+  if (input.requiereVerificacionHumana) {
+    return { kind: 'a_confirmar', reason: 'el comprobante leído por IA requiere verificar el ingreso del pago' }
+  }
 
   // Paso 2: ¿alcanza para cobrar solo?
   const esperado = Number(order.total_price ?? '')

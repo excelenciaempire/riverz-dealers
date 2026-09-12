@@ -4,6 +4,7 @@ import { cancelar, liquidar, reservar } from '@/lib/wallet/operacion';
 import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropic } from './anthropic-client';
 import { esfuerzo } from './esfuerzo';
+import { secureSystemPrompt } from './input-security';
 
 /**
  * Provider-agnostic text completion for the Instagram brain.
@@ -127,7 +128,7 @@ async function completeAnthropic(
     // El escalón `triage` es Haiku, que los rechaza con 400.
     ...esfuerzo(model, { effort: o.effort ?? 'low' }),
     system: [
-      { type: 'text', text: o.system, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: secureSystemPrompt(o.system), cache_control: { type: 'ephemeral' } },
     ],
     messages: [{ role: 'user', content: o.user }],
   });
@@ -157,7 +158,7 @@ async function completeOpenAICompat(
   const id = await reservar(
     o.billing,
     p.name,
-    ((Buffer.byteLength(o.system + o.user, 'utf8') + 256) * rate.input +
+    ((Buffer.byteLength(secureSystemPrompt(o.system) + o.user, 'utf8') + 256) * rate.input +
       o.maxTokens * rate.output) /
       1e6,
     { modelo: p.model[o.tier] }
@@ -172,7 +173,7 @@ async function completeOpenAICompat(
       model: p.model[o.tier],
       max_tokens: o.maxTokens,
       messages: [
-        { role: 'system', content: o.system },
+        { role: 'system', content: secureSystemPrompt(o.system) },
         { role: 'user', content: o.user },
       ],
     }),
@@ -254,7 +255,7 @@ export async function describeImage(o: {
     model: ANTHROPIC_MODELS.triage,
     max_tokens: o.maxTokens,
     ...esfuerzo(ANTHROPIC_MODELS.triage),
-    system: [{ type: 'text', text: o.system }],
+    system: [{ type: 'text', text: secureSystemPrompt(o.system) }],
     messages: [
       {
         role: 'user',

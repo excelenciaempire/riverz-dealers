@@ -10,7 +10,8 @@ describe("appendBusinessScopeGuardrails", () => {
   it("appends both the scope-lock and the character-lock, in order", () => {
     const lines: string[] = ["persona", "tono"];
     appendBusinessScopeGuardrails(lines, "Vera");
-    expect(lines).toHaveLength(4);
+    expect(lines).toHaveLength(5);
+    expect(lines[4]).toContain('SECURITY BOUNDARY');
     expect(lines[2]).toBe(SCOPE_LOCK_INSTRUCTION);
     expect(lines[3]).toBe(characterLockInstruction("Vera"));
   });

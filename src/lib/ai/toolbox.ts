@@ -212,6 +212,17 @@ export function isToolMode(v: unknown): v is ToolMode {
 
 export type AgentTools = Record<string, ToolMode>
 
+/** SDK names differ from the merchant's permission keys for these tools. */
+export function toolPermissionKey(name: string): string {
+  switch (name) {
+    case 'create_checkout': return 'crear_checkout'
+    case 'create_order': return 'crear_pedido'
+    case 'update_order': return 'editar_pedido'
+    case 'escalate_to_call': return 'escalar_llamada'
+    default: return name
+  }
+}
+
 interface AgentLike {
   tools?: unknown
   permissions?: unknown

@@ -1,4 +1,5 @@
 import { reserveVoiceMedia } from './media-billing';
+import { secureSystemPrompt, untrustedContext } from '@/lib/ai/input-security';
 /**
  * Voice AI — system prompt + context builder.
  *
@@ -328,7 +329,7 @@ function recentConversationBlock(
     })
     .filter((line) => !line.endsWith(': '));
   if (!lines.length) return '';
-  const body = lines.join('\n').slice(-2400);
+  const body = untrustedContext('recent_customer_messages', lines.join('\n').slice(-2400));
   return lang === 'en'
     ? `## Recent customer context\nUse this only as context; do not repeat it unless relevant.\n${body}`
     : `## Contexto reciente del cliente\nÚsalo sólo como contexto; no lo repitas salvo que sea relevante.\n${body}`;
@@ -982,7 +983,7 @@ export async function buildVoiceContext(
       0,
       Math.min(Number(opts.silenceTimeoutSeconds ?? 8), 60)
     ),
-    system_prompt: `${baseTrimmed}\n\n${voiceBlock}`,
+    system_prompt: secureSystemPrompt(`${baseTrimmed}\n\n${voiceBlock}`),
     mode: model.mode,
     voice: {
       billing_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://riverzai.com'}/api/internal/voice/speech/${call.id}`,

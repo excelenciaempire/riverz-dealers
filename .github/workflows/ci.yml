@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: AI security architecture
+        run: node scripts/audit-ai-security.mjs
+
       - name: Lint
         run: npm run lint
 

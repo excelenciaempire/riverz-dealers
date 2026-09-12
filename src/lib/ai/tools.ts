@@ -1,3 +1,6 @@
+import { secureSystemPrompt, toolCallAllowed } from './input-security'
+import { toolPermissionKey } from './toolbox'
+
 /**
  * Tool definitions + agentic loop para el asistente IA.
  *
@@ -13,7 +16,7 @@
  */
 
 import { filtroDeNumero } from '@/lib/orders/numero'
-import { esfuerzo, reguladoPorEsfuerzo } from './esfuerzo'
+import { esfuerzo } from './esfuerzo'
 import { armarLinkDeCompra } from '@/lib/commerce/create-checkout'
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -955,14 +958,13 @@ async function pedirPermiso(ctx: LocalOrdersContext, toolName: string, toolInput
  * pedido seguía pendiente y los recordatorios le seguían llegando a alguien
  * que ya había pagado.
  *
- * El monto es lo que decide todo. Con monto que coincide, se cobra solo; sin
- * monto o con uno que no cierra, se le pregunta a una persona — pero los
- * recordatorios se callan en los dos casos.
+ * Anota evidencia y pausa recordatorios. La lectura del modelo nunca prueba
+ * que el dinero ingresó: el comercio debe verificar el pago.
  */
 export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
   name: 'registrar_pago',
   description:
-    'Registra que el cliente informó haber pagado su pedido pendiente (transferencia, depósito). Úsala cuando mande un comprobante o diga que ya transfirió. Con los datos leídos DEL COMPROBANTE el pedido puede marcarse pagado solo; con lo que la persona escriba, queda esperando que alguien del negocio lo confirme. En los dos casos dejamos de mandarle recordatorios.',
+    'Registra que el cliente informó haber pagado su pedido pendiente (transferencia, depósito). Úsala cuando mande un comprobante o diga que ya transfirió. Anota la evidencia y pausa los recordatorios; el comercio debe verificar el ingreso del pago antes de marcarlo pagado. Una imagen o un PDF no prueban que el dinero ingresó.',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -971,13 +973,11 @@ export const REGISTRAR_PAGO_TOOL: Anthropic.Tool = {
         description:
           'Monto que figura en el comprobante, sólo si lo puedes leer con certeza. Sin separadores de miles. Si no se ve claro, no lo inventes: omítelo.',
       },
-      // La distinción que decide si se cobra solo. El monto por sí solo no
-      // prueba nada: en un catálogo con pocos precios, acertarlo es trivial
-      // para cualquiera que vio el anuncio.
+      // Conserva el origen de la evidencia para revisión, no una autorización.
       desde_comprobante: {
         type: 'boolean',
         description:
-          'true SÓLO si leíste el monto de una imagen o PDF que la persona adjuntó. Si lo tomaste de lo que escribió ("ya te transferí 39990"), es false. No es lo mismo y no da igual: con true el pedido se puede marcar pagado solo.',
+          'true SÓLO si leíste el monto de una imagen o PDF adjunto; false si lo tomaste del texto. Es información sobre el origen de la evidencia, nunca autorización para marcar pagado.',
       },
       referencia: {
         type: 'string',
@@ -1023,20 +1023,24 @@ export async function runTool(
   localOrders: LocalOrdersContext | null = null,
   otherStore: OtherStoreContext | null = null
 ): Promise<string> {
-  // El freno, antes que nada: lo que el comercio puso "con aprobación" no se
-  // ejecuta acá, se deja pedido. Ver `pedirPermiso`.
-  if (localOrders?.requiereAprobacion?.includes(toolName)) {
-    return pedirPermiso(localOrders, toolName, toolInput)
-  }
+  const requiresApproval = localOrders?.requiereAprobacion?.some(
+    key => key === toolName || key === toolPermissionKey(toolName),
+  )
 
   // El corte del modo prueba. Va antes que cualquier despacho para que una
   // herramienta nueva quede cubierta sin que nadie se acuerde de cubrirla.
-  if (localOrders?.simulacion && DEJA_HUELLA.has(toolName)) {
+  if (localOrders?.simulacion && (DEJA_HUELLA.has(toolName) || requiresApproval)) {
     return JSON.stringify({
       simulado: true,
       ok: true,
       message: 'Simulación: la acción no se ejecutó de verdad. Sigue la conversación como si hubiera salido bien.',
     })
+  }
+
+  // Creating an approval also writes and may notify the merchant; never do
+  // that from a simulation. Real actions still stop here before dispatch.
+  if (requiresApproval && localOrders) {
+    return pedirPermiso(localOrders, toolName, toolInput)
   }
 
   if (
@@ -1278,6 +1282,7 @@ export async function runTool(
       db: localOrders.db,
       workspaceId: localOrders.workspaceId,
       contactId: localOrders.contactId,
+      requiereVerificacionHumana: true,
       amount: typeof input.amount === 'number' ? input.amount : null,
       note: input.note ?? null,
       desdeComprobante: input.desde_comprobante === true,
@@ -2034,16 +2039,17 @@ export async function runWithTools(
   // ensucia el pedido. Arriba, la primera llamada cuesta un poco más y las
   // siguientes una décima parte.
   const CACHE_MIN_CHARS = 8000
+  const protectedSystem = secureSystemPrompt(args.system)
   const system: Anthropic.TextBlockParam[] | string =
-    args.system.length >= CACHE_MIN_CHARS
+    protectedSystem.length >= CACHE_MIN_CHARS
       ? [
           {
             type: 'text',
-            text: args.system,
+            text: protectedSystem,
             cache_control: { type: 'ephemeral' },
           },
         ]
-      : args.system
+      : protectedSystem
 
   // Las pausas NO gastan vuelta.
   //
@@ -2146,6 +2152,11 @@ export async function runWithTools(
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const block of response.content) {
       if (block.type !== 'tool_use') continue
+      if (!toolCallAllowed(args.tools, block.name, block.input)) {
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id,
+          is_error: true, content: JSON.stringify({ error: 'tool_not_allowed' }) })
+        continue
+      }
       // Se anota ANTES de correrla: si la herramienta explota a mitad, el
       // efecto puede haber ocurrido igual.
       if (args.efectos && DEJA_HUELLA.has(block.name)) args.efectos.ejecutados += 1

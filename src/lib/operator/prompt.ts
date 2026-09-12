@@ -12,6 +12,7 @@
  * desde el loop: se propone, y una persona aprueba mirando los argumentos.
  */
 import { CUANDO_PREGUNTAR } from './fleet/preguntas'
+import { secureSystemPrompt } from '@/lib/ai/input-security'
 import { ESTILO_HUMANO_PANEL } from '@/lib/ai/estilo-humano'
 
 /**
@@ -28,7 +29,7 @@ export function systemPrompt(): string {
   // El mismo bloque de preguntas que lee el equipo. Este camino es el del
   // Operador sin flota, y la regla vale igual: lo que no está en la cuenta se
   // pregunta una vez, al final, con la respuesta ya propuesta.
-  return `${BASE.replace('{{MODO}}', MODO_SEGURO)}\n\n${CUANDO_PREGUNTAR}`
+  return secureSystemPrompt(`${BASE.replace('{{MODO}}', MODO_SEGURO)}\n\n${CUANDO_PREGUNTAR}`)
 }
 
 const BASE = `Eres Riverz Operator: operas la cuenta de un comercio de e-commerce junto a la persona que te habla.

@@ -65,16 +65,20 @@ const base = {
   shopify: null,
 };
 
+const ofrecida = (name: string): Anthropic.Tool[] => [
+  { name, description: 'Test tool', input_schema: { type: 'object', properties: {} } },
+];
+
 describe('efectos.ejecutados', () => {
   it('cuenta la herramienta que deja algo hecho afuera', async () => {
     const efectos = { ejecutados: 0 };
-    await runWithTools(clienteQuePide('crear_link_de_pago'), { ...base, efectos });
+    await runWithTools(clienteQuePide('crear_link_de_pago'), { ...base, tools: ofrecida('crear_link_de_pago'), efectos });
     expect(efectos.ejecutados).toBe(1);
   });
 
   it('no cuenta una consulta, que se puede repetir sin consecuencias', async () => {
     const efectos = { ejecutados: 0 };
-    await runWithTools(clienteQuePide('lookup_order'), { ...base, efectos });
+    await runWithTools(clienteQuePide('lookup_order'), { ...base, tools: ofrecida('lookup_order'), efectos });
     expect(efectos.ejecutados).toBe(0);
   });
 
@@ -88,8 +92,17 @@ describe('efectos.ejecutados', () => {
       'ofrecer_descuento',
     ]) {
       const efectos = { ejecutados: 0 };
-      await runWithTools(clienteQuePide(tool), { ...base, efectos });
+      await runWithTools(clienteQuePide(tool), { ...base, tools: ofrecida(tool), efectos });
       expect(efectos.ejecutados, tool).toBe(1);
     }
   });
+  it.each(['create_order', 'update_order', 'crear_link_de_pago', 'reembolsar', 'registrar_pago'])(
+    'rejects an unadvertised %s even when the model requests it', async tool => {
+      const efectos = { ejecutados: 0 };
+      const result = await runWithTools(clienteQuePide(tool), { ...base, efectos });
+      expect(efectos.ejecutados).toBe(0);
+      expect(result.herramientas).toEqual([]);
+      expect(result.text).toBe('listo');
+    },
+  );
 });

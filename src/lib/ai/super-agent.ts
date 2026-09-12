@@ -1,4 +1,5 @@
 import { loadPrimaryContact } from '@/lib/contacts/dedupe';
+import { untrustedContext } from './input-security';
 import { enrichContactFromShopify } from '@/lib/contacts/enrich';
 import { loadInstagramContext } from '@/lib/instagram-agent/agent-context';
 import { resolveWorkspaceCurrency } from '@/lib/products/currency';
@@ -217,7 +218,7 @@ export async function composeSuperAgentReply(
     );
     system += `\n\n## Estás contestando un COMENTARIO\n${SURFACE_RULES}`;
     if (input.extraBrief?.trim()) {
-      system += `\n\n## Lo que ya sabemos\n${input.extraBrief.trim()}`;
+      system += `\n\n${untrustedContext('conversation_brief', input.extraBrief.trim())}`;
     }
 
     // La API exige que el primer turno sea del usuario. El comentario recién

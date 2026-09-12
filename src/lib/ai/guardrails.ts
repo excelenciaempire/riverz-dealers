@@ -1,7 +1,10 @@
+import { UNTRUSTED_CONTENT_POLICY } from './input-security';
+
 /**
- * Business-scope guardrails — the SERVER-ENFORCED invariant that keeps every
+ * Business-scope instructions — behavioral guidance for every
  * customer-facing AI surface a *task-specific business agent* and never a
- * general-purpose assistant.
+ * general-purpose assistant. These prompts are not authorization controls;
+ * the server independently enforces tool permissions and account isolation.
  *
  * Why this is its own module (and not inline strings in `runner.ts`):
  * Meta's WhatsApp Business Solution Terms (effective 15-Jan-2026) ban
@@ -49,6 +52,7 @@ export function appendBusinessScopeGuardrails(
 ): void {
   lines.push(SCOPE_LOCK_INSTRUCTION);
   lines.push(characterLockInstruction(agentName));
+  lines.push(UNTRUSTED_CONTENT_POLICY);
 }
 
 /**

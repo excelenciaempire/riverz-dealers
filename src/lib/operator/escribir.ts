@@ -18,7 +18,7 @@
  *    apagado— y con el modo automático prendido o dentro de un plan aprobado.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { findCapability } from '@/lib/capabilities/registry'
+import { findCapability, esInerte } from '@/lib/capabilities/registry'
 import type { CapabilityContext } from '@/lib/capabilities/types'
 import type { Artefacto } from './artifacts'
 import { conDiff } from './artifacts-diff'
@@ -234,6 +234,7 @@ export async function construir(
 ): Promise<Escritura> {
   const cap = findCapability(key)!
   if (!cap || (cap.workspaceIds && !cap.workspaceIds.includes(ctx.workspaceId))) throw new Error('operator_capability_unavailable')
+  if (!esInerte(cap, args)) throw new Error('operator_approval_required')
   let preview: string | null = null
   try {
     preview = cap.preview ? await cap.preview(ctx, args) : null

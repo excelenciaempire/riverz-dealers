@@ -1,4 +1,5 @@
 import type { OtherStoreContext } from '@/lib/ai/tools';
+import { untrustedContext } from './input-security';
 import {
   esCanalDeComentarios,
   esError as esErrorDestinoComentario,
@@ -3520,7 +3521,7 @@ export function buildSystemPrompt(
   // ── Resumen rodante de la conversación previa (migration 048) ──
   if (context.rollingSummary && context.rollingSummary.trim()) {
     lines.push(
-      `Resumen de la conversación anterior: ${context.rollingSummary.trim()}`
+      untrustedContext('conversation_summary', context.rollingSummary.trim())
     );
   }
 

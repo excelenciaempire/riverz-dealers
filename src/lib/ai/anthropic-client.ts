@@ -1,6 +1,7 @@
 import type { BillingContext } from '@/lib/wallet/operacion';
 import Anthropic from '@anthropic-ai/sdk';
 import { meteredAnthropicFetch } from './metered-fetch';
+import { guardedAnthropicFetch } from './guarded-fetch';
 
 /**
  * Shared Anthropic client factory.
@@ -33,7 +34,7 @@ export function getAnthropic(
   return new Anthropic({
     apiKey,
     fetch: billing
-      ? meteredAnthropicFetch(billing)
+      ? guardedAnthropicFetch(meteredAnthropicFetch(billing))
       : async () => {
           throw new Error('wallet_billing_context_required');
         },
@@ -63,7 +64,7 @@ export function getAnthropicStreaming(
   return new Anthropic({
     apiKey,
     fetch: billing
-      ? meteredAnthropicFetch(billing)
+      ? guardedAnthropicFetch(meteredAnthropicFetch(billing))
       : async () => {
           throw new Error('wallet_billing_context_required');
         },
@@ -90,7 +91,7 @@ export function getAnthropicSubagent(
   return new Anthropic({
     apiKey,
     fetch: billing
-      ? meteredAnthropicFetch(billing)
+      ? guardedAnthropicFetch(meteredAnthropicFetch(billing))
       : async () => {
           throw new Error('wallet_billing_context_required');
         },

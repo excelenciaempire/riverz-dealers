@@ -17,6 +17,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import { esfuerzo } from '@/lib/ai/esfuerzo'
+import { secureSystemPrompt, UNTRUSTED_CONTENT_POLICY } from '@/lib/ai/input-security'
 import type { Quien } from './types'
 
 export interface LlamadaModelo {
@@ -59,7 +60,9 @@ export function anthropicRunner(client: Anthropic): ModelRunner {
     const stream = client.messages.stream({
       model: llamada.model,
       max_tokens: llamada.maxTokens,
-      system: llamada.system,
+      system: typeof llamada.system === 'string'
+        ? secureSystemPrompt(llamada.system)
+        : [...llamada.system, { type: 'text', text: UNTRUSTED_CONTENT_POLICY }],
       messages: llamada.messages,
       ...(llamada.tools.length > 0 ? { tools: llamada.tools } : {}),
       // Haiku no los acepta y contesta 400: ocho de los catorce especialistas

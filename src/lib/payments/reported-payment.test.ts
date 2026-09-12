@@ -103,6 +103,11 @@ describe('montoCoincide', () => {
 })
 
 describe('no se cobra solo sin una prueba de verdad', () => {
+  it('model-extracted evidence never settles a payment even with a matching attachment and reference', async () => {
+    const { db: d } = db({ pendientes: [PEDIDO], hayAdjunto: true })
+    const r = await registerReportedPayment({ ...BASE, db: d, requiereVerificacionHumana: true })
+    expect(r).toMatchObject({ kind: 'a_confirmar', reason: expect.stringContaining('verificar') })
+  })
   it('sin comprobante adjunto, aunque el monto coincida', async () => {
     // El caso barato: escribir "ya te transferí 39990". Sin esto alcanzaba.
     const { db: d } = db({ pendientes: [PEDIDO], hayAdjunto: false })

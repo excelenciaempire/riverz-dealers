@@ -2,7 +2,7 @@ import { getAnthropic } from '@/lib/ai/anthropic-client';
 import { buscarEnInternet } from '@/lib/ai/busqueda-web';
 import { resolveAnthropicKey } from '@/lib/ai/platform-key';
 import { resolveShopifyContext } from '@/lib/ai/runner';
-import { AGENT_TOOLBOX, toolEnabled, toolMode } from '@/lib/ai/toolbox';
+import { herramientasQueRequierenAprobacion, toolEnabled, toolPermissionKey } from '@/lib/ai/toolbox';
 import { runTool } from '@/lib/ai/tools';
 import type { AiAgent } from '@/lib/ai/types';
 import { serverError } from '@/lib/api/errors';
@@ -40,11 +40,14 @@ export async function POST(request: Request) {
     tool?: string;
     input?: unknown;
   } | null;
-  if (!body?.call_id || !body.tool) {
+  if (typeof body?.call_id !== 'string' || !body.call_id || typeof body.tool !== 'string' || !body.tool) {
     return NextResponse.json(
       { error: 'call_id and tool required' },
       { status: 400 }
     );
+  }
+  if (body.input != null && (typeof body.input !== 'object' || Array.isArray(body.input))) {
+    return NextResponse.json({ error: 'invalid_tool_input' }, { status: 400 });
   }
 
   const db = supabaseAdmin();
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
       .from('contacts')
       .select('*')
       .eq('id', call.contact_id)
+      .eq('workspace_id', call.workspace_id)
       .maybeSingle();
     if (!contactRow)
       return NextResponse.json({ error: 'contact_not_found' }, { status: 404 });
@@ -73,6 +77,8 @@ export async function POST(request: Request) {
       .from('ai_agents')
       .select('*')
       .eq('id', call.agent_id)
+      .eq('workspace_id', call.workspace_id)
+      .is('deleted_at', null)
       .maybeSingle();
     const voiceAgent = agentRow as AiAgent | null;
     if (!voiceAgent)
@@ -91,7 +97,12 @@ export async function POST(request: Request) {
       contextConversation
     );
     const conversationId = contextConversation?.id ?? call.conversation_id;
-    const canCreateOrders = agente?.puede_crear_pedidos === true;
+    // Never rely on a model or worker's advertised tool list for authorization.
+    if (body.tool !== 'send_whatsapp' &&
+      (body.tool === 'escalate_to_call' || !toolEnabled(agente, toolPermissionKey(body.tool)))) {
+      return NextResponse.json({ ok: false, error: 'tool_disabled' }, { status: 403 });
+    }
+    const canCreateOrders = toolEnabled(agente, 'crear_pedido');
 
     const orderId =
       call.context && typeof call.context.order_id !== 'undefined'
@@ -103,7 +114,7 @@ export async function POST(request: Request) {
     // pasa por `runTool` porque no es una tool de Shopify.
     if (body.tool === 'send_whatsapp') {
       const input = body.input as { text?: string; scenario?: string } | null;
-      const text = input?.text?.trim();
+      const text = typeof input?.text === 'string' ? input.text.trim() : '';
       if (!text) {
         return NextResponse.json({ ok: false, error: 'text_required' });
       }
@@ -112,7 +123,7 @@ export async function POST(request: Request) {
         call,
         contact,
         text,
-        input?.scenario ?? null
+        typeof input?.scenario === 'string' ? input.scenario : null
       );
       return NextResponse.json(sent);
     }
@@ -124,7 +135,8 @@ export async function POST(request: Request) {
     // manejar. Tampoco pasa por `runTool`: no toca la tienda.
     if (body.tool === 'buscar_en_internet') {
       const input = body.input as { consulta?: string; query?: string } | null;
-      const consulta = (input?.consulta ?? input?.query ?? '').trim();
+      const rawQuery = input?.consulta ?? input?.query;
+      const consulta = typeof rawQuery === 'string' ? rawQuery.trim() : '';
       if (!consulta)
         return NextResponse.json({ ok: false, error: 'consulta_required' });
       if (!agente || !toolEnabled(agente, 'buscar_en_internet')) {
@@ -198,11 +210,7 @@ export async function POST(request: Request) {
       // conversación sea hablada.
       // Cancelar y reembolsar quedan afuera porque ya preguntan por su cuenta:
       // ponerles el freno encima pediría dos confirmaciones por lo mismo.
-      requiereAprobacion: agente
-        ? AGENT_TOOLBOX.filter(
-            (t) => !t.proponeSolo && toolMode(agente, t.key) === 'aprobacion'
-          ).map((t) => t.key)
-        : [],
+      requiereAprobacion: herramientasQueRequierenAprobacion(agente),
     };
 
     const result = await runTool(
