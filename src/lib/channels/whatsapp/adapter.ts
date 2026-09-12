@@ -236,7 +236,7 @@ export const whatsappAdapter: ChannelAdapter = {
       phoneNumberId,
       accessToken,
       to,
-      url: await resolveMediaFetchUrl(input.mediaUrl),
+      url: await resolveMediaFetchUrl(input.mediaUrl, input.connection.workspace_id),
       contextMessageId: input.replyToExternalId,
     };
     try {
@@ -248,7 +248,7 @@ export const whatsappAdapter: ChannelAdapter = {
           // lo que no sea JPEG/PNG con el código 131053.
           result = await sendImageMessage({
             ...common,
-            url: await ensureSendableImageUrl(input.mediaUrl),
+            url: await ensureSendableImageUrl(input.mediaUrl, input.connection.workspace_id),
             caption: input.caption,
           });
           break;

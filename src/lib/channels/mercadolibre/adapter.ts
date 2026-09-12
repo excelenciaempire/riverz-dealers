@@ -196,7 +196,7 @@ export const mercadoLibreAdapter: ChannelAdapter = {
     const buyerId = input.contact.external_id;
     if (!buyerId) throw new Error("[mercadolibre] pack reply missing buyer id");
 
-    const file = await fetchAttachmentBytes(input.mediaUrl);
+    const file = await fetchAttachmentBytes(input.mediaUrl, input.connection.workspace_id);
     if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
     const filename = input.filename || attachmentFilename(input.mediaUrl, file.mime);
 
@@ -602,7 +602,7 @@ export async function resolveMlNickname(userId: string, auth: Record<string, str
  * texto solo: en una mediación la foto ES el argumento.
  */
 async function sendClaimMedia(claimId: string, input: OutboundMedia, token: string, locale: Locale): Promise<SendResult> {
-  const file = await fetchAttachmentBytes(input.mediaUrl);
+  const file = await fetchAttachmentBytes(input.mediaUrl, input.connection.workspace_id);
   if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
   const filename = input.filename || attachmentFilename(input.mediaUrl, file.mime);
 

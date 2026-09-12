@@ -110,7 +110,7 @@ export const gmailAdapter: ChannelAdapter = {
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[gmail] contact missing email address");
 
-    const file = await fetchAttachmentBytes(input.mediaUrl);
+    const file = await fetchAttachmentBytes(input.mediaUrl, input.connection.workspace_id);
     if (!file) {
       throw new Error(translate(await safeLocale(), "errInbox.attachmentUnreadable"));
     }

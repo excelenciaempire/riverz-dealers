@@ -773,31 +773,6 @@ export async function getMediaUrl(
   return { url: data.url, mimeType: data.mime_type || 'application/octet-stream' }
 }
 
-export interface DownloadMediaArgs {
-  downloadUrl: string
-  accessToken: string
-}
-
-/**
- * Fetch the binary bytes for a media URL obtained from getMediaUrl.
- * Step two of the media-proxy flow.
- */
-export async function downloadMedia(
-  args: DownloadMediaArgs
-): Promise<{ buffer: Buffer; contentType: string }> {
-  const { downloadUrl, accessToken } = args
-  const response = await fetch(downloadUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!response.ok) {
-    throw new Error(`Media download failed: ${response.status}`)
-  }
-  const contentType =
-    response.headers.get('content-type') || 'application/octet-stream'
-  const buffer = Buffer.from(await response.arrayBuffer())
-  return { buffer, contentType }
-}
-
 // ============================================================
 // Media messages — image / video / document
 // ============================================================

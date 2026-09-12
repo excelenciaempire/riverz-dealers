@@ -2325,7 +2325,8 @@ async function probePdfSize(url: string): Promise<number | null> {
 }
 
 async function toClaudeMessage(
-  msg: ContextMessage
+  msg: ContextMessage,
+  workspaceId: string,
 ): Promise<Anthropic.MessageParam> {
   if (msg.role === 'assistant') {
     return { role: 'assistant', content: msg.content || ' ' };
@@ -2336,7 +2337,7 @@ async function toClaudeMessage(
   }
   // Firma de un solo uso para que Anthropic pueda descargar el adjunto. Vive
   // lo que dure esta llamada; no se guarda ni se le muestra al cliente.
-  const mediaUrl = await resolveMediaFetchUrl(media.url);
+  const mediaUrl = await resolveMediaFetchUrl(media.url, workspaceId);
   const text = msg.content || '';
   const mime = media.mediaMime ?? '';
   const isPdf = mime.toLowerCase() === 'application/pdf';
@@ -2842,7 +2843,7 @@ async function generateReply(
         return;
       if (msg.media.transcription) return;
       const result = await transcribeAudio(
-        await resolveMediaFetchUrl(msg.media.url),
+        await resolveMediaFetchUrl(msg.media.url, agent.workspace_id),
         { db, workspaceId: agent.workspace_id, concepto: 'transcripcion' }
       );
       if (!result) return;
@@ -2865,7 +2866,7 @@ async function generateReply(
   // content blocks. El bot side va como texto plano; el cliente puede
   // llevar image/document/text combinados.
   const claudeMessages: Anthropic.MessageParam[] = await Promise.all(
-    messages.map((m) => toClaudeMessage(m))
+    messages.map((m) => toClaudeMessage(m, agent.workspace_id))
   );
 
   // Sólo exponemos las tools si hay conexión Shopify activa para el

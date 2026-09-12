@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import sharp from "sharp";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
+import { downloadPublicMedia } from '@/lib/security/download-public-media';
 import {
   OUTBOUND_SIGNED_TTL_SECONDS,
   resolveMediaFetchUrl,
@@ -173,20 +174,18 @@ export function renameForMime(
  * sobre la URL firmada: la firma cambia en cada envío y el caché nunca
  * acertaría.
  */
-export async function ensureSendableImageUrl(url: string): Promise<string> {
-  const fetchable = await resolveMediaFetchUrl(url);
+export async function ensureSendableImageUrl(url: string, workspaceId: string): Promise<string> {
+  const fetchable = await resolveMediaFetchUrl(url, workspaceId);
   try {
-    const res = await fetch(fetchable);
-    if (!res.ok) return fetchable;
-    const declared = res.headers.get("content-type");
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const safe = await toSendableImage(buffer, declared);
+    const file = await downloadPublicMedia(fetchable, 25 * 1024 * 1024, 20_000);
+    if (!file) return fetchable;
+    const safe = await toSendableImage(file.buffer, file.mime);
     if (!safe.converted) return fetchable;
 
     const key = createHash("sha1")
       .update(storagePathFromUrl(url) ?? url)
       .digest("hex");
-    const path = `transcoded/${key}.${safe.mime === "image/png" ? "png" : "jpg"}`;
+    const path = `${workspaceId}/transcoded/${key}.${safe.mime === "image/png" ? "png" : "jpg"}`;
     const db = supabaseAdmin();
     const { error } = await db.storage.from(BUCKET).upload(path, safe.buffer, {
       contentType: safe.mime,

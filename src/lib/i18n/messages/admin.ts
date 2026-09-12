@@ -2,6 +2,9 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  unlockUnconfigured: { es: 'El panel no tiene contraseña configurada.', en: 'The panel password has not been configured.' },
+  unlockIncorrect: { es: 'Contraseña incorrecta', en: 'Incorrect password' },
+  unlockRateLimited: { es: 'Demasiados intentos. Inténtalo más tarde.', en: 'Too many attempts. Try again later.' },
   syncPending: { es: 'Sincronización pendiente', en: 'Sync pending' },
   syncLiveOnly: { es: 'Eventos en vivo; sin historial recuperable', en: 'Live events; history unavailable' },
   cronWalletReconciliation: {

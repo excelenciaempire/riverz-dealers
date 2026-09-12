@@ -90,7 +90,7 @@ export const zohoAdapter: ChannelAdapter = {
     const from = String(config.email ?? input.connection.external_account_id ?? '');
     const to = input.contact.email || input.contact.external_id;
     if (!accountId || !from || !to) throw new Error(translate(locale, 'voiceNotes.conversationMissing'));
-    const file = await fetchAttachmentBytes(input.mediaUrl);
+    const file = await fetchAttachmentBytes(input.mediaUrl, input.connection.workspace_id);
     if (!file) throw new Error(translate(locale, 'errInbox.attachmentUnreadable'));
     const token = await getFreshZohoAccessToken(supabaseAdmin(), input.connection);
     const base = `${mailApiUrl(input.connection)}/api/accounts/${encodeURIComponent(accountId)}/messages`;

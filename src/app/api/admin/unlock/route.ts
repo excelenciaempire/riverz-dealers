@@ -9,6 +9,9 @@ import {
   unlockConfigured,
 } from '@/lib/admin/unlock';
 import { csrfGuard } from '@/lib/csrf';
+import { limitByKey } from '@/lib/rate-limit';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/admin/unlock — abre el panel de plataforma por esta sesión.
@@ -28,18 +31,29 @@ export async function POST(request: Request) {
   if (!user || !isPlatformAdmin(user.email)) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+  const locale = await getLocale();
   if (!unlockConfigured()) {
     return NextResponse.json(
-      { error: 'El panel no tiene contraseña configurada en el servidor.' },
+      { error: translate(locale, 'admin.unlockUnconfigured') },
       { status: 503 },
     );
   }
 
-  const body = (await request.json().catch(() => null)) as { password?: string } | null;
-  const password = (body?.password ?? '').trim();
+  // Bound attempts by verified identity, so rotating IP headers cannot reset them.
+  const limit = await limitByKey(`admin-unlock:${user.id}`, { limit: 5, windowMs: 15 * 60_000 });
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: translate(locale, 'admin.unlockRateLimited') },
+      { status: 429, headers: { 'Retry-After': String(Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000))) } },
+    );
+  }
+
+  const body: unknown = await request.json().catch(() => null);
+  const input = body && typeof body === 'object' && 'password' in body ? body.password : null;
+  const password = typeof input === 'string' && input.length <= 1024 ? input.trim() : '';
   if (!password || !passwordMatches(password)) {
     // Sin pistas sobre qué parte falló.
-    return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 });
+    return NextResponse.json({ error: translate(locale, 'admin.unlockIncorrect') }, { status: 401 });
   }
 
   const res = NextResponse.json({ ok: true });

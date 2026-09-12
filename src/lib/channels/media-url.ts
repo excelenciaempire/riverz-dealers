@@ -120,6 +120,7 @@ export async function signMediaPath(
   storagePath: string,
   expiresInSeconds: number,
 ): Promise<string | null> {
+  if (storagePathFromSegments(storagePath.split('/')) !== storagePath) return null;
   const { data, error } = await supabaseAdmin()
     .storage.from(MEDIA_BUCKET)
     .createSignedUrl(storagePath, expiresInSeconds);
@@ -143,10 +144,23 @@ export async function signMediaPath(
  */
 export async function resolveMediaFetchUrl(
   url: string,
+  workspaceId: string,
   expiresInSeconds = OUTBOUND_SIGNED_TTL_SECONDS,
 ): Promise<string> {
+  assertMediaWorkspace(url, workspaceId);
   const path = storagePathFromUrl(url);
   if (!path) return url;
   const signed = await signMediaPath(path, expiresInSeconds);
   return signed ?? url;
+}
+
+/** Private attachments may only be signed within the server-resolved tenant. */
+export function assertMediaWorkspace(url: string, workspaceId: string): void {
+  const path = storagePathFromUrl(url);
+  if (!path) return;
+  const segments = path.split('/');
+  if (!workspaceId || segments.length < 3 || segments[0] !== workspaceId ||
+      storagePathFromSegments(segments) !== path) {
+    throw new Error('media_workspace_forbidden');
+  }
 }

@@ -7,6 +7,7 @@ import type { Namespace } from "./types";
  * so they must be localized.
  */
 export const errWhatsapp = {
+  mediaUnavailable: { es: 'Adjunto no disponible', en: 'Attachment unavailable' },
   // ── Shared ──
   invalidJson: { es: "JSON inválido", en: "Invalid JSON" },
   notAuthenticated: { es: "No autenticado", en: "Not authenticated" },

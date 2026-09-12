@@ -9,6 +9,7 @@ import {
 import { prepararTextoParaCanal } from "@/lib/marketing/enlaces-salientes";
 import { supabaseAdmin } from "@/lib/channels/admin-client";
 import { csrfGuard } from "@/lib/csrf";
+import { assertMediaWorkspace } from "@/lib/channels/media-url";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { Channel, ChannelConnection, Contact, Conversation, Message } from "@/types";
@@ -133,6 +134,18 @@ export async function POST(req: Request): Promise<Response> {
       { error: translate(locale, "errInbox.forbidden") },
       { status: 403 },
     );
+  }
+
+  if (media) {
+    try {
+      if (typeof media.url !== 'string') throw new Error('invalid_media');
+      assertMediaWorkspace(media.url, (conversation as Conversation).workspace_id);
+    } catch {
+      return NextResponse.json(
+        { error: translate(locale, "errInbox.forbidden") },
+        { status: 403 },
+      );
+    }
   }
 
   const { data: contact } = await admin

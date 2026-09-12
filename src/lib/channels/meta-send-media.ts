@@ -79,7 +79,7 @@ export async function sendMetaMedia(
   const attachment = {
     attachment: {
       type,
-      payload: { url: await resolveMediaFetchUrl(input.mediaUrl), is_reusable: false },
+      payload: { url: await resolveMediaFetchUrl(input.mediaUrl, input.connection.workspace_id), is_reusable: false },
     },
   };
   const send = (useHumanAgentTag: boolean): Promise<Response> =>

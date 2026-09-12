@@ -2,6 +2,7 @@
  * Run: node --env-file=.env.local --import tsx scripts/audit-integration-health.ts */
 import { createClient } from '@supabase/supabase-js';
 import { SCHEDULED_JOBS } from '../src/lib/cron/schedule';
+import { redactModelSecrets } from '../src/lib/security/model-secrets';
 
 async function main() {
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -29,6 +30,6 @@ async function main() {
   console.log(JSON.stringify({ checkedAt: new Date().toISOString(),
     channels: active, stores, jobs,
     limitation: 'Stored health and completed runs; not an end-to-end send/payment test. Jobs without configured accounts can return ok.',
-  }, null, 2));
+  }, (_key, value) => typeof value === 'string' ? redactModelSecrets(value) : value, 2));
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

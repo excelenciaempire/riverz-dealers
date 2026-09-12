@@ -76,7 +76,7 @@ export const outlookAdapter: ChannelAdapter = {
     const to = input.contact.email || input.contact.external_id;
     if (!to) throw new Error("[outlook] contact missing email address");
 
-    const file = await fetchAttachmentBytes(input.mediaUrl);
+    const file = await fetchAttachmentBytes(input.mediaUrl, input.connection.workspace_id);
     if (!file) throw new Error(translate(locale, "errInbox.attachmentUnreadable"));
     // Por encima de 3 MB Graph exige una sesión de subida por partes; se
     // avisa el límite en vez de fallar con un error opaco de Microsoft.

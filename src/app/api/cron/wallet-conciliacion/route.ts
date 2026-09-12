@@ -30,6 +30,7 @@ async function handler(request: Request) {
   if (error) throw new Error('wallet_reconciliation_unavailable');
   let recovered = 0;
   const unresolved = [];
+  const paymentFailures: string[] = [];
   for (const op of pending ?? []) {
     if (op.proveedor === 'apify' && typeof op.detalle?.runId === 'string') {
       try {
@@ -121,25 +122,31 @@ async function handler(request: Request) {
       .limit(100);
     if (attemptError) throw new Error(attemptError.message);
     for (const attempt of attempts ?? []) {
-      const pi = await stripe().paymentIntents.retrieve(
-        attempt.payment_intent_id
-      );
-      if (pi.status !== 'succeeded') continue;
-      await acreditarDesdeEvento(db, {
-        type: 'payment_intent.succeeded',
-        data: { object: pi },
-      } as unknown as Stripe.Event);
-      const update = await db
-        .from('wallet_auto_intentos')
-        .update({ estado: 'completada' })
-        .eq('id', attempt.id);
-      if (update.error) throw new Error(update.error.message);
-      recovered++;
+      try {
+        const pi = await stripe().paymentIntents.retrieve(
+          attempt.payment_intent_id
+        );
+        if (pi.status !== 'succeeded') continue;
+        await acreditarDesdeEvento(db, {
+          type: 'payment_intent.succeeded',
+          data: { object: pi },
+        } as unknown as Stripe.Event);
+        const update = await db
+          .from('wallet_auto_intentos')
+          .update({ estado: 'completada' })
+          .eq('id', attempt.id);
+        if (update.error) throw new Error(update.error.message);
+        recovered++;
+      } catch {
+        // One provider outage or rejected receipt must not block other merchants.
+        // Leave this attempt pending: crediting is idempotent when retried.
+        paymentFailures.push(attempt.id);
+      }
     }
   }
   return NextResponse.json(
-    { ok: !unresolved.length, pending: unresolved, recovered },
-    { status: unresolved.length ? 207 : 200 }
+    { ok: !unresolved.length && !paymentFailures.length, pending: unresolved, paymentFailures, recovered },
+    { status: unresolved.length || paymentFailures.length ? 207 : 200 }
   );
 }
 export const GET = withCronRun('wallet-conciliacion', handler);

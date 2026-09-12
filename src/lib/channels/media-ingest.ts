@@ -21,9 +21,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "./encryption";
-import { getMediaUrl, downloadMedia } from "@/lib/whatsapp/meta-api";
+import { getMediaUrl } from "@/lib/whatsapp/meta-api";
+import { downloadMedia } from "@/lib/whatsapp/media-download";
 import { supabaseAdmin } from "./admin-client";
 import { appMediaUrl, resolveMediaFetchUrl } from "./media-url";
+import { downloadPublicMedia } from '@/lib/security/download-public-media';
 
 /** Tope de bytes por adjunto. El contenido lo controla el remitente del
  *  mensaje/email, así que sin un límite un archivo gigante bufferea RAM
@@ -45,39 +47,7 @@ async function fetchCapped(
   url: string,
   init?: RequestInit,
 ): Promise<{ buffer: Buffer; mime: string } | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ATTACHMENT_FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) return null;
-    const mime = res.headers.get("content-type") || "application/octet-stream";
-    const declared = Number(res.headers.get("content-length") || "0");
-    if (declared && declared > MAX_ATTACHMENT_BYTES) return null;
-    if (!res.body) {
-      const buf = Buffer.from(await res.arrayBuffer());
-      return buf.length > MAX_ATTACHMENT_BYTES ? null : { buffer: buf, mime };
-    }
-    const reader = res.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        total += value.byteLength;
-        if (total > MAX_ATTACHMENT_BYTES) {
-          await reader.cancel().catch(() => {});
-          return null;
-        }
-        chunks.push(value);
-      }
-    }
-    return { buffer: Buffer.concat(chunks), mime };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return downloadPublicMedia(url, MAX_ATTACHMENT_BYTES, ATTACHMENT_FETCH_TIMEOUT_MS, init?.headers);
 }
 
 /**
@@ -92,8 +62,9 @@ async function fetchCapped(
  */
 export async function fetchAttachmentBytes(
   url: string,
+  workspaceId: string,
 ): Promise<{ buffer: Buffer; mime: string } | null> {
-  return fetchCapped(await resolveMediaFetchUrl(url));
+  return fetchCapped(await resolveMediaFetchUrl(url, workspaceId));
 }
 
 /** Nombre con el que viaja el archivo cuando el composer no mandó uno: el

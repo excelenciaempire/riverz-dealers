@@ -8,12 +8,13 @@ import { translate } from "@/lib/i18n/translate";
 import { ingestRawMedia, MAX_ATTACHMENT_BYTES } from "@/lib/channels/media-ingest";
 import { toSendableImage, renameForMime } from "@/lib/whatsapp/image-compat";
 import type { Conversation } from "@/types";
+import { limitedFormData, PayloadTooLargeError } from "@/lib/security/limited-form-data";
 
 /**
  * POST /api/messages/upload  (multipart/form-data)
  *
  * Uploads a composer attachment (image/video/audio/document) to Supabase
- * Storage and returns a public URL + metadata. The client then calls
+ * Storage and returns an authenticated media URL + metadata. The client then calls
  * /api/messages/send with that media payload. Kept separate from the send
  * route so the (potentially large) file body never mixes with the JSON send.
  *
@@ -35,8 +36,14 @@ export async function POST(req: Request): Promise<Response> {
 
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
+    form = await limitedFormData(req, MAX_ATTACHMENT_BYTES + 8 * 1024);
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      return NextResponse.json(
+        { error: translate(locale, "errInbox.uploadTooLarge") },
+        { status: 413 },
+      );
+    }
     return NextResponse.json(
       { error: translate(locale, "errInbox.uploadInvalid") },
       { status: 400 },

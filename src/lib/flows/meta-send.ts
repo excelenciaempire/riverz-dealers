@@ -357,7 +357,7 @@ async function engineSendMediaInner(
 
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, workspace_id')
     .eq('id', args.contactId)
     .eq('user_id', args.userId)
     .maybeSingle()
@@ -395,8 +395,8 @@ async function engineSendMediaInner(
   // Meta necesita una firma para descargarlo.
   const sendUrl =
     kind === 'image'
-      ? await ensureSendableImageUrl(args.url)
-      : await resolveMediaFetchUrl(args.url)
+      ? await ensureSendableImageUrl(args.url, contact.workspace_id)
+      : await resolveMediaFetchUrl(args.url, contact.workspace_id)
 
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendFn({

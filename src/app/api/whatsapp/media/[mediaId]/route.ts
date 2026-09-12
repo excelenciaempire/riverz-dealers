@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/channels/admin-client'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl } from '@/lib/whatsapp/meta-api'
+import { downloadMedia } from '@/lib/whatsapp/media-download'
 import { resolveMime } from '@/lib/channels/media-ingest'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { getLocale } from '@/lib/i18n/server'
@@ -15,7 +16,7 @@ export async function GET(
   try {
     const { mediaId } = await params
 
-    if (!mediaId) {
+    if (!/^\d{1,40}$/.test(mediaId)) {
       return NextResponse.json(
         { error: translate(locale, 'errWhatsapp.mediaIdRequired') },
         { status: 400 }
@@ -31,18 +32,39 @@ export async function GET(
 
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: translate(locale, 'errWhatsapp.notAuthenticated') },
         { status: 401 }
+      )
+    }
+
+    const admin = supabaseAdmin()
+    const { data: memberships, error: membershipError } = await admin
+      .from('workspace_members')
+      .select('workspace_id, workspaces!inner(deleted_at)')
+      .eq('user_id', user.id)
+      .is('workspaces.deleted_at', null)
+    const wsIds = (memberships ?? []).map(row => row.workspace_id as string)
+    const { data: accessible, error: mediaError } = wsIds.length && !membershipError
+      ? await admin.from('messages')
+        .select('id, conversations!inner(workspace_id)')
+        .eq('media_url', `/api/whatsapp/media/${mediaId}`)
+        .in('conversations.workspace_id', wsIds)
+        .limit(1).maybeSingle()
+      : { data: null, error: null }
+    // Provider credentials can cover multiple WABAs. Possessing a media ID
+    // must never substitute for authorization to its conversation in Riverz.
+    if (!accessible || mediaError || membershipError) {
+      return NextResponse.json(
+        { error: translate(locale, 'errWhatsapp.mediaUnavailable') },
+        { status: 404 },
       )
     }
 
     // Collect candidate WhatsApp tokens the caller may use: their own
     // config first, otherwise any config connected by a teammate in a
     // workspace the caller belongs to — so shared WhatsApp media isn't
-    // viewable only by the agent who connected the number. A token from
-    // another tenant can't fetch this media id anyway (Meta scopes media
-    // to the WABA), so this never leaks across workspaces.
-    const admin = supabaseAdmin()
+    // viewable only by the agent who connected the number. Access to the
+    // conversation was checked above, independently of the provider token.
     const candidates: string[] = []
     const { data: ownConfig } = await admin
       .from('whatsapp_config')
@@ -52,13 +74,6 @@ export async function GET(
     if (ownConfig?.access_token) candidates.push(ownConfig.access_token as string)
 
     if (candidates.length === 0) {
-      const { data: myWs } = await admin
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', user.id)
-      const wsIds = (myWs ?? []).map(
-        (r) => (r as { workspace_id: string }).workspace_id,
-      )
       if (wsIds.length > 0) {
         const { data: mates } = await admin
           .from('workspace_members')

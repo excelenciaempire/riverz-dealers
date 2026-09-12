@@ -119,4 +119,32 @@ describe('receipt reconciliation and automatic top-ups', () => {
     expect(changed.rows[0].id).toBe(a.rows[0].id);
     expect(Number(changed.rows[0].amount)).toBe(1000);
   });
+  it('charges once when 100 workers retry the same operation and leaves other accounts untouched', async () => {
+    const target = '00000000-0000-4000-8000-000000000003';
+    await db.query('insert into workspaces values ($1)', [target]);
+    await db.query('insert into wallet_accounts(workspace_id,saldo_centavos) values ($1,1000)', [target]);
+    const before = await db.query('select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [ws]);
+    const reservations = await Promise.allSettled(Array.from({ length: 100 }, () => db.query<{ ok: boolean }>(
+      "select wallet_reservar($1,'burst-operation','ia_respuesta','anthropic',100) as ok", [target],
+    )));
+    expect(reservations.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    for (const result of reservations) {
+      if (result.status === 'fulfilled') expect(result.value.rows[0].ok).toBe(true);
+      else expect(result.reason.message).toBe('wallet_operation_already_started');
+    }
+    await Promise.all(Array.from({ length: 100 }, () => db.query(
+      "select * from wallet_liquidar($1,'burst-operation','ia_respuesta','anthropic',25)", [target],
+    )));
+    const account = await db.query<{ saldo_centavos: number; reservado_centavos: number }>(
+      'select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [target],
+    );
+    expect(Number(account.rows[0].saldo_centavos)).toBe(975);
+    expect(Number(account.rows[0].reservado_centavos)).toBe(0);
+    const ledger = await db.query<{ count: number }>(
+      "select count(*) from wallet_movimientos where referencia_id='burst-operation'",
+    );
+    expect(Number(ledger.rows[0].count)).toBe(1);
+    const after = await db.query('select saldo_centavos,reservado_centavos from wallet_accounts where workspace_id=$1', [ws]);
+    expect(after.rows).toEqual(before.rows);
+  });
 });
