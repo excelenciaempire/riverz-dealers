@@ -1,6 +1,11 @@
 import type { Brand } from './data';
 import type { PitchCase, PitchDraft } from './pitch-data';
-import { renderMessage, templatesForCase, proposedButtons } from './pitch-data';
+import {
+  renderMessage,
+  templatesForCase,
+  proposedButtons,
+  bindTemplateValues,
+} from './pitch-data';
 import { originals, type OriginalTemplate } from './original-templates';
 import { automationSnapshot } from './canvas-snapshot';
 import { horizontalLayout } from './horizontal-layout';
@@ -83,18 +88,7 @@ function messageData(
   values: Record<string, string>,
   bindings = m.variables
 ) {
-  const bound = { ...values };
-  for (const [key, binding] of Object.entries(bindings)) {
-    bound[key] = /tracking|checkout|url/.test(binding)
-      ? values.tracking
-      : /order_name/.test(binding)
-        ? draft.order
-        : /total_price/.test(binding)
-          ? draft.amount
-          : /name/.test(binding)
-            ? draft.customer
-            : binding;
-  }
+  const bound = bindTemplateValues(bindings, values, draft);
   return {
     title: m.header || 'WhatsApp',
     template: m.name,

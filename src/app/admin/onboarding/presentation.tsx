@@ -33,6 +33,7 @@ import {
   parseDraft,
   proposedCases,
   renderMessage,
+  bindTemplateValues,
   safeWebsite,
   templatesForCase,
   isCaseEnabled,
@@ -43,6 +44,8 @@ import {
 import styles from './presentation.module.css';
 import { AutomationCanvas } from './automation-canvas';
 import { LocaleToggleButton } from '@/components/settings/toggles';
+import { availableOperations, selectedOperations } from './operation-scope';
+import { journeyIds } from './client-journeys';
 
 export function Onboarding({ brand }: { brand?: Brand }) {
   const t = useT();
@@ -191,21 +194,14 @@ function Studio({ brand }: { brand: Brand }) {
     discount: String(draft.discount),
     address: t('pitch.sampleAddress'),
     tracking: t('pitch.sampleUrl'),
+    trackingNumber: 'DEMO-1042',
     checkout: '[checkout]',
   };
   if (original) {
-    for (const [key, binding] of Object.entries(original.variables))
-      values[key] = /tracking/.test(binding)
-        ? t('pitch.sampleUrl')
-        : /order_name/.test(binding)
-          ? draft.order
-          : /total_price/.test(binding)
-            ? draft.amount
-            : /name/.test(binding)
-              ? draft.customer
-              : binding;
-    if (/tracking|envio/.test(original.name))
-      values['1'] = t('pitch.sampleUrl');
+    Object.assign(
+      values,
+      bindTemplateValues(original.variables, values, draft)
+    );
   }
   const rendered = !original || example ? renderMessage(body, values) : body;
   const update = (patch: Partial<PitchDraft>) =>
@@ -229,7 +225,20 @@ function Studio({ brand }: { brand: Brand }) {
       createdAt: new Date().toISOString(),
       templateSnapshotDate,
       draft,
-      scope: included.map((c) => ({
+      scope: selectedOperations(draft).map((s) => ({
+        id: `operation-${s.id}`,
+        status: 'proposal',
+        title: t(`pitch.operation_${s.id}_title`),
+        steps: ['customer', 'reply', 'success', 'exception'].map((field) =>
+          renderMessage(
+            t(
+              `pitch.operation_${s.id}_${field}${field === 'reply' && ['recommend', 'care'].includes(s.id) ? `_${brand}` : ''}`
+            ),
+            values
+          )
+        ),
+      })),
+      referenceCases: actual.map((c) => ({
         id: c.id,
         title: t(c.title),
         source: c.source,
@@ -450,6 +459,9 @@ function Studio({ brand }: { brand: Brand }) {
             <span className={styles.riverzLogo}>riverz</span>
           </Link>
           <h1>{draft.name}</h1>
+          <span className={styles.currentView} title={t('pitch.tailoredDesc')}>
+            {t('pitch.tailored')}
+          </span>
           {tab !== 'canvas' && (
             <span className={styles.currentView}>{t(`pitch.${tab}`)}</span>
           )}
@@ -517,26 +529,16 @@ function Studio({ brand }: { brand: Brand }) {
           </button>
         </div>
       </header>
-      {tab === 'canvas' && (
+      <div className={styles.canvasHost} hidden={tab !== 'canvas'}>
         <AutomationCanvas
           brand={brand}
-          cases={[
-            ...actual,
-            ...proposedCases({
-              ...draft,
-              features: {
-                cart: true,
-                discount: true,
-                comments: true,
-                aftercare: true,
-                voice: true,
-              },
-            }),
-          ]}
+          cases={all.filter(
+            (c) => isCaseEnabled(c, draft) && !draft.excluded.includes(c.id)
+          )}
           draft={draft}
           values={values}
         />
-      )}
+      </div>
       {['flows', 'ai', 'messages'].includes(tab) && (
         <div className={styles.filters}>
           {tab === 'flows' && (
@@ -821,6 +823,8 @@ function Studio({ brand }: { brand: Brand }) {
         <main className={styles.agreement}>
           <section className={styles.agreementScope}>
             <h2>{t('pitch.summary')}</h2>
+            <p>{t('pitch.tailoredDesc')}</p>
+            <p className={styles.disclaimer}>{t('pitch.scopeNote')}</p>
             <div className={styles.featureRow}>
               {features.map((f) => (
                 <label key={f}>
@@ -858,21 +862,24 @@ function Studio({ brand }: { brand: Brand }) {
               <p className={styles.disclaimer}>{t('pitch.noDiscount')}</p>
             )}
             <div className={styles.scopeList}>
-              {all.map((c) => (
-                <label key={c.id}>
-                  <input
-                    type="checkbox"
-                    checked={
-                      isCaseEnabled(c, draft) && !draft.excluded.includes(c.id)
-                    }
-                    disabled={!isCaseEnabled(c, draft)}
-                    onChange={() => toggleIncluded(c.id)}
-                  />
-                  <span>
-                    {t(c.title).replace(/^\d+ · /, '')}
-                    <small>{t(`pitch.${c.source}`)}</small>
-                  </span>
-                </label>
+              {journeyIds.map((journey) => (
+                <section key={journey}>
+                  <h3>{t(`pitch.journey_${journey}`)}</h3>
+                  {availableOperations(draft)
+                    .filter((s) => s.journey === journey)
+                    .map((s) => (
+                      <label key={s.id}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            !draft.excluded.includes(`operation-${s.id}`)
+                          }
+                          onChange={() => toggleIncluded(`operation-${s.id}`)}
+                        />
+                        <span>{t(`pitch.operation_${s.id}_title`)}</span>
+                      </label>
+                    ))}
+                </section>
               ))}
             </div>
           </section>
@@ -1011,6 +1018,36 @@ function Studio({ brand }: { brand: Brand }) {
               ))}
             </select>
           </label>
+        </div>
+        <p>{t('pitch.tailoredDesc')}</p>
+        <div className={styles.fields}>
+          {[
+            'setupChannels',
+            'setupPayments',
+            'setupService',
+            'setupShipping',
+            'setupVoice',
+            'customCases',
+          ].map((key) => (
+            <label key={key}>
+              {t(`pitch.${key}`)}
+              <textarea
+                value={draft.answers[key] ?? ''}
+                onChange={(e) =>
+                  update({
+                    answers: { ...draft.answers, [key]: e.target.value },
+                  })
+                }
+                maxLength={5000}
+                rows={2}
+                placeholder={
+                  key === 'customCases'
+                    ? t('pitch.customCasesQuestion')
+                    : undefined
+                }
+              />
+            </label>
+          ))}
         </div>
         <p className={styles.disclaimer}>{t('pitch.draftNotice')}</p>
         <button className={styles.primary} onClick={() => setSettings(false)}>

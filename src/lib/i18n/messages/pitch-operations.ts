@@ -1,6 +1,8 @@
 // Presentation scenarios: proposed behavior, never a claim of live configuration.
 // Fields: title, customer message, AI example, successful route, exception route.
+import { extendedOperations } from './pitch-extended';
 export const operationCatalog = [
+  ...extendedOperations,
   {
     id: 'recommend',
     journey: 'advice',

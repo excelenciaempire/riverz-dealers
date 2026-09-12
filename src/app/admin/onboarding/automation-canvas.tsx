@@ -191,7 +191,9 @@ export function AutomationCanvas({
   useEffect(() => {
     if (
       !size.height ||
-      (initialized.current === mode && !pendingJourney.current)
+      (initialized.current === mode &&
+        !pendingJourney.current &&
+        (!selected || graph.nodes.some((n) => n.id === selected)))
     )
       return;
     initialized.current = mode;
@@ -296,6 +298,12 @@ export function AutomationCanvas({
                         label: t(`pitch.operation_${s.id}_title`),
                       })),
                   })),
+                  {
+                    label: t('pitch.customCases'),
+                    options: graph.sections
+                      .filter((s) => s.id === 'merchant-custom-cases')
+                      .map((s) => ({ value: s.id, label: s.title })),
+                  },
                   {
                     label: t('pitch.technicalView'),
                     options: graph.sections

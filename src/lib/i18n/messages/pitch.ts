@@ -1,6 +1,53 @@
 import type { Namespace } from './types';
 import { operationMessages } from './pitch-operations';
 export const pitch = {
+  customDesign: {
+    es: 'Riverz prepara este flujo',
+    en: 'Riverz prepares this flow',
+  },
+  customDesignDesc: {
+    es: 'Definimos el disparador, las condiciones, los mensajes y las excepciones con tu equipo antes de activarlo.',
+    en: 'We define the trigger, conditions, messages and exceptions with your team before activating it.',
+  },
+  operationEvent: { es: 'Lo que sucede', en: 'What happens' },
+  operationInternal: { es: 'Acción de Riverz', en: 'Riverz action' },
+  tailored: { es: 'Diseño a medida', en: 'Tailored design' },
+  tailoredDesc: {
+    es: 'Riverz prepara los flujos, mensajes y conexiones según tu negocio. Tú decides el alcance y las excepciones que atenderá tu equipo.',
+    en: 'Riverz prepares flows, messages and connections for your business. You choose the scope and exceptions your team will handle.',
+  },
+  scopeNote: {
+    es: 'Selecciona los escenarios de esta propuesta. Los flujos existentes se conservan como referencia; su configuración no cambia desde aquí.',
+    en: 'Select scenarios for this proposal. Existing flows remain as reference; their configuration is not changed here.',
+  },
+  customCases: {
+    es: 'Casos particulares de tu negocio',
+    en: 'Your business-specific cases',
+  },
+  customCasesQuestion: {
+    es: '¿Qué solicitudes, excepciones o procesos propios debemos agregar?',
+    en: 'Which specific requests, exceptions or processes should we add?',
+  },
+  setupChannels: {
+    es: 'Canales y conexiones que utilizas',
+    en: 'Channels and connections you use',
+  },
+  setupPayments: {
+    es: 'Medios de pago, condiciones y validación',
+    en: 'Payment methods, terms and verification',
+  },
+  setupService: {
+    es: 'Horarios, responsables y acciones que requieren aprobación',
+    en: 'Hours, owners and actions requiring approval',
+  },
+  setupShipping: {
+    es: 'Cobertura, transportistas, cambios y devoluciones',
+    en: 'Coverage, carriers, exchanges and returns',
+  },
+  setupVoice: {
+    es: 'Tono, idioma y reglas de atención',
+    en: 'Tone, language and support rules',
+  },
   operation_recommend_reply_pilar: {
     es: '¡Hola, {{customer}}! Te ayudo a conocer el sérum de Pilar. 🌿\n\nPodemos revisar cómo se usa, su precio y las opciones de envío.\n\n¿Qué te gustaría saber antes de elegir?',
     en: 'Hi {{customer}}! Let me help you learn about the Pilar serum. 🌿\n\nWe can review how to use it, its price and delivery options.\n\nWhat would you like to know before choosing?',

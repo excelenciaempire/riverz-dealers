@@ -1036,13 +1036,26 @@
   grid-template-columns: 1fr 1fr;
   gap: 15px;
 }
+.dialog > p {
+  margin: 18px 0;
+}
 .fields label {
   font-size: 11px;
 }
-.fields input {
+.fields input,
+.fields textarea,
+.fields select {
   width: 100%;
   display: block;
   margin-top: 6px;
+}
+.canvasHost {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.canvasHost[hidden] {
+  display: none;
 }
 .dialog .primary {
   margin-top: 20px;
@@ -1419,6 +1432,12 @@
   background: #e8f29e;
 }
 @media (max-width: 700px) {
+  .currentView {
+    display: none;
+  }
+  .fields {
+    grid-template-columns: 1fr;
+  }
   .compactHeader {
     padding: 10px 12px;
     gap: 8px;

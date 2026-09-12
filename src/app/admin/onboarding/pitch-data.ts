@@ -254,6 +254,30 @@ export function proposedButtons(example: string | null): string[] {
 }
 
 /** Replace named variables only. Numeric original placeholders stay intact unless explicitly supplied. */
+export function bindTemplateValues(
+  bindings: Record<string, string>,
+  values: Record<string, string>,
+  draft: PitchDraft
+): Record<string, string> {
+  const bound = { ...values };
+  for (const [key, binding] of Object.entries(bindings)) {
+    bound[key] = /tracking_number/.test(binding)
+      ? (values.trackingNumber ?? 'DEMO-1042')
+      : /tracking/.test(binding)
+        ? values.tracking
+        : /checkout/.test(binding)
+          ? values.checkout
+          : /order_name/.test(binding)
+            ? draft.order
+            : /total_price/.test(binding)
+              ? draft.amount
+              : /name/.test(binding)
+                ? draft.customer
+                : binding;
+  }
+  return bound;
+}
+
 export function renderMessage(
   body: string,
   values: Record<string, string>

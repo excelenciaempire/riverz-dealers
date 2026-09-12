@@ -173,18 +173,11 @@ describe('client journeys', () => {
               for (const step of flow.steps)
                 expect(ids.has(step.id)).toBe(true);
             }
-            // Template-bearing cases must not suppress their AI examples, nor
-            // other examples grouped into the same business concept.
-            for (const c of cases.filter((c) => c.example)) {
-              if (
-                d.model === 'prepaid' &&
-                /^audit-(16|17|18|19|20|21)$/.test(c.id)
-              )
-                continue;
-              expect(
-                ids.has(`journey-${journeyFor(c)}-example-${c.example}`)
-              ).toBe(true);
-            }
+            // The expanded walkthrough uses one catalog of conversation cases.
+            // Historical audit summaries remain available in the technical view.
+            expect(graph.nodes.some((n) => n.id.includes('-example-'))).toBe(
+              false
+            );
           }
           for (const journey of journeyIds) {
             const templates = graph.nodes

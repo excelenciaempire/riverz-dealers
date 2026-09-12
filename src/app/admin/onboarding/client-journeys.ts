@@ -1,11 +1,17 @@
 import type { Brand } from './data';
 import type { PitchCase, PitchDraft } from './pitch-data';
-import { proposedButtons, renderMessage, templatesForCase } from './pitch-data';
+import {
+  proposedButtons,
+  renderMessage,
+  templatesForCase,
+  bindTemplateValues,
+} from './pitch-data';
 import type { CanvasGraph, MapNode } from './canvas-graph';
 import { buildCanvas } from './canvas-graph';
 import { automationSnapshot } from './canvas-snapshot';
 import { NODE_WIDTH } from './horizontal-layout';
 import { operationCatalog } from '@/lib/i18n/messages/pitch-operations';
+import { selectedOperations } from './operation-scope';
 
 export const journeyIds = [
   'advice',
@@ -126,6 +132,7 @@ export function buildClientCanvas(
     width: 0,
     height: 0,
   };
+  const operations = selectedOperations(draft);
   function measure(
     n: Pick<
       MapNode,
@@ -199,7 +206,9 @@ export function buildClientCanvas(
       // focused on the customer's literal message instead of repeating it.
       title: inline ? '' : text('title'),
       body: text('customer'),
-      caption: t('pitch.operationCustomer'),
+      caption: t(
+        'event' in scenario ? 'pitch.operationEvent' : 'pitch.operationCustomer'
+      ),
       kind: inline ? 'inline_route' : 'scenario',
       status: 'proposal',
       x,
@@ -208,13 +217,24 @@ export function buildClientCanvas(
     const reply = add({
       id: `${id}-reply`,
       title: t(
-        scenario.id === 'silence'
-          ? 'pitch.canvasNoMessage'
-          : 'pitch.operationReply'
+        'internal' in scenario
+          ? 'pitch.operationInternal'
+          : scenario.id === 'voicecall'
+            ? 'pitch.voiceScript'
+            : scenario.id === 'silence'
+              ? 'pitch.canvasNoMessage'
+              : 'pitch.operationReply'
       ),
       body: text('reply'),
       caption: t('pitch.operationDesign'),
-      kind: scenario.id === 'silence' ? 'wait' : 'send_message',
+      kind:
+        'internal' in scenario
+          ? 'action'
+          : scenario.id === 'voicecall'
+            ? 'voice_call'
+            : scenario.id === 'silence'
+              ? 'wait'
+              : 'send_message',
       status: 'proposal',
       x: x + 480,
       y: top,
@@ -224,18 +244,22 @@ export function buildClientCanvas(
       title: t('pitch.operationDecision'),
       caption: t('pitch.operationDesign'),
       kind: 'condition',
-      routes: [
-        'human',
-        'silence',
-        'topic',
-        'media',
-        'optout',
-        'unknown',
-        'failure',
-        'identity',
-      ]
-        .filter((route) => route !== scenario.id)
-        .map((route) => `operation-${route}`),
+      routes:
+        'internal' in scenario
+          ? undefined
+          : [
+              'human',
+              'silence',
+              'topic',
+              'media',
+              'optout',
+              'unknown',
+              'failure',
+              'identity',
+            ]
+              .filter((route) => route !== scenario.id)
+              .filter((route) => operations.some((s) => s.id === route))
+              .map((route) => `operation-${route}`),
       x: x + 960,
       y: top,
     });
@@ -321,7 +345,8 @@ export function buildClientCanvas(
         !(draft.model === 'prepaid' && /^audit-(16|17|18|19|20|21)$/.test(c.id))
     );
     const groups = groupJourneyCases(applicable, journey);
-    if (!groups.length) continue;
+    if (!groups.length && !operations.some((s) => s.journey === journey))
+      continue;
     const entry = add({
       id: `journey-${journey}`,
       title: t(`pitch.journey_${journey}`),
@@ -335,9 +360,10 @@ export function buildClientCanvas(
     const start = y;
     // A template used by several outcomes is shown once per business journey.
     const shownMessages = new Map<string, MapNode>();
-    const branches = expanded.includes(entry.id)
-      ? groups
-      : [{ id: journey, members: groups.flatMap((g) => g.members) }];
+    const branches =
+      expanded.includes(entry.id) || !groups.length
+        ? []
+        : [{ id: journey, members: groups.flatMap((g) => g.members) }];
     const anchors: number[] = [];
     for (const branch of branches) {
       const primary =
@@ -381,17 +407,7 @@ export function buildClientCanvas(
       for (const { m, c } of originals) {
         let message = shownMessages.get(m.id);
         if (!message) {
-          const bound = { ...values };
-          for (const [k, v] of Object.entries(m.variables))
-            bound[k] = /tracking|checkout|url/.test(v)
-              ? values.tracking
-              : /order_name/.test(v)
-                ? draft.order
-                : /total_price/.test(v)
-                  ? draft.amount
-                  : /name/.test(v)
-                    ? draft.customer
-                    : v;
+          const bound = bindTemplateValues(m.variables, values, draft);
           message = add({
             id: `${entry.id}-${m.id}`,
             title: m.header || 'WhatsApp',
@@ -453,7 +469,7 @@ export function buildClientCanvas(
       y = Math.max(y + action.height, messageBottom) + 150;
     }
     if (expanded.includes(entry.id)) {
-      for (const scenario of operationCatalog.filter(
+      for (const scenario of operations.filter(
         (s) =>
           s.journey === journey &&
           (!('models' in s) ||
@@ -474,7 +490,9 @@ export function buildClientCanvas(
         y = bottom + 180;
       }
     }
-    entry.y = (anchors[0] + anchors[anchors.length - 1]) / 2;
+    entry.y = anchors.length
+      ? (anchors[0] + anchors[anchors.length - 1]) / 2
+      : start;
     y = Math.max(y, entry.y + entry.height + 100);
     graph.sections.push({
       id: entry.id,
@@ -485,6 +503,40 @@ export function buildClientCanvas(
       height: y - start + 60,
     });
     y += 80;
+  }
+  if (draft.answers.customCases?.trim()) {
+    const custom = add({
+      id: 'merchant-custom-cases',
+      title: t('pitch.customCases'),
+      body: draft.answers.customCases.trim(),
+      caption: t('pitch.proposal'),
+      kind: 'scenario',
+      status: 'proposal',
+      x: 1040,
+      y,
+    });
+    const design = add({
+      id: 'merchant-custom-cases-design',
+      title: t('pitch.customDesign'),
+      body: t('pitch.customDesignDesc'),
+      kind: 'action',
+      status: 'proposal',
+      x: 1520,
+      y,
+    });
+    graph.edges.push(
+      { from: root.id, to: custom.id },
+      { from: custom.id, to: design.id }
+    );
+    graph.sections.push({
+      id: custom.id,
+      title: custom.title,
+      x: 1000,
+      y: y - 40,
+      width: 940,
+      height: Math.max(custom.height, design.height) + 80,
+    });
+    y += Math.max(custom.height, design.height) + 180;
   }
   // Keep the literal production/draft trees on the same full canvas. The sales
   // scenarios above are proposed conversation examples, not replacements for them.

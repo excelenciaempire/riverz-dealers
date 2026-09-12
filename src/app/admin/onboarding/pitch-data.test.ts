@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { translate } from '@/lib/i18n/translate';
 import {
   currentCases,
+  bindTemplateValues,
   isCaseEnabled,
   parseDraft,
   proposedCases,
@@ -39,6 +40,24 @@ const draft: PitchDraft = {
 };
 
 describe('client pitch', () => {
+  it('keeps tracking numbers, tracking links and checkout links distinct', () => {
+    const bound = bindTemplateValues(
+      {
+        '1': '{{vars.tracking_number}}',
+        '2': '{{vars.tracking_url}}',
+        '3': '{{vars.checkout_url}}',
+      },
+      {
+        trackingNumber: 'DEMO-1042',
+        tracking: 'https://example.com/tracking',
+        checkout: 'https://example.com/checkout',
+      },
+      draft
+    );
+    expect(bound['1']).toBe('DEMO-1042');
+    expect(bound['2']).toBe('https://example.com/tracking');
+    expect(bound['3']).toBe('https://example.com/checkout');
+  });
   it('shows the actual active cart template, not a draft or a newer unused template', () => {
     const c = currentCases('pilar').find((c) => c.id === 'audit-7')!;
     const templates = templatesForCase('pilar', c);
