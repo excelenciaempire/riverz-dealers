@@ -1204,6 +1204,7 @@ async function decidirComentario(
             // demás. Sin esto el agente le respondía a quien cuestiona la
             // marca con el mismo tono que a quien quiere comprar.
             motivo ? instruccionPara(motivo) : null,
+            postBrief,
             customer?.brief,
             orderStatus,
             thread?.brief,
@@ -1235,7 +1236,7 @@ async function decidirComentario(
       links,
       customer:
         [customer?.brief, orderStatus].filter(Boolean).join('\n\n') || null,
-      thread: thread?.brief ?? null,
+      thread: [postBrief, thread?.brief].filter(Boolean).join('\n\n') || null,
       product: product?.brief ?? null,
       goal: null,
       offer: null,

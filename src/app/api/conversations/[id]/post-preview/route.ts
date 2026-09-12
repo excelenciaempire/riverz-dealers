@@ -7,6 +7,7 @@ import { getFreshTikTokToken } from "@/lib/channels/tiktok_comment/adapter";
 import { getLocale } from "@/lib/i18n/server";
 import { translate } from "@/lib/i18n/translate";
 import type { ChannelConnection, Conversation } from "@/types";
+import { guardarTextoDePublicacion } from "@/lib/channels/publicacion";
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 
@@ -121,6 +122,14 @@ export async function GET(
         thumbnail_url?: string;
         media_type?: string;
       };
+      if (m.caption?.trim()) {
+        await guardarTextoDePublicacion(admin, {
+          workspaceId: conversation.workspace_id,
+          channel: "ig_comment",
+          postId,
+          texto: m.caption,
+        });
+      }
       return NextResponse.json({
         permalink: m.permalink,
         image: m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url,
@@ -148,6 +157,14 @@ export async function GET(
       message?: string;
       full_picture?: string;
     };
+    if (p.message?.trim()) {
+      await guardarTextoDePublicacion(admin, {
+        workspaceId: conversation.workspace_id,
+        channel: "fb_comment",
+        postId,
+        texto: p.message,
+      });
+    }
     return NextResponse.json({
       permalink: p.permalink_url ?? meta?.permalink ?? `https://facebook.com/${postId}`,
       image: p.full_picture,

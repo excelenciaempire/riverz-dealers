@@ -94,10 +94,12 @@ export async function briefDePublicacion(
 
     // Se guarda en el hilo: la próxima respuesta —y la bandeja, que ya muestra
     // el asunto— lo tienen sin volver a preguntarle a Meta.
-    await db
-      .from("conversations")
-      .update({ subject: texto.slice(0, 300) })
-      .eq("id", conversation.id);
+    await guardarTextoDePublicacion(db, {
+      workspaceId: conversation.workspace_id,
+      channel: conversation.channel,
+      postId,
+      texto,
+    });
     return bloque(texto, conversation.channel, medio);
   } catch {
     return null;
@@ -156,14 +158,45 @@ export async function briefDePublicacionPorOrigen(
       connection_id: args.connectionId,
     } as Conversation, args.postId) ?? '';
     if (texto) {
-      await db.from('publicacion_contexto').update({
-        cuerpo: texto.slice(0, 2000),
-        updated_at: new Date().toISOString(),
-      }).eq('workspace_id', args.workspaceId).eq('channel', args.channel).eq('external_id', args.postId);
+      await guardarTextoDePublicacion(db, {
+        workspaceId: args.workspaceId,
+        channel: args.channel,
+        postId: args.postId,
+        texto,
+      });
     }
   }
   if (!texto && !medio) return null;
   return bloque(texto || 'Sin texto publicado.', args.channel, medio);
+}
+
+/** Guarda el caption para todos los hilos que pertenecen al mismo post. */
+export async function guardarTextoDePublicacion(
+  db: SupabaseClient,
+  args: {
+    workspaceId: string;
+    channel: 'ig_comment' | 'fb_comment';
+    postId: string;
+    texto: string;
+  },
+): Promise<void> {
+  const texto = args.texto.trim();
+  if (!texto || !args.postId.trim()) return;
+  await Promise.all([
+    db.from('publicacion_contexto').upsert({
+      workspace_id: args.workspaceId,
+      channel: args.channel,
+      external_id: args.postId,
+      titulo: texto.slice(0, 2000),
+      cuerpo: texto.slice(0, 2000),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id,channel,external_id' }),
+    db.from('conversations')
+      .update({ subject: texto.slice(0, 300) })
+      .eq('workspace_id', args.workspaceId)
+      .eq('channel', args.channel)
+      .eq('thread_external_id', args.postId),
+  ]);
 }
 
 function bloque(

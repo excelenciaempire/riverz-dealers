@@ -288,6 +288,28 @@ async function entenderUna(
     return false;
   }
 
+  // El caption ya identifica la publicación aunque falle la descarga, visión
+  // o transcripción. Se guarda antes de procesar el medio para que un error de
+  // video no borre el contexto ni impida enlazar "Ref 4" con el catálogo.
+  const productMatch = await identificarProductos(
+    db,
+    fila.workspace_id,
+    [fila.titulo, medio.caption].filter(Boolean).join('\n')
+  );
+  if (medio.caption) {
+    await db
+      .from('publicacion_contexto')
+      .update({
+        titulo: medio.caption.slice(0, 2000),
+        cuerpo: medio.caption.slice(0, 2000),
+        product_ids: productMatch.ids,
+        product_match_status: productMatch.status,
+        product_matched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', fila.id);
+  }
+
   const imagen =
     medio.tipo === 'video'
       ? null
@@ -319,7 +341,7 @@ async function entenderUna(
     });
     return false;
   }
-  const productMatch = await identificarProductos(
+  const completeProductMatch = await identificarProductos(
     db,
     fila.workspace_id,
     [fila.titulo, medio.caption, entendido].filter(Boolean).join('\n')
@@ -336,8 +358,8 @@ async function entenderUna(
   await db
     .from('publicacion_contexto')
     .update({
-      product_ids: productMatch.ids,
-      product_match_status: productMatch.status,
+      product_ids: completeProductMatch.ids,
+      product_match_status: completeProductMatch.status,
       product_matched_at: new Date().toISOString(),
     })
     .eq('id', fila.id)

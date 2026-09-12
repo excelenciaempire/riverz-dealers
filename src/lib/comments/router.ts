@@ -66,10 +66,10 @@ export async function routeComment(
     text: string;
   },
 ): Promise<void> {
-  // 0. De qué habla esta persona. Se anota primero y sin esperar: la
-  //    publicación se entiende en el cron, y para cuando llegue el segundo
-  //    comentario del mismo post ya está lista.
-  void anotarLaPublicacion(db, {
+  // 0. De qué habla esta persona. La fila debe existir antes de resolver el
+  //    caption: si ambas operaciones corren a la vez, el texto puede intentar
+  //    actualizar una fila que todavía no existe y el agente queda a ciegas.
+  await anotarLaPublicacion(db, {
     workspaceId: ev.workspaceId,
     channel: ev.channel,
     postId: ev.postId,

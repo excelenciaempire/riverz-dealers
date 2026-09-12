@@ -41,6 +41,7 @@ export interface ProductBrain {
 interface ProductRow {
   id: string;
   title: string;
+  handle: string | null;
   description: string | null;
   url: string | null;
   price_min: number | null;
@@ -57,7 +58,7 @@ interface ProductRow {
 }
 
 const FIELDS =
-  'id, title, description, url, price_min, price_max, currency, training_material, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform';
+  'id, title, handle, description, url, price_min, price_max, currency, training_material, say_guidelines, never_say, escalation_triggers, allowed_offers, health_sensitive, master_id, platform';
 
 function asStrings(v: unknown[] | null | undefined): string[] {
   if (!Array.isArray(v)) return [];
@@ -75,26 +76,43 @@ function asStrings(v: unknown[] | null | undefined): string[] {
  * sólo el segundo, así que un producto podía no reconocerse por el nombre con
  * el que se lo nombra.
  */
-function titulosDe(p: ProductRow): string[] {
-  const otros = (p as { listings?: Array<{ title: string | null }> }).listings ?? [];
+function titulosDe(p: { title: string; listings?: Array<{ title: string | null }> }): string[] {
+  const otros = p.listings ?? [];
   return [p.title, ...otros.map((l) => l.title ?? '')].filter(Boolean);
 }
 
-/** ¿De qué producto habla? Match por título/palabras contra lo que escribió. */
-function pickProduct(rows: ProductRow[], text: string): ProductRow | null {
-  const hay = text.toLowerCase();
+function normalizeProductText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\breferencia\s+(?:n(?:o|umero)?\.?\s*)?(\d+)\b/g, 'ref $1')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** ¿De qué producto habla? Match por título, handle y palabras distintivas. */
+export function pickProduct<T extends {
+  title: string;
+  handle?: string | null;
+  listings?: Array<{ title: string | null }>;
+}>(rows: T[], text: string): T | null {
+  const hay = normalizeProductText(text);
   if (!hay.trim()) return null;
-  // Título completo primero; luego cualquier palabra distintiva del título
-  // (>4 letras) para que "el serum" encuentre "Serum Pilar".
+  // El handle conserva referencias cortas que el título escribe de otra forma:
+  // `ref-4` debe encontrar "Referencia No. 4" en el caption del post.
   const exact = rows.find((p) =>
-    titulosDe(p).some((t) => hay.includes(t.toLowerCase())),
+    [...titulosDe(p), p.handle ?? '']
+      .map(normalizeProductText)
+      .filter((alias) => alias.length >= 3)
+      .some((alias) => hay.includes(alias)),
   );
   if (exact) return exact;
+  // Después, cualquier palabra distintiva (>4 letras) permite que "el serum"
+  // encuentre "Serum Pilar".
   return (
     rows.find((p) =>
-      titulosDe(p)
-        .join(' ')
-        .toLowerCase()
+      normalizeProductText(titulosDe(p).join(' '))
         .split(/\s+/)
         .filter((w) => w.length > 4)
         .some((w) => hay.includes(w)),
