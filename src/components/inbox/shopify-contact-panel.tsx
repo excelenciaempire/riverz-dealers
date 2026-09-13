@@ -275,5 +275,5 @@ function formatMoney(
 ): string {
   const num = typeof amount === 'string' ? Number(amount) : amount ?? 0;
   if (!isFinite(num)) return `${amount ?? ''}`;
-  return formatCurrency(num, currency || 'USD', { maximumFractionDigits: 0 });
+  return formatCurrency(num, currency || 'USD');
 }

@@ -1,5 +1,23 @@
 # App de Tiendanube
 
+## Revisión vigente al 13 de septiembre de 2026
+
+La app 37693 continúa **En aprobación**, verificado en Partners con la cuenta
+oficial. Ticket vigente **7973300**, referencia **1YNLPK-KP3VE**. Los artefactos
+se entregaron el 19 de agosto; Luciana envió seis observaciones el 4 de septiembre
+y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históricas.
+
+| Observación | Evidencia y trabajo pendiente |
+| --- | --- |
+| Confirmación de correo redirige a localhost | Corregido previamente en `7d3e8e62`. El 13/09 se verificó que un callback inválido devuelve 307 a `https://riverz.co/ingresar`, sin localhost. Las pruebas de callback y signup pasan. Falta repetir el alta completa del video. |
+| Video incompleto | El video del 19/08 es `https://youtu.be/OmxoUXJlk50`. Preparar uno nuevo con configuración del comercio y mensajes recibidos por un cliente: IA, campañas, recuperación de carrito y gestión de pedidos. No declarar este punto cerrado hasta disponer del video. |
+| FAQ sobre sincronización manual | Texto correcto: sincronizar vuelve a leer productos, precios y disponibilidad de Tiendanube y actualiza la copia del catálogo en Riverz. No modifica productos ni inventario en Tiendanube. Pendiente sustituirlo en el FAQ enviado. |
+| Justificar write_orders | `create-order.ts` crea pedidos pendientes mediante POST /orders y `order-cancel.ts` cancela pedidos mediante POST /orders/{id}/cancel. El permiso no se usa para modificar inventario. Mostrar ambas acciones sobre pedidos de prueba en el nuevo video. |
+| Precios redondeados | Corregido el formato del catálogo, tarjetas del chat y pedidos de la bandeja. Casos de regresión: 179.90 y 33.72, español e inglés, monedas con tres decimales y ausencia de moneda. |
+| GET /orders con 404 | El 13/09 GET /orders y GET /orders?per_page=1 devolvieron 200 tanto para la tienda revisora 4265771 como para Riverz Demo 8018159. Ambas tienen order/created, order/paid, order/fulfilled, order/cancelled, order/updated y app/uninstalled. La captura no muestra los parámetros de las tres consultas fallidas; no se ha demostrado su causa exacta ni debe afirmarse que está resuelta. |
+
+No incluir credenciales de la cuenta de revisión en este repositorio.
+
 > **2026-08-17 — Homologación SOLICITADA.** La app está en distribución
 > **"Tienda de aplicaciones"** (pública) y la solicitud de homologación ya
 > se envió desde el portal. Estado en Partners: **"En aprobación"**

@@ -4,6 +4,9 @@
  * dos lados.
  */
 
+import type { Locale } from '@/lib/i18n/config';
+import { localeTag } from '@/lib/i18n/format';
+
 const BUNDLE_LABELS: Record<string, string> = {
   kaching_bundles: 'Kaching Bundles',
   reconvert: 'ReConvert',
@@ -35,14 +38,16 @@ export function formatPrice(
   amount: number | null | undefined,
   currency: string | null | undefined,
   fallbackCurrency?: string | null,
+  locale: Locale = 'es',
 ): string {
   if (amount == null) return '—';
   const cur = currency || fallbackCurrency || null;
   try {
-    return new Intl.NumberFormat('es-ES', {
+    return new Intl.NumberFormat(localeTag(locale), {
       style: cur ? 'currency' : 'decimal',
       currency: cur ?? 'USD',
-      maximumFractionDigits: 0,
+      // Preserve cents; use the currency's precision (including 0/3-digit currencies).
+      ...(cur ? {} : { maximumFractionDigits: 20 }),
     }).format(amount);
   } catch {
     return amount.toString();

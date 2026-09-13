@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { TextosChat } from './chat-app';
 import { rearmar } from './rearmar-carrito';
+import { formatPrice } from '@/lib/products/format';
+import type { Locale } from '@/lib/i18n/config';
 
 /**
  * La tarjeta de compra.
@@ -55,6 +57,7 @@ export function ProductCard({
   color,
   ink,
   T,
+  locale = 'es',
 }: {
   path: string;
   href: string;
@@ -77,6 +80,7 @@ export function ProductCard({
    *  quedaba cableado en español: una tienda inglesa le mostraba "Agregar" y
    *  "Ir a pagar" a sus clientes. */
   T: TextosChat;
+  locale?: Locale;
 }) {
   const [prod, setProd] = useState<Producto | null>(null);
   // Lo que la persona elige ACA, sin volver a escribirle al agente.
@@ -223,14 +227,7 @@ export function ProductCard({
   // Sin moneda no se inventa una: con `currency` vacío se caía a USD y un
   // precio de 69.900 pesos se mostraba como "US$ 69.900". Mejor el número solo
   // que un número en la moneda de otro país.
-  const plata = (n: number) =>
-    prod?.currency
-      ? new Intl.NumberFormat('es', {
-          style: 'currency',
-          currency: prod.currency,
-          maximumFractionDigits: 0,
-        }).format(n)
-      : new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(n);
+  const plata = (n: number) => formatPrice(n, prod?.currency, null, locale);
 
   const precio = prod?.price == null ? null : plata(prod.price);
 

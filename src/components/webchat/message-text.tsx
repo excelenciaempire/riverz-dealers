@@ -4,6 +4,7 @@ import { ProductCard } from './product-card';
 import { BotonDePago, esEnlaceDePago } from './boton-de-pago';
 import type { TextosChat } from './chat-app';
 import { TextoRico } from '@/components/ui/texto-rico';
+import type { Locale } from '@/lib/i18n/config';
 
 /**
  * El texto de una burbuja: con formato, con los enlaces vivos, y con el de
@@ -105,6 +106,7 @@ export function MessageText({
   ink,
   session,
   T,
+  locale = 'es',
   onIrAPagar,
 }: {
   text: string;
@@ -117,6 +119,7 @@ export function MessageText({
   session?: string | null;
   /** El marco en el idioma del agente, para los botones de la tarjeta. */
   T: TextosChat;
+  locale?: Locale;
   /** Que Meta se entere de que arrancó el pago. */
   onIrAPagar?: () => void;
 }) {
@@ -146,6 +149,7 @@ export function MessageText({
               path={new URL(href).pathname}
               href={href}
               fichaUrl={href}
+              locale={locale}
               storeOrigin={storeOrigins[0] ?? null}
               variantId=""
               session={session}
@@ -163,6 +167,7 @@ export function MessageText({
               path={cart.path}
               href={href}
               variantId={cart.variantId}
+              locale={locale}
               lineas={cart.lineas}
               unidades={cart.unidades}
               session={session}

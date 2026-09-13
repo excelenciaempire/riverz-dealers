@@ -793,6 +793,7 @@ export function ChatApp() {
               >
                 {m.text ? (
                   <MessageText
+                    locale={settings?.locale === 'en' ? 'en' : 'es'}
                     text={m.text}
                     storeOrigins={origenesDeLaTienda}
                     color={color}

@@ -451,12 +451,13 @@ function ProductCard({
 }) {
   const t = useT();
   const completeness = productCompleteness(product);
+  const { locale } = useLocale();
   const price =
     product.price_min == null
       ? null
       : product.price_min === product.price_max
-        ? formatPrice(product.price_min, product.currency, fallbackCurrency)
-        : `${formatPrice(product.price_min, product.currency, fallbackCurrency)} – ${formatPrice(product.price_max ?? 0, product.currency, fallbackCurrency)}`;
+        ? formatPrice(product.price_min, product.currency, fallbackCurrency, locale)
+        : `${formatPrice(product.price_min, product.currency, fallbackCurrency, locale)} – ${formatPrice(product.price_max ?? 0, product.currency, fallbackCurrency, locale)}`;
 
   // Dónde más se vende. Antes cada publicación era una tarjeta suelta: el
   // comercio veía cuatro veces el mismo serum y no sabía cuál editar. Ahora es
@@ -544,7 +545,7 @@ function ProductCard({
                     {CANAL[l.platform] ?? l.platform}
                   </span>
                   {l.price_min != null
-                    ? formatPrice(l.price_min, l.currency, fallbackCurrency)
+                    ? formatPrice(l.price_min, l.currency, fallbackCurrency, locale)
                     : ''}
                 </span>
               ))}
