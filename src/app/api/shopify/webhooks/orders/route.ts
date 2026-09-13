@@ -804,6 +804,7 @@ function buildVarsForOrder(
     currency: String(order.currency ?? order.presentment_currency ?? ''),
     item_count: String(lineItems.length),
     first_item: String(firstItem?.title ?? ''),
+    retention_order_lines: JSON.stringify(lineItems.map((item: Record<string, unknown>) => ({ title: item.title, quantity: item.quantity }))),
     is_repeat_customer: ordersCount > 1 ? 'true' : 'false',
     order_status_url: String(order.order_status_url ?? ''),
     payment_gateway: Array.isArray(order.payment_gateway_names)

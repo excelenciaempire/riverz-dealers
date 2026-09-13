@@ -47,6 +47,7 @@ import {
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { nextReminderTime } from './reminder-hours'
+import { retentionProductVars } from './retention-product'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
@@ -753,6 +754,9 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
     try {
       if (step.step_type === 'condition') {
         const cfg = step.step_config as ConditionStepConfig
+        if (cfg.subject === 'context_var' && cfg.operand === 'retention_product') {
+          args.context.vars = { ...args.context.vars, ...retentionProductVars(args.context.vars?.retention_order_lines, cfg.value) }
+        }
         const taken = await evaluateCondition(cfg, args)
         results.push({
           step_id: step.id,

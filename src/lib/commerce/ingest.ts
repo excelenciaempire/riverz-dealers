@@ -140,6 +140,7 @@ export function buildOrderVars(
     currency: order.currency,
     item_count: String(order.lineItems.length),
     first_item: order.lineItems[0]?.title ?? '',
+    retention_order_lines: JSON.stringify(order.lineItems.map(item => ({ title: item.title, quantity: item.quantity }))),
     is_repeat_customer: order.customer.ordersCount > 1 ? 'true' : 'false',
     order_status_url: order.orderStatusUrl,
     payment_gateway: String(

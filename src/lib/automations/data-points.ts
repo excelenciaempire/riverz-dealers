@@ -89,6 +89,16 @@ export const DATA_POINTS: DataPoint[] = [
   })),
   // ── Order data (set by buildVarsForOrder + offer_* in the orders webhook) ──
   {
+    id: 'retention_product', labelKey: 'automations.dpRetentionProduct', group: 'order',
+    valueKind: 'text', triggers: ORDER_TRIGGERS, usableInConditions: true,
+    condition: { kind: 'var', varKey: 'retention_product' },
+  },
+  {
+    id: 'retention_units', labelKey: 'automations.dpRetentionUnits', group: 'order',
+    valueKind: 'number', triggers: ORDER_TRIGGERS, usableInConditions: true,
+    condition: { kind: 'var', varKey: 'retention_units' },
+  },
+  {
     id: 'offer_units',
     labelKey: 'automations.dpUnits',
     group: 'order',

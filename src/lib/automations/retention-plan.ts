@@ -105,7 +105,7 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   const guard = (suffix: BuilderStepInput[], checkPurchase = true): BuilderStepInput => has(o.tags.permission, [has(o.tags.paused, [], [
     ...(checkPurchase ? [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], suffix)] : suffix),
   ])])
-  const scope = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'first_item', op: 'eq', value: o.product }, suffix)
+  const scope = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'retention_product', op: 'eq', value: o.product }, suffix)
   const commercialGuard = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [guard(suffix)])
   const mainPath = (offer?: RetentionOffer): BuilderStepInput[] => {
     let suffix: BuilderStepInput[] = []
@@ -124,7 +124,7 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
     ])], [wait(14), guard([send(experience)])])]),
   ])]
   let selected: BuilderStepInput[] = mainPath()
-  for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'offer_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
+  for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'retention_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
   const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_delivered',
     trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0, stop_on_inbound: true, retention_ai_managed: true, retention_permission_tag: o.tags.permission }, steps: [scope(selected)] }]
   return { templates: o.offers.length ? templates : templates.filter(t => [received, care, experience].includes(t.nombre)), flows }
@@ -132,7 +132,7 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
 
 export function clearRetentionProduct(steps: BuilderStepInput[]): void {
   for (const s of steps) {
-    if (s.step_type === 'condition' && s.step_config.subject === 'context_var' && s.step_config.operand === 'first_item') s.step_config.value = ''
+    if (s.step_type === 'condition' && s.step_config.subject === 'context_var' && s.step_config.operand === 'retention_product') s.step_config.value = ''
     clearRetentionProduct(s.branches?.yes ?? [])
     clearRetentionProduct(s.branches?.no ?? [])
   }

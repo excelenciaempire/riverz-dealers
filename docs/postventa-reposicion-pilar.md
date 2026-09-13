@@ -2,9 +2,9 @@
 
 ## Pilar
 
-El programa `pilar_postventa_v1` de Pilar tiene una sola automatización y ocho plantillas en borrador. El árbol contiene únicamente el recorrido desde la entrega, sus esperas y las condiciones de envío. Las respuestas las atiende la IA. Se conserva el identificador principal y una copia de respaldo de los cambios.
+El programa `pilar_postventa_v1` de Pilar tiene una sola automatización, siete plantillas aprobadas por Meta y un borrador antiguo sin uso. El árbol contiene únicamente el recorrido desde la entrega, sus esperas y las condiciones de envío. Las respuestas las atiende la IA. Se conserva el identificador principal y una copia de respaldo de los cambios.
 
-El flujo es **Recompras · Serum Pilar** (`fb865aa4-f84a-405c-8fc1-88157e334a3c`). Comienza con la entrega de un pedido cuyo primer producto es exactamente `Serum Pilar`. Usa las unidades del pedido, no una etiqueta histórica de oferta.
+El flujo es **Recompras · Serum Pilar** (`fb865aa4-f84a-405c-8fc1-88157e334a3c`). Comienza con la entrega de un pedido que contiene `Serum Pilar`, en cualquier línea. La condición **Producto para recompra** calcula **Unidades de ese producto**, sumando solo las líneas coincidentes, sin contar otros artículos. Una cantidad inválida no selecciona una oferta de reposición. Pilar tiene una variante estándar; otros comercios con packs que representan varias unidades por SKU requieren verificar su equivalencia física.
 
 | Unidades recibidas | Acompañamiento desde entrega | Primera oferta | Última oferta |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Una compra nueva, cancelación o devolución invalida las esperas de recompra de
 
 ## Plantillas de Pilar
 
-Todas están en español, con categoría Marketing y sin importes fijos ni promesas de eficacia. No se enviaron a Meta: son borradores editables en Plantillas.
+Las siete plantillas del recorrido están aprobadas por Meta, en español, con categoría Marketing y sin importes fijos ni promesas de eficacia. Su estado se consultó directamente en Meta y se sincronizó con Riverz el 12 de septiembre de 2026.
 
 | Nombre | Uso |
 |---|---|
@@ -49,14 +49,14 @@ Cada instalación crea nombres y etiquetas propios del comercio, en español o i
 
 Esta primera versión utiliza los eventos y la comprobación de compra de Shopify. No representa todavía un conector completo de suscripciones ni una certificación de los demás conectores. Para una suscripción, el acompañamiento no reemplaza las notificaciones del proveedor ni debe crear una compra paralela a su renovación.
 
-## Antes de activar
+## Estado y requisitos de envío
 
-1. Revisar los textos y enviarlos a aprobación de Meta desde Plantillas.
-2. Resolver la diferencia entre importes de catálogo y checkout de Pilar: 69.990/69.900 para tres frascos y 109.990/99.900 para cuatro. La automatización no fija ni modifica esos importes.
+1. Las siete plantillas ya fueron revisadas, enviadas y aprobadas por Meta.
+2. Las plantillas no fijan precios. La IA debe confirmar las opciones y el importe vigente mediante sus herramientas antes de cotizar; esta tarea no cambia las tarifas comerciales.
 3. Registrar evidencia de permiso y asignar únicamente a esos contactos la etiqueta **pilar_postventa_v1: postventa permiso verificado**. La instalación no la asigna a ningún cliente.
-4. Verificar la entrega real y el mapeo exacto del producto, incluidos packs representados por variantes. Pedidos mixtos con el sérum en una línea posterior no entran en este filtro inicial.
-5. Sustituir coordinadamente la recompra anterior **Recompra por unidades (pedido nuevo)**, que sigue activa. Revisar sus esperas pendientes antes de activar el nuevo conjunto.
-6. Confirmar el asistente y la derivación humana disponibles, y simular compra posterior, baja, ayuda, unidades compartidas y reprogramación. Activar el único flujo una vez verificadas estas condiciones.
+4. Los pedidos mixtos se filtran por producto y sus cantidades. Se verificó que Pilar tiene una variante estándar, sin inferir unidades físicas desde títulos de packs.
+5. **Recompra por unidades (pedido nuevo)** ya estaba archivada y no tiene esperas pendientes. No compite con el nuevo flujo; el indicador histórico `is_active` de esa fila no anula su archivo.
+6. La asesora de Pilar está activa y pertenece a su cuenta. Las pruebas cubren compra posterior, baja, ayuda, cantidades y reprogramación. La activación pasa por la validación normal de dependencias; no se omiten las protecciones de envío.
 
 No se cargan pedidos antiguos ni se disparan mensajes atrasados. Antes de activar hay que verificar que el asistente configurado esté activo y pueda usar la herramienta de gestión de recompra. Las respuestas libres pausan la secuencia igual que las respuestas a botones.
 
@@ -72,4 +72,4 @@ Se corrigió el cálculo de las ramas anidadas: cada abanico mide sus propias fi
 
 Se corrigieron los borradores de experiencia y último recordatorio: ya no ofrecen aplazar cuando pueden ser el último paso del ciclo. Se conservan la conversación con IA, ayuda y baja. Las nuevas instalaciones no crean el recordatorio solicitado que no tenía ningún paso asociado. El script `scripts/repair-pilar-reorder-templates.ts` aplica la reparación únicamente a los borradores conocidos, con respaldo y comprobación de cambios concurrentes.
 
-Esta revisión no equivale a un envío real ni a una aprobación de Meta. Siguen aplicando los requisitos de activación y las limitaciones de pedidos mixtos y suscripciones descritos arriba.
+Esta revisión no incluye envíos de prueba a clientes. Meta aprobó posteriormente las siete plantillas. El filtro de pedidos mixtos fue corregido y sus cuatro condiciones se migraron conservando identificadores. No había contactos con la etiqueta de permiso verificado: queda pendiente identificar la fuente de esa evidencia antes de inscribir clientes. Las limitaciones de suscripciones y packs con unidades físicas distintas a la cantidad del pedido siguen descritas arriba.

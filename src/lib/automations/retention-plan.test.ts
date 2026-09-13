@@ -22,7 +22,7 @@ function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: numbe
       if (s.step_type === 'set_context') stops = (c.values as { stop_on_inbound?: boolean }).stop_on_inbound === true
       if (s.step_type === 'send_template') sent.push({ day, name: String(c.template_name) })
       if (s.step_type === 'condition') {
-        const vars: Record<string, unknown> = { first_item: changes.product ?? 'Serum Pilar', offer_units: unit, automation_entry: 'main', retention_replenishment: changes.replenishment !== false && day < (changes.disableReorderAt ?? Infinity) }
+        const vars: Record<string, unknown> = { retention_product: changes.product ?? 'Serum Pilar', retention_units: unit, automation_entry: 'main', retention_replenishment: changes.replenishment !== false && day < (changes.disableReorderAt ?? Infinity) }
         const yes = c.subject === 'context_var' ? String(vars[String(c.operand)]) === c.value
           : c.subject === 'purchased' ? day >= (changes.purchaseAt ?? Infinity)
           : c.operand === tags.permission ? changes.consent !== false

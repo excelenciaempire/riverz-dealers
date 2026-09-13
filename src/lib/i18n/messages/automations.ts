@@ -245,6 +245,8 @@ export const automations = {
   dpTotal: { es: "Total del pedido", en: "Order total" },
   dpItemCount: { es: "Cantidad de productos distintos", en: "Number of distinct products" },
   dpFirstItem: { es: "Primer producto", en: "First product" },
+  dpRetentionProduct: { es: "Producto para recompra", en: "Reorder product" },
+  dpRetentionUnits: { es: "Unidades de ese producto", en: "Units of that product" },
   dpOrderItems: { es: 'Productos y cantidades', en: 'Products and quantities' },
   dpDeliveryAddress: { es: 'Dirección completa de entrega', en: 'Full delivery address' },
   dpDeliveryPhone: { es: 'Teléfono de entrega', en: 'Delivery phone' },
