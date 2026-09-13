@@ -15,7 +15,8 @@
 const TELNYX_BASE = 'https://api.telnyx.com/v2';
 
 export class TelnyxApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code: string | null, readonly field: string | null) {
+  constructor(message: string, readonly status: number, readonly code: string | null, readonly field: string | null,
+    readonly suggestedAddress: Record<string, string> = {}) {
     super(message);
     this.name = 'TelnyxApiError';
   }
@@ -76,9 +77,17 @@ async function telnyx<T>(
       .filter((value): value is string => typeof value === 'string' && value.length > 0)
       .join(': ') || res.statusText;
     const error = json?.errors?.[0];
+    const addressFields = new Set(['street_address', 'extended_address', 'locality', 'administrative_area', 'postal_code', 'country_code']);
+    const suggestedAddress: Record<string, string> = {};
+    for (const item of Array.isArray(json?.errors) ? json.errors : []) {
+      const field = String(item?.source?.pointer ?? '').replace(/^\//, '');
+      if (item?.title === 'Suggestion' && addressFields.has(field) && typeof item.detail === 'string') {
+        suggestedAddress[field] = item.detail;
+      }
+    }
     throw new TelnyxApiError(`Telnyx ${res.status}: ${detail}`, res.status,
       error?.code == null ? null : String(error.code),
-      typeof error?.source?.pointer === 'string' ? error.source.pointer : null);
+      typeof error?.source?.pointer === 'string' ? error.source.pointer : null, suggestedAddress);
   }
   return json as T;
 }

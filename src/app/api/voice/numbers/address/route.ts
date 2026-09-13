@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         error: translate(await getLocale(), 'voice.addressValidationFailed'),
         provider_code: err.code,
         field: err.field,
+        ...(Object.keys(err.suggestedAddress).length ? { suggested_address: err.suggestedAddress } : {}),
         // Provider validation diagnostics, separate from the localized UI error.
         diagnostic: redactModelSecrets(err.message),
       }, { status: 422 });

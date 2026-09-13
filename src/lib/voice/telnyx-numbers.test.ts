@@ -15,3 +15,19 @@ it('preserves validation status and machine diagnostics without hiding it as an 
   } finally { vi.unstubAllEnvs(); }
   expect(TelnyxApiError.prototype).toBeInstanceOf(Error);
 });
+
+it('returns every suggested address component, without accepting it automatically', async () => {
+  vi.stubEnv('TELNYX_API_KEY', 'test');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    errors: [
+      { code: '10015', title: 'Suggestion', detail: 'FL', source: { pointer: '/administrative_area' } },
+      { code: '10015', title: 'Suggestion', detail: 'FORT LAUDERDALE', source: { pointer: '/locality' } },
+      { code: '10015', title: 'Suggestion', detail: 'do not expose', source: { pointer: '/internal' } },
+    ],
+  }), { status: 422 })));
+  try {
+    await expect(createAddress({ street_address: 'Provided address' })).rejects.toMatchObject({
+      suggestedAddress: { administrative_area: 'FL', locality: 'FORT LAUDERDALE' },
+    });
+  } finally { vi.unstubAllEnvs(); }
+});
