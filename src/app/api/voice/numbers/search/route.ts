@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/channels/admin-client';
 import { serverError } from '@/lib/api/errors';
+import { quoteNumber } from '@/lib/voice/number-quote';
 import {
   searchAvailableNumbers,
   getRegulatoryRequirements,
@@ -44,10 +45,13 @@ export async function GET(request: Request) {
       getRegulatoryRequirements({ country, type }).catch(() => []),
     ]);
     return NextResponse.json({
-      numbers,
+      numbers: numbers.map((number) => {
+        try { return { ...number, quote: quoteNumber(number, workspaceId, country, type) }; }
+        catch { return { ...number, quote: null }; }
+      }),
       requirements,
       // Documents needed before ordering? (gated country)
-      requires_documents: requirements.some((r) => r.field_type === 'document'),
+      requires_documents: requirements.length > 0,
     });
   } catch (err) {
     return serverError(err, 'number search failed');

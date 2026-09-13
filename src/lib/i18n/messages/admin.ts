@@ -2,6 +2,8 @@ import type { Namespace } from './types';
 
 /** Panel de plataforma (riverz.co/admin) — solo equipo Riverz. */
 export const admin = {
+  cronVoiceNumbers: { es: 'Activación y renovación de números por comercio', en: 'Merchant number activation and renewals' },
+  concepto_numero_telefono: { es: 'Número telefónico', en: 'Phone number' },
   unlockUnconfigured: { es: 'El panel no tiene contraseña configurada.', en: 'The panel password has not been configured.' },
   unlockIncorrect: { es: 'Contraseña incorrecta', en: 'Incorrect password' },
   unlockRateLimited: { es: 'Demasiados intentos. Inténtalo más tarde.', en: 'Too many attempts. Try again later.' },

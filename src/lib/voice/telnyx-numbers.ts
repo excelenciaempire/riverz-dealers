@@ -69,6 +69,7 @@ async function telnyx<T>(
       ...(init.headers ?? {}),
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(20_000),
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
@@ -251,11 +252,21 @@ export async function orderNumber(opts: {
 }
 
 /** Look up an owned number's Telnyx id (needed to release / re-route). */
-export async function findOwnedNumber(phoneNumber: string): Promise<{ id: string } | null> {
+export async function findOwnedNumber(phoneNumber: string): Promise<{ id: string; status?: string } | null> {
   const p = new URLSearchParams();
   p.set('filter[phone_number]', phoneNumber);
-  const data = await telnyx<{ data: { id: string }[] }>(`/phone_numbers?${p}`);
-  return data.data?.[0] ? { id: data.data[0].id } : null;
+  const data = await telnyx<{ data: { id: string; phone_number: string; status?: string }[] }>(`/phone_numbers?${p}`);
+  const exact = data.data?.find((n) => n.phone_number === phoneNumber);
+  return exact ? { id: exact.id, status: exact.status } : null;
+}
+
+/** Recover an uncertain purchase without placing another paid order. */
+export async function findNumberOrder(reference: string): Promise<OrderedNumber | null> {
+  const p = new URLSearchParams({ 'filter[customer_reference]': reference });
+  const data = await telnyx<{ data: (RawOrder & { customer_reference?: string })[] }>(`/number_orders?${p}`);
+  const order = data.data?.find((o) => o.customer_reference === reference);
+  if (!order?.id || !order.phone_numbers?.[0]?.phone_number) return null;
+  return { id: order.id, phone_number: order.phone_numbers[0].phone_number, status: order.status ?? 'pending' };
 }
 
 /** Release (delete) an owned number — stops the monthly rental. */

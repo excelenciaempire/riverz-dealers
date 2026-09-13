@@ -24,6 +24,8 @@ async function handler(request: Request) {
     .from('wallet_operaciones')
     .select('id,workspace_id,concepto,proveedor,created_at,detalle')
     .eq('estado', 'reservada')
+    // Number holds include prepaid renewals and have their own reconciler.
+    .neq('concepto', 'numero_telefono')
     .lt('created_at', since)
     .order('created_at')
     .limit(200);

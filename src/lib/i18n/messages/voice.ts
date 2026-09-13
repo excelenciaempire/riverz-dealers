@@ -5,7 +5,17 @@ import type { Namespace } from './types';
  * metrics. All user-facing; both locales required.
  */
 export const voice = {
-  numberOrderFailed: { es: 'No se pudo comprar el número. Revisa el estado de la cuenta de telefonía.', en: 'The number could not be purchased. Check the telephony account status.' },
+  numberBillingUnavailable: { es: 'La compra de números está temporalmente deshabilitada. Estamos habilitando el cobro por comercio.', en: 'Number purchases are temporarily disabled while per-workspace billing is being enabled.' },
+  numberWalletInsufficient: { es: 'Saldo insuficiente. Recarga el saldo de este comercio para comprar su número.', en: 'Insufficient balance. Top up this workspace to purchase its number.' },
+  numberQuoteExpired: { es: 'Actualiza la búsqueda para confirmar el precio vigente.', en: 'Refresh the search to confirm the current price.' },
+  numberPending: { es: 'La solicitud de este número está en proceso. No vuelvas a comprarlo.', en: 'This number request is processing. Do not purchase it again.' },
+  numberInitialPrice: { es: '{initial} hoy · {monthly}/mes', en: '{initial} today · {monthly}/month' },
+  numberPriceUnavailable: { es: 'Precio no disponible', en: 'Price unavailable' },
+  numberPurchaseConfirm: { es: 'Número exclusivo: {phone}\nAlta: {upfront}\nMes inicial: {monthly}\nTotal a descontar del saldo: {initial}\n\nRenovación mensual: {monthly}, al inicio de cada mes. Próxima: {date}. Reservamos el saldo hasta 7 días antes. Si falta saldo 24 horas antes de renovar, se dará de baja el número y podrás perderlo. Llamadas e IA se cobran aparte.\n\n¿Comprar y autorizar las renovaciones?', en: 'Dedicated number: {phone}\nSetup: {upfront}\nInitial month: {monthly}\nTotal deducted from balance: {initial}\n\nMonthly renewal: {monthly}, at the start of each month. Next: {date}. We reserve funds up to 7 days in advance. If funds are insufficient 24 hours before renewal, the number will be released and may be lost. Calls and AI are billed separately.\n\nPurchase and authorize renewals?' },
+  numberRenewalDetails: { es: '{amount}/mes · Próxima renovación: {date}', en: '{amount}/month · Next renewal: {date}' },
+  numberRenewalFunding: { es: 'Mantén saldo disponible para renovar. El número se da de baja si falta saldo 24 horas antes.', en: 'Keep funds available for renewal. The number is released if funds are insufficient 24 hours in advance.' },
+  numberRenewalReserved: { es: 'Saldo reservado para la próxima renovación.', en: 'Funds reserved for the next renewal.' },
+  numberOrderFailed: { es: 'No se completó la compra del número. Inténtalo más tarde.', en: 'The number purchase could not be completed. Try again later.' },
   addressValidationFailed: { es: 'No se pudo validar la dirección. Revisa el nombre, la calle completa, la ciudad y el código postal.', en: 'The address could not be validated. Check the name, full street address, city, and postal code.' },
   campaignInvalid: { es: 'Revisa los datos de la campaña y selecciona recursos de este comercio. Las campañas terminadas no se pueden reiniciar.', en: 'Check the campaign details and select resources from this workspace. Finished campaigns cannot be restarted.' },
   campaignDraft: { es: 'Crear borrador de campaña de llamadas', en: 'Create a call campaign draft' },

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useT } from '@/hooks/use-locale';
+import { useFormat } from '@/hooks/use-format';
 import {
   VOICE_COUNTRIES,
   TIPOS_EN_ORDEN,
@@ -19,12 +20,16 @@ interface Current {
   phone_number: string | null;
   country: string | null;
   telnyx_number_id: string | null;
+  billing_available?: boolean;
+  subscription?: { phone_number: string; status: string; monthly_cents: number; next_renewal_at: string | null; renewal_reserved: boolean } | null;
 }
 interface Available {
   phone_number: string;
   locality?: string | null;
   region?: string | null;
   monthly_cost?: string | null;
+  upfront_cost?: string | null;
+  quote?: string | null;
   currency?: string | null;
 }
 interface Requirement {
@@ -57,6 +62,7 @@ interface Regulatory {
  */
 export function VoiceNumberCard() {
   const t = useT();
+  const fmt = useFormat();
   const { workspace } = useWorkspace();
   const fetchWithCsrf = useFetchWithCsrf();
 
@@ -96,6 +102,13 @@ export function VoiceNumberCard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const provisioningStatus = current?.subscription?.status;
+  useEffect(() => {
+    if (!provisioningStatus || provisioningStatus === 'active') return;
+    const timer = window.setInterval(() => { void load(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [provisioningStatus, load]);
 
   // El país del comercio, para que no tenga que elegirlo si acertamos.
   useEffect(() => {
@@ -236,6 +249,15 @@ export function VoiceNumberCard() {
 
   async function buy(phone: string) {
     if (!workspace?.id) return;
+    const selected = results.find((n) => n.phone_number === phone);
+    if (!selected?.quote) return;
+    const monthly = Number(selected.monthly_cost), upfront = Number(selected.upfront_cost);
+    const next = new Date();
+    const renewal = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 1));
+    if (!window.confirm(t('voice.numberPurchaseConfirm', {
+      phone, monthly: fmt.currency(monthly, 'USD'), upfront: fmt.currency(upfront, 'USD'),
+      initial: fmt.currency(monthly + upfront, 'USD'), date: fmt.date(renewal, { timeZone: 'UTC' }),
+    }))) return;
     setBusy(phone);
     try {
       const res = await fetchWithCsrf('/api/voice/numbers', {
@@ -247,6 +269,8 @@ export function VoiceNumberCard() {
           country: paisElegido,
           type: tipo,
           requirement_group_id: requiresDocs ? regulatory?.requirement_group_id : undefined,
+          quote: selected.quote,
+          consent_version: 'number_v1',
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -256,7 +280,7 @@ export function VoiceNumberCard() {
         );
         return;
       }
-      toast.success(t('voice.numberBought'));
+      toast.success(t(json.status === 'active' ? 'voice.numberBought' : 'voice.numberPending'));
       setResults([]);
       setSearched(false);
       await load();
@@ -305,13 +329,13 @@ export function VoiceNumberCard() {
         <div className="mt-3">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-      ) : current?.phone_number ? (
+      ) : current?.phone_number || current?.subscription ? (
         /* Ya tiene número: una línea y nada más que decidir. */
         <div className="mt-4">
           <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-3">
             <span className="flex items-center gap-2 text-sm text-foreground">
               <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="font-medium">{current.phone_number}</span>
+              <span className="font-medium">{current.phone_number ?? current.subscription?.phone_number}</span>
               {current.country && (
                 <span className="text-xs text-muted-foreground">
                   {banderaDe(current.country)} {current.country}
@@ -322,7 +346,7 @@ export function VoiceNumberCard() {
               variant="ghost"
               size="sm"
               onClick={release}
-              disabled={busy === 'release'}
+              disabled={busy === 'release' || (!!current.subscription && current.subscription.status !== 'active')}
               aria-label={t('voice.numberRelease')}
             >
               {busy === 'release' ? (
@@ -332,9 +356,17 @@ export function VoiceNumberCard() {
               )}
             </Button>
           </div>
+          {current.subscription && (
+            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {current.subscription.status !== 'active' && <p>{t('voice.numberPending')}</p>}
+              {current.subscription.next_renewal_at && <p>{t('voice.numberRenewalDetails', { amount: fmt.currency(current.subscription.monthly_cents / 100, 'USD'), date: fmt.date(current.subscription.next_renewal_at, { timeZone: 'UTC' }) })}</p>}
+              <p>{t(current.subscription.renewal_reserved ? 'voice.numberRenewalReserved' : 'voice.numberRenewalFunding')}</p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-4 space-y-3">
+          {current?.billing_available === false && <p className="text-xs text-amber-600">{t('voice.numberBillingUnavailable')}</p>}
           {/* La decisión, y por qué importa. */}
           <div>
             <p className="text-sm text-foreground">{t('voice.numberPickCountry')}</p>
@@ -555,13 +587,13 @@ export function VoiceNumberCard() {
                         {n.phone_number}
                       </span>
                       <span className="text-[11px] text-muted-foreground">
-                        {[n.locality || n.region, precio(n, t)].filter(Boolean).join(' · ')}
+                        {[n.locality || n.region, n.quote ? t('voice.numberInitialPrice', { initial: fmt.currency(Number(n.upfront_cost) + Number(n.monthly_cost), 'USD'), monthly: fmt.currency(Number(n.monthly_cost), 'USD') }) : t('voice.numberPriceUnavailable')].filter(Boolean).join(' · ')}
                       </span>
                     </span>
                     <Button
                       size="sm"
                       onClick={() => buy(n.phone_number)}
-                      disabled={!!busy || compraBloqueada}
+                      disabled={!!busy || compraBloqueada || !n.quote || current?.billing_available === false}
                     >
                       {busy === n.phone_number ? (
                         <>
@@ -594,11 +626,3 @@ const TIPO_KEY: Record<string, string> = {
   mobile: 'Mobile',
   national: 'National',
 };
-
-/** El costo mensual, dicho como precio y no como dato suelto. */
-function precio(n: Available, t: (k: string, v?: Record<string, string>) => string): string {
-  const monto = Number(n.monthly_cost);
-  if (!Number.isFinite(monto) || monto <= 0) return t('voice.numberFree');
-  const moneda = n.currency ? `${n.currency} ` : '$';
-  return t('voice.numberMonthly', { amount: `${moneda}${n.monthly_cost}` });
-}

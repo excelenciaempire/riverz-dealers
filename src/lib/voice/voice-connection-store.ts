@@ -52,13 +52,15 @@ export async function writeVoiceConfig(
   status: string,
 ): Promise<void> {
   if (id) {
-    await supabaseAdmin()
+    const { error } = await supabaseAdmin()
       .from('channel_connections')
       .update({ config, status, updated_at: new Date().toISOString() })
       .eq('id', id);
+    if (error) throw error;
   } else {
-    await supabaseAdmin()
+    const { error } = await supabaseAdmin()
       .from('channel_connections')
       .insert({ workspace_id: workspaceId, channel: 'voice', label: 'Voz', config, status });
+    if (error) throw error;
   }
 }

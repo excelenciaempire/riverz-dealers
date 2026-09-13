@@ -6,6 +6,9 @@ import { serverError } from '@/lib/api/errors';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
 import { redactModelSecrets } from '@/lib/security/model-secrets';
+import { supabaseAdmin } from '@/lib/channels/admin-client';
+import { currentNumberSubscription, purchaseNumber, releaseBilledNumber } from '@/lib/voice/number-billing';
+import { verifyNumberQuote } from '@/lib/voice/number-quote';
 import {
   isVoiceMember,
   isVoiceAdmin,
@@ -13,7 +16,6 @@ import {
   writeVoiceConfig,
 } from '@/lib/voice/voice-connection-store';
 import {
-  orderNumber,
   releaseNumber,
   findOwnedNumber,
   TelnyxApiError,
@@ -40,10 +42,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const { config } = await readVoiceConfig(workspaceId);
+  let billingAvailable = true;
+  const subscription = await currentNumberSubscription(supabaseAdmin(), workspaceId).catch((error) => {
+    if (error instanceof Error && error.message === 'number_billing_unavailable') { billingAvailable = false; return null; }
+    throw error;
+  });
   return NextResponse.json({
     phone_number: config.phone_number ?? null,
     country: config.country ?? null,
     telnyx_number_id: config.telnyx_number_id ?? null,
+    billing_available: billingAvailable,
+    subscription: subscription ? { phone_number: subscription.phone_number, status: subscription.status, monthly_cents: subscription.monthly_cents, next_renewal_at: subscription.next_renewal_at, renewal_reserved: !!subscription.renewal_operation } : null,
   });
 }
 
@@ -63,6 +72,8 @@ export async function POST(request: Request) {
     country?: string;
     type?: PhoneNumberType;
     requirement_group_id?: string;
+    quote?: string;
+    consent_version?: string;
   } | null;
   if (!body?.workspace_id || !body.phone_number) {
     return NextResponse.json({ error: 'workspace_id and phone_number required' }, { status: 400 });
@@ -78,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'voice_routing_unconfigured' }, { status: 503 });
   }
 
-  const { id, config } = await readVoiceConfig(body.workspace_id);
+  const { config } = await readVoiceConfig(body.workspace_id);
   // One number per workspace: refuse if one is already provisioned (release
   // first). Guard on either field so a missing id can't reopen the door.
   if (config.telnyx_number_id || config.phone_number) {
@@ -86,25 +97,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    const ordered = await orderNumber({
-      phoneNumber: body.phone_number,
-      requirementGroupId: body.requirement_group_id,
-      customerReference: body.workspace_id,
-      // Same (workspace, number) retry → Telnyx dedupes, never double-bills.
-      idempotencyKey: `voice-${body.workspace_id}-${body.phone_number}`,
-    });
-    const nextConfig: VoiceConnectionConfig = {
-      ...config,
-      phone_number: ordered.phone_number,
-      country: body.country ?? config.country,
-      telnyx_number_id: ordered.id || undefined,
-    };
-    await writeVoiceConfig(body.workspace_id, id, nextConfig, 'connected');
+    if (body.consent_version !== 'number_v1' || typeof body.quote !== 'string') throw new Error('number_quote_invalid');
+    const quote = verifyNumberQuote(body.quote, body.workspace_id, body.phone_number);
+    // A regulatory group supplied by another workspace must never be used.
+    if (body.requirement_group_id && body.requirement_group_id !== config.regulatory_group_id) throw new Error('number_quote_invalid');
+    const ordered = await purchaseNumber(supabaseAdmin(), quote, user.id, body.requirement_group_id);
     return NextResponse.json(
-      { ok: true, phone_number: ordered.phone_number, status: ordered.status },
+      { ok: true, phone_number: ordered?.phone_number, status: ordered?.status },
       { status: 201 },
     );
   } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message.includes('number_billing_unavailable')) return NextResponse.json({ error: translate(await getLocale(), 'voice.numberBillingUnavailable') }, { status: 503 });
+    if (message.includes('sin_saldo')) return NextResponse.json({ error: translate(await getLocale(), 'voice.numberWalletInsufficient') }, { status: 402 });
+    if (message.includes('number_quote_invalid')) return NextResponse.json({ error: translate(await getLocale(), 'voice.numberQuoteExpired') }, { status: 409 });
+    if (message.includes('duplicate key') || message.includes('number_already_provisioned')) return NextResponse.json({ error: translate(await getLocale(), 'voice.numberPending') }, { status: 409 });
     if (err instanceof TelnyxApiError) {
       return NextResponse.json({
         error: translate(await getLocale(), 'voice.numberOrderFailed'),
@@ -132,11 +139,16 @@ export async function DELETE(request: Request) {
 
   const { id, config } = await readVoiceConfig(workspaceId);
   try {
-    // Prefer the stored Telnyx id; fall back to a lookup by number.
-    let telnyxId = config.telnyx_number_id;
-    if (!telnyxId && config.phone_number) {
-      telnyxId = (await findOwnedNumber(config.phone_number))?.id;
+    const subscription = await currentNumberSubscription(supabaseAdmin(), workspaceId).catch((error) => {
+      if (error instanceof Error && error.message === 'number_billing_unavailable') return null;
+      throw error;
+    });
+    if (subscription) {
+      await releaseBilledNumber(supabaseAdmin(), subscription);
+      return NextResponse.json({ ok: true });
     }
+    // Prefer the stored Telnyx id; fall back to a lookup by number.
+    const telnyxId = config.phone_number ? (await findOwnedNumber(config.phone_number))?.id : config.telnyx_number_id;
     if (telnyxId) await releaseNumber(telnyxId);
     const nextConfig: VoiceConnectionConfig = {
       ...config,
