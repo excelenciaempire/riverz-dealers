@@ -418,11 +418,13 @@ export default function NewBroadcastPage() {
     } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) return toast.error(t('broadcasts.noSession'));
+    if (!workspace?.id) return toast.error(t('broadcasts.noSession'));
     const cleanMapping = Object.fromEntries(
       Object.entries(variableMapping).filter(([, v]) => v),
     );
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
+      workspace_id: workspace.id,
       name: name.trim(),
       template_name: template?.name ?? 'voice_note',
       voice_note: voiceNote,

@@ -11,6 +11,7 @@ import { chunk, fetchAllRows } from '@/lib/supabase/paginate';
 import type { ContactSegment } from '@/lib/segments/types';
 import { useFetchWithCsrf } from '@/lib/api/fetch-with-csrf';
 import type { VoiceNoteConfig } from '@/lib/voice-notes/types';
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -168,7 +169,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  async function resolveAudience(audience: AudienceConfig): Promise<Contact[]> {
+  async function resolveAudience(audience: AudienceConfig, workspaceId: string): Promise<Contact[]> {
     const supabase = createClient();
 
     let contacts: Contact[] = [];
@@ -182,6 +183,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         supabase
           .from('contacts')
           .select('*')
+          .eq('workspace_id', workspaceId)
           .eq('opted_out', false)
           .order('created_at', { ascending: false })
           .order('id', { ascending: false })
@@ -199,6 +201,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         supabase
           .from('contacts')
           .select('*, contact_tags!inner(tag_id)')
+          .eq('workspace_id', workspaceId)
           .in('contact_tags.tag_id', audience.tagIds!)
           .eq('opted_out', false)
           .order('created_at', { ascending: false })
@@ -208,13 +211,14 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     } else if (audience.type === 'custom_field' && audience.customField) {
       contacts = await resolveCustomFieldAudience(supabase, audience.customField);
     } else if (audience.type === 'csv' && audience.csvContacts) {
-      const resolved = await upsertCsvContacts(supabase, audience.csvContacts);
+      const resolved = await upsertCsvContacts(supabase, audience.csvContacts, workspaceId);
       // CSV upserts return everything; drop opted-out before send.
       contacts = resolved.filter((c) => !(c as Contact & { opted_out?: boolean }).opted_out);
     } else if (audience.type === 'segment' && audience.segmentId) {
       const { data: seg, error: segErr } = await supabase
         .from('contact_segments')
         .select('*')
+        .eq('workspace_id', workspaceId)
         .eq('id', audience.segmentId)
         .maybeSingle();
       if (segErr || !seg) {
@@ -250,7 +254,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       contacts = contacts.filter((c) => !excludedIds.has(c.id));
     }
 
-    return contacts;
+    return contacts.filter((contact) => contact.workspace_id === workspaceId);
   }
 
   /**
@@ -267,6 +271,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
   async function upsertCsvContacts(
     supabase: ReturnType<typeof createClient>,
     csvRows: { phone: string; name?: string }[],
+    workspaceId: string,
   ): Promise<Contact[]> {
     if (csvRows.length === 0) return [];
 
@@ -295,6 +300,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           .from('contacts')
           .select('*')
           .eq('user_id', user.id)
+          .eq('workspace_id', workspaceId)
           .in('phone', slice)
           .order('id', { ascending: true })
           .range(from, to),
@@ -310,6 +316,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       .filter((p) => !byPhone.has(p))
       .map((phone) => ({
         user_id: user.id,
+        workspace_id: workspaceId,
         phone,
         name: uniqueByPhone.get(phone)?.name ?? null,
       }));
@@ -400,7 +407,9 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       // ── Step 1: Resolve audience contacts ─────────────────────────
       setProgress(5);
-      const contacts = await resolveAudience(payload.audience);
+      const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id);
+      if (!workspaceId) throw new Error('workspace_required');
+      const contacts = await resolveAudience(payload.audience, workspaceId);
 
       if (contacts.length === 0) {
         throw new Error('No contacts found for this audience.');
@@ -437,6 +446,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         .from('broadcasts')
         .insert({
           user_id: user.id,
+          workspace_id: workspaceId,
           name: payload.name,
           template_name: payload.template?.name ?? 'voice_note',
           voice_note: payload.voiceNote ?? null,
