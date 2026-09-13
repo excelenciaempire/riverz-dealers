@@ -42,9 +42,11 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
   campañas. `ce2eddeb` agrega ese reflejo con alcance de workspace y transiciones
   hacia adelante, incluso sin conversación creada para la campaña.
 - Recuperación: se verificó la configuración existente (espera una hora,
-  condición de compra, recordatorio y nueva espera de 23 horas). No se ejecutó
-  ni se acreditó recepción: la plantilla es Marketing y el único cliente de
-  prueba tiene número estadounidense. El dueño confirmó que no hay otro.
+  condición de compra, recordatorio y nueva espera de 23 horas). La primera
+  prueba no se ejecutó porque solo se había considerado el número de EE. UU.
+  Esta limitación quedó corregida más tarde: el dueño señaló que su perfil de
+  administrador ya tenía otro número; se encontró el argentino y se usó como
+  destinatario autorizado. No era necesario pedirle un número adicional.
 - Sigue pendiente el video integral de Tiendanube: alta con verificación,
   configuración completa, recuperación recibida y creación/cancelación de
   pedidos de prueba. La grabación de mensajería es evidencia parcial y debe
@@ -66,6 +68,13 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
   localhost; después, login devolvió sesión y correo confirmado. Se eliminó
   exclusivamente la cuenta QA y se revocó su código de un uso. Esto valida
   correo y autenticación por HTTP, no sustituye el recorrido visual completo.
+- Recuperación, 23:06 UTC: envío controlado por `engineSendTemplate` de
+  `deuna_carrito_pendiente_1` (Marketing) al número argentino del administrador,
+  desde la línea colombiana. Meta confirmó `delivered`, sin código ni motivo
+  de error. El botón “Retomar compra” contiene un enlace corto real a un carrito
+  de prueba con una unidad del producto. No se creó ni cobró un pedido. Esto
+  prueba entrega y botón de la plantilla, no el disparo automático de un
+  abandono ni una captura de la pantalla del WhatsApp destinatario.
 
 No incluir credenciales ni teléfonos privados de revisión en este repositorio.
 
