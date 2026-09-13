@@ -401,9 +401,6 @@ export function WalletPanel() {
             </div>
           )}
         </div>
-        <p className="text-muted-foreground mt-3 text-sm">
-          {t('settings.walletFeeNotice')}
-        </p>
         {(e.reservadoCentavos ?? 0) > 0 && (
           <p className="text-muted-foreground mt-2 text-sm">
             {t('settings.walletReserved', {

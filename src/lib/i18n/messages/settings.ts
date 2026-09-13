@@ -1309,10 +1309,6 @@ export const settings = {
   },
   walletTopupAdjustment: { es: 'Ajuste de recarga', en: 'Top-up adjustment' },
   walletStripeFee: { es: 'Comisión de Stripe', en: 'Stripe processing fee' },
-  walletFeeNotice: {
-    es: 'La comisión real de Stripe se descuenta del saldo en cada recarga, incluidas las automáticas. Sin margen adicional.',
-    en: 'The actual Stripe fee is deducted from your balance on every top-up, including automatic top-ups. No added margin.',
-  },
   walletTopUp: { es: 'Recarga', en: 'Top-up' },
   walletTopUpFailed: {
     es: 'No se pudo abrir la recarga.',
