@@ -103,6 +103,9 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (input.triggerType === 'shopify_order_created' && input.contactId) {
       await cancelPendingByTrigger(db, input.workspaceId, input.contactId, 'shopify_abandoned_checkout')
     }
+    if (input.contactId && ['shopify_order_created', 'shopify_order_cancelled', 'shopify_order_refunded'].includes(input.triggerType)) {
+      await stopReordersForOrderEvent(db, input.workspaceId, input.contactId)
+    }
 
     // Motor apagado —suspendida por cobro, o esperando aprobación—: no
     // sale ni un mensaje más. Se corta acá arriba, antes de leer nada, para
@@ -176,6 +179,7 @@ export async function cancelPendingAutomationsOnInbound(input: {
     .eq('workspace_id', input.workspaceId)
     .eq('contact_id', input.contactId)
     .eq('status', 'pending')
+    .order('created_at', { ascending: true })
   if (!pending?.length) return
   const ids = [...new Set(pending.map((p) => String(p.automation_id)))]
   const { data: automations } = await db
@@ -190,25 +194,56 @@ export async function cancelPendingAutomationsOnInbound(input: {
   const target = pending.filter((p) => stops.has(String(p.automation_id)) &&
     shouldStopRunOnInbound(stops.get(String(p.automation_id)), p.context))
   if (!target.length) return
-  await db.from('automation_pending_executions').update({ status: 'done' }).in('id', target.map((p) => p.id))
+  const claimed = []
   for (const row of target) {
+    const cfg = stops.get(String(row.automation_id)) ?? {}
+    const context = (row.context as AutomationContext) ?? {}
+    const nextContext = cfg.retention_ai_managed === true
+      ? { ...context, vars: { ...context.vars, retention_pause_token: crypto.randomUUID() } } : context
+    const result = await db.from('automation_pending_executions').update({ status: 'done', context: nextContext })
+      .eq('workspace_id', input.workspaceId).eq('contact_id', input.contactId).eq('id', row.id).eq('status', 'pending').select('id')
+    if (result.error) throw new Error(result.error.message)
+    if (!result.data?.length) continue
+    claimed.push({ ...row, context: nextContext })
     if (row.log_id) {
       await appendResults(String(row.log_id), [{
         step_id: String(row.id), step_type: 'wait', status: 'skipped', detail: 'cancelled by inbound reply',
       }], 'partial', null)
     }
   }
+  if (!claimed.length) return
   // Se conserva el último contexto de recuperación junto al chat y se asigna
   // sólo al asistente indicado. No tocamos `assigned_agent_id`: es propiedad
   // del equipo humano.
-  const context = (target[target.length - 1].context as AutomationContext | null) ?? {}
-  const trigger = stops.get(String(target[target.length - 1].automation_id)) ?? {}
+  const last = claimed[claimed.length - 1]
+  const context = last.context
+  const trigger = stops.get(String(last.automation_id)) ?? {}
   const agentId = String(trigger.handoff_ai_agent_id ?? context.vars?.handoff_ai_agent_id ?? '').trim()
-  if (agentId) {
+  if (agentId || trigger.retention_ai_managed === true) {
     await db.from('conversations').update({
-      assigned_ai_agent_id: agentId,
-      automation_context: { ...(context.vars ?? {}), inbound_text: input.messageText },
-    }).eq('id', input.conversationId).eq('workspace_id', input.workspaceId)
+      ...(agentId ? { assigned_ai_agent_id: agentId } : {}),
+      automation_context: { ...(context.vars ?? {}), inbound_text: input.messageText,
+        ...(trigger.retention_ai_managed === true ? { retention_handoff: { automation_id: last.automation_id, pending_id: last.id, token: context.vars?.retention_pause_token } } : {}),
+      },
+    }).eq('id', input.conversationId).eq('workspace_id', input.workspaceId).eq('contact_id', input.contactId)
+  }
+}
+
+/** A new purchase, return or cancellation also invalidates AI rescheduling tokens. */
+async function stopReordersForOrderEvent(db: ReturnType<typeof supabaseAdmin>, workspaceId: string, contactId: string) {
+  const { data: automations, error } = await db.from('automations').select('id').eq('workspace_id', workspaceId)
+    .contains('trigger_config', { retention_ai_managed: true }).is('deleted_at', null)
+  if (error) throw new Error(error.message)
+  if (!automations?.length) return
+  const rows = await db.from('automation_pending_executions').select('id,status,context').eq('workspace_id', workspaceId)
+    .eq('contact_id', contactId).in('automation_id', automations.map(a => a.id)).in('status', ['pending', 'done'])
+  if (rows.error) throw new Error(rows.error.message)
+  for (const row of rows.data ?? []) {
+    if (row.status !== 'pending' && !row.context?.vars?.retention_pause_token) continue
+    const result = await db.from('automation_pending_executions').update({ status: 'done',
+      context: { ...row.context, vars: { ...row.context?.vars, retention_pause_token: null } },
+    }).eq('workspace_id', workspaceId).eq('contact_id', contactId).eq('id', row.id).in('status', ['pending', 'done'])
+    if (result.error) throw new Error(result.error.message)
   }
 }
 
@@ -310,7 +345,7 @@ export async function resumePendingExecution(pending: {
     await executeStepsFrom({
       automation: automation as Automation,
       contactId: pending.contact_id,
-      context: (automation.trigger_config as Record<string, unknown>)?.event_entries
+      context: (automation.trigger_config as Record<string, unknown>)?.event_entries || (automation.trigger_config as Record<string, unknown>)?.retention_ai_managed
         ? { ...pending.context, vars: { ...pending.context?.vars, retention_replenishment: (automation.trigger_config as Record<string, unknown>).retention_replenishment !== false } }
         : pending.context ?? {},
       parentStepId: pending.parent_step_id,
@@ -435,7 +470,8 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   await executeStepsFrom({
     automation,
     contactId: input.contactId ?? null,
-    context: entry ? entryContext(input.context, entry, cfg) : input.context ?? {},
+    context: entry ? entryContext(input.context, entry, cfg) : cfg.retention_ai_managed === true
+      ? { ...input.context, vars: { ...input.context?.vars, retention_replenishment: cfg.retention_replenishment !== false } } : input.context ?? {},
     parentStepId: null,
     branch: null,
     startPosition: 0,
@@ -910,10 +946,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // Keep the reply context even after the last reminder (no pending wait).
       // Human assignment is intentionally untouched.
       const handoffId = String((args.automation.trigger_config as Record<string, unknown>)?.handoff_ai_agent_id ?? '').trim()
-      if (handoffId) {
+      const aiManaged = (args.automation.trigger_config as Record<string, unknown>)?.retention_ai_managed === true
+      if (handoffId || aiManaged) {
         const { error } = await db.from('conversations').update({
-          assigned_ai_agent_id: handoffId,
-          automation_context: args.context.vars ?? {},
+          ...(handoffId ? { assigned_ai_agent_id: handoffId } : {}),
+          automation_context: { ...args.context.vars, ...(aiManaged ? { retention_handoff: { automation_id: args.automation.id } } : {}) },
         }).eq('id', conversationId).eq('workspace_id', args.automation.workspace_id)
         if (error) throw new Error(`automation reply context: ${error.message}`)
       }

@@ -11,7 +11,7 @@ async function main() {
   const { data: rows, error } = await db.from('automations').select('*').eq('workspace_id', workspaceId)
     .contains('trigger_config', { retention_installation: installation }).is('deleted_at', null)
   if (error) throw error
-  if (rows?.length === 1 && rows[0].trigger_config.event_entries) { console.log('Already consolidated'); return }
+  if (rows?.length === 1 && (rows[0].trigger_config.event_entries || rows[0].trigger_config.retention_ai_managed)) { console.log('Already consolidated'); return }
   if (rows?.length !== 9 || rows.some(r => r.is_active || r.created_at !== r.updated_at)) throw new Error('Expected nine unchanged inactive drafts')
   const primary = rows.find(r => r.trigger_config.retention_flow === 'main')!
   const helpers = rows.filter(r => r.id !== primary.id)

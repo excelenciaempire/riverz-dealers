@@ -13,7 +13,7 @@ const options: RetentionPlanOptions = { locale: 'es', prefix: 'pilar_postventa_v
 // This verifies total elapsed days, not just the presence of wait nodes.
 function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: number; purchaseAt?: number; consent?: boolean; replyAt?: number; product?: string; replenishment?: boolean; disableReorderAt?: number } = {}) {
   let day = 0
-  let stops = false
+  let stops = true
   const sent: Array<{ day: number; name: string }> = []
   const walk = (steps: BuilderStepInput[]) => {
     for (const s of steps) {
@@ -53,6 +53,13 @@ describe('retention program', () => {
   })
   it('ends the second offer on any reply after the first offer', () => {
     expect(run(plan.flows[0].steps, 1, { replyAt: 23 }).map(s => s.day)).toEqual([1, 7, 22])
+  })
+  it('hands any early reply to AI and contains no scripted response branches', () => {
+    expect(run(plan.flows[0].steps, 1, { replyAt: 2 }).map(s => s.day)).toEqual([1])
+    expect(plan.flows).toHaveLength(1)
+    expect(plan.flows[0].trigger_config).toMatchObject({ stop_on_inbound: true, retention_ai_managed: true })
+    expect(plan.flows[0].trigger_config.event_entries).toBeUndefined()
+    expect(JSON.stringify(plan.flows[0].steps)).not.toMatch(/send_message|assign_conversation|automation_entry/)
   })
   it('builds valid native steps and WhatsApp components', () => {
     for (const flow of plan.flows) expect(validateStepsForActivation(flow.steps), flow.key).toEqual([])

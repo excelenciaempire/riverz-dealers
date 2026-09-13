@@ -2,10 +2,10 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
-  'tpl_postventa-reposicion_name': { es: 'Postventa y recompra', en: 'Post-purchase and reorder' },
+  'tpl_postventa-reposicion_name': { es: 'Recompras', en: 'Reorders' },
   'tpl_postventa-reposicion_desc': {
-    es: 'Un solo recorrido: acompañamiento, experiencia del cliente y recompra opcional según el producto.',
-    en: 'One journey: post-purchase care, customer feedback and optional reordering based on the product.',
+    es: 'Contacta según lo comprado y el tiempo de uso. Cuando el cliente responde, la IA continúa la conversación.',
+    en: 'Follow up based on the purchase and usage time. When the customer replies, AI continues the conversation.',
   },
   retentionEvents: { es: 'Entrega, respuestas y devoluciones', en: 'Delivery, replies and returns' },
   retentionReplenishment: { es: 'Incluir recompra', en: 'Include reordering' },

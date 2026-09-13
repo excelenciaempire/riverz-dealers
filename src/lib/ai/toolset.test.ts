@@ -82,6 +82,8 @@ describe('el toolset del agente que habla con clientes', () => {
       // Operator, que sí reciben un id —o un segmento entero—, siguen afuera.
       'VER_PRODUCTO_TOOL',
       'VER_CONTACTO_TOOL',
+      // Only the paused follow-up of this conversation; no account or run ids.
+      'GESTIONAR_RECOMPRA_TOOL',
       'ETIQUETAR_CONTACTO_TOOL',
       'CERRAR_CONVERSACION_TOOL',
       'buildCheckoutTool',

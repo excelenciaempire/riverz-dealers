@@ -194,6 +194,7 @@ export const AGENT_TOOLBOX: readonly ToolSpec[] = [
     requires: null,
   },
   { key: 'ver_contacto', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
+  { key: 'gestionar_recompra', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'etiquetar_contacto', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
   { key: 'cerrar_conversacion', group: 'conversacion', modes: ['off', 'auto'], fallback: 'auto', requires: null },
 ] as const

@@ -351,6 +351,8 @@ export const operation = {
     en: "Rather than make something up, it files the question for you to answer.",
   },
   toolVerContacto: { es: "Ver la ficha de quien escribe", en: "See who is writing" },
+  toolGestionarRecompra: { es: 'Gestionar recordatorios de recompra', en: 'Manage reorder reminders' },
+  toolGestionarRecompraHint: { es: 'Cancela o reprograma el seguimiento de la persona que responde, según lo acordado.', en: 'Cancel or reschedule follow-up for the person replying, as agreed.' },
   toolVerContactoHint: {
     es: "Qué compró antes y con qué etiquetas está, para no hacerle repetir todo.",
     en: "What they bought before and how they are tagged, so they don't repeat themselves.",

@@ -140,6 +140,7 @@ import {
   runWithTools,
   UPDATE_ORDER_TOOL,
   VER_CONTACTO_TOOL,
+  GESTIONAR_RECOMPRA_TOOL,
   VER_PRODUCTO_TOOL,
   type ShopifyToolContext,
   type VoiceEscalationContext,
@@ -318,9 +319,9 @@ export async function runAiAgent(
     }
 
     const textoEntrante = args.inboundMessage.content_text ?? '';
-    const existingOrderRecovery = recoveryHasExistingOrder(automationContext);
+    const existingOrderRecovery = !automationContext?.retention_handoff && recoveryHasExistingOrder(automationContext);
     const recoveryIntent = recoveryAction({
-      assignedOnly: Boolean(agent.assigned_only),
+      assignedOnly: !automationContext?.retention_handoff && Boolean(agent.assigned_only),
       text: textoEntrante,
       benefitPercent: automationContext?.benefit_percent,
       existingOrder: existingOrderRecovery,
@@ -2503,6 +2504,7 @@ export type ModoDeHerramientas = 'conversacion' | 'borrador' | 'comentario';
 
 /** Las que ESCRIBEN algo fuera de la conversacion. El borrador no las lleva. */
 const ESCRIBEN = new Set([
+  'gestionar_recompra',
   'crear_checkout',
   'crear_link_de_pago',
   'ofrecer_descuento',
@@ -2521,6 +2523,7 @@ const ESCRIBEN = new Set([
 
 /** Las que administran un hilo de la bandeja. Un comentario no tiene hilo. */
 const DE_LA_BANDEJA = new Set([
+  'gestionar_recompra',
   'etiquetar_contacto',
   'cerrar_conversacion',
   'escalar_llamada',
@@ -2666,6 +2669,7 @@ export function construirHerramientas(args: {
     // garantías, que es el error que más caro sale y el más difícil de ver.
     ...(hayContacto && puede('no_se_la_respuesta') ? [NO_SE_TOOL] : []),
     ...(hayContacto && puede('ver_contacto') ? [VER_CONTACTO_TOOL] : []),
+    ...(hayContacto && puede('gestionar_recompra') ? [GESTIONAR_RECOMPRA_TOOL] : []),
     ...(hayContacto && puede('etiquetar_contacto')
       ? [ETIQUETAR_CONTACTO_TOOL]
       : []),
@@ -2813,7 +2817,10 @@ async function generateReply(
     perfilOperativo,
     origen.channel
   );
-  const handoffContext = recoveryContext;
+  const handoffContext = recoveryContext?.retention_handoff ? null : recoveryContext;
+  if (recoveryContext?.retention_handoff) {
+    system += '\n\nRECOMPRA PAUSADA\nLa persona respondió a un seguimiento después de una compra. Tú atiendes su respuesta con naturalidad: dudas, incidencias, intención de compra o cambio de fecha. El seguimiento automático está pausado. No lo trates como recuperación ni confirmación de un pedido pendiente. Si pide dejar los recordatorios, usa gestionar_recompra para cancelar. Si acuerda una nueva fecha, confirma cuántos días esperar y usa gestionar_recompra; no prometas una fecha sin éxito de la herramienta. Ante un problema, deja el seguimiento pausado y resuélvelo con las herramientas autorizadas. No fuerces palabras exactas ni ofrezcas descuentos no autorizados.';
+  }
   if (handoffContext && agent.assigned_only) {
     const etapa = Number(handoffContext.benefit_percent ?? 0);
     const pedidoExistente = recoveryHasExistingOrder(handoffContext);
@@ -2888,7 +2895,7 @@ async function generateReply(
     : 0;
   const etapaBeneficio = Number(handoffContext?.benefit_percent ?? 0);
   const accionRecuperacion = recoveryAction({
-    assignedOnly: Boolean(agent.assigned_only),
+    assignedOnly: !recoveryContext?.retention_handoff && Boolean(agent.assigned_only),
     text: origen.inboundText,
     benefitPercent: etapaBeneficio,
     existingOrder: recoveryHasExistingOrder(handoffContext),

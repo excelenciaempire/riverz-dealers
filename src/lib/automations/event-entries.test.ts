@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { buildRetentionPlan } from './retention-plan'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import { validateTriggerForActivation } from './validate'
 import { listTemplates } from './templates'
 
-const flow = buildRetentionPlan({ locale: 'es', prefix: 'retention_test', product: 'Coffee',
-  offers: [{ units: 1, day: 22, label: '1' }], tags: { enrolled: '', permission: '', paused: '', help: '' } }).flows[0]
+// Legacy multi-entry automations remain readable; new reorder plans use AI handoff.
+const flow = { trigger_type: 'shopify_order_delivered', trigger_config: {
+  platforms: ['shopify'], event_triggers: ['shopify_order_delivered', 'keyword_match', 'shopify_order_cancelled', 'shopify_order_refunded'],
+  event_entries: [
+    { key: 'main', trigger_type: 'shopify_order_delivered', trigger_config: {} },
+    ...[['help', ['Necesito ayuda', 'Los compartí']], ['later', ['Más adelante']], ['stop', ['No más recordatorios']], ['repeat', ['Quiero repetir']], ['later_15', ['Recordar en 15 días']], ['later_30', ['Recordar en 30 días']]].map(([key, keywords]) => ({ key, trigger_type: 'keyword_match', trigger_config: { keywords, match_type: 'exact', stop_on_inbound: key === 'later_15' } })),
+    ...['shopify_order_cancelled', 'shopify_order_refunded'].map(trigger_type => ({ key: trigger_type, trigger_type, trigger_config: {} })),
+  ],
+} }
 const cfg = flow.trigger_config
 describe('one retention automation, multiple event entrances', () => {
   it.each([
@@ -16,7 +22,6 @@ describe('one retention automation, multiple event entrances', () => {
     ['shopify_order_refunded', '', 'shopify_order_refunded'], ['shopify_order_cancelled', '', 'shopify_order_cancelled'],
   ])('routes %s / %s to %s in the same tree', (event, text, key) => {
     expect(resolveEventEntry(cfg, event, { message_text: text })?.key).toBe(key)
-    expect(flow.steps.some(s => s.step_config.value === key)).toBe(true)
   })
   it('ignores unrelated events, keyword substrings and other platforms', () => {
     expect(resolveEventEntry(cfg, 'shopify_order_created')).toBeUndefined()

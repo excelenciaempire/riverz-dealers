@@ -1,10 +1,10 @@
-# Postventa y reposición
+# Recompras
 
 ## Pilar
 
-El programa `pilar_postventa_v1` de Pilar tiene una sola automatización y ocho plantillas en borrador. Entrega, respuestas, cancelaciones y devoluciones entran en ramas del mismo árbol, con un único control de activación. Los ocho auxiliares de la instalación inicial se archivan al consolidar; se conserva el identificador principal y una copia de respaldo.
+El programa `pilar_postventa_v1` de Pilar tiene una sola automatización y ocho plantillas en borrador. El árbol contiene únicamente el recorrido desde la entrega, sus esperas y las condiciones de envío. Las respuestas las atiende la IA. Se conserva el identificador principal y una copia de respaldo de los cambios.
 
-El flujo principal es **Postventa y recompra · Serum Pilar** (`fb865aa4-f84a-405c-8fc1-88157e334a3c`). Comienza con la entrega de un pedido cuyo primer producto es exactamente `Serum Pilar`. Usa las unidades del pedido, no una etiqueta histórica de oferta.
+El flujo es **Recompras · Serum Pilar** (`fb865aa4-f84a-405c-8fc1-88157e334a3c`). Comienza con la entrega de un pedido cuyo primer producto es exactamente `Serum Pilar`. Usa las unidades del pedido, no una etiqueta histórica de oferta.
 
 | Unidades recibidas | Acompañamiento desde entrega | Primera oferta | Última oferta |
 |---|---|---|---|
@@ -13,13 +13,15 @@ El flujo principal es **Postventa y recompra · Serum Pilar** (`fb865aa4-f84a-40
 | 4 | Días 1, 7 y 21 | Día 112 | Día 119 |
 | Otra cantidad | Días 1, 7 y 21 | Sin estimación automática | Sin oferta automática |
 
-Las fechas de reposición presuponen uso consecutivo por una persona. El botón **Los compartí** pausa el recorrido y deriva al equipo para revisar cuántas unidades conserva y cuándo conviene volver a contactar. No se inventa una duración a partir de texto libre.
+Las fechas de reposición presuponen uso consecutivo por una persona. Si el cliente comparte unidades o cambia su consumo, la IA conversa para aclarar cuándo conviene volver a contactar. No se inventa una duración a partir de texto libre.
 
-Los botones de ayuda, pausa y baja se resuelven dentro de la misma automatización. **Más adelante** permite solicitar un recordatorio en 15 o 30 días. Una respuesta posterior cancela esa espera. **Quiero repetir** suspende la secuencia y abre la conversación de compra; no crea ni cobra un pedido sin confirmar sus datos.
+Cualquier respuesta, por botón o texto libre, cancela la espera pendiente y entrega el contexto a la IA configurada. No hay ramas por palabras exactas, respuestas enlatadas ni asignación automática a humanos. La IA atiende dudas, incidencias, intención de compra y solicitudes de cambio con sus herramientas y permisos habituales.
+
+La herramienta `gestionar_recompra` permite cancelar el permiso de este programa o reprogramar la siguiente etapa de una ejecución pausada, entre 1 y 365 días, después de un acuerdo explícito. No recibe identificadores elegidos por el modelo: obtiene cuenta, contacto y conversación del servidor. La reprogramación consume un token de pausa y conserva los pasos originales, que vuelven a comprobar permiso y compras. Si el ciclo ya terminó, no inventa un nuevo recordatorio ni promete una reprogramación que la herramienta no pudo hacer. La baja sí puede registrarse después del último mensaje.
 
 Antes de cada envío, el recorrido exige su etiqueta de permiso verificado y ausencia de pausa. Las consultas de nueva compra se formulan como pregunta positiva: si el proveedor falla, el motor corta la rama en lugar de dar por hecho que no compró. Cualquier compra posterior detiene este ciclo conservador, aunque sea de otro producto.
 
-Las devoluciones y cancelaciones del producto pausan el programa. Cualquier respuesta después de la primera oferta cancela la segunda mediante una señal específica de la ejecución. La etiqueta de ayuda permanece hasta que el equipo resuelve el caso; una nueva entrega no la borra.
+Una compra nueva, cancelación o devolución invalida las esperas de recompra del contacto y sus tokens de reprogramación. Es una suspensión conservadora incluso si el evento corresponde a otro producto. El seguimiento se pausa desde la primera respuesta, no solamente después de una oferta. La IA no recibe las instrucciones de recuperación de pedidos pendientes cuando atiende una recompra.
 
 ## Plantillas de Pilar
 
@@ -38,7 +40,7 @@ Todas están en español, con categoría Marketing y sin importes fijos ni prome
 
 ## Biblioteca global
 
-La galería y Operador ofrecen una sola opción: **Postventa y recompra**. Integra acompañamiento, consulta de experiencia y reposición opcional en una automatización con seis plantillas de partida. Sustituye las tarjetas separadas Recompras, Postventa y reposición, Acompañamiento postventa y Encuesta post-compra.
+La galería y Operador ofrecen una sola opción: **Recompras**. Integra acompañamiento, consulta de experiencia y reposición opcional en una automatización con seis plantillas de partida. Las respuestas continúan con la IA. Sustituye las anteriores tarjetas separadas de postventa y encuesta.
 
 El ejemplo de reposición propone los días 22 y 29 para una unidad; requiere adaptar duración y cantidades. El control **Incluir recompra** permite desactivar las ofertas y mantener el acompañamiento a los días 1, 7 y 21. Se comprueba de nuevo después de las esperas. No se cobran suscripciones ni se activan envíos al instalar.
 
@@ -55,8 +57,8 @@ Esta primera versión utiliza los eventos y la comprobación de compra de Shopif
 5. Sustituir coordinadamente la recompra anterior **Recompra por unidades (pedido nuevo)**, que sigue activa. Revisar sus esperas pendientes antes de activar el nuevo conjunto.
 6. Confirmar el asistente y la derivación humana disponibles, y simular compra posterior, baja, ayuda, unidades compartidas y reprogramación. Activar el único flujo una vez verificadas estas condiciones.
 
-No se cargan pedidos antiguos ni se disparan mensajes atrasados. Las respuestas libres que no coincidan con los botones o frases configuradas continúan en la atención normal; la interpretación de una incidencia no está resuelta mediante coincidencias exactas de palabras. Antes de producción debe verificarse que el equipo o asistente pueda pausar el seguimiento cuando corresponda.
+No se cargan pedidos antiguos ni se disparan mensajes atrasados. Antes de activar hay que verificar que el asistente configurado esté activo y pueda usar la herramienta de gestión de recompra. Las respuestas libres pausan la secuencia igual que las respuestas a botones.
 
 ## Validación
 
-Pruebas con reloj simulado comprueban los días reales de cada oferta, la ausencia de reposición para cantidades desconocidas, permisos, pausas, compras posteriores y respuesta tras el primer ofrecimiento. Se validan los componentes de WhatsApp, los pasos nativos y la separación del contenido en inglés. Se comprueban todas las entradas del mismo árbol, las respuestas no coincidentes y el control de recompra. La consolidación verifica que queda una sola automatización del programa, pausada, y conserva las plantillas existentes.
+Pruebas con reloj simulado comprueban los días reales de cada oferta, la ausencia de reposición para cantidades desconocidas, permisos, pausas, compras posteriores y respuestas tempranas. Se validan los componentes de WhatsApp, los pasos nativos y la separación del contenido en inglés. Las pruebas de la herramienta cubren aislamiento por cuenta y contacto, confirmación, permisos, tokens y bajas después del último mensaje. La migración verifica una sola raíz y ninguna rama de respuestas, conservando el estado de borrador y las plantillas existentes.

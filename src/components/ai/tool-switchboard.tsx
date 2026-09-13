@@ -64,6 +64,7 @@ export const SUFIJO: Record<string, string> = {
   buscar_en_internet: 'BuscarEnInternet',
   no_se_la_respuesta: 'NoSeLaRespuesta',
   ver_contacto: 'VerContacto',
+  gestionar_recompra: 'GestionarRecompra',
   etiquetar_contacto: 'EtiquetarContacto',
   cerrar_conversacion: 'CerrarConversacion',
 };

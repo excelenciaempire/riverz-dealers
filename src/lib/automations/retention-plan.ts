@@ -98,7 +98,7 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   const last = template('ultimo_recordatorio', copy(
     `Hola {{1}}, este es el último recordatorio de este seguimiento de ${o.product}. Si necesitas reponer, podemos ayudarte. Si todavía tienes, puedes elegir que te recordemos más adelante.`,
     `Hi {{1}}, this is the last reminder in this ${o.product} follow-up. We can help if you need more, or you can choose a later reminder if you still have some.`), [button.repeat, button.later, button.stop])
-  const requested = template('recordatorio_solicitado', copy(
+  template('recordatorio_solicitado', copy(
     `Hola {{1}}, volvemos a escribirte por ${o.product}, como nos pediste. ¿Necesitas reponer o prefieres esperar?`,
     `Hi {{1}}, this is the ${o.product} reminder you requested. Do you need more or would you prefer to wait?`), [button.repeat, button.later, button.stop])
 
@@ -128,43 +128,9 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   ])]
   let selected: BuilderStepInput[] = mainPath()
   for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'offer_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
-  const flows: RetentionFlow[] = [{ key: 'main', name: o.offers.length ? copy('Postventa y recompra', 'Post-purchase and replenishment') : copy('Acompañamiento postventa', 'Post-purchase care'), trigger_type: 'shopify_order_delivered',
-    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0 }, steps: [scope(selected)] }]
-  const keyword = (key: string, name: string, words: string[], actions: BuilderStepInput[], stopOnInbound = false) => flows.push({
-    key, name, trigger_type: 'keyword_match', trigger_config: { keywords: words, match_type: 'exact', case_sensitive: false, stop_on_inbound: stopOnInbound }, steps: [has(o.tags.enrolled, actions)],
-  })
-  const text = (es: string, english: string) => step('send_message', { text: copy(es, english) })
-  const assign = step('assign_conversation', { mode: 'round_robin' })
-  keyword('help', copy('Postventa - atención', 'Post-purchase - support'), [button.help, button.shared], [tag(o.tags.paused), tag(o.tags.help), assign,
-    text('Pausamos los recordatorios. Cuéntanos qué ocurrió o cuántas unidades conservas para que el equipo ajuste tu seguimiento.', 'We paused your reminders. Tell us what happened or how much you kept so our team can adjust your follow-up.')])
-  keyword('later', copy('Postventa - elegir recordatorio', 'Post-purchase - choose reminder'), [button.later], [tag(o.tags.paused),
-    text('Pausamos el seguimiento actual. Responde "Recordar en 15 días" o "Recordar en 30 días". Si prefieres otra fecha, cuéntanos.', 'We paused the current follow-up. Reply "Remind in 15 days" or "Remind in 30 days". Tell us if you prefer another date.')])
-  keyword('stop', copy('Postventa - dejar recordatorios', 'Post-purchase - stop reminders'), [button.stop], [tag(o.tags.paused), tag(o.tags.permission, false),
-    text('Listo. Dejamos de enviarte estos recordatorios.', 'Done. We will stop these reminders.')])
-  keyword('repeat', copy('Postventa - repetir compra', 'Post-purchase - reorder'), [button.repeat], [tag(o.tags.paused),
-    text('Te ayudamos a repetir tu compra. Confirmaremos cantidad, precio vigente, dirección y entrega antes de crear el pedido.', 'We can help you reorder. We will confirm quantity, the current price, address and delivery before creating an order.')])
-  for (const days of [15, 30]) keyword(`later_${days}`, copy(`Postventa - recordar en ${days} días`, `Post-purchase - remind in ${days} days`), [copy(`Recordar en ${days} días`, `Remind in ${days} days`)], [
-    has(o.tags.permission, [tag(o.tags.paused), text(`Te recordaremos en ${days} días si no has vuelto a comprar.`, `We will remind you in ${days} days if you have not ordered again.`), wait(days),
-      has(o.tags.permission, [has(o.tags.help, [], [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], [branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [send(requested)])])])]),
-    ]),
-  ], true)
-  for (const event of ['shopify_order_cancelled', 'shopify_order_refunded']) flows.push({ key: event, name: copy('Postventa - suspender por devolución o cancelación', 'Post-purchase - pause for return or cancellation'),
-    trigger_type: event, trigger_config: { platforms: ['shopify'] }, steps: [scope([has(o.tags.enrolled, [tag(o.tags.paused), tag(o.tags.help)])])] })
-  if (!o.offers.length) {
-    const careKeys = new Set(['main', 'help', 'stop', 'shopify_order_cancelled', 'shopify_order_refunded'])
-    return { templates: templates.filter(t => [received, care, experience].includes(t.nombre)), flows: [combineRetentionFlows(flows.filter(f => careKeys.has(f.key)))] }
-  }
-  return { templates, flows: [combineRetentionFlows(flows)] }
-}
-
-/** Event branches remain visible/editable in the same canvas. No hidden child automations. */
-export function combineRetentionFlows(flows: RetentionFlow[]): RetentionFlow {
-  const main = flows.find(f => f.key === 'main')
-  if (!main) throw new Error('Retention main branch required')
-  return { ...main, trigger_config: { ...main.trigger_config,
-    event_triggers: [...new Set(flows.map(f => f.trigger_type))],
-    event_entries: flows.map(f => ({ key: f.key, trigger_type: f.trigger_type, trigger_config: f.trigger_config })),
-  }, steps: flows.map(f => branch({ subject: 'context_var', operand: 'automation_entry', op: 'eq', value: f.key }, f.steps)) }
+  const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_delivered',
+    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0, stop_on_inbound: true, retention_ai_managed: true, retention_permission_tag: o.tags.permission }, steps: [scope(selected)] }]
+  return { templates: o.offers.length ? templates : templates.filter(t => [received, care, experience].includes(t.nombre)), flows }
 }
 
 export function clearRetentionProduct(steps: BuilderStepInput[]): void {

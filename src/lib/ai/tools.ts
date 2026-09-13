@@ -37,6 +37,7 @@ import { crearPedidoLocalConEspejo } from '@/lib/orders/crear'
 import { abrirDevolucion, type AbrirDevolucionInput } from '@/lib/returns/open'
 import { registrarHueco } from './answer-gaps'
 import { cerrarConversacion, etiquetarContacto, verContacto, verProducto } from './bandeja'
+import { gestionarRecompra } from './recompras'
 
 /**
  * Cuántas veces puede pedir herramientas antes de tener que contestar.
@@ -285,6 +286,12 @@ export const VER_CONTACTO_TOOL: Anthropic.Tool = {
   description:
     'La ficha de la persona con la que estás hablando: qué compró antes, cuánto gastó, de dónde es y con qué etiquetas está. Úsala para personalizar la respuesta. No recites los datos: nadie quiere que le lean su propia ficha.',
   input_schema: { type: 'object' as const, properties: {}, required: [] },
+}
+
+export const GESTIONAR_RECOMPRA_TOOL: Anthropic.Tool = {
+  name: 'gestionar_recompra',
+  description: 'Gestiona únicamente el seguimiento de recompra pausado de esta conversación. Cancela si la persona no quiere más recordatorios. Reprograma el siguiente contacto del recorrido existente solo cuando la persona acuerda explícitamente cuántos días esperar; no cambia la oferta ni crea pedidos. Ante dudas o incidencias, atiende primero y deja el seguimiento pausado. Nunca afirmes haber reprogramado o cancelado si la herramienta falla.',
+  input_schema: { type: 'object', properties: { accion: { type: 'string', enum: ['cancelar', 'reprogramar'] }, dias: { type: 'integer', minimum: 1, maximum: 365 }, confirmado: { type: 'boolean' } }, required: ['accion'] },
 }
 
 export const ETIQUETAR_CONTACTO_TOOL: Anthropic.Tool = {
@@ -796,6 +803,7 @@ export function buildOrderTool(config: CheckoutConfig | null): Anthropic.Tool {
  * empezar de cero.
  */
 const DEJA_HUELLA = new Set([
+  'gestionar_recompra',
   'create_order',
   'update_order',
   'registrar_pago',
@@ -1045,6 +1053,7 @@ export async function runTool(
 
   if (
     toolName === 'ver_contacto' ||
+    toolName === 'gestionar_recompra' ||
     toolName === 'etiquetar_contacto' ||
     toolName === 'cerrar_conversacion' ||
     toolName === 'ver_producto'
@@ -1064,6 +1073,7 @@ export async function runTool(
     }
     const input = (toolInput ?? {}) as Record<string, unknown>
     if (toolName === 'ver_contacto') return verContacto(ctx)
+    if (toolName === 'gestionar_recompra') return gestionarRecompra(ctx, input)
     if (toolName === 'ver_producto') return verProducto(ctx, input as { producto?: string })
     if (toolName === 'cerrar_conversacion') {
       return cerrarConversacion(ctx)
