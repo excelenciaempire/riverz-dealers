@@ -5,6 +5,7 @@ import type {
   AutomationTriggerType,
 } from '@/types'
 import type { Locale } from '@/lib/i18n/config'
+import { retentionTemplateSeeds } from './retention-plan'
 
 export type TemplateSlug =
   | 'carrito-abandonado'
@@ -14,6 +15,8 @@ export type TemplateSlug =
   | 'enviar-tracking'
   | 'post-survey'
   | 'recompras'
+  | 'postventa-reposicion'
+  | 'postventa-acompanamiento'
 
 export type TemplateCategory =
   | 'shopify'
@@ -503,6 +506,18 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
       },
     ],
   },
+  'postventa-reposicion': {
+    slug: 'postventa-reposicion', name: 'Postventa y reposición',
+    description: 'Programa para consumibles: atención después de la entrega, reposición y gestión de respuestas. Incluye borradores de plantillas. Ajusta producto, cantidades y duración antes de activar.',
+    category: 'retencion', icon: 'repeat-2', tags: [],
+    trigger_type: 'shopify_order_delivered', trigger_config: {}, steps: retentionTemplateSeeds(true),
+  },
+  'postventa-acompanamiento': {
+    slug: 'postventa-acompanamiento', name: 'Acompañamiento postventa',
+    description: 'Atención después de la entrega para productos duraderos o compras sin reposición. Incluye plantillas y gestión de ayuda. No genera ofertas de recompra ni cobros de suscripción.',
+    category: 'soporte', icon: 'package-check', tags: [],
+    trigger_type: 'shopify_order_delivered', trigger_config: {}, steps: retentionTemplateSeeds(false),
+  },
 }
 
 /**
@@ -517,6 +532,8 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'enviar-tracking',
   'post-survey',
   'recompras',
+  'postventa-reposicion',
+  'postventa-acompanamiento',
 ]
 
 /**

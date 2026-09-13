@@ -2,6 +2,16 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
+  'tpl_postventa-reposicion_name': { es: 'Postventa y reposición', en: 'Post-purchase and replenishment' },
+  'tpl_postventa-reposicion_desc': {
+    es: 'Consumibles: atención tras la entrega, reposición y gestión de respuestas. Incluye borradores de plantillas. Ajusta producto, cantidades y duración antes de activar.',
+    en: 'Consumables: delivery follow-up, replenishment and reply handling. Includes template drafts. Set the product, quantities and duration before activation.',
+  },
+  'tpl_postventa-acompanamiento_name': { es: 'Acompañamiento postventa', en: 'Post-purchase care' },
+  'tpl_postventa-acompanamiento_desc': {
+    es: 'Atención tras la entrega para productos sin reposición. Incluye plantillas y gestión de ayuda. No genera ofertas de recompra ni cobros de suscripción.',
+    en: 'Delivery follow-up for products without replenishment. Includes templates and support handling. Does not generate reorder offers or subscription charges.',
+  },
   // Connection gate (layout)
   connectGateTitle: {
     es: "Conecta un canal antes de automatizar",

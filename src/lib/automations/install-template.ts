@@ -18,6 +18,7 @@ import { insertSteps, type BuilderStepInput } from './steps-tree'
 import { resolverEtiquetas } from './resolve-tag-seeds'
 import { translate } from '@/lib/i18n/translate'
 import type { Locale } from '@/lib/i18n/config'
+import { installRetentionPackage } from './install-retention'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 
 export interface InstalledAutomation {
@@ -47,6 +48,19 @@ export async function installTemplate(
   // restricción que no dice nada.
   const userId = args.userId ?? (await resolveWorkspaceOwnerUserId(db, args.workspaceId))
   if (!userId) throw new Error('esta cuenta no tiene dueño: no se puede crear la automatización')
+
+  if (args.templateId === 'postventa-reposicion' || args.templateId === 'postventa-acompanamiento') {
+    const replenishment = args.templateId === 'postventa-reposicion'
+    const pack = await installRetentionPackage(db, {
+      workspaceId: args.workspaceId, userId, locale: args.locale,
+      product: args.locale === 'en' ? 'your product' : 'tu producto',
+      offers: replenishment ? [{ units: 1, day: 22, label: args.locale === 'en' ? '1 unit' : '1 unidad' }] : [],
+      requireProductSelection: true,
+    })
+    const main = pack.automations.find(a => a.trigger_type === 'shopify_order_delivered')
+    if (!main) throw new Error('Retention package has no delivery workflow')
+    return main
+  }
 
   const { data, error } = await db
     .from('automations')

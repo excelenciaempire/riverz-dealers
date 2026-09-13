@@ -46,6 +46,7 @@ import {
   fetchOrderFinancialStatus,
 } from '@/lib/attribution/shopify'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
+import { shouldStopRunOnInbound } from './inbound-stop'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
@@ -181,10 +182,10 @@ export async function cancelPendingAutomationsOnInbound(input: {
     .eq('workspace_id', input.workspaceId)
   const stops = new Map(
     (automations ?? [])
-      .filter((a) => Boolean((a.trigger_config as Record<string, unknown> | null)?.stop_on_inbound))
       .map((a) => [String(a.id), a.trigger_config as Record<string, unknown>]),
   )
-  const target = pending.filter((p) => stops.has(String(p.automation_id)))
+  const target = pending.filter((p) => stops.has(String(p.automation_id)) &&
+    shouldStopRunOnInbound(stops.get(String(p.automation_id)), p.context))
   if (!target.length) return
   await db.from('automation_pending_executions').update({ status: 'done' }).in('id', target.map((p) => p.id))
   for (const row of target) {
