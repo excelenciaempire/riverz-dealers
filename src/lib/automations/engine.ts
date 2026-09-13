@@ -46,6 +46,7 @@ import {
 } from '@/lib/attribution/shopify'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
+import { nextReminderTime } from './reminder-hours'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
@@ -338,6 +339,17 @@ export async function resumePendingExecution(pending: {
   }
 
   try {
+    // Recheck at execution time: a delayed cron may run after the window closed.
+    const now = new Date()
+    const allowedAt = nextReminderTime(now, automation.trigger_config ?? {})
+    if (allowedAt.getTime() > now.getTime()) {
+      const { error: deferError } = await db.from('automation_pending_executions')
+        .update({ run_at: allowedAt.toISOString(), status: 'pending' })
+        .eq('id', pending.id).eq('workspace_id', pending.workspace_id)
+        .eq('status', 'running')
+      if (deferError) throw new Error(deferError.message)
+      return
+    }
     const ownerUserId = await resolveWorkspaceOwnerUserId(
       db,
       (automation as Automation).workspace_id,
@@ -627,7 +639,7 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
           branch: args.branch,
           next_step_position: step.position + 1,
           context: args.context,
-          run_at: new Date(Date.now() + ms).toISOString(),
+          run_at: nextReminderTime(new Date(Date.now() + ms), args.automation.trigger_config ?? {}).toISOString(),
           status: 'pending',
         })
       if (enqueueErr) {
