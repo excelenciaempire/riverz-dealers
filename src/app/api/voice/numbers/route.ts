@@ -3,6 +3,9 @@ import type { VoiceConnectionConfig } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
+import { redactModelSecrets } from '@/lib/security/model-secrets';
 import {
   isVoiceMember,
   isVoiceAdmin,
@@ -13,6 +16,7 @@ import {
   orderNumber,
   releaseNumber,
   findOwnedNumber,
+  TelnyxApiError,
   type PhoneNumberType,
 } from '@/lib/voice/telnyx-numbers';
 
@@ -101,6 +105,13 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (err) {
+    if (err instanceof TelnyxApiError) {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'voice.numberOrderFailed'),
+        provider_code: err.code,
+        diagnostic: redactModelSecrets(err.message),
+      }, { status: err.status >= 400 && err.status < 500 ? err.status : 502 });
+    }
     return serverError(err, 'number order failed');
   }
 }
