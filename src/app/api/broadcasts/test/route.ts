@@ -16,6 +16,8 @@ import {
 import { csrfGuard } from '@/lib/csrf'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
+import { supabaseAdmin } from '@/lib/automations/admin-client'
 
 /**
  * POST /api/broadcasts/test
@@ -72,10 +74,14 @@ export async function POST(request: Request) {
     )
   }
 
+  const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+  if (!workspaceId) return NextResponse.json({ sent: false, error: 'Forbidden' }, { status: 403 })
+
   const { data: template, error: tplErr } = await supabase
     .from('message_templates')
     .select('*')
     .eq('id', body.templateId)
+    .eq('workspace_id', workspaceId)
     .maybeSingle()
   if (tplErr || !template) {
     return NextResponse.json(
@@ -87,10 +93,11 @@ export async function POST(request: Request) {
     )
   }
 
-  const { data: config, error: configErr } = await supabase
+  // Only the server client can read encrypted credentials.
+  const { data: config, error: configErr } = await supabaseAdmin()
     .from('whatsapp_config')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('workspace_id', workspaceId)
     .single()
   if (configErr || !config) {
     return NextResponse.json(

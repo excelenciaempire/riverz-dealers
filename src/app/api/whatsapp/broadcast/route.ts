@@ -22,6 +22,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { csrfGuard } from '@/lib/csrf'
 import { getLocale } from '@/lib/i18n/server'
 import { translate } from '@/lib/i18n/translate'
+import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve'
 
 interface BroadcastResult {
   phone: string
@@ -138,10 +139,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data: config, error: configError } = await supabase
+    const workspaceId = await resolveWorkspaceIdForUser(supabase, user.id)
+    if (!workspaceId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Secret columns are deliberately unavailable to authenticated clients.
+    // Resolve the caller's workspace before reading credentials server-side.
+    const admin = supabaseAdmin()
+    const { data: config, error: configError } = await admin
       .from('whatsapp_config')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('workspace_id', workspaceId)
       .single()
 
     if (configError || !config) {
@@ -159,8 +165,6 @@ export async function POST(request: Request) {
     // authenticates the user — we just want the connection id mapped
     // to *this* user's workspace. Connection-less (legacy-only)
     // workspaces fall through to `null` and skip the cap check.
-    const admin = supabaseAdmin()
-    const workspaceId = (config as { workspace_id?: string | null }).workspace_id ?? null
     const connectionId = workspaceId
       ? await resolveWhatsAppConnectionId(admin, workspaceId)
       : null
