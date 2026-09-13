@@ -6,6 +6,7 @@ import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
 import { createAddress, TelnyxApiError } from '@/lib/voice/telnyx-numbers';
 import { getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/translate';
+import { redactModelSecrets } from '@/lib/security/model-secrets';
 
 /**
  * POST /api/voice/numbers/address
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
         error: translate(await getLocale(), 'voice.addressValidationFailed'),
         provider_code: err.code,
         field: err.field,
+        // Provider validation diagnostics, separate from the localized UI error.
+        diagnostic: redactModelSecrets(err.message),
       }, { status: 422 });
     }
     return serverError(err, 'address creation failed');
