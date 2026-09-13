@@ -510,13 +510,13 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     slug: 'postventa-reposicion', name: 'Recompras',
     description: 'Contacta según lo comprado y el tiempo de uso. Cuando el cliente responde, la IA continúa la conversación.',
     category: 'retencion', icon: 'repeat-2', tags: [],
-    trigger_type: 'shopify_order_delivered', trigger_config: {}, steps: retentionTemplateSeeds(true),
+    trigger_type: 'shopify_order_confirmed', trigger_config: {}, steps: retentionTemplateSeeds(true),
   },
   'postventa-acompanamiento': {
     slug: 'postventa-acompanamiento', name: 'Acompañamiento postventa',
     description: 'Atención después de la entrega para productos duraderos o compras sin reposición. Incluye plantillas y gestión de ayuda. No genera ofertas de recompra ni cobros de suscripción.',
     category: 'soporte', icon: 'package-check', tags: [],
-    trigger_type: 'shopify_order_delivered', trigger_config: {}, steps: retentionTemplateSeeds(false),
+    trigger_type: 'shopify_order_confirmed', trigger_config: {}, steps: retentionTemplateSeeds(false),
   },
 }
 

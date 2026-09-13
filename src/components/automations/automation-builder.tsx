@@ -601,6 +601,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string }[] = [
     label: 'automations.triggerShopifyOrderCreated',
   },
   { value: 'shopify_order_paid', label: 'automations.triggerShopifyOrderPaid' },
+  { value: 'shopify_order_confirmed', label: 'automations.triggerShopifyOrderConfirmed' },
   {
     value: 'shopify_order_fulfilled',
     label: 'automations.triggerShopifyOrderFulfilled',

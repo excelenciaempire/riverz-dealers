@@ -49,6 +49,7 @@ import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { nextReminderTime } from './reminder-hours'
 import { retentionProductVars } from './retention-product'
+import { confirmedOrderLogId } from './order-confirmation'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
@@ -451,6 +452,8 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   const cfg = (automation.trigger_config ?? {}) as Record<string, unknown>
   const entry = cfg.event_entries ? resolveEventEntry(cfg, input.triggerType, input.context) : undefined
   if (cfg.event_entries && !entry) return
+  const confirmedOrderId = input.triggerType === 'shopify_order_confirmed' ? String(input.context?.vars?.order_id ?? '').trim() : ''
+  if (input.triggerType === 'shopify_order_confirmed' && !confirmedOrderId) return
 
   // Belt-and-suspenders: migration 053 makes automation_logs.user_id
   // nullable so cron-dispatched runs don't blow up at INSERT, but
@@ -466,6 +469,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .from('automation_logs')
     .insert({
       automation_id: automation.id,
+      ...(confirmedOrderId ? { id: confirmedOrderLogId(automation.workspace_id, automation.id, confirmedOrderId) } : {}),
       workspace_id: automation.workspace_id,
       user_id: ownerUserId,
       contact_id: input.contactId ?? null,
@@ -477,6 +481,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     .single()
 
   if (logErr || !log) {
+    if (confirmedOrderId && logErr?.code === '23505') return
     console.error('[automations] cannot create log:', logErr)
     return
   }

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { verifyShopifyWebhook } from '@/lib/shopify/webhook-auth';
 import { getConnectionByShop } from '@/lib/shopify/connection';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { orderConfirmationReason } from '@/lib/automations/order-confirmation';
 import { attributeExperimentOrder } from '@/lib/automations/template-ab-attribution';
 import {
   extractShopifyLegacyPhone,
@@ -398,6 +399,14 @@ export async function POST(request: Request) {
       }
     }
 
+    const { data: confirmationConnection } = await admin.from('channel_connections').select('config')
+      .eq('workspace_id', workspaceId).eq('channel', 'voice').maybeSingle();
+    const confirmedTag = confirmationConnection?.config?.order_writeback?.confirmed_tag || 'Confirmado';
+    const confirmation = orderConfirmationReason(order, confirmedTag);
+    if ((confirmation === 'paid' && (topic === 'orders/create' || triggerTypes.includes('shopify_order_paid'))) ||
+      (confirmation === 'cod_confirmed' && !incomingFulfillment)) {
+      triggerTypes.push('shopify_order_confirmed');
+    }
     if (triggerTypes.length === 0) {
       return NextResponse.json({ ok: true, ignored: 'no_transition' });
     }
@@ -568,7 +577,7 @@ export async function POST(request: Request) {
       vars.offer_chosen = offer.label;
       vars.offer_units = offer.units > 0 ? String(offer.units) : '';
 
-      runAutomationsForTrigger({
+      await runAutomationsForTrigger({
         workspaceId,
         triggerType,
         contactId,

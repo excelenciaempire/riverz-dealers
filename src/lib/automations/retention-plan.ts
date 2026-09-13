@@ -80,9 +80,9 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
       buttons: buttons.map(text => ({ type: 'QUICK_REPLY' as const, text })), enviarAMeta: false })
     return nombre
   }
-  const received = template('entrega', copy(
-    `Hola {{1}}, ¿recibiste bien tu pedido de ${o.product}? Si necesitas ayuda para empezar, estamos aquí.`,
-    `Hi {{1}}, did your ${o.product} order arrive in good condition? We are here if you need help getting started.`), [button.help, button.stop])
+  const received = template('pedido_confirmado', copy(
+    `Hola {{1}}, ¿tienes alguna duda sobre tu pedido de ${o.product}? Estamos aquí para ayudarte.`,
+    `Hi {{1}}, do you have any questions about your ${o.product} order? We are here to help.`), [button.help, button.stop])
   const care = template('acompanamiento', copy(
     `Hola {{1}}, ¿tienes alguna duda sobre cómo usar ${o.product}? Podemos ayudarte a revisar las indicaciones del producto.`,
     `Hi {{1}}, do you have any questions about using ${o.product}? We can help you review the product instructions.`), [button.help, button.stop])
@@ -102,9 +102,9 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   const tag = (id: string, add = true) => step(add ? 'add_tag' : 'remove_tag', { tag_id: id })
   const has = (id: string, yes: BuilderStepInput[], no: BuilderStepInput[] = []) => branch({ subject: 'tag_presence', operand: id }, yes, no)
   const send = (name: string, cooldown = 168) => step('send_template', { template_name: name, language: o.locale, variables: { '1': '{{vars.customer_name}}' }, cooldown_hours: cooldown })
-  const guard = (suffix: BuilderStepInput[], checkPurchase = true): BuilderStepInput => has(o.tags.permission, [has(o.tags.paused, [], [
+  const guard = (suffix: BuilderStepInput[], checkPurchase = true): BuilderStepInput => has(o.tags.paused, [], [
     ...(checkPurchase ? [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], suffix)] : suffix),
-  ])])
+  ])
   const scope = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'retention_product', op: 'eq', value: o.product }, suffix)
   const commercialGuard = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [guard(suffix)])
   const mainPath = (offer?: RetentionOffer): BuilderStepInput[] => {
@@ -125,8 +125,8 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   ])]
   let selected: BuilderStepInput[] = mainPath()
   for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'retention_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
-  const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_delivered',
-    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0, stop_on_inbound: true, retention_ai_managed: true, retention_permission_tag: o.tags.permission }, steps: [scope(selected)] }]
+  const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_confirmed',
+    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0, stop_on_inbound: true, retention_ai_managed: true, retention_enrollment: 'confirmed_order', retention_pause_tag: o.tags.paused }, steps: [scope(selected)] }]
   return { templates: o.offers.length ? templates : templates.filter(t => [received, care, experience].includes(t.nombre)), flows }
 }
 

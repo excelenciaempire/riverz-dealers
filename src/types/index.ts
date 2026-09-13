@@ -783,6 +783,7 @@ export type AutomationTriggerType =
   | 'shopify_abandoned_checkout'
   | 'shopify_order_created'
   | 'shopify_order_paid'
+  | 'shopify_order_confirmed'
   | 'shopify_order_fulfilled'
   | 'shopify_order_delivered'
   | 'shopify_order_cancelled'

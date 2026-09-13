@@ -43,9 +43,11 @@ describe('retention program', () => {
   it('does not assume an unknown quantity is a single unit', () => {
     expect(run(plan.flows[0].steps, 2).map(s => s.day)).toEqual([1, 7, 21])
   })
-  it('does not send for another product or an absent verified permission', () => {
+  it('uses confirmed-order enrollment without a manual permission tag, while excluding other products', () => {
     expect(run(plan.flows[0].steps, 1, { product: 'Other' })).toEqual([])
-    expect(run(plan.flows[0].steps, 1, { consent: false })).toEqual([])
+    expect(run(plan.flows[0].steps, 1, { consent: false }).map(s=>s.day)).toEqual([1,7,22,29])
+    expect(plan.flows[0].trigger_type).toBe('shopify_order_confirmed')
+    expect(plan.flows[0].trigger_config.retention_enrollment).toBe('confirmed_order')
   })
   it('stops the entire remaining branch for a support pause or later purchase', () => {
     expect(run(plan.flows[0].steps, 3, { pauseAt: 20 }).map(s => s.day)).toEqual([1, 7])

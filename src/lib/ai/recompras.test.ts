@@ -17,6 +17,7 @@ function fixture(overrides: Record<string, unknown> = {}) {
       eq: (key: string, v: unknown) => { q.filters[key] = v; return chain },
       is: (key: string, v: unknown) => { q.filters[key] = v; return chain },
       update: (payload: Record<string, unknown>) => { q.op = 'update'; q.payload = payload; return chain },
+      upsert: (payload: Record<string, unknown>) => { q.op = 'upsert'; q.payload = payload; return chain },
       delete: () => { q.op = 'delete'; return chain }, maybeSingle: async () => result(),
       then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve),
     }; return chain
@@ -24,6 +25,19 @@ function fixture(overrides: Record<string, unknown> = {}) {
   return { queries, ctx: { db, workspaceId: 'w', contactId: 'c', conversationId: 'chat' } }
 }
 describe('AI controls only the current customer reorder follow-up', () => {
+  it('persists a stop for confirmation-based enrollment without requiring a permission tag', async () => {
+    const {ctx,queries}=fixture({automations:{id:'a',is_active:true,trigger_config:{retention_ai_managed:true,retention_enrollment:'confirmed_order',retention_pause_tag:'stop'}}})
+    expect(JSON.parse(await gestionarRecompra(ctx,{accion:'cancelar'})).ok).toBe(true)
+    expect(queries.find(q=>q.op==='upsert')?.payload).toEqual({contact_id:'c',tag_id:'stop'})
+    expect(queries.find(q=>q.table==='tags')?.filters).toEqual({workspace_id:'w',id:'stop'})
+  })
+  it('reschedules confirmed-order journeys only while no stop is recorded', async () => {
+    const automation={id:'a',is_active:true,trigger_config:{retention_ai_managed:true,retention_enrollment:'confirmed_order',retention_pause_tag:'stop'}}
+    const allowed=fixture({automations:automation,contact_tags:null})
+    expect(JSON.parse(await gestionarRecompra(allowed.ctx,{accion:'reprogramar',dias:15,confirmado:true})).ok).toBe(true)
+    const stopped=fixture({automations:automation})
+    expect(JSON.parse(await gestionarRecompra(stopped.ctx,{accion:'reprogramar',dias:15,confirmado:true})).ok).toBe(false)
+  })
   it('reschedules a paused run without changing its steps and consumes its token', async () => {
     const { ctx, queries } = fixture()
     expect(JSON.parse(await gestionarRecompra(ctx, { accion: 'reprogramar', dias: 15, confirmado: true })).ok).toBe(true)

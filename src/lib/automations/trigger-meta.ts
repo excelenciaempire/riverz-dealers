@@ -1,7 +1,10 @@
 import type { AutomationTriggerType } from '@/types'
+import { translate } from '@/lib/i18n/translate'
+import type { Locale } from '@/lib/i18n/config'
 
 export interface TriggerMeta {
   label: string
+  labelKey?: string
   /** Tailwind classes for the Badge pill on the list row. */
   pillClass: string
 }
@@ -47,6 +50,10 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Pedido pagado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300',
   },
+  shopify_order_confirmed: {
+    label: '', labelKey: 'automations.triggerShopifyOrderConfirmed',
+    pillClass: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300',
+  },
   shopify_order_fulfilled: {
     label: 'Pedido despachado (Shopify)',
     pillClass: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300',
@@ -81,7 +88,9 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   },
 }
 
-export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
+export function triggerMeta(t: AutomationTriggerType | string, locale: Locale = 'es'): TriggerMeta {
+  const found = TRIGGER_META[t as AutomationTriggerType]
+  if (found?.labelKey) return { ...found, label: translate(locale, found.labelKey) }
   return (
     TRIGGER_META[t as AutomationTriggerType] ?? {
       label: t,

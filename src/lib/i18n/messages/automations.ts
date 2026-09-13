@@ -189,6 +189,7 @@ export const automations = {
   },
   triggerTagAdded: { es: "Etiqueta añadida", en: "Tag added" },
   triggerShopifyOrderCreated: { es: "Nuevo pedido", en: "New order" },
+  triggerShopifyOrderConfirmed: { es: 'Pedido confirmado', en: 'Order confirmed' },
   triggerShopifyOrderPaid: {
     es: "Pedido pagado",
     en: "Order paid",

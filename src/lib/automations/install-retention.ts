@@ -55,7 +55,7 @@ export async function installRetentionPackage(db: SupabaseClient, o: InstallRete
   const automations: Array<{ id: string; name: string; trigger_type: string; is_active: boolean }> = []
   try {
     for (const flow of plan.flows) {
-      if (o.requireProductSelection && (flow.trigger_type === 'shopify_order_delivered' || flow.trigger_type === 'shopify_order_cancelled' || flow.trigger_type === 'shopify_order_refunded')) {
+      if (o.requireProductSelection && (flow.trigger_type === 'shopify_order_confirmed' || flow.trigger_type === 'shopify_order_delivered' || flow.trigger_type === 'shopify_order_cancelled' || flow.trigger_type === 'shopify_order_refunded')) {
         clearRetentionProduct(flow.steps)
       }
       const issues = activationIssues({ triggerType: flow.trigger_type, triggerConfig: flow.trigger_config, steps: flow.steps })
@@ -63,7 +63,7 @@ export async function installRetentionPackage(db: SupabaseClient, o: InstallRete
       const { data, error } = await db.from('automations').insert({
         workspace_id: o.workspaceId, user_id: o.userId,
         name: `${flow.name} · ${o.product}`,
-        description: o.locale === 'en' ? 'Post-purchase package. Requires approved templates and verified messaging permission. Offers use current checkout prices.' : 'Programa de postventa. Requiere plantillas aprobadas y permiso verificado. Las ofertas usan el precio vigente del checkout.',
+        description: o.locale === 'en' ? 'Follow-up from order confirmation. Replies continue with AI.' : 'Seguimiento desde la confirmación del pedido. Las respuestas continúan con la IA.',
         trigger_type: flow.trigger_type,
         trigger_config: { ...flow.trigger_config, retention_installation: key, retention_flow: flow.key,
           ...(o.handoffAgentId ? { handoff_ai_agent_id: o.handoffAgentId } : {}) },

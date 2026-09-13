@@ -13,12 +13,15 @@ export async function gestionarRecompra(ctx: BandejaCtx, input: { accion?: strin
   const { data: automation, error: automationError } = await ctx.db.from('automations').select('id,is_active,trigger_config')
     .eq('workspace_id', ctx.workspaceId).eq('id', handoff.automation_id).is('deleted_at', null).maybeSingle()
   if (automationError || automation?.trigger_config?.retention_ai_managed !== true) return fail('reorder_unavailable')
+  const confirmedEnrollment = automation.trigger_config.retention_enrollment === 'confirmed_order'
   if (input.accion === 'cancelar') {
-    const tagId = automation.trigger_config.retention_permission_tag
+    const tagId = confirmedEnrollment ? automation.trigger_config.retention_pause_tag : automation.trigger_config.retention_permission_tag
     if (typeof tagId !== 'string') return fail('permission_tag_missing')
     const { data: tag, error: tagError } = await ctx.db.from('tags').select('id').eq('workspace_id', ctx.workspaceId).eq('id', tagId).maybeSingle()
     if (tagError || !tag) return fail('permission_tag_missing')
-    const removed = await ctx.db.from('contact_tags').delete().eq('contact_id', ctx.contactId).eq('tag_id', tagId)
+    const removed = confirmedEnrollment
+      ? await ctx.db.from('contact_tags').upsert({ contact_id: ctx.contactId, tag_id: tagId }, { onConflict: 'contact_id,tag_id' })
+      : await ctx.db.from('contact_tags').delete().eq('contact_id', ctx.contactId).eq('tag_id', tagId)
     if (removed.error) return fail('permission_update_failed')
     return JSON.stringify({ ok: true, accion: 'cancelar' })
   }
@@ -29,8 +32,8 @@ export async function gestionarRecompra(ctx: BandejaCtx, input: { accion?: strin
   if (pendingError || !pending) return fail('reorder_no_longer_paused')
   if (input.accion === 'reprogramar' && !automation.is_active) return fail('automation_inactive')
   const permission = await ctx.db.from('contact_tags').select('contact_id').eq('contact_id', ctx.contactId)
-    .eq('tag_id', automation.trigger_config.retention_permission_tag).maybeSingle()
-  if (permission.error || !permission.data) return fail('reorder_permission_missing')
+    .eq('tag_id', confirmedEnrollment ? automation.trigger_config.retention_pause_tag : automation.trigger_config.retention_permission_tag).maybeSingle()
+  if (permission.error || (confirmedEnrollment ? !!permission.data : !permission.data)) return fail('reorder_permission_missing')
   const runAt = input.accion === 'reprogramar' ? new Date(Date.now() + input.dias! * 86400000).toISOString() : null
   const result = await ctx.db.from('automation_pending_executions').update({
     status: runAt ? 'pending' : 'done', ...(runAt ? { run_at: runAt } : {}),

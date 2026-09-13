@@ -56,6 +56,7 @@ export interface DataPoint {
 const ORDER_TRIGGERS: AutomationTriggerType[] = [
   'shopify_order_created',
   'shopify_order_paid',
+  'shopify_order_confirmed',
   'shopify_order_fulfilled',
   'shopify_order_delivered',
   'shopify_order_cancelled',
@@ -75,7 +76,7 @@ export const DATA_POINTS: DataPoint[] = [
       .map(value => ({ value, labelKey: `automations.journeyEvent_${value}` })),
   },
   { id: 'retention_replenishment', labelKey: 'automations.retentionReplenishment', group: 'order', valueKind: 'bool',
-    triggers: ['shopify_order_delivered'], usableInConditions: true,
+    triggers: ['shopify_order_delivered', 'shopify_order_confirmed'], usableInConditions: true,
     condition: { kind: 'var', varKey: 'retention_replenishment' },
   },
   ...[

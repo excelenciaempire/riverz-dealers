@@ -57,8 +57,8 @@ export async function installTemplate(
       offers: replenishment ? [{ units: 1, day: 22, label: args.locale === 'en' ? '1 unit' : '1 unidad' }] : [],
       requireProductSelection: true,
     })
-    const main = pack.automations.find(a => a.trigger_type === 'shopify_order_delivered')
-    if (!main) throw new Error('Retention package has no delivery workflow')
+    const main = pack.automations.find(a => a.trigger_type === 'shopify_order_confirmed' || a.trigger_type === 'shopify_order_delivered')
+    if (!main) throw new Error('Retention package has no order workflow')
     return main
   }
 
