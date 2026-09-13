@@ -178,52 +178,11 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Cache-Control policy.
-   *
-   * Why this exists:
-   *   Hostinger's CDN was applying `s-maxage=31536000` (1 year) to
-   *   prerendered HTML pages by default. When a new deploy shipped
-   *   fresh Turbopack chunk hashes, the edge kept serving year-old
-   *   HTML referencing chunk filenames that no longer existed on
-   *   disk — result: HTML 200, every /_next/static/*.js and .css
-   *   came back 404, the page rendered unstyled. Private/incognito
-   *   did nothing because the cache is server-side.
-   *
-   * Strategy:
-   *   - /_next/static/* — immutable for a year. Filenames are
-   *     content-hashed, so a new build produces new filenames; the
-   *     old ones are safe to keep indefinitely in caches.
-   *   - /api/*          — no-store. API responses are per-user and
-   *     must never be shared across requests at the edge.
-   *   - Everything else — public, brief s-maxage + generous
-   *     stale-while-revalidate. The edge serves instantly from cache
-   *     for the first 5 min, then returns cached content while
-   *     refreshing in the background for up to 24 h. A deploy's
-   *     chunk-hash drift self-heals within ~5 min with no user-
-   *     visible latency.
-   *
-   *   Note: dynamic dashboard routes (/inbox, /contacts, /pipelines,
-   *   /broadcasts, etc.) are server-rendered per request — Next.js
-   *   and Supabase auth already prevent them from being served
-   *   from a shared cache. The s-maxage here is a ceiling; Next.js
-   *   and auth middleware still set `private` / `no-store` for
-   *   per-user responses.
-   *
-   * Security headers are appended via a separate catch-all rule
-   * below — Next.js merges headers from every matching rule, so
-   * they apply to every response regardless of which cache rule
-   * matched.
-   *
-   * EL ORDEN IMPORTA, y al revés de lo que parece. Cuando dos reglas
-   * matchean la misma ruta y traen la misma clave, gana la ÚLTIMA — no la
-   * más específica. Medido en producción el 2026-08-20: con `/api/:path*`
-   * (no-store) declarada ANTES del catch-all, la respuesta de una ruta de
-   * API salía con `public, s-maxage=300`. O sea: todas las respuestas de
-   * API, incluidas las que devuelven un token de sesión, se anunciaban como
-   * cacheables por cualquier intermediario compartido.
-   *
-   * Por eso lo general va primero y las excepciones al final: sólo así una
-   * excepción es una excepción.
+   * HTML, RSC payloads and session redirects must not enter shared caches.
+   * A public catch-all also caches auth redirects and can mix HTML with RSC
+   * on intermediaries that do not honor Next.js's Vary headers.
+   * Keep the general rule first; only hashed assets and the public widget
+   * loader opt into caching below.
    */
   async headers() {
     return [
@@ -234,7 +193,7 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value:
-              "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+              "private, no-cache, no-store, max-age=0, must-revalidate",
           },
         ],
       },
