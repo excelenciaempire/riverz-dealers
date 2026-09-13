@@ -5,6 +5,7 @@ import type { Namespace } from './types';
  * metrics. All user-facing; both locales required.
  */
 export const voice = {
+  addressValidationFailed: { es: 'No se pudo validar la dirección. Revisa el nombre, la calle completa, la ciudad y el código postal.', en: 'The address could not be validated. Check the name, full street address, city, and postal code.' },
   campaignInvalid: { es: 'Revisa los datos de la campaña y selecciona recursos de este comercio. Las campañas terminadas no se pueden reiniciar.', en: 'Check the campaign details and select resources from this workspace. Finished campaigns cannot be restarted.' },
   campaignDraft: { es: 'Crear borrador de campaña de llamadas', en: 'Create a call campaign draft' },
   campaignStatusChange: { es: 'Cambiar el estado de la campaña de llamadas', en: 'Change call campaign status' },

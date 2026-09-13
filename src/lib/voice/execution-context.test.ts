@@ -34,6 +34,8 @@ describe('contexto global de una llamada', () => {
         test_call: true,
         escalated_by_ai: true,
         capacity_requeues: 2,
+        skip_if_replied: true,
+        cod_writeback: false,
         product_name: 'Serum',
       })
     ).toEqual({ product_name: 'Serum' });

@@ -73,6 +73,8 @@ export function publicVoiceContext(
     'test_call',
     'escalated_by_ai',
     'capacity_requeues',
+    'skip_if_replied',
+    'cod_writeback',
   ]);
   return Object.fromEntries(
     Object.entries(context ?? {}).filter(

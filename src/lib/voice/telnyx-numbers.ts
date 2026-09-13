@@ -14,6 +14,13 @@
 
 const TELNYX_BASE = 'https://api.telnyx.com/v2';
 
+export class TelnyxApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code: string | null, readonly field: string | null) {
+    super(message);
+    this.name = 'TelnyxApiError';
+  }
+}
+
 export type PhoneNumberType = 'local' | 'toll_free' | 'national' | 'mobile';
 
 export interface AvailableNumber {
@@ -67,7 +74,10 @@ async function telnyx<T>(
   if (!res.ok) {
     const detail =
       json?.errors?.[0]?.detail || json?.errors?.[0]?.title || res.statusText;
-    throw new Error(`Telnyx ${res.status}: ${detail}`);
+    const error = json?.errors?.[0];
+    throw new TelnyxApiError(`Telnyx ${res.status}: ${detail}`, res.status,
+      error?.code == null ? null : String(error.code),
+      typeof error?.source?.pointer === 'string' ? error.source.pointer : null);
   }
   return json as T;
 }

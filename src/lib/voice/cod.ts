@@ -24,6 +24,8 @@ export async function maybeCodWriteback(
   call: VoiceCall,
   outcome: VoiceCallOutcome,
 ): Promise<void> {
+  // Data-review calls must never dispatch or tag an order as cancelled.
+  if (call.context?.cod_writeback === false) return;
   try {
     const { data: connRow } = await db
       .from('channel_connections')

@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { csrfGuard } from '@/lib/csrf';
 import { serverError } from '@/lib/api/errors';
 import { isVoiceAdmin } from '@/lib/voice/voice-connection-store';
-import { createAddress } from '@/lib/voice/telnyx-numbers';
+import { createAddress, TelnyxApiError } from '@/lib/voice/telnyx-numbers';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/translate';
 
 /**
  * POST /api/voice/numbers/address
@@ -56,6 +58,13 @@ export async function POST(request: Request) {
     const addr = await createAddress(fields);
     return NextResponse.json({ address_id: addr.id });
   } catch (err) {
+    if (err instanceof TelnyxApiError && [400, 422].includes(err.status)) {
+      return NextResponse.json({
+        error: translate(await getLocale(), 'voice.addressValidationFailed'),
+        provider_code: err.code,
+        field: err.field,
+      }, { status: 422 });
+    }
     return serverError(err, 'address creation failed');
   }
 }
