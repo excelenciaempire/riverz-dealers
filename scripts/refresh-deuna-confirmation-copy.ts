@@ -54,7 +54,7 @@ async function main() {
   if (!allApproved) { console.log('Copy staged; Spanish approval still pending. Existing flow unchanged.'); return; }
   const required = process.argv.find(a=>a.startsWith('--deployed-commit='))?.split('=')[1];
   if (!required || !/^[a-f0-9]{40}$/.test(required)) throw new Error('Exact deployed commit required before changing variable mappings');
-  const version = await fetch('https://riverzai.com/api/version', { cache: 'no-store', signal: AbortSignal.timeout(20_000) });
+  const version = await fetch('https://riverz.co/api/version', { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(20_000) });
   if (!version.ok || (await version.json()).commit !== required) throw new Error('Required build is not serving yet');
   const steps = await db.from('automation_steps').select('id,step_type,step_config').eq('automation_id', automationId);
   if (steps.error) throw steps.error;
