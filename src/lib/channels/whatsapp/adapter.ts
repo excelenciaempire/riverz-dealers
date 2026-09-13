@@ -28,6 +28,7 @@ import { findMessageByExternalId, findMessagesByExternalIds } from "../message-l
 import { COMMENT_DELETED_TEXT } from "../display";
 import { desdeDonde } from "../estado-de-entrega";
 import { metaErrorText, metaErrorCode } from "@/lib/whatsapp/delivery-errors";
+import { mirrorBroadcastDelivery } from "@/lib/broadcasts/delivery-status";
 import { ensureSendableImageUrl } from "@/lib/whatsapp/image-compat";
 import {
   handleTemplateStatusUpdate,
@@ -563,6 +564,7 @@ async function handleWhatsappStatuses(
   });
   for (const s of statuses ?? []) {
     if (!s?.id || !s.status) continue;
+    await mirrorBroadcastDelivery(db, connection.workspace_id, s);
     const fila = filas.get(s.id);
     if (!fila) continue;
     if (s.status === "failed") {
