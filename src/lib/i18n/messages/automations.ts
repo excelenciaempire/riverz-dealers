@@ -2,11 +2,24 @@ import type { Namespace } from "./types";
 
 /** Automations: list/gallery, builder canvas, trigger/step config, detail + run logs. */
 export const automations = {
-  'tpl_postventa-reposicion_name': { es: 'Postventa y reposición', en: 'Post-purchase and replenishment' },
+  'tpl_postventa-reposicion_name': { es: 'Postventa y recompra', en: 'Post-purchase and reorder' },
   'tpl_postventa-reposicion_desc': {
-    es: 'Consumibles: atención tras la entrega, reposición y gestión de respuestas. Incluye borradores de plantillas. Ajusta producto, cantidades y duración antes de activar.',
-    en: 'Consumables: delivery follow-up, replenishment and reply handling. Includes template drafts. Set the product, quantities and duration before activation.',
+    es: 'Un solo recorrido: acompañamiento, experiencia del cliente y recompra opcional según el producto.',
+    en: 'One journey: post-purchase care, customer feedback and optional reordering based on the product.',
   },
+  retentionEvents: { es: 'Entrega, respuestas y devoluciones', en: 'Delivery, replies and returns' },
+  retentionReplenishment: { es: 'Incluir recompra', en: 'Include reordering' },
+  dpJourneyEvent: { es: 'Evento del recorrido', en: 'Journey event' },
+  journeyEvent_main: { es: 'Pedido entregado', en: 'Order delivered' },
+  journeyEvent_help: { es: 'Solicita ayuda', en: 'Requests help' },
+  journeyEvent_later: { es: 'Prefiere más adelante', en: 'Prefers a later reminder' },
+  journeyEvent_stop: { es: 'No quiere recordatorios', en: 'Stops reminders' },
+  journeyEvent_repeat: { es: 'Quiere repetir la compra', en: 'Wants to reorder' },
+  journeyEvent_later_15: { es: 'Recordar en 15 días', en: 'Remind in 15 days' },
+  journeyEvent_later_30: { es: 'Recordar en 30 días', en: 'Remind in 30 days' },
+  journeyEvent_shopify_order_cancelled: { es: 'Pedido cancelado', en: 'Order cancelled' },
+  journeyEvent_shopify_order_refunded: { es: 'Pedido reembolsado', en: 'Order refunded' },
+  issueEventEntries: { es: 'Revisa los eventos del recorrido.', en: 'Review the journey events.' },
   'tpl_postventa-acompanamiento_name': { es: 'Acompañamiento postventa', en: 'Post-purchase care' },
   'tpl_postventa-acompanamiento_desc': {
     es: 'Atención tras la entrega para productos sin reposición. Incluye plantillas y gestión de ayuda. No genera ofertas de recompra ni cobros de suscripción.',

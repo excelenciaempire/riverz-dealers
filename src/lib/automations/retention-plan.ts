@@ -31,7 +31,7 @@ export function retentionTemplateSeeds(replenishment: boolean): TemplateStepSeed
     offers: replenishment ? [{ units: 1, day: 22, label: '1' }] : [],
     tags: { enrolled: '', permission: '', paused: '', help: '' },
   })
-  plan.flows[0].steps[0].step_config.value = ''
+  clearRetentionProduct(plan.flows[0].steps)
   const seeds: TemplateStepSeed[] = []
   const visit = (steps: BuilderStepInput[], parent: number | null, side: 'yes' | 'no' | null) => {
     for (const s of steps) {
@@ -109,11 +109,12 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
     ...(checkPurchase ? [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], suffix)] : suffix),
   ])])
   const scope = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'first_item', op: 'eq', value: o.product }, suffix)
+  const commercialGuard = (suffix: BuilderStepInput[]) => branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [guard(suffix)])
   const mainPath = (offer?: RetentionOffer): BuilderStepInput[] => {
     let suffix: BuilderStepInput[] = []
-    if (offer) suffix = [wait(offer.day - 21), guard([
-      step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), guard([send(last)]),
-    ])]
+    if (offer) suffix = [branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [wait(offer.day - 21), commercialGuard([
+      step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), commercialGuard([send(last)]),
+    ])])]
     return [tag(o.tags.enrolled), wait(1), guard([send(received, 24), wait(6), guard([
       send(care, 24), wait(14), guard([send(experience, 168), ...suffix]),
     ])])]
@@ -121,14 +122,14 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   // Experience at day 21 would suppress the day-22 offer through the weekly
   // marketing cap. Single-unit customers receive that check AS their offer.
   const singlePath = (offer: RetentionOffer): BuilderStepInput[] => [tag(o.tags.enrolled), wait(1), guard([
-    send(received, 24), wait(6), guard([send(care, 24), wait(offer.day - 7), guard([
-      step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), guard([send(last)]),
-    ])]),
+    send(received, 24), wait(6), guard([send(care, 24), branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [wait(offer.day - 7), commercialGuard([
+      step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), commercialGuard([send(last)]),
+    ])], [wait(14), guard([send(experience)])])]),
   ])]
   let selected: BuilderStepInput[] = mainPath()
   for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'offer_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
   const flows: RetentionFlow[] = [{ key: 'main', name: o.offers.length ? copy('Postventa y recompra', 'Post-purchase and replenishment') : copy('Acompañamiento postventa', 'Post-purchase care'), trigger_type: 'shopify_order_delivered',
-    trigger_config: { platforms: ['shopify'], retention_product: o.product }, steps: [scope(selected)] }]
+    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0 }, steps: [scope(selected)] }]
   const keyword = (key: string, name: string, words: string[], actions: BuilderStepInput[], stopOnInbound = false) => flows.push({
     key, name, trigger_type: 'keyword_match', trigger_config: { keywords: words, match_type: 'exact', case_sensitive: false, stop_on_inbound: stopOnInbound }, steps: [has(o.tags.enrolled, actions)],
   })
@@ -144,14 +145,32 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
     text('Te ayudamos a repetir tu compra. Confirmaremos cantidad, precio vigente, dirección y entrega antes de crear el pedido.', 'We can help you reorder. We will confirm quantity, the current price, address and delivery before creating an order.')])
   for (const days of [15, 30]) keyword(`later_${days}`, copy(`Postventa - recordar en ${days} días`, `Post-purchase - remind in ${days} days`), [copy(`Recordar en ${days} días`, `Remind in ${days} days`)], [
     has(o.tags.permission, [tag(o.tags.paused), text(`Te recordaremos en ${days} días si no has vuelto a comprar.`, `We will remind you in ${days} days if you have not ordered again.`), wait(days),
-      has(o.tags.permission, [has(o.tags.help, [], [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], [send(requested)])])]),
+      has(o.tags.permission, [has(o.tags.help, [], [branch({ subject: 'purchased', operand: 'since_trigger', value: 'true' }, [], [branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [send(requested)])])])]),
     ]),
   ], true)
   for (const event of ['shopify_order_cancelled', 'shopify_order_refunded']) flows.push({ key: event, name: copy('Postventa - suspender por devolución o cancelación', 'Post-purchase - pause for return or cancellation'),
     trigger_type: event, trigger_config: { platforms: ['shopify'] }, steps: [scope([has(o.tags.enrolled, [tag(o.tags.paused), tag(o.tags.help)])])] })
   if (!o.offers.length) {
     const careKeys = new Set(['main', 'help', 'stop', 'shopify_order_cancelled', 'shopify_order_refunded'])
-    return { templates: templates.filter(t => [received, care, experience].includes(t.nombre)), flows: flows.filter(f => careKeys.has(f.key)) }
+    return { templates: templates.filter(t => [received, care, experience].includes(t.nombre)), flows: [combineRetentionFlows(flows.filter(f => careKeys.has(f.key)))] }
   }
-  return { templates, flows }
+  return { templates, flows: [combineRetentionFlows(flows)] }
+}
+
+/** Event branches remain visible/editable in the same canvas. No hidden child automations. */
+export function combineRetentionFlows(flows: RetentionFlow[]): RetentionFlow {
+  const main = flows.find(f => f.key === 'main')
+  if (!main) throw new Error('Retention main branch required')
+  return { ...main, trigger_config: { ...main.trigger_config,
+    event_triggers: [...new Set(flows.map(f => f.trigger_type))],
+    event_entries: flows.map(f => ({ key: f.key, trigger_type: f.trigger_type, trigger_config: f.trigger_config })),
+  }, steps: flows.map(f => branch({ subject: 'context_var', operand: 'automation_entry', op: 'eq', value: f.key }, f.steps)) }
+}
+
+export function clearRetentionProduct(steps: BuilderStepInput[]): void {
+  for (const s of steps) {
+    if (s.step_type === 'condition' && s.step_config.subject === 'context_var' && s.step_config.operand === 'first_item') s.step_config.value = ''
+    clearRetentionProduct(s.branches?.yes ?? [])
+    clearRetentionProduct(s.branches?.no ?? [])
+  }
 }

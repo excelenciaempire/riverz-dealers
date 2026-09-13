@@ -507,8 +507,8 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
     ],
   },
   'postventa-reposicion': {
-    slug: 'postventa-reposicion', name: 'Postventa y reposición',
-    description: 'Programa para consumibles: atención después de la entrega, reposición y gestión de respuestas. Incluye borradores de plantillas. Ajusta producto, cantidades y duración antes de activar.',
+    slug: 'postventa-reposicion', name: 'Postventa y recompra',
+    description: 'Un solo recorrido: acompañamiento, experiencia del cliente y recompra opcional según el producto.',
     category: 'retencion', icon: 'repeat-2', tags: [],
     trigger_type: 'shopify_order_delivered', trigger_config: {}, steps: retentionTemplateSeeds(true),
   },
@@ -522,7 +522,7 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
 
 /**
  * Order used by the gallery on /automatizaciones. Anything not listed
- * here is appended in object-iteration order.
+ * here is excluded from the gallery; old slugs remain readable for compatibility.
  */
 export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'carrito-abandonado',
@@ -530,10 +530,7 @@ export const TEMPLATE_GALLERY_ORDER: TemplateSlug[] = [
   'pago-pendiente',
   'nuevo-pedido',
   'enviar-tracking',
-  'post-survey',
-  'recompras',
   'postventa-reposicion',
-  'postventa-acompanamiento',
 ]
 
 /**
@@ -606,17 +603,12 @@ export function automationTemplateDescKey(slug: string): string {
 }
 
 export function listTemplates(locale: Locale = 'es'): AutomationTemplateDefinition[] {
-  const seen = new Set<TemplateSlug>()
   const out: AutomationTemplateDefinition[] = []
   for (const slug of TEMPLATE_GALLERY_ORDER) {
     const t = AUTOMATION_TEMPLATES[slug]
     if (t) {
       out.push(localizeTemplate(t, locale))
-      seen.add(slug)
     }
-  }
-  for (const slug of Object.keys(AUTOMATION_TEMPLATES) as TemplateSlug[]) {
-    if (!seen.has(slug)) out.push(localizeTemplate(AUTOMATION_TEMPLATES[slug], locale))
   }
   return out
 }

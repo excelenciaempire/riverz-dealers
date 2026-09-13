@@ -2279,7 +2279,7 @@ function TriggerCard({
                 : t('automations.triggerEyebrow')}
             </div>
             <div className="text-foreground truncate text-sm font-medium">
-              {triggerLabel(type, t)}
+              {config.event_entries ? t('automations.retentionEvents') : triggerLabel(type, t)}
             </div>
             {/* Resumen de la configuración, como el nombre de plantilla que
                 muestra la tarjeta de acción. Sin esto, lo que decide el
@@ -2301,9 +2301,17 @@ function TriggerCard({
         </button>
         {open && (
           <div className="border-border space-y-3 border-t px-4 py-3">
+            {typeof config.retention_replenishment === 'boolean' && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={config.retention_replenishment}
+                  onChange={(e) => onConfigChange({ ...config, retention_replenishment: e.target.checked })} />
+                {t('automations.retentionReplenishment')}
+              </label>
+            )}
             <div>
               <select
                 value={type}
+                disabled={!!config.event_entries}
                 onChange={(e) =>
                   onTypeChange(e.target.value as AutomationTriggerType)
                 }

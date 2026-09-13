@@ -68,6 +68,16 @@ const FULFILLED: AutomationTriggerType[] = [
 ]
 
 export const DATA_POINTS: DataPoint[] = [
+  { id: 'automation_entry', labelKey: 'automations.dpJourneyEvent', group: 'order', valueKind: 'enum',
+    triggers: ['shopify_order_delivered'], usableInConditions: true,
+    condition: { kind: 'var', varKey: 'automation_entry' },
+    options: ['main', 'help', 'later', 'stop', 'repeat', 'later_15', 'later_30', 'shopify_order_cancelled', 'shopify_order_refunded']
+      .map(value => ({ value, labelKey: `automations.journeyEvent_${value}` })),
+  },
+  { id: 'retention_replenishment', labelKey: 'automations.retentionReplenishment', group: 'order', valueKind: 'bool',
+    triggers: ['shopify_order_delivered'], usableInConditions: true,
+    condition: { kind: 'var', varKey: 'retention_replenishment' },
+  },
   ...[
     ['order_items', 'automations.dpOrderItems'],
     ['delivery_address', 'automations.dpDeliveryAddress'],

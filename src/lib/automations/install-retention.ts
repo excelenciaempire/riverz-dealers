@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Locale } from '@/lib/i18n/config'
 import { ensureTag } from '@/lib/contacts/tags'
 import { crearPlantilla } from '@/lib/templates/create'
-import { buildRetentionPlan, type RetentionOffer, type RetentionTags } from './retention-plan'
+import { buildRetentionPlan, clearRetentionProduct, type RetentionOffer, type RetentionTags } from './retention-plan'
 import { insertSteps, loadStepsTree } from './steps-tree'
 import { activationIssues } from './activation'
 
@@ -27,7 +27,7 @@ export async function installRetentionPackage(db: SupabaseClient, o: InstallRete
   if (priorError) throw new Error(priorError.message)
   if (prior?.length) {
     // Never rewrite an installation: an operator may have edited it already.
-    const expected = o.offers.length ? 9 : 5
+    const expected = 1
     if (prior.length !== expected) throw new Error(`Incomplete retention installation (${prior.length}/${expected}). Review before retrying.`)
     return { automations: prior, templates: [], reused: true, installationKey: key }
   }
@@ -56,7 +56,7 @@ export async function installRetentionPackage(db: SupabaseClient, o: InstallRete
   try {
     for (const flow of plan.flows) {
       if (o.requireProductSelection && (flow.trigger_type === 'shopify_order_delivered' || flow.trigger_type === 'shopify_order_cancelled' || flow.trigger_type === 'shopify_order_refunded')) {
-        flow.steps[0].step_config.value = ''
+        clearRetentionProduct(flow.steps)
       }
       const issues = activationIssues({ triggerType: flow.trigger_type, triggerConfig: flow.trigger_config, steps: flow.steps })
       if (issues.some(issue => !(o.requireProductSelection && issue.path.endsWith('.value')))) throw new Error(JSON.stringify(issues))

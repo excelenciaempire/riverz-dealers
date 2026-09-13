@@ -4,7 +4,6 @@ import type {
   AutomationStep,
   AutomationTriggerType,
   ConditionStepConfig,
-  KeywordMatchTriggerConfig,
   SendMessageStepConfig,
   SendTemplateStepConfig,
   SendWebhookStepConfig,
@@ -47,6 +46,7 @@ import {
 } from '@/lib/attribution/shopify'
 import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
+import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
@@ -113,7 +113,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       .from('automations')
       .select('*')
       .eq('workspace_id', input.workspaceId)
-      .eq('trigger_type', input.triggerType)
+      .or(`trigger_type.eq.${input.triggerType},trigger_config->event_triggers.cs.${JSON.stringify([input.triggerType])}`)
       .eq('is_active', true)
       .is('deleted_at', null)
 
@@ -124,7 +124,10 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (!automations || automations.length === 0) return
 
     for (const automation of automations as Automation[]) {
-      if (!triggerMatches(automation, input.context)) continue
+      const cfg = (automation.trigger_config ?? {}) as Record<string, unknown>
+      if (cfg.event_entries) {
+        if (!resolveEventEntry(cfg, input.triggerType, input.context)) continue
+      } else if (!matchesEventConfig(automation.trigger_type, cfg, input.context)) continue
       if (
         input.skipImmediateSenders &&
         (await automationSpeaksImmediately(automation.id))
@@ -307,7 +310,9 @@ export async function resumePendingExecution(pending: {
     await executeStepsFrom({
       automation: automation as Automation,
       contactId: pending.contact_id,
-      context: pending.context ?? {},
+      context: (automation.trigger_config as Record<string, unknown>)?.event_entries
+        ? { ...pending.context, vars: { ...pending.context?.vars, retention_replenishment: (automation.trigger_config as Record<string, unknown>).retention_replenishment !== false } }
+        : pending.context ?? {},
       parentStepId: pending.parent_step_id,
       branch: pending.branch,
       startPosition: pending.next_step_position,
@@ -394,6 +399,9 @@ export async function resumeAfterVoiceCall(
 
 async function executeAutomation(automation: Automation, input: DispatchInput) {
   const db = supabaseAdmin()
+  const cfg = (automation.trigger_config ?? {}) as Record<string, unknown>
+  const entry = cfg.event_entries ? resolveEventEntry(cfg, input.triggerType, input.context) : undefined
+  if (cfg.event_entries && !entry) return
 
   // Belt-and-suspenders: migration 053 makes automation_logs.user_id
   // nullable so cron-dispatched runs don't blow up at INSERT, but
@@ -427,7 +435,7 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
   await executeStepsFrom({
     automation,
     contactId: input.contactId ?? null,
-    context: input.context ?? {},
+    context: entry ? entryContext(input.context, entry, cfg) : input.context ?? {},
     parentStepId: null,
     branch: null,
     startPosition: 0,
@@ -1349,32 +1357,6 @@ function defaultVoiceCallType(trigger: AutomationTriggerType): VoiceCallType {
     default:
       return 'manual'
   }
-}
-
-function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
-  // Filtro de plataforma para los activadores de tienda. Ausente o vacío =
-  // todas, que es como se comportaban antes de que existiera el filtro: una
-  // automatización vieja no puede dejar de dispararse porque agregamos una
-  // opción nueva.
-  const plataformas = (automation.trigger_config as { platforms?: unknown } | null)
-    ?.platforms
-  if (Array.isArray(plataformas) && plataformas.length > 0) {
-    const dePedido = String(ctx?.vars?.platform ?? '').trim()
-    // Sin plataforma en el contexto no filtramos: el activador puede venir de
-    // un camino que no la informa (un cron viejo) y callar sería peor.
-    if (dePedido && !plataformas.includes(dePedido)) return false
-  }
-
-  if (automation.trigger_type !== 'keyword_match') return true
-  const cfg = automation.trigger_config as KeywordMatchTriggerConfig
-  if (!cfg?.keywords || cfg.keywords.length === 0) return false
-  const text = (ctx?.message_text ?? '').toString()
-  if (!text) return false
-  const haystack = cfg.case_sensitive ? text : text.toLowerCase()
-  return cfg.keywords.some((raw) => {
-    const k = cfg.case_sensitive ? raw : raw.toLowerCase()
-    return cfg.match_type === 'exact' ? haystack === k : haystack.includes(k)
-  })
 }
 
 /**

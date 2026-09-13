@@ -11,7 +11,7 @@ const options: RetentionPlanOptions = { locale: 'es', prefix: 'pilar_postventa_v
 
 // Execute the native branch grammar with a virtual clock and changing facts.
 // This verifies total elapsed days, not just the presence of wait nodes.
-function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: number; purchaseAt?: number; consent?: boolean; replyAt?: number; product?: string } = {}) {
+function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: number; purchaseAt?: number; consent?: boolean; replyAt?: number; product?: string; replenishment?: boolean; disableReorderAt?: number } = {}) {
   let day = 0
   let stops = false
   const sent: Array<{ day: number; name: string }> = []
@@ -22,7 +22,8 @@ function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: numbe
       if (s.step_type === 'set_context') stops = (c.values as { stop_on_inbound?: boolean }).stop_on_inbound === true
       if (s.step_type === 'send_template') sent.push({ day, name: String(c.template_name) })
       if (s.step_type === 'condition') {
-        const yes = c.subject === 'context_var' ? String(c.operand === 'first_item' ? changes.product ?? 'Serum Pilar' : unit) === c.value
+        const vars: Record<string, unknown> = { first_item: changes.product ?? 'Serum Pilar', offer_units: unit, automation_entry: 'main', retention_replenishment: changes.replenishment !== false && day < (changes.disableReorderAt ?? Infinity) }
+        const yes = c.subject === 'context_var' ? String(vars[String(c.operand)]) === c.value
           : c.subject === 'purchased' ? day >= (changes.purchaseAt ?? Infinity)
           : c.operand === tags.permission ? changes.consent !== false
           : c.operand === tags.paused ? day >= (changes.pauseAt ?? Infinity) : false
@@ -67,8 +68,17 @@ describe('retention program', () => {
     const care = buildRetentionPlan({ ...options, offers: [] })
     expect(run(care.flows[0].steps, 1).map(s => s.day)).toEqual([1, 7, 21])
     expect(care.templates).toHaveLength(3)
-    expect(care.flows).toHaveLength(5)
+    expect(care.flows).toHaveLength(1)
     expect(care.templates.map(t => t.bodyText).join(' ')).not.toContain('reponer')
+  })
+  it('keeps care and feedback when reordering is switched off in the same flow', () => {
+    expect(plan.flows).toHaveLength(1)
+    for (const units of [1, 3, 4]) expect(run(plan.flows[0].steps, units, { replenishment: false }).map(s => s.day)).toEqual([1, 7, 21])
+  })
+  it('rechecks the reorder switch after waiting, including before the last offer', () => {
+    expect(run(plan.flows[0].steps, 1, { disableReorderAt: 20 }).map(s => s.day)).toEqual([1, 7])
+    expect(run(plan.flows[0].steps, 1, { disableReorderAt: 25 }).map(s => s.day)).toEqual([1, 7, 22])
+    expect(run(plan.flows[0].steps, 3, { disableReorderAt: 60 }).map(s => s.day)).toEqual([1, 7, 21])
   })
   it('rejects unsafe or ambiguous schedules', () => {
     expect(() => buildRetentionPlan({ ...options, offers: [{ units: 1, day: 0, label: 'One' }] })).toThrow()

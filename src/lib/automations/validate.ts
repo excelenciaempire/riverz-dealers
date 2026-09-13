@@ -1,6 +1,7 @@
 import { CONDITION_SUBJECTS, type AutomationTriggerType } from '@/types'
 import { abTestValidationError } from './template-ab-test'
 import { validVoiceConfig } from '@/lib/voice-notes/types'
+import { eventEntries } from './event-entries'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -236,6 +237,19 @@ export function validateTriggerForActivation(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const cfg = (triggerConfig ?? {}) as Record<string, unknown>
+  if (cfg.event_entries !== undefined || cfg.event_triggers !== undefined) {
+    const entries = eventEntries(cfg)
+    const events = [...new Set(entries.map(e => e.trigger_type))].sort()
+    if (!Array.isArray(cfg.event_entries) || entries.length !== cfg.event_entries.length || !entries.length || entries.length > 20 ||
+      new Set(entries.map(e => e.key)).size !== entries.length || !entries.some(e => e.key === 'main' && e.trigger_type === triggerType) ||
+      !Array.isArray(cfg.event_triggers) || JSON.stringify([...cfg.event_triggers].sort()) !== JSON.stringify(events) ||
+      entries.some(e => e.trigger_config.event_entries !== undefined || e.trigger_config.event_triggers !== undefined)) {
+      issues.push({ path: 'trigger.event_entries', message: 'Invalid journey events', key: 'automations.issueEventEntries' })
+    } else {
+      for (const e of entries) issues.push(...validateTriggerForActivation(e.trigger_type, e.trigger_config)
+        .map(i => ({ ...i, path: `trigger.event_entries.${e.key}.${i.path}` })))
+    }
+  }
 
   if (triggerType === 'keyword_match') {
     const k = cfg.keywords

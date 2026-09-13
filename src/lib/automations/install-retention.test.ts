@@ -39,7 +39,7 @@ describe('retention package installation', () => {
   it('creates only inert tenant-owned drafts, and does not rewrite an existing package', async () => {
     const { db, queries } = fakeDb()
     const pack = await installRetentionPackage(db, opts)
-    expect(pack.automations).toHaveLength(9)
+    expect(pack.automations).toHaveLength(1)
     expect(pack.templates).toHaveLength(6)
     expect(state.rows.every(a => a.workspace_id === opts.workspaceId && a.is_active === false && a.activation_state === 'draft')).toBe(true)
     expect(state.writes.every(t => t.enviarAMeta === false && t.workspaceId === opts.workspaceId && t.userId === null)).toBe(true)
@@ -47,12 +47,12 @@ describe('retention package installation', () => {
     const repeat = await installRetentionPackage(db, opts)
     expect(repeat.reused).toBe(true)
     expect(state.writes).toHaveLength(6)
-    expect(state.rows).toHaveLength(9)
+    expect(state.rows).toHaveLength(1)
   })
   it('supports the incomplete-product global care draft without creating sales templates', async () => {
     const { db } = fakeDb()
     const pack = await installRetentionPackage(db, { ...opts, offers: [], requireProductSelection: true })
-    expect(pack.automations).toHaveLength(5)
+    expect(pack.automations).toHaveLength(1)
     expect(pack.templates).toHaveLength(3)
   })
   it('rolls back only its newly created inactive automations on a step failure', async () => {
