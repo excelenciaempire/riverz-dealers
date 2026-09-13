@@ -16,7 +16,21 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
 | Precios redondeados | Corregido el formato del catálogo, tarjetas del chat y pedidos de la bandeja. Casos de regresión: 179.90 y 33.72, español e inglés, monedas con tres decimales y ausencia de moneda. |
 | GET /orders con 404 | El 13/09 GET /orders y GET /orders?per_page=1 devolvieron 200 tanto para la tienda revisora 4265771 como para Riverz Demo 8018159. Ambas tienen order/created, order/paid, order/fulfilled, order/cancelled, order/updated y app/uninstalled. La captura no muestra los parámetros de las tres consultas fallidas; no se ha demostrado su causa exacta ni debe afirmarse que está resuelta. |
 
-No incluir credenciales de la cuenta de revisión en este repositorio.
+### Acciones completadas el 13 de septiembre
+
+- Corrección de precios desplegada en `2792e255`; `/api/health` confirmó esa
+  revisión y estado saludable. TypeScript pasó; 25 pruebas enfocadas pasaron.
+- Se agregó y guardó la aclaración de sincronización manual en Argentina,
+  Chile, Colombia y México. Argentina fue reabierta para verificar persistencia.
+- Se respondió desde `riverzoficial@gmail.com` al ticket vigente a las 16:30
+  America/New_York. Gmail confirmó **Message sent**. La respuesta distingue
+  lo corregido del video pendiente y solicita los parámetros de los tres 404.
+- Riverz Demo tiene Tiendanube conectado, dos agentes apagados, ninguna fila de
+  configuración WhatsApp y ninguna plantilla. Falta elegir/conectar una línea
+  remitente para grabar envíos reales; el destinatario de prueba fue autorizado
+  por el dueño. No activar campañas ni agentes para otros contactos.
+
+No incluir credenciales ni teléfonos privados de revisión en este repositorio.
 
 > **2026-08-17 — Homologación SOLICITADA.** La app está en distribución
 > **"Tienda de aplicaciones"** (pública) y la solicitud de homologación ya
