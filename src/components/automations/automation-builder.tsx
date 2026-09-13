@@ -2736,7 +2736,7 @@ function StepRenderer({
             <div className="text-foreground truncate text-sm font-medium">
               {t(stepTitleKey(step))}
             </div>
-            <div className="text-muted-foreground truncate text-[11px]">
+            <div className="text-muted-foreground truncate text-[11px]" title={previewFor(step, t, etiquetas)}>
               {previewFor(step, t, etiquetas)}
             </div>
           </div>
@@ -2933,9 +2933,10 @@ function ConditionBranches({
 function caseShortLabel(
   cfg: Record<string, unknown>,
   t: TFn,
-  index: number
+  index: number,
+  etiquetas: ContactTag[]
 ): string {
-  const full = conditionPreview(cfg, t);
+  const full = conditionPreview(cfg, t, etiquetas);
   if (!cfg.subject)
     return t('automations.switchPathN', { n: String(index + 1) });
   // El resumen viene como "lado · ventana": el lado solo ya identifica el
@@ -2963,6 +2964,7 @@ function SwitchBranches({
   const t = useT();
   const arrastre = useContext(DragContext);
   const sd = step.switchData ?? { dpId: undefined, cases: [], elseSteps: [] };
+  const etiquetas = useContext(TagsContext);
 
   // Every mutation reshapes step.switchData through the switch's own path.
   const patch = (fn: (d: SwitchData<BuilderStep>) => SwitchData<BuilderStep>) =>
@@ -3086,7 +3088,7 @@ function SwitchBranches({
       lanes={[
         ...sd.cases.map((c, i) => ({
           key: c.ckey,
-          label: caseShortLabel(c.cfg, t, i),
+          label: caseShortLabel(c.cfg, t, i, etiquetas),
           color: 'border-emerald-500/40 bg-emerald-500/10 text-accent-ink',
           content: (
             <SwitchLaneSteps
@@ -3099,7 +3101,7 @@ function SwitchBranches({
               onMoveStep={(i, dir) => moveStep(c.ckey, i, dir)}
               owner={step.cid}
               lane={c.ckey}
-              laneLabel={caseShortLabel(c.cfg, t, i)}
+              laneLabel={caseShortLabel(c.cfg, t, i, etiquetas)}
               onDropAt={(at) => soltarEnCarril(c.ckey, at)}
             />
           ),
@@ -4449,7 +4451,7 @@ const WAIT_UNIT_LABELS: Record<string, [string, string]> = {
 };
 
 /** One-line natural summary of a condition, e.g. "Unidades que compró al menos 4". */
-function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
+function conditionPreview(cfg: Record<string, unknown>, t: TFn, etiquetas: ContactTag[] = []): string {
   const subject = cfg.subject as string | undefined;
   const operand = cfg.operand as string | undefined;
   if (!subject) return t('automations.previewDefineCondition');
@@ -4462,7 +4464,8 @@ function conditionPreview(cfg: Record<string, unknown>, t: TFn): string {
   if (!dp) return t('automations.previewDefineCondition');
   const label = t(dp.labelKey);
   const kind = dp.condition.kind;
-  if (kind === 'tag' || kind === 'segment') return label;
+  if (kind === 'tag') return `${label}: ${etiquetas.find(e => e.id === operand)?.name ?? (operand || t('automations.chooseTag'))}`;
+  if (kind === 'segment') return label;
   // Sin ventana que mostrar: el lado ya lo dice todo ("No pagó").
   if (kind === 'order_paid') {
     return cfg.value === 'true'
@@ -4547,12 +4550,12 @@ function previewFor(
       return `${amount} ${amount === 1 ? (one ? t(one) : '') : many ? t(many) : ''}`;
     }
     case 'condition':
-      return conditionPreview(step.step_config, t);
+      return conditionPreview(step.step_config, t, etiquetas);
     case 'switch': {
       const cases = step.switchData?.cases ?? [];
       if (cases.length === 0) return t('automations.switchNeedsData');
       // One path reads as a plain Sí/No; several show the count.
-      if (cases.length === 1) return conditionPreview(cases[0].cfg, t);
+      if (cases.length === 1) return conditionPreview(cases[0].cfg, t, etiquetas);
       return t('automations.switchCaseOther', { n: cases.length });
     }
     case 'send_webhook':

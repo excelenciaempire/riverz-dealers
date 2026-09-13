@@ -178,11 +178,10 @@ export function BranchFan({
   lanes: { key: string; label: string; color: string; content: React.ReactNode }[]
 }) {
   const wrap = useRef<HTMLDivElement | null>(null)
+  // Keep nested fans in normal flow so every sibling reserves its full height.
+  // Only this fan's direct rows share its offsetParent; descendants do not.
   // Dónde arranca cada fila, en píxeles de CSS desde el borde del abanico.
   const [rows, setRows] = useState<number[]>([])
-  // Cuánto hay que subir el abanico para que su centro caiga en el centro de
-  // la tarjeta que lo abre. Sin esto, el tronco entraba torcido.
-  const [offset, setOffset] = useState(0)
 
   const measure = useCallback(() => {
     const el = wrap.current
@@ -190,7 +189,7 @@ export function BranchFan({
     // offsetTop, no getBoundingClientRect: el lienzo está escalado y el rect
     // vendría en píxeles de pantalla, que hay que dividir por el zoom antes de
     // escribirlos de vuelta como CSS. offsetTop ya es layout.
-    const tops = [...el.querySelectorAll<HTMLElement>("[data-lane-row]")].map(
+    const tops = [...el.querySelectorAll<HTMLElement>(":scope > [data-lane-row]")].map(
       (r) => r.offsetTop,
     )
     // Sólo se escribe si de verdad cambió: esto corre después de cada pintada
@@ -199,8 +198,6 @@ export function BranchFan({
     setRows((prev) =>
       prev.length === tops.length && prev.every((v, i) => same(v, tops[i])) ? prev : tops,
     )
-    const off = tops.length ? -(tops[0] + tops[tops.length - 1]) / 2 : 0
-    setOffset((prev) => (same(prev, off) ? prev : off))
   }, [])
 
   // Después de cada pintada, no sólo cuando algo cambia de tamaño. Desplegar
@@ -217,7 +214,7 @@ export function BranchFan({
     if (!el) return
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    el.querySelectorAll("[data-lane-row]").forEach((r) => ro.observe(r))
+    el.querySelectorAll(":scope > [data-lane-row]").forEach((r) => ro.observe(r))
     return () => ro.disconnect()
   }, [lanes.length, measure])
 
@@ -228,14 +225,13 @@ export function BranchFan({
     <div
       ref={wrap}
       className="relative grid grid-cols-[max-content_auto] items-start gap-y-5 pl-8"
-      style={{ marginTop: offset }}
     >
       {/* Tronco: de la tarjeta que abre el abanico hasta la espina. Sin esto
           la tarjeta y sus caminos se veían como dos cosas sueltas. */}
       <span
         aria-hidden
         className={cn("absolute -left-2 w-6", LINE)}
-        style={{ top: (first + last) / 2 + CARD_HALF - LINE_W / 2, height: LINE_W }}
+        style={{ top: CARD_HALF - LINE_W / 2, height: LINE_W }}
       />
       {/* Espina: une el primer ramal con el último. */}
       {rows.length > 1 && (

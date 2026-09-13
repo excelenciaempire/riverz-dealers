@@ -36,11 +36,12 @@ Todas están en español, con categoría Marketing y sin importes fijos ni prome
 | `pilar_postventa_v1_reponer_3` | Repetir la oferta 2 + 1 |
 | `pilar_postventa_v1_reponer_4` | Repetir la oferta 3 + 1 |
 | `pilar_postventa_v1_ultimo_recordatorio` | Último intento del ciclo |
-| `pilar_postventa_v1_recordatorio_solicitado` | Fecha solicitada por el cliente |
+
+El borrador antiguo `pilar_postventa_v1_recordatorio_solicitado` no forma parte del recorrido y se conserva sin uso. Las nuevas instalaciones crean únicamente las plantillas utilizadas. El último mensaje ofrece recompra, ayuda o baja; no ofrece aplazar un ciclo que ya terminó.
 
 ## Biblioteca global
 
-La galería y Operador ofrecen una sola opción: **Recompras**. Integra acompañamiento, consulta de experiencia y reposición opcional en una automatización con seis plantillas de partida. Las respuestas continúan con la IA. Sustituye las anteriores tarjetas separadas de postventa y encuesta.
+La galería y Operador ofrecen una sola opción: **Recompras**. Integra acompañamiento, consulta de experiencia y reposición opcional en una automatización con cinco plantillas de partida. Las respuestas continúan con la IA. Sustituye las anteriores tarjetas separadas de postventa y encuesta.
 
 El ejemplo de reposición propone los días 22 y 29 para una unidad; requiere adaptar duración y cantidades. El control **Incluir recompra** permite desactivar las ofertas y mantener el acompañamiento a los días 1, 7 y 21. Se comprueba de nuevo después de las esperas. No se cobran suscripciones ni se activan envíos al instalar.
 
@@ -62,3 +63,13 @@ No se cargan pedidos antiguos ni se disparan mensajes atrasados. Antes de activa
 ## Validación
 
 Pruebas con reloj simulado comprueban los días reales de cada oferta, la ausencia de reposición para cantidades desconocidas, permisos, pausas, compras posteriores y respuestas tempranas. Se validan los componentes de WhatsApp, los pasos nativos y la separación del contenido en inglés. Las pruebas de la herramienta cubren aislamiento por cuenta y contacto, confirmación, permisos, tokens y bajas después del último mensaje. La migración verifica una sola raíz y ninguna rama de respuestas, conservando el estado de borrador y las plantillas existentes.
+
+### Revisión del 12 de septiembre de 2026
+
+Se consultaron los 110 elementos guardados de Pilar: 67 condiciones, 18 esperas, 18 envíos, cuatro altas de etiqueta y tres actualizaciones de contexto. La validación estructural no encontró errores. Los siete nombres de plantilla y las tres etiquetas utilizadas existen en la misma cuenta; la asesora configurada también pertenece a Pilar. No había ejecuciones pendientes ni en curso. Se verificaron los textos, variables de nombre, botones y componentes de las siete plantillas guardadas.
+
+Se corrigió el cálculo de las ramas anidadas: cada abanico mide sus propias filas y reserva toda su altura, evitando superponer Sí/No. Las condiciones muestran la etiqueta concreta y el resumen completo queda disponible al pasar el cursor. Una prueba del componente real en Chrome comprobó siete abanicos y 29 tarjetas/etiquetas sin solapamientos al 50 %, 100 % y 150 %, con tarjeta cerrada y desplegada.
+
+Se corrigieron los borradores de experiencia y último recordatorio: ya no ofrecen aplazar cuando pueden ser el último paso del ciclo. Se conservan la conversación con IA, ayuda y baja. Las nuevas instalaciones no crean el recordatorio solicitado que no tenía ningún paso asociado. El script `scripts/repair-pilar-reorder-templates.ts` aplica la reparación únicamente a los borradores conocidos, con respaldo y comprobación de cambios concurrentes.
+
+Esta revisión no equivale a un envío real ni a una aprobación de Meta. Siguen aplicando los requisitos de activación y las limitaciones de pedidos mixtos y suscripciones descritos arriba.

@@ -66,6 +66,23 @@ describe('retention program', () => {
     for (const t of plan.templates) expect(buildTemplateComponents({ category: 'MARKETING', headerType: 'none', bodyText: t.bodyText, bodySamples: t.bodySamples, buttons: t.buttons, footerText: t.footerText }).error, t.nombre).toBeFalsy()
     expect(new Set(plan.templates.map(t => t.nombre)).size).toBe(plan.templates.length)
   })
+  it('creates only reachable templates and does not offer a later reminder after the cycle ends', () => {
+    for (const locale of ['es', 'en'] as const) {
+      const current = buildRetentionPlan({ ...options, locale })
+      const used = new Set<string>()
+      const visit = (steps: BuilderStepInput[]) => steps.forEach(s => {
+        if (s.step_type === 'send_template') used.add(String(s.step_config.template_name))
+        visit(s.branches?.yes ?? [])
+        visit(s.branches?.no ?? [])
+      })
+      visit(current.flows[0].steps)
+      expect(new Set(current.templates.map(t => t.nombre))).toEqual(used)
+      const last = current.templates.find(t => t.nombre.endsWith('_ultimo_recordatorio'))!
+      expect(last.buttons?.map(b => b.text)).not.toContain(locale === 'es' ? 'Más adelante' : 'Remind me later')
+      const experience = current.templates.find(t => t.nombre.endsWith('_experiencia'))!
+      expect(experience.buttons?.map(b => b.text)).not.toContain(locale === 'es' ? 'Más adelante' : 'Remind me later')
+    }
+  })
   it('provides English content without Pilar data for another merchant', () => {
     const global = buildRetentionPlan({ ...options, locale: 'en', product: 'Coffee', prefix: 'retention_coffee', offers: [{ units: 1, day: 30, label: '1 bag' }] })
     expect(JSON.stringify(global)).not.toMatch(/Pilar|frascos|gratis|Hola/)

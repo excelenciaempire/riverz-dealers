@@ -87,20 +87,17 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
     `Hola {{1}}, ¿tienes alguna duda sobre cómo usar ${o.product}? Podemos ayudarte a revisar las indicaciones del producto.`,
     `Hi {{1}}, do you have any questions about using ${o.product}? We can help you review the product instructions.`), [button.help, button.stop])
   const experience = template('experiencia', o.offers.length ? copy(
-    `Hola {{1}}, ¿cómo va tu experiencia con ${o.product}? Si compartiste las unidades o prefieres que te recordemos más adelante, cuéntanos para ajustar el seguimiento.`,
-    `Hi {{1}}, how is your experience with ${o.product}? If you shared your supply or would prefer a later reminder, let us know so we can adjust your follow-up.`) : copy(
+    `Hola {{1}}, ¿cómo va tu experiencia con ${o.product}? Si compartiste las unidades o necesitas ayuda, cuéntanos cómo te ha ido.`,
+    `Hi {{1}}, how is your experience with ${o.product}? If you shared your supply or need help, let us know how it is going.`) : copy(
     `Hola {{1}}, ¿cómo fue tu experiencia con ${o.product}? Si necesitas ayuda, estamos aquí.`,
-    `Hi {{1}}, how was your experience with ${o.product}? We are here if you need help.`), o.offers.length ? [button.shared, button.later, button.help] : [button.help, button.stop])
+    `Hi {{1}}, how was your experience with ${o.product}? We are here if you need help.`), o.offers.length ? [button.shared, button.help, button.stop] : [button.help, button.stop])
   const offers = new Map<number, string>()
   for (const offer of o.offers) offers.set(offer.units, template(`reponer_${offer.units}`, copy(
     `Hola {{1}}, en tu pedido elegiste ${offer.label}. ¿Cómo vas con ${o.product}? Si necesitas reponer, podemos ayudarte a repetir tu compra y confirmar las opciones disponibles.`,
     `Hi {{1}}, you chose ${offer.label} in your order. How is your supply of ${o.product}? If you need more, we can help you reorder and confirm the available options.`), [button.repeat, button.later, button.stop]))
   const last = template('ultimo_recordatorio', copy(
-    `Hola {{1}}, este es el último recordatorio de este seguimiento de ${o.product}. Si necesitas reponer, podemos ayudarte. Si todavía tienes, puedes elegir que te recordemos más adelante.`,
-    `Hi {{1}}, this is the last reminder in this ${o.product} follow-up. We can help if you need more, or you can choose a later reminder if you still have some.`), [button.repeat, button.later, button.stop])
-  template('recordatorio_solicitado', copy(
-    `Hola {{1}}, volvemos a escribirte por ${o.product}, como nos pediste. ¿Necesitas reponer o prefieres esperar?`,
-    `Hi {{1}}, this is the ${o.product} reminder you requested. Do you need more or would you prefer to wait?`), [button.repeat, button.later, button.stop])
+    `Hola {{1}}, este es el último recordatorio de este seguimiento de ${o.product}. Si necesitas reponer o tienes alguna duda, estamos aquí para ayudarte.`,
+    `Hi {{1}}, this is the last reminder in this ${o.product} follow-up. We are here if you need more or have any questions.`), [button.repeat, button.help, button.stop])
 
   const tag = (id: string, add = true) => step(add ? 'add_tag' : 'remove_tag', { tag_id: id })
   const has = (id: string, yes: BuilderStepInput[], no: BuilderStepInput[] = []) => branch({ subject: 'tag_presence', operand: id }, yes, no)
