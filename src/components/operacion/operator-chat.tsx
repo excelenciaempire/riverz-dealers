@@ -8,6 +8,7 @@ import {
   Loader2,
   MessageSquarePlus,
   Pencil,
+  Paperclip,
   Sparkles,
   Square,
   Trash2,
@@ -31,6 +32,7 @@ import type { Artefacto } from '@/lib/operator/artifacts'
 import type { ResumenHilo } from '@/lib/operator/threads'
 import { useMesa, useMesaDispatch } from './mesa-contexto'
 import { cn } from '@/lib/utils'
+import { imageDataUrl, MAX_OPERATOR_IMAGES, MAX_OPERATOR_IMAGE_BYTES, type OperatorImage } from '@/lib/operator/images'
 
 /**
  * El Operator, dentro del Centro de Operación.
@@ -45,6 +47,7 @@ interface Mensaje {
   id: string
   role: 'user' | 'assistant'
   text: string
+  images?: OperatorImage[]
   /**
    * El turno tal como se vio ocurrir. Se conserva después de terminar: haber
    * mirado cómo lo armaba y que después quede sólo un párrafo borra la parte
@@ -180,6 +183,10 @@ export function OperatorChat({
   const [mensajes, setMensajes] = useRecordado<Mensaje[]>('operador:mensajes', [])
   const [acciones, setAcciones] = useRecordado<Accion[]>('operador:acciones', [])
   const [texto, setTexto] = useState('')
+  const [images, setImages] = useState<OperatorImage[]>([])
+  const [readingImages, setReadingImages] = useState(false)
+  const imageInput = useRef<HTMLInputElement>(null)
+  const imageReadId = useRef(0)
   const [pensando, setPensando] = useState(false)
   const [vivo, setVivo] = useState<Vivo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -286,6 +293,9 @@ export function OperatorChat({
   }, [])
 
   const abrirHilo = useCallback(async (id: string) => {
+    imageReadId.current++
+    setImages([])
+    setReadingImages(false)
     setCargandoHilo(true)
     setError(null)
     try {
@@ -451,6 +461,9 @@ export function OperatorChat({
 
   /** Empezar de cero. El hilo anterior queda guardado y accesible. */
   const nuevoChat = useCallback(() => {
+    imageReadId.current++
+    setImages([])
+    setReadingImages(false)
     // Sin esto quedan en la mesa los agentes del turno anterior, trabajando
     // sobre una conversación que ya no existe.
     aLaMesa({ tipo: 'limpiar' })
@@ -482,11 +495,10 @@ export function OperatorChat({
   )
 
   const enviar = useCallback(
-    async (valor: string) => {
+    async (valor: string, attachments: OperatorImage[] = []) => {
       const limpio = valor.trim()
-      if (!limpio || pensando) return
+      if ((!limpio && !attachments.length) || pensando || readingImages) return
       setError(null)
-      setTexto('')
 
       /**
        * Un pedido de cambio cierra la propuesta anterior.
@@ -507,7 +519,7 @@ export function OperatorChat({
         ...(congelar.length > 0
           ? [{ id: `c-${m.length}`, role: 'assistant' as const, text: '', decidido: congelar }]
           : []),
-        { id: `local-${m.length + (congelar.length > 0 ? 1 : 0)}`, role: 'user' as const, text: limpio },
+        { id: `local-${m.length + (congelar.length > 0 ? 1 : 0)}`, role: 'user' as const, text: limpio, images: attachments },
       ])
       // Se espera a que queden descartadas ANTES de mandar el pedido: el
       // servidor arma el contexto leyendo el estado real de cada acción, y si
@@ -522,8 +534,14 @@ export function OperatorChat({
         const res = await fetchWithCsrf('/api/operacion/operator', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ texto: limpio, thread }),
+          body: JSON.stringify({ texto: limpio, thread, images: attachments }),
         })
+        if (res.status === 400) {
+          const body = await res.json().catch(() => ({}))
+          setError(body.error || t('operation.operatorError'))
+          setTexto(valor)
+          return
+        }
         if (res.status === 429) {
           setError(t('operation.operatorRateLimited'))
           return
@@ -543,6 +561,8 @@ export function OperatorChat({
         const idCorrida = res.headers.get('x-riverz-run')
         if (idCorrida) setCorrida(idCorrida)
         if (!res.ok || !res.body) throw new Error('failed')
+        setTexto('')
+        setImages([])
 
         // Se lee a medida que llega. `getReader()` y no `EventSource` porque
         // este POST lleva el token CSRF en una cabecera, y EventSource no puede
@@ -631,10 +651,37 @@ export function OperatorChat({
         setCorrida(null)
       }
     },
-    [aLaMesa, fetchWithCsrf, pensando, retomar, t, thread],
+    [aLaMesa, fetchWithCsrf, pensando, readingImages, retomar, t, thread],
   )
 
   enviarRef.current = enviar
+
+  async function attachImages(files: File[]) {
+    if (pensando || readingImages || cargandoHilo || !files.length) return
+    if (images.length + files.length > MAX_OPERATOR_IMAGES || files.some((f) =>
+      !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(f.type) || f.size > MAX_OPERATOR_IMAGE_BYTES)) {
+      setError(t('operation.imageInvalid'))
+      return
+    }
+    const readId = ++imageReadId.current
+    setReadingImages(true)
+    try {
+      const next = await Promise.all(files.map((file) => new Promise<OperatorImage>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = reject
+        reader.onload = () => resolve({ name: file.name, mediaType: file.type as OperatorImage['mediaType'], data: String(reader.result).split(',')[1] })
+        reader.readAsDataURL(file)
+      })))
+      if (readId === imageReadId.current) {
+        setImages((current) => [...current, ...next])
+        setError(null)
+      }
+    } catch {
+      if (readId === imageReadId.current) setError(t('operation.imageInvalid'))
+    } finally {
+      if (readId === imageReadId.current) setReadingImages(false)
+    }
+  }
 
   /**
    * Cambia el paso del hilo cuando su acción se decide.
@@ -1143,7 +1190,16 @@ export function OperatorChat({
           ) : m.bloques?.length ? (
             <Turno key={m.id} bloques={m.bloques} onVer={verComoQuedo} />
           ) : (
-            <Dicho key={m.id} role={m.role} text={m.text} />
+            <div key={m.id} className="space-y-2">
+              {!!m.images?.length && <div className="flex flex-wrap justify-end gap-2">
+                {m.images.map((image, i) => (
+                  // Data URLs are local, authenticated message content.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={imageDataUrl(image)} alt={image.name || t('operation.imageConversation')} className="max-h-64 max-w-full rounded-xl object-contain" />
+                ))}
+              </div>}
+              {m.text && <Dicho role={m.role} text={m.text} />}
+            </div>
           ),
         )}
 
@@ -1200,13 +1256,20 @@ export function OperatorChat({
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          void enviar(texto)
+          void enviar(texto, images)
         }}
         className={cn(
           'shrink-0',
-          fullscreen ? 'w-full px-5 pb-5' : 'flex items-center gap-2 border-t border-border p-3',
+          fullscreen ? 'w-full px-5 pb-5' : 'border-t border-border p-3',
         )}
       >
+        {!!images.length && <div className="mb-2 flex gap-2">
+          {images.map((image, i) => <div key={i} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageDataUrl(image)} alt={image.name || t('operation.imageConversation')} className="size-16 rounded-lg object-cover" />
+            <button type="button" disabled={pensando} aria-label={t('operation.imageRemove')} onClick={() => setImages((current) => current.filter((_, index) => index !== i))} className="absolute -right-1 -top-1 rounded-full bg-background p-1 shadow"><X className="size-3" /></button>
+          </div>)}
+        </div>}
         <div
           className={cn(
             'flex items-center gap-2',
@@ -1216,8 +1279,13 @@ export function OperatorChat({
             fullscreen && 'app-glass rounded-2xl px-4 py-3',
           )}
         >
+          <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(e) => { void attachImages(Array.from(e.target.files ?? [])); e.target.value = '' }} />
+          <button type="button" disabled={pensando || readingImages} onClick={() => imageInput.current?.click()} aria-label={t('operation.imageAttach')} title={t('operation.imageAttach')} className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-muted disabled:opacity-40">
+            {readingImages ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+          </button>
           <input
             ref={compositorRef}
+            onPaste={(e) => { const files = Array.from(e.clipboardData.files); if (files.length) { e.preventDefault(); void attachImages(files) } }}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder={t('operation.operatorPlaceholder')}
@@ -1247,7 +1315,7 @@ export function OperatorChat({
           ) : (
             <button
               type="submit"
-              disabled={pensando || !texto.trim()}
+              disabled={pensando || readingImages || (!texto.trim() && !images.length)}
               aria-label={t('operation.operatorSend')}
               className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
             >

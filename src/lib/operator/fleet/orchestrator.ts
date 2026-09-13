@@ -19,6 +19,7 @@
  *    presupuesto, no el contador de razonamiento.
  */
 import type Anthropic from '@anthropic-ai/sdk'
+import { IMAGE_CONTEXT_PROMPT } from '../images'
 import {
   capabilitiesAsAnthropicTools,
   capabilityKeyFromToolName,
@@ -480,7 +481,7 @@ export async function mapaDelTurno(ctx: CapabilityContext): Promise<string> {
 function armarSystem(mapa: string, pedido: string): Anthropic.TextBlockParam[] {
   // Las preguntas entran en el bloque estable: son las mismas para todos los
   // comercios, así que viajan gratis dentro del prefijo cacheado.
-  const estable = `${PROMPT_ORQUESTADOR}\n\n${PREGUNTAR_ORQUESTADOR}\n\nEL EQUIPO\n${rosterComoTexto()}`
+  const estable = `${PROMPT_ORQUESTADOR}\n\n${PREGUNTAR_ORQUESTADOR}\n\n${IMAGE_CONTEXT_PROMPT}\n\nEL EQUIPO\n${rosterComoTexto()}`
 
   const pista = pistaComoTexto(leerIntencion(pedido))
   const variable = [mapa, pista].filter(Boolean).join('\n\n')

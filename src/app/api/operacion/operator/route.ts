@@ -36,6 +36,8 @@ import { createClient } from '@/lib/supabase/server';
 import { puertaDeIa } from '@/lib/wallet/puerta';
 import { resolveWorkspaceIdForUser } from '@/lib/workspaces/resolve';
 import { NextResponse } from 'next/server';
+import { imageContent } from '@/lib/operator/images';
+import { normalizeOperatorImages, readOperatorBody } from '@/lib/operator/images-server';
 
 /**
  * Hablar con el Operator.
@@ -227,13 +229,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
   }
 
-  const body = (await request.json().catch(() => null)) as {
+  let rawBody: unknown;
+  try {
+    rawBody = await readOperatorBody(request);
+  } catch {
+    return NextResponse.json({ error: translate(await getLocale(), 'operation.imageInvalid') }, { status: 400 });
+  }
+  const body = rawBody as {
     texto?: string;
     thread?: string | null;
+    images?: unknown;
   } | null;
   const texto = typeof body?.texto === 'string' ? body.texto.trim().slice(0, 4000) : '';
   if (body?.thread != null && typeof body.thread !== 'string') return NextResponse.json({ error: 'bad_request' }, { status: 400 });
-  if (!texto)
+  let images;
+  try {
+    images = await normalizeOperatorImages(body?.images);
+  } catch {
+    return NextResponse.json({ error: translate(await getLocale(), 'operation.imageInvalid') }, { status: 400 });
+  }
+  if (!texto && !images.length)
     return NextResponse.json({ error: 'texto_required' }, { status: 400 });
 
   // El Operador es la IA mas cara de la casa: un turno son varias llamadas al
@@ -274,7 +289,7 @@ export async function POST(request: Request) {
       threadId: body?.thread,
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
-      firstText: texto,
+      firstText: texto || translate(locale, 'operation.imageConversation'),
     });
   } catch (error) {
     if (error instanceof OperatorThreadUnavailable) return NextResponse.json({ error: translate(locale, 'operation.threadUnavailable') }, { status: 404 });
@@ -325,6 +340,7 @@ export async function POST(request: Request) {
         workspaceId: ctx.workspaceId,
         role: 'user',
         text: texto,
+        images,
       });
 
       const turno = await runOperator({
@@ -332,7 +348,7 @@ export async function POST(request: Request) {
         workspaceId: ctx.workspaceId,
         userId: ctx.userId,
         threadId,
-        history: [...toAnthropic(previos), { role: 'user', content: texto }],
+        history: [...toAnthropic(previos), { role: 'user', content: imageContent(texto, images) }],
         locale,
         onEvent: push,
         autoBuild: CONSTRUIR_INERTE_AUTOMATICAMENTE,

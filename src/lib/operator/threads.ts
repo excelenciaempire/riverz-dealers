@@ -12,6 +12,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Bloque } from './bloques'
 import { titleFrom } from './prompt'
+import { imageContent, type OperatorImage } from './images'
 
 /** Cuántos turnos se le reenvían al modelo. Alcanza para seguir un hilo. */
 const CONTEXT_TURNS = 20
@@ -22,6 +23,7 @@ export interface ThreadMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  images?: OperatorImage[]
   /** El turno tal como se vio ocurrir, si se guardó. */
   bloques?: Bloque[]
   created_at: string
@@ -79,12 +81,13 @@ export async function loadMessages(
   return ((data ?? []) as Array<{
     id: string
     role: 'user' | 'assistant'
-    content: { text?: string; bloques?: Bloque[] }
+    content: { text?: string; bloques?: Bloque[]; images?: OperatorImage[] }
     created_at: string
   }>).reverse().map((r) => ({
     id: r.id,
     role: r.role,
     text: r.content?.text ?? '',
+    images: r.content?.images,
     // Los mensajes viejos no los tienen: ahí el hilo se ve como antes y las
     // acciones caen a la lista de abajo, que sigue existiendo justo para eso.
     bloques: Array.isArray(r.content?.bloques)
@@ -152,13 +155,24 @@ function conElDesenlace(bloques: Bloque[], desenlaces: Map<string, Desenlace>): 
  */
 export function toAnthropic(messages: ThreadMessage[]): Anthropic.MessageParam[] {
   const ventana = messages.slice(-CONTEXT_TURNS)
+  // Keep the complete text window and the newest 12 images within API limits.
+  let remainingImages = 12
+  const visualContext = new Map<ThreadMessage, OperatorImage[]>()
+  for (const message of [...ventana].reverse()) {
+    if (message.role !== 'user' || !message.images?.length) continue
+    const images = remainingImages > 0 ? message.images.slice(-remainingImages) : []
+    remainingImages -= images.length
+    visualContext.set(message, images)
+  }
   const ultimoDelAsistente = ventana.map((m) => m.role).lastIndexOf('assistant')
   return ventana
     .map((m, i) => ({
       role: m.role,
-      content: [m.text.trim(), loQueDejo(m, i === ultimoDelAsistente)]
+      content: imageContent([m.text.trim(), loQueDejo(m, i === ultimoDelAsistente),
+        m.images?.length && (visualContext.get(m)?.length ?? 0) < m.images.length
+          ? '[Earlier image omitted from visual context. Do not claim to see it; ask for it again if needed.]' : '']
         .filter(Boolean)
-        .join('\n\n'),
+        .join('\n\n'), visualContext.get(m)),
     }))
     .filter((m) => m.content.length > 0)
 }
@@ -242,6 +256,7 @@ export async function appendMessage(
     workspaceId: string
     role: 'user' | 'assistant'
     text: string
+    images?: OperatorImage[]
     /**
      * El turno tal como se vio ocurrir.
      *
@@ -262,6 +277,7 @@ export async function appendMessage(
     role: input.role,
     content: {
       text: input.text,
+      ...(input.images?.length ? { images: input.images } : {}),
       ...(input.bloques && input.bloques.length > 0 ? { bloques: input.bloques } : {}),
     },
     prompt_tokens: input.promptTokens ?? null,

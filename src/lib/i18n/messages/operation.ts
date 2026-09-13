@@ -10,6 +10,10 @@ import type { Namespace } from "./types";
  * mal. Inicio quedó con plata y atención, en el namespace `dashboard`.
  */
 export const operation = {
+  imageAttach: { es: 'Adjuntar imágenes', en: 'Attach images' },
+  imageRemove: { es: 'Quitar imagen', en: 'Remove image' },
+  imageConversation: { es: 'Imagen adjunta', en: 'Attached image' },
+  imageInvalid: { es: 'Adjunta hasta 3 imágenes JPG, PNG, WebP o GIF de máximo 5 MB cada una.', en: 'Attach up to 3 JPG, PNG, WebP or GIF images, up to 5 MB each.' },
   agentUnavailable: { es: 'El agente no está disponible en este comercio.', en: 'The agent is not available in this workspace.' },
   threadUnavailable: { es: 'La conversación no está disponible en este comercio.', en: 'The conversation is not available in this workspace.' },
   webchatUpdate: { es: "Actualizar configuración del chat web", en: "Update web chat settings" },
