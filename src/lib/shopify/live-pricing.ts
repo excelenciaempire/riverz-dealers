@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { isPublicHttpsUrl } from '@/lib/security/url-guard'
 import { buildTrainingMaterial } from '@/lib/products/training-material'
-import { offersFromKachingConfig, type DetectedOffer } from './detect-offers'
+import { extractBalanced, offersFromKachingConfig, type DetectedOffer } from './detect-offers'
 
 export interface LivePricing {
   offers: DetectedOffer[]
@@ -76,6 +76,10 @@ export function pricingFromStorefrontHtml(html: string): LivePricing | null {
       /* un bloque inválido no invalida los demás */
     }
   }
+  // Custom Shopify product templates may omit JSON-LD. Shopify still embeds
+  // the current product's variant prices in its Web Pixels initialization.
+  // These are monetary amounts, not the cents used by analytics meta.price.
+  if (found.length === 0) found.push(...pricesFromShopifyPixels(html))
   if (found.length === 0) return null
   const prices = found.map((o) => o.price)
   return {
@@ -85,6 +89,39 @@ export function pricingFromStorefrontHtml(html: string): LivePricing | null {
     currency: found.find((o) => o.currency)?.currency ?? storefrontCurrency(html),
     source: 'storefront',
   }
+}
+
+function pricesFromShopifyPixels(html: string): Array<{ price: number; currency: string }> {
+  for (const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const source = script[1]
+    if (!/\bwpmLoader\s*\(/.test(source)) continue
+    const start = /\binitData\s*:\s*\{/.exec(source)
+    if (!start) continue
+    const raw = extractBalanced(source, source.indexOf('{', start.index), '{', '}')
+    if (!raw) continue
+    try {
+      const data = JSON.parse(raw)
+      if (!Array.isArray(data.productVariants) || data.productVariants.length === 0) continue
+      const productIds = new Set<string>()
+      const currencies = new Set<string>()
+      const prices: Array<{ price: number; currency: string }> = []
+      for (const variant of data.productVariants) {
+        const price = money(variant?.price?.amount)
+        const currency = variant?.price?.currencyCode
+        const productId = variant?.product?.id
+        if (price == null || typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency) || !productId) continue
+        productIds.add(String(productId))
+        currencies.add(currency)
+        prices.push({ price, currency })
+      }
+      // Never combine recommendations, currencies or incomplete variant data
+      // into an apparently verified price for the current product.
+      if (productIds.size === 1 && currencies.size === 1 && prices.length === data.productVariants.length) return prices
+    } catch {
+      /* A malformed initialization is not a verified price. Never execute it. */
+    }
+  }
+  return []
 }
 
 function storefrontCurrency(html: string): string | null {

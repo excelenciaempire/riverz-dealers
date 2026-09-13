@@ -150,7 +150,7 @@ export function offersFromText(text: string): DetectedOffer[] {
 }
 
 /** Extract a balanced `[...]`/`{...}` span starting at `start`, honoring JSON strings. */
-function extractBalanced(s: string, start: number, open: string, close: string): string | null {
+export function extractBalanced(s: string, start: number, open: string, close: string): string | null {
   let depth = 0
   let inStr = false
   let esc = false

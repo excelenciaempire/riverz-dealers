@@ -37,4 +37,27 @@ describe('pricingFromStorefrontHtml', () => {
       source: 'storefront',
     })
   })
+
+  it('verifies custom Shopify templates using pixel monetary amounts without scaling pesos', () => {
+    const html = `<script>wpmLoader({initData: ${JSON.stringify({
+      productVariants: [
+        { product: { id: '123', title: 'A {quoted} product' }, price: { amount: 110000, currencyCode: 'COP' } },
+        { product: { id: '123' }, price: { amount: 119900.5, currencyCode: 'COP' } },
+      ],
+    })}});</script>`
+    expect(pricingFromStorefrontHtml(html)).toEqual({ offers: [], priceMin: 110000, priceMax: 119900.5, currency: 'COP', source: 'storefront' })
+  })
+
+  it.each([
+    [{ product: { id: '1' }, price: { amount: 20, currencyCode: 'USD' } }, { product: { id: '2' }, price: { amount: 30, currencyCode: 'USD' } }],
+    [{ product: { id: '1' }, price: { amount: 20, currencyCode: 'USD' } }, { product: { id: '1' }, price: { amount: 30, currencyCode: 'COP' } }],
+    [{ product: { id: '1' }, price: { amount: 20, currencyCode: 'USD' } }, { product: { id: '1' }, price: { amount: null, currencyCode: 'USD' } }],
+  ])('rejects ambiguous or incomplete pixel prices (%j)', (...productVariants) => {
+    expect(pricingFromStorefrontHtml(`<script>wpmLoader({initData: ${JSON.stringify({ productVariants })}})</script>`)).toBeNull()
+  })
+
+  it('does not evaluate JavaScript or accept unrelated initData', () => {
+    expect(pricingFromStorefrontHtml('<script>wpmLoader({initData: {productVariants: runCode()}})</script>')).toBeNull()
+    expect(pricingFromStorefrontHtml('<script>otherLoader({initData: {"productVariants":[]}})</script>')).toBeNull()
+  })
 })
