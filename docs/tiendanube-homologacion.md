@@ -11,7 +11,7 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
 | --- | --- |
 | Confirmación de correo redirige a localhost | Corregido previamente en `7d3e8e62`. El 13/09 se verificó que un callback inválido devuelve 307 a `https://riverz.co/ingresar`, sin localhost. Las pruebas de callback y signup pasan. Falta repetir el alta completa del video. |
 | Video incompleto | El video del 19/08 es `https://youtu.be/OmxoUXJlk50`. Preparar uno nuevo con configuración del comercio y mensajes recibidos por un cliente: IA, campañas, recuperación de carrito y gestión de pedidos. No declarar este punto cerrado hasta disponer del video. |
-| FAQ sobre sincronización manual | Texto correcto: sincronizar vuelve a leer productos, precios y disponibilidad de Tiendanube y actualiza la copia del catálogo en Riverz. No modifica productos ni inventario en Tiendanube. Pendiente sustituirlo en el FAQ enviado. |
+| FAQ sobre sincronización manual | Aclaración guardada en las cuatro fichas por país y comunicada en el ticket: sincronizar vuelve a leer productos, precios y disponibilidad de Tiendanube y actualiza la copia del catálogo en Riverz. No modifica productos ni inventario en Tiendanube. |
 | Justificar write_orders | `create-order.ts` crea pedidos pendientes mediante POST /orders y `order-cancel.ts` cancela pedidos mediante POST /orders/{id}/cancel. El permiso no se usa para modificar inventario. Mostrar ambas acciones sobre pedidos de prueba en el nuevo video. |
 | Precios redondeados | Corregido el formato del catálogo, tarjetas del chat y pedidos de la bandeja. Casos de regresión: 179.90 y 33.72, español e inglés, monedas con tres decimales y ausencia de moneda. |
 | GET /orders con 404 | El 13/09 GET /orders y GET /orders?per_page=1 devolvieron 200 tanto para la tienda revisora 4265771 como para Riverz Demo 8018159. Ambas tienen order/created, order/paid, order/fulfilled, order/cancelled, order/updated y app/uninstalled. La captura no muestra los parámetros de las tres consultas fallidas; no se ha demostrado su causa exacta ni debe afirmarse que está resuelta. |
@@ -25,10 +25,30 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
 - Se respondió desde `riverzoficial@gmail.com` al ticket vigente a las 16:30
   America/New_York. Gmail confirmó **Message sent**. La respuesta distingue
   lo corregido del video pendiente y solicita los parámetros de los tres 404.
-- Riverz Demo tiene Tiendanube conectado, dos agentes apagados, ninguna fila de
-  configuración WhatsApp y ninguna plantilla. Falta elegir/conectar una línea
-  remitente para grabar envíos reales; el destinatario de prueba fue autorizado
-  por el dueño. No activar campañas ni agentes para otros contactos.
+- El dueño eligió la cuenta con WhatsApp colombiano conectado. Esa cuenta usa
+  Shopify (DeUNA Shop), por lo que sus pruebas de mensajería no prueban la
+  integración Tiendanube. Riverz Demo sigue sin WhatsApp ni plantillas.
+- Prueba real de IA: primero falló con `price_integrity: 110000`. Se agregó
+  lectura segura de precios de Shopify Web Pixels para páginas sin JSON-LD
+  (`8a101446`). Después del despliegue, el cliente recibió el precio 110.000 COP
+  y los seis modelos; no se creó pedido. IA registró `sent`, sin error.
+- Prueba real de campaña: se corrigieron la ausencia de `workspace_id` al
+  guardar y el alcance de destinatarios (`321dac04`). Luego se corrigió la
+  lectura de credenciales con cliente servidor, pues las columnas secretas
+  están revocadas al cliente autenticado (`94c87458`). La campaña Utility
+  “QA Riverz - campana validada 20260913” salió a un único contacto y se verificó
+  su recepción real en WhatsApp a las 17:19 America/New_York.
+- El adaptador unificado actualizaba mensajes pero no destinatarios de
+  campañas. `ce2eddeb` agrega ese reflejo con alcance de workspace y transiciones
+  hacia adelante, incluso sin conversación creada para la campaña.
+- Recuperación: se verificó la configuración existente (espera una hora,
+  condición de compra, recordatorio y nueva espera de 23 horas). No se ejecutó
+  ni se acreditó recepción: la plantilla es Marketing y el único cliente de
+  prueba tiene número estadounidense. El dueño confirmó que no hay otro.
+- Sigue pendiente el video integral de Tiendanube: alta con verificación,
+  configuración completa, recuperación recibida y creación/cancelación de
+  pedidos de prueba. La grabación de mensajería es evidencia parcial y debe
+  presentarse como tal, sin sustituir la prueba Tiendanube por Shopify.
 
 No incluir credenciales ni teléfonos privados de revisión en este repositorio.
 
