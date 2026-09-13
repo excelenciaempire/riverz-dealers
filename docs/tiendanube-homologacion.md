@@ -49,6 +49,23 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
   configuración completa, recuperación recibida y creación/cancelación de
   pedidos de prueba. La grabación de mensajería es evidencia parcial y debe
   presentarse como tal, sin sustituir la prueba Tiendanube por Shopify.
+- Verificación final de contadores: “QA Riverz - entrega final 20260913” recibió
+  acuse `delivered` de Meta a las 21:29:28 UTC; después de recargar, el panel
+  mostró 1 entregado, 100%, 0 fallidos. No se modificaron contadores a mano.
+- Gmail confirmó el envío de un segundo seguimiento con el MP4 de evidencia
+  parcial (19,47 s) y una captura de recepción con datos personales ocultos.
+  Se pidió una alternativa aceptable para demostrar recuperación sin otro
+  número, conservando explícitamente abiertos los puntos incompletos.
+- Prueba real de pedidos por las funciones de Riverz: tienda demo 8018159,
+  pedido #116 (2069564025), creado `open` / `pending` por 179.90 COP y luego
+  cancelado. GET posterior confirmó `cancelled`, todavía sin pago; el total y
+  precio unitario conservaron `179.90`. No hubo cobro ni despacho.
+- Alta real de cuenta QA por `/api/auth/signup`: 200 y correo recibido.
+  Antes de confirmar, login devolvió `email_not_confirmed`, sin sesión.
+  El enlace recibido redirigió a `https://riverz.co/auth/callback`, sin
+  localhost; después, login devolvió sesión y correo confirmado. Se eliminó
+  exclusivamente la cuenta QA y se revocó su código de un uso. Esto valida
+  correo y autenticación por HTTP, no sustituye el recorrido visual completo.
 
 No incluir credenciales ni teléfonos privados de revisión en este repositorio.
 
