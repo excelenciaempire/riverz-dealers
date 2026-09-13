@@ -3,6 +3,7 @@ import { buildRetentionPlan, type RetentionPlanOptions } from './retention-plan'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { validateStepsForActivation } from './validate'
 import { buildTemplateComponents } from '@/lib/whatsapp/template-components'
+import { AUTOMATION_TEMPLATES } from './templates'
 import type { BuilderStepInput } from './steps-tree'
 
 const tags = { enrolled: '00000000-0000-4000-8000-000000000001', permission: '00000000-0000-4000-8000-000000000002', paused: '00000000-0000-4000-8000-000000000003', help: '00000000-0000-4000-8000-000000000004' }
@@ -37,8 +38,17 @@ function run(nodes: BuilderStepInput[], unit: number, changes: { pauseAt?: numbe
 
 describe('retention program', () => {
   const plan = buildRetentionPlan(options)
-  it.each([[1, [1, 7, 22, 29]], [3, [1, 7, 21, 82, 89]], [4, [1, 7, 21, 112, 119]]])('schedules the actual delivery-relative cycle for %i units', (units, days) => {
+  it.each([[1, [1, 7, 22, 29]], [3, [1, 7, 21, 82, 89]], [4, [1, 7, 21, 112, 119]]])('schedules the confirmation-relative cycle for %i units', (units, days) => {
     expect(run(plan.flows[0].steps, Number(units)).map(s => s.day)).toEqual(days)
+  })
+  it('previews the same enrollment and reply handling as an installed journey', () => {
+    for (const [slug, replenishment] of [['postventa-reposicion', true], ['postventa-acompanamiento', false]] as const) {
+      const preview = AUTOMATION_TEMPLATES[slug]
+      const installed = buildRetentionPlan({ ...options, offers: replenishment ? options.offers : [] }).flows[0]
+      expect(preview.trigger_type).toBe(installed.trigger_type)
+      expect(preview.trigger_config).toEqual({ ...installed.trigger_config, retention_product: '', retention_pause_tag: '' })
+      expect(preview.trigger_config).toMatchObject({ retention_enrollment: 'confirmed_order', stop_on_inbound: true, retention_ai_managed: true })
+    }
   })
   it('does not assume an unknown quantity is a single unit', () => {
     expect(run(plan.flows[0].steps, 2).map(s => s.day)).toEqual([1, 7, 21])

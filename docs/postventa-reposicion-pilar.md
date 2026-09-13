@@ -45,4 +45,6 @@ La recompra anterior ya estaba archivada y no tiene esperas pendientes.
 
 La biblioteca instala una sola automatización con la misma regla de confirmación, en español o inglés. Hay que seleccionar el producto antes de activar. No crea suscripciones ni cobros recurrentes.
 
+La vista previa y la instalación comparten la configuración de entrada, recompra y respuestas. En el lienzo, «Pedido confirmado» muestra el criterio de pago; al abrirlo aparecen la confirmación requerida para contra entrega, el inicio del cómputo de días y la pausa para continuar con IA. Los mensajes y las esperas permanecen en los pasos editables del mismo recorrido.
+
 Las pruebas cubren pagos acreditados frente a pendientes/autorizados, contra entrega sin y con confirmación, cancelación, aislamiento por cuenta/pedido, calendario, cantidades mixtas, bajas y reprogramación. La migración conserva el flujo y los pasos restantes, exige que no haya esperas pendientes y deja el flujo inactivo hasta verificar aprobación y despliegue.

@@ -2287,7 +2287,11 @@ function TriggerCard({
                 disparador queda escondido detrás del acordeón y el lienzo
                 miente por omisión: se lee "pago rechazado → enviar" cuando
                 en realidad hay una espera y una comprobación en el medio. */}
-            {triggerSummary(type, config) && (
+            {type === 'shopify_order_confirmed' ? (
+              <div className="text-muted-foreground truncate text-[11px]" title={t('automations.confirmedOrderSummary')}>
+                {t('automations.confirmedOrderSummary')}
+              </div>
+            ) : triggerSummary(type, config) && (
               <div className="text-muted-foreground truncate text-[11px]">
                 {triggerSummary(type, config)}
               </div>
@@ -2302,6 +2306,16 @@ function TriggerCard({
         </button>
         {open && (
           <div className="border-border space-y-3 border-t px-4 py-3">
+            {type === 'shopify_order_confirmed' && (
+              <div className="text-muted-foreground space-y-2 text-xs">
+                <p>{t('automations.confirmedOrderPayment')}</p>
+                <p>{t('automations.confirmedOrderCod')}</p>
+                <p>{t('automations.confirmedOrderTiming')}</p>
+              </div>
+            )}
+            {config.retention_ai_managed === true && config.stop_on_inbound === true && (
+              <p className="text-muted-foreground text-xs">{t('automations.retentionAiReplies')}</p>
+            )}
             {typeof config.retention_replenishment === 'boolean' && (
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={config.retention_replenishment}

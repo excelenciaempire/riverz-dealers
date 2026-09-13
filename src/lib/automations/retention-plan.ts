@@ -24,6 +24,12 @@ const step = (step_type: string, step_config: Record<string, unknown>): BuilderS
 const wait = (days: number) => step('wait', { amount: days, unit: 'days' })
 const branch = (config: Record<string, unknown>, yes: BuilderStepInput[], no: BuilderStepInput[] = []): BuilderStepInput => ({ ...step('condition', config), branches: { yes, no } })
 
+/** Shared by gallery previews and installed journeys. */
+export function retentionTriggerConfig(replenishment: boolean, product = '', pauseTag = '') {
+  return { platforms: ['shopify'], retention_product: product, retention_replenishment: replenishment,
+    stop_on_inbound: true, retention_ai_managed: true, retention_enrollment: 'confirmed_order', retention_pause_tag: pauseTag }
+}
+
 /** Main-flow preview for the gallery and Operator, generated from the same
  * native tree as the real install. Dependencies stay empty until installation. */
 export function retentionTemplateSeeds(replenishment: boolean): TemplateStepSeed[] {
@@ -126,7 +132,7 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
   let selected: BuilderStepInput[] = mainPath()
   for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'retention_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
   const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_confirmed',
-    trigger_config: { platforms: ['shopify'], retention_product: o.product, retention_replenishment: o.offers.length > 0, stop_on_inbound: true, retention_ai_managed: true, retention_enrollment: 'confirmed_order', retention_pause_tag: o.tags.paused }, steps: [scope(selected)] }]
+    trigger_config: retentionTriggerConfig(o.offers.length > 0, o.product, o.tags.paused), steps: [scope(selected)] }]
   return { templates: o.offers.length ? templates : templates.filter(t => [received, care, experience].includes(t.nombre)), flows }
 }
 

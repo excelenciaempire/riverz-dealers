@@ -4,9 +4,14 @@ import type { Namespace } from "./types";
 export const automations = {
   'tpl_postventa-reposicion_name': { es: 'Recompras', en: 'Reorders' },
   'tpl_postventa-reposicion_desc': {
-    es: 'Contacta según lo comprado y el tiempo de uso. Cuando el cliente responde, la IA continúa la conversación.',
-    en: 'Follow up based on the purchase and usage time. When the customer replies, AI continues the conversation.',
+    es: 'Empieza con el pago acreditado o la confirmación del cliente en contra entrega. Envía los mensajes en los días configurados; la IA gestiona las respuestas.',
+    en: 'Starts when payment clears or the customer confirms a cash-on-delivery order. Sends messages on the configured days; AI handles replies.',
   },
+  confirmedOrderSummary: { es: 'Pago acreditado o contra entrega confirmado', en: 'Payment cleared or cash on delivery confirmed' },
+  confirmedOrderPayment: { es: 'Pago anticipado: empieza cuando se acredita el pago.', en: 'Prepayment: starts when payment clears.' },
+  confirmedOrderCod: { es: 'Contra entrega: espera la confirmación del cliente registrada en el pedido.', en: 'Cash on delivery: waits for the customer’s confirmation to be recorded on the order.' },
+  confirmedOrderTiming: { es: 'Los días se cuentan desde esa confirmación. Cada espera se suma a la anterior.', en: 'Days count from that confirmation. Each wait adds to the previous one.' },
+  retentionAiReplies: { es: 'Si el cliente responde, se pausan los mensajes pendientes y continúa la IA.', en: 'When the customer replies, pending messages pause and AI takes over.' },
   retentionEvents: { es: 'Entrega, respuestas y devoluciones', en: 'Delivery, replies and returns' },
   retentionReplenishment: { es: 'Incluir recompra', en: 'Include reordering' },
   dpJourneyEvent: { es: 'Evento del recorrido', en: 'Journey event' },
