@@ -72,8 +72,9 @@ async function telnyx<T>(
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
   if (!res.ok) {
-    const detail =
-      json?.errors?.[0]?.detail || json?.errors?.[0]?.title || res.statusText;
+    const detail = [json?.errors?.[0]?.title, json?.errors?.[0]?.detail]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join(': ') || res.statusText;
     const error = json?.errors?.[0];
     throw new TelnyxApiError(`Telnyx ${res.status}: ${detail}`, res.status,
       error?.code == null ? null : String(error.code),
