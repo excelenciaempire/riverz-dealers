@@ -1,5 +1,6 @@
 import type { MessageEntry, Namespace } from "./types";
 import { voiceNotes } from './voiceNotes';
+import { logistics } from './logistics';
 
 // === Namespace registry ====================================================
 // Each feature area's strings live in its own file (one namespace = one
@@ -48,6 +49,7 @@ import { webchat } from "./webchat";
 import { returns, gaps, unify, approvals, reglas } from "./returns";
 
 const NAMESPACES: Record<string, Namespace> = {
+  logistics,
   pitch,
   onboarding,
   admin,

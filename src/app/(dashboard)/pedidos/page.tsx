@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from '@/components/i18n/locale-link';
 import { toast } from 'sonner';
 import { Loader2, Receipt, ExternalLink } from 'lucide-react';
 import { useT } from '@/hooks/use-locale';
@@ -66,7 +67,10 @@ export default function PedidosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('products.ordersTitle')}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t('products.ordersTitle')}</h1>
+          <Link href="/logistica" prefetch={false} className="rounded-md border px-3 py-2 text-sm">{t('logistics.title')}</Link>
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {t('products.ordersSubtitle')}
         </p>

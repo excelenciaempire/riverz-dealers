@@ -25,6 +25,7 @@ import type { Locale } from "./config";
 export const ROUTE_SLUGS_EN: Record<string, string> = {
   // dashboard
   operacion: "operation",
+  logistica: "logistics",
   panel: "dashboard",
   bandeja: "inbox",
   contactos: "contacts",

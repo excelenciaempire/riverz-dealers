@@ -121,3 +121,17 @@ Las métricas propuestas distinguen cancelaciones / pedidos creados, entregados 
 9. Mantener el borrador sin consumidores de producción hasta que el dueño pida activarlo. El siguiente paso técnico es un adaptador de lectura y una vista de simulación con datos reales; no hay una activación pendiente de reloj.
 
 La integración de llamadas que ya existía no se alteró. Antes de conectar este flujo debe verificarse su ruta actual de escritura COD para que ninguna llamada de incidencias pase por creación de pedidos. El contexto preparado aquí la deshabilita explícitamente.
+
+## Avance implementado: revisión real y copy de confirmación
+
+La pantalla `/logistica` (inglés `/logistics`), accesible desde Pedidos, consulta Shopify en páginas de 25 pedidos y cruza contactos, conversación reciente y llamadas de Riverz dentro del mismo comercio. Su endpoint autenticado es `GET /api/integrations/dropi/preview`. No envía mensajes, no agenda llamadas y no modifica órdenes. El historial de un contacto puede pertenecer a varios pedidos: se muestra como contexto, nunca como confirmación automática.
+
+Una guía registrada no prueba recogida física. Una entrega parcial tampoco prueba la entrega completa. Los estados de Shopify no se convierten en novedades oficiales de Dropi. Los enlaces de transportadora se muestran con su guía y como pendientes de verificación; esta pantalla no autoriza su envío.
+
+La consulta real del comercio encontró seis pedidos y 22 mensajes recientes. No encontró llamadas asociadas a esos pedidos ni una conexión de Dropi. El dueño confirmó que todavía no tiene acceso ni documentación. La conexión, escritura sobre órdenes existentes, recepción de novedades oficiales y ejecución persistente del seguimiento continúan pendientes de ese contrato; no se han simulado como funciones operativas ni activado consumidores de producción.
+
+Las tres plantillas de confirmación, recordatorio y última revisión se reescribieron en español e inglés: saludo por primer nombre, emojis, párrafos cortos, producto real y total legible (`110.000 COP`). Se quitó DeUNA del cuerpo, conservando los nombres internos. No prometen despacho, descuentos ni fechas. El precio original del pedido se conserva; las variables de presentación son independientes.
+
+Las seis versiones `*_datos_v3` se enviaron a Meta. El script `scripts/refresh-deuna-confirmation-copy.ts` consulta su aprobación. Solo `--apply --deployed-commit=<commit completo>` permite sustituir las referencias de los tres pasos existentes, después de comprobar aprobación española y despliegue de las variables nuevas. Preserva esperas, llamada, contexto de revisión de datos y estado de activación. No reenvía mensajes a clientes ni reinicia seguimientos.
+
+Validación: casos de límites entre Shopify y Dropi, aislamiento de la consulta autenticada, formato de moneda, compatibilidad real de los seis cuerpos con el constructor de Meta y motor de decisiones del borrador. La aprobación de Meta es externa; enviar una plantilla a revisión no significa que esté aprobada o utilizada por el flujo.

@@ -16,6 +16,7 @@ import type {
   SetContextStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
+import { confirmationDisplayVars } from './confirmation-copy'
 import { motorApagado } from '@/lib/workspaces/motor'
 import {
   inferVoiceCallScenario,
@@ -894,6 +895,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           setIfAbsent('last_product', String(c.last_product ?? ''))
         }
       }
+      Object.assign(args.context.vars ??= {}, confirmationDisplayVars(args.context.vars ?? {}, cfg.language ?? 'es'))
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
       // of "1", "2", …, "10" yields "1", "10", "2", … which silently

@@ -60,6 +60,7 @@ export function canAccessSection(
   allowed: string[] | null | undefined,
   path: string,
 ): boolean {
+  if (path === '/logistica' || path.startsWith('/logistica?') || path.startsWith('/logistica/')) path = '/pedidos';
   if (allowed == null) return true;
   if (
     ALWAYS_ALLOWED.some(
