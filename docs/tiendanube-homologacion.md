@@ -76,6 +76,16 @@ y pidió fecha de ajustes el 11. Las secciones fechadas más abajo son históric
   prueba entrega y botón de la plantilla, no el disparo automático de un
   abandono ni una captura de la pantalla del WhatsApp destinatario.
 
+- Comprobación posterior: Meta avanzó la recuperación del administrador a
+  `read`, sin errores. Se verificó su conversación en la bandeja y se guardó
+  una captura recortada a ese chat, sin otros contactos. Esto acredita lectura;
+  todavía no es una captura del WhatsApp del destinatario.
+- El ticket recibió la corrección sobre el número argentino disponible y la
+  entrega de Marketing. Se retiró la petición de alternativa por falta de número.
+- El disparo automático de Tiendanube sigue pendiente: la tienda demo y la
+  línea colombiana pertenecen a espacios distintos. No se movieron conexiones,
+  copiaron credenciales ni dispararon cron globales sobre clientes reales.
+
 No incluir credenciales ni teléfonos privados de revisión en este repositorio.
 
 > **2026-08-17 — Homologación SOLICITADA.** La app está en distribución
