@@ -1,144 +1,138 @@
-/** Customer-facing copy for riverzoficial (commercial name: DeUNA Shop).
- * Product context verified against this workspace's catalog on 2026-09-13.
- * Keep placeholder signatures and button labels unchanged.
- */
-export const RIVERZOFICIAL_WORKSPACE = '36f81b96-41b9-4d29-b72e-11be3d3070a3';
-export const riverzoficialCopy: Record<string, string> = {
-'deuna_confirmacion_contraentrega:es': `¡Gracias por comprar en DeUNA Shop! 😊
+/** Reviewed messages for riverzoficial. Product lists are always transaction data. */
+export { RIVERZOFICIAL_WORKSPACE } from '../src/lib/automations/riverzoficial-template-context';
+type Copy = { key: string; aliases: string[]; fields: string[]; es: string; en: string };
+export const productTemplates: Copy[] = [
+{ key: 'confirmacion', aliases: ['deuna_confirmacion_contraentrega','deuna_confirmacion_datos_v2','deuna_confirmacion_datos_v3'], fields: ['contact_first_name','order_items','total_price_display','delivery_address','delivery_phone'],
+es: `Hola, {{1}} 😊 ¡Gracias por tu compra!
 
-Recibimos tu pedido {{1}} por {{2}}. Pagas al recibirlo.
+Ya recibimos lo que elegiste:
+{{2}}
 
-¿Los datos del resumen están bien? Responde CONFIRMAR. Si necesitas ajustar alguno, responde CORREGIR y cuéntanos cuál.`,
-'deuna_confirmacion_datos_v2:es': `Hola, {{1}} 😊 ¡Gracias por tu compra en DeUNA Shop!
+Pagas al recibir: {{3}}
+Lo enviamos a: {{4}}
+Tu teléfono: {{5}}
 
-Este es el resumen de tu pedido {{2}}:
-{{3}}
+¿Está todo bien? Toca CONFIRMAR.
+Si necesitas cambiar algún dato, toca CORREGIR y dime cuál.`,
+en: `Hi, {{1}} 😊 Thanks for your purchase!
 
-Pagas al recibir: {{4}} COP
-Dirección: {{5}}
-Teléfono: {{6}}
+We received your selection:
+{{2}}
 
-Toca CONFIRMAR si los datos están bien.
-Si falta algo o necesitas un cambio, toca CORREGIR y cuéntanos cuál.`,
-'deuna_confirmacion_datos_v3:es': `Hola, {{1}} 😊 ¡Gracias por tu compra en DeUNA Shop!
+Pay on delivery: {{3}}
+Delivery address: {{4}}
+Your phone: {{5}}
 
-Este es el resumen de tu pedido {{2}}:
-{{3}}
+Does everything look right? Tap CONFIRM.
+If a detail needs changing, tap CORRECT and tell me which one.` },
+{ key: 'recordatorio', aliases: ['deuna_recordatorio_confirmacion','deuna_recordatorio_datos_v2','deuna_recordatorio_datos_v3'], fields: ['order_items'],
+es: `Te escribo por lo que elegiste 😊
+{{1}}
 
-Pagas al recibir: {{4}}
-Dirección: {{5}}
-Teléfono: {{6}}
+¿Pudiste revisar la dirección y los demás datos que te envié?
 
-Toca CONFIRMAR si los datos están bien.
-Si falta algo o necesitas un cambio, toca CORREGIR y cuéntanos cuál.`,
-'deuna_confirmacion_datos_v3:en': `Hi, {{1}} 😊 Thanks for shopping with DeUNA Shop!
+Toca CONFIRMAR si están bien o CORREGIR si necesitas ajustar algo.`,
+en: `I'm following up on your selection 😊
+{{1}}
 
-Here is your order {{2}} summary:
-{{3}}
+Have you checked the address and other details I sent you?
 
-Pay on delivery: {{4}}
-Address: {{5}}
-Phone: {{6}}
+Tap CONFIRM if they're right, or CORRECT if something needs changing.` },
+{ key: 'revision', aliases: ['deuna_revision_datos_v2','deuna_revision_datos_v3','deuna_ultimo_recordatorio'], fields: ['order_items'],
+es: `Me falta tu respuesta sobre:
+{{1}}
 
-Tap CONFIRM if the details are right.
-If anything is missing or needs changing, tap CORRECT and tell us which detail.`,
-'deuna_recordatorio_confirmacion:es': `Te escribimos de DeUNA Shop por tu pedido {{1}} 😊
+¿Los datos que te envié están bien? Toca CONFIRMAR para decírmelo 😊
 
-¿La dirección y los productos del resumen están correctos?
+Si necesitas cambiar algo, toca CORREGIR. Si tienes una duda, escríbeme y la revisamos.`,
+en: `I'm still waiting to hear from you about:
+{{1}}
 
-Responde CONFIRMAR si todo está bien o CORREGIR si necesitas ajustar algún dato.`,
-'deuna_recordatorio_datos_v2:es': `Te escribimos de DeUNA Shop por tu pedido {{1}} 😊
+Are the details I sent you right? Tap CONFIRM to let me know 😊
 
-¿La dirección y los productos del resumen están correctos?
+If something needs changing, tap CORRECT. If you have a question, send it here and we'll go through it.` },
+{ key: 'carrito', aliases: ['deuna_carrito_pendiente_1','riverz_carrito_abandonado'], fields: ['order_items'],
+es: `Vi que dejaste esto en tu carrito 😊
+{{1}}
 
-Toca CONFIRMAR si todo está bien.
-Si necesitas ajustar algún dato, toca CORREGIR y cuéntanos cuál.`,
-'deuna_recordatorio_datos_v3:es': `Hola, {{1}} 😊 Te escribimos de DeUNA Shop por tu pedido {{2}}.
+¿Te quedó alguna duda antes de comprar? Dime qué te gustaría saber y te ayudo.
 
-Elegiste {{3}}. ¿Los productos y la dirección del resumen están correctos?
+Puedes retomar la compra desde el botón. Pagas cuando la recibas.`,
+en: `I saw you left this in your cart 😊
+{{1}}
 
-Toca CONFIRMAR si todo está bien.
-Si necesitas ajustar algún dato, toca CORREGIR y cuéntanos cuál.`,
-'deuna_recordatorio_datos_v3:en': `Hi, {{1}} 😊 This is DeUNA Shop checking the details of order {{2}}.
+Did you have a question before buying? Tell me what you'd like to know and I'll help.
 
-You chose {{3}}. Are the items and address in the summary correct?
+You can continue from the button below. You pay when your purchase arrives.` },
+{ key: 'carrito_recordatorio', aliases: ['deuna_carrito_pendiente_2'], fields: ['order_items'],
+es: `¿Todavía te interesa llevar esto?
+{{1}}
 
-Tap CONFIRM if everything is right.
-If a detail needs changing, tap CORRECT and tell us which one.`,
-'deuna_revision_datos_v2:es': `¿Pudiste revisar tu pedido {{1}} de DeUNA Shop? 😊
+Si hay algo que te hace dudar, cuéntame y lo revisamos 😊
 
-Solo necesitamos saber si los datos del resumen están bien.
+Si ya te decidiste, puedes terminar la compra desde el botón y pagar al recibir.`,
+en: `Are you still interested in these items?
+{{1}}
 
-Toca CONFIRMAR para indicarlo o CORREGIR si necesitas un cambio.
-Si tienes una duda sobre tu pedido, cuéntanos por aquí.`,
-'deuna_revision_datos_v3:es': `Hola, {{1}} 😊 ¿Pudiste revisar tu pedido {{2}} de DeUNA Shop?
+If something is making you hesitate, tell me and we'll go through it 😊
 
-Solo necesitamos saber si los datos del resumen están bien.
+If you've decided, you can finish from the button below and pay on delivery.` },
+{ key: 'despachado', aliases: ['deuna_pedido_despachado','deuna_pedido_despachado_v2','riverz_pedido_en_camino'], fields: ['order_items','tracking_number'],
+es: `¡Ya enviamos tu compra! 🚚
+{{1}}
 
-Toca CONFIRMAR para indicarlo o CORREGIR si necesitas un cambio.
-Si tienes una duda sobre tu pedido, cuéntanos por aquí.`,
-'deuna_revision_datos_v3:en': `Hi, {{1}} 😊 Have you had a chance to check your DeUNA Shop order {{2}}?
+Te dejo la guía para seguir el envío: {{2}}
 
-We just need to know whether the summary details are correct.
+Si necesitas revisar algo de la entrega, escríbeme por aquí.`,
+en: `We've shipped your purchase! 🚚
+{{1}}
 
-Tap CONFIRM to let us know, or CORRECT if something needs changing.
-If you have a question about your order, send it here.`,
-'deuna_ultimo_recordatorio:es': `¿Pudiste revisar tu pedido {{1}} de DeUNA Shop? 😊
+Here's your tracking number: {{2}}
 
-Responde CONFIRMAR si los datos del resumen están bien o CORREGIR si necesitas un cambio.
+If you need to check anything about the delivery, message me here.` },
+{ key: 'entregado', aliases: ['deuna_pedido_entregado'], fields: ['order_items'],
+es: `Me aparece como entregada tu compra de:
+{{1}}
 
-Si tienes una duda sobre tu pedido, cuéntanos por aquí.`,
-'deuna_carrito_pendiente_1:es': `¿Te quedó alguna duda antes de terminar tu compra en DeUNA Shop? 😊
+¿Te llegó todo bien? 📦
 
-Cuéntanos qué necesitas aclarar del producto que elegiste: sus características, cómo se usa o la entrega.
+Si te falta algo o tienes alguna duda para usarlo, cuéntame.`,
+en: `Your purchase is showing as delivered:
+{{1}}
 
-Puedes retomar tu compra desde el botón. Pagas al recibir.`,
-'deuna_carrito_pendiente_2:es': `¿Lo estás pensando todavía? Retoma tu compra en DeUNA Shop cuando lo tengas claro 😊
+Did everything arrive in good condition? 📦
 
-En el carrito puedes revisar lo que elegiste, la cantidad y el total antes de terminar.
+If anything is missing or you have a question about using it, let me know.` },
+{ key: 'cancelado', aliases: ['deuna_pedido_cancelado'], fields: ['order_items'],
+es: `Te aviso que quedó cancelada tu compra de:
+{{1}}
 
-Pagas al recibir. Si te falta aclarar algo antes de elegir, escríbenos.`,
-'deuna_pedido_despachado:es': `¡Tu pedido {{1}} de DeUNA Shop ya va en camino! 🚚
+Si no pediste cancelarla, escríbeme y revisamos qué pasó.`,
+en: `I'm letting you know that this purchase was cancelled:
+{{1}}
 
-Esta es tu guía: {{2}}
+If you didn't ask to cancel it, message me and we'll check what happened.` },
+{ key: 'experiencia', aliases: ['riverz_como_te_fue'], fields: ['order_items'],
+es: `¿Cómo te ha ido con esto? 😊
+{{1}}
 
-Si necesitas revisar una novedad de la entrega, escríbenos por este chat.`,
-'deuna_pedido_despachado_v2:es': `¡Tu pedido {{1}} de DeUNA Shop ya va en camino! 🚚
+Cuéntame si ya lo usaste o si necesitas que te ayude con algo.`,
+en: `How are you getting on with these items? 😊
+{{1}}
 
-Transportadora: {{2}}
-Guía: {{3}}
+Tell me if you've had a chance to use them or need help with anything.` },
+{ key: 'revision_pago', aliases: ['riverz_esperando_transferencia','riverz_pago_rechazado'], fields: ['order_items'],
+es: `Te escribo por tu compra de:
+{{1}}
 
-Toca Rastrear mi pedido para consultar el recorrido.
-Si aparece una novedad que no entiendes, escríbenos y la revisamos.`,
-'deuna_pedido_entregado:es': `Tu pedido {{1}} de DeUNA Shop figura como entregado 📦
+Recuerda que pagas al recibir, no necesitas transferir antes.
 
-¿Te llegó todo en buen estado?
+Si te llegó un aviso de pago que no entiendes, envíamelo y lo reviso contigo.`,
+en: `I'm writing about your purchase of:
+{{1}}
 
-Si no lo recibiste o necesitas revisar algo, cuéntanos por aquí.`,
-'deuna_pedido_cancelado:es': `Te avisamos de DeUNA Shop: tu pedido {{1}} quedó cancelado.
+Remember, you pay on delivery. You don't need to transfer money beforehand.
 
-Si no lo solicitaste, escríbenos para revisar qué ocurrió.`,
-'riverz_carrito_abandonado:es': `Hola, {{1}} 😊 ¿Te quedó alguna duda antes de comprar en DeUNA Shop?
-
-Cuéntanos qué necesitas aclarar del producto que elegiste o de la entrega.
-
-Si ya lo tienes claro, retoma tu compra desde el botón. Pagas al recibir.`,
-'riverz_como_te_fue:es': `Hola, {{1}} 😊 Te escribimos de DeUNA Shop. ¿Cómo te ha ido con {{2}}?
-
-Si tienes alguna duda para usarlo o llegó con algún problema, cuéntanos qué pasó para revisar tu caso.`,
-'riverz_pedido_en_camino:es': `Hola, {{1}}. ¡Tu pedido {{2}} de DeUNA Shop ya va en camino! 🚚
-
-Consulta aquí el recorrido y las novedades de entrega: {{3}}
-
-Si aparece una novedad que no entiendes, escríbenos y la revisamos.`,
-'riverz_esperando_transferencia:es': `Hola, {{1}}. Te escribimos de DeUNA Shop por tu pedido {{2}} de {{3}}.
-
-En nuestra tienda pagas al recibir; no necesitas hacer una transferencia para este pedido.
-
-Si recibiste una solicitud de pago anticipado, cuéntanos por aquí para revisarla.`,
-'riverz_pago_rechazado:es': `Hola, {{1}}. ¿Tienes alguna duda sobre el pago de {{2}} en DeUNA Shop?
-
-En nuestra tienda pagas al recibir tu pedido.
-
-Si te apareció un aviso de pago rechazado o ves un cobro, cuéntanos qué ocurrió para revisarlo.`,
-};
+If you received a payment notice you don't understand, send it to me and we'll check it together.` },
+];
+export const productTemplateName = (key: string) => `deuna_${key}_producto_v1`;

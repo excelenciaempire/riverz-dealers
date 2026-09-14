@@ -55,6 +55,7 @@ import type { ContactSegment } from '@/lib/segments/types'
 import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
 
 // ------------------------------------------------------------
 // Public API
@@ -900,6 +901,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           setIfAbsent('last_product', String(c.last_product ?? ''))
         }
       }
+      await requireRiverzoficialTemplateItems(db, args.automation.workspace_id, cfg.template_name, args.context.vars ??= {})
       Object.assign(args.context.vars ??= {}, confirmationDisplayVars(args.context.vars ?? {}, cfg.language ?? 'es'))
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
