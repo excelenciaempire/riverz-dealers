@@ -25,58 +25,58 @@ Your phone: {{5}}
 
 Does everything look right? Tap CONFIRM.
 If a detail needs changing, tap CORRECT and tell me which one.` },
-{ key: 'recordatorio', aliases: ['deuna_recordatorio_confirmacion','deuna_recordatorio_datos_v2','deuna_recordatorio_datos_v3'], fields: ['order_items'],
-es: `Te escribo por lo que elegiste 😊
+{ key: 'recordatorio', aliases: ['deuna_recordatorio_producto_v1','deuna_recordatorio_confirmacion','deuna_recordatorio_datos_v2','deuna_recordatorio_datos_v3'], fields: ['order_items'],
+es: `Quiero asegurarme de que recibas justo lo que elegiste 😊
 {{1}}
 
-¿Pudiste revisar la dirección y los demás datos que te envié?
+¿La dirección y el teléfono del resumen están bien?
 
-Toca CONFIRMAR si están bien o CORREGIR si necesitas ajustar algo.`,
-en: `I'm following up on your selection 😊
+Toca CONFIRMAR si están correctos. Si algo cambió, toca CORREGIR y dime qué necesitas ajustar.`,
+en: `I want to make sure you receive exactly what you chose 😊
 {{1}}
 
-Have you checked the address and other details I sent you?
+Are the address and phone number in the summary correct?
 
-Tap CONFIRM if they're right, or CORRECT if something needs changing.` },
-{ key: 'revision', aliases: ['deuna_revision_datos_v2','deuna_revision_datos_v3','deuna_ultimo_recordatorio'], fields: ['order_items'],
-es: `Me falta tu respuesta sobre:
+Tap CONFIRM if they're right. If something has changed, tap CORRECT and tell me what needs updating.` },
+{ key: 'revision', aliases: ['deuna_revision_producto_v1','deuna_revision_datos_v2','deuna_revision_datos_v3','deuna_ultimo_recordatorio'], fields: ['order_items'],
+es: `¿Hay algo que quieras revisar antes de confirmar esto?
 {{1}}
 
-¿Los datos que te envié están bien? Toca CONFIRMAR para decírmelo 😊
+Si tienes una duda o necesitas cambiar un dato, cuéntame y lo revisamos juntos.
 
-Si necesitas cambiar algo, toca CORREGIR. Si tienes una duda, escríbeme y la revisamos.`,
-en: `I'm still waiting to hear from you about:
+Si todo está bien, toca CONFIRMAR 😊 Para ajustar los datos, toca CORREGIR.`,
+en: `Is there anything you'd like to check before confirming these details?
 {{1}}
 
-Are the details I sent you right? Tap CONFIRM to let me know 😊
+If you have a question or need to change a detail, tell me and we'll go through it together.
 
-If something needs changing, tap CORRECT. If you have a question, send it here and we'll go through it.` },
-{ key: 'carrito', aliases: ['deuna_carrito_pendiente_1','riverz_carrito_abandonado'], fields: ['order_items'],
-es: `Vi que dejaste esto en tu carrito 😊
+If everything is right, tap CONFIRM 😊 To update the details, tap CORRECT.` },
+{ key: 'carrito', aliases: ['deuna_carrito_producto_v1','deuna_carrito_pendiente_1','riverz_carrito_abandonado'], fields: ['order_items'],
+es: `Puedes llevar lo que elegiste y pagarlo cuando lo recibas 😊
 {{1}}
 
-¿Te quedó alguna duda antes de comprar? Dime qué te gustaría saber y te ayudo.
+No necesitas pagar por adelantado.
 
-Puedes retomar la compra desde el botón. Pagas cuando la recibas.`,
-en: `I saw you left this in your cart 😊
+Toca Retomar compra para revisar el total y terminar. Si tienes una duda antes de decidirte, escríbeme.`,
+en: `You can order what you chose and pay when it arrives 😊
 {{1}}
 
-Did you have a question before buying? Tell me what you'd like to know and I'll help.
+There's no upfront payment.
 
-You can continue from the button below. You pay when your purchase arrives.` },
-{ key: 'carrito_recordatorio', aliases: ['deuna_carrito_pendiente_2'], fields: ['order_items'],
-es: `¿Todavía te interesa llevar esto?
+Tap Continue shopping to review the total and finish. If you have a question before deciding, message me.` },
+{ key: 'carrito_recordatorio', aliases: ['deuna_carrito_recordatorio_producto_v1','deuna_carrito_pendiente_2'], fields: ['order_items'],
+es: `Te dejo el carrito una última vez para que puedas retomarlo sin empezar de nuevo 😊
 {{1}}
 
-Si hay algo que te hace dudar, cuéntame y lo revisamos 😊
+¿Te frenó una duda sobre el producto o la entrega? Cuéntame cuál y te ayudo a aclararla.
 
-Si ya te decidiste, puedes terminar la compra desde el botón y pagar al recibir.`,
-en: `Are you still interested in these items?
+Si ya te decidiste, toca Ver mi carrito. Pagas al recibir.`,
+en: `Here's one last reminder so you can pick up where you left off 😊
 {{1}}
 
-If something is making you hesitate, tell me and we'll go through it 😊
+Did a question about the product or delivery hold you back? Tell me what it is and I'll help clarify it.
 
-If you've decided, you can finish from the button below and pay on delivery.` },
+If you've decided, tap View my cart. You pay on delivery.` },
 { key: 'despachado', aliases: ['deuna_pedido_despachado','deuna_pedido_despachado_v2','riverz_pedido_en_camino'], fields: ['order_items','tracking_number'],
 es: `¡Ya enviamos tu compra! 🚚
 {{1}}
@@ -135,4 +135,5 @@ Remember, you pay on delivery. You don't need to transfer money beforehand.
 
 If you received a payment notice you don't understand, send it to me and we'll check it together.` },
 ];
-export const productTemplateName = (key: string) => `deuna_${key}_producto_v1`;
+const contextualKeys = new Set(['recordatorio', 'revision', 'carrito', 'carrito_recordatorio']);
+export const productTemplateName = (key: string) => `deuna_${key}_producto_v${contextualKeys.has(key) ? 2 : 1}`;

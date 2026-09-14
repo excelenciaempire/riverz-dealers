@@ -57,6 +57,7 @@ import { resolveWorkspaceOwnerUserId } from '@/lib/workspaces/owner'
 import { assignedTemplateVariant, recordExperimentExposure } from './template-ab-attribution'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireRiverzoficialTemplateItems } from './riverzoficial-template-context'
+import { riverzFlowSkipReason } from './riverzoficial-context-gate'
 
 // ------------------------------------------------------------
 // Public API
@@ -584,6 +585,16 @@ interface ExecuteArgs {
 
 async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
   const db = supabaseAdmin()
+  const contextSkip = await riverzFlowSkipReason(db, {
+    workspaceId: args.automation.workspace_id, automationId: args.automation.id,
+    contactId: args.contactId, logId: args.logId,
+    resumed: args.triggerEvent === 'resumed_wait', vars: args.context.vars ??= {},
+  })
+  if (contextSkip) {
+    await appendResults(args.logId, [{ step_id: args.automation.id, step_type: 'condition',
+      status: 'skipped', detail: contextSkip }], 'success', null)
+    return
+  }
 
   // Una corrida que dormía DENTRO de un camino y ya no sabe de cuál: el
   // camino se borró debajo suyo.
