@@ -258,6 +258,9 @@ export default async function RootLayout({
             <Toaster
               position="top-right"
               toastOptions={{
+                classNames: {
+                  description: "!text-muted-foreground",
+                },
                 style: {
                   background: "var(--popover)",
                   border: "1px solid var(--border)",

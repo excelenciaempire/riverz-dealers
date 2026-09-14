@@ -194,7 +194,12 @@ export async function POST(request: Request) {
 
   if (resolvedSteps.length > 0) {
     const err = await insertSteps(automation.id, resolvedSteps)
-    if (err) return serverError(err)
+    if (err) {
+      // A failed save must not leave an empty automation behind on retries.
+      const { error: cleanupError } = await admin.from('automations').delete().eq('id', automation.id)
+      if (cleanupError) console.error('automation create cleanup failed', cleanupError)
+      return serverError(err)
+    }
   }
 
   if (is_active) {

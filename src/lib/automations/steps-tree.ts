@@ -106,7 +106,8 @@ export async function insertSteps(
     branch: 'yes' | 'no' | null,
   ) {
     steps.forEach((s, idx) => {
-      const id = s.id ?? uid()
+      // Template previews have no persisted id (older clients send "").
+      const id = s.id || uid()
       rows.push({
         id,
         automation_id: automationId,

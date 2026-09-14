@@ -479,6 +479,14 @@ interface BuilderValidationIssue extends ValidationIssue {
   trigger?: boolean;
 }
 
+function firstBuilderIssue(state: BuilderInitial): BuilderValidationIssue | null {
+  const trigger = validateTriggerForActivation(state.trigger_type, state.trigger_config)[0];
+  if (trigger) return { ...trigger, trigger: true };
+  return state.steps.length === 0
+    ? validateStepsForActivation([])[0] ?? null
+    : firstBuilderStepIssue(state.steps);
+}
+
 /** Validate before compiling the visual switch, preserving its card id. */
 function firstBuilderStepIssue(
   steps: BuilderStep[]
@@ -1423,7 +1431,12 @@ export function AutomationBuilder({
   );
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [invalidCid, setInvalidCid] = useState<string | null>(null);
+  const [validationAttempt, setValidationAttempt] = useState(false);
+  // Validation belongs to an explicit save attempt, never to opening a recipe.
+  const visibleIssue = validationAttempt ? firstBuilderIssue(state) : null;
+  const invalidCid = visibleIssue?.trigger
+    ? '__trigger__'
+    : visibleIssue?.cid ?? null;
   const [focusRequest, setFocusRequest] = useState<{
     cid: string;
     sequence: number;
@@ -1783,23 +1796,12 @@ export function AutomationBuilder({
   }
 
   async function save(): Promise<boolean> {
-    const triggerIssue = validateTriggerForActivation(
-      state.trigger_type,
-      state.trigger_config
-    )[0];
-    const stepIssue =
-      state.steps.length === 0
-        ? validateStepsForActivation([])[0]
-        : firstBuilderStepIssue(state.steps);
-    const firstIssue: BuilderValidationIssue | undefined = triggerIssue
-      ? { ...triggerIssue, trigger: true }
-      : (stepIssue ?? undefined);
+    const firstIssue = firstBuilderIssue(state);
 
     if (firstIssue) {
       const target = firstIssue.trigger
         ? '__trigger__'
         : (firstIssue.cid ?? null);
-      setInvalidCid(target);
       if (target) {
         if (target !== '__trigger__') setExpandedId(target);
         setFocusRequest((previous) => ({
@@ -1807,16 +1809,11 @@ export function AutomationBuilder({
           sequence: (previous?.sequence ?? 0) + 1,
         }));
       }
-      toast.error(
-        firstIssue.key ? t(firstIssue.key) : firstIssue.message,
-        target
-          ? { description: t('automations.fixHighlightedStep') }
-          : undefined
-      );
+      setValidationAttempt(true);
       return false;
     }
 
-    setInvalidCid(null);
+    setValidationAttempt(false);
     setSaving(true);
     try {
       const payload = {
@@ -1856,9 +1853,7 @@ export function AutomationBuilder({
         if (firstIssue?.message) {
           // En su idioma. El `message` está en inglés y escrito para quien
           // programó el validador: «active automations need at least one step».
-          toast.error(firstIssue.key ? t(firstIssue.key) : firstIssue.message, {
-            description: firstIssue.path ? `en ${firstIssue.path}` : undefined,
-          });
+          toast.error(firstIssue.key ? t(firstIssue.key) : firstIssue.message);
         } else {
           toast.error(body?.error ?? t('automations.saveFailed'));
         }
@@ -1878,6 +1873,9 @@ export function AutomationBuilder({
         router.replace(`/automatizaciones/${body.automation.id}/editar`);
       }
       return true;
+    } catch {
+      toast.error(t('automations.saveFailed'));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -2116,6 +2114,13 @@ export function AutomationBuilder({
                                   </div>
                                 )}
 
+                                {visibleIssue && (
+                                  <div role="alert" className="text-foreground flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm">
+                                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                    {visibleIssue.key ? t(visibleIssue.key) : visibleIssue.message}
+                                  </div>
+                                )}
+
                                 {/* Only surface the channel as a warning when there's NO connected
           WhatsApp — automations can only send through it. When one IS
           connected we don't restate the obvious. There's no audience field:
@@ -2235,7 +2240,7 @@ function TriggerCard({
         className={cn(
           'border-border bg-card rounded-lg border border-l-4 shadow-lg',
           invalid &&
-            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
+            'outline outline-1 outline-amber-500/70',
           type.startsWith('shopify_')
             ? 'border-l-emerald-500'
             : 'border-l-blue-500'
@@ -2690,7 +2695,7 @@ function StepRenderer({
           'border-border bg-card relative rounded-lg border border-l-4 shadow-lg transition-opacity',
           meta.border,
           invalid &&
-            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
+            'outline outline-1 outline-amber-500/70',
           // La tarjeta que viaja se atenúa: sin eso parece que sigue en su
           // lugar y no se entiende qué se está moviendo.
           arrastre.arrastrando?.cid === step.cid && 'opacity-40'
@@ -3273,7 +3278,7 @@ function LeafStepCard({
           'border-border bg-card relative rounded-lg border border-l-4 shadow-sm transition-opacity',
           meta.border,
           invalid &&
-            'ring-2 ring-amber-500 ring-offset-2 ring-offset-background',
+            'outline outline-1 outline-amber-500/70',
           arrastre.arrastrando?.cid === step.cid && 'opacity-40'
         )}
       >
@@ -4635,7 +4640,7 @@ export function toApiSteps(steps: BuilderStep[]): ApiStep[] {
       continue;
     }
     out.push({
-      id: s.serverId,
+      id: s.serverId || undefined,
       step_type: s.step_type,
       step_config: s.step_config,
       branches: s.branches
@@ -5010,7 +5015,7 @@ export function fromServerSteps(nodes: StepShape[]): BuilderStep[] {
       cid: cid(),
       // Preserve the persisted id (present on ServerStepNode) so the live
       // "waiting" count can be keyed back to this exact step.
-      serverId: (n as { id?: string }).id,
+      serverId: (n as { id?: string }).id || undefined,
       step_type: n.step_type as BuilderStepType,
       step_config: n.step_config ?? {},
       branches:
