@@ -30,7 +30,8 @@ async function main() {
       const placeholders = [...new Set(body.match(/\{\{\d+\}\}/g) ?? [])];
       if (body.length > 1024 || /\uFFFD/.test(body) || placeholders.join() !== item.fields.map((_,i)=>`{{${i+1}}}`).join() || !item.fields.includes('order_items')) throw new Error(`Invalid reviewed template: ${name}`);
       const fields = Object.fromEntries(item.fields.map((field,i)=>[String(i+1),field]));
-      const old = item.aliases.map(alias=>rows?.find(row=>row.name===alias && row.language==='es')).find(Boolean);
+      const old = item.aliases.map(alias=>rows?.find(row=>row.name===alias && row.language==='es')).find(Boolean)
+        ?? rows?.find(row=>row.name===name && row.language==='es');
       if (!old) throw new Error(`Missing source for ${name}`);
       let current = rows?.find(row=>row.name===name && row.language===language);
       if (current && (current.body_text !== body || JSON.stringify(current.variable_fields) !== JSON.stringify(fields))) {
