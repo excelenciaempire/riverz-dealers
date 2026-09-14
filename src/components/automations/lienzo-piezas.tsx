@@ -182,6 +182,12 @@ export function BranchFan({
   // Only this fan's direct rows share its offsetParent; descendants do not.
   // Dónde arranca cada fila, en píxeles de CSS desde el borde del abanico.
   const [rows, setRows] = useState<number[]>([])
+  const [heights, setHeights] = useState<Record<string, number>>({})
+  // Short exits go above long continuations. Reserving the whole continuation
+  // before drawing an empty exit creates a spine hundreds of pixels tall.
+  // Keys, labels and content move together; execution order is untouched.
+  const orderedLanes = [...lanes].sort((a, b) =>
+    (heights[a.key] ?? 0) - (heights[b.key] ?? 0))
 
   const measure = useCallback(() => {
     const el = wrap.current
@@ -198,6 +204,12 @@ export function BranchFan({
     setRows((prev) =>
       prev.length === tops.length && prev.every((v, i) => same(v, tops[i])) ? prev : tops,
     )
+    const next = Object.fromEntries(
+      [...el.querySelectorAll<HTMLElement>(":scope > [data-lane-content]")]
+        .map(r => [r.dataset.laneContent!, r.offsetHeight]),
+    )
+    setHeights(prev => Object.keys(next).length === Object.keys(prev).length &&
+      Object.entries(next).every(([key, value]) => same(prev[key] ?? -1, value)) ? prev : next)
   }, [])
 
   // Después de cada pintada, no sólo cuando algo cambia de tamaño. Desplegar
@@ -245,7 +257,7 @@ export function BranchFan({
           }}
         />
       )}
-      {lanes.map((lane) => (
+      {orderedLanes.map((lane) => (
         <Fragment key={lane.key}>
           {/* Columna de la etiqueta: el ramal entra por la izquierda, pasa por
               la etiqueta y sigue hasta el primer paso del camino. Mide lo mismo
@@ -274,7 +286,7 @@ export function BranchFan({
               style={{ height: LINE_W }}
             />
           </div>
-          <div className="justify-self-start">{lane.content}</div>
+          <div data-lane-content={lane.key} className="justify-self-start">{lane.content}</div>
         </Fragment>
       ))}
     </div>

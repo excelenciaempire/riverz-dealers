@@ -53,6 +53,23 @@ describe('retention program', () => {
   it('does not assume an unknown quantity is a single unit', () => {
     expect(run(plan.flows[0].steps, 2).map(s => s.day)).toEqual([1, 7, 21])
   })
+  it('shares enrollment and the first week before selecting quantities', () => {
+    const flat: BuilderStepInput[] = []
+    const visit = (nodes: BuilderStepInput[]) => nodes.forEach(node => {
+      flat.push(node)
+      visit(node.branches?.yes ?? [])
+      visit(node.branches?.no ?? [])
+    })
+    visit(plan.flows[0].steps)
+    expect(flat.filter(s => s.step_type === 'add_tag')).toHaveLength(1)
+    for (const name of ['pedido_confirmado', 'acompanamiento']) {
+      expect(flat.filter(s => s.step_type === 'send_template' &&
+        String(s.step_config.template_name).endsWith(`_${name}`))).toHaveLength(1)
+    }
+    expect(flat.findIndex(s => s.step_config.operand === 'retention_units')).toBeGreaterThan(
+      flat.findIndex(s => String(s.step_config.template_name).endsWith('_acompanamiento')),
+    )
+  })
   it('uses confirmed-order enrollment without a manual permission tag, while excluding other products', () => {
     expect(run(plan.flows[0].steps, 1, { product: 'Other' })).toEqual([])
     expect(run(plan.flows[0].steps, 1, { consent: false }).map(s=>s.day)).toEqual([1,7,22,29])

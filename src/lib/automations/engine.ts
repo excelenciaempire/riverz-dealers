@@ -49,6 +49,7 @@ import { recentlyContacted } from '@/lib/outreach/cooldown'
 import { shouldStopRunOnInbound } from './inbound-stop'
 import { nextReminderTime } from './reminder-hours'
 import { retentionProductVars } from './retention-product'
+import { settledLogStatus } from './log-status'
 import { confirmedOrderLogId } from './order-confirmation'
 import { entryContext, matchesEventConfig, resolveEventEntry } from './event-entries'
 import type { ContactSegment } from '@/lib/segments/types'
@@ -334,6 +335,7 @@ export async function resumePendingExecution(pending: {
     .from('automations')
     .select('*')
     .eq('id', pending.automation_id)
+    .eq('workspace_id', pending.workspace_id)
     .single()
 
   if (error || !automation) {
@@ -343,6 +345,16 @@ export async function resumePendingExecution(pending: {
   }
 
   try {
+    // A wait must respect a pause made after enrollment (including voice
+    // callbacks and a cron claim racing with the pause). Keep its cursor/date.
+    if (!automation.is_active || automation.deleted_at ||
+        (automation.activation_state && automation.activation_state !== 'active')) {
+      const { error: releaseError } = await db.from('automation_pending_executions')
+        .update({ status: 'pending' }).eq('id', pending.id)
+        .eq('workspace_id', pending.workspace_id).eq('status', 'running')
+      if (releaseError) throw new Error(releaseError.message)
+      return
+    }
     // Recheck at execution time: a delayed cron may run after the window closed.
     const now = new Date()
     const allowedAt = nextReminderTime(now, automation.trigger_config ?? {})
@@ -773,6 +785,8 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         })
         // Recurse into the chosen branch at position 0 (children use their
         // own ordering within the branch scope).
+        // Persist the decision before its effects, in execution order.
+        await appendResults(args.logId, results.splice(0), null, null)
         await executeStepsFrom({
           ...args,
           parentStepId: step.id,
@@ -1743,9 +1757,19 @@ async function appendResults(
     ...newItems,
   ]
   const update: Record<string, unknown> = { steps_executed: merged }
-  // Only overwrite status on the outermost scope — nested branches pass null.
+  if (merged.some(item => item.status === 'failed')) update.status = 'failed'
+  // A child can be waiting or failed even when its parent finished evaluating.
+  // Never overwrite that outcome with the parent's local success.
   if (status !== null) {
-    update.status = status
+    if (status === 'success') {
+      const { count, error } = await db.from('automation_pending_executions')
+        .select('id', { count: 'exact', head: true }).eq('log_id', logId)
+        .in('status', ['pending', 'running'])
+      update.status = settledLogStatus(merged, error ? 1 : (count ?? 0), existing?.status)
+    } else {
+      update.status = settledLogStatus(merged, status === 'partial' ? 1 : 0,
+        status === 'failed' ? 'failed' : existing?.status)
+    }
   }
   if (errorMessage) update.error_message = errorMessage
   await db.from('automation_logs').update(update).eq('id', logId)
@@ -1779,7 +1803,11 @@ async function finalizeResumedLogIfSettled(logId: string | null): Promise<void> 
     .eq('log_id', logId)
     .in('status', ['pending', 'running'])
   if (!error && (count ?? 0) === 0) {
-    await finalizeLog(logId, 'success', null)
+    const { data: log, error: logError } = await db.from('automation_logs')
+      .select('steps_executed,status').eq('id', logId).single()
+    if (!logError && log && settledLogStatus(log.steps_executed ?? [], 0, log.status) === 'success') {
+      await finalizeLog(logId, 'success', null)
+    }
   }
 }
 

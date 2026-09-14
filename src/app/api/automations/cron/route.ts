@@ -28,7 +28,9 @@ async function cronHandler(request: Request) {
   const admin = supabaseAdmin()
   const { data: due, error } = await admin
     .from('automation_pending_executions')
-    .select('*')
+    .select('*, automations!inner(is_active,deleted_at)')
+    .eq('automations.is_active', true)
+    .is('automations.deleted_at', null)
     .eq('status', 'pending')
     .lte('run_at', new Date().toISOString())
     .order('run_at', { ascending: true })

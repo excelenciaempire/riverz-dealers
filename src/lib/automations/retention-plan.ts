@@ -118,21 +118,22 @@ export function buildRetentionPlan(o: RetentionPlanOptions): {
     if (offer) suffix = [branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [wait(offer.day - 21), commercialGuard([
       step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), commercialGuard([send(last)]),
     ])])]
-    return [tag(o.tags.enrolled), wait(1), guard([send(received, 24), wait(6), guard([
-      send(care, 24), wait(14), guard([send(experience, 168), ...suffix]),
-    ])])]
+    return [wait(14), guard([send(experience, 168), ...suffix])]
   }
   // Experience at day 21 would suppress the day-22 offer through the weekly
   // marketing cap. Single-unit customers receive that check AS their offer.
-  const singlePath = (offer: RetentionOffer): BuilderStepInput[] => [tag(o.tags.enrolled), wait(1), guard([
-    send(received, 24), wait(6), guard([send(care, 24), branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [wait(offer.day - 7), commercialGuard([
+  const singlePath = (offer: RetentionOffer): BuilderStepInput[] => [branch({ subject: 'context_var', operand: 'retention_replenishment', op: 'eq', value: 'true' }, [wait(offer.day - 7), commercialGuard([
       step('set_context', { values: { stop_on_inbound: true } }), send(offers.get(offer.units)!), wait(7), commercialGuard([send(last)]),
-    ])], [wait(14), guard([send(experience)])])]),
-  ])]
+    ])], [wait(14), guard([send(experience)])])]
   let selected: BuilderStepInput[] = mainPath()
   for (const offer of [...o.offers].reverse()) selected = [branch({ subject: 'context_var', operand: 'retention_units', op: 'eq', value: String(offer.units) }, offer.day < 28 ? singlePath(offer) : mainPath(offer), selected)]
+  // Enrollment and the first week are identical for every quantity. Branch
+  // only when the schedule actually differs, keeping waits inside their guards.
+  const shared = [tag(o.tags.enrolled), wait(1), guard([
+    send(received, 24), wait(6), guard([send(care, 24), ...selected]),
+  ])]
   const flows: RetentionFlow[] = [{ key: 'main', name: copy('Recompras', 'Reorders'), trigger_type: 'shopify_order_confirmed',
-    trigger_config: retentionTriggerConfig(o.offers.length > 0, o.product, o.tags.paused), steps: [scope(selected)] }]
+    trigger_config: retentionTriggerConfig(o.offers.length > 0, o.product, o.tags.paused), steps: [scope(shared)] }]
   return { templates: o.offers.length ? templates : templates.filter(t => [received, care, experience].includes(t.nombre)), flows }
 }
 
