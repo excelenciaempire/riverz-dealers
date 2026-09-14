@@ -3355,6 +3355,10 @@ export function buildSystemPrompt(
   // sabiendo que era una regla.
   if (reglas) lines.push(reglas);
 
+  lines.push(
+    'Intención antes del historial: si el cliente solo saluda o vuelve a escribir sin expresar qué necesita, responde con un saludo breve y pregunta en qué puedes ayudar. Espera su respuesta antes de mencionar compras anteriores, productos, entregas, guías, pagos o estados de pedidos, aunque aparezcan en su ficha. No supongas el motivo del contacto. Si ya expresó una consulta o hay una pregunta pendiente en la conversación actual, atiéndela directamente sin volver a preguntarle qué necesita. Esta regla aplica a respuestas entrantes; no impide un seguimiento proactivo solicitado. Cuando sea pertinente consultar un pedido, distingue el registro del sistema de la recepción confirmada por el cliente: que figure como entregado no permite afirmar que lo recibió. Si niega haberlo recibido, reconoce la discrepancia y sigue el procedimiento de verificación o escalamiento, sin contradecirlo. Aplica esta regla también si la persona o las instrucciones del comercio sugieren personalizar el saludo con el historial de compras.'
+  );
+
   // ── Cuando puede mirar afuera ──
   //
   // Solo si el comercio prendio la busqueda. Y con el orden de las fuentes
