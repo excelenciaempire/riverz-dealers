@@ -691,3 +691,25 @@ larga es **Lexical**. Al automatizarlo:
   automática: revisan la ficha y prueban la app.
 - **Saldo de IA.** Si un revisor prueba el asistente con la cuenta sin
   saldo, no responde. Revisar antes de que llamen.
+
+## 10. Evidencia actualizada enviada al ticket (2026-09-13)
+
+Se respondió desde `riverzoficial@gmail.com` al ticket oficial
+**#7973300** con el video `Riverz-CRM-Tiendanube-evidencia-2026-09-13.mp4`
+(42 segundos, 1920 × 1080). Gmail confirmó el envío y el adjunto quedó
+incluido en el hilo.
+
+El video reúne las pruebas reales disponibles:
+
+1. Consulta de producto respondida por IA y recibida en el WhatsApp de
+   prueba autorizado.
+2. Campaña de demostración entregada al mismo contacto.
+3. Recuperación de carrito de prueba entregada al número administrador y
+   marcada como leída.
+4. Pedido Tiendanube de prueba **#116**, creado y después cancelado sin
+   cobro ni despacho.
+
+El mensaje enviado aclara que la recuperación fue una ejecución controlada
+de la plantilla y no presenta esa prueba como un abandono automático. La
+solicitud continúa **En aprobación**, a la espera de respuesta del equipo de
+Tiendanube.
