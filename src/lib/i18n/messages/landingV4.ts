@@ -65,6 +65,7 @@ export const landingV4 = {
   navCapabilities: { es: 'Qué hace', en: 'What it does' },
   navOperator: { es: 'Operator', en: 'Operator' },
   navChannels: { es: 'Canales', en: 'Channels' },
+  navPricing: { es: 'Precios', en: 'Pricing' },
   navCta: { es: 'Solicitar acceso', en: 'Request access' },
   skipToContent: { es: 'Ir al contenido', en: 'Skip to content' },
 
@@ -380,6 +381,73 @@ export const landingV4 = {
   channelsInboxes: { es: 'Bandejas', en: 'Inboxes' },
   channelsStores: { es: 'Tiendas y logística', en: 'Stores and logistics' },
   channelsCalls: { es: 'Llamadas', en: 'Calls' },
+
+  // ── Precios ──
+  pricingLabel: { es: 'Precios', en: 'Pricing' },
+  pricingTitleLead: { es: 'Todo Riverz.', en: 'All of Riverz.' },
+  pricingTitleMuted: { es: 'Un precio simple.', en: 'One simple price.' },
+  pricingVolumeLabel: {
+    es: 'Clientes atendidos al mes',
+    en: 'Customers served per month',
+  },
+  pricingUpToCustomers: {
+    es: 'Hasta {count} clientes atendidos al mes',
+    en: 'Up to {count} customers served per month',
+  },
+  pricingCustomVolume: {
+    es: 'Más de 10.000 clientes atendidos al mes',
+    en: 'More than 10,000 customers served per month',
+  },
+  pricingTierMore: { es: '10k+', en: '10k+' },
+  pricingTermLabel: { es: 'Duración del paquete', en: 'Package term' },
+  pricingSixMonths: { es: '6 meses · 1 incluido', en: '6 months · 1 included' },
+  pricingThreeMonths: { es: '3 meses', en: '3 months' },
+  pricingPerMonth: { es: 'al mes', en: 'per month' },
+  pricingBilledSix: {
+    es: '{total} por 6 meses. Pagas 5.',
+    en: '{total} for 6 months. Pay for 5.',
+  },
+  pricingBilledThree: {
+    es: '{total} por 3 meses.',
+    en: '{total} for 3 months.',
+  },
+  pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
+  pricingCta: { es: 'Solicitar instalación', en: 'Request setup' },
+  pricingShowDetails: { es: 'Ver lo incluido', en: "See what's included" },
+  pricingHideDetails: { es: 'Ocultar detalles', en: 'Hide details' },
+  pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
+  pricingIncludedAgents: {
+    es: 'Todos los agentes y consumo de IA',
+    en: 'All agents and AI usage',
+  },
+  pricingIncludedSales: {
+    es: 'Ventas, recuperación, soporte y postventa',
+    en: 'Sales, recovery, support, and post-purchase',
+  },
+  pricingIncludedChannels: {
+    es: 'Canales, comentarios, chat web y voz',
+    en: 'Channels, comments, web chat, and voice',
+  },
+  pricingIncludedOperator: {
+    es: 'Operator, automatizaciones y aprobaciones',
+    en: 'Operator, automations, and approvals',
+  },
+  pricingIncludedIntegrations: {
+    es: 'Integraciones con tienda, pagos y logística',
+    en: 'Store, payment, and logistics integrations',
+  },
+  pricingIncludedResults: {
+    es: 'Resultados y ventas atribuidas',
+    en: 'Results and attributed sales',
+  },
+  pricingDetailsNote: {
+    es: 'Cada cliente cuenta una sola vez al mes. Los cargos externos de mensajería y llamadas se facturan por separado.',
+    en: 'Each customer counts once per month. External messaging and call charges are billed separately.',
+  },
+  pricingGrowthNote: {
+    es: 'Si vendes más con el mismo volumen, pagas lo mismo.',
+    en: 'If you sell more at the same volume, you pay the same.',
+  },
 
   // ── Confianza ──
   // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es

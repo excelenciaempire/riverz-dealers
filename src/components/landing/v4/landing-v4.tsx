@@ -14,6 +14,7 @@ import { Scene } from "./scene";
 import { Cards } from "./cards";
 import { Oferta } from "./oferta";
 import { Operator } from "./operator";
+import { Pricing } from "./pricing";
 import "./editorial.css";
 
 /**
@@ -87,6 +88,7 @@ export function LandingV4() {
         <Scene />
         <Capabilities />
         <Channels />
+        <Pricing />
         <Confianza />
         <Cta />
       </main>
@@ -123,6 +125,9 @@ function Nav() {
           </a>
           <a href="#capacidades" className="transition-opacity hover:opacity-60">
             {t("landingV4.navCapabilities")}
+          </a>
+          <a href="#precios" className="transition-opacity hover:opacity-60">
+            {t("landingV4.navPricing")}
           </a>
         </div>
 
