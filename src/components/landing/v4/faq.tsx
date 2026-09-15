@@ -6,6 +6,7 @@ import { Rise } from "./bits";
 
 const QUESTIONS = [
   ["faqIncludedQuestion", "faqIncludedAnswer"],
+  ["faqWhyQuestion", "faqWhyAnswer"],
   ["faqCountingQuestion", "faqCountingAnswer"],
   ["faqGrowthQuestion", "faqGrowthAnswer"],
   ["faqTeamQuestion", "faqTeamAnswer"],

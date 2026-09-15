@@ -462,6 +462,11 @@ export const landingV4 = {
     es: 'Todos los planes tienen acceso a los agentes de ventas, recuperación, soporte y postventa; canales conectados, automatizaciones, aprobaciones, integraciones y resultados atribuidos. El consumo de IA está incluido. Solo se cobran por separado los servicios externos de mensajería y telefonía.',
     en: 'Every plan includes sales, recovery, support, and post-purchase agents; connected channels, automations, approvals, integrations, and attributed results. AI usage is included. Only external messaging and telephony services are billed separately.',
   },
+  faqWhyQuestion: { es: '¿Por qué Riverz y no otro software?', en: 'Why Riverz instead of another software?' },
+  faqWhyAnswer: {
+    es: 'Riverz no se queda en responder mensajes: conecta ventas, recuperación, soporte y postventa en una misma operación. Mantienes el contexto entre canales, defines qué puede hacer la IA y qué debe aprobar una persona, y ves pedidos e ingresos atribuidos a cada flujo.',
+    en: 'Riverz does more than answer messages: it connects sales, recovery, support, and post-purchase work in one operation. You keep context across channels, define what AI can do and what needs human approval, and see orders and revenue attributed to each flow.',
+  },
   faqCountingQuestion: { es: '¿Qué significa “contactos atendidos al mes”?', en: 'What does “contacts served per month” mean?' },
   faqCountingAnswer: {
     es: 'Es el número de personas únicas que conversan con Riverz durante el mes. Por ejemplo: el primer rango cubre hasta 500 contactos únicos; el siguiente, hasta 2.000. Si una persona escribe varias veces, sigue contando una sola vez.',
