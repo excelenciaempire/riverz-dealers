@@ -11,6 +11,9 @@ const QUESTIONS = [
   ["faqGrowthQuestion", "faqGrowthAnswer"],
   ["faqTeamQuestion", "faqTeamAnswer"],
   ["faqMistakesQuestion", "faqMistakesAnswer"],
+  ["faqChangeQuestion", "faqChangeAnswer"],
+  ["faqControlQuestion", "faqControlAnswer"],
+  ["faqMeasureQuestion", "faqMeasureAnswer"],
   ["faqCallsQuestion", "faqCallsAnswer"],
 ] as const;
 

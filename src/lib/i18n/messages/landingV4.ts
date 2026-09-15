@@ -487,6 +487,21 @@ export const landingV4 = {
     es: 'El agente trabaja con el conocimiento y las reglas que apruebas. Los casos que requieren una decisión, excepción o revisión pueden pasar a una persona mediante los flujos de aprobación y traspaso; Riverz no promete respuestas perfectas ni ventas garantizadas.',
     en: 'The agent works from the knowledge and rules you approve. Cases that require a decision, exception, or review can go to a person through approval and handoff flows; Riverz does not promise perfect answers or guaranteed sales.',
   },
+  faqChangeQuestion: { es: '¿Tengo que cambiar mi tienda o mis sistemas?', en: 'Do I have to replace my store or systems?' },
+  faqChangeAnswer: {
+    es: 'No. Riverz se conecta con los canales, la tienda, los pagos y la logística que ya usas. Revisamos tu operación y activamos los flujos que tengan sentido, sin obligarte a reemplazar tu sistema actual.',
+    en: 'No. Riverz connects with the channels, store, payments, and logistics you already use. We review your operation and activate the workflows that make sense without forcing you to replace your current system.',
+  },
+  faqControlQuestion: { es: '¿Quién controla mis cuentas y permisos?', en: 'Who controls my accounts and permissions?' },
+  faqControlAnswer: {
+    es: 'Tu negocio conserva sus cuentas. La conexión se hace mediante las APIs oficiales de Meta y tú decides qué permisos otorgar, qué acciones requieren aprobación y quién puede acceder desde tu equipo.',
+    en: 'Your business keeps its accounts. The connection uses Meta’s official APIs, and you decide which permissions to grant, which actions require approval, and who on your team can access them.',
+  },
+  faqMeasureQuestion: { es: '¿Cómo sé si Riverz está funcionando?', en: 'How do I know Riverz is working?' },
+  faqMeasureAnswer: {
+    es: 'Puedes revisar conversaciones resueltas, pedidos y ventas atribuidas a cada flujo cuando la fuente está conectada. La calculadora muestra un escenario posible; el resultado real depende de tu operación y no está garantizado.',
+    en: 'You can review resolved conversations, orders, and sales attributed to each workflow when the source is connected. The calculator shows a possible scenario; actual results depend on your operation and are not guaranteed.',
+  },
   faqCallsQuestion: { es: '¿Las llamadas están incluidas?', en: 'Are calls included?' },
   faqCallsAnswer: {
     es: 'El agente de voz está disponible en todos los planes. El número, las llamadas y otros cargos de telefonía dependen del país y de los minutos usados, por eso se muestran por separado y puedes controlarlos con límites de uso.',
