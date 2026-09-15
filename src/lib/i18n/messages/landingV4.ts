@@ -399,18 +399,7 @@ export const landingV4 = {
     en: 'More than 10,000 customers served per month',
   },
   pricingTierMore: { es: '10k+', en: '10k+' },
-  pricingTermLabel: { es: 'Duración del paquete', en: 'Package term' },
-  pricingSixMonths: { es: '6 meses · 1 incluido', en: '6 months · 1 included' },
-  pricingThreeMonths: { es: '3 meses', en: '3 months' },
   pricingPerMonth: { es: 'al mes', en: 'per month' },
-  pricingBilledSix: {
-    es: '{total} por 6 meses. Pagas 5.',
-    en: '{total} for 6 months. Pay for 5.',
-  },
-  pricingBilledThree: {
-    es: '{total} por 3 meses.',
-    en: '{total} for 3 months.',
-  },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
   pricingCta: { es: 'Solicitar instalación', en: 'Request setup' },
   pricingShowDetails: { es: 'Ver lo incluido', en: "See what's included" },

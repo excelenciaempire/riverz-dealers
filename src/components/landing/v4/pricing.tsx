@@ -7,11 +7,11 @@ import { useT } from '@/hooks/use-locale';
 import { Label, Rise } from './bits';
 
 const TIERS = [
-  { customers: 500, monthly: 399, sixMonths: 1995 },
-  { customers: 2_000, monthly: 999, sixMonths: 4995 },
-  { customers: 5_000, monthly: 1999, sixMonths: 9995 },
-  { customers: 10_000, monthly: 3499, sixMonths: 17_495 },
-  { customers: null, monthly: null, sixMonths: null },
+  { customers: 500, monthly: 399 },
+  { customers: 2_000, monthly: 999 },
+  { customers: 5_000, monthly: 1999 },
+  { customers: 10_000, monthly: 3499 },
+  { customers: null, monthly: null },
 ] as const;
 
 const INCLUDED = [
@@ -23,23 +23,13 @@ const INCLUDED = [
   'pricingIncludedResults',
 ] as const;
 
-type Term = 3 | 6;
-
 export function Pricing() {
   const t = useT();
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(1);
-  const [term, setTerm] = useState<Term>(6);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const tier = TIERS[tierIndex];
   const progress = (tierIndex / (TIERS.length - 1)) * 100;
-  const total =
-    tier.monthly === null
-      ? null
-      : term === 6
-        ? tier.sixMonths
-        : tier.monthly * term;
-  const monthlyEquivalent = total === null ? null : Math.round(total / term);
   const customerLabel =
     tier.customers === null
       ? t('landingV4.pricingCustomVolume')
@@ -65,15 +55,7 @@ export function Pricing() {
 
         <Rise delay={90} className="mt-10 lg:mt-14">
           <div className="sn-card mx-auto max-w-5xl px-5 py-8 sm:px-10 sm:py-10 lg:px-14 lg:py-12">
-            <div
-              aria-hidden
-              className="mx-auto flex size-16 items-center justify-center rounded-2xl text-[28px] font-semibold tracking-[-0.08em] sm:size-20 sm:text-[34px]"
-              style={{ background: 'var(--sn-accent)', color: 'var(--sn-ink)' }}
-            >
-              r.
-            </div>
-
-            <div className="mx-auto mt-8 max-w-3xl sm:mt-10">
+            <div className="mx-auto max-w-3xl">
               <input
                 type="range"
                 min={0}
@@ -103,13 +85,9 @@ export function Pricing() {
                       className={`sn-label min-h-8 px-1 transition-opacity ${
                         index === tierIndex
                           ? 'opacity-100'
-                          : 'opacity-45 hover:opacity-75'
+                          : 'opacity-60 hover:opacity-80'
                       }`}
-                      style={
-                        index === tierIndex
-                          ? { color: 'var(--sn-ink)' }
-                          : undefined
-                      }
+                      style={{ color: 'var(--sn-ink)' }}
                       aria-label={
                         option.customers === null
                           ? t('landingV4.pricingCustomVolume')
@@ -125,56 +103,19 @@ export function Pricing() {
               </div>
             </div>
 
-            <div
-              className="mx-auto mt-7 inline-flex rounded-full p-1"
-              role="group"
-              aria-label={t('landingV4.pricingTermLabel')}
-              style={{ background: 'var(--sn-sand)' }}
-            >
-              {([6, 3] as const).map((months) => (
-                <button
-                  key={months}
-                  type="button"
-                  onClick={() => setTerm(months)}
-                  aria-pressed={term === months}
-                  className="rounded-full px-4 py-2 text-[13px] font-medium transition-colors sm:px-5"
-                  style={
-                    term === months
-                      ? { background: 'var(--sn-ink)', color: 'var(--sn-card)' }
-                      : { color: 'var(--sn-muted)' }
-                  }
-                >
-                  {months === 6
-                    ? t('landingV4.pricingSixMonths')
-                    : t('landingV4.pricingThreeMonths')}
-                </button>
-              ))}
-            </div>
-
             <p className="sn-label mt-8">{customerLabel}</p>
 
-            {monthlyEquivalent === null || total === null ? (
+            {tier.monthly === null ? (
               <p className="sn-h2 mt-3">{t('landingV4.pricingCustomPrice')}</p>
             ) : (
-              <>
-                <div className="mt-2 flex flex-wrap items-end justify-center gap-x-2">
-                  <span className="font-[family-name:var(--font-editorial)] text-[56px] leading-none tracking-[-0.04em] sm:text-[76px]">
-                    {fmt.money(monthlyEquivalent, 'USD')}
-                  </span>
-                  <span className="mb-1.5 text-[15px] text-[var(--sn-muted)] sm:mb-2">
-                    {t('landingV4.pricingPerMonth')}
-                  </span>
-                </div>
-                <p className="mt-3 text-[14px] text-[var(--sn-muted)]">
-                  {term === 6
-                    ? t('landingV4.pricingBilledSix', {
-                        total: fmt.money(total, 'USD'),
-                      })
-                    : t('landingV4.pricingBilledThree', {
-                        total: fmt.money(total, 'USD'),
-                      })}
-                </p>
-              </>
+              <div className="mt-2 flex flex-wrap items-end justify-center gap-x-2">
+                <span className="font-[family-name:var(--font-editorial)] text-[56px] leading-none tracking-[-0.04em] sm:text-[76px]">
+                  {fmt.money(tier.monthly, 'USD')}
+                </span>
+                <span className="mb-1.5 text-[15px] text-[var(--sn-muted)] sm:mb-2">
+                  {t('landingV4.pricingPerMonth')}
+                </span>
+              </div>
             )}
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
