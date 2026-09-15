@@ -166,6 +166,12 @@
     var(--sn-sand-2);
 }
 
+.sn-pricing-shell .sn-label {
+  color: var(--sn-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .sn-pricing-range {
   width: 100%;
   height: 4px;

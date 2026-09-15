@@ -433,11 +433,6 @@ export const landingV4 = {
     es: 'Cada cliente cuenta una sola vez al mes. Los cargos externos de mensajería y llamadas se facturan por separado.',
     en: 'Each customer counts once per month. External messaging and call charges are billed separately.',
   },
-  pricingGrowthNote: {
-    es: 'Si vendes más con el mismo volumen, pagas lo mismo.',
-    en: 'If you sell more at the same volume, you pay the same.',
-  },
-
   // ── Confianza ──
   // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es
   // un programa cerrado con su propio directorio y su propia insignia, y usar

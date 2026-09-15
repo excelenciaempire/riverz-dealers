@@ -47,7 +47,7 @@ export function Pricing() {
           <Label>{t('landingV4.pricingLabel')}</Label>
           <h2 className="sn-display mx-auto mt-5 max-w-[14ch]">
             {t('landingV4.pricingTitleLead')}{' '}
-            <span style={{ color: 'var(--sn-muted)' }}>
+            <span style={{ color: 'var(--sn-ink-2)' }}>
               {t('landingV4.pricingTitleMuted')}
             </span>
           </h2>
@@ -82,12 +82,10 @@ export function Pricing() {
                       key={option.customers ?? 'custom'}
                       type="button"
                       onClick={() => setTierIndex(index)}
-                      className={`sn-label min-h-8 px-1 transition-opacity ${
-                        index === tierIndex
-                          ? 'opacity-100'
-                          : 'opacity-60 hover:opacity-80'
+                      aria-pressed={index === tierIndex}
+                      className={`sn-label min-h-8 px-1 ${
+                        index === tierIndex ? 'underline underline-offset-4' : ''
                       }`}
-                      style={{ color: 'var(--sn-ink)' }}
                       aria-label={
                         option.customers === null
                           ? t('landingV4.pricingCustomVolume')
@@ -112,7 +110,7 @@ export function Pricing() {
                 <span className="font-[family-name:var(--font-editorial)] text-[56px] leading-none tracking-[-0.04em] sm:text-[76px]">
                   {fmt.money(tier.monthly, 'USD')}
                 </span>
-                <span className="mb-1.5 text-[15px] text-[var(--sn-muted)] sm:mb-2">
+                <span className="mb-1.5 text-[15px] text-[var(--sn-ink-2)] sm:mb-2">
                   {t('landingV4.pricingPerMonth')}
                 </span>
               </div>
@@ -157,15 +155,11 @@ export function Pricing() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-muted)]">
+                <p className="mt-6 text-center text-[13px] leading-5 text-[var(--sn-ink-2)]">
                   {t('landingV4.pricingDetailsNote')}
                 </p>
               </div>
             )}
-
-            <p className="mt-8 text-[14px] text-[var(--sn-muted)]">
-              {t('landingV4.pricingGrowthNote')}
-            </p>
           </div>
         </Rise>
       </div>
