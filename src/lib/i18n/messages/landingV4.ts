@@ -140,7 +140,6 @@ export const landingV4 = {
   // («la venta avanzó» no es nada que se pueda ver). Ahora el titular es la
   // comparación directa y la bajada la prueba con lo único que se nota: quién
   // carga el pedido.
-  loopLabel: { es: 'La diferencia', en: 'The difference' },
   loopTitle: {
     es: 'No termina en la respuesta. Sigue hasta el siguiente paso.',
     en: "It doesn't end with a reply. It continues to the next step.",
@@ -240,7 +239,6 @@ export const landingV4 = {
   // uno, el titular de acá mismo, el de «La diferencia» y una viñeta del paso
   // 03. Se fueron los tres: en un teléfono eran media pantalla de texto ya
   // leído.
-  pillarsLabel: { es: 'Por qué importa', en: 'Why it matters' },
   pillarsTitle: {
     es: 'No pierdas la demanda que ya pagaste',
     en: "Don't lose the demand you already paid for",
@@ -251,7 +249,6 @@ export const landingV4 = {
   },
 
   // ── Qué hace (la cuadrícula de fichas) ──
-  capsLabel: { es: 'Qué hace', en: 'What it does' },
   capsTitle: {
     es: 'Una operación de e-commerce que sigue trabajando',
     en: 'An ecommerce operation that keeps working',
@@ -328,7 +325,6 @@ export const landingV4 = {
   compReturned: { es: 'Devuelto', en: 'Returned' },
 
   // ── Operator ──
-  operatorLabel: { es: 'Operator', en: 'Operator' },
   // Este bloque va a todo el ancho y con la mínima cantidad de texto posible:
   // la animación tiene que contar la función sola. Un titular, una línea y el
   // chat. Lo que antes eran tres viñetas ahora lo dice el propio reparto.
@@ -369,7 +365,6 @@ export const landingV4 = {
   },
 
   // ── Canales ──
-  channelsLabel: { es: 'Canales', en: 'Channels' },
   channelsTitle: {
     es: 'Donde ya te escriben tus clientes',
     en: 'Where your customers already write you',
@@ -383,7 +378,6 @@ export const landingV4 = {
   channelsCalls: { es: 'Llamadas', en: 'Calls' },
 
   // ── Precios ──
-  pricingLabel: { es: 'Precios', en: 'Pricing' },
   pricingTitleLead: { es: 'Todo Riverz.', en: 'All of Riverz.' },
   pricingTitleMuted: { es: 'Un precio simple.', en: 'One simple price.' },
   pricingVolumeLabel: {
@@ -439,7 +433,6 @@ export const landingV4 = {
   // el sello sin estar adentro va contra las normas de marca de Meta y pone en
   // riesgo la app. Lo que sí es cierto —y es lo que de verdad tranquiliza— es
   // que la conexión es por la API oficial y que el App Review está aprobado.
-  trustLabel: { es: 'Confianza', en: 'Trust' },
   // Una frase y una descripción. Nada más.
   //
   // Acá hubo primero cuatro bloques de título + párrafo (noventa palabras) y

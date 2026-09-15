@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
-import { Label, Rise } from './bits';
+import { Rise } from './bits';
 
 const TIERS = [
   { customers: 500, monthly: 399 },
@@ -44,8 +44,7 @@ export function Pricing() {
     >
       <div className="mx-auto max-w-6xl text-center">
         <Rise>
-          <Label>{t('landingV4.pricingLabel')}</Label>
-          <h2 className="sn-display mx-auto mt-5 max-w-[14ch]">
+          <h2 className="sn-display mx-auto max-w-[14ch]">
             {t('landingV4.pricingTitleLead')}{' '}
             <span style={{ color: 'var(--sn-ink-2)' }}>
               {t('landingV4.pricingTitleMuted')}
@@ -71,12 +70,13 @@ export function Pricing() {
                 }}
               />
 
-              <div className="mt-3 grid grid-cols-5">
+              <div className="sn-pricing-tiers mt-3 grid grid-cols-5">
                 {TIERS.map((option, index) => {
-                  const label =
-                    option.customers === null
-                      ? t('landingV4.pricingTierMore')
-                      : fmt.number(option.customers, { notation: 'compact' });
+                  const label = option.customers === null
+                    ? t('landingV4.pricingTierMore')
+                    : option.customers < 1_000
+                      ? fmt.number(option.customers)
+                      : `${fmt.number(option.customers / 1_000)}k`;
                   return (
                     <button
                       key={option.customers ?? 'custom'}
@@ -86,6 +86,7 @@ export function Pricing() {
                       className={`sn-label min-h-8 px-1 ${
                         index === tierIndex ? 'underline underline-offset-4' : ''
                       }`}
+                      style={{ textTransform: 'none' }}
                       aria-label={
                         option.customers === null
                           ? t('landingV4.pricingCustomVolume')
@@ -106,11 +107,11 @@ export function Pricing() {
             {tier.monthly === null ? (
               <p className="sn-h2 mt-3">{t('landingV4.pricingCustomPrice')}</p>
             ) : (
-              <div className="mt-2 flex flex-wrap items-end justify-center gap-x-2">
-                <span className="font-[family-name:var(--font-editorial)] text-[56px] leading-none tracking-[-0.04em] sm:text-[76px]">
+              <div className="mt-2 flex flex-col items-center justify-center sm:flex-row sm:items-end sm:gap-x-2">
+                <span className="sn-pricing-amount font-[family-name:var(--font-editorial)] leading-none tracking-[-0.04em]">
                   {fmt.money(tier.monthly, 'USD')}
                 </span>
-                <span className="mb-1.5 text-[15px] text-[var(--sn-ink-2)] sm:mb-2">
+                <span className="mt-1 text-[15px] text-[var(--sn-ink-2)] sm:mb-2 sm:mt-0">
                   {t('landingV4.pricingPerMonth')}
                 </span>
               </div>

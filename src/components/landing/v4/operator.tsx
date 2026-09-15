@@ -121,10 +121,7 @@ export function Operator() {
         <div className="relative mx-auto w-full max-w-6xl px-5 py-20 lg:py-0">
           <div className="grid items-center gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
             <div>
-              <span className="sn-label" style={{ color: "var(--sn-accent)" }}>
-                {t("landingV4.operatorLabel")}
-              </span>
-              <h2 className="sn-h2 mt-5 max-w-[14ch]" style={{ color: "var(--sn-card)" }}>
+              <h2 className="sn-h2 max-w-[14ch]" style={{ color: "var(--sn-card)" }}>
                 {t("landingV4.operatorTitle")}
               </h2>
               <p

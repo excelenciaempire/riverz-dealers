@@ -9,7 +9,7 @@ import {
   MetricsPreview,
   SupportPreview,
 } from "@/components/landing/landing";
-import { Label, Rise } from "./bits";
+import { Rise } from "./bits";
 
 /**
  * Cómo trabaja — el mecanismo, en cinco pasos.
@@ -74,8 +74,7 @@ export function Scene() {
   return (
     <section id="loop" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
       <Rise>
-        <Label>{t("landingV4.loopLabel")}</Label>
-        <div className="mt-4 flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
           <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.loopTitle")}</h2>
           <p className="sn-body max-w-[44ch] !text-[15px]">{t("landingV4.loopLead")}</p>
         </div>

@@ -172,6 +172,18 @@
   font-weight: 600;
 }
 
+.sn-pricing-amount {
+  font-size: clamp(44px, 13vw, 76px);
+  white-space: nowrap;
+}
+
+@media (max-width: 400px) {
+  .sn-pricing-tiers .sn-label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+}
+
 .sn-pricing-range {
   width: 100%;
   height: 4px;

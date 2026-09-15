@@ -292,8 +292,7 @@ function Pillars() {
           className="rounded-[26px] px-6 py-12 backdrop-blur-[2px] sm:px-12 sm:py-16"
           style={{ background: "rgba(250,247,241,0.9)" }}
         >
-          <Label>{t("landingV4.pillarsLabel")}</Label>
-          <h2 className="sn-h2 mt-5 max-w-[16ch]">{t("landingV4.pillarsTitle")}</h2>
+          <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.pillarsTitle")}</h2>
           <p className="sn-lead mt-6 max-w-[44ch]">{t("landingV4.pillarsLead")}</p>
         </div>
       </div>
@@ -308,8 +307,7 @@ function Capabilities() {
   return (
     <section id="capacidades" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
       <Rise>
-        <Label>{t("landingV4.capsLabel")}</Label>
-        <h2 className="sn-h2 mt-5 max-w-[16ch]">{t("landingV4.capsTitle")}</h2>
+        <h2 className="sn-h2 max-w-[16ch]">{t("landingV4.capsTitle")}</h2>
         <p className="sn-body mt-4 max-w-[48ch]">{t("landingV4.capsBody")}</p>
       </Rise>
 
@@ -328,8 +326,7 @@ function Channels() {
     <section id="canales" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-16 lg:py-24">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <Rise>
-          <Label>{t("landingV4.channelsLabel")}</Label>
-          <h2 className="sn-h2 mt-5 max-w-[14ch]">{t("landingV4.channelsTitle")}</h2>
+          <h2 className="sn-h2 max-w-[14ch]">{t("landingV4.channelsTitle")}</h2>
           <p className="sn-body mt-5 max-w-[42ch]">{t("landingV4.channelsBody")}</p>
         </Rise>
 
@@ -471,8 +468,7 @@ function Confianza() {
       <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
         <div className="flex flex-col-reverse items-start gap-10 md:flex-row md:items-center md:justify-between md:gap-14">
           <Rise>
-            <Label>{t("landingV4.trustLabel")}</Label>
-            <h2 className="sn-h2 mt-5 max-w-[15ch]">{t("landingV4.trustTitle")}</h2>
+            <h2 className="sn-h2 max-w-[15ch]">{t("landingV4.trustTitle")}</h2>
             <p className="sn-body mt-5 max-w-[48ch]">{t("landingV4.trustBody")}</p>
             <p className="sn-pill sn-pill-sm mt-7 !bg-[var(--sn-accent)] !text-[var(--sn-ink)]">
               {t("landingV4.trustPill")}

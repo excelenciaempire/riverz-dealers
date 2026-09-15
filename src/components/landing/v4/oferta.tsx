@@ -108,8 +108,7 @@ export function Oferta() {
               <X className="size-4" />
             </button>
 
-            <p className="sn-label">{t("landingV4.launchLabel")}</p>
-            <h2 className="sn-h2 mt-4 max-w-[14ch]">{t("landingV4.launchTitle")}</h2>
+            <h2 className="sn-h2 max-w-[14ch]">{t("landingV4.launchTitle")}</h2>
             <p className="sn-body mt-4 max-w-[46ch] !text-[15px]">{t("landingV4.launchBody")}</p>
 
             {/* La ilustración de la bandeja y no la foto de archivo: acá hay
