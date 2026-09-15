@@ -70,14 +70,14 @@ export function Oferta() {
           </span>
           <span
             className="hidden text-[13px] sm:inline"
-            style={{ color: "rgba(250,247,241,0.72)" }}
+            style={{ color: "rgba(250,247,241,0.82)" }}
           >
             <span aria-hidden>— </span>
             {t("landingV4.bannerText")}
           </span>
           <span
             className="sn-label ml-1 underline underline-offset-4"
-            style={{ color: "rgba(250,247,241,0.55)" }}
+            style={{ color: "rgba(250,247,241,0.82)" }}
           >
             {t("landingV4.bannerVer")}
           </span>

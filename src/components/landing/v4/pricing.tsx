@@ -4,15 +4,9 @@ import { useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { useFormat } from '@/hooks/use-format';
 import { useT } from '@/hooks/use-locale';
+import Link from '@/components/i18n/locale-link';
 import { Rise } from './bits';
-
-const TIERS = [
-  { customers: 500, monthly: 399 },
-  { customers: 2_000, monthly: 999 },
-  { customers: 5_000, monthly: 1999 },
-  { customers: 10_000, monthly: 3499 },
-  { customers: null, monthly: null },
-] as const;
+import { PRICING_TIERS } from './pricing-tiers';
 
 const INCLUDED = [
   'pricingIncludedAgents',
@@ -28,8 +22,8 @@ export function Pricing() {
   const fmt = useFormat();
   const [tierIndex, setTierIndex] = useState(1);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const tier = TIERS[tierIndex];
-  const progress = (tierIndex / (TIERS.length - 1)) * 100;
+  const tier = PRICING_TIERS[tierIndex];
+  const progress = (tierIndex / (PRICING_TIERS.length - 1)) * 100;
   const customerLabel =
     tier.customers === null
       ? t('landingV4.pricingCustomVolume')
@@ -58,7 +52,7 @@ export function Pricing() {
               <input
                 type="range"
                 min={0}
-                max={TIERS.length - 1}
+                max={PRICING_TIERS.length - 1}
                 step={1}
                 value={tierIndex}
                 onChange={(event) => setTierIndex(Number(event.target.value))}
@@ -71,7 +65,7 @@ export function Pricing() {
               />
 
               <div className="sn-pricing-tiers mt-3 grid grid-cols-5">
-                {TIERS.map((option, index) => {
+                {PRICING_TIERS.map((option, index) => {
                   const label = option.customers === null
                     ? t('landingV4.pricingTierMore')
                     : option.customers < 1_000
@@ -135,6 +129,9 @@ export function Pricing() {
                   : t('landingV4.pricingShowDetails')}
               </button>
             </div>
+            <Link href="/calculadora" className="mt-5 inline-block text-[14px] font-medium underline underline-offset-4">
+              {t('landingV4.pricingCalculatorLink')}
+            </Link>
 
             {detailsOpen && (
               <div

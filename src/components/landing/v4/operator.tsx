@@ -126,7 +126,7 @@ export function Operator() {
               </h2>
               <p
                 className="mt-5 max-w-[42ch] text-[16px] leading-relaxed"
-                style={{ color: "rgba(250,247,241,0.6)" }}
+                style={{ color: "rgba(250,247,241,0.82)" }}
               >
                 {t("landingV4.operatorLead")}
               </p>
@@ -228,7 +228,7 @@ export function Operator() {
                           <Check className="size-2.5" style={{ color: "var(--sn-ink)" }} />
                         </span>
                         <span className="min-w-0">
-                          <span className="sn-label" style={{ color: "rgba(250,247,241,0.45)" }}>
+                          <span className="sn-label" style={{ color: "rgba(250,247,241,0.72)" }}>
                             {t(s.who)}
                           </span>
                           <span
@@ -263,7 +263,7 @@ export function Operator() {
                     className="rounded-full px-4 py-2 text-[13px] font-medium"
                     style={{
                       background: aprobado ? "rgba(250,247,241,0.12)" : "var(--sn-accent)",
-                      color: aprobado ? "rgba(250,247,241,0.6)" : "var(--sn-ink)",
+                      color: aprobado ? "rgba(250,247,241,0.82)" : "var(--sn-ink)",
                       boxShadow: aprobado ? "none" : "0 0 34px 2px rgba(247,255,158,0.34)",
                       transition:
                         "background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease",

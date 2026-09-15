@@ -24,7 +24,7 @@
      más cálido que un gris neutro y no ensucia la foto. */
   --sn-ink: #12201f;
   --sn-ink-2: #2a3639;
-  --sn-muted: #59615f;
+  --sn-muted: #3b4745;
 
   /* Acento: el amarillo de riverz. Sobre crema no funciona como
      texto, así que se usa SIEMPRE como relleno con tinta encima;
@@ -175,6 +175,33 @@
 .sn-pricing-amount {
   font-size: clamp(44px, 13vw, 76px);
   white-space: nowrap;
+}
+
+.sn-roi-number {
+  font-size: clamp(48px, 9vw, 72px);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.sn-calculator-plan {
+  padding: 28px 20px 32px;
+}
+
+.sn-calculator-price {
+  font-size: 32px;
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  .sn-calculator-plan {
+    padding: 32px 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sn-calculator-plan {
+    padding-inline: 56px;
+  }
 }
 
 @media (max-width: 400px) {

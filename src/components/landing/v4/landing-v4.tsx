@@ -15,6 +15,7 @@ import { Cards } from "./cards";
 import { Oferta } from "./oferta";
 import { Operator } from "./operator";
 import { Pricing } from "./pricing";
+import { Faq } from "./faq";
 import "./editorial.css";
 
 /**
@@ -88,8 +89,9 @@ export function LandingV4() {
         <Scene />
         <Capabilities />
         <Channels />
-        <Pricing />
         <Confianza />
+        <Pricing />
+        <Faq />
         <Cta />
       </main>
 
@@ -464,7 +466,7 @@ function Sello({ anillo, arriba }: { anillo: string; arriba: string }) {
 function Confianza() {
   const t = useT();
   return (
-    <section id="confianza" className="mx-auto max-w-6xl scroll-mt-24 px-5 pb-16 lg:pb-24">
+    <section id="confianza" className="mx-auto max-w-6xl scroll-mt-24 px-5">
       <div className="sn-card-sand rounded-[26px] px-6 py-12 sm:px-10 lg:px-14 lg:py-16">
         <div className="flex flex-col-reverse items-start gap-10 md:flex-row md:items-center md:justify-between md:gap-14">
           <Rise>
@@ -512,7 +514,7 @@ function Cta() {
             </h2>
             <p
               className="mx-auto mt-5 max-w-[44ch] text-[16px] leading-relaxed"
-              style={{ color: "rgba(250,247,241,0.66)" }}
+              style={{ color: "rgba(250,247,241,0.82)" }}
             >
               {t("landingV4.ctaBody")}
             </p>

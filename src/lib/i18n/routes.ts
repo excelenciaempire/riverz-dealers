@@ -60,6 +60,7 @@ export const ROUTE_SLUGS_EN: Record<string, string> = {
   terminos: "terms",
   "eliminar-datos": "data-deletion",
   soporte: "support",
+  calculadora: "calculator",
 };
 
 /**

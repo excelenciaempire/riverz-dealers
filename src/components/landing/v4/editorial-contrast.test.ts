@@ -18,7 +18,7 @@ const luminance = (hex: string) => {
 describe("editorial secondary text", () => {
   it.each(["sn-paper", "sn-card", "sn-sand", "sn-sand-2"])("keeps readable contrast on %s", (surface) => {
     const contrast = (luminance(color(surface)) + 0.05) / (luminance(color("sn-muted")) + 0.05);
-    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    expect(contrast).toBeGreaterThanOrEqual(7);
   });
   it("uses the same gray inside embedded panels", () => {
     expect(css).toContain("--muted-foreground: var(--sn-muted);");

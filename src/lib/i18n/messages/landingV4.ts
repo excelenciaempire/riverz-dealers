@@ -396,6 +396,7 @@ export const landingV4 = {
   pricingPerMonth: { es: 'al mes', en: 'per month' },
   pricingCustomPrice: { es: 'Hablemos', en: "Let's talk" },
   pricingCta: { es: 'Solicitar instalación', en: 'Request setup' },
+  pricingCalculatorLink: { es: 'Calcular retorno posible', en: 'Estimate potential return' },
   pricingShowDetails: { es: 'Ver lo incluido', en: "See what's included" },
   pricingHideDetails: { es: 'Ocultar detalles', en: 'Hide details' },
   pricingEverythingIncluded: { es: 'Todo incluido', en: 'Everything included' },
@@ -426,6 +427,65 @@ export const landingV4 = {
   pricingDetailsNote: {
     es: 'Cada cliente cuenta una sola vez al mes. Los cargos externos de mensajería y llamadas se facturan por separado.',
     en: 'Each customer counts once per month. External messaging and call charges are billed separately.',
+  },
+  roiTitle: {
+    es: 'Calcula el retorno posible',
+    en: 'Estimate your potential return',
+  },
+  roiMetaTitle: { es: 'Calculadora de ROI de Riverz', en: 'Riverz ROI calculator' },
+  roiMetaDescription: {
+    es: 'Estima el retorno posible de Riverz con tus pedidos, ticket promedio y margen bruto.',
+    en: 'Estimate Riverz’s potential return using your orders, average order value, and gross margin.',
+  },
+  roiPlanLabel: { es: 'Elige el volumen de clientes', en: 'Choose customer volume' },
+  roiBackToPricing: { es: 'Volver a precios', en: 'Back to pricing' },
+  roiOrdersLabel: { es: 'Pedidos actuales al mes', en: 'Current monthly orders' },
+  roiTicketLabel: { es: 'Ticket promedio (US$)', en: 'Average order value (US$)' },
+  roiMarginLabel: { es: 'Margen bruto (%)', en: 'Gross margin (%)' },
+  roiUpliftLabel: { es: 'Aumento hipotético de pedidos (%)', en: 'Hypothetical order increase (%)' },
+  roiCustomPriceLabel: { es: 'Precio mensual acordado (US$)', en: 'Agreed monthly price (US$)' },
+  roiEstimatedReturn: { es: 'ROI posible al mes', en: 'Potential monthly ROI' },
+  roiExtraOrders: { es: 'Pedidos adicionales', en: 'Additional orders' },
+  roiAdditionalMargin: { es: 'Margen adicional', en: 'Additional gross profit' },
+  roiInvestment: { es: 'Precio del plan', en: 'Plan price' },
+  roiBreakEven: {
+    es: '{count} pedidos adicionales al mes cubren el plan.',
+    en: '{count} additional orders per month cover the plan.',
+  },
+  roiNote: {
+    es: 'El aumento de pedidos es una hipótesis ajustable. El cálculo no incluye cargos externos ni ahorro de tiempo y no garantiza resultados.',
+    en: 'The order increase is an adjustable assumption. This estimate excludes external charges and time savings, and does not guarantee results.',
+  },
+  faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
+  faqIncludedQuestion: { es: '¿Qué incluye cada plan?', en: 'What does each plan include?' },
+  faqIncludedAnswer: {
+    es: 'Todos los planes incluyen los agentes, canales, automatizaciones y consumo de IA de Riverz. El precio cambia según los clientes atendidos al mes.',
+    en: 'Every plan includes Riverz agents, channels, automations, and AI usage. Price changes with the number of customers served each month.',
+  },
+  faqCountQuestion: { es: '¿Cómo se cuentan los clientes atendidos?', en: 'How are served customers counted?' },
+  faqCountAnswer: {
+    es: 'Cada cliente atendido cuenta una vez por mes, aunque escriba varias veces.',
+    en: 'Each served customer counts once per month, even if they write multiple times.',
+  },
+  faqGrowthQuestion: { es: '¿Qué pasa si mi tienda crece?', en: 'What happens if my store grows?' },
+  faqGrowthAnswer: {
+    es: 'Revisamos el volumen de clientes atendidos y ajustamos la escala del plan contigo. Los precios regulares están arriba.',
+    en: 'We review the number of customers served and adjust the plan tier with you. Regular prices are shown above.',
+  },
+  faqCallsQuestion: { es: '¿Las llamadas están incluidas?', en: 'Are calls included?' },
+  faqCallsAnswer: {
+    es: 'El agente de voz está disponible en todos los planes. Los cargos del número y la telefonía dependen del país y de los minutos usados; se facturan por separado.',
+    en: 'The voice agent is available on every plan. Number and telephony charges depend on the country and minutes used; they are billed separately.',
+  },
+  faqStartQuestion: { es: '¿Qué necesito para empezar?', en: 'What do I need to get started?' },
+  faqStartAnswer: {
+    es: 'Una tienda y acceso a los canales que quieras conectar. Revisamos tu operación y configuramos contigo el primer flujo.',
+    en: 'A store and access to the channels you want to connect. We review your operation and configure the first workflow with you.',
+  },
+  faqResultsQuestion: { es: '¿Cómo veo los resultados?', en: 'How can I see the results?' },
+  faqResultsAnswer: {
+    es: 'Riverz separa ingresos comprobados, pedidos y ventas influenciadas para que puedas revisar qué ocurrió en tu operación.',
+    en: 'Riverz separates proven revenue, orders, and influenced sales so you can review what happened in your operation.',
   },
   // ── Confianza ──
   // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es
