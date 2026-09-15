@@ -6,11 +6,11 @@ import { Rise } from "./bits";
 
 const QUESTIONS = [
   ["faqIncludedQuestion", "faqIncludedAnswer"],
-  ["faqCountQuestion", "faqCountAnswer"],
+  ["faqCountingQuestion", "faqCountingAnswer"],
   ["faqGrowthQuestion", "faqGrowthAnswer"],
+  ["faqTeamQuestion", "faqTeamAnswer"],
+  ["faqMistakesQuestion", "faqMistakesAnswer"],
   ["faqCallsQuestion", "faqCallsAnswer"],
-  ["faqStartQuestion", "faqStartAnswer"],
-  ["faqResultsQuestion", "faqResultsAnswer"],
 ] as const;
 
 export function Faq() {

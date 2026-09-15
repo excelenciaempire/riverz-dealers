@@ -459,33 +459,33 @@ export const landingV4 = {
   faqTitle: { es: 'Preguntas frecuentes', en: 'Frequently asked questions' },
   faqIncludedQuestion: { es: '¿Qué incluye cada plan?', en: 'What does each plan include?' },
   faqIncludedAnswer: {
-    es: 'Todos los planes incluyen los agentes, canales, automatizaciones y consumo de IA de Riverz. El precio cambia según los clientes atendidos al mes.',
-    en: 'Every plan includes Riverz agents, channels, automations, and AI usage. Price changes with the number of customers served each month.',
+    es: 'Todos los planes tienen acceso a los agentes de ventas, recuperación, soporte y postventa; canales conectados, automatizaciones, aprobaciones, integraciones y resultados atribuidos. El consumo de IA está incluido. Solo se cobran por separado los servicios externos de mensajería y telefonía.',
+    en: 'Every plan includes sales, recovery, support, and post-purchase agents; connected channels, automations, approvals, integrations, and attributed results. AI usage is included. Only external messaging and telephony services are billed separately.',
   },
-  faqCountQuestion: { es: '¿Cómo se cuentan los clientes atendidos?', en: 'How are served customers counted?' },
-  faqCountAnswer: {
-    es: 'Cada cliente atendido cuenta una vez por mes, aunque escriba varias veces.',
-    en: 'Each served customer counts once per month, even if they write multiple times.',
+  faqCountingQuestion: { es: '¿Qué significa “clientes atendidos al mes”?', en: 'What does “customers served per month” mean?' },
+  faqCountingAnswer: {
+    es: 'Es el número de personas únicas que conversan con Riverz durante el mes. Si una persona escribe varias veces, sigue contando una sola vez; así el precio no sube por la cantidad de mensajes de la misma persona.',
+    en: 'It is the number of unique people who converse with Riverz during the month. If someone writes several times, they still count once, so the price does not rise because of message volume from the same person.',
   },
   faqGrowthQuestion: { es: '¿Qué pasa si mi tienda crece?', en: 'What happens if my store grows?' },
   faqGrowthAnswer: {
-    es: 'Revisamos el volumen de clientes atendidos y ajustamos la escala del plan contigo. Los precios regulares están arriba.',
-    en: 'We review the number of customers served and adjust the plan tier with you. Regular prices are shown above.',
+    es: 'Si aumentan tus clientes únicos atendidos, pasas al siguiente rango cuando corresponda. Si vendes más con los mismos clientes atendidos, no pagas más por ese crecimiento; revisamos la escala solo cuando cambia el volumen de atención.',
+    en: 'If the number of unique customers served increases, you move to the next tier when needed. If you sell more to the same customers, you do not pay more for that growth; we adjust the tier only when service volume changes.',
+  },
+  faqTeamQuestion: { es: '¿Riverz reemplaza a mi equipo?', en: 'Does Riverz replace my team?' },
+  faqTeamAnswer: {
+    es: 'Riverz se ocupa de las conversaciones repetitivas y entrega el contexto al equipo cuando hace falta criterio humano. Puedes definir aprobaciones, límites y momentos de traspaso; tu equipo conserva el control de los casos sensibles.',
+    en: 'Riverz handles repetitive conversations and gives your team the context when human judgment is needed. You can define approvals, limits, and handoff moments; your team keeps control of sensitive cases.',
+  },
+  faqMistakesQuestion: { es: '¿Qué pasa si el agente no sabe qué responder?', en: 'What happens when the agent does not know what to say?' },
+  faqMistakesAnswer: {
+    es: 'El agente trabaja con el conocimiento y las reglas que apruebas. Los casos que requieren una decisión, excepción o revisión pueden pasar a una persona mediante los flujos de aprobación y traspaso; Riverz no promete respuestas perfectas ni ventas garantizadas.',
+    en: 'The agent works from the knowledge and rules you approve. Cases that require a decision, exception, or review can go to a person through approval and handoff flows; Riverz does not promise perfect answers or guaranteed sales.',
   },
   faqCallsQuestion: { es: '¿Las llamadas están incluidas?', en: 'Are calls included?' },
   faqCallsAnswer: {
-    es: 'El agente de voz está disponible en todos los planes. Los cargos del número y la telefonía dependen del país y de los minutos usados; se facturan por separado.',
-    en: 'The voice agent is available on every plan. Number and telephony charges depend on the country and minutes used; they are billed separately.',
-  },
-  faqStartQuestion: { es: '¿Qué necesito para empezar?', en: 'What do I need to get started?' },
-  faqStartAnswer: {
-    es: 'Una tienda y acceso a los canales que quieras conectar. Revisamos tu operación y configuramos contigo el primer flujo.',
-    en: 'A store and access to the channels you want to connect. We review your operation and configure the first workflow with you.',
-  },
-  faqResultsQuestion: { es: '¿Cómo veo los resultados?', en: 'How can I see the results?' },
-  faqResultsAnswer: {
-    es: 'Riverz separa ingresos comprobados, pedidos y ventas influenciadas para que puedas revisar qué ocurrió en tu operación.',
-    en: 'Riverz separates proven revenue, orders, and influenced sales so you can review what happened in your operation.',
+    es: 'El agente de voz está disponible en todos los planes. El número, las llamadas y otros cargos de telefonía dependen del país y de los minutos usados, por eso se muestran por separado y puedes controlarlos con límites de uso.',
+    en: 'The voice agent is available on every plan. The number, calls, and other telephony charges depend on the country and minutes used, so they are shown separately and can be controlled with usage limits.',
   },
   // ── Confianza ──
   // Todo lo de acá es verificable. No decimos «Meta Business Partner»: ese es
