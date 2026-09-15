@@ -24,7 +24,7 @@
      más cálido que un gris neutro y no ensucia la foto. */
   --sn-ink: #12201f;
   --sn-ink-2: #2a3639;
-  --sn-muted: #6f7a78;
+  --sn-muted: #59615f;
 
   /* Acento: el amarillo de riverz. Sobre crema no funciona como
      texto, así que se usa SIEMPRE como relleno con tinta encima;
@@ -293,7 +293,7 @@
   --secondary: #f4eddf;
   --secondary-foreground: #12201f;
   --muted: #f1eadd;
-  --muted-foreground: #6f7a78;
+  --muted-foreground: var(--sn-muted);
   --accent: #efe5d0;
   --accent-foreground: #12201f;
   --border: #e5ddcb;
